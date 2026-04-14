@@ -14,8 +14,18 @@ export import charm.system.bringup.win_stub;
 export import charm.system.reactor_pump;
 export import charm.system.rtos;
 
+export import boot_core;
+export import boot_storage;
+export import boot_flash;
+export import boot_flow;
+export import boot_policy;
+export import boot_uart;
+export import boot_xymodem;
+export import boot_session;
+
 export import device.desc;
 export import device.bus;
 export import device.manager;
 export import device.registry;
+export import device.runtime_driver;
 export import device.types;

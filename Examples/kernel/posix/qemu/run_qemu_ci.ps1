@@ -175,5 +175,16 @@ if ($ReportPath -ne "") {
     Set-Content -Encoding utf8 $ReportPath $report
 }
 
-Write-Host "[ok] posix smoke + busybox phase2 smoke"
+$successParts = @()
+if ($RequirePosixSmoke) {
+    $successParts += "posix smoke"
+}
+if ($RequireBusyboxPhase2) {
+    $successParts += "busybox phase2 smoke"
+}
+if ($successParts.Count -eq 0) {
+    $successParts += "qemu run"
+}
+
+Write-Host ("[ok] " + ($successParts -join " + "))
 exit 0

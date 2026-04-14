@@ -311,6 +311,7 @@ export namespace player {
         } weekly_listening_stats{};
         ListeningStatsHistory weekly_listening_history{};
         std::string font_ttf_path{};
+        std::string font_fallback_ttf_path{};
         int font_small_px{0};
         int font_normal_px{0};
         int font_large_px{0};

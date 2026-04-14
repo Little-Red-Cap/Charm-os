@@ -2,6 +2,30 @@
 
 目标：为 USB/TCPIP/FS/Audio/IO 提供统一的设备生命周期与注册表，避免模块孤岛化。
 
+> 注：本页现在只描述 **动态 discovery 平面** 的设备发现模型草案。  
+> 如果你要看 Charm 当前更完整的驱动模型收敛结论，请先读 `docs/architecture/driver_model.md`。
+>
+> 当前还要注意一个边界：`io.registry` / `block.registry` 现在只有最小 `unregister` 能力，
+> 但还没有统一的 `revoke` 与已发放指针失效语义，
+> 因此本页模型更适合描述“发现、匹配、激活”过程，而不宜被误读为
+> “已经具备完整热插拔 capability 导出/回收闭环”。
+>
+> 如果当前 discovered device 需要导出为稳定 capability，
+> 仓库里可以优先参考：
+> `io.channel.slot_export`、`block.device.slot_export`，
+> `device::make_runtime_driver<ContextT>(...)`、
+> `usb::host::SingleDeviceRuntimeBus`、
+> `usb::host::DeviceListRuntimeBus`、
+> `usb::host::RuntimeManager`、
+> `usb::host::MscBlockRuntimeBinding`，
+> `usb::host::CdcChannelRuntimeBinding`，
+> `Examples/system/device_runtime_block_slot_demo`、
+> `Examples/system/device_runtime_channel_slot_demo`、
+> `Examples/usb/usb_host_runtime_block_smoke`、
+> `Examples/usb/usb_host_runtime_channel_smoke`、
+> `Examples/usb/usb_host_runtime_multi_smoke`
+> 这条“稳定槽位 + 内部存活位”路线。
+
 ## 1. 核心概念
 
 ### Device
@@ -77,6 +101,18 @@ register_driver -> probe -> init -> running -> shutdown -> remove
 ### USB
 - USB Device/Host 枚举 -> 生成 `DeviceDesc`
 - CDC/MSC/UAC -> 作为 Driver
+
+当前仓库里，USB Host 侧已经有一条最小正式 glue 可以参考：
+
+- `usb.host.core`：把 host 入口包装成 `device::Bus`
+- `usb.host.runtime`：提供单 discovered device 的最小 runtime bus 骨架
+- `usb::host::DeviceListRuntimeBus`：提供一条 host bus 枚举多个 discovered device 的骨架
+- `usb.host.runtime_manager`：把 host runtime bus、runtime registry 和增量扫描编排收敛为一处
+- `usb.host.runtime_block`：把 host MSC 设备导出到 `block::DeviceSlotExport`
+- `usb.host.runtime_channel`：把 host CDC 设备导出到 `io::ChannelSlotExport`
+- `Examples/usb/usb_host_runtime_block_smoke`：最小跑通样板
+- `Examples/usb/usb_host_runtime_channel_smoke`：最小跑通样板
+- `Examples/usb/usb_host_runtime_multi_smoke`：单 bus 多设备样板
 
 ### FS
 - BlockDevice -> Device

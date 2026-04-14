@@ -701,16 +701,16 @@
                                       bool elevated = false) {
             if (!access.valid() || !handle) return;
             ::ui::scene::PillSurfaceSpec spec{};
-            spec.bg_color = active ? kUiTabActive : kUiTabBg;
-            spec.border_color = active ? kUiTabActive : kUiButtonBorder;
+            spec.bg_color = active ? kUiLibraryChipActive : kUiLibraryChipIdle;
+            spec.border_color = active ? kUiLibraryChipActive : kUiLibraryChipBorder;
             spec.corner_radius = radius;
             if (active || elevated) {
                 spec.shadow.enabled = true;
                 spec.shadow.color = kUiCardShadow;
                 spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = active ? 2 : 3;
-                spec.shadow.spread = active ? 2 : 3;
-                spec.shadow.radius = active ? 10 : 16;
+                spec.shadow.offset_y = active ? 2 : 4;
+                spec.shadow.spread = active ? 2 : 4;
+                spec.shadow.radius = active ? 10 : 18;
             }
             if (active) {
                 spec.inner_stroke_enabled = true;
@@ -729,8 +729,8 @@
             if (handles.list_path_bg) {
                 const bool active = (library_tab != LibraryTab::Songs) || list_shuffle_enabled;
                 const auto patch = ::ui::scene::make_pill_surface_patch({
-                    .bg_color = active ? kUiButtonHover : kUiButtonBg,
-                    .border_color = active ? kUiTabActive : kUiButtonBorder,
+                    .bg_color = active ? kUiLibraryPathActive : kUiLibraryPathIdle,
+                    .border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder,
                     .corner_radius = kLibraryPathRadius,
                 });
                 access.set_style_override(handles.list_path_bg, patch);

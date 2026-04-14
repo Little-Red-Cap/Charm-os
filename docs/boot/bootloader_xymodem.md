@@ -82,6 +82,25 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - 每块数据写入 Flash（或写入临时缓冲）
 - 记录总长度
 
+当前仓库的对应落地点已经分为三层：
+- 协议层：`Modules/io/proto/modem/modem_xymodem.cppm`
+- Bootloader 封装层：`Modules/system/boot/boot_xymodem.cppm`
+- Stage2 会话层：`Modules/system/boot/boot_session.cppm`
+
+其中 `boot_xymodem` 提供：
+- `boot::XyModemFlashConfig`：目标分区、Flash 擦写参数、头帧要求与最大尺寸约束
+- `boot::XyModemFlashState`：已写入字节数、头帧文件名、声明大小、CRC32 与错误标志
+- `boot::XyModemFlashResult`：传输状态与 Bootloader 侧写入结果汇总
+- `boot::XyModemFlashReceiver<MaxBlock>`：把 `modem::XyModem<MaxBlock>` 的回调直接绑定到 `boot::flash_write`
+
+当前实现特性：
+- 支持 YModem 头帧解析并记录文件名/大小
+- 可配置是否要求头帧（`require_header`）
+- 可按头帧声明长度裁剪最后一个块（`trim_to_header_size`）
+- 会在写入过程中累计 payload CRC32，便于后续镜像校验链路复用
+- 以 Bootloader 分区上限和 `max_size` 共同约束下载尺寸
+- `boot_session` 可在传输完成后继续执行目标分区校验，并写入 `BootInfo.pending`
+
 ## 7. 实施建议（最小）
 
 阶段 A：
@@ -92,12 +111,26 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - 支持 SOH 128B
 - 支持 YModem 头帧
 
+## 8. 当前验证方式
+
+- `Examples/io/xymodem_demo`：主机侧构造 YModem 头帧与数据帧，验证握手、文件名、文件大小与逻辑字节数。
+- `Examples/boot/bootloader_demo`：先写入有效 Slot A 镜像，再通过 `boot::XyModemSession` 下载并暂存 Slot B，随后执行：
+  - 传输结果收口
+  - 策略校验
+  - `BootInfo.pending` 写入
+  - 槽位选择
+  - `mark_success`
+  - 缺失头帧失败路径验证
+
+这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> Select -> MarkSuccess`。
+
 ## 9. Charm 落地点建议
 
 - 模块路径：`Modules/io/proto/modem/`
 - 模块名：`io.proto.modem_xymodem`
 - 只实现 XModem-CRC + YModem 头帧解析（最小闭环）
-## 8. 参考常量
+
+## 10. 参考常量
 
 ```
 SOH = 0x01

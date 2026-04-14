@@ -11,10 +11,11 @@
 - ELF buffer/file/candidate loading now delegates through `posix.exec_loader`, leaving `posix.proc` closer to an orchestrator
 - `load_image()` source selection now delegates through `posix.image_resolver`, so `posix.proc` is closer to a pure orchestrator
 - child fd-table setup and file-actions application now delegate through `posix.spawn_fds`, so `posix.proc` keeps less spawn-specific wiring
-- `stat_probe` is back on the mainline smoke and now validates the `fstat(-1) -> EBADF` path together with file-size reporting
+- `stat_probe` is back on the mainline smoke and now validates the `fstat(-1) -> EBADF` path together with `file/pipe/term` minimum mode+size reporting
 - shell smoke now resolves `/bin/*` through `PATH` in actual spawned flows, instead of bypassing it with exact-name registration
 - busybox-style applet entry shapes are now smoke-covered: both `/bin/sh` via `argv[0]` and `busybox sh -c ...` via `argv[1]`
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
+- freestanding C userland now keeps its minimal process/stdio surface in `charm_posix_user_crt.h`, while FS/FD/path/dir-facing contracts expand through the split header `Modules/io/posix/charm_posix_user_fs.h`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
 - process-control slice now includes `kill v0`, `minimal ps`, shell/busybox `kill` applet coverage, and real-ELF `sleep/kill` hostcall coverage: `getpid`, `sleep`, the minimum `kill(SIGTERM/SIGINT/SIGKILL)` contract across proc/api/shell/busybox, and a minimum `ps(pid/state/name)` view are smoke-covered on the current same-address-space model
@@ -28,6 +29,7 @@
 - `waitpid()` consumes the unified final exit result, not the internal exit mechanism
 - `kill()` currently supports `SIGTERM` / `SIGKILL` / `SIGINT`; a killed process now reports `WaitKind::signaled` with the signal number as wait code
 - ELF hostcalls use `ExecContext`; they no longer depend on the old global service/pid slot pair
+- path-bearing real-ELF hostcalls must resolve against the spawned process cwd before touching `file_service_`; the raw exec-loader path remains a separate already-resolved input lane
 
 ### fd / errno contracts validated by smoke
 - `open("/missing.txt") -> -1 && errno == ENOENT`
@@ -52,7 +54,7 @@
 - newlib path-facing probes now also confirm `access("/file/sub", F_OK) -> -1 && errno == ENOTDIR` on the same bad parent-path shape
 - newlib `access()` now also keeps `errno` unchanged on success and rejects invalid mode bits with `EINVAL`
 - `rename("/missing", "/target") -> -1 && errno == ENOENT`, `rename("/file/sub", "/target") -> -1 && errno == ENOTDIR`, and `rename("/source", "/file/sub") -> -1 && errno == ENOTDIR`
-- `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `opendir(file)` fails with `ENOTDIR`, `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, and `readdir()` / `closedir()` on a null, invalid, or already-closed directory handle fail with `EINVAL`
+- `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `opendir(file)` fails with `ENOTDIR`, `opendir()` with the dir-handle pool exhausted fails with `EMFILE`, `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, and `readdir()` / `closedir()` on a null, invalid, or already-closed directory handle fail with `EINVAL`
 - `chdir("/missing") -> -1 && errno == ENOENT`, `chdir("/file") -> -1 && errno == ENOTDIR`, and `chdir("/file/sub") -> -1 && errno == ENOTDIR`
 - newlib `remove()` now also has a pinned minimum path contract: `remove("/missing") -> ENOENT`, `remove("/file/sub") -> ENOTDIR`, and `remove("/nonempty-dir") -> ENOTEMPTY`
 
@@ -76,6 +78,10 @@
 - API smoke now validates `sleep(0/1)`, shell smoke validates `/bin/sleep` through `sh -c 'sleep 2'` with test-clock advancement, and real ELF smoke validates `elfmem:sleep 2`
 - real ELF smoke now also validates `elfmem:kill_self` across `SIGTERM` / `SIGINT` / `SIGKILL`: user code enters, emits `before-kill`, then `waitpid()` reports the selected signal
 - real ELF file-sample smoke now validates `cat_file` across both file-backed input and pipe-backed stdin, while keeping `isatty(stdout)=1`, `isatty(file/pipe)=0`, and `fstat()` on the active input fd stable
+- real ELF file-sample smoke now also validates `write_file` across `open(O_WRONLY|O_CREAT|O_TRUNC) -> write -> close -> reopen-readback`, including host-side visibility of the final file content
+- real ELF file-sample smoke now also validates that `write_file` resolves relative output paths against `SpawnConfig.cwd`, so userland file writes can target the current working directory rather than always falling back to `/`
+- real ELF file-sample smoke now also validates `append_file` across `open(O_WRONLY|O_CREAT|O_APPEND) -> append -> close -> reopen-readback`, including preservation of the seeded prefix and host-side visibility of the final file content
+- real ELF fd-probe smoke now pins a minimum fd-kind matrix across `stdin(term)`, redirected `stdout(pipe)`, and an opened file descriptor via `fstat()` + `isatty()`
 - proc/api smoke now validate the minimum `kill v0` contract across `SIGTERM` / `SIGINT` / `SIGKILL`: kill-on-enter prevents target execution, `waitpid()` reports `signaled`, and API wait status encodes the delivered signal in the low bits
 - shell smoke now validates `sh -c 'ps'`, and the current minimal view exposes `pid/state/name` for the live shell + child process set
 - shell smoke now also validates `sh -c 'kill <pid>'`, `sh -c 'kill -INT <pid>'`, and `sh -c 'kill -KILL <pid>'` through `/bin/kill`, with the target remaining unentered and `waitpid()` still reporting the selected signal
@@ -85,6 +91,9 @@
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
 
 ## Toolchain Notes
+- shared singleton-style module state is safer when it lives in one module object rather than a class-scope `inline static`; `charm.system.clock` now keeps the active time-source binding in module storage so real-ELF hostcalls and test harness code observe the same bound clock under the current GCC `modules-ts` toolchain
+- QEMU smoke RAMFS fixtures should stay proportional to the sample they carry; oversized per-test RAMFS instances can look like a logic hang on the emulated target even when the POSIX path itself is correct
+- `Examples/kernel/posix/qemu/run_qemu_ci.ps1` defaults to the full smoke contract; when validating partial targets such as `posix-qemu-newlib-stdio.elf`, pass `-RequireBusyboxPhase2:$false` so the runner only gates on the POSIX smoke marker
 - GCC `-fmodules-ts` 下的 `net` / `posix` 导入冲突解阻经验已记录到 `docs/system/posix_modules_ts_build_notes.md`
 
 ## Recommended Next Cuts

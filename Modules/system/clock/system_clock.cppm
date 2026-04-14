@@ -66,13 +66,10 @@ export namespace charm::system {
     struct ClockCaps {
         struct TimeSource {
             using Tick = ClockTick;
-            static Tick now() noexcept { return clock_ ? clock_->now_ms() : 0; }
-            static Tick now_us() noexcept { return clock_ ? clock_->now_us() : 0; }
-            static Clock* bound() noexcept { return clock_; }
-            static void bind(Clock& clock_in) noexcept { clock_ = &clock_in; }
-
-        private:
-            inline static Clock* clock_{nullptr};
+            static Tick now() noexcept;
+            static Tick now_us() noexcept;
+            static Clock* bound() noexcept;
+            static void bind(Clock& clock_in) noexcept;
         };
     };
 
@@ -118,4 +115,27 @@ export namespace charm::system {
             return {};
         }
     };
+}
+
+namespace {
+    charm::system::Clock* g_time_source_clock = nullptr;
+}
+
+export namespace charm::system {
+
+    ClockCaps::TimeSource::Tick ClockCaps::TimeSource::now() noexcept {
+        return g_time_source_clock ? g_time_source_clock->now_ms() : 0;
+    }
+
+    ClockCaps::TimeSource::Tick ClockCaps::TimeSource::now_us() noexcept {
+        return g_time_source_clock ? g_time_source_clock->now_us() : 0;
+    }
+
+    Clock* ClockCaps::TimeSource::bound() noexcept {
+        return g_time_source_clock;
+    }
+
+    void ClockCaps::TimeSource::bind(Clock& clock_in) noexcept {
+        g_time_source_clock = &clock_in;
+    }
 }

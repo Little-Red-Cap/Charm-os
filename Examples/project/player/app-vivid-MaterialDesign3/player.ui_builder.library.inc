@@ -36,7 +36,7 @@
         }
 
         h.list_action_card = builder.create_container();
-        anchor_rect(builder, h.list_action_card, {-4096, -4096, 196, 132});
+        anchor_rect(builder, h.list_action_card, {-4096, -4096, 196, 174});
         builder.set_style_class(h.list_action_card, static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard));
         builder.set_hit_testable(h.list_action_card, false);
 
@@ -55,6 +55,11 @@
         anchor_rect(builder, h.list_action_secondary, {12, 82, 172, 34});
         builder.set_style_class(h.list_action_secondary, static_cast<StyleClassId>(PlayerStyleClass::TopBarButton));
         builder.set_label_align(h.list_action_secondary, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+
+        h.list_action_tertiary = builder.create_button_static("");
+        anchor_rect(builder, h.list_action_tertiary, {12, 124, 172, 34});
+        builder.set_style_class(h.list_action_tertiary, static_cast<StyleClassId>(PlayerStyleClass::TopBarButton));
+        builder.set_label_align(h.list_action_tertiary, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
 
         h.nav_bar = {};
         h.nav_home = {};
@@ -277,6 +282,7 @@
         builder.link(h.list_action_card, h.list_action_title);
         builder.link(h.list_action_card, h.list_action_primary);
         builder.link(h.list_action_card, h.list_action_secondary);
+        builder.link(h.list_action_card, h.list_action_tertiary);
 
         build_bottom_chrome(builder, h, layout, icons);
     }

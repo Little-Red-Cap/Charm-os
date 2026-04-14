@@ -165,6 +165,7 @@ export namespace player {
         WidgetHandle list_action_title{};
         WidgetHandle list_action_primary{};
         WidgetHandle list_action_secondary{};
+        WidgetHandle list_action_tertiary{};
         WidgetHandle mode_hint{};
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};

@@ -315,6 +315,8 @@
                             invoke_list_action_primary();
                         } else if (target == handles.list_action_secondary) {
                             invoke_list_action_secondary();
+                        } else if (target == handles.list_action_tertiary) {
+                            invoke_list_action_tertiary();
                         } else if (target == handles.bottom_play) {
                             actions.toggle_play = true;
                         } else if (target == handles.bottom_next) {

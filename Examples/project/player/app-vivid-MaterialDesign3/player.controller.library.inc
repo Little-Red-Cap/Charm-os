@@ -35,7 +35,8 @@
         static constexpr int kTrackDurationUnavailable = -2;
         static constexpr std::uint64_t kListDurationProbeIntervalMs = 120;
         static constexpr int kListActionCardWidth = 196;
-        static constexpr int kListActionCardHeight = 132;
+        static constexpr int kListActionCardHeight = 174;
+        static constexpr int kListActionCardCompactHeight = 132;
 
         struct LibrarySortKey {
             std::string_view primary{};
@@ -260,7 +261,9 @@
             last_list_duration_probe_ms = now_ms;
         }
 
-        std::string_view library_group_title_for_track(int track_index) const noexcept {
+        static std::string_view library_group_title_for_track_in_tab(StorageView storage,
+                                                                     int track_index,
+                                                                     LibraryTab tab) noexcept {
             const auto* tracks = storage.tracks;
             if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
                 return {};
@@ -269,7 +272,7 @@
             const std::string_view stem = library_track_stem(path);
             const std::string_view artist = library_artist_from_stem(stem);
             const std::string_view album = library_parent_folder(path);
-            switch (library_tab) {
+            switch (tab) {
             case LibraryTab::Albums:
                 return library_album_label(album);
             case LibraryTab::Artists:
@@ -278,6 +281,10 @@
             default:
                 return {};
             }
+        }
+
+        std::string_view library_group_title_for_track(int track_index) const noexcept {
+            return library_group_title_for_track_in_tab(storage, track_index, library_tab);
         }
 
         bool library_context_matches_track(int track_index) const noexcept {
@@ -369,6 +376,32 @@
             if (handles.list_action_title) access.set_visible(handles.list_action_title, false);
             if (handles.list_action_primary) access.set_visible(handles.list_action_primary, false);
             if (handles.list_action_secondary) access.set_visible(handles.list_action_secondary, false);
+            if (handles.list_action_tertiary) access.set_visible(handles.list_action_tertiary, false);
+        }
+
+        std::string_view list_action_tertiary_label_for_track(int track_idx) const noexcept {
+            if (track_idx < 0) return {};
+            switch (library_tab) {
+            case LibraryTab::Songs:
+                if (!library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Albums).empty()) {
+                    return "Open album";
+                }
+                if (!library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Artists).empty()) {
+                    return "Open artist";
+                }
+                return {};
+            case LibraryTab::Albums:
+                if (!library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Artists).empty()) {
+                    return "Open artist";
+                }
+                return {};
+            case LibraryTab::Artists:
+                if (!library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Albums).empty()) {
+                    return "Open album";
+                }
+                return {};
+            }
+            return {};
         }
 
         void open_list_action_menu(int list_index) {
@@ -398,6 +431,16 @@
             set_label(handles.list_action_secondary,
                       library_shows_group_rows() ? "Show summary" : "Show path");
 
+            const int track_idx = list_index_to_track(list_index);
+            const auto tertiary_label = library_shows_group_rows()
+                ? std::string_view{}
+                : list_action_tertiary_label_for_track(track_idx);
+            const bool show_tertiary = !tertiary_label.empty();
+            const int card_h = show_tertiary ? kListActionCardHeight : kListActionCardCompactHeight;
+            if (show_tertiary) {
+                set_label(handles.list_action_tertiary, tertiary_label.data());
+            }
+
             int menu_x = kUiPadding;
             int menu_y = kUiPadding;
             if (handles.list) {
@@ -409,7 +452,7 @@
                 const int min_x = list_rect.x + 8;
                 const int max_x = std::max(min_x, list_rect.x + list_rect.w - kListActionCardWidth - 8);
                 const int min_y = list_rect.y + 8;
-                const int max_y = std::max(min_y, list_rect.y + list_rect.h - kListActionCardHeight - 8);
+                const int max_y = std::max(min_y, list_rect.y + list_rect.h - card_h - 8);
                 menu_x = std::clamp(menu_x, min_x, max_x);
                 menu_y = std::clamp(menu_y, min_y, max_y);
             }
@@ -420,12 +463,13 @@
             }
             if (handles.list_action_card) {
                 access.set_rect(handles.list_action_card,
-                                {menu_x, menu_y, kListActionCardWidth, kListActionCardHeight});
+                                {menu_x, menu_y, kListActionCardWidth, card_h});
                 access.set_visible(handles.list_action_card, true);
             }
             if (handles.list_action_title) access.set_visible(handles.list_action_title, true);
             if (handles.list_action_primary) access.set_visible(handles.list_action_primary, true);
             if (handles.list_action_secondary) access.set_visible(handles.list_action_secondary, true);
+            if (handles.list_action_tertiary) access.set_visible(handles.list_action_tertiary, show_tertiary);
         }
 
         void invoke_list_action_primary() {
@@ -468,6 +512,49 @@
             std::snprintf(buf, sizeof(buf), "%.*s",
                           static_cast<int>(path.size()), path.data());
             set_status(buf);
+        }
+
+        void invoke_list_action_tertiary() {
+            const int list_index = list_action_menu_index;
+            close_list_action_menu();
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
+            if (library_shows_group_rows()) return;
+
+            const int track_idx = list_index_to_track(list_index);
+            if (track_idx < 0) return;
+
+            LibraryTab target_tab = library_tab;
+            std::string_view key{};
+            switch (library_tab) {
+            case LibraryTab::Songs:
+                key = library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Albums);
+                if (!key.empty()) {
+                    target_tab = LibraryTab::Albums;
+                    break;
+                }
+                key = library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Artists);
+                if (!key.empty()) {
+                    target_tab = LibraryTab::Artists;
+                }
+                break;
+            case LibraryTab::Albums:
+                key = library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Artists);
+                if (!key.empty()) {
+                    target_tab = LibraryTab::Artists;
+                }
+                break;
+            case LibraryTab::Artists:
+                key = library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Albums);
+                if (!key.empty()) {
+                    target_tab = LibraryTab::Albums;
+                }
+                break;
+            }
+
+            if (key.empty()) return;
+            library_tab = target_tab;
+            library_context_key.assign(key);
+            refresh_list_view();
         }
 
         void activate_list_index(int list_index) {

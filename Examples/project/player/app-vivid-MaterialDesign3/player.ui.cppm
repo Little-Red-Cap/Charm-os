@@ -149,19 +149,19 @@ export namespace player::ui {
     inline constexpr rgba kUiPlayBg = {14, 18, 30, 255};
     inline constexpr rgba kUiPlayShadow = {0, 0, 0, 160};
     inline constexpr rgba kUiCardShadow = {0, 0, 0, 70};
-    inline constexpr rgba kUiLibraryHeroTopStart = {128, 178, 228, 156};
-    inline constexpr rgba kUiLibraryHeroTopEnd = {56, 94, 150, 40};
-    inline constexpr rgba kUiLibraryHeroBottomStart = {18, 44, 84, 88};
-    inline constexpr rgba kUiLibraryHeroBottomEnd = {4, 12, 30, 236};
-    inline constexpr rgba kUiLibraryCardTop = {54, 92, 144, 156};
-    inline constexpr rgba kUiLibraryCardBottom = {12, 20, 42, 238};
-    inline constexpr rgba kUiLibraryCardBorder = {92, 118, 172, 196};
-    inline constexpr rgba kUiLibraryChipIdle = {40, 46, 66, 236};
-    inline constexpr rgba kUiLibraryChipBorder = {82, 94, 130, 210};
-    inline constexpr rgba kUiLibraryChipActive = {88, 110, 158, 255};
-    inline constexpr rgba kUiLibraryPathIdle = {30, 36, 54, 224};
-    inline constexpr rgba kUiLibraryPathActive = {44, 56, 84, 236};
-    inline constexpr rgba kUiLibraryPathBorderActive = {104, 134, 188, 255};
+    inline constexpr rgba kUiLibraryHeroTopStart = {118, 168, 220, 140};
+    inline constexpr rgba kUiLibraryHeroTopEnd = {42, 78, 130, 24};
+    inline constexpr rgba kUiLibraryHeroBottomStart = {14, 34, 68, 92};
+    inline constexpr rgba kUiLibraryHeroBottomEnd = {4, 10, 26, 240};
+    inline constexpr rgba kUiLibraryCardTop = {58, 96, 150, 174};
+    inline constexpr rgba kUiLibraryCardBottom = {10, 18, 40, 242};
+    inline constexpr rgba kUiLibraryCardBorder = {98, 126, 182, 208};
+    inline constexpr rgba kUiLibraryChipIdle = {42, 48, 70, 236};
+    inline constexpr rgba kUiLibraryChipBorder = {90, 102, 142, 220};
+    inline constexpr rgba kUiLibraryChipActive = {95, 118, 171, 255};
+    inline constexpr rgba kUiLibraryPathIdle = {40, 48, 72, 228};
+    inline constexpr rgba kUiLibraryPathActive = {54, 68, 100, 238};
+    inline constexpr rgba kUiLibraryPathBorderActive = {116, 146, 202, 255};
 
     struct PlayerIconIds {
         ::ui::gfx::ImageId prev{};

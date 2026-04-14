@@ -423,6 +423,7 @@ int main(int argc, char** argv) {
     std::optional<player::LibraryTab> library_tab_override{};
     bool ui_ci = false;
     std::string font_ttf_path{};
+    std::string font_fallback_ttf_path{};
     int font_small_px = 0;
     int font_normal_px = 0;
     int font_large_px = 0;
@@ -483,6 +484,8 @@ int main(int argc, char** argv) {
             ui_ci = true;
         } else if (arg.rfind("--font-ttf=", 0) == 0) {
             font_ttf_path.assign(arg.substr(11));
+        } else if (arg.rfind("--font-fallback-ttf=", 0) == 0) {
+            font_fallback_ttf_path.assign(arg.substr(20));
         } else if (arg.rfind("--font-small=", 0) == 0) {
             font_small_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
         } else if (arg.rfind("--font-normal=", 0) == 0) {
@@ -532,6 +535,9 @@ int main(int argc, char** argv) {
         app_cfg.ttf_path = font_ttf_path;
     } else {
         app_cfg.ttf_path = "/font/gflex_variable.ttf";
+    }
+    if (!font_fallback_ttf_path.empty()) {
+        app_cfg.ttf_fallback_path = font_fallback_ttf_path;
     }
     if (font_small_px > 0) {
         app_cfg.ttf_small_px = font_small_px;

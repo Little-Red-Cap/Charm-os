@@ -342,10 +342,12 @@ export namespace player::ui {
         struct FreetypeLoaderState {
             charm::font::FreetypeFontLoader loader{};
             std::string ttf_path{};
+            std::string ttf_fallback_path{};
             std::string ttf_small{};
             std::string ttf_normal{};
             std::string ttf_large{};
             std::string ttf_mono{};
+            std::string ttf_fallback{};
             std::array<ExactFontSlot, 8> exact_fonts{};
             bool ready{false};
         };
@@ -632,6 +634,7 @@ export namespace player::ui {
     }
 
     void bind_player_freetype_font(std::string_view ttf_path,
+                                   std::string_view fallback_ttf_path,
                                    int small_px,
                                    int normal_px,
                                    int large_px) noexcept {
@@ -639,14 +642,20 @@ export namespace player::ui {
         auto& state = detail::freetype_state();
         detail::reset_exact_font_cache(state);
         state.ttf_path.assign(ttf_path.begin(), ttf_path.end());
+        state.ttf_fallback_path.assign(fallback_ttf_path.begin(), fallback_ttf_path.end());
         state.ttf_small = state.ttf_path + "#small";
         state.ttf_normal = state.ttf_path + "#normal";
         state.ttf_large = state.ttf_path + "#large";
         state.ttf_mono = state.ttf_path + "#mono";
+        state.ttf_fallback.clear();
+        if (!state.ttf_fallback_path.empty()) {
+            state.ttf_fallback = state.ttf_fallback_path + "#normal";
+        }
         const char* path_small = state.ttf_small.c_str();
         const char* path_normal = state.ttf_normal.c_str();
         const char* path_large = state.ttf_large.c_str();
         const char* path_mono = state.ttf_mono.c_str();
+        const char* path_fallback = state.ttf_fallback.empty() ? nullptr : state.ttf_fallback.c_str();
 
         charm::font::FontPackageConfig pkg{};
         pkg.regular.small_path = path_small;
@@ -655,7 +664,7 @@ export namespace player::ui {
         pkg.regular.mono_path = path_mono;
         pkg.medium = pkg.regular;
         pkg.bold = pkg.regular;
-        pkg.fallback_path = nullptr;
+        pkg.fallback_path = path_fallback;
 
         charm::font::FreetypeFontLoaderConfig loader_cfg{};
         loader_cfg.regular.small_path = path_small;
@@ -736,12 +745,8 @@ export namespace player::ui {
         set_default_font_weight(FontId::Large, FontWeight::Regular, &font_noto_ascii_16);
         set_default_font_weight(FontId::Mono, FontWeight::Regular, &font_noto_ascii_16);
 
-        if (!font_package_bound()) {
-            if (!player::font_cache::init()) {
-                set_default_fallback_font(&font_noto_sc_16);
-            }
-        } else {
-            // Ensure CJK fallback remains available even when a TTF package is bound.
+        const bool system_fallback_ready = player::font_cache::init();
+        if (!system_fallback_ready) {
             set_default_fallback_font(&font_noto_sc_16);
         }
 

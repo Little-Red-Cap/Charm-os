@@ -28,6 +28,7 @@ import util.error;
 export namespace posix {
     using ssize_t = util::i64;
     inline constexpr util::usize kDirentNameMax = 64;
+    inline constexpr int F_DUPFD = 0;
 
     struct PosixDirent {
         std::array<char, kDirentNameMax> d_name{};
@@ -492,6 +493,27 @@ export namespace posix {
                 return -1;
             }
             return r.value();
+        }
+
+        int fcntl(int fd, int cmd, int arg = 0) noexcept {
+            auto* table = current_fd_table();
+            if (!table) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            switch (cmd) {
+                case F_DUPFD: {
+                    auto r = table->dup(fd, arg);
+                    if (!r) {
+                        set_errno(map_fcntl_dup_errno(r.error()));
+                        return -1;
+                    }
+                    return r.value();
+                }
+                default:
+                    set_errno(EINVAL);
+                    return -1;
+            }
         }
 
         int isatty(int fd) noexcept {
@@ -1050,6 +1072,17 @@ export namespace posix {
                 return EMFILE;
             }
             return map_fd_errno(err);
+        }
+
+        static int map_fcntl_dup_errno(util::Errc err) noexcept {
+            switch (err) {
+                case util::Errc::buffer_overflow:
+                    return EMFILE;
+                case util::Errc::invalid_arg:
+                    return EINVAL;
+                default:
+                    return map_fd_errno(err);
+            }
         }
 
         static int map_pipe_errno(util::Errc err) noexcept {

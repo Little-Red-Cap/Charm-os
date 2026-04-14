@@ -34,6 +34,7 @@ import util.error;
 
 extern "C" int dup(int);
 extern "C" int dup2(int, int);
+extern "C" int fcntl(int, int, ...);
 
 namespace {
 #if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
@@ -917,6 +918,117 @@ namespace {
         posix::user::unbind_runtime();
     }
 
+    void test_api_fcntl_dupfd() noexcept {
+        {
+            fs::clear_mounts();
+            ApiRamFsMount<64, 32, 64> ramfs{};
+            auto mount_st = fs::add_mount("", ramfs.mount_point());
+            check_true("fcntl-mount", mount_st);
+
+            posix::FdTable<4> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<2, 4, 4, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<4, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+
+            int fd = api.open("/fcntl.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("fcntl-open", fd >= 0);
+
+            int dup_fd = api.fcntl(fd, posix::F_DUPFD, 2);
+            check_true("fcntl-call", dup_fd >= 2);
+            check_true("fcntl-new-fd-diff", dup_fd != fd);
+            int dup_fd2 = api.fcntl(fd, posix::F_DUPFD, 2);
+            check_true("fcntl-call-2", dup_fd2 >= 2);
+            check_true("fcntl-new-fd-diff-2", dup_fd2 != fd);
+            check_true("fcntl-new-fd-diff-12", dup_fd2 != dup_fd);
+
+            posix::set_errno(0);
+            check_eq("fcntl-full-rc", api.fcntl(fd, posix::F_DUPFD, 2), -1);
+            check_eq("fcntl-full-errno", posix::get_errno(), posix::EMFILE);
+            posix::set_errno(0);
+            check_eq("fcntl-badarg-rc", api.fcntl(fd, posix::F_DUPFD, -1), -1);
+            check_eq("fcntl-badarg-errno", posix::get_errno(), posix::EINVAL);
+
+            check_eq("fcntl-close-original", api.close(fd), 0);
+            check_eq("fcntl-write-via-copy", api.write(dup_fd, "fc", 2), static_cast<posix::ssize_t>(2));
+            check_eq("fcntl-close-copy", api.close(dup_fd), 0);
+            check_eq("fcntl-close-copy-2", api.close(dup_fd2), 0);
+
+            int verify_fd = api.open("/fcntl.txt", posix::O_RDONLY, 0);
+            check_true("fcntl-verify-open", verify_fd >= 0);
+            std::array<char, 8> buf{};
+            auto r = api.read(verify_fd, buf.data(), buf.size());
+            check_eq("fcntl-verify-read", r, static_cast<posix::ssize_t>(2));
+            check_eq("fcntl-verify-text", std::string_view{buf.data(), 2}, std::string_view{"fc"});
+            check_eq("fcntl-verify-close", api.close(verify_fd), 0);
+
+            posix::set_errno(0);
+            check_eq("fcntl-badfd-rc", api.fcntl(-1, posix::F_DUPFD, 2), -1);
+            check_eq("fcntl-badfd-errno", posix::get_errno(), posix::EBADF);
+        }
+
+        {
+            fs::clear_mounts();
+            ApiRamFsMount<64, 32, 64> ramfs{};
+            auto mount_st = fs::add_mount("", ramfs.mount_point());
+            check_true("fcntl-bridge-mount", mount_st);
+
+            posix::FdTable<4> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<2, 4, 4, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<4, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+            auto runtime = posix::user::make_runtime(api);
+            posix::user::bind_runtime(runtime);
+
+            int fd = api.open("/fcntl-bridge.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("fcntl-bridge-open", fd >= 0);
+
+            int dup_fd = fcntl(fd, posix::F_DUPFD, 2);
+            check_true("fcntl-bridge-call", dup_fd >= 2);
+            check_true("fcntl-bridge-new-fd-diff", dup_fd != fd);
+            int dup_fd2 = fcntl(fd, posix::F_DUPFD, 2);
+            check_true("fcntl-bridge-call-2", dup_fd2 >= 2);
+            check_true("fcntl-bridge-new-fd-diff-2", dup_fd2 != fd);
+            check_true("fcntl-bridge-new-fd-diff-12", dup_fd2 != dup_fd);
+            posix::set_errno(0);
+            check_eq("fcntl-bridge-full-rc", fcntl(fd, posix::F_DUPFD, 2), -1);
+            check_eq("fcntl-bridge-full-errno", posix::get_errno(), posix::EMFILE);
+            posix::set_errno(0);
+            check_eq("fcntl-bridge-badarg-rc", fcntl(fd, posix::F_DUPFD, -1), -1);
+            check_eq("fcntl-bridge-badarg-errno", posix::get_errno(), posix::EINVAL);
+
+            check_eq("fcntl-bridge-close-original", api.close(fd), 0);
+            check_eq("fcntl-bridge-write", api.write(dup_fd, "fb", 2), static_cast<posix::ssize_t>(2));
+            check_eq("fcntl-bridge-close-copy", api.close(dup_fd), 0);
+            check_eq("fcntl-bridge-close-copy-2", api.close(dup_fd2), 0);
+
+            int verify_fd = api.open("/fcntl-bridge.txt", posix::O_RDONLY, 0);
+            check_true("fcntl-bridge-verify-open", verify_fd >= 0);
+            std::array<char, 8> buf{};
+            auto r = api.read(verify_fd, buf.data(), buf.size());
+            check_eq("fcntl-bridge-verify-read", r, static_cast<posix::ssize_t>(2));
+            check_eq("fcntl-bridge-verify-text", std::string_view{buf.data(), 2}, std::string_view{"fb"});
+            check_eq("fcntl-bridge-verify-close", api.close(verify_fd), 0);
+
+            posix::set_errno(0);
+            check_eq("fcntl-bridge-badfd-rc", fcntl(-1, posix::F_DUPFD, 2), -1);
+            check_eq("fcntl-bridge-badfd-errno", posix::get_errno(), posix::EBADF);
+
+            posix::user::unbind_runtime();
+        }
+    }
+
     void test_api_stdio_aliases() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -1205,6 +1317,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_dev_null_and_isatty();
     test_api_dup();
     test_api_dup2_bridge();
+    test_api_fcntl_dupfd();
     test_api_stdio_aliases();
     test_api_cwd_and_spawn();
     test_api_errno_contracts();

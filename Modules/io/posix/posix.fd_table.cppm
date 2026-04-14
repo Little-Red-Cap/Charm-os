@@ -174,11 +174,18 @@ export namespace posix {
         }
 
         util::Result<int> dup(int from) noexcept {
+            return dup(from, 0);
+        }
+
+        util::Result<int> dup(int from, int min_fd) noexcept {
             auto* src = get_ptr(from);
             if (!src) {
                 return util::unexpected(util::Errc::noent);
             }
-            for (util::usize i = 0; i < MaxFds; ++i) {
+            if (min_fd < 0 || static_cast<util::usize>(min_fd) >= MaxFds) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = static_cast<util::usize>(min_fd); i < MaxFds; ++i) {
                 if (used_[i]) continue;
                 if (src->ops && src->ops->dup) {
                     auto rdup = src->ops->dup(src->ctx);

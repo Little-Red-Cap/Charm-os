@@ -26,7 +26,7 @@
 - 提供嵌套绑定栈，支撑父程序内再 `spawn` 子程序的场景。
 - 提供 `ProcessBinding<Api>`，把 `push_process/pop_process` 与 runtime 绑定一起接到 `ProcService::bind_process_runtime_hooks(...)`。
 - 对用户程序暴露最小 facade：
-  - `read/write/open/close/pipe`
+  - `read/write/open/close/dup/dup2/fcntl(F_DUPFD)/pipe`
   - `fstat/isatty/lseek`
   - `spawn/spawnp/waitpid/kill/list_processes/getpid`
   - `sleep`
@@ -113,6 +113,6 @@
 
 ### 当前已落地的最小桥面
 
-- I/O / 进程 / offset：`_read`、`_write`、`_close`、`_open`、`_fstat`、`_stat`、`_isatty`、`_lseek`、`_getpid`、`_kill`
+- I/O / 进程 / offset：`_read`、`_write`、`_close`、`_open`、`_fstat`、`_stat`、`_isatty`、`_lseek`、`_getpid`、`_kill`、`_fcntl(F_DUPFD)`
 - 路径基础：`_unlink`、`_mkdir`、`_rmdir`、`_rename`、`_access`、`chdir/getcwd`
 - `FILE*` 级验证目前保持为独立 QEMU 烟测目标，避免把全局 stdio/newlib 状态耦合进主 POSIX 回归套件。

@@ -225,6 +225,40 @@ extern "C" int dup2(int oldfd, int newfd) {
     return _dup2(oldfd, newfd);
 }
 
+namespace {
+    int fcntl_bridge_call(int fd, int cmd, int arg) noexcept {
+        ErrnoScope guard{};
+        const int r = posix::user::fcntl(fd, cmd, arg);
+        if (r < 0) {
+            return guard.fail_from_runtime();
+        }
+        guard.restore();
+        return r;
+    }
+}
+
+extern "C" int _fcntl(int fd, int cmd, ...) {
+    int arg = 0;
+    if (cmd == F_DUPFD) {
+        va_list args;
+        va_start(args, cmd);
+        arg = va_arg(args, int);
+        va_end(args);
+    }
+    return fcntl_bridge_call(fd, cmd, arg);
+}
+
+extern "C" int fcntl(int fd, int cmd, ...) {
+    int arg = 0;
+    if (cmd == F_DUPFD) {
+        va_list args;
+        va_start(args, cmd);
+        arg = va_arg(args, int);
+        va_end(args);
+    }
+    return fcntl_bridge_call(fd, cmd, arg);
+}
+
 extern "C" int _open(const char* path, int flags, ...) {
     ErrnoScope guard{};
     int mode = 0;

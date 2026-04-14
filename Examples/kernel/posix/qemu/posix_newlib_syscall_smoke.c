@@ -95,6 +95,23 @@ int charm_posix_newlib_dup2_entry(void) {
     return write(1, "newlib-dup2-ok\n", 15) == 15 ? 0 : 176;
 }
 
+int charm_posix_newlib_fcntl_entry(void) {
+    int dup_fd = fcntl(1, F_DUPFD, 3);
+    if (dup_fd < 3) return 181;
+    if (write(dup_fd, "fcntl-", 6) != 6) return 182;
+    if (close(dup_fd) != 0) return 183;
+
+    errno = 0;
+    if (fcntl(-1, F_DUPFD, 3) != -1) return 184;
+    if (errno != EBADF) return 185;
+
+    errno = 0;
+    if (fcntl(1, F_DUPFD, -1) != -1) return 186;
+    if (errno != EINVAL) return 187;
+
+    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 188;
+}
+
 int charm_posix_newlib_kill_self_entry(void) {
     if (write(1, "newlib-kill\n", 12) != 12) return 111;
     (void)kill(getpid(), SIGTERM);

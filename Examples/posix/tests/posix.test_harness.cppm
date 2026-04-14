@@ -44,6 +44,7 @@ extern "C" int charm_posix_c_header_probe_entry(void);
     extern "C" int charm_posix_newlib_syscall_probe_entry(void);
     extern "C" int charm_posix_newlib_dup_entry(void);
     extern "C" int charm_posix_newlib_dup2_entry(void);
+    extern "C" int charm_posix_newlib_fcntl_entry(void);
     extern "C" int charm_posix_newlib_kill_self_entry(void);
     extern "C" int charm_posix_newlib_lseek_entry(void);
 extern "C" int charm_posix_newlib_path_entry(void);
@@ -292,6 +293,10 @@ export namespace posix::testsupport {
 
     int newlib_dup2_main(int, char**, char**) {
         return charm_posix_newlib_dup2_entry();
+    }
+
+    int newlib_fcntl_main(int, char**, char**) {
+        return charm_posix_newlib_fcntl_entry();
     }
 
     int newlib_kill_self_main(int, char**, char**) {

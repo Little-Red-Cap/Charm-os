@@ -206,6 +206,41 @@ namespace {
         check_eq("dup-full-code", rfull.error(), util::Errc::buffer_overflow);
     }
 
+    void test_dup_respects_min_fd() noexcept {
+        posix::FdTable<5> table{};
+        table.init();
+
+        Counter c{};
+        posix::FdOps ops{
+            &dummy_read,
+            &dummy_write,
+            &dummy_close,
+            &dummy_stat,
+            &dummy_dup,
+            nullptr
+        };
+
+        posix::FdEntry e0{};
+        e0.kind = posix::FdKind::file;
+        e0.ops = &ops;
+        e0.ctx = &c;
+        check_true("dupmin-attach-0", table.attach(e0, 0));
+        check_true("dupmin-attach-1", table.attach(e0, 1));
+        check_true("dupmin-attach-3", table.attach(e0, 3));
+
+        auto rdup = table.dup(0, 2);
+        check_true("dupmin-call", rdup);
+        check_eq("dupmin-fd", rdup.value(), 2);
+
+        auto rdup2 = table.dup(0, 4);
+        check_true("dupmin-call-4", rdup2);
+        check_eq("dupmin-fd-4", rdup2.value(), 4);
+
+        auto rbad = table.dup(0, -1);
+        check_true("dupmin-badarg", !rbad);
+        check_eq("dupmin-badarg-code", rbad.error(), util::Errc::invalid_arg);
+    }
+
     void test_attach_errors() noexcept {
         posix::FdTable<2> table{};
         table.init();
@@ -250,6 +285,7 @@ export void run_posix_fd_table_smoke_tests() noexcept {
     test_attach_dup_close();
     test_clone_entry();
     test_dup_allocates_new_fd();
+    test_dup_respects_min_fd();
     test_attach_errors();
     log_line("[posix-smoke] fd_table end ok");
 }

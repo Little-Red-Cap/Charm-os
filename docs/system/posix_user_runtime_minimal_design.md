@@ -98,6 +98,7 @@
 - `_isatty`：TTY 返回 `1`；有效的 non-tty 返回 `0` 且保持 `errno` 不变；无效 fd 返回 `0` 并设置错误。
 - `_fstat`：v0 至少保证类型位与 `size` 稳定；`term -> S_IFCHR`、`pipe -> S_IFIFO`、regular file -> `S_IFREG`。
 - `pipe/fcntl(F_GETFL/F_SETFL)`：当前 v0 pipe 先固定为 eager nonblocking 语义；空管道且仍有 writer 时 `read -> -1/EAGAIN`，满管道且仍有 reader 时 `write -> -1/EAGAIN`，writer 全部关闭后仍保持 `read -> 0`；`O_NONBLOCK` 先作为稳定可观察、dup 共享的状态位，而不是未来阻塞调度语义的承诺。
+- `term/fcntl(F_GETFL/F_SETFL)`：当前 v0 terminal 先只承诺稳定的状态位外观，不承诺真实阻塞调度；`stdin/stdout/stderr` 各自维持独立的 open-file-description 状态，而 `/dev/tty`、`/dev/stderr` 这类 alias 会继承并共享其源 fd 的 `O_NONBLOCK`。
 - `_stat`：当前最小桥面也保证目录路径可稳定返回 `S_IFDIR`；目录 `size` 先统一收敛为 `0`。
 - `_access`：当前最小桥面基于 `stat.mode` 的权限位做路径检查；`F_OK` 检查存在性，`R_OK/W_OK/X_OK` 分别按 `0444/0222/0111` 掩码收敛，不引入 uid/gid/ACL 语义。
 - `_rmdir`：当前最小桥面只删除空目录；对文件路径返回 `ENOTDIR`，对非空目录返回 `ENOTEMPTY`，并明确把“删除目录”从 `unlink` 路径中分离出来。

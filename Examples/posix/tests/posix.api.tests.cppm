@@ -20,6 +20,7 @@ import posix.file;
 import posix.pipe;
 import posix.proc;
 import posix.fd_table;
+import posix.term;
 import posix.user_context;
 import posix.user_runtime;
 import charm.system.clock;
@@ -29,6 +30,7 @@ import fs_errno;
 import fs_ramfs;
 import fs_stream;
 import fs_vfs;
+import io.channel;
 import util.core;
 import util.error;
 
@@ -185,6 +187,23 @@ namespace {
         nullptr,
         nullptr
     };
+
+    struct ChannelStubCtx {
+        util::usize last_write{0};
+    };
+
+    io::result channel_stub_read(void*, io::MutByteView) noexcept {
+        return util::unexpected(util::Errc::would_block);
+    }
+
+    io::result channel_stub_write(void* ctx, io::ByteView buf) noexcept {
+        auto* state = static_cast<ChannelStubCtx*>(ctx);
+        if (!state) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        state->last_write = buf.size();
+        return buf.size();
+    }
 
     using KillApiProcService = posix::ProcService<4, 4, 8, 4>;
     using KillApiType = posix::Api<8, 2, 8, 4, 4, 4>;
@@ -1400,6 +1419,59 @@ namespace {
         check_eq("stdio-alias-stderr-close", api.close(stderr_fd), 0);
     }
 
+    void test_api_term_status_flags() noexcept {
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        ChannelStubCtx channel_ctx{};
+        io::Channel channel{
+            &channel_ctx,
+            io::ChannelOps{
+                &channel_stub_read,
+                &channel_stub_write,
+                nullptr
+            }
+        };
+        posix::TermDevice term{};
+        term.channel = &channel;
+        check_true("termfl-attach", term.attach_stdio(fds));
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+        check_eq("termfl-stdin-init", api.fcntl(0, posix::F_GETFL), posix::O_RDONLY);
+        check_eq("termfl-stdout-init", api.fcntl(1, posix::F_GETFL), posix::O_WRONLY);
+        check_eq("termfl-stderr-init", api.fcntl(2, posix::F_GETFL), posix::O_WRONLY);
+
+        check_eq("termfl-set-stdout", api.fcntl(1, posix::F_SETFL, posix::O_NONBLOCK), 0);
+        check_eq("termfl-stdout-get", api.fcntl(1, posix::F_GETFL), posix::O_WRONLY | posix::O_NONBLOCK);
+        check_eq("termfl-stderr-unchanged", api.fcntl(2, posix::F_GETFL), posix::O_WRONLY);
+
+        int tty_fd = api.open("/dev/tty", posix::O_WRONLY, 0);
+        check_true("termfl-tty-open", tty_fd >= 0);
+        check_true("termfl-tty-dup", tty_fd != 1);
+        check_eq("termfl-tty-get-shared", api.fcntl(tty_fd, posix::F_GETFL), posix::O_WRONLY | posix::O_NONBLOCK);
+        check_eq("termfl-tty-clear", api.fcntl(tty_fd, posix::F_SETFL, 0), 0);
+        check_eq("termfl-stdout-cleared", api.fcntl(1, posix::F_GETFL), posix::O_WRONLY);
+        check_eq("termfl-tty-close", api.close(tty_fd), 0);
+
+        int stderr_fd = api.open("/dev/stderr", posix::O_WRONLY, 0);
+        check_true("termfl-stderr-open", stderr_fd >= 0);
+        check_true("termfl-stderr-dup", stderr_fd != 2);
+        check_eq("termfl-stderr-get", api.fcntl(stderr_fd, posix::F_GETFL), posix::O_WRONLY);
+        check_eq("termfl-set-stderr", api.fcntl(stderr_fd, posix::F_SETFL, posix::O_NONBLOCK), 0);
+        check_eq("termfl-stderr-shared", api.fcntl(2, posix::F_GETFL), posix::O_WRONLY | posix::O_NONBLOCK);
+        check_eq("termfl-stdout-still-clear", api.fcntl(1, posix::F_GETFL), posix::O_WRONLY);
+
+        check_eq("termfl-stderr-write", api.write(stderr_fd, "z", 1), static_cast<posix::ssize_t>(1));
+        check_eq("termfl-last-write", channel_ctx.last_write, static_cast<util::usize>(1));
+        check_eq("termfl-stderr-close", api.close(stderr_fd), 0);
+    }
+
     void test_api_cwd_and_spawn() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -1606,6 +1678,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_fcntl_fdflags();
     test_api_fcntl_status_flags();
     test_api_stdio_aliases();
+    test_api_term_status_flags();
     test_api_cwd_and_spawn();
     test_api_errno_contracts();
     log_line("[posix-smoke] api end ok");

@@ -9,6 +9,7 @@ import io.channel;
 import io.registry;
 import init.node;
 import posix.fd_table;
+import posix.file;
 import util.core;
 import util.error;
 
@@ -19,29 +20,19 @@ export namespace posix {
 
         template <util::usize MaxFds>
         util::Result<void> attach_stdio(FdTable<MaxFds>& table) noexcept {
-            FdEntry in{};
-            in.kind = FdKind::term;
-            in.flags = FdFlags::read_only;
-            in.ops = &TermDevice::ops();
-            in.ctx = this;
+            reset_handle(stdin_handle_);
+            reset_handle(stdout_handle_);
+            reset_handle(stderr_handle_);
 
-            FdEntry out{};
-            out.kind = FdKind::term;
-            out.flags = FdFlags::write_only;
-            out.ops = &TermDevice::ops();
-            out.ctx = this;
-
-            FdEntry err = out;
-
-            auto r_in = table.attach(in, 0);
+            auto r_in = attach_stdio_handle(table, stdin_handle_, 0, FdFlags::read_only);
             if (!r_in && r_in.error() != util::Errc::exist) {
                 return util::unexpected(r_in.error());
             }
-            auto r_out = table.attach(out, 1);
+            auto r_out = attach_stdio_handle(table, stdout_handle_, 1, FdFlags::write_only);
             if (!r_out && r_out.error() != util::Errc::exist) {
                 return util::unexpected(r_out.error());
             }
-            auto r_err = table.attach(err, 2);
+            auto r_err = attach_stdio_handle(table, stderr_handle_, 2, FdFlags::write_only);
             if (!r_err && r_err.error() != util::Errc::exist) {
                 return util::unexpected(r_err.error());
             }
@@ -60,15 +51,49 @@ export namespace posix {
                 &TermDevice::stat,
                 &TermDevice::dup,
                 nullptr,
-                nullptr,
-                nullptr
+                &TermDevice::get_status_flags,
+                &TermDevice::set_status_flags
             };
             return kOps;
         }
 
     private:
+        struct Handle {
+            TermDevice* device{nullptr};
+            util::u32 refs{0};
+            bool non_block{false};
+        };
+
+        template <util::usize MaxFds>
+        util::Result<int> attach_stdio_handle(FdTable<MaxFds>& table,
+                                              Handle& handle,
+                                              int desired_fd,
+                                              FdFlags flags) noexcept {
+            FdEntry entry{};
+            entry.kind = FdKind::term;
+            entry.flags = flags;
+            entry.ops = &TermDevice::ops();
+            entry.ctx = &handle;
+            return table.attach(entry, desired_fd);
+        }
+
+        void reset_handle(Handle& handle) noexcept {
+            handle.device = this;
+            handle.refs = 1;
+            handle.non_block = false;
+        }
+
+        static Handle* handle_from(void* ctx) noexcept {
+            return static_cast<Handle*>(ctx);
+        }
+
+        static TermDevice* device_from(void* ctx) noexcept {
+            auto* handle = handle_from(ctx);
+            return handle ? handle->device : nullptr;
+        }
+
         static util::Result<util::usize> read(void* ctx, MutByteView buf) noexcept {
-            auto* self = static_cast<TermDevice*>(ctx);
+            auto* self = device_from(ctx);
             if (!self || !self->channel) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
@@ -76,14 +101,23 @@ export namespace posix {
         }
 
         static util::Result<util::usize> write(void* ctx, ByteView buf) noexcept {
-            auto* self = static_cast<TermDevice*>(ctx);
+            auto* self = device_from(ctx);
             if (!self || !self->channel) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             return self->channel->write(buf);
         }
 
-        static util::Result<void> close(void*) noexcept { return {}; }
+        static util::Result<void> close(void* ctx) noexcept {
+            auto* handle = handle_from(ctx);
+            if (!handle || !handle->device) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (handle->refs > 0) {
+                --handle->refs;
+            }
+            return {};
+        }
 
         static util::Result<void> stat(void*, PosixStat& out) noexcept {
             out.mode = make_stat_mode(S_IFCHR, kModePermChar);
@@ -91,7 +125,35 @@ export namespace posix {
             return {};
         }
 
-        static util::Result<void> dup(void*) noexcept { return {}; }
+        static util::Result<void> dup(void* ctx) noexcept {
+            auto* handle = handle_from(ctx);
+            if (!handle || !handle->device) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            ++handle->refs;
+            return {};
+        }
+
+        static util::Result<int> get_status_flags(void* ctx) noexcept {
+            auto* handle = handle_from(ctx);
+            if (!handle || !handle->device) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            return handle->non_block ? O_NONBLOCK : 0;
+        }
+
+        static util::Result<void> set_status_flags(void* ctx, int flags) noexcept {
+            auto* handle = handle_from(ctx);
+            if (!handle || !handle->device) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            handle->non_block = (flags & O_NONBLOCK) != 0;
+            return {};
+        }
+
+        Handle stdin_handle_{};
+        Handle stdout_handle_{};
+        Handle stderr_handle_{};
     };
 
     template <typename RegistryT>

@@ -1014,7 +1014,7 @@ export namespace posix {
                 return -1;
             };
 
-            const int access_mode = flags & O_RDWR;
+            const int access_mode = flags & O_ACCMODE;
             if (access_mode == O_WRONLY) {
                 for (int fd : {1, 2, 0}) {
                     if (is_term_fd(fd)) return fd;

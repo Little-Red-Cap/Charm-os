@@ -16,6 +16,10 @@
 - Init Plan Review 规则：`docs/system/init_plan_review_rules.md`
 - Materialized Graph 观察导出：`docs/system/init_materialized_graph_observe.md`
 - Materialized Graph 工具链里程碑：`docs/system/init_materialized_graph_tooling_milestone.md`
+- 网络协议栈双表面设计：`docs/io/net_stack_dual_surface_design.md`
+- 网络 socket v0 契约：`docs/io/net_socket_v0_contract.md`
+- 网络协议栈阶段复盘：`docs/io/net_stack_stage_review.md`
+- 网络协议栈底座收口任务单：`docs/io/net_stack_foundation_tasklist.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
 - POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
 - POSIX 三层执行模型：`docs/system/posix_three_layer_contract.md`
@@ -54,6 +58,9 @@ flowchart TD
 | 开始改代码 | `docs/overview.md` → `docs/project/standards/项目C++编码要求.md` |
 | 和 AI 协作 | `docs/agent/README.md` |
 | 做代码审查 | `docs/agent/skills/code-review/` |
+| 做网络协议栈设计 | `docs/io/net_stack_dual_surface_design.md` |
+| 看网络协议栈阶段复盘 | `docs/io/net_stack_stage_review.md` |
+| 拆网络底座收口任务 | `docs/io/net_stack_foundation_tasklist.md` |
 | POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
 | POSIX 分层与演进原则 | `docs/system/posix_subsystem_principles.md` |
 | POSIX 三层执行模型 | `docs/system/posix_three_layer_contract.md` |
@@ -98,6 +105,9 @@ docs/
 - `docs/io/io_reactor_contract.md`
 - `docs/io/io_registry_contract.md`
 - `docs/io/net_stack_dual_surface_design.md`
+- `docs/io/net_socket_v0_contract.md`
+- `docs/io/net_stack_stage_review.md`
+- `docs/io/net_stack_foundation_tasklist.md`
 - `docs/input/input_layering_decision.md`
 - `docs/input/input_protocol_map.md`
 

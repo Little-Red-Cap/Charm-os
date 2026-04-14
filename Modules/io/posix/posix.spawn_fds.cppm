@@ -105,19 +105,27 @@ export namespace posix {
 
         FdTable<MaxFds> child{};
         child.init();
-        auto rc = parent->clone_to(child);
+        auto rc = parent->clone_all_to(child);
         if (!rc) {
             return util::unexpected(rc.error());
         }
 
         auto stdio = detail::apply_spawn_stdio(child, cfg);
         if (!stdio) {
+            child.close_all();
             return util::unexpected(stdio.error());
         }
 
         auto actions = detail::apply_spawn_file_actions<MaxFds, MaxFiles, MaxPathLen>(child, file_service, cfg);
         if (!actions) {
+            child.close_all();
             return util::unexpected(actions.error());
+        }
+
+        auto prune = child.close_non_inheritable();
+        if (!prune) {
+            child.close_all();
+            return util::unexpected(prune.error());
         }
 
         return child;

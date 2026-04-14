@@ -238,6 +238,31 @@ export namespace net {
         }
     };
 
+    [[nodiscard]] constexpr Result<void> validate_supported_family_v0(AddressFamily family) noexcept {
+        if (family == AddressFamily::unspecified) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        if (family != AddressFamily::ipv4) {
+            return util::unexpected(errc::not_supported);
+        }
+        return {};
+    }
+
+    [[nodiscard]] constexpr Result<void> validate_bind_endpoint_v0(const Endpoint& ep) noexcept {
+        return validate_supported_family_v0(ep.family());
+    }
+
+    [[nodiscard]] constexpr Result<void> validate_remote_endpoint_v0(const Endpoint& ep) noexcept {
+        auto supported = validate_supported_family_v0(ep.family());
+        if (!supported) {
+            return util::unexpected(supported.error());
+        }
+        if (ep.port == 0 || ep.address.is_any()) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        return {};
+    }
+
     struct SocketHandle {
         util::i32 value{-1};
 
@@ -262,6 +287,9 @@ namespace net {
         static_assert(any.family() == AddressFamily::ipv4);
         static_assert(any.address.is_any());
         static_assert(any.port == 8080);
+
+        if (!validate_bind_endpoint_v0(any)) return false;
+        if (validate_remote_endpoint_v0(Endpoint::ipv4_any(9000))) return false;
 
         constexpr auto mask = NetEvent::readable | NetEvent::writable;
         static_assert(has_event(mask, NetEvent::readable));

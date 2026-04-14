@@ -1424,15 +1424,40 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
     const int active = kernel.list_view_active(h);
 
     const int icon_size_raw = static_cast<int>(kernel.list_view_icon_size(h));
+    const auto with_alpha = [](const rgba& color, std::uint8_t alpha) noexcept {
+        return rgba{color.r, color.g, color.b, alpha};
+    };
     for (int i = start; i < end; ++i) {
         Rect row{clip_rect.x, y, clip_rect.w, row_h};
-        if (i == selected) {
-            out.fill_rect(row, colors.accent);
-        } else if (i == active) {
-            out.stroke_rect(row, colors.accent);
-        }
         const bool row_selected = (i == selected);
         const bool row_active = (i == active);
+        Rect row_surface = row;
+        const int row_inset_x = (row_h >= 44) ? 4 : 2;
+        const int row_inset_y = (row_h >= 44) ? 3 : 1;
+        row_surface.x += row_inset_x;
+        row_surface.y += row_inset_y;
+        row_surface.w -= row_inset_x * 2;
+        row_surface.h -= row_inset_y * 2;
+        const int row_radius = [&]() noexcept {
+            if (row_surface.h <= 0) return 0;
+            int radius = metrics.corner_radius;
+            if (radius <= 0) radius = row_surface.h / 4;
+            if (radius < 6 && row_surface.h >= 18) radius = 6;
+            const int max_radius = row_surface.h / 2;
+            if (radius > max_radius) radius = max_radius;
+            return radius;
+        }();
+        if (row_surface.w > 0 && row_surface.h > 0) {
+            if (row_selected && row_active) {
+                out.fill_round_rect(row_surface, row_radius, colors.accent);
+                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.on_accent, 172));
+            } else if (row_selected) {
+                out.fill_round_rect(row_surface, row_radius, colors.accent);
+            } else if (row_active) {
+                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.accent, 40));
+                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.accent, 220));
+            }
+        }
         const rgba font = row_selected ? colors.on_accent
                                        : (row_active ? colors.accent : colors.font);
         const auto icon = kernel.list_view_item_icon(h, static_cast<std::uint16_t>(i));

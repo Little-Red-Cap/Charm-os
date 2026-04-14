@@ -37,9 +37,9 @@
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {112, 166, 222, 190};
+            patch.gradient_start = kUiLibraryHeroTopStart;
             patch.has_gradient_end = true;
-            patch.gradient_end = {42, 78, 132, 78};
+            patch.gradient_end = kUiLibraryHeroTopEnd;
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;
@@ -55,9 +55,9 @@
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {24, 52, 96, 108};
+            patch.gradient_start = kUiLibraryHeroBottomStart;
             patch.has_gradient_end = true;
-            patch.gradient_end = {6, 16, 42, 212};
+            patch.gradient_end = kUiLibraryHeroBottomEnd;
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;
@@ -124,9 +124,10 @@
 
         const Rect list_card_rect{kUiPadding, layout.list_card_y,
                                   screen_width - kUiPadding * 2, layout.list_card_h};
+        const Rect list_card_local_rect{0, 0, list_card_rect.w, list_card_rect.h};
         const ::ui::scene::ListCardHeaderLayout list_header_layout =
             ::ui::scene::make_list_card_header_layout(
-                list_card_rect,
+                list_card_local_rect,
                 {
                     .title_left_gap = lib_layout.list_title_left_gap,
                     .title_top_gap = lib_layout.list_title_top_gap,
@@ -166,14 +167,17 @@
         builder.link(library_layers.content, shuffle_root);
         builder.link(library_layers.content, list_card_root);
         anchor_rect(builder, h.list_title, list_header_layout.title_rect);
+        apply_player_text_style(builder, h.list_title, PlayerTextRole::CardTitle, kUiTitle);
+        builder.set_label_align(h.list_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        builder.set_hit_testable(h.list_title, false);
         anchor_rect(builder, h.list_sort, list_header_layout.action_rect);
         const Rect list_path_rect = list_header_layout.path_rect;
         h.list_path_bg = builder.create_container();
         anchor_rect(builder, h.list_path_bg, list_path_rect);
         {
             StylePatch patch = ::ui::scene::make_pill_surface_patch({
-                .bg_color = kUiButtonBg,
-                .border_color = kUiButtonBorder,
+                .bg_color = kUiLibraryPathIdle,
+                .border_color = kUiLibraryChipBorder,
                 .corner_radius = lib_layout.list_path_bg_radius,
             });
             builder.set_style_override(h.list_path_bg, patch);
@@ -195,6 +199,16 @@
         builder.set_button_icon(list_path_icon, icons.folder);
         builder.set_button_icon_size(list_path_icon, lib_layout.list_path_icon_px);
         apply_tab_base_style(builder, list_path_icon, lib_layout.list_path_icon_radius);
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {0, 0, 0, 0};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+            builder.set_style_override(list_path_icon, patch);
+        }
         builder.set_hit_testable(list_path_icon, false);
         anchor_rect(builder, h.list_path, list_path_layout.label_rect);
         builder.set_hit_testable(h.list_path, false);
@@ -213,12 +227,16 @@
             builder.set_style_override(h.list_path_hit, patch);
         }
         apply_tab_base_style(builder, h.list_sort, lib_layout.list_sort_radius);
+        apply_player_text_style(builder, h.list_sort, PlayerTextRole::MetaText, kUiTitle);
         builder.set_label_align(h.list_sort, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         apply_time_label_style(builder, h.list_path);
         builder.set_label_align(h.list_path, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.list, list_header_layout.body_rect);
         anchor_rect(builder, h.list_scroll, list_header_layout.scroll_rect);
         anchor_rect(builder, h.list_hint, list_header_layout.hint_rect);
+        apply_player_text_style(builder, h.list_hint, PlayerTextRole::MetaText, kUiSubtitle);
+        builder.set_label_align(h.list_hint, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        builder.set_hit_testable(h.list_hint, false);
         {
             StylePatch patch{};
             patch.has_bg_color = true;

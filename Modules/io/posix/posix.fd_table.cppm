@@ -121,19 +121,11 @@ export namespace posix {
         }
 
         util::Result<void> clone_to(FdTable<MaxFds>& out) const noexcept {
-            out.clear();
-            for (util::usize i = 0; i < MaxFds; ++i) {
-                if (!used_[i]) continue;
-                const auto& entry = slots_[i];
-                if (!entry.inheritable) continue;
-                if (entry.ops && entry.ops->dup) {
-                    auto rdup = entry.ops->dup(entry.ctx);
-                    if (!rdup) return util::unexpected(rdup.error());
-                }
-                auto r = out.attach(entry, static_cast<int>(i));
-                if (!r) return util::unexpected(r.error());
-            }
-            return {};
+            return clone_impl(out, true);
+        }
+
+        util::Result<void> clone_all_to(FdTable<MaxFds>& out) const noexcept {
+            return clone_impl(out, false);
         }
 
         util::Result<void> close(int fd) noexcept {
@@ -243,12 +235,45 @@ export namespace posix {
             }
         }
 
+        util::Result<void> close_non_inheritable() noexcept {
+            for (util::usize i = 0; i < MaxFds; ++i) {
+                if (!used_[i] || slots_[i].inheritable) continue;
+                auto r = close(static_cast<int>(i));
+                if (!r) {
+                    return util::unexpected(r.error());
+                }
+            }
+            return {};
+        }
+
         void snapshot(FdTableSnapshot<MaxFds>& out) const noexcept {
             out.slots = slots_;
             out.used = used_;
         }
 
     private:
+        util::Result<void> clone_impl(FdTable<MaxFds>& out, bool inheritable_only) const noexcept {
+            out.clear();
+            for (util::usize i = 0; i < MaxFds; ++i) {
+                if (!used_[i]) continue;
+                const auto& entry = slots_[i];
+                if (inheritable_only && !entry.inheritable) continue;
+                if (entry.ops && entry.ops->dup) {
+                    auto rdup = entry.ops->dup(entry.ctx);
+                    if (!rdup) {
+                        out.close_all();
+                        return util::unexpected(rdup.error());
+                    }
+                }
+                auto r = out.attach(entry, static_cast<int>(i));
+                if (!r) {
+                    out.close_all();
+                    return util::unexpected(r.error());
+                }
+            }
+            return {};
+        }
+
         FdEntry* get_ptr(int fd) noexcept {
             if (fd < 0) return nullptr;
             const util::usize idx = static_cast<util::usize>(fd);

@@ -420,8 +420,10 @@ int main(int argc, char** argv) {
     bool screenshot_exit = false;
     player::PlayerPage start_page = player::PlayerPage::Home;
     bool start_page_set = false;
+    std::optional<player::LibraryTab> library_tab_override{};
     bool ui_ci = false;
     std::string font_ttf_path{};
+    std::string font_fallback_ttf_path{};
     int font_small_px = 0;
     int font_normal_px = 0;
     int font_large_px = 0;
@@ -462,6 +464,15 @@ int main(int argc, char** argv) {
                 start_page = player::PlayerPage::Library;
                 start_page_set = true;
             }
+        } else if (arg.rfind("--library-tab=", 0) == 0) {
+            const std::string_view tab = arg.substr(14);
+            if (tab == "songs") {
+                library_tab_override = player::LibraryTab::Songs;
+            } else if (tab == "albums") {
+                library_tab_override = player::LibraryTab::Albums;
+            } else if (tab == "artists") {
+                library_tab_override = player::LibraryTab::Artists;
+            }
         } else if (arg == "--screenshot-verbose") {
             screenshot_verbose = true;
         } else if (arg == "--screenshot-exit") {
@@ -473,6 +484,8 @@ int main(int argc, char** argv) {
             ui_ci = true;
         } else if (arg.rfind("--font-ttf=", 0) == 0) {
             font_ttf_path.assign(arg.substr(11));
+        } else if (arg.rfind("--font-fallback-ttf=", 0) == 0) {
+            font_fallback_ttf_path.assign(arg.substr(20));
         } else if (arg.rfind("--font-small=", 0) == 0) {
             font_small_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
         } else if (arg.rfind("--font-normal=", 0) == 0) {
@@ -523,6 +536,9 @@ int main(int argc, char** argv) {
     } else {
         app_cfg.ttf_path = "/font/gflex_variable.ttf";
     }
+    if (!font_fallback_ttf_path.empty()) {
+        app_cfg.ttf_fallback_path = font_fallback_ttf_path;
+    }
     if (font_small_px > 0) {
         app_cfg.ttf_small_px = font_small_px;
     }
@@ -546,6 +562,9 @@ int main(int argc, char** argv) {
     g_ctx.set_page(start_page);
 
     const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
+    if (library_tab_override.has_value()) {
+        g_ctx.set_library_tab(*library_tab_override);
+    }
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");
     }

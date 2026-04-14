@@ -439,6 +439,22 @@ int charm_posix_newlib_path_entry(void) {
     if (rmdir("/newlib-path.txt") != -1) return 151;
     if (errno != ENOTDIR) return 152;
 
+    errno = 0;
+    if (mkdir("/newlib-path.txt/sub", 0) != -1) return 506;
+    if (errno != ENOTDIR) return 507;
+
+    errno = 0;
+    if (unlink("/newlib-path.txt/sub") != -1) return 508;
+    if (errno != ENOTDIR) return 509;
+
+    errno = 0;
+    if (rmdir("/newlib-path.txt/sub") != -1) return 510;
+    if (errno != ENOTDIR) return 511;
+
+    errno = 0;
+    if (stat("/newlib-path.txt/sub", &st) != -1) return 512;
+    if (errno != ENOTDIR) return 513;
+
     fd = open("/newlib-dir/probe.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 153;
     if (write(fd, "x", 1) != 1) return 154;

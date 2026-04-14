@@ -21,6 +21,7 @@ export namespace boot {
         verified,
         pending,
         selected,
+        prepared,
         confirmed,
         failed
     };
@@ -47,6 +48,7 @@ export namespace boot {
         bool boot_info_written{false};
         bool pending_set{false};
         bool boot_selected{false};
+        bool boot_prepared{false};
         bool success_marked{false};
         XyModemFlashResult transfer{};
         BootResult boot{};
@@ -91,7 +93,11 @@ export namespace boot {
         }
 
         XyModemSessionResult complete() noexcept {
-            if (stage_ == SessionStage::pending || stage_ == SessionStage::failed) {
+            if (stage_ == SessionStage::pending ||
+                stage_ == SessionStage::selected ||
+                stage_ == SessionStage::prepared ||
+                stage_ == SessionStage::confirmed ||
+                stage_ == SessionStage::failed) {
                 return result_;
             }
             if (stage_ == SessionStage::verified && !cfg_.write_pending) {
@@ -145,9 +151,7 @@ export namespace boot {
                 return result_;
             }
 
-            info.pending = cfg_.target_slot;
-            ++info.counter;
-            if (!write_boot_info(storage_, cfg_.boot.info, info)) {
+            if (!arm_pending_update(storage_, cfg_.boot, info, cfg_.target_slot)) {
                 stage_ = SessionStage::failed;
                 result_.stage = stage_;
                 result_.info = info;
@@ -185,6 +189,31 @@ export namespace boot {
             }
 
             return result_.boot;
+        }
+
+        bool prepare_selected_boot() noexcept {
+            if (!result_.boot_selected || result_.boot.status != BootStatus::ok) {
+                return false;
+            }
+
+            BootInfo info = result_.info;
+            if (!result_.boot_info_loaded && !load_boot_info(info)) {
+                return false;
+            }
+            if (!prepare_boot(storage_, cfg_.boot, info, result_.boot.slot)) {
+                stage_ = SessionStage::failed;
+                result_.stage = stage_;
+                result_.info = info;
+                return false;
+            }
+
+            stage_ = SessionStage::prepared;
+            result_.stage = stage_;
+            result_.boot_prepared = true;
+            result_.info = info;
+            result_.boot_info_loaded = true;
+            result_.ready_to_boot = true;
+            return true;
         }
 
         bool mark_selected_success() noexcept {

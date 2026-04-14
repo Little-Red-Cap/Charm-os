@@ -255,6 +255,9 @@ int main() {
         std::span<const util::u8>(image_b.data(), image_b.size()));
     const auto download = receiver.complete();
     const auto pick = receiver.select_boot();
+    const bool prepared = receiver.prepare_selected_boot();
+    boot::BootInfo rollback_info{};
+    const auto rollback_pick = boot::select_slot_policy(storage, cfg, rollback_info, policy);
     const bool marked = receiver.mark_selected_success();
     const auto final_result = receiver.result();
     const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info);
@@ -288,6 +291,10 @@ int main() {
                     pick.status == boot::BootStatus::ok &&
                     slot_b_valid &&
                     pick.slot == boot::Slot::b &&
+                    prepared &&
+                    final_result.boot_prepared &&
+                    rollback_pick.status == boot::BootStatus::ok &&
+                    rollback_pick.slot == boot::Slot::a &&
                     marked &&
                     final_result.success_marked &&
                     final_result.info.active == boot::Slot::b &&
@@ -306,6 +313,9 @@ int main() {
                 static_cast<unsigned>(download.transfer.transport_status));
     std::printf("[boot] slot_b_valid=%d\n", slot_b_valid ? 1 : 0);
     std::printf("[boot] pick=%s\n", pick.slot == boot::Slot::a ? "A" : "B");
+    std::printf("[boot] prepare_boot=%d rollback_pick=%s\n",
+                prepared ? 1 : 0,
+                rollback_pick.slot == boot::Slot::a ? "A" : "B");
     std::printf("[boot] mark_success=%d active=%s\n",
                 marked ? 1 : 0,
                 final_result.info.active == boot::Slot::a ? "A" : "B");

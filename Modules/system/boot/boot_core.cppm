@@ -34,6 +34,10 @@ export namespace boot {
 
     enum class Slot : util::u8 { a = 0, b = 1 };
     enum class BootStatus : util::u8 { ok = 0, invalid, io_error };
+    enum class BootInfoFlags : util::u32 {
+        none = 0,
+        pending_trial = 1u << 0
+    };
 
     struct BootResult {
         BootStatus status{BootStatus::invalid};
@@ -57,6 +61,18 @@ export namespace boot {
         util::u32 last_good_version{0};
         util::u32 min_version{0};
     };
+
+    constexpr bool boot_info_has_flag(const BootInfo& info, BootInfoFlags flag) noexcept {
+        return (info.flags & static_cast<util::u32>(flag)) != 0;
+    }
+
+    constexpr void boot_info_set_flag(BootInfo& info, BootInfoFlags flag) noexcept {
+        info.flags |= static_cast<util::u32>(flag);
+    }
+
+    constexpr void boot_info_clear_flag(BootInfo& info, BootInfoFlags flag) noexcept {
+        info.flags &= ~static_cast<util::u32>(flag);
+    }
 
     static_assert(std::is_trivially_copyable_v<ImageHeader>);
     static_assert(std::is_trivially_copyable_v<BootInfo>);

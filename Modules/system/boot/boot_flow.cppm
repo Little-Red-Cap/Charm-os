@@ -115,6 +115,34 @@ export namespace boot {
         return storage_write(s, offset, buf);
     }
 
+    inline bool pending_trial_armed(const BootInfo& info) noexcept {
+        return boot_info_has_flag(info, BootInfoFlags::pending_trial) &&
+               info.pending != info.active;
+    }
+
+    inline bool arm_pending_update(const Storage& s, const BootConfig& cfg,
+                                   BootInfo& info, Slot slot) noexcept {
+        info.pending = slot;
+        if (slot == info.active) {
+            boot_info_clear_flag(info, BootInfoFlags::pending_trial);
+        } else {
+            boot_info_set_flag(info, BootInfoFlags::pending_trial);
+        }
+        ++info.counter;
+        return write_boot_info(s, cfg.info, info);
+    }
+
+    inline bool prepare_boot(const Storage& s, const BootConfig& cfg,
+                             BootInfo& info, Slot slot) noexcept {
+        if (!pending_trial_armed(info) || info.pending != slot) {
+            return true;
+        }
+        info.pending = info.active;
+        boot_info_clear_flag(info, BootInfoFlags::pending_trial);
+        ++info.counter;
+        return write_boot_info(s, cfg.info, info);
+    }
+
     inline BootResult select_slot(const Storage& s, const BootConfig& cfg, BootInfo& info) noexcept {
         if (!read_boot_info(s, cfg.info, info)) {
             info = {};
@@ -130,10 +158,12 @@ export namespace boot {
             return {BootStatus::ok, slot};
         };
 
-        if (info.pending == Slot::a && a_ok) return pick(Slot::a);
-        if (info.pending == Slot::b && b_ok) return pick(Slot::b);
+        if (pending_trial_armed(info) && info.pending == Slot::a && a_ok) return pick(Slot::a);
+        if (pending_trial_armed(info) && info.pending == Slot::b && b_ok) return pick(Slot::b);
         if (info.active == Slot::a && a_ok) return pick(Slot::a);
         if (info.active == Slot::b && b_ok) return pick(Slot::b);
+        if (info.pending == Slot::a && a_ok) return pick(Slot::a);
+        if (info.pending == Slot::b && b_ok) return pick(Slot::b);
         if (a_ok) return pick(Slot::a);
         if (b_ok) return pick(Slot::b);
         if (a_status == BootStatus::io_error || b_status == BootStatus::io_error) {
@@ -143,8 +173,14 @@ export namespace boot {
     }
 
     inline bool mark_success(const Storage& s, const BootConfig& cfg, BootInfo& info, Slot slot) noexcept {
+        ImageHeader h{};
+        const Partition& part = slot == Slot::a ? cfg.slot_a : cfg.slot_b;
+        if (read_header(s, part, h) && h.magic == k_magic && h.version == k_version) {
+            info.last_good_version = h.image_version;
+        }
         info.active = slot;
         info.pending = slot;
+        boot_info_clear_flag(info, BootInfoFlags::pending_trial);
         ++info.counter;
         return write_boot_info(s, cfg.info, info);
     }

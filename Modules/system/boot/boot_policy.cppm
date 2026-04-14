@@ -91,10 +91,12 @@ export namespace boot {
             return {BootStatus::ok, slot};
         };
 
-        if (info.pending == Slot::a && a_ok) return pick(Slot::a);
-        if (info.pending == Slot::b && b_ok) return pick(Slot::b);
+        if (pending_trial_armed(info) && info.pending == Slot::a && a_ok) return pick(Slot::a);
+        if (pending_trial_armed(info) && info.pending == Slot::b && b_ok) return pick(Slot::b);
         if (info.active == Slot::a && a_ok) return pick(Slot::a);
         if (info.active == Slot::b && b_ok) return pick(Slot::b);
+        if (info.pending == Slot::a && a_ok) return pick(Slot::a);
+        if (info.pending == Slot::b && b_ok) return pick(Slot::b);
         if (a_ok) return pick(Slot::a);
         if (b_ok) return pick(Slot::b);
         if (a_status == BootStatus::io_error || b_status == BootStatus::io_error) {

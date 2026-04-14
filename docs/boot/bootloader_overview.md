@@ -113,6 +113,7 @@ sequenceDiagram
   - 写入目标 Flash 分区
   - 下载完成后的 Stage2 会话收口（verify + pending）
   - 基于镜像头与策略的槽位选择
+  - 跳转前的试启动回滚预备（未确认成功则回到旧 active）
   - 会话内的 `pending -> active` 成功确认
 - 当前仍偏向“主机侧可验证骨架”，尚未进入板级 Stage1 搬运与跳转实现。
 - 下一阶段建议优先推进：

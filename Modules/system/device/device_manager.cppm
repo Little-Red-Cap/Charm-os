@@ -28,13 +28,25 @@ export namespace device {
             return static_cast<bool>(try_add_bus(bus));
         }
 
-        void enumerate_all(RegistryBase& reg) noexcept {
+        [[nodiscard]] util::Result<void> try_enumerate_all(RegistryBase& reg) noexcept {
+            util::Errc first_error = util::Errc::ok;
             for (util::usize i = 0; i < bus_count_; ++i) {
                 auto& b = buses_[i];
-                if (b.ops.enumerate) {
-                    b.ops.enumerate(b.ctx, reg);
+                if (!b.ops.enumerate) {
+                    continue;
+                }
+                if (!b.ops.enumerate(b.ctx, reg) && first_error == util::Errc::ok) {
+                    first_error = util::Errc::bad_state;
                 }
             }
+            if (first_error != util::Errc::ok) {
+                return util::unexpected(first_error);
+            }
+            return {};
+        }
+
+        void enumerate_all(RegistryBase& reg) noexcept {
+            (void)try_enumerate_all(reg);
         }
 
     private:
@@ -66,19 +78,47 @@ export namespace device {
 
         bool add_bus(const Bus& bus) noexcept { return static_cast<bool>(try_add_bus(bus)); }
 
-        void init_all() noexcept {
-            buses_.enumerate_all(registry_);
-            registry_.init_all();
+        [[nodiscard]] util::Result<void> try_init_all() noexcept {
+            auto enumerated = buses_.try_enumerate_all(registry_);
+            auto initialized = registry_.try_init_all();
+            if (!enumerated) {
+                return enumerated;
+            }
+            return initialized;
         }
 
-        void shutdown_all() noexcept { registry_.shutdown_all(); }
-        void suspend_all() noexcept { registry_.suspend_all(); }
-        void resume_all() noexcept { registry_.resume_all(); }
-        void dispatch_all(DeviceEvent ev) noexcept {
-            for (util::usize i = 0; i < registry_.device_count(); ++i) {
-                registry_.dispatch(registry_.device_at(i), ev);
-            }
+        void init_all() noexcept {
+            (void)try_init_all();
         }
+
+        [[nodiscard]] util::Result<void> try_shutdown_all() noexcept { return registry_.try_shutdown_all(); }
+        void shutdown_all() noexcept { (void)try_shutdown_all(); }
+
+        [[nodiscard]] util::Result<void> try_suspend_all() noexcept { return registry_.try_suspend_all(); }
+        void suspend_all() noexcept { (void)try_suspend_all(); }
+
+        [[nodiscard]] util::Result<void> try_resume_all() noexcept { return registry_.try_resume_all(); }
+        void resume_all() noexcept { (void)try_resume_all(); }
+
+        [[nodiscard]] util::Result<void> try_dispatch_all(DeviceEvent ev) noexcept {
+            util::Errc first_error = util::Errc::ok;
+            for (util::usize i = 0; i < registry_.device_count(); ++i) {
+                auto& dev = registry_.device_at(i);
+                if (dev.driver == nullptr) {
+                    continue;
+                }
+                auto dispatched = registry_.try_dispatch(dev, ev);
+                if (!dispatched && first_error == util::Errc::ok) {
+                    first_error = dispatched.error();
+                }
+            }
+            if (first_error != util::Errc::ok) {
+                return util::unexpected(first_error);
+            }
+            return {};
+        }
+
+        void dispatch_all(DeviceEvent ev) noexcept { (void)try_dispatch_all(ev); }
 
     private:
         Registry<MaxDevices, MaxDrivers> registry_{};

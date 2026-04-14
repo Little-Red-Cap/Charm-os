@@ -55,8 +55,11 @@ export namespace usb::host {
 
         [[nodiscard]] util::Result<void> try_scan() noexcept {
             auto enumerated = try_enumerate();
-            registry_.match_detected();
-            return enumerated;
+            auto matched = registry_.try_match_detected();
+            if (!enumerated) {
+                return enumerated;
+            }
+            return matched;
         }
 
         bool scan() noexcept {

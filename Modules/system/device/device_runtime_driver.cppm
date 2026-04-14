@@ -6,6 +6,7 @@ import device.desc;
 import device.registry;
 import device.types;
 import util.core;
+import util.error;
 
 export namespace device {
     template <typename ContextT>
@@ -195,17 +196,43 @@ export namespace device {
         if (!registry.add_driver(driver)) return false;
         if (!registry.add_device(desc, &binding)) return false;
 
-        registry.match_all();
+        auto matched = registry.try_match_all();
+        if (!matched) return false;
         if (!ctx.probed || !ctx.initialized) return false;
         if (registry.device_at(0).state != DeviceState::running) return false;
         if (ctx.last_event != DeviceEvent::start) return false;
 
-        registry.dispatch(registry.device_at(0), DeviceEvent::suspend);
-        registry.dispatch(registry.device_at(0), DeviceEvent::resume);
+        auto suspended = registry.try_dispatch(registry.device_at(0), DeviceEvent::suspend);
+        if (!suspended) return false;
+        auto resumed = registry.try_dispatch(registry.device_at(0), DeviceEvent::resume);
+        if (!resumed) return false;
         if (!ctx.suspended || !ctx.resumed) return false;
 
-        registry.dispatch(registry.device_at(0), DeviceEvent::remove);
-        return ctx.removed;
+        auto removed = registry.try_dispatch(registry.device_at(0), DeviceEvent::remove);
+        if (!removed || !ctx.removed) return false;
+
+        Context failing_ctx{};
+        RuntimeDriverBinding<Context> failing_binding{
+            &failing_ctx,
+            RuntimeDriverHook<Context>{
+                probe,
+                [](Context&, Device&) noexcept -> bool { return false; },
+                nullptr,
+                remove,
+                suspend,
+                resume,
+                on_event
+            }
+        };
+        Registry<2, 2> failing_registry{};
+        auto failing_driver = make_runtime_driver<Context>(desc, "runtime.check.fail");
+        if (!failing_registry.try_add_driver(failing_driver)) return false;
+        if (!failing_registry.try_add_device(desc, &failing_binding)) return false;
+        auto failed_match = failing_registry.try_match_all();
+        if (failed_match || failed_match.error() != util::Errc::bad_state) return false;
+        if (!failing_ctx.probed) return false;
+        return failing_registry.device_at(0).state == DeviceState::detected &&
+               failing_registry.device_at(0).driver == nullptr;
     }
 #endif
 }

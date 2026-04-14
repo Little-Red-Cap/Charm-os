@@ -16,20 +16,29 @@ export namespace boot {
         Partition info{};
     };
 
+    inline Partition partition_for_slot(const BootConfig& cfg, Slot slot) noexcept {
+        return slot == Slot::a ? cfg.slot_a : cfg.slot_b;
+    }
+
     inline bool read_header(const Storage& s, const Partition& p, ImageHeader& out) noexcept {
         auto buf = std::span<util::u8>(reinterpret_cast<util::u8*>(&out), sizeof(ImageHeader));
         return storage_read(s, p.offset, buf);
+    }
+
+    inline bool image_layout_valid(const Partition& p, const ImageHeader& h) noexcept {
+        const util::u32 header_size = static_cast<util::u32>(sizeof(ImageHeader));
+        if (h.payload_size == 0) return false;
+        if (h.payload_size + header_size > p.size) return false;
+        if (h.image_size < h.payload_size + header_size || h.image_size > p.size) return false;
+        if (h.entry_offset >= h.payload_size) return false;
+        return true;
     }
 
     inline BootStatus verify_partition_status(const Storage& s, const Partition& p) noexcept {
         ImageHeader h{};
         if (!read_header(s, p, h)) return BootStatus::io_error;
         if (h.magic != k_magic || h.version != k_version) return BootStatus::invalid;
-        if (h.payload_size == 0) return BootStatus::invalid;
-        const util::u32 header_size = static_cast<util::u32>(sizeof(ImageHeader));
-        if (h.payload_size + header_size > p.size) return BootStatus::invalid;
-        if (h.image_size < h.payload_size + header_size || h.image_size > p.size) return BootStatus::invalid;
-        // TODO: validate entry_offset and handle compressed images when implemented.
+        if (!image_layout_valid(p, h)) return BootStatus::invalid;
         std::array<util::u8, 128> buf{};
         util::u32 crc = 0;
         util::u32 remaining = h.payload_size;

@@ -270,6 +270,7 @@ int main() {
         std::span<const util::u8>(image_b.data(), image_b.size()));
     const auto download = receiver.complete();
     const auto plan = receiver.decide_boot();
+    const auto target = boot::resolve_boot_target(storage, cfg, plan);
     const bool prepared = receiver.prepare_selected_boot();
     const auto prepared_result = receiver.result();
     const auto rollback_plan = boot::decide_boot_policy(storage, cfg, policy);
@@ -309,6 +310,10 @@ int main() {
                     plan.boot.slot == boot::Slot::b &&
                     plan.reason == boot::BootSelectionReason::pending_trial &&
                     plan.prepare_required &&
+                    static_cast<bool>(target) &&
+                    target.partition.offset == cfg.slot_b.offset &&
+                    target.payload_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) &&
+                    target.storage_entry_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) &&
                     prepared &&
                     prepared_result.boot_prepared &&
                     prepared_result.plan.prepared &&
@@ -339,6 +344,10 @@ int main() {
                 selection_reason_name(plan.reason),
                 plan.boot.slot == boot::Slot::a ? "A" : "B",
                 plan.prepare_required ? 1 : 0);
+    std::printf("[boot] boot_target=%d payload=%u entry=%u\n",
+                static_cast<bool>(target) ? 1 : 0,
+                target.payload_offset,
+                target.storage_entry_offset);
     std::printf("[boot] prepare_boot=%d rollback_plan=%s:%s\n",
                 prepared ? 1 : 0,
                 selection_reason_name(rollback_plan.reason),

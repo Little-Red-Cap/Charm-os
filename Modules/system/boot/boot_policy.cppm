@@ -47,10 +47,7 @@ export namespace boot {
         ImageHeader h{};
         if (!read_header(s, p, h)) return BootStatus::io_error;
         if (h.magic != k_magic || h.version != k_version) return BootStatus::invalid;
-        if (h.payload_size == 0) return BootStatus::invalid;
-        const util::u32 header_size = static_cast<util::u32>(sizeof(ImageHeader));
-        if (h.payload_size + header_size > p.size) return BootStatus::invalid;
-        if (h.image_size < h.payload_size + header_size || h.image_size > p.size) return BootStatus::invalid;
+        if (!image_layout_valid(p, h)) return BootStatus::invalid;
         if (!verify_version(h, policy, info)) return BootStatus::invalid;
 
         std::array<util::u8, 128> buf{};

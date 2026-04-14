@@ -61,10 +61,6 @@ export namespace boot {
         }
     };
 
-    inline Partition partition_for_slot(const BootConfig& cfg, Slot slot) noexcept {
-        return slot == Slot::a ? cfg.slot_a : cfg.slot_b;
-    }
-
     template <util::usize MaxBlock = 1024>
     class XyModemSession {
     public:

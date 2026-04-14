@@ -22,6 +22,7 @@
 - `boot_core` / `boot_storage` / `boot_flash`：镜像头、存储抽象与按擦写粒度写入 Flash
 - `boot_flow` / `boot_policy`：A/B 槽位选择、镜像校验、成功确认与回滚策略骨架
 - `boot_plan`：把“策略决策 / 跳转前预备 / 成功确认”收敛为统一的启动计划接口
+- `boot_launch`：把 `BootPlan` 进一步解析为分区、镜像头与可跳转 entry 元数据
 - `boot_uart` / `boot_xymodem`：串口接入与 X/YModem 下载到目标分区的 Stage2 侧封装
 - `boot_session`：把下载、镜像校验、`BootInfo.pending` 落盘与 `BootPlan` 决策串成一个显式 Stage2 会话入口
 - `Examples/boot/bootloader_demo`：可在主机侧演示“下载到 Slot B -> 校验 -> 生成 BootPlan -> 回滚预备 -> 标记成功”
@@ -114,6 +115,7 @@ sequenceDiagram
   - 写入目标 Flash 分区
   - 下载完成后的 Stage2 会话收口（verify + pending）
   - 基于镜像头与策略生成统一 `BootPlan`
+  - 基于 `BootPlan` 解析启动目标分区、头部与 entry 偏移
   - 跳转前的试启动回滚预备（未确认成功则回到旧 active）
   - 会话内的 `pending -> active` 成功确认
 - 当前仍偏向“主机侧可验证骨架”，尚未进入板级 Stage1 搬运与跳转实现。

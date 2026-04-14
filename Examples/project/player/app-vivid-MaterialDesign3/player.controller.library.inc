@@ -171,10 +171,16 @@
             out.model = library_row_model(row_index);
             out.track_index = list_index_to_track(row_index);
             out.group_row = out.model ? out.model->group_row : false;
+            out.menu_title_cstr = out.group_row ? "Group" : "Track";
             if (out.group_row) {
                 out.current_row = library_group_row_is_current(row_index);
             } else if (track_index >= 0 && out.track_index >= 0) {
                 out.current_row = (out.track_index == track_index);
+            }
+            if (out.model) {
+                if (!out.model->title.empty()) out.menu_title_cstr = out.model->title.c_str();
+                out.detail_primary = out.model->title.view();
+                out.detail_secondary = out.model->subtitle.view();
             }
             out.show_tail_action = (row_index == last_list_selected) || out.current_row;
             out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
@@ -189,6 +195,10 @@
 
             const auto& path = (*tracks)[static_cast<std::size_t>(out.track_index)];
             out.track_path = path.view();
+            if (!out.group_row) {
+                out.detail_primary = out.track_path;
+                out.detail_secondary = {};
+            }
             out.fallback_icon = is_audio_path(out.track_path)
                 ? icons.play
                 : icons.folder;
@@ -555,9 +565,6 @@
             }
 
             const auto row = make_library_row_recipe(list_index);
-            const char* title_text = (row.model && !row.title().empty())
-                ? row.title_c_str()
-                : (row.group_row ? "Group" : "Track");
             ::ui::scene::AnchoredMenuItemSpec items[3]{};
             const std::size_t item_count = build_list_action_menu_items(list_index, items);
 
@@ -575,7 +582,7 @@
                 {
                     .anchor = anchor_rect,
                     .viewport = {0, 0, screen_width, screen_height},
-                    .title = title_text,
+                    .title = row.menu_title_cstr,
                     .items = items,
                     .item_count = item_count,
                 });
@@ -601,25 +608,17 @@
 
             char buf[192]{};
             const auto row = make_library_row_recipe(list_index);
-            if (row.group_row) {
-                const auto title = row.title();
-                const auto subtitle = row.subtitle();
-                if (subtitle.empty()) {
-                    std::snprintf(buf, sizeof(buf), "%.*s",
-                                  static_cast<int>(title.size()), title.data());
-                } else {
-                    std::snprintf(buf, sizeof(buf), "%.*s | %.*s",
-                                  static_cast<int>(title.size()), title.data(),
-                                  static_cast<int>(subtitle.size()), subtitle.data());
-                }
-                set_status(buf);
-                return;
+            const auto primary = row.detail_primary;
+            const auto secondary = row.detail_secondary;
+            if (primary.empty()) return;
+            if (secondary.empty()) {
+                std::snprintf(buf, sizeof(buf), "%.*s",
+                              static_cast<int>(primary.size()), primary.data());
+            } else {
+                std::snprintf(buf, sizeof(buf), "%.*s | %.*s",
+                              static_cast<int>(primary.size()), primary.data(),
+                              static_cast<int>(secondary.size()), secondary.data());
             }
-
-            const auto path = row.track_path;
-            if (path.empty()) return;
-            std::snprintf(buf, sizeof(buf), "%.*s",
-                          static_cast<int>(path.size()), path.data());
             set_status(buf);
         }
 

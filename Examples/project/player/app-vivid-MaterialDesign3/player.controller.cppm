@@ -204,6 +204,9 @@ export namespace player {
             bool group_row{false};
             bool current_row{false};
             bool show_tail_action{false};
+            const char* menu_title_cstr{"Track"};
+            std::string_view detail_primary{};
+            std::string_view detail_secondary{};
             std::string_view track_path{};
             std::string_view cover_path{};
             ::ui::scene::ImageId tail_icon{};

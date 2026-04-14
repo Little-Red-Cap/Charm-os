@@ -325,6 +325,21 @@
             return total_sec;
         }
 
+        bool library_group_row_is_current(int row_index) const noexcept {
+            if (!library_shows_group_rows()) return false;
+            if (track_index < 0) return false;
+            if (row_index < 0 || row_index >= static_cast<int>(list_order.size())) return false;
+            const auto row_group = library_group_title_for_track(list_order[static_cast<std::size_t>(row_index)]);
+            const auto current_group = library_group_title_for_track(track_index);
+            return !row_group.empty() && compare_ci(row_group, current_group) == 0;
+        }
+
+        const char* library_current_group_state_text() const noexcept {
+            if (is_paused()) return "Paused";
+            if (is_playing()) return "Playing";
+            return "Current";
+        }
+
         void activate_list_index(int list_index) {
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
             if (library_shows_group_rows()) {
@@ -456,12 +471,26 @@
                     const int track_count = library_group_track_count_for_row(static_cast<int>(i));
                     bool duration_complete = false;
                     const int total_sec = library_group_total_duration_for_row(static_cast<int>(i), &duration_complete);
+                    const bool is_current_group = library_group_row_is_current(static_cast<int>(i));
                     if (duration_complete && total_sec > 0) {
                         char duration_buf[16]{};
                         format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
-                        std::snprintf(buf, sizeof(buf), "%d tracks · %s", track_count, duration_buf);
+                        std::snprintf(buf, sizeof(buf), "%d tracks | %s", track_count, duration_buf);
                     } else {
                         std::snprintf(buf, sizeof(buf), "%d tracks", track_count);
+                    }
+                    if (duration_complete && total_sec > 0) {
+                        char duration_buf[16]{};
+                        format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
+                        if (is_current_group) {
+                            std::snprintf(buf, sizeof(buf), "%s | %d tracks | %s",
+                                          library_current_group_state_text(), track_count, duration_buf);
+                        } else {
+                            std::snprintf(buf, sizeof(buf), "%d tracks | %s", track_count, duration_buf);
+                        }
+                    } else if (is_current_group) {
+                        std::snprintf(buf, sizeof(buf), "%s | %d tracks",
+                                      library_current_group_state_text(), track_count);
                     }
                     list_display_titles[i].assign(display_title.empty() ? std::string_view{"Library"} : display_title);
                     list_display_subtitles[i].assign(buf);
@@ -586,9 +615,7 @@
 
             bool is_current_row = false;
             if (self->library_shows_group_rows()) {
-                const auto row_group = self->library_group_title_for_track(row_track);
-                const auto current_group = self->library_group_title_for_track(self->track_index);
-                is_current_row = !row_group.empty() && compare_ci(row_group, current_group) == 0;
+                is_current_row = self->library_group_row_is_current(static_cast<int>(index));
             } else {
                 is_current_row = row_track == self->track_index;
             }

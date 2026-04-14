@@ -31,6 +31,10 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (getpid() <= 0) return 99;
 
     errno = 0;
+    if (isatty(-1) != 0) return 125;
+    if (errno != EBADF) return 126;
+
+    errno = 0;
     if (read(-1, &ch, 1) != -1) return 100;
     if (errno != EBADF) return 101;
 
@@ -399,7 +403,15 @@ int charm_posix_newlib_lseek_entry(void) {
     if (lseek(1, 0, SEEK_SET) != (off_t)-1) return 125;
     if (errno != ESPIPE) return 126;
 
-    return write(1, "newlib-lseek-ok\n", 16) == 16 ? 0 : 127;
+    errno = 0;
+    if (lseek(-1, 0, SEEK_SET) != (off_t)-1) return 127;
+    if (errno != EBADF) return 128;
+
+    errno = 0;
+    if (lseek(0, 0, 99) != (off_t)-1) return 129;
+    if (errno != EINVAL) return 130;
+
+    return write(1, "newlib-lseek-ok\n", 16) == 16 ? 0 : 131;
 }
 
 int charm_posix_newlib_path_entry(void) {

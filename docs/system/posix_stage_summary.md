@@ -35,11 +35,13 @@
 - `open("/missing.txt") -> -1 && errno == ENOENT`
 - `isatty(file/pipe) -> 0 && errno == 0`
 - `isatty(non-tty) -> 0 && errno == 0`
+- `isatty(-1) -> 0 && errno == EBADF`
 - `fstat(-1, ...) -> -1 && errno == EBADF`
 - `read(EOF) -> 0 && errno == 0`
 - `read(-1, ...) -> -1 && errno == EBADF`
 - `write(-1, ...) -> -1 && errno == EBADF`
 - `close(-1) -> -1 && errno == EBADF`
+- `lseek(file, SEEK_{SET|END}) -> offset`, `lseek(pipe/tty/dev, ...) -> -1 && errno == ESPIPE`, `lseek(-1, ...) -> -1 && errno == EBADF`, and `lseek(fd, ..., invalid-whence) -> -1 && errno == EINVAL`
 - `pipe()` v0 currently behaves as an eager nonblocking primitive: empty reads with a live writer return `-1 && errno == EAGAIN`, full writes with a live reader return `-1 && errno == EAGAIN`, writer shutdown still yields `read() -> 0`, and per-endpoint `O_NONBLOCK` remains observable through `fcntl(F_GETFL/F_SETFL)` and shared across dup-family aliases on that endpoint
 - term-backed stdio now also exposes minimal status-flag state through `fcntl(F_GETFL/F_SETFL)`; `stdin` / `stdout` / `stderr` keep separate open-file-description state, while `/dev/tty` and `/dev/stderr` aliases inherit and share the selected source descriptor's `O_NONBLOCK` bit
 - `/dev/console` and `/dev/tty` currently share the same live-terminal selection rule: read opens prefer the active read-side terminal source, write opens prefer the active write-side terminal source, and both aliases share that source descriptor's observable status flags

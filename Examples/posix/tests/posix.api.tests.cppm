@@ -658,6 +658,14 @@ namespace {
 
         check_eq("fs-rename", api.rename("/work/a.txt", "/work/b.txt"), 0);
 
+        posix::set_errno(0);
+        check_eq("fs-mkdir-exist-dir", api.mkdir("/work"), -1);
+        check_eq("fs-mkdir-exist-dir-errno", posix::get_errno(), posix::EEXIST);
+
+        posix::set_errno(0);
+        check_eq("fs-mkdir-exist-file", api.mkdir("/work/b.txt"), -1);
+        check_eq("fs-mkdir-exist-file-errno", posix::get_errno(), posix::EEXIST);
+
         posix::PosixStat dir_stat{};
         check_eq("fs-stat-root", api.stat("/", &dir_stat), 0);
         check_eq("fs-stat-root-mode", dir_stat.mode & posix::S_IFMT, posix::S_IFDIR);

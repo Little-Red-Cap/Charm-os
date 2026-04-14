@@ -426,6 +426,14 @@ int charm_posix_newlib_path_entry(void) {
 
     if (mkdir("/newlib-dir", 0) != 0) return 144;
 
+    errno = 0;
+    if (mkdir("/newlib-dir", 0) != -1) return 522;
+    if (errno != EEXIST) return 523;
+
+    errno = 0;
+    if (mkdir("/newlib-path.txt", 0) != -1) return 524;
+    if (errno != EEXIST) return 525;
+
     if (stat("/newlib-dir", &st) != 0) return 145;
     if ((st.st_mode & S_IFMT) != S_IFDIR) return 146;
     if (st.st_size != 0) return 147;

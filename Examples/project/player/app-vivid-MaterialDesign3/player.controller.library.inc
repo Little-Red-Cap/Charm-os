@@ -34,9 +34,6 @@
         static constexpr int kTrackDurationUnknown = -1;
         static constexpr int kTrackDurationUnavailable = -2;
         static constexpr std::uint64_t kListDurationProbeIntervalMs = 120;
-        static constexpr int kListActionCardWidth = 196;
-        static constexpr int kListActionCardHeight = 174;
-        static constexpr int kListActionCardCompactHeight = 132;
 
         struct LibrarySortKey {
             std::string_view primary{};
@@ -360,23 +357,24 @@
             return "Current";
         }
 
+        ::ui::scene::AnchoredMenuHandles list_action_menu_handles() const noexcept {
+            ::ui::scene::AnchoredMenuHandles out{};
+            out.scrim = handles.list_action_scrim;
+            out.card = handles.list_action_card;
+            out.title = handles.list_action_title;
+            for (std::size_t i = 0; i < handles.list_action_items.size(); ++i) {
+                out.items[i] = handles.list_action_items[i];
+            }
+            return out;
+        }
+
         void close_list_action_menu() {
-            list_action_menu_open = false;
+            sync_list_action_menu_focus_visual(-1);
             list_action_menu_index = -1;
-            if (!access.valid()) return;
-            if (handles.list_action_scrim) {
-                access.set_visible(handles.list_action_scrim, false);
-                access.set_rect(handles.list_action_scrim, {0, 0, 0, 0});
+            ::ui::scene::hide_anchored_menu(access, list_action_menu_handles());
+            if (handles.list) {
+                access.set_focused(handles.list, true);
             }
-            if (handles.list_action_card) {
-                access.set_visible(handles.list_action_card, false);
-                access.set_rect(handles.list_action_card,
-                                {-4096, -4096, kListActionCardWidth, kListActionCardHeight});
-            }
-            if (handles.list_action_title) access.set_visible(handles.list_action_title, false);
-            if (handles.list_action_primary) access.set_visible(handles.list_action_primary, false);
-            if (handles.list_action_secondary) access.set_visible(handles.list_action_secondary, false);
-            if (handles.list_action_tertiary) access.set_visible(handles.list_action_tertiary, false);
         }
 
         std::string_view list_action_tertiary_label_for_track(int track_idx) const noexcept {
@@ -404,6 +402,108 @@
             return {};
         }
 
+        std::size_t build_list_action_menu_items(int list_index,
+                                                 ::ui::scene::AnchoredMenuItemSpec (&items)[3]) const noexcept {
+            for (auto& item : items) item = {};
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return 0;
+
+            items[0] = {
+                .text = library_shows_group_rows() ? "Open group" : "Play now",
+                .visible = true,
+            };
+            items[1] = {
+                .text = library_shows_group_rows() ? "Show summary" : "Show path",
+                .visible = true,
+            };
+
+            if (library_shows_group_rows()) return 2;
+
+            const int track_idx = list_index_to_track(list_index);
+            const auto tertiary_label = list_action_tertiary_label_for_track(track_idx);
+            if (tertiary_label.empty()) return 2;
+            items[2] = {
+                .text = tertiary_label.data(),
+                .visible = true,
+            };
+            return 3;
+        }
+
+        StylePatch list_action_menu_focus_patch() const noexcept {
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiTabActive,
+                .border_color = kUiOk,
+                .corner_radius = 12,
+                .inner_stroke_enabled = true,
+                .inner_stroke_color = kUiButtonHover,
+                .inner_stroke_width = 1,
+            });
+            patch.has_font_color = true;
+            patch.font_color = kUiTitle;
+            patch.has_border_focus = true;
+            patch.border_focus = kUiOk;
+            return patch;
+        }
+
+        void sync_list_action_menu_focus_visual(int item_index) {
+            if (!access.valid()) return;
+            const auto menu = list_action_menu_handles();
+            const StylePatch patch = list_action_menu_focus_patch();
+            for (std::size_t i = 0; i < menu.items.size(); ++i) {
+                const WidgetHandle item = menu.items[i];
+                if (!item) continue;
+                if (static_cast<int>(i) == item_index) {
+                    access.set_style_patch(item, patch);
+                } else {
+                    access.clear_style_patch(item);
+                }
+            }
+        }
+
+        int focused_list_action_menu_item() const noexcept {
+            if (!access.valid()) return -1;
+            return ::ui::scene::anchored_menu_focused_index(
+                const_cast<::ui::scene::SceneAccess&>(access),
+                list_action_menu_handles());
+        }
+
+        void focus_list_action_menu_item(int item_index) {
+            ::ui::scene::set_anchored_menu_focus(access, list_action_menu_handles(), item_index);
+            sync_list_action_menu_focus_visual(item_index);
+        }
+
+        bool handle_list_action_menu_key(UiKey key) {
+            if (list_action_menu_index < 0) return false;
+            ::ui::scene::AnchoredMenuItemSpec items[3]{};
+            const std::size_t item_count = build_list_action_menu_items(list_action_menu_index, items);
+            if (item_count == 0) return false;
+
+            const int focused = focused_list_action_menu_item();
+            switch (key) {
+            case UiKey::Up: {
+                const int next = ::ui::scene::anchored_menu_next_visible_index(items, item_count, focused, -1);
+                if (next >= 0) focus_list_action_menu_item(next);
+                return true;
+            }
+            case UiKey::Down: {
+                const int next = ::ui::scene::anchored_menu_next_visible_index(items, item_count, focused, 1);
+                if (next >= 0) focus_list_action_menu_item(next);
+                return true;
+            }
+            case UiKey::Enter: {
+                int invoke_index = focused;
+                if (invoke_index < 0) {
+                    invoke_index = ::ui::scene::anchored_menu_first_visible_index(items, item_count);
+                }
+                if (invoke_index >= 0) {
+                    invoke_list_action_item(invoke_index);
+                }
+                return true;
+            }
+            default:
+                return false;
+            }
+        }
+
         void open_list_action_menu(int list_index) {
             if (!access.valid()) return;
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) {
@@ -411,7 +511,6 @@
                 return;
             }
 
-            list_action_menu_open = true;
             list_action_menu_index = list_index;
 
             if (handles.list) {
@@ -425,51 +524,33 @@
             const char* title_text = (row < list_display_titles.size() && !list_display_titles[row].empty())
                 ? list_display_titles[row].c_str()
                 : (library_shows_group_rows() ? "Group" : "Track");
-            set_label(handles.list_action_title, title_text);
-            set_label(handles.list_action_primary,
-                      library_shows_group_rows() ? "Open group" : "Play now");
-            set_label(handles.list_action_secondary,
-                      library_shows_group_rows() ? "Show summary" : "Show path");
+            ::ui::scene::AnchoredMenuItemSpec items[3]{};
+            const std::size_t item_count = build_list_action_menu_items(list_index, items);
 
-            const int track_idx = list_index_to_track(list_index);
-            const auto tertiary_label = library_shows_group_rows()
-                ? std::string_view{}
-                : list_action_tertiary_label_for_track(track_idx);
-            const bool show_tertiary = !tertiary_label.empty();
-            const int card_h = show_tertiary ? kListActionCardHeight : kListActionCardCompactHeight;
-            if (show_tertiary) {
-                set_label(handles.list_action_tertiary, tertiary_label.data());
-            }
-
-            int menu_x = kUiPadding;
-            int menu_y = kUiPadding;
+            Rect anchor_rect{kUiPadding, kUiPadding, 0, kLibraryListRowHeight};
             if (handles.list) {
                 const Rect list_rect = access.world_rect(handles.list);
                 const int scroll_y = access.scroll_y(handles.list);
                 const int row_y = list_rect.y + list_index * kLibraryListRowHeight - scroll_y;
-                menu_x = list_rect.x + list_rect.w - kListActionCardWidth - 12;
-                menu_y = row_y + 6;
-                const int min_x = list_rect.x + 8;
-                const int max_x = std::max(min_x, list_rect.x + list_rect.w - kListActionCardWidth - 8);
-                const int min_y = list_rect.y + 8;
-                const int max_y = std::max(min_y, list_rect.y + list_rect.h - card_h - 8);
-                menu_x = std::clamp(menu_x, min_x, max_x);
-                menu_y = std::clamp(menu_y, min_y, max_y);
+                anchor_rect = {list_rect.x, row_y, list_rect.w, kLibraryListRowHeight};
             }
 
-            if (handles.list_action_scrim) {
-                access.set_rect(handles.list_action_scrim, {0, 0, screen_width, screen_height});
-                access.set_visible(handles.list_action_scrim, true);
+            ::ui::scene::show_anchored_menu(
+                access,
+                list_action_menu_handles(),
+                {
+                    .anchor = anchor_rect,
+                    .viewport = {0, 0, screen_width, screen_height},
+                    .title = title_text,
+                    .items = items,
+                    .item_count = item_count,
+                });
+            const int initial_focus = ::ui::scene::anchored_menu_first_visible_index(items, item_count);
+            if (initial_focus >= 0) {
+                focus_list_action_menu_item(initial_focus);
+            } else {
+                sync_list_action_menu_focus_visual(-1);
             }
-            if (handles.list_action_card) {
-                access.set_rect(handles.list_action_card,
-                                {menu_x, menu_y, kListActionCardWidth, card_h});
-                access.set_visible(handles.list_action_card, true);
-            }
-            if (handles.list_action_title) access.set_visible(handles.list_action_title, true);
-            if (handles.list_action_primary) access.set_visible(handles.list_action_primary, true);
-            if (handles.list_action_secondary) access.set_visible(handles.list_action_secondary, true);
-            if (handles.list_action_tertiary) access.set_visible(handles.list_action_tertiary, show_tertiary);
         }
 
         void invoke_list_action_primary() {
@@ -555,6 +636,22 @@
             library_tab = target_tab;
             library_context_key.assign(key);
             refresh_list_view();
+        }
+
+        void invoke_list_action_item(int item_index) {
+            switch (item_index) {
+            case 0:
+                invoke_list_action_primary();
+                break;
+            case 1:
+                invoke_list_action_secondary();
+                break;
+            case 2:
+                invoke_list_action_tertiary();
+                break;
+            default:
+                break;
+            }
         }
 
         void activate_list_index(int list_index) {

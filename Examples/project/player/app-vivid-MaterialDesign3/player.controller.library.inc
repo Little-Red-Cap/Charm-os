@@ -369,6 +369,7 @@
         }
 
         void close_list_action_menu() {
+            sync_list_action_menu_focus_visual(-1);
             list_action_menu_index = -1;
             ::ui::scene::hide_anchored_menu(access, list_action_menu_handles());
             if (handles.list) {
@@ -427,6 +428,37 @@
             return 3;
         }
 
+        StylePatch list_action_menu_focus_patch() const noexcept {
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiTabActive,
+                .border_color = kUiOk,
+                .corner_radius = 12,
+                .inner_stroke_enabled = true,
+                .inner_stroke_color = kUiButtonHover,
+                .inner_stroke_width = 1,
+            });
+            patch.has_font_color = true;
+            patch.font_color = kUiTitle;
+            patch.has_border_focus = true;
+            patch.border_focus = kUiOk;
+            return patch;
+        }
+
+        void sync_list_action_menu_focus_visual(int item_index) {
+            if (!access.valid()) return;
+            const auto menu = list_action_menu_handles();
+            const StylePatch patch = list_action_menu_focus_patch();
+            for (std::size_t i = 0; i < menu.items.size(); ++i) {
+                const WidgetHandle item = menu.items[i];
+                if (!item) continue;
+                if (static_cast<int>(i) == item_index) {
+                    access.set_style_patch(item, patch);
+                } else {
+                    access.clear_style_patch(item);
+                }
+            }
+        }
+
         int focused_list_action_menu_item() const noexcept {
             if (!access.valid()) return -1;
             return ::ui::scene::anchored_menu_focused_index(
@@ -436,6 +468,7 @@
 
         void focus_list_action_menu_item(int item_index) {
             ::ui::scene::set_anchored_menu_focus(access, list_action_menu_handles(), item_index);
+            sync_list_action_menu_focus_visual(item_index);
         }
 
         bool handle_list_action_menu_key(UiKey key) {
@@ -515,6 +548,8 @@
             const int initial_focus = ::ui::scene::anchored_menu_first_visible_index(items, item_count);
             if (initial_focus >= 0) {
                 focus_list_action_menu_item(initial_focus);
+            } else {
+                sync_list_action_menu_focus_visual(-1);
             }
         }
 

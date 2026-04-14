@@ -14,6 +14,7 @@
 | `exit_code` | `elfmem:exit_code 7` / `elf:/exit_code.elf 7` | wait status code=7 | 入口参数、退出码回收 | `.elf.inc` 内嵌 + `register_elf_mem`；RAMFS 文件输入 | 增加 shell/管道状态传递 |
 | `cat_file` | `elf:/cat_file.elf /cat.txt` / `elf:/cat_file.elf -` | stdout: 输入内容原样透传，exit=0 | `open/read/close/fstat/isatty` 最小文件链；以及 pipe-backed stdin 读取 | RAMFS 文件输入 + pipe stdin | 推进到真实 VFS/包输入 |
 | `write_file` | `elf:/write_file.elf /write-out.txt elf-write\n` | stdout: `write-ok\n`，目标文件内容更新为 payload，exit=0 | `open(O_WRONLY|O_CREAT|O_TRUNC)`、`write/close`、重开读回与 EOF | RAMFS 文件输入 | 推进到更真实的用户态写路径 |
+| `append_file` | `elf:/append_file.elf /append-out.txt tail\n base\ntail\n` | stdout: `append-ok\n`，目标文件内容保留原前缀并追加 payload，exit=0 | `open(O_WRONLY|O_CREAT|O_APPEND)`、追加写、重开读回与 EOF | RAMFS 文件输入 | 推进到更真实的用户态追加写路径 |
 | `fd_probe` | `elf:/fd_probe.elf /cat.txt` | stdout: `stdin=chr tty=1` / `stdout=fifo tty=0` / `file=reg tty=0`, exit=0 | fd 语义探针（`term/pipe/file` 的 `isatty/fstat` + 错误路径） | RAMFS 文件输入 | 扩展到更多 fd 类型对照 |
 | `stat_probe` | `elf:/stat_probe.elf /stat.txt` | stdout: `file=reg,size=10` + `stdout=fifo,size=0` + `stderr=chr,size=0`, exit=0 | `fstat` 的 `mode/类型/size` 语义探针 | RAMFS 文件输入 | 继续覆盖更完整字段矩阵 |
 
@@ -49,6 +50,12 @@
 - `open(O_WRONLY|O_CREAT|O_TRUNC)`
 - `write/close`
 - 文件重开后的内容可见性与 EOF 稳定
+
+当前新增 `append_file` 后，样本套件也开始要求：
+
+- `open(O_WRONLY|O_CREAT|O_APPEND)`
+- 追加写不覆盖既有前缀
+- 文件重开后的追加结果与 EOF 稳定
 
 当前样本仍未要求：
 

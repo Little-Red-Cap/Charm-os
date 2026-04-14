@@ -7,6 +7,7 @@ module;
 #include <span>
 #include <string_view>
 
+#include "../elf_samples/append_file.elf.inc"
 #include "../elf_samples/write_file.elf.inc"
 
 export module posix.programs.fs.tests;
@@ -140,6 +141,80 @@ namespace {
         h.procs.enable_elf_exec(false);
     }
 
+    void test_real_elf_append_file() noexcept {
+        fs::clear_mounts();
+        RamFsMount<128, 64, 256> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("elfappend-mount", st);
+
+        Harness h{};
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int elf_fd = h.api.open("/append_file.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("elfappend-elf-open", elf_fd >= 0);
+        auto elf_write = h.api.write(elf_fd, append_file_elf, append_file_elf_len);
+        check_true("elfappend-elf-write", elf_write == static_cast<posix::ssize_t>(append_file_elf_len));
+        check_eq("elfappend-elf-close", h.api.close(elf_fd), 0);
+
+        int seed_fd = h.api.open("/append-out.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("elfappend-seed-open", seed_fd >= 0);
+        check_eq("elfappend-seed-write", h.api.write(seed_fd, "base\n", 5), 5);
+        check_eq("elfappend-seed-close", h.api.close(seed_fd), 0);
+
+        int out_pipe[2]{-1, -1};
+        check_eq("elfappend-out-pipe", h.api.pipe(out_pipe), 0);
+
+        int err_pipe[2]{-1, -1};
+        check_eq("elfappend-err-pipe", h.api.pipe(err_pipe), 0);
+
+        const char payload[] = "tail\n";
+        const char expected[] = "base\ntail\n";
+        const char* argv[] = {"elf:/append_file.elf", "/append-out.txt", payload, expected, nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/append_file.elf";
+        cfg.argv = std::span<const char* const>(argv, 4);
+        cfg.stdio_out = out_pipe[1];
+        cfg.stdio_err = err_pipe[1];
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("elfappend-spawn", sp);
+        auto wait = h.procs.waitpid(sp.value().pid, 0);
+        check_true("elfappend-wait", wait);
+        check_eq("elfappend-code", wait.value().code, 0);
+
+        (void)h.api.close(out_pipe[1]);
+        (void)h.api.close(err_pipe[1]);
+
+        std::array<char, 32> out_buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, out_pipe[0], out_buf, out_size);
+        check_eq("elfappend-out", out, std::string_view{"append-ok\n"});
+        check_eq("elfappend-out-close", h.api.close(out_pipe[0]), 0);
+
+        std::array<char, 32> err_buf{};
+        util::usize err_size = 0;
+        auto err = read_from_fd(h.api, err_pipe[0], err_buf, err_size);
+        check_eq("elfappend-err", err, std::string_view{});
+        check_eq("elfappend-err-close", h.api.close(err_pipe[0]), 0);
+
+        posix::PosixStat file_st{};
+        check_eq("elfappend-stat", h.api.stat("/append-out.txt", &file_st), 0);
+        check_eq("elfappend-stat-size", file_st.size, static_cast<util::u64>(sizeof(expected) - 1));
+
+        int read_fd = h.api.open("/append-out.txt", posix::O_RDONLY, 0);
+        check_true("elfappend-read-open", read_fd >= 0);
+        std::array<char, 32> file_buf{};
+        util::usize file_size = 0;
+        auto file_text = read_from_fd(h.api, read_fd, file_buf, file_size);
+        check_eq("elfappend-file-text", file_text, std::string_view{expected, sizeof(expected) - 1});
+        check_eq("elfappend-read-close", h.api.close(read_fd), 0);
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+    }
+
     void test_busybox_fs_slice() noexcept {
         fs::clear_mounts();
         RamFsMount<64, 32, 64> ramfs{};
@@ -207,6 +282,7 @@ export void run_posix_program_fs_smoke_tests() noexcept {
     using namespace posix::testsupport;
     log_line("[posix-smoke] programs phase fs begin");
     test_real_elf_write_file();
+    test_real_elf_append_file();
     test_busybox_fs_slice();
     log_line("[posix-smoke] programs phase fs end");
 }

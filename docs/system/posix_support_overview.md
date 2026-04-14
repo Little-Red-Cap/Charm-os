@@ -26,7 +26,7 @@ POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime
 
 ## 当前已验证的主骨架
 - QEMU 主线已能稳定通过：`posix smoke + busybox phase2 smoke`。
-- 已有真实样本覆盖：`hello`、`argv_dump`、`stderr_demo`、`exit_code`、`cat_file`、`write_file`、`fd_probe`、`stat_probe`。
+- 已有真实样本覆盖：`hello`、`argv_dump`、`stderr_demo`、`exit_code`、`cat_file`、`write_file`、`append_file`、`fd_probe`、`stat_probe`。
 - 已成立的关键能力包括：
   - 文件路径 ELF 装载
   - `_exit(code)` 统一收束

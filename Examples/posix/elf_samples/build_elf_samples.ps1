@@ -60,6 +60,7 @@ $samples = @(
     "kill_self",
     "cat_file",
     "write_file",
+    "append_file",
     "fd_probe",
     "stat_probe"
 )

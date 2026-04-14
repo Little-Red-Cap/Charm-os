@@ -1124,6 +1124,13 @@ import alg_list_scroll;
         if (payload->selected >= static_cast<int>(count)) {
             payload->selected = (count > 0) ? static_cast<int>(count - 1) : -1;
         }
+        if (payload->active >= static_cast<int>(count)) {
+            payload->active = -1;
+        }
+        if (payload->pending_tail_action >= static_cast<int>(count)) {
+            payload->pending_tail_action = -1;
+        }
+        payload->scroll_y = clamp_scroll_y(h, payload->scroll_y);
         mark_layout_dirty();
     }
 
@@ -1248,6 +1255,13 @@ import alg_list_scroll;
         if (payload->selected >= static_cast<int>(count)) {
             payload->selected = (count > 0) ? static_cast<int>(count - 1) : -1;
         }
+        if (payload->active >= static_cast<int>(count)) {
+            payload->active = -1;
+        }
+        if (payload->pending_tail_action >= static_cast<int>(count)) {
+            payload->pending_tail_action = -1;
+        }
+        payload->scroll_y = clamp_scroll_y(h, payload->scroll_y);
         mark_layout_dirty();
     }
 

@@ -75,7 +75,7 @@ export namespace net::backend {
         Result<void> bind(SocketHandle handle, const Endpoint& ep) noexcept {
             auto* slot = slot_for_handle(handle);
             if (!slot) return util::unexpected(errc::invalid_arg);
-            if (slot->state != SocketState::opened && slot->state != SocketState::bound) {
+            if (slot->state != SocketState::opened) {
                 return util::unexpected(errc::bad_state);
             }
 
@@ -135,7 +135,7 @@ export namespace net::backend {
             auto* slot = slot_for_handle(handle);
             if (!slot) return util::unexpected(errc::invalid_arg);
             if (slot->kind != SocketKind::tcp) return util::unexpected(errc::not_supported);
-            if (slot->state != SocketState::opened && slot->state != SocketState::bound) {
+            if (slot->state != SocketState::bound) {
                 return util::unexpected(errc::bad_state);
             }
 
@@ -194,6 +194,7 @@ export namespace net::backend {
             auto* slot = slot_for_handle(handle);
             if (!slot) return util::unexpected(errc::invalid_arg);
             if (in.empty()) return util::unexpected(errc::invalid_arg);
+            if (slot->state != SocketState::connected) return util::unexpected(errc::bad_state);
 
             const int sent = ::send(slot->sock,
                                     reinterpret_cast<const char*>(in.data()),
@@ -416,13 +417,9 @@ export namespace net::backend {
         [[nodiscard]] static Result<void> endpoint_to_sockaddr(const Endpoint& ep,
                                                                sockaddr_in& out,
                                                                bool allow_any) noexcept {
-            if (ep.family() != AddressFamily::ipv4) {
-                return util::unexpected(ep.family() == AddressFamily::unspecified
-                    ? errc::invalid_arg
-                    : errc::not_supported);
-            }
-            if (!allow_any && (ep.port == 0 || ep.address.is_any())) {
-                return util::unexpected(errc::invalid_arg);
+            auto valid = allow_any ? validate_bind_endpoint_v0(ep) : validate_remote_endpoint_v0(ep);
+            if (!valid) {
+                return util::unexpected(valid.error());
             }
 
             out = sockaddr_in{};

@@ -19,6 +19,7 @@ import posix.fd_table;
 import posix.file;
 import posix.env;
 import posix.program_image;
+import posix.spawn_fds;
 import posix.user_context;
 import fs_core;
 import fs_errno;
@@ -126,6 +127,29 @@ namespace {
     util::Result<void> dummy_close(void*) noexcept { return {}; }
     util::Result<void> dummy_stat(void*, posix::PosixStat&) noexcept { return {}; }
     util::Result<void> dummy_dup(void*) noexcept { return {}; }
+
+    struct CountedFdCtx {
+        int dup_calls{0};
+        int close_calls{0};
+    };
+
+    util::Result<void> counted_close(void* ctx) noexcept {
+        auto* state = static_cast<CountedFdCtx*>(ctx);
+        if (!state) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        ++state->close_calls;
+        return {};
+    }
+
+    util::Result<void> counted_dup(void* ctx) noexcept {
+        auto* state = static_cast<CountedFdCtx*>(ctx);
+        if (!state) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        ++state->dup_calls;
+        return {};
+    }
 
     fs::Status dummy_node_read(fs::Node&, std::span<util::u8>) noexcept { return fs::Status{fs::Errc::ok}; }
     fs::Status dummy_node_write(fs::Node&, std::span<const util::u8>) noexcept { return fs::Status{fs::Errc::ok}; }
@@ -509,6 +533,62 @@ namespace {
         check_true("open-parent-unchanged", !fd_entry);
     }
 
+    void test_spawn_cloexec_source_dup2() noexcept {
+        posix::FdTable<8> table{};
+        table.init();
+
+        CountedFdCtx tracked{};
+        static const posix::FdOps kTrackedOps{
+            &dummy_read,
+            &dummy_write,
+            &counted_close,
+            &dummy_stat,
+            &counted_dup,
+            nullptr
+        };
+
+        posix::FdEntry entry{};
+        entry.kind = posix::FdKind::file;
+        entry.flags = posix::FdFlags::read_write;
+        entry.ops = &kTrackedOps;
+        entry.ctx = &tracked;
+        entry.inheritable = false;
+
+        auto attached = table.attach(entry, 3);
+        check_true("cloexec-source-attach", attached);
+
+        posix::FileActions<16> actions{};
+        check_true("cloexec-source-action-dup2", actions.add_dup2(3, 5));
+
+        posix::SpawnConfig cfg{};
+        cfg.stdio_in = 3;
+        cfg.stdio_out = 3;
+        cfg.file_actions = &actions;
+
+        auto built = posix::build_spawn_fd_table<8, 4>(&table, static_cast<posix::FileService<4>*>(nullptr), cfg);
+        check_true("cloexec-source-build", built);
+        auto& child = built.value();
+
+        auto child_source = child.get(3);
+        check_true("cloexec-source-pruned", !child_source);
+        auto child_stdin = child.get(0);
+        check_true("cloexec-source-stdin", child_stdin);
+        check_eq("cloexec-source-stdin-inheritable", child_stdin.value()->inheritable, true);
+        auto child_stdout = child.get(1);
+        check_true("cloexec-source-stdout", child_stdout);
+        check_eq("cloexec-source-stdout-inheritable", child_stdout.value()->inheritable, true);
+        auto child_dup = child.get(5);
+        check_true("cloexec-source-file-action", child_dup);
+        check_eq("cloexec-source-file-action-inheritable", child_dup.value()->inheritable, true);
+        check_eq("cloexec-source-parent-stays-cloexec", table.get(3).value()->inheritable, false);
+        check_eq("cloexec-source-dup-calls", tracked.dup_calls, 4);
+
+        child.close_all();
+        check_eq("cloexec-source-child-close-calls", tracked.close_calls, 4);
+        table.close_all();
+        check_eq("cloexec-source-parent-close-calls", tracked.close_calls, 5);
+    }
+
     void test_exact_path_resolves_against_cwd() noexcept {
         posix::ProcService<4, 4, 8, 4> procs{};
         posix::FdTable<8> table{};
@@ -660,6 +740,7 @@ export void run_posix_proc_smoke_tests() noexcept {
     test_exact_mode_falls_back_to_argv0();
     test_stdio_and_actions();
     test_open_action();
+    test_spawn_cloexec_source_dup2();
     test_exact_path_resolves_against_cwd();
     test_search_path_relative_entries_use_cwd();
     test_open_action_resolves_against_cwd();

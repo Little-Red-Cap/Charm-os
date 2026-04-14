@@ -18,4 +18,5 @@ export import device.desc;
 export import device.bus;
 export import device.manager;
 export import device.registry;
+export import device.runtime_driver;
 export import device.types;

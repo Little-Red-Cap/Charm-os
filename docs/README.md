@@ -8,6 +8,7 @@
 ## 快速开始
 - 入门指南：`docs/overview.md`
 - 架构总览：`docs/architecture_overview.md`
+- 驱动模型：`docs/architecture/driver_model.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
@@ -15,6 +16,10 @@
 - Init Plan Review 规则：`docs/system/init_plan_review_rules.md`
 - Materialized Graph 观察导出：`docs/system/init_materialized_graph_observe.md`
 - Materialized Graph 工具链里程碑：`docs/system/init_materialized_graph_tooling_milestone.md`
+- 网络协议栈双表面设计：`docs/io/net_stack_dual_surface_design.md`
+- 网络 socket v0 契约：`docs/io/net_socket_v0_contract.md`
+- 网络协议栈阶段复盘：`docs/io/net_stack_stage_review.md`
+- 网络协议栈底座收口任务单：`docs/io/net_stack_foundation_tasklist.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
 - POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
 - POSIX 三层执行模型：`docs/system/posix_three_layer_contract.md`
@@ -46,11 +51,16 @@ flowchart TD
 | 我要做什么 | 先看什么 |
 | --- | --- |
 | 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
+| 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
 | 实现 USB 设备 | `docs/usb/usb_arch_plan.md` → `docs/usb/usb_dsl_overview.md` |
+| 实现 USB Host 运行期发现 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` |
 | 开始改代码 | `docs/overview.md` → `docs/project/standards/项目C++编码要求.md` |
 | 和 AI 协作 | `docs/agent/README.md` |
 | 做代码审查 | `docs/agent/skills/code-review/` |
+| 做网络协议栈设计 | `docs/io/net_stack_dual_surface_design.md` |
+| 看网络协议栈阶段复盘 | `docs/io/net_stack_stage_review.md` |
+| 拆网络底座收口任务 | `docs/io/net_stack_foundation_tasklist.md` |
 | POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
 | POSIX 分层与演进原则 | `docs/system/posix_subsystem_principles.md` |
 | POSIX 三层执行模型 | `docs/system/posix_three_layer_contract.md` |
@@ -84,6 +94,7 @@ docs/
 ### 架构与依赖
 - `docs/architecture/dependency_contract.md`
 - `docs/architecture/dependency_whitelist.md`
+- `docs/architecture/driver_model.md`
 - `docs/architecture/device_model_overview.md`
 - `docs/architecture/capability_recovery_rules.md`
 - `docs/architecture/capability_recovery_matrix.md`
@@ -94,6 +105,9 @@ docs/
 - `docs/io/io_reactor_contract.md`
 - `docs/io/io_registry_contract.md`
 - `docs/io/net_stack_dual_surface_design.md`
+- `docs/io/net_socket_v0_contract.md`
+- `docs/io/net_stack_stage_review.md`
+- `docs/io/net_stack_foundation_tasklist.md`
 - `docs/input/input_layering_decision.md`
 - `docs/input/input_protocol_map.md`
 
@@ -111,6 +125,8 @@ docs/
 - `docs/usb/usb_dsl_overview.md`
 - `docs/usb/usb_cdc_contract.md`
 - `docs/usb/usb_strings_overview.md`
+- `docs/architecture/driver_model.md`（USB Host runtime / capability export）
+- `docs/architecture/device_model_overview.md`（USB Host discovery / lifecycle）
 
 ### 系统与启动
 - `docs/system/init_graph_contract.md`

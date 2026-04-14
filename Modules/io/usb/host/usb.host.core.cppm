@@ -17,11 +17,17 @@ export namespace usb::host {
 
     class HostBus {
     public:
-        HostBus(void* ctx, HostOps ops) noexcept : ctx_(ctx), ops_(ops) {}
+        HostBus(void* ctx,
+                HostOps ops,
+                const char* name = "usb.host") noexcept
+            : ctx_(ctx),
+              ops_(ops),
+              name_(name ? name : "usb.host") {
+        }
 
         device::Bus bus() const noexcept {
             device::Bus b{};
-            b.name = "usb.host";
+            b.name = name_;
             b.ctx = const_cast<HostBus*>(this);
             b.ops.enumerate = &HostBus::enumerate;
             b.ops.attach = &HostBus::attach;
@@ -52,5 +58,6 @@ export namespace usb::host {
 
         void* ctx_{nullptr};
         HostOps ops_{};
+        const char* name_{"usb.host"};
     };
 }

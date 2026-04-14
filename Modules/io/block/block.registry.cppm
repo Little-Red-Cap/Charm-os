@@ -95,6 +95,32 @@ export namespace block {
             return util::unexpected(util::Errc::noent);
         }
 
+        util::Result<void> unregister_device(std::string_view name) noexcept {
+            if (name.empty()) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = 0; i < devices_.size(); ++i) {
+                if (!is_used(i)) continue;
+                if (devices_[i].desc.name.compare(name) != 0) continue;
+                clear_slot(i);
+                return {};
+            }
+            return util::unexpected(util::Errc::noent);
+        }
+
+        util::Result<void> unregister_device(CapId cap) noexcept {
+            if (cap == 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = 0; i < devices_.size(); ++i) {
+                if (!is_used(i)) continue;
+                if (devices_[i].desc.cap != cap) continue;
+                clear_slot(i);
+                return {};
+            }
+            return util::unexpected(util::Errc::noent);
+        }
+
         Device* open_device(std::string_view name) noexcept {
             auto* ep = find_device(name);
             return ep ? ep->dev : nullptr;
@@ -154,6 +180,18 @@ export namespace block {
 
         void mark_used(util::usize idx) noexcept {
             used_[word_index(idx)] |= bit_mask(idx);
+        }
+
+        void mark_unused(util::usize idx) noexcept {
+            used_[word_index(idx)] &= ~bit_mask(idx);
+        }
+
+        void clear_slot(util::usize idx) noexcept {
+            devices_[idx] = {};
+            mark_unused(idx);
+            if (count_ > 0) {
+                --count_;
+            }
         }
 
         util::usize find_free_slot() const noexcept {
@@ -231,12 +269,20 @@ export namespace block {
         if (reg.replace_device(b, dev_b)) return false;
         if (!reg.replace_device(a, dev_b)) return false;
         if (reg.open_device("block.sd0") != &dev_b) return false;
+        if (reg.unregister_device("block.missing")) return false;
+        if (!reg.unregister_device("block.sd0")) return false;
+        if (reg.find_device("block.sd0") != nullptr) return false;
+        if (reg.open_device(a.cap) != nullptr) return false;
+        if (reg.size() != 0) return false;
+        if (!reg.register_device(a, dev_a)) return false;
+        if (!reg.unregister_device(a.cap)) return false;
+        if (reg.open_device("block.sd0") != nullptr) return false;
         util::usize count = 0;
         reg.list_devices([](void* ctx, const DeviceEndpoint&) noexcept {
             auto* c = static_cast<util::usize*>(ctx);
             ++(*c);
         }, &count);
-        return count == 1;
+        return count == 0;
     }
 #endif
 }

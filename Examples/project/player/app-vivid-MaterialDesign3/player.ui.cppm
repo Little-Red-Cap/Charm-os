@@ -149,6 +149,21 @@ export namespace player::ui {
     inline constexpr rgba kUiPlayBg = {14, 18, 30, 255};
     inline constexpr rgba kUiPlayShadow = {0, 0, 0, 160};
     inline constexpr rgba kUiCardShadow = {0, 0, 0, 70};
+    inline constexpr rgba kUiLibraryHeroTopStart = {118, 168, 220, 140};
+    inline constexpr rgba kUiLibraryHeroTopEnd = {42, 78, 130, 24};
+    inline constexpr rgba kUiLibraryHeroBottomStart = {14, 34, 68, 92};
+    inline constexpr rgba kUiLibraryHeroBottomEnd = {4, 10, 26, 240};
+    inline constexpr rgba kUiLibraryCardTop = {58, 96, 150, 174};
+    inline constexpr rgba kUiLibraryCardBottom = {10, 18, 40, 242};
+    inline constexpr rgba kUiLibraryCardBorder = {98, 126, 182, 208};
+    inline constexpr rgba kUiLibraryChipIdle = {42, 48, 70, 236};
+    inline constexpr rgba kUiLibraryChipBorder = {90, 102, 142, 220};
+    inline constexpr rgba kUiLibraryChipActive = {95, 118, 171, 255};
+    inline constexpr rgba kUiLibraryListAccent = {94, 123, 184, 232};
+    inline constexpr rgba kUiLibraryListOnAccent = {247, 249, 255, 255};
+    inline constexpr rgba kUiLibraryPathIdle = {40, 48, 72, 228};
+    inline constexpr rgba kUiLibraryPathActive = {54, 68, 100, 238};
+    inline constexpr rgba kUiLibraryPathBorderActive = {116, 146, 202, 255};
 
     struct PlayerIconIds {
         ::ui::gfx::ImageId prev{};
@@ -327,10 +342,12 @@ export namespace player::ui {
         struct FreetypeLoaderState {
             charm::font::FreetypeFontLoader loader{};
             std::string ttf_path{};
+            std::string ttf_fallback_path{};
             std::string ttf_small{};
             std::string ttf_normal{};
             std::string ttf_large{};
             std::string ttf_mono{};
+            std::string ttf_fallback{};
             std::array<ExactFontSlot, 8> exact_fonts{};
             bool ready{false};
         };
@@ -617,6 +634,7 @@ export namespace player::ui {
     }
 
     void bind_player_freetype_font(std::string_view ttf_path,
+                                   std::string_view fallback_ttf_path,
                                    int small_px,
                                    int normal_px,
                                    int large_px) noexcept {
@@ -624,14 +642,20 @@ export namespace player::ui {
         auto& state = detail::freetype_state();
         detail::reset_exact_font_cache(state);
         state.ttf_path.assign(ttf_path.begin(), ttf_path.end());
+        state.ttf_fallback_path.assign(fallback_ttf_path.begin(), fallback_ttf_path.end());
         state.ttf_small = state.ttf_path + "#small";
         state.ttf_normal = state.ttf_path + "#normal";
         state.ttf_large = state.ttf_path + "#large";
         state.ttf_mono = state.ttf_path + "#mono";
+        state.ttf_fallback.clear();
+        if (!state.ttf_fallback_path.empty()) {
+            state.ttf_fallback = state.ttf_fallback_path + "#normal";
+        }
         const char* path_small = state.ttf_small.c_str();
         const char* path_normal = state.ttf_normal.c_str();
         const char* path_large = state.ttf_large.c_str();
         const char* path_mono = state.ttf_mono.c_str();
+        const char* path_fallback = state.ttf_fallback.empty() ? nullptr : state.ttf_fallback.c_str();
 
         charm::font::FontPackageConfig pkg{};
         pkg.regular.small_path = path_small;
@@ -640,7 +664,7 @@ export namespace player::ui {
         pkg.regular.mono_path = path_mono;
         pkg.medium = pkg.regular;
         pkg.bold = pkg.regular;
-        pkg.fallback_path = nullptr;
+        pkg.fallback_path = path_fallback;
 
         charm::font::FreetypeFontLoaderConfig loader_cfg{};
         loader_cfg.regular.small_path = path_small;
@@ -721,12 +745,8 @@ export namespace player::ui {
         set_default_font_weight(FontId::Large, FontWeight::Regular, &font_noto_ascii_16);
         set_default_font_weight(FontId::Mono, FontWeight::Regular, &font_noto_ascii_16);
 
-        if (!font_package_bound()) {
-            if (!player::font_cache::init()) {
-                set_default_fallback_font(&font_noto_sc_16);
-            }
-        } else {
-            // Ensure CJK fallback remains available even when a TTF package is bound.
+        const bool system_fallback_ready = player::font_cache::init();
+        if (!system_fallback_ready) {
             set_default_fallback_font(&font_noto_sc_16);
         }
 
@@ -840,15 +860,15 @@ export namespace player::ui {
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {48, 86, 136, 188};
+            patch.gradient_start = kUiLibraryCardTop;
             patch.has_gradient_end = true;
-            patch.gradient_end = {14, 24, 48, 228};
+            patch.gradient_end = kUiLibraryCardBottom;
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;
-            patch.border_color = kUiListBorder;
+            patch.border_color = kUiLibraryCardBorder;
             patch.has_corner_radius = true;
-            patch.corner_radius = 16;
+            patch.corner_radius = 20;
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
@@ -856,11 +876,11 @@ export namespace player::ui {
             patch.has_shadow_offset_x = true;
             patch.shadow_offset_x = 0;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 4;
+            patch.shadow_offset_y = 6;
             patch.has_shadow_spread = true;
-            patch.shadow_spread = 4;
+            patch.shadow_spread = 6;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 18;
+            patch.shadow_radius = 22;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard), patch);
         }
 
@@ -948,7 +968,9 @@ export namespace player::ui {
         preset.list_view = theme.get<ListView>();
         preset.list_view.colors.bg_color = kUiListBg;
         preset.list_view.colors.border_color = kUiListBorder;
-        preset.list_view.colors.on_accent = kUiListFont;
+        preset.list_view.colors.accent_color = kUiLibraryListAccent;
+        preset.list_view.colors.on_accent = kUiLibraryListOnAccent;
+        preset.list_view.colors.border_focus = kUiLibraryPathBorderActive;
         preset.list_view.metrics.corner_radius = 12;
         preset.list_view.metrics.padding = 12;
         preset.list_view.colors.font_color = kUiListFont;

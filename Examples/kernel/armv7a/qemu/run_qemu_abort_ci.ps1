@@ -74,6 +74,7 @@ switch ($Kind) {
         $elfPath = "out\\build\\debug-abort-data\\charm-armv7a-qemu"
         $exceptionLine = "ARMv7-A exception: data abort"
         $faultPattern = "ARMv7-A data fault, dfsr=0x[0-9A-F]{8}, dfar=0x20000000, adfsr=0x[0-9A-F]{8}"
+        $decodePattern = "ARMv7-A data fault decode, status=0x05 \(section translation fault\), domain=0x0, write=no, cm=no"
     }
     "prefetch" {
         $configurePreset = "debug-abort-prefetch"
@@ -81,6 +82,7 @@ switch ($Kind) {
         $elfPath = "out\\build\\debug-abort-prefetch\\charm-armv7a-qemu"
         $exceptionLine = "ARMv7-A exception: prefetch abort"
         $faultPattern = "ARMv7-A prefetch fault, ifsr=0x[0-9A-F]{8}, ifar=0x20000000, aifsr=0x[0-9A-F]{8}"
+        $decodePattern = "ARMv7-A prefetch fault decode, status=0x05 \(section translation fault\), domain=0x0"
     }
     default {
         throw "unsupported abort kind: $Kind"
@@ -161,6 +163,9 @@ if (($log -notmatch "ARMv7-A MMU flags, mmu=on, dcache=(on|off), icache=(on|off)
 }
 if (($log -notmatch $faultPattern)) {
     $missing += $faultPattern
+}
+if (($log -notmatch $decodePattern)) {
+    $missing += $decodePattern
 }
 if (($log -notmatch "ARMv7-A fault context, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A fault context, sctlr=0x..."

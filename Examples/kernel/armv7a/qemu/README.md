@@ -85,14 +85,16 @@ SVC/IRQ lines:
 
 ```text
 ARMv7-A abort smoke, kind=data, addr=0x20000000
-ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, mode=abt
+ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
 ARMv7-A data fault, dfsr=0x........, dfar=0x20000000, adfsr=0x........
+ARMv7-A data fault decode, status=0x05 (section translation fault), domain=0x0, write=no, cm=no
 ```
 
 ```text
 ARMv7-A abort smoke, kind=prefetch, addr=0x20000000
-ARMv7-A exception: prefetch abort, pc=0x20000000, lr=0x20000004, spsr=0x........, mode=abt
+ARMv7-A exception: prefetch abort, pc=0x20000000, lr=0x20000004, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
 ARMv7-A prefetch fault, ifsr=0x........, ifar=0x20000000, aifsr=0x........
+ARMv7-A prefetch fault decode, status=0x05 (section translation fault), domain=0x0
 ```
 
 ## GDB attach
@@ -139,5 +141,8 @@ continue
 - Optional `data` / `prefetch` abort smokes now reuse the shared fatal
   exception path to validate `DFSR/DFAR/ADFSR` and `IFSR/IFAR/AIFSR`
   collection without destabilizing the default CI smoke.
+- Fatal exception logs now distinguish the pre-abort mode captured in `SPSR`
+  from the current handler mode in `CPSR`, which makes abort bring-up logs
+  much less ambiguous when we start chasing real board faults.
 - This gives us a safe Cortex-A bring-up foothold before we start layering
   more of Charm on top or moving toward RK3506-specific work.

@@ -20,6 +20,42 @@
         h.list_hint = builder.create_label_static("");
         anchor_rect(builder, h.list_hint, {0, 0, 0, 0});
 
+        h.list_action_scrim = builder.create_button_static("");
+        anchor_rect(builder, h.list_action_scrim, {0, 0, 0, 0});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {0, 0, 0, 28};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_font_color = true;
+            patch.font_color = {0, 0, 0, 0};
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+            builder.set_style_override(h.list_action_scrim, patch);
+        }
+
+        h.list_action_card = builder.create_container();
+        anchor_rect(builder, h.list_action_card, {-4096, -4096, 196, 132});
+        builder.set_style_class(h.list_action_card, static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard));
+        builder.set_hit_testable(h.list_action_card, false);
+
+        h.list_action_title = builder.create_label_static("");
+        anchor_rect(builder, h.list_action_title, {14, 12, 168, 18});
+        apply_time_label_style(builder, h.list_action_title);
+        builder.set_label_align(h.list_action_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        builder.set_hit_testable(h.list_action_title, false);
+
+        h.list_action_primary = builder.create_button_static("");
+        anchor_rect(builder, h.list_action_primary, {12, 40, 172, 34});
+        builder.set_style_class(h.list_action_primary, static_cast<StyleClassId>(PlayerStyleClass::TopBarButton));
+        builder.set_label_align(h.list_action_primary, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+
+        h.list_action_secondary = builder.create_button_static("");
+        anchor_rect(builder, h.list_action_secondary, {12, 82, 172, 34});
+        builder.set_style_class(h.list_action_secondary, static_cast<StyleClassId>(PlayerStyleClass::TopBarButton));
+        builder.set_label_align(h.list_action_secondary, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+
         h.nav_bar = {};
         h.nav_home = {};
         h.nav_search = {};
@@ -236,6 +272,11 @@
         builder.link(list_card_root, h.list_hint);
         builder.link(list_card_root, list_path_icon);
         builder.link(list_card_root, h.list_path_hit);
+        builder.link(library, h.list_action_scrim);
+        builder.link(library, h.list_action_card);
+        builder.link(h.list_action_card, h.list_action_title);
+        builder.link(h.list_action_card, h.list_action_primary);
+        builder.link(h.list_action_card, h.list_action_secondary);
 
         build_bottom_chrome(builder, h, layout, icons);
     }

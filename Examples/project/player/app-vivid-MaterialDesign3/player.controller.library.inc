@@ -30,9 +30,12 @@
 
         static constexpr int kLibraryTabRadius = 19;
         static constexpr int kLibraryPathRadius = 10;
+        static constexpr int kLibraryListRowHeight = 72;
         static constexpr int kTrackDurationUnknown = -1;
         static constexpr int kTrackDurationUnavailable = -2;
         static constexpr std::uint64_t kListDurationProbeIntervalMs = 120;
+        static constexpr int kListActionCardWidth = 196;
+        static constexpr int kListActionCardHeight = 132;
 
         struct LibrarySortKey {
             std::string_view primary{};
@@ -348,6 +351,123 @@
             if (is_paused()) return "Paused";
             if (is_playing()) return "Playing";
             return "Current";
+        }
+
+        void close_list_action_menu() {
+            list_action_menu_open = false;
+            list_action_menu_index = -1;
+            if (!access.valid()) return;
+            if (handles.list_action_scrim) {
+                access.set_visible(handles.list_action_scrim, false);
+                access.set_rect(handles.list_action_scrim, {0, 0, 0, 0});
+            }
+            if (handles.list_action_card) {
+                access.set_visible(handles.list_action_card, false);
+                access.set_rect(handles.list_action_card,
+                                {-4096, -4096, kListActionCardWidth, kListActionCardHeight});
+            }
+            if (handles.list_action_title) access.set_visible(handles.list_action_title, false);
+            if (handles.list_action_primary) access.set_visible(handles.list_action_primary, false);
+            if (handles.list_action_secondary) access.set_visible(handles.list_action_secondary, false);
+        }
+
+        void open_list_action_menu(int list_index) {
+            if (!access.valid()) return;
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) {
+                close_list_action_menu();
+                return;
+            }
+
+            list_action_menu_open = true;
+            list_action_menu_index = list_index;
+
+            if (handles.list) {
+                ignore_list_select = true;
+                access.set_list_view_selected(handles.list, list_index);
+                ignore_list_select = false;
+                last_list_selected = list_index;
+            }
+
+            const std::size_t row = static_cast<std::size_t>(list_index);
+            const char* title_text = (row < list_display_titles.size() && !list_display_titles[row].empty())
+                ? list_display_titles[row].c_str()
+                : (library_shows_group_rows() ? "Group" : "Track");
+            set_label(handles.list_action_title, title_text);
+            set_label(handles.list_action_primary,
+                      library_shows_group_rows() ? "Open group" : "Play now");
+            set_label(handles.list_action_secondary,
+                      library_shows_group_rows() ? "Show summary" : "Show path");
+
+            int menu_x = kUiPadding;
+            int menu_y = kUiPadding;
+            if (handles.list) {
+                const Rect list_rect = access.world_rect(handles.list);
+                const int scroll_y = access.scroll_y(handles.list);
+                const int row_y = list_rect.y + list_index * kLibraryListRowHeight - scroll_y;
+                menu_x = list_rect.x + list_rect.w - kListActionCardWidth - 12;
+                menu_y = row_y + 6;
+                const int min_x = list_rect.x + 8;
+                const int max_x = std::max(min_x, list_rect.x + list_rect.w - kListActionCardWidth - 8);
+                const int min_y = list_rect.y + 8;
+                const int max_y = std::max(min_y, list_rect.y + list_rect.h - kListActionCardHeight - 8);
+                menu_x = std::clamp(menu_x, min_x, max_x);
+                menu_y = std::clamp(menu_y, min_y, max_y);
+            }
+
+            if (handles.list_action_scrim) {
+                access.set_rect(handles.list_action_scrim, {0, 0, screen_width, screen_height});
+                access.set_visible(handles.list_action_scrim, true);
+            }
+            if (handles.list_action_card) {
+                access.set_rect(handles.list_action_card,
+                                {menu_x, menu_y, kListActionCardWidth, kListActionCardHeight});
+                access.set_visible(handles.list_action_card, true);
+            }
+            if (handles.list_action_title) access.set_visible(handles.list_action_title, true);
+            if (handles.list_action_primary) access.set_visible(handles.list_action_primary, true);
+            if (handles.list_action_secondary) access.set_visible(handles.list_action_secondary, true);
+        }
+
+        void invoke_list_action_primary() {
+            const int list_index = list_action_menu_index;
+            close_list_action_menu();
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
+            activate_list_index(list_index);
+        }
+
+        void invoke_list_action_secondary() {
+            const int list_index = list_action_menu_index;
+            close_list_action_menu();
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
+
+            const std::size_t row = static_cast<std::size_t>(list_index);
+            char buf[192]{};
+            if (library_shows_group_rows()) {
+                const auto title = (row < list_display_titles.size())
+                    ? list_display_titles[row].view()
+                    : std::string_view{};
+                const auto subtitle = (row < list_display_subtitles.size())
+                    ? list_display_subtitles[row].view()
+                    : std::string_view{};
+                if (subtitle.empty()) {
+                    std::snprintf(buf, sizeof(buf), "%.*s",
+                                  static_cast<int>(title.size()), title.data());
+                } else {
+                    std::snprintf(buf, sizeof(buf), "%.*s | %.*s",
+                                  static_cast<int>(title.size()), title.data(),
+                                  static_cast<int>(subtitle.size()), subtitle.data());
+                }
+                set_status(buf);
+                return;
+            }
+
+            const auto* tracks = storage.tracks;
+            const int track_idx = list_index_to_track(list_index);
+            if (!tracks || track_idx < 0 || track_idx >= static_cast<int>(tracks->size())) return;
+            const auto path = (*tracks)[static_cast<std::size_t>(track_idx)].view();
+            std::snprintf(buf, sizeof(buf), "%.*s",
+                          static_cast<int>(path.size()), path.data());
+            set_status(buf);
         }
 
         void activate_list_index(int list_index) {
@@ -854,8 +974,8 @@
             access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 18);
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 44);
             access.set_list_view_icon_corner_radius(handles.list, 12);
-            access.set_list_row_height(handles.list, 72);
-            access.set_scroll_step(handles.list, 72);
+            access.set_list_row_height(handles.list, kLibraryListRowHeight);
+            access.set_scroll_step(handles.list, kLibraryListRowHeight);
             if (count > 0) {
                 sync_list_selection();
             } else {
@@ -870,23 +990,11 @@
         }
 
         void invoke_list_action(int list_index) {
-            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
-            const std::size_t row = static_cast<std::size_t>(list_index);
-            const auto title = (row < list_display_titles.size())
-                ? list_display_titles[row].view()
-                : std::string_view{};
-            char buf[192]{};
-            if (title.empty()) {
-                std::snprintf(buf, sizeof(buf), "Action slot: %s",
-                              library_shows_group_rows() ? "Group" : "Track");
-            } else {
-                std::snprintf(buf, sizeof(buf), "Action slot: %.*s",
-                              static_cast<int>(title.size()), title.data());
-            }
-            set_status(buf);
+            open_list_action_menu(list_index);
         }
 
         void set_library_tab(LibraryTab tab) {
+            close_list_action_menu();
             if (library_tab == tab) {
                 if (library_has_context()) {
                     library_context_key.clear();
@@ -902,6 +1010,7 @@
         }
 
         void toggle_library_shuffle() {
+            close_list_action_menu();
             list_shuffle_enabled = !list_shuffle_enabled;
             if (list_shuffle_enabled) {
                 auto seed = static_cast<std::uint32_t>(charm::system::ClockCaps::TimeSource::now());
@@ -912,6 +1021,7 @@
         }
 
         void reset_library_context() {
+            close_list_action_menu();
             if (library_has_context()) {
                 library_context_key.clear();
                 refresh_list_view();
@@ -932,6 +1042,7 @@
         }
 
         void apply_storage_view(StorageView view) {
+            close_list_action_menu();
             storage = view;
             fs_ready = storage.fs_ready;
             mount_status.assign(storage.mount_status);

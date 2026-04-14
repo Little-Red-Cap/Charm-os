@@ -143,6 +143,7 @@
 
         #include "player.controller.playback.inc"
         void cycle_list_sort() {
+            close_list_action_menu();
             if (list_shuffle_enabled) {
                 list_shuffle_enabled = false;
             }
@@ -308,17 +309,26 @@
                 }
                 } else {
                     if (type == Event::Type::MouseUp) {
-                        if (target == handles.bottom_play) {
+                        if (target == handles.list_action_scrim) {
+                            close_list_action_menu();
+                        } else if (target == handles.list_action_primary) {
+                            invoke_list_action_primary();
+                        } else if (target == handles.list_action_secondary) {
+                            invoke_list_action_secondary();
+                        } else if (target == handles.bottom_play) {
                             actions.toggle_play = true;
                         } else if (target == handles.bottom_next) {
                             actions.next = true;
                         } else if (target == handles.bottom_hit || target == handles.bottom_bar
                                    || target == handles.bottom_cover
                                    || target == handles.bottom_title || target == handles.bottom_subtitle) {
+                            close_list_action_menu();
                             set_page(PlayerPage::NowPlaying);
                         } else if (target == handles.nav_home) {
+                            close_list_action_menu();
                             set_page(PlayerPage::Home);
                         } else if (target == handles.nav_library) {
+                            close_list_action_menu();
                             set_page(PlayerPage::Library);
                         } else if (target == handles.list_tab_songs) {
                             set_library_tab(LibraryTab::Songs);

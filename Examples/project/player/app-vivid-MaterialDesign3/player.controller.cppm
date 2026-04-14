@@ -160,6 +160,11 @@ export namespace player {
         WidgetHandle list_sort{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
+        WidgetHandle list_action_scrim{};
+        WidgetHandle list_action_card{};
+        WidgetHandle list_action_title{};
+        WidgetHandle list_action_primary{};
+        WidgetHandle list_action_secondary{};
         WidgetHandle mode_hint{};
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};
@@ -223,6 +228,8 @@ export namespace player {
         int last_list_count{-1};
         bool ignore_list_select{false};
         int last_list_selected{-1};
+        bool list_action_menu_open{false};
+        int list_action_menu_index{-1};
         LibraryTab library_tab{LibraryTab::Songs};
         FixedString<192> library_context_key{};
         ListSort list_sort{ListSort::NameAsc};

@@ -149,6 +149,19 @@ export namespace player::ui {
     inline constexpr rgba kUiPlayBg = {14, 18, 30, 255};
     inline constexpr rgba kUiPlayShadow = {0, 0, 0, 160};
     inline constexpr rgba kUiCardShadow = {0, 0, 0, 70};
+    inline constexpr rgba kUiLibraryHeroTopStart = {128, 178, 228, 156};
+    inline constexpr rgba kUiLibraryHeroTopEnd = {56, 94, 150, 40};
+    inline constexpr rgba kUiLibraryHeroBottomStart = {18, 44, 84, 88};
+    inline constexpr rgba kUiLibraryHeroBottomEnd = {4, 12, 30, 236};
+    inline constexpr rgba kUiLibraryCardTop = {54, 92, 144, 156};
+    inline constexpr rgba kUiLibraryCardBottom = {12, 20, 42, 238};
+    inline constexpr rgba kUiLibraryCardBorder = {92, 118, 172, 196};
+    inline constexpr rgba kUiLibraryChipIdle = {40, 46, 66, 236};
+    inline constexpr rgba kUiLibraryChipBorder = {82, 94, 130, 210};
+    inline constexpr rgba kUiLibraryChipActive = {88, 110, 158, 255};
+    inline constexpr rgba kUiLibraryPathIdle = {30, 36, 54, 224};
+    inline constexpr rgba kUiLibraryPathActive = {44, 56, 84, 236};
+    inline constexpr rgba kUiLibraryPathBorderActive = {104, 134, 188, 255};
 
     struct PlayerIconIds {
         ::ui::gfx::ImageId prev{};
@@ -840,15 +853,15 @@ export namespace player::ui {
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {48, 86, 136, 188};
+            patch.gradient_start = kUiLibraryCardTop;
             patch.has_gradient_end = true;
-            patch.gradient_end = {14, 24, 48, 228};
+            patch.gradient_end = kUiLibraryCardBottom;
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;
-            patch.border_color = kUiListBorder;
+            patch.border_color = kUiLibraryCardBorder;
             patch.has_corner_radius = true;
-            patch.corner_radius = 16;
+            patch.corner_radius = 20;
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
@@ -856,11 +869,11 @@ export namespace player::ui {
             patch.has_shadow_offset_x = true;
             patch.shadow_offset_x = 0;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 4;
+            patch.shadow_offset_y = 6;
             patch.has_shadow_spread = true;
-            patch.shadow_spread = 4;
+            patch.shadow_spread = 6;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 18;
+            patch.shadow_radius = 22;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard), patch);
         }
 

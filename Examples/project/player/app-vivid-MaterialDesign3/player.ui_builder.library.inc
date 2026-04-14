@@ -37,9 +37,9 @@
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {112, 166, 222, 190};
+            patch.gradient_start = kUiLibraryHeroTopStart;
             patch.has_gradient_end = true;
-            patch.gradient_end = {42, 78, 132, 78};
+            patch.gradient_end = kUiLibraryHeroTopEnd;
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;
@@ -55,9 +55,9 @@
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {24, 52, 96, 108};
+            patch.gradient_start = kUiLibraryHeroBottomStart;
             patch.has_gradient_end = true;
-            patch.gradient_end = {6, 16, 42, 212};
+            patch.gradient_end = kUiLibraryHeroBottomEnd;
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;
@@ -172,8 +172,8 @@
         anchor_rect(builder, h.list_path_bg, list_path_rect);
         {
             StylePatch patch = ::ui::scene::make_pill_surface_patch({
-                .bg_color = kUiButtonBg,
-                .border_color = kUiButtonBorder,
+                .bg_color = kUiLibraryPathIdle,
+                .border_color = kUiLibraryChipBorder,
                 .corner_radius = lib_layout.list_path_bg_radius,
             });
             builder.set_style_override(h.list_path_bg, patch);

@@ -42,38 +42,50 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (read(-1, &ch, 1) != -1) return 100;
     if (errno != EBADF) return 101;
 
+    errno = 0;
+    if (write(-1, "x", 1) != -1) return 102;
+    if (errno != EBADF) return 103;
+
+    errno = 0;
+    if (fstat(-1, &st) != -1) return 104;
+    if (errno != EBADF) return 105;
+
+    errno = 0;
+    if (close(-1) != -1) return 106;
+    if (errno != EBADF) return 107;
+
     stdin_fd = open("/dev/stdin", O_RDONLY, 0);
-    if (stdin_fd < 0) return 102;
-    if (isatty(stdin_fd) != 1) return 103;
-    if (fstat(stdin_fd, &st) != 0) return 104;
-    if ((st.st_mode & S_IFMT) != S_IFCHR) return 105;
-    if (close(stdin_fd) != 0) return 106;
+    if (stdin_fd < 0) return 108;
+    if (isatty(stdin_fd) != 1) return 109;
+    if (fstat(stdin_fd, &st) != 0) return 110;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 111;
+    if (close(stdin_fd) != 0) return 112;
 
     stdout_fd = open("/dev/stdout", O_WRONLY, 0);
-    if (stdout_fd < 0) return 107;
+    if (stdout_fd < 0) return 113;
     errno = 77;
-    if (isatty(stdout_fd) != 0) return 108;
-    if (errno != 77) return 109;
-    if (fstat(stdout_fd, &st) != 0) return 110;
-    if ((st.st_mode & S_IFMT) != S_IFIFO) return 111;
-    if (close(stdout_fd) != 0) return 112;
+    if (isatty(stdout_fd) != 0) return 114;
+    if (errno != 77) return 115;
+    if (fstat(stdout_fd, &st) != 0) return 116;
+    if ((st.st_mode & S_IFMT) != S_IFIFO) return 117;
+    if (close(stdout_fd) != 0) return 118;
 
     stderr_fd = open("/dev/stderr", O_WRONLY, 0);
-    if (stderr_fd < 0) return 113;
-    if (isatty(stderr_fd) != 1) return 114;
-    if (fstat(stderr_fd, &st) != 0) return 115;
-    if ((st.st_mode & S_IFMT) != S_IFCHR) return 116;
-    if (close(stderr_fd) != 0) return 117;
+    if (stderr_fd < 0) return 119;
+    if (isatty(stderr_fd) != 1) return 120;
+    if (fstat(stderr_fd, &st) != 0) return 121;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 122;
+    if (close(stderr_fd) != 0) return 123;
 
     tty_fd = open("/dev/tty", O_WRONLY, 0);
-    if (tty_fd < 0) return 118;
-    if (isatty(tty_fd) != 1) return 119;
-    if (fstat(tty_fd, &st) != 0) return 120;
-    if ((st.st_mode & S_IFMT) != S_IFCHR) return 121;
-    if (write(tty_fd, "tty", 3) != 3) return 122;
-    if (close(tty_fd) != 0) return 123;
+    if (tty_fd < 0) return 124;
+    if (isatty(tty_fd) != 1) return 125;
+    if (fstat(tty_fd, &st) != 0) return 126;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 127;
+    if (write(tty_fd, "tty", 3) != 3) return 128;
+    if (close(tty_fd) != 0) return 129;
 
-    return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 124;
+    return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 130;
 }
 
 int charm_posix_newlib_dup_entry(void) {

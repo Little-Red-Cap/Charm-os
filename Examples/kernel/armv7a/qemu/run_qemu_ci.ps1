@@ -86,6 +86,12 @@ if (($log -notmatch "ARMv7-A boot state, cpsr=0x[0-9A-F]{8}, mode=[a-z]+, irq=(m
 if (($log -notmatch "ARMv7-A cp15 state, sctlr=0x[0-9A-F]{8}, vbar=0x[0-9A-F]{8}, mpidr=0x[0-9A-F]{8}, cntfrq=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A cp15 state, sctlr=0x..."
 }
+if (($log -notmatch "ARMv7-A cache state, mmu=(on|off), dcache=(on|off), icache=(on|off), high-vectors=(on|off)")) {
+    $missing += "ARMv7-A cache state, mmu=..."
+}
+if (($log -notmatch "ARMv7-A translation state, ttbr0=0x[0-9A-F]{8}, ttbr1=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A translation state, ttbr0=0x..."
+}
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30"
 }

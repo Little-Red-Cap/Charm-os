@@ -3,6 +3,7 @@ import out.sink;
 
 #include "armv7a_arch_timer.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_mmu.hpp"
 
 extern "C" void qemu_semihost_write0(const char* text);
 extern "C" void armv7a_irq_smoke_test();
@@ -47,6 +48,7 @@ void print_charm_module_status()
 void print_cpu_boot_state()
 {
     const auto cpsr = armv7a_read_cpsr();
+    const auto sctlr = armv7a_read_sctlr();
     early_uart_puts("ARMv7-A boot state, cpsr=0x");
     early_uart_put_hex32(cpsr);
     early_uart_puts(", mode=");
@@ -56,13 +58,33 @@ void print_cpu_boot_state()
     early_uart_puts("\r\n");
 
     early_uart_puts("ARMv7-A cp15 state, sctlr=0x");
-    early_uart_put_hex32(armv7a_read_sctlr());
+    early_uart_put_hex32(sctlr);
     early_uart_puts(", vbar=0x");
     early_uart_put_hex32(armv7a_read_vbar());
     early_uart_puts(", mpidr=0x");
     early_uart_put_hex32(armv7a_read_mpidr());
     early_uart_puts(", cntfrq=0x");
     early_uart_put_hex32(armv7a_timer_read_cntfrq());
+    early_uart_puts("\r\n");
+
+    early_uart_puts("ARMv7-A cache state, mmu=");
+    early_uart_puts(armv7a_mmu_enabled(sctlr) ? "on" : "off");
+    early_uart_puts(", dcache=");
+    early_uart_puts(armv7a_dcache_enabled(sctlr) ? "on" : "off");
+    early_uart_puts(", icache=");
+    early_uart_puts(armv7a_icache_enabled(sctlr) ? "on" : "off");
+    early_uart_puts(", high-vectors=");
+    early_uart_puts(armv7a_high_vectors_enabled(sctlr) ? "on" : "off");
+    early_uart_puts("\r\n");
+
+    early_uart_puts("ARMv7-A translation state, ttbr0=0x");
+    early_uart_put_hex32(armv7a_read_ttbr0());
+    early_uart_puts(", ttbr1=0x");
+    early_uart_put_hex32(armv7a_read_ttbr1());
+    early_uart_puts(", ttbcr=0x");
+    early_uart_put_hex32(armv7a_read_ttbcr());
+    early_uart_puts(", dacr=0x");
+    early_uart_put_hex32(armv7a_read_dacr());
     early_uart_puts("\r\n");
 }
 } // namespace

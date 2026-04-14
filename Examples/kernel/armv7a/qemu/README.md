@@ -36,6 +36,8 @@ Charm ARMv7-A QEMU skeleton
 Targeting Cortex-A7 first, RK3506 later.
 ARMv7-A boot state, cpsr=0x600001DF, mode=sys, irq=masked
 ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=0x03B9ACA0
+ARMv7-A cache state, mmu=off, dcache=off, icache=off, high-vectors=off
+ARMv7-A translation state, ttbr0=0x00000000, ttbr1=0x00000000, ttbcr=0x00000000, dacr=0x00000000
 Charm out.format import active, PL011 @ 0x09000000
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
@@ -77,6 +79,9 @@ continue
 - SVC, IRQ, and fatal vectors now build one shared exception frame shape
   before entering C++, which gives later abort/MMU bring-up work a more
   stable place to inspect CPU state.
+- Translation and fault-status CP15 registers are now wrapped in
+  `armv7a_mmu.cpp`, so we can inspect MMU/cache state today and reuse the
+  same accessors when we start building page tables later.
 - The timer smoke prepares both architected physical timer PPIs.
   Current QEMU `virt` runs observed the non-secure physical timer route
   (`intid=30`), but the code also accepts the secure route (`intid=29`)

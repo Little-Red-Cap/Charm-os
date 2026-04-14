@@ -1,4 +1,6 @@
 module;
+#include <array>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <span>
@@ -65,18 +67,13 @@ export namespace charm::font {
         }
 
     private:
-        static bool load_host_file(std::string_view base_path,
+        static bool read_host_file(std::string_view host_path,
                                    std::vector<std::uint8_t>& data) noexcept {
-            if (!base_path.starts_with("/font/")) return false;
-            const auto slash = base_path.find_last_of("/\\");
-            if (slash == std::string_view::npos || slash + 1 >= base_path.size()) return false;
-            std::string host_path{"Draft/PixelPlayer/wear/src/main/res/font/"};
-            host_path.append(base_path.substr(slash + 1));
             std::FILE* fp = nullptr;
 #if defined(_WIN32)
-            if (fopen_s(&fp, host_path.c_str(), "rb") != 0 || !fp) return false;
+            if (fopen_s(&fp, std::string(host_path).c_str(), "rb") != 0 || !fp) return false;
 #else
-            fp = std::fopen(host_path.c_str(), "rb");
+            fp = std::fopen(std::string(host_path).c_str(), "rb");
             if (!fp) return false;
 #endif
             if (std::fseek(fp, 0, SEEK_END) != 0) {
@@ -100,6 +97,100 @@ export namespace charm::font {
                 return false;
             }
             return true;
+        }
+
+        static bool try_host_font_dir(std::string_view dir,
+                                      std::string_view filename,
+                                      std::vector<std::uint8_t>& data,
+                                      std::string* resolved_path = nullptr) noexcept {
+            if (dir.empty() || filename.empty()) return false;
+            std::string host_path{dir};
+            const char tail = host_path.empty() ? '\0' : host_path.back();
+            if (tail != '/' && tail != '\\') {
+                host_path.push_back('/');
+            }
+            host_path.append(filename);
+            if (!read_host_file(host_path, data)) return false;
+            if (resolved_path) {
+                *resolved_path = std::move(host_path);
+            }
+            return true;
+        }
+
+        static bool try_host_root(std::string_view root,
+                                  std::string_view filename,
+                                  std::vector<std::uint8_t>& data,
+                                  std::string* resolved_path = nullptr) noexcept {
+            if (root.empty()) return false;
+            if (try_host_font_dir(root, filename, data, resolved_path)) return true;
+            std::string font_dir{root};
+            const char tail = font_dir.empty() ? '\0' : font_dir.back();
+            if (tail != '/' && tail != '\\') {
+                font_dir.push_back('/');
+            }
+            font_dir.append("wear/src/main/res/font");
+            return try_host_font_dir(font_dir, filename, data, resolved_path);
+        }
+
+        static std::string read_env_var(const char* key) noexcept {
+            if (!key || !*key) return {};
+#if defined(_WIN32)
+            char* value = nullptr;
+            std::size_t len = 0;
+            if (_dupenv_s(&value, &len, key) != 0 || !value || len == 0) {
+                if (value) std::free(value);
+                return {};
+            }
+            std::string out{value};
+            std::free(value);
+            return out;
+#else
+            if (const char* value = std::getenv(key)) {
+                return std::string{value};
+            }
+            return {};
+#endif
+        }
+
+        static bool host_font_fallback_enabled() noexcept {
+            const auto env = read_env_var("CHARM_FONT_ALLOW_HOST_FALLBACK");
+            if (env.empty()) return false;
+            return env != "0" && env != "false" && env != "False" && env != "FALSE";
+        }
+
+        static bool load_host_file(std::string_view base_path,
+                                   std::vector<std::uint8_t>& data,
+                                   std::string* resolved_path = nullptr) noexcept {
+            if (!base_path.starts_with("/font/")) return false;
+            if (!host_font_fallback_enabled()) return false;
+            const auto slash = base_path.find_last_of("/\\");
+            if (slash == std::string_view::npos || slash + 1 >= base_path.size()) return false;
+            const std::string_view filename = base_path.substr(slash + 1);
+
+            if (const auto env = read_env_var("CHARM_PIXELPLAYER_FONT_DIR"); !env.empty()) {
+                if (try_host_font_dir(env, filename, data, resolved_path)) return true;
+            }
+            if (const auto env = read_env_var("CHARM_PIXELPLAYER_ROOT"); !env.empty()) {
+                if (try_host_root(env, filename, data, resolved_path)) return true;
+            }
+            if (const auto env = read_env_var("PIXELPLAYER_ROOT"); !env.empty()) {
+                if (try_host_root(env, filename, data, resolved_path)) return true;
+            }
+
+            static constexpr std::array<std::string_view, 8> kHostFontDirs{
+                "Draft/PixelPlayer/wear/src/main/res/font",
+                "../Draft/PixelPlayer/wear/src/main/res/font",
+                "../../Draft/PixelPlayer/wear/src/main/res/font",
+                "../../../Draft/PixelPlayer/wear/src/main/res/font",
+                "Third_Party/PixelPlayer/wear/src/main/res/font",
+                "../Third_Party/PixelPlayer/wear/src/main/res/font",
+                "../../Third_Party/PixelPlayer/wear/src/main/res/font",
+                "../../../Third_Party/PixelPlayer/wear/src/main/res/font",
+            };
+            for (const auto dir : kHostFontDirs) {
+                if (try_host_font_dir(dir, filename, data, resolved_path)) return true;
+            }
+            return false;
         }
         struct FaceSlot {
             std::string path{};
@@ -206,11 +297,15 @@ export namespace charm::font {
             auto open_st = fs::vfs_open(base_path, f);
             if (!open_st) {
                 std::vector<std::uint8_t> data;
-                if (!load_host_file(base_path, data)) {
+                std::string host_path{};
+                if (!load_host_file(base_path, data, &host_path)) {
                     std::fprintf(stdout, "[font] freetype open failed path=%.*s base=%.*s\n",
                                  static_cast<int>(path.size()), path.data(),
                                  static_cast<int>(base_path.size()), base_path.data());
                     std::printf("[font] freetype open err=%d\n", static_cast<int>(open_st.err));
+                    if (!host_font_fallback_enabled()) {
+                        std::printf("[font] host fallback disabled; set CHARM_FONT_ALLOW_HOST_FALLBACK=1 to enable host font search\n");
+                    }
                     std::string_view list_dir = "/";
                     const auto slash = base_path.find_last_of("/\\");
                     if (slash != std::string_view::npos) {
@@ -226,6 +321,13 @@ export namespace charm::font {
                 }
                 const auto size_px = resolve_pixel_size(path);
                 const auto weight = resolve_weight(path);
+                std::fprintf(stdout,
+                             "[font] source=host path=%.*s host=%s px=%d weight=%u bytes=%zu\n",
+                             static_cast<int>(path.size()), path.data(),
+                             host_path.c_str(),
+                             size_px,
+                             static_cast<unsigned>(weight),
+                             data.size());
                 FaceSlot slot{};
                 slot.path.assign(path.begin(), path.end());
                 slot.pixel_size = size_px;
@@ -233,11 +335,12 @@ export namespace charm::font {
                 slot.data = std::move(data);
                 slot.font = &out;
 
-                if (FT_New_Memory_Face(library_,
-                                       reinterpret_cast<const FT_Byte*>(slot.data.data()),
-                                       static_cast<FT_Long>(slot.data.size()),
-                                       0,
-                                       &slot.face) != 0) {
+                const auto ft_err = FT_New_Memory_Face(library_,
+                                                       reinterpret_cast<const FT_Byte*>(slot.data.data()),
+                                                       static_cast<FT_Long>(slot.data.size()),
+                                                       0,
+                                                       &slot.face);
+                if (ft_err != 0) {
                     out = Font{};
                     return false;
                 }
@@ -279,6 +382,12 @@ export namespace charm::font {
 
             const auto size_px = resolve_pixel_size(path);
             const auto weight = resolve_weight(path);
+            std::fprintf(stdout,
+                         "[font] source=vfs path=%.*s px=%d weight=%u bytes=%zu\n",
+                         static_cast<int>(path.size()), path.data(),
+                         size_px,
+                         static_cast<unsigned>(weight),
+                         data.size());
             FaceSlot slot{};
             slot.path.assign(path.begin(), path.end());
             slot.pixel_size = size_px;
@@ -286,11 +395,12 @@ export namespace charm::font {
             slot.data = std::move(data);
             slot.font = &out;
 
-            if (FT_New_Memory_Face(library_,
-                                   reinterpret_cast<const FT_Byte*>(slot.data.data()),
-                                   static_cast<FT_Long>(slot.data.size()),
-                                   0,
-                                   &slot.face) != 0) {
+            const auto ft_err = FT_New_Memory_Face(library_,
+                                                   reinterpret_cast<const FT_Byte*>(slot.data.data()),
+                                                   static_cast<FT_Long>(slot.data.size()),
+                                                   0,
+                                                   &slot.face);
+            if (ft_err != 0) {
                 out = Font{};
                 return false;
             }

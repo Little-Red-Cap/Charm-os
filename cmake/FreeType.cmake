@@ -1,4 +1,10 @@
-﻿set(CHARM_FREETYPE_DIR "${CMAKE_CURRENT_LIST_DIR}/../Modules/thirdparty/freetype")
+if (NOT DEFINED CHARM_FREETYPE_DIR OR CHARM_FREETYPE_DIR STREQUAL "")
+    set(CHARM_FREETYPE_DIR "${CMAKE_CURRENT_LIST_DIR}/../Modules/thirdparty/freetype"
+        CACHE PATH "Path to the FreeType source tree")
+else()
+    set(CHARM_FREETYPE_DIR "${CHARM_FREETYPE_DIR}"
+        CACHE PATH "Path to the FreeType source tree" FORCE)
+endif()
 
 function(charm_link_freetype target_name)
     if (TARGET freetype)
@@ -19,6 +25,7 @@ function(charm_link_freetype target_name)
         target_link_libraries(${target_name} PRIVATE freetype)
         target_include_directories(${target_name} PRIVATE ${CHARM_FREETYPE_DIR}/include)
         target_compile_definitions(${target_name} PRIVATE CHARM_ENABLE_FREETYPE=1)
+    else()
+        message(WARNING "FreeType requested but not found under ${CHARM_FREETYPE_DIR}")
     endif()
 endfunction()
-

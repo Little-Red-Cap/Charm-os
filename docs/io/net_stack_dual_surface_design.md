@@ -475,6 +475,7 @@ v0 推荐做法是把 socket readiness 投影到 `io.reactor`：
 - `SocketEventChannelBinding` 提供纯事件通道，适合 `TcpListener` 这类只关心 accept-ready 的对象
 - 如果同一次采样里同时观察到 `readable + closed`，driver 应先把剩余可读 payload 交给 session，再上报 transport closed，避免把“最后一帧数据”误伤成 error
 - `RequestSession / ServiceSession / TypedServiceSession` 在 transport close 时应清空本地 pending / deferred 状态，并统一向 error handler 上抛 `errc::closed`，不要把断链拖成 timeout
+- 对 `ServiceSession / TypedServiceSession` 而言，transport close 之后旧的 deferred reply token 也应立即失效，后续 `send_deferred_response()` 应返回 `noent`，避免业务层把断链后的迟到回复误判成还能发送
 - 协议驱动层可继续复用 `set_sender / feed / notify_writable` 这类 session 契约，把复杂状态机压在协议层内部，而不是散落在业务代码里
 - 文本协议可先落 `LineSession`；二进制协议优先落固定长度前缀的 `FrameSession`，先把最常见的 request/response 主路径钉稳
 - 在 `FrameSession` 之上，可继续收敛出 `RequestSession`：统一 `request_id / opcode / timeout / pending table`，让请求关联逻辑也留在框架内而不是散落到业务层

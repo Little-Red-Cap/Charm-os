@@ -3,7 +3,6 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 
 export module net.common;
 
@@ -12,8 +11,91 @@ import util.error;
 import util.expected;
 
 export namespace net {
-    using ByteView = std::span<const util::u8>;
-    using MutByteView = std::span<util::u8>;
+    struct ByteView {
+        const util::u8* ptr{nullptr};
+        util::usize len{0};
+
+        [[nodiscard]] constexpr const util::u8* data() const noexcept {
+            return ptr;
+        }
+
+        [[nodiscard]] constexpr util::usize size() const noexcept {
+            return len;
+        }
+
+        [[nodiscard]] constexpr bool empty() const noexcept {
+            return len == 0;
+        }
+
+        [[nodiscard]] constexpr const util::u8& operator[](util::usize index) const noexcept {
+            return ptr[index];
+        }
+
+        [[nodiscard]] constexpr const util::u8* begin() const noexcept {
+            return ptr;
+        }
+
+        [[nodiscard]] constexpr const util::u8* end() const noexcept {
+            return ptr + len;
+        }
+
+        [[nodiscard]] constexpr ByteView subspan(util::usize offset,
+                                                 util::usize count = static_cast<util::usize>(-1)) const noexcept {
+            if (offset >= len) {
+                return {};
+            }
+            const auto remaining = len - offset;
+            if (count > remaining) {
+                count = remaining;
+            }
+            return ByteView{ptr + offset, count};
+        }
+    };
+
+    struct MutByteView {
+        util::u8* ptr{nullptr};
+        util::usize len{0};
+
+        [[nodiscard]] constexpr util::u8* data() const noexcept {
+            return ptr;
+        }
+
+        [[nodiscard]] constexpr util::usize size() const noexcept {
+            return len;
+        }
+
+        [[nodiscard]] constexpr bool empty() const noexcept {
+            return len == 0;
+        }
+
+        [[nodiscard]] constexpr util::u8& operator[](util::usize index) const noexcept {
+            return ptr[index];
+        }
+
+        [[nodiscard]] constexpr util::u8* begin() const noexcept {
+            return ptr;
+        }
+
+        [[nodiscard]] constexpr util::u8* end() const noexcept {
+            return ptr + len;
+        }
+
+        [[nodiscard]] constexpr MutByteView subspan(util::usize offset,
+                                                    util::usize count = static_cast<util::usize>(-1)) const noexcept {
+            if (offset >= len) {
+                return {};
+            }
+            const auto remaining = len - offset;
+            if (count > remaining) {
+                count = remaining;
+            }
+            return MutByteView{ptr + offset, count};
+        }
+
+        [[nodiscard]] constexpr operator ByteView() const noexcept {
+            return ByteView{ptr, len};
+        }
+    };
 
     using errc = util::Errc;
 

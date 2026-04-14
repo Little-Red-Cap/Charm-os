@@ -17,7 +17,6 @@ import posix.file;
 import posix.pipe;
 import posix.proc;
 import net.common;
-import net.socket;
 import net.posix;
 import charm.system.time;
 import fs_core;

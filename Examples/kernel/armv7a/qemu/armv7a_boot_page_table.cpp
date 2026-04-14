@@ -195,6 +195,12 @@ void armv7a_boot_l1_map_section(std::uintptr_t virtual_address,
         make_section_descriptor(physical_address, type, domain);
 }
 
+void armv7a_boot_l2_prepare_table(std::uintptr_t virtual_address,
+                                  std::uint32_t domain)
+{
+    static_cast<void>(ensure_boot_l2_table(virtual_address, domain));
+}
+
 void armv7a_boot_l2_map_small_page(std::uintptr_t virtual_address,
                                    std::uintptr_t physical_address,
                                    Armv7aBootSmallPageType type,

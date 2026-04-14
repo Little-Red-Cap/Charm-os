@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("data", "prefetch", "prefetch-xn", "data-perm")]
+    [ValidateSet("data", "prefetch", "prefetch-xn", "data-perm", "data-page")]
     [string]$Kind = "data",
     [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
@@ -110,6 +110,17 @@ switch ($Kind) {
         $mapPattern = "ARMv7-A fault map, far=0x5[0-9A-F]{7}, ttbr0=0x[0-9A-F]{8}, l1\[0x510\]=0x[0-9A-F]{8} \(section\), domain=0x1, xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=data-perm, addr=0x5[0-9A-F]{7}, value=0xA5A55A5A"
         $extraPattern = "ARMv7-A data alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
+    }
+    "data-page" {
+        $configurePreset = "debug-abort-data-page"
+        $buildPreset = "debug-abort-data-page"
+        $elfPath = "out\\build\\debug-abort-data-page\\charm-armv7a-qemu"
+        $exceptionLine = "ARMv7-A exception: data abort"
+        $faultPattern = "ARMv7-A data fault, dfsr=0x[0-9A-F]{8}, dfar=0x53000040, adfsr=0x[0-9A-F]{8}"
+        $decodePattern = "ARMv7-A data fault decode, status=0x07 \(page translation fault\), domain=0x0, write=no, cm=no"
+        $mapPattern = "ARMv7-A fault map, far=0x53000040, ttbr0=0x[0-9A-F]{8}, l1\[0x530\]=0x[0-9A-F]{8} \(page table\), domain=0x0, l2\[0x00\]=0x00000000 \(fault\)"
+        $smokePattern = "ARMv7-A abort smoke, kind=data-page, addr=0x53000040"
+        $extraPattern = "ARMv7-A data-page alias ready, va=0x53000040, l1=0x[0-9A-F]{8}, l2=0x00000000"
     }
     default {
         throw "unsupported abort kind: $Kind"

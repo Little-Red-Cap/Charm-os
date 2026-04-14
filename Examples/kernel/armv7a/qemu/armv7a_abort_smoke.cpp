@@ -11,6 +11,7 @@ namespace {
 constexpr std::uintptr_t kAbortSmokeAddress = 0x20000000u;
 constexpr std::uintptr_t kAbortSmokeXnAliasBase = 0x50000000u;
 constexpr std::uintptr_t kAbortSmokeDataPermAliasBase = 0x51000000u;
+constexpr std::uintptr_t kAbortSmokeDataPageAliasAddress = 0x53000040u;
 constexpr std::uintptr_t kSectionSize = 1u << 20;
 constexpr std::uintptr_t kSectionMask = ~(kSectionSize - 1u);
 constexpr std::uintptr_t kSectionOffsetMask = kSectionSize - 1u;
@@ -57,7 +58,7 @@ std::uintptr_t armv7a_abort_data_perm_alias_address()
     const auto target = armv7a_abort_data_perm_target_address();
     return kAbortSmokeDataPermAliasBase + (target & kSectionOffsetMask);
 }
-}
+} // namespace
 
 extern "C" void armv7a_prepare_abort_smoke_mappings()
 {
@@ -73,6 +74,8 @@ extern "C" void armv7a_prepare_abort_smoke_mappings()
                                target & kSectionMask,
                                Armv7aBootSectionType::kNormalNoAccessExecuteNever,
                                kAbortSmokeClientDomain);
+#elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE)
+    armv7a_boot_l2_prepare_table(kAbortSmokeDataPageAliasAddress);
 #endif
 }
 
@@ -102,6 +105,14 @@ extern "C" void armv7a_print_abort_smoke_mapping_state()
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_perm_target_address()));
     early_uart_puts(", desc=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(kAbortSmokeDataPermAliasBase));
+    early_uart_puts("\r\n");
+#elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE)
+    early_uart_puts("ARMv7-A data-page alias ready, va=0x");
+    early_uart_write_hex32(static_cast<std::uint32_t>(kAbortSmokeDataPageAliasAddress));
+    early_uart_puts(", l1=0x");
+    early_uart_write_hex32(armv7a_boot_l1_descriptor(kAbortSmokeDataPageAliasAddress));
+    early_uart_puts(", l2=0x");
+    early_uart_write_hex32(armv7a_boot_l2_descriptor(kAbortSmokeDataPageAliasAddress));
     early_uart_puts("\r\n");
 #endif
 }
@@ -138,6 +149,15 @@ extern "C" void armv7a_run_abort_smoke_if_enabled()
     auto* const target =
         reinterpret_cast<volatile std::uint32_t*>(armv7a_abort_data_perm_alias_address());
     *target = kAbortSmokeDataWriteValue;
+    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    charm_spin();
+#elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE)
+    early_uart_puts("ARMv7-A abort smoke, kind=data-page, addr=0x");
+    early_uart_write_hex32(static_cast<std::uint32_t>(kAbortSmokeDataPageAliasAddress));
+    early_uart_puts("\r\n");
+    auto* const probe = reinterpret_cast<volatile std::uint32_t*>(kAbortSmokeDataPageAliasAddress);
+    const auto value = *probe;
+    static_cast<void>(value);
     early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
     charm_spin();
 #else

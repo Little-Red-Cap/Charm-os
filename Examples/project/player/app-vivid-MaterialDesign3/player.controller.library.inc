@@ -177,7 +177,34 @@
                     continue;
                 }
                 if (library_shows_group_rows()) {
-                    list_display_tails[i].assign("");
+                    bool complete = true;
+                    int total_sec = 0;
+                    const auto key = library_group_title_for_track(track_index);
+                    if (key.empty()) {
+                        list_display_tails[i].assign("");
+                        continue;
+                    }
+                    for (std::size_t track_i = 0; track_i < tracks->size(); ++track_i) {
+                        if (compare_ci(library_group_title_for_track(static_cast<int>(track_i)), key) != 0) {
+                            continue;
+                        }
+                        const int duration_sec = cached_track_duration(static_cast<int>(track_i));
+                        if (duration_sec == kTrackDurationUnknown) {
+                            complete = false;
+                            break;
+                        }
+                        if (duration_sec > 0) {
+                            total_sec += duration_sec;
+                        }
+                    }
+                    if (complete && total_sec > 0) {
+                        char buf[16]{};
+                        format_duration_compact(total_sec, buf, sizeof(buf));
+                        list_display_tails[i].assign(buf);
+                        player::font_cache::ensure_text(list_display_tails[i].view());
+                    } else {
+                        list_display_tails[i].assign("");
+                    }
                     continue;
                 }
                 const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
@@ -200,7 +227,6 @@
 
         void tick_list_duration_probe() {
             if (!access.valid() || !handles.list) return;
-            if (library_shows_group_rows()) return;
             const auto* tracks = storage.tracks;
             if (!tracks || tracks->size() == 0) return;
             ensure_track_duration_cache();
@@ -230,14 +256,27 @@
             }
 
             const std::size_t count = list_order.size();
-            if (count == 0) return;
-            const std::size_t start = (list_duration_probe_cursor < count) ? list_duration_probe_cursor : 0;
-            for (std::size_t offset = 0; offset < count; ++offset) {
-                const std::size_t row = (start + offset) % count;
-                if (try_probe_track(list_order[row])) {
-                    list_duration_probe_cursor = (row + 1) % count;
-                    last_list_duration_probe_ms = now_ms;
-                    return;
+            if (library_shows_group_rows()) {
+                const std::size_t track_count = tracks->size();
+                const std::size_t start = (list_duration_probe_cursor < track_count) ? list_duration_probe_cursor : 0;
+                for (std::size_t offset = 0; offset < track_count; ++offset) {
+                    const std::size_t row = (start + offset) % track_count;
+                    if (try_probe_track(static_cast<int>(row))) {
+                        list_duration_probe_cursor = (row + 1) % track_count;
+                        last_list_duration_probe_ms = now_ms;
+                        return;
+                    }
+                }
+            } else {
+                if (count == 0) return;
+                const std::size_t start = (list_duration_probe_cursor < count) ? list_duration_probe_cursor : 0;
+                for (std::size_t offset = 0; offset < count; ++offset) {
+                    const std::size_t row = (start + offset) % count;
+                    if (try_probe_track(list_order[row])) {
+                        list_duration_probe_cursor = (row + 1) % count;
+                        last_list_duration_probe_ms = now_ms;
+                        return;
+                    }
                 }
             }
 

@@ -445,8 +445,10 @@ namespace {
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
         term_entry.ops = &kTermOps;
+        term_entry.flags = posix::FdFlags::read_only;
         term_entry.ctx = &stdin_ctx;
         check_true("newlib-fcntl-stdin", h.fds.attach(term_entry, 0));
+        term_entry.flags = posix::FdFlags::write_only;
         term_entry.ctx = &stdout_ctx;
         check_true("newlib-fcntl-stdout-reserve", h.fds.attach(term_entry, 1));
         term_entry.ctx = &stderr_ctx;

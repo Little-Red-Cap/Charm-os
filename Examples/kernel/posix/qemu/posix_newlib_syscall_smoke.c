@@ -97,6 +97,7 @@ int charm_posix_newlib_dup2_entry(void) {
 
 int charm_posix_newlib_fcntl_entry(void) {
     int dup_fd = fcntl(1, F_DUPFD, 3);
+    int alias_fd = -1;
     int flags = 0;
     if (dup_fd < 3) return 181;
     if (write(dup_fd, "fcntl-", 6) != 6) return 182;
@@ -127,57 +128,102 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fcntl(dup_fd, F_GETFD) != 0) return 196;
     if (close(dup_fd) != 0) return 197;
 
-    if (dup2(1, 2) != 2) return 198;
-    if (fcntl(2, F_GETFD) != 0) return 199;
+    if (fcntl(0, F_SETFL, O_NONBLOCK) != 0) return 198;
+    alias_fd = open("/dev/tty", O_RDONLY, 0);
+    if (alias_fd < 0) return 199;
+    flags = fcntl(alias_fd, F_GETFL);
+    if ((flags & O_ACCMODE) != O_RDONLY) return 200;
+    if ((flags & O_NONBLOCK) == 0) return 201;
+    if (fcntl(alias_fd, F_SETFL, 0) != 0) return 202;
+    if ((fcntl(0, F_GETFL) & O_NONBLOCK) != 0) return 203;
+    if (close(alias_fd) != 0) return 204;
 
-    dup_fd = fcntl(1, F_DUPFD, 3);
-    if (dup_fd < 3) return 200;
-    if (fcntl(dup_fd, F_GETFD) != 0) return 201;
-    if (close(dup_fd) != 0) return 202;
-
-    if (fcntl(1, F_SETFD, 0) != 0) return 203;
-    if (fcntl(1, F_GETFD) != 0) return 204;
-
-    flags = fcntl(1, F_GETFL);
+    flags = fcntl(2, F_GETFL);
     if (flags < 0) return 205;
     if ((flags & O_ACCMODE) != O_WRONLY) return 206;
     if ((flags & O_NONBLOCK) != 0) return 207;
 
-    if (fcntl(1, F_SETFL, O_NONBLOCK) != 0) return 208;
+    if (fcntl(2, F_SETFL, O_NONBLOCK) != 0) return 208;
+    alias_fd = open("/dev/stderr", O_WRONLY, 0);
+    if (alias_fd < 0) return 209;
+    flags = fcntl(alias_fd, F_GETFL);
+    if ((flags & O_ACCMODE) != O_WRONLY) return 210;
+    if ((flags & O_NONBLOCK) == 0) return 211;
+    if (fcntl(alias_fd, F_SETFL, 0) != 0) return 212;
+    if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 213;
+    if (close(alias_fd) != 0) return 214;
+
+    if (fcntl(2, F_SETFL, O_NONBLOCK) != 0) return 215;
+    alias_fd = open("/dev/tty", O_WRONLY, 0);
+    if (alias_fd < 0) return 216;
+    flags = fcntl(alias_fd, F_GETFL);
+    if ((flags & O_ACCMODE) != O_WRONLY) return 217;
+    if ((flags & O_NONBLOCK) == 0) return 218;
+    if (fcntl(alias_fd, F_SETFL, 0) != 0) return 219;
+    if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 220;
+    if (close(alias_fd) != 0) return 221;
+
+    if (dup2(1, 2) != 2) return 222;
+    if (fcntl(2, F_GETFD) != 0) return 223;
+
+    dup_fd = fcntl(1, F_DUPFD, 3);
+    if (dup_fd < 3) return 224;
+    if (fcntl(dup_fd, F_GETFD) != 0) return 225;
+    if (close(dup_fd) != 0) return 226;
+
+    if (fcntl(1, F_SETFD, 0) != 0) return 227;
+    if (fcntl(1, F_GETFD) != 0) return 228;
+
     flags = fcntl(1, F_GETFL);
-    if ((flags & O_NONBLOCK) == 0) return 209;
+    if (flags < 0) return 229;
+    if ((flags & O_ACCMODE) != O_WRONLY) return 230;
+    if ((flags & O_NONBLOCK) != 0) return 231;
+
+    if (fcntl(1, F_SETFL, O_NONBLOCK) != 0) return 232;
+    flags = fcntl(1, F_GETFL);
+    if ((flags & O_NONBLOCK) == 0) return 233;
 
     dup_fd = dup(1);
-    if (dup_fd < 0) return 210;
-    if ((fcntl(dup_fd, F_GETFL) & O_NONBLOCK) == 0) return 211;
-    if (fcntl(dup_fd, F_SETFL, 0) != 0) return 212;
-    if ((fcntl(1, F_GETFL) & O_NONBLOCK) != 0) return 213;
-    if (close(dup_fd) != 0) return 214;
+    if (dup_fd < 0) return 234;
+    if ((fcntl(dup_fd, F_GETFL) & O_NONBLOCK) == 0) return 235;
+    if (fcntl(dup_fd, F_SETFL, 0) != 0) return 236;
+    if ((fcntl(1, F_GETFL) & O_NONBLOCK) != 0) return 237;
+    if (close(dup_fd) != 0) return 238;
 
     errno = 0;
-    if (fcntl(1, F_SETFL, O_CREAT) != -1) return 215;
-    if (errno != EINVAL) return 216;
+    if (fcntl(1, F_SETFL, O_CREAT) != -1) return 239;
+    if (errno != EINVAL) return 240;
 
     errno = 0;
-    if (fcntl(-1, F_GETFL) != -1) return 217;
-    if (errno != EBADF) return 218;
+    if (fcntl(-1, F_GETFL) != -1) return 241;
+    if (errno != EBADF) return 242;
 
     flags = fcntl(2, F_GETFL);
-    if (flags < 0) return 219;
-    if ((flags & O_ACCMODE) != O_WRONLY) return 220;
-    if ((flags & O_NONBLOCK) != 0) return 221;
+    if (flags < 0) return 243;
+    if ((flags & O_ACCMODE) != O_WRONLY) return 244;
+    if ((flags & O_NONBLOCK) != 0) return 245;
 
-    if (fcntl(2, F_SETFL, O_NONBLOCK) != 0) return 222;
-    if ((fcntl(2, F_GETFL) & O_NONBLOCK) == 0) return 223;
+    if (fcntl(2, F_SETFL, O_NONBLOCK) != 0) return 246;
+    if ((fcntl(2, F_GETFL) & O_NONBLOCK) == 0) return 247;
 
     dup_fd = dup(2);
-    if (dup_fd < 0) return 224;
-    if ((fcntl(dup_fd, F_GETFL) & O_NONBLOCK) == 0) return 225;
-    if (fcntl(dup_fd, F_SETFL, 0) != 0) return 226;
-    if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 227;
-    if (close(dup_fd) != 0) return 228;
+    if (dup_fd < 0) return 248;
+    if ((fcntl(dup_fd, F_GETFL) & O_NONBLOCK) == 0) return 249;
+    if (fcntl(dup_fd, F_SETFL, 0) != 0) return 250;
+    if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 251;
+    if (close(dup_fd) != 0) return 252;
 
-    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 229;
+    if (fcntl(1, F_SETFL, O_NONBLOCK) != 0) return 253;
+    alias_fd = open("/dev/stdout", O_WRONLY, 0);
+    if (alias_fd < 0) return 254;
+    flags = fcntl(alias_fd, F_GETFL);
+    if ((flags & O_ACCMODE) != O_WRONLY) return 255;
+    if ((flags & O_NONBLOCK) == 0) return 256;
+    if (fcntl(alias_fd, F_SETFL, 0) != 0) return 257;
+    if ((fcntl(1, F_GETFL) & O_NONBLOCK) != 0) return 258;
+    if (close(alias_fd) != 0) return 259;
+
+    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 260;
 }
 
 int charm_posix_newlib_pipe_entry(void) {

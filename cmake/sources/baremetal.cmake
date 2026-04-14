@@ -1,4 +1,5 @@
 set(CHARM_BAREMETAL_EXCLUDED_REGEXES
+    "/Modules/io/net/"
     "/Modules/io/proto/canopen/"
     "/Modules/io/usb/")
 
@@ -14,6 +15,7 @@ set(CHARM_BAREMETAL_EXCLUDED_MODULES
     "${CMAKE_CURRENT_LIST_DIR}/../../Modules/init/init.observe.cppm"
     "${CMAKE_CURRENT_LIST_DIR}/../../Modules/io/block/block.file.cppm"
     "${CMAKE_CURRENT_LIST_DIR}/../../Modules/io/block/block.file.node.cppm"
+    "${CMAKE_CURRENT_LIST_DIR}/../../Modules/io/charm.net.cppm"
     "${CMAKE_CURRENT_LIST_DIR}/../../Modules/io/fs/fs_block_file.cppm"
     "${CMAKE_CURRENT_LIST_DIR}/../../Modules/io/fs/fs_mal_file.cppm"
     "${CMAKE_CURRENT_LIST_DIR}/../../Modules/io/hal/hal_win.cppm"

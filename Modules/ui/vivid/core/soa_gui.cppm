@@ -1436,6 +1436,7 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const rgba font = row_selected ? colors.on_accent
                                        : (row_active ? colors.accent : colors.font);
         const auto icon = kernel.list_view_item_icon(h, static_cast<std::uint16_t>(i));
+        const int icon_corner_radius = static_cast<int>(kernel.list_view_icon_corner_radius(h));
         int text_x = row.x + pad;
         int text_w = row.w - pad * 2;
         if (ui::draw_cmd::image_id_valid(icon)) {
@@ -1447,14 +1448,84 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             if (icon_size < 4) icon_size = row_h;
             const int icon_x = row.x + pad;
             const int icon_y = row.y + (row_h - icon_size) / 2;
-            out.draw_icon(Rect{icon_x, icon_y, icon_size, icon_size}, icon);
+            const Rect icon_rect{icon_x, icon_y, icon_size, icon_size};
+            if (icon_corner_radius > 0) {
+                const int radius = (icon_corner_radius > icon_size / 2) ? (icon_size / 2) : icon_corner_radius;
+                out.draw_image_round_rect(icon_rect, icon, radius);
+            } else {
+                out.draw_icon(icon_rect, icon);
+            }
             text_x = icon_x + icon_size + pad;
             text_w = row.x + row.w - pad - text_x;
         }
         if (text_w < 0) text_w = 0;
-        const Rect text_rect{text_x, row.y, text_w, row_h};
         const char* title = kernel.list_view_item_text(h, static_cast<std::uint16_t>(i));
         const char* subtitle = kernel.list_view_item_subtitle(h, static_cast<std::uint16_t>(i));
+        const char* tail = kernel.list_view_item_tail(h, static_cast<std::uint16_t>(i));
+        const auto tail_icon = kernel.list_view_item_tail_icon(h, static_cast<std::uint16_t>(i));
+        const auto tail_action_icon = kernel.list_view_item_tail_action_icon(h, static_cast<std::uint16_t>(i));
+        const bool has_tail = tail && tail[0] != '\0';
+        const bool has_tail_icon = ui::draw_cmd::image_id_valid(tail_icon);
+        const bool has_tail_action_icon = ui::draw_cmd::image_id_valid(tail_action_icon);
+        Rect tail_rect{};
+        Rect tail_icon_rect{};
+        Rect tail_action_icon_rect{};
+        int main_text_w = text_w;
+        bool draw_tail = false;
+        bool draw_tail_icon = false;
+        bool draw_tail_action_icon = false;
+        int right_x = text_x + text_w;
+        if (has_tail_action_icon && text_w >= 48) {
+            int tail_action_icon_size = static_cast<int>(kernel.list_view_tail_action_icon_size(h));
+            if (tail_action_icon_size <= 0) tail_action_icon_size = 18;
+            const int tail_action_icon_max = row_h - pad * 2;
+            if (tail_action_icon_max > 0 && tail_action_icon_size > tail_action_icon_max) {
+                tail_action_icon_size = tail_action_icon_max;
+            }
+            if (tail_action_icon_size < 12) tail_action_icon_size = 12;
+            if (tail_action_icon_size < text_w) {
+                right_x -= tail_action_icon_size;
+                tail_action_icon_rect = Rect{right_x,
+                                             row.y + (row_h - tail_action_icon_size) / 2,
+                                             tail_action_icon_size,
+                                             tail_action_icon_size};
+                draw_tail_action_icon = true;
+                if (right_x - pad > text_x) {
+                    right_x -= pad;
+                }
+            }
+        }
+        if (has_tail_icon && text_w >= 48) {
+            int tail_icon_size = static_cast<int>(kernel.list_view_tail_icon_size(h));
+            if (tail_icon_size <= 0) tail_icon_size = 18;
+            const int tail_icon_max = row_h - pad * 2;
+            if (tail_icon_max > 0 && tail_icon_size > tail_icon_max) tail_icon_size = tail_icon_max;
+            if (tail_icon_size < 12) tail_icon_size = 12;
+            if (tail_icon_size < text_w) {
+                right_x -= tail_icon_size;
+                tail_icon_rect = Rect{right_x, row.y + (row_h - tail_icon_size) / 2, tail_icon_size, tail_icon_size};
+                draw_tail_icon = true;
+                if (right_x - pad > text_x) {
+                    right_x -= pad;
+                }
+            }
+        }
+        if (has_tail && right_x - text_x >= 72) {
+            int tail_w = (right_x - text_x) / 3;
+            if (tail_w < 48) tail_w = 48;
+            if (tail_w > 88) tail_w = 88;
+            if (tail_w < right_x - text_x) {
+                right_x -= tail_w;
+                tail_rect = Rect{right_x, row.y, tail_w, row_h};
+                draw_tail = true;
+                if (right_x - pad > text_x) {
+                    right_x -= pad;
+                }
+            }
+        }
+        main_text_w = right_x - text_x;
+        if (main_text_w < 0) main_text_w = 0;
+        const Rect text_rect{text_x, row.y, main_text_w, row_h};
         if (subtitle && subtitle[0] != '\0' && row_h >= 44) {
             const Font& title_font = font_from_metrics(metrics);
             const Font& subtitle_font = get_font(FontId::Small);
@@ -1464,8 +1535,8 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             const int total_h = title_h + line_gap + subtitle_h;
             int top = row.y + (row_h - total_h) / 2;
             if (top < row.y) top = row.y;
-            const Rect title_rect{text_x, top, text_w, title_h};
-            const Rect subtitle_rect{text_x, top + title_h + line_gap, text_w, subtitle_h};
+            const Rect title_rect{text_x, top, main_text_w, title_h};
+            const Rect subtitle_rect{text_x, top + title_h + line_gap, main_text_w, subtitle_h};
             const auto subtitle_color = row_selected ? colors.on_accent
                                                      : (row_active ? colors.accent : colors.border);
             out.draw_text_box(title_rect, title ? title : "", font, title_font,
@@ -1475,6 +1546,19 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         } else {
             out.draw_text_box(text_rect, title ? title : "", font, font_from_metrics(metrics),
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        }
+        if (draw_tail) {
+            const Font& tail_font = get_font(FontId::Small);
+            const auto tail_color = row_selected ? colors.on_accent
+                                                 : (row_active ? colors.accent : colors.border);
+            out.draw_text_box(tail_rect, tail, tail_color, tail_font,
+                              TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        }
+        if (draw_tail_icon) {
+            out.draw_icon(tail_icon_rect, tail_icon);
+        }
+        if (draw_tail_action_icon) {
+            out.draw_icon(tail_action_icon_rect, tail_action_icon);
         }
         y += row_h;
     }

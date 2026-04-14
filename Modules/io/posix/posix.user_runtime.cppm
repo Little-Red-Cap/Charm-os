@@ -64,6 +64,21 @@ namespace posix::user::detail {
     }
 
     template <class Api>
+    int runtime_dup(void* ctx, int fd) noexcept {
+        return static_cast<Api*>(ctx)->dup(fd);
+    }
+
+    template <class Api>
+    int runtime_dup2(void* ctx, int from, int to) noexcept {
+        return static_cast<Api*>(ctx)->dup2(from, to);
+    }
+
+    template <class Api>
+    int runtime_fcntl(void* ctx, int fd, int cmd, int arg) noexcept {
+        return static_cast<Api*>(ctx)->fcntl(fd, cmd, arg);
+    }
+
+    template <class Api>
     int runtime_pipe(void* ctx, int fds[2]) noexcept {
         return static_cast<Api*>(ctx)->pipe(fds);
     }
@@ -145,6 +160,31 @@ namespace posix::user::detail {
         return static_cast<Api*>(ctx)->getpid();
     }
 
+    template <class Api>
+    int runtime_chdir(void* ctx, const char* path) noexcept {
+        if constexpr (requires(Api& api, const char* p) { api.chdir(p); }) {
+            return static_cast<Api*>(ctx)->chdir(path);
+        } else {
+            (void)ctx;
+            (void)path;
+            posix::set_errno(posix::to_errno(util::Errc::nosys));
+            return -1;
+        }
+    }
+
+    template <class Api>
+    char* runtime_getcwd(void* ctx, char* buf, util::usize size) noexcept {
+        if constexpr (requires(Api& api, char* p, util::usize n) { api.getcwd(p, n); }) {
+            return static_cast<Api*>(ctx)->getcwd(buf, size);
+        } else {
+            (void)ctx;
+            (void)buf;
+            (void)size;
+            posix::set_errno(posix::to_errno(util::Errc::nosys));
+            return nullptr;
+        }
+    }
+
     template <class Ret>
     Ret missing_runtime(Ret value) noexcept {
         posix::set_errno(posix::to_errno(util::Errc::nosys));
@@ -178,6 +218,9 @@ export namespace posix::user {
         ssize_t (*lseek)(void* ctx, int fd, util::i64 offset, int whence) noexcept {nullptr};
         int (*open)(void* ctx, const char* path, int flags, int mode) noexcept {nullptr};
         int (*close)(void* ctx, int fd) noexcept {nullptr};
+        int (*dup)(void* ctx, int fd) noexcept {nullptr};
+        int (*dup2)(void* ctx, int from, int to) noexcept {nullptr};
+        int (*fcntl)(void* ctx, int fd, int cmd, int arg) noexcept {nullptr};
         int (*pipe)(void* ctx, int fds[2]) noexcept {nullptr};
         int (*spawn)(void* ctx, SpawnConfig cfg) noexcept {nullptr};
         int (*spawnp)(void* ctx, SpawnConfig cfg) noexcept {nullptr};
@@ -193,6 +236,8 @@ export namespace posix::user {
         const PosixDirent* (*readdir)(void* ctx, PosixDir* dir) noexcept {nullptr};
         int (*closedir)(void* ctx, PosixDir* dir) noexcept {nullptr};
         int (*getpid)(void* ctx) noexcept {nullptr};
+        int (*chdir)(void* ctx, const char* path) noexcept {nullptr};
+        char* (*getcwd)(void* ctx, char* buf, util::usize size) noexcept {nullptr};
     };
 
     template <class Api>
@@ -207,6 +252,9 @@ export namespace posix::user {
         runtime.lseek = &detail::runtime_lseek<Api>;
         runtime.open = &detail::runtime_open<Api>;
         runtime.close = &detail::runtime_close<Api>;
+        runtime.dup = &detail::runtime_dup<Api>;
+        runtime.dup2 = &detail::runtime_dup2<Api>;
+        runtime.fcntl = &detail::runtime_fcntl<Api>;
         runtime.pipe = &detail::runtime_pipe<Api>;
         runtime.spawn = &detail::runtime_spawn<Api>;
         runtime.spawnp = &detail::runtime_spawnp<Api>;
@@ -222,6 +270,8 @@ export namespace posix::user {
         runtime.readdir = &detail::runtime_readdir<Api>;
         runtime.closedir = &detail::runtime_closedir<Api>;
         runtime.getpid = &detail::runtime_getpid<Api>;
+        runtime.chdir = &detail::runtime_chdir<Api>;
+        runtime.getcwd = &detail::runtime_getcwd<Api>;
         return runtime;
     }
 
@@ -345,6 +395,36 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->close(runtime->ctx, fd);
+        });
+    }
+
+    inline int dup(int fd) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->dup) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->dup(runtime->ctx, fd);
+        });
+    }
+
+    inline int dup2(int from, int to) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->dup2) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->dup2(runtime->ctx, from, to);
+        });
+    }
+
+    inline int fcntl(int fd, int cmd, int arg = 0) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->fcntl) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->fcntl(runtime->ctx, fd, cmd, arg);
         });
     }
 
@@ -509,6 +589,26 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->getpid(runtime->ctx);
+        });
+    }
+
+    inline int chdir(const char* path) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->chdir) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->chdir(runtime->ctx, path);
+        });
+    }
+
+    inline char* getcwd(char* buf, util::usize size) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->getcwd) {
+            return detail::missing_runtime<char*>(nullptr);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->getcwd(runtime->ctx, buf, size);
         });
     }
 }

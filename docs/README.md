@@ -13,6 +13,8 @@
 - 装配与启动：`docs/system/init_graph_contract.md`
 - Recipe / Plan 草案：`docs/system/init_plan_recipe_draft.md`
 - Init Plan Review 规则：`docs/system/init_plan_review_rules.md`
+- Materialized Graph 观察导出：`docs/system/init_materialized_graph_observe.md`
+- Materialized Graph 工具链里程碑：`docs/system/init_materialized_graph_tooling_milestone.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
 - POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
 - POSIX 三层执行模型：`docs/system/posix_three_layer_contract.md`
@@ -91,6 +93,7 @@ docs/
 - `docs/io/io_channel_contract.md`
 - `docs/io/io_reactor_contract.md`
 - `docs/io/io_registry_contract.md`
+- `docs/io/net_stack_dual_surface_design.md`
 - `docs/input/input_layering_decision.md`
 - `docs/input/input_protocol_map.md`
 
@@ -113,6 +116,8 @@ docs/
 - `docs/system/init_graph_contract.md`
 - `docs/system/init_plan_recipe_draft.md`
 - `docs/system/init_plan_review_rules.md`
+- `docs/system/init_materialized_graph_observe.md`
+- `docs/system/init_materialized_graph_tooling_milestone.md`
 - `docs/system/service_component_init.md`
 - `docs/system/power_lowpower_overview.md`
 - `docs/system/at_system.md`

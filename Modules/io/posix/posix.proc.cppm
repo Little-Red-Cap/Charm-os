@@ -28,6 +28,7 @@ import posix.spawn_fds;
 import posix.program_image;
 import posix.program_image_modulex;
 import posix.user_context;
+import fs_path;
 import module_core;
 import util.core;
 import util.error;
@@ -132,10 +133,9 @@ export namespace posix {
             if (cfg.path == nullptr && cfg.argv.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            if (cfg.cwd != nullptr && cfg.cwd[0] != '\0') {
-                return util::unexpected(util::Errc::not_supported);
-            }
-            auto child_table = posix::build_spawn_fd_table(parent_fd_table, file_service_, cfg);
+            auto child_table = posix::build_spawn_fd_table<MaxFds, MaxFiles, MaxPathLen>(parent_fd_table,
+                                                                                          file_service_,
+                                                                                          cfg);
             if (!child_table) {
                 return util::unexpected(child_table.error());
             }
@@ -162,6 +162,15 @@ export namespace posix {
             proc.exec_ctx = nullptr;
             assign_process_name(proc, cfg, image.value());
             proc.fds = child_table.value();
+            auto cwd_copy = copy_cwd(cfg.cwd != nullptr && cfg.cwd[0] != '\0'
+                                         ? std::string_view{cfg.cwd}
+                                         : root_cwd(),
+                                     proc.cwd);
+            if (!cwd_copy) {
+                proc.fds.close_all();
+                release_proc(proc);
+                return util::unexpected(cwd_copy.error());
+            }
 
             const auto code = start_image(proc, image.value(), cfg);
             if (!code) {
@@ -234,6 +243,22 @@ export namespace posix {
             return fd_table(ProcessId{pid_value});
         }
 
+        std::string_view cwd(ProcessId pid) const noexcept {
+            const auto* proc = find_proc(pid);
+            if (!proc || proc->cwd[0] == '\0') {
+                return root_cwd();
+            }
+            return std::string_view{proc->cwd.data()};
+        }
+
+        util::Result<void> set_cwd(ProcessId pid, std::string_view cwd_path) noexcept {
+            auto* proc = find_proc(pid);
+            if (!proc) {
+                return util::unexpected(util::Errc::noent);
+            }
+            return copy_cwd(cwd_path, proc->cwd);
+        }
+
         bool elf_exec_enabled() const noexcept { return elf_exec_enabled_; }
         bool elf_hostcalls_enabled() const noexcept { return elf_hostcalls_enabled_; }
         bool has_exec_file_service() const noexcept { return file_service_ != nullptr; }
@@ -268,8 +293,36 @@ export namespace posix {
             int terminate_signal{0};
             ExecContext* exec_ctx{nullptr};
             std::array<char, kProcessNameMax> name{};
+            std::array<char, MaxPathLen> cwd{};
             FdTableType fds{};
         };
+
+        static constexpr std::string_view root_cwd() noexcept {
+            return std::string_view{"/"};
+        }
+
+        static util::Result<void> copy_cwd(std::string_view src,
+                                           std::array<char, MaxPathLen>& dst) noexcept {
+            if (src.empty()) {
+                src = root_cwd();
+            }
+            if (!fs::is_sep(src.front())) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            util::usize len = src.size();
+            while (len > 1 && fs::is_sep(src[len - 1])) {
+                --len;
+            }
+            if (len >= MaxPathLen) {
+                return util::unexpected(util::Errc::nametoolong);
+            }
+            dst = {};
+            for (util::usize i = 0; i < len; ++i) {
+                dst[i] = src[i];
+            }
+            dst[len] = '\0';
+            return {};
+        }
 
         static constexpr bool is_supported_signal(int sig) noexcept {
             return sig == SIGINT || sig == SIGKILL || sig == SIGTERM;
@@ -324,6 +377,14 @@ export namespace posix {
         }
 
         Process* find_proc(ProcessId pid) noexcept {
+            for (util::usize i = 0; i < MaxProcs; ++i) {
+                if (!used_[i]) continue;
+                if (procs_[i].pid.value == pid.value) return &procs_[i];
+            }
+            return nullptr;
+        }
+
+        const Process* find_proc(ProcessId pid) const noexcept {
             for (util::usize i = 0; i < MaxProcs; ++i) {
                 if (!used_[i]) continue;
                 if (procs_[i].pid.value == pid.value) return &procs_[i];

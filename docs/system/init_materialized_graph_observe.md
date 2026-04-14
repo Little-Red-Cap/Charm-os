@@ -200,6 +200,53 @@ JSON sample 当前更适合：
 
 不建议现在就把 `sample/v2` 当作最终稳定协议承诺给外部工具。
 
+当前仓库内置的 bundle 消费脚本，已经把 `sample/v2` 当作当前支持的唯一样例协议：
+
+- `scripts/export_materialized_graph.ps1`
+- `scripts/inspect_materialized_graph_bundle.ps1`
+- `scripts/diff_materialized_graph_bundle.ps1`
+
+这些脚本现在会在读取 case JSON 时显式校验：
+
+- schema 是否受支持
+- 当前最小必需字段是否存在
+
+这样做的目的不是提前冻结长期协议，
+而是避免工具链在 schema 演进时静默误读旧/新字段。
+
+为了让工具侧有更明确的机器可读锚点，仓库现在还提供了：
+
+- `schemas/materialized_graph.sample.v2.schema.json`
+- `schemas/materialized_graph.export_bundle.v1.schema.json`
+- `schemas/materialized_graph.bundle_diff.v1.schema.json`
+- `schemas/materialized_graph.ci_summary.v1.schema.json`
+- `schemas/materialized_graph.report_manifest.v1.schema.json`
+- `schemas/README.md`
+- `scripts/validate_materialized_graph_artifacts.py`
+
+当前可以这样理解它们的职责边界：
+
+- `sample/v2`：描述当前导出样例的精确形状，但不代表长期冻结承诺
+- `export_bundle/v1`：描述 bundle 索引结构，是批量导出 / inspect / diff 的稳定消费面
+- `bundle_diff/v1`：描述 diff JSON 结构，是 diff / report / 自动化审阅的稳定消费面
+- `ci_summary/v1`：描述 CI 摘要结构，是 workflow / 自动化集成的稳定消费面
+- `report_manifest/v1`：描述报告元数据结构，是 HTML / Markdown 报告与上层工具之间的稳定桥接面
+
+如果要把这些协议真正跑成自动验证，仓库现在还提供了：
+
+```powershell
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root out/materialized-graph-bundle
+python ./scripts/validate_materialized_graph_artifacts.py --ci-output-root out/materialized-graph-ci
+```
+
+它当前会按 `schema` 字段自动选择仓库里的对应 JSON Schema，并验证：
+
+- bundle `index.json`
+- bundle 引用的 case `sample.json`
+- CI `summary.json`
+- `summary.json` 引用到的 `diff.json`
+- `summary.json` 引用到的 `report manifest`
+
 ## 最小用法
 
 ### 代码层
@@ -387,6 +434,17 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 节点新增 / 删除 / 字段变化
 - 依赖边新增 / 删除
 
+当使用 `-AsJson` 时，当前输出还会带：
+
+- `schema = materialized_graph.bundle_diff/v1`
+- `generated_at_utc`
+- `include_unchanged`
+- `status_counts`
+
+对应机器可读协议见：
+
+- `schemas/materialized_graph.bundle_diff.v1.schema.json`
+
 如果要把 diff 结果进一步交给人审阅，仓库根目录还提供了报告生成脚本：
 
 ```powershell
@@ -399,6 +457,7 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 
 - `materialized_graph_bundle_diff_report.md`
 - `materialized_graph_bundle_diff_report.html`
+- `materialized_graph_bundle_diff_report.manifest.json`
 
 报告内容当前包括：
 
@@ -408,6 +467,13 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 可点击的 `dot / json` 工件链接
 - 节点新增 / 删除 / 字段变化表
 - 依赖边新增 / 删除表
+
+其中 `manifest.json` 当前会汇总：
+
+- 左右 bundle 引用
+- diff 协议名与 case / status 计数
+- Markdown / HTML / manifest 自身路径
+- 报告中包含的 case 名单与状态
 
 如果要把这条链收成一个更适合 CI 的单入口，还可以直接用：
 
@@ -432,6 +498,10 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 各类状态计数：`changed / added / removed / unchanged`
 - 按状态分组的 case 名单
 - 报告与 diff 产物路径
+
+其中 `report` 字段现在也会额外带：
+
+- `manifest`
 
 仓库现在还提供了一个对应的 GitHub Actions 工作流：
 

@@ -39,6 +39,15 @@ if (DEFINED CHARM_CONFIG_TARGETS AND CHARM_CONFIG_TARGETS)
     target_link_libraries(${target_name} PRIVATE ${CHARM_CONFIG_TARGETS})
 endif()
 
+function(charm_normalize_path_list list_var)
+    set(charm_normalized_paths)
+    foreach(charm_path IN LISTS ${list_var})
+        cmake_path(ABSOLUTE_PATH charm_path NORMALIZE OUTPUT_VARIABLE charm_normalized_path)
+        list(APPEND charm_normalized_paths "${charm_normalized_path}")
+    endforeach()
+    set(${list_var} "${charm_normalized_paths}" PARENT_SCOPE)
+endfunction()
+
 target_include_directories(${target_name} PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/posix")
 
@@ -182,8 +191,13 @@ set(MODULE_INTERFACE_UNITS
     ${CHARM_SYSTEM_MODULES}
     ${CHARM_THIRDPARTY_MODULES}
     ${CHARM_UI_MODULES})
+charm_normalize_path_list(MODULE_INTERFACE_UNITS)
 list(REMOVE_DUPLICATES MODULE_INTERFACE_UNITS)
-
+if (NOT WIN32)
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/net/net.backend.win.cppm"
+    )
+endif()
 if (NOT CHARM_ENABLE_SDL3)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_sdl3.cppm"
@@ -220,6 +234,9 @@ if (NOT CHARM_ENABLE_TEST_MODULES)
 endif()
 if (NOT CHARM_ENABLE_POSIX)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/io/posix/")
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/net/net.posix.cppm"
+    )
 endif()
 if (NOT CHARM_ENABLE_FREETYPE)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
@@ -227,6 +244,7 @@ if (NOT CHARM_ENABLE_FREETYPE)
 endif()
 if (CHARM_BAREMETAL)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/baremetal.cmake")
+    charm_normalize_path_list(CHARM_BAREMETAL_EXCLUDED_MODULES)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS ${CHARM_BAREMETAL_EXCLUDED_MODULES})
     foreach(charm_baremetal_exclude_regex IN LISTS CHARM_BAREMETAL_EXCLUDED_REGEXES)
         list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "${charm_baremetal_exclude_regex}")
@@ -243,12 +261,17 @@ if (CHARM_ENABLE_UI_VIVID)
     include("${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/vivid.cmake")
     vivid_collect_modules(${target_name} MODULE_INTERFACE_UNITS MODULE_BASE_DIRS)
 endif()
+charm_normalize_path_list(MODULE_INTERFACE_UNITS)
 list(REMOVE_DUPLICATES MODULE_INTERFACE_UNITS)
 target_sources(${target_name}
         PUBLIC
         FILE_SET modules TYPE CXX_MODULES
         BASE_DIRS ${MODULE_BASE_DIRS}
         FILES ${MODULE_INTERFACE_UNITS})
+
+if (WIN32)
+    target_link_libraries(${target_name} PUBLIC ws2_32)
+endif()
 
 message(STATUS "${target_name} Examples: Ink/Windows -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/ink/windows")
 message(STATUS "${target_name} Examples: Ink/STM32   -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/ink/stm32f103c8")

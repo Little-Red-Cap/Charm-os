@@ -48,8 +48,10 @@
                 switch_track(-1);
             } else if (actions.next) {
                 switch_track(1);
+            } else if (actions.list_action) {
+                invoke_list_action(actions.list_action_index);
             } else if (actions.select) {
-                select_track_index(actions.select_index);
+                activate_list_index(actions.select_index);
             }
 
             if (actions.toggle_play) {
@@ -188,6 +190,10 @@
                 if (player::probe_duration_seconds(track_path, secs)) {
                     playback.set_duration_from_probe(secs);
                     preloaded_duration_sec = secs;
+                    if (cache_track_duration(track_index, secs) && current_page == PlayerPage::Library) {
+                        rebuild_list_display_cache();
+                        notify_list_text_sources_changed();
+                    }
                     update_info_label();
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                     std::printf("[np] preload duration=%d path=%s\n", secs, track_path);

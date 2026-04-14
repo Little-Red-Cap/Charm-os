@@ -243,6 +243,7 @@ Write-Host '[CI] generate human-readable report'
 
 $reportMarkdownPath = if ($ReportFormat -eq 'markdown' -or $ReportFormat -eq 'both') { Join-Path $reportOutputRoot 'materialized_graph_bundle_diff_report.md' } else { '' }
 $reportHtmlPath = if ($ReportFormat -eq 'html' -or $ReportFormat -eq 'both') { Join-Path $reportOutputRoot 'materialized_graph_bundle_diff_report.html' } else { '' }
+$reportManifestPath = Join-Path $reportOutputRoot 'materialized_graph_bundle_diff_report.manifest.json'
 $changedCases = @(Get-CaseNamesByStatus -Cases $diffData.cases -Status 'changed')
 $addedCases = @(Get-CaseNamesByStatus -Cases $diffData.cases -Status 'added')
 $removedCases = @(Get-CaseNamesByStatus -Cases $diffData.cases -Status 'removed')
@@ -273,6 +274,7 @@ $summary.diff = [ordered]@{
 }
 $summary.report = [ordered]@{
     output_root = $reportOutputRoot
+    manifest = if (Test-Path $reportManifestPath) { $reportManifestPath } else { $null }
     markdown = if (-not [string]::IsNullOrWhiteSpace($reportMarkdownPath) -and (Test-Path $reportMarkdownPath)) { $reportMarkdownPath } else { $null }
     html = if (-not [string]::IsNullOrWhiteSpace($reportHtmlPath) -and (Test-Path $reportHtmlPath)) { $reportHtmlPath } else { $null }
 }
@@ -282,6 +284,9 @@ $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedSummaryPa
 
 Write-Host "[CI] summary -> $resolvedSummaryPath"
 Write-Host "[CI] diff    -> $diffJsonPath"
+if ($summary.report.manifest) {
+    Write-Host "[CI] report  -> $($summary.report.manifest)"
+}
 if ($summary.report.markdown) {
     Write-Host "[CI] report  -> $($summary.report.markdown)"
 }

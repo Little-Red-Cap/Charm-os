@@ -1,4 +1,4 @@
-﻿module;
+module;
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -24,6 +24,8 @@ import charm.core.handle;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.ui.scene;
+import charm.ui.scene.anchored_menu;
+import charm.ui.scene.pill_surface;
 import charm.font.typography;
 import charm.system.clock;
 import player.playback;
@@ -72,6 +74,12 @@ export namespace player {
         Home,
         NowPlaying,
         Library,
+    };
+
+    enum class LibraryTab : std::uint8_t {
+        Songs,
+        Albums,
+        Artists,
     };
 
     enum class ListSort : std::uint8_t {
@@ -142,11 +150,21 @@ export namespace player {
         WidgetHandle clip_slider{};
         WidgetHandle clip_value{};
         WidgetHandle list{};
+        WidgetHandle list_tab_songs{};
+        WidgetHandle list_tab_albums{};
+        WidgetHandle list_tab_artist{};
+        WidgetHandle list_shuffle{};
         WidgetHandle list_title{};
+        WidgetHandle list_path_bg{};
         WidgetHandle list_path{};
+        WidgetHandle list_path_hit{};
         WidgetHandle list_sort{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
+        WidgetHandle list_action_scrim{};
+        WidgetHandle list_action_card{};
+        WidgetHandle list_action_title{};
+        std::array<WidgetHandle, 3> list_action_items{};
         WidgetHandle mode_hint{};
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};
@@ -172,6 +190,55 @@ export namespace player {
     };
 
     struct PlayerController {
+        struct LibraryRowModel {
+            FixedString<192> title{};
+            FixedString<128> subtitle{};
+            FixedString<32> tail{};
+            bool group_row{false};
+        };
+
+        struct LibraryRowRecipe {
+            const LibraryRowModel* model{};
+            int row_index{-1};
+            int track_index{-1};
+            bool group_row{false};
+            bool current_row{false};
+            bool show_tail_action{false};
+            const char* menu_title_cstr{"Track"};
+            std::string_view detail_primary{};
+            std::string_view detail_secondary{};
+            std::string_view track_path{};
+            std::string_view cover_path{};
+            ::ui::scene::ImageId tail_icon{};
+            ::ui::scene::ImageId tail_action_icon{};
+            ::ui::scene::ImageId fallback_icon{};
+            bool prefer_cover{false};
+
+            std::string_view title() const noexcept {
+                return model ? model->title.view() : std::string_view{};
+            }
+
+            std::string_view subtitle() const noexcept {
+                return model ? model->subtitle.view() : std::string_view{};
+            }
+
+            std::string_view tail() const noexcept {
+                return model ? model->tail.view() : std::string_view{};
+            }
+
+            const char* title_c_str() const noexcept {
+                return model ? model->title.c_str() : "";
+            }
+
+            const char* subtitle_c_str() const noexcept {
+                return model ? model->subtitle.c_str() : "";
+            }
+
+            const char* tail_c_str() const noexcept {
+                return model ? model->tail.c_str() : "";
+            }
+        };
+
         PlaybackEngine playback{};
         ::ui::scene::SceneAccess access{};
         UiHandles handles{};
@@ -210,8 +277,17 @@ export namespace player {
         int last_list_count{-1};
         bool ignore_list_select{false};
         int last_list_selected{-1};
+        int list_action_menu_index{-1};
+        LibraryTab library_tab{LibraryTab::Songs};
+        FixedString<192> library_context_key{};
         ListSort list_sort{ListSort::NameAsc};
+        bool list_shuffle_enabled{false};
+        std::uint32_t list_shuffle_seed{0};
         std::vector<int> list_order{};
+        std::vector<LibraryRowModel> list_rows{};
+        std::vector<int> track_duration_cache_sec{};
+        std::size_t list_duration_probe_cursor{0};
+        std::uint64_t last_list_duration_probe_ms{0};
         std::vector<FixedString<260>> list_cover_paths{};
         struct ListCoverCacheEntry {
             FixedString<260> path{};
@@ -574,6 +650,20 @@ export namespace player {
             return {};
         }
 
+        static void format_duration_compact(int total_sec, char* out, std::size_t out_size) noexcept {
+            if (!out || out_size == 0) return;
+            out[0] = '\0';
+            if (total_sec <= 0) return;
+            const int hours = total_sec / 3600;
+            const int minutes = (total_sec / 60) % 60;
+            const int seconds = total_sec % 60;
+            if (hours > 0) {
+                std::snprintf(out, out_size, "%d:%02d:%02d", hours, minutes, seconds);
+            } else {
+                std::snprintf(out, out_size, "%d:%02d", total_sec / 60, seconds);
+            }
+        }
+
         static std::uint64_t query_track_size(const char* path) noexcept {
             if (!path || !*path) return 0;
 #if defined(CHARM_AUDIO_USE_VFS)
@@ -614,43 +704,6 @@ export namespace player {
             last_info_text.clear();
             set_info_label("");
             reset_cover_image();
-        }
-
-        void handle_key_action(UiKey key) {
-            if (current_page == PlayerPage::Probe) {
-                dismiss_probe();
-                return;
-            }
-            switch (key) {
-            case UiKey::Up:
-                focus_list();
-                nav_list(-1);
-                break;
-            case UiKey::Down:
-                focus_list();
-                nav_list(1);
-                break;
-            case UiKey::Enter:
-                focus_list();
-                nav_list_activate();
-                break;
-            case UiKey::PlayToggle:
-                if (is_playing()) pause_playback();
-                else if (is_paused()) resume_playback();
-                else start_playback();
-                break;
-            case UiKey::Next:
-                switch_track(1);
-                break;
-            case UiKey::Prev:
-                switch_track(-1);
-                break;
-            case UiKey::Mode:
-                cycle_play_mode();
-                break;
-            default:
-                break;
-            }
         }
 
         void init_text_slots() {
@@ -1043,6 +1096,46 @@ export namespace player {
         }
 
         #include "player.controller.library.inc"
+
+        void handle_key_action(UiKey key) {
+            if (current_page == PlayerPage::Probe) {
+                dismiss_probe();
+                return;
+            }
+            if (current_page == PlayerPage::Library && handle_list_action_menu_key(key)) {
+                return;
+            }
+            switch (key) {
+            case UiKey::Up:
+                focus_list();
+                nav_list(-1);
+                break;
+            case UiKey::Down:
+                focus_list();
+                nav_list(1);
+                break;
+            case UiKey::Enter:
+                focus_list();
+                nav_list_activate();
+                break;
+            case UiKey::PlayToggle:
+                if (is_playing()) pause_playback();
+                else if (is_paused()) resume_playback();
+                else start_playback();
+                break;
+            case UiKey::Next:
+                switch_track(1);
+                break;
+            case UiKey::Prev:
+                switch_track(-1);
+                break;
+            case UiKey::Mode:
+                cycle_play_mode();
+                break;
+            default:
+                break;
+            }
+        }
 
         #include "player.controller.progress.inc"
         #include "player.controller.input_debug.inc"

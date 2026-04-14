@@ -1144,10 +1144,65 @@ import alg_list_scroll;
         mark_paint_dirty();
     }
 
+    void SoaKernel::set_list_view_tail_source(WidgetHandle h,
+                                              const void* ctx,
+                                              soa_detail::ListViewTailFn fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        payload->tail_ctx = ctx;
+        payload->tail_fn = fn;
+        mark_paint_dirty();
+    }
+
+    void SoaKernel::set_list_view_tail_icon_source(WidgetHandle h,
+                                                   const void* ctx,
+                                                   soa_detail::ListViewIconFn fn,
+                                                   std::uint8_t size) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        payload->tail_icon_ctx = ctx;
+        payload->tail_icon_fn = fn;
+        payload->tail_icon_size = size;
+        mark_paint_dirty();
+    }
+
+    void SoaKernel::set_list_view_tail_action_icon_source(WidgetHandle h,
+                                                          const void* ctx,
+                                                          soa_detail::ListViewIconFn fn,
+                                                          std::uint8_t size) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        payload->tail_action_icon_ctx = ctx;
+        payload->tail_action_icon_fn = fn;
+        payload->tail_action_icon_size = size;
+        mark_paint_dirty();
+    }
+
     void SoaKernel::set_list_view_icon_source(WidgetHandle h,
-                                   const void* ctx,
-                                   soa_detail::ListViewIconFn fn,
-                                   std::uint8_t icon_size) noexcept {
+                                              const void* ctx,
+                                              soa_detail::ListViewIconFn fn,
+                                              std::uint8_t icon_size) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1161,6 +1216,22 @@ import alg_list_scroll;
         payload->icon_fn = fn;
         payload->icon_size = icon_size;
         mark_paint_dirty();
+    }
+
+    void SoaKernel::set_list_view_icon_corner_radius(WidgetHandle h, std::uint8_t radius) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        if (payload->icon_corner_radius != radius) {
+            payload->icon_corner_radius = radius;
+            mark_paint_dirty();
+        }
     }
 
     void SoaKernel::set_list_view_count(WidgetHandle h, std::uint16_t count) noexcept {
@@ -1291,6 +1362,52 @@ import alg_list_scroll;
         return text ? text : "";
     }
 
+    const char* SoaKernel::list_view_item_tail(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return "";
+        if (index >= payload->count) return "";
+        if (!payload->tail_fn) return "";
+        const char* text = payload->tail_fn(payload->tail_ctx, index);
+        return text ? text : "";
+    }
+
+    soa_detail::ImageId SoaKernel::list_view_item_tail_icon(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return soa_detail::invalid_image_id();
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return soa_detail::invalid_image_id();
+        if (index >= payload->count) return soa_detail::invalid_image_id();
+        if (!payload->tail_icon_fn) return soa_detail::invalid_image_id();
+        return payload->tail_icon_fn(payload->tail_icon_ctx, index);
+    }
+
+    soa_detail::ImageId SoaKernel::list_view_item_tail_action_icon(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return soa_detail::invalid_image_id();
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return soa_detail::invalid_image_id();
+        if (index >= payload->count) return soa_detail::invalid_image_id();
+        if (!payload->tail_action_icon_fn) return soa_detail::invalid_image_id();
+        return payload->tail_action_icon_fn(payload->tail_action_icon_ctx, index);
+    }
+
     soa_detail::ImageId SoaKernel::list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
@@ -1304,6 +1421,57 @@ import alg_list_scroll;
         if (index >= payload->count) return soa_detail::invalid_image_id();
         if (!payload->icon_fn) return soa_detail::invalid_image_id();
         return payload->icon_fn(payload->icon_ctx, index);
+    }
+
+    std::uint8_t SoaKernel::list_view_tail_icon_size(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->tail_icon_size : 0;
+    }
+
+    std::uint8_t SoaKernel::list_view_tail_action_icon_size(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->tail_action_icon_size : 0;
+    }
+
+    int SoaKernel::consume_list_view_tail_action(WidgetHandle h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return -1;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return -1;
+        const int pending = payload->pending_tail_action;
+        payload->pending_tail_action = -1;
+        return pending;
+    }
+
+    std::uint8_t SoaKernel::list_view_icon_corner_radius(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->icon_corner_radius : 0;
     }
 
     std::uint8_t SoaKernel::list_view_icon_size(WidgetHandle h) const noexcept {

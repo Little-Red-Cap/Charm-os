@@ -19,6 +19,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'materialized_graph_schema.ps1')
 
 function Get-ExportCases {
     return @(
@@ -131,6 +132,7 @@ function Get-GraphSummary {
     }
 
     $graph = Get-Content -LiteralPath $JsonPath -Raw -Encoding utf8 | ConvertFrom-Json
+    Assert-MaterializedGraphSampleShape -Graph $graph -Context $JsonPath
     $kindCounts = [ordered]@{}
     foreach ($node in $graph.nodes) {
         $kind = [string]$node.kind

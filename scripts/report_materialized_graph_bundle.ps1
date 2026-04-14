@@ -10,6 +10,7 @@
     [string]$OutputDir = 'out/materialized-graph-report',
     [string]$MarkdownPath = "",
     [string]$HtmlPath = "",
+    [string]$ManifestPath = "",
     [string]$Title = 'Materialized Graph Bundle Diff Report'
 )
 
@@ -108,6 +109,22 @@ function Get-OutputPath {
     return Join-Path $outputRoot $DefaultFileName
 }
 
+function Get-ManifestOutputPath {
+    if (-not [string]::IsNullOrWhiteSpace($ManifestPath)) {
+        return Resolve-FullPath $ManifestPath
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($MarkdownPath)) {
+        return Join-Path (Split-Path -Parent (Resolve-FullPath $MarkdownPath)) 'materialized_graph_bundle_diff_report.manifest.json'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($HtmlPath)) {
+        return Join-Path (Split-Path -Parent (Resolve-FullPath $HtmlPath)) 'materialized_graph_bundle_diff_report.manifest.json'
+    }
+
+    return Get-OutputPath -ExplicitPath '' -DefaultFileName 'materialized_graph_bundle_diff_report.manifest.json'
+}
+
 function Get-CaseStatusCount {
     param(
         $Cases,
@@ -115,6 +132,54 @@ function Get-CaseStatusCount {
     )
 
     return @($Cases | Where-Object { $_.status -eq $Status }).Count
+}
+
+function New-ReportManifest {
+    param(
+        $DiffData,
+        [string]$ResolvedMarkdownPath,
+        [string]$ResolvedHtmlPath,
+        [string]$ResolvedManifestPath
+    )
+
+    $cases = @($DiffData.cases)
+    return [ordered]@{
+        schema = 'materialized_graph.report_manifest/v1'
+        generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+        title = $Title
+        format = $Format
+        include_unchanged = $IncludeUnchanged.IsPresent
+        left = [ordered]@{
+            index = [string]$DiffData.left.index
+            bundle_root = [string]$DiffData.left.bundle_root
+        }
+        right = [ordered]@{
+            index = [string]$DiffData.right.index
+            bundle_root = [string]$DiffData.right.bundle_root
+        }
+        diff = [ordered]@{
+            schema = if ($null -ne $DiffData.PSObject.Properties['schema']) { [string]$DiffData.schema } else { $null }
+            case_count = [int]$DiffData.case_count
+            status_counts = [ordered]@{
+                changed = Get-CaseStatusCount -Cases $cases -Status 'changed'
+                added = Get-CaseStatusCount -Cases $cases -Status 'added'
+                removed = Get-CaseStatusCount -Cases $cases -Status 'removed'
+                unchanged = Get-CaseStatusCount -Cases $cases -Status 'unchanged'
+            }
+        }
+        reports = [ordered]@{
+            manifest = $ResolvedManifestPath
+            markdown = if (-not [string]::IsNullOrWhiteSpace($ResolvedMarkdownPath) -and (Test-Path $ResolvedMarkdownPath)) { $ResolvedMarkdownPath } else { $null }
+            html = if (-not [string]::IsNullOrWhiteSpace($ResolvedHtmlPath) -and (Test-Path $ResolvedHtmlPath)) { $ResolvedHtmlPath } else { $null }
+        }
+        cases = @($cases | ForEach-Object {
+            [ordered]@{
+                name = [string]$_.name
+                status = [string]$_.status
+                summary_changes = @($_.summary_changes)
+            }
+        })
+    }
 }
 
 function Escape-MarkdownCell {
@@ -559,6 +624,8 @@ $diffData = Get-DiffData
 $writeMarkdown = $Format -eq 'markdown' -or $Format -eq 'both'
 $writeHtml = $Format -eq 'html' -or $Format -eq 'both'
 
+$resolvedMarkdownPath = ''
+$resolvedHtmlPath = ''
 $writtenPaths = @()
 if ($writeMarkdown) {
     $resolvedMarkdownPath = Get-OutputPath -ExplicitPath $MarkdownPath -DefaultFileName 'materialized_graph_bundle_diff_report.md'
@@ -575,6 +642,12 @@ if ($writeHtml) {
     Set-Content -LiteralPath $resolvedHtmlPath -Encoding utf8 $html
     $writtenPaths += "[HTML] $resolvedHtmlPath"
 }
+
+$resolvedManifestPath = Get-ManifestOutputPath
+Ensure-ParentDirectory -Path $resolvedManifestPath
+$manifest = New-ReportManifest -DiffData $diffData -ResolvedMarkdownPath $resolvedMarkdownPath -ResolvedHtmlPath $resolvedHtmlPath -ResolvedManifestPath $resolvedManifestPath
+$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedManifestPath -Encoding utf8
+$writtenPaths += "[MANIFEST] $resolvedManifestPath"
 
 foreach ($line in $writtenPaths) {
     Write-Host $line

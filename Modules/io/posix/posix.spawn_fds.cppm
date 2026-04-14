@@ -1,9 +1,11 @@
 module;
 
+#include <array>
 #include <string_view>
 
 export module posix.spawn_fds;
 
+import posix.exec_source;
 import posix.fd_table;
 import posix.file;
 import posix.proc_types;
@@ -29,7 +31,7 @@ export namespace posix {
             return {};
         }
 
-        template <util::usize MaxFds, util::usize MaxFiles>
+        template <util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen>
         util::Result<void> apply_spawn_file_actions(FdTable<MaxFds>& child,
                                                     FileService<MaxFiles>* file_service,
                                                     const SpawnConfig& cfg) noexcept {
@@ -47,7 +49,15 @@ export namespace posix {
                         if (!file_service) {
                             return util::unexpected(util::Errc::not_supported);
                         }
-                        auto entry = file_service->open(std::string_view{act.path}, act.flags, act.mode);
+                        std::array<char, MaxPathLen> resolved_path{};
+                        auto resolved = resolve_path_from_cwd<MaxPathLen>(cfg.cwd ? std::string_view{cfg.cwd}
+                                                                                  : std::string_view{"/"},
+                                                                          std::string_view{act.path},
+                                                                          resolved_path);
+                        if (!resolved) {
+                            return util::unexpected(resolved.error());
+                        }
+                        auto entry = file_service->open(resolved.value(), act.flags, act.mode);
                         if (!entry) {
                             return util::unexpected(entry.error());
                         }
@@ -85,7 +95,7 @@ export namespace posix {
         }
     }
 
-    template <util::usize MaxFds, util::usize MaxFiles>
+    template <util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen = 256>
     util::Result<FdTable<MaxFds>> build_spawn_fd_table(FdTable<MaxFds>* parent,
                                                        FileService<MaxFiles>* file_service,
                                                        const SpawnConfig& cfg) noexcept {
@@ -105,7 +115,7 @@ export namespace posix {
             return util::unexpected(stdio.error());
         }
 
-        auto actions = detail::apply_spawn_file_actions(child, file_service, cfg);
+        auto actions = detail::apply_spawn_file_actions<MaxFds, MaxFiles, MaxPathLen>(child, file_service, cfg);
         if (!actions) {
             return util::unexpected(actions.error());
         }

@@ -132,8 +132,13 @@ export namespace usb::host {
         }
 
         template <typename RuntimeRegistryT>
+        util::Result<void> try_enumerate(RuntimeRegistryT& registry) noexcept {
+            return discovery_.try_enumerate(registry);
+        }
+
+        template <typename RuntimeRegistryT>
         bool enumerate(RuntimeRegistryT& registry) noexcept {
-            return discovery_.enumerate(registry);
+            return static_cast<bool>(try_enumerate(registry));
         }
 
         device::Bus bus() const noexcept {
@@ -217,8 +222,13 @@ export namespace usb::host {
         }
 
         template <typename RuntimeRegistryT>
+        util::Result<void> try_remove(RuntimeRegistryT& registry) noexcept {
+            return registry.try_remove_matching(runtime_ctx_.match, &binding_);
+        }
+
+        template <typename RuntimeRegistryT>
         bool remove(RuntimeRegistryT& registry) noexcept {
-            return registry.remove_matching(runtime_ctx_.match, &binding_);
+            return static_cast<bool>(try_remove(registry));
         }
 
     private:

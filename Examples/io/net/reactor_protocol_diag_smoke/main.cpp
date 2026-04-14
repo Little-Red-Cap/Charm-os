@@ -5,6 +5,7 @@
 
 import charm.net;
 import net.backend.win;
+import net.protocol.diagnostic;
 import util.core;
 
 namespace {
@@ -17,61 +18,10 @@ namespace {
             | static_cast<util::u32>(io::Event::error);
     }
 
-    struct PingRequest {
-        util::u8 text[4]{};
-    };
-
-    struct PingReply {
-        util::u8 text[4]{};
-    };
-
-    struct CounterValue {
-        util::u16 value{0};
-    };
-
-    struct MetaRequest {
-        util::u16 code{0};
-        util::u8 flags{0};
-        std::array<util::u8, 2> tag{};
-    };
-
-    struct MetaReply {
-        util::u8 status{0};
-        util::u16 reflected_code{0};
-        std::array<util::u8, 2> tag{};
-    };
-
-    using PingOp = net::TrivialServiceOp<0x60u, PingRequest, PingReply>;
-
-    using CountOp = net::WireServiceOp<
-        0x61u,
-        net::EmptyMessage,
-        CounterValue,
-        net::WireMembers<>,
-        net::WireMembers<&CounterValue::value>>;
-
-    using SlowCountOp = net::WireServiceOp<
-        0x62u,
-        CounterValue,
-        CounterValue,
-        net::WireMembers<&CounterValue::value>,
-        net::WireMembers<&CounterValue::value>>;
-
-    using MetaOp = net::WireServiceOp<
-        0x63u,
-        MetaRequest,
-        MetaReply,
-        net::WireMembers<
-            &MetaRequest::code,
-            &MetaRequest::flags,
-            &MetaRequest::tag>,
-        net::WireMembers<
-            &MetaReply::status,
-            &MetaReply::reflected_code,
-            &MetaReply::tag>>;
-
-    using Session = net::TypedServiceSession<64, 4, 8>;
-    using Driver = net::ReactorSocketDriver<Session, 8>;
+    using ProtocolClient = net::diag::Client<>;
+    using ProtocolServer = net::diag::Server<>;
+    using ClientDriver = net::ReactorSocketDriver<ProtocolClient, 8>;
+    using ServerDriver = net::ReactorSocketDriver<ProtocolServer, 8>;
 
     bool bytes_eq(net::ByteView lhs, net::ByteView rhs) noexcept {
         if (lhs.size() != rhs.size()) {
@@ -97,7 +47,7 @@ namespace {
         static void on_ping(void* ctx,
                             util::u16 request_id,
                             net::ServiceStatus status,
-                            const PingReply& response) noexcept {
+                            const net::diag::PingReply& response) noexcept {
             auto* self = static_cast<ClientState*>(ctx);
             if (!self) return;
 
@@ -114,7 +64,7 @@ namespace {
         static void on_count(void* ctx,
                              util::u16 request_id,
                              net::ServiceStatus status,
-                             const CounterValue& response) noexcept {
+                             const net::diag::CounterValue& response) noexcept {
             auto* self = static_cast<ClientState*>(ctx);
             if (!self) return;
 
@@ -129,7 +79,7 @@ namespace {
         static void on_slow(void* ctx,
                             util::u16 request_id,
                             net::ServiceStatus status,
-                            const CounterValue& response) noexcept {
+                            const net::diag::CounterValue& response) noexcept {
             auto* self = static_cast<ClientState*>(ctx);
             if (!self) return;
 
@@ -144,7 +94,7 @@ namespace {
         static void on_meta(void* ctx,
                             util::u16 request_id,
                             net::ServiceStatus status,
-                            const MetaReply& response) noexcept {
+                            const net::diag::MetaReply& response) noexcept {
             auto* self = static_cast<ClientState*>(ctx);
             if (!self) return;
 
@@ -183,8 +133,8 @@ namespace {
         bool failed{false};
 
         static net::ServiceStatus on_ping(void* ctx,
-                                          const PingRequest& request,
-                                          PingReply& response) noexcept {
+                                          const net::diag::PingRequest& request,
+                                          net::diag::PingReply& response) noexcept {
             auto* self = static_cast<ServerState*>(ctx);
             if (!self) {
                 return net::ServiceStatus::internal_error;
@@ -208,7 +158,7 @@ namespace {
 
         static net::ServiceStatus on_count(void* ctx,
                                            const net::EmptyMessage&,
-                                           CounterValue& response) noexcept {
+                                           net::diag::CounterValue& response) noexcept {
             auto* self = static_cast<ServerState*>(ctx);
             if (!self) {
                 return net::ServiceStatus::internal_error;
@@ -220,9 +170,9 @@ namespace {
         }
 
         static void on_slow(void* ctx,
-                            Session&,
+                            ProtocolServer&,
                             net::ServiceReplyToken token,
-                            const CounterValue& request) noexcept {
+                            const net::diag::CounterValue& request) noexcept {
             auto* self = static_cast<ServerState*>(ctx);
             if (!self) return;
 
@@ -238,8 +188,8 @@ namespace {
         }
 
         static net::ServiceStatus on_meta(void* ctx,
-                                          const MetaRequest& request,
-                                          MetaReply& response) noexcept {
+                                          const net::diag::MetaRequest& request,
+                                          net::diag::MetaReply& response) noexcept {
             auto* self = static_cast<ServerState*>(ctx);
             if (!self) {
                 return net::ServiceStatus::internal_error;
@@ -279,107 +229,105 @@ int main() {
     net::TcpClient server_side{};
 
     util::u16 port = 0;
-    for (util::u16 candidate = 32300; candidate < 32400; ++candidate) {
-        if (!listener.listen(stack, net::Endpoint::ipv4_loopback(candidate), 2)) continue;
+    for (util::u16 candidate = 32400; candidate < 32500; ++candidate) {
+        if (!listener.listen_loopback(stack, candidate, 2)) continue;
         port = candidate;
         break;
     }
     if (port == 0) {
-        std::fputs("reactor service typed listener failed\n", stderr);
+        std::fputs("reactor protocol diag listener failed\n", stderr);
         return 1;
     }
 
     net::SocketChannelBinding client_binding{client.raw()};
     net::SocketChannelBinding server_binding{server_side.raw()};
 
-    Session client_session{};
-    Session server_session{};
+    ProtocolClient client_proto{};
+    ProtocolServer server_proto{};
     ClientState client_state{};
     ServerState server_state{};
 
-    client_session.set_error_handler(&ClientState::on_error, &client_state);
-    server_session.set_error_handler(&ServerState::on_error, &server_state);
+    client_proto.set_error_handler(&ClientState::on_error, &client_state);
+    server_proto.set_error_handler(&ServerState::on_error, &server_state);
 
-    auto ping_route = server_session.set_route<PingOp>(&ServerState::on_ping, &server_state);
-    auto count_route = server_session.set_route<CountOp>(&ServerState::on_count, &server_state);
-    auto slow_route = server_session.set_deferred_route<SlowCountOp>(&ServerState::on_slow, &server_state);
-    auto meta_route = server_session.set_route<MetaOp>(&ServerState::on_meta, &server_state);
+    auto ping_route = server_proto.on_ping(&ServerState::on_ping, &server_state);
+    auto count_route = server_proto.on_count(&ServerState::on_count, &server_state);
+    auto slow_route = server_proto.on_slow_count(&ServerState::on_slow, &server_state);
+    auto meta_route = server_proto.on_meta(&ServerState::on_meta, &server_state);
     if (!ping_route || !count_route || !slow_route || !meta_route) {
-        std::fputs("reactor service typed route registration failed\n", stderr);
+        std::fputs("reactor protocol diag route registration failed\n", stderr);
         return 2;
     }
 
-    Driver client_driver{reactor, socket_poller, client_binding, client_session};
-    Driver server_driver{reactor, socket_poller, server_binding, server_session};
-    net::TcpSingleAcceptDriver<Driver, 8> listener_driver{
+    ClientDriver client_driver{reactor, socket_poller, client_binding, client_proto};
+    ServerDriver server_driver{reactor, socket_poller, server_binding, server_proto};
+    net::TcpSingleAcceptDriver<ServerDriver, 8> listener_driver{
         reactor, socket_poller, listener, server_side, server_driver};
 
     auto listener_started = listener_driver.start(all_reactor_events());
     if (!listener_started) {
-        std::fputs("reactor service typed listener driver start failed\n", stderr);
+        std::fputs("reactor protocol diag listener driver start failed\n", stderr);
         return 3;
     }
 
-    if (!client.connect(stack, net::Endpoint::ipv4_loopback(port))) {
-        std::fputs("reactor service typed client connect failed\n", stderr);
+    if (!client.connect_loopback(stack, port)) {
+        std::fputs("reactor protocol diag client connect failed\n", stderr);
         return 4;
     }
 
     auto client_started = client_driver.start();
     if (!client_started) {
-        std::fputs("reactor service typed client driver start failed\n", stderr);
+        std::fputs("reactor protocol diag client driver start failed\n", stderr);
         return 5;
     }
 
-    PingRequest ping_request{{'p', 'i', 'n', 'g'}};
-    auto ping = client_session.send_request<PingOp>(
-        ping_request,
+    auto ping = client_proto.ping(
+        net::diag::PingRequest{{'p', 'i', 'n', 'g'}},
         0,
         200,
         &ClientState::on_ping,
         &ClientState::on_timeout,
         &client_state);
     if (!ping) {
-        std::fputs("reactor service typed ping request failed\n", stderr);
+        std::fputs("reactor protocol diag ping request failed\n", stderr);
         return 6;
     }
     client_state.ping_request_id = ping.value();
 
-    auto count = client_session.send_request<CountOp>(
-        net::EmptyMessage{},
+    auto count = client_proto.query_count(
         0,
         200,
         &ClientState::on_count,
         &ClientState::on_timeout,
         &client_state);
     if (!count) {
-        std::fputs("reactor service typed count request failed\n", stderr);
+        std::fputs("reactor protocol diag count request failed\n", stderr);
         return 7;
     }
     client_state.count_request_id = count.value();
 
-    auto slow = client_session.send_request<SlowCountOp>(
-        CounterValue{41},
+    auto slow = client_proto.query_slow_count(
+        net::diag::CounterValue{41},
         0,
         200,
         &ClientState::on_slow,
         &ClientState::on_timeout,
         &client_state);
     if (!slow) {
-        std::fputs("reactor service typed slow request failed\n", stderr);
+        std::fputs("reactor protocol diag slow request failed\n", stderr);
         return 8;
     }
     client_state.slow_request_id = slow.value();
 
-    auto meta = client_session.send_request<MetaOp>(
-        MetaRequest{0x1234u, 0x5au, {'o', 'k'}},
+    auto meta = client_proto.query_meta(
+        net::diag::MetaRequest{0x1234u, 0x5au, {'o', 'k'}},
         0,
         200,
         &ClientState::on_meta,
         &ClientState::on_timeout,
         &client_state);
     if (!meta) {
-        std::fputs("reactor service typed meta request failed\n", stderr);
+        std::fputs("reactor protocol diag meta request failed\n", stderr);
         return 9;
     }
     client_state.meta_request_id = meta.value();
@@ -390,22 +338,22 @@ int main() {
 
         (void)socket_poller.poll();
         (void)reactor.drain(8);
-        client_session.tick(now_ms);
-        server_session.tick(now_ms);
+        client_proto.tick(now_ms);
+        server_proto.tick(now_ms);
 
         if (server_state.slow_pending && now_ms >= server_state.slow_due_ms) {
-            auto sent = server_session.send_deferred_response<SlowCountOp>(
+            auto sent = server_proto.reply_slow_count(
                 server_state.slow_token,
-                CounterValue{42});
+                net::diag::CounterValue{42});
             if (!sent) {
-                std::fputs("reactor service typed slow response failed\n", stderr);
+                std::fputs("reactor protocol diag slow response failed\n", stderr);
                 return 10;
             }
             server_state.slow_pending = false;
         }
 
         if (listener_driver.failed() || client_state.failed || server_state.failed) {
-            std::fputs("reactor service typed protocol failed\n", stderr);
+            std::fputs("reactor protocol diag failed\n", stderr);
             return 11;
         }
 
@@ -431,10 +379,10 @@ int main() {
     (void)listener.close();
 
     if (!done) {
-        std::fputs("reactor service typed protocol timeout\n", stderr);
+        std::fputs("reactor protocol diag timeout\n", stderr);
         return 12;
     }
 
-    std::puts("net reactor service typed smoke: ok");
+    std::puts("net reactor protocol diag smoke: ok");
     return 0;
 }

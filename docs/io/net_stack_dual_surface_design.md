@@ -346,6 +346,12 @@ netif 是内部骨架概念，不应成为普通用户主入口。
 
 这样 HTTP/MQTT/私有协议都能跨后端复用。
 
+v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagnostic`：
+
+- 把 `Ping / Count / Meta / DeferredCount` 这类 typed op 收进协议模块
+- 对外给业务层暴露协议语义，而不是暴露 `opcode / codec / route trampoline` 细节
+- 继续复用同一套 `TypedServiceSession + ReactorSocketDriver` 承载面
+
 ### `net.posix`
 
 这是中后期桥接层，不是 v0 第一优先级。
@@ -474,6 +480,7 @@ v0 推荐做法是把 socket readiness 投影到 `io.reactor`：
 - `SocketPoller` 负责轮询 socket provider 的 `poll()`，只做事件采样与 `reactor.notify()` 入队
 - `SocketChannelBinding` 把已连接 socket 投影成 `io::Channel`，供上层协议直接走 `read/write`
 - `SocketEventChannelBinding` 提供纯事件通道，适合 `TcpListener` 这类只关心 accept-ready 的对象
+- 对“监听一次、accept 一个连接、立刻启动已准备好的 session driver”这种高频样板，可进一步收口成 `TcpSingleAcceptDriver`，把 listener 侧的 subscribe/watch/start 样板继续压回框架内部
 - 如果同一次采样里同时观察到 `readable + closed`，driver 应先把剩余可读 payload 交给 session，再上报 transport closed，避免把“最后一帧数据”误伤成 error
 - 如果已经采样到 `writable`，但真正 flush 时写端发现对端已关闭，driver 也应收口为 transport closed，而不是把“迟到的写失败”继续上抛成 transport error
 - `RequestSession / ServiceSession / TypedServiceSession` 在 transport close 时应清空本地 pending / deferred 状态，并统一向 error handler 上抛 `errc::closed`，不要把断链拖成 timeout
@@ -602,7 +609,7 @@ host backend 可以是：
 1. 先把 `Endpoint / Socket / Typed Facade` 三层关系钉住
 2. 用 host backend 跑最小 TCP/UDP demo
 3. 把 socket readiness 接到 `io.reactor`，先跑通最小事件驱动 loopback
-4. 在 reactor 之上跑一个最小协议样例，验证协议层不必自己写等待循环
+4. 在 reactor 之上跑一个最小协议样例，验证协议层不必自己写等待循环；当前可先用 `net.protocol.diagnostic`
 5. 再把 netif/packet/driver 细化到适合 MCU 的固定容量模型
 6. 最后再推进 POSIX socket/fd 投影面
 

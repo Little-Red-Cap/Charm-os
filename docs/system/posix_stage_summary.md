@@ -48,7 +48,7 @@
 - `open("/dev/stdin")` / `open("/dev/stdout")` / `open("/dev/stderr")` now alias the active stdio fd set, while `open("/dev/console", ...)` and `open("/dev/tty", ...)` alias a live terminal fd; `stat/fstat` on term-style descriptors stabilizes at `S_IFCHR`
 - `mkdir("/work") -> 0`, duplicate create returns `EEXIST`
 - `unlink("/missing") -> -1 && errno == ENOENT`
-- `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, while `readdir()` / `closedir()` on an invalid or already-closed directory handle fail with `EINVAL`
+- `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `opendir(file)` fails with `ENOTDIR`, `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, and `readdir()` / `closedir()` on a null, invalid, or already-closed directory handle fail with `EINVAL`
 
 ## Mainline Capabilities Already Holding
 - file-backed ELF can be loaded and spawned from a path

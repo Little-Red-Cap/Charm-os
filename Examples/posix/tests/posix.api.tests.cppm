@@ -678,6 +678,18 @@ namespace {
         check_eq("fs-rmdir-file", api.rmdir("/work/b.txt"), -1);
         check_eq("fs-rmdir-file-errno", posix::get_errno(), posix::ENOTDIR);
 
+        posix::set_errno(0);
+        check_true("fs-opendir-file", api.opendir("/work/b.txt") == nullptr);
+        check_eq("fs-opendir-file-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_true("fs-readdir-null", api.readdir(nullptr) == nullptr);
+        check_eq("fs-readdir-null-errno", posix::get_errno(), posix::EINVAL);
+
+        posix::set_errno(0);
+        check_eq("fs-closedir-null", api.closedir(nullptr), -1);
+        check_eq("fs-closedir-null-errno", posix::get_errno(), posix::EINVAL);
+
         auto* root_dir = api.opendir("/");
         check_true("fs-opendir-root", root_dir != nullptr);
         bool saw_work = false;

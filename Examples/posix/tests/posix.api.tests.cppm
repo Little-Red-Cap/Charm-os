@@ -220,6 +220,7 @@ namespace {
         KillApiType* api{nullptr};
         bool fired{false};
         int rc{-1};
+        int sig{posix::SIGTERM};
     };
 
     void api_kill_on_enter(posix::ProcessId pid, void* ctx) noexcept {
@@ -228,7 +229,7 @@ namespace {
             return;
         }
         state->fired = true;
-        state->rc = state->api->kill(pid, posix::SIGTERM);
+        state->rc = state->api->kill(pid, state->sig);
     }
 
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
@@ -607,26 +608,51 @@ namespace {
         auto rreg = procs.register_executable("api-kill-target", &api_kill_target_main);
         check_true("api-kill-register", rreg);
 
-        g_api_kill_target_runs = 0;
-        const char* argv[] = {"api-kill-target", nullptr};
-        posix::SpawnConfig cfg{};
-        cfg.path = "api-kill-target";
-        cfg.argv = std::span<const char* const>(argv, 1);
-        cfg.path_mode = posix::PathMode::exact;
+        const auto run_case = [&](const char* prefix, int sig) noexcept -> int {
+            ctx.fired = false;
+            ctx.rc = -1;
+            ctx.sig = sig;
+            g_api_kill_target_runs = 0;
 
-        const int pid = api.spawn(cfg);
-        check_true("api-kill-spawn", pid >= 0);
-        check_true("api-kill-hook-fired", ctx.fired);
-        check_eq("api-kill-hook-rc", ctx.rc, 0);
-        check_eq("api-kill-target-not-run", g_api_kill_target_runs, 0);
+            const char* argv[] = {"api-kill-target", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "api-kill-target";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.path_mode = posix::PathMode::exact;
 
-        int status = 0;
-        check_eq("api-kill-waitpid", api.waitpid(posix::ProcessId{pid}, &status), pid);
-        check_eq("api-kill-status", status, posix::SIGTERM);
+            std::array<char, 64> label_buf{};
+            const auto label = [&](const char* suffix) noexcept -> const char* {
+                std::snprintf(label_buf.data(), label_buf.size(), "%s-%s", prefix, suffix);
+                return label_buf.data();
+            };
+
+            const int pid = api.spawn(cfg);
+            check_true(label("spawn"), pid >= 0);
+            check_true(label("hook-fired"), ctx.fired);
+            check_eq(label("hook-rc"), ctx.rc, 0);
+            check_eq(label("target-not-run"), g_api_kill_target_runs, 0);
+
+            int status = 0;
+            check_eq(label("waitpid"), api.waitpid(posix::ProcessId{pid}, &status), pid);
+            check_eq(label("status"), status, sig);
+            return pid;
+        };
+
+        const int term_pid = run_case("api-kill-term", posix::SIGTERM);
+        const int int_pid = run_case("api-kill-int", posix::SIGINT);
+        const int kill_pid = run_case("api-kill-kill", posix::SIGKILL);
 
         posix::set_errno(0);
-        check_eq("api-kill-missing-rc", api.kill(posix::ProcessId{pid}, posix::SIGTERM), -1);
+        check_eq("api-kill-missing-rc", api.kill(posix::ProcessId{term_pid}, posix::SIGTERM), -1);
         check_eq("api-kill-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("api-kill-int-missing-rc", api.kill(posix::ProcessId{int_pid}, posix::SIGINT), -1);
+        check_eq("api-kill-int-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("api-kill-kill-missing-rc", api.kill(posix::ProcessId{kill_pid}, posix::SIGKILL), -1);
+        check_eq("api-kill-kill-missing-errno", posix::get_errno(), posix::ENOENT);
 
         posix::set_errno(0);
         check_eq("api-kill-badsig-rc", api.kill(posix::ProcessId{123}, 1), -1);
@@ -658,6 +684,14 @@ namespace {
 
         check_eq("fs-rename", api.rename("/work/a.txt", "/work/b.txt"), 0);
 
+        posix::set_errno(0);
+        check_eq("fs-mkdir-exist-dir", api.mkdir("/work"), -1);
+        check_eq("fs-mkdir-exist-dir-errno", posix::get_errno(), posix::EEXIST);
+
+        posix::set_errno(0);
+        check_eq("fs-mkdir-exist-file", api.mkdir("/work/b.txt"), -1);
+        check_eq("fs-mkdir-exist-file-errno", posix::get_errno(), posix::EEXIST);
+
         posix::PosixStat dir_stat{};
         check_eq("fs-stat-root", api.stat("/", &dir_stat), 0);
         check_eq("fs-stat-root-mode", dir_stat.mode & posix::S_IFMT, posix::S_IFDIR);
@@ -678,6 +712,46 @@ namespace {
         check_eq("fs-rmdir-file", api.rmdir("/work/b.txt"), -1);
         check_eq("fs-rmdir-file-errno", posix::get_errno(), posix::ENOTDIR);
 
+        posix::set_errno(0);
+        check_eq("fs-mkdir-notdir", api.mkdir("/work/b.txt/sub"), -1);
+        check_eq("fs-mkdir-notdir-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("fs-unlink-notdir", api.unlink("/work/b.txt/sub"), -1);
+        check_eq("fs-unlink-notdir-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("fs-rmdir-notdir", api.rmdir("/work/b.txt/sub"), -1);
+        check_eq("fs-rmdir-notdir-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("fs-stat-notdir", api.stat("/work/b.txt/sub", &dir_stat), -1);
+        check_eq("fs-stat-notdir-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-missing", api.rename("/work/missing.txt", "/work/c.txt"), -1);
+        check_eq("fs-rename-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-from-notdir", api.rename("/work/b.txt/sub", "/work/c.txt"), -1);
+        check_eq("fs-rename-from-notdir-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-to-notdir", api.rename("/work/b.txt", "/work/b.txt/sub"), -1);
+        check_eq("fs-rename-to-notdir-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_true("fs-opendir-file", api.opendir("/work/b.txt") == nullptr);
+        check_eq("fs-opendir-file-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_true("fs-readdir-null", api.readdir(nullptr) == nullptr);
+        check_eq("fs-readdir-null-errno", posix::get_errno(), posix::EINVAL);
+
+        posix::set_errno(0);
+        check_eq("fs-closedir-null", api.closedir(nullptr), -1);
+        check_eq("fs-closedir-null-errno", posix::get_errno(), posix::EINVAL);
+
         auto* root_dir = api.opendir("/");
         check_true("fs-opendir-root", root_dir != nullptr);
         bool saw_work = false;
@@ -688,7 +762,16 @@ namespace {
                 check_eq("fs-root-dir-mode", ent->d_mode & posix::S_IFMT, posix::S_IFDIR);
             }
         }
+        posix::set_errno(91);
+        check_true("fs-root-readdir-eof", api.readdir(root_dir) == nullptr);
+        check_eq("fs-root-readdir-eof-errno", posix::get_errno(), 91);
         check_eq("fs-closedir-root", api.closedir(root_dir), 0);
+        posix::set_errno(0);
+        check_true("fs-readdir-closed", api.readdir(root_dir) == nullptr);
+        check_eq("fs-readdir-closed-errno", posix::get_errno(), posix::EINVAL);
+        posix::set_errno(0);
+        check_eq("fs-closedir-closed", api.closedir(root_dir), -1);
+        check_eq("fs-closedir-closed-errno", posix::get_errno(), posix::EINVAL);
         check_true("fs-saw-work", saw_work);
 
         auto* work_dir = api.opendir("/work");
@@ -702,6 +785,9 @@ namespace {
                 check_eq("fs-work-file-size", ent->d_size, 1u);
             }
         }
+        posix::set_errno(92);
+        check_true("fs-work-readdir-eof", api.readdir(work_dir) == nullptr);
+        check_eq("fs-work-readdir-eof-errno", posix::get_errno(), 92);
         check_eq("fs-closedir-work", api.closedir(work_dir), 0);
         check_true("fs-saw-file", saw_file);
 
@@ -1610,6 +1696,14 @@ namespace {
         check_eq("console-matrix-nolive-tty-w-open", api.open("/dev/tty", posix::O_WRONLY, 0), -1);
         check_eq("console-matrix-nolive-tty-w-errno", posix::get_errno(), posix::ENOENT);
 
+        posix::set_errno(0);
+        check_eq("console-matrix-nolive-console-stat", api.stat("/dev/console", &st), -1);
+        check_eq("console-matrix-nolive-console-stat-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("console-matrix-nolive-tty-stat", api.stat("/dev/tty", &st), -1);
+        check_eq("console-matrix-nolive-tty-stat-errno", posix::get_errno(), posix::ENOENT);
+
         check_eq("console-matrix-nolive-stdin-write-close", api.close(stdin_pipe[1]), 0);
         check_eq("console-matrix-nolive-stderr-read-close", api.close(stderr_pipe[0]), 0);
     }
@@ -1692,6 +1786,14 @@ namespace {
         check_eq("cwd-read-inherit", inherit_read, static_cast<posix::ssize_t>(5));
         check_eq("cwd-text-inherit", std::string_view{inherit_text.data(), 5}, std::string_view{"/work"});
         check_eq("cwd-close-inherit", api.close(fd), 0);
+
+        posix::set_errno(0);
+        check_eq("cwd-chdir-file", api.chdir("/work/alpha.txt"), -1);
+        check_eq("cwd-chdir-file-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("cwd-chdir-file-parent", api.chdir("/work/alpha.txt/sub"), -1);
+        check_eq("cwd-chdir-file-parent-errno", posix::get_errno(), posix::ENOTDIR);
 
         check_eq("cwd-chdir-root", api.chdir("/"), 0);
         const char* override_argv[] = {"cwd-demo", "override.txt", nullptr};

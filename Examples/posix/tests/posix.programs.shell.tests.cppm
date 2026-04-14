@@ -41,6 +41,8 @@ namespace {
         int helper_pid{-1};
         int helper_wait_rc{-1};
         int helper_status{-1};
+        const char* signal_arg{nullptr};
+        int expected_signal{posix::SIGTERM};
     };
 
     void kill_tool_on_enter(posix::ProcessId pid, void* ctx) noexcept {
@@ -64,8 +66,10 @@ namespace {
         posix::SpawnConfig cfg{};
         cfg.envp = program_path_env();
         if (state->kind == KillHelperKind::shell) {
-            char cmd_buf[32]{};
-            const auto cmd_written = std::snprintf(cmd_buf, sizeof(cmd_buf), "kill %s", pid_buf);
+            char cmd_buf[48]{};
+            const auto cmd_written = state->signal_arg != nullptr
+                                         ? std::snprintf(cmd_buf, sizeof(cmd_buf), "kill %s %s", state->signal_arg, pid_buf)
+                                         : std::snprintf(cmd_buf, sizeof(cmd_buf), "kill %s", pid_buf);
             if (cmd_written <= 0 || static_cast<util::usize>(cmd_written) >= sizeof(cmd_buf)) {
                 return;
             }
@@ -73,9 +77,14 @@ namespace {
             cfg.path = "sh";
             cfg.argv = std::span<const char* const>(argv, 3);
         } else {
-            const char* argv[] = {"busybox", "kill", pid_buf, nullptr};
             cfg.path = "busybox";
-            cfg.argv = std::span<const char* const>(argv, 3);
+            if (state->signal_arg != nullptr) {
+                const char* argv[] = {"busybox", "kill", state->signal_arg, pid_buf, nullptr};
+                cfg.argv = std::span<const char* const>(argv, 4);
+            } else {
+                const char* argv[] = {"busybox", "kill", pid_buf, nullptr};
+                cfg.argv = std::span<const char* const>(argv, 3);
+            }
         }
 
         state->helper_pid = state->api->spawnp(cfg);
@@ -805,38 +814,51 @@ namespace {
     }
 
     void test_sh_c_kill() noexcept {
-        Harness h{};
-        auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
-        check_true("sh-kill-register-sh", reg_sh);
-        auto reg_kill = h.procs.register_executable("/bin/kill", &busybox_main);
-        check_true("sh-kill-register-kill", reg_kill);
-        auto reg_target = h.procs.register_executable("kill-target", &kill_tool_target_main);
-        check_true("sh-kill-register-target", reg_target);
+        const auto run_case = [&](const char* prefix, const char* signal_arg, int expected_signal) noexcept {
+            Harness h{};
+            auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
+            std::array<char, 64> label_buf{};
+            const auto label = [&](const char* suffix) noexcept -> const char* {
+                std::snprintf(label_buf.data(), label_buf.size(), "%s-%s", prefix, suffix);
+                return label_buf.data();
+            };
+            check_true(label("register-sh"), reg_sh);
+            auto reg_kill = h.procs.register_executable("/bin/kill", &busybox_main);
+            check_true(label("register-kill"), reg_kill);
+            auto reg_target = h.procs.register_executable("kill-target", &kill_tool_target_main);
+            check_true(label("register-target"), reg_target);
 
-        KillToolHookCtx ctx{};
-        ctx.api = &h.api;
-        ctx.kind = KillHelperKind::shell;
-        h.procs.bind_process_hooks(&kill_tool_on_enter, &kill_tool_on_exit, &ctx);
+            KillToolHookCtx ctx{};
+            ctx.api = &h.api;
+            ctx.kind = KillHelperKind::shell;
+            ctx.signal_arg = signal_arg;
+            ctx.expected_signal = expected_signal;
+            h.procs.bind_process_hooks(&kill_tool_on_enter, &kill_tool_on_exit, &ctx);
 
-        g_kill_tool_target_runs = 0;
-        const char* argv[] = {"kill-target", nullptr};
-        posix::SpawnConfig cfg{};
-        cfg.path = "kill-target";
-        cfg.argv = std::span<const char* const>(argv, 1);
-        cfg.path_mode = posix::PathMode::exact;
+            g_kill_tool_target_runs = 0;
+            const char* argv[] = {"kill-target", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "kill-target";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.path_mode = posix::PathMode::exact;
 
-        auto spawn = h.procs.spawn(cfg);
-        check_true("sh-kill-spawn", spawn);
-        check_true("sh-kill-hook-fired", ctx.fired);
-        check_true("sh-kill-helper-spawn", ctx.helper_pid > 0);
-        check_eq("sh-kill-helper-wait", ctx.helper_wait_rc, ctx.helper_pid);
-        check_eq("sh-kill-helper-status", (ctx.helper_status >> 8) & 0xff, 0);
-        check_eq("sh-kill-target-not-run", g_kill_tool_target_runs, 0);
+            auto spawn = h.procs.spawn(cfg);
+            check_true(label("spawn"), spawn);
+            check_true(label("hook-fired"), ctx.fired);
+            check_true(label("helper-spawn"), ctx.helper_pid > 0);
+            check_eq(label("helper-wait"), ctx.helper_wait_rc, ctx.helper_pid);
+            check_eq(label("helper-status"), (ctx.helper_status >> 8) & 0xff, 0);
+            check_eq(label("target-not-run"), g_kill_tool_target_runs, 0);
 
-        auto st = h.procs.waitpid(spawn.value().pid, 0);
-        check_true("sh-kill-wait", st);
-        check_eq("sh-kill-wait-kind", st.value().kind, posix::WaitKind::signaled);
-        check_eq("sh-kill-wait-code", st.value().code, posix::SIGTERM);
+            auto st = h.procs.waitpid(spawn.value().pid, 0);
+            check_true(label("wait"), st);
+            check_eq(label("wait-kind"), st.value().kind, posix::WaitKind::signaled);
+            check_eq(label("wait-code"), st.value().code, expected_signal);
+        };
+
+        run_case("sh-kill-term", nullptr, posix::SIGTERM);
+        run_case("sh-kill-int", "-INT", posix::SIGINT);
+        run_case("sh-kill-kill", "-KILL", posix::SIGKILL);
     }
 
     void test_busybox_sh_via_busybox() noexcept {
@@ -938,36 +960,49 @@ namespace {
     }
 
     void test_busybox_kill_via_busybox() noexcept {
-        Harness h{};
-        auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
-        check_true("bb-kill-register-busybox", reg_busybox);
-        auto reg_target = h.procs.register_executable("kill-target", &kill_tool_target_main);
-        check_true("bb-kill-register-target", reg_target);
+        const auto run_case = [&](const char* prefix, const char* signal_arg, int expected_signal) noexcept {
+            Harness h{};
+            std::array<char, 64> label_buf{};
+            const auto label = [&](const char* suffix) noexcept -> const char* {
+                std::snprintf(label_buf.data(), label_buf.size(), "%s-%s", prefix, suffix);
+                return label_buf.data();
+            };
+            auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
+            check_true(label("register-busybox"), reg_busybox);
+            auto reg_target = h.procs.register_executable("kill-target", &kill_tool_target_main);
+            check_true(label("register-target"), reg_target);
 
-        KillToolHookCtx ctx{};
-        ctx.api = &h.api;
-        ctx.kind = KillHelperKind::busybox;
-        h.procs.bind_process_hooks(&kill_tool_on_enter, &kill_tool_on_exit, &ctx);
+            KillToolHookCtx ctx{};
+            ctx.api = &h.api;
+            ctx.kind = KillHelperKind::busybox;
+            ctx.signal_arg = signal_arg;
+            ctx.expected_signal = expected_signal;
+            h.procs.bind_process_hooks(&kill_tool_on_enter, &kill_tool_on_exit, &ctx);
 
-        g_kill_tool_target_runs = 0;
-        const char* argv[] = {"kill-target", nullptr};
-        posix::SpawnConfig cfg{};
-        cfg.path = "kill-target";
-        cfg.argv = std::span<const char* const>(argv, 1);
-        cfg.path_mode = posix::PathMode::exact;
+            g_kill_tool_target_runs = 0;
+            const char* argv[] = {"kill-target", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "kill-target";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.path_mode = posix::PathMode::exact;
 
-        auto spawn = h.procs.spawn(cfg);
-        check_true("bb-kill-spawn", spawn);
-        check_true("bb-kill-hook-fired", ctx.fired);
-        check_true("bb-kill-helper-spawn", ctx.helper_pid > 0);
-        check_eq("bb-kill-helper-wait", ctx.helper_wait_rc, ctx.helper_pid);
-        check_eq("bb-kill-helper-status", (ctx.helper_status >> 8) & 0xff, 0);
-        check_eq("bb-kill-target-not-run", g_kill_tool_target_runs, 0);
+            auto spawn = h.procs.spawn(cfg);
+            check_true(label("spawn"), spawn);
+            check_true(label("hook-fired"), ctx.fired);
+            check_true(label("helper-spawn"), ctx.helper_pid > 0);
+            check_eq(label("helper-wait"), ctx.helper_wait_rc, ctx.helper_pid);
+            check_eq(label("helper-status"), (ctx.helper_status >> 8) & 0xff, 0);
+            check_eq(label("target-not-run"), g_kill_tool_target_runs, 0);
 
-        auto st = h.procs.waitpid(spawn.value().pid, 0);
-        check_true("bb-kill-wait", st);
-        check_eq("bb-kill-wait-kind", st.value().kind, posix::WaitKind::signaled);
-        check_eq("bb-kill-wait-code", st.value().code, posix::SIGTERM);
+            auto st = h.procs.waitpid(spawn.value().pid, 0);
+            check_true(label("wait"), st);
+            check_eq(label("wait-kind"), st.value().kind, posix::WaitKind::signaled);
+            check_eq(label("wait-code"), st.value().code, expected_signal);
+        };
+
+        run_case("bb-kill-term", nullptr, posix::SIGTERM);
+        run_case("bb-kill-int", "-INT", posix::SIGINT);
+        run_case("bb-kill-kill", "-KILL", posix::SIGKILL);
     }
 } // namespace
 

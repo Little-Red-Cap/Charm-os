@@ -12,6 +12,7 @@ Charm 当前已经形成了一条可工作的 POSIX/Linux 用户态兼容执行�
 - `PATH` 执行语义：`spawnp` 与 shell smoke 已开始真实依赖 `PATH` 去解析 `/bin/*` 命令，而不是只在 proc smoke 里验证。
 - BusyBox 入口形态：program smoke 已覆盖 `argv[0]` applet 形态与 `busybox sh -c ...` 这类 `argv[1]` applet 分派。
 - `pipe / dup2 / redirection`：可以支撑 `echo > out.txt`、`cat < out.txt`、`echo hi | cat` 这类基础程序路径。
+- `socket` v0 typed bridge：`posix.api + net.posix` 已可把 `socket/bind/connect/listen/accept/send/recv/sendto/recvfrom/shutdown` 投影到统一 `fd_table`，并复用 Charm 网络抽象与 host backend。
 - ELF 装载执行：支持 registered image、`elfmem:`、文件路径 ELF，执行主链为 `spawn -> load_image -> start_image`。
 - 显式退出 ABI v0：`_exit(code)` 已通过 `ExecContext + setjmp/longjmp` 接入主链。
 - errno / fd 契约：已经稳定了一批最小 ABI 契约，用于支撑真实样本和 QEMU smoke。
@@ -30,6 +31,7 @@ POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime
   - 文件路径 ELF 装载
   - `_exit(code)` 统一收束
   - `open/read/write/fstat/isatty` 的最小 hostcall/errno 路径
+  - `socket -> fd_table -> net backend` 的最小桥接路径，以及 `fstat(...)->S_IFSOCK` / `dup2(socket_fd, ...)` 这类统一 fd 语义
   - `open("/dir", O_WRONLY) -> EISDIR`
   - `open("/file/child", O_RDONLY) -> ENOTDIR`
 

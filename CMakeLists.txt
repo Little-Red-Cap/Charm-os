@@ -149,6 +149,11 @@ if (DEFINED CHARM_VIVID_PROFILE)
 endif()
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS "Modules/*.cppm")
+if (NOT WIN32)
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/net/net.backend.win.cppm"
+    )
+endif()
 if (NOT CHARM_ENABLE_SDL3)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_sdl3.cppm"
@@ -185,6 +190,9 @@ if (NOT CHARM_ENABLE_TEST_MODULES)
 endif()
 if (NOT CHARM_ENABLE_POSIX)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/io/posix/")
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/net/net.posix.cppm"
+    )
 endif()
 if (NOT CHARM_ENABLE_MEDIA OR NOT CHARM_ENABLE_UI_INK OR NOT CHARM_ENABLE_UI_VIVID)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
@@ -202,6 +210,10 @@ target_sources(${target_name}
         FILE_SET modules TYPE CXX_MODULES
         BASE_DIRS ${MODULE_BASE_DIRS}
         FILES ${MODULE_INTERFACE_UNITS})
+
+if (WIN32)
+    target_link_libraries(${target_name} PUBLIC ws2_32)
+endif()
 
 message(STATUS "${target_name} Examples: Ink/Windows -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/ink/windows")
 message(STATUS "${target_name} Examples: Ink/STM32   -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/ink/stm32f103c8")

@@ -310,6 +310,14 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (open("/dev/tty", O_WRONLY, 0) != -1) return 326;
     if (errno != ENOENT) return 327;
 
+    errno = 0;
+    if (stat("/dev/console", &st) != -1) return 328;
+    if (errno != ENOENT) return 329;
+
+    errno = 0;
+    if (stat("/dev/tty", &st) != -1) return 330;
+    if (errno != ENOENT) return 331;
+
     return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 294;
 }
 
@@ -406,17 +414,30 @@ int charm_posix_newlib_path_entry(void) {
     if ((st.st_mode & S_IFMT) != S_IFREG) return 135;
     if (st.st_size != 5) return 136;
 
+    errno = 77;
     if (access("/newlib-path.txt", F_OK) != 0) return 137;
+    if (errno != 77) return 138;
     if (access("/newlib-path.txt", R_OK) != 0) return 138;
     if (access("/newlib-path.txt", W_OK) != 0) return 139;
     errno = 0;
     if (access("/newlib-path.txt", X_OK) != -1) return 140;
     if (errno != EACCES) return 141;
     errno = 0;
+    if (access("/newlib-path.txt", 8) != -1) return 526;
+    if (errno != EINVAL) return 527;
+    errno = 0;
     if (access("/newlib-missing.txt", F_OK) != -1) return 142;
     if (errno != ENOENT) return 143;
 
     if (mkdir("/newlib-dir", 0) != 0) return 144;
+
+    errno = 0;
+    if (mkdir("/newlib-dir", 0) != -1) return 522;
+    if (errno != EEXIST) return 523;
+
+    errno = 0;
+    if (mkdir("/newlib-path.txt", 0) != -1) return 524;
+    if (errno != EEXIST) return 525;
 
     if (stat("/newlib-dir", &st) != 0) return 145;
     if ((st.st_mode & S_IFMT) != S_IFDIR) return 146;
@@ -431,10 +452,42 @@ int charm_posix_newlib_path_entry(void) {
     if (rmdir("/newlib-path.txt") != -1) return 151;
     if (errno != ENOTDIR) return 152;
 
+    errno = 0;
+    if (mkdir("/newlib-path.txt/sub", 0) != -1) return 506;
+    if (errno != ENOTDIR) return 507;
+
+    errno = 0;
+    if (unlink("/newlib-path.txt/sub") != -1) return 508;
+    if (errno != ENOTDIR) return 509;
+
+    errno = 0;
+    if (rmdir("/newlib-path.txt/sub") != -1) return 510;
+    if (errno != ENOTDIR) return 511;
+
+    errno = 0;
+    if (stat("/newlib-path.txt/sub", &st) != -1) return 512;
+    if (errno != ENOTDIR) return 513;
+
+    errno = 0;
+    if (access("/newlib-path.txt/sub", F_OK) != -1) return 514;
+    if (errno != ENOTDIR) return 515;
+
     fd = open("/newlib-dir/probe.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 153;
     if (write(fd, "x", 1) != 1) return 154;
     if (close(fd) != 0) return 155;
+
+    errno = 0;
+    if (remove("/newlib-remove-missing.txt") != -1) return 516;
+    if (errno != ENOENT) return 517;
+
+    errno = 0;
+    if (remove("/newlib-path.txt/sub") != -1) return 518;
+    if (errno != ENOTDIR) return 519;
+
+    errno = 0;
+    if (remove("/newlib-dir") != -1) return 520;
+    if (errno != ENOTEMPTY) return 521;
 
     errno = 0;
     if (rmdir("/newlib-dir") != -1) return 156;
@@ -449,6 +502,18 @@ int charm_posix_newlib_path_entry(void) {
 
     errno = 0;
     if (mkdir("/newlib-dir", 0) != 0) return 162;
+
+    errno = 0;
+    if (rename("/newlib-missing.txt", "/newlib-dir/missing.txt") != -1) return 500;
+    if (errno != ENOENT) return 501;
+
+    errno = 0;
+    if (rename("/newlib-path.txt/sub", "/newlib-dir/from-notdir.txt") != -1) return 502;
+    if (errno != ENOTDIR) return 503;
+
+    errno = 0;
+    if (rename("/newlib-path.txt", "/newlib-path.txt/sub") != -1) return 504;
+    if (errno != ENOTDIR) return 505;
 
     if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 163;
 
@@ -526,6 +591,14 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 0;
     if (chdir("/missing-cwd") != -1) return 207;
     if (errno != ENOENT) return 208;
+
+    errno = 0;
+    if (chdir("/newlib-cwd/child.txt") != -1) return 212;
+    if (errno != ENOTDIR) return 213;
+
+    errno = 0;
+    if (chdir("/newlib-cwd/child.txt/sub") != -1) return 214;
+    if (errno != ENOTDIR) return 215;
 
     if (chdir("/") != 0) return 209;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 210;

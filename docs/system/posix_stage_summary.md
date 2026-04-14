@@ -28,6 +28,7 @@
 - `waitpid()` consumes the unified final exit result, not the internal exit mechanism
 - `kill()` currently supports `SIGTERM` / `SIGKILL` / `SIGINT`; a killed process now reports `WaitKind::signaled` with the signal number as wait code
 - ELF hostcalls use `ExecContext`; they no longer depend on the old global service/pid slot pair
+- path-bearing real-ELF hostcalls must resolve against the spawned process cwd before touching `file_service_`; the raw exec-loader path remains a separate already-resolved input lane
 
 ### fd / errno contracts validated by smoke
 - `open("/missing.txt") -> -1 && errno == ENOENT`
@@ -77,6 +78,7 @@
 - real ELF smoke now also validates `elfmem:kill_self` across `SIGTERM` / `SIGINT` / `SIGKILL`: user code enters, emits `before-kill`, then `waitpid()` reports the selected signal
 - real ELF file-sample smoke now validates `cat_file` across both file-backed input and pipe-backed stdin, while keeping `isatty(stdout)=1`, `isatty(file/pipe)=0`, and `fstat()` on the active input fd stable
 - real ELF file-sample smoke now also validates `write_file` across `open(O_WRONLY|O_CREAT|O_TRUNC) -> write -> close -> reopen-readback`, including host-side visibility of the final file content
+- real ELF file-sample smoke now also validates that `write_file` resolves relative output paths against `SpawnConfig.cwd`, so userland file writes can target the current working directory rather than always falling back to `/`
 - real ELF file-sample smoke now also validates `append_file` across `open(O_WRONLY|O_CREAT|O_APPEND) -> append -> close -> reopen-readback`, including preservation of the seeded prefix and host-side visibility of the final file content
 - real ELF fd-probe smoke now pins a minimum fd-kind matrix across `stdin(term)`, redirected `stdout(pipe)`, and an opened file descriptor via `fstat()` + `isatty()`
 - proc/api smoke now validate the minimum `kill v0` contract across `SIGTERM` / `SIGINT` / `SIGKILL`: kill-on-enter prevents target execution, `waitpid()` reports `signaled`, and API wait status encodes the delivered signal in the low bits

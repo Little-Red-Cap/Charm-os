@@ -159,6 +159,8 @@ export namespace player::ui {
     inline constexpr rgba kUiLibraryChipIdle = {42, 48, 70, 236};
     inline constexpr rgba kUiLibraryChipBorder = {90, 102, 142, 220};
     inline constexpr rgba kUiLibraryChipActive = {95, 118, 171, 255};
+    inline constexpr rgba kUiLibraryListAccent = {94, 123, 184, 232};
+    inline constexpr rgba kUiLibraryListOnAccent = {247, 249, 255, 255};
     inline constexpr rgba kUiLibraryPathIdle = {40, 48, 72, 228};
     inline constexpr rgba kUiLibraryPathActive = {54, 68, 100, 238};
     inline constexpr rgba kUiLibraryPathBorderActive = {116, 146, 202, 255};
@@ -961,7 +963,9 @@ export namespace player::ui {
         preset.list_view = theme.get<ListView>();
         preset.list_view.colors.bg_color = kUiListBg;
         preset.list_view.colors.border_color = kUiListBorder;
-        preset.list_view.colors.on_accent = kUiListFont;
+        preset.list_view.colors.accent_color = kUiLibraryListAccent;
+        preset.list_view.colors.on_accent = kUiLibraryListOnAccent;
+        preset.list_view.colors.border_focus = kUiLibraryPathBorderActive;
         preset.list_view.metrics.corner_radius = 12;
         preset.list_view.metrics.padding = 12;
         preset.list_view.colors.font_color = kUiListFont;

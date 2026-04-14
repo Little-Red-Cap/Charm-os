@@ -162,7 +162,22 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fcntl(-1, F_GETFL) != -1) return 217;
     if (errno != EBADF) return 218;
 
-    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 219;
+    flags = fcntl(2, F_GETFL);
+    if (flags < 0) return 219;
+    if ((flags & O_ACCMODE) != O_WRONLY) return 220;
+    if ((flags & O_NONBLOCK) != 0) return 221;
+
+    if (fcntl(2, F_SETFL, O_NONBLOCK) != 0) return 222;
+    if ((fcntl(2, F_GETFL) & O_NONBLOCK) == 0) return 223;
+
+    dup_fd = dup(2);
+    if (dup_fd < 0) return 224;
+    if ((fcntl(dup_fd, F_GETFL) & O_NONBLOCK) == 0) return 225;
+    if (fcntl(dup_fd, F_SETFL, 0) != 0) return 226;
+    if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 227;
+    if (close(dup_fd) != 0) return 228;
+
+    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 229;
 }
 
 int charm_posix_newlib_pipe_entry(void) {

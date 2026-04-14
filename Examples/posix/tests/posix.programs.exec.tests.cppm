@@ -32,6 +32,11 @@ import posix.test_harness;
 namespace {
     using namespace posix::testsupport;
 
+    struct TermStubCtx {
+        util::u32 refs{1};
+        bool non_block{false};
+    };
+
     util::Result<void> term_stat_stub(void*, posix::PosixStat& out) noexcept {
         out.mode = posix::make_stat_mode(posix::S_IFCHR, posix::kModePermChar);
         out.size = 0;
@@ -46,11 +51,35 @@ namespace {
         return buf.size();
     }
 
-    util::Result<void> term_close_stub(void*) noexcept {
+    util::Result<void> term_close_stub(void* ctx) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (state && state->refs > 0) {
+            --state->refs;
+        }
         return {};
     }
 
-    util::Result<void> term_dup_stub(void*) noexcept {
+    util::Result<void> term_dup_stub(void* ctx) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (state) {
+            ++state->refs;
+        }
+        return {};
+    }
+
+    util::Result<int> term_get_status_flags_stub(void* ctx) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (!state) {
+            return 0;
+        }
+        return state->non_block ? posix::O_NONBLOCK : 0;
+    }
+
+    util::Result<void> term_set_status_flags_stub(void* ctx, int flags) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (state) {
+            state->non_block = (flags & posix::O_NONBLOCK) != 0;
+        }
         return {};
     }
 
@@ -61,8 +90,8 @@ namespace {
         &term_stat_stub,
         &term_dup_stub,
         nullptr,
-        nullptr,
-        nullptr
+        &term_get_status_flags_stub,
+        &term_set_status_flags_stub
     };
 
     void test_hello() noexcept {
@@ -409,11 +438,18 @@ namespace {
         auto rreg = h.procs.register_executable("newlib_fcntl", &newlib_fcntl_main);
         check_true("newlib-fcntl-register", rreg);
 
+        TermStubCtx stdin_ctx{};
+        TermStubCtx stdout_ctx{};
+        TermStubCtx stderr_ctx{};
+
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
         term_entry.ops = &kTermOps;
+        term_entry.ctx = &stdin_ctx;
         check_true("newlib-fcntl-stdin", h.fds.attach(term_entry, 0));
+        term_entry.ctx = &stdout_ctx;
         check_true("newlib-fcntl-stdout-reserve", h.fds.attach(term_entry, 1));
+        term_entry.ctx = &stderr_ctx;
         check_true("newlib-fcntl-stderr", h.fds.attach(term_entry, 2));
 
         int pipefd[2]{-1, -1};

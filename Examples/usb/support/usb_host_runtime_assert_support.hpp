@@ -42,4 +42,17 @@ namespace examples::usb::support {
         }
         return true;
     }
+
+    template <typename ResultT>
+    [[nodiscard]] bool expect_ok(const ResultT& result,
+                                 const char* message) noexcept(noexcept(result.error())) {
+        if (!result) {
+            std::fprintf(stderr,
+                         "[ERR] %s err=%d\n",
+                         message,
+                         static_cast<int>(result.error()));
+            return false;
+        }
+        return true;
+    }
 }

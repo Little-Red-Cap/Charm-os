@@ -55,12 +55,19 @@ export namespace usb::host {
             return host_.bus();
         }
 
-        bool enumerate(device::RegistryBase& registry) noexcept {
-            auto bus_value = bus();
-            if (!bus_value.ops.enumerate) {
-                return false;
+        [[nodiscard]] util::Result<void> try_enumerate(device::RegistryBase& registry) noexcept {
+            if (record_.enumerated) {
+                return {};
             }
-            return bus_value.ops.enumerate(bus_value.ctx, registry);
+            auto added = registry.try_add_device(record_.desc, record_.ctx);
+            if (added) {
+                record_.enumerated = true;
+            }
+            return added;
+        }
+
+        bool enumerate(device::RegistryBase& registry) noexcept {
+            return static_cast<bool>(try_enumerate(registry));
         }
 
         void set_ctx(void* ctx) noexcept {
@@ -87,11 +94,7 @@ export namespace usb::host {
             if (self->record_.enumerated) {
                 return true;
             }
-            const auto added = registry.try_add_device(self->record_.desc, self->record_.ctx);
-            if (added) {
-                self->record_.enumerated = true;
-            }
-            return static_cast<bool>(added);
+            return static_cast<bool>(self->try_enumerate(registry));
         }
 
         RuntimeDeviceRecord record_{};
@@ -142,12 +145,30 @@ export namespace usb::host {
             return host_.bus();
         }
 
-        bool enumerate(device::RegistryBase& registry) noexcept {
-            auto bus_value = bus();
-            if (!bus_value.ops.enumerate) {
-                return false;
+        [[nodiscard]] util::Result<void> try_enumerate(device::RegistryBase& registry) noexcept {
+            util::Errc first_error = util::Errc::ok;
+            for (util::usize i = 0; i < count_; ++i) {
+                auto& record = records_[i];
+                if (record.enumerated) {
+                    continue;
+                }
+                auto added = registry.try_add_device(record.desc, record.ctx);
+                if (added) {
+                    record.enumerated = true;
+                    continue;
+                }
+                if (first_error == util::Errc::ok) {
+                    first_error = added.error();
+                }
             }
-            return bus_value.ops.enumerate(bus_value.ctx, registry);
+            if (first_error != util::Errc::ok) {
+                return util::unexpected(first_error);
+            }
+            return {};
+        }
+
+        bool enumerate(device::RegistryBase& registry) noexcept {
+            return static_cast<bool>(try_enumerate(registry));
         }
 
         void reset_enumeration() noexcept {
@@ -156,16 +177,24 @@ export namespace usb::host {
             }
         }
 
-        bool reset_device(const RuntimeDeviceRecord& record) noexcept {
+        [[nodiscard]] util::Result<void> try_reset_device(const RuntimeDeviceRecord& record) noexcept {
             const auto index = find_record_index(record);
-            if (index >= count_) return false;
+            if (index >= count_) {
+                return util::unexpected(util::Errc::noent);
+            }
             records_[index].enumerated = false;
-            return true;
+            return {};
         }
 
-        bool remove_device(const RuntimeDeviceRecord& record) noexcept {
+        bool reset_device(const RuntimeDeviceRecord& record) noexcept {
+            return static_cast<bool>(try_reset_device(record));
+        }
+
+        [[nodiscard]] util::Result<void> try_remove_device(const RuntimeDeviceRecord& record) noexcept {
             const auto index = find_record_index(record);
-            if (index >= count_) return false;
+            if (index >= count_) {
+                return util::unexpected(util::Errc::noent);
+            }
             for (util::usize i = index + 1; i < count_; ++i) {
                 records_[i - 1] = records_[i];
             }
@@ -173,7 +202,11 @@ export namespace usb::host {
                 records_[count_ - 1] = {};
                 --count_;
             }
-            return true;
+            return {};
+        }
+
+        bool remove_device(const RuntimeDeviceRecord& record) noexcept {
+            return static_cast<bool>(try_remove_device(record));
         }
 
         [[nodiscard]] bool contains(const RuntimeDeviceRecord& record) const noexcept {
@@ -212,20 +245,7 @@ export namespace usb::host {
                 return false;
             }
 
-            bool ok = true;
-            for (util::usize i = 0; i < self->count_; ++i) {
-                auto& record = self->records_[i];
-                if (record.enumerated) {
-                    continue;
-                }
-                const auto added = registry.try_add_device(record.desc, record.ctx);
-                if (added) {
-                    record.enumerated = true;
-                } else {
-                    ok = false;
-                }
-            }
-            return ok;
+            return static_cast<bool>(self->try_enumerate(registry));
         }
 
         std::array<RuntimeDeviceRecord, MaxDevices> records_{};
@@ -260,32 +280,44 @@ export namespace usb::host {
         int marker_a = 1;
         int marker_b = 2;
         DeviceListRuntimeBus<2> bus{"usb.host.multi"};
-        if (!bus.try_add_device(device::DeviceDesc{
+        const auto msc_record = RuntimeDeviceRecord{
+            device::DeviceDesc{
                 .class_id = 0x08,
                 .vendor_id = 0x1234,
                 .product_id = 0x5678,
                 .type = "usb.host.msc"
-            }, &marker_a)) {
-            return false;
-        }
-        if (!bus.try_add_device(device::DeviceDesc{
+            },
+            &marker_a,
+            false
+        };
+        const auto cdc_record = RuntimeDeviceRecord{
+            device::DeviceDesc{
                 .class_id = 0x02,
                 .vendor_id = 0x1234,
                 .product_id = 0x5679,
                 .type = "usb.host.cdc"
-            }, &marker_b)) {
+            },
+            &marker_b,
+            false
+        };
+        if (!bus.try_add_device(msc_record)) {
+            return false;
+        }
+        if (!bus.try_add_device(cdc_record)) {
             return false;
         }
 
         device::Registry<4, 1> registry{};
-        if (!bus.enumerate(registry)) return false;
+        if (!bus.try_enumerate(registry)) return false;
         if (registry.device_count() != 2) return false;
         if (registry.device_at(0).ctx != &marker_a) return false;
         if (registry.device_at(1).ctx != &marker_b) return false;
         if (!bus.record_at(0).enumerated || !bus.record_at(1).enumerated) return false;
-        if (!bus.remove_device(bus.record_at(1))) return false;
+        if (!bus.try_remove_device(cdc_record)) return false;
         if (bus.size() != 1) return false;
-        return bus.enumerate(registry) && registry.device_count() == 2;
+        auto missing = bus.try_reset_device(cdc_record);
+        if (missing || missing.error() != util::Errc::noent) return false;
+        return bus.try_enumerate(registry) && registry.device_count() == 2;
     }
 #endif
 }

@@ -17,6 +17,7 @@ namespace {
     using examples::usb::support::CdcRuntimeHarness;
     using examples::usb::support::expect;
     using examples::usb::support::expect_error;
+    using examples::usb::support::expect_ok;
 }
 
 int main() {
@@ -33,11 +34,7 @@ int main() {
         0x0006
     };
 
-    auto add_r = cdc.add_to(runtime);
-    if (!add_r) {
-        std::fprintf(stderr,
-                     "[ERR] runtime manager add_exported failed err=%d\n",
-                     static_cast<int>(add_r.error()));
+    if (!expect_ok(cdc.add_to(runtime), "runtime manager add_exported failed")) {
         return 1;
     }
 
@@ -62,7 +59,7 @@ int main() {
     if (!expect_error(stable->write(write_buf), io::errc::noent, "detached slot should write as noent")) return 1;
     if (!expect_error(stable->flush(), io::errc::noent, "detached slot should flush as noent")) return 1;
 
-    if (!expect(runtime.scan(), "runtime manager scan failed")) {
+    if (!expect_ok(runtime.try_scan(), "runtime manager scan failed")) {
         return 1;
     }
     if (!expect(cdc.enumerated_in(runtime),
@@ -121,8 +118,8 @@ int main() {
     if (!expect(static_cast<bool>(flush_r), "attached slot should flush successfully")) return 1;
     if (!expect(cdc.backend.flushed, "backend flush callback was not observed")) return 1;
 
-    if (!expect(cdc.remove_from(runtime),
-                "runtime remove did not detach the CDC slot")) {
+    if (!expect_ok(cdc.try_remove_from(runtime),
+                   "runtime remove did not detach the CDC slot")) {
         return 1;
     }
     if (!expect(!cdc.attached(), "CDC slot should be detached after remove")) return 1;

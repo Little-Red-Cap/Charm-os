@@ -26,11 +26,20 @@ set(CHARM_BANNED_HEADERS "iostream;fstream;filesystem;regex;format;locale;codecv
 set(CHARM_BANNED_HEADERS_EXCLUDE_REGEX "" CACHE STRING "Semicolon list of regexes to exclude from banned header scan")
 option(CHARM_FORBID_SHARED_LIBS "Forbid shared/module library targets" OFF)
 option(CHARM_ENABLE_ARCH_LINT_GUARD "Run arch_lint guard during build" OFF)
+set(_CHARM_DEFAULT_STRICT_ALIGNMENT OFF)
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|ARM)")
+    set(_CHARM_DEFAULT_STRICT_ALIGNMENT ON)
+endif()
+option(CHARM_TARGET_STRICT_ALIGNMENT
+    "Target requires conservative codegen for byte-aligned inputs"
+    ${_CHARM_DEFAULT_STRICT_ALIGNMENT})
+unset(_CHARM_DEFAULT_STRICT_ALIGNMENT)
 
 add_library(${target_name})
-
-target_include_directories(${target_name} PUBLIC
+add_library(Charm-posix-headers INTERFACE)
+target_include_directories(Charm-posix-headers INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/posix")
+add_library(Charm::posix-headers ALIAS Charm-posix-headers)
 
 #add_compile_options(
 target_compile_options(${target_name} PRIVATE
@@ -56,8 +65,9 @@ if (EXISTS "${CHARM_ENTRY_ENFORCE_HEADER}")
     endif()
 endif()
 
-# dr_mp3 must avoid unaligned word loads on Cortex-M7 (stream data is byte-aligned).
-if (NOT WIN32)
+# dr_mp3 must avoid unaligned word loads on strict-alignment ARM targets
+# because stream buffers may be only byte-aligned.
+if (CHARM_TARGET_STRICT_ALIGNMENT)
     set_source_files_properties(
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_decoder_mp3.cppm"
         PROPERTIES COMPILE_OPTIONS "-mno-unaligned-access"

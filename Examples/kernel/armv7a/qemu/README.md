@@ -79,6 +79,7 @@ ARMv7-A attr probe ready, va=0x52300000, pa=0x40300000, section=0x40300000, iden
 ARMv7-A dcache probe ready, va=0x52400000, pa=0x4030...., l1=0x4021...., l2=0x4030....
 ARMv7-A icache probe ready, va=0x5220...., pa-a=0x4020...., pa-b=0x4020...., l1=0x4021...., l2=0x4020....
 ARMv7-A page-table probe ready, va=0x52500000, pa-a=0x4030...., pa-b=0x4030...., desc=0x4021...., l1=0x4021...., l2=0x4030....
+ARMv7-A section-split probe ready, section=0x52600000, addr=0x5260...., pa-section=0x4040...., pa-a=0x4040...., pa-b=0x4040...., l1=0x40400C16
 ARMv7-A MMU active, sctlr=0x00C51079, ttbr0=0x40210000, ttbcr=0x00000000, dacr=0x00000001
 ARMv7-A MMU flags, mmu=on, dcache=off, icache=on
 Charm out.format import active, PL011 @ 0x09000000
@@ -90,6 +91,7 @@ ARMv7-A icache probe, addr=0x5220...., before=0x000000A1, after=0x000000B2, l2=0
 ARMv7-A D-cache active, sctlr=0x00C5107D, clidr=0x........, ccsidr=0x........, line=0x........, ways=0x........, sets=0x........
 ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, cached=0x10203040, device-before=0x10203040, restored=0x50607080, l2=0x4030....
 ARMv7-A page-table probe, addr=0x52500000, before=0x31415926, after=0x27182818, restored=0x31415926, desc=0x4021...., l2=0x4030....
+ARMv7-A section-split probe, addr=0x5260...., before=0x89ABCDEF, after=0x76543210, restored=0x89ABCDEF, l1-desc=0x4021...., l2-table=0x4021...., l1=0x4021...., l2=0x4040....
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
 ```
@@ -309,6 +311,13 @@ continue
   `SCTLR.C` is on, remaps one live alias between two different physical pages,
   and proves that the page walker sees the updated L2 descriptor without
   mixing the result together with ordinary cached data traffic.
+- A dedicated section-split probe now reserves its own 1MB physical window,
+  starts from one live `device`-typed section mapping, then splits that live
+  L1 section into a coarse L2 table at runtime and remaps just one 4KB page.
+- This gives us a direct QEMU check for the next level up in the translation
+  hierarchy: not just "an active L2 entry changed", but "an active section
+  mapping was structurally converted into paged mappings while D-cache stayed
+  enabled".
 - Optional `data` / `prefetch` abort smokes now reuse the shared fatal
   exception path to validate `DFSR/DFAR/ADFSR` and `IFSR/IFAR/AIFSR`
   collection without destabilizing the default CI smoke.

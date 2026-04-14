@@ -10,6 +10,7 @@ import out.sink;
 #include "armv7a_icache_probe.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_page_table_probe.hpp"
+#include "armv7a_section_split_probe.hpp"
 #include "armv7a_small_page_probe.hpp"
 
 extern "C" void qemu_semihost_write0(const char* text);
@@ -170,6 +171,7 @@ int main()
     armv7a_prepare_dcache_probe_mapping();
     armv7a_prepare_icache_probe_mapping();
     armv7a_prepare_page_table_probe_mapping();
+    armv7a_prepare_section_split_probe_mapping();
     print_boot_page_table_state();
     armv7a_print_abort_smoke_mapping_state();
     armv7a_print_small_page_probe_mapping_state();
@@ -177,6 +179,7 @@ int main()
     armv7a_print_dcache_probe_mapping_state();
     armv7a_print_icache_probe_mapping_state();
     armv7a_print_page_table_probe_mapping_state();
+    armv7a_print_section_split_probe_mapping_state();
     armv7a_enable_identity_mmu(armv7a_boot_l1_table_base());
     armv7a_prepare_abort_smoke_runtime();
     armv7a_enable_icache();
@@ -190,6 +193,7 @@ int main()
     print_dcache_runtime_state();
     armv7a_run_dcache_probe();
     armv7a_run_page_table_probe();
+    armv7a_run_section_split_probe();
     armv7a_svc_smoke_test();
     armv7a_irq_smoke_test();
     charm_spin();

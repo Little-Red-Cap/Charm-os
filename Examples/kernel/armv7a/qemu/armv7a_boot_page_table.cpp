@@ -142,6 +142,51 @@ std::uint32_t* find_boot_l2_table(std::uint32_t l1_entry_index)
     return nullptr;
 }
 
+std::uint32_t* acquire_boot_l2_table(std::uint32_t l1_entry_index)
+{
+    if (auto* const existing = find_boot_l2_table(l1_entry_index)) {
+        return existing;
+    }
+
+    for (std::size_t i = 0; i < kBootL2TableCount; ++i) {
+        if (g_boot_l2_table_used[i]) {
+            continue;
+        }
+        g_boot_l2_table_used[i] = true;
+        g_boot_l2_table_l1_index[i] = l1_entry_index;
+        return &g_boot_l2_tables[i][0];
+    }
+
+    return nullptr;
+}
+
+Armv7aBootSmallPageType section_descriptor_small_page_type(std::uint32_t descriptor)
+{
+    const auto execute_never = (descriptor & kL1ExecuteNever) != 0u;
+    const auto cacheable = (descriptor & kL1Cacheable) != 0u;
+    const auto bufferable = (descriptor & kL1Bufferable) != 0u;
+    const auto tex = (descriptor >> 12) & 0x7u;
+    const auto access_permission = (descriptor >> 10) & 0x3u;
+
+    if (tex == 1u && cacheable && bufferable) {
+        if (!execute_never && access_permission == 0x3u) {
+            return Armv7aBootSmallPageType::kNormalExecutable;
+        }
+        if (execute_never && access_permission == 0x3u) {
+            return Armv7aBootSmallPageType::kNormalExecuteNever;
+        }
+        if (execute_never && access_permission == 0x0u) {
+            return Armv7aBootSmallPageType::kNormalNoAccessExecuteNever;
+        }
+    }
+
+    if (tex == 0u && !cacheable && bufferable && execute_never && access_permission == 0x3u) {
+        return Armv7aBootSmallPageType::kDeviceData;
+    }
+
+    return Armv7aBootSmallPageType::kFault;
+}
+
 std::uint32_t* ensure_boot_l2_table(std::uintptr_t virtual_address, std::uint32_t domain)
 {
     const auto index = l1_index(virtual_address);
@@ -153,21 +198,10 @@ std::uint32_t* ensure_boot_l2_table(std::uintptr_t virtual_address, std::uint32_
         return nullptr;
     }
 
-    if (auto* const existing = find_boot_l2_table(index)) {
+    if (auto* const table = acquire_boot_l2_table(index)) {
         g_boot_l1_table[index] = make_page_table_descriptor(
-            reinterpret_cast<std::uintptr_t>(existing), domain);
-        return existing;
-    }
-
-    for (std::size_t i = 0; i < kBootL2TableCount; ++i) {
-        if (g_boot_l2_table_used[i]) {
-            continue;
-        }
-        g_boot_l2_table_used[i] = true;
-        g_boot_l2_table_l1_index[i] = index;
-        g_boot_l1_table[index] = make_page_table_descriptor(
-            reinterpret_cast<std::uintptr_t>(&g_boot_l2_tables[i][0]), domain);
-        return &g_boot_l2_tables[i][0];
+            reinterpret_cast<std::uintptr_t>(table), domain);
+        return table;
     }
 
     return nullptr;
@@ -214,6 +248,37 @@ void armv7a_boot_l2_map_small_page(std::uintptr_t virtual_address,
     table[l2_index(virtual_address)] = make_small_page_descriptor(physical_address, type);
 }
 
+bool armv7a_boot_l1_split_section_to_small_pages(std::uintptr_t virtual_address)
+{
+    const auto index = l1_index(virtual_address);
+    const auto descriptor = g_boot_l1_table[index];
+    if ((descriptor & kL1TypeMask) == kL1PageTable) {
+        return true;
+    }
+    if ((descriptor & kL1TypeMask) != kL1Section) {
+        return false;
+    }
+
+    auto* const table = acquire_boot_l2_table(index);
+    if (table == nullptr) {
+        return false;
+    }
+
+    const auto page_type = section_descriptor_small_page_type(descriptor);
+    if (page_type == Armv7aBootSmallPageType::kFault) {
+        return false;
+    }
+    const auto section_base = static_cast<std::uintptr_t>(descriptor & 0xfff00000u);
+    for (std::size_t i = 0; i < kL2EntryCount; ++i) {
+        table[i] = make_small_page_descriptor(section_base + i * kSmallPageSize, page_type);
+    }
+
+    const auto domain = (descriptor >> kL1DomainShift) & kL1DomainMask;
+    g_boot_l1_table[index] =
+        make_page_table_descriptor(reinterpret_cast<std::uintptr_t>(table), domain);
+    return true;
+}
+
 std::uintptr_t armv7a_boot_l1_table_base()
 {
     return reinterpret_cast<std::uintptr_t>(&g_boot_l1_table[0]);
@@ -224,15 +289,24 @@ std::uintptr_t armv7a_boot_l1_descriptor_address(std::uintptr_t virtual_address)
     return reinterpret_cast<std::uintptr_t>(&g_boot_l1_table[l1_index(virtual_address)]);
 }
 
-std::uintptr_t armv7a_boot_l2_descriptor_address(std::uintptr_t virtual_address)
+std::uintptr_t armv7a_boot_l2_table_base(std::uintptr_t virtual_address)
 {
     const auto l1_descriptor = armv7a_boot_l1_descriptor(virtual_address);
     if ((l1_descriptor & kL1TypeMask) != kL1PageTable) {
         return 0u;
     }
 
-    auto* const table = reinterpret_cast<volatile std::uint32_t*>(
-        static_cast<std::uintptr_t>(l1_descriptor & kL1PageTableBaseMask));
+    return static_cast<std::uintptr_t>(l1_descriptor & kL1PageTableBaseMask);
+}
+
+std::uintptr_t armv7a_boot_l2_descriptor_address(std::uintptr_t virtual_address)
+{
+    const auto table_base = armv7a_boot_l2_table_base(virtual_address);
+    if (table_base == 0u) {
+        return 0u;
+    }
+
+    auto* const table = reinterpret_cast<volatile std::uint32_t*>(table_base);
     return reinterpret_cast<std::uintptr_t>(&table[l2_index(virtual_address)]);
 }
 

@@ -46,6 +46,14 @@ SECTIONS
         __probe_pages_end = .;
     } > RAM :data
 
+    .probe_sections (NOLOAD) : ALIGN(0x100000)
+    {
+        __probe_sections_start = .;
+        *(.probe_sections .probe_sections.*)
+        . = __probe_sections_start + 0x100000;
+        __probe_sections_end = .;
+    } > RAM :data
+
     .stacks (NOLOAD) : ALIGN(16)
     {
         __stack_region_start = .;

@@ -110,6 +110,9 @@ if (($log -notmatch "ARMv7-A dcache probe ready, va=0x52400000, pa=0x4[0-9A-F]{7
 if (($log -notmatch "ARMv7-A page-table probe ready, va=0x52500000, pa-a=0x4[0-9A-F]{7}, pa-b=0x4[0-9A-F]{7}, desc=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A page-table probe ready, va=0x52500000..."
 }
+if (($log -notmatch "ARMv7-A section-split probe ready, section=0x52600000, addr=0x526[0-9A-F]{5}, pa-section=0x4[0-9A-F]{7}, pa-a=0x4[0-9A-F]{7}, pa-b=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A section-split probe ready, section=0x52600000..."
+}
 if (($log -notmatch "ARMv7-A MMU active, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A MMU active, sctlr=0x..."
 }
@@ -142,6 +145,9 @@ if (($log -notmatch "ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, c
 }
 if (($log -notmatch "ARMv7-A page-table probe, addr=0x52500000, before=0x31415926, after=0x27182818, restored=0x31415926, desc=0x4[0-9A-F]{7}, l2=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A page-table probe, addr=0x52500000..."
+}
+if (($log -notmatch "ARMv7-A section-split probe, addr=0x526[0-9A-F]{5}, before=0x89ABCDEF, after=0x76543210, restored=0x89ABCDEF, l1-desc=0x4[0-9A-F]{7}, l2-table=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A section-split probe, addr=0x526..."
 }
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30"

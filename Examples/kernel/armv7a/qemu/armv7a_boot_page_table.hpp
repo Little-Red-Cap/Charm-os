@@ -29,8 +29,10 @@ void armv7a_boot_l2_map_small_page(std::uintptr_t virtual_address,
                                    std::uintptr_t physical_address,
                                    Armv7aBootSmallPageType type,
                                    std::uint32_t domain = 0u);
+bool armv7a_boot_l1_split_section_to_small_pages(std::uintptr_t virtual_address);
 std::uintptr_t armv7a_boot_l1_table_base();
 std::uintptr_t armv7a_boot_l1_descriptor_address(std::uintptr_t virtual_address);
+std::uintptr_t armv7a_boot_l2_table_base(std::uintptr_t virtual_address);
 std::uintptr_t armv7a_boot_l2_descriptor_address(std::uintptr_t virtual_address);
 std::uint32_t armv7a_boot_l1_descriptor(std::uintptr_t virtual_address);
 std::uint32_t armv7a_boot_l2_descriptor(std::uintptr_t virtual_address);

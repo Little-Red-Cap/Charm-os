@@ -23,6 +23,9 @@ cmake --build out\build\debug-abort-prefetch --verbose
 cmake --preset debug-abort-prefetch-xn
 cmake --build out\build\debug-abort-prefetch-xn --verbose
 
+cmake --preset debug-abort-prefetch-page-xn
+cmake --build out\build\debug-abort-prefetch-page-xn --verbose
+
 cmake --preset debug-abort-data-perm
 cmake --build out\build\debug-abort-data-perm --verbose
 
@@ -83,6 +86,7 @@ exception path instead of returning to the regular SVC/IRQ smoke:
 .\run_qemu_abort_ci.ps1 -Kind data
 .\run_qemu_abort_ci.ps1 -Kind prefetch
 .\run_qemu_abort_ci.ps1 -Kind prefetch-xn
+.\run_qemu_abort_ci.ps1 -Kind prefetch-page-xn
 .\run_qemu_abort_ci.ps1 -Kind data-perm
 .\run_qemu_abort_ci.ps1 -Kind data-page
 .\run_qemu_abort_ci.ps1 -Kind data-page-perm
@@ -96,6 +100,7 @@ Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-xn\charm-armv7a-qemu
+.\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-page-xn\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data-perm\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data-page\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data-page-perm\charm-armv7a-qemu
@@ -128,6 +133,15 @@ ARMv7-A exception: prefetch abort, pc=0x5......., lr=0x5......., spsr=0x........
 ARMv7-A prefetch fault, ifsr=0x0000001D, ifar=0x5......., aifsr=0x........
 ARMv7-A prefetch fault decode, status=0x0D (section permission fault), domain=0x1
 ARMv7-A fault map, far=0x5......., ttbr0=0x........, l1[0x500]=0x........ (section), domain=0x1, xn=yes, s=yes, c=yes, b=yes
+```
+
+```text
+ARMv7-A page-XN alias ready, va=0x55......, pa=0x4......., l1=0x........, l2=0x........
+ARMv7-A abort smoke, kind=prefetch-page-xn, addr=0x55......
+ARMv7-A exception: prefetch abort, pc=0x55......, lr=0x55......, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
+ARMv7-A prefetch fault, ifsr=0x0000001F, ifar=0x55......, aifsr=0x........
+ARMv7-A prefetch fault decode, status=0x0F (page permission fault), domain=0x1
+ARMv7-A fault map, far=0x55......, ttbr0=0x........, l1[0x550]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
 ```
 
 ```text
@@ -208,6 +222,9 @@ continue
 - The `prefetch-xn` smoke adds one XN alias in `domain1 client`, which lets
   us validate an execute-never permission abort without changing the default
   `domain0 manager` bring-up path used by the regular smoke.
+- The `prefetch-page-xn` smoke keeps both coarse L1 and small-page L2 valid,
+  but marks the page itself XN in `domain1 client`, which lets us validate a
+  true page permission fault on the execute path.
 - The `data-perm` smoke adds one no-access data alias in `domain1 client`,
   which lets us validate a write-side permission abort while keeping the
   default `domain0 manager` runtime unchanged.

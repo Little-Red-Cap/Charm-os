@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <string_view>
 
 namespace examples::usb::support {
     struct DummyChannel {
@@ -66,6 +67,44 @@ namespace examples::usb::support {
             }
             self->flushed = true;
             return io::ok(1);
+        }
+    };
+
+    template <typename IoRegistryT>
+    struct CdcRuntimeHarness {
+        IoRegistryT* registry{nullptr};
+        std::string_view cap_name{};
+        DummyChannel backend{};
+        ::usb::host::CdcChannelRuntimeBinding<IoRegistryT> binding;
+
+        CdcRuntimeHarness(IoRegistryT& registry,
+                          std::string_view cap_name,
+                          util::u16 vendor_id,
+                          util::u16 product_id,
+                          std::string_view type = "usb.host.cdc",
+                          io::EndpointCaps caps = io::EndpointCaps::duplex,
+                          io::Reactor* reactor = nullptr,
+                          const char* driver_name = "usb.host.cdc.runtime",
+                          const char* bus_name = "usb.host",
+                          util::u32 priority = 0) noexcept
+            : registry(&registry),
+              cap_name(cap_name),
+              backend(),
+              binding(registry,
+                      cap_name,
+                      backend.channel,
+                      vendor_id,
+                      product_id,
+                      type,
+                      caps,
+                      reactor,
+                      driver_name,
+                      bus_name,
+                      priority) {
+        }
+
+        io::Channel* stable() noexcept {
+            return registry ? registry->open_channel(cap_name) : nullptr;
         }
     };
 }

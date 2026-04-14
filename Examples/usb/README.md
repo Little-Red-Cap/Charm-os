@@ -34,7 +34,7 @@
 - `usb.host.runtime_block`：把 MSC discovered device 导出为稳定 block capability
 - `usb.host.runtime_channel`：把 CDC discovered device 导出为稳定 channel capability
 - `usb.host.runtime_manager`：把 bus、runtime registry 与多个 binding 编排到一起，提供 `enumerate / scan / remove / rediscover / reset_all`
-- `Examples/usb/support/usb_host_runtime_*_support.hpp`：给 host runtime smoke 复用最小后端夹具，避免样板重复拷贝 `MemoryDisk` / `DummyChannel`
+- `Examples/usb/support/usb_host_runtime_*_support.hpp`：给 host runtime smoke 复用最小后端夹具与 binding harness，避免样板重复拷贝 `MemoryDisk` / `DummyChannel` 和装配样板
 
 当前三组 host runtime smoke 都统一经由 `RuntimeManager` 编排，
 不再手工拼 `device::Registry + BusManager`。

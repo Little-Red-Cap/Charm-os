@@ -68,4 +68,39 @@ namespace examples::usb::support {
         }
         return dev.read(dev.ctx, 0, out);
     }
+
+    template <typename BlockRegistryT>
+    struct MscRuntimeHarness {
+        BlockRegistryT* registry{nullptr};
+        std::string_view cap_name{};
+        MemoryDisk backend{};
+        ::usb::host::MscBlockRuntimeBinding<BlockRegistryT> binding;
+
+        MscRuntimeHarness(BlockRegistryT& registry,
+                          std::string_view cap_name,
+                          util::u16 vendor_id,
+                          util::u16 product_id,
+                          std::string_view oem_name = "HOSTMSC0",
+                          std::string_view type = "usb.host.msc",
+                          const char* driver_name = "usb.host.msc.runtime",
+                          const char* bus_name = "usb.host",
+                          util::u32 priority = 0) noexcept
+            : registry(&registry),
+              cap_name(cap_name),
+              backend(oem_name),
+              binding(registry,
+                      cap_name,
+                      backend.device,
+                      vendor_id,
+                      product_id,
+                      type,
+                      driver_name,
+                      bus_name,
+                      priority) {
+        }
+
+        block::Device* stable() noexcept {
+            return registry ? registry->open_device(cap_name) : nullptr;
+        }
+    };
 }

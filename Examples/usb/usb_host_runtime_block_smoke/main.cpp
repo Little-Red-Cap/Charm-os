@@ -14,6 +14,7 @@ import util.core;
 
 namespace {
     using examples::usb::support::MemoryDisk;
+    using examples::usb::support::MscRuntimeHarness;
     using examples::usb::support::read_lba0;
 
     bool expect(bool cond, const char* message) {
@@ -44,16 +45,14 @@ int main() {
     block_registry.init();
     usb::host::RuntimeManager<4, 4> runtime{"usb.host.block"};
 
-    MemoryDisk disk{};
-    usb::host::MscBlockRuntimeBinding<block::Registry<4>> binding{
+    MscRuntimeHarness<block::Registry<4>> msc{
         block_registry,
         kCapName,
-        disk.device,
         0x1209,
         0x0005
     };
 
-    auto add_r = runtime.add_exported(binding);
+    auto add_r = runtime.add_exported(msc.binding);
     if (!add_r) {
         std::fprintf(stderr,
                      "[ERR] runtime manager add_exported failed err=%d\n",
@@ -61,14 +60,14 @@ int main() {
         return 1;
     }
 
-    auto* stable = block_registry.open_device(kCapName);
-    if (!expect(stable == &binding.exported_slot().device(),
+    auto* stable = msc.stable();
+    if (!expect(stable == &msc.binding.exported_slot().device(),
                 "registry did not expose the stable block slot")) {
         return 1;
     }
-    if (!expect(binding.exported(), "slot export should stay published")) return 1;
-    if (!expect(!binding.attached(), "slot should start detached")) return 1;
-    if (!expect(binding.generation() == 0, "slot generation should start at 0")) return 1;
+    if (!expect(msc.binding.exported(), "slot export should stay published")) return 1;
+    if (!expect(!msc.binding.attached(), "slot should start detached")) return 1;
+    if (!expect(msc.binding.generation() == 0, "slot generation should start at 0")) return 1;
 
     std::array<util::u8, MemoryDisk::block_size> buffer{};
     if (!expect_status(read_lba0(*stable, buffer),
@@ -80,7 +79,7 @@ int main() {
     if (!expect(runtime.scan(), "runtime manager scan failed")) {
         return 1;
     }
-    if (!expect(runtime.enumerated(binding),
+    if (!expect(runtime.enumerated(msc.binding),
                 "runtime manager did not enumerate the MSC device")) {
         return 1;
     }
@@ -88,8 +87,8 @@ int main() {
                 "runtime registry should contain one MSC device")) {
         return 1;
     }
-    if (!expect(binding.attached(), "runtime init did not attach the MSC slot")) return 1;
-    if (!expect(binding.generation() == 1,
+    if (!expect(msc.binding.attached(), "runtime init did not attach the MSC slot")) return 1;
+    if (!expect(msc.binding.generation() == 1,
                 "slot generation should advance after attach")) {
         return 1;
     }
@@ -117,12 +116,12 @@ int main() {
         return 1;
     }
 
-    if (!expect(runtime.remove(binding),
+    if (!expect(runtime.remove(msc.binding),
                 "runtime remove did not detach the MSC slot")) {
         return 1;
     }
-    if (!expect(!binding.attached(), "MSC slot should be detached after remove")) return 1;
-    if (!expect(binding.generation() == 2,
+    if (!expect(!msc.binding.attached(), "MSC slot should be detached after remove")) return 1;
+    if (!expect(msc.binding.generation() == 2,
                 "slot generation should advance after detach")) {
         return 1;
     }

@@ -4,6 +4,7 @@
 
 import device.types;
 import io.channel;
+import io.reactor;
 import io.registry;
 import usb.host.runtime_channel;
 import usb.host.runtime_manager;
@@ -12,7 +13,7 @@ import util.core;
 #include "../support/usb_host_runtime_channel_support.hpp"
 
 namespace {
-    using examples::usb::support::DummyChannel;
+    using examples::usb::support::CdcRuntimeHarness;
 
     bool expect(bool cond, const char* message) {
         if (!cond) {
@@ -42,16 +43,14 @@ int main() {
     io_registry.init();
     usb::host::RuntimeManager<4, 4> runtime{"usb.host.cdc"};
 
-    DummyChannel backend{};
-    usb::host::CdcChannelRuntimeBinding<io::Registry<4>> binding{
+    CdcRuntimeHarness<io::Registry<4>> cdc{
         io_registry,
         kCapName,
-        backend.channel,
         0x1209,
         0x0006
     };
 
-    auto add_r = runtime.add_exported(binding);
+    auto add_r = runtime.add_exported(cdc.binding);
     if (!add_r) {
         std::fprintf(stderr,
                      "[ERR] runtime manager add_exported failed err=%d\n",
@@ -59,14 +58,14 @@ int main() {
         return 1;
     }
 
-    auto* stable = io_registry.open_channel(kCapName);
-    if (!expect(stable == &binding.exported_slot().channel(),
+    auto* stable = cdc.stable();
+    if (!expect(stable == &cdc.binding.exported_slot().channel(),
                 "registry did not expose the stable channel slot")) {
         return 1;
     }
-    if (!expect(binding.exported(), "slot export should stay published")) return 1;
-    if (!expect(!binding.attached(), "slot should start detached")) return 1;
-    if (!expect(binding.generation() == 0, "slot generation should start at 0")) return 1;
+    if (!expect(cdc.binding.exported(), "slot export should stay published")) return 1;
+    if (!expect(!cdc.binding.attached(), "slot should start detached")) return 1;
+    if (!expect(cdc.binding.generation() == 0, "slot generation should start at 0")) return 1;
 
     std::array<util::u8, 4> read_buf{};
     std::array<util::u8, 4> write_buf{
@@ -83,7 +82,7 @@ int main() {
     if (!expect(runtime.scan(), "runtime manager scan failed")) {
         return 1;
     }
-    if (!expect(runtime.enumerated(binding),
+    if (!expect(runtime.enumerated(cdc.binding),
                 "runtime manager did not enumerate the CDC device")) {
         return 1;
     }
@@ -91,8 +90,8 @@ int main() {
                 "runtime registry should contain one CDC device")) {
         return 1;
     }
-    if (!expect(binding.attached(), "runtime init did not attach the CDC slot")) return 1;
-    if (!expect(binding.generation() == 1,
+    if (!expect(cdc.binding.attached(), "runtime init did not attach the CDC slot")) return 1;
+    if (!expect(cdc.binding.generation() == 1,
                 "slot generation should advance after attach")) {
         return 1;
     }
@@ -123,28 +122,28 @@ int main() {
                 "attached slot should write the full payload")) {
         return 1;
     }
-    if (!expect(backend.tx_size == write_buf.size(),
+    if (!expect(cdc.backend.tx_size == write_buf.size(),
                 "backend did not observe the expected write size")) {
         return 1;
     }
-    if (!expect(backend.tx_data[0] == static_cast<util::u8>('P') &&
-                backend.tx_data[1] == static_cast<util::u8>('I') &&
-                backend.tx_data[2] == static_cast<util::u8>('N') &&
-                backend.tx_data[3] == static_cast<util::u8>('G'),
+    if (!expect(cdc.backend.tx_data[0] == static_cast<util::u8>('P') &&
+                cdc.backend.tx_data[1] == static_cast<util::u8>('I') &&
+                cdc.backend.tx_data[2] == static_cast<util::u8>('N') &&
+                cdc.backend.tx_data[3] == static_cast<util::u8>('G'),
                 "backend did not observe the expected write payload")) {
         return 1;
     }
 
     auto flush_r = stable->flush();
     if (!expect(static_cast<bool>(flush_r), "attached slot should flush successfully")) return 1;
-    if (!expect(backend.flushed, "backend flush callback was not observed")) return 1;
+    if (!expect(cdc.backend.flushed, "backend flush callback was not observed")) return 1;
 
-    if (!expect(runtime.remove(binding),
+    if (!expect(runtime.remove(cdc.binding),
                 "runtime remove did not detach the CDC slot")) {
         return 1;
     }
-    if (!expect(!binding.attached(), "CDC slot should be detached after remove")) return 1;
-    if (!expect(binding.generation() == 2,
+    if (!expect(!cdc.binding.attached(), "CDC slot should be detached after remove")) return 1;
+    if (!expect(cdc.binding.generation() == 2,
                 "slot generation should advance after detach")) {
         return 1;
     }

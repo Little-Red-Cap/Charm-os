@@ -44,8 +44,8 @@ namespace {
 
     void test_elf_file_fd_probe() noexcept {
         fs::clear_mounts();
-        static RamFsMount<256, 64, 512> ramfs{};
-        new (&ramfs) RamFsMount<256, 64, 512>();
+        static RamFsMount<256, 16, 96> ramfs{};
+        new (&ramfs) RamFsMount<256, 16, 96>();
         auto mount_status = fs::add_mount("", ramfs.mount_point());
         check_true("fd-probe-mount", mount_status);
 
@@ -154,7 +154,7 @@ namespace {
 
     void test_elf_file_stat_probe() noexcept {
         fs::clear_mounts();
-        RamFsMount<256, 64, 512> ramfs{};
+        RamFsMount<256, 16, 96> ramfs{};
         auto mount_status = fs::add_mount("", ramfs.mount_point());
         check_true("stat-probe-mount", mount_status);
 

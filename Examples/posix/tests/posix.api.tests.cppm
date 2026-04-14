@@ -1610,6 +1610,14 @@ namespace {
         check_eq("console-matrix-nolive-tty-w-open", api.open("/dev/tty", posix::O_WRONLY, 0), -1);
         check_eq("console-matrix-nolive-tty-w-errno", posix::get_errno(), posix::ENOENT);
 
+        posix::set_errno(0);
+        check_eq("console-matrix-nolive-console-stat", api.stat("/dev/console", &st), -1);
+        check_eq("console-matrix-nolive-console-stat-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("console-matrix-nolive-tty-stat", api.stat("/dev/tty", &st), -1);
+        check_eq("console-matrix-nolive-tty-stat-errno", posix::get_errno(), posix::ENOENT);
+
         check_eq("console-matrix-nolive-stdin-write-close", api.close(stdin_pipe[1]), 0);
         check_eq("console-matrix-nolive-stderr-read-close", api.close(stderr_pipe[0]), 0);
     }

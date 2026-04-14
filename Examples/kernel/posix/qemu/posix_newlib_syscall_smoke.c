@@ -310,6 +310,14 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (open("/dev/tty", O_WRONLY, 0) != -1) return 326;
     if (errno != ENOENT) return 327;
 
+    errno = 0;
+    if (stat("/dev/console", &st) != -1) return 328;
+    if (errno != ENOENT) return 329;
+
+    errno = 0;
+    if (stat("/dev/tty", &st) != -1) return 330;
+    if (errno != ENOENT) return 331;
+
     return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 294;
 }
 

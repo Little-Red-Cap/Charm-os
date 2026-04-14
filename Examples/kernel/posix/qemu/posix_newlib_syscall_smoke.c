@@ -32,7 +32,9 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (fstat(1, &st) != 0) return 97;
     if ((st.st_mode & S_IFMT) != S_IFIFO) return 98;
 
+    errno = 88;
     if (getpid() <= 0) return 99;
+    if (errno != 88) return 556;
 
     errno = 0;
     if (isatty(-1) != 0) return 125;
@@ -59,7 +61,9 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (isatty(stdin_fd) != 1) return 109;
     if (fstat(stdin_fd, &st) != 0) return 110;
     if ((st.st_mode & S_IFMT) != S_IFCHR) return 111;
+    errno = 89;
     if (close(stdin_fd) != 0) return 112;
+    if (errno != 89) return 557;
 
     stdout_fd = open("/dev/stdout", O_WRONLY, 0);
     if (stdout_fd < 0) return 113;
@@ -82,7 +86,9 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (isatty(tty_fd) != 1) return 125;
     if (fstat(tty_fd, &st) != 0) return 126;
     if ((st.st_mode & S_IFMT) != S_IFCHR) return 127;
+    errno = 90;
     if (write(tty_fd, "tty", 3) != 3) return 128;
+    if (errno != 90) return 558;
     if (close(tty_fd) != 0) return 129;
 
     return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 130;
@@ -427,7 +433,9 @@ int charm_posix_newlib_lseek_entry(void) {
     off_t end = lseek(0, 0, SEEK_END);
     if (end != 5) return 121;
     if (lseek(0, 0, SEEK_SET) != 0) return 122;
+    errno = 91;
     if (read(0, buf, 5) != 5) return 123;
+    if (errno != 91) return 559;
     if (memcmp(buf, "alpha", 5) != 0) return 124;
 
     errno = 0;

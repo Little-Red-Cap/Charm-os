@@ -43,6 +43,7 @@
 - `read(-1, ...) -> -1 && errno == EBADF`
 - `write(-1, ...) -> -1 && errno == EBADF`
 - `close(-1) -> -1 && errno == EBADF`
+- newlib `getpid()` / successful `read()` / successful `write()` / successful `close()` now also keep `errno` unchanged across the current bridge
 - `lseek(file, SEEK_{SET|END}) -> offset`, `lseek(pipe/tty/dev, ...) -> -1 && errno == ESPIPE`, `lseek(-1, ...) -> -1 && errno == EBADF`, and `lseek(fd, ..., invalid-whence) -> -1 && errno == EINVAL`
 - `pipe()` v0 currently behaves as an eager nonblocking primitive: empty reads with a live writer return `-1 && errno == EAGAIN`, full writes with a live reader return `-1 && errno == EAGAIN`, writer shutdown still yields `read() -> 0`, and per-endpoint `O_NONBLOCK` remains observable through `fcntl(F_GETFL/F_SETFL)` and shared across dup-family aliases on that endpoint
 - term-backed stdio now also exposes minimal status-flag state through `fcntl(F_GETFL/F_SETFL)`; `stdin` / `stdout` / `stderr` keep separate open-file-description state, while `/dev/tty` and `/dev/stderr` aliases inherit and share the selected source descriptor's `O_NONBLOCK` bit

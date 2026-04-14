@@ -165,6 +165,21 @@
             return &list_rows[static_cast<std::size_t>(row_index)];
         }
 
+        LibraryRowRecipe make_library_row_recipe(int row_index) const noexcept {
+            LibraryRowRecipe out{};
+            out.row_index = row_index;
+            out.model = library_row_model(row_index);
+            out.track_index = list_index_to_track(row_index);
+            out.group_row = out.model ? out.model->group_row : false;
+            if (out.group_row) {
+                out.current_row = library_group_row_is_current(row_index);
+            } else if (track_index >= 0 && out.track_index >= 0) {
+                out.current_row = (out.track_index == track_index);
+            }
+            out.show_tail_action = (row_index == last_list_selected) || out.current_row;
+            return out;
+        }
+
         bool cache_track_duration(int track_index, int seconds) {
             ensure_track_duration_cache();
             if (track_index < 0 || track_index >= static_cast<int>(track_duration_cache_sec.size())) return false;
@@ -351,16 +366,6 @@
             return !row_group.empty() && compare_ci(row_group, current_group) == 0;
         }
 
-        bool library_row_shows_tail_action(int row_index) const noexcept {
-            if (row_index < 0 || row_index >= static_cast<int>(list_order.size())) return false;
-            if (row_index == last_list_selected) return true;
-            if (library_shows_group_rows()) {
-                return library_group_row_is_current(row_index);
-            }
-            if (track_index < 0) return false;
-            return list_index_to_track(row_index) == track_index;
-        }
-
         const char* library_current_group_state_text() const noexcept {
             if (is_paused()) return "Paused";
             if (is_playing()) return "Playing";
@@ -530,9 +535,9 @@
                 last_list_selected = list_index;
             }
 
-            const auto* row_model = library_row_model(list_index);
-            const char* title_text = (row_model && !row_model->title.empty())
-                ? row_model->title.c_str()
+            const auto row = make_library_row_recipe(list_index);
+            const char* title_text = (row.model && !row.title().empty())
+                ? row.title_c_str()
                 : (library_shows_group_rows() ? "Group" : "Track");
             ::ui::scene::AnchoredMenuItemSpec items[3]{};
             const std::size_t item_count = build_list_action_menu_items(list_index, items);
@@ -576,10 +581,10 @@
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
 
             char buf[192]{};
-            if (library_shows_group_rows()) {
-                const auto* row_model = library_row_model(list_index);
-                const auto title = row_model ? row_model->title.view() : std::string_view{};
-                const auto subtitle = row_model ? row_model->subtitle.view() : std::string_view{};
+            const auto row = make_library_row_recipe(list_index);
+            if (row.group_row) {
+                const auto title = row.title();
+                const auto subtitle = row.subtitle();
                 if (subtitle.empty()) {
                     std::snprintf(buf, sizeof(buf), "%.*s",
                                   static_cast<int>(title.size()), title.data());
@@ -662,9 +667,10 @@
 
         void activate_list_index(int list_index) {
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
-            if (library_shows_group_rows()) {
-                if (const auto* row_model = library_row_model(list_index)) {
-                    library_context_key.assign(row_model->title.view());
+            const auto row = make_library_row_recipe(list_index);
+            if (row.group_row) {
+                if (row.model) {
+                    library_context_key.assign(row.title());
                     refresh_list_view();
                 }
                 return;
@@ -887,8 +893,9 @@
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            if (const auto* row_model = self->library_row_model(static_cast<int>(index))) {
-                return row_model->title.c_str();
+            const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            if (row.model) {
+                return row.title_c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
             if (track_index < 0) return "";
@@ -900,8 +907,9 @@
         static const char* list_view_subtitle(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            if (const auto* row_model = self->library_row_model(static_cast<int>(index))) {
-                return row_model->subtitle.c_str();
+            const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            if (row.model) {
+                return row.subtitle_c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
             if (track_index < 0) return "";
@@ -913,8 +921,9 @@
         static const char* list_view_tail(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            if (const auto* row_model = self->library_row_model(static_cast<int>(index))) {
-                return row_model->tail.c_str();
+            const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            if (row.model) {
+                return row.tail_c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
             if (track_index < 0) return "";
@@ -926,7 +935,8 @@
         static ::ui::scene::ImageId list_view_tail_action_icon(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return ::ui::scene::invalid_image_id();
-            if (!self->library_row_shows_tail_action(static_cast<int>(index))) {
+            const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            if (!row.show_tail_action) {
                 return ::ui::scene::invalid_image_id();
             }
             return self->icons.more;
@@ -935,18 +945,8 @@
         static ::ui::scene::ImageId list_view_tail_icon(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<PlayerController*>(const_cast<void*>(ctx));
             if (!self) return ::ui::scene::invalid_image_id();
-            if (self->track_index < 0) return ::ui::scene::invalid_image_id();
-            const int row_track = self->list_index_to_track(static_cast<int>(index));
-            if (row_track < 0) return ::ui::scene::invalid_image_id();
-
-            bool is_current_row = false;
-            if (self->library_shows_group_rows()) {
-                is_current_row = self->library_group_row_is_current(static_cast<int>(index));
-            } else {
-                is_current_row = row_track == self->track_index;
-            }
-
-            if (!is_current_row) return ::ui::scene::invalid_image_id();
+            const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            if (!row.current_row) return ::ui::scene::invalid_image_id();
             return self->is_paused() ? self->icons.pause : self->icons.play;
         }
 
@@ -955,18 +955,19 @@
             if (!self) return ::ui::scene::invalid_image_id();
             const auto* tracks = self->storage.tracks;
             if (!tracks) return ::ui::scene::invalid_image_id();
-            const int track_index = self->list_index_to_track(static_cast<int>(index));
-            const bool is_active = !self->library_shows_group_rows() && track_index == self->track_index;
-            if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
+            const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            const int row_track_index = row.track_index;
+            const bool is_active = row.current_row && !row.group_row;
+            if (row_track_index < 0 || row_track_index >= static_cast<int>(tracks->size())) {
                 return ::ui::scene::invalid_image_id();
             }
-            const auto& path = (*tracks)[static_cast<std::size_t>(track_index)];
+            const auto& path = (*tracks)[static_cast<std::size_t>(row_track_index)];
             if (!is_audio_path(path.view())) {
                 return self->icons.folder;
             }
             std::string_view cover_path{};
-            if (track_index < static_cast<int>(self->list_cover_paths.size())) {
-                cover_path = self->list_cover_paths[static_cast<std::size_t>(track_index)].view();
+            if (row_track_index < static_cast<int>(self->list_cover_paths.size())) {
+                cover_path = self->list_cover_paths[static_cast<std::size_t>(row_track_index)].view();
             }
             const auto cover_id = self->resolve_list_cover_icon(path.view(), cover_path);
             if (::ui::scene::image_id_valid(cover_id)) return cover_id;

@@ -197,6 +197,39 @@ export namespace player {
             bool group_row{false};
         };
 
+        struct LibraryRowRecipe {
+            const LibraryRowModel* model{};
+            int row_index{-1};
+            int track_index{-1};
+            bool group_row{false};
+            bool current_row{false};
+            bool show_tail_action{false};
+
+            std::string_view title() const noexcept {
+                return model ? model->title.view() : std::string_view{};
+            }
+
+            std::string_view subtitle() const noexcept {
+                return model ? model->subtitle.view() : std::string_view{};
+            }
+
+            std::string_view tail() const noexcept {
+                return model ? model->tail.view() : std::string_view{};
+            }
+
+            const char* title_c_str() const noexcept {
+                return model ? model->title.c_str() : "";
+            }
+
+            const char* subtitle_c_str() const noexcept {
+                return model ? model->subtitle.c_str() : "";
+            }
+
+            const char* tail_c_str() const noexcept {
+                return model ? model->tail.c_str() : "";
+            }
+        };
+
         PlaybackEngine playback{};
         ::ui::scene::SceneAccess access{};
         UiHandles handles{};

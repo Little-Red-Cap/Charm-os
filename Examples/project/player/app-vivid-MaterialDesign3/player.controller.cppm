@@ -24,6 +24,7 @@ import charm.core.handle;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.ui.scene;
+import charm.ui.scene.anchored_menu;
 import charm.ui.scene.pill_surface;
 import charm.font.typography;
 import charm.system.clock;
@@ -163,9 +164,7 @@ export namespace player {
         WidgetHandle list_action_scrim{};
         WidgetHandle list_action_card{};
         WidgetHandle list_action_title{};
-        WidgetHandle list_action_primary{};
-        WidgetHandle list_action_secondary{};
-        WidgetHandle list_action_tertiary{};
+        std::array<WidgetHandle, 3> list_action_items{};
         WidgetHandle mode_hint{};
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};
@@ -229,7 +228,6 @@ export namespace player {
         int last_list_count{-1};
         bool ignore_list_select{false};
         int last_list_selected{-1};
-        bool list_action_menu_open{false};
         int list_action_menu_index{-1};
         LibraryTab library_tab{LibraryTab::Songs};
         FixedString<192> library_context_key{};
@@ -661,43 +659,6 @@ export namespace player {
             reset_cover_image();
         }
 
-        void handle_key_action(UiKey key) {
-            if (current_page == PlayerPage::Probe) {
-                dismiss_probe();
-                return;
-            }
-            switch (key) {
-            case UiKey::Up:
-                focus_list();
-                nav_list(-1);
-                break;
-            case UiKey::Down:
-                focus_list();
-                nav_list(1);
-                break;
-            case UiKey::Enter:
-                focus_list();
-                nav_list_activate();
-                break;
-            case UiKey::PlayToggle:
-                if (is_playing()) pause_playback();
-                else if (is_paused()) resume_playback();
-                else start_playback();
-                break;
-            case UiKey::Next:
-                switch_track(1);
-                break;
-            case UiKey::Prev:
-                switch_track(-1);
-                break;
-            case UiKey::Mode:
-                cycle_play_mode();
-                break;
-            default:
-                break;
-            }
-        }
-
         void init_text_slots() {
             if (!access.valid()) return;
             auto alloc = [this]() noexcept {
@@ -1088,6 +1049,46 @@ export namespace player {
         }
 
         #include "player.controller.library.inc"
+
+        void handle_key_action(UiKey key) {
+            if (current_page == PlayerPage::Probe) {
+                dismiss_probe();
+                return;
+            }
+            if (current_page == PlayerPage::Library && handle_list_action_menu_key(key)) {
+                return;
+            }
+            switch (key) {
+            case UiKey::Up:
+                focus_list();
+                nav_list(-1);
+                break;
+            case UiKey::Down:
+                focus_list();
+                nav_list(1);
+                break;
+            case UiKey::Enter:
+                focus_list();
+                nav_list_activate();
+                break;
+            case UiKey::PlayToggle:
+                if (is_playing()) pause_playback();
+                else if (is_paused()) resume_playback();
+                else start_playback();
+                break;
+            case UiKey::Next:
+                switch_track(1);
+                break;
+            case UiKey::Prev:
+                switch_track(-1);
+                break;
+            case UiKey::Mode:
+                cycle_play_mode();
+                break;
+            default:
+                break;
+            }
+        }
 
         #include "player.controller.progress.inc"
         #include "player.controller.input_debug.inc"

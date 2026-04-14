@@ -20,47 +20,6 @@
         h.list_hint = builder.create_label_static("");
         anchor_rect(builder, h.list_hint, {0, 0, 0, 0});
 
-        h.list_action_scrim = builder.create_button_static("");
-        anchor_rect(builder, h.list_action_scrim, {0, 0, 0, 0});
-        {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = {0, 0, 0, 28};
-            patch.has_border_color = true;
-            patch.border_color = {0, 0, 0, 0};
-            patch.has_font_color = true;
-            patch.font_color = {0, 0, 0, 0};
-            patch.has_shadow_enabled = true;
-            patch.shadow_enabled = false;
-            builder.set_style_override(h.list_action_scrim, patch);
-        }
-
-        h.list_action_card = builder.create_container();
-        anchor_rect(builder, h.list_action_card, {-4096, -4096, 196, 174});
-        builder.set_style_class(h.list_action_card, static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard));
-        builder.set_hit_testable(h.list_action_card, false);
-
-        h.list_action_title = builder.create_label_static("");
-        anchor_rect(builder, h.list_action_title, {14, 12, 168, 18});
-        apply_time_label_style(builder, h.list_action_title);
-        builder.set_label_align(h.list_action_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        builder.set_hit_testable(h.list_action_title, false);
-
-        h.list_action_primary = builder.create_button_static("");
-        anchor_rect(builder, h.list_action_primary, {12, 40, 172, 34});
-        builder.set_style_class(h.list_action_primary, static_cast<StyleClassId>(PlayerStyleClass::TopBarButton));
-        builder.set_label_align(h.list_action_primary, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-
-        h.list_action_secondary = builder.create_button_static("");
-        anchor_rect(builder, h.list_action_secondary, {12, 82, 172, 34});
-        builder.set_style_class(h.list_action_secondary, static_cast<StyleClassId>(PlayerStyleClass::TopBarButton));
-        builder.set_label_align(h.list_action_secondary, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-
-        h.list_action_tertiary = builder.create_button_static("");
-        anchor_rect(builder, h.list_action_tertiary, {12, 124, 172, 34});
-        builder.set_style_class(h.list_action_tertiary, static_cast<StyleClassId>(PlayerStyleClass::TopBarButton));
-        builder.set_label_align(h.list_action_tertiary, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-
         h.nav_bar = {};
         h.nav_home = {};
         h.nav_search = {};
@@ -69,6 +28,7 @@
         const WidgetHandle library = builder.create_container();
         anchor_rect(builder, library, {0, 0, screen_width, screen_height});
         h.page_library = library;
+        const auto library_layers = ::ui::scene::create_page_layers(builder, library, {0, 0, screen_width, screen_height});
 
         const WidgetHandle library_bg_top = builder.create_container();
         anchor_rect(builder, library_bg_top, {0, 0, screen_width, screen_height / 2});
@@ -197,14 +157,14 @@
         const WidgetHandle list_card_root = list_card.root();
 
         builder.link(h.root, library);
-        builder.link(library, library_bg_top);
-        builder.link(library, library_bg_bottom);
-        builder.link(library, lib_top);
+        builder.link(library_layers.backdrop, library_bg_top);
+        builder.link(library_layers.backdrop, library_bg_bottom);
+        builder.link(library_layers.chrome, lib_top);
         builder.link(lib_top, lib_title);
         builder.link(lib_top, lib_settings);
-        builder.link(library, tabs_root);
-        builder.link(library, shuffle_root);
-        builder.link(library, list_card_root);
+        builder.link(library_layers.content, tabs_root);
+        builder.link(library_layers.content, shuffle_root);
+        builder.link(library_layers.content, list_card_root);
         anchor_rect(builder, h.list_title, list_header_layout.title_rect);
         anchor_rect(builder, h.list_sort, list_header_layout.action_rect);
         const Rect list_path_rect = list_header_layout.path_rect;
@@ -277,12 +237,22 @@
         builder.link(list_card_root, h.list_hint);
         builder.link(list_card_root, list_path_icon);
         builder.link(list_card_root, h.list_path_hit);
-        builder.link(library, h.list_action_scrim);
-        builder.link(library, h.list_action_card);
-        builder.link(h.list_action_card, h.list_action_title);
-        builder.link(h.list_action_card, h.list_action_primary);
-        builder.link(h.list_action_card, h.list_action_secondary);
-        builder.link(h.list_action_card, h.list_action_tertiary);
+
+        const auto list_action_menu = ::ui::scene::build_anchored_menu(
+            builder,
+            library_layers.popup,
+            3,
+            {
+                .card_style_class = static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard),
+                .item_style_class = static_cast<StyleClassId>(PlayerStyleClass::TopBarButton),
+            });
+        h.list_action_scrim = list_action_menu.scrim;
+        h.list_action_card = list_action_menu.card;
+        h.list_action_title = list_action_menu.title;
+        h.list_action_items[0] = list_action_menu.item(0);
+        h.list_action_items[1] = list_action_menu.item(1);
+        h.list_action_items[2] = list_action_menu.item(2);
+        apply_time_label_style(builder, h.list_action_title);
 
         build_bottom_chrome(builder, h, layout, icons);
     }

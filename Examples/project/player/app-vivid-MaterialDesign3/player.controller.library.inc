@@ -177,6 +177,25 @@
                 out.current_row = (out.track_index == track_index);
             }
             out.show_tail_action = (row_index == last_list_selected) || out.current_row;
+            out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
+            out.tail_icon = out.current_row
+                ? (is_paused() ? icons.pause : icons.play)
+                : ::ui::scene::invalid_image_id();
+
+            const auto* tracks = storage.tracks;
+            if (!tracks || out.track_index < 0 || out.track_index >= static_cast<int>(tracks->size())) {
+                return out;
+            }
+
+            const auto& path = (*tracks)[static_cast<std::size_t>(out.track_index)];
+            out.track_path = path.view();
+            out.fallback_icon = is_audio_path(out.track_path)
+                ? icons.play
+                : icons.folder;
+            out.prefer_cover = is_audio_path(out.track_path);
+            if (out.track_index < static_cast<int>(list_cover_paths.size())) {
+                out.cover_path = list_cover_paths[static_cast<std::size_t>(out.track_index)].view();
+            }
             return out;
         }
 
@@ -538,7 +557,7 @@
             const auto row = make_library_row_recipe(list_index);
             const char* title_text = (row.model && !row.title().empty())
                 ? row.title_c_str()
-                : (library_shows_group_rows() ? "Group" : "Track");
+                : (row.group_row ? "Group" : "Track");
             ::ui::scene::AnchoredMenuItemSpec items[3]{};
             const std::size_t item_count = build_list_action_menu_items(list_index, items);
 
@@ -597,10 +616,8 @@
                 return;
             }
 
-            const auto* tracks = storage.tracks;
-            const int track_idx = list_index_to_track(list_index);
-            if (!tracks || track_idx < 0 || track_idx >= static_cast<int>(tracks->size())) return;
-            const auto path = (*tracks)[static_cast<std::size_t>(track_idx)].view();
+            const auto path = row.track_path;
+            if (path.empty()) return;
             std::snprintf(buf, sizeof(buf), "%.*s",
                           static_cast<int>(path.size()), path.data());
             set_status(buf);
@@ -936,45 +953,33 @@
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return ::ui::scene::invalid_image_id();
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
-            if (!row.show_tail_action) {
-                return ::ui::scene::invalid_image_id();
-            }
-            return self->icons.more;
+            return row.tail_action_icon;
         }
 
         static ::ui::scene::ImageId list_view_tail_icon(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<PlayerController*>(const_cast<void*>(ctx));
             if (!self) return ::ui::scene::invalid_image_id();
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
-            if (!row.current_row) return ::ui::scene::invalid_image_id();
-            return self->is_paused() ? self->icons.pause : self->icons.play;
+            return row.tail_icon;
         }
 
         static ::ui::scene::ImageId list_view_icon(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<PlayerController*>(const_cast<void*>(ctx));
             if (!self) return ::ui::scene::invalid_image_id();
-            const auto* tracks = self->storage.tracks;
-            if (!tracks) return ::ui::scene::invalid_image_id();
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
-            const int row_track_index = row.track_index;
             const bool is_active = row.current_row && !row.group_row;
-            if (row_track_index < 0 || row_track_index >= static_cast<int>(tracks->size())) {
+            if (row.track_path.empty()) {
                 return ::ui::scene::invalid_image_id();
             }
-            const auto& path = (*tracks)[static_cast<std::size_t>(row_track_index)];
-            if (!is_audio_path(path.view())) {
-                return self->icons.folder;
+            if (!row.prefer_cover) {
+                return row.fallback_icon;
             }
-            std::string_view cover_path{};
-            if (row_track_index < static_cast<int>(self->list_cover_paths.size())) {
-                cover_path = self->list_cover_paths[static_cast<std::size_t>(row_track_index)].view();
-            }
-            const auto cover_id = self->resolve_list_cover_icon(path.view(), cover_path);
+            const auto cover_id = self->resolve_list_cover_icon(row.track_path, row.cover_path);
             if (::ui::scene::image_id_valid(cover_id)) return cover_id;
             if (is_active) {
-                return self->is_paused() ? self->icons.pause : self->icons.play;
+                return row.tail_icon;
             }
-            return self->icons.play;
+            return row.fallback_icon;
         }
 
         void clear_list_cover_cache() {

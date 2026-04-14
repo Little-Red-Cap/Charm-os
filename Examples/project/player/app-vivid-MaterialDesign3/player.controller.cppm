@@ -204,6 +204,12 @@ export namespace player {
             bool group_row{false};
             bool current_row{false};
             bool show_tail_action{false};
+            std::string_view track_path{};
+            std::string_view cover_path{};
+            ::ui::scene::ImageId tail_icon{};
+            ::ui::scene::ImageId tail_action_icon{};
+            ::ui::scene::ImageId fallback_icon{};
+            bool prefer_cover{false};
 
             std::string_view title() const noexcept {
                 return model ? model->title.view() : std::string_view{};

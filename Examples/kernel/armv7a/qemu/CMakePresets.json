@@ -45,6 +45,15 @@
       "cacheVariables": {
         "CHARM_ARMV7A_ABORT_SMOKE": "prefetch_xn"
       }
+    },
+    {
+      "name": "debug-abort-data-perm",
+      "displayName": "ARMv7-A QEMU Debug (Data Permission Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-perm",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_perm"
+      }
     }
   ],
   "buildPresets": [
@@ -63,6 +72,10 @@
     {
       "name": "debug-abort-prefetch-xn",
       "configurePreset": "debug-abort-prefetch-xn"
+    },
+    {
+      "name": "debug-abort-data-perm",
+      "configurePreset": "debug-abort-data-perm"
     }
   ]
 }

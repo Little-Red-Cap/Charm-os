@@ -22,6 +22,9 @@ cmake --build out\build\debug-abort-prefetch --verbose
 
 cmake --preset debug-abort-prefetch-xn
 cmake --build out\build\debug-abort-prefetch-xn --verbose
+
+cmake --preset debug-abort-data-perm
+cmake --build out\build\debug-abort-data-perm --verbose
 ```
 
 ## Run
@@ -72,6 +75,7 @@ exception path instead of returning to the regular SVC/IRQ smoke:
 .\run_qemu_abort_ci.ps1 -Kind data
 .\run_qemu_abort_ci.ps1 -Kind prefetch
 .\run_qemu_abort_ci.ps1 -Kind prefetch-xn
+.\run_qemu_abort_ci.ps1 -Kind data-perm
 ```
 
 ## Abort smoke
@@ -82,6 +86,7 @@ Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-xn\charm-armv7a-qemu
+.\run_qemu.ps1 -ElfPath out\build\debug-abort-data-perm\charm-armv7a-qemu
 ```
 
 Expected abort-mode output includes the same boot/MMU banner as the default
@@ -111,6 +116,15 @@ ARMv7-A exception: prefetch abort, pc=0x5......., lr=0x5......., spsr=0x........
 ARMv7-A prefetch fault, ifsr=0x0000001D, ifar=0x5......., aifsr=0x........
 ARMv7-A prefetch fault decode, status=0x0D (section permission fault), domain=0x1
 ARMv7-A fault map, far=0x5......., ttbr0=0x........, l1[0x500]=0x........ (section), domain=0x1, xn=yes, s=yes, c=yes, b=yes
+```
+
+```text
+ARMv7-A data alias ready, va=0x5......., pa=0x4......., desc=0x........
+ARMv7-A abort smoke, kind=data-perm, addr=0x5......., value=0xA5A55A5A
+ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
+ARMv7-A data fault, dfsr=0x0000081D, dfar=0x5......., adfsr=0x........
+ARMv7-A data fault decode, status=0x0D (section permission fault), domain=0x1, write=yes, cm=no
+ARMv7-A fault map, far=0x5......., ttbr0=0x........, l1[0x510]=0x........ (section), domain=0x1, xn=yes, s=yes, c=yes, b=yes
 ```
 
 ## GDB attach
@@ -160,6 +174,9 @@ continue
 - The `prefetch-xn` smoke adds one XN alias in `domain1 client`, which lets
   us validate an execute-never permission abort without changing the default
   `domain0 manager` bring-up path used by the regular smoke.
+- The `data-perm` smoke adds one no-access data alias in `domain1 client`,
+  which lets us validate a write-side permission abort while keeping the
+  default `domain0 manager` runtime unchanged.
 - Fatal exception logs now distinguish the pre-abort mode captured in `SPSR`
   from the current handler mode in `CPSR`, which makes abort bring-up logs
   much less ambiguous when we start chasing real board faults.

@@ -41,6 +41,10 @@ std::uint32_t make_section_descriptor(std::uintptr_t physical_address,
         return base | kL1Shareable | kL1Tex1 | kL1ApFullAccess |
                kL1ExecuteNever | kL1Cacheable | kL1Bufferable |
                domain_bits(domain) | kL1Section;
+    case Armv7aBootSectionType::kNormalNoAccessExecuteNever:
+        return base | kL1Shareable | kL1Tex1 |
+               kL1ExecuteNever | kL1Cacheable | kL1Bufferable |
+               domain_bits(domain) | kL1Section;
     case Armv7aBootSectionType::kDeviceData:
         return base | kL1Shareable | kL1ApFullAccess |
                kL1ExecuteNever | kL1Bufferable | domain_bits(domain) | kL1Section;

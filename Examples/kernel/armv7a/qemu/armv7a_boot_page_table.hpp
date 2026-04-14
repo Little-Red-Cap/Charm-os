@@ -6,6 +6,7 @@ enum class Armv7aBootSectionType {
     kFault,
     kNormalExecutable,
     kNormalExecuteNever,
+    kNormalNoAccessExecuteNever,
     kDeviceData,
 };
 

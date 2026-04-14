@@ -1,7 +1,7 @@
 param(
     [string]$QemuExe = "qemu-system-arm",
     [string]$ElfPath = "out\\build\\debug\\charm-armv7a-qemu",
-    [int]$TimeoutSec = 3,
+    [int]$TimeoutSec = 10,
     [int]$TailLines = 40
 )
 

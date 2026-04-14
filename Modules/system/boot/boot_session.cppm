@@ -20,6 +20,8 @@ export namespace boot {
         transport_done,
         verified,
         pending,
+        selected,
+        confirmed,
         failed
     };
 
@@ -44,7 +46,10 @@ export namespace boot {
         bool boot_info_loaded{false};
         bool boot_info_written{false};
         bool pending_set{false};
+        bool boot_selected{false};
+        bool success_marked{false};
         XyModemFlashResult transfer{};
+        BootResult boot{};
         BootInfo info{};
 
         constexpr explicit operator bool() const noexcept {
@@ -77,6 +82,7 @@ export namespace boot {
         SessionStage stage() const noexcept { return stage_; }
         const XyModemFlashState& transfer_state() const noexcept { return receiver_.state(); }
         const XyModemSessionResult& result() const noexcept { return result_; }
+        BootResult boot_result() const noexcept { return result_.boot; }
 
         bool transport_finished() const noexcept {
             const auto state = receiver_.modem().state();
@@ -157,7 +163,69 @@ export namespace boot {
             return result_;
         }
 
+        BootResult select_boot() noexcept {
+            if (stage_ == SessionStage::idle || stage_ == SessionStage::receiving) {
+                return result_.boot;
+            }
+
+            BootInfo info = result_.info;
+            if (!result_.boot_info_loaded && !load_boot_info(info)) {
+                info = {};
+            }
+
+            const auto boot = select_slot_policy(storage_, cfg_.boot, info, cfg_.policy);
+            result_.boot = boot;
+            result_.boot_selected = boot.status == BootStatus::ok;
+            result_.info = info;
+            result_.boot_info_loaded = true;
+
+            if (result_.boot_selected) {
+                stage_ = SessionStage::selected;
+                result_.stage = stage_;
+            }
+
+            return result_.boot;
+        }
+
+        bool mark_selected_success() noexcept {
+            if (!result_.boot_selected || result_.boot.status != BootStatus::ok) {
+                return false;
+            }
+            return mark_success_for_slot(result_.boot.slot);
+        }
+
+        bool mark_success_for_slot(Slot slot) noexcept {
+            BootInfo info = result_.info;
+            if (!result_.boot_info_loaded && !load_boot_info(info)) {
+                return false;
+            }
+            if (!mark_success(storage_, cfg_.boot, info, slot)) {
+                stage_ = SessionStage::failed;
+                result_.stage = stage_;
+                result_.info = info;
+                return false;
+            }
+
+            stage_ = SessionStage::confirmed;
+            result_.stage = stage_;
+            result_.boot = {BootStatus::ok, slot};
+            result_.boot_selected = true;
+            result_.success_marked = true;
+            result_.info = info;
+            result_.boot_info_loaded = true;
+            result_.ready_to_boot = true;
+            return true;
+        }
+
     private:
+        bool load_boot_info(BootInfo& info) const noexcept {
+            if (cfg_.has_seed_info) {
+                info = cfg_.seed_info;
+                return true;
+            }
+            return read_boot_info(storage_, cfg_.boot.info, info);
+        }
+
         static XyModemFlashConfig make_transfer_config(const XyModemSessionConfig& cfg) noexcept {
             return XyModemFlashConfig{
                 .target = partition_for_slot(cfg.boot, cfg.target_slot),

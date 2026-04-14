@@ -254,11 +254,10 @@ int main() {
         "slot_b.bin",
         std::span<const util::u8>(image_b.data(), image_b.size()));
     const auto download = receiver.complete();
-
-    boot::BootInfo boot_info{};
-    auto pick = boot::select_slot_policy(storage, cfg, boot_info, policy);
-    const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, boot_info);
-    const bool marked = boot::mark_success(storage, cfg, boot_info, pick.slot);
+    const auto pick = receiver.select_boot();
+    const bool marked = receiver.mark_selected_success();
+    const auto final_result = receiver.result();
+    const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info);
 
     MockFlash headerless_flash{};
     auto headerless_storage = make_storage(headerless_flash);
@@ -286,11 +285,12 @@ int main() {
                     static_cast<bool>(download) &&
                     download.pending_set &&
                     download.boot_info_written &&
-                    slot_b_valid &&
                     pick.status == boot::BootStatus::ok &&
+                    slot_b_valid &&
                     pick.slot == boot::Slot::b &&
                     marked &&
-                    boot_info.active == boot::Slot::b &&
+                    final_result.success_marked &&
+                    final_result.info.active == boot::Slot::b &&
                     headerless_failed;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
@@ -308,7 +308,7 @@ int main() {
     std::printf("[boot] pick=%s\n", pick.slot == boot::Slot::a ? "A" : "B");
     std::printf("[boot] mark_success=%d active=%s\n",
                 marked ? 1 : 0,
-                boot_info.active == boot::Slot::a ? "A" : "B");
+                final_result.info.active == boot::Slot::a ? "A" : "B");
     std::printf("[boot] headerless_fail=%d stage=%u missing_header=%d\n",
                 headerless_failed ? 1 : 0,
                 static_cast<unsigned>(headerless.stage),

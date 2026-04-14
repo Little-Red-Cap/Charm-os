@@ -22,7 +22,7 @@
 - `boot_core` / `boot_storage` / `boot_flash`：镜像头、存储抽象与按擦写粒度写入 Flash
 - `boot_flow` / `boot_policy`：A/B 槽位选择、镜像校验、成功确认与回滚策略骨架
 - `boot_uart` / `boot_xymodem`：串口接入与 X/YModem 下载到目标分区的 Stage2 侧封装
-- `boot_session`：把下载、镜像校验与 `BootInfo.pending` 落盘串成一个显式会话入口
+- `boot_session`：把下载、镜像校验、`BootInfo.pending` 落盘、槽位选择与成功确认串成一个显式 Stage2 会话入口
 - `Examples/boot/bootloader_demo`：可在主机侧演示“下载到 Slot B -> 校验 -> 选择启动 -> 标记成功”
 
 ## 2. 阶段目标
@@ -112,10 +112,10 @@ sequenceDiagram
   - UART/X-YModem 接收
   - 写入目标 Flash 分区
   - 下载完成后的 Stage2 会话收口（verify + pending）
-  - 基于镜像头与策略的槽位校验
-  - `pending -> active` 成功确认
+  - 基于镜像头与策略的槽位选择
+  - 会话内的 `pending -> active` 成功确认
 - 当前仍偏向“主机侧可验证骨架”，尚未进入板级 Stage1 搬运与跳转实现。
 - 下一阶段建议优先推进：
-  - 将 `boot_session` 从“会话收口”扩展为更完整的 Stage2 状态机/命令流
+  - 在现有 `boot_session` 基础上继续扩展更完整的 Stage2 状态机/命令流
   - 为 `boot_xymodem` / `boot_session` 增加更多错误路径与边界条件测试
   - 再向真实 UART / 板级 Flash 驱动适配收敛

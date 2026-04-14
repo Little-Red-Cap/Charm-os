@@ -36,6 +36,7 @@ Charm ARMv7-A QEMU skeleton
 Targeting Cortex-A7 first, RK3506 later.
 Charm out.format import active, PL011 @ 0x09000000
 ARMv7-A SVC vector active, imm=0x000043
+ARMv7-A timer IRQ active, intid=30
 ```
 
 ## CI smoke
@@ -66,7 +67,11 @@ continue
 - The linker starts at `0x40200000` to stay clear of the `virt` DTB area
   near `0x40000000`.
 - Current scope is intentionally small: reset entry, per-mode stacks,
-  VBAR/vector setup, one returning SVC smoke, and early PL011 UART on
-  QEMU `virt`.
+  VBAR/vector setup, one returning SVC smoke, one returning timer IRQ
+  smoke, and early PL011 UART on QEMU `virt`.
+- The timer smoke prepares both architected physical timer PPIs.
+  Current QEMU `virt` runs observed the non-secure physical timer route
+  (`intid=30`), but the code also accepts the secure route (`intid=29`)
+  so the same leaf target is less brittle across reset states.
 - This gives us a safe Cortex-A bring-up foothold before we start layering
   more of Charm on top or moving toward RK3506-specific work.

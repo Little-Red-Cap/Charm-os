@@ -80,6 +80,9 @@ if (-not $proc.HasExited) {
 
 $log = (Read-LogSafe -Path $outFile) + (Read-LogSafe -Path $errFile)
 $missing = $expected | Where-Object { -not $log.Contains($_) }
+if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
+    $missing += "ARMv7-A timer IRQ active, intid=29|30"
+}
 if ($missing.Count -gt 0) {
     Write-Output "[armv7a-qemu] log tail:"
     if (Test-Path $outFile) {
@@ -91,4 +94,4 @@ if ($missing.Count -gt 0) {
     throw "missing expected output: $($missing -join '; ')"
 }
 
-Write-Output "[ok] armv7a qemu hello detected"
+Write-Output "[ok] armv7a qemu smoke detected"

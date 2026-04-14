@@ -2,6 +2,7 @@ import out.format;
 import out.sink;
 
 extern "C" void qemu_semihost_write0(const char* text);
+extern "C" void armv7a_irq_smoke_test();
 extern "C" void armv7a_svc_smoke_test();
 extern "C" void early_uart_init();
 extern "C" void early_uart_putc(char ch);
@@ -52,5 +53,6 @@ int main()
     early_uart_puts("Targeting Cortex-A7 first, RK3506 later.\r\n");
     print_charm_module_status();
     armv7a_svc_smoke_test();
+    armv7a_irq_smoke_test();
     charm_spin();
 }

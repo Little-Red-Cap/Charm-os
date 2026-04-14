@@ -54,6 +54,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     early_uart.cpp
     qemu_virt_platform.cpp
     exceptions.cpp
+    irq_timer.cpp
     runtime_stubs.cpp)
 
 target_include_directories(${PROJECT_NAME} PRIVATE

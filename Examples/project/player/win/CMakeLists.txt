@@ -55,6 +55,7 @@ target_compile_definitions(${PLAYER_TARGET_INK} PRIVATE
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
 
 charm_example_sdl3_options()
 set(SDL_AUDIO ON)
@@ -88,6 +89,13 @@ set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-in
 set(CHARM_PLAYER_EXCLUDE_REGEX_INK "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-vivid/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_MD3 "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/")
 
+set(CHARM_PLAYER_WIN_CONFIG_TARGETS)
+if (CHARM_PLAYER_SOA_TRACE)
+    charm_add_config_interface(charm_cfg_player_win_trace
+        COMPILE_DEFINITIONS VIVID_SOA_TRACE_INPUT=1)
+    list(APPEND CHARM_PLAYER_WIN_CONFIG_TARGETS charm_cfg_player_win_trace)
+endif()
+
 charm_example_sources_filtered(${PLAYER_TARGET_VIVID}
     "${CHARM_ROOT}"
     "${CHARM_PLAYER_EXCLUDE_REGEX_VIVID}"
@@ -120,14 +128,12 @@ charm_example_sources(${PLAYER_TARGET_INK} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/common/pc/*.cppm"
 )
 
-charm_example_link_charm(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}")
+charm_example_link_charm(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}" ${CHARM_PLAYER_WIN_CONFIG_TARGETS})
 target_link_libraries(${PLAYER_TARGET_INK} PRIVATE Charm-os)
 target_link_libraries(${PLAYER_TARGET_VIVID_MD3} PRIVATE Charm-os)
 
 if (CHARM_PLAYER_SOA_TRACE)
-    target_compile_definitions(${PLAYER_TARGET_VIVID} PRIVATE VIVID_SOA_TRACE_INPUT=1)
-    target_compile_definitions(${PLAYER_TARGET_VIVID_MD3} PRIVATE VIVID_SOA_TRACE_INPUT=1)
-    target_compile_definitions(Charm-os PRIVATE VIVID_SOA_TRACE_INPUT=1)
+    charm_apply_config_targets(${PLAYER_TARGET_VIVID_MD3} charm_cfg_player_win_trace)
 endif()
 
 target_sources(${PLAYER_TARGET_VIVID} PRIVATE

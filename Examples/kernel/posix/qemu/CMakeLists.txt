@@ -50,7 +50,7 @@ set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
-charm_apply_config_targets(Charm-os charm_cfg_kernel_posix_qemu)
+charm_apply_config_targets(Charm-build-config charm_cfg_kernel_posix_qemu)
 charm_apply_config_targets(${target_name} charm_cfg_kernel_posix_qemu)
 target_compile_definitions(${target_name} PRIVATE
     POSIX_SMOKE_USE_UART=1

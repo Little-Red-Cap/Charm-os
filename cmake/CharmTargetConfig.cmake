@@ -58,13 +58,36 @@ function(charm_add_config_interface target)
     endif()
 endfunction()
 
+function(charm_resolve_config_target out_var target)
+    set(_resolved_target "${target}")
+    if ((target STREQUAL "Charm-os" OR target STREQUAL "Charm::os")
+        AND TARGET Charm-build-config)
+        set(_resolved_target "Charm-build-config")
+    endif()
+    set(${out_var} "${_resolved_target}" PARENT_SCOPE)
+endfunction()
+
 function(charm_apply_config_targets target)
+    charm_resolve_config_target(_resolved_target "${target}")
+
+    if (NOT TARGET ${_resolved_target})
+        message(FATAL_ERROR
+            "charm_apply_config_targets(${target} ...): missing target ${_resolved_target}")
+    endif()
+
+    get_target_property(_target_type ${_resolved_target} TYPE)
+    if (_target_type STREQUAL "INTERFACE_LIBRARY")
+        set(_link_scope INTERFACE)
+    else()
+        set(_link_scope PRIVATE)
+    endif()
+
     foreach(cfg IN LISTS ARGN)
         if (NOT TARGET ${cfg})
             message(FATAL_ERROR
                 "charm_apply_config_targets(${target} ...): missing config target ${cfg}")
         endif()
-        target_link_libraries(${target} PRIVATE ${cfg})
+        target_link_libraries(${_resolved_target} ${_link_scope} ${cfg})
     endforeach()
 endfunction()
 

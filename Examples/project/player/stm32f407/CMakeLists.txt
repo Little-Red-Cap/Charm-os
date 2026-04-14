@@ -109,17 +109,17 @@ add_compile_definitions(STM32F407xx)
 add_compile_definitions(USE_HAL_DRIVER)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
+charm_add_config_interface(charm_cfg_player_stm32f407
+    INCLUDE_DIRECTORIES
+        $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>)
 set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 set(CHARM_AUDIO_SINK_I2S ON CACHE BOOL "" FORCE)
 set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
-
-# Provide CubeMX headers to Charm-os so I2S sink can include i2s.h/main.h.
-target_include_directories(Charm-os PRIVATE
-    $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>
-)
+charm_apply_config_targets(Charm-build-config charm_cfg_player_stm32f407)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}

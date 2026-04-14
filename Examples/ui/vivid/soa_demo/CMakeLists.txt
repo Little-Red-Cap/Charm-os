@@ -11,6 +11,7 @@ add_executable(${target_name}
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
 
 charm_example_sdl3_options()
 
@@ -20,12 +21,13 @@ set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
 set(CHARM_VIVID_SCREEN_WIDTH 800 CACHE STRING "" FORCE)
 set(CHARM_VIVID_SCREEN_HEIGHT 480 CACHE STRING "" FORCE)
 
-charm_example_link_charm(${target_name} "${CHARM_ROOT}")
-
 if (CHARM_VIVID_SOA_TRACE_INPUT)
-    target_compile_definitions(${target_name} PRIVATE VIVID_SOA_TRACE_INPUT=1)
-    target_compile_definitions(Charm-os PRIVATE VIVID_SOA_TRACE_INPUT=1)
+    charm_add_config_interface(charm_cfg_vivid_soa_demo
+        COMPILE_DEFINITIONS VIVID_SOA_TRACE_INPUT=1)
+    set(_vivid_soa_demo_configs charm_cfg_vivid_soa_demo)
 endif()
+
+charm_example_link_charm(${target_name} "${CHARM_ROOT}" ${_vivid_soa_demo_configs})
 
 target_sources(${target_name} PRIVATE
 )

@@ -28,6 +28,9 @@ cmake --build out\build\debug-abort-data-perm --verbose
 
 cmake --preset debug-abort-data-page
 cmake --build out\build\debug-abort-data-page --verbose
+
+cmake --preset debug-abort-data-page-perm
+cmake --build out\build\debug-abort-data-page-perm --verbose
 ```
 
 ## Run
@@ -82,6 +85,7 @@ exception path instead of returning to the regular SVC/IRQ smoke:
 .\run_qemu_abort_ci.ps1 -Kind prefetch-xn
 .\run_qemu_abort_ci.ps1 -Kind data-perm
 .\run_qemu_abort_ci.ps1 -Kind data-page
+.\run_qemu_abort_ci.ps1 -Kind data-page-perm
 ```
 
 ## Abort smoke
@@ -94,6 +98,7 @@ Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-xn\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data-perm\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data-page\charm-armv7a-qemu
+.\run_qemu.ps1 -ElfPath out\build\debug-abort-data-page-perm\charm-armv7a-qemu
 ```
 
 Expected abort-mode output includes the same boot/MMU banner as the default
@@ -141,6 +146,15 @@ ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, or
 ARMv7-A data fault, dfsr=0x00000007, dfar=0x53000040, adfsr=0x........
 ARMv7-A data fault decode, status=0x07 (page translation fault), domain=0x0, write=no, cm=no
 ARMv7-A fault map, far=0x53000040, ttbr0=0x........, l1[0x530]=0x........ (page table), domain=0x0, l2[0x00]=0x00000000 (fault)
+```
+
+```text
+ARMv7-A data-page-perm alias ready, va=0x54......, pa=0x4......., l1=0x........, l2=0x........
+ARMv7-A abort smoke, kind=data-page-perm, addr=0x54......, value=0xA5A55A5A
+ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
+ARMv7-A data fault, dfsr=0x0000081F, dfar=0x54......, adfsr=0x........
+ARMv7-A data fault decode, status=0x0F (page permission fault), domain=0x1, write=yes, cm=no
+ARMv7-A fault map, far=0x54......, ttbr0=0x........, l1[0x540]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
 ```
 
 ## GDB attach
@@ -200,6 +214,9 @@ continue
 - The `data-page` smoke keeps a valid coarse L1 entry but leaves the matching
   4KB L2 entry empty, which lets us validate a true page translation fault
   instead of another 1MB section miss.
+- The `data-page-perm` smoke keeps both coarse L1 and small-page L2 valid,
+  but marks the page itself no-access in `domain1 client`, which lets us
+  validate a true page permission fault on the write path.
 - Fatal exception logs now distinguish the pre-abort mode captured in `SPSR`
   from the current handler mode in `CPSR`, which makes abort bring-up logs
   much less ambiguous when we start chasing real board faults.

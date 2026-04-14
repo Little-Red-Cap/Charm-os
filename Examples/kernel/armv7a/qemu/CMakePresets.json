@@ -63,6 +63,15 @@
       "cacheVariables": {
         "CHARM_ARMV7A_ABORT_SMOKE": "data_page"
       }
+    },
+    {
+      "name": "debug-abort-data-page-perm",
+      "displayName": "ARMv7-A QEMU Debug (Data Page Permission Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-page-perm",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_page_perm"
+      }
     }
   ],
   "buildPresets": [
@@ -89,6 +98,10 @@
     {
       "name": "debug-abort-data-page",
       "configurePreset": "debug-abort-data-page"
+    },
+    {
+      "name": "debug-abort-data-page-perm",
+      "configurePreset": "debug-abort-data-page-perm"
     }
   ]
 }

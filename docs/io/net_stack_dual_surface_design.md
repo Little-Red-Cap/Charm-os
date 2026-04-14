@@ -434,6 +434,7 @@ netif 是内部骨架概念，不应成为普通用户主入口。
 `TcpClient/UdpSocket/TcpListener` 应尽量轻量。
 
 用户对象负责：
+- 对高频场景直接给出少量便捷动作，例如 `listen_loopback / listen_any / connect_loopback / bind_any`，避免普通用户反复手拼 `Endpoint`
 
 - 表达意图
 - 持有句柄/状态

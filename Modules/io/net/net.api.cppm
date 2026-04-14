@@ -41,6 +41,11 @@ export namespace net {
             return {};
         }
 
+        [[nodiscard]] Result<void> connect_loopback(const Stack& stack,
+                                                    util::u16 remote_port) noexcept {
+            return connect(stack, Endpoint::ipv4_loopback(remote_port));
+        }
+
         [[nodiscard]] IoResult send(ByteView buf) noexcept {
             return socket_.send(buf);
         }
@@ -100,6 +105,18 @@ export namespace net {
             return {};
         }
 
+        [[nodiscard]] Result<void> listen_any(const Stack& stack,
+                                              util::u16 local_port,
+                                              util::u16 backlog = 4) noexcept {
+            return listen(stack, Endpoint::ipv4_any(local_port), backlog);
+        }
+
+        [[nodiscard]] Result<void> listen_loopback(const Stack& stack,
+                                                   util::u16 local_port,
+                                                   util::u16 backlog = 4) noexcept {
+            return listen(stack, Endpoint::ipv4_loopback(local_port), backlog);
+        }
+
         [[nodiscard]] Result<void> accept(TcpClient& out, Endpoint* peer = nullptr) noexcept {
             return socket_.accept(out.socket_, peer);
         }
@@ -144,12 +161,26 @@ export namespace net {
             return socket_.bind(local);
         }
 
+        [[nodiscard]] Result<void> bind_any(const Stack& stack, util::u16 local_port) noexcept {
+            return bind(stack, Endpoint::ipv4_any(local_port));
+        }
+
+        [[nodiscard]] Result<void> bind_loopback(const Stack& stack,
+                                                 util::u16 local_port) noexcept {
+            return bind(stack, Endpoint::ipv4_loopback(local_port));
+        }
+
         [[nodiscard]] Result<void> connect(const Stack& stack, const Endpoint& remote) noexcept {
             if (!valid()) {
                 auto opened = open(stack);
                 if (!opened) return util::unexpected(opened.error());
             }
             return socket_.connect(remote);
+        }
+
+        [[nodiscard]] Result<void> connect_loopback(const Stack& stack,
+                                                    util::u16 remote_port) noexcept {
+            return connect(stack, Endpoint::ipv4_loopback(remote_port));
         }
 
         [[nodiscard]] IoResult send(ByteView buf) noexcept {
@@ -252,27 +283,54 @@ namespace net {
         Stack stack{provider};
         TcpListener listener{};
         TcpClient client{};
+        TcpListener listener_any{};
+        TcpClient client_any{};
+        TcpClient accepted_any{};
+        TcpClient accepted_loopback{};
         UdpSocket udp{};
+        UdpSocket udp_connected{};
+        UdpSocket udp_loopback{};
+        UdpSocket udp_connected_loopback{};
         Endpoint peer{};
         util::u8 rx[4]{};
         util::u8 tx[3]{1, 2, 3};
 
         if (!stack.valid()) return false;
-        if (!listener.listen(stack, Endpoint::ipv4_any(1883), 2)) return false;
-        if (!listener.accept(client, &peer)) return false;
-        if (!client.valid()) return false;
+        if (!listener.listen_loopback(stack, 1883, 2)) return false;
+        if (!client.connect_loopback(stack, 1883)) return false;
+        if (!listener.accept(accepted_loopback, &peer)) return false;
+        if (!accepted_loopback.valid()) return false;
         if (peer.port != 5001) return false;
         if (!client.send(ByteView{tx, 3})) return false;
-        if (!client.recv(MutByteView{rx, 4})) return false;
+        if (!accepted_loopback.recv(MutByteView{rx, 4})) return false;
         if (rx[0] != 0x7E) return false;
         if (!client.close()) return false;
+        if (!accepted_loopback.close()) return false;
         if (!listener.close()) return false;
 
-        if (!udp.bind(stack, Endpoint::ipv4_any(5000))) return false;
-        if (!udp.send_to(Endpoint::ipv4(192, 168, 0, 10, 6000), ByteView{tx, 3})) return false;
-        if (!udp.recv_from(MutByteView{rx, 4}, peer)) return false;
-        if (peer.port != 6000) return false;
+        if (!listener_any.listen_any(stack, 1884, 2)) return false;
+        if (!client_any.connect_loopback(stack, 1884)) return false;
+        if (!listener_any.accept(accepted_any, nullptr)) return false;
+        if (!accepted_any.valid()) return false;
+        if (!client_any.close()) return false;
+        if (!accepted_any.close()) return false;
+        if (!listener_any.close()) return false;
+
+        if (!udp.bind_any(stack, 5000)) return false;
+        if (!udp_connected.connect_loopback(stack, 5000)) return false;
+        if (!udp_connected.send(ByteView{tx, 3})) return false;
+        if (!udp.recv(MutByteView{rx, 4})) return false;
+        if (rx[0] != 0x7E) return false;
         if (!udp.close()) return false;
+        if (!udp_connected.close()) return false;
+
+        if (!udp_loopback.bind_loopback(stack, 5001)) return false;
+        if (!udp_connected_loopback.connect_loopback(stack, 5001)) return false;
+        if (!udp_connected_loopback.send(ByteView{tx, 3})) return false;
+        if (!udp_loopback.recv(MutByteView{rx, 4})) return false;
+        if (rx[0] != 0x7E) return false;
+        if (!udp_loopback.close()) return false;
+        if (!udp_connected_loopback.close()) return false;
         return true;
     }
 }

@@ -453,7 +453,9 @@ int charm_posix_newlib_path_entry(void) {
     if (write(fd, "bravo", 5) != 5) return 132;
     if (close(fd) != 0) return 133;
 
+    errno = 71;
     if (stat("/newlib-path.txt", &st) != 0) return 134;
+    if (errno != 71) return 542;
     if ((st.st_mode & S_IFMT) != S_IFREG) return 135;
     if (st.st_size != 5) return 136;
 
@@ -465,7 +467,9 @@ int charm_posix_newlib_path_entry(void) {
     if (access("/newlib-path.txt", F_OK) != 0) return 137;
     if (errno != 77) return 138;
     if (access("/newlib-path.txt", R_OK) != 0) return 138;
+    if (errno != 77) return 543;
     if (access("/newlib-path.txt", W_OK) != 0) return 139;
+    if (errno != 77) return 544;
     errno = 0;
     if (access("/newlib-path.txt", X_OK) != -1) return 140;
     if (errno != EACCES) return 141;
@@ -608,14 +612,20 @@ int charm_posix_newlib_cwd_entry(void) {
     int fd = -1;
     struct stat st;
 
+    errno = 81;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 181;
+    if (errno != 81) return 545;
     if (strcmp(cwd, "/") != 0) return 182;
 
     if (mkdir("/newlib-cwd", 0) != 0) return 183;
     if (mkdir("/newlib-cwd/sub", 0) != 0) return 184;
 
+    errno = 82;
     if (chdir("/newlib-cwd") != 0) return 185;
+    if (errno != 82) return 546;
+    errno = 83;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 186;
+    if (errno != 83) return 547;
     if (strcmp(cwd, "/newlib-cwd") != 0) return 187;
 
     fd = open("child.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
@@ -687,10 +697,14 @@ int charm_posix_newlib_stdio_entry(void) {
     if (memcmp(buf, "echo\n", 5) != 0) return 161;
     if (fclose(fp) != 0) return 162;
 
+    errno = 91;
     if (remove("/newlib-stdio.txt") != 0) return 163;
+    if (errno != 91) return 548;
 
     if (mkdir("/newlib-stdio-dir", 0) != 0) return 164;
+    errno = 92;
     if (remove("/newlib-stdio-dir") != 0) return 165;
+    if (errno != 92) return 549;
 
     if (fputs("newlib-stdio-ok\n", stdout) == EOF) return 166;
     if (fflush(stdout) != 0) return 167;

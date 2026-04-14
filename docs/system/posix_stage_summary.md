@@ -37,6 +37,7 @@
 - `read(-1, ...) -> -1 && errno == EBADF`
 - `write(-1, ...) -> -1 && errno == EBADF`
 - `close(-1) -> -1 && errno == EBADF`
+- `pipe()` v0 currently behaves as an eager nonblocking primitive: empty reads with a live writer return `-1 && errno == EAGAIN`, full writes with a live reader return `-1 && errno == EAGAIN`, writer shutdown still yields `read() -> 0`, and per-endpoint `O_NONBLOCK` remains observable through `fcntl(F_GETFL/F_SETFL)` and shared across dup-family aliases on that endpoint
 - `dup(valid-fd) -> new-fd`, `dup2(old,new) -> new`, `fcntl(fd, F_DUPFD, min) -> lowest-available>=min`, `fcntl(fd, F_GETFD) -> {0|FD_CLOEXEC}`, `fcntl(fd, F_SETFD, flag) -> 0`, `fcntl(fd, F_GETFL) -> access-mode | status-flags`, `fcntl(fd, F_SETFL, flags) -> 0`, `fcntl(fd, F_SETFD/F_SETFL, invalid) -> -1 && errno == EINVAL`, `dup(-1) -> -1 && errno == EBADF`, `dup2(-1,new) -> -1 && errno == EBADF`, `fcntl(-1, F_DUPFD/F_GETFD/F_SETFD/F_GETFL/F_SETFL, ...) -> -1 && errno == EBADF`, `fcntl(fd, F_DUPFD, -1) -> -1 && errno == EINVAL`, `dup/full-table` style exhaustion returns `EMFILE`, dup-family-created descriptors always clear `FD_CLOEXEC` on the new fd, and duplicated descriptors share open-file status flags such as `O_APPEND` / `O_NONBLOCK` through the backend ctx
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
@@ -49,6 +50,7 @@
 - file-backed ELF can be loaded and spawned from a path
 - stdio/fd/pipe/wait form a working minimal userland spine
 - fd duplication now has a stable minimum contract through `dup()`/`dup2()`/`fcntl()` across API smoke, bound-runtime bridge smoke, and spawned newlib smoke; descriptor close-on-exec now maps to `FdEntry.inheritable == false`, while `O_APPEND` / `O_NONBLOCK` now ride the shared open-file-description side via backend ctx hooks
+- pipe endpoints now also have a documented v0 nonblocking contract: readiness is still eager rather than truly blocking, but user-visible `EAGAIN` / EOF behavior and `O_NONBLOCK` introspection are stable enough for the current syscall bridge and smoke surface
 - busybox phase2 smoke remains usable on top of the current spine
 - busybox phase1 minimal FS slice is now usable on top of the current spine
 - child fd cleanup on exit is in place and no longer destabilizes pipe EOF behavior

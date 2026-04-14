@@ -355,6 +355,62 @@ namespace {
         check_eq("pipe-read", r, 2);
     }
 
+    void test_api_pipe_nonblock_v0() noexcept {
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<1, 2> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 1, 2, 4, 4, 4> api{fds, files, pipes, procs};
+        int pipefd[2]{-1, -1};
+        check_eq("pipe-nb-create", api.pipe(pipefd), 0);
+        check_eq("pipe-nb-getfl-r-init", api.fcntl(pipefd[0], posix::F_GETFL), posix::O_RDONLY);
+        check_eq("pipe-nb-getfl-w-init", api.fcntl(pipefd[1], posix::F_GETFL), posix::O_WRONLY);
+
+        char ch = 0;
+        posix::set_errno(0);
+        check_eq("pipe-nb-empty-read-rc", api.read(pipefd[0], &ch, 1), static_cast<posix::ssize_t>(-1));
+        check_eq("pipe-nb-empty-read-errno", posix::get_errno(), posix::EAGAIN);
+
+        check_eq("pipe-nb-setfl-r", api.fcntl(pipefd[0], posix::F_SETFL, posix::O_NONBLOCK), 0);
+        check_eq("pipe-nb-getfl-r", api.fcntl(pipefd[0], posix::F_GETFL), posix::O_RDONLY | posix::O_NONBLOCK);
+        int dup_r = api.dup(pipefd[0]);
+        check_true("pipe-nb-dup-r", dup_r >= 0);
+        check_eq("pipe-nb-getfl-r-shared", api.fcntl(dup_r, posix::F_GETFL), posix::O_RDONLY | posix::O_NONBLOCK);
+
+        check_eq("pipe-nb-fill", api.write(pipefd[1], "ab", 2), static_cast<posix::ssize_t>(2));
+
+        posix::set_errno(0);
+        check_eq("pipe-nb-full-write-rc", api.write(pipefd[1], "c", 1), static_cast<posix::ssize_t>(-1));
+        check_eq("pipe-nb-full-write-errno", posix::get_errno(), posix::EAGAIN);
+
+        check_eq("pipe-nb-setfl-w", api.fcntl(pipefd[1], posix::F_SETFL, posix::O_NONBLOCK), 0);
+        check_eq("pipe-nb-getfl-w", api.fcntl(pipefd[1], posix::F_GETFL), posix::O_WRONLY | posix::O_NONBLOCK);
+        int dup_w = api.dup(pipefd[1]);
+        check_true("pipe-nb-dup-w", dup_w >= 0);
+        check_eq("pipe-nb-getfl-w-shared", api.fcntl(dup_w, posix::F_GETFL), posix::O_WRONLY | posix::O_NONBLOCK);
+        check_eq("pipe-nb-clearfl-w", api.fcntl(dup_w, posix::F_SETFL, 0), 0);
+        check_eq("pipe-nb-getfl-w-cleared", api.fcntl(pipefd[1], posix::F_GETFL), posix::O_WRONLY);
+
+        std::array<char, 4> out{};
+        auto r = api.read(pipefd[0], out.data(), out.size());
+        check_eq("pipe-nb-drain", r, static_cast<posix::ssize_t>(2));
+        check_eq("pipe-nb-drain-text", std::string_view{out.data(), 2}, std::string_view{"ab"});
+
+        check_eq("pipe-nb-close-w", api.close(pipefd[1]), 0);
+        check_eq("pipe-nb-close-dup-w", api.close(dup_w), 0);
+        posix::set_errno(0);
+        check_eq("pipe-nb-eof", api.read(pipefd[0], &ch, 1), static_cast<posix::ssize_t>(0));
+        check_eq("pipe-nb-eof-errno", posix::get_errno(), 0);
+
+        check_eq("pipe-nb-close-r", api.close(pipefd[0]), 0);
+        check_eq("pipe-nb-close-dup-r", api.close(dup_r), 0);
+    }
+
     void test_api_spawn_wait() noexcept {
         posix::FdTable<8> fds{};
         posix::FileService<4> files{};
@@ -1535,6 +1591,7 @@ export void run_posix_api_smoke_tests() noexcept {
     log_line("[posix-smoke] api begin");
     test_api_open_close();
     test_api_pipe_rw();
+    test_api_pipe_nonblock_v0();
     test_api_spawn_wait();
     test_api_spawn_wait_envp_v1();
     test_api_spawnp_wait();

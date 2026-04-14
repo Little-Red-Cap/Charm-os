@@ -1,5 +1,7 @@
 #include <cstdint>
 
+#include "armv7a_cpu.hpp"
+
 extern "C" void early_uart_init();
 extern "C" void early_uart_putc(char ch);
 extern "C" void early_uart_puts(const char* text);
@@ -44,11 +46,6 @@ const char* exception_name(unsigned int kind)
 }
 } // namespace
 
-extern "C" void armv7a_svc_smoke_test()
-{
-    asm volatile("svc #0x43" ::: "memory");
-}
-
 extern "C" void armv7a_handle_svc(unsigned int lr, unsigned int)
 {
     const auto* instruction = reinterpret_cast<const std::uint32_t*>(lr - 4u);
@@ -69,6 +66,8 @@ extern "C" [[noreturn]] void armv7a_exception_fatal(unsigned int kind,
     early_uart_write_hex(lr, 8);
     early_uart_puts(", spsr=0x");
     early_uart_write_hex(spsr, 8);
+    early_uart_puts(", mode=");
+    early_uart_puts(armv7a_mode_name(spsr));
     early_uart_puts("\r\n");
     charm_spin();
 }

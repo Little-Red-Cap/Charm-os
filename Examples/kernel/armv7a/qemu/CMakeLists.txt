@@ -51,6 +51,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     vectors.S
     startup.S
     main.cpp
+    armv7a_cpu.cpp
+    armv7a_arch_timer.cpp
     early_uart.cpp
     qemu_virt_platform.cpp
     exceptions.cpp

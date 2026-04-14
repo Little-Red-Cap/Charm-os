@@ -1,5 +1,8 @@
 #include <cstdint>
 
+#include "armv7a_arch_timer.hpp"
+#include "armv7a_cpu.hpp"
+
 extern "C" void early_uart_putc(char ch);
 extern "C" void early_uart_puts(const char* text);
 
@@ -52,71 +55,16 @@ inline void mmio_write(std::uintptr_t base, std::uint32_t offset, std::uint32_t 
     reg(base + offset) = value;
 }
 
-inline void data_sync_barrier()
-{
-    asm volatile("dsb sy" ::: "memory");
-}
-
-inline void instruction_sync_barrier()
-{
-    asm volatile("isb" ::: "memory");
-}
-
-inline void enable_irq()
-{
-    asm volatile("cpsie i" ::: "memory");
-}
-
-inline void disable_irq()
-{
-    asm volatile("cpsid i" ::: "memory");
-}
-
-std::uint32_t arch_timer_read_cntfrq()
-{
-    std::uint32_t value = 0;
-    asm volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(value));
-    return value;
-}
-
-std::uint64_t arch_timer_read_cntpct()
-{
-    std::uint32_t lo = 0;
-    std::uint32_t hi = 0;
-    instruction_sync_barrier();
-    asm volatile("mrrc p15, 0, %0, %1, c14" : "=r"(lo), "=r"(hi));
-    return (static_cast<std::uint64_t>(hi) << 32) | lo;
-}
-
-std::uint32_t arch_timer_read_ctrl()
-{
-    std::uint32_t value = 0;
-    asm volatile("mrc p15, 0, %0, c14, c2, 1" : "=r"(value));
-    return value;
-}
-
-void arch_timer_write_ctrl(std::uint32_t value)
-{
-    asm volatile("mcr p15, 0, %0, c14, c2, 1" : : "r"(value));
-    instruction_sync_barrier();
-}
-
-void arch_timer_write_tval(std::uint32_t value)
-{
-    asm volatile("mcr p15, 0, %0, c14, c2, 0" : : "r"(value));
-    instruction_sync_barrier();
-}
-
 void arch_timer_stop()
 {
-    arch_timer_write_ctrl(kTimerCtrlItMask);
+    armv7a_timer_write_ctrl(kTimerCtrlItMask);
 }
 
 void arch_timer_start_oneshot(std::uint32_t ticks)
 {
     arch_timer_stop();
-    arch_timer_write_tval(ticks);
-    arch_timer_write_ctrl(kTimerCtrlEnable);
+    armv7a_timer_write_tval(ticks);
+    armv7a_timer_write_ctrl(kTimerCtrlEnable);
 }
 
 void gic_disable_line(unsigned int intid)
@@ -227,8 +175,8 @@ void gic_init_timer_irq()
     // works across QEMU reset states and future boards.
     gic_configure_timer_line(kSecureTimerIntId, false);
     gic_configure_timer_line(kNonSecureTimerIntId, true);
-    data_sync_barrier();
-    instruction_sync_barrier();
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
 }
 
 void gic_enable_interfaces()
@@ -238,16 +186,16 @@ void gic_enable_interfaces()
     // AckCtl lets one IAR/EOIR pair handle both Group0 and Group1 IRQs.
     mmio_write(kGicCpuBase, kGiccCtlr, 0x7u);
     mmio_write(kGicDistBase, kGicdCtlr, 0x3u);
-    data_sync_barrier();
-    instruction_sync_barrier();
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
 }
 
 void gic_disable_interfaces()
 {
     mmio_write(kGicCpuBase, kGiccCtlr, 0u);
     mmio_write(kGicDistBase, kGicdCtlr, 0u);
-    data_sync_barrier();
-    instruction_sync_barrier();
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
 }
 
 void print_hex32(std::uint32_t value)
@@ -328,11 +276,11 @@ extern "C" void armv7a_handle_irq(unsigned int lr, unsigned int spsr)
 
 extern "C" void armv7a_irq_smoke_test()
 {
-    disable_irq();
+    armv7a_disable_irq();
     g_timer_irq_count = 0;
     g_last_irq_intid = kSpuriousIntId;
 
-    const auto frequency = arch_timer_read_cntfrq();
+    const auto frequency = armv7a_timer_read_cntfrq();
     std::uint32_t ticks = frequency / 200u;
     if (ticks < 0x1000u) {
         ticks = 0x1000u;
@@ -342,16 +290,15 @@ extern "C" void armv7a_irq_smoke_test()
     gic_enable_interfaces();
     arch_timer_start_oneshot(ticks);
 
-    const auto start = arch_timer_read_cntpct();
+    const auto start = armv7a_timer_read_cntpct();
     const auto timeout = start + (frequency != 0u ? frequency : 0x100000u);
 
-    enable_irq();
-    while (g_timer_irq_count == 0u && arch_timer_read_cntpct() < timeout) {
+    armv7a_enable_irq();
+    while (g_timer_irq_count == 0u && armv7a_timer_read_cntpct() < timeout) {
         // Keep polling instead of sleeping in WFI so a broken IRQ route still
         // reaches the timeout diagnostics instead of stalling forever.
-        asm volatile("nop");
     }
-    disable_irq();
+    armv7a_disable_irq();
 
     arch_timer_stop();
     gic_disable_line(kSecureTimerIntId);
@@ -361,7 +308,7 @@ extern "C" void armv7a_irq_smoke_test()
     gic_disable_interfaces();
 
     if (g_timer_irq_count == 0u) {
-        print_irq_timeout(arch_timer_read_ctrl());
+        print_irq_timeout(armv7a_timer_read_ctrl());
         return;
     }
 

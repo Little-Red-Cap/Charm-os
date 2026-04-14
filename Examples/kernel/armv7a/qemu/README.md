@@ -34,6 +34,8 @@ Expected console output:
 ```text
 Charm ARMv7-A QEMU skeleton
 Targeting Cortex-A7 first, RK3506 later.
+ARMv7-A boot state, cpsr=0x600001DF, mode=sys, irq=masked
+ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=0x03B9ACA0
 Charm out.format import active, PL011 @ 0x09000000
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
@@ -69,6 +71,9 @@ continue
 - Current scope is intentionally small: reset entry, per-mode stacks,
   VBAR/vector setup, one returning SVC smoke, one returning timer IRQ
   smoke, and early PL011 UART on QEMU `virt`.
+- ARMv7-A specific inline assembly is now funneled into dedicated leaf-target
+  helpers such as `armv7a_cpu.cpp` and `armv7a_arch_timer.cpp`, so the
+  higher-level smoke tests stay mostly plain C++.
 - The timer smoke prepares both architected physical timer PPIs.
   Current QEMU `virt` runs observed the non-secure physical timer route
   (`intid=30`), but the code also accepts the secure route (`intid=29`)

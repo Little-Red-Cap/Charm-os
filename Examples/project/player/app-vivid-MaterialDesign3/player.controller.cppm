@@ -232,6 +232,9 @@ export namespace player {
         std::vector<FixedString<192>> list_display_titles{};
         std::vector<FixedString<128>> list_display_subtitles{};
         std::vector<FixedString<32>> list_display_tails{};
+        std::vector<int> track_duration_cache_sec{};
+        std::size_t list_duration_probe_cursor{0};
+        std::uint64_t last_list_duration_probe_ms{0};
         std::vector<FixedString<260>> list_cover_paths{};
         struct ListCoverCacheEntry {
             FixedString<260> path{};
@@ -592,6 +595,20 @@ export namespace player {
                 if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return "FLAC";
             }
             return {};
+        }
+
+        static void format_duration_compact(int total_sec, char* out, std::size_t out_size) noexcept {
+            if (!out || out_size == 0) return;
+            out[0] = '\0';
+            if (total_sec <= 0) return;
+            const int hours = total_sec / 3600;
+            const int minutes = (total_sec / 60) % 60;
+            const int seconds = total_sec % 60;
+            if (hours > 0) {
+                std::snprintf(out, out_size, "%d:%02d:%02d", hours, minutes, seconds);
+            } else {
+                std::snprintf(out, out_size, "%d:%02d", total_sec / 60, seconds);
+            }
         }
 
         static std::uint64_t query_track_size(const char* path) noexcept {

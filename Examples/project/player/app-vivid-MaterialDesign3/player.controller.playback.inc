@@ -188,6 +188,10 @@
                 if (player::probe_duration_seconds(track_path, secs)) {
                     playback.set_duration_from_probe(secs);
                     preloaded_duration_sec = secs;
+                    if (cache_track_duration(track_index, secs) && current_page == PlayerPage::Library) {
+                        rebuild_list_display_tails();
+                        notify_list_tail_source_changed();
+                    }
                     update_info_label();
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                     std::printf("[np] preload duration=%d path=%s\n", secs, track_path);

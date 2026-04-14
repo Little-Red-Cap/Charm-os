@@ -11,6 +11,7 @@
             update_list_path();
             update_list_sort_label();
             update_list_placeholder();
+            tick_list_duration_probe();
             update_debug_overlay();
         }
 
@@ -29,6 +30,9 @@
 
         static constexpr int kLibraryTabRadius = 19;
         static constexpr int kLibraryPathRadius = 10;
+        static constexpr int kTrackDurationUnknown = -1;
+        static constexpr int kTrackDurationUnavailable = -2;
+        static constexpr std::uint64_t kListDurationProbeIntervalMs = 120;
 
         struct LibrarySortKey {
             std::string_view primary{};
@@ -126,6 +130,118 @@
 
         bool library_shows_group_rows() const noexcept {
             return !library_has_context() && library_tab != LibraryTab::Songs;
+        }
+
+        void reset_track_duration_cache() {
+            track_duration_cache_sec.clear();
+            list_duration_probe_cursor = 0;
+            last_list_duration_probe_ms = 0;
+        }
+
+        void ensure_track_duration_cache() {
+            const auto* tracks = storage.tracks;
+            const std::size_t count = tracks ? tracks->size() : 0;
+            if (track_duration_cache_sec.size() != count) {
+                track_duration_cache_sec.assign(count, kTrackDurationUnknown);
+                list_duration_probe_cursor = 0;
+                last_list_duration_probe_ms = 0;
+            }
+        }
+
+        int cached_track_duration(int track_index) const noexcept {
+            if (track_index < 0) return kTrackDurationUnknown;
+            if (track_index >= static_cast<int>(track_duration_cache_sec.size())) return kTrackDurationUnknown;
+            return track_duration_cache_sec[static_cast<std::size_t>(track_index)];
+        }
+
+        bool cache_track_duration(int track_index, int seconds) {
+            ensure_track_duration_cache();
+            if (track_index < 0 || track_index >= static_cast<int>(track_duration_cache_sec.size())) return false;
+            const int normalized = (seconds > 0) ? seconds : kTrackDurationUnavailable;
+            int& slot = track_duration_cache_sec[static_cast<std::size_t>(track_index)];
+            if (slot == normalized) return false;
+            slot = normalized;
+            return true;
+        }
+
+        void rebuild_list_display_tails() {
+            const auto* tracks = storage.tracks;
+            const std::size_t count = list_order.size();
+            if (list_display_tails.size() != count) {
+                list_display_tails.resize(count);
+            }
+            for (std::size_t i = 0; i < count; ++i) {
+                const int track_index = list_order[i];
+                if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
+                    list_display_tails[i].assign("");
+                    continue;
+                }
+                if (library_shows_group_rows()) {
+                    list_display_tails[i].assign("");
+                    continue;
+                }
+                const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
+                const int duration_sec = cached_track_duration(track_index);
+                if (duration_sec > 0) {
+                    char buf[16]{};
+                    format_duration_compact(duration_sec, buf, sizeof(buf));
+                    list_display_tails[i].assign(buf);
+                } else {
+                    list_display_tails[i].assign(format_from_path(path));
+                }
+                player::font_cache::ensure_text(list_display_tails[i].view());
+            }
+        }
+
+        void notify_list_tail_source_changed() {
+            if (!access.valid() || !handles.list) return;
+            access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
+        }
+
+        void tick_list_duration_probe() {
+            if (!access.valid() || !handles.list) return;
+            if (library_shows_group_rows()) return;
+            const auto* tracks = storage.tracks;
+            if (!tracks || tracks->size() == 0) return;
+            ensure_track_duration_cache();
+
+            const std::uint64_t now_ms = charm::system::ClockCaps::TimeSource::now();
+            if (last_list_duration_probe_ms != 0
+                && now_ms - last_list_duration_probe_ms < kListDurationProbeIntervalMs) {
+                return;
+            }
+
+            auto try_probe_track = [this, tracks](int track_index) -> bool {
+                if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) return false;
+                if (cached_track_duration(track_index) != kTrackDurationUnknown) return false;
+                int seconds = 0;
+                const bool ok = player::probe_duration_seconds((*tracks)[static_cast<std::size_t>(track_index)].c_str(), seconds);
+                const bool changed = cache_track_duration(track_index, ok ? seconds : 0);
+                if (changed) {
+                    rebuild_list_display_tails();
+                    notify_list_tail_source_changed();
+                }
+                return true;
+            };
+
+            if (try_probe_track(track_index)) {
+                last_list_duration_probe_ms = now_ms;
+                return;
+            }
+
+            const std::size_t count = list_order.size();
+            if (count == 0) return;
+            const std::size_t start = (list_duration_probe_cursor < count) ? list_duration_probe_cursor : 0;
+            for (std::size_t offset = 0; offset < count; ++offset) {
+                const std::size_t row = (start + offset) % count;
+                if (try_probe_track(list_order[row])) {
+                    list_duration_probe_cursor = (row + 1) % count;
+                    last_list_duration_probe_ms = now_ms;
+                    return;
+                }
+            }
+
+            last_list_duration_probe_ms = now_ms;
         }
 
         std::string_view library_group_title_for_track(int track_index) const noexcept {
@@ -294,7 +410,6 @@
 
                 std::string_view display_title{};
                 std::string_view display_subtitle{};
-                std::string_view display_tail{};
                 if (library_shows_group_rows()) {
                     display_title = library_group_title_for_track(track_index);
                     char buf[32]{};
@@ -306,8 +421,6 @@
                     player::font_cache::ensure_text(list_display_subtitles[i].view());
                     continue;
                 }
-
-                display_tail = format;
 
                 switch (library_tab) {
                 case LibraryTab::Songs:
@@ -342,11 +455,10 @@
                 if (display_subtitle.empty()) display_subtitle = "Track";
                 list_display_titles[i].assign(display_title);
                 list_display_subtitles[i].assign(display_subtitle);
-                list_display_tails[i].assign(display_tail);
                 player::font_cache::ensure_text(list_display_titles[i].view());
                 player::font_cache::ensure_text(list_display_subtitles[i].view());
-                player::font_cache::ensure_text(list_display_tails[i].view());
             }
+            rebuild_list_display_tails();
         }
 
         int list_index_to_track(int list_index) const noexcept {
@@ -711,6 +823,7 @@
             fs_ready = storage.fs_ready;
             mount_status.assign(storage.mount_status);
             clear_list_cover_cache();
+            reset_track_duration_cache();
             refresh_track_labels();
             build_list_cover_paths();
             if (fs_ready && !font_retry_done && !font_ttf_path.empty()) {

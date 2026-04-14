@@ -16,6 +16,7 @@ import out.sink;
 extern "C" void qemu_semihost_write0(const char* text);
 extern "C" void armv7a_irq_smoke_test();
 extern "C" void armv7a_sgi_smoke_test();
+extern "C" void armv7a_fiq_smoke_test();
 extern "C" void armv7a_prepare_abort_smoke_mappings();
 extern "C" void armv7a_prepare_abort_smoke_runtime();
 extern "C" void armv7a_print_abort_smoke_mapping_state();
@@ -198,5 +199,6 @@ int main()
     armv7a_svc_smoke_test();
     armv7a_irq_smoke_test();
     armv7a_sgi_smoke_test();
+    armv7a_fiq_smoke_test();
     charm_spin();
 }

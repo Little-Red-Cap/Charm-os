@@ -303,6 +303,12 @@ if ($log.Contains("ARMv7-A SVC vector active")) {
 if ($log.Contains("ARMv7-A timer IRQ active")) {
     $unexpected += "ARMv7-A timer IRQ active"
 }
+if ($log.Contains("ARMv7-A SGI active")) {
+    $unexpected += "ARMv7-A SGI active"
+}
+if ($log.Contains("ARMv7-A FIQ active")) {
+    $unexpected += "ARMv7-A FIQ active"
+}
 
 if ($missing.Count -gt 0 -or $unexpected.Count -gt 0) {
     Show-LogTail -OutPath $outFile -ErrPath $errFile -Lines $TailLines

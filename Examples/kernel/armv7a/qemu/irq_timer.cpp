@@ -41,11 +41,13 @@ constexpr unsigned int kSpuriousIntId = 1023u;
 constexpr std::uint32_t kTimerCtrlEnable = 1u << 0;
 constexpr std::uint32_t kTimerCtrlItMask = 1u << 1;
 constexpr std::uint32_t kGicdSgirTargetFilterSelf = 2u << 24;
+constexpr std::uint32_t kGiccCtlrFiqEn = 1u << 3;
 
 enum IrqSmokeKind : unsigned int {
     kIrqSmokeNone = 0u,
     kIrqSmokeTimer = 1u,
     kIrqSmokeSgi = 2u,
+    kIrqSmokeFiq = 3u,
 };
 
 volatile unsigned int g_irq_count = 0;
@@ -65,6 +67,12 @@ inline std::uint32_t mmio_read(std::uintptr_t base, std::uint32_t offset)
 inline void mmio_write(std::uintptr_t base, std::uint32_t offset, std::uint32_t value)
 {
     reg(base + offset) = value;
+}
+
+std::uint32_t gic_current_cpu_mask()
+{
+    const auto affinity0 = armv7a_read_mpidr() & 0x7u;
+    return 1u << affinity0;
 }
 
 void arch_timer_stop()
@@ -97,7 +105,7 @@ void gic_clear_sgi_pending(unsigned int intid)
 {
     const auto offset = kGicdCpendsgir + static_cast<std::uint32_t>(4u * (intid / 4u));
     const auto shift = static_cast<unsigned int>((intid % 4u) * 8u);
-    mmio_write(kGicDistBase, offset, 1u << shift);
+    mmio_write(kGicDistBase, offset, gic_current_cpu_mask() << shift);
 }
 
 void gic_clear_active(unsigned int intid)
@@ -189,12 +197,16 @@ void gic_configure_timer_line(unsigned int intid, bool group1)
     gic_enable_line(intid);
 }
 
-void gic_configure_sgi_line(unsigned int intid)
+void gic_configure_sgi_line(unsigned int intid, bool group1)
 {
     gic_disable_line(intid);
     gic_clear_pending(intid);
     gic_clear_sgi_pending(intid);
-    gic_set_group1(intid);
+    if (group1) {
+        gic_set_group1(intid);
+    } else {
+        gic_set_group0(intid);
+    }
     gic_set_priority(intid, 0x40u);
     gic_enable_line(intid);
 }
@@ -220,17 +232,29 @@ void gic_init_timer_irq()
 void gic_init_sgi_irq()
 {
     gic_reset_interfaces();
-    gic_configure_sgi_line(kSelfSgiIntId);
+    gic_configure_sgi_line(kSelfSgiIntId, true);
     armv7a_data_sync_barrier();
     armv7a_instruction_sync_barrier();
 }
 
-void gic_enable_interfaces()
+void gic_init_fiq_irq()
+{
+    gic_reset_interfaces();
+    gic_configure_sgi_line(kSelfSgiIntId, false);
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
+}
+
+void gic_enable_interfaces(bool fiq_enabled)
 {
     mmio_write(kGicCpuBase, kGiccPmr, 0xffu);
     mmio_write(kGicCpuBase, kGiccBpr, 0u);
     // AckCtl lets one IAR/EOIR pair handle both Group0 and Group1 IRQs.
-    mmio_write(kGicCpuBase, kGiccCtlr, 0x7u);
+    auto cpu_ctlr = 0x7u;
+    if (fiq_enabled) {
+        cpu_ctlr |= kGiccCtlrFiqEn;
+    }
+    mmio_write(kGicCpuBase, kGiccCtlr, cpu_ctlr);
     mmio_write(kGicDistBase, kGicdCtlr, 0x3u);
     armv7a_data_sync_barrier();
     armv7a_instruction_sync_barrier();
@@ -306,9 +330,24 @@ void print_sgi_timeout()
     early_uart_puts("\r\n");
 }
 
-void print_unexpected_irq(unsigned int intid, const Armv7aExceptionFrame& frame)
+void print_fiq_timeout()
 {
-    early_uart_puts("ARMv7-A unexpected IRQ, intid=0x");
+    early_uart_puts("ARMv7-A FIQ timeout, cpsr=0x");
+    print_hex32(armv7a_read_cpsr());
+    early_uart_puts(", ctlr=0x");
+    print_hex32(mmio_read(kGicCpuBase, kGiccCtlr));
+    early_uart_puts(", igroupr0=0x");
+    print_hex32(gic_read_line_bank(kGicdIgroupr, kSelfSgiIntId));
+    early_uart_puts(", isenabler0=0x");
+    print_hex32(gic_read_line_bank(kGicdIsenabler, kSelfSgiIntId));
+    early_uart_puts("\r\n");
+}
+
+void print_unexpected_interrupt(const char* label, unsigned int intid, const Armv7aExceptionFrame& frame)
+{
+    early_uart_puts("ARMv7-A unexpected ");
+    early_uart_puts(label);
+    early_uart_puts(", intid=0x");
     print_hex32(intid);
     early_uart_puts(", pc=0x");
     print_hex32(armv7a_exception_pc(frame));
@@ -341,7 +380,28 @@ extern "C" void armv7a_handle_irq(Armv7aExceptionFrame* frame)
         arch_timer_stop();
         g_last_irq_intid = intid;
         g_irq_count = 1u;
-        print_unexpected_irq(intid, *frame);
+        print_unexpected_interrupt("IRQ", intid, *frame);
+    }
+
+    gic_end_irq(iar);
+}
+
+extern "C" void armv7a_handle_fiq(Armv7aExceptionFrame* frame)
+{
+    const auto iar = gic_acknowledge_irq();
+    const auto intid = iar & 0x3ffu;
+
+    if (intid >= kSpecialIntIdMin) {
+        return;
+    }
+
+    if (g_irq_smoke_kind == kIrqSmokeFiq && is_sgi_intid(intid)) {
+        g_last_irq_intid = intid;
+        g_irq_count = 1u;
+    } else {
+        g_last_irq_intid = intid;
+        g_irq_count = 1u;
+        print_unexpected_interrupt("FIQ", intid, *frame);
     }
 
     gic_end_irq(iar);
@@ -361,7 +421,7 @@ extern "C" void armv7a_irq_smoke_test()
     }
 
     gic_init_timer_irq();
-    gic_enable_interfaces();
+    gic_enable_interfaces(false);
     arch_timer_start_oneshot(ticks);
 
     const auto start = armv7a_timer_read_cntpct();
@@ -411,7 +471,7 @@ extern "C" void armv7a_sgi_smoke_test()
     const auto timeout = start + (frequency != 0u ? (frequency / 100u) : 0x100000u);
 
     gic_init_sgi_irq();
-    gic_enable_interfaces();
+    gic_enable_interfaces(false);
 
     armv7a_enable_irq();
     gic_send_self_sgi(kSelfSgiIntId);
@@ -440,6 +500,51 @@ extern "C" void armv7a_sgi_smoke_test()
     }
 
     early_uart_puts("ARMv7-A SGI active, intid=");
+    print_u32_dec(g_last_irq_intid);
+    early_uart_puts("\r\n");
+}
+
+extern "C" void armv7a_fiq_smoke_test()
+{
+    armv7a_disable_irq();
+    armv7a_disable_fiq();
+    g_irq_count = 0;
+    g_last_irq_intid = kSpuriousIntId;
+    g_irq_smoke_kind = kIrqSmokeFiq;
+
+    const auto frequency = armv7a_timer_read_cntfrq();
+    const auto start = armv7a_timer_read_cntpct();
+    const auto timeout = start + (frequency != 0u ? (frequency / 100u) : 0x100000u);
+
+    gic_init_fiq_irq();
+    gic_enable_interfaces(true);
+
+    armv7a_enable_fiq();
+    gic_send_self_sgi(kSelfSgiIntId);
+    while (g_irq_count == 0u && armv7a_timer_read_cntpct() < timeout) {
+        // Keep IRQ masked so this path proves the Group0+FIQ route on its own.
+    }
+    armv7a_disable_fiq();
+
+    gic_disable_line(kSelfSgiIntId);
+    gic_clear_pending(kSelfSgiIntId);
+    gic_clear_sgi_pending(kSelfSgiIntId);
+    gic_disable_interfaces();
+    g_irq_smoke_kind = kIrqSmokeNone;
+
+    if (g_irq_count == 0u) {
+        print_fiq_timeout();
+        return;
+    }
+
+    if (!is_sgi_intid(g_last_irq_intid)) {
+        early_uart_puts("ARMv7-A FIQ test observed intid=");
+        print_u32_dec(g_last_irq_intid);
+        early_uart_puts("\r\n");
+        return;
+    }
+
+    early_uart_puts("ARMv7-A FIQ active, intid=");
     print_u32_dec(g_last_irq_intid);
     early_uart_puts("\r\n");
 }

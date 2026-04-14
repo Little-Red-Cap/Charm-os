@@ -11,6 +11,7 @@
 
 .extern reset_handler
 .extern armv7a_handle_irq
+.extern armv7a_handle_fiq
 .extern armv7a_handle_svc
 .extern armv7a_exception_fatal
 
@@ -76,10 +77,17 @@ armv7a_irq_entry:
     destroy_exception_frame
     subs pc, lr, #4
 
+.global armv7a_fiq_entry
+.type armv7a_fiq_entry, %function
+armv7a_fiq_entry:
+    build_exception_frame EXC_FIQ
+    bl armv7a_handle_fiq
+    destroy_exception_frame
+    subs pc, lr, #4
+
 fatal_vector armv7a_undefined_entry, EXC_UNDEFINED
 fatal_vector armv7a_prefetch_abort_entry, EXC_PREFETCH_ABORT
 fatal_vector armv7a_data_abort_entry, EXC_DATA_ABORT
 fatal_vector armv7a_reserved_entry, EXC_RESERVED
-fatal_vector armv7a_fiq_entry, EXC_FIQ
 
 .size _start, . - _start

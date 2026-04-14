@@ -95,6 +95,7 @@ ARMv7-A section-split probe, addr=0x5260...., before=0x89ABCDEF, after=0x7654321
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
 ARMv7-A SGI active, intid=1
+ARMv7-A FIQ active, intid=1
 ```
 
 ## CI smoke
@@ -255,8 +256,8 @@ continue
   near `0x40000000`.
 - Current scope is intentionally small: reset entry, per-mode stacks,
   VBAR/vector setup, one returning SVC smoke, one returning timer IRQ
-  smoke, one returning self-targeted SGI smoke, and early PL011 UART on
-  QEMU `virt`.
+  smoke, one returning self-targeted SGI IRQ smoke, one returning
+  self-targeted FIQ smoke, and early PL011 UART on QEMU `virt`.
 - ARMv7-A specific inline assembly is now funneled into dedicated leaf-target
   helpers such as `armv7a_cpu.cpp` and `armv7a_arch_timer.cpp`, so the
   higher-level smoke tests stay mostly plain C++.
@@ -282,6 +283,10 @@ continue
   GIC distributor/CPU-interface path, so we validate that the IRQ route is
   not only alive for the architected timer PPIs but also for software-fired
   private interrupts that look more like later bring-up/debug hooks.
+- A matching FIQ smoke now flips that same self-targeted SGI over to
+  `Group0 + FIQEn`, keeps ordinary IRQ masked, and proves the FIQ vector can
+  take, acknowledge, and EOIR a real GIC-delivered interrupt before we move
+  toward board-specific secure/non-secure interrupt routing.
 - Boot page-table bring-up now includes a tiny coarse L1 -> small-page L2
   path in an otherwise unmapped alias window, which gives us a 4KB-granular
   probe without disturbing the 1MB section identity map used by the default

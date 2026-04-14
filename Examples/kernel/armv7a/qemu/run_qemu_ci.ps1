@@ -155,6 +155,9 @@ if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
 if (($log -notmatch "ARMv7-A SGI active, intid=1")) {
     $missing += "ARMv7-A SGI active, intid=1"
 }
+if (($log -notmatch "ARMv7-A FIQ active, intid=1")) {
+    $missing += "ARMv7-A FIQ active, intid=1"
+}
 if ($missing.Count -gt 0) {
     Write-Output "[armv7a-qemu] log tail:"
     if (Test-Path $outFile) {

@@ -3,6 +3,7 @@
 namespace {
 constexpr std::uint32_t kPsrModeMask = 0x1fu;
 constexpr std::uint32_t kPsrIrqMask = 1u << 7;
+constexpr std::uint32_t kPsrFiqMask = 1u << 6;
 } // namespace
 
 extern "C" void armv7a_data_sync_barrier()
@@ -23,6 +24,16 @@ extern "C" void armv7a_enable_irq()
 extern "C" void armv7a_disable_irq()
 {
     asm volatile("cpsid i" ::: "memory");
+}
+
+extern "C" void armv7a_enable_fiq()
+{
+    asm volatile("cpsie f" ::: "memory");
+}
+
+extern "C" void armv7a_disable_fiq()
+{
+    asm volatile("cpsid f" ::: "memory");
 }
 
 extern "C" std::uint32_t armv7a_read_cpsr()
@@ -61,6 +72,11 @@ extern "C" void armv7a_svc_smoke_test()
 bool armv7a_irq_masked(std::uint32_t psr)
 {
     return (psr & kPsrIrqMask) != 0u;
+}
+
+bool armv7a_fiq_masked(std::uint32_t psr)
+{
+    return (psr & kPsrFiqMask) != 0u;
 }
 
 const char* armv7a_mode_name(std::uint32_t psr)

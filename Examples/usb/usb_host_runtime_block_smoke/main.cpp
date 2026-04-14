@@ -10,32 +10,15 @@ import usb.host.runtime_block;
 import usb.host.runtime_manager;
 import util.core;
 
+#include "../support/usb_host_runtime_assert_support.hpp"
 #include "../support/usb_host_runtime_block_support.hpp"
 
 namespace {
+    using examples::usb::support::expect;
+    using examples::usb::support::expect_status;
     using examples::usb::support::MemoryDisk;
     using examples::usb::support::MscRuntimeHarness;
     using examples::usb::support::read_lba0;
-
-    bool expect(bool cond, const char* message) {
-        if (!cond) {
-            std::fprintf(stderr, "[ERR] %s\n", message);
-            return false;
-        }
-        return true;
-    }
-
-    bool expect_status(block::Status st, block::Errc want, const char* message) {
-        if (st.err != want) {
-            std::fprintf(stderr,
-                         "[ERR] %s err=%d want=%d\n",
-                         message,
-                         static_cast<int>(st.err),
-                         static_cast<int>(want));
-            return false;
-        }
-        return true;
-    }
 }
 
 int main() {

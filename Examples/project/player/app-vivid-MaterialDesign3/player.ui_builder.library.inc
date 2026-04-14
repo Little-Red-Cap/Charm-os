@@ -249,9 +249,9 @@
         h.list_action_scrim = list_action_menu.scrim;
         h.list_action_card = list_action_menu.card;
         h.list_action_title = list_action_menu.title;
-        h.list_action_primary = list_action_menu.item(0);
-        h.list_action_secondary = list_action_menu.item(1);
-        h.list_action_tertiary = list_action_menu.item(2);
+        h.list_action_items[0] = list_action_menu.item(0);
+        h.list_action_items[1] = list_action_menu.item(1);
+        h.list_action_items[2] = list_action_menu.item(2);
         apply_time_label_style(builder, h.list_action_title);
 
         build_bottom_chrome(builder, h, layout, icons);

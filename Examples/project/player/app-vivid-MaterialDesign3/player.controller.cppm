@@ -164,9 +164,7 @@ export namespace player {
         WidgetHandle list_action_scrim{};
         WidgetHandle list_action_card{};
         WidgetHandle list_action_title{};
-        WidgetHandle list_action_primary{};
-        WidgetHandle list_action_secondary{};
-        WidgetHandle list_action_tertiary{};
+        std::array<WidgetHandle, 3> list_action_items{};
         WidgetHandle mode_hint{};
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};

@@ -311,12 +311,10 @@
                     if (type == Event::Type::MouseUp) {
                         if (target == handles.list_action_scrim) {
                             close_list_action_menu();
-                        } else if (target == handles.list_action_primary) {
-                            invoke_list_action_primary();
-                        } else if (target == handles.list_action_secondary) {
-                            invoke_list_action_secondary();
-                        } else if (target == handles.list_action_tertiary) {
-                            invoke_list_action_tertiary();
+                        } else if (const int menu_item = ::ui::scene::anchored_menu_item_index(
+                                       list_action_menu_handles(), target);
+                                   menu_item >= 0) {
+                            invoke_list_action_item(menu_item);
                         } else if (target == handles.bottom_play) {
                             actions.toggle_play = true;
                         } else if (target == handles.bottom_next) {

@@ -362,9 +362,9 @@
             out.scrim = handles.list_action_scrim;
             out.card = handles.list_action_card;
             out.title = handles.list_action_title;
-            out.items[0] = handles.list_action_primary;
-            out.items[1] = handles.list_action_secondary;
-            out.items[2] = handles.list_action_tertiary;
+            for (std::size_t i = 0; i < handles.list_action_items.size(); ++i) {
+                out.items[i] = handles.list_action_items[i];
+            }
             return out;
         }
 
@@ -398,6 +398,32 @@
             return {};
         }
 
+        std::size_t build_list_action_menu_items(int list_index,
+                                                 ::ui::scene::AnchoredMenuItemSpec (&items)[3]) const noexcept {
+            for (auto& item : items) item = {};
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return 0;
+
+            items[0] = {
+                .text = library_shows_group_rows() ? "Open group" : "Play now",
+                .visible = true,
+            };
+            items[1] = {
+                .text = library_shows_group_rows() ? "Show summary" : "Show path",
+                .visible = true,
+            };
+
+            if (library_shows_group_rows()) return 2;
+
+            const int track_idx = list_index_to_track(list_index);
+            const auto tertiary_label = list_action_tertiary_label_for_track(track_idx);
+            if (tertiary_label.empty()) return 2;
+            items[2] = {
+                .text = tertiary_label.data(),
+                .visible = true,
+            };
+            return 3;
+        }
+
         void open_list_action_menu(int list_index) {
             if (!access.valid()) return;
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) {
@@ -418,18 +444,8 @@
             const char* title_text = (row < list_display_titles.size() && !list_display_titles[row].empty())
                 ? list_display_titles[row].c_str()
                 : (library_shows_group_rows() ? "Group" : "Track");
-            const char* item_texts[3]{};
-            item_texts[0] = library_shows_group_rows() ? "Open group" : "Play now";
-            item_texts[1] = library_shows_group_rows() ? "Show summary" : "Show path";
-
-            const int track_idx = list_index_to_track(list_index);
-            const auto tertiary_label = library_shows_group_rows()
-                ? std::string_view{}
-                : list_action_tertiary_label_for_track(track_idx);
-            const bool show_tertiary = !tertiary_label.empty();
-            if (show_tertiary) {
-                item_texts[2] = tertiary_label.data();
-            }
+            ::ui::scene::AnchoredMenuItemSpec items[3]{};
+            const std::size_t item_count = build_list_action_menu_items(list_index, items);
 
             Rect anchor_rect{kUiPadding, kUiPadding, 0, kLibraryListRowHeight};
             if (handles.list) {
@@ -446,8 +462,8 @@
                     .anchor = anchor_rect,
                     .viewport = {0, 0, screen_width, screen_height},
                     .title = title_text,
-                    .item_texts = item_texts,
-                    .item_count = show_tertiary ? 3u : 2u,
+                    .items = items,
+                    .item_count = item_count,
                 });
         }
 
@@ -534,6 +550,22 @@
             library_tab = target_tab;
             library_context_key.assign(key);
             refresh_list_view();
+        }
+
+        void invoke_list_action_item(int item_index) {
+            switch (item_index) {
+            case 0:
+                invoke_list_action_primary();
+                break;
+            case 1:
+                invoke_list_action_secondary();
+                break;
+            case 2:
+                invoke_list_action_tertiary();
+                break;
+            default:
+                break;
+            }
         }
 
         void activate_list_index(int list_index) {

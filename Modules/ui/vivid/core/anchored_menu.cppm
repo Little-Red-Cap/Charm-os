@@ -41,11 +41,16 @@ export namespace ui::scene {
         }
     };
 
+    struct AnchoredMenuItemSpec {
+        const char* text{nullptr};
+        bool visible{true};
+    };
+
     struct AnchoredMenuShowSpec {
         Rect anchor{};
         Rect viewport{};
         const char* title{nullptr};
-        const char* const* item_texts{nullptr};
+        const AnchoredMenuItemSpec* items{nullptr};
         std::size_t item_count{0};
     };
 
@@ -64,6 +69,26 @@ export namespace ui::scene {
 
     inline std::size_t anchored_menu_item_count(std::size_t count) noexcept {
         return count < kAnchoredMenuMaxItems ? count : kAnchoredMenuMaxItems;
+    }
+
+    inline std::size_t anchored_menu_visible_item_count(const AnchoredMenuItemSpec* items,
+                                                        std::size_t count) noexcept {
+        if (!items) return 0;
+        const std::size_t cap = anchored_menu_item_count(count);
+        std::size_t visible = 0;
+        for (std::size_t i = 0; i < cap; ++i) {
+            if (items[i].visible) ++visible;
+        }
+        return visible;
+    }
+
+    inline int anchored_menu_item_index(const AnchoredMenuHandles& handles,
+                                        WidgetHandle target) noexcept {
+        if (!target) return -1;
+        for (std::size_t i = 0; i < handles.items.size(); ++i) {
+            if (handles.items[i] == target) return static_cast<int>(i);
+        }
+        return -1;
     }
 
     inline int anchored_menu_card_height(const AnchoredMenuSpec& spec,
@@ -164,7 +189,7 @@ export namespace ui::scene {
                                    const AnchoredMenuShowSpec& show,
                                    const AnchoredMenuSpec& spec = {}) noexcept {
         if (!access.valid()) return;
-        const std::size_t visible_items = anchored_menu_item_count(show.item_count);
+        const std::size_t visible_items = anchored_menu_visible_item_count(show.items, show.item_count);
         if (visible_items == 0) {
             hide_anchored_menu(access, handles, spec);
             return;
@@ -205,8 +230,11 @@ export namespace ui::scene {
         for (std::size_t i = 0; i < handles.items.size(); ++i) {
             const WidgetHandle item = handles.items[i];
             if (!item) continue;
-            if (i < visible_items) {
-                const char* text = (show.item_texts && show.item_texts[i]) ? show.item_texts[i] : "";
+            const bool should_show = show.items
+                && i < anchored_menu_item_count(show.item_count)
+                && show.items[i].visible;
+            if (should_show) {
+                const char* text = show.items[i].text ? show.items[i].text : "";
                 access.set_text(item, text);
                 access.set_rect(item,
                                 {spec.padding_left, item_y, item_w, spec.item_height});

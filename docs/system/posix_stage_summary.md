@@ -28,6 +28,7 @@
 - `explicit exit > return` is the active exit resolution rule
 - `waitpid()` consumes the unified final exit result, not the internal exit mechanism
 - `kill()` currently supports `SIGTERM` / `SIGKILL` / `SIGINT`; a killed process now reports `WaitKind::signaled` with the signal number as wait code
+- newlib `kill()` smoke now also pins the minimum negative bridge contract: unsupported signals fail with `EINVAL`, while a visible-miss pid with a supported signal fails with `ENOENT`
 - ELF hostcalls use `ExecContext`; they no longer depend on the old global service/pid slot pair
 - path-bearing real-ELF hostcalls must resolve against the spawned process cwd before touching `file_service_`; the raw exec-loader path remains a separate already-resolved input lane
 

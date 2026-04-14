@@ -386,9 +386,20 @@ int charm_posix_newlib_pipe_entry(void) {
 }
 
 int charm_posix_newlib_kill_self_entry(void) {
-    if (write(1, "newlib-kill\n", 12) != 12) return 111;
-    (void)kill(getpid(), SIGTERM);
-    return 112;
+    int self = getpid();
+    if (self <= 0) return 111;
+
+    errno = 0;
+    if (kill(self, 1) != -1) return 112;
+    if (errno != EINVAL) return 113;
+
+    errno = 0;
+    if (kill(self + 4096, SIGTERM) != -1) return 114;
+    if (errno != ENOENT) return 115;
+
+    if (write(1, "newlib-kill\n", 12) != 12) return 116;
+    (void)kill(self, SIGTERM);
+    return 117;
 }
 
 int charm_posix_newlib_lseek_entry(void) {

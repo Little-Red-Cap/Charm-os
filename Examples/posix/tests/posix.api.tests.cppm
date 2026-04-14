@@ -1447,6 +1447,15 @@ namespace {
         check_eq("termfl-stdout-init", api.fcntl(1, posix::F_GETFL), posix::O_WRONLY);
         check_eq("termfl-stderr-init", api.fcntl(2, posix::F_GETFL), posix::O_WRONLY);
 
+        check_eq("termfl-set-stdin", api.fcntl(0, posix::F_SETFL, posix::O_NONBLOCK), 0);
+        int tty_read_fd = api.open("/dev/tty", posix::O_RDONLY, 0);
+        check_true("termfl-tty-read-open", tty_read_fd >= 0);
+        check_true("termfl-tty-read-dup", tty_read_fd != 0);
+        check_eq("termfl-tty-read-get-shared", api.fcntl(tty_read_fd, posix::F_GETFL), posix::O_RDONLY | posix::O_NONBLOCK);
+        check_eq("termfl-tty-read-clear", api.fcntl(tty_read_fd, posix::F_SETFL, 0), 0);
+        check_eq("termfl-stdin-cleared", api.fcntl(0, posix::F_GETFL), posix::O_RDONLY);
+        check_eq("termfl-tty-read-close", api.close(tty_read_fd), 0);
+
         check_eq("termfl-set-stdout", api.fcntl(1, posix::F_SETFL, posix::O_NONBLOCK), 0);
         check_eq("termfl-stdout-get", api.fcntl(1, posix::F_GETFL), posix::O_WRONLY | posix::O_NONBLOCK);
         check_eq("termfl-stderr-unchanged", api.fcntl(2, posix::F_GETFL), posix::O_WRONLY);

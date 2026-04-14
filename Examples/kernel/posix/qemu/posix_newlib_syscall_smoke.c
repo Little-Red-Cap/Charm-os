@@ -473,6 +473,14 @@ int charm_posix_newlib_path_entry(void) {
     if (stat("/newlib-path.txt", (struct stat*)0) != -1) return 530;
     if (errno != EINVAL) return 531;
 
+    errno = 0;
+    if (open((const char*)0, O_RDONLY, 0) != -1) return 560;
+    if (errno != EINVAL) return 561;
+
+    errno = 0;
+    if (stat((const char*)0, &st) != -1) return 562;
+    if (errno != EINVAL) return 563;
+
     errno = 77;
     if (access("/newlib-path.txt", F_OK) != 0) return 137;
     if (errno != 77) return 138;
@@ -491,6 +499,10 @@ int charm_posix_newlib_path_entry(void) {
     if (errno != ENOENT) return 143;
 
     errno = 0;
+    if (access((const char*)0, F_OK) != -1) return 564;
+    if (errno != EINVAL) return 565;
+
+    errno = 0;
     if (open("/newlib-missing.txt", O_RDONLY, 0) != -1) return 536;
     if (errno != ENOENT) return 537;
 
@@ -505,6 +517,10 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (mkdir("/newlib-path.txt", 0) != -1) return 524;
     if (errno != EEXIST) return 525;
+
+    errno = 0;
+    if (mkdir((const char*)0, 0) != -1) return 566;
+    if (errno != EINVAL) return 567;
 
     errno = 0;
     if (open("/newlib-dir", O_WRONLY, 0) != -1) return 538;
@@ -522,6 +538,14 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (rmdir("/newlib-path.txt") != -1) return 151;
     if (errno != ENOTDIR) return 152;
+
+    errno = 0;
+    if (unlink((const char*)0) != -1) return 568;
+    if (errno != EINVAL) return 569;
+
+    errno = 0;
+    if (rmdir((const char*)0) != -1) return 570;
+    if (errno != EINVAL) return 571;
 
     errno = 0;
     if (mkdir("/newlib-path.txt/sub", 0) != -1) return 506;
@@ -567,6 +591,10 @@ int charm_posix_newlib_path_entry(void) {
     if (errno != ENOTEMPTY) return 521;
 
     errno = 0;
+    if (remove((const char*)0) != -1) return 572;
+    if (errno != EINVAL) return 573;
+
+    errno = 0;
     if (rmdir("/newlib-dir") != -1) return 156;
     if (errno != ENOTEMPTY) return 157;
 
@@ -593,6 +621,14 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (rename("/newlib-path.txt", "/newlib-path.txt/sub") != -1) return 504;
     if (errno != ENOTDIR) return 505;
+
+    errno = 0;
+    if (rename((const char*)0, "/newlib-dir/from-null.txt") != -1) return 574;
+    if (errno != EINVAL) return 575;
+
+    errno = 0;
+    if (rename("/newlib-path.txt", (const char*)0) != -1) return 576;
+    if (errno != EINVAL) return 577;
 
     errno = 64;
     if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 163;
@@ -672,6 +708,18 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 0;
     if (getcwd(small, sizeof(small)) != NULL) return 202;
     if (errno != ERANGE) return 203;
+
+    errno = 0;
+    if (chdir((const char*)0) != -1) return 578;
+    if (errno != EINVAL) return 579;
+
+    errno = 0;
+    if (getcwd((char*)0, sizeof(cwd)) != NULL) return 580;
+    if (errno != EINVAL) return 581;
+
+    errno = 0;
+    if (getcwd(cwd, 0) != NULL) return 582;
+    if (errno != EINVAL) return 583;
 
     if (chdir("..") != 0) return 204;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 205;

@@ -38,6 +38,7 @@
 - `isatty(non-tty) -> 0 && errno == 0`
 - `isatty(-1) -> 0 && errno == EBADF`
 - `fstat(-1, ...) -> -1 && errno == EBADF`
+- bridge pointer guards are now smoke-pinned too: `fstat(fd, nullptr)`, `stat(path, nullptr)`, and `pipe(nullptr)` fail with `EINVAL`
 - `read(EOF) -> 0 && errno == 0`
 - `read(-1, ...) -> -1 && errno == EBADF`
 - `write(-1, ...) -> -1 && errno == EBADF`

@@ -25,6 +25,10 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (fstat(0, &st) != 0) return 95;
     if ((st.st_mode & S_IFMT) != S_IFCHR) return 96;
 
+    errno = 0;
+    if (fstat(0, (struct stat*)0) != -1) return 532;
+    if (errno != EINVAL) return 533;
+
     if (fstat(1, &st) != 0) return 97;
     if ((st.st_mode & S_IFMT) != S_IFIFO) return 98;
 
@@ -334,6 +338,10 @@ int charm_posix_newlib_pipe_entry(void) {
     char ch = 0;
     char buf[8] = {0};
 
+    errno = 0;
+    if (pipe((int*)0) != -1) return 534;
+    if (errno != EINVAL) return 535;
+
     if (pipe(fds) != 0) return 221;
 
     flags = fcntl(fds[0], F_GETFL);
@@ -436,6 +444,10 @@ int charm_posix_newlib_path_entry(void) {
     if (stat("/newlib-path.txt", &st) != 0) return 134;
     if ((st.st_mode & S_IFMT) != S_IFREG) return 135;
     if (st.st_size != 5) return 136;
+
+    errno = 0;
+    if (stat("/newlib-path.txt", (struct stat*)0) != -1) return 530;
+    if (errno != EINVAL) return 531;
 
     errno = 77;
     if (access("/newlib-path.txt", F_OK) != 0) return 137;

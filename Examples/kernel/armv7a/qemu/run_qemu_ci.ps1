@@ -95,11 +95,17 @@ if (($log -notmatch "ARMv7-A translation state, ttbr0=0x[0-9A-F]{8}, ttbr1=0x[0-
 if (($log -notmatch "ARMv7-A L1 table ready, base=0x[0-9A-F]{8}, ram=0x[0-9A-F]{8}, gic=0x[0-9A-F]{8}, uart=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A L1 table ready, base=0x..."
 }
+if (($log -notmatch "ARMv7-A small-page alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A small-page alias ready, va=0x..."
+}
 if (($log -notmatch "ARMv7-A MMU active, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A MMU active, sctlr=0x..."
 }
 if (($log -notmatch "ARMv7-A MMU flags, mmu=on, dcache=(on|off), icache=(on|off)")) {
     $missing += "ARMv7-A MMU flags, mmu=on..."
+}
+if (($log -notmatch "ARMv7-A small-page probe, addr=0x5[0-9A-F]{7}, before=0xC0DEF00D, via-alias=0x1BADB002, direct=0x1BADB002")) {
+    $missing += "ARMv7-A small-page probe, addr=0x..."
 }
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30"

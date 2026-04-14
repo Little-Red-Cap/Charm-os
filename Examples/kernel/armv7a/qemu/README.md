@@ -55,9 +55,11 @@ ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=
 ARMv7-A cache state, mmu=off, dcache=off, icache=off, high-vectors=off
 ARMv7-A translation state, ttbr0=0x00000000, ttbr1=0x00000000, ttbcr=0x00000000, dacr=0x00000000
 ARMv7-A L1 table ready, base=0x40208000, ram=0x40211C0E, gic=0x08010C16, uart=0x09010C16
+ARMv7-A small-page alias ready, va=0x5200...., pa=0x4020...., l1=0x4020...., l2=0x4020....
 ARMv7-A MMU active, sctlr=0x00C50079, ttbr0=0x40208000, ttbcr=0x00000000, dacr=0x00000003
 ARMv7-A MMU flags, mmu=on, dcache=off, icache=off
 Charm out.format import active, PL011 @ 0x09000000
+ARMv7-A small-page probe, addr=0x5200...., before=0xC0DEF00D, via-alias=0x1BADB002, direct=0x1BADB002
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
 ```
@@ -168,6 +170,10 @@ continue
   Current QEMU `virt` runs observed the non-secure physical timer route
   (`intid=30`), but the code also accepts the secure route (`intid=29`)
   so the same leaf target is less brittle across reset states.
+- Boot page-table bring-up now includes a tiny coarse L1 -> small-page L2
+  path in an otherwise unmapped alias window, which gives us a 4KB-granular
+  probe without disturbing the 1MB section identity map used by the default
+  runtime.
 - Optional `data` / `prefetch` abort smokes now reuse the shared fatal
   exception path to validate `DFSR/DFAR/ADFSR` and `IFSR/IFAR/AIFSR`
   collection without destabilizing the default CI smoke.
@@ -183,5 +189,8 @@ continue
 - Fatal exception logs now also walk the active TTBR0 L1 entry for the fault
   address, so an unmapped hole is visible immediately instead of having to
   infer it indirectly from the syndrome alone.
+- When a fault lands in a coarse L1 page-table entry, the same fault log now
+  also decodes the matching L2 entry, so later 4KB-page bring-up work has the
+  same one-shot visibility that section faults already enjoy.
 - This gives us a safe Cortex-A bring-up foothold before we start layering
   more of Charm on top or moving toward RK3506-specific work.

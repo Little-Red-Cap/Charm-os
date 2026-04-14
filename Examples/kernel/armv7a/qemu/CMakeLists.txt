@@ -68,6 +68,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_fault_status.cpp
     armv7a_translation_walk.cpp
     armv7a_abort_smoke.cpp
+    armv7a_small_page_probe.cpp
     early_uart.cpp
     qemu_virt_platform.cpp
     exceptions.cpp

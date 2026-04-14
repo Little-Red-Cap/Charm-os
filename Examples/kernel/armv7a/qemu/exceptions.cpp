@@ -118,8 +118,30 @@ void print_fault_registers(Armv7aExceptionKind kind)
             early_uart_puts(", domain=0x");
             early_uart_write_hex(decode.domain, 1);
         }
-        if (decode.kind == Armv7aL1DescriptorKind::kSection ||
-            decode.kind == Armv7aL1DescriptorKind::kSupersection) {
+        if (decode.kind == Armv7aL1DescriptorKind::kPageTable) {
+            const auto l2_descriptor = armv7a_l2_descriptor_from_l1(descriptor, fault_address);
+            const auto l2_decode = armv7a_decode_l2_descriptor(fault_address, l2_descriptor);
+
+            early_uart_puts(", l2[0x");
+            early_uart_write_hex(l2_decode.index, 2);
+            early_uart_puts("]=0x");
+            early_uart_write_hex(l2_decode.descriptor, 8);
+            early_uart_puts(" (");
+            early_uart_puts(armv7a_l2_descriptor_kind_name(l2_decode.kind));
+            early_uart_puts(")");
+            if (l2_decode.kind == Armv7aL2DescriptorKind::kSmallPage ||
+                l2_decode.kind == Armv7aL2DescriptorKind::kLargePage) {
+                early_uart_puts(", xn=");
+                early_uart_puts(l2_decode.execute_never ? "yes" : "no");
+                early_uart_puts(", s=");
+                early_uart_puts(l2_decode.shareable ? "yes" : "no");
+                early_uart_puts(", c=");
+                early_uart_puts(l2_decode.cacheable ? "yes" : "no");
+                early_uart_puts(", b=");
+                early_uart_puts(l2_decode.bufferable ? "yes" : "no");
+            }
+        } else if (decode.kind == Armv7aL1DescriptorKind::kSection ||
+                   decode.kind == Armv7aL1DescriptorKind::kSupersection) {
             early_uart_puts(", xn=");
             early_uart_puts(decode.execute_never ? "yes" : "no");
             early_uart_puts(", s=");

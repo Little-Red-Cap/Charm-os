@@ -183,6 +183,12 @@ export namespace ui::scene {
                                             std::uint8_t size) noexcept {
             kernel_->set_list_view_tail_icon_source(h, ctx, icon_fn, size);
         }
+        void set_list_view_tail_action_icon_source(WidgetHandle h,
+                                                   const void* ctx,
+                                                   ListViewIconFn icon_fn,
+                                                   std::uint8_t size) noexcept {
+            kernel_->set_list_view_tail_action_icon_source(h, ctx, icon_fn, size);
+        }
         void set_list_view_icon_corner_radius(WidgetHandle h, std::uint8_t radius) noexcept {
             kernel_->set_list_view_icon_corner_radius(h, radius);
         }
@@ -196,6 +202,7 @@ export namespace ui::scene {
         void set_list_view_active(WidgetHandle h, int index) noexcept { kernel_->set_list_view_active(h, index); }
         int list_view_selected(WidgetHandle h) const noexcept { return kernel_->list_view_selected(h); }
         int list_view_active(WidgetHandle h) const noexcept { return kernel_->list_view_active(h); }
+        int consume_list_view_tail_action(WidgetHandle h) noexcept { return kernel_->consume_list_view_tail_action(h); }
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }

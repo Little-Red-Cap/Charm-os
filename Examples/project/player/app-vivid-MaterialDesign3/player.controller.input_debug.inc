@@ -121,6 +121,8 @@
             int seek_sec{0};
             bool select{false};
             int select_index{-1};
+            bool list_action{false};
+            int list_action_index{-1};
         };
 
         void update_progress_drag(int x) {
@@ -343,6 +345,11 @@
                         actions.select = true;
                         actions.select_index = selected;
                     }
+                }
+                const int action_index = access.consume_list_view_tail_action(handles.list);
+                if (action_index >= 0) {
+                    actions.list_action = true;
+                    actions.list_action_index = action_index;
                 }
             }
 

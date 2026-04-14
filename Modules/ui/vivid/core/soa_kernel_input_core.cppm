@@ -422,7 +422,32 @@ import charm.core.soa_registry;
         }
         case SoaClickBehavior::ListView: {
             if (click_index >= 0) {
-                input_emit_action(SoaInputAction{SoaInputActionType::SetListViewSelected, h, click_index, 0});
+                bool handled = false;
+                const std::uint16_t idx = index_of(h);
+                if (idx != kInvalidIndex) {
+                    const auto desc = payload_descriptor(common_.kind[idx]);
+                    if (desc.payload == soa_detail::PayloadKind::ListView) {
+                        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+                        if (payload && payload->tail_action_icon_fn) {
+                            const auto action_icon = payload->tail_action_icon_fn(payload->tail_action_icon_ctx,
+                                                                                 static_cast<std::uint16_t>(click_index));
+                            if (soa_detail::image_id_valid(action_icon)) {
+                                int hit_w = static_cast<int>(payload->tail_action_icon_size);
+                                if (hit_w <= 0) hit_w = 18;
+                                hit_w += 12;
+                                if (hit_w < 24) hit_w = 24;
+                                const Rect r = input_world_rect(h);
+                                if (x >= r.x + r.w - hit_w && x < r.x + r.w) {
+                                    payload->pending_tail_action = static_cast<std::int16_t>(click_index);
+                                    handled = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!handled) {
+                    input_emit_action(SoaInputAction{SoaInputActionType::SetListViewSelected, h, click_index, 0});
+                }
             }
             break;
         }

@@ -1463,14 +1463,38 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const char* subtitle = kernel.list_view_item_subtitle(h, static_cast<std::uint16_t>(i));
         const char* tail = kernel.list_view_item_tail(h, static_cast<std::uint16_t>(i));
         const auto tail_icon = kernel.list_view_item_tail_icon(h, static_cast<std::uint16_t>(i));
+        const auto tail_action_icon = kernel.list_view_item_tail_action_icon(h, static_cast<std::uint16_t>(i));
         const bool has_tail = tail && tail[0] != '\0';
         const bool has_tail_icon = ui::draw_cmd::image_id_valid(tail_icon);
+        const bool has_tail_action_icon = ui::draw_cmd::image_id_valid(tail_action_icon);
         Rect tail_rect{};
         Rect tail_icon_rect{};
+        Rect tail_action_icon_rect{};
         int main_text_w = text_w;
         bool draw_tail = false;
         bool draw_tail_icon = false;
+        bool draw_tail_action_icon = false;
         int right_x = text_x + text_w;
+        if (has_tail_action_icon && text_w >= 48) {
+            int tail_action_icon_size = static_cast<int>(kernel.list_view_tail_action_icon_size(h));
+            if (tail_action_icon_size <= 0) tail_action_icon_size = 18;
+            const int tail_action_icon_max = row_h - pad * 2;
+            if (tail_action_icon_max > 0 && tail_action_icon_size > tail_action_icon_max) {
+                tail_action_icon_size = tail_action_icon_max;
+            }
+            if (tail_action_icon_size < 12) tail_action_icon_size = 12;
+            if (tail_action_icon_size < text_w) {
+                right_x -= tail_action_icon_size;
+                tail_action_icon_rect = Rect{right_x,
+                                             row.y + (row_h - tail_action_icon_size) / 2,
+                                             tail_action_icon_size,
+                                             tail_action_icon_size};
+                draw_tail_action_icon = true;
+                if (right_x - pad > text_x) {
+                    right_x -= pad;
+                }
+            }
+        }
         if (has_tail_icon && text_w >= 48) {
             int tail_icon_size = static_cast<int>(kernel.list_view_tail_icon_size(h));
             if (tail_icon_size <= 0) tail_icon_size = 18;
@@ -1532,6 +1556,9 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         }
         if (draw_tail_icon) {
             out.draw_icon(tail_icon_rect, tail_icon);
+        }
+        if (draw_tail_action_icon) {
+            out.draw_icon(tail_action_icon_rect, tail_action_icon);
         }
         y += row_h;
     }

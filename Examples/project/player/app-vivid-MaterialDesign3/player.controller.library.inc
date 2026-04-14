@@ -334,6 +334,16 @@
             return !row_group.empty() && compare_ci(row_group, current_group) == 0;
         }
 
+        bool library_row_shows_tail_action(int row_index) const noexcept {
+            if (row_index < 0 || row_index >= static_cast<int>(list_order.size())) return false;
+            if (row_index == last_list_selected) return true;
+            if (library_shows_group_rows()) {
+                return library_group_row_is_current(row_index);
+            }
+            if (track_index < 0) return false;
+            return list_index_to_track(row_index) == track_index;
+        }
+
         const char* library_current_group_state_text() const noexcept {
             if (is_paused()) return "Paused";
             if (is_playing()) return "Playing";
@@ -606,6 +616,15 @@
             return format_from_path((*tracks)[static_cast<std::size_t>(track_index)].view()).data();
         }
 
+        static ::ui::scene::ImageId list_view_tail_action_icon(const void* ctx, std::uint16_t index) noexcept {
+            auto* self = static_cast<const PlayerController*>(ctx);
+            if (!self) return ::ui::scene::invalid_image_id();
+            if (!self->library_row_shows_tail_action(static_cast<int>(index))) {
+                return ::ui::scene::invalid_image_id();
+            }
+            return self->icons.more;
+        }
+
         static ::ui::scene::ImageId list_view_tail_icon(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<PlayerController*>(const_cast<void*>(ctx));
             if (!self) return ::ui::scene::invalid_image_id();
@@ -832,6 +851,7 @@
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
             access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 18);
+            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 18);
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 44);
             access.set_list_view_icon_corner_radius(handles.list, 12);
             access.set_list_row_height(handles.list, 72);
@@ -847,6 +867,23 @@
             update_list_sort_label();
             update_list_placeholder();
             update_library_state_visuals();
+        }
+
+        void invoke_list_action(int list_index) {
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
+            const std::size_t row = static_cast<std::size_t>(list_index);
+            const auto title = (row < list_display_titles.size())
+                ? list_display_titles[row].view()
+                : std::string_view{};
+            char buf[192]{};
+            if (title.empty()) {
+                std::snprintf(buf, sizeof(buf), "Action slot: %s",
+                              library_shows_group_rows() ? "Group" : "Track");
+            } else {
+                std::snprintf(buf, sizeof(buf), "Action slot: %.*s",
+                              static_cast<int>(title.size()), title.data());
+            }
+            set_status(buf);
         }
 
         void set_library_tab(LibraryTab tab) {

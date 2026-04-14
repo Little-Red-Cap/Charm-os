@@ -48,6 +48,8 @@
                 switch_track(-1);
             } else if (actions.next) {
                 switch_track(1);
+            } else if (actions.list_action) {
+                invoke_list_action(actions.list_action_index);
             } else if (actions.select) {
                 activate_list_index(actions.select_index);
             }

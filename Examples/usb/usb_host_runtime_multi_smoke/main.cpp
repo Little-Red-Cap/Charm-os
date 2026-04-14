@@ -78,14 +78,14 @@ int main() {
     };
 
     usb::host::RuntimeManager<8, 8> runtime{"usb.host.multi"};
-    auto add_msc = runtime.add_exported(msc.binding);
+    auto add_msc = msc.add_to(runtime);
     if (!add_msc) {
         std::fprintf(stderr,
                      "[ERR] failed to add MSC exported binding err=%d\n",
                      static_cast<int>(add_msc.error()));
         return 1;
     }
-    auto add_cdc = runtime.add_exported(cdc.binding);
+    auto add_cdc = cdc.add_to(runtime);
     if (!add_cdc) {
         std::fprintf(stderr,
                      "[ERR] failed to add CDC exported binding err=%d\n",
@@ -95,8 +95,8 @@ int main() {
 
     auto* stable_block = msc.stable();
     auto* stable_channel = cdc.stable();
-    if (!expect(stable_block == &msc.binding.exported_slot().device(), "stable block slot mismatch")) return 1;
-    if (!expect(stable_channel == &cdc.binding.exported_slot().channel(), "stable channel slot mismatch")) return 1;
+    if (!expect(stable_block == &msc.exported_slot().device(), "stable block slot mismatch")) return 1;
+    if (!expect(stable_channel == &cdc.exported_slot().channel(), "stable channel slot mismatch")) return 1;
 
     std::array<util::u8, MemoryDisk::block_size> block_buf{};
     std::array<util::u8, 4> read_buf{};
@@ -114,12 +114,12 @@ int main() {
 
     if (!expect(runtime.scan(), "runtime manager scan failed")) return 1;
     if (!expect(runtime.registry().device_count() == 2, "runtime registry should contain two devices")) return 1;
-    if (!expect(runtime.enumerated(msc.binding) && runtime.enumerated(cdc.binding),
+    if (!expect(msc.enumerated_in(runtime) && cdc.enumerated_in(runtime),
                 "runtime manager did not enumerate all records")) return 1;
 
-    if (!expect(msc.binding.attached(), "MSC slot was not attached")) return 1;
-    if (!expect(cdc.binding.attached(), "CDC slot was not attached")) return 1;
-    const auto cdc_generation_before = cdc.binding.generation();
+    if (!expect(msc.attached(), "MSC slot was not attached")) return 1;
+    if (!expect(cdc.attached(), "CDC slot was not attached")) return 1;
+    const auto cdc_generation_before = cdc.generation();
 
     auto block_read = read_lba0(*stable_block, block_buf);
     if (!expect(static_cast<bool>(block_read), "attached block slot should read successfully")) return 1;
@@ -142,25 +142,25 @@ int main() {
     if (!expect(static_cast<bool>(stable_channel->flush()) && cdc.backend.flushed,
                 "attached channel slot should flush successfully")) return 1;
 
-    if (!expect(runtime.remove(msc.binding), "failed to remove MSC device")) return 1;
+    if (!expect(msc.remove_from(runtime), "failed to remove MSC device")) return 1;
     if (!expect(runtime.registry().device_count() == 1, "runtime registry should keep only CDC after MSC remove")) return 1;
-    if (!expect(!msc.binding.attached(), "MSC slot should detach after remove")) return 1;
+    if (!expect(!msc.attached(), "MSC slot should detach after remove")) return 1;
     if (!expect_block_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
                              "removed MSC slot should read as noent")) return 1;
 
-    if (!expect(runtime.rediscover(msc.binding), "failed to rediscover MSC device")) return 1;
+    if (!expect(msc.rediscover_in(runtime), "failed to rediscover MSC device")) return 1;
     if (!expect(runtime.registry().device_count() == 2, "runtime registry should restore MSC after re-enumeration")) return 1;
-    if (!expect(msc.binding.attached(), "MSC slot should reattach after re-enumeration")) return 1;
+    if (!expect(msc.attached(), "MSC slot should reattach after re-enumeration")) return 1;
     if (!expect(static_cast<bool>(read_lba0(*stable_block, block_buf)),
                 "re-enumerated MSC slot should read successfully")) return 1;
-    if (!expect(cdc.binding.generation() == cdc_generation_before,
+    if (!expect(cdc.generation() == cdc_generation_before,
                 "rediscovering MSC should not reinitialize unchanged CDC")) return 1;
 
-    if (!expect(runtime.remove(cdc.binding), "failed to remove CDC device")) return 1;
-    if (!expect(runtime.remove(msc.binding), "failed to remove MSC device the second time")) return 1;
+    if (!expect(cdc.remove_from(runtime), "failed to remove CDC device")) return 1;
+    if (!expect(msc.remove_from(runtime), "failed to remove MSC device the second time")) return 1;
 
-    if (!expect(!msc.binding.attached(), "MSC slot should be detached after remove")) return 1;
-    if (!expect(!cdc.binding.attached(), "CDC slot should be detached after remove")) return 1;
+    if (!expect(!msc.attached(), "MSC slot should be detached after remove")) return 1;
+    if (!expect(!cdc.attached(), "CDC slot should be detached after remove")) return 1;
     if (!expect(runtime.registry().device_count() == 0, "runtime registry should be empty after both removes")) return 1;
     if (!expect_block_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
                              "detached block slot should return noent after remove")) return 1;

@@ -50,7 +50,7 @@ int main() {
         0x0006
     };
 
-    auto add_r = runtime.add_exported(cdc.binding);
+    auto add_r = cdc.add_to(runtime);
     if (!add_r) {
         std::fprintf(stderr,
                      "[ERR] runtime manager add_exported failed err=%d\n",
@@ -59,13 +59,13 @@ int main() {
     }
 
     auto* stable = cdc.stable();
-    if (!expect(stable == &cdc.binding.exported_slot().channel(),
+    if (!expect(stable == &cdc.exported_slot().channel(),
                 "registry did not expose the stable channel slot")) {
         return 1;
     }
-    if (!expect(cdc.binding.exported(), "slot export should stay published")) return 1;
-    if (!expect(!cdc.binding.attached(), "slot should start detached")) return 1;
-    if (!expect(cdc.binding.generation() == 0, "slot generation should start at 0")) return 1;
+    if (!expect(cdc.exported(), "slot export should stay published")) return 1;
+    if (!expect(!cdc.attached(), "slot should start detached")) return 1;
+    if (!expect(cdc.generation() == 0, "slot generation should start at 0")) return 1;
 
     std::array<util::u8, 4> read_buf{};
     std::array<util::u8, 4> write_buf{
@@ -82,7 +82,7 @@ int main() {
     if (!expect(runtime.scan(), "runtime manager scan failed")) {
         return 1;
     }
-    if (!expect(runtime.enumerated(cdc.binding),
+    if (!expect(cdc.enumerated_in(runtime),
                 "runtime manager did not enumerate the CDC device")) {
         return 1;
     }
@@ -90,8 +90,8 @@ int main() {
                 "runtime registry should contain one CDC device")) {
         return 1;
     }
-    if (!expect(cdc.binding.attached(), "runtime init did not attach the CDC slot")) return 1;
-    if (!expect(cdc.binding.generation() == 1,
+    if (!expect(cdc.attached(), "runtime init did not attach the CDC slot")) return 1;
+    if (!expect(cdc.generation() == 1,
                 "slot generation should advance after attach")) {
         return 1;
     }
@@ -138,12 +138,12 @@ int main() {
     if (!expect(static_cast<bool>(flush_r), "attached slot should flush successfully")) return 1;
     if (!expect(cdc.backend.flushed, "backend flush callback was not observed")) return 1;
 
-    if (!expect(runtime.remove(cdc.binding),
+    if (!expect(cdc.remove_from(runtime),
                 "runtime remove did not detach the CDC slot")) {
         return 1;
     }
-    if (!expect(!cdc.binding.attached(), "CDC slot should be detached after remove")) return 1;
-    if (!expect(cdc.binding.generation() == 2,
+    if (!expect(!cdc.attached(), "CDC slot should be detached after remove")) return 1;
+    if (!expect(cdc.generation() == 2,
                 "slot generation should advance after detach")) {
         return 1;
     }

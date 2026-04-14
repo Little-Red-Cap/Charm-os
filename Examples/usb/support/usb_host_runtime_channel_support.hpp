@@ -106,5 +106,45 @@ namespace examples::usb::support {
         io::Channel* stable() noexcept {
             return registry ? registry->open_channel(cap_name) : nullptr;
         }
+
+        auto& exported_slot() noexcept {
+            return binding.exported_slot();
+        }
+
+        const auto& exported_slot() const noexcept {
+            return binding.exported_slot();
+        }
+
+        [[nodiscard]] bool exported() const noexcept {
+            return binding.exported();
+        }
+
+        [[nodiscard]] bool attached() const noexcept {
+            return binding.attached();
+        }
+
+        [[nodiscard]] util::u32 generation() const noexcept {
+            return binding.generation();
+        }
+
+        template <typename RuntimeManagerT>
+        auto add_to(RuntimeManagerT& runtime) noexcept -> decltype(runtime.add_exported(binding)) {
+            return runtime.add_exported(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        [[nodiscard]] bool enumerated_in(const RuntimeManagerT& runtime) const noexcept {
+            return runtime.enumerated(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        bool remove_from(RuntimeManagerT& runtime) noexcept {
+            return runtime.remove(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        bool rediscover_in(RuntimeManagerT& runtime) noexcept {
+            return runtime.rediscover(binding);
+        }
     };
 }

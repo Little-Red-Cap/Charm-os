@@ -64,6 +64,16 @@ void print_fault_registers(Armv7aExceptionKind kind)
     default:
         break;
     }
+
+    early_uart_puts("ARMv7-A fault context, sctlr=0x");
+    early_uart_write_hex(armv7a_read_sctlr(), 8);
+    early_uart_puts(", ttbr0=0x");
+    early_uart_write_hex(armv7a_read_ttbr0(), 8);
+    early_uart_puts(", ttbcr=0x");
+    early_uart_write_hex(armv7a_read_ttbcr(), 8);
+    early_uart_puts(", dacr=0x");
+    early_uart_write_hex(armv7a_read_dacr(), 8);
+    early_uart_puts("\r\n");
 }
 } // namespace
 

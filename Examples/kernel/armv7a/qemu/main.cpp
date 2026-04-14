@@ -103,6 +103,28 @@ void print_boot_page_table_state()
     early_uart_put_hex32(armv7a_boot_l1_descriptor(0x09000000u));
     early_uart_puts("\r\n");
 }
+
+void print_mmu_runtime_state()
+{
+    const auto sctlr = armv7a_read_sctlr();
+    early_uart_puts("ARMv7-A MMU active, sctlr=0x");
+    early_uart_put_hex32(sctlr);
+    early_uart_puts(", ttbr0=0x");
+    early_uart_put_hex32(armv7a_read_ttbr0());
+    early_uart_puts(", ttbcr=0x");
+    early_uart_put_hex32(armv7a_read_ttbcr());
+    early_uart_puts(", dacr=0x");
+    early_uart_put_hex32(armv7a_read_dacr());
+    early_uart_puts("\r\n");
+
+    early_uart_puts("ARMv7-A MMU flags, mmu=");
+    early_uart_puts(armv7a_mmu_enabled(sctlr) ? "on" : "off");
+    early_uart_puts(", dcache=");
+    early_uart_puts(armv7a_dcache_enabled(sctlr) ? "on" : "off");
+    early_uart_puts(", icache=");
+    early_uart_puts(armv7a_icache_enabled(sctlr) ? "on" : "off");
+    early_uart_puts("\r\n");
+}
 } // namespace
 
 int main()
@@ -115,6 +137,8 @@ int main()
     early_uart_puts("Targeting Cortex-A7 first, RK3506 later.\r\n");
     print_cpu_boot_state();
     print_boot_page_table_state();
+    armv7a_enable_identity_mmu(armv7a_boot_l1_table_base());
+    print_mmu_runtime_state();
     print_charm_module_status();
     armv7a_svc_smoke_test();
     armv7a_irq_smoke_test();

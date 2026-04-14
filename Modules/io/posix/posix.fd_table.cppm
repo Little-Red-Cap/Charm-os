@@ -168,6 +168,7 @@ export namespace posix {
             }
             FdEntry copy = *src;
             copy.id = to;
+            copy.inheritable = true;
             slots_[static_cast<util::usize>(to)] = copy;
             used_[static_cast<util::usize>(to)] = true;
             return {};
@@ -193,6 +194,7 @@ export namespace posix {
                 }
                 FdEntry copy = *src;
                 copy.id = static_cast<int>(i);
+                copy.inheritable = true;
                 slots_[i] = copy;
                 used_[i] = true;
                 return copy.id;

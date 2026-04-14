@@ -65,10 +65,10 @@ namespace posix {
 ## Behavior
 
 - `attach` allocates an fd slot; if `desired` is occupied, returns `EEXIST`.
-- `dup2` preserves semantics: if `to` exists, close then duplicate.
+- `dup2` preserves semantics: if `to` exists, close then duplicate; if `from == to`, it is a no-op.
 - `close` calls entry ops->close and releases slot.
 - `clone_entry` copies references without transferring ownership.
-- All entries are inheritable by default.
+- All entries are inheritable by default; `FD_CLOEXEC` maps to `FdEntry.inheritable == false`.
 
 ## Integration Points
 
@@ -89,4 +89,4 @@ namespace posix {
 
 - Use `FdFlags` only for read/write policy and non-blocking hints.
 - Backpressure and readiness should remain in the pipe/term subsystem.
-- No `FD_CLOEXEC` in v1; use explicit `FileActions::add_close`.
+- `dup()` / `dup2()` / `fcntl(F_DUPFD)` always create a new inheritable descriptor, even when the source fd has `FD_CLOEXEC` set.

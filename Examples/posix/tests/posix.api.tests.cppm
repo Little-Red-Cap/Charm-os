@@ -1029,6 +1029,116 @@ namespace {
         }
     }
 
+    void test_api_fcntl_fdflags() noexcept {
+        {
+            fs::clear_mounts();
+            ApiRamFsMount<64, 32, 64> ramfs{};
+            auto mount_st = fs::add_mount("", ramfs.mount_point());
+            check_true("fdflags-mount", mount_st);
+
+            posix::FdTable<8> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<2, 4, 8, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<8, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+
+            int fd = api.open("/fdflags.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("fdflags-open", fd >= 0);
+            check_eq("fdflags-get-initial", api.fcntl(fd, posix::F_GETFD), 0);
+            check_eq("fdflags-set-cloexec", api.fcntl(fd, posix::F_SETFD, posix::FD_CLOEXEC), 0);
+            check_eq("fdflags-get-cloexec", api.fcntl(fd, posix::F_GETFD), posix::FD_CLOEXEC);
+            check_eq("fdflags-self-dup2", api.dup2(fd, fd), fd);
+            check_eq("fdflags-self-dup2-preserve", api.fcntl(fd, posix::F_GETFD), posix::FD_CLOEXEC);
+
+            int dup_fd = api.dup(fd);
+            check_true("fdflags-dup", dup_fd >= 0);
+            check_eq("fdflags-dup-get", api.fcntl(dup_fd, posix::F_GETFD), 0);
+
+            check_eq("fdflags-dup2", api.dup2(fd, 2), 2);
+            check_eq("fdflags-dup2-get", api.fcntl(2, posix::F_GETFD), 0);
+
+            int dup_fd2 = api.fcntl(fd, posix::F_DUPFD, 3);
+            check_true("fdflags-dupfd", dup_fd2 >= 3);
+            check_eq("fdflags-dupfd-get", api.fcntl(dup_fd2, posix::F_GETFD), 0);
+
+            posix::set_errno(0);
+            check_eq("fdflags-set-invalid-rc", api.fcntl(fd, posix::F_SETFD, 2), -1);
+            check_eq("fdflags-set-invalid-errno", posix::get_errno(), posix::EINVAL);
+            posix::set_errno(0);
+            check_eq("fdflags-get-badfd-rc", api.fcntl(-1, posix::F_GETFD), -1);
+            check_eq("fdflags-get-badfd-errno", posix::get_errno(), posix::EBADF);
+            posix::set_errno(0);
+            check_eq("fdflags-set-badfd-rc", api.fcntl(-1, posix::F_SETFD, posix::FD_CLOEXEC), -1);
+            check_eq("fdflags-set-badfd-errno", posix::get_errno(), posix::EBADF);
+
+            check_eq("fdflags-close-original", api.close(fd), 0);
+            check_eq("fdflags-close-dup", api.close(dup_fd), 0);
+            check_eq("fdflags-close-dup2", api.close(2), 0);
+            check_eq("fdflags-close-dupfd", api.close(dup_fd2), 0);
+        }
+
+        {
+            fs::clear_mounts();
+            ApiRamFsMount<64, 32, 64> ramfs{};
+            auto mount_st = fs::add_mount("", ramfs.mount_point());
+            check_true("fdflags-bridge-mount", mount_st);
+
+            posix::FdTable<8> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<2, 4, 8, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<8, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+            auto runtime = posix::user::make_runtime(api);
+            posix::user::bind_runtime(runtime);
+
+            int fd = api.open("/fdflags-bridge.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("fdflags-bridge-open", fd >= 0);
+            check_eq("fdflags-bridge-get-initial", fcntl(fd, posix::F_GETFD), 0);
+            check_eq("fdflags-bridge-set-cloexec", fcntl(fd, posix::F_SETFD, posix::FD_CLOEXEC), 0);
+            check_eq("fdflags-bridge-get-cloexec", fcntl(fd, posix::F_GETFD), posix::FD_CLOEXEC);
+            check_eq("fdflags-bridge-self-dup2", dup2(fd, fd), fd);
+            check_eq("fdflags-bridge-self-dup2-preserve", fcntl(fd, posix::F_GETFD), posix::FD_CLOEXEC);
+
+            int dup_fd = dup(fd);
+            check_true("fdflags-bridge-dup", dup_fd >= 0);
+            check_eq("fdflags-bridge-dup-get", fcntl(dup_fd, posix::F_GETFD), 0);
+
+            check_eq("fdflags-bridge-dup2", dup2(fd, 2), 2);
+            check_eq("fdflags-bridge-dup2-get", fcntl(2, posix::F_GETFD), 0);
+
+            int dup_fd2 = fcntl(fd, posix::F_DUPFD, 3);
+            check_true("fdflags-bridge-dupfd", dup_fd2 >= 3);
+            check_eq("fdflags-bridge-dupfd-get", fcntl(dup_fd2, posix::F_GETFD), 0);
+
+            posix::set_errno(0);
+            check_eq("fdflags-bridge-set-invalid-rc", fcntl(fd, posix::F_SETFD, 2), -1);
+            check_eq("fdflags-bridge-set-invalid-errno", posix::get_errno(), posix::EINVAL);
+            posix::set_errno(0);
+            check_eq("fdflags-bridge-get-badfd-rc", fcntl(-1, posix::F_GETFD), -1);
+            check_eq("fdflags-bridge-get-badfd-errno", posix::get_errno(), posix::EBADF);
+            posix::set_errno(0);
+            check_eq("fdflags-bridge-set-badfd-rc", fcntl(-1, posix::F_SETFD, posix::FD_CLOEXEC), -1);
+            check_eq("fdflags-bridge-set-badfd-errno", posix::get_errno(), posix::EBADF);
+
+            check_eq("fdflags-bridge-close-original", api.close(fd), 0);
+            check_eq("fdflags-bridge-close-dup", api.close(dup_fd), 0);
+            check_eq("fdflags-bridge-close-dup2", api.close(2), 0);
+            check_eq("fdflags-bridge-close-dupfd", api.close(dup_fd2), 0);
+
+            posix::user::unbind_runtime();
+        }
+    }
+
     void test_api_stdio_aliases() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -1318,6 +1428,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_dup();
     test_api_dup2_bridge();
     test_api_fcntl_dupfd();
+    test_api_fcntl_fdflags();
     test_api_stdio_aliases();
     test_api_cwd_and_spawn();
     test_api_errno_contracts();

@@ -29,6 +29,9 @@ export namespace posix {
     using ssize_t = util::i64;
     inline constexpr util::usize kDirentNameMax = 64;
     inline constexpr int F_DUPFD = 0;
+    inline constexpr int F_GETFD = 1;
+    inline constexpr int F_SETFD = 2;
+    inline constexpr int FD_CLOEXEC = 1;
 
     struct PosixDirent {
         std::array<char, kDirentNameMax> d_name{};
@@ -509,6 +512,27 @@ export namespace posix {
                         return -1;
                     }
                     return r.value();
+                }
+                case F_GETFD: {
+                    auto entry = table->get(fd);
+                    if (!entry) {
+                        set_errno(map_fd_errno(entry.error()));
+                        return -1;
+                    }
+                    return entry.value()->inheritable ? 0 : FD_CLOEXEC;
+                }
+                case F_SETFD: {
+                    auto entry = table->get(fd);
+                    if (!entry) {
+                        set_errno(map_fd_errno(entry.error()));
+                        return -1;
+                    }
+                    if (arg != 0 && arg != FD_CLOEXEC) {
+                        set_errno(EINVAL);
+                        return -1;
+                    }
+                    entry.value()->inheritable = (arg & FD_CLOEXEC) == 0;
+                    return 0;
                 }
                 default:
                     set_errno(EINVAL);

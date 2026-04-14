@@ -241,6 +241,53 @@ namespace {
         check_eq("dupmin-badarg-code", rbad.error(), util::Errc::invalid_arg);
     }
 
+    void test_dup_clears_inheritable() noexcept {
+        posix::FdTable<5> table{};
+        table.init();
+
+        Counter c{};
+        posix::FdOps ops{
+            &dummy_read,
+            &dummy_write,
+            &dummy_close,
+            &dummy_stat,
+            &dummy_dup,
+            nullptr
+        };
+
+        posix::FdEntry e0{};
+        e0.kind = posix::FdKind::file;
+        e0.ops = &ops;
+        e0.ctx = &c;
+        e0.inheritable = false;
+        check_true("dupclo-attach-0", table.attach(e0, 0));
+        auto src = table.get(0);
+        check_true("dupclo-src-get", src);
+        check_true("dupclo-src-flag", !src.value()->inheritable);
+
+        auto rdup = table.dup(0);
+        check_true("dupclo-dup", rdup);
+        check_eq("dupclo-dup-fd", rdup.value(), 1);
+        auto dup_entry = table.get(rdup.value());
+        check_true("dupclo-dup-get", dup_entry);
+        check_true("dupclo-dup-flag", dup_entry.value()->inheritable);
+
+        auto rdup2 = table.dup2(0, 2);
+        check_true("dupclo-dup2", rdup2);
+        auto dup2_entry = table.get(2);
+        check_true("dupclo-dup2-get", dup2_entry);
+        check_true("dupclo-dup2-flag", dup2_entry.value()->inheritable);
+
+        auto rdupmin = table.dup(0, 3);
+        check_true("dupclo-dupmin", rdupmin);
+        check_eq("dupclo-dupmin-fd", rdupmin.value(), 3);
+        auto dupmin_entry = table.get(rdupmin.value());
+        check_true("dupclo-dupmin-get", dupmin_entry);
+        check_true("dupclo-dupmin-flag", dupmin_entry.value()->inheritable);
+
+        check_true("dupclo-src-still-cloexec", !table.get(0).value()->inheritable);
+    }
+
     void test_attach_errors() noexcept {
         posix::FdTable<2> table{};
         table.init();
@@ -286,6 +333,7 @@ export void run_posix_fd_table_smoke_tests() noexcept {
     test_clone_entry();
     test_dup_allocates_new_fd();
     test_dup_respects_min_fd();
+    test_dup_clears_inheritable();
     test_attach_errors();
     log_line("[posix-smoke] fd_table end ok");
 }

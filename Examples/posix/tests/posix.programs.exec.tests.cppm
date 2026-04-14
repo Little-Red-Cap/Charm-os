@@ -435,6 +435,63 @@ namespace {
         check_eq("newlib-fcntl-code", st.value().code, 0);
     }
 
+    void test_spawn_cloexec() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<64, 16, 64> ramfs{};
+        new (&ramfs) RamFsMount<64, 16, 64>();
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("cloexec-mount", mount_st);
+
+        Harness h{};
+        auto rreg = h.procs.register_executable("cloexec", &cloexec_main);
+        check_true("cloexec-register", rreg);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("cloexec-stdin", h.fds.attach(term_entry, 0));
+        check_true("cloexec-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("cloexec-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("cloexec-pipe", h.api.pipe(pipefd), 0);
+        check_true("cloexec-dup2", h.fds.dup2(pipefd[1], 1));
+
+        int cloexec_fd = h.api.open("/cloexec.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cloexec-open", cloexec_fd >= 0);
+        check_eq("cloexec-set", h.api.fcntl(cloexec_fd, posix::F_SETFD, posix::FD_CLOEXEC), 0);
+        check_eq("cloexec-get", h.api.fcntl(cloexec_fd, posix::F_GETFD), posix::FD_CLOEXEC);
+
+        char fd_arg[16]{};
+        std::snprintf(fd_arg, sizeof(fd_arg), "%d", cloexec_fd);
+        const char* argv[] = {"cloexec", fd_arg, nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "cloexec";
+        cfg.argv = std::span<const char* const>(argv, 2);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("cloexec-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("cloexec-out", out, std::string_view{"cloexec-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("cloexec-wait", st);
+        check_eq("cloexec-code", st.value().code, 0);
+
+        check_eq("cloexec-parent-write", h.api.write(cloexec_fd, "p", 1), static_cast<posix::ssize_t>(1));
+        check_eq("cloexec-parent-close", h.api.close(cloexec_fd), 0);
+
+        int verify_fd = h.api.open("/cloexec.txt", posix::O_RDONLY, 0);
+        check_true("cloexec-verify-open", verify_fd >= 0);
+        std::array<char, 8> verify_buf{};
+        auto r = h.api.read(verify_fd, verify_buf.data(), verify_buf.size());
+        check_eq("cloexec-verify-read", r, static_cast<posix::ssize_t>(1));
+        check_eq("cloexec-verify-text", std::string_view{verify_buf.data(), 1}, std::string_view{"p"});
+        check_eq("cloexec-verify-close", h.api.close(verify_fd), 0);
+    }
+
     void test_newlib_kill_self() noexcept {
         Harness h{};
         auto rreg = h.procs.register_executable("newlib_kill_self", &newlib_kill_self_main);
@@ -1462,6 +1519,9 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase newlib-fcntl begin");
     test_newlib_fcntl();
     log_line("[posix-smoke] programs phase newlib-fcntl end");
+    log_line("[posix-smoke] programs phase cloexec begin");
+    test_spawn_cloexec();
+    log_line("[posix-smoke] programs phase cloexec end");
     log_line("[posix-smoke] programs phase newlib-kill begin");
     test_newlib_kill_self();
     log_line("[posix-smoke] programs phase newlib-kill end");

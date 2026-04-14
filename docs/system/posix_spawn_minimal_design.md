@@ -91,7 +91,7 @@ namespace posix {
 - `PathMode::search_path` enables PATH lookup using `argv[0]` or `path`.
 - `cwd` applies once per spawn; no file-action `chdir` in v1.
 - Relative executable paths and `FileAction::open.path` are interpreted against `cwd`; when `cwd` is unset, they inherit the parent's current working directory.
-- Phase 2 uses `FileActions::add_close` to emulate close-on-exec; `FD_CLOEXEC` is deferred.
+- Phase 2 keeps `FileActions::add_close` for explicit spawn-time pruning, and also honors `FD_CLOEXEC` by skipping non-inheritable fds during parent->child fd-table cloning.
 - Apply order:
   1) resolve executable
   2) create child process/task object
@@ -115,8 +115,8 @@ Other combinations are allowed but not guaranteed for BusyBox phase 2.
 ## Pipe and FD Inheritance
 
 - All fds are inheritable by default.
-- `FileActions::add_close` is the only v1 mechanism to prune fds.
-- `FD_CLOEXEC` is deferred.
+- `FileActions::add_close` remains the explicit spawn-time pruning mechanism.
+- `FD_CLOEXEC` is now supported through `FdEntry.inheritable == false`; `spawn` omits those descriptors from the child table.
 - Child fd table is closed on process exit to release pipe/file refs promptly.
 
 Pipe semantics:

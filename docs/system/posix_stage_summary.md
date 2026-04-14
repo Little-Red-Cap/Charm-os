@@ -18,7 +18,7 @@
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
 - process-control slice now includes `kill v0`, `minimal ps`, shell/busybox `kill` applet coverage, and real-ELF `sleep/kill` hostcall coverage: `getpid`, `sleep`, `kill(SIGTERM/SIGKILL/SIGINT)`, and a minimum `ps(pid/state/name)` view are smoke-covered on the current same-address-space model
-- spawned newlib smoke now also covers pure-fd `dup()` / `dup2()` / `fcntl(F_DUPFD)` paths by duplicating redirected `stdout`, so bridge validation no longer depends only on bound-runtime smoke
+- spawned newlib smoke now also covers pure-fd `dup()` / `dup2()` / `fcntl(F_DUPFD)` plus minimal fd-flag control through `fcntl(F_GETFD/F_SETFD)` and `FD_CLOEXEC`; a spawned cloexec regression now also proves non-inheritable fds are pruned across `spawn`
 
 ## Stable ABI Contracts
 
@@ -37,7 +37,7 @@
 - `read(-1, ...) -> -1 && errno == EBADF`
 - `write(-1, ...) -> -1 && errno == EBADF`
 - `close(-1) -> -1 && errno == EBADF`
-- `dup(valid-fd) -> new-fd`, `dup2(old,new) -> new`, `fcntl(fd, F_DUPFD, min) -> lowest-available>=min`, `dup(-1) -> -1 && errno == EBADF`, `dup2(-1,new) -> -1 && errno == EBADF`, `fcntl(-1, F_DUPFD, min) -> -1 && errno == EBADF`, `fcntl(fd, F_DUPFD, -1) -> -1 && errno == EINVAL`, and `dup/full-table` style exhaustion returns `EMFILE`
+- `dup(valid-fd) -> new-fd`, `dup2(old,new) -> new`, `fcntl(fd, F_DUPFD, min) -> lowest-available>=min`, `fcntl(fd, F_GETFD) -> {0|FD_CLOEXEC}`, `fcntl(fd, F_SETFD, flag) -> 0`, `fcntl(fd, F_SETFD, invalid) -> -1 && errno == EINVAL`, `dup(-1) -> -1 && errno == EBADF`, `dup2(-1,new) -> -1 && errno == EBADF`, `fcntl(-1, F_DUPFD/F_GETFD/F_SETFD, ...) -> -1 && errno == EBADF`, `fcntl(fd, F_DUPFD, -1) -> -1 && errno == EINVAL`, `dup/full-table` style exhaustion returns `EMFILE`, and dup-family-created descriptors always clear `FD_CLOEXEC` on the new fd
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
 - `open("/dev/stdin")` / `open("/dev/stdout")` / `open("/dev/stderr")` now alias the active stdio fd set, while `open("/dev/console", ...)` and `open("/dev/tty", ...)` alias a live terminal fd; `stat/fstat` on term-style descriptors stabilizes at `S_IFCHR`
@@ -48,7 +48,7 @@
 ## Mainline Capabilities Already Holding
 - file-backed ELF can be loaded and spawned from a path
 - stdio/fd/pipe/wait form a working minimal userland spine
-- fd duplication now has a stable minimum contract through `dup()`/`dup2()` across API smoke and the bound-runtime C bridge smoke
+- fd duplication now has a stable minimum contract through `dup()`/`dup2()`/`fcntl()` across API smoke, bound-runtime bridge smoke, and spawned newlib smoke; descriptor close-on-exec now maps to `FdEntry.inheritable == false`
 - busybox phase2 smoke remains usable on top of the current spine
 - busybox phase1 minimal FS slice is now usable on top of the current spine
 - child fd cleanup on exit is in place and no longer destabilizes pipe EOF behavior

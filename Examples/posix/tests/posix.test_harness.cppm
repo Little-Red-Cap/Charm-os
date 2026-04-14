@@ -369,6 +369,19 @@ export namespace posix::testsupport {
         return false;
     }
 
+    int cloexec_main(int argc, char** argv, char**) {
+        if (!posix::user::has_runtime()) return 1;
+        if (argc != 2 || !argv || !argv[1]) return 2;
+        int fd = -1;
+        if (!parse_decimal_arg(std::string_view{argv[1]}, fd)) return 3;
+        auto* err = posix::user::errno_location();
+        if (!err) return 4;
+        *err = 0;
+        if (posix::user::write(fd, "x", 1) != -1) return 5;
+        if (*err != posix::EBADF) return 6;
+        return write_text(1, "cloexec-ok\n");
+    }
+
     int kill_main(int argc, char** argv, char**) {
         if (!posix::user::has_runtime()) return 1;
         if (argc < 2 || !argv || !argv[1]) return 2;

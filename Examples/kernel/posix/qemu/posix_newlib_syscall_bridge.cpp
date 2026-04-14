@@ -226,6 +226,10 @@ extern "C" int dup2(int oldfd, int newfd) {
 }
 
 namespace {
+    bool fcntl_requires_int_arg(int cmd) noexcept {
+        return cmd == F_DUPFD || cmd == F_SETFD;
+    }
+
     int fcntl_bridge_call(int fd, int cmd, int arg) noexcept {
         ErrnoScope guard{};
         const int r = posix::user::fcntl(fd, cmd, arg);
@@ -239,7 +243,7 @@ namespace {
 
 extern "C" int _fcntl(int fd, int cmd, ...) {
     int arg = 0;
-    if (cmd == F_DUPFD) {
+    if (fcntl_requires_int_arg(cmd)) {
         va_list args;
         va_start(args, cmd);
         arg = va_arg(args, int);
@@ -250,7 +254,7 @@ extern "C" int _fcntl(int fd, int cmd, ...) {
 
 extern "C" int fcntl(int fd, int cmd, ...) {
     int arg = 0;
-    if (cmd == F_DUPFD) {
+    if (fcntl_requires_int_arg(cmd)) {
         va_list args;
         va_start(args, cmd);
         arg = va_arg(args, int);

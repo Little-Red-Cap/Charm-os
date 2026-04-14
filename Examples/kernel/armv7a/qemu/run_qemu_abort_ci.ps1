@@ -75,6 +75,7 @@ switch ($Kind) {
         $exceptionLine = "ARMv7-A exception: data abort"
         $faultPattern = "ARMv7-A data fault, dfsr=0x[0-9A-F]{8}, dfar=0x20000000, adfsr=0x[0-9A-F]{8}"
         $decodePattern = "ARMv7-A data fault decode, status=0x05 \(section translation fault\), domain=0x0, write=no, cm=no"
+        $mapPattern = "ARMv7-A fault map, far=0x20000000, ttbr0=0x[0-9A-F]{8}, l1\[0x200\]=0x00000000 \(fault\)"
     }
     "prefetch" {
         $configurePreset = "debug-abort-prefetch"
@@ -83,6 +84,7 @@ switch ($Kind) {
         $exceptionLine = "ARMv7-A exception: prefetch abort"
         $faultPattern = "ARMv7-A prefetch fault, ifsr=0x[0-9A-F]{8}, ifar=0x20000000, aifsr=0x[0-9A-F]{8}"
         $decodePattern = "ARMv7-A prefetch fault decode, status=0x05 \(section translation fault\), domain=0x0"
+        $mapPattern = "ARMv7-A fault map, far=0x20000000, ttbr0=0x[0-9A-F]{8}, l1\[0x200\]=0x00000000 \(fault\)"
     }
     default {
         throw "unsupported abort kind: $Kind"
@@ -166,6 +168,9 @@ if (($log -notmatch $faultPattern)) {
 }
 if (($log -notmatch $decodePattern)) {
     $missing += $decodePattern
+}
+if (($log -notmatch $mapPattern)) {
+    $missing += $mapPattern
 }
 if (($log -notmatch "ARMv7-A fault context, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A fault context, sctlr=0x..."

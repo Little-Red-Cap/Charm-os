@@ -4,6 +4,7 @@
 #include "armv7a_exception_frame.hpp"
 #include "armv7a_fault_status.hpp"
 #include "armv7a_mmu.hpp"
+#include "armv7a_translation_walk.hpp"
 
 extern "C" void early_uart_init();
 extern "C" void early_uart_putc(char ch);
@@ -43,15 +44,17 @@ const char* exception_name(Armv7aExceptionKind kind)
 
 void print_fault_registers(Armv7aExceptionKind kind)
 {
+    std::uint32_t fault_address = 0;
     switch (kind) {
     case kArmv7aExceptionPrefetchAbort:
     {
         const auto ifsr = armv7a_read_ifsr();
         const auto decode = armv7a_decode_prefetch_fault_status(ifsr);
+        fault_address = armv7a_read_ifar();
         early_uart_puts("ARMv7-A prefetch fault, ifsr=0x");
         early_uart_write_hex(ifsr, 8);
         early_uart_puts(", ifar=0x");
-        early_uart_write_hex(armv7a_read_ifar(), 8);
+        early_uart_write_hex(fault_address, 8);
         early_uart_puts(", aifsr=0x");
         early_uart_write_hex(armv7a_read_aifsr(), 8);
         early_uart_puts("\r\n");
@@ -68,10 +71,11 @@ void print_fault_registers(Armv7aExceptionKind kind)
     {
         const auto dfsr = armv7a_read_dfsr();
         const auto decode = armv7a_decode_data_fault_status(dfsr);
+        fault_address = armv7a_read_dfar();
         early_uart_puts("ARMv7-A data fault, dfsr=0x");
         early_uart_write_hex(dfsr, 8);
         early_uart_puts(", dfar=0x");
-        early_uart_write_hex(armv7a_read_dfar(), 8);
+        early_uart_write_hex(fault_address, 8);
         early_uart_puts(", adfsr=0x");
         early_uart_write_hex(armv7a_read_adfsr(), 8);
         early_uart_puts("\r\n");
@@ -90,6 +94,42 @@ void print_fault_registers(Armv7aExceptionKind kind)
     }
     default:
         break;
+    }
+
+    if (fault_address != 0u) {
+        const auto ttbr0 = armv7a_read_ttbr0();
+        const auto descriptor = armv7a_l1_descriptor_from_ttbr0(ttbr0, fault_address);
+        const auto decode = armv7a_decode_l1_descriptor(fault_address, descriptor);
+
+        early_uart_puts("ARMv7-A fault map, far=0x");
+        early_uart_write_hex(fault_address, 8);
+        early_uart_puts(", ttbr0=0x");
+        early_uart_write_hex(ttbr0, 8);
+        early_uart_puts(", l1[0x");
+        early_uart_write_hex(decode.index, 3);
+        early_uart_puts("]=0x");
+        early_uart_write_hex(decode.descriptor, 8);
+        early_uart_puts(" (");
+        early_uart_puts(armv7a_l1_descriptor_kind_name(decode.kind));
+        early_uart_puts(")");
+        if (decode.kind == Armv7aL1DescriptorKind::kPageTable ||
+            decode.kind == Armv7aL1DescriptorKind::kSection ||
+            decode.kind == Armv7aL1DescriptorKind::kSupersection) {
+            early_uart_puts(", domain=0x");
+            early_uart_write_hex(decode.domain, 1);
+        }
+        if (decode.kind == Armv7aL1DescriptorKind::kSection ||
+            decode.kind == Armv7aL1DescriptorKind::kSupersection) {
+            early_uart_puts(", xn=");
+            early_uart_puts(decode.execute_never ? "yes" : "no");
+            early_uart_puts(", s=");
+            early_uart_puts(decode.shareable ? "yes" : "no");
+            early_uart_puts(", c=");
+            early_uart_puts(decode.cacheable ? "yes" : "no");
+            early_uart_puts(", b=");
+            early_uart_puts(decode.bufferable ? "yes" : "no");
+        }
+        early_uart_puts("\r\n");
     }
 
     early_uart_puts("ARMv7-A fault context, sctlr=0x");

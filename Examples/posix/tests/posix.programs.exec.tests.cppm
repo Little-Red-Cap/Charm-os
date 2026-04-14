@@ -437,6 +437,39 @@ namespace {
         check_eq("newlib-fcntl-code", st.value().code, 0);
     }
 
+    void test_newlib_pipe() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_pipe", &newlib_pipe_main);
+        check_true("newlib-pipe-register", rreg);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("newlib-pipe-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-pipe-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-pipe-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-pipe-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-pipe-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_pipe", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_pipe";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-pipe-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-pipe-out", out, std::string_view{"newlib-pipe-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-pipe-wait", st);
+        check_eq("newlib-pipe-code", st.value().code, 0);
+    }
+
     void test_spawn_cloexec() noexcept {
         fs::clear_mounts();
         static RamFsMount<64, 16, 64> ramfs{};
@@ -1521,6 +1554,9 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase newlib-fcntl begin");
     test_newlib_fcntl();
     log_line("[posix-smoke] programs phase newlib-fcntl end");
+    log_line("[posix-smoke] programs phase newlib-pipe begin");
+    test_newlib_pipe();
+    log_line("[posix-smoke] programs phase newlib-pipe end");
     log_line("[posix-smoke] programs phase cloexec begin");
     test_spawn_cloexec();
     log_line("[posix-smoke] programs phase cloexec end");

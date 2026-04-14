@@ -225,6 +225,24 @@ extern "C" int _close(int fd) {
     return r;
 }
 
+extern "C" int _pipe(int* fds) {
+    ErrnoScope guard{};
+    if (!fds) {
+        set_bridge_errno(kRuntimeErrInval);
+        return -1;
+    }
+    const int r = posix::user::pipe(fds);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int pipe(int* fds) {
+    return _pipe(fds);
+}
+
 extern "C" int _dup(int fd) {
     ErrnoScope guard{};
     const int r = posix::user::dup(fd);

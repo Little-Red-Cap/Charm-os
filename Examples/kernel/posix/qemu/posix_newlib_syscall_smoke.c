@@ -165,6 +165,66 @@ int charm_posix_newlib_fcntl_entry(void) {
     return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 219;
 }
 
+int charm_posix_newlib_pipe_entry(void) {
+    int fds[2] = {-1, -1};
+    int dup_fd = -1;
+    int flags = 0;
+    int filled = 0;
+    int drained = 0;
+    char ch = 0;
+    char buf[8] = {0};
+
+    if (pipe(fds) != 0) return 221;
+
+    flags = fcntl(fds[0], F_GETFL);
+    if (flags < 0) return 222;
+    if ((flags & O_ACCMODE) != O_RDONLY) return 223;
+
+    flags = fcntl(fds[1], F_GETFL);
+    if (flags < 0) return 224;
+    if ((flags & O_ACCMODE) != O_WRONLY) return 225;
+
+    errno = 0;
+    if (read(fds[0], &ch, 1) != -1) return 226;
+    if (errno != EAGAIN) return 227;
+
+    if (fcntl(fds[0], F_SETFL, O_NONBLOCK) != 0) return 228;
+    if ((fcntl(fds[0], F_GETFL) & O_NONBLOCK) == 0) return 229;
+
+    dup_fd = dup(fds[0]);
+    if (dup_fd < 0) return 230;
+    if ((fcntl(dup_fd, F_GETFL) & O_NONBLOCK) == 0) return 231;
+    if (close(dup_fd) != 0) return 232;
+
+    for (;;) {
+        int w = write(fds[1], "x", 1);
+        if (w == 1) {
+            ++filled;
+            if (filled > 1024) return 233;
+            continue;
+        }
+        if (w == -1 && errno == EAGAIN) {
+            break;
+        }
+        return 234;
+    }
+    if (filled <= 0) return 235;
+
+    while (drained < filled) {
+        int want = filled - drained;
+        if (want > (int)sizeof(buf)) want = (int)sizeof(buf);
+        int r = read(fds[0], buf, want);
+        if (r <= 0) return 236;
+        drained += r;
+    }
+
+    if (close(fds[1]) != 0) return 237;
+    if (read(fds[0], &ch, 1) != 0) return 238;
+    if (close(fds[0]) != 0) return 239;
+
+    return write(1, "newlib-pipe-ok\n", 15) == 15 ? 0 : 240;
+}
+
 int charm_posix_newlib_kill_self_entry(void) {
     if (write(1, "newlib-kill\n", 12) != 12) return 111;
     (void)kill(getpid(), SIGTERM);

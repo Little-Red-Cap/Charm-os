@@ -51,6 +51,7 @@
 - stdio/fd/pipe/wait form a working minimal userland spine
 - fd duplication now has a stable minimum contract through `dup()`/`dup2()`/`fcntl()` across API smoke, bound-runtime bridge smoke, and spawned newlib smoke; descriptor close-on-exec now maps to `FdEntry.inheritable == false`, while `O_APPEND` / `O_NONBLOCK` now ride the shared open-file-description side via backend ctx hooks
 - pipe endpoints now also have a documented v0 nonblocking contract: readiness is still eager rather than truly blocking, but user-visible `EAGAIN` / EOF behavior and `O_NONBLOCK` introspection are stable enough for the current syscall bridge and smoke surface
+- spawned newlib smoke now also covers direct `pipe()` use through the bridge, including empty-read `EAGAIN`, capacity-driven write-side `EAGAIN`, dup-shared `O_NONBLOCK`, and writer-close EOF on the read end
 - busybox phase2 smoke remains usable on top of the current spine
 - busybox phase1 minimal FS slice is now usable on top of the current spine
 - child fd cleanup on exit is in place and no longer destabilizes pipe EOF behavior

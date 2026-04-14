@@ -567,6 +567,14 @@ int charm_posix_newlib_cwd_entry(void) {
     if (chdir("/missing-cwd") != -1) return 207;
     if (errno != ENOENT) return 208;
 
+    errno = 0;
+    if (chdir("/newlib-cwd/child.txt") != -1) return 212;
+    if (errno != ENOTDIR) return 213;
+
+    errno = 0;
+    if (chdir("/newlib-cwd/child.txt/sub") != -1) return 214;
+    if (errno != ENOTDIR) return 215;
+
     if (chdir("/") != 0) return 209;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 210;
     if (strcmp(cwd, "/") != 0) return 211;

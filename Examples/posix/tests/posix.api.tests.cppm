@@ -1753,6 +1753,14 @@ namespace {
         check_eq("cwd-text-inherit", std::string_view{inherit_text.data(), 5}, std::string_view{"/work"});
         check_eq("cwd-close-inherit", api.close(fd), 0);
 
+        posix::set_errno(0);
+        check_eq("cwd-chdir-file", api.chdir("/work/alpha.txt"), -1);
+        check_eq("cwd-chdir-file-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("cwd-chdir-file-parent", api.chdir("/work/alpha.txt/sub"), -1);
+        check_eq("cwd-chdir-file-parent-errno", posix::get_errno(), posix::ENOTDIR);
+
         check_eq("cwd-chdir-root", api.chdir("/"), 0);
         const char* override_argv[] = {"cwd-demo", "override.txt", nullptr};
         posix::SpawnConfig override_cfg{};

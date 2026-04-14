@@ -420,6 +420,7 @@ int main(int argc, char** argv) {
     bool screenshot_exit = false;
     player::PlayerPage start_page = player::PlayerPage::Home;
     bool start_page_set = false;
+    std::optional<player::LibraryTab> library_tab_override{};
     bool ui_ci = false;
     std::string font_ttf_path{};
     int font_small_px = 0;
@@ -461,6 +462,15 @@ int main(int argc, char** argv) {
             } else if (page == "library") {
                 start_page = player::PlayerPage::Library;
                 start_page_set = true;
+            }
+        } else if (arg.rfind("--library-tab=", 0) == 0) {
+            const std::string_view tab = arg.substr(14);
+            if (tab == "songs") {
+                library_tab_override = player::LibraryTab::Songs;
+            } else if (tab == "albums") {
+                library_tab_override = player::LibraryTab::Albums;
+            } else if (tab == "artists") {
+                library_tab_override = player::LibraryTab::Artists;
             }
         } else if (arg == "--screenshot-verbose") {
             screenshot_verbose = true;
@@ -546,6 +556,9 @@ int main(int argc, char** argv) {
     g_ctx.set_page(start_page);
 
     const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
+    if (library_tab_override.has_value()) {
+        g_ctx.set_library_tab(*library_tab_override);
+    }
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");
     }

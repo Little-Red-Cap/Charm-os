@@ -11,6 +11,16 @@ cmake --preset debug
 cmake --build out\build\debug --verbose
 ```
 
+Abort smoke presets stay separate so the default IRQ/SVC smoke remains stable:
+
+```powershell
+cmake --preset debug-abort-data
+cmake --build out\build\debug-abort-data --verbose
+
+cmake --preset debug-abort-prefetch
+cmake --build out\build\debug-abort-prefetch --verbose
+```
+
 ## Run
 
 ```powershell
@@ -50,6 +60,39 @@ ARMv7-A timer IRQ active, intid=30
 
 ```powershell
 .\run_qemu_ci.ps1
+```
+
+Abort smoke CI is intentionally separate because these runs end in the fatal
+exception path instead of returning to the regular SVC/IRQ smoke:
+
+```powershell
+.\run_qemu_abort_ci.ps1 -Kind data
+.\run_qemu_abort_ci.ps1 -Kind prefetch
+```
+
+## Abort smoke
+
+Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
+
+```powershell
+.\run_qemu.ps1 -ElfPath out\build\debug-abort-data\charm-armv7a-qemu
+.\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch\charm-armv7a-qemu
+```
+
+Expected abort-mode output includes the same boot/MMU banner as the default
+smoke, then stops in one of these fault paths instead of printing the later
+SVC/IRQ lines:
+
+```text
+ARMv7-A abort smoke, kind=data, addr=0x20000000
+ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, mode=abt
+ARMv7-A data fault, dfsr=0x........, dfar=0x20000000, adfsr=0x........
+```
+
+```text
+ARMv7-A abort smoke, kind=prefetch, addr=0x20000000
+ARMv7-A exception: prefetch abort, pc=0x20000000, lr=0x20000004, spsr=0x........, mode=abt
+ARMv7-A prefetch fault, ifsr=0x........, ifar=0x20000000, aifsr=0x........
 ```
 
 ## GDB attach
@@ -93,5 +136,8 @@ continue
   Current QEMU `virt` runs observed the non-secure physical timer route
   (`intid=30`), but the code also accepts the secure route (`intid=29`)
   so the same leaf target is less brittle across reset states.
+- Optional `data` / `prefetch` abort smokes now reuse the shared fatal
+  exception path to validate `DFSR/DFAR/ADFSR` and `IFSR/IFAR/AIFSR`
+  collection without destabilizing the default CI smoke.
 - This gives us a safe Cortex-A bring-up foothold before we start layering
   more of Charm on top or moving toward RK3506-specific work.

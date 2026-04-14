@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 4.0)
 project(charm-armv7a-qemu LANGUAGES C CXX ASM)
 
 option(CHARM_QEMU_SEMIHOST_DEBUG "Enable semihosting debug breadcrumbs for QEMU runs" OFF)
+set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off, data, prefetch")
+set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data prefetch)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -21,6 +23,12 @@ endif()
 if (DEFINED CHARM_BAREMETAL AND NOT CHARM_BAREMETAL)
     message(FATAL_ERROR
         "This example requires CHARM_BAREMETAL=ON")
+endif()
+if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
+    AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data"
+    AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch")
+    message(FATAL_ERROR
+        "CHARM_ARMV7A_ABORT_SMOKE must be one of: off, data, prefetch")
 endif()
 
 get_filename_component(CHARM_ROOT
@@ -55,6 +63,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_arch_timer.cpp
     armv7a_mmu.cpp
     armv7a_boot_page_table.cpp
+    armv7a_abort_smoke.cpp
     early_uart.cpp
     qemu_virt_platform.cpp
     exceptions.cpp
@@ -85,4 +94,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 if (CHARM_QEMU_SEMIHOST_DEBUG)
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_QEMU_SEMIHOST_DEBUG=1)
+endif()
+
+if (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_DATA=1)
+elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_PREFETCH=1)
 endif()

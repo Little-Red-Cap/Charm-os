@@ -18,12 +18,38 @@
         "CHARM_TARGET_PLATFORM": "qemu_virt",
         "CHARM_BAREMETAL": "ON"
       }
+    },
+    {
+      "name": "debug-abort-data",
+      "displayName": "ARMv7-A QEMU Debug (Data Abort Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data"
+      }
+    },
+    {
+      "name": "debug-abort-prefetch",
+      "displayName": "ARMv7-A QEMU Debug (Prefetch Abort Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-prefetch",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "prefetch"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "debug",
       "configurePreset": "debug"
+    },
+    {
+      "name": "debug-abort-data",
+      "configurePreset": "debug-abort-data"
+    },
+    {
+      "name": "debug-abort-prefetch",
+      "configurePreset": "debug-abort-prefetch"
     }
   ]
 }

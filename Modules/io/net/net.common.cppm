@@ -3,7 +3,7 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
+#include <utility>
 
 export module net.common;
 
@@ -12,8 +12,67 @@ import util.error;
 import util.expected;
 
 export namespace net {
-    using ByteView = std::span<const util::u8>;
-    using MutByteView = std::span<util::u8>;
+    template <class T>
+    class View {
+    public:
+        using element_type = T;
+        using value_type = T;
+        using size_type = util::usize;
+        using pointer = T*;
+        using reference = T&;
+        using iterator = pointer;
+
+        constexpr View() noexcept = default;
+
+        constexpr View(pointer data, size_type size) noexcept
+            : data_(data), size_(size) {}
+
+        [[nodiscard]] constexpr pointer data() const noexcept {
+            return data_;
+        }
+
+        [[nodiscard]] constexpr size_type size() const noexcept {
+            return size_;
+        }
+
+        [[nodiscard]] constexpr bool empty() const noexcept {
+            return size_ == 0;
+        }
+
+        [[nodiscard]] constexpr reference operator[](size_type index) const noexcept {
+            return data_[index];
+        }
+
+        [[nodiscard]] constexpr iterator begin() const noexcept {
+            return data_;
+        }
+
+        [[nodiscard]] constexpr iterator end() const noexcept {
+            return data_ + size_;
+        }
+
+        [[nodiscard]] constexpr View subspan(size_type offset) const noexcept {
+            if (offset >= size_) {
+                return {};
+            }
+            return View{data_ + offset, size_ - offset};
+        }
+
+        [[nodiscard]] constexpr View subspan(size_type offset, size_type count) const noexcept {
+            if (offset >= size_) {
+                return {};
+            }
+            const size_type remaining = size_ - offset;
+            return View{data_ + offset, count < remaining ? count : remaining};
+        }
+
+    private:
+        pointer data_{nullptr};
+        size_type size_{0};
+    };
+
+    using ByteView = View<const util::u8>;
+    using MutByteView = View<util::u8>;
 
     using errc = util::Errc;
 
@@ -156,6 +215,31 @@ export namespace net {
         }
     };
 
+    [[nodiscard]] constexpr Result<void> validate_supported_family_v0(AddressFamily family) noexcept {
+        if (family == AddressFamily::unspecified) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        if (family != AddressFamily::ipv4) {
+            return util::unexpected(errc::not_supported);
+        }
+        return {};
+    }
+
+    [[nodiscard]] constexpr Result<void> validate_bind_endpoint_v0(const Endpoint& ep) noexcept {
+        return validate_supported_family_v0(ep.family());
+    }
+
+    [[nodiscard]] constexpr Result<void> validate_remote_endpoint_v0(const Endpoint& ep) noexcept {
+        auto supported = validate_supported_family_v0(ep.family());
+        if (!supported) {
+            return util::unexpected(supported.error());
+        }
+        if (ep.port == 0 || ep.address.is_any()) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        return {};
+    }
+
     struct SocketHandle {
         util::i32 value{-1};
 
@@ -180,6 +264,9 @@ namespace net {
         static_assert(any.family() == AddressFamily::ipv4);
         static_assert(any.address.is_any());
         static_assert(any.port == 8080);
+
+        if (!validate_bind_endpoint_v0(any)) return false;
+        if (validate_remote_endpoint_v0(Endpoint::ipv4_any(9000))) return false;
 
         constexpr auto mask = NetEvent::readable | NetEvent::writable;
         static_assert(has_event(mask, NetEvent::readable));

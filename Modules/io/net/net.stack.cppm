@@ -5,7 +5,7 @@ import net.socket;
 export namespace net {
     class Stack {
     public:
-        constexpr Stack() noexcept = default;
+        constexpr Stack() noexcept {}
 
         constexpr explicit Stack(SocketProviderRef provider) noexcept
             : provider_(provider) {}

@@ -207,6 +207,7 @@ namespace {
         bool fired{false};
         bool kill_ok{false};
         util::Errc kill_err{util::Errc::ok};
+        int sig{posix::SIGTERM};
     };
 
     void kill_on_enter(posix::ProcessId pid, void* ctx) noexcept {
@@ -216,7 +217,7 @@ namespace {
         }
         state->seen_pid = pid;
         state->fired = true;
-        auto killed = state->procs->kill(pid, posix::SIGTERM);
+        auto killed = state->procs->kill(pid, state->sig);
         state->kill_ok = static_cast<bool>(killed);
         if (!killed) {
             state->kill_err = killed.error();
@@ -607,25 +608,43 @@ namespace {
         auto rreg = procs.register_executable("kill-target", &kill_target_main);
         check_true("kill-register", rreg);
 
-        g_kill_target_runs = 0;
-        const char* argv[] = {"kill-target", nullptr};
-        posix::SpawnConfig cfg{};
-        cfg.path = "kill-target";
-        cfg.argv = std::span<const char* const>(argv, 1);
-        cfg.path_mode = posix::PathMode::exact;
+        const auto run_case = [&](const char* prefix, int sig) noexcept {
+            ctx.seen_pid = {};
+            ctx.fired = false;
+            ctx.kill_ok = false;
+            ctx.kill_err = util::Errc::ok;
+            ctx.sig = sig;
+            g_kill_target_runs = 0;
 
-        auto spawn = procs.spawn(cfg);
-        check_true("kill-spawn", spawn);
-        check_true("kill-hook-fired", ctx.fired);
-        check_true("kill-hook-ok", ctx.kill_ok);
-        check_eq("kill-hook-pid", ctx.seen_pid.value, spawn.value().pid.value);
-        check_eq("kill-target-not-run", g_kill_target_runs, 0);
+            const char* argv[] = {"kill-target", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "kill-target";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.path_mode = posix::PathMode::exact;
 
-        auto st = procs.waitpid(spawn.value().pid, 0);
-        check_true("kill-wait", st);
-        check_eq("kill-wait-pid", st.value().pid.value, spawn.value().pid.value);
-        check_eq("kill-wait-kind", st.value().kind, posix::WaitKind::signaled);
-        check_eq("kill-wait-code", st.value().code, posix::SIGTERM);
+            std::array<char, 64> label_buf{};
+            const auto label = [&](const char* suffix) noexcept -> const char* {
+                std::snprintf(label_buf.data(), label_buf.size(), "%s-%s", prefix, suffix);
+                return label_buf.data();
+            };
+
+            auto spawn = procs.spawn(cfg);
+            check_true(label("spawn"), spawn);
+            check_true(label("hook-fired"), ctx.fired);
+            check_true(label("hook-ok"), ctx.kill_ok);
+            check_eq(label("hook-pid"), ctx.seen_pid.value, spawn.value().pid.value);
+            check_eq(label("target-not-run"), g_kill_target_runs, 0);
+
+            auto st = procs.waitpid(spawn.value().pid, 0);
+            check_true(label("wait"), st);
+            check_eq(label("wait-pid"), st.value().pid.value, spawn.value().pid.value);
+            check_eq(label("wait-kind"), st.value().kind, posix::WaitKind::signaled);
+            check_eq(label("wait-code"), st.value().code, sig);
+        };
+
+        run_case("kill-term", posix::SIGTERM);
+        run_case("kill-int", posix::SIGINT);
+        run_case("kill-kill", posix::SIGKILL);
     }
 } // namespace
 

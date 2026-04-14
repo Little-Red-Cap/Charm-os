@@ -220,6 +220,7 @@ namespace {
         KillApiType* api{nullptr};
         bool fired{false};
         int rc{-1};
+        int sig{posix::SIGTERM};
     };
 
     void api_kill_on_enter(posix::ProcessId pid, void* ctx) noexcept {
@@ -228,7 +229,7 @@ namespace {
             return;
         }
         state->fired = true;
-        state->rc = state->api->kill(pid, posix::SIGTERM);
+        state->rc = state->api->kill(pid, state->sig);
     }
 
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
@@ -607,26 +608,51 @@ namespace {
         auto rreg = procs.register_executable("api-kill-target", &api_kill_target_main);
         check_true("api-kill-register", rreg);
 
-        g_api_kill_target_runs = 0;
-        const char* argv[] = {"api-kill-target", nullptr};
-        posix::SpawnConfig cfg{};
-        cfg.path = "api-kill-target";
-        cfg.argv = std::span<const char* const>(argv, 1);
-        cfg.path_mode = posix::PathMode::exact;
+        const auto run_case = [&](const char* prefix, int sig) noexcept -> int {
+            ctx.fired = false;
+            ctx.rc = -1;
+            ctx.sig = sig;
+            g_api_kill_target_runs = 0;
 
-        const int pid = api.spawn(cfg);
-        check_true("api-kill-spawn", pid >= 0);
-        check_true("api-kill-hook-fired", ctx.fired);
-        check_eq("api-kill-hook-rc", ctx.rc, 0);
-        check_eq("api-kill-target-not-run", g_api_kill_target_runs, 0);
+            const char* argv[] = {"api-kill-target", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "api-kill-target";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.path_mode = posix::PathMode::exact;
 
-        int status = 0;
-        check_eq("api-kill-waitpid", api.waitpid(posix::ProcessId{pid}, &status), pid);
-        check_eq("api-kill-status", status, posix::SIGTERM);
+            std::array<char, 64> label_buf{};
+            const auto label = [&](const char* suffix) noexcept -> const char* {
+                std::snprintf(label_buf.data(), label_buf.size(), "%s-%s", prefix, suffix);
+                return label_buf.data();
+            };
+
+            const int pid = api.spawn(cfg);
+            check_true(label("spawn"), pid >= 0);
+            check_true(label("hook-fired"), ctx.fired);
+            check_eq(label("hook-rc"), ctx.rc, 0);
+            check_eq(label("target-not-run"), g_api_kill_target_runs, 0);
+
+            int status = 0;
+            check_eq(label("waitpid"), api.waitpid(posix::ProcessId{pid}, &status), pid);
+            check_eq(label("status"), status, sig);
+            return pid;
+        };
+
+        const int term_pid = run_case("api-kill-term", posix::SIGTERM);
+        const int int_pid = run_case("api-kill-int", posix::SIGINT);
+        const int kill_pid = run_case("api-kill-kill", posix::SIGKILL);
 
         posix::set_errno(0);
-        check_eq("api-kill-missing-rc", api.kill(posix::ProcessId{pid}, posix::SIGTERM), -1);
+        check_eq("api-kill-missing-rc", api.kill(posix::ProcessId{term_pid}, posix::SIGTERM), -1);
         check_eq("api-kill-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("api-kill-int-missing-rc", api.kill(posix::ProcessId{int_pid}, posix::SIGINT), -1);
+        check_eq("api-kill-int-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("api-kill-kill-missing-rc", api.kill(posix::ProcessId{kill_pid}, posix::SIGKILL), -1);
+        check_eq("api-kill-kill-missing-errno", posix::get_errno(), posix::ENOENT);
 
         posix::set_errno(0);
         check_eq("api-kill-badsig-rc", api.kill(posix::ProcessId{123}, 1), -1);

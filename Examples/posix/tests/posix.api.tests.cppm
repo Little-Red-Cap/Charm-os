@@ -679,6 +679,18 @@ namespace {
         check_eq("fs-rmdir-file-errno", posix::get_errno(), posix::ENOTDIR);
 
         posix::set_errno(0);
+        check_eq("fs-rename-missing", api.rename("/work/missing.txt", "/work/c.txt"), -1);
+        check_eq("fs-rename-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-from-notdir", api.rename("/work/b.txt/sub", "/work/c.txt"), -1);
+        check_eq("fs-rename-from-notdir-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-to-notdir", api.rename("/work/b.txt", "/work/b.txt/sub"), -1);
+        check_eq("fs-rename-to-notdir-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
         check_true("fs-opendir-file", api.opendir("/work/b.txt") == nullptr);
         check_eq("fs-opendir-file-errno", posix::get_errno(), posix::ENOTDIR);
 

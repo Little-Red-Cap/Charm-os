@@ -458,6 +458,18 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (mkdir("/newlib-dir", 0) != 0) return 162;
 
+    errno = 0;
+    if (rename("/newlib-missing.txt", "/newlib-dir/missing.txt") != -1) return 500;
+    if (errno != ENOENT) return 501;
+
+    errno = 0;
+    if (rename("/newlib-path.txt/sub", "/newlib-dir/from-notdir.txt") != -1) return 502;
+    if (errno != ENOTDIR) return 503;
+
+    errno = 0;
+    if (rename("/newlib-path.txt", "/newlib-path.txt/sub") != -1) return 504;
+    if (errno != ENOTDIR) return 505;
+
     if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 163;
 
     errno = 0;

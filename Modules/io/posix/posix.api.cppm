@@ -16,6 +16,9 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import net.common;
+import net.socket;
+import net.posix;
 import charm.system.time;
 import fs_core;
 import fs_errno;
@@ -65,18 +68,21 @@ export namespace posix {
               util::usize MaxElfImage = 4096,
               util::usize MaxElfLoad = 4096,
               util::usize MaxDirs = 4,
-              util::usize MaxDirEntries = 32>
+              util::usize MaxDirEntries = 32,
+              util::usize MaxSockets = 16>
     class Api {
     public:
         Api(FdTable<MaxFds>& fd_table,
             FileService<MaxFiles>& file_service,
             PipeService<MaxPipes, PipeCapacity>& pipe_service,
             ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes,
-                        MaxElfImage, MaxElfLoad>& proc_service) noexcept
+                        MaxElfImage, MaxElfLoad>& proc_service,
+            SocketService<MaxSockets>* socket_service = nullptr) noexcept
             : fd_table_(&fd_table),
               file_service_(&file_service),
               pipe_service_(&pipe_service),
-              proc_service_(&proc_service) {}
+              proc_service_(&proc_service),
+              socket_service_(socket_service) {}
 
         void bind_process(ProcessId pid) noexcept {
             bound_pid_ = pid.value;
@@ -135,6 +141,219 @@ export namespace posix {
             auto r = table->close(fd);
             if (!r) {
                 set_errno(map_fd_errno(r.error()));
+                return -1;
+            }
+            return 0;
+        }
+
+        int socket(int domain, int type, int protocol = 0) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+
+            auto entry = socket_service_->socket(domain, type, protocol);
+            if (!entry) {
+                set_errno(map_socket_errno(entry.error()));
+                return -1;
+            }
+
+            auto rfd = table->attach(entry.value());
+            if (!rfd) {
+                close_entry(entry.value());
+                set_errno(map_fd_attach_errno(rfd.error()));
+                return -1;
+            }
+            return rfd.value();
+        }
+
+        int bind(int fd, const net::Endpoint& ep) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->bind(*entry.value(), ep);
+            if (!r) {
+                set_errno(map_socket_errno(r.error()));
+                return -1;
+            }
+            return 0;
+        }
+
+        int connect(int fd, const net::Endpoint& ep) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->connect(*entry.value(), ep);
+            if (!r) {
+                set_errno(map_socket_errno(r.error()));
+                return -1;
+            }
+            return 0;
+        }
+
+        int listen(int fd, int backlog) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            if (backlog < 0) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->listen(*entry.value(), static_cast<util::u16>(backlog));
+            if (!r) {
+                set_errno(map_socket_errno(r.error()));
+                return -1;
+            }
+            return 0;
+        }
+
+        int accept(int fd, net::Endpoint* peer = nullptr) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->accept(*table, *entry.value(), peer);
+            if (!r) {
+                set_errno(map_socket_accept_errno(r.error()));
+                return -1;
+            }
+            return r.value();
+        }
+
+        ssize_t send(int fd, const void* buf, util::usize count) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            if (!buf && count > 0) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->send(*entry.value(), ByteView{static_cast<const util::u8*>(buf), count});
+            if (!r) {
+                set_errno(map_socket_errno(r.error()));
+                return -1;
+            }
+            return static_cast<ssize_t>(r.value());
+        }
+
+        ssize_t recv(int fd, void* buf, util::usize count) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            if (!buf && count > 0) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->recv(*entry.value(), MutByteView{static_cast<util::u8*>(buf), count});
+            if (!r) {
+                set_errno(map_socket_errno(r.error()));
+                return -1;
+            }
+            return static_cast<ssize_t>(r.value());
+        }
+
+        ssize_t sendto(int fd, const void* buf, util::usize count, const net::Endpoint& peer) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            if (!buf && count > 0) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->sendto(*entry.value(), peer, ByteView{static_cast<const util::u8*>(buf), count});
+            if (!r) {
+                set_errno(map_socket_errno(r.error()));
+                return -1;
+            }
+            return static_cast<ssize_t>(r.value());
+        }
+
+        ssize_t recvfrom(int fd, void* buf, util::usize count, net::Endpoint* peer = nullptr) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            if (!buf && count > 0) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->recvfrom(*entry.value(), peer, MutByteView{static_cast<util::u8*>(buf), count});
+            if (!r) {
+                set_errno(map_socket_errno(r.error()));
+                return -1;
+            }
+            return static_cast<ssize_t>(r.value());
+        }
+
+        int shutdown(int fd, net::ShutdownMode mode = net::ShutdownMode::both) noexcept {
+            auto* table = current_fd_table();
+            if (!table || !socket_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry || entry.value()->kind != FdKind::socket) {
+                set_errno(EBADF);
+                return -1;
+            }
+            auto r = socket_service_->shutdown(*entry.value(), mode);
+            if (!r) {
+                set_errno(map_socket_errno(r.error()));
                 return -1;
             }
             return 0;
@@ -628,6 +847,17 @@ export namespace posix {
             return to_pipe_errno(err);
         }
 
+        static int map_socket_errno(util::Errc err) noexcept {
+            return to_errno(err);
+        }
+
+        static int map_socket_accept_errno(util::Errc err) noexcept {
+            if (err == util::Errc::buffer_overflow) {
+                return EMFILE;
+            }
+            return to_errno(err);
+        }
+
         FdTable<MaxFds>* current_fd_table() noexcept {
             if (!fd_table_) return nullptr;
             if (bound_pid_ < 0 || !proc_service_) return fd_table_;
@@ -639,6 +869,7 @@ export namespace posix {
         FileService<MaxFiles>* file_service_{nullptr};
         PipeService<MaxPipes, PipeCapacity>* pipe_service_{nullptr};
         ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes, MaxElfImage, MaxElfLoad>* proc_service_{nullptr};
+        SocketService<MaxSockets>* socket_service_{nullptr};
         int bound_pid_{-1};
         std::array<int, 8> bound_pid_stack_{};
         util::usize bound_depth_{0};

@@ -93,6 +93,7 @@ docs/
 - `docs/io/io_channel_contract.md`
 - `docs/io/io_reactor_contract.md`
 - `docs/io/io_registry_contract.md`
+- `docs/io/net_stack_dual_surface_design.md`
 - `docs/input/input_layering_decision.md`
 - `docs/input/input_protocol_map.md`
 

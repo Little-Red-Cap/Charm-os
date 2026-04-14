@@ -19,6 +19,7 @@ export namespace posix {
     inline constexpr util::u32 S_IFCHR = 0020000u;
     inline constexpr util::u32 S_IFDIR = 0040000u;
     inline constexpr util::u32 S_IFREG = 0100000u;
+    inline constexpr util::u32 S_IFSOCK = 0140000u;
 
     inline constexpr int SEEK_SET = 0;
     inline constexpr int SEEK_CUR = 1;
@@ -44,6 +45,7 @@ export namespace posix {
         term,
         dev,
         proc,
+        socket,
     };
 
     enum class FdFlags : util::u16 {

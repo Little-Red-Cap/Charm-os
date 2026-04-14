@@ -11,7 +11,7 @@
 - ELF buffer/file/candidate loading now delegates through `posix.exec_loader`, leaving `posix.proc` closer to an orchestrator
 - `load_image()` source selection now delegates through `posix.image_resolver`, so `posix.proc` is closer to a pure orchestrator
 - child fd-table setup and file-actions application now delegate through `posix.spawn_fds`, so `posix.proc` keeps less spawn-specific wiring
-- `stat_probe` is back on the mainline smoke and now validates the `fstat(-1) -> EBADF` path together with file-size reporting
+- `stat_probe` is back on the mainline smoke and now validates the `fstat(-1) -> EBADF` path together with `file/pipe/term` minimum mode+size reporting
 - shell smoke now resolves `/bin/*` through `PATH` in actual spawned flows, instead of bypassing it with exact-name registration
 - busybox-style applet entry shapes are now smoke-covered: both `/bin/sh` via `argv[0]` and `busybox sh -c ...` via `argv[1]`
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`

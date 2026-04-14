@@ -175,6 +175,13 @@ namespace {
         h.procs.enable_elf_exec(true);
         h.procs.enable_elf_hostcalls(true);
 
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("stat-probe-attach-stdin", h.fds.attach(term_entry, 0));
+        check_true("stat-probe-attach-stdout", h.fds.attach(term_entry, 1));
+        check_true("stat-probe-attach-stderr", h.fds.attach(term_entry, 2));
+
         int fd_elf = h.api.open("/stat_probe.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("stat-probe-elf-open", fd_elf >= 0);
         auto elf_write = h.api.write(fd_elf, stat_probe_elf, stat_probe_elf_len);
@@ -206,7 +213,9 @@ namespace {
             out_size += static_cast<util::usize>(r);
         }
         auto out = std::string_view{out_buf.data(), out_size};
-        check_eq("stat-probe-out", out, std::string_view{"rc=0\nsz=10\nbs=-1\n"});
+        check_eq("stat-probe-out",
+            out,
+            std::string_view{"rc=0\nfile=32768\nfsz=10\nout=4096\nosz=0\nerr=8192\nesz=0\nbad=-1\n"});
 
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);

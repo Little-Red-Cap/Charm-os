@@ -466,11 +466,16 @@ USB Device 不能简单地整体归入动态平面。
 
 ## 8. 错误模型与契约要求
 
-当前 `device::*` 仍以 `bool` 风格为主。
+当前 `device::*` 仍没有完全收敛成统一错误模型。
+
+虽然 `device::Registry` / `device::System` / `usb::host::RuntimeManager`
+已经开始补 `util::Result<void>` 风格的 `try_add_*` / `try_add(...)` 入口，
+但 `enumerate / dispatch / suspend / resume` 这类路径仍以 `bool` 风格为主。
 
 这意味着：
 
-- 它暂时更像运行期子系统草案
+- 它正在向统一错误语义收敛
+- 但它暂时仍更像运行期子系统草案
 - 还不适合作为全局唯一驱动模型
 
 后续如需增强，应优先收敛到：

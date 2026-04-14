@@ -14,19 +14,26 @@ export namespace usb::host {
         }
 
         template <typename BindingT>
-        bool add(BindingT& binding) noexcept {
+        util::Result<void> try_add(BindingT& binding) noexcept {
             const auto record = binding.device_record();
             if (bus_.contains(record)) {
-                return true;
+                return {};
             }
-            if (!bus_.add_device(record)) {
-                return false;
+            auto added_bus = bus_.try_add_device(record);
+            if (!added_bus) {
+                return added_bus;
             }
-            if (!registry_.add_driver(binding.driver())) {
+            auto added_driver = registry_.try_add_driver(binding.driver());
+            if (!added_driver) {
                 (void)bus_.remove_device(record);
-                return false;
+                return added_driver;
             }
-            return true;
+            return {};
+        }
+
+        template <typename BindingT>
+        bool add(BindingT& binding) noexcept {
+            return static_cast<bool>(try_add(binding));
         }
 
         template <typename BindingT>
@@ -35,10 +42,7 @@ export namespace usb::host {
             if (!exported) {
                 return exported;
             }
-            if (add(binding)) {
-                return {};
-            }
-            return util::unexpected(util::Errc::nomem);
+            return try_add(binding);
         }
 
         bool enumerate() noexcept {

@@ -6,6 +6,7 @@ module;
 export module device.manager;
 
 import util.core;
+import util.error;
 import device.bus;
 import device.registry;
 import device.desc;
@@ -15,10 +16,16 @@ export namespace device {
     template <util::usize MaxBuses>
     class BusManager {
     public:
-        bool add_bus(const Bus& bus) noexcept {
-            if (bus_count_ >= MaxBuses) return false;
+        [[nodiscard]] util::Result<void> try_add_bus(const Bus& bus) noexcept {
+            if (bus_count_ >= MaxBuses) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
             buses_[bus_count_++] = bus;
-            return true;
+            return {};
+        }
+
+        bool add_bus(const Bus& bus) noexcept {
+            return static_cast<bool>(try_add_bus(bus));
         }
 
         void enumerate_all(RegistryBase& reg) noexcept {
@@ -38,11 +45,26 @@ export namespace device {
     template <util::usize MaxDevices, util::usize MaxDrivers, util::usize MaxBuses>
     class System {
     public:
-        bool add_driver(const Driver& drv) noexcept { return registry_.add_driver(drv); }
-        bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept {
-            return registry_.add_device(desc, ctx);
+        [[nodiscard]] util::Result<void> try_add_driver(const Driver& drv) noexcept {
+            return registry_.try_add_driver(drv);
         }
-        bool add_bus(const Bus& bus) noexcept { return buses_.add_bus(bus); }
+
+        bool add_driver(const Driver& drv) noexcept { return static_cast<bool>(try_add_driver(drv)); }
+
+        [[nodiscard]] util::Result<void> try_add_device(const DeviceDesc& desc,
+                                                        void* ctx = nullptr) noexcept {
+            return registry_.try_add_device(desc, ctx);
+        }
+
+        bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept {
+            return static_cast<bool>(try_add_device(desc, ctx));
+        }
+
+        [[nodiscard]] util::Result<void> try_add_bus(const Bus& bus) noexcept {
+            return buses_.try_add_bus(bus);
+        }
+
+        bool add_bus(const Bus& bus) noexcept { return static_cast<bool>(try_add_bus(bus)); }
 
         void init_all() noexcept {
             buses_.enumerate_all(registry_);

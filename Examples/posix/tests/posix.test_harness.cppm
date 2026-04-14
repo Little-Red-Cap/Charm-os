@@ -275,6 +275,7 @@ export namespace posix::testsupport {
     int crt_c_exit_main(int, char**, char**) {
         if (charm_posix_write(1, "crt-c-exit\n", 11) != 11) return 61;
         charm_posix_exit(29);
+        return 62;
     }
 
     int crt_c_header_probe_main(int, char**, char**) {

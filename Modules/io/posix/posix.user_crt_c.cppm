@@ -1,6 +1,7 @@
 module;
 
 #include <cstddef>
+#include <type_traits>
 #include "charm_posix_user_fs.h"
 
 #ifdef environ
@@ -17,6 +18,25 @@ namespace {
     inline void map_charm_posix_stat(const posix::PosixStat& in, charm_posix_stat_t& out) noexcept {
         out.st_mode = static_cast<charm_posix_mode_t>(in.mode);
         out.st_size = static_cast<unsigned long long>(in.size);
+    }
+
+    static_assert(std::is_standard_layout_v<charm_posix_dir_t>);
+    static_assert(std::is_standard_layout_v<charm_posix_dirent_t>);
+    static_assert(sizeof(charm_posix_dir_t) == sizeof(posix::PosixDir));
+    static_assert(alignof(charm_posix_dir_t) == alignof(posix::PosixDir));
+    static_assert(sizeof(charm_posix_dirent_t) == sizeof(posix::PosixDirent));
+    static_assert(alignof(charm_posix_dirent_t) == alignof(posix::PosixDirent));
+
+    inline charm_posix_dir_t* map_charm_posix_dir(posix::PosixDir* dir) noexcept {
+        return reinterpret_cast<charm_posix_dir_t*>(dir);
+    }
+
+    inline const charm_posix_dirent_t* map_charm_posix_dirent(const posix::PosixDirent* ent) noexcept {
+        return reinterpret_cast<const charm_posix_dirent_t*>(ent);
+    }
+
+    inline posix::PosixDir* map_posix_dir(charm_posix_dir_t* dir) noexcept {
+        return reinterpret_cast<posix::PosixDir*>(dir);
     }
 }
 
@@ -116,6 +136,18 @@ export extern "C" int charm_posix_rmdir(const char* path) noexcept {
 
 export extern "C" int charm_posix_rename(const char* from, const char* to) noexcept {
     return posix::user::rename(from, to);
+}
+
+export extern "C" charm_posix_dir_t* charm_posix_opendir(const char* path) noexcept {
+    return map_charm_posix_dir(posix::user::opendir(path));
+}
+
+export extern "C" const charm_posix_dirent_t* charm_posix_readdir(charm_posix_dir_t* dir) noexcept {
+    return map_charm_posix_dirent(posix::user::readdir(map_posix_dir(dir)));
+}
+
+export extern "C" int charm_posix_closedir(charm_posix_dir_t* dir) noexcept {
+    return posix::user::closedir(map_posix_dir(dir));
 }
 
 export extern "C" int charm_posix_chdir(const char* path) noexcept {

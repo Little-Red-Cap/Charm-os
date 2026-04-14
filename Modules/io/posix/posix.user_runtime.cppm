@@ -567,9 +567,24 @@ export namespace posix::user {
         if (!runtime || !runtime->readdir) {
             return detail::missing_runtime<const PosixDirent*>(nullptr);
         }
-        return detail::invoke_with_errno_sync([&]() noexcept {
-            return runtime->readdir(runtime->ctx, dir);
-        });
+        const int saved_errno = [&]() noexcept {
+            if (auto* context = posix::active_exec_context()) {
+                return context->errno_value;
+            }
+            return posix::get_errno();
+        }();
+        posix::set_errno(0);
+        if (auto* context = posix::active_exec_context()) {
+            context->errno_value = 0;
+        }
+        auto* result = runtime->readdir(runtime->ctx, dir);
+        if (!result && posix::get_errno() == 0) {
+            posix::set_errno(saved_errno);
+        }
+        if (auto* context = posix::active_exec_context()) {
+            context->errno_value = posix::get_errno();
+        }
+        return result;
     }
 
     inline int closedir(PosixDir* dir) noexcept {

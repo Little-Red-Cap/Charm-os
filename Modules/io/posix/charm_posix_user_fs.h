@@ -20,11 +20,24 @@ typedef struct charm_posix_stat_t {
     unsigned long long st_size;
 } charm_posix_stat_t;
 
+#define CHARM_POSIX_DIRENT_NAME_MAX 64
+
+typedef struct charm_posix_dirent_t {
+    char d_name[CHARM_POSIX_DIRENT_NAME_MAX];
+    charm_posix_mode_t d_mode;
+    unsigned long long d_size;
+} charm_posix_dirent_t;
+
+typedef struct charm_posix_dir_t {
+    size_t slot;
+} charm_posix_dir_t;
+
 #define CHARM_POSIX_ENOENT 2
 #define CHARM_POSIX_EACCES 13
 #define CHARM_POSIX_EEXIST 17
 #define CHARM_POSIX_ENOTDIR 20
 #define CHARM_POSIX_EISDIR 21
+#define CHARM_POSIX_EINVAL 22
 #define CHARM_POSIX_ESPIPE 29
 #define CHARM_POSIX_ERANGE 34
 #define CHARM_POSIX_ENOTEMPTY 39
@@ -58,6 +71,9 @@ int charm_posix_mkdir(const char* path) CHARM_POSIX_FS_NOEXCEPT;
 int charm_posix_unlink(const char* path) CHARM_POSIX_FS_NOEXCEPT;
 int charm_posix_rmdir(const char* path) CHARM_POSIX_FS_NOEXCEPT;
 int charm_posix_rename(const char* from, const char* to) CHARM_POSIX_FS_NOEXCEPT;
+charm_posix_dir_t* charm_posix_opendir(const char* path) CHARM_POSIX_FS_NOEXCEPT;
+const charm_posix_dirent_t* charm_posix_readdir(charm_posix_dir_t* dir) CHARM_POSIX_FS_NOEXCEPT;
+int charm_posix_closedir(charm_posix_dir_t* dir) CHARM_POSIX_FS_NOEXCEPT;
 int charm_posix_chdir(const char* path) CHARM_POSIX_FS_NOEXCEPT;
 char* charm_posix_getcwd(char* buf, size_t size) CHARM_POSIX_FS_NOEXCEPT;
 

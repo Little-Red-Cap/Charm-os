@@ -294,6 +294,22 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (close(alias_fd) != 0) return 292;
     if (close(stdin_pipe[1]) != 0) return 293;
 
+    errno = 0;
+    if (open("/dev/console", O_RDONLY, 0) != -1) return 320;
+    if (errno != ENOENT) return 321;
+
+    errno = 0;
+    if (open("/dev/console", O_WRONLY, 0) != -1) return 322;
+    if (errno != ENOENT) return 323;
+
+    errno = 0;
+    if (open("/dev/tty", O_RDONLY, 0) != -1) return 324;
+    if (errno != ENOENT) return 325;
+
+    errno = 0;
+    if (open("/dev/tty", O_WRONLY, 0) != -1) return 326;
+    if (errno != ENOENT) return 327;
+
     return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 294;
 }
 

@@ -1583,6 +1583,35 @@ namespace {
         check_eq("console-matrix-last-write-tty", channel_ctx.last_write, static_cast<util::usize>(1));
         check_eq("console-matrix-tty-w-clear", api.fcntl(tty_write_fd, posix::F_SETFL, 0), 0);
         check_eq("console-matrix-tty-w-close", api.close(tty_write_fd), 0);
+
+        int stdin_pipe[2]{-1, -1};
+        check_eq("console-matrix-nolive-stdin-pipe", api.pipe(stdin_pipe), 0);
+        check_true("console-matrix-nolive-stdin-dup2", fds.dup2(stdin_pipe[0], 0));
+        check_eq("console-matrix-nolive-stdin-src-close", api.close(stdin_pipe[0]), 0);
+
+        int stderr_pipe[2]{-1, -1};
+        check_eq("console-matrix-nolive-stderr-pipe", api.pipe(stderr_pipe), 0);
+        check_true("console-matrix-nolive-stderr-dup2", fds.dup2(stderr_pipe[1], 2));
+        check_eq("console-matrix-nolive-stderr-src-close", api.close(stderr_pipe[1]), 0);
+
+        posix::set_errno(0);
+        check_eq("console-matrix-nolive-console-r-open", api.open("/dev/console", posix::O_RDONLY, 0), -1);
+        check_eq("console-matrix-nolive-console-r-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("console-matrix-nolive-console-w-open", api.open("/dev/console", posix::O_WRONLY, 0), -1);
+        check_eq("console-matrix-nolive-console-w-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("console-matrix-nolive-tty-r-open", api.open("/dev/tty", posix::O_RDONLY, 0), -1);
+        check_eq("console-matrix-nolive-tty-r-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("console-matrix-nolive-tty-w-open", api.open("/dev/tty", posix::O_WRONLY, 0), -1);
+        check_eq("console-matrix-nolive-tty-w-errno", posix::get_errno(), posix::ENOENT);
+
+        check_eq("console-matrix-nolive-stdin-write-close", api.close(stdin_pipe[1]), 0);
+        check_eq("console-matrix-nolive-stderr-read-close", api.close(stderr_pipe[0]), 0);
     }
 
     void test_api_cwd_and_spawn() noexcept {

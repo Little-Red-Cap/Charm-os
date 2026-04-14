@@ -101,6 +101,11 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - 以 Bootloader 分区上限和 `max_size` 共同约束下载尺寸
 - `boot_session` 可在传输完成后继续执行目标分区校验、写入 `BootInfo.pending`，再通过统一 `BootPlan` 完成槽位决策、跳转前回滚预备与成功确认
 - `boot_launch` 可把已决策的 `BootPlan` 进一步解析为目标分区、镜像头与 entry 偏移，便于后续板级跳转对接
+- `boot_exec` 可在板级提供的 hook 之上，把 `BootTarget` 进一步解析为实际可执行 payload/entry 地址，并统一 pre-jump/jump 调用面
+
+这里同样要区分两类准备动作：
+- Boot 元数据准备：`prepare_selected_boot()` 负责把 `pending_trial` 写回旧 `active`，形成失败自动回滚语义
+- 板级执行准备：`prepare_boot_execution()` 负责真正跳转前的机器状态切换
 
 ## 7. 实施建议（最小）
 
@@ -120,11 +125,13 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
   - 策略校验与 `BootInfo.pending` 写入
   - 生成 `BootPlan`
   - 解析目标镜像 entry
+  - 通过 mock hook 验证执行入口解析与 jump 调用
   - 跳转前回滚预备写回
   - 基于计划的成功确认
   - 缺失头帧失败路径验证
+  - 非法 `entry_offset` 镜像拒绝验证
 
-这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> BootPlan -> Prepare -> Confirm`。
+这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> BootPlan -> Target -> RollbackPrepare -> Exec -> Confirm`。
 
 ## 9. Charm 落地点建议
 

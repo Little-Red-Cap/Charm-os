@@ -23,9 +23,14 @@
 - `boot_flow` / `boot_policy`：A/B 槽位选择、镜像校验、成功确认与回滚策略骨架
 - `boot_plan`：把“策略决策 / 跳转前预备 / 成功确认”收敛为统一的启动计划接口
 - `boot_launch`：把 `BootPlan` 进一步解析为分区、镜像头与可跳转 entry 元数据
+- `boot_exec`：通过板级 hook 把 `BootTarget` 收敛成可执行 payload 基址、entry 地址与 jump 流程
 - `boot_uart` / `boot_xymodem`：串口接入与 X/YModem 下载到目标分区的 Stage2 侧封装
 - `boot_session`：把下载、镜像校验、`BootInfo.pending` 落盘与 `BootPlan` 决策串成一个显式 Stage2 会话入口
 - `Examples/boot/bootloader_demo`：可在主机侧演示“下载到 Slot B -> 校验 -> 生成 BootPlan -> 回滚预备 -> 标记成功”
+
+其中有两个“prepare”语义需要刻意区分：
+- `prepare_selected_boot()` / `prepare_boot_plan()`：写回 BootInfo fallback，确保试启动失败时能回到旧 `active`
+- `prepare_boot_execution()`：板级执行面 pre-jump hook，例如关中断、cache/TLB 维护、地址映射切换等
 
 ## 2. 阶段目标
 
@@ -116,6 +121,7 @@ sequenceDiagram
   - 下载完成后的 Stage2 会话收口（verify + pending）
   - 基于镜像头与策略生成统一 `BootPlan`
   - 基于 `BootPlan` 解析启动目标分区、头部与 entry 偏移
+  - 通过 `boot_exec` 统一 resolve/prepare/jump 执行接口
   - 跳转前的试启动回滚预备（未确认成功则回到旧 active）
   - 会话内的 `pending -> active` 成功确认
 - 当前仍偏向“主机侧可验证骨架”，尚未进入板级 Stage1 搬运与跳转实现。

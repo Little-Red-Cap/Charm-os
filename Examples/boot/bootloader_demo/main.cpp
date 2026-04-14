@@ -53,14 +53,15 @@ namespace {
     }
 
     std::vector<util::u8> build_image(std::string_view payload, bool valid,
-                                      util::u32 version, util::u32 key) {
+                                      util::u32 version, util::u32 key,
+                                      util::u32 entry_offset = 0) {
         boot::ImageHeader h{};
         h.payload_size = static_cast<util::u32>(payload.size());
         h.image_size = h.payload_size + sizeof(boot::ImageHeader);
         h.payload_crc32 = valid
             ? boot::crc32_update(0, reinterpret_cast<const util::u8*>(payload.data()), payload.size())
             : 0x12345678u;
-        h.entry_offset = 0;
+        h.entry_offset = entry_offset;
         h.image_version = version;
         h.min_version = 1;
         h.flags = static_cast<util::u16>(boot::ImageFlags::signed_image);
@@ -106,6 +107,43 @@ namespace {
         default:
             return "none";
         }
+    }
+
+    struct MockLaunchContext {
+        util::u32 expected_payload_offset{0};
+        util::u32 expected_storage_entry_offset{0};
+        bool prepare_called{false};
+        bool jump_called{false};
+        bool entry_called{false};
+    };
+
+    void mock_boot_entry(void* ctx) noexcept {
+        static_cast<MockLaunchContext*>(ctx)->entry_called = true;
+    }
+
+    util::usize resolve_mock_payload_base(const boot::BootTarget& target, void* ctx) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        if (target.payload_offset != launch->expected_payload_offset) {
+            return 0;
+        }
+        if (target.storage_entry_offset != launch->expected_storage_entry_offset) {
+            return 0;
+        }
+        return reinterpret_cast<util::usize>(&mock_boot_entry) - target.header.entry_offset;
+    }
+
+    bool prepare_mock_execution(const boot::BootExecution& execution, void* ctx) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->prepare_called = true;
+        return execution.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
+    }
+
+    bool jump_mock_execution(const boot::BootExecution& execution, void* ctx) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->jump_called = true;
+        auto entry = reinterpret_cast<void (*)(void*) noexcept>(execution.entry_addr);
+        entry(ctx);
+        return launch->entry_called;
     }
 
     std::vector<util::u8> make_header_frame(std::string_view file_name, util::u32 file_size) {
@@ -231,7 +269,8 @@ int main() {
 
     constexpr util::u32 key = 0xA5A5u;
     const auto image_a = build_image("image_a", true, 2, key);
-    const auto image_b = build_image("image_b_upgrade", true, 3, key);
+    const auto image_b = build_image("image_b_upgrade", true, 3, key, 4);
+    const auto image_bad_entry = build_image("tiny", true, 4, key, 8);
 
     boot::BootInfo initial_info{};
     initial_info.active = boot::Slot::a;
@@ -274,6 +313,20 @@ int main() {
     const bool prepared = receiver.prepare_selected_boot();
     const auto prepared_result = receiver.result();
     const auto rollback_plan = boot::decide_boot_policy(storage, cfg, policy);
+    MockLaunchContext launch_ctx{
+        .expected_payload_offset =
+            cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)),
+        .expected_storage_entry_offset =
+            cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)) + 4
+    };
+    const boot::BootExecOps exec_ops{
+        .ctx = &launch_ctx,
+        .resolve_payload_base = resolve_mock_payload_base,
+        .prepare = prepare_mock_execution,
+        .jump = jump_mock_execution
+    };
+    auto execution = boot::resolve_boot_execution(target, exec_ops);
+    const bool executed = boot::execute_boot_execution(execution, exec_ops);
     const bool marked = receiver.mark_selected_success();
     const auto final_result = receiver.result();
     const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info);
@@ -299,6 +352,24 @@ int main() {
         headerless.transfer.header_missing &&
         !headerless.ready_to_boot;
 
+    MockFlash bad_entry_flash{};
+    auto bad_entry_storage = make_storage(bad_entry_flash);
+    const bool bad_entry_written = boot::flash_write(
+        bad_entry_storage,
+        cfg.slot_b.offset,
+        std::span<const util::u8>(image_bad_entry.data(), image_bad_entry.size()),
+        flash_cfg);
+    const bool bad_entry_valid =
+        boot::verify_partition_policy(bad_entry_storage, cfg.slot_b, policy, initial_info);
+    boot::BootPlan bad_entry_plan{};
+    bad_entry_plan.boot = {boot::BootStatus::ok, boot::Slot::b};
+    bad_entry_plan.info = initial_info;
+    const auto bad_entry_target = boot::resolve_boot_target(bad_entry_storage, cfg, bad_entry_plan);
+    const bool bad_entry_rejected =
+        bad_entry_written &&
+        !bad_entry_valid &&
+        !static_cast<bool>(bad_entry_target);
+
     const bool ok = slot_a_written &&
                     transfer_ok &&
                     static_cast<bool>(download) &&
@@ -313,7 +384,7 @@ int main() {
                     static_cast<bool>(target) &&
                     target.partition.offset == cfg.slot_b.offset &&
                     target.payload_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) &&
-                    target.storage_entry_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) &&
+                    target.storage_entry_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) + 4 &&
                     prepared &&
                     prepared_result.boot_prepared &&
                     prepared_result.plan.prepared &&
@@ -321,12 +392,21 @@ int main() {
                     static_cast<bool>(rollback_plan) &&
                     rollback_plan.boot.slot == boot::Slot::a &&
                     rollback_plan.reason == boot::BootSelectionReason::active &&
+                    static_cast<bool>(execution) &&
+                    execution.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry) &&
+                    execution.prepared &&
+                    execution.jumped &&
+                    executed &&
+                    launch_ctx.prepare_called &&
+                    launch_ctx.jump_called &&
+                    launch_ctx.entry_called &&
                     marked &&
                     final_result.success_marked &&
                     final_result.plan.prepared &&
                     !final_result.plan.confirm_required &&
                     final_result.info.active == boot::Slot::b &&
-                    headerless_failed;
+                    headerless_failed &&
+                    bad_entry_rejected;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -348,6 +428,11 @@ int main() {
                 static_cast<bool>(target) ? 1 : 0,
                 target.payload_offset,
                 target.storage_entry_offset);
+    std::printf("[boot] boot_exec=%d prepared=%d jumped=%d entry=%d\n",
+                static_cast<bool>(execution) ? 1 : 0,
+                execution.prepared ? 1 : 0,
+                execution.jumped ? 1 : 0,
+                launch_ctx.entry_called ? 1 : 0);
     std::printf("[boot] prepare_boot=%d rollback_plan=%s:%s\n",
                 prepared ? 1 : 0,
                 selection_reason_name(rollback_plan.reason),
@@ -359,6 +444,7 @@ int main() {
                 headerless_failed ? 1 : 0,
                 static_cast<unsigned>(headerless.stage),
                 headerless.transfer.header_missing ? 1 : 0);
+    std::printf("[boot] bad_entry_rejected=%d\n", bad_entry_rejected ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

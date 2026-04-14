@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("data", "prefetch", "prefetch-xn", "prefetch-page-xn", "data-perm", "data-page", "data-page-perm")]
+    [ValidateSet("data", "prefetch", "prefetch-xn", "prefetch-page", "prefetch-page-xn", "data-perm", "data-page", "data-page-perm")]
     [string]$Kind = "data",
     [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
@@ -99,6 +99,17 @@ switch ($Kind) {
         $mapPattern = "ARMv7-A fault map, far=0x5[0-9A-F]{7}, ttbr0=0x[0-9A-F]{8}, l1\[0x500\]=0x[0-9A-F]{8} \(section\), domain=0x1, xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=prefetch-xn, addr=0x5[0-9A-F]{7}"
         $extraPattern = "ARMv7-A XN alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
+    }
+    "prefetch-page" {
+        $configurePreset = "debug-abort-prefetch-page"
+        $buildPreset = "debug-abort-prefetch-page"
+        $elfPath = "out\\build\\debug-abort-prefetch-page\\charm-armv7a-qemu"
+        $exceptionLine = "ARMv7-A exception: prefetch abort"
+        $faultPattern = "ARMv7-A prefetch fault, ifsr=0x[0-9A-F]{8}, ifar=0x56[0-9A-F]{6}, aifsr=0x[0-9A-F]{8}"
+        $decodePattern = "ARMv7-A prefetch fault decode, status=0x07 \(page translation fault\), domain=0x0"
+        $mapPattern = "ARMv7-A fault map, far=0x56[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x560\]=0x[0-9A-F]{8} \(page table\), domain=0x0, l2\[0x00\]=0x00000000 \(fault\)"
+        $smokePattern = "ARMv7-A abort smoke, kind=prefetch-page, addr=0x56[0-9A-F]{6}"
+        $extraPattern = "ARMv7-A prefetch-page alias ready, va=0x56[0-9A-F]{6}, l1=0x[0-9A-F]{8}, l2=0x00000000"
     }
     "prefetch-page-xn" {
         $configurePreset = "debug-abort-prefetch-page-xn"

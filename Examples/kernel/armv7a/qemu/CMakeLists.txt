@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 4.0)
 project(charm-armv7a-qemu LANGUAGES C CXX ASM)
 
 option(CHARM_QEMU_SEMIHOST_DEBUG "Enable semihosting debug breadcrumbs for QEMU runs" OFF)
-set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off, data, prefetch, prefetch_xn, prefetch_page_xn, data_perm, data_page, data_page_perm")
-set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data prefetch prefetch_xn prefetch_page_xn data_perm data_page data_page_perm)
+set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off, data, prefetch, prefetch_xn, prefetch_page, prefetch_page_xn, data_perm, data_page, data_page_perm")
+set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data prefetch prefetch_xn prefetch_page prefetch_page_xn data_perm data_page data_page_perm)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -28,12 +28,13 @@ if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_xn"
+    AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_page"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_page_xn"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_perm"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_page"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_page_perm")
     message(FATAL_ERROR
-        "CHARM_ARMV7A_ABORT_SMOKE must be one of: off, data, prefetch, prefetch_xn, prefetch_page_xn, data_perm, data_page, data_page_perm")
+        "CHARM_ARMV7A_ABORT_SMOKE must be one of: off, data, prefetch, prefetch_xn, prefetch_page, prefetch_page_xn, data_perm, data_page, data_page_perm")
 endif()
 
 get_filename_component(CHARM_ROOT
@@ -110,6 +111,8 @@ elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_PREFETCH=1)
 elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_xn")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_XN=1)
+elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_page")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_PAGE=1)
 elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_page_xn")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_PAGE_XN=1)
 elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_perm")

@@ -107,16 +107,21 @@ export namespace net::backend {
         Result<void> bind(SocketHandle handle, const Endpoint& ep) noexcept {
             auto* slot = slot_for_handle(handle);
             if (!slot) return util::unexpected(errc::invalid_arg);
-            if (slot->state != SocketState::opened && slot->state != SocketState::bound) {
+            if (slot->state != SocketState::opened) {
                 return util::unexpected(errc::bad_state);
             }
-            if (ep.family() == AddressFamily::unspecified) {
-                return util::unexpected(errc::invalid_arg);
+            auto valid = validate_bind_endpoint_v0(ep);
+            if (!valid) {
+                return util::unexpected(valid.error());
             }
-            if (endpoint_conflicts(handle, slot->kind, ep)) {
+            auto materialized = materialize_bind_endpoint(handle, slot->kind, ep);
+            if (!materialized) {
+                return util::unexpected(materialized.error());
+            }
+            if (endpoint_conflicts(handle, slot->kind, materialized.value())) {
                 return util::unexpected(errc::exist);
             }
-            slot->local = ep;
+            slot->local = materialized.value();
             slot->state = SocketState::bound;
             return {};
         }
@@ -127,11 +132,15 @@ export namespace net::backend {
             if (slot->state != SocketState::opened && slot->state != SocketState::bound) {
                 return util::unexpected(errc::bad_state);
             }
-            if (ep.family() == AddressFamily::unspecified || ep.port == 0) {
-                return util::unexpected(errc::invalid_arg);
+            auto valid = validate_remote_endpoint_v0(ep);
+            if (!valid) {
+                return util::unexpected(valid.error());
             }
 
-            ensure_local_endpoint(*slot, ep);
+            auto localized = ensure_local_endpoint(handle, *slot, ep);
+            if (!localized) {
+                return util::unexpected(localized.error());
+            }
 
             if (slot->kind == SocketKind::udp) {
                 slot->remote = ep;
@@ -174,7 +183,7 @@ export namespace net::backend {
             auto* slot = slot_for_handle(handle);
             if (!slot) return util::unexpected(errc::invalid_arg);
             if (slot->kind != SocketKind::tcp) return util::unexpected(errc::not_supported);
-            if (slot->state != SocketState::opened && slot->state != SocketState::bound) {
+            if (slot->state != SocketState::bound) {
                 return util::unexpected(errc::bad_state);
             }
             if (slot->local.family() == AddressFamily::unspecified || slot->local.port == 0) {
@@ -211,6 +220,7 @@ export namespace net::backend {
             if (!slot) return util::unexpected(errc::invalid_arg);
             if (slot->write_shutdown) return util::unexpected(errc::closed);
             if (in.empty()) return util::unexpected(errc::invalid_arg);
+            if (slot->state != SocketState::connected) return util::unexpected(errc::bad_state);
 
             if (slot->kind == SocketKind::udp) {
                 if (slot->remote.port == 0) return util::unexpected(errc::bad_state);
@@ -250,11 +260,18 @@ export namespace net::backend {
             if (!slot) return util::unexpected(errc::invalid_arg);
             if (slot->kind != SocketKind::udp) return util::unexpected(errc::not_supported);
             if (slot->write_shutdown) return util::unexpected(errc::closed);
-            if (peer.family() == AddressFamily::unspecified || peer.port == 0 || in.empty()) {
+            auto valid = validate_remote_endpoint_v0(peer);
+            if (!valid) {
+                return util::unexpected(valid.error());
+            }
+            if (in.empty()) {
                 return util::unexpected(errc::invalid_arg);
             }
 
-            ensure_local_endpoint(*slot, peer);
+            auto localized = ensure_local_endpoint(handle, *slot, peer);
+            if (!localized) {
+                return util::unexpected(localized.error());
+            }
 
             auto* target = find_udp_target(peer);
             if (!target) return util::unexpected(errc::noent);
@@ -442,7 +459,9 @@ export namespace net::backend {
             return false;
         }
 
-        void ensure_local_endpoint(SocketSlot& slot, const Endpoint& remote) noexcept {
+        [[nodiscard]] Result<void> ensure_local_endpoint(SocketHandle current,
+                                                         SocketSlot& slot,
+                                                         const Endpoint& remote) noexcept {
             if (slot.local.family() == AddressFamily::unspecified) {
                 slot.local.address = remote.family() == AddressFamily::ipv4
                     ? IpAddress::ipv4_loopback()
@@ -454,14 +473,59 @@ export namespace net::backend {
                     : IpAddress::ipv4_loopback();
             }
             if (slot.local.port == 0) {
-                slot.local.port = next_ephemeral_port_++;
-                if (next_ephemeral_port_ < 49152u) {
-                    next_ephemeral_port_ = 49152u;
+                const auto port = claim_ephemeral_port(current, slot.kind, slot.local.address);
+                if (port == 0) {
+                    return util::unexpected(errc::buffer_overflow);
                 }
+                slot.local.port = port;
             }
             if (slot.state == SocketState::opened) {
                 slot.state = SocketState::bound;
             }
+            return {};
+        }
+
+        [[nodiscard]] Result<Endpoint> materialize_bind_endpoint(SocketHandle current,
+                                                                 SocketKind kind,
+                                                                 const Endpoint& ep) noexcept {
+            Endpoint bound = ep;
+            if (bound.port != 0) {
+                return Result<Endpoint>{std::in_place, bound};
+            }
+            const auto port = claim_ephemeral_port(current, kind, bound.address);
+            if (port == 0) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+            bound.port = port;
+            return Result<Endpoint>{std::in_place, bound};
+        }
+
+        void advance_ephemeral_port() noexcept {
+            if (next_ephemeral_port_ < 49152u || next_ephemeral_port_ >= 65535u) {
+                next_ephemeral_port_ = 49152u;
+                return;
+            }
+            ++next_ephemeral_port_;
+        }
+
+        [[nodiscard]] util::u16 claim_ephemeral_port(SocketHandle current,
+                                                     SocketKind kind,
+                                                     const IpAddress& address) noexcept {
+            if (next_ephemeral_port_ < 49152u || next_ephemeral_port_ > 65535u) {
+                next_ephemeral_port_ = 49152u;
+            }
+            const util::u16 origin = next_ephemeral_port_;
+            util::u16 candidate = origin;
+            do {
+                Endpoint probe{address, candidate};
+                if (!endpoint_conflicts(current, kind, probe)) {
+                    advance_ephemeral_port();
+                    return candidate;
+                }
+                advance_ephemeral_port();
+                candidate = next_ephemeral_port_;
+            } while (candidate != origin);
+            return 0;
         }
 
         [[nodiscard]] Endpoint normalized_local_for_listener(const SocketSlot& listener,

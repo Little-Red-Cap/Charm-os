@@ -3,7 +3,6 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 
 export module net.common;
 
@@ -12,8 +11,91 @@ import util.error;
 import util.expected;
 
 export namespace net {
-    using ByteView = std::span<const util::u8>;
-    using MutByteView = std::span<util::u8>;
+    struct ByteView {
+        const util::u8* ptr{nullptr};
+        util::usize len{0};
+
+        [[nodiscard]] constexpr const util::u8* data() const noexcept {
+            return ptr;
+        }
+
+        [[nodiscard]] constexpr util::usize size() const noexcept {
+            return len;
+        }
+
+        [[nodiscard]] constexpr bool empty() const noexcept {
+            return len == 0;
+        }
+
+        [[nodiscard]] constexpr const util::u8& operator[](util::usize index) const noexcept {
+            return ptr[index];
+        }
+
+        [[nodiscard]] constexpr const util::u8* begin() const noexcept {
+            return ptr;
+        }
+
+        [[nodiscard]] constexpr const util::u8* end() const noexcept {
+            return ptr + len;
+        }
+
+        [[nodiscard]] constexpr ByteView subspan(util::usize offset,
+                                                 util::usize count = static_cast<util::usize>(-1)) const noexcept {
+            if (offset >= len) {
+                return {};
+            }
+            const auto remaining = len - offset;
+            if (count > remaining) {
+                count = remaining;
+            }
+            return ByteView{ptr + offset, count};
+        }
+    };
+
+    struct MutByteView {
+        util::u8* ptr{nullptr};
+        util::usize len{0};
+
+        [[nodiscard]] constexpr util::u8* data() const noexcept {
+            return ptr;
+        }
+
+        [[nodiscard]] constexpr util::usize size() const noexcept {
+            return len;
+        }
+
+        [[nodiscard]] constexpr bool empty() const noexcept {
+            return len == 0;
+        }
+
+        [[nodiscard]] constexpr util::u8& operator[](util::usize index) const noexcept {
+            return ptr[index];
+        }
+
+        [[nodiscard]] constexpr util::u8* begin() const noexcept {
+            return ptr;
+        }
+
+        [[nodiscard]] constexpr util::u8* end() const noexcept {
+            return ptr + len;
+        }
+
+        [[nodiscard]] constexpr MutByteView subspan(util::usize offset,
+                                                    util::usize count = static_cast<util::usize>(-1)) const noexcept {
+            if (offset >= len) {
+                return {};
+            }
+            const auto remaining = len - offset;
+            if (count > remaining) {
+                count = remaining;
+            }
+            return MutByteView{ptr + offset, count};
+        }
+
+        [[nodiscard]] constexpr operator ByteView() const noexcept {
+            return ByteView{ptr, len};
+        }
+    };
 
     using errc = util::Errc;
 
@@ -156,6 +238,31 @@ export namespace net {
         }
     };
 
+    [[nodiscard]] constexpr Result<void> validate_supported_family_v0(AddressFamily family) noexcept {
+        if (family == AddressFamily::unspecified) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        if (family != AddressFamily::ipv4) {
+            return util::unexpected(errc::not_supported);
+        }
+        return {};
+    }
+
+    [[nodiscard]] constexpr Result<void> validate_bind_endpoint_v0(const Endpoint& ep) noexcept {
+        return validate_supported_family_v0(ep.family());
+    }
+
+    [[nodiscard]] constexpr Result<void> validate_remote_endpoint_v0(const Endpoint& ep) noexcept {
+        auto supported = validate_supported_family_v0(ep.family());
+        if (!supported) {
+            return util::unexpected(supported.error());
+        }
+        if (ep.port == 0 || ep.address.is_any()) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        return {};
+    }
+
     struct SocketHandle {
         util::i32 value{-1};
 
@@ -180,6 +287,9 @@ namespace net {
         static_assert(any.family() == AddressFamily::ipv4);
         static_assert(any.address.is_any());
         static_assert(any.port == 8080);
+
+        if (!validate_bind_endpoint_v0(any)) return false;
+        if (validate_remote_endpoint_v0(Endpoint::ipv4_any(9000))) return false;
 
         constexpr auto mask = NetEvent::readable | NetEvent::writable;
         static_assert(has_event(mask, NetEvent::readable));

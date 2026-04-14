@@ -230,7 +230,7 @@ export namespace net {
 
         [[nodiscard]] Result<void> bind(const Endpoint& local) noexcept {
             if (!valid()) return util::unexpected(errc::bad_state);
-            if (state_ != SocketState::opened && state_ != SocketState::bound) {
+            if (state_ != SocketState::opened) {
                 return util::unexpected(errc::bad_state);
             }
             auto bound = provider_.bind(handle_, local);
@@ -253,7 +253,7 @@ export namespace net {
         [[nodiscard]] Result<void> listen(util::u16 backlog = 4) noexcept {
             if (!valid()) return util::unexpected(errc::bad_state);
             if (kind_ != SocketKind::tcp) return util::unexpected(errc::not_supported);
-            if (state_ != SocketState::opened && state_ != SocketState::bound) {
+            if (state_ != SocketState::bound) {
                 return util::unexpected(errc::bad_state);
             }
             auto listening = provider_.listen(handle_, backlog);
@@ -276,6 +276,7 @@ export namespace net {
         [[nodiscard]] IoResult send(ByteView buf) noexcept {
             if (!valid()) return util::unexpected(errc::bad_state);
             if (buf.empty()) return util::unexpected(errc::invalid_arg);
+            if (state_ != SocketState::connected) return util::unexpected(errc::bad_state);
             auto r = provider_.send(handle_, buf);
             if (r && r.value() == 0u) util::halt();
             return r;
@@ -284,6 +285,9 @@ export namespace net {
         [[nodiscard]] IoResult recv(MutByteView buf) noexcept {
             if (!valid()) return util::unexpected(errc::bad_state);
             if (buf.empty()) return util::unexpected(errc::invalid_arg);
+            if (kind_ == SocketKind::tcp && state_ != SocketState::connected) {
+                return util::unexpected(errc::bad_state);
+            }
             auto r = provider_.recv(handle_, buf);
             if (r && r.value() == 0u) util::halt();
             return r;
@@ -292,6 +296,7 @@ export namespace net {
         [[nodiscard]] IoResult send_to(const Endpoint& peer, ByteView buf) noexcept {
             if (!valid()) return util::unexpected(errc::bad_state);
             if (buf.empty()) return util::unexpected(errc::invalid_arg);
+            if (kind_ != SocketKind::udp) return util::unexpected(errc::not_supported);
             auto r = provider_.send_to(handle_, peer, buf);
             if (r && r.value() == 0u) util::halt();
             return r;
@@ -300,6 +305,7 @@ export namespace net {
         [[nodiscard]] IoResult recv_from(Endpoint* peer, MutByteView buf) noexcept {
             if (!valid()) return util::unexpected(errc::bad_state);
             if (buf.empty()) return util::unexpected(errc::invalid_arg);
+            if (kind_ != SocketKind::udp) return util::unexpected(errc::not_supported);
             auto r = provider_.recv_from(handle_, peer, buf);
             if (r && r.value() == 0u) util::halt();
             return r;

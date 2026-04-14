@@ -22,17 +22,25 @@ int entry(int argc, char** argv, char** envp) {
     (void)envp;
     write_str(2, "A\n");
 
-    const char* path = "/cat.txt";
+    int use_stdin = 1;
     if (argc > 1 && argv && argv[1]) {
-        path = argv[1];
+        if (!(argv[1][0] == '-' && argv[1][1] == '\0')) {
+            use_stdin = 0;
+        }
     }
 
-    int fd = open(path, O_RDONLY, 0);
-    if (fd < 0) {
-        write_str(2, "open fail\n");
-        return 11;
+    int fd = 0;
+    if (use_stdin) {
+        write_str(2, "S\n");
+    } else {
+        const char* path = argv[1];
+        fd = open(path, O_RDONLY, 0);
+        if (fd < 0) {
+            write_str(2, "open fail\n");
+            return 11;
+        }
+        write_str(2, "B\n");
     }
-    write_str(2, "B\n");
 
     PosixStat st;
     if (fstat(fd, &st) != 0) {
@@ -50,7 +58,11 @@ int entry(int argc, char** argv, char** envp) {
     write_str(2, "D\n");
 
     if (isatty(fd) != 0) {
-        write_str(2, "file seen as tty\n");
+        if (use_stdin) {
+            write_str(2, "stdin seen as tty\n");
+        } else {
+            write_str(2, "file seen as tty\n");
+        }
         close(fd);
         return 14;
     }

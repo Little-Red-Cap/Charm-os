@@ -74,7 +74,8 @@
 - API smoke now validates the minimum append contract directly with `O_APPEND`
 - API smoke now validates bound-process `getpid()`, and real ELF smoke validates `getpid()` against the spawned pid value
 - API smoke now validates `sleep(0/1)`, shell smoke validates `/bin/sleep` through `sh -c 'sleep 2'` with test-clock advancement, and real ELF smoke validates `elfmem:sleep 2`
-- real ELF smoke now also validates `elfmem:kill_self`: user code enters, emits `before-kill`, then `waitpid()` reports `signaled(SIGTERM)`
+- real ELF smoke now also validates `elfmem:kill_self` across `SIGTERM` / `SIGINT` / `SIGKILL`: user code enters, emits `before-kill`, then `waitpid()` reports the selected signal
+- real ELF file-sample smoke now validates `cat_file` across both file-backed input and pipe-backed stdin, while keeping `isatty(stdout)=1`, `isatty(file/pipe)=0`, and `fstat()` on the active input fd stable
 - proc/api smoke now validate the minimum `kill v0` contract across `SIGTERM` / `SIGINT` / `SIGKILL`: kill-on-enter prevents target execution, `waitpid()` reports `signaled`, and API wait status encodes the delivered signal in the low bits
 - shell smoke now validates `sh -c 'ps'`, and the current minimal view exposes `pid/state/name` for the live shell + child process set
 - shell smoke now also validates `sh -c 'kill <pid>'`, `sh -c 'kill -INT <pid>'`, and `sh -c 'kill -KILL <pid>'` through `/bin/kill`, with the target remaining unentered and `waitpid()` still reporting the selected signal
@@ -82,6 +83,9 @@
 
 ## Isolated / Deferred Issues
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
+
+## Toolchain Notes
+- GCC `-fmodules-ts` 下的 `net` / `posix` 导入冲突解阻经验已记录到 `docs/system/posix_modules_ts_build_notes.md`
 
 ## Recommended Next Cuts
 - structural cleanup plan: `docs/system/posix_cleanup_refactor_plan.md`

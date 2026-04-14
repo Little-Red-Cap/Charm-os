@@ -688,7 +688,16 @@ namespace {
                 check_eq("fs-root-dir-mode", ent->d_mode & posix::S_IFMT, posix::S_IFDIR);
             }
         }
+        posix::set_errno(91);
+        check_true("fs-root-readdir-eof", api.readdir(root_dir) == nullptr);
+        check_eq("fs-root-readdir-eof-errno", posix::get_errno(), 91);
         check_eq("fs-closedir-root", api.closedir(root_dir), 0);
+        posix::set_errno(0);
+        check_true("fs-readdir-closed", api.readdir(root_dir) == nullptr);
+        check_eq("fs-readdir-closed-errno", posix::get_errno(), posix::EINVAL);
+        posix::set_errno(0);
+        check_eq("fs-closedir-closed", api.closedir(root_dir), -1);
+        check_eq("fs-closedir-closed-errno", posix::get_errno(), posix::EINVAL);
         check_true("fs-saw-work", saw_work);
 
         auto* work_dir = api.opendir("/work");
@@ -702,6 +711,9 @@ namespace {
                 check_eq("fs-work-file-size", ent->d_size, 1u);
             }
         }
+        posix::set_errno(92);
+        check_true("fs-work-readdir-eof", api.readdir(work_dir) == nullptr);
+        check_eq("fs-work-readdir-eof-errno", posix::get_errno(), 92);
         check_eq("fs-closedir-work", api.closedir(work_dir), 0);
         check_true("fs-saw-file", saw_file);
 

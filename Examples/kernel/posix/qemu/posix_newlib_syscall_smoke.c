@@ -476,6 +476,10 @@ int charm_posix_newlib_path_entry(void) {
     if (access("/newlib-missing.txt", F_OK) != -1) return 142;
     if (errno != ENOENT) return 143;
 
+    errno = 0;
+    if (open("/newlib-missing.txt", O_RDONLY, 0) != -1) return 536;
+    if (errno != ENOENT) return 537;
+
     if (mkdir("/newlib-dir", 0) != 0) return 144;
 
     errno = 0;
@@ -485,6 +489,10 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (mkdir("/newlib-path.txt", 0) != -1) return 524;
     if (errno != EEXIST) return 525;
+
+    errno = 0;
+    if (open("/newlib-dir", O_WRONLY, 0) != -1) return 538;
+    if (errno != EISDIR) return 539;
 
     if (stat("/newlib-dir", &st) != 0) return 145;
     if ((st.st_mode & S_IFMT) != S_IFDIR) return 146;
@@ -518,6 +526,10 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (access("/newlib-path.txt/sub", F_OK) != -1) return 514;
     if (errno != ENOTDIR) return 515;
+
+    errno = 0;
+    if (open("/newlib-path.txt/sub", O_RDONLY, 0) != -1) return 540;
+    if (errno != ENOTDIR) return 541;
 
     fd = open("/newlib-dir/probe.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 153;

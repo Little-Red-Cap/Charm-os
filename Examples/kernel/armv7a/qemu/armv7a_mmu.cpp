@@ -1,5 +1,6 @@
 #include "armv7a_mmu.hpp"
 
+#include "armv7a_cache.hpp"
 #include "armv7a_cpu.hpp"
 
 namespace {
@@ -182,14 +183,24 @@ void armv7a_enable_icache()
     armv7a_instruction_sync_barrier();
 }
 
-void armv7a_sync_tlb_mapping_change(std::uintptr_t virtual_address)
+void armv7a_sync_tlb_mapping_change(std::uintptr_t descriptor_address,
+                                    std::uintptr_t virtual_address)
 {
+    const auto sctlr = armv7a_read_sctlr();
+    if (descriptor_address != 0u && armv7a_dcache_enabled(sctlr)) {
+        armv7a_clean_invalidate_dcache_range(descriptor_address, sizeof(std::uint32_t));
+    }
     armv7a_data_sync_barrier();
     armv7a_invalidate_tlb_mva(virtual_address);
 }
 
-void armv7a_sync_instruction_mapping_change(std::uintptr_t virtual_address)
+void armv7a_sync_instruction_mapping_change(std::uintptr_t descriptor_address,
+                                            std::uintptr_t virtual_address)
 {
+    const auto sctlr = armv7a_read_sctlr();
+    if (descriptor_address != 0u && armv7a_dcache_enabled(sctlr)) {
+        armv7a_clean_invalidate_dcache_range(descriptor_address, sizeof(std::uint32_t));
+    }
     armv7a_data_sync_barrier();
     armv7a_invalidate_tlb_mva(virtual_address);
     armv7a_invalidate_branch_predictor();

@@ -88,7 +88,9 @@ extern "C" void armv7a_run_dcache_probe()
     armv7a_boot_l2_map_small_page(kDcacheProbeAliasBase,
                                   armv7a_dcache_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kDeviceData);
-    armv7a_sync_tlb_mapping_change(kDcacheProbeAliasBase);
+    armv7a_sync_tlb_mapping_change(
+        armv7a_boot_l2_descriptor_address(kDcacheProbeAliasBase),
+        kDcacheProbeAliasBase);
 
     const auto device_before = *alias;
     *alias = kDcacheProbeDeviceWriteValue;
@@ -97,7 +99,9 @@ extern "C" void armv7a_run_dcache_probe()
     armv7a_boot_l2_map_small_page(kDcacheProbeAliasBase,
                                   armv7a_dcache_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecuteNever);
-    armv7a_sync_tlb_mapping_change(kDcacheProbeAliasBase);
+    armv7a_sync_tlb_mapping_change(
+        armv7a_boot_l2_descriptor_address(kDcacheProbeAliasBase),
+        kDcacheProbeAliasBase);
     armv7a_invalidate_dcache_range(kDcacheProbeAliasBase, sizeof(std::uint32_t));
 
     const auto restored = *alias;

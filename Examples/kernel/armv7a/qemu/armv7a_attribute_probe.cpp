@@ -113,7 +113,9 @@ extern "C" void armv7a_run_attribute_probe()
     armv7a_boot_l2_map_small_page(kAttributeProbeAliasBase,
                                   armv7a_attribute_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kDeviceData);
-    armv7a_sync_tlb_mapping_change(kAttributeProbeAliasBase);
+    armv7a_sync_tlb_mapping_change(
+        armv7a_boot_l2_descriptor_address(kAttributeProbeAliasBase),
+        kAttributeProbeAliasBase);
 
     const auto device_before = *alias;
     *alias = kAttributeProbeDeviceWrite;
@@ -124,7 +126,9 @@ extern "C" void armv7a_run_attribute_probe()
     armv7a_boot_l2_map_small_page(kAttributeProbeAliasBase,
                                   armv7a_attribute_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecuteNever);
-    armv7a_sync_tlb_mapping_change(kAttributeProbeAliasBase);
+    armv7a_sync_tlb_mapping_change(
+        armv7a_boot_l2_descriptor_address(kAttributeProbeAliasBase),
+        kAttributeProbeAliasBase);
 
     const auto restored = *alias;
     const auto restored_decode = armv7a_attribute_probe_decode();

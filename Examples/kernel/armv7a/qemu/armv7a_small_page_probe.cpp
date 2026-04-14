@@ -131,7 +131,9 @@ extern "C" void armv7a_run_small_page_probe()
     armv7a_boot_l2_map_small_page(kSmallPageRemapAliasBase,
                                   armv7a_small_page_remap_page_b_address(),
                                   Armv7aBootSmallPageType::kNormalExecuteNever);
-    armv7a_sync_tlb_mapping_change(kSmallPageRemapAliasBase);
+    armv7a_sync_tlb_mapping_change(
+        armv7a_boot_l2_descriptor_address(kSmallPageRemapAliasBase),
+        kSmallPageRemapAliasBase);
     const auto remap_after = *remap_alias;
 
     early_uart_puts("ARMv7-A small-page remap, addr=0x");

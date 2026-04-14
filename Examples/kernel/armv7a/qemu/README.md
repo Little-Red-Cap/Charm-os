@@ -78,6 +78,7 @@ ARMv7-A small-page remap ready, va=0x52100000, pa-a=0x4020...., pa-b=0x4020....,
 ARMv7-A attr probe ready, va=0x52300000, pa=0x40300000, section=0x40300000, identity-l1=0x00000000, l1=0x4021...., l2=0x4030...., tex=0x00000001, mem=normal-cached
 ARMv7-A dcache probe ready, va=0x52400000, pa=0x4030...., l1=0x4021...., l2=0x4030....
 ARMv7-A icache probe ready, va=0x5220...., pa-a=0x4020...., pa-b=0x4020...., l1=0x4021...., l2=0x4020....
+ARMv7-A page-table probe ready, va=0x52500000, pa-a=0x4030...., pa-b=0x4030...., desc=0x4021...., l1=0x4021...., l2=0x4030....
 ARMv7-A MMU active, sctlr=0x00C51079, ttbr0=0x40210000, ttbcr=0x00000000, dacr=0x00000001
 ARMv7-A MMU flags, mmu=on, dcache=off, icache=on
 Charm out.format import active, PL011 @ 0x09000000
@@ -88,6 +89,7 @@ ARMv7-A attr descriptors, normal=0x4030.... (tex=0x00000001, mem=normal-cached),
 ARMv7-A icache probe, addr=0x5220...., before=0x000000A1, after=0x000000B2, l2=0x4020....
 ARMv7-A D-cache active, sctlr=0x00C5107D, clidr=0x........, ccsidr=0x........, line=0x........, ways=0x........, sets=0x........
 ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, cached=0x10203040, device-before=0x10203040, restored=0x50607080, l2=0x4030....
+ARMv7-A page-table probe, addr=0x52500000, before=0x31415926, after=0x27182818, restored=0x31415926, desc=0x4021...., l2=0x4030....
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
 ```
@@ -300,6 +302,13 @@ continue
   became visible beyond the cache, writes again via the device view, flips the
   page back to cached, and finally invalidates the cached line before proving
   the device-side write is visible through the cached mapping too.
+- Runtime mapping changes now also carry the descriptor address all the way
+  into the MMU sync helper, so once `SCTLR.C` is on we clean+invalidate the
+  touched page-table cache line before invalidating the matching TLB entry.
+- A dedicated page-table probe now keeps its data path `device`-typed while
+  `SCTLR.C` is on, remaps one live alias between two different physical pages,
+  and proves that the page walker sees the updated L2 descriptor without
+  mixing the result together with ordinary cached data traffic.
 - Optional `data` / `prefetch` abort smokes now reuse the shared fatal
   exception path to validate `DFSR/DFAR/ADFSR` and `IFSR/IFAR/AIFSR`
   collection without destabilizing the default CI smoke.

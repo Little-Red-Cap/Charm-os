@@ -111,7 +111,9 @@ extern "C" void armv7a_run_icache_probe()
     armv7a_boot_l2_map_small_page(kIcacheProbeAliasBase,
                                   armv7a_icache_probe_target_b_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecutable);
-    armv7a_sync_instruction_mapping_change(alias_address);
+    armv7a_sync_instruction_mapping_change(
+        armv7a_boot_l2_descriptor_address(kIcacheProbeAliasBase),
+        alias_address);
     const auto after = probe();
 
     early_uart_puts("ARMv7-A icache probe, addr=0x");

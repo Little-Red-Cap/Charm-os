@@ -326,7 +326,9 @@ extern "C" void armv7a_run_abort_smoke_if_enabled()
                                       target & kSmallPageMask,
                                       Armv7aBootSmallPageType::kNormalExecuteNever,
                                       kAbortSmokeClientDomain);
-        armv7a_sync_instruction_mapping_change(alias_address);
+        armv7a_sync_instruction_mapping_change(
+            armv7a_boot_l2_descriptor_address(kAbortSmokePrefetchPageXnRuntimeAliasBase),
+            alias_address);
 
         early_uart_puts("ARMv7-A runtime page-XN flip, addr=0x");
         early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));
@@ -397,7 +399,9 @@ extern "C" void armv7a_run_abort_smoke_if_enabled()
                                       target_address & kSmallPageMask,
                                       Armv7aBootSmallPageType::kNormalNoAccessExecuteNever,
                                       kAbortSmokeClientDomain);
-        armv7a_sync_tlb_mapping_change(alias_address);
+        armv7a_sync_tlb_mapping_change(
+            armv7a_boot_l2_descriptor_address(kAbortSmokeDataPagePermRuntimeAliasBase),
+            alias_address);
 
         early_uart_puts("ARMv7-A runtime data-page flip, addr=0x");
         early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));

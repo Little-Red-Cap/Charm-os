@@ -219,6 +219,23 @@ std::uintptr_t armv7a_boot_l1_table_base()
     return reinterpret_cast<std::uintptr_t>(&g_boot_l1_table[0]);
 }
 
+std::uintptr_t armv7a_boot_l1_descriptor_address(std::uintptr_t virtual_address)
+{
+    return reinterpret_cast<std::uintptr_t>(&g_boot_l1_table[l1_index(virtual_address)]);
+}
+
+std::uintptr_t armv7a_boot_l2_descriptor_address(std::uintptr_t virtual_address)
+{
+    const auto l1_descriptor = armv7a_boot_l1_descriptor(virtual_address);
+    if ((l1_descriptor & kL1TypeMask) != kL1PageTable) {
+        return 0u;
+    }
+
+    auto* const table = reinterpret_cast<volatile std::uint32_t*>(
+        static_cast<std::uintptr_t>(l1_descriptor & kL1PageTableBaseMask));
+    return reinterpret_cast<std::uintptr_t>(&table[l2_index(virtual_address)]);
+}
+
 std::uint32_t armv7a_boot_l1_descriptor(std::uintptr_t virtual_address)
 {
     return g_boot_l1_table[l1_index(virtual_address)];
@@ -226,12 +243,12 @@ std::uint32_t armv7a_boot_l1_descriptor(std::uintptr_t virtual_address)
 
 std::uint32_t armv7a_boot_l2_descriptor(std::uintptr_t virtual_address)
 {
-    const auto l1_descriptor = armv7a_boot_l1_descriptor(virtual_address);
-    if ((l1_descriptor & kL1TypeMask) != kL1PageTable) {
+    const auto descriptor_address = armv7a_boot_l2_descriptor_address(virtual_address);
+    if (descriptor_address == 0u) {
         return 0u;
     }
 
-    const auto* const table = reinterpret_cast<volatile const std::uint32_t*>(
-        static_cast<std::uintptr_t>(l1_descriptor & kL1PageTableBaseMask));
-    return table[l2_index(virtual_address)];
+    const auto* const descriptor =
+        reinterpret_cast<volatile const std::uint32_t*>(descriptor_address);
+    return *descriptor;
 }

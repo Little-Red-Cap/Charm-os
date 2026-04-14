@@ -189,8 +189,8 @@
                     playback.set_duration_from_probe(secs);
                     preloaded_duration_sec = secs;
                     if (cache_track_duration(track_index, secs) && current_page == PlayerPage::Library) {
-                        rebuild_list_display_tails();
-                        notify_list_tail_source_changed();
+                        rebuild_list_display_cache();
+                        notify_list_text_sources_changed();
                     }
                     update_info_label();
 #if defined(CHARM_PLAYER_COVER_DEBUG)

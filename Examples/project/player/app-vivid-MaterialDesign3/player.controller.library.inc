@@ -177,34 +177,7 @@
                     continue;
                 }
                 if (library_shows_group_rows()) {
-                    bool complete = true;
-                    int total_sec = 0;
-                    const auto key = library_group_title_for_track(track_index);
-                    if (key.empty()) {
-                        list_display_tails[i].assign("");
-                        continue;
-                    }
-                    for (std::size_t track_i = 0; track_i < tracks->size(); ++track_i) {
-                        if (compare_ci(library_group_title_for_track(static_cast<int>(track_i)), key) != 0) {
-                            continue;
-                        }
-                        const int duration_sec = cached_track_duration(static_cast<int>(track_i));
-                        if (duration_sec == kTrackDurationUnknown) {
-                            complete = false;
-                            break;
-                        }
-                        if (duration_sec > 0) {
-                            total_sec += duration_sec;
-                        }
-                    }
-                    if (complete && total_sec > 0) {
-                        char buf[16]{};
-                        format_duration_compact(total_sec, buf, sizeof(buf));
-                        list_display_tails[i].assign(buf);
-                        player::font_cache::ensure_text(list_display_tails[i].view());
-                    } else {
-                        list_display_tails[i].assign("");
-                    }
+                    list_display_tails[i].assign("");
                     continue;
                 }
                 const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
@@ -220,8 +193,9 @@
             }
         }
 
-        void notify_list_tail_source_changed() {
+        void notify_list_text_sources_changed() {
             if (!access.valid() || !handles.list) return;
+            access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
         }
 
@@ -244,8 +218,8 @@
                 const bool ok = player::probe_duration_seconds((*tracks)[static_cast<std::size_t>(track_index)].c_str(), seconds);
                 const bool changed = cache_track_duration(track_index, ok ? seconds : 0);
                 if (changed) {
-                    rebuild_list_display_tails();
-                    notify_list_tail_source_changed();
+                    rebuild_list_display_cache();
+                    notify_list_text_sources_changed();
                 }
                 return true;
             };
@@ -322,6 +296,33 @@
                 }
             }
             return count;
+        }
+
+        int library_group_total_duration_for_row(int row_index, bool* complete_out = nullptr) const noexcept {
+            if (complete_out) *complete_out = false;
+            if (!library_shows_group_rows()) return 0;
+            if (row_index < 0 || row_index >= static_cast<int>(list_order.size())) return 0;
+            const auto key = library_group_title_for_track(list_order[static_cast<std::size_t>(row_index)]);
+            if (key.empty()) return 0;
+            const auto* tracks = storage.tracks;
+            if (!tracks) return 0;
+            bool complete = true;
+            int total_sec = 0;
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                if (compare_ci(library_group_title_for_track(static_cast<int>(i)), key) != 0) {
+                    continue;
+                }
+                const int duration_sec = cached_track_duration(static_cast<int>(i));
+                if (duration_sec == kTrackDurationUnknown) {
+                    complete = false;
+                    break;
+                }
+                if (duration_sec > 0) {
+                    total_sec += duration_sec;
+                }
+            }
+            if (complete_out) *complete_out = complete;
+            return total_sec;
         }
 
         void activate_list_index(int list_index) {
@@ -451,8 +452,17 @@
                 std::string_view display_subtitle{};
                 if (library_shows_group_rows()) {
                     display_title = library_group_title_for_track(track_index);
-                    char buf[32]{};
-                    std::snprintf(buf, sizeof(buf), "%d tracks", library_group_track_count_for_row(static_cast<int>(i)));
+                    char buf[64]{};
+                    const int track_count = library_group_track_count_for_row(static_cast<int>(i));
+                    bool duration_complete = false;
+                    const int total_sec = library_group_total_duration_for_row(static_cast<int>(i), &duration_complete);
+                    if (duration_complete && total_sec > 0) {
+                        char duration_buf[16]{};
+                        format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
+                        std::snprintf(buf, sizeof(buf), "%d tracks · %s", track_count, duration_buf);
+                    } else {
+                        std::snprintf(buf, sizeof(buf), "%d tracks", track_count);
+                    }
                     list_display_titles[i].assign(display_title.empty() ? std::string_view{"Library"} : display_title);
                     list_display_subtitles[i].assign(buf);
                     list_display_tails[i].assign("");

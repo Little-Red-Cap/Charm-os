@@ -227,8 +227,11 @@ export namespace net::backend {
                 return send_to(handle, slot->remote, in);
             }
 
-            if (slot->state != SocketState::connected || !slot->peer.valid()) {
+            if (slot->state != SocketState::connected) {
                 return util::unexpected(errc::bad_state);
+            }
+            if (!slot->peer.valid()) {
+                return util::unexpected(errc::closed);
             }
             auto* peer = slot_for_handle(slot->peer);
             if (!peer || !peer->used) return util::unexpected(errc::closed);

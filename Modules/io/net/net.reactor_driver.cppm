@@ -244,11 +244,12 @@ export namespace net {
                         (void)arm_writable();
                         return;
                     }
-                    last_error_ = static_cast<errc>(w.error());
-                    notify_transport_error();
-                    pending_len_ = 0;
-                    pending_off_ = 0;
-                    tx_.clear();
+                    clear_tx_pending();
+                    if (w.error() == io::errc::closed || w.error() == io::errc::end_of_stream) {
+                        mark_closed();
+                    } else {
+                        mark_error(static_cast<errc>(w.error()));
+                    }
                     return;
                 }
 
@@ -265,6 +266,12 @@ export namespace net {
             if (pending_len_ != 0 || !tx_.empty()) {
                 (void)arm_writable();
             }
+        }
+
+        void clear_tx_pending() noexcept {
+            pending_len_ = 0;
+            pending_off_ = 0;
+            tx_.clear();
         }
 
         void quiet_watch() noexcept {

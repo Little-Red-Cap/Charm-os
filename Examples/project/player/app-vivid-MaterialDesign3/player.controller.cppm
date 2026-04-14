@@ -190,6 +190,13 @@ export namespace player {
     };
 
     struct PlayerController {
+        struct LibraryRowModel {
+            FixedString<192> title{};
+            FixedString<128> subtitle{};
+            FixedString<32> tail{};
+            bool group_row{false};
+        };
+
         PlaybackEngine playback{};
         ::ui::scene::SceneAccess access{};
         UiHandles handles{};
@@ -235,9 +242,7 @@ export namespace player {
         bool list_shuffle_enabled{false};
         std::uint32_t list_shuffle_seed{0};
         std::vector<int> list_order{};
-        std::vector<FixedString<192>> list_display_titles{};
-        std::vector<FixedString<128>> list_display_subtitles{};
-        std::vector<FixedString<32>> list_display_tails{};
+        std::vector<LibraryRowModel> list_rows{};
         std::vector<int> track_duration_cache_sec{};
         std::size_t list_duration_probe_cursor{0};
         std::uint64_t last_list_duration_probe_ms{0};

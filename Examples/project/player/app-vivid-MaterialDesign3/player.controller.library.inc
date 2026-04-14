@@ -155,6 +155,16 @@
             return track_duration_cache_sec[static_cast<std::size_t>(track_index)];
         }
 
+        LibraryRowModel* library_row_model(int row_index) noexcept {
+            if (row_index < 0 || row_index >= static_cast<int>(list_rows.size())) return nullptr;
+            return &list_rows[static_cast<std::size_t>(row_index)];
+        }
+
+        const LibraryRowModel* library_row_model(int row_index) const noexcept {
+            if (row_index < 0 || row_index >= static_cast<int>(list_rows.size())) return nullptr;
+            return &list_rows[static_cast<std::size_t>(row_index)];
+        }
+
         bool cache_track_duration(int track_index, int seconds) {
             ensure_track_duration_cache();
             if (track_index < 0 || track_index >= static_cast<int>(track_duration_cache_sec.size())) return false;
@@ -168,17 +178,17 @@
         void rebuild_list_display_tails() {
             const auto* tracks = storage.tracks;
             const std::size_t count = list_order.size();
-            if (list_display_tails.size() != count) {
-                list_display_tails.resize(count);
+            if (list_rows.size() != count) {
+                list_rows.resize(count);
             }
             for (std::size_t i = 0; i < count; ++i) {
+                auto& row = list_rows[i];
+                row.tail.clear();
                 const int track_index = list_order[i];
                 if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
-                    list_display_tails[i].assign("");
                     continue;
                 }
-                if (library_shows_group_rows()) {
-                    list_display_tails[i].assign("");
+                if (row.group_row) {
                     continue;
                 }
                 const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
@@ -186,11 +196,11 @@
                 if (duration_sec > 0) {
                     char buf[16]{};
                     format_duration_compact(duration_sec, buf, sizeof(buf));
-                    list_display_tails[i].assign(buf);
+                    row.tail.assign(buf);
                 } else {
-                    list_display_tails[i].assign(format_from_path(path));
+                    row.tail.assign(format_from_path(path));
                 }
-                player::font_cache::ensure_text(list_display_tails[i].view());
+                player::font_cache::ensure_text(row.tail.view());
             }
         }
 
@@ -520,9 +530,9 @@
                 last_list_selected = list_index;
             }
 
-            const std::size_t row = static_cast<std::size_t>(list_index);
-            const char* title_text = (row < list_display_titles.size() && !list_display_titles[row].empty())
-                ? list_display_titles[row].c_str()
+            const auto* row_model = library_row_model(list_index);
+            const char* title_text = (row_model && !row_model->title.empty())
+                ? row_model->title.c_str()
                 : (library_shows_group_rows() ? "Group" : "Track");
             ::ui::scene::AnchoredMenuItemSpec items[3]{};
             const std::size_t item_count = build_list_action_menu_items(list_index, items);
@@ -565,15 +575,11 @@
             close_list_action_menu();
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
 
-            const std::size_t row = static_cast<std::size_t>(list_index);
             char buf[192]{};
             if (library_shows_group_rows()) {
-                const auto title = (row < list_display_titles.size())
-                    ? list_display_titles[row].view()
-                    : std::string_view{};
-                const auto subtitle = (row < list_display_subtitles.size())
-                    ? list_display_subtitles[row].view()
-                    : std::string_view{};
+                const auto* row_model = library_row_model(list_index);
+                const auto title = row_model ? row_model->title.view() : std::string_view{};
+                const auto subtitle = row_model ? row_model->subtitle.view() : std::string_view{};
                 if (subtitle.empty()) {
                     std::snprintf(buf, sizeof(buf), "%.*s",
                                   static_cast<int>(title.size()), title.data());
@@ -657,8 +663,8 @@
         void activate_list_index(int list_index) {
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
             if (library_shows_group_rows()) {
-                if (list_index < static_cast<int>(list_display_titles.size())) {
-                    library_context_key.assign(list_display_titles[static_cast<std::size_t>(list_index)].view());
+                if (const auto* row_model = library_row_model(list_index)) {
+                    library_context_key.assign(row_model->title.view());
                     refresh_list_view();
                 }
                 return;
@@ -753,21 +759,21 @@
         }
 
         void rebuild_list_display_cache() {
-            list_display_titles.clear();
-            list_display_subtitles.clear();
-            list_display_tails.clear();
+            list_rows.clear();
 
             const std::size_t count = list_order.size();
-            list_display_titles.resize(count);
-            list_display_subtitles.resize(count);
-            list_display_tails.resize(count);
+            list_rows.resize(count);
             for (std::size_t i = 0; i < count; ++i) {
+                auto& row = list_rows[i];
+                row.title.clear();
+                row.subtitle.clear();
+                row.tail.clear();
+                row.group_row = false;
                 const int track_index = list_order[i];
                 const auto* tracks = storage.tracks;
                 if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
-                    list_display_titles[i].assign("Unknown Track");
-                    list_display_subtitles[i].assign("Track");
-                    list_display_tails[i].assign("");
+                    row.title.assign("Unknown Track");
+                    row.subtitle.assign("Track");
                     continue;
                 }
                 const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
@@ -780,6 +786,7 @@
                 std::string_view display_title{};
                 std::string_view display_subtitle{};
                 if (library_shows_group_rows()) {
+                    row.group_row = true;
                     display_title = library_group_title_for_track(track_index);
                     char buf[64]{};
                     const int track_count = library_group_track_count_for_row(static_cast<int>(i));
@@ -806,11 +813,10 @@
                         std::snprintf(buf, sizeof(buf), "%s | %d tracks",
                                       library_current_group_state_text(), track_count);
                     }
-                    list_display_titles[i].assign(display_title.empty() ? std::string_view{"Library"} : display_title);
-                    list_display_subtitles[i].assign(buf);
-                    list_display_tails[i].assign("");
-                    player::font_cache::ensure_text(list_display_titles[i].view());
-                    player::font_cache::ensure_text(list_display_subtitles[i].view());
+                    row.title.assign(display_title.empty() ? std::string_view{"Library"} : display_title);
+                    row.subtitle.assign(buf);
+                    player::font_cache::ensure_text(row.title.view());
+                    player::font_cache::ensure_text(row.subtitle.view());
                     continue;
                 }
 
@@ -845,10 +851,10 @@
 
                 if (display_title.empty()) display_title = "Unknown Track";
                 if (display_subtitle.empty()) display_subtitle = "Track";
-                list_display_titles[i].assign(display_title);
-                list_display_subtitles[i].assign(display_subtitle);
-                player::font_cache::ensure_text(list_display_titles[i].view());
-                player::font_cache::ensure_text(list_display_subtitles[i].view());
+                row.title.assign(display_title);
+                row.subtitle.assign(display_subtitle);
+                player::font_cache::ensure_text(row.title.view());
+                player::font_cache::ensure_text(row.subtitle.view());
             }
             rebuild_list_display_tails();
         }
@@ -881,9 +887,8 @@
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            const std::size_t row = static_cast<std::size_t>(index);
-            if (row < self->list_display_titles.size()) {
-                return self->list_display_titles[row].c_str();
+            if (const auto* row_model = self->library_row_model(static_cast<int>(index))) {
+                return row_model->title.c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
             if (track_index < 0) return "";
@@ -895,9 +900,8 @@
         static const char* list_view_subtitle(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            const std::size_t row = static_cast<std::size_t>(index);
-            if (row < self->list_display_subtitles.size()) {
-                return self->list_display_subtitles[row].c_str();
+            if (const auto* row_model = self->library_row_model(static_cast<int>(index))) {
+                return row_model->subtitle.c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
             if (track_index < 0) return "";
@@ -909,9 +913,8 @@
         static const char* list_view_tail(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            const std::size_t row = static_cast<std::size_t>(index);
-            if (row < self->list_display_tails.size()) {
-                return self->list_display_tails[row].c_str();
+            if (const auto* row_model = self->library_row_model(static_cast<int>(index))) {
+                return row_model->tail.c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
             if (track_index < 0) return "";

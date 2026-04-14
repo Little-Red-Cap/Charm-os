@@ -1,7 +1,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdio>
-#include <cstring>
 #include <span>
 
 import block.device;
@@ -13,114 +12,13 @@ import usb.host.runtime_channel;
 import usb.host.runtime_manager;
 import util.core;
 
+#include "../support/usb_host_runtime_block_support.hpp"
+#include "../support/usb_host_runtime_channel_support.hpp"
+
 namespace {
-    struct MemoryDisk {
-        static constexpr std::size_t block_size = 512;
-        static constexpr std::size_t block_count = 4;
-
-        std::array<util::u8, block_size * block_count> bytes{};
-        block::Device device{};
-
-        MemoryDisk() noexcept {
-            bytes[0] = 0xEB;
-            bytes[1] = 0x3C;
-            bytes[2] = 0x90;
-            std::memcpy(bytes.data() + 3, "MULTIUSB", 8);
-            bytes[510] = 0x55;
-            bytes[511] = 0xAA;
-
-            device.ctx = this;
-            device.read = &MemoryDisk::read_cb;
-            device.write = nullptr;
-            device.erase = nullptr;
-            device.flush = nullptr;
-            device.block_size = block_size;
-            device.block_count = block_count;
-            device.caps = block::to_bits(block::Caps::read);
-        }
-
-        static block::Status read_cb(void* ctx,
-                                     util::u64 lba,
-                                     std::span<util::u8> out) noexcept {
-            auto* self = static_cast<MemoryDisk*>(ctx);
-            if (!self || out.empty() || (out.size() % block_size) != 0) {
-                return {block::Errc::invalid_arg};
-            }
-            const auto blocks = static_cast<util::u64>(out.size() / block_size);
-            if (lba + blocks > block_count) {
-                return {block::Errc::invalid_arg};
-            }
-            const auto offset = static_cast<std::size_t>(lba) * block_size;
-            std::memcpy(out.data(), self->bytes.data() + offset, out.size());
-            return {};
-        }
-    };
-
-    struct DummyChannel {
-        std::array<util::u8, 8> rx_data{
-            static_cast<util::u8>('O'),
-            static_cast<util::u8>('K')
-        };
-        util::usize rx_size{2};
-        util::usize rx_pos{0};
-        std::array<util::u8, 16> tx_data{};
-        util::usize tx_size{0};
-        bool flushed{false};
-        io::Channel channel{};
-
-        DummyChannel() noexcept
-            : channel{
-                  this,
-                  io::ChannelOps{
-                      &DummyChannel::read_cb,
-                      &DummyChannel::write_cb,
-                      &DummyChannel::flush_cb
-                  }
-              } {
-        }
-
-        static io::result read_cb(void* ctx, io::MutByteView out) noexcept {
-            auto* self = static_cast<DummyChannel*>(ctx);
-            if (!self || out.empty()) {
-                return io::fail(io::errc::invalid_arg);
-            }
-            if (self->rx_pos >= self->rx_size) {
-                return io::fail(io::errc::end_of_stream);
-            }
-
-            const auto available = self->rx_size - self->rx_pos;
-            const auto count = available < out.size() ? available : out.size();
-            for (util::usize i = 0; i < count; ++i) {
-                out[i] = self->rx_data[self->rx_pos + i];
-            }
-            self->rx_pos += count;
-            return io::ok(count);
-        }
-
-        static io::result write_cb(void* ctx, io::ByteView in) noexcept {
-            auto* self = static_cast<DummyChannel*>(ctx);
-            if (!self || in.empty()) {
-                return io::fail(io::errc::invalid_arg);
-            }
-            if (in.size() > self->tx_data.size()) {
-                return io::fail(io::errc::buffer_overflow);
-            }
-            for (util::usize i = 0; i < in.size(); ++i) {
-                self->tx_data[i] = in[i];
-            }
-            self->tx_size = in.size();
-            return io::ok(in.size());
-        }
-
-        static io::result flush_cb(void* ctx) noexcept {
-            auto* self = static_cast<DummyChannel*>(ctx);
-            if (!self) {
-                return io::fail(io::errc::invalid_arg);
-            }
-            self->flushed = true;
-            return io::ok(1);
-        }
-    };
+    using examples::usb::support::DummyChannel;
+    using examples::usb::support::MemoryDisk;
+    using examples::usb::support::read_lba0;
 
     bool expect(bool cond, const char* message) {
         if (!cond) {
@@ -154,12 +52,6 @@ namespace {
         return true;
     }
 
-    block::Status read_lba0(block::Device& dev, std::span<util::u8> out) noexcept {
-        if (!dev.read) {
-            return {block::Errc::nosys};
-        }
-        return dev.read(dev.ctx, 0, out);
-    }
 }
 
 int main() {
@@ -168,7 +60,7 @@ int main() {
     block_registry.init();
     io_registry.init();
 
-    MemoryDisk disk{};
+    MemoryDisk disk{"MULTIUSB"};
     DummyChannel channel{};
 
     usb::host::MscBlockRuntimeBinding<block::Registry<4>> msc{

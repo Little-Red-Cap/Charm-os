@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 4.0)
 project(charm-armv7a-qemu LANGUAGES C CXX ASM)
 
 option(CHARM_QEMU_SEMIHOST_DEBUG "Enable semihosting debug breadcrumbs for QEMU runs" OFF)
-set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off, data, prefetch")
-set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data prefetch)
+set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off, data, prefetch, prefetch_xn")
+set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data prefetch prefetch_xn)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -26,9 +26,10 @@ if (DEFINED CHARM_BAREMETAL AND NOT CHARM_BAREMETAL)
 endif()
 if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data"
-    AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch")
+    AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch"
+    AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_xn")
     message(FATAL_ERROR
-        "CHARM_ARMV7A_ABORT_SMOKE must be one of: off, data, prefetch")
+        "CHARM_ARMV7A_ABORT_SMOKE must be one of: off, data, prefetch, prefetch_xn")
 endif()
 
 get_filename_component(CHARM_ROOT
@@ -102,4 +103,6 @@ if (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_DATA=1)
 elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_PREFETCH=1)
+elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_xn")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_XN=1)
 endif()

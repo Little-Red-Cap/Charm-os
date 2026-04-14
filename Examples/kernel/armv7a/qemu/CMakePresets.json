@@ -36,6 +36,15 @@
       "cacheVariables": {
         "CHARM_ARMV7A_ABORT_SMOKE": "prefetch"
       }
+    },
+    {
+      "name": "debug-abort-prefetch-xn",
+      "displayName": "ARMv7-A QEMU Debug (Prefetch XN Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-prefetch-xn",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "prefetch_xn"
+      }
     }
   ],
   "buildPresets": [
@@ -50,6 +59,10 @@
     {
       "name": "debug-abort-prefetch",
       "configurePreset": "debug-abort-prefetch"
+    },
+    {
+      "name": "debug-abort-prefetch-xn",
+      "configurePreset": "debug-abort-prefetch-xn"
     }
   ]
 }

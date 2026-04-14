@@ -8,6 +8,9 @@ import out.sink;
 
 extern "C" void qemu_semihost_write0(const char* text);
 extern "C" void armv7a_irq_smoke_test();
+extern "C" void armv7a_prepare_abort_smoke_mappings();
+extern "C" void armv7a_prepare_abort_smoke_runtime();
+extern "C" void armv7a_print_abort_smoke_mapping_state();
 extern "C" void armv7a_run_abort_smoke_if_enabled();
 extern "C" void early_uart_init();
 extern "C" void early_uart_putc(char ch);
@@ -92,8 +95,6 @@ void print_cpu_boot_state()
 
 void print_boot_page_table_state()
 {
-    armv7a_prepare_boot_identity_map();
-
     early_uart_puts("ARMv7-A L1 table ready, base=0x");
     early_uart_put_hex32(static_cast<unsigned int>(armv7a_boot_l1_table_base()));
     early_uart_puts(", ram=0x");
@@ -137,8 +138,12 @@ int main()
     early_uart_puts("Charm ARMv7-A QEMU skeleton\r\n");
     early_uart_puts("Targeting Cortex-A7 first, RK3506 later.\r\n");
     print_cpu_boot_state();
+    armv7a_prepare_boot_identity_map();
+    armv7a_prepare_abort_smoke_mappings();
     print_boot_page_table_state();
+    armv7a_print_abort_smoke_mapping_state();
     armv7a_enable_identity_mmu(armv7a_boot_l1_table_base());
+    armv7a_prepare_abort_smoke_runtime();
     print_mmu_runtime_state();
     print_charm_module_status();
     armv7a_run_abort_smoke_if_enabled();

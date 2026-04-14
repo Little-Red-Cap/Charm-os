@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("data", "prefetch")]
+    [ValidateSet("data", "prefetch", "prefetch-xn")]
     [string]$Kind = "data",
     [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
@@ -66,6 +66,7 @@ function Show-LogTail {
 
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $qemu = Resolve-ToolPath -Tool $QemuExe
+$extraPattern = $null
 
 switch ($Kind) {
     "data" {
@@ -76,6 +77,7 @@ switch ($Kind) {
         $faultPattern = "ARMv7-A data fault, dfsr=0x[0-9A-F]{8}, dfar=0x20000000, adfsr=0x[0-9A-F]{8}"
         $decodePattern = "ARMv7-A data fault decode, status=0x05 \(section translation fault\), domain=0x0, write=no, cm=no"
         $mapPattern = "ARMv7-A fault map, far=0x20000000, ttbr0=0x[0-9A-F]{8}, l1\[0x200\]=0x00000000 \(fault\)"
+        $smokePattern = "ARMv7-A abort smoke, kind=data, addr=0x20000000"
     }
     "prefetch" {
         $configurePreset = "debug-abort-prefetch"
@@ -85,6 +87,18 @@ switch ($Kind) {
         $faultPattern = "ARMv7-A prefetch fault, ifsr=0x[0-9A-F]{8}, ifar=0x20000000, aifsr=0x[0-9A-F]{8}"
         $decodePattern = "ARMv7-A prefetch fault decode, status=0x05 \(section translation fault\), domain=0x0"
         $mapPattern = "ARMv7-A fault map, far=0x20000000, ttbr0=0x[0-9A-F]{8}, l1\[0x200\]=0x00000000 \(fault\)"
+        $smokePattern = "ARMv7-A abort smoke, kind=prefetch, addr=0x20000000"
+    }
+    "prefetch-xn" {
+        $configurePreset = "debug-abort-prefetch-xn"
+        $buildPreset = "debug-abort-prefetch-xn"
+        $elfPath = "out\\build\\debug-abort-prefetch-xn\\charm-armv7a-qemu"
+        $exceptionLine = "ARMv7-A exception: prefetch abort"
+        $faultPattern = "ARMv7-A prefetch fault, ifsr=0x[0-9A-F]{8}, ifar=0x5[0-9A-F]{7}, aifsr=0x[0-9A-F]{8}"
+        $decodePattern = "ARMv7-A prefetch fault decode, status=0x0D \(section permission fault\), domain=0x1"
+        $mapPattern = "ARMv7-A fault map, far=0x5[0-9A-F]{7}, ttbr0=0x[0-9A-F]{8}, l1\[0x500\]=0x[0-9A-F]{8} \(section\), domain=0x1, xn=yes, s=yes, c=yes, b=yes"
+        $smokePattern = "ARMv7-A abort smoke, kind=prefetch-xn, addr=0x5[0-9A-F]{7}"
+        $extraPattern = "ARMv7-A XN alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
     }
     default {
         throw "unsupported abort kind: $Kind"
@@ -128,7 +142,6 @@ $expected = @(
     "Charm ARMv7-A QEMU skeleton",
     "Targeting Cortex-A7 first, RK3506 later.",
     "Charm out.format import active, PL011 @ 0x09000000",
-    "ARMv7-A abort smoke, kind=$Kind, addr=0x20000000",
     $exceptionLine
 )
 
@@ -141,6 +154,9 @@ if (-not $proc.HasExited) {
 
 $log = (Read-LogSafe -Path $outFile) + (Read-LogSafe -Path $errFile)
 $missing = $expected | Where-Object { -not $log.Contains($_) }
+if (($log -notmatch $smokePattern)) {
+    $missing += $smokePattern
+}
 
 if (($log -notmatch "ARMv7-A boot state, cpsr=0x[0-9A-F]{8}, mode=[a-z]+, irq=(masked|enabled)")) {
     $missing += "ARMv7-A boot state, cpsr=0x..."
@@ -171,6 +187,9 @@ if (($log -notmatch $decodePattern)) {
 }
 if (($log -notmatch $mapPattern)) {
     $missing += $mapPattern
+}
+if ($extraPattern -and ($log -notmatch $extraPattern)) {
+    $missing += $extraPattern
 }
 if (($log -notmatch "ARMv7-A fault context, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A fault context, sctlr=0x..."

@@ -66,6 +66,8 @@ export namespace posix {
         util::Result<void> (*stat)(void* ctx, PosixStat& out) noexcept {nullptr};
         util::Result<void> (*dup)(void* ctx) noexcept {nullptr};
         util::Result<util::i64> (*seek)(void* ctx, util::i64 offset, int whence) noexcept {nullptr};
+        util::Result<int> (*get_status_flags)(void* ctx) noexcept {nullptr};
+        util::Result<void> (*set_status_flags)(void* ctx, int flags) noexcept {nullptr};
     };
 
     struct FdEntry {

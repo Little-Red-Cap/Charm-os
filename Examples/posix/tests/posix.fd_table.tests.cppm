@@ -100,6 +100,8 @@ namespace {
             &dummy_close,
             &dummy_stat,
             &dummy_dup,
+            nullptr,
+            nullptr,
             nullptr
         };
 
@@ -148,6 +150,8 @@ namespace {
             &dummy_close,
             &dummy_stat,
             &dummy_dup,
+            nullptr,
+            nullptr,
             nullptr
         };
 
@@ -175,6 +179,8 @@ namespace {
             &dummy_close,
             &dummy_stat,
             &dummy_dup,
+            nullptr,
+            nullptr,
             nullptr
         };
 
@@ -217,6 +223,8 @@ namespace {
             &dummy_close,
             &dummy_stat,
             &dummy_dup,
+            nullptr,
+            nullptr,
             nullptr
         };
 
@@ -252,6 +260,8 @@ namespace {
             &dummy_close,
             &dummy_stat,
             &dummy_dup,
+            nullptr,
+            nullptr,
             nullptr
         };
 
@@ -303,6 +313,8 @@ namespace {
             &dummy_close,
             &dummy_stat,
             &dummy_dup,
+            nullptr,
+            nullptr,
             nullptr
         };
         posix::FdEntry e{};

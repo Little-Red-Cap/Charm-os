@@ -97,6 +97,7 @@ int charm_posix_newlib_dup2_entry(void) {
 
 int charm_posix_newlib_fcntl_entry(void) {
     int dup_fd = fcntl(1, F_DUPFD, 3);
+    int flags = 0;
     if (dup_fd < 3) return 181;
     if (write(dup_fd, "fcntl-", 6) != 6) return 182;
     if (close(dup_fd) != 0) return 183;
@@ -137,7 +138,31 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fcntl(1, F_SETFD, 0) != 0) return 203;
     if (fcntl(1, F_GETFD) != 0) return 204;
 
-    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 205;
+    flags = fcntl(1, F_GETFL);
+    if (flags < 0) return 205;
+    if ((flags & O_ACCMODE) != O_WRONLY) return 206;
+    if ((flags & O_NONBLOCK) != 0) return 207;
+
+    if (fcntl(1, F_SETFL, O_NONBLOCK) != 0) return 208;
+    flags = fcntl(1, F_GETFL);
+    if ((flags & O_NONBLOCK) == 0) return 209;
+
+    dup_fd = dup(1);
+    if (dup_fd < 0) return 210;
+    if ((fcntl(dup_fd, F_GETFL) & O_NONBLOCK) == 0) return 211;
+    if (fcntl(dup_fd, F_SETFL, 0) != 0) return 212;
+    if ((fcntl(1, F_GETFL) & O_NONBLOCK) != 0) return 213;
+    if (close(dup_fd) != 0) return 214;
+
+    errno = 0;
+    if (fcntl(1, F_SETFL, O_CREAT) != -1) return 215;
+    if (errno != EINVAL) return 216;
+
+    errno = 0;
+    if (fcntl(-1, F_GETFL) != -1) return 217;
+    if (errno != EBADF) return 218;
+
+    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 219;
 }
 
 int charm_posix_newlib_kill_self_entry(void) {

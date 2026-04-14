@@ -37,6 +37,8 @@ extern "C" int dup2(int, int);
 extern "C" int fcntl(int, int, ...);
 
 namespace {
+    inline constexpr int kBridgeOpenAppend = 0x8;
+    inline constexpr int kBridgeOpenCreate = 0x200;
 #if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
     extern "C" void posix_smoke_emit(const char* msg) noexcept;
 #endif
@@ -179,6 +181,8 @@ namespace {
         &console_stub_close,
         &console_stub_stat,
         &console_stub_dup,
+        nullptr,
+        nullptr,
         nullptr
     };
 
@@ -1139,6 +1143,120 @@ namespace {
         }
     }
 
+    void test_api_fcntl_status_flags() noexcept {
+        {
+            fs::clear_mounts();
+            ApiRamFsMount<64, 32, 64> ramfs{};
+            auto mount_st = fs::add_mount("", ramfs.mount_point());
+            check_true("statusfl-mount", mount_st);
+
+            posix::FdTable<8> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<2, 4, 8, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<8, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+
+            int fd = api.open("/statusfl.txt", posix::O_RDWR | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("statusfl-open", fd >= 0);
+            check_eq("statusfl-get-initial", api.fcntl(fd, posix::F_GETFL), posix::O_RDWR);
+
+            int dup_fd = api.dup(fd);
+            check_true("statusfl-dup", dup_fd >= 0);
+            check_eq("statusfl-set-append", api.fcntl(dup_fd, posix::F_SETFL, posix::O_APPEND), 0);
+            check_eq("statusfl-get-shared", api.fcntl(fd, posix::F_GETFL), posix::O_RDWR | posix::O_APPEND);
+
+            check_eq("statusfl-write-a", api.write(fd, "a", 1), static_cast<posix::ssize_t>(1));
+            check_eq("statusfl-seek-zero", api.lseek(fd, 0, 0), static_cast<posix::ssize_t>(0));
+            check_eq("statusfl-write-b-append", api.write(dup_fd, "b", 1), static_cast<posix::ssize_t>(1));
+
+            check_eq("statusfl-clear-append", api.fcntl(fd, posix::F_SETFL, 0), 0);
+            check_eq("statusfl-get-cleared", api.fcntl(dup_fd, posix::F_GETFL), posix::O_RDWR);
+            check_eq("statusfl-seek-zero-2", api.lseek(fd, 0, 0), static_cast<posix::ssize_t>(0));
+            check_eq("statusfl-write-c", api.write(fd, "c", 1), static_cast<posix::ssize_t>(1));
+
+            posix::set_errno(0);
+            check_eq("statusfl-set-invalid-rc", api.fcntl(fd, posix::F_SETFL, posix::O_CREAT), -1);
+            check_eq("statusfl-set-invalid-errno", posix::get_errno(), posix::EINVAL);
+            posix::set_errno(0);
+            check_eq("statusfl-get-badfd-rc", api.fcntl(-1, posix::F_GETFL), -1);
+            check_eq("statusfl-get-badfd-errno", posix::get_errno(), posix::EBADF);
+
+            check_eq("statusfl-close-original", api.close(fd), 0);
+            check_eq("statusfl-close-dup", api.close(dup_fd), 0);
+
+            int verify_fd = api.open("/statusfl.txt", posix::O_RDONLY, 0);
+            check_true("statusfl-verify-open", verify_fd >= 0);
+            std::array<char, 8> buf{};
+            auto r = api.read(verify_fd, buf.data(), buf.size());
+            check_eq("statusfl-verify-read", r, static_cast<posix::ssize_t>(2));
+            check_eq("statusfl-verify-text", std::string_view{buf.data(), 2}, std::string_view{"cb"});
+            check_eq("statusfl-verify-close", api.close(verify_fd), 0);
+        }
+
+        {
+            fs::clear_mounts();
+            ApiRamFsMount<64, 32, 64> ramfs{};
+            auto mount_st = fs::add_mount("", ramfs.mount_point());
+            check_true("statusfl-bridge-mount", mount_st);
+
+            posix::FdTable<8> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<2, 4, 8, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<8, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+            auto runtime = posix::user::make_runtime(api);
+            posix::user::bind_runtime(runtime);
+
+            int fd = api.open("/statusfl-bridge.txt", posix::O_RDWR | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("statusfl-bridge-open", fd >= 0);
+            check_eq("statusfl-bridge-get-initial", fcntl(fd, posix::F_GETFL), posix::O_RDWR);
+
+            int dup_fd = dup(fd);
+            check_true("statusfl-bridge-dup", dup_fd >= 0);
+            check_eq("statusfl-bridge-set-append", fcntl(dup_fd, posix::F_SETFL, kBridgeOpenAppend), 0);
+            check_eq("statusfl-bridge-get-shared", fcntl(fd, posix::F_GETFL), posix::O_RDWR | kBridgeOpenAppend);
+
+            check_eq("statusfl-bridge-write-a", api.write(fd, "a", 1), static_cast<posix::ssize_t>(1));
+            check_eq("statusfl-bridge-seek-zero", api.lseek(fd, 0, 0), static_cast<posix::ssize_t>(0));
+            check_eq("statusfl-bridge-write-b-append", api.write(dup_fd, "b", 1), static_cast<posix::ssize_t>(1));
+
+            check_eq("statusfl-bridge-clear-append", fcntl(fd, posix::F_SETFL, 0), 0);
+            check_eq("statusfl-bridge-get-cleared", fcntl(dup_fd, posix::F_GETFL), posix::O_RDWR);
+            check_eq("statusfl-bridge-seek-zero-2", api.lseek(fd, 0, 0), static_cast<posix::ssize_t>(0));
+            check_eq("statusfl-bridge-write-c", api.write(fd, "c", 1), static_cast<posix::ssize_t>(1));
+
+            posix::set_errno(0);
+            check_eq("statusfl-bridge-set-invalid-rc", fcntl(fd, posix::F_SETFL, kBridgeOpenCreate), -1);
+            check_eq("statusfl-bridge-set-invalid-errno", posix::get_errno(), posix::EINVAL);
+            posix::set_errno(0);
+            check_eq("statusfl-bridge-get-badfd-rc", fcntl(-1, posix::F_GETFL), -1);
+            check_eq("statusfl-bridge-get-badfd-errno", posix::get_errno(), posix::EBADF);
+
+            check_eq("statusfl-bridge-close-original", api.close(fd), 0);
+            check_eq("statusfl-bridge-close-dup", api.close(dup_fd), 0);
+
+            int verify_fd = api.open("/statusfl-bridge.txt", posix::O_RDONLY, 0);
+            check_true("statusfl-bridge-verify-open", verify_fd >= 0);
+            std::array<char, 8> buf{};
+            auto r = api.read(verify_fd, buf.data(), buf.size());
+            check_eq("statusfl-bridge-verify-read", r, static_cast<posix::ssize_t>(2));
+            check_eq("statusfl-bridge-verify-text", std::string_view{buf.data(), 2}, std::string_view{"cb"});
+            check_eq("statusfl-bridge-verify-close", api.close(verify_fd), 0);
+
+            posix::user::unbind_runtime();
+        }
+    }
+
     void test_api_stdio_aliases() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -1429,6 +1547,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_dup2_bridge();
     test_api_fcntl_dupfd();
     test_api_fcntl_fdflags();
+    test_api_fcntl_status_flags();
     test_api_stdio_aliases();
     test_api_cwd_and_spawn();
     test_api_errno_contracts();

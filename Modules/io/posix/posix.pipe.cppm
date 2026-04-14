@@ -10,6 +10,7 @@ export module posix.pipe;
 
 import init.node;
 import posix.fd_table;
+import posix.file;
 import service_ring_buffer;
 import util.core;
 import util.error;
@@ -64,6 +65,7 @@ export namespace posix {
         struct Endpoint {
             State* state{nullptr};
             bool is_reader{false};
+            bool non_block{false};
         };
 
         struct State {
@@ -165,6 +167,24 @@ export namespace posix {
             return {};
         }
 
+
+        static util::Result<int> get_status_flags(void* ctx) noexcept {
+            auto* ep = static_cast<Endpoint*>(ctx);
+            if (!ep || !ep->state) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            return ep->non_block ? O_NONBLOCK : 0;
+        }
+
+        static util::Result<void> set_status_flags(void* ctx, int flags) noexcept {
+            auto* ep = static_cast<Endpoint*>(ctx);
+            if (!ep || !ep->state) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            ep->non_block = (flags & O_NONBLOCK) != 0;
+            return {};
+        }
+
         static const FdOps& ops() noexcept {
             static const FdOps kOps{
                 &PipeImpl::read,
@@ -172,7 +192,9 @@ export namespace posix {
                 &PipeImpl::close,
                 &PipeImpl::stat,
                 &PipeImpl::dup,
-                nullptr
+                nullptr,
+                &PipeImpl::get_status_flags,
+                &PipeImpl::set_status_flags
             };
             return kOps;
         }

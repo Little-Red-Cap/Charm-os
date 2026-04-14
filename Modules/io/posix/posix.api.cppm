@@ -31,6 +31,8 @@ export namespace posix {
     inline constexpr int F_DUPFD = 0;
     inline constexpr int F_GETFD = 1;
     inline constexpr int F_SETFD = 2;
+    inline constexpr int F_GETFL = 3;
+    inline constexpr int F_SETFL = 4;
     inline constexpr int FD_CLOEXEC = 1;
 
     struct PosixDirent {
@@ -534,6 +536,48 @@ export namespace posix {
                     entry.value()->inheritable = (arg & FD_CLOEXEC) == 0;
                     return 0;
                 }
+                case F_GETFL: {
+                    auto entry = table->get(fd);
+                    if (!entry) {
+                        set_errno(map_fd_errno(entry.error()));
+                        return -1;
+                    }
+                    int status_flags = 0;
+                    if (entry.value()->ops && entry.value()->ops->get_status_flags) {
+                        auto status = entry.value()->ops->get_status_flags(entry.value()->ctx);
+                        if (!status) {
+                            set_errno(map_fcntl_status_errno(status.error()));
+                            return -1;
+                        }
+                        status_flags = status.value();
+                    }
+                    return fd_flags_to_open_mode(entry.value()->flags) | status_flags;
+                }
+                case F_SETFL: {
+                    auto entry = table->get(fd);
+                    if (!entry) {
+                        set_errno(map_fd_errno(entry.error()));
+                        return -1;
+                    }
+                    constexpr int kSettableFlags = O_APPEND | O_NONBLOCK;
+                    if ((arg & ~kSettableFlags) != 0) {
+                        set_errno(EINVAL);
+                        return -1;
+                    }
+                    if (!entry.value()->ops || !entry.value()->ops->set_status_flags) {
+                        if (arg == 0) {
+                            return 0;
+                        }
+                        set_errno(EINVAL);
+                        return -1;
+                    }
+                    auto st = entry.value()->ops->set_status_flags(entry.value()->ctx, arg & kSettableFlags);
+                    if (!st) {
+                        set_errno(map_fcntl_status_errno(st.error()));
+                        return -1;
+                    }
+                    return 0;
+                }
                 default:
                     set_errno(EINVAL);
                     return -1;
@@ -915,6 +959,13 @@ export namespace posix {
             return FdFlags::read_only;
         }
 
+
+        static int fd_flags_to_open_mode(FdFlags flags) noexcept {
+            if (flags == FdFlags::read_write) return O_RDWR;
+            if (flags == FdFlags::write_only) return O_WRONLY;
+            return O_RDONLY;
+        }
+
         static util::Result<void> fill_fallback_stat(const FdEntry& entry, PosixStat& out) noexcept {
             switch (entry.kind) {
                 case FdKind::term:
@@ -1102,6 +1153,16 @@ export namespace posix {
             switch (err) {
                 case util::Errc::buffer_overflow:
                     return EMFILE;
+                case util::Errc::invalid_arg:
+                    return EINVAL;
+                default:
+                    return map_fd_errno(err);
+            }
+        }
+
+
+        static int map_fcntl_status_errno(util::Errc err) noexcept {
+            switch (err) {
                 case util::Errc::invalid_arg:
                     return EINVAL;
                 default:

@@ -20,6 +20,7 @@ namespace {
     inline constexpr int kPosixOpenCreate = 0x40;
     inline constexpr int kPosixOpenTrunc = 0x200;
     inline constexpr int kPosixOpenAppend = 0x400;
+    inline constexpr int kPosixOpenNonBlock = 0x800;
     inline constexpr int kRuntimeErrPerm = 1;
     inline constexpr int kRuntimeErrNoent = 2;
     inline constexpr int kRuntimeErrIo = 5;
@@ -133,6 +134,33 @@ namespace {
         if ((flags & O_CREAT) != 0) out |= kPosixOpenCreate;
         if ((flags & O_TRUNC) != 0) out |= kPosixOpenTrunc;
         if ((flags & O_APPEND) != 0) out |= kPosixOpenAppend;
+        if ((flags & O_NONBLOCK) != 0) out |= kPosixOpenNonBlock;
+        return out;
+    }
+
+    int translate_runtime_status_flags_to_c(int flags) noexcept {
+        int out = 0;
+        switch (flags & O_ACCMODE) {
+            case kPosixOpenWriteOnly:
+                out |= O_WRONLY;
+                break;
+            case kPosixOpenReadWrite:
+                out |= O_RDWR;
+                break;
+            case kPosixOpenReadOnly:
+            default:
+                out |= O_RDONLY;
+                break;
+        }
+        if ((flags & kPosixOpenAppend) != 0) out |= O_APPEND;
+        if ((flags & kPosixOpenNonBlock) != 0) out |= O_NONBLOCK;
+        return out;
+    }
+
+    int translate_c_status_flags_to_runtime(int flags) noexcept {
+        int out = 0;
+        if ((flags & O_APPEND) != 0) out |= kPosixOpenAppend;
+        if ((flags & O_NONBLOCK) != 0) out |= kPosixOpenNonBlock;
         return out;
     }
 
@@ -227,16 +255,28 @@ extern "C" int dup2(int oldfd, int newfd) {
 
 namespace {
     bool fcntl_requires_int_arg(int cmd) noexcept {
-        return cmd == F_DUPFD || cmd == F_SETFD;
+        return cmd == F_DUPFD || cmd == F_SETFD || cmd == F_SETFL;
     }
 
     int fcntl_bridge_call(int fd, int cmd, int arg) noexcept {
         ErrnoScope guard{};
-        const int r = posix::user::fcntl(fd, cmd, arg);
+        int runtime_arg = arg;
+        if (cmd == F_SETFL) {
+            constexpr int kAllowedStatusFlags = O_APPEND | O_NONBLOCK;
+            if ((arg & ~kAllowedStatusFlags) != 0) {
+                set_bridge_errno(kRuntimeErrInval);
+                return -1;
+            }
+            runtime_arg = translate_c_status_flags_to_runtime(arg);
+        }
+        const int r = posix::user::fcntl(fd, cmd, runtime_arg);
         if (r < 0) {
             return guard.fail_from_runtime();
         }
         guard.restore();
+        if (cmd == F_GETFL) {
+            return translate_runtime_status_flags_to_c(r);
+        }
         return r;
     }
 }

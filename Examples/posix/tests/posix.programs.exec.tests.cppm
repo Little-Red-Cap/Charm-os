@@ -60,6 +60,8 @@ namespace {
         &term_close_stub,
         &term_stat_stub,
         &term_dup_stub,
+        nullptr,
+        nullptr,
         nullptr
     };
 

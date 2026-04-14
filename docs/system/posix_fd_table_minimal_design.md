@@ -35,6 +35,8 @@ namespace posix {
         util::Result<util::usize> (*write)(void* ctx, io::ByteView) noexcept;
         util::Result<void> (*close)(void* ctx) noexcept;
         util::Result<void> (*stat)(void* ctx, PosixStat& out) noexcept;
+        util::Result<int> (*get_status_flags)(void* ctx) noexcept;
+        util::Result<void> (*set_status_flags)(void* ctx, int flags) noexcept;
     };
 
     struct FdEntry {
@@ -68,6 +70,7 @@ namespace posix {
 - `dup2` preserves semantics: if `to` exists, close then duplicate; if `from == to`, it is a no-op.
 - `close` calls entry ops->close and releases slot.
 - `clone_entry` copies references without transferring ownership.
+- `get_status_flags/set_status_flags` describe open-file-description-side status such as `O_APPEND` / `O_NONBLOCK`; dup-family fds share these through the backend ctx, while `FD_CLOEXEC` stays per descriptor.
 - All entries are inheritable by default; `FD_CLOEXEC` maps to `FdEntry.inheritable == false`.
 
 ## Integration Points

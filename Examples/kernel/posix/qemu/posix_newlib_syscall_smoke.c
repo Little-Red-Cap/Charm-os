@@ -455,6 +455,10 @@ int charm_posix_newlib_path_entry(void) {
     if (stat("/newlib-path.txt/sub", &st) != -1) return 512;
     if (errno != ENOTDIR) return 513;
 
+    errno = 0;
+    if (access("/newlib-path.txt/sub", F_OK) != -1) return 514;
+    if (errno != ENOTDIR) return 515;
+
     fd = open("/newlib-dir/probe.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 153;
     if (write(fd, "x", 1) != 1) return 154;

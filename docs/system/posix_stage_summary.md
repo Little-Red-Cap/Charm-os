@@ -49,6 +49,7 @@
 - `mkdir("/work") -> 0`, duplicate create returns `EEXIST`
 - `unlink("/missing") -> -1 && errno == ENOENT`
 - `mkdir("/file/sub")`, `unlink("/file/sub")`, `rmdir("/file/sub")`, and `stat("/file/sub", ...)` now consistently fail with `ENOTDIR`
+- newlib path-facing probes now also confirm `access("/file/sub", F_OK) -> -1 && errno == ENOTDIR` on the same bad parent-path shape
 - `rename("/missing", "/target") -> -1 && errno == ENOENT`, `rename("/file/sub", "/target") -> -1 && errno == ENOTDIR`, and `rename("/source", "/file/sub") -> -1 && errno == ENOTDIR`
 - `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `opendir(file)` fails with `ENOTDIR`, `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, and `readdir()` / `closedir()` on a null, invalid, or already-closed directory handle fail with `EINVAL`
 

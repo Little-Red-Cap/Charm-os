@@ -222,8 +222,8 @@ int charm_posix_newlib_fcntl_entry(void) {
     if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 257;
     if (close(dup_fd) != 0) return 258;
 
-    if (fcntl(1, F_SETFL, O_NONBLOCK) != 0) return 259;
-    alias_fd = open("/dev/stdout", O_WRONLY, 0);
+    if (fcntl(2, F_SETFL, O_NONBLOCK) != 0) return 259;
+    alias_fd = open("/dev/stderr", O_WRONLY, 0);
     if (alias_fd < 0) return 260;
     flags = fcntl(alias_fd, F_GETFL);
     if ((flags & O_ACCMODE) != O_WRONLY) return 261;
@@ -232,10 +232,23 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fstat(alias_fd, &st) != 0) return 264;
     if ((st.st_mode & S_IFMT) != S_IFIFO) return 265;
     if (fcntl(alias_fd, F_SETFL, 0) != 0) return 266;
-    if ((fcntl(1, F_GETFL) & O_NONBLOCK) != 0) return 267;
+    if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 267;
     if (close(alias_fd) != 0) return 268;
 
-    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 269;
+    if (fcntl(1, F_SETFL, O_NONBLOCK) != 0) return 269;
+    alias_fd = open("/dev/stdout", O_WRONLY, 0);
+    if (alias_fd < 0) return 270;
+    flags = fcntl(alias_fd, F_GETFL);
+    if ((flags & O_ACCMODE) != O_WRONLY) return 271;
+    if ((flags & O_NONBLOCK) == 0) return 272;
+    if (isatty(alias_fd) != 0) return 273;
+    if (fstat(alias_fd, &st) != 0) return 274;
+    if ((st.st_mode & S_IFMT) != S_IFIFO) return 275;
+    if (fcntl(alias_fd, F_SETFL, 0) != 0) return 276;
+    if ((fcntl(1, F_GETFL) & O_NONBLOCK) != 0) return 277;
+    if (close(alias_fd) != 0) return 278;
+
+    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 279;
 }
 
 int charm_posix_newlib_pipe_entry(void) {

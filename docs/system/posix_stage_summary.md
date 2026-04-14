@@ -19,7 +19,7 @@
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
 - process-control slice now includes `kill v0`, `minimal ps`, shell/busybox `kill` applet coverage, and real-ELF `sleep/kill` hostcall coverage: `getpid`, `sleep`, `kill(SIGTERM/SIGKILL/SIGINT)`, and a minimum `ps(pid/state/name)` view are smoke-covered on the current same-address-space model
 - spawned newlib smoke now also covers pure-fd `dup()` / `dup2()` / `fcntl(F_DUPFD)` plus minimal fd-flag control through `fcntl(F_GETFD/F_SETFD/F_GETFL/F_SETFL)`, `FD_CLOEXEC`, and `O_NONBLOCK`; a spawned cloexec regression now also proves non-inheritable fds are pruned across `spawn`
-- spawned newlib `fcntl` smoke now covers pipe-backed descriptors, term-backed descriptors, and active fd-path aliases such as `/dev/stdout` / `/dev/stderr` / `/dev/tty` for `O_NONBLOCK`; it also proves that `/dev/stdout` keeps following the current stdout binding shape (for example, a remapped pipe still reports `S_IFIFO` and `isatty == 0`)
+- spawned newlib `fcntl` smoke now covers pipe-backed descriptors, term-backed descriptors, and active fd-path aliases such as `/dev/stdout` / `/dev/stderr` / `/dev/tty` for `O_NONBLOCK`; it also proves that `/dev/stdout` and `/dev/stderr` keep following the current stdio binding shape (for example, a remapped pipe still reports `S_IFIFO` and `isatty == 0`)
 
 ## Stable ABI Contracts
 

@@ -76,6 +76,7 @@ ARMv7-A L1 table ready, base=0x40210000, ram=0x40211C0E, gic=0x08010C16, uart=0x
 ARMv7-A small-page alias ready, va=0x5200...., pa=0x4020...., l1=0x4020...., l2=0x4020....
 ARMv7-A small-page remap ready, va=0x52100000, pa-a=0x4020...., pa-b=0x4020...., l1=0x4021...., l2=0x4021....
 ARMv7-A attr probe ready, va=0x52300000, pa=0x40300000, section=0x40300000, identity-l1=0x00000000, l1=0x4021...., l2=0x4030...., tex=0x00000001, mem=normal-cached
+ARMv7-A dcache probe ready, va=0x52400000, pa=0x4030...., l1=0x4021...., l2=0x4030....
 ARMv7-A icache probe ready, va=0x5220...., pa-a=0x4020...., pa-b=0x4020...., l1=0x4021...., l2=0x4020....
 ARMv7-A MMU active, sctlr=0x00C51079, ttbr0=0x40210000, ttbcr=0x00000000, dacr=0x00000001
 ARMv7-A MMU flags, mmu=on, dcache=off, icache=on
@@ -85,6 +86,8 @@ ARMv7-A small-page remap, addr=0x52100000, before=0x13579BDF, after=0x2468ACE0, 
 ARMv7-A attr probe, addr=0x52300000, before=0x11223344, normal=0x55667788, device-before=0x55667788, device=0x99AABBCC, restored=0x99AABBCC
 ARMv7-A attr descriptors, normal=0x4030.... (tex=0x00000001, mem=normal-cached), device=0x4030.... (tex=0x00000000, mem=device), restored=0x4030.... (tex=0x00000001, mem=normal-cached)
 ARMv7-A icache probe, addr=0x5220...., before=0x000000A1, after=0x000000B2, l2=0x4020....
+ARMv7-A D-cache active, sctlr=0x00C5107D, clidr=0x........, ccsidr=0x........, line=0x........, ways=0x........, sets=0x........
+ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, cached=0x10203040, device-before=0x10203040, restored=0x50607080, l2=0x4030....
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
 ```
@@ -260,10 +263,11 @@ continue
 - A first 16KB short-descriptor L1 identity map is now prepared in RAM, but
   is now also wired into `TTBR0` with `TTBCR=0`, `DACR=0x1`, and a first
   `SCTLR.M` enable step. The default runtime now stays in `domain0 client`
-  instead of leaning on `domain0 manager`, and now also enables `SCTLR.I`
-  after the MMU comes up while still keeping D-cache off so instruction-side
-  bring-up can advance without dragging data-cache coherency into the same
-  debug session.
+  instead of leaning on `domain0 manager`, then enables `SCTLR.I` right after
+  MMU bring-up and only enables `SCTLR.C` later in the default smoke after the
+  earlier mapping/permission probes have already run, so the first D-cache
+  step does not get mixed into the same debug window as the very first MMU
+  enable.
 - The timer smoke prepares both architected physical timer PPIs.
   Current QEMU `virt` runs observed the non-secure physical timer route
   (`intid=30`), but the code also accepts the secure route (`intid=29`)
@@ -288,6 +292,14 @@ continue
   address between two different code pages after `SCTLR.I` is enabled, which
   gives us a direct QEMU smoke for instruction-side TLB/I-cache/branch
   predictor maintenance before we move on to anything D-cache related.
+- A first cache helper layer now also reads `CLIDR/CCSIDR`, invalidates the
+  L1 data cache by set/way before `SCTLR.C` comes up, and exposes line-based
+  clean/invalidate helpers for later runtime mapping changes.
+- A dedicated D-cache probe then writes through one cached alias, cleans and
+  invalidates that line, flips the same VA to `device`, confirms the write
+  became visible beyond the cache, writes again via the device view, flips the
+  page back to cached, and finally invalidates the cached line before proving
+  the device-side write is visible through the cached mapping too.
 - Optional `data` / `prefetch` abort smokes now reuse the shared fatal
   exception path to validate `DFSR/DFAR/ADFSR` and `IFSR/IFAR/AIFSR`
   collection without destabilizing the default CI smoke.

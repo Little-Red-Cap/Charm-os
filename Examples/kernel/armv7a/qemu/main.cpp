@@ -4,7 +4,9 @@ import out.sink;
 #include "armv7a_arch_timer.hpp"
 #include "armv7a_attribute_probe.hpp"
 #include "armv7a_boot_page_table.hpp"
+#include "armv7a_cache.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_dcache_probe.hpp"
 #include "armv7a_icache_probe.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_small_page_probe.hpp"
@@ -130,6 +132,25 @@ void print_mmu_runtime_state()
     early_uart_puts(armv7a_icache_enabled(sctlr) ? "on" : "off");
     early_uart_puts("\r\n");
 }
+
+void print_dcache_runtime_state()
+{
+    const auto sctlr = armv7a_read_sctlr();
+    const auto geometry = armv7a_read_l1_dcache_geometry();
+    early_uart_puts("ARMv7-A D-cache active, sctlr=0x");
+    early_uart_put_hex32(sctlr);
+    early_uart_puts(", clidr=0x");
+    early_uart_put_hex32(geometry.clidr);
+    early_uart_puts(", ccsidr=0x");
+    early_uart_put_hex32(geometry.ccsidr);
+    early_uart_puts(", line=0x");
+    early_uart_put_hex32(geometry.line_size_bytes);
+    early_uart_puts(", ways=0x");
+    early_uart_put_hex32(geometry.ways);
+    early_uart_puts(", sets=0x");
+    early_uart_put_hex32(geometry.sets);
+    early_uart_puts("\r\n");
+}
 } // namespace
 
 int main()
@@ -145,11 +166,13 @@ int main()
     armv7a_prepare_abort_smoke_mappings();
     armv7a_prepare_small_page_probe_mapping();
     armv7a_prepare_attribute_probe_mapping();
+    armv7a_prepare_dcache_probe_mapping();
     armv7a_prepare_icache_probe_mapping();
     print_boot_page_table_state();
     armv7a_print_abort_smoke_mapping_state();
     armv7a_print_small_page_probe_mapping_state();
     armv7a_print_attribute_probe_mapping_state();
+    armv7a_print_dcache_probe_mapping_state();
     armv7a_print_icache_probe_mapping_state();
     armv7a_enable_identity_mmu(armv7a_boot_l1_table_base());
     armv7a_prepare_abort_smoke_runtime();
@@ -160,6 +183,9 @@ int main()
     armv7a_run_attribute_probe();
     armv7a_run_icache_probe();
     armv7a_run_abort_smoke_if_enabled();
+    armv7a_enable_dcache();
+    print_dcache_runtime_state();
+    armv7a_run_dcache_probe();
     armv7a_svc_smoke_test();
     armv7a_irq_smoke_test();
     charm_spin();

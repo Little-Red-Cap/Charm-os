@@ -70,6 +70,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_cpu.cpp
     armv7a_arch_timer.cpp
     armv7a_attribute_probe.cpp
+    armv7a_cache.cpp
+    armv7a_dcache_probe.cpp
     armv7a_icache_probe.S
     armv7a_icache_probe.cpp
     armv7a_mmu.cpp

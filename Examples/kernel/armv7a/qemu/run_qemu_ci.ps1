@@ -104,6 +104,9 @@ if (($log -notmatch "ARMv7-A small-page remap ready, va=0x52100000, pa-a=0x4[0-9
 if (($log -notmatch "ARMv7-A attr probe ready, va=0x52300000, pa=0x4[0-9A-F]{7}, section=0x4[0-9A-F]{7}, identity-l1=0x00000000, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}, tex=0x00000001, mem=normal-cached")) {
     $missing += "ARMv7-A attr probe ready, va=0x52300000..."
 }
+if (($log -notmatch "ARMv7-A dcache probe ready, va=0x52400000, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A dcache probe ready, va=0x52400000..."
+}
 if (($log -notmatch "ARMv7-A MMU active, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A MMU active, sctlr=0x..."
 }
@@ -127,6 +130,12 @@ if (($log -notmatch "ARMv7-A attr descriptors, normal=0x[0-9A-F]{8} .*mem=normal
 }
 if (($log -notmatch "ARMv7-A icache probe, addr=0x522[0-9A-F]{5}, before=0x000000A1, after=0x000000B2, l2=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A icache probe, addr=0x522..."
+}
+if (($log -notmatch "ARMv7-A D-cache active, sctlr=0x[0-9A-F]{8}, clidr=0x[0-9A-F]{8}, ccsidr=0x[0-9A-F]{8}, line=0x[0-9A-F]{8}, ways=0x[0-9A-F]{8}, sets=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A D-cache active, sctlr=0x..."
+}
+if (($log -notmatch "ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, cached=0x10203040, device-before=0x10203040, restored=0x50607080, l2=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A dcache probe, addr=0x52400000..."
 }
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30"

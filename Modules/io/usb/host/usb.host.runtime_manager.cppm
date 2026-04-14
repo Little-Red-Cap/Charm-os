@@ -45,14 +45,22 @@ export namespace usb::host {
             return try_add(binding);
         }
 
+        [[nodiscard]] util::Result<void> try_enumerate() noexcept {
+            return bus_.try_enumerate(registry_);
+        }
+
         bool enumerate() noexcept {
-            return bus_.enumerate(registry_);
+            return static_cast<bool>(try_enumerate());
+        }
+
+        [[nodiscard]] util::Result<void> try_scan() noexcept {
+            auto enumerated = try_enumerate();
+            registry_.match_detected();
+            return enumerated;
         }
 
         bool scan() noexcept {
-            const bool enumerated = enumerate();
-            registry_.match_detected();
-            return enumerated;
+            return static_cast<bool>(try_scan());
         }
 
         template <typename BindingT>
@@ -67,13 +75,27 @@ export namespace usb::host {
         }
 
         template <typename BindingT>
+        util::Result<void> try_remove(BindingT& binding) noexcept {
+            return binding.try_remove(registry_);
+        }
+
+        template <typename BindingT>
         bool remove(BindingT& binding) noexcept {
-            return binding.remove(registry_);
+            return static_cast<bool>(try_remove(binding));
+        }
+
+        template <typename BindingT>
+        util::Result<void> try_rediscover(BindingT& binding) noexcept {
+            auto reset = bus_.try_reset_device(binding.device_record());
+            if (!reset) {
+                return reset;
+            }
+            return try_scan();
         }
 
         template <typename BindingT>
         bool rediscover(BindingT& binding) noexcept {
-            return bus_.reset_device(binding.device_record()) && scan();
+            return static_cast<bool>(try_rediscover(binding));
         }
 
         void reset_all() noexcept {

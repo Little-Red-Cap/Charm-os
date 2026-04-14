@@ -470,7 +470,10 @@ USB Device 不能简单地整体归入动态平面。
 
 虽然 `device::Registry` / `device::System` / `usb::host::RuntimeManager`
 已经开始补 `util::Result<void>` 风格的 `try_add_*` / `try_add(...)` 入口，
-但 `enumerate / dispatch / suspend / resume` 这类路径仍以 `bool` 风格为主。
+并且 `usb::host::SingleDeviceRuntimeBus` / `DeviceListRuntimeBus`
+以及对应 `RuntimeManager` 生命周期也已经开始补
+`try_enumerate / try_scan / try_remove / try_rediscover`，
+但 `device::Bus` 回调签名以及 `dispatch / suspend / resume` 这类路径仍以 `bool` 风格为主。
 
 这意味着：
 

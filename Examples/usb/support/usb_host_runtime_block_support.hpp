@@ -129,6 +129,11 @@ namespace examples::usb::support {
         }
 
         template <typename RuntimeManagerT>
+        auto try_remove_from(RuntimeManagerT& runtime) noexcept -> decltype(runtime.try_remove(binding)) {
+            return runtime.try_remove(binding);
+        }
+
+        template <typename RuntimeManagerT>
         [[nodiscard]] bool enumerated_in(const RuntimeManagerT& runtime) const noexcept {
             return runtime.enumerated(binding);
         }
@@ -136,6 +141,11 @@ namespace examples::usb::support {
         template <typename RuntimeManagerT>
         bool remove_from(RuntimeManagerT& runtime) noexcept {
             return runtime.remove(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        auto try_rediscover_in(RuntimeManagerT& runtime) noexcept -> decltype(runtime.try_rediscover(binding)) {
+            return runtime.try_rediscover(binding);
         }
 
         template <typename RuntimeManagerT>

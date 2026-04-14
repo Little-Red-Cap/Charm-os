@@ -91,6 +91,68 @@ export namespace ui::scene {
         return -1;
     }
 
+    inline int anchored_menu_first_visible_index(const AnchoredMenuItemSpec* items,
+                                                 std::size_t count) noexcept {
+        if (!items) return -1;
+        const std::size_t cap = anchored_menu_item_count(count);
+        for (std::size_t i = 0; i < cap; ++i) {
+            if (items[i].visible) return static_cast<int>(i);
+        }
+        return -1;
+    }
+
+    inline int anchored_menu_last_visible_index(const AnchoredMenuItemSpec* items,
+                                                std::size_t count) noexcept {
+        if (!items) return -1;
+        const std::size_t cap = anchored_menu_item_count(count);
+        for (std::size_t i = cap; i > 0; --i) {
+            if (items[i - 1].visible) return static_cast<int>(i - 1);
+        }
+        return -1;
+    }
+
+    inline int anchored_menu_next_visible_index(const AnchoredMenuItemSpec* items,
+                                                std::size_t count,
+                                                int current,
+                                                int delta) noexcept {
+        if (!items) return -1;
+        const std::size_t cap = anchored_menu_item_count(count);
+        if (cap == 0) return -1;
+        if (anchored_menu_visible_item_count(items, count) == 0) return -1;
+
+        const int step = (delta < 0) ? -1 : 1;
+        if (current < 0 || current >= static_cast<int>(cap) || !items[current].visible) {
+            return step > 0
+                ? anchored_menu_first_visible_index(items, count)
+                : anchored_menu_last_visible_index(items, count);
+        }
+
+        int index = current;
+        for (std::size_t attempts = 0; attempts < cap; ++attempts) {
+            index += step;
+            if (index < 0) index = static_cast<int>(cap) - 1;
+            if (index >= static_cast<int>(cap)) index = 0;
+            if (items[index].visible) return index;
+        }
+        return current;
+    }
+
+    inline int anchored_menu_focused_index(SceneAccess& access,
+                                           const AnchoredMenuHandles& handles) noexcept {
+        return anchored_menu_item_index(handles, access.input_focused());
+    }
+
+    inline void set_anchored_menu_focus(SceneAccess& access,
+                                        const AnchoredMenuHandles& handles,
+                                        int index) noexcept {
+        if (!access.valid()) return;
+        for (std::size_t i = 0; i < handles.items.size(); ++i) {
+            const WidgetHandle item = handles.items[i];
+            if (!item) continue;
+            access.set_focused(item, static_cast<int>(i) == index);
+        }
+    }
+
     inline int anchored_menu_card_height(const AnchoredMenuSpec& spec,
                                          std::size_t item_count,
                                          bool show_title = true) noexcept {

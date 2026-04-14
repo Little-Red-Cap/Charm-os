@@ -659,43 +659,6 @@ export namespace player {
             reset_cover_image();
         }
 
-        void handle_key_action(UiKey key) {
-            if (current_page == PlayerPage::Probe) {
-                dismiss_probe();
-                return;
-            }
-            switch (key) {
-            case UiKey::Up:
-                focus_list();
-                nav_list(-1);
-                break;
-            case UiKey::Down:
-                focus_list();
-                nav_list(1);
-                break;
-            case UiKey::Enter:
-                focus_list();
-                nav_list_activate();
-                break;
-            case UiKey::PlayToggle:
-                if (is_playing()) pause_playback();
-                else if (is_paused()) resume_playback();
-                else start_playback();
-                break;
-            case UiKey::Next:
-                switch_track(1);
-                break;
-            case UiKey::Prev:
-                switch_track(-1);
-                break;
-            case UiKey::Mode:
-                cycle_play_mode();
-                break;
-            default:
-                break;
-            }
-        }
-
         void init_text_slots() {
             if (!access.valid()) return;
             auto alloc = [this]() noexcept {
@@ -1086,6 +1049,46 @@ export namespace player {
         }
 
         #include "player.controller.library.inc"
+
+        void handle_key_action(UiKey key) {
+            if (current_page == PlayerPage::Probe) {
+                dismiss_probe();
+                return;
+            }
+            if (current_page == PlayerPage::Library && handle_list_action_menu_key(key)) {
+                return;
+            }
+            switch (key) {
+            case UiKey::Up:
+                focus_list();
+                nav_list(-1);
+                break;
+            case UiKey::Down:
+                focus_list();
+                nav_list(1);
+                break;
+            case UiKey::Enter:
+                focus_list();
+                nav_list_activate();
+                break;
+            case UiKey::PlayToggle:
+                if (is_playing()) pause_playback();
+                else if (is_paused()) resume_playback();
+                else start_playback();
+                break;
+            case UiKey::Next:
+                switch_track(1);
+                break;
+            case UiKey::Prev:
+                switch_track(-1);
+                break;
+            case UiKey::Mode:
+                cycle_play_mode();
+                break;
+            default:
+                break;
+            }
+        }
 
         #include "player.controller.progress.inc"
         #include "player.controller.input_debug.inc"

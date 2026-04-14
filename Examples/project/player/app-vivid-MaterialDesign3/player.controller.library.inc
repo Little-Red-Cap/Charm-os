@@ -371,6 +371,9 @@
         void close_list_action_menu() {
             list_action_menu_index = -1;
             ::ui::scene::hide_anchored_menu(access, list_action_menu_handles());
+            if (handles.list) {
+                access.set_focused(handles.list, true);
+            }
         }
 
         std::string_view list_action_tertiary_label_for_track(int track_idx) const noexcept {
@@ -424,6 +427,50 @@
             return 3;
         }
 
+        int focused_list_action_menu_item() const noexcept {
+            if (!access.valid()) return -1;
+            return ::ui::scene::anchored_menu_focused_index(
+                const_cast<::ui::scene::SceneAccess&>(access),
+                list_action_menu_handles());
+        }
+
+        void focus_list_action_menu_item(int item_index) {
+            ::ui::scene::set_anchored_menu_focus(access, list_action_menu_handles(), item_index);
+        }
+
+        bool handle_list_action_menu_key(UiKey key) {
+            if (list_action_menu_index < 0) return false;
+            ::ui::scene::AnchoredMenuItemSpec items[3]{};
+            const std::size_t item_count = build_list_action_menu_items(list_action_menu_index, items);
+            if (item_count == 0) return false;
+
+            const int focused = focused_list_action_menu_item();
+            switch (key) {
+            case UiKey::Up: {
+                const int next = ::ui::scene::anchored_menu_next_visible_index(items, item_count, focused, -1);
+                if (next >= 0) focus_list_action_menu_item(next);
+                return true;
+            }
+            case UiKey::Down: {
+                const int next = ::ui::scene::anchored_menu_next_visible_index(items, item_count, focused, 1);
+                if (next >= 0) focus_list_action_menu_item(next);
+                return true;
+            }
+            case UiKey::Enter: {
+                int invoke_index = focused;
+                if (invoke_index < 0) {
+                    invoke_index = ::ui::scene::anchored_menu_first_visible_index(items, item_count);
+                }
+                if (invoke_index >= 0) {
+                    invoke_list_action_item(invoke_index);
+                }
+                return true;
+            }
+            default:
+                return false;
+            }
+        }
+
         void open_list_action_menu(int list_index) {
             if (!access.valid()) return;
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) {
@@ -465,6 +512,10 @@
                     .items = items,
                     .item_count = item_count,
                 });
+            const int initial_focus = ::ui::scene::anchored_menu_first_visible_index(items, item_count);
+            if (initial_focus >= 0) {
+                focus_list_action_menu_item(initial_focus);
+            }
         }
 
         void invoke_list_action_primary() {

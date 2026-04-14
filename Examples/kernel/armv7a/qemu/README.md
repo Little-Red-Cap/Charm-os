@@ -29,6 +29,9 @@ cmake --build out\build\debug-abort-prefetch-page --verbose
 cmake --preset debug-abort-prefetch-page-xn
 cmake --build out\build\debug-abort-prefetch-page-xn --verbose
 
+cmake --preset debug-abort-prefetch-page-xn-runtime
+cmake --build out\build\debug-abort-prefetch-page-xn-runtime --verbose
+
 cmake --preset debug-abort-data-perm
 cmake --build out\build\debug-abort-data-perm --verbose
 
@@ -37,6 +40,9 @@ cmake --build out\build\debug-abort-data-page --verbose
 
 cmake --preset debug-abort-data-page-perm
 cmake --build out\build\debug-abort-data-page-perm --verbose
+
+cmake --preset debug-abort-data-page-perm-runtime
+cmake --build out\build\debug-abort-data-page-perm-runtime --verbose
 ```
 
 ## Run
@@ -93,9 +99,11 @@ exception path instead of returning to the regular SVC/IRQ smoke:
 .\run_qemu_abort_ci.ps1 -Kind prefetch-xn
 .\run_qemu_abort_ci.ps1 -Kind prefetch-page
 .\run_qemu_abort_ci.ps1 -Kind prefetch-page-xn
+.\run_qemu_abort_ci.ps1 -Kind prefetch-page-xn-runtime
 .\run_qemu_abort_ci.ps1 -Kind data-perm
 .\run_qemu_abort_ci.ps1 -Kind data-page
 .\run_qemu_abort_ci.ps1 -Kind data-page-perm
+.\run_qemu_abort_ci.ps1 -Kind data-page-perm-runtime
 ```
 
 ## Abort smoke
@@ -108,9 +116,11 @@ Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-xn\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-page\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-page-xn\charm-armv7a-qemu
+.\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-page-xn-runtime\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data-perm\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data-page\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data-page-perm\charm-armv7a-qemu
+.\run_qemu.ps1 -ElfPath out\build\debug-abort-data-page-perm-runtime\charm-armv7a-qemu
 ```
 
 Expected abort-mode output includes the same boot/MMU banner as the default
@@ -161,6 +171,17 @@ ARMv7-A fault map, far=0x55......, ttbr0=0x........, l1[0x550]=0x........ (page 
 ```
 
 ```text
+ARMv7-A runtime page-XN alias ready, va=0x58......, pa=0x4......., l1=0x........, l2=0x........
+ARMv7-A runtime page-XN probe, addr=0x58......, return=0x00000043
+ARMv7-A runtime page-XN flip, addr=0x58......, l2=0x........
+ARMv7-A abort smoke, kind=prefetch-page-xn-runtime, addr=0x58......
+ARMv7-A exception: prefetch abort, pc=0x58......, lr=0x58......, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
+ARMv7-A prefetch fault, ifsr=0x0000001F, ifar=0x58......, aifsr=0x........
+ARMv7-A prefetch fault decode, status=0x0F (page permission fault), domain=0x1
+ARMv7-A fault map, far=0x58......, ttbr0=0x........, l1[0x580]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
+```
+
+```text
 ARMv7-A data alias ready, va=0x5......., pa=0x4......., desc=0x........
 ARMv7-A abort smoke, kind=data-perm, addr=0x5......., value=0xA5A55A5A
 ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
@@ -185,6 +206,17 @@ ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, or
 ARMv7-A data fault, dfsr=0x0000081F, dfar=0x54......, adfsr=0x........
 ARMv7-A data fault decode, status=0x0F (page permission fault), domain=0x1, write=yes, cm=no
 ARMv7-A fault map, far=0x54......, ttbr0=0x........, l1[0x540]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
+```
+
+```text
+ARMv7-A runtime data-page alias ready, va=0x57......, pa=0x4......., l1=0x........, l2=0x........
+ARMv7-A runtime data-page probe, addr=0x57......, before=0x0BADCAFE, after=0x5AA55AA5, direct=0x5AA55AA5
+ARMv7-A runtime data-page flip, addr=0x57......, l2=0x........
+ARMv7-A abort smoke, kind=data-page-perm-runtime, addr=0x57......, value=0xA5A55A5A
+ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
+ARMv7-A data fault, dfsr=0x0000081F, dfar=0x57......, adfsr=0x........
+ARMv7-A data fault decode, status=0x0F (page permission fault), domain=0x1, write=yes, cm=no
+ARMv7-A fault map, far=0x57......, ttbr0=0x........, l1[0x570]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
 ```
 
 ## GDB attach
@@ -248,6 +280,10 @@ continue
 - The `prefetch-page-xn` smoke keeps both coarse L1 and small-page L2 valid,
   but marks the page itself XN in `domain1 client`, which lets us validate a
   true page permission fault on the execute path.
+- The `prefetch-page-xn-runtime` smoke starts from a valid executable small
+  page in `domain1 client`, executes it once successfully, then flips the same
+  L2 entry to XN at runtime and proves the next fetch trips a real page
+  permission abort.
 - The `data-perm` smoke adds one no-access data alias in `domain1 client`,
   which lets us validate a write-side permission abort while keeping the
   default `domain0 manager` runtime unchanged.
@@ -257,6 +293,10 @@ continue
 - The `data-page-perm` smoke keeps both coarse L1 and small-page L2 valid,
   but marks the page itself no-access in `domain1 client`, which lets us
   validate a true page permission fault on the write path.
+- The `data-page-perm-runtime` smoke starts from a writable small page in
+  `domain1 client`, proves one write succeeds, then rewrites the live L2 entry
+  to no-access and confirms the next write faults with a real page permission
+  abort.
 - Fatal exception logs now distinguish the pre-abort mode captured in `SPSR`
   from the current handler mode in `CPSR`, which makes abort bring-up logs
   much less ambiguous when we start chasing real board faults.

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("data", "prefetch", "prefetch-xn", "prefetch-page", "prefetch-page-xn", "data-perm", "data-page", "data-page-perm")]
+    [ValidateSet("data", "prefetch", "prefetch-xn", "prefetch-page", "prefetch-page-xn", "prefetch-page-xn-runtime", "data-perm", "data-page", "data-page-perm", "data-page-perm-runtime")]
     [string]$Kind = "data",
     [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
@@ -66,7 +66,7 @@ function Show-LogTail {
 
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $qemu = Resolve-ToolPath -Tool $QemuExe
-$extraPattern = $null
+$extraPatterns = @()
 
 switch ($Kind) {
     "data" {
@@ -98,7 +98,7 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A prefetch fault decode, status=0x0D \(section permission fault\), domain=0x1"
         $mapPattern = "ARMv7-A fault map, far=0x5[0-9A-F]{7}, ttbr0=0x[0-9A-F]{8}, l1\[0x500\]=0x[0-9A-F]{8} \(section\), domain=0x1, xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=prefetch-xn, addr=0x5[0-9A-F]{7}"
-        $extraPattern = "ARMv7-A XN alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
+        $extraPatterns += "ARMv7-A XN alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
     }
     "prefetch-page" {
         $configurePreset = "debug-abort-prefetch-page"
@@ -109,7 +109,7 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A prefetch fault decode, status=0x07 \(page translation fault\), domain=0x0"
         $mapPattern = "ARMv7-A fault map, far=0x56[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x560\]=0x[0-9A-F]{8} \(page table\), domain=0x0, l2\[0x00\]=0x00000000 \(fault\)"
         $smokePattern = "ARMv7-A abort smoke, kind=prefetch-page, addr=0x56[0-9A-F]{6}"
-        $extraPattern = "ARMv7-A prefetch-page alias ready, va=0x56[0-9A-F]{6}, l1=0x[0-9A-F]{8}, l2=0x00000000"
+        $extraPatterns += "ARMv7-A prefetch-page alias ready, va=0x56[0-9A-F]{6}, l1=0x[0-9A-F]{8}, l2=0x00000000"
     }
     "prefetch-page-xn" {
         $configurePreset = "debug-abort-prefetch-page-xn"
@@ -120,7 +120,20 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A prefetch fault decode, status=0x0F \(page permission fault\), domain=0x1"
         $mapPattern = "ARMv7-A fault map, far=0x55[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x550\]=0x[0-9A-F]{8} \(page table\), domain=0x1, l2\[0x00\]=0x[0-9A-F]{8} \(small page\), xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=prefetch-page-xn, addr=0x55[0-9A-F]{6}"
-        $extraPattern = "ARMv7-A page-XN alias ready, va=0x55[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
+        $extraPatterns += "ARMv7-A page-XN alias ready, va=0x55[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
+    }
+    "prefetch-page-xn-runtime" {
+        $configurePreset = "debug-abort-prefetch-page-xn-runtime"
+        $buildPreset = "debug-abort-prefetch-page-xn-runtime"
+        $elfPath = "out\\build\\debug-abort-prefetch-page-xn-runtime\\charm-armv7a-qemu"
+        $exceptionLine = "ARMv7-A exception: prefetch abort"
+        $faultPattern = "ARMv7-A prefetch fault, ifsr=0x[0-9A-F]{8}, ifar=0x58[0-9A-F]{6}, aifsr=0x[0-9A-F]{8}"
+        $decodePattern = "ARMv7-A prefetch fault decode, status=0x0F \(page permission fault\), domain=0x1"
+        $mapPattern = "ARMv7-A fault map, far=0x58[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x580\]=0x[0-9A-F]{8} \(page table\), domain=0x1, l2\[0x00\]=0x[0-9A-F]{8} \(small page\), xn=yes, s=yes, c=yes, b=yes"
+        $smokePattern = "ARMv7-A abort smoke, kind=prefetch-page-xn-runtime, addr=0x58[0-9A-F]{6}"
+        $extraPatterns += "ARMv7-A runtime page-XN alias ready, va=0x58[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
+        $extraPatterns += "ARMv7-A runtime page-XN probe, addr=0x58[0-9A-F]{6}, return=0x00000043"
+        $extraPatterns += "ARMv7-A runtime page-XN flip, addr=0x58[0-9A-F]{6}, l2=0x[0-9A-F]{8}"
     }
     "data-perm" {
         $configurePreset = "debug-abort-data-perm"
@@ -131,7 +144,7 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A data fault decode, status=0x0D \(section permission fault\), domain=0x1, write=yes, cm=no"
         $mapPattern = "ARMv7-A fault map, far=0x5[0-9A-F]{7}, ttbr0=0x[0-9A-F]{8}, l1\[0x510\]=0x[0-9A-F]{8} \(section\), domain=0x1, xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=data-perm, addr=0x5[0-9A-F]{7}, value=0xA5A55A5A"
-        $extraPattern = "ARMv7-A data alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
+        $extraPatterns += "ARMv7-A data alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
     }
     "data-page" {
         $configurePreset = "debug-abort-data-page"
@@ -142,7 +155,7 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A data fault decode, status=0x07 \(page translation fault\), domain=0x0, write=no, cm=no"
         $mapPattern = "ARMv7-A fault map, far=0x53000040, ttbr0=0x[0-9A-F]{8}, l1\[0x530\]=0x[0-9A-F]{8} \(page table\), domain=0x0, l2\[0x00\]=0x00000000 \(fault\)"
         $smokePattern = "ARMv7-A abort smoke, kind=data-page, addr=0x53000040"
-        $extraPattern = "ARMv7-A data-page alias ready, va=0x53000040, l1=0x[0-9A-F]{8}, l2=0x00000000"
+        $extraPatterns += "ARMv7-A data-page alias ready, va=0x53000040, l1=0x[0-9A-F]{8}, l2=0x00000000"
     }
     "data-page-perm" {
         $configurePreset = "debug-abort-data-page-perm"
@@ -153,7 +166,20 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A data fault decode, status=0x0F \(page permission fault\), domain=0x1, write=yes, cm=no"
         $mapPattern = "ARMv7-A fault map, far=0x54[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x540\]=0x[0-9A-F]{8} \(page table\), domain=0x1, l2\[0x00\]=0x[0-9A-F]{8} \(small page\), xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=data-page-perm, addr=0x54[0-9A-F]{6}, value=0xA5A55A5A"
-        $extraPattern = "ARMv7-A data-page-perm alias ready, va=0x54[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
+        $extraPatterns += "ARMv7-A data-page-perm alias ready, va=0x54[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
+    }
+    "data-page-perm-runtime" {
+        $configurePreset = "debug-abort-data-page-perm-runtime"
+        $buildPreset = "debug-abort-data-page-perm-runtime"
+        $elfPath = "out\\build\\debug-abort-data-page-perm-runtime\\charm-armv7a-qemu"
+        $exceptionLine = "ARMv7-A exception: data abort"
+        $faultPattern = "ARMv7-A data fault, dfsr=0x[0-9A-F]{8}, dfar=0x57[0-9A-F]{6}, adfsr=0x[0-9A-F]{8}"
+        $decodePattern = "ARMv7-A data fault decode, status=0x0F \(page permission fault\), domain=0x1, write=yes, cm=no"
+        $mapPattern = "ARMv7-A fault map, far=0x57[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x570\]=0x[0-9A-F]{8} \(page table\), domain=0x1, l2\[0x00\]=0x[0-9A-F]{8} \(small page\), xn=yes, s=yes, c=yes, b=yes"
+        $smokePattern = "ARMv7-A abort smoke, kind=data-page-perm-runtime, addr=0x57[0-9A-F]{6}, value=0xA5A55A5A"
+        $extraPatterns += "ARMv7-A runtime data-page alias ready, va=0x57[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
+        $extraPatterns += "ARMv7-A runtime data-page probe, addr=0x57[0-9A-F]{6}, before=0x0BADCAFE, after=0x5AA55AA5, direct=0x5AA55AA5"
+        $extraPatterns += "ARMv7-A runtime data-page flip, addr=0x57[0-9A-F]{6}, l2=0x[0-9A-F]{8}"
     }
     default {
         throw "unsupported abort kind: $Kind"
@@ -243,8 +269,10 @@ if (($log -notmatch $decodePattern)) {
 if (($log -notmatch $mapPattern)) {
     $missing += $mapPattern
 }
-if ($extraPattern -and ($log -notmatch $extraPattern)) {
-    $missing += $extraPattern
+foreach ($extraPattern in $extraPatterns) {
+    if ($log -notmatch $extraPattern) {
+        $missing += $extraPattern
+    }
 }
 if (($log -notmatch "ARMv7-A fault context, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A fault context, sctlr=0x..."

@@ -65,6 +65,15 @@
       }
     },
     {
+      "name": "debug-abort-prefetch-page-xn-runtime",
+      "displayName": "ARMv7-A QEMU Debug (Runtime Prefetch Page XN Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-prefetch-page-xn-runtime",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "prefetch_page_xn_runtime"
+      }
+    },
+    {
       "name": "debug-abort-data-perm",
       "displayName": "ARMv7-A QEMU Debug (Data Permission Smoke)",
       "inherits": "debug",
@@ -89,6 +98,15 @@
       "binaryDir": "${sourceDir}/out/build/debug-abort-data-page-perm",
       "cacheVariables": {
         "CHARM_ARMV7A_ABORT_SMOKE": "data_page_perm"
+      }
+    },
+    {
+      "name": "debug-abort-data-page-perm-runtime",
+      "displayName": "ARMv7-A QEMU Debug (Runtime Data Page Permission Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-page-perm-runtime",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_page_perm_runtime"
       }
     }
   ],
@@ -118,6 +136,10 @@
       "configurePreset": "debug-abort-prefetch-page-xn"
     },
     {
+      "name": "debug-abort-prefetch-page-xn-runtime",
+      "configurePreset": "debug-abort-prefetch-page-xn-runtime"
+    },
+    {
       "name": "debug-abort-data-perm",
       "configurePreset": "debug-abort-data-perm"
     },
@@ -128,6 +150,10 @@
     {
       "name": "debug-abort-data-page-perm",
       "configurePreset": "debug-abort-data-page-perm"
+    },
+    {
+      "name": "debug-abort-data-page-perm-runtime",
+      "configurePreset": "debug-abort-data-page-perm-runtime"
     }
   ]
 }

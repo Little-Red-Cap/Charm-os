@@ -171,6 +171,14 @@ void armv7a_sync_tlb_mapping_change(std::uintptr_t virtual_address)
     armv7a_invalidate_tlb_mva(virtual_address);
 }
 
+void armv7a_sync_instruction_mapping_change(std::uintptr_t virtual_address)
+{
+    armv7a_data_sync_barrier();
+    armv7a_invalidate_tlb_mva(virtual_address);
+    armv7a_invalidate_branch_predictor();
+    armv7a_invalidate_icache_all();
+}
+
 bool armv7a_mmu_enabled(std::uint32_t sctlr)
 {
     return (sctlr & kSctlrM) != 0u;

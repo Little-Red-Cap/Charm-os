@@ -1,22 +1,37 @@
 #include "armv7a_small_page_probe.hpp"
 
+#include <cstddef>
 #include <cstdint>
 
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_mmu.hpp"
 
 extern "C" void early_uart_putc(char ch);
 extern "C" void early_uart_puts(const char* text);
 
 namespace {
 constexpr std::uintptr_t kSmallPageProbeAliasBase = 0x52000000u;
+constexpr std::uintptr_t kSmallPageRemapAliasBase = 0x52100000u;
 constexpr std::uintptr_t kSmallPageSize = 1u << 12;
 constexpr std::uintptr_t kSmallPageMask = ~(kSmallPageSize - 1u);
 constexpr std::uintptr_t kSmallPageOffsetMask = kSmallPageSize - 1u;
+constexpr std::size_t kSmallPageWordCount = kSmallPageSize / sizeof(std::uint32_t);
 constexpr std::uint32_t kSmallPageProbeInitialValue = 0xC0DEF00Du;
 constexpr std::uint32_t kSmallPageProbeWriteValue = 0x1BADB002u;
+constexpr std::uint32_t kSmallPageRemapValueA = 0x13579BDFu;
+constexpr std::uint32_t kSmallPageRemapValueB = 0x2468ACE0u;
 
 volatile std::uint32_t g_armv7a_small_page_probe_target = kSmallPageProbeInitialValue;
+alignas(4096) volatile std::uint32_t g_armv7a_small_page_remap_page_a[kSmallPageWordCount] = {
+    kSmallPageRemapValueA
+};
+alignas(4096) volatile std::uint32_t g_armv7a_small_page_remap_page_b[kSmallPageWordCount] = {
+    kSmallPageRemapValueB
+};
+
+static_assert(sizeof(g_armv7a_small_page_remap_page_a) == kSmallPageSize);
+static_assert(sizeof(g_armv7a_small_page_remap_page_b) == kSmallPageSize);
 
 void early_uart_write_hex32(std::uint32_t value)
 {
@@ -36,6 +51,21 @@ std::uintptr_t armv7a_small_page_probe_alias_address()
     const auto target = armv7a_small_page_probe_target_address();
     return kSmallPageProbeAliasBase + (target & kSmallPageOffsetMask);
 }
+
+std::uintptr_t armv7a_small_page_remap_page_a_address()
+{
+    return reinterpret_cast<std::uintptr_t>(&g_armv7a_small_page_remap_page_a[0]);
+}
+
+std::uintptr_t armv7a_small_page_remap_page_b_address()
+{
+    return reinterpret_cast<std::uintptr_t>(&g_armv7a_small_page_remap_page_b[0]);
+}
+
+std::uintptr_t armv7a_small_page_remap_alias_address()
+{
+    return kSmallPageRemapAliasBase;
+}
 } // namespace
 
 extern "C" void armv7a_prepare_small_page_probe_mapping()
@@ -43,6 +73,9 @@ extern "C" void armv7a_prepare_small_page_probe_mapping()
     const auto target = armv7a_small_page_probe_target_address();
     armv7a_boot_l2_map_small_page(kSmallPageProbeAliasBase,
                                   target & kSmallPageMask,
+                                  Armv7aBootSmallPageType::kNormalExecuteNever);
+    armv7a_boot_l2_map_small_page(kSmallPageRemapAliasBase,
+                                  armv7a_small_page_remap_page_a_address(),
                                   Armv7aBootSmallPageType::kNormalExecuteNever);
 }
 
@@ -56,6 +89,18 @@ extern "C" void armv7a_print_small_page_probe_mapping_state()
     early_uart_write_hex32(armv7a_boot_l1_descriptor(kSmallPageProbeAliasBase));
     early_uart_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_small_page_probe_alias_address()));
+    early_uart_puts("\r\n");
+
+    early_uart_puts("ARMv7-A small-page remap ready, va=0x");
+    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_remap_alias_address()));
+    early_uart_puts(", pa-a=0x");
+    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_remap_page_a_address()));
+    early_uart_puts(", pa-b=0x");
+    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_remap_page_b_address()));
+    early_uart_puts(", l1=0x");
+    early_uart_write_hex32(armv7a_boot_l1_descriptor(armv7a_small_page_remap_alias_address()));
+    early_uart_puts(", l2=0x");
+    early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_small_page_remap_alias_address()));
     early_uart_puts("\r\n");
 }
 
@@ -78,5 +123,24 @@ extern "C" void armv7a_run_small_page_probe()
     early_uart_write_hex32(kSmallPageProbeWriteValue);
     early_uart_puts(", direct=0x");
     early_uart_write_hex32(direct);
+    early_uart_puts("\r\n");
+
+    auto* const remap_alias =
+        reinterpret_cast<volatile std::uint32_t*>(armv7a_small_page_remap_alias_address());
+    const auto remap_before = *remap_alias;
+    armv7a_boot_l2_map_small_page(kSmallPageRemapAliasBase,
+                                  armv7a_small_page_remap_page_b_address(),
+                                  Armv7aBootSmallPageType::kNormalExecuteNever);
+    armv7a_sync_tlb_mapping_change(kSmallPageRemapAliasBase);
+    const auto remap_after = *remap_alias;
+
+    early_uart_puts("ARMv7-A small-page remap, addr=0x");
+    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_remap_alias_address()));
+    early_uart_puts(", before=0x");
+    early_uart_write_hex32(remap_before);
+    early_uart_puts(", after=0x");
+    early_uart_write_hex32(remap_after);
+    early_uart_puts(", l2=0x");
+    early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_small_page_remap_alias_address()));
     early_uart_puts("\r\n");
 }

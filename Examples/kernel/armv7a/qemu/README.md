@@ -68,10 +68,12 @@ ARMv7-A cache state, mmu=off, dcache=off, icache=off, high-vectors=off
 ARMv7-A translation state, ttbr0=0x00000000, ttbr1=0x00000000, ttbcr=0x00000000, dacr=0x00000000
 ARMv7-A L1 table ready, base=0x40208000, ram=0x40211C0E, gic=0x08010C16, uart=0x09010C16
 ARMv7-A small-page alias ready, va=0x5200...., pa=0x4020...., l1=0x4020...., l2=0x4020....
+ARMv7-A small-page remap ready, va=0x52100000, pa-a=0x4020...., pa-b=0x4020...., l1=0x4021...., l2=0x4021....
 ARMv7-A MMU active, sctlr=0x00C50079, ttbr0=0x40208000, ttbcr=0x00000000, dacr=0x00000003
 ARMv7-A MMU flags, mmu=on, dcache=off, icache=off
 Charm out.format import active, PL011 @ 0x09000000
 ARMv7-A small-page probe, addr=0x5200...., before=0xC0DEF00D, via-alias=0x1BADB002, direct=0x1BADB002
+ARMv7-A small-page remap, addr=0x52100000, before=0x13579BDF, after=0x2468ACE0, l2=0x4021....
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
 ```
@@ -230,6 +232,10 @@ continue
   path in an otherwise unmapped alias window, which gives us a 4KB-granular
   probe without disturbing the 1MB section identity map used by the default
   runtime.
+- That same small-page path now also includes one runtime remap probe, so we
+  can rewrite an active L2 entry, invalidate the matching TLB entry by VA,
+  and prove that the new 4KB target becomes visible before we take on more
+  realistic cache maintenance and board-specific bring-up.
 - Optional `data` / `prefetch` abort smokes now reuse the shared fatal
   exception path to validate `DFSR/DFAR/ADFSR` and `IFSR/IFAR/AIFSR`
   collection without destabilizing the default CI smoke.

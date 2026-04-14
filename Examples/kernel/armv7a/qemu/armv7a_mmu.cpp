@@ -8,6 +8,7 @@ constexpr std::uint32_t kSctlrC = 1u << 2;
 constexpr std::uint32_t kSctlrI = 1u << 12;
 constexpr std::uint32_t kSctlrV = 1u << 13;
 constexpr std::uint32_t kTtbr0BaseMask = 0xffffc000u;
+constexpr std::uint32_t kTlbMvaMask = 0xfffff000u;
 constexpr std::uint32_t kDomain0Manager = 0x3u;
 } // namespace
 
@@ -107,6 +108,14 @@ extern "C" void armv7a_invalidate_tlb_all()
     armv7a_instruction_sync_barrier();
 }
 
+extern "C" void armv7a_invalidate_tlb_mva(std::uintptr_t virtual_address)
+{
+    const auto mva = static_cast<std::uint32_t>(virtual_address) & kTlbMvaMask;
+    asm volatile("mcr p15, 0, %0, c8, c7, 1" : : "r"(mva) : "memory");
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
+}
+
 extern "C" void armv7a_invalidate_icache_all()
 {
     std::uint32_t zero = 0;
@@ -154,6 +163,12 @@ void armv7a_enable_identity_mmu(std::uintptr_t table_base)
     sctlr |= kSctlrM;
     asm volatile("mcr p15, 0, %0, c1, c0, 0" : : "r"(sctlr) : "memory");
     armv7a_instruction_sync_barrier();
+}
+
+void armv7a_sync_tlb_mapping_change(std::uintptr_t virtual_address)
+{
+    armv7a_data_sync_barrier();
+    armv7a_invalidate_tlb_mva(virtual_address);
 }
 
 bool armv7a_mmu_enabled(std::uint32_t sctlr)

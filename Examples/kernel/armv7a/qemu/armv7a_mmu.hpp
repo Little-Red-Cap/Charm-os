@@ -16,12 +16,14 @@ extern "C" std::uint32_t armv7a_read_aifsr();
 extern "C" std::uint32_t armv7a_read_dfar();
 extern "C" std::uint32_t armv7a_read_ifar();
 extern "C" void armv7a_invalidate_tlb_all();
+extern "C" void armv7a_invalidate_tlb_mva(std::uintptr_t virtual_address);
 extern "C" void armv7a_invalidate_icache_all();
 extern "C" void armv7a_invalidate_branch_predictor();
 
 std::uint32_t armv7a_build_ttbr0(std::uintptr_t table_base);
 std::uint32_t armv7a_early_dacr_value();
 void armv7a_enable_identity_mmu(std::uintptr_t table_base);
+void armv7a_sync_tlb_mapping_change(std::uintptr_t virtual_address);
 
 bool armv7a_mmu_enabled(std::uint32_t sctlr);
 bool armv7a_dcache_enabled(std::uint32_t sctlr);

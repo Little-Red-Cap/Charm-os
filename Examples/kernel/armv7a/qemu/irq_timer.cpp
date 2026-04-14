@@ -2,6 +2,7 @@
 
 #include "armv7a_arch_timer.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_exception_frame.hpp"
 
 extern "C" void early_uart_putc(char ch);
 extern "C" void early_uart_puts(const char* text);
@@ -239,19 +240,21 @@ void print_irq_timeout(std::uint32_t timer_ctrl)
     early_uart_puts("\r\n");
 }
 
-void print_unexpected_irq(unsigned int intid, unsigned int lr, unsigned int spsr)
+void print_unexpected_irq(unsigned int intid, const Armv7aExceptionFrame& frame)
 {
     early_uart_puts("ARMv7-A unexpected IRQ, intid=0x");
     print_hex32(intid);
+    early_uart_puts(", pc=0x");
+    print_hex32(armv7a_exception_pc(frame));
     early_uart_puts(", lr=0x");
-    print_hex32(lr);
+    print_hex32(frame.lr);
     early_uart_puts(", spsr=0x");
-    print_hex32(spsr);
+    print_hex32(frame.spsr);
     early_uart_puts("\r\n");
 }
 } // namespace
 
-extern "C" void armv7a_handle_irq(unsigned int lr, unsigned int spsr)
+extern "C" void armv7a_handle_irq(Armv7aExceptionFrame* frame)
 {
     const auto iar = gic_acknowledge_irq();
     const auto intid = iar & 0x3ffu;
@@ -268,7 +271,7 @@ extern "C" void armv7a_handle_irq(unsigned int lr, unsigned int spsr)
         arch_timer_stop();
         g_last_irq_intid = intid;
         g_timer_irq_count = 1u;
-        print_unexpected_irq(intid, lr, spsr);
+        print_unexpected_irq(intid, *frame);
     }
 
     gic_end_irq(iar);

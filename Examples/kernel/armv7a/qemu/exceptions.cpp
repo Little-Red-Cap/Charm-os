@@ -1,6 +1,7 @@
 #include <cstdint>
 
 #include "armv7a_cpu.hpp"
+#include "armv7a_exception_frame.hpp"
 
 extern "C" void early_uart_init();
 extern "C" void early_uart_putc(char ch);
@@ -8,15 +9,6 @@ extern "C" void early_uart_puts(const char* text);
 extern "C" [[noreturn]] void charm_spin();
 
 namespace {
-enum ExceptionKind : unsigned int {
-    kUndefined = 1,
-    kPrefetchAbort = 2,
-    kDataAbort = 3,
-    kReserved = 4,
-    kIrq = 5,
-    kFiq = 6,
-};
-
 void early_uart_write_hex(std::uint32_t value, int digits)
 {
     constexpr char kHex[] = "0123456789ABCDEF";
@@ -25,49 +17,52 @@ void early_uart_write_hex(std::uint32_t value, int digits)
     }
 }
 
-const char* exception_name(unsigned int kind)
+const char* exception_name(Armv7aExceptionKind kind)
 {
     switch (kind) {
-    case kUndefined:
+    case kArmv7aExceptionUndefined:
         return "undefined";
-    case kPrefetchAbort:
+    case kArmv7aExceptionPrefetchAbort:
         return "prefetch abort";
-    case kDataAbort:
+    case kArmv7aExceptionDataAbort:
         return "data abort";
-    case kReserved:
+    case kArmv7aExceptionReserved:
         return "reserved vector";
-    case kIrq:
+    case kArmv7aExceptionIrq:
         return "irq";
-    case kFiq:
+    case kArmv7aExceptionFiq:
         return "fiq";
+    case kArmv7aExceptionSvc:
+        return "svc";
     default:
         return "unknown";
     }
 }
 } // namespace
 
-extern "C" void armv7a_handle_svc(unsigned int lr, unsigned int)
+extern "C" void armv7a_handle_svc(Armv7aExceptionFrame* frame)
 {
-    const auto* instruction = reinterpret_cast<const std::uint32_t*>(lr - 4u);
+    const auto* instruction =
+        reinterpret_cast<const std::uint32_t*>(armv7a_exception_pc(*frame));
     const auto immediate = *instruction & 0x00FFFFFFu;
     early_uart_puts("ARMv7-A SVC vector active, imm=0x");
     early_uart_write_hex(immediate, 6);
     early_uart_puts("\r\n");
 }
 
-extern "C" [[noreturn]] void armv7a_exception_fatal(unsigned int kind,
-                                                    unsigned int lr,
-                                                    unsigned int spsr)
+extern "C" [[noreturn]] void armv7a_exception_fatal(const Armv7aExceptionFrame* frame)
 {
     early_uart_init();
     early_uart_puts("ARMv7-A exception: ");
-    early_uart_puts(exception_name(kind));
+    early_uart_puts(exception_name(armv7a_exception_kind(*frame)));
+    early_uart_puts(", pc=0x");
+    early_uart_write_hex(armv7a_exception_pc(*frame), 8);
     early_uart_puts(", lr=0x");
-    early_uart_write_hex(lr, 8);
+    early_uart_write_hex(frame->lr, 8);
     early_uart_puts(", spsr=0x");
-    early_uart_write_hex(spsr, 8);
+    early_uart_write_hex(frame->spsr, 8);
     early_uart_puts(", mode=");
-    early_uart_puts(armv7a_mode_name(spsr));
+    early_uart_puts(armv7a_mode_name(frame->spsr));
     early_uart_puts("\r\n");
     charm_spin();
 }

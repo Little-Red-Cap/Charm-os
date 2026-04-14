@@ -74,6 +74,9 @@ continue
 - ARMv7-A specific inline assembly is now funneled into dedicated leaf-target
   helpers such as `armv7a_cpu.cpp` and `armv7a_arch_timer.cpp`, so the
   higher-level smoke tests stay mostly plain C++.
+- SVC, IRQ, and fatal vectors now build one shared exception frame shape
+  before entering C++, which gives later abort/MMU bring-up work a more
+  stable place to inspect CPU state.
 - The timer smoke prepares both architected physical timer PPIs.
   Current QEMU `virt` runs observed the non-secure physical timer route
   (`intid=30`), but the code also accepts the secure route (`intid=29`)

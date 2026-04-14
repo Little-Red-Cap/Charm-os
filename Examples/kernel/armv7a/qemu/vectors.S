@@ -20,6 +20,11 @@
 .equ EXC_RESERVED, 4
 .equ EXC_IRQ, 5
 .equ EXC_FIQ, 6
+.equ EXC_SVC, 7
+
+.equ FRAME_SPSR, 0
+.equ FRAME_VECTOR_ID, 4
+.equ FRAME_SIZE, 32
 
 _start:
 armv7a_vector_table:
@@ -32,35 +37,43 @@ armv7a_vector_table:
     b armv7a_irq_entry
     b armv7a_fiq_entry
 
+.macro build_exception_frame id
+    push {r0-r3, r12, lr}
+    sub sp, sp, #8
+    mrs r1, spsr
+    str r1, [sp, #FRAME_SPSR]
+    mov r1, #\id
+    str r1, [sp, #FRAME_VECTOR_ID]
+    mov r0, sp
+.endm
+
+.macro destroy_exception_frame
+    add sp, sp, #8
+    pop {r0-r3, r12, lr}
+.endm
+
 .macro fatal_vector name, id
     .global \name
     .type \name, %function
 \name:
-    push {r0-r3, r12, lr}
-    mov r0, #\id
-    mov r1, lr
-    mrs r2, spsr
+    build_exception_frame \id
     bl armv7a_exception_fatal
 .endm
 
 .global armv7a_svc_entry
 .type armv7a_svc_entry, %function
 armv7a_svc_entry:
-    push {r0-r3, r12, lr}
-    mov r0, lr
-    mrs r1, spsr
+    build_exception_frame EXC_SVC
     bl armv7a_handle_svc
-    pop {r0-r3, r12, lr}
+    destroy_exception_frame
     movs pc, lr
 
 .global armv7a_irq_entry
 .type armv7a_irq_entry, %function
 armv7a_irq_entry:
-    push {r0-r3, r12, lr}
-    mov r0, lr
-    mrs r1, spsr
+    build_exception_frame EXC_IRQ
     bl armv7a_handle_irq
-    pop {r0-r3, r12, lr}
+    destroy_exception_frame
     subs pc, lr, #4
 
 fatal_vector armv7a_undefined_entry, EXC_UNDEFINED

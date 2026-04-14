@@ -1384,6 +1384,31 @@ namespace {
         check_eq("stdio-alias-stdin-dup-count", stdin_ctx.dup_count, 1u);
         check_eq("stdio-alias-stdin-close", api.close(stdin_fd), 0);
 
+        int stdin_pipe[2]{-1, -1};
+        check_eq("stdio-alias-stdin-pipe", api.pipe(stdin_pipe), 0);
+        check_true("stdio-alias-stdin-dup2", fds.dup2(stdin_pipe[0], 0));
+        check_eq("stdio-alias-stdin-pipe-close-src", api.close(stdin_pipe[0]), 0);
+
+        check_eq("stdio-alias-stdin-pipe-stat", api.stat("/dev/stdin", &st), 0);
+        check_eq("stdio-alias-stdin-pipe-mode", st.mode & posix::S_IFMT, posix::S_IFIFO);
+
+        int stdin_pipe_fd = api.open("/dev/stdin", posix::O_RDONLY, 0);
+        check_true("stdio-alias-stdin-pipe-open", stdin_pipe_fd >= 0);
+        check_true("stdio-alias-stdin-pipe-dup", stdin_pipe_fd != 0);
+        posix::set_errno(77);
+        check_eq("stdio-alias-stdin-pipe-isatty", api.isatty(stdin_pipe_fd), 0);
+        check_eq("stdio-alias-stdin-pipe-isatty-errno", posix::get_errno(), 77);
+        check_eq("stdio-alias-stdin-pipe-fstat", api.fstat(stdin_pipe_fd, &st), 0);
+        check_eq("stdio-alias-stdin-pipe-fstat-mode", st.mode & posix::S_IFMT, posix::S_IFIFO);
+        check_eq("stdio-alias-stdin-pipe-getfl-init", api.fcntl(stdin_pipe_fd, posix::F_GETFL), posix::O_RDONLY);
+        check_eq("stdio-alias-stdin-pipe-setfl", api.fcntl(0, posix::F_SETFL, posix::O_NONBLOCK), 0);
+        check_eq("stdio-alias-stdin-pipe-getfl-root", api.fcntl(0, posix::F_GETFL), posix::O_RDONLY | posix::O_NONBLOCK);
+        check_eq("stdio-alias-stdin-pipe-getfl-shared", api.fcntl(stdin_pipe_fd, posix::F_GETFL), posix::O_RDONLY | posix::O_NONBLOCK);
+        check_eq("stdio-alias-stdin-pipe-clearfl", api.fcntl(stdin_pipe_fd, posix::F_SETFL, 0), 0);
+        check_eq("stdio-alias-stdin-pipe-getfl-root-cleared", api.fcntl(0, posix::F_GETFL), posix::O_RDONLY);
+        check_eq("stdio-alias-stdin-pipe-close", api.close(stdin_pipe_fd), 0);
+        check_eq("stdio-alias-stdin-pipe-close-write", api.close(stdin_pipe[1]), 0);
+
         check_eq("stdio-alias-stdout-stat", api.stat("/dev/stdout", &st), 0);
         check_eq("stdio-alias-stdout-mode", st.mode & posix::S_IFMT, posix::S_IFREG);
 

@@ -98,6 +98,7 @@ int charm_posix_newlib_dup2_entry(void) {
 int charm_posix_newlib_fcntl_entry(void) {
     int dup_fd = fcntl(1, F_DUPFD, 3);
     int alias_fd = -1;
+    int stdin_pipe[2] = {-1, -1};
     int flags = 0;
     struct stat st;
     if (dup_fd < 3) return 181;
@@ -248,7 +249,26 @@ int charm_posix_newlib_fcntl_entry(void) {
     if ((fcntl(1, F_GETFL) & O_NONBLOCK) != 0) return 277;
     if (close(alias_fd) != 0) return 278;
 
-    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 279;
+    if (pipe(stdin_pipe) != 0) return 279;
+    if (dup2(stdin_pipe[0], 0) != 0) return 280;
+    if (close(stdin_pipe[0]) != 0) return 281;
+    if (fcntl(0, F_SETFL, O_NONBLOCK) != 0) return 282;
+    alias_fd = open("/dev/stdin", O_RDONLY, 0);
+    if (alias_fd < 0) return 283;
+    flags = fcntl(alias_fd, F_GETFL);
+    if ((flags & O_ACCMODE) != O_RDONLY) return 284;
+    if ((flags & O_NONBLOCK) == 0) return 285;
+    errno = 88;
+    if (isatty(alias_fd) != 0) return 286;
+    if (errno != 88) return 287;
+    if (fstat(alias_fd, &st) != 0) return 288;
+    if ((st.st_mode & S_IFMT) != S_IFIFO) return 289;
+    if (fcntl(alias_fd, F_SETFL, 0) != 0) return 290;
+    if ((fcntl(0, F_GETFL) & O_NONBLOCK) != 0) return 291;
+    if (close(alias_fd) != 0) return 292;
+    if (close(stdin_pipe[1]) != 0) return 293;
+
+    return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 294;
 }
 
 int charm_posix_newlib_pipe_entry(void) {

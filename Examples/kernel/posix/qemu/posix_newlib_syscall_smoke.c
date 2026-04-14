@@ -465,6 +465,18 @@ int charm_posix_newlib_path_entry(void) {
     if (close(fd) != 0) return 155;
 
     errno = 0;
+    if (remove("/newlib-remove-missing.txt") != -1) return 516;
+    if (errno != ENOENT) return 517;
+
+    errno = 0;
+    if (remove("/newlib-path.txt/sub") != -1) return 518;
+    if (errno != ENOTDIR) return 519;
+
+    errno = 0;
+    if (remove("/newlib-dir") != -1) return 520;
+    if (errno != ENOTEMPTY) return 521;
+
+    errno = 0;
     if (rmdir("/newlib-dir") != -1) return 156;
     if (errno != ENOTEMPTY) return 157;
 

@@ -53,6 +53,7 @@
 - `rename("/missing", "/target") -> -1 && errno == ENOENT`, `rename("/file/sub", "/target") -> -1 && errno == ENOTDIR`, and `rename("/source", "/file/sub") -> -1 && errno == ENOTDIR`
 - `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `opendir(file)` fails with `ENOTDIR`, `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, and `readdir()` / `closedir()` on a null, invalid, or already-closed directory handle fail with `EINVAL`
 - `chdir("/missing") -> -1 && errno == ENOENT`, `chdir("/file") -> -1 && errno == ENOTDIR`, and `chdir("/file/sub") -> -1 && errno == ENOTDIR`
+- newlib `remove()` now also has a pinned minimum path contract: `remove("/missing") -> ENOENT`, `remove("/file/sub") -> ENOTDIR`, and `remove("/nonempty-dir") -> ENOTEMPTY`
 
 ## Mainline Capabilities Already Holding
 - file-backed ELF can be loaded and spawned from a path

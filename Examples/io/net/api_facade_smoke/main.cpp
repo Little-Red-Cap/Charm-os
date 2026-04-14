@@ -10,7 +10,6 @@ int main() {
 
     net::TcpListener listener{};
     net::TcpClient client{};
-    net::TcpClient server{};
     net::Endpoint peer{};
     util::u8 rx[8]{};
     const util::u8 tx[4]{1, 2, 3, 4};
@@ -23,7 +22,8 @@ int main() {
         std::fputs("api facade tcp connect_loopback failed\n", stderr);
         return 2;
     }
-    if (!listener.accept(server, &peer)) {
+    auto accepted = listener.accept(peer);
+    if (!accepted) {
         std::fputs("api facade tcp accept failed\n", stderr);
         return 3;
     }
@@ -35,18 +35,17 @@ int main() {
         std::fputs("api facade tcp send failed\n", stderr);
         return 5;
     }
-    auto received = server.recv(net::MutByteView{rx, sizeof(rx)});
+    auto received = accepted->recv(net::MutByteView{rx, sizeof(rx)});
     if (!received || received.value() != 4 || rx[0] != 1 || rx[3] != 4) {
         std::fputs("api facade tcp recv failed\n", stderr);
         return 6;
     }
     (void)client.close();
-    (void)server.close();
+    (void)accepted->close();
     (void)listener.close();
 
     net::TcpListener listener_any{};
     net::TcpClient client_any{};
-    net::TcpClient server_any{};
     if (!listener_any.listen_any(stack, 30211, 2)) {
         std::fputs("api facade tcp listen_any failed\n", stderr);
         return 7;
@@ -55,12 +54,13 @@ int main() {
         std::fputs("api facade tcp connect to listen_any failed\n", stderr);
         return 8;
     }
-    if (!listener_any.accept(server_any, nullptr)) {
+    auto accepted_any = listener_any.accept();
+    if (!accepted_any) {
         std::fputs("api facade tcp accept_any failed\n", stderr);
         return 9;
     }
     (void)client_any.close();
-    (void)server_any.close();
+    (void)accepted_any->close();
     (void)listener_any.close();
 
     net::UdpSocket udp_any{};

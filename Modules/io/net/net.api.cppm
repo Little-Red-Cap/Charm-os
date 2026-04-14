@@ -16,6 +16,12 @@ export namespace net {
 
     class TcpClient {
     public:
+        TcpClient() noexcept = default;
+        TcpClient(const TcpClient&) = delete;
+        TcpClient& operator=(const TcpClient&) = delete;
+        TcpClient(TcpClient&&) noexcept = default;
+        TcpClient& operator=(TcpClient&&) noexcept = default;
+
         [[nodiscard]] bool valid() const noexcept {
             return socket_.valid();
         }
@@ -73,6 +79,12 @@ export namespace net {
 
     class TcpListener {
     public:
+        TcpListener() noexcept = default;
+        TcpListener(const TcpListener&) = delete;
+        TcpListener& operator=(const TcpListener&) = delete;
+        TcpListener(TcpListener&&) noexcept = default;
+        TcpListener& operator=(TcpListener&&) noexcept = default;
+
         [[nodiscard]] bool valid() const noexcept {
             return socket_.valid();
         }
@@ -121,6 +133,20 @@ export namespace net {
             return socket_.accept(out.socket_, peer);
         }
 
+        [[nodiscard]] Result<TcpClient> accept() noexcept {
+            Result<TcpClient> accepted{std::in_place};
+            auto ok = accept(accepted.value(), nullptr);
+            if (!ok) return util::unexpected(ok.error());
+            return accepted;
+        }
+
+        [[nodiscard]] Result<TcpClient> accept(Endpoint& peer) noexcept {
+            Result<TcpClient> accepted{std::in_place};
+            auto ok = accept(accepted.value(), &peer);
+            if (!ok) return util::unexpected(ok.error());
+            return accepted;
+        }
+
         [[nodiscard]] Result<EventMask> poll() const noexcept {
             return socket_.poll();
         }
@@ -135,6 +161,12 @@ export namespace net {
 
     class UdpSocket {
     public:
+        UdpSocket() noexcept = default;
+        UdpSocket(const UdpSocket&) = delete;
+        UdpSocket& operator=(const UdpSocket&) = delete;
+        UdpSocket(UdpSocket&&) noexcept = default;
+        UdpSocket& operator=(UdpSocket&&) noexcept = default;
+
         [[nodiscard]] bool valid() const noexcept {
             return socket_.valid();
         }
@@ -285,8 +317,6 @@ namespace net {
         TcpClient client{};
         TcpListener listener_any{};
         TcpClient client_any{};
-        TcpClient accepted_any{};
-        TcpClient accepted_loopback{};
         UdpSocket udp{};
         UdpSocket udp_connected{};
         UdpSocket udp_loopback{};
@@ -298,22 +328,24 @@ namespace net {
         if (!stack.valid()) return false;
         if (!listener.listen_loopback(stack, 1883, 2)) return false;
         if (!client.connect_loopback(stack, 1883)) return false;
-        if (!listener.accept(accepted_loopback, &peer)) return false;
-        if (!accepted_loopback.valid()) return false;
+        auto accepted_loopback = listener.accept(peer);
+        if (!accepted_loopback) return false;
+        if (!accepted_loopback->valid()) return false;
         if (peer.port != 5001) return false;
         if (!client.send(ByteView{tx, 3})) return false;
-        if (!accepted_loopback.recv(MutByteView{rx, 4})) return false;
+        if (!accepted_loopback->recv(MutByteView{rx, 4})) return false;
         if (rx[0] != 0x7E) return false;
         if (!client.close()) return false;
-        if (!accepted_loopback.close()) return false;
+        if (!accepted_loopback->close()) return false;
         if (!listener.close()) return false;
 
         if (!listener_any.listen_any(stack, 1884, 2)) return false;
         if (!client_any.connect_loopback(stack, 1884)) return false;
-        if (!listener_any.accept(accepted_any, nullptr)) return false;
-        if (!accepted_any.valid()) return false;
+        auto accepted_any = listener_any.accept();
+        if (!accepted_any) return false;
+        if (!accepted_any->valid()) return false;
         if (!client_any.close()) return false;
-        if (!accepted_any.close()) return false;
+        if (!accepted_any->close()) return false;
         if (!listener_any.close()) return false;
 
         if (!udp.bind_any(stack, 5000)) return false;

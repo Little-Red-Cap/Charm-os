@@ -10,6 +10,10 @@
 > 因此本页模型更适合描述“发现、匹配、激活”过程，而不宜被误读为
 > “已经具备完整热插拔 capability 导出/回收闭环”。
 >
+> 另外，`device::Registry` / `device::System` 现在已经开始补
+> `try_add_device` / `try_add_driver` / `try_add_bus` 这类
+> `util::Result<void>` 风格入口；旧 `add_*` 仍保留为兼容包装。
+>
 > 如果当前 discovered device 需要导出为稳定 capability，
 > 仓库里可以优先参考：
 > `io.channel.slot_export`、`block.device.slot_export`，

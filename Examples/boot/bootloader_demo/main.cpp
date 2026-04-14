@@ -1,80 +1,211 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <span>
+#include <string_view>
+#include <vector>
 
 import charm.foundation;
 import charm.runtime;
 
-struct MockFlash {
-    std::array<util::u8, 2048> data{};
+namespace {
+    constexpr util::u8 kPad = 0x1Au;
 
-    bool read(util::u32 offset, util::span<util::u8> out) noexcept {
-        if (offset + out.size() > data.size()) return false;
-        std::memcpy(out.data(), data.data() + offset, out.size());
+    struct MockFlash {
+        std::array<util::u8, 2048> data{};
+
+        MockFlash() noexcept {
+            data.fill(0xFFu);
+        }
+
+        bool read(util::u32 offset, std::span<util::u8> out) noexcept {
+            if (offset + out.size() > data.size()) return false;
+            std::memcpy(out.data(), data.data() + offset, out.size());
+            return true;
+        }
+
+        bool write(util::u32 offset, std::span<const util::u8> in) noexcept {
+            if (offset + in.size() > data.size()) return false;
+            std::memcpy(data.data() + offset, in.data(), in.size());
+            return true;
+        }
+
+        bool erase(util::u32 offset, util::u32 size) noexcept {
+            if (offset + size > data.size()) return false;
+            std::memset(data.data() + offset, 0xFF, size);
+            return true;
+        }
+    };
+
+    boot::Storage make_storage(MockFlash& flash) noexcept {
+        return boot::Storage{
+            &flash,
+            +[](void* ctx, util::u32 off, std::span<util::u8> out) noexcept {
+                return static_cast<MockFlash*>(ctx)->read(off, out);
+            },
+            +[](void* ctx, util::u32 off, std::span<const util::u8> in) noexcept {
+                return static_cast<MockFlash*>(ctx)->write(off, in);
+            },
+            +[](void* ctx, util::u32 off, util::u32 size) noexcept {
+                return static_cast<MockFlash*>(ctx)->erase(off, size);
+            }
+        };
+    }
+
+    std::vector<util::u8> build_image(std::string_view payload, bool valid,
+                                      util::u32 version, util::u32 key) {
+        boot::ImageHeader h{};
+        h.payload_size = static_cast<util::u32>(payload.size());
+        h.image_size = h.payload_size + sizeof(boot::ImageHeader);
+        h.payload_crc32 = valid
+            ? boot::crc32_update(0, reinterpret_cast<const util::u8*>(payload.data()), payload.size())
+            : 0x12345678u;
+        h.entry_offset = 0;
+        h.image_version = version;
+        h.min_version = 1;
+        h.flags = static_cast<util::u16>(boot::ImageFlags::signed_image);
+        h.signature = boot::calc_signature(key,
+                                           reinterpret_cast<const util::u8*>(&h.payload_crc32),
+                                           sizeof(h.payload_crc32));
+
+        std::vector<util::u8> image(sizeof(h) + payload.size());
+        std::memcpy(image.data(), &h, sizeof(h));
+        std::memcpy(image.data() + sizeof(h), payload.data(), payload.size());
+        return image;
+    }
+
+    template <class Transport>
+    std::vector<util::u8> drain_tx(Transport& receiver) {
+        std::array<util::u8, 16> buf{};
+        std::vector<util::u8> out;
+        while (receiver.has_tx()) {
+            const auto n = receiver.take_tx(std::span<util::u8>(buf.data(), buf.size()));
+            out.insert(out.end(), buf.begin(), buf.begin() + static_cast<std::ptrdiff_t>(n));
+        }
+        return out;
+    }
+
+    bool expect_bytes(std::span<const util::u8> actual, std::span<const util::u8> expected) {
+        if (actual.size() != expected.size()) return false;
+        for (util::usize i = 0; i < actual.size(); ++i) {
+            if (actual[i] != expected[i]) return false;
+        }
         return true;
     }
 
-    bool write(util::u32 offset, util::span<const util::u8> in) noexcept {
-        if (offset + in.size() > data.size()) return false;
-        std::memcpy(data.data() + offset, in.data(), in.size());
-        return true;
+    std::vector<util::u8> make_header_frame(std::string_view file_name, util::u32 file_size) {
+        std::array<util::u8, 128> payload{};
+        util::usize pos = 0;
+        for (; pos < file_name.size() && pos < payload.size(); ++pos) {
+            payload[pos] = static_cast<util::u8>(file_name[pos]);
+        }
+        if (pos < payload.size()) payload[pos++] = 0;
+
+        char digits[16]{};
+        int digit_count = std::snprintf(digits, sizeof(digits), "%u", file_size);
+        if (digit_count < 0) digit_count = 0;
+        for (int i = 0; i < digit_count && pos < payload.size(); ++i) {
+            payload[pos++] = static_cast<util::u8>(digits[i]);
+        }
+
+        std::vector<util::u8> frame;
+        frame.reserve(3 + payload.size() + 2);
+        frame.push_back(modem::SOH);
+        frame.push_back(0x00);
+        frame.push_back(0xFF);
+        frame.insert(frame.end(), payload.begin(), payload.end());
+        const auto crc = modem::crc16_ccitt(std::span<const util::u8>(payload.data(), payload.size()));
+        frame.push_back(static_cast<util::u8>((crc >> 8) & 0xFFu));
+        frame.push_back(static_cast<util::u8>(crc & 0xFFu));
+        return frame;
     }
 
-    bool erase(util::u32 offset, util::u32 size) noexcept {
-        if (offset + size > data.size()) return false;
-        std::memset(data.data() + offset, 0xFF, size);
-        return true;
-    }
-};
+    std::vector<util::u8> make_data_frame(util::u8 seq, std::span<const util::u8> data) {
+        std::array<util::u8, 1024> payload{};
+        for (auto& byte : payload) byte = kPad;
+        for (util::usize i = 0; i < data.size(); ++i) {
+            payload[i] = data[i];
+        }
 
-static void write_image(MockFlash& flash, util::u32 offset, const char* payload,
-                        bool valid, util::u32 version, util::u32 key) {
-    const auto len = static_cast<util::u32>(std::strlen(payload));
-    boot::ImageHeader h{};
-    h.payload_size = len;
-    h.image_size = len + sizeof(boot::ImageHeader);
-    h.payload_crc32 = valid
-        ? boot::crc32_update(0, reinterpret_cast<const util::u8*>(payload), len)
-        : 0x12345678;
-    h.entry_offset = 0;
-    h.image_version = version;
-    h.min_version = 1;
-    h.flags = static_cast<util::u16>(boot::ImageFlags::signed_image);
-    h.signature = boot::calc_signature(key, reinterpret_cast<const util::u8*>(&h.payload_crc32),
-                                       sizeof(h.payload_crc32));
-    std::array<util::u8, 256> data{};
-    const auto total = static_cast<util::u32>(sizeof(h) + len);
-    std::memcpy(data.data(), &h, sizeof(h));
-    std::memcpy(data.data() + sizeof(h), payload, len);
-    std::array<util::u8, 64> scratch{};
-    boot::FlashConfig cfg{.erase_size = 64, .write_size = 16, .scratch = scratch.data(),
-                          .scratch_size = static_cast<util::u32>(scratch.size())};
-    boot::flash_write(boot::Storage{&flash,
-                      +[](void* ctx, util::u32 off, util::span<util::u8> out) noexcept {
-                          return static_cast<MockFlash*>(ctx)->read(off, out);
-                      },
-                      +[](void* ctx, util::u32 off, util::span<const util::u8> in) noexcept {
-                          return static_cast<MockFlash*>(ctx)->write(off, in);
-                      },
-                      +[](void* ctx, util::u32 off, util::u32 size) noexcept {
-                          return static_cast<MockFlash*>(ctx)->erase(off, size);
-                      }},
-                      offset, util::span<const util::u8>(data.data(), total), cfg);
+        std::vector<util::u8> frame;
+        frame.reserve(3 + payload.size() + 2);
+        frame.push_back(modem::STX);
+        frame.push_back(seq);
+        frame.push_back(static_cast<util::u8>(~seq));
+        frame.insert(frame.end(), payload.begin(), payload.end());
+        const auto crc = modem::crc16_ccitt(std::span<const util::u8>(payload.data(), payload.size()));
+        frame.push_back(static_cast<util::u8>((crc >> 8) & 0xFFu));
+        frame.push_back(static_cast<util::u8>(crc & 0xFFu));
+        return frame;
+    }
+
+    template <class Transport>
+    bool send_image(Transport& receiver, std::string_view file_name, std::span<const util::u8> image) {
+        auto tx = drain_tx(receiver);
+        const util::u8 want_crc[] = {modem::C};
+        if (!expect_bytes(tx, std::span<const util::u8>(want_crc, 1))) return false;
+
+        const auto header = make_header_frame(file_name, static_cast<util::u32>(image.size()));
+        receiver.on_rx(std::span<const util::u8>(header.data(), header.size()));
+        tx = drain_tx(receiver);
+        const util::u8 want_header_ack[] = {modem::ACK, modem::C};
+        if (!expect_bytes(tx, std::span<const util::u8>(want_header_ack, 2))) return false;
+
+        util::u8 seq = 1;
+        for (util::usize off = 0; off < image.size(); off += 1024) {
+            const auto chunk = (image.size() - off > 1024) ? 1024 : (image.size() - off);
+            const auto frame = make_data_frame(
+                seq++,
+                std::span<const util::u8>(image.data() + off, chunk));
+            receiver.on_rx(std::span<const util::u8>(frame.data(), frame.size()));
+            tx = drain_tx(receiver);
+            const util::u8 want_ack[] = {modem::ACK};
+            if (!expect_bytes(tx, std::span<const util::u8>(want_ack, 1))) return false;
+        }
+
+        const util::u8 eot[] = {modem::EOT};
+        receiver.on_rx(std::span<const util::u8>(eot, 1));
+        tx = drain_tx(receiver);
+        const util::u8 want_eot_ack[] = {modem::ACK};
+        return expect_bytes(tx, std::span<const util::u8>(want_eot_ack, 1));
+    }
+
+    template <class Transport>
+    bool send_image_without_header(Transport& receiver, std::span<const util::u8> image) {
+        auto tx = drain_tx(receiver);
+        const util::u8 want_crc[] = {modem::C};
+        if (!expect_bytes(tx, std::span<const util::u8>(want_crc, 1))) return false;
+
+        util::u8 seq = 1;
+        for (util::usize off = 0; off < image.size(); off += 1024) {
+            const auto chunk = (image.size() - off > 1024) ? 1024 : (image.size() - off);
+            const auto frame = make_data_frame(
+                seq++,
+                std::span<const util::u8>(image.data() + off, chunk));
+            receiver.on_rx(std::span<const util::u8>(frame.data(), frame.size()));
+            tx = drain_tx(receiver);
+            const util::u8 want_ack[] = {modem::ACK};
+            if (!expect_bytes(tx, std::span<const util::u8>(want_ack, 1))) return false;
+        }
+
+        const util::u8 eot[] = {modem::EOT};
+        receiver.on_rx(std::span<const util::u8>(eot, 1));
+        tx = drain_tx(receiver);
+        const util::u8 want_eot_ack[] = {modem::ACK};
+        return expect_bytes(tx, std::span<const util::u8>(want_eot_ack, 1));
+    }
 }
 
 int main() {
     MockFlash flash{};
-    boot::Storage storage{
-        &flash,
-        +[](void* ctx, util::u32 off, util::span<util::u8> out) noexcept {
-            return static_cast<MockFlash*>(ctx)->read(off, out);
-        },
-        +[](void* ctx, util::u32 off, util::span<const util::u8> in) noexcept {
-            return static_cast<MockFlash*>(ctx)->write(off, in);
-        },
-        +[](void* ctx, util::u32 off, util::u32 size) noexcept {
-            return static_cast<MockFlash*>(ctx)->erase(off, size);
-        }
+    auto storage = make_storage(flash);
+
+    std::array<util::u8, 64> scratch{};
+    boot::FlashConfig flash_cfg{
+        .erase_size = 64,
+        .write_size = 16,
+        .scratch = scratch.data(),
+        .scratch_size = static_cast<util::u32>(scratch.size())
     };
 
     boot::BootConfig cfg{
@@ -84,60 +215,104 @@ int main() {
     };
 
     constexpr util::u32 key = 0xA5A5u;
-    write_image(flash, cfg.slot_a.offset, "image_a", true, 2, key);
-    write_image(flash, cfg.slot_b.offset, "image_b", true, 0, key);
+    const auto image_a = build_image("image_a", true, 2, key);
+    const auto image_b = build_image("image_b_upgrade", true, 3, key);
 
-    boot::BootInfo info{};
-    info.active = boot::Slot::a;
-    info.pending = boot::Slot::b;
-    info.min_version = 1;
-    (void)boot::write_boot_info(storage, cfg.info, info);
+    boot::BootInfo initial_info{};
+    initial_info.active = boot::Slot::a;
+    initial_info.pending = boot::Slot::a;
+    initial_info.min_version = 1;
 
-    boot::Policy policy{.min_version = 1, .sign_key = key, .require_signature = true};
-    auto pick = boot::select_slot_policy(storage, cfg, info, policy);
+    boot::Policy policy{
+        .min_version = 1,
+        .sign_key = key,
+        .require_signature = true
+    };
+
+    const bool slot_a_written = boot::flash_write(
+        storage,
+        cfg.slot_a.offset,
+        std::span<const util::u8>(image_a.data(), image_a.size()),
+        flash_cfg);
+
+    boot::XyModemSessionConfig download_cfg{
+        .boot = cfg,
+        .policy = policy,
+        .target_slot = boot::Slot::b,
+        .flash = flash_cfg,
+        .require_header = true,
+        .trim_to_header_size = true,
+        .max_size = cfg.slot_b.size,
+        .seed_info = initial_info,
+        .has_seed_info = true,
+        .write_pending = true
+    };
+    boot::XyModemSession<1024> receiver(storage, download_cfg);
+    receiver.start();
+    const bool transfer_ok = send_image(
+        receiver,
+        "slot_b.bin",
+        std::span<const util::u8>(image_b.data(), image_b.size()));
+    const auto download = receiver.complete();
+
+    boot::BootInfo boot_info{};
+    auto pick = boot::select_slot_policy(storage, cfg, boot_info, policy);
+    const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, boot_info);
+    const bool marked = boot::mark_success(storage, cfg, boot_info, pick.slot);
+
+    MockFlash headerless_flash{};
+    auto headerless_storage = make_storage(headerless_flash);
+    const bool headerless_slot_a_written = boot::flash_write(
+        headerless_storage,
+        cfg.slot_a.offset,
+        std::span<const util::u8>(image_a.data(), image_a.size()),
+        flash_cfg);
+    boot::XyModemSession<1024> headerless_session(headerless_storage, download_cfg);
+    headerless_session.start();
+    const bool headerless_transport = send_image_without_header(
+        headerless_session,
+        std::span<const util::u8>(image_b.data(), image_b.size()));
+    const auto headerless = headerless_session.complete();
+    const bool headerless_failed =
+        headerless_slot_a_written &&
+        headerless_transport &&
+        !static_cast<bool>(headerless) &&
+        headerless.stage == boot::SessionStage::failed &&
+        headerless.transfer.header_missing &&
+        !headerless.ready_to_boot;
+
+    const bool ok = slot_a_written &&
+                    transfer_ok &&
+                    static_cast<bool>(download) &&
+                    download.pending_set &&
+                    download.boot_info_written &&
+                    slot_b_valid &&
+                    pick.status == boot::BootStatus::ok &&
+                    pick.slot == boot::Slot::b &&
+                    marked &&
+                    boot_info.active == boot::Slot::b &&
+                    headerless_failed;
+
+    std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
+    std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
+    std::printf("[boot] session_stage=%u pending=%d bootinfo=%d\n",
+                static_cast<unsigned>(download.stage),
+                download.pending_set ? 1 : 0,
+                download.boot_info_written ? 1 : 0);
+    std::printf("[boot] xymodem_download=%d bytes=%u expected=%u status=%u\n",
+                static_cast<bool>(download) ? 1 : 0,
+                download.transfer.bytes_written,
+                download.transfer.expected_size,
+                static_cast<unsigned>(download.transfer.transport_status));
+    std::printf("[boot] slot_b_valid=%d\n", slot_b_valid ? 1 : 0);
     std::printf("[boot] pick=%s\n", pick.slot == boot::Slot::a ? "A" : "B");
-
-    {
-        std::array<util::u8, 64> packet{};
-        boot::UartFrame frame{};
-        frame.seq = 1;
-        frame.offset = cfg.slot_a.offset;
-        const char* patch = "patch";
-        frame.size = static_cast<util::u16>(std::strlen(patch));
-        std::memcpy(packet.data(), &frame, sizeof(frame));
-        std::memcpy(packet.data() + sizeof(frame), patch, frame.size);
-        frame.crc = boot::crc16(packet.data() + sizeof(frame), frame.size);
-        std::memcpy(packet.data(), &frame, sizeof(frame));
-        boot::UartRx rx{packet.data(), static_cast<util::usize>(sizeof(frame) + frame.size)};
-        std::array<util::u8, 64> scratch{};
-        boot::FlashConfig cfgf{.erase_size = 64, .write_size = 16, .scratch = scratch.data(),
-                               .scratch_size = static_cast<util::u32>(scratch.size())};
-        const bool ok = boot::uart_apply_frame(storage, cfgf, frame, rx);
-        std::printf("[boot] uart_apply=%d\n", ok ? 1 : 0);
-    }
-    {
-        std::array<util::u8, 64> packet{};
-        boot::UartFrame frame{};
-        frame.seq = 2;
-        frame.offset = cfg.slot_a.offset + cfg.slot_a.size;
-        const char* patch = "x";
-        frame.size = static_cast<util::u16>(std::strlen(patch));
-        std::memcpy(packet.data(), &frame, sizeof(frame));
-        std::memcpy(packet.data() + sizeof(frame), patch, frame.size);
-        frame.crc = boot::crc16(packet.data() + sizeof(frame), frame.size);
-        std::memcpy(packet.data(), &frame, sizeof(frame));
-        boot::UartRx rx{packet.data(), static_cast<util::usize>(sizeof(frame) + frame.size)};
-        std::array<util::u8, 64> scratch{};
-        boot::FlashConfig cfgf{.erase_size = 64, .write_size = 16, .scratch = scratch.data(),
-                               .scratch_size = static_cast<util::u32>(scratch.size())};
-        boot::UartPolicy policy{.allowed = cfg.slot_a, .enforce_range = true};
-        boot::UartState state{};
-        const bool ok = boot::uart_apply_frame_policy(storage, cfgf, frame, rx, policy, state);
-        std::printf("[boot] uart_apply_oob=%d\n", ok ? 1 : 0);
-    }
-
-    const bool marked = boot::mark_success(storage, cfg, info, pick.slot);
-    std::printf("[boot] mark_success=%d\n", marked ? 1 : 0);
-    std::printf("[boot] active=%s\n", info.active == boot::Slot::a ? "A" : "B");
-    return 0;
+    std::printf("[boot] mark_success=%d active=%s\n",
+                marked ? 1 : 0,
+                boot_info.active == boot::Slot::a ? "A" : "B");
+    std::printf("[boot] headerless_fail=%d stage=%u missing_header=%d\n",
+                headerless_failed ? 1 : 0,
+                static_cast<unsigned>(headerless.stage),
+                headerless.transfer.header_missing ? 1 : 0);
+    std::printf("[boot] ok=%d\n", ok ? 1 : 0);
+    return ok ? 0 : 1;
 }

@@ -6,13 +6,19 @@ module;
 export module device.registry;
 
 import util.core;
+import util.error;
 import device.desc;
 import device.types;
 
 export namespace device {
     struct RegistryBase {
         virtual ~RegistryBase() = default;
-        virtual bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept = 0;
+        [[nodiscard]] virtual util::Result<void> try_add_device(const DeviceDesc& desc,
+                                                                void* ctx = nullptr) noexcept = 0;
+
+        virtual bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept {
+            return static_cast<bool>(try_add_device(desc, ctx));
+        }
     };
 
     template <util::usize MaxDevices, util::usize MaxDrivers>
@@ -44,17 +50,26 @@ export namespace device {
             return index < device_count_ ? &devices_[index] : nullptr;
         }
 
-        bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept override {
+        [[nodiscard]] util::Result<void> try_add_device(const DeviceDesc& desc,
+                                                        void* ctx = nullptr) noexcept override {
             if (find_exact_device_index(desc, ctx) < device_count_) {
-                return true;
+                return {};
             }
-            if (device_count_ >= MaxDevices) return false;
+            if (device_count_ >= MaxDevices) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
             devices_[device_count_++] = Device{desc, ctx, DeviceState::detected, nullptr};
-            return true;
+            return {};
         }
 
-        bool remove_device(util::usize index) noexcept {
-            if (index >= device_count_) return false;
+        bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept override {
+            return static_cast<bool>(try_add_device(desc, ctx));
+        }
+
+        [[nodiscard]] util::Result<void> try_remove_device(util::usize index) noexcept {
+            if (index >= device_count_) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
             if (devices_[index].driver) {
                 (void)dispatch(devices_[index], DeviceEvent::remove);
             }
@@ -65,18 +80,36 @@ export namespace device {
                 devices_[device_count_ - 1] = {};
                 --device_count_;
             }
-            return true;
+            return {};
+        }
+
+        bool remove_device(util::usize index) noexcept {
+            return static_cast<bool>(try_remove_device(index));
+        }
+
+        [[nodiscard]] util::Result<void> try_remove_matching(const DeviceDesc& desc,
+                                                             void* ctx = nullptr) noexcept {
+            const auto index = find_device_index(desc, ctx);
+            if (index >= device_count_) {
+                return util::unexpected(util::Errc::noent);
+            }
+            return try_remove_device(index);
         }
 
         bool remove_matching(const DeviceDesc& desc, void* ctx = nullptr) noexcept {
-            const auto index = find_device_index(desc, ctx);
-            return index < device_count_ ? remove_device(index) : false;
+            return static_cast<bool>(try_remove_matching(desc, ctx));
+        }
+
+        [[nodiscard]] util::Result<void> try_add_driver(const Driver& drv) noexcept {
+            if (driver_count_ >= MaxDrivers) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
+            drivers_[driver_count_++] = &drv;
+            return {};
         }
 
         bool add_driver(const Driver& drv) noexcept {
-            if (driver_count_ >= MaxDrivers) return false;
-            drivers_[driver_count_++] = &drv;
-            return true;
+            return static_cast<bool>(try_add_driver(drv));
         }
 
         void clear() noexcept {
@@ -284,6 +317,10 @@ export namespace device {
         if (registry.device_count() != 1) return false;
         if (!registry.add_device(desc, &marker_b)) return false;
         if (registry.device_count() != 2) return false;
+        Registry<1, 1> limited{};
+        if (!limited.try_add_device(desc, &marker_a)) return false;
+        auto overflow = limited.try_add_device(desc, &marker_b);
+        if (overflow || overflow.error() != util::Errc::buffer_overflow) return false;
         return registry.device_at(0).ctx == &marker_a &&
                registry.device_at(1).ctx == &marker_b;
     }

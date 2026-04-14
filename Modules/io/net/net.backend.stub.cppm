@@ -227,8 +227,11 @@ export namespace net::backend {
                 return send_to(handle, slot->remote, in);
             }
 
-            if (slot->state != SocketState::connected || !slot->peer.valid()) {
+            if (slot->state != SocketState::connected) {
                 return util::unexpected(errc::bad_state);
+            }
+            if (!slot->peer.valid()) {
+                return util::unexpected(errc::closed);
             }
             auto* peer = slot_for_handle(slot->peer);
             if (!peer || !peer->used) return util::unexpected(errc::closed);
@@ -336,15 +339,21 @@ export namespace net::backend {
             if (slot->stream_rx.available_read() != 0) {
                 mask |= event_mask(NetEvent::readable);
             }
-            if (!slot->write_shutdown && slot->peer.valid()) {
-                auto* peer = slot_for_handle(slot->peer);
-                if (!peer || !peer->used) {
-                    mask |= event_mask(NetEvent::closed);
-                } else if (peer->stream_rx.available_write() != 0) {
-                    mask |= event_mask(NetEvent::writable);
+            if (!slot->write_shutdown) {
+                if (!slot->peer.valid()) {
+                    if (slot->state == SocketState::connected) {
+                        mask |= event_mask(NetEvent::closed);
+                    } else if (slot->state != SocketState::closed) {
+                        mask |= event_mask(NetEvent::writable);
+                    }
+                } else {
+                    auto* peer = slot_for_handle(slot->peer);
+                    if (!peer || !peer->used) {
+                        mask |= event_mask(NetEvent::closed);
+                    } else if (peer->stream_rx.available_write() != 0) {
+                        mask |= event_mask(NetEvent::writable);
+                    }
                 }
-            } else if (!slot->write_shutdown && slot->state != SocketState::closed) {
-                mask |= event_mask(NetEvent::writable);
             }
 
             return Result<EventMask>{std::in_place, mask};

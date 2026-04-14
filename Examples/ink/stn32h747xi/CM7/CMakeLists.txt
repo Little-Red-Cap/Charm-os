@@ -101,18 +101,20 @@ add_compile_definitions(STM32H747xx)
 add_compile_definitions(CORE_CM7)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
+charm_add_config_interface(charm_cfg_ink_stn32h747xi_cm7
+    INCLUDE_DIRECTORIES
+        ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Device/ST/STM32H7xx/Include
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Include)
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 
-target_include_directories(Charm-os PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Device/ST/STM32H7xx/Include
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Include
-)
+charm_apply_config_targets(Charm-build-config charm_cfg_ink_stn32h747xi_cm7)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     Charm-os

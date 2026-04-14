@@ -1,0 +1,17 @@
+include_guard(GLOBAL)
+
+function(charm_collect_cppm out_var)
+    if (ARGC EQUAL 1)
+        set(${out_var} "" PARENT_SCOPE)
+        return()
+    endif()
+
+    file(GLOB_RECURSE _modules CONFIGURE_DEPENDS ${ARGN})
+    list(FILTER _modules EXCLUDE REGEX "/cmake-build-")
+    list(FILTER _modules EXCLUDE REGEX "/Charm/generated/")
+    if (NOT CHARM_ENABLE_TEST_MODULES)
+        list(FILTER _modules EXCLUDE REGEX "/tests/")
+    endif()
+    list(REMOVE_DUPLICATES _modules)
+    set(${out_var} "${_modules}" PARENT_SCOPE)
+endfunction()

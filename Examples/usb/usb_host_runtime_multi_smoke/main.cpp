@@ -13,47 +13,18 @@ import usb.host.runtime_channel;
 import usb.host.runtime_manager;
 import util.core;
 
+#include "../support/usb_host_runtime_assert_support.hpp"
 #include "../support/usb_host_runtime_block_support.hpp"
 #include "../support/usb_host_runtime_channel_support.hpp"
 
 namespace {
     using examples::usb::support::CdcRuntimeHarness;
+    using examples::usb::support::expect;
+    using examples::usb::support::expect_error;
+    using examples::usb::support::expect_status;
     using examples::usb::support::MemoryDisk;
     using examples::usb::support::MscRuntimeHarness;
     using examples::usb::support::read_lba0;
-
-    bool expect(bool cond, const char* message) {
-        if (!cond) {
-            std::fprintf(stderr, "[ERR] %s\n", message);
-            return false;
-        }
-        return true;
-    }
-
-    bool expect_block_status(block::Status st, block::Errc want, const char* message) {
-        if (st.err != want) {
-            std::fprintf(stderr,
-                         "[ERR] %s err=%d want=%d\n",
-                         message,
-                         static_cast<int>(st.err),
-                         static_cast<int>(want));
-            return false;
-        }
-        return true;
-    }
-
-    bool expect_io_error(const io::result& r, io::errc want, const char* message) {
-        if (r.error() != want) {
-            std::fprintf(stderr,
-                         "[ERR] %s err=%d want=%d\n",
-                         message,
-                         static_cast<int>(r.error()),
-                         static_cast<int>(want));
-            return false;
-        }
-        return true;
-    }
-
 }
 
 int main() {
@@ -107,10 +78,10 @@ int main() {
         static_cast<util::u8>('G')
     };
 
-    if (!expect_block_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
-                             "detached block slot should read as noent")) return 1;
-    if (!expect_io_error(stable_channel->read(read_buf), io::errc::noent,
-                         "detached channel slot should read as noent")) return 1;
+    if (!expect_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
+                       "detached block slot should read as noent")) return 1;
+    if (!expect_error(stable_channel->read(read_buf), io::errc::noent,
+                      "detached channel slot should read as noent")) return 1;
 
     if (!expect(runtime.scan(), "runtime manager scan failed")) return 1;
     if (!expect(runtime.registry().device_count() == 2, "runtime registry should contain two devices")) return 1;
@@ -145,8 +116,8 @@ int main() {
     if (!expect(msc.remove_from(runtime), "failed to remove MSC device")) return 1;
     if (!expect(runtime.registry().device_count() == 1, "runtime registry should keep only CDC after MSC remove")) return 1;
     if (!expect(!msc.attached(), "MSC slot should detach after remove")) return 1;
-    if (!expect_block_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
-                             "removed MSC slot should read as noent")) return 1;
+    if (!expect_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
+                       "removed MSC slot should read as noent")) return 1;
 
     if (!expect(msc.rediscover_in(runtime), "failed to rediscover MSC device")) return 1;
     if (!expect(runtime.registry().device_count() == 2, "runtime registry should restore MSC after re-enumeration")) return 1;
@@ -162,14 +133,14 @@ int main() {
     if (!expect(!msc.attached(), "MSC slot should be detached after remove")) return 1;
     if (!expect(!cdc.attached(), "CDC slot should be detached after remove")) return 1;
     if (!expect(runtime.registry().device_count() == 0, "runtime registry should be empty after both removes")) return 1;
-    if (!expect_block_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
-                             "detached block slot should return noent after remove")) return 1;
-    if (!expect_io_error(stable_channel->read(read_buf), io::errc::noent,
-                         "detached channel slot should return noent after remove")) return 1;
-    if (!expect_io_error(stable_channel->write(write_buf), io::errc::noent,
-                         "detached channel slot should reject writes after remove")) return 1;
-    if (!expect_io_error(stable_channel->flush(), io::errc::noent,
-                         "detached channel slot should reject flush after remove")) return 1;
+    if (!expect_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
+                       "detached block slot should return noent after remove")) return 1;
+    if (!expect_error(stable_channel->read(read_buf), io::errc::noent,
+                      "detached channel slot should return noent after remove")) return 1;
+    if (!expect_error(stable_channel->write(write_buf), io::errc::noent,
+                      "detached channel slot should reject writes after remove")) return 1;
+    if (!expect_error(stable_channel->flush(), io::errc::noent,
+                      "detached channel slot should reject flush after remove")) return 1;
 
     std::puts("[OK] usb-host-runtime-multi-smoke passed");
     return 0;

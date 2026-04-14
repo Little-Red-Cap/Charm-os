@@ -9,6 +9,7 @@ import device.desc;
 import device.registry;
 import usb.host.core;
 import util.core;
+import util.error;
 
 export namespace usb::host {
     inline constexpr bool same_desc(const device::DeviceDesc& lhs,
@@ -86,11 +87,11 @@ export namespace usb::host {
             if (self->record_.enumerated) {
                 return true;
             }
-            const bool added = registry.add_device(self->record_.desc, self->record_.ctx);
+            const auto added = registry.try_add_device(self->record_.desc, self->record_.ctx);
             if (added) {
                 self->record_.enumerated = true;
             }
-            return added;
+            return static_cast<bool>(added);
         }
 
         RuntimeDeviceRecord record_{};
@@ -115,17 +116,26 @@ export namespace usb::host {
         DeviceListRuntimeBus(DeviceListRuntimeBus&&) = delete;
         DeviceListRuntimeBus& operator=(DeviceListRuntimeBus&&) = delete;
 
+        [[nodiscard]] util::Result<void> try_add_device(const device::DeviceDesc& desc,
+                                                        void* ctx = nullptr) noexcept {
+            return try_add_device(RuntimeDeviceRecord{desc, ctx, false});
+        }
+
         bool add_device(const device::DeviceDesc& desc, void* ctx = nullptr) noexcept {
-            return add_device(RuntimeDeviceRecord{desc, ctx, false});
+            return static_cast<bool>(try_add_device(desc, ctx));
+        }
+
+        [[nodiscard]] util::Result<void> try_add_device(const RuntimeDeviceRecord& record) noexcept {
+            if (contains(record)) return {};
+            if (count_ >= MaxDevices) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
+            records_[count_++] = record;
+            return {};
         }
 
         bool add_device(const RuntimeDeviceRecord& record) noexcept {
-            if (contains(record)) return true;
-            if (count_ >= MaxDevices) {
-                return false;
-            }
-            records_[count_++] = record;
-            return true;
+            return static_cast<bool>(try_add_device(record));
         }
 
         device::Bus bus() const noexcept {
@@ -208,7 +218,7 @@ export namespace usb::host {
                 if (record.enumerated) {
                     continue;
                 }
-                const bool added = registry.add_device(record.desc, record.ctx);
+                const auto added = registry.try_add_device(record.desc, record.ctx);
                 if (added) {
                     record.enumerated = true;
                 } else {
@@ -250,7 +260,7 @@ export namespace usb::host {
         int marker_a = 1;
         int marker_b = 2;
         DeviceListRuntimeBus<2> bus{"usb.host.multi"};
-        if (!bus.add_device(device::DeviceDesc{
+        if (!bus.try_add_device(device::DeviceDesc{
                 .class_id = 0x08,
                 .vendor_id = 0x1234,
                 .product_id = 0x5678,
@@ -258,7 +268,7 @@ export namespace usb::host {
             }, &marker_a)) {
             return false;
         }
-        if (!bus.add_device(device::DeviceDesc{
+        if (!bus.try_add_device(device::DeviceDesc{
                 .class_id = 0x02,
                 .vendor_id = 0x1234,
                 .product_id = 0x5679,

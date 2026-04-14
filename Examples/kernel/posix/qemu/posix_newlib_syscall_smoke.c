@@ -448,8 +448,10 @@ int charm_posix_newlib_lseek_entry(void) {
 int charm_posix_newlib_path_entry(void) {
     struct stat st;
     char buf[6] = {0};
+    errno = 61;
     int fd = open("/newlib-path.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 131;
+    if (errno != 61) return 550;
     if (write(fd, "bravo", 5) != 5) return 132;
     if (close(fd) != 0) return 133;
 
@@ -484,7 +486,9 @@ int charm_posix_newlib_path_entry(void) {
     if (open("/newlib-missing.txt", O_RDONLY, 0) != -1) return 536;
     if (errno != ENOENT) return 537;
 
+    errno = 62;
     if (mkdir("/newlib-dir", 0) != 0) return 144;
+    if (errno != 62) return 551;
 
     errno = 0;
     if (mkdir("/newlib-dir", 0) != -1) return 522;
@@ -535,8 +539,10 @@ int charm_posix_newlib_path_entry(void) {
     if (open("/newlib-path.txt/sub", O_RDONLY, 0) != -1) return 540;
     if (errno != ENOTDIR) return 541;
 
+    errno = 63;
     fd = open("/newlib-dir/probe.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 153;
+    if (errno != 63) return 552;
     if (write(fd, "x", 1) != 1) return 154;
     if (close(fd) != 0) return 155;
 
@@ -557,7 +563,9 @@ int charm_posix_newlib_path_entry(void) {
     if (errno != ENOTEMPTY) return 157;
 
     if (unlink("/newlib-dir/probe.txt") != 0) return 158;
+    errno = 66;
     if (rmdir("/newlib-dir") != 0) return 159;
+    if (errno != 66) return 555;
 
     errno = 0;
     if (stat("/newlib-dir", &st) != -1) return 160;
@@ -578,7 +586,9 @@ int charm_posix_newlib_path_entry(void) {
     if (rename("/newlib-path.txt", "/newlib-path.txt/sub") != -1) return 504;
     if (errno != ENOTDIR) return 505;
 
+    errno = 64;
     if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 163;
+    if (errno != 64) return 553;
 
     errno = 0;
     if (stat("/newlib-path.txt", &st) != -1) return 164;
@@ -595,7 +605,9 @@ int charm_posix_newlib_path_entry(void) {
     if (memcmp(buf, "bravo", 5) != 0) return 172;
     if (close(fd) != 0) return 173;
 
+    errno = 65;
     if (unlink("/newlib-renamed.txt") != 0) return 174;
+    if (errno != 65) return 554;
     errno = 0;
     if (stat("/newlib-renamed.txt", &st) != -1) return 175;
     if (errno != ENOENT) return 176;

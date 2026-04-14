@@ -414,12 +414,17 @@ int charm_posix_newlib_path_entry(void) {
     if ((st.st_mode & S_IFMT) != S_IFREG) return 135;
     if (st.st_size != 5) return 136;
 
+    errno = 77;
     if (access("/newlib-path.txt", F_OK) != 0) return 137;
+    if (errno != 77) return 138;
     if (access("/newlib-path.txt", R_OK) != 0) return 138;
     if (access("/newlib-path.txt", W_OK) != 0) return 139;
     errno = 0;
     if (access("/newlib-path.txt", X_OK) != -1) return 140;
     if (errno != EACCES) return 141;
+    errno = 0;
+    if (access("/newlib-path.txt", 8) != -1) return 526;
+    if (errno != EINVAL) return 527;
     errno = 0;
     if (access("/newlib-missing.txt", F_OK) != -1) return 142;
     if (errno != ENOENT) return 143;

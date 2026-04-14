@@ -133,7 +133,8 @@ Draft/        # 计划/草案（可变动）
 - USB DSL 概览：`docs/usb/usb_dsl_overview.md`
 - USB CDC 回调契约：`docs/usb/usb_cdc_contract.md`
 - USB String/Lang 装配：`docs/usb/usb_strings_overview.md`
-- 设备模型草案：`docs/architecture/device_model_overview.md`
+- 驱动模型：`docs/architecture/driver_model.md`
+- 设备发现模型草案：`docs/architecture/device_model_overview.md`
 - trace_core 统一入口：`docs/trace/trace_core_entry.md`
 - trace_core ID 清单：`docs/trace/trace_core_ids.md`
 - VFS 挂载规则：`docs/storage/fs_vfs_mount_rules.md`
@@ -329,11 +330,19 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 类草案：CDC/UAC/MSC
 - 驱动接口：`usb.ep0_driver`
 - 示例：`Examples/usb/usb_cdc_minimal`
+- Host runtime glue：`usb.host.core`、`usb.host.runtime`、`usb.host.runtime_block`、`usb.host.runtime_channel`、`usb.host.runtime_manager`
+- Host runtime 当前支持单设备/多设备 host bus、增量扫描、`remove -> rediscover`，并通过稳定 slot capability 对外导出；smoke 样板统一经由 `RuntimeManager` 编排
+- 示例：`Examples/usb/usb_host_runtime_block_smoke`
+- 示例：`Examples/usb/usb_host_runtime_channel_smoke`
+- 示例：`Examples/usb/usb_host_runtime_multi_smoke`（同一条 host bus 同时导出 block/channel，并验证增量扫描）
 
 ### Device Model
 - 设备/驱动/注册表骨架（device.desc/driver/registry）
+- 运行期注册表已支持 `match_detected`、`remove_device` / `remove_matching`，可用于 discovery 增量匹配与 detach 收敛
 - 示例：`Examples/system/device_registry_demo`
 - 示例：`Examples/system/device_bus_demo`
+- 示例：`Examples/system/device_runtime_block_slot_demo`
+- 示例：`Examples/system/device_runtime_channel_slot_demo`
 
 ### UI/Ink
 - core/render/ui/widgets/platform/input/semantics/theme

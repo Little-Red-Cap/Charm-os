@@ -1,0 +1,225 @@
+#include <array>
+#include <cstddef>
+#include <cstdio>
+#include <span>
+
+import device.types;
+import io.channel;
+import io.registry;
+import usb.host.runtime_channel;
+import usb.host.runtime_manager;
+import util.core;
+
+namespace {
+    struct DummyChannel {
+        std::array<util::u8, 8> rx_data{
+            static_cast<util::u8>('O'),
+            static_cast<util::u8>('K')
+        };
+        util::usize rx_size{2};
+        util::usize rx_pos{0};
+        std::array<util::u8, 16> tx_data{};
+        util::usize tx_size{0};
+        bool flushed{false};
+        io::Channel channel{};
+
+        DummyChannel() noexcept
+            : channel{
+                  this,
+                  io::ChannelOps{
+                      &DummyChannel::read_cb,
+                      &DummyChannel::write_cb,
+                      &DummyChannel::flush_cb
+                  }
+              } {
+        }
+
+        static io::result read_cb(void* ctx, io::MutByteView out) noexcept {
+            auto* self = static_cast<DummyChannel*>(ctx);
+            if (!self || out.empty()) {
+                return io::fail(io::errc::invalid_arg);
+            }
+            if (self->rx_pos >= self->rx_size) {
+                return io::fail(io::errc::end_of_stream);
+            }
+
+            const auto available = self->rx_size - self->rx_pos;
+            const auto count = available < out.size() ? available : out.size();
+            for (util::usize i = 0; i < count; ++i) {
+                out[i] = self->rx_data[self->rx_pos + i];
+            }
+            self->rx_pos += count;
+            return io::ok(count);
+        }
+
+        static io::result write_cb(void* ctx, io::ByteView in) noexcept {
+            auto* self = static_cast<DummyChannel*>(ctx);
+            if (!self || in.empty()) {
+                return io::fail(io::errc::invalid_arg);
+            }
+            if (in.size() > self->tx_data.size()) {
+                return io::fail(io::errc::buffer_overflow);
+            }
+            for (util::usize i = 0; i < in.size(); ++i) {
+                self->tx_data[i] = in[i];
+            }
+            self->tx_size = in.size();
+            return io::ok(in.size());
+        }
+
+        static io::result flush_cb(void* ctx) noexcept {
+            auto* self = static_cast<DummyChannel*>(ctx);
+            if (!self) {
+                return io::fail(io::errc::invalid_arg);
+            }
+            self->flushed = true;
+            return io::ok(1);
+        }
+    };
+
+    bool expect(bool cond, const char* message) {
+        if (!cond) {
+            std::fprintf(stderr, "[ERR] %s\n", message);
+            return false;
+        }
+        return true;
+    }
+
+    bool expect_error(const io::result& r, io::errc want, const char* message) {
+        if (r.error() != want) {
+            std::fprintf(stderr,
+                         "[ERR] %s err=%d want=%d\n",
+                         message,
+                         static_cast<int>(r.error()),
+                         static_cast<int>(want));
+            return false;
+        }
+        return true;
+    }
+}
+
+int main() {
+    constexpr auto kCapName = "io.usb0";
+
+    io::Registry<4> io_registry{};
+    io_registry.init();
+    usb::host::RuntimeManager<4, 4> runtime{"usb.host.cdc"};
+
+    DummyChannel backend{};
+    usb::host::CdcChannelRuntimeBinding<io::Registry<4>> binding{
+        io_registry,
+        kCapName,
+        backend.channel,
+        0x1209,
+        0x0006
+    };
+
+    auto add_r = runtime.add_exported(binding);
+    if (!add_r) {
+        std::fprintf(stderr,
+                     "[ERR] runtime manager add_exported failed err=%d\n",
+                     static_cast<int>(add_r.error()));
+        return 1;
+    }
+
+    auto* stable = io_registry.open_channel(kCapName);
+    if (!expect(stable == &binding.exported_slot().channel(),
+                "registry did not expose the stable channel slot")) {
+        return 1;
+    }
+    if (!expect(binding.exported(), "slot export should stay published")) return 1;
+    if (!expect(!binding.attached(), "slot should start detached")) return 1;
+    if (!expect(binding.generation() == 0, "slot generation should start at 0")) return 1;
+
+    std::array<util::u8, 4> read_buf{};
+    std::array<util::u8, 4> write_buf{
+        static_cast<util::u8>('P'),
+        static_cast<util::u8>('I'),
+        static_cast<util::u8>('N'),
+        static_cast<util::u8>('G')
+    };
+
+    if (!expect_error(stable->read(read_buf), io::errc::noent, "detached slot should read as noent")) return 1;
+    if (!expect_error(stable->write(write_buf), io::errc::noent, "detached slot should write as noent")) return 1;
+    if (!expect_error(stable->flush(), io::errc::noent, "detached slot should flush as noent")) return 1;
+
+    if (!expect(runtime.scan(), "runtime manager scan failed")) {
+        return 1;
+    }
+    if (!expect(runtime.enumerated(binding),
+                "runtime manager did not enumerate the CDC device")) {
+        return 1;
+    }
+    if (!expect(runtime.registry().device_count() == 1,
+                "runtime registry should contain one CDC device")) {
+        return 1;
+    }
+    if (!expect(binding.attached(), "runtime init did not attach the CDC slot")) return 1;
+    if (!expect(binding.generation() == 1,
+                "slot generation should advance after attach")) {
+        return 1;
+    }
+    if (!expect(runtime.registry().device_at(0).state == device::DeviceState::running,
+                "runtime CDC device should be running after match_all")) {
+        return 1;
+    }
+
+    auto* stable_after_attach = io_registry.open_channel(io::cap_id(kCapName));
+    if (!expect(stable_after_attach == stable,
+                "registry pointer should stay stable after attach")) {
+        return 1;
+    }
+
+    auto read_r = stable->read(read_buf);
+    if (!expect(static_cast<bool>(read_r) && read_r.value() == 2,
+                "attached slot should read two bytes")) {
+        return 1;
+    }
+    if (!expect(read_buf[0] == static_cast<util::u8>('O') &&
+                read_buf[1] == static_cast<util::u8>('K'),
+                "attached slot returned unexpected read payload")) {
+        return 1;
+    }
+
+    auto write_r = stable->write(write_buf);
+    if (!expect(static_cast<bool>(write_r) && write_r.value() == write_buf.size(),
+                "attached slot should write the full payload")) {
+        return 1;
+    }
+    if (!expect(backend.tx_size == write_buf.size(),
+                "backend did not observe the expected write size")) {
+        return 1;
+    }
+    if (!expect(backend.tx_data[0] == static_cast<util::u8>('P') &&
+                backend.tx_data[1] == static_cast<util::u8>('I') &&
+                backend.tx_data[2] == static_cast<util::u8>('N') &&
+                backend.tx_data[3] == static_cast<util::u8>('G'),
+                "backend did not observe the expected write payload")) {
+        return 1;
+    }
+
+    auto flush_r = stable->flush();
+    if (!expect(static_cast<bool>(flush_r), "attached slot should flush successfully")) return 1;
+    if (!expect(backend.flushed, "backend flush callback was not observed")) return 1;
+
+    if (!expect(runtime.remove(binding),
+                "runtime remove did not detach the CDC slot")) {
+        return 1;
+    }
+    if (!expect(!binding.attached(), "CDC slot should be detached after remove")) return 1;
+    if (!expect(binding.generation() == 2,
+                "slot generation should advance after detach")) {
+        return 1;
+    }
+    if (!expect(io_registry.open_channel(kCapName) == stable,
+                "registry pointer should remain stable after detach")) {
+        return 1;
+    }
+
+    if (!expect_error(stable->read(read_buf), io::errc::noent, "detached slot should read as noent after remove")) return 1;
+    if (!expect_error(stable->write(write_buf), io::errc::noent, "detached slot should write as noent after remove")) return 1;
+    if (!expect_error(stable->flush(), io::errc::noent, "detached slot should flush as noent after remove")) return 1;
+
+    std::puts("[OK] usb-host-runtime-channel-smoke passed");
+    return 0;
+}

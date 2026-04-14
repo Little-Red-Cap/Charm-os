@@ -1,4 +1,4 @@
-﻿        void update_debug_overlay() {
+        void update_debug_overlay() {
 #if CHARM_PLAYER_DEBUG_UI
             if (!access.valid() || !handles.debug_text) return;
             const auto now_ms = charm::system::ClockCaps::TimeSource::now();
@@ -121,6 +121,8 @@
             int seek_sec{0};
             bool select{false};
             int select_index{-1};
+            bool list_action{false};
+            int list_action_index{-1};
         };
 
         void update_progress_drag(int x) {
@@ -141,6 +143,10 @@
 
         #include "player.controller.playback.inc"
         void cycle_list_sort() {
+            close_list_action_menu();
+            if (list_shuffle_enabled) {
+                list_shuffle_enabled = false;
+            }
             list_sort = (list_sort == ListSort::NameAsc) ? ListSort::NameDesc : ListSort::NameAsc;
             refresh_list_view();
         }
@@ -152,8 +158,7 @@
 
         void nav_list(int delta) {
             if (!access.valid() || !handles.list) return;
-            const auto* tracks = storage.tracks;
-            const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            const int count = static_cast<int>(list_order.size());
             if (count <= 0) return;
             int selected = access.list_view_selected(handles.list);
             if (selected < 0) selected = 0;
@@ -166,10 +171,7 @@
         void nav_list_activate() {
             if (!access.valid() || !handles.list) return;
             const int selected = access.list_view_selected(handles.list);
-            const int track_idx = list_index_to_track(selected);
-            if (track_idx >= 0) {
-                select_track_index(track_idx);
-            }
+            activate_list_index(selected);
         }
 
         void sync_eq_values() {
@@ -307,18 +309,39 @@
                 }
                 } else {
                     if (type == Event::Type::MouseUp) {
-                        if (target == handles.bottom_play) {
+                        if (target == handles.list_action_scrim) {
+                            close_list_action_menu();
+                        } else if (target == handles.list_action_primary) {
+                            invoke_list_action_primary();
+                        } else if (target == handles.list_action_secondary) {
+                            invoke_list_action_secondary();
+                        } else if (target == handles.list_action_tertiary) {
+                            invoke_list_action_tertiary();
+                        } else if (target == handles.bottom_play) {
                             actions.toggle_play = true;
                         } else if (target == handles.bottom_next) {
                             actions.next = true;
                         } else if (target == handles.bottom_hit || target == handles.bottom_bar
                                    || target == handles.bottom_cover
                                    || target == handles.bottom_title || target == handles.bottom_subtitle) {
+                            close_list_action_menu();
                             set_page(PlayerPage::NowPlaying);
                         } else if (target == handles.nav_home) {
+                            close_list_action_menu();
                             set_page(PlayerPage::Home);
                         } else if (target == handles.nav_library) {
+                            close_list_action_menu();
                             set_page(PlayerPage::Library);
+                        } else if (target == handles.list_tab_songs) {
+                            set_library_tab(LibraryTab::Songs);
+                        } else if (target == handles.list_tab_albums) {
+                            set_library_tab(LibraryTab::Albums);
+                        } else if (target == handles.list_tab_artist) {
+                            set_library_tab(LibraryTab::Artists);
+                        } else if (target == handles.list_shuffle) {
+                            toggle_library_shuffle();
+                        } else if (target == handles.list_path_hit) {
+                            reset_library_context();
                         } else if (target == handles.list_sort) {
                             cycle_list_sort();
                         }
@@ -331,10 +354,14 @@
                 if (selected >= 0 && selected != last_list_selected) {
                     last_list_selected = selected;
                     if (!ignore_list_select) {
-                        const int track_idx = list_index_to_track(selected);
                         actions.select = true;
-                        actions.select_index = track_idx;
+                        actions.select_index = selected;
                     }
+                }
+                const int action_index = access.consume_list_view_tail_action(handles.list);
+                if (action_index >= 0) {
+                    actions.list_action = true;
+                    actions.list_action_index = action_index;
                 }
             }
 

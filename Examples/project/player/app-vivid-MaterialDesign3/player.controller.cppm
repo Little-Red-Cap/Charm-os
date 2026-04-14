@@ -1,4 +1,4 @@
-﻿module;
+module;
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -24,6 +24,7 @@ import charm.core.handle;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.ui.scene;
+import charm.ui.scene.pill_surface;
 import charm.font.typography;
 import charm.system.clock;
 import player.playback;
@@ -72,6 +73,12 @@ export namespace player {
         Home,
         NowPlaying,
         Library,
+    };
+
+    enum class LibraryTab : std::uint8_t {
+        Songs,
+        Albums,
+        Artists,
     };
 
     enum class ListSort : std::uint8_t {
@@ -142,11 +149,23 @@ export namespace player {
         WidgetHandle clip_slider{};
         WidgetHandle clip_value{};
         WidgetHandle list{};
+        WidgetHandle list_tab_songs{};
+        WidgetHandle list_tab_albums{};
+        WidgetHandle list_tab_artist{};
+        WidgetHandle list_shuffle{};
         WidgetHandle list_title{};
+        WidgetHandle list_path_bg{};
         WidgetHandle list_path{};
+        WidgetHandle list_path_hit{};
         WidgetHandle list_sort{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
+        WidgetHandle list_action_scrim{};
+        WidgetHandle list_action_card{};
+        WidgetHandle list_action_title{};
+        WidgetHandle list_action_primary{};
+        WidgetHandle list_action_secondary{};
+        WidgetHandle list_action_tertiary{};
         WidgetHandle mode_hint{};
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};
@@ -210,8 +229,20 @@ export namespace player {
         int last_list_count{-1};
         bool ignore_list_select{false};
         int last_list_selected{-1};
+        bool list_action_menu_open{false};
+        int list_action_menu_index{-1};
+        LibraryTab library_tab{LibraryTab::Songs};
+        FixedString<192> library_context_key{};
         ListSort list_sort{ListSort::NameAsc};
+        bool list_shuffle_enabled{false};
+        std::uint32_t list_shuffle_seed{0};
         std::vector<int> list_order{};
+        std::vector<FixedString<192>> list_display_titles{};
+        std::vector<FixedString<128>> list_display_subtitles{};
+        std::vector<FixedString<32>> list_display_tails{};
+        std::vector<int> track_duration_cache_sec{};
+        std::size_t list_duration_probe_cursor{0};
+        std::uint64_t last_list_duration_probe_ms{0};
         std::vector<FixedString<260>> list_cover_paths{};
         struct ListCoverCacheEntry {
             FixedString<260> path{};
@@ -572,6 +603,20 @@ export namespace player {
                 if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return "FLAC";
             }
             return {};
+        }
+
+        static void format_duration_compact(int total_sec, char* out, std::size_t out_size) noexcept {
+            if (!out || out_size == 0) return;
+            out[0] = '\0';
+            if (total_sec <= 0) return;
+            const int hours = total_sec / 3600;
+            const int minutes = (total_sec / 60) % 60;
+            const int seconds = total_sec % 60;
+            if (hours > 0) {
+                std::snprintf(out, out_size, "%d:%02d:%02d", hours, minutes, seconds);
+            } else {
+                std::snprintf(out, out_size, "%d:%02d", total_sec / 60, seconds);
+            }
         }
 
         static std::uint64_t query_track_size(const char* path) noexcept {

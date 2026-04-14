@@ -26,11 +26,11 @@
 - 提供嵌套绑定栈，支撑父程序内再 `spawn` 子程序的场景。
 - 提供 `ProcessBinding<Api>`，把 `push_process/pop_process` 与 runtime 绑定一起接到 `ProcService::bind_process_runtime_hooks(...)`。
 - 对用户程序暴露最小 facade：
-  - `read/write/open/close/pipe`
+  - `read/write/open/close/dup/dup2/fcntl(F_DUPFD/F_GETFD/F_SETFD/F_GETFL/F_SETFL)/pipe`
   - `fstat/isatty/lseek`
   - `spawn/spawnp/waitpid/kill/list_processes/getpid`
   - `sleep`
-  - `mkdir/unlink/rmdir/rename/opendir/readdir/closedir`
+  - `mkdir/unlink/rmdir/rename/opendir/readdir/closedir/chdir/getcwd`
 - 对用户程序暴露最小 startup context facade：
   - `argc()/argv()/envp()`
   - `argv0()/arg(index)`
@@ -97,6 +97,8 @@
 - `_write`：成功返回写入字节数；失败返回 `-1` 并设置 `errno`。
 - `_isatty`：TTY 返回 `1`；有效的 non-tty 返回 `0` 且保持 `errno` 不变；无效 fd 返回 `0` 并设置错误。
 - `_fstat`：v0 至少保证类型位与 `size` 稳定；`term -> S_IFCHR`、`pipe -> S_IFIFO`、regular file -> `S_IFREG`。
+- `pipe/fcntl(F_GETFL/F_SETFL)`：当前 v0 pipe 先固定为 eager nonblocking 语义；空管道且仍有 writer 时 `read -> -1/EAGAIN`，满管道且仍有 reader 时 `write -> -1/EAGAIN`，writer 全部关闭后仍保持 `read -> 0`；`O_NONBLOCK` 先作为稳定可观察、dup 共享的状态位，而不是未来阻塞调度语义的承诺。
+- `term/fcntl(F_GETFL/F_SETFL)`：当前 v0 terminal 先只承诺稳定的状态位外观，不承诺真实阻塞调度；`stdin/stdout/stderr` 各自维持独立的 open-file-description 状态，而 `/dev/tty`、`/dev/stderr` 这类 alias 会继承并共享其源 fd 的 `O_NONBLOCK`。
 - `_stat`：当前最小桥面也保证目录路径可稳定返回 `S_IFDIR`；目录 `size` 先统一收敛为 `0`。
 - `_access`：当前最小桥面基于 `stat.mode` 的权限位做路径检查；`F_OK` 检查存在性，`R_OK/W_OK/X_OK` 分别按 `0444/0222/0111` 掩码收敛，不引入 uid/gid/ACL 语义。
 - `_rmdir`：当前最小桥面只删除空目录；对文件路径返回 `ENOTDIR`，对非空目录返回 `ENOTEMPTY`，并明确把“删除目录”从 `unlink` 路径中分离出来。
@@ -113,6 +115,6 @@
 
 ### 当前已落地的最小桥面
 
-- I/O / 进程 / offset：`_read`、`_write`、`_close`、`_open`、`_fstat`、`_stat`、`_isatty`、`_lseek`、`_getpid`、`_kill`
-- 路径基础：`_unlink`、`_mkdir`、`_rmdir`、`_rename`、`_access`
+- I/O / 进程 / offset：`_read`、`_write`、`_close`、`_open`、`_fstat`、`_stat`、`_isatty`、`_lseek`、`_getpid`、`_kill`、`_fcntl(F_DUPFD/F_GETFD/F_SETFD/F_GETFL/F_SETFL)`
+- 路径基础：`_unlink`、`_mkdir`、`_rmdir`、`_rename`、`_access`、`chdir/getcwd`
 - `FILE*` 级验证目前保持为独立 QEMU 烟测目标，避免把全局 stdio/newlib 状态耦合进主 POSIX 回归套件。

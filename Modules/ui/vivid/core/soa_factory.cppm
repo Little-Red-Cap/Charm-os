@@ -414,6 +414,26 @@ public:
                                        soa_detail::ListViewSubtitleFn fn) noexcept {
         kernel_.set_list_view_subtitle_source(h, ctx, fn);
     }
+    void set_list_view_tail_source(WidgetHandle h,
+                                   const void* ctx,
+                                   soa_detail::ListViewTailFn fn) noexcept {
+        kernel_.set_list_view_tail_source(h, ctx, fn);
+    }
+    void set_list_view_tail_icon_source(WidgetHandle h,
+                                        const void* ctx,
+                                        soa_detail::ListViewIconFn fn,
+                                        std::uint8_t icon_size = 0) noexcept {
+        kernel_.set_list_view_tail_icon_source(h, ctx, fn, icon_size);
+    }
+    void set_list_view_tail_action_icon_source(WidgetHandle h,
+                                               const void* ctx,
+                                               soa_detail::ListViewIconFn fn,
+                                               std::uint8_t icon_size = 0) noexcept {
+        kernel_.set_list_view_tail_action_icon_source(h, ctx, fn, icon_size);
+    }
+    void set_list_view_icon_corner_radius(WidgetHandle h, std::uint8_t radius) noexcept {
+        kernel_.set_list_view_icon_corner_radius(h, radius);
+    }
     void set_list_view_icon_source(WidgetHandle h,
                                    const void* ctx,
                                    soa_detail::ListViewIconFn fn,

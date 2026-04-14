@@ -68,6 +68,8 @@ export namespace posix {
         util::Result<void> (*stat)(void* ctx, PosixStat& out) noexcept {nullptr};
         util::Result<void> (*dup)(void* ctx) noexcept {nullptr};
         util::Result<util::i64> (*seek)(void* ctx, util::i64 offset, int whence) noexcept {nullptr};
+        util::Result<int> (*get_status_flags)(void* ctx) noexcept {nullptr};
+        util::Result<void> (*set_status_flags)(void* ctx, int flags) noexcept {nullptr};
     };
 
     struct FdEntry {
@@ -170,9 +172,38 @@ export namespace posix {
             }
             FdEntry copy = *src;
             copy.id = to;
+            copy.inheritable = true;
             slots_[static_cast<util::usize>(to)] = copy;
             used_[static_cast<util::usize>(to)] = true;
             return {};
+        }
+
+        util::Result<int> dup(int from) noexcept {
+            return dup(from, 0);
+        }
+
+        util::Result<int> dup(int from, int min_fd) noexcept {
+            auto* src = get_ptr(from);
+            if (!src) {
+                return util::unexpected(util::Errc::noent);
+            }
+            if (min_fd < 0 || static_cast<util::usize>(min_fd) >= MaxFds) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = static_cast<util::usize>(min_fd); i < MaxFds; ++i) {
+                if (used_[i]) continue;
+                if (src->ops && src->ops->dup) {
+                    auto rdup = src->ops->dup(src->ctx);
+                    if (!rdup) return util::unexpected(rdup.error());
+                }
+                FdEntry copy = *src;
+                copy.id = static_cast<int>(i);
+                copy.inheritable = true;
+                slots_[i] = copy;
+                used_[i] = true;
+                return copy.id;
+            }
+            return util::unexpected(util::Errc::buffer_overflow);
         }
 
         util::Result<FdEntry*> get(int fd) noexcept {

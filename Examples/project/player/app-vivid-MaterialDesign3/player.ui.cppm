@@ -712,15 +712,16 @@ export namespace player::ui {
     }
 
     inline void apply_player_theme() {
+        set_default_font(FontId::Small, &font_noto_ascii_12);
+        set_default_font(FontId::Normal, &font_noto_ascii_16);
+        set_default_font(FontId::Large, &font_noto_ascii_16);
+        set_default_font(FontId::Mono, &font_noto_ascii_16);
+        set_default_font_weight(FontId::Small, FontWeight::Regular, &font_noto_ascii_12);
+        set_default_font_weight(FontId::Normal, FontWeight::Regular, &font_noto_ascii_16);
+        set_default_font_weight(FontId::Large, FontWeight::Regular, &font_noto_ascii_16);
+        set_default_font_weight(FontId::Mono, FontWeight::Regular, &font_noto_ascii_16);
+
         if (!font_package_bound()) {
-            set_default_font(FontId::Small, &font_noto_ascii_12);
-            set_default_font(FontId::Normal, &font_noto_ascii_16);
-            set_default_font(FontId::Large, &font_noto_ascii_16);
-            set_default_font(FontId::Mono, &font_noto_ascii_16);
-            set_default_font_weight(FontId::Small, FontWeight::Regular, &font_noto_ascii_12);
-            set_default_font_weight(FontId::Normal, FontWeight::Regular, &font_noto_ascii_16);
-            set_default_font_weight(FontId::Large, FontWeight::Regular, &font_noto_ascii_16);
-            set_default_font_weight(FontId::Mono, FontWeight::Regular, &font_noto_ascii_16);
             if (!player::font_cache::init()) {
                 set_default_fallback_font(&font_noto_sc_16);
             }

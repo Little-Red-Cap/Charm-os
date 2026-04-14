@@ -536,6 +536,195 @@ namespace {
         check_true("sh2-sleep-clock", sleep_after >= sleep_before + 2000);
     }
 
+    void test_sh_c_relative_redir_uses_cwd() noexcept {
+        fs::clear_mounts();
+        RamFsMount<64, 32, 64> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("sh-cwd-mount", st);
+
+        Harness h{};
+        const auto path_env = program_path_env();
+        auto reg_echo = h.procs.register_executable("/bin/echo", &echo_main);
+        check_true("sh-cwd-register-echo", reg_echo);
+        auto reg_sh = h.procs.register_executable("/bin/sh", &sh_main);
+        check_true("sh-cwd-register-sh", reg_sh);
+
+        check_eq("sh-cwd-mkdir-work", h.api.mkdir("/work"), 0);
+
+        const char* argv[] = {"sh", "-c", "echo hi > out.txt", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "sh";
+        cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.envp = path_env;
+        cfg.cwd = "/work";
+
+        int pid = h.api.spawnp(cfg);
+        check_true("sh-cwd-spawn", pid > 0);
+        int status = 0;
+        check_eq("sh-cwd-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("sh-cwd-status", (status >> 8) & 0xff, 0);
+
+        int rfd = h.api.open("/work/out.txt", posix::O_RDONLY, 0);
+        check_true("sh-cwd-open-work", rfd >= 0);
+        std::array<char, 16> buf{};
+        auto r = h.api.read(rfd, buf.data(), buf.size());
+        check_true("sh-cwd-read-len", r >= 3);
+        check_eq("sh-cwd-read-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        (void)h.api.close(rfd);
+
+        check_true("sh-cwd-root-not-created", h.api.open("/out.txt", posix::O_RDONLY, 0) < 0);
+    }
+
+    void test_sh_c_cd_sequence_uses_cwd() noexcept {
+        fs::clear_mounts();
+        RamFsMount<64, 32, 64> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("sh-cd-mount", st);
+
+        Harness h{};
+        const auto path_env = program_path_env();
+        auto reg_echo = h.procs.register_executable("/bin/echo", &echo_main);
+        check_true("sh-cd-register-echo", reg_echo);
+        auto reg_sh = h.procs.register_executable("/bin/sh", &sh_main);
+        check_true("sh-cd-register-sh", reg_sh);
+
+        check_eq("sh-cd-mkdir-work", h.api.mkdir("/work"), 0);
+
+        const char* argv[] = {"sh", "-c", "cd /work; echo hi > inner.txt", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "sh";
+        cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.envp = path_env;
+
+        int pid = h.api.spawnp(cfg);
+        check_true("sh-cd-spawn", pid > 0);
+        int status = 0;
+        check_eq("sh-cd-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("sh-cd-status", (status >> 8) & 0xff, 0);
+
+        int rfd = h.api.open("/work/inner.txt", posix::O_RDONLY, 0);
+        check_true("sh-cd-open-work", rfd >= 0);
+        std::array<char, 16> buf{};
+        auto r = h.api.read(rfd, buf.data(), buf.size());
+        check_true("sh-cd-read-len", r >= 3);
+        check_eq("sh-cd-read-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        (void)h.api.close(rfd);
+
+        check_true("sh-cd-root-not-created", h.api.open("/inner.txt", posix::O_RDONLY, 0) < 0);
+    }
+
+    void test_busybox_relative_args_and_ls_use_cwd() noexcept {
+        fs::clear_mounts();
+        RamFsMount<64, 32, 64> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("bb-cwd-mount", st);
+
+        Harness h{};
+        const auto path_env = program_path_env();
+        auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
+        check_true("bb-cwd-register-busybox", reg_busybox);
+
+        check_eq("bb-cwd-mkdir-work", h.api.mkdir("/work"), 0);
+
+        const char* mkdir_argv[] = {"busybox", "mkdir", "sub", nullptr};
+        posix::SpawnConfig mkdir_cfg{};
+        mkdir_cfg.path = "busybox";
+        mkdir_cfg.argv = std::span<const char* const>(mkdir_argv, 3);
+        mkdir_cfg.envp = path_env;
+        mkdir_cfg.cwd = "/work";
+
+        int mkdir_pid = h.api.spawnp(mkdir_cfg);
+        check_true("bb-cwd-mkdir-spawn", mkdir_pid > 0);
+        int mkdir_status = 0;
+        check_eq("bb-cwd-mkdir-waitpid", h.api.waitpid(posix::ProcessId{mkdir_pid}, &mkdir_status, 0), mkdir_pid);
+        check_eq("bb-cwd-mkdir-status", (mkdir_status >> 8) & 0xff, 0);
+
+        auto* sub_dir = h.api.opendir("/work/sub");
+        check_true("bb-cwd-sub-open", sub_dir != nullptr);
+        if (sub_dir) {
+            check_eq("bb-cwd-sub-close", h.api.closedir(sub_dir), 0);
+        }
+
+        int pipefd[2]{-1, -1};
+        check_eq("bb-cwd-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("bb-cwd-move-read", h.fds.dup2(read_fd, 14));
+            read_fd = 14;
+        }
+
+        const char* ls_argv[] = {"busybox", "ls", nullptr};
+        posix::SpawnConfig ls_cfg{};
+        ls_cfg.path = "busybox";
+        ls_cfg.argv = std::span<const char* const>(ls_argv, 2);
+        ls_cfg.envp = path_env;
+        ls_cfg.cwd = "/work";
+        ls_cfg.stdio_out = pipefd[1];
+
+        int ls_pid = h.api.spawnp(ls_cfg);
+        check_true("bb-cwd-ls-spawn", ls_pid > 0);
+        int ls_status = 0;
+        check_eq("bb-cwd-ls-waitpid", h.api.waitpid(posix::ProcessId{ls_pid}, &ls_status, 0), ls_pid);
+        check_eq("bb-cwd-ls-status", (ls_status >> 8) & 0xff, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+
+        std::array<char, 64> buf{};
+        auto r = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("bb-cwd-ls-read-len", r > 0);
+        const auto text = std::string_view{buf.data(), static_cast<util::usize>(r)};
+        check_true("bb-cwd-ls-has-sub", text.find("sub\n") != std::string_view::npos);
+        check_true("bb-cwd-ls-not-root", text.find("work\n") == std::string_view::npos);
+    }
+
+    void test_busybox_pwd_uses_cwd() noexcept {
+        fs::clear_mounts();
+        RamFsMount<64, 32, 64> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("bb-pwd-mount", st);
+
+        Harness h{};
+        const auto path_env = program_path_env();
+        auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
+        check_true("bb-pwd-register-busybox", reg_busybox);
+
+        check_eq("bb-pwd-mkdir-work", h.api.mkdir("/work"), 0);
+        check_eq("bb-pwd-mkdir-sub", h.api.mkdir("/work/sub"), 0);
+
+        int pipefd[2]{-1, -1};
+        check_eq("bb-pwd-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("bb-pwd-move-read", h.fds.dup2(read_fd, 15));
+            read_fd = 15;
+        }
+
+        const char* argv[] = {"busybox", "pwd", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "busybox";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.envp = path_env;
+        cfg.cwd = "/work/sub";
+        cfg.stdio_out = pipefd[1];
+
+        int pid = h.api.spawnp(cfg);
+        check_true("bb-pwd-spawn", pid > 0);
+        int status = 0;
+        check_eq("bb-pwd-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("bb-pwd-status", (status >> 8) & 0xff, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+
+        std::array<char, 32> buf{};
+        auto r = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("bb-pwd-read-len", r > 0);
+        check_eq("bb-pwd-text",
+                 std::string_view{buf.data(), static_cast<util::usize>(r)},
+                 std::string_view{"/work/sub\n"});
+    }
+
     void test_busybox_sh_by_argv0() noexcept {
         Harness h{};
         const auto path_env = program_path_env();
@@ -802,6 +991,10 @@ export void run_posix_program_shell_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase sh-redir-pipe begin");
     test_sh_c_redir_and_pipe();
     log_line("[posix-smoke] programs phase sh-redir-pipe end");
+    log_line("[posix-smoke] programs phase sh-cwd begin");
+    test_sh_c_relative_redir_uses_cwd();
+    test_sh_c_cd_sequence_uses_cwd();
+    log_line("[posix-smoke] programs phase sh-cwd end");
     log_line("[posix-smoke] programs phase sh-ps begin");
     test_sh_c_ps();
     log_line("[posix-smoke] programs phase sh-ps end");
@@ -812,6 +1005,8 @@ export void run_posix_program_shell_smoke_tests() noexcept {
     test_busybox_sh_by_argv0();
     log_line("[posix-smoke] programs phase busybox-argv0 end");
     log_line("[posix-smoke] programs phase busybox-dispatch begin");
+    test_busybox_relative_args_and_ls_use_cwd();
+    test_busybox_pwd_uses_cwd();
     test_busybox_sh_via_busybox();
     test_busybox_ps_via_busybox();
     test_busybox_sleep_via_busybox();

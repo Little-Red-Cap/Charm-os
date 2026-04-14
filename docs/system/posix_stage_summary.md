@@ -74,7 +74,7 @@
 - API smoke now validates the minimum append contract directly with `O_APPEND`
 - API smoke now validates bound-process `getpid()`, and real ELF smoke validates `getpid()` against the spawned pid value
 - API smoke now validates `sleep(0/1)`, shell smoke validates `/bin/sleep` through `sh -c 'sleep 2'` with test-clock advancement, and real ELF smoke validates `elfmem:sleep 2`
-- real ELF smoke now also validates `elfmem:kill_self`: user code enters, emits `before-kill`, then `waitpid()` reports `signaled(SIGTERM)`
+- real ELF smoke now also validates `elfmem:kill_self` across `SIGTERM` / `SIGINT` / `SIGKILL`: user code enters, emits `before-kill`, then `waitpid()` reports the selected signal
 - proc/api smoke now validate the minimum `kill v0` contract across `SIGTERM` / `SIGINT` / `SIGKILL`: kill-on-enter prevents target execution, `waitpid()` reports `signaled`, and API wait status encodes the delivered signal in the low bits
 - shell smoke now validates `sh -c 'ps'`, and the current minimal view exposes `pid/state/name` for the live shell + child process set
 - shell smoke now also validates `sh -c 'kill <pid>'`, `sh -c 'kill -INT <pid>'`, and `sh -c 'kill -KILL <pid>'` through `/bin/kill`, with the target remaining unentered and `waitpid()` still reporting the selected signal

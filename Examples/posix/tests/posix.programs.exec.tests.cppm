@@ -1526,23 +1526,37 @@ namespace {
         }
 
         {
-            int pipefd[2]{-1, -1};
-            check_eq("elf-real-kill-self-pipe", h.api.pipe(pipefd), 0);
-            const char* argv[] = {"elfmem:kill_self", nullptr};
-            posix::SpawnConfig cfg{};
-            cfg.path = "elfmem:kill_self";
-            cfg.argv = std::span<const char* const>(argv, 1);
-            cfg.stdio_out = pipefd[1];
-            auto sp = spawn_checked("elf-real-kill-self-spawn", cfg);
-            auto st = h.procs.waitpid(sp.pid, 0);
-            check_true("elf-real-kill-self-wait", st);
-            check_eq("elf-real-kill-self-kind", st.value().kind, posix::WaitKind::signaled);
-            check_eq("elf-real-kill-self-code", st.value().code, posix::SIGTERM);
-            (void)h.api.close(pipefd[1]);
-            std::array<char, 32> buf{};
-            util::usize out_size = 0;
-            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
-            check_eq("elf-real-kill-self-out", out, std::string_view{"before-kill\n"});
+            const auto run_kill_case = [&](const char* prefix, const char* signal_arg, int expected_signal) noexcept {
+                int pipefd[2]{-1, -1};
+                std::array<char, 64> label_buf{};
+                const auto label = [&](const char* suffix) noexcept -> const char* {
+                    std::snprintf(label_buf.data(), label_buf.size(), "%s-%s", prefix, suffix);
+                    return label_buf.data();
+                };
+
+                check_eq(label("pipe"), h.api.pipe(pipefd), 0);
+                const char* argv[] = {"elfmem:kill_self", signal_arg, nullptr};
+                posix::SpawnConfig cfg{};
+                cfg.path = "elfmem:kill_self";
+                cfg.argv = signal_arg != nullptr ? std::span<const char* const>(argv, 2)
+                                                 : std::span<const char* const>(argv, 1);
+                cfg.stdio_out = pipefd[1];
+
+                auto sp = spawn_checked(label("spawn"), cfg);
+                auto st = h.procs.waitpid(sp.pid, 0);
+                check_true(label("wait"), st);
+                check_eq(label("kind"), st.value().kind, posix::WaitKind::signaled);
+                check_eq(label("code"), st.value().code, expected_signal);
+                (void)h.api.close(pipefd[1]);
+                std::array<char, 32> buf{};
+                util::usize out_size = 0;
+                auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+                check_eq(label("out"), out, std::string_view{"before-kill\n"});
+            };
+
+            run_kill_case("elf-real-kill-self-term", nullptr, posix::SIGTERM);
+            run_kill_case("elf-real-kill-self-int", "INT", posix::SIGINT);
+            run_kill_case("elf-real-kill-self-kill", "KILL", posix::SIGKILL);
         }
 
         h.procs.enable_elf_hostcalls(false);

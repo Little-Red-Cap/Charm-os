@@ -188,6 +188,32 @@ namespace {
         nullptr
     };
 
+    inline constexpr char kTooLongDirEntryName[] =
+        "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+        "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn";
+
+    fs::Status toolong_mount_list(fs::Mount*, std::string_view path, void* ctx, fs::MountOps::ListFn fn) noexcept {
+        if (path != "names" && path != "/names") {
+            return fs::Status{fs::Errc::noent};
+        }
+        fs::MountOps::ListEntry entry{};
+        entry.name = std::string_view{kTooLongDirEntryName, 64};
+        entry.type = fs::NodeType::file;
+        entry.size = 1;
+        return fn ? fn(ctx, entry) : fs::Status{fs::Errc::inval};
+    }
+
+    fs::MountOps toolong_dir_mount_ops{
+        &dummy_mount_open,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        &toolong_mount_list
+    };
+
     struct ChannelStubCtx {
         util::usize last_write{0};
     };
@@ -883,6 +909,62 @@ namespace {
 
         check_eq("dirlimit-closedir-a", api.closedir(a_dir), 0);
         check_eq("dirlimit-closedir-b", api.closedir(b_dir), 0);
+    }
+
+    void test_api_dir_entry_capacity_limit() noexcept {
+        fs::clear_mounts();
+        ApiRamFsMount<64, 32, 64> ramfs{};
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("dircap-mount", mount_st);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<8> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 8> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 8, 128, 16, 16, 256, 4096, 4096, 4, 1> api{fds, files, pipes, procs};
+
+        check_eq("dircap-mkdir", api.mkdir("/crowded"), 0);
+
+        int fd = api.open("/crowded/a.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("dircap-open-a", fd >= 0);
+        check_eq("dircap-close-a", api.close(fd), 0);
+
+        fd = api.open("/crowded/b.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("dircap-open-b", fd >= 0);
+        check_eq("dircap-close-b", api.close(fd), 0);
+
+        posix::set_errno(0);
+        check_true("dircap-opendir-overflow", api.opendir("/crowded") == nullptr);
+        check_eq("dircap-opendir-overflow-errno", posix::get_errno(), posix::ENOMEM);
+    }
+
+    void test_api_dir_entry_name_limit() noexcept {
+        fs::clear_mounts();
+        fs::Mount mount{};
+        mount.ops = &toolong_dir_mount_ops;
+        mount.data = nullptr;
+        auto mount_st = fs::add_mount("", &mount);
+        check_true("dirname-mount", mount_st);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<8> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 8> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 8> api{fds, files, pipes, procs};
+
+        posix::set_errno(0);
+        check_true("dirname-opendir-toolong", api.opendir("/names") == nullptr);
+        check_eq("dirname-opendir-toolong-errno", posix::get_errno(), posix::ENAMETOOLONG);
     }
 
     void test_api_dev_null_and_isatty() noexcept {
@@ -1977,6 +2059,8 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_kill();
     test_api_fs_basics_and_readdir();
     test_api_dir_handle_limits();
+    test_api_dir_entry_capacity_limit();
+    test_api_dir_entry_name_limit();
     test_api_dev_null_and_isatty();
     test_api_dup();
     test_api_dup2_bridge();

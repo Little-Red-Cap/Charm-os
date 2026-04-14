@@ -155,6 +155,13 @@ export namespace net {
         }
 
     private:
+        [[nodiscard]] static constexpr util::u32 all_reactor_events() noexcept {
+            return static_cast<util::u32>(io::Event::readable)
+                | static_cast<util::u32>(io::Event::writable)
+                | static_cast<util::u32>(io::Event::closed)
+                | static_cast<util::u32>(io::Event::error);
+        }
+
         static void on_event(void* ctx, io::Channel& ch, util::u32 events) noexcept {
             auto* self = static_cast<ReactorSocketDriver*>(ctx);
             if (self) {
@@ -176,37 +183,47 @@ export namespace net {
         }
 
         void handle(io::Channel& ch, util::u32 events) noexcept {
-            if ((events & static_cast<util::u32>(io::Event::error)) != 0u) {
-                last_error_ = errc::io;
-                notify_transport_error();
-            }
-
-            if ((events & static_cast<util::u32>(io::Event::closed)) != 0u) {
-                closed_ = true;
-                notify_transport_closed();
-            }
-
             if ((events & static_cast<util::u32>(io::Event::readable)) != 0u) {
-                for (int i = 0; i < rx_budget_; ++i) {
-                    auto r = ch.read(io::MutByteView{rx_buf_.data(), rx_buf_.size()});
-                    if (!r) {
-                        if (r.error() == io::errc::would_block) {
-                            break;
-                        }
-                        last_error_ = static_cast<errc>(r.error());
-                        notify_transport_error();
-                        return;
-                    }
-                    session_.feed(ByteView{rx_buf_.data(), r.value()});
+                auto read_ok = handle_readable(ch);
+                if (!read_ok) {
+                    return;
                 }
-                flush_tx();
-                session_.notify_writable();
             }
 
             if ((events & static_cast<util::u32>(io::Event::writable)) != 0u) {
                 flush_tx();
                 session_.notify_writable();
             }
+
+            if ((events & static_cast<util::u32>(io::Event::closed)) != 0u) {
+                mark_closed();
+                return;
+            }
+
+            if ((events & static_cast<util::u32>(io::Event::error)) != 0u) {
+                mark_error(errc::io);
+            }
+        }
+
+        [[nodiscard]] bool handle_readable(io::Channel& ch) noexcept {
+            for (int i = 0; i < rx_budget_; ++i) {
+                auto r = ch.read(io::MutByteView{rx_buf_.data(), rx_buf_.size()});
+                if (!r) {
+                    if (r.error() == io::errc::would_block) {
+                        break;
+                    }
+                    if (r.error() == io::errc::closed || r.error() == io::errc::end_of_stream) {
+                        mark_closed();
+                        return false;
+                    }
+                    mark_error(static_cast<errc>(r.error()));
+                    return false;
+                }
+                session_.feed(ByteView{rx_buf_.data(), r.value()});
+            }
+            flush_tx();
+            session_.notify_writable();
+            return true;
         }
 
         void flush_tx() noexcept {
@@ -227,11 +244,12 @@ export namespace net {
                         (void)arm_writable();
                         return;
                     }
-                    last_error_ = static_cast<errc>(w.error());
-                    notify_transport_error();
-                    pending_len_ = 0;
-                    pending_off_ = 0;
-                    tx_.clear();
+                    clear_tx_pending();
+                    if (w.error() == io::errc::closed || w.error() == io::errc::end_of_stream) {
+                        mark_closed();
+                    } else {
+                        mark_error(static_cast<errc>(w.error()));
+                    }
                     return;
                 }
 
@@ -248,6 +266,36 @@ export namespace net {
             if (pending_len_ != 0 || !tx_.empty()) {
                 (void)arm_writable();
             }
+        }
+
+        void clear_tx_pending() noexcept {
+            pending_len_ = 0;
+            pending_off_ = 0;
+            tx_.clear();
+        }
+
+        void quiet_watch() noexcept {
+            if (!watch_) {
+                return;
+            }
+            (void)poller_.set_interest(watch_, 0);
+            (void)poller_.disarm(watch_, all_reactor_events());
+        }
+
+        void mark_closed() noexcept {
+            if (closed_) {
+                return;
+            }
+            closed_ = true;
+            last_error_ = errc::closed;
+            quiet_watch();
+            notify_transport_closed();
+        }
+
+        void mark_error(errc error) noexcept {
+            last_error_ = error;
+            quiet_watch();
+            notify_transport_error();
         }
 
         void notify_transport_closed() noexcept {

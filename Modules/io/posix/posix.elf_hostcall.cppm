@@ -127,7 +127,7 @@ export namespace posix {
                 set_exec_errno(util::Errc::bad_state);
                 return -1;
             }
-            auto entry = service->open_exec_file(std::string_view{path}, flags, mode);
+            auto entry = service->open_process_file(ProcessId{ctx->pid_value}, std::string_view{path}, flags, mode);
             if (!entry) {
                 set_exec_errno(entry.error());
                 return -1;

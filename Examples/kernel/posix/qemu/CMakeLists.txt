@@ -7,14 +7,15 @@ set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 set(CMAKE_CXX_STANDARD 26)
 include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
 charm_add_config_interface(charm_cfg_kernel_posix_qemu
+    POSIX_HEADERS
     COMPILE_DEFINITIONS POSIX_TEST_BUILD=1)
-set(CHARM_CONFIG_TARGETS charm_cfg_kernel_posix_qemu)
 
 set(qemu_runtime_sources
     startup.cpp
     posix_newlib_syscall_bridge.cpp
     posix_newlib_syscall_smoke.c
     posix_user_crt_c_header_smoke.c
+    posix_user_fs_c_header_smoke.c
 )
 
 set(qemu_full_modules
@@ -47,10 +48,9 @@ set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
-unset(CHARM_CONFIG_TARGETS)
-target_link_libraries(${target_name} PRIVATE
-    Charm-os
-    charm_cfg_kernel_posix_qemu)
+target_link_libraries(${target_name} PRIVATE Charm-os)
+charm_apply_config_targets(Charm-build-config charm_cfg_kernel_posix_qemu)
+charm_apply_config_targets(${target_name} charm_cfg_kernel_posix_qemu)
 target_compile_definitions(${target_name} PRIVATE
     POSIX_SMOKE_USE_UART=1
     POSIX_ERRNO_SMOKE_TEST=1
@@ -75,9 +75,8 @@ add_executable(${stdio_target_name}
     ${qemu_runtime_sources}
 )
 
-target_link_libraries(${stdio_target_name} PRIVATE
-    Charm-os
-    charm_cfg_kernel_posix_qemu)
+target_link_libraries(${stdio_target_name} PRIVATE Charm-os)
+charm_apply_config_targets(${stdio_target_name} charm_cfg_kernel_posix_qemu)
 target_compile_definitions(${stdio_target_name} PRIVATE
     POSIX_SMOKE_USE_UART=1
     POSIX_PROGRAMS_SMOKE_TEST=1

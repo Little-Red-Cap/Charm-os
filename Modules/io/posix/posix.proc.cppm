@@ -276,6 +276,26 @@ export namespace posix {
             return file_service_->open(path, flags, mode);
         }
 
+        util::Result<FdEntry> open_process_file(ProcessId pid,
+                                                std::string_view path,
+                                                int flags,
+                                                int mode = 0) noexcept {
+            if (!file_service_) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            auto* proc = find_proc(pid);
+            if (!proc) {
+                return util::unexpected(util::Errc::noent);
+            }
+            std::array<char, MaxPathLen> resolved{};
+            const auto base_cwd = proc->cwd[0] != '\0' ? std::string_view{proc->cwd.data()} : root_cwd();
+            auto resolved_path = resolve_path(base_cwd, path, resolved);
+            if (!resolved_path) {
+                return util::unexpected(resolved_path.error());
+            }
+            return file_service_->open(resolved_path.value(), flags, mode);
+        }
+
         void close_exec_entry(const FdEntry& entry) noexcept {
             if (entry.ops && entry.ops->close) {
                 (void)entry.ops->close(entry.ctx);
@@ -301,6 +321,73 @@ export namespace posix {
             return std::string_view{"/"};
         }
 
+        static void reset_path_storage(std::array<char, MaxPathLen>& storage) noexcept {
+            storage = {};
+            storage[0] = '/';
+        }
+
+        static void pop_component(std::array<char, MaxPathLen>& storage, util::usize& size) noexcept {
+            if (size <= 1) {
+                size = 1;
+                storage[0] = '/';
+                return;
+            }
+            while (size > 1 && storage[size - 1] != '/') {
+                --size;
+            }
+            if (size > 1) {
+                --size;
+            }
+        }
+
+        static util::Result<void> append_component(std::array<char, MaxPathLen>& storage,
+                                                   util::usize& size,
+                                                   std::string_view component) noexcept {
+            if (component.empty() || component == ".") {
+                return {};
+            }
+            if (component == "..") {
+                pop_component(storage, size);
+                return {};
+            }
+            if (size > 1) {
+                if (size + 1 >= MaxPathLen) {
+                    return util::unexpected(util::Errc::nametoolong);
+                }
+                storage[size++] = '/';
+            }
+            if (size + component.size() >= MaxPathLen) {
+                return util::unexpected(util::Errc::nametoolong);
+            }
+            for (char ch : component) {
+                storage[size++] = ch;
+            }
+            return {};
+        }
+
+        static util::Result<void> append_path_components(std::array<char, MaxPathLen>& storage,
+                                                         util::usize& size,
+                                                         std::string_view path) noexcept {
+            util::usize start = 0;
+            while (start < path.size()) {
+                while (start < path.size() && fs::is_sep(path[start])) {
+                    ++start;
+                }
+                util::usize end = start;
+                while (end < path.size() && !fs::is_sep(path[end])) {
+                    ++end;
+                }
+                if (end > start) {
+                    auto step = append_component(storage, size, path.substr(start, end - start));
+                    if (!step) {
+                        return step;
+                    }
+                }
+                start = end + 1;
+            }
+            return {};
+        }
+
         static util::Result<void> copy_cwd(std::string_view src,
                                            std::array<char, MaxPathLen>& dst) noexcept {
             if (src.empty()) {
@@ -322,6 +409,28 @@ export namespace posix {
             }
             dst[len] = '\0';
             return {};
+        }
+
+        static util::Result<std::string_view> resolve_path(std::string_view cwd_path,
+                                                           std::string_view input,
+                                                           std::array<char, MaxPathLen>& storage) noexcept {
+            if (input.empty()) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            util::usize size = 1;
+            reset_path_storage(storage);
+            if (!fs::is_sep(input.front())) {
+                auto status = append_path_components(storage, size, cwd_path.empty() ? root_cwd() : cwd_path);
+                if (!status) {
+                    return util::unexpected(status.error());
+                }
+            }
+            auto status = append_path_components(storage, size, input);
+            if (!status) {
+                return util::unexpected(status.error());
+            }
+            storage[size] = '\0';
+            return std::string_view{storage.data(), size};
         }
 
         static constexpr bool is_supported_signal(int sig) noexcept {

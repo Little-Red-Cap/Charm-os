@@ -434,6 +434,7 @@ netif 是内部骨架概念，不应成为普通用户主入口。
 `TcpClient/UdpSocket/TcpListener` 应尽量轻量。
 
 用户对象负责：
+- 对高频场景直接给出少量便捷动作，例如 `listen_loopback / listen_any / connect_loopback / bind_any / accept()`；需要对端地址时也可直接 `accept(peer)`，避免普通用户反复手拼 `Endpoint`
 
 - 表达意图
 - 持有句柄/状态
@@ -473,6 +474,10 @@ v0 推荐做法是把 socket readiness 投影到 `io.reactor`：
 - `SocketPoller` 负责轮询 socket provider 的 `poll()`，只做事件采样与 `reactor.notify()` 入队
 - `SocketChannelBinding` 把已连接 socket 投影成 `io::Channel`，供上层协议直接走 `read/write`
 - `SocketEventChannelBinding` 提供纯事件通道，适合 `TcpListener` 这类只关心 accept-ready 的对象
+- 如果同一次采样里同时观察到 `readable + closed`，driver 应先把剩余可读 payload 交给 session，再上报 transport closed，避免把“最后一帧数据”误伤成 error
+- 如果已经采样到 `writable`，但真正 flush 时写端发现对端已关闭，driver 也应收口为 transport closed，而不是把“迟到的写失败”继续上抛成 transport error
+- `RequestSession / ServiceSession / TypedServiceSession` 在 transport close 时应清空本地 pending / deferred 状态，并统一向 error handler 上抛 `errc::closed`，不要把断链拖成 timeout
+- 对 `ServiceSession / TypedServiceSession` 而言，transport close 之后旧的 deferred reply token 也应立即失效，后续 `send_deferred_response()` 应返回 `noent`，避免业务层把断链后的迟到回复误判成还能发送
 - 协议驱动层可继续复用 `set_sender / feed / notify_writable` 这类 session 契约，把复杂状态机压在协议层内部，而不是散落在业务代码里
 - 文本协议可先落 `LineSession`；二进制协议优先落固定长度前缀的 `FrameSession`，先把最常见的 request/response 主路径钉稳
 - 在 `FrameSession` 之上，可继续收敛出 `RequestSession`：统一 `request_id / opcode / timeout / pending table`，让请求关联逻辑也留在框架内而不是散落到业务层

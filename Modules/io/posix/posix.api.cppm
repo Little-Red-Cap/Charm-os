@@ -17,7 +17,6 @@ import posix.file;
 import posix.pipe;
 import posix.proc;
 import net.common;
-import net.socket;
 import net.posix;
 import charm.system.time;
 import fs_core;
@@ -320,6 +319,7 @@ export namespace posix {
             }
             auto r = socket_service_->recv(*entry.value(), MutByteView{static_cast<util::u8*>(buf), count});
             if (!r) {
+                if (r.error() == util::Errc::end_of_stream) return 0;
                 set_errno(map_socket_errno(r.error()));
                 return -1;
             }

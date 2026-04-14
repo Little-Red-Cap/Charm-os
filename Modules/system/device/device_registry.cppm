@@ -23,10 +23,54 @@ export namespace device {
         Device& device_at(util::usize idx) noexcept { return devices_[idx]; }
         const Device& device_at(util::usize idx) const noexcept { return devices_[idx]; }
 
+        [[nodiscard]] util::usize find_device_index(const DeviceDesc& desc,
+                                                    void* ctx = nullptr) const noexcept {
+            for (util::usize i = 0; i < device_count_; ++i) {
+                const auto& dev = devices_[i];
+                if (!desc_equal(dev.desc, desc)) continue;
+                if (ctx != nullptr && dev.ctx != ctx) continue;
+                return i;
+            }
+            return device_count_;
+        }
+
+        Device* find_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept {
+            const auto index = find_device_index(desc, ctx);
+            return index < device_count_ ? &devices_[index] : nullptr;
+        }
+
+        const Device* find_device(const DeviceDesc& desc, void* ctx = nullptr) const noexcept {
+            const auto index = find_device_index(desc, ctx);
+            return index < device_count_ ? &devices_[index] : nullptr;
+        }
+
         bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept override {
+            if (find_exact_device_index(desc, ctx) < device_count_) {
+                return true;
+            }
             if (device_count_ >= MaxDevices) return false;
             devices_[device_count_++] = Device{desc, ctx, DeviceState::detected, nullptr};
             return true;
+        }
+
+        bool remove_device(util::usize index) noexcept {
+            if (index >= device_count_) return false;
+            if (devices_[index].driver) {
+                (void)dispatch(devices_[index], DeviceEvent::remove);
+            }
+            for (util::usize i = index + 1; i < device_count_; ++i) {
+                devices_[i - 1] = devices_[i];
+            }
+            if (device_count_ > 0) {
+                devices_[device_count_ - 1] = {};
+                --device_count_;
+            }
+            return true;
+        }
+
+        bool remove_matching(const DeviceDesc& desc, void* ctx = nullptr) noexcept {
+            const auto index = find_device_index(desc, ctx);
+            return index < device_count_ ? remove_device(index) : false;
         }
 
         bool add_driver(const Driver& drv) noexcept {
@@ -44,20 +88,16 @@ export namespace device {
 
         void match_all() noexcept {
             for (util::usize i = 0; i < device_count_; ++i) {
+                match_device(devices_[i]);
+            }
+        }
+
+        void match_detected() noexcept {
+            for (util::usize i = 0; i < device_count_; ++i) {
                 auto& dev = devices_[i];
-                select_driver(dev);
-                if (!dev.driver) continue;
-                if (!dispatch(dev, DeviceEvent::probe)) {
-                    dev.driver = nullptr;
-                    continue;
-                }
-                if (!dispatch(dev, DeviceEvent::init)) {
-                    dispatch(dev, DeviceEvent::remove);
-                    dev.driver = nullptr;
-                    dev.state = DeviceState::detected;
-                    continue;
-                }
-                (void)dispatch(dev, DeviceEvent::start);
+                if (dev.state != DeviceState::detected) continue;
+                if (dev.driver != nullptr) continue;
+                match_device(dev);
             }
         }
 
@@ -144,6 +184,24 @@ export namespace device {
             util::u32 score{0};
         };
 
+        [[nodiscard]] util::usize find_exact_device_index(const DeviceDesc& desc,
+                                                          void* ctx) const noexcept {
+            for (util::usize i = 0; i < device_count_; ++i) {
+                const auto& dev = devices_[i];
+                if (!desc_equal(dev.desc, desc)) continue;
+                if (dev.ctx != ctx) continue;
+                return i;
+            }
+            return device_count_;
+        }
+
+        static bool desc_equal(const DeviceDesc& lhs, const DeviceDesc& rhs) noexcept {
+            return lhs.class_id == rhs.class_id &&
+                   lhs.vendor_id == rhs.vendor_id &&
+                   lhs.product_id == rhs.product_id &&
+                   lhs.type.compare(rhs.type) == 0;
+        }
+
         static util::u32 match_score(const DeviceDesc& dev, const DeviceDesc& drv) noexcept {
             util::u32 score = 0;
             if (drv.class_id) {
@@ -187,9 +245,47 @@ export namespace device {
             dev.match_score = best.score;
         }
 
+        void match_device(Device& dev) noexcept {
+            select_driver(dev);
+            if (!dev.driver) return;
+            if (!dispatch(dev, DeviceEvent::probe)) {
+                dev.driver = nullptr;
+                return;
+            }
+            if (!dispatch(dev, DeviceEvent::init)) {
+                dispatch(dev, DeviceEvent::remove);
+                dev.driver = nullptr;
+                dev.state = DeviceState::detected;
+                return;
+            }
+            (void)dispatch(dev, DeviceEvent::start);
+        }
+
         std::array<Device, MaxDevices> devices_{};
         std::array<const Driver*, MaxDrivers> drivers_{};
         util::usize device_count_{0};
         util::usize driver_count_{0};
     };
+
+#ifndef NDEBUG
+    inline bool registry_add_device_idempotent_self_check() noexcept {
+        Registry<4, 1> registry{};
+        DeviceDesc desc{
+            .class_id = 0x08,
+            .vendor_id = 0x1234,
+            .product_id = 0x5678,
+            .type = "usb.host.msc"
+        };
+        int marker_a = 1;
+        int marker_b = 2;
+
+        if (!registry.add_device(desc, &marker_a)) return false;
+        if (!registry.add_device(desc, &marker_a)) return false;
+        if (registry.device_count() != 1) return false;
+        if (!registry.add_device(desc, &marker_b)) return false;
+        if (registry.device_count() != 2) return false;
+        return registry.device_at(0).ctx == &marker_a &&
+               registry.device_at(1).ctx == &marker_b;
+    }
+#endif
 }

@@ -79,8 +79,8 @@ int entry(int argc, char** argv, char** envp) {
         return 11;
     }
 
-    PosixStat st;
-    int st_rc = fstat(fd, &st);
+    PosixStat file_st;
+    int st_rc = fstat(fd, &file_st);
     if (st_rc != 0) {
         const char* msg = "fstat fail\n";
         (void)write_all(1, msg, cstr_len(msg));
@@ -88,14 +88,45 @@ int entry(int argc, char** argv, char** envp) {
         return 12;
     }
 
-    if ((st.st_mode & S_IFMT) != S_IFREG) {
+    if ((file_st.st_mode & S_IFMT) != S_IFREG) {
         const char* msg = "bad-fstat mode\n";
         (void)write_all(1, msg, cstr_len(msg));
         close(fd);
         return 16;
     }
 
-    int bad_rc = fstat(-1, &st);
+    PosixStat stdout_st;
+    if (fstat(1, &stdout_st) != 0) {
+        const char* msg = "stdout-fstat fail\n";
+        (void)write_all(1, msg, cstr_len(msg));
+        close(fd);
+        return 17;
+    }
+
+    if ((stdout_st.st_mode & S_IFMT) != S_IFIFO) {
+        const char* msg = "bad-stdout mode\n";
+        (void)write_all(1, msg, cstr_len(msg));
+        close(fd);
+        return 18;
+    }
+
+    PosixStat stderr_st;
+    if (fstat(2, &stderr_st) != 0) {
+        const char* msg = "stderr-fstat fail\n";
+        (void)write_all(1, msg, cstr_len(msg));
+        close(fd);
+        return 19;
+    }
+
+    if ((stderr_st.st_mode & S_IFMT) != S_IFCHR) {
+        const char* msg = "bad-stderr mode\n";
+        (void)write_all(1, msg, cstr_len(msg));
+        close(fd);
+        return 20;
+    }
+
+    PosixStat bad_st;
+    int bad_rc = fstat(-1, &bad_st);
     if (bad_rc != -1) {
         const char* msg = "bad-fstat rc\n";
         (void)write_all(1, msg, cstr_len(msg));
@@ -120,8 +151,13 @@ int entry(int argc, char** argv, char** envp) {
     unsigned long len = 0;
     out[0] = '\0';
     append_kv_i32(out, sizeof(out), &len, "rc=", st_rc);
-    append_kv_u32(out, sizeof(out), &len, "sz=", (unsigned long)st.st_size);
-    append_kv_i32(out, sizeof(out), &len, "bs=", bad_rc);
+    append_kv_u32(out, sizeof(out), &len, "file=", (unsigned long)(file_st.st_mode & S_IFMT));
+    append_kv_u32(out, sizeof(out), &len, "fsz=", (unsigned long)file_st.st_size);
+    append_kv_u32(out, sizeof(out), &len, "out=", (unsigned long)(stdout_st.st_mode & S_IFMT));
+    append_kv_u32(out, sizeof(out), &len, "osz=", (unsigned long)stdout_st.st_size);
+    append_kv_u32(out, sizeof(out), &len, "err=", (unsigned long)(stderr_st.st_mode & S_IFMT));
+    append_kv_u32(out, sizeof(out), &len, "esz=", (unsigned long)stderr_st.st_size);
+    append_kv_i32(out, sizeof(out), &len, "bad=", bad_rc);
     (void)write_all(1, out, len);
     return 0;
 }

@@ -118,6 +118,32 @@ export namespace io {
             return util::unexpected(util::Errc::noent);
         }
 
+        util::Result<void> unregister_channel(std::string_view name) noexcept {
+            if (name.empty()) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = 0; i < endpoints_.size(); ++i) {
+                if (!is_used(i)) continue;
+                if (endpoints_[i].desc.name.compare(name) != 0) continue;
+                clear_slot(i);
+                return {};
+            }
+            return util::unexpected(util::Errc::noent);
+        }
+
+        util::Result<void> unregister_channel(CapId cap) noexcept {
+            if (cap == 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = 0; i < endpoints_.size(); ++i) {
+                if (!is_used(i)) continue;
+                if (endpoints_[i].desc.cap != cap) continue;
+                clear_slot(i);
+                return {};
+            }
+            return util::unexpected(util::Errc::noent);
+        }
+
         Channel* open_channel(std::string_view name) noexcept {
             auto* ep = find_channel(name);
             return ep ? ep->ch : nullptr;
@@ -177,6 +203,18 @@ export namespace io {
 
         void mark_used(util::usize idx) noexcept {
             used_[word_index(idx)] |= bit_mask(idx);
+        }
+
+        void mark_unused(util::usize idx) noexcept {
+            used_[word_index(idx)] &= ~bit_mask(idx);
+        }
+
+        void clear_slot(util::usize idx) noexcept {
+            endpoints_[idx] = {};
+            mark_unused(idx);
+            if (count_ > 0) {
+                --count_;
+            }
         }
 
         util::usize find_free_slot() const noexcept {
@@ -254,12 +292,20 @@ export namespace io {
         if (reg.replace_channel(b, ch_b)) return false;
         if (!reg.replace_channel(a, ch_b)) return false;
         if (reg.open_channel("io.console0") != &ch_b) return false;
+        if (reg.unregister_channel("io.missing")) return false;
+        if (!reg.unregister_channel("io.console0")) return false;
+        if (reg.find_channel("io.console0") != nullptr) return false;
+        if (reg.open_channel(a.cap) != nullptr) return false;
+        if (reg.size() != 0) return false;
+        if (!reg.register_channel(a, ch_a)) return false;
+        if (!reg.unregister_channel(a.cap)) return false;
+        if (reg.open_channel("io.console0") != nullptr) return false;
         util::usize count = 0;
         reg.list_channels([](void* ctx, const ChannelEndpoint&) noexcept {
             auto* c = static_cast<util::usize*>(ctx);
             ++(*c);
         }, &count);
-        return count == 1;
+        return count == 0;
     }
 #endif
 }

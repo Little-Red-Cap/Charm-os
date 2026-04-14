@@ -28,3 +28,22 @@ This document defines the non-negotiable contract for io.registry.
 - open_channel() returns nullptr when not found.
 - Callers must translate to Errc::noent where needed.
 - replace_channel() returns Errc::noent when target is missing.
+
+## 6) Unregister behavior
+
+- unregister_channel() removes the registry entry by name or cap.
+- Missing targets return Errc::noent.
+- Removing an entry does not destroy the Channel or Reactor object.
+- Removing an entry does not invalidate raw pointers already handed out by open_channel().
+
+## 7) Runtime-discovered devices
+
+- Do not export short-lived hotplug objects as raw registry-owned lifetimes.
+- If a runtime-discovered channel must be exposed through a shared registry,
+  prefer the stable-slot route:
+  `io.channel.slot` + `io.channel.slot_export`.
+- If a runtime-discovered block device must be exposed through a shared registry,
+  prefer the stable-slot route:
+  `block.device.slot` + `block.device.slot_export`.
+- This keeps the exported capability name stable while detach transitions
+  existing callers back to `Errc::noent`.

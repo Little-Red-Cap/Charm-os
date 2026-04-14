@@ -1,6 +1,7 @@
 ﻿# IO 分层总览（HAL/Platform/Input/FS/USB/Net）
 
 相关决策文档：
+- `docs/architecture/driver_model.md`
 - `docs/input/input_layering_decision.md`（UI/Ink 输入层分层决策）
 
 
@@ -41,9 +42,9 @@ platform/
   board_caps/     # 板级能力描述（clock/irq/uart/...）
 ```
 
-- hal：对上提供“稳定接口”，对下由 driver 实现
-- driver：芯片级外设实现（可按 vendor/series 组织）
-- service：对上领域友好，包含状态机/缓存/协议适配
+- hal：对上提供“稳定接口”，对下由 controller backend 实现
+- driver：更适合放控制器后端实现与控制器级适配
+- service：对上领域友好，包含状态机、缓存、协议适配，是 ServiceAdapter 的主要落点
 
 ## 能力边界与职责
 
@@ -59,6 +60,7 @@ platform/
 ### Driver（io/driver）
 - 按厂商/系列/芯片组织
 - 实现 HAL 接口，保持接口一致性
+- 更接近控制器后端，而不是默认等同于 runtime discovery plane 的 `device::Driver`
 
 ### Service（io/service）
 - 以运行期语义封装 HAL
@@ -66,6 +68,29 @@ platform/
   - input 服务：RawInputEvent -> UI intent
   - fs 服务：块设备 -> VFS
   - usb/net 服务：端点/协议适配
+- 在驱动模型文档里，这一层对应 `ServiceAdapter`
+
+## 推荐驱动路径
+
+对于板级已知资源，推荐理解为：
+
+```text
+BoardCaps
+  -> ControllerBinding
+  -> ServiceAdapter
+  -> registry / capability export
+```
+
+对于运行期枚举设备，推荐理解为：
+
+```text
+RuntimeBus
+  -> discovered device
+  -> RuntimeDriver
+  -> capability export
+```
+
+两条线最终都应收敛到统一 capability / registry 语言，避免形成两套互不相通的资源模型。
 
 ## 依赖规则（硬约束）
 

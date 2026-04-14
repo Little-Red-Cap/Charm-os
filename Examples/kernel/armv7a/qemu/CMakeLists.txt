@@ -9,6 +9,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
@@ -49,17 +50,13 @@ charm_add_config_interface(charm_cfg_armv7a_qemu
     PLATFORM qemu_virt
     BAREMETAL)
 
-set(CHARM_CONFIG_TARGETS charm_cfg_armv7a_qemu)
-set(CHARM_ENABLE_MEDIA OFF CACHE BOOL "" FORCE)
-set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
-set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
-set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
-set(CHARM_ENABLE_FATFS OFF CACHE BOOL "" FORCE)
-set(CHARM_AUDIO_USE_VFS OFF CACHE BOOL "" FORCE)
-set(CHARM_ENABLE_POSIX OFF CACHE BOOL "" FORCE)
-set(CHARM_BUILD_PLAYER OFF CACHE BOOL "" FORCE)
-add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
-unset(CHARM_CONFIG_TARGETS)
+set(charm_armv7a_qemu_module_files
+    "${CHARM_ROOT}/Modules/core/util/core.cppm"
+    "${CHARM_ROOT}/Modules/core/util/expected.cppm"
+    "${CHARM_ROOT}/Modules/core/util/error.cppm"
+    "${CHARM_ROOT}/Modules/io/out/out.core.cppm"
+    "${CHARM_ROOT}/Modules/io/out/out.sink.cppm"
+    "${CHARM_ROOT}/Modules/io/out/out.format.cppm")
 
 add_executable(${PROJECT_NAME})
 
@@ -88,6 +85,14 @@ target_sources(${PROJECT_NAME} PRIVATE
     irq_timer.cpp
     runtime_stubs.cpp)
 
+target_sources(${PROJECT_NAME}
+    PRIVATE
+    FILE_SET modules TYPE CXX_MODULES
+    BASE_DIRS
+        "${CHARM_ROOT}/Modules"
+    FILES
+        ${charm_armv7a_qemu_module_files})
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -106,9 +111,7 @@ target_link_options(${PROJECT_NAME} PRIVATE
 charm_apply_target_profile(${PROJECT_NAME}
     BAREMETAL)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
-    Charm-os
-    charm_cfg_armv7a_qemu)
+charm_apply_config_targets(${PROJECT_NAME} charm_cfg_armv7a_qemu)
 
 if (CHARM_QEMU_SEMIHOST_DEBUG)
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_QEMU_SEMIHOST_DEBUG=1)

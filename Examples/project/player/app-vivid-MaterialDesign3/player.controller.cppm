@@ -24,6 +24,7 @@ import charm.core.handle;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.ui.scene;
+import charm.ui.scene.anchored_menu;
 import charm.ui.scene.pill_surface;
 import charm.font.typography;
 import charm.system.clock;
@@ -229,7 +230,6 @@ export namespace player {
         int last_list_count{-1};
         bool ignore_list_select{false};
         int last_list_selected{-1};
-        bool list_action_menu_open{false};
         int list_action_menu_index{-1};
         LibraryTab library_tab{LibraryTab::Songs};
         FixedString<192> library_context_key{};

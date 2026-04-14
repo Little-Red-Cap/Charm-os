@@ -34,9 +34,6 @@
         static constexpr int kTrackDurationUnknown = -1;
         static constexpr int kTrackDurationUnavailable = -2;
         static constexpr std::uint64_t kListDurationProbeIntervalMs = 120;
-        static constexpr int kListActionCardWidth = 196;
-        static constexpr int kListActionCardHeight = 174;
-        static constexpr int kListActionCardCompactHeight = 132;
 
         struct LibrarySortKey {
             std::string_view primary{};
@@ -360,23 +357,20 @@
             return "Current";
         }
 
+        ::ui::scene::AnchoredMenuHandles list_action_menu_handles() const noexcept {
+            ::ui::scene::AnchoredMenuHandles out{};
+            out.scrim = handles.list_action_scrim;
+            out.card = handles.list_action_card;
+            out.title = handles.list_action_title;
+            out.items[0] = handles.list_action_primary;
+            out.items[1] = handles.list_action_secondary;
+            out.items[2] = handles.list_action_tertiary;
+            return out;
+        }
+
         void close_list_action_menu() {
-            list_action_menu_open = false;
             list_action_menu_index = -1;
-            if (!access.valid()) return;
-            if (handles.list_action_scrim) {
-                access.set_visible(handles.list_action_scrim, false);
-                access.set_rect(handles.list_action_scrim, {0, 0, 0, 0});
-            }
-            if (handles.list_action_card) {
-                access.set_visible(handles.list_action_card, false);
-                access.set_rect(handles.list_action_card,
-                                {-4096, -4096, kListActionCardWidth, kListActionCardHeight});
-            }
-            if (handles.list_action_title) access.set_visible(handles.list_action_title, false);
-            if (handles.list_action_primary) access.set_visible(handles.list_action_primary, false);
-            if (handles.list_action_secondary) access.set_visible(handles.list_action_secondary, false);
-            if (handles.list_action_tertiary) access.set_visible(handles.list_action_tertiary, false);
+            ::ui::scene::hide_anchored_menu(access, list_action_menu_handles());
         }
 
         std::string_view list_action_tertiary_label_for_track(int track_idx) const noexcept {
@@ -411,7 +405,6 @@
                 return;
             }
 
-            list_action_menu_open = true;
             list_action_menu_index = list_index;
 
             if (handles.list) {
@@ -425,51 +418,37 @@
             const char* title_text = (row < list_display_titles.size() && !list_display_titles[row].empty())
                 ? list_display_titles[row].c_str()
                 : (library_shows_group_rows() ? "Group" : "Track");
-            set_label(handles.list_action_title, title_text);
-            set_label(handles.list_action_primary,
-                      library_shows_group_rows() ? "Open group" : "Play now");
-            set_label(handles.list_action_secondary,
-                      library_shows_group_rows() ? "Show summary" : "Show path");
+            const char* item_texts[3]{};
+            item_texts[0] = library_shows_group_rows() ? "Open group" : "Play now";
+            item_texts[1] = library_shows_group_rows() ? "Show summary" : "Show path";
 
             const int track_idx = list_index_to_track(list_index);
             const auto tertiary_label = library_shows_group_rows()
                 ? std::string_view{}
                 : list_action_tertiary_label_for_track(track_idx);
             const bool show_tertiary = !tertiary_label.empty();
-            const int card_h = show_tertiary ? kListActionCardHeight : kListActionCardCompactHeight;
             if (show_tertiary) {
-                set_label(handles.list_action_tertiary, tertiary_label.data());
+                item_texts[2] = tertiary_label.data();
             }
 
-            int menu_x = kUiPadding;
-            int menu_y = kUiPadding;
+            Rect anchor_rect{kUiPadding, kUiPadding, 0, kLibraryListRowHeight};
             if (handles.list) {
                 const Rect list_rect = access.world_rect(handles.list);
                 const int scroll_y = access.scroll_y(handles.list);
                 const int row_y = list_rect.y + list_index * kLibraryListRowHeight - scroll_y;
-                menu_x = list_rect.x + list_rect.w - kListActionCardWidth - 12;
-                menu_y = row_y + 6;
-                const int min_x = list_rect.x + 8;
-                const int max_x = std::max(min_x, list_rect.x + list_rect.w - kListActionCardWidth - 8);
-                const int min_y = list_rect.y + 8;
-                const int max_y = std::max(min_y, list_rect.y + list_rect.h - card_h - 8);
-                menu_x = std::clamp(menu_x, min_x, max_x);
-                menu_y = std::clamp(menu_y, min_y, max_y);
+                anchor_rect = {list_rect.x, row_y, list_rect.w, kLibraryListRowHeight};
             }
 
-            if (handles.list_action_scrim) {
-                access.set_rect(handles.list_action_scrim, {0, 0, screen_width, screen_height});
-                access.set_visible(handles.list_action_scrim, true);
-            }
-            if (handles.list_action_card) {
-                access.set_rect(handles.list_action_card,
-                                {menu_x, menu_y, kListActionCardWidth, card_h});
-                access.set_visible(handles.list_action_card, true);
-            }
-            if (handles.list_action_title) access.set_visible(handles.list_action_title, true);
-            if (handles.list_action_primary) access.set_visible(handles.list_action_primary, true);
-            if (handles.list_action_secondary) access.set_visible(handles.list_action_secondary, true);
-            if (handles.list_action_tertiary) access.set_visible(handles.list_action_tertiary, show_tertiary);
+            ::ui::scene::show_anchored_menu(
+                access,
+                list_action_menu_handles(),
+                {
+                    .anchor = anchor_rect,
+                    .viewport = {0, 0, screen_width, screen_height},
+                    .title = title_text,
+                    .item_texts = item_texts,
+                    .item_count = show_tertiary ? 3u : 2u,
+                });
         }
 
         void invoke_list_action_primary() {

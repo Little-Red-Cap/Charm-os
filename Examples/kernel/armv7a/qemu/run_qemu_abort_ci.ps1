@@ -257,8 +257,14 @@ if (($log -notmatch "ARMv7-A L1 table ready, base=0x[0-9A-F]{8}, ram=0x[0-9A-F]{
 if (($log -notmatch "ARMv7-A MMU active, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A MMU active, sctlr=0x..."
 }
-if (($log -notmatch "ARMv7-A MMU flags, mmu=on, dcache=(on|off), icache=(on|off)")) {
-    $missing += "ARMv7-A MMU flags, mmu=on..."
+if (($log -notmatch "ARMv7-A icache probe ready, va=0x522[0-9A-F]{5}, pa-a=0x4[0-9A-F]{7}, pa-b=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A icache probe ready, va=0x522..."
+}
+if (($log -notmatch "ARMv7-A MMU flags, mmu=on, dcache=off, icache=on")) {
+    $missing += "ARMv7-A MMU flags, mmu=on, dcache=off, icache=on"
+}
+if (($log -notmatch "ARMv7-A icache probe, addr=0x522[0-9A-F]{5}, before=0x000000A1, after=0x000000B2, l2=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A icache probe, addr=0x522..."
 }
 if (($log -notmatch $faultPattern)) {
     $missing += $faultPattern

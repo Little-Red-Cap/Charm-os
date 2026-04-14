@@ -104,14 +104,20 @@ if (($log -notmatch "ARMv7-A small-page remap ready, va=0x52100000, pa-a=0x4[0-9
 if (($log -notmatch "ARMv7-A MMU active, sctlr=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A MMU active, sctlr=0x..."
 }
-if (($log -notmatch "ARMv7-A MMU flags, mmu=on, dcache=(on|off), icache=(on|off)")) {
-    $missing += "ARMv7-A MMU flags, mmu=on..."
+if (($log -notmatch "ARMv7-A icache probe ready, va=0x522[0-9A-F]{5}, pa-a=0x4[0-9A-F]{7}, pa-b=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A icache probe ready, va=0x522..."
+}
+if (($log -notmatch "ARMv7-A MMU flags, mmu=on, dcache=off, icache=on")) {
+    $missing += "ARMv7-A MMU flags, mmu=on, dcache=off, icache=on"
 }
 if (($log -notmatch "ARMv7-A small-page probe, addr=0x5[0-9A-F]{7}, before=0xC0DEF00D, via-alias=0x1BADB002, direct=0x1BADB002")) {
     $missing += "ARMv7-A small-page probe, addr=0x..."
 }
 if (($log -notmatch "ARMv7-A small-page remap, addr=0x52100000, before=0x13579BDF, after=0x2468ACE0, l2=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A small-page remap, addr=0x52100000..."
+}
+if (($log -notmatch "ARMv7-A icache probe, addr=0x522[0-9A-F]{5}, before=0x000000A1, after=0x000000B2, l2=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A icache probe, addr=0x522..."
 }
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30"

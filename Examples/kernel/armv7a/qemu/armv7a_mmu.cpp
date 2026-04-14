@@ -165,6 +165,23 @@ void armv7a_enable_identity_mmu(std::uintptr_t table_base)
     armv7a_instruction_sync_barrier();
 }
 
+void armv7a_enable_icache()
+{
+    auto sctlr = armv7a_read_sctlr();
+    if ((sctlr & kSctlrI) != 0u) {
+        return;
+    }
+
+    armv7a_invalidate_branch_predictor();
+    armv7a_invalidate_icache_all();
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
+
+    sctlr |= kSctlrI;
+    asm volatile("mcr p15, 0, %0, c1, c0, 0" : : "r"(sctlr) : "memory");
+    armv7a_instruction_sync_barrier();
+}
+
 void armv7a_sync_tlb_mapping_change(std::uintptr_t virtual_address)
 {
     armv7a_data_sync_barrier();

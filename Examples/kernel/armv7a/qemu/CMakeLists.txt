@@ -69,6 +69,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     main.cpp
     armv7a_cpu.cpp
     armv7a_arch_timer.cpp
+    armv7a_icache_probe.S
+    armv7a_icache_probe.cpp
     armv7a_mmu.cpp
     armv7a_boot_page_table.cpp
     armv7a_fault_status.cpp

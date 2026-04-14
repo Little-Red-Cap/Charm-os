@@ -190,6 +190,55 @@ export namespace player {
     };
 
     struct PlayerController {
+        struct LibraryRowModel {
+            FixedString<192> title{};
+            FixedString<128> subtitle{};
+            FixedString<32> tail{};
+            bool group_row{false};
+        };
+
+        struct LibraryRowRecipe {
+            const LibraryRowModel* model{};
+            int row_index{-1};
+            int track_index{-1};
+            bool group_row{false};
+            bool current_row{false};
+            bool show_tail_action{false};
+            const char* menu_title_cstr{"Track"};
+            std::string_view detail_primary{};
+            std::string_view detail_secondary{};
+            std::string_view track_path{};
+            std::string_view cover_path{};
+            ::ui::scene::ImageId tail_icon{};
+            ::ui::scene::ImageId tail_action_icon{};
+            ::ui::scene::ImageId fallback_icon{};
+            bool prefer_cover{false};
+
+            std::string_view title() const noexcept {
+                return model ? model->title.view() : std::string_view{};
+            }
+
+            std::string_view subtitle() const noexcept {
+                return model ? model->subtitle.view() : std::string_view{};
+            }
+
+            std::string_view tail() const noexcept {
+                return model ? model->tail.view() : std::string_view{};
+            }
+
+            const char* title_c_str() const noexcept {
+                return model ? model->title.c_str() : "";
+            }
+
+            const char* subtitle_c_str() const noexcept {
+                return model ? model->subtitle.c_str() : "";
+            }
+
+            const char* tail_c_str() const noexcept {
+                return model ? model->tail.c_str() : "";
+            }
+        };
+
         PlaybackEngine playback{};
         ::ui::scene::SceneAccess access{};
         UiHandles handles{};
@@ -235,9 +284,7 @@ export namespace player {
         bool list_shuffle_enabled{false};
         std::uint32_t list_shuffle_seed{0};
         std::vector<int> list_order{};
-        std::vector<FixedString<192>> list_display_titles{};
-        std::vector<FixedString<128>> list_display_subtitles{};
-        std::vector<FixedString<32>> list_display_tails{};
+        std::vector<LibraryRowModel> list_rows{};
         std::vector<int> track_duration_cache_sec{};
         std::size_t list_duration_probe_cursor{0};
         std::uint64_t last_list_duration_probe_ms{0};

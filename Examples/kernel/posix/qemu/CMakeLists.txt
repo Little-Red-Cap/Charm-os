@@ -11,6 +11,7 @@ set(qemu_runtime_sources
     posix_newlib_syscall_bridge.cpp
     posix_newlib_syscall_smoke.c
     posix_user_crt_c_header_smoke.c
+    posix_user_fs_c_header_smoke.c
 )
 
 set(qemu_full_modules

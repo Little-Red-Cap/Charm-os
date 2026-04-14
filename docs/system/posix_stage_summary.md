@@ -15,6 +15,7 @@
 - shell smoke now resolves `/bin/*` through `PATH` in actual spawned flows, instead of bypassing it with exact-name registration
 - busybox-style applet entry shapes are now smoke-covered: both `/bin/sh` via `argv[0]` and `busybox sh -c ...` via `argv[1]`
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
+- freestanding C userland now keeps its minimal process/stdio surface in `charm_posix_user_crt.h`, while FS/FD/path-facing contracts expand through the split header `Modules/io/posix/charm_posix_user_fs.h`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
 - process-control slice now includes `kill v0`, `minimal ps`, shell/busybox `kill` applet coverage, and real-ELF `sleep/kill` hostcall coverage: `getpid`, `sleep`, the minimum `kill(SIGTERM/SIGINT/SIGKILL)` contract across proc/api/shell/busybox, and a minimum `ps(pid/state/name)` view are smoke-covered on the current same-address-space model
@@ -90,6 +91,8 @@
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
 
 ## Toolchain Notes
+- shared singleton-style module state is safer when it lives in one module object rather than a class-scope `inline static`; `charm.system.clock` now keeps the active time-source binding in module storage so real-ELF hostcalls and test harness code observe the same bound clock under the current GCC `modules-ts` toolchain
+- QEMU smoke RAMFS fixtures should stay proportional to the sample they carry; oversized per-test RAMFS instances can look like a logic hang on the emulated target even when the POSIX path itself is correct
 - GCC `-fmodules-ts` 下的 `net` / `posix` 导入冲突解阻经验已记录到 `docs/system/posix_modules_ts_build_notes.md`
 
 ## Recommended Next Cuts

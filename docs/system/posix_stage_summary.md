@@ -93,6 +93,7 @@
 ## Toolchain Notes
 - shared singleton-style module state is safer when it lives in one module object rather than a class-scope `inline static`; `charm.system.clock` now keeps the active time-source binding in module storage so real-ELF hostcalls and test harness code observe the same bound clock under the current GCC `modules-ts` toolchain
 - QEMU smoke RAMFS fixtures should stay proportional to the sample they carry; oversized per-test RAMFS instances can look like a logic hang on the emulated target even when the POSIX path itself is correct
+- `Examples/kernel/posix/qemu/run_qemu_ci.ps1` defaults to the full smoke contract; when validating partial targets such as `posix-qemu-newlib-stdio.elf`, pass `-RequireBusyboxPhase2:$false` so the runner only gates on the POSIX smoke marker
 - GCC `-fmodules-ts` 下的 `net` / `posix` 导入冲突解阻经验已记录到 `docs/system/posix_modules_ts_build_notes.md`
 
 ## Recommended Next Cuts

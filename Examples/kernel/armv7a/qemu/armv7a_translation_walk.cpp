@@ -9,6 +9,8 @@ constexpr std::uint32_t kL1Section = 0x2u;
 constexpr std::uint32_t kL1PageTableBaseMask = 0xfffffc00u;
 constexpr std::uint32_t kL1Supersection = 1u << 18;
 constexpr std::uint32_t kL1Ap2 = 1u << 15;
+constexpr std::uint32_t kL1TexShift = 12u;
+constexpr std::uint32_t kL1TexMask = 0x7u;
 constexpr std::uint32_t kL1Bufferable = 1u << 2;
 constexpr std::uint32_t kL1Cacheable = 1u << 3;
 constexpr std::uint32_t kL1ExecuteNever = 1u << 4;
@@ -23,6 +25,8 @@ constexpr std::uint32_t kL2TypeMask = 0x3u;
 constexpr std::uint32_t kL2LargePage = 0x1u;
 constexpr std::uint32_t kL2SmallPage = 0x2u;
 constexpr std::uint32_t kL2Ap2 = 1u << 9;
+constexpr std::uint32_t kL2TexShift = 6u;
+constexpr std::uint32_t kL2TexMask = 0x7u;
 constexpr std::uint32_t kL2ExecuteNever = 1u << 0;
 constexpr std::uint32_t kL2Bufferable = 1u << 2;
 constexpr std::uint32_t kL2Cacheable = 1u << 3;
@@ -51,6 +55,22 @@ std::uint32_t armv7a_decode_l2_access_permission(std::uint32_t descriptor)
 {
     return ((descriptor & kL2Ap2) >> 7) |
            ((descriptor >> kL2Ap10Shift) & kL2Ap10Mask);
+}
+
+Armv7aMemoryType armv7a_decode_memory_type(std::uint32_t tex,
+                                           bool cacheable,
+                                           bool bufferable)
+{
+    if (tex == 0u && !cacheable && !bufferable) {
+        return Armv7aMemoryType::kStronglyOrdered;
+    }
+    if (tex == 0u && !cacheable && bufferable) {
+        return Armv7aMemoryType::kDevice;
+    }
+    if (tex == 1u && cacheable && bufferable) {
+        return Armv7aMemoryType::kNormalCached;
+    }
+    return Armv7aMemoryType::kUnknown;
 }
 } // namespace
 
@@ -88,7 +108,11 @@ Armv7aL1DescriptorDecode armv7a_decode_l1_descriptor(std::uintptr_t virtual_addr
         .kind = kind,
         .table_base = descriptor & kL1PageTableBaseMask,
         .domain = (descriptor >> kL1DomainShift) & kL1DomainMask,
+        .tex = (descriptor >> kL1TexShift) & kL1TexMask,
         .access_permission = armv7a_decode_l1_access_permission(descriptor),
+        .memory_type = armv7a_decode_memory_type((descriptor >> kL1TexShift) & kL1TexMask,
+                                                 (descriptor & kL1Cacheable) != 0u,
+                                                 (descriptor & kL1Bufferable) != 0u),
         .execute_never = (descriptor & kL1ExecuteNever) != 0u,
         .shareable = (descriptor & kL1Shareable) != 0u,
         .cacheable = (descriptor & kL1Cacheable) != 0u,
@@ -150,7 +174,11 @@ Armv7aL2DescriptorDecode armv7a_decode_l2_descriptor(std::uintptr_t virtual_addr
         .descriptor = descriptor,
         .kind = kind,
         .physical_base = descriptor & kL2SmallPageBaseMask,
+        .tex = (descriptor >> kL2TexShift) & kL2TexMask,
         .access_permission = armv7a_decode_l2_access_permission(descriptor),
+        .memory_type = armv7a_decode_memory_type((descriptor >> kL2TexShift) & kL2TexMask,
+                                                 (descriptor & kL2Cacheable) != 0u,
+                                                 (descriptor & kL2Bufferable) != 0u),
         .execute_never = (descriptor & kL2ExecuteNever) != 0u,
         .shareable = (descriptor & kL2Shareable) != 0u,
         .cacheable = (descriptor & kL2Cacheable) != 0u,
@@ -170,5 +198,20 @@ const char* armv7a_l2_descriptor_kind_name(Armv7aL2DescriptorKind kind)
     case Armv7aL2DescriptorKind::kReserved:
     default:
         return "reserved";
+    }
+}
+
+const char* armv7a_memory_type_name(Armv7aMemoryType type)
+{
+    switch (type) {
+    case Armv7aMemoryType::kStronglyOrdered:
+        return "strongly-ordered";
+    case Armv7aMemoryType::kDevice:
+        return "device";
+    case Armv7aMemoryType::kNormalCached:
+        return "normal-cached";
+    case Armv7aMemoryType::kUnknown:
+    default:
+        return "unknown";
     }
 }

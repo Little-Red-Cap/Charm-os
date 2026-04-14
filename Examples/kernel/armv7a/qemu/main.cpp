@@ -2,6 +2,7 @@ import out.format;
 import out.sink;
 
 #include "armv7a_arch_timer.hpp"
+#include "armv7a_attribute_probe.hpp"
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cpu.hpp"
 #include "armv7a_icache_probe.hpp"
@@ -143,10 +144,12 @@ int main()
     armv7a_prepare_boot_identity_map();
     armv7a_prepare_abort_smoke_mappings();
     armv7a_prepare_small_page_probe_mapping();
+    armv7a_prepare_attribute_probe_mapping();
     armv7a_prepare_icache_probe_mapping();
     print_boot_page_table_state();
     armv7a_print_abort_smoke_mapping_state();
     armv7a_print_small_page_probe_mapping_state();
+    armv7a_print_attribute_probe_mapping_state();
     armv7a_print_icache_probe_mapping_state();
     armv7a_enable_identity_mmu(armv7a_boot_l1_table_base());
     armv7a_prepare_abort_smoke_runtime();
@@ -154,6 +157,7 @@ int main()
     print_mmu_runtime_state();
     print_charm_module_status();
     armv7a_run_small_page_probe();
+    armv7a_run_attribute_probe();
     armv7a_run_icache_probe();
     armv7a_run_abort_smoke_if_enabled();
     armv7a_svc_smoke_test();

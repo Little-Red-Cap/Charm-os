@@ -38,6 +38,14 @@ SECTIONS
         __bss_end = .;
     } > RAM :data
 
+    .probe_pages (NOLOAD) : ALIGN(0x100000)
+    {
+        __probe_pages_start = .;
+        *(.probe_pages .probe_pages.*)
+        . = __probe_pages_start + 0x100000;
+        __probe_pages_end = .;
+    } > RAM :data
+
     .stacks (NOLOAD) : ALIGN(16)
     {
         __stack_region_start = .;

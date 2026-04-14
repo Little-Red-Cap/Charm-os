@@ -75,12 +75,15 @@ ARMv7-A translation state, ttbr0=0x00000000, ttbr1=0x00000000, ttbcr=0x00000000,
 ARMv7-A L1 table ready, base=0x40210000, ram=0x40211C0E, gic=0x08010C16, uart=0x09010C16
 ARMv7-A small-page alias ready, va=0x5200...., pa=0x4020...., l1=0x4020...., l2=0x4020....
 ARMv7-A small-page remap ready, va=0x52100000, pa-a=0x4020...., pa-b=0x4020...., l1=0x4021...., l2=0x4021....
+ARMv7-A attr probe ready, va=0x52300000, pa=0x40300000, section=0x40300000, identity-l1=0x00000000, l1=0x4021...., l2=0x4030...., tex=0x00000001, mem=normal-cached
 ARMv7-A icache probe ready, va=0x5220...., pa-a=0x4020...., pa-b=0x4020...., l1=0x4021...., l2=0x4020....
 ARMv7-A MMU active, sctlr=0x00C51079, ttbr0=0x40210000, ttbcr=0x00000000, dacr=0x00000001
 ARMv7-A MMU flags, mmu=on, dcache=off, icache=on
 Charm out.format import active, PL011 @ 0x09000000
 ARMv7-A small-page probe, addr=0x5200...., before=0xC0DEF00D, via-alias=0x1BADB002, direct=0x1BADB002
 ARMv7-A small-page remap, addr=0x52100000, before=0x13579BDF, after=0x2468ACE0, l2=0x4021....
+ARMv7-A attr probe, addr=0x52300000, before=0x11223344, normal=0x55667788, device-before=0x55667788, device=0x99AABBCC, restored=0x99AABBCC
+ARMv7-A attr descriptors, normal=0x4030.... (tex=0x00000001, mem=normal-cached), device=0x4030.... (tex=0x00000000, mem=device), restored=0x4030.... (tex=0x00000001, mem=normal-cached)
 ARMv7-A icache probe, addr=0x5220...., before=0x000000A1, after=0x000000B2, l2=0x4020....
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
@@ -273,6 +276,14 @@ continue
   can rewrite an active L2 entry, invalidate the matching TLB entry by VA,
   and prove that the new 4KB target becomes visible before we take on more
   realistic cache maintenance and board-specific bring-up.
+- A dedicated reserved RAM window is now also carved out for one attribute
+  probe page, so we can flip a live small-page alias between `normal-cached`
+  and `device` without leaving a competing identity mapping behind for the
+  same physical page.
+- That attribute probe then rewrites one live L2 entry between those two
+  memory types at runtime, confirms the data path still behaves across each
+  transition, and logs the decoded `TEX/C/B` view that later D-cache work
+  will need to reason about.
 - A dedicated executable small-page alias now also remaps one live virtual
   address between two different code pages after `SCTLR.I` is enabled, which
   gives us a direct QEMU smoke for instruction-side TLB/I-cache/branch

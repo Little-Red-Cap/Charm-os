@@ -1,13 +1,11 @@
 #include <cerrno>
+#include <cstddef>
 #include <cstdarg>
 #include <csignal>
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
-#include <cstddef>
-#endif
 #include <unistd.h>
 
 import posix.fd_table;
@@ -22,6 +20,7 @@ namespace {
     inline constexpr int kPosixOpenCreate = 0x40;
     inline constexpr int kPosixOpenTrunc = 0x200;
     inline constexpr int kPosixOpenAppend = 0x400;
+    inline constexpr int kPosixOpenNonBlock = 0x800;
     inline constexpr int kRuntimeErrPerm = 1;
     inline constexpr int kRuntimeErrNoent = 2;
     inline constexpr int kRuntimeErrIo = 5;
@@ -40,6 +39,7 @@ namespace {
     inline constexpr int kRuntimeErrSpipe = 29;
     inline constexpr int kRuntimeErrRofs = 30;
     inline constexpr int kRuntimeErrPipe = 32;
+    inline constexpr int kRuntimeErrRange = 34;
     inline constexpr int kRuntimeErrNametoolong = 36;
     inline constexpr int kRuntimeErrNosys = 38;
     inline constexpr int kRuntimeErrNotempty = 39;
@@ -94,6 +94,7 @@ namespace {
             case kRuntimeErrSpipe: return ESPIPE;
             case kRuntimeErrRofs: return EROFS;
             case kRuntimeErrPipe: return EPIPE;
+            case kRuntimeErrRange: return ERANGE;
             case kRuntimeErrNametoolong: return ENAMETOOLONG;
             case kRuntimeErrNosys: return ENOSYS;
             case kRuntimeErrNotempty: return ENOTEMPTY;
@@ -133,6 +134,33 @@ namespace {
         if ((flags & O_CREAT) != 0) out |= kPosixOpenCreate;
         if ((flags & O_TRUNC) != 0) out |= kPosixOpenTrunc;
         if ((flags & O_APPEND) != 0) out |= kPosixOpenAppend;
+        if ((flags & O_NONBLOCK) != 0) out |= kPosixOpenNonBlock;
+        return out;
+    }
+
+    int translate_runtime_status_flags_to_c(int flags) noexcept {
+        int out = 0;
+        switch (flags & O_ACCMODE) {
+            case kPosixOpenWriteOnly:
+                out |= O_WRONLY;
+                break;
+            case kPosixOpenReadWrite:
+                out |= O_RDWR;
+                break;
+            case kPosixOpenReadOnly:
+            default:
+                out |= O_RDONLY;
+                break;
+        }
+        if ((flags & kPosixOpenAppend) != 0) out |= O_APPEND;
+        if ((flags & kPosixOpenNonBlock) != 0) out |= O_NONBLOCK;
+        return out;
+    }
+
+    int translate_c_status_flags_to_runtime(int flags) noexcept {
+        int out = 0;
+        if ((flags & O_APPEND) != 0) out |= kPosixOpenAppend;
+        if ((flags & O_NONBLOCK) != 0) out |= kPosixOpenNonBlock;
         return out;
     }
 
@@ -195,6 +223,102 @@ extern "C" int _close(int fd) {
     }
     guard.restore();
     return r;
+}
+
+extern "C" int _pipe(int* fds) {
+    ErrnoScope guard{};
+    if (!fds) {
+        set_bridge_errno(kRuntimeErrInval);
+        return -1;
+    }
+    const int r = posix::user::pipe(fds);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int pipe(int* fds) {
+    return _pipe(fds);
+}
+
+extern "C" int _dup(int fd) {
+    ErrnoScope guard{};
+    const int r = posix::user::dup(fd);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int dup(int fd) {
+    return _dup(fd);
+}
+
+extern "C" int _dup2(int oldfd, int newfd) {
+    ErrnoScope guard{};
+    const int r = posix::user::dup2(oldfd, newfd);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int dup2(int oldfd, int newfd) {
+    return _dup2(oldfd, newfd);
+}
+
+namespace {
+    bool fcntl_requires_int_arg(int cmd) noexcept {
+        return cmd == F_DUPFD || cmd == F_SETFD || cmd == F_SETFL;
+    }
+
+    int fcntl_bridge_call(int fd, int cmd, int arg) noexcept {
+        ErrnoScope guard{};
+        int runtime_arg = arg;
+        if (cmd == F_SETFL) {
+            constexpr int kAllowedStatusFlags = O_APPEND | O_NONBLOCK;
+            if ((arg & ~kAllowedStatusFlags) != 0) {
+                set_bridge_errno(kRuntimeErrInval);
+                return -1;
+            }
+            runtime_arg = translate_c_status_flags_to_runtime(arg);
+        }
+        const int r = posix::user::fcntl(fd, cmd, runtime_arg);
+        if (r < 0) {
+            return guard.fail_from_runtime();
+        }
+        guard.restore();
+        if (cmd == F_GETFL) {
+            return translate_runtime_status_flags_to_c(r);
+        }
+        return r;
+    }
+}
+
+extern "C" int _fcntl(int fd, int cmd, ...) {
+    int arg = 0;
+    if (fcntl_requires_int_arg(cmd)) {
+        va_list args;
+        va_start(args, cmd);
+        arg = va_arg(args, int);
+        va_end(args);
+    }
+    return fcntl_bridge_call(fd, cmd, arg);
+}
+
+extern "C" int fcntl(int fd, int cmd, ...) {
+    int arg = 0;
+    if (fcntl_requires_int_arg(cmd)) {
+        va_list args;
+        va_start(args, cmd);
+        arg = va_arg(args, int);
+        va_end(args);
+    }
+    return fcntl_bridge_call(fd, cmd, arg);
 }
 
 extern "C" int _open(const char* path, int flags, ...) {
@@ -335,6 +459,31 @@ extern "C" int _rename(const char* from, const char* to) {
 
 extern "C" int rename(const char* from, const char* to) {
     return _rename(from, to);
+}
+
+extern "C" int _chdir(const char* path) {
+    ErrnoScope guard{};
+    const int r = posix::user::chdir(path);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int chdir(const char* path) {
+    return _chdir(path);
+}
+
+extern "C" char* getcwd(char* buf, std::size_t size) {
+    ErrnoScope guard{};
+    auto* result = posix::user::getcwd(buf, static_cast<util::usize>(size));
+    if (!result) {
+        guard.fail_from_runtime();
+        return nullptr;
+    }
+    guard.restore();
+    return result;
 }
 
 extern "C" int _access(const char* path, int mode) {

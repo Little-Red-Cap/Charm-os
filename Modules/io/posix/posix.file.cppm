@@ -19,9 +19,11 @@ export namespace posix {
     inline constexpr int O_RDONLY = 0x0;
     inline constexpr int O_WRONLY = 0x1;
     inline constexpr int O_RDWR = 0x2;
+    inline constexpr int O_ACCMODE = 0x3;
     inline constexpr int O_CREAT = 0x40;
     inline constexpr int O_TRUNC = 0x200;
     inline constexpr int O_APPEND = 0x400;
+    inline constexpr int O_NONBLOCK = 0x800;
 
     inline constexpr util::u32 stat_type_from_node(fs::NodeType type) noexcept {
         switch (type) {
@@ -109,6 +111,7 @@ export namespace posix {
             }
             handle->owner = this;
             handle->append = (flags & O_APPEND) != 0;
+            handle->non_block = (flags & O_NONBLOCK) != 0;
 
             auto fs_flags = fs::OpenFlags::read;
             if ((flags & O_WRONLY) != 0) {
@@ -160,6 +163,8 @@ export namespace posix {
                     &NullDevice::close,
                     &NullDevice::stat,
                     nullptr,
+                    nullptr,
+                    nullptr,
                     nullptr
                 };
                 return kOps;
@@ -169,6 +174,7 @@ export namespace posix {
         struct Handle {
             fs::File file{};
             bool append{false};
+            bool non_block{false};
             FileService* owner{nullptr};
             util::u32 refs{1};
         };
@@ -183,6 +189,28 @@ export namespace posix {
             const auto av = static_cast<util::u32>(a);
             const auto bv = static_cast<util::u32>(b);
             return static_cast<fs::OpenFlags>(av | bv);
+        }
+
+
+        static util::Result<int> get_status_flags(void* ctx) noexcept {
+            auto* handle = static_cast<Handle*>(ctx);
+            if (!handle) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            int flags = 0;
+            if (handle->append) flags |= O_APPEND;
+            if (handle->non_block) flags |= O_NONBLOCK;
+            return flags;
+        }
+
+        static util::Result<void> set_status_flags(void* ctx, int flags) noexcept {
+            auto* handle = static_cast<Handle*>(ctx);
+            if (!handle) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            handle->append = (flags & O_APPEND) != 0;
+            handle->non_block = (flags & O_NONBLOCK) != 0;
+            return {};
         }
 
         static util::Result<util::usize> read(void* ctx, MutByteView buf) noexcept {
@@ -295,7 +323,9 @@ export namespace posix {
                 &FileService::close,
                 &FileService::stat,
                 &FileService::dup,
-                &FileService::seek
+                &FileService::seek,
+                &FileService::get_status_flags,
+                &FileService::set_status_flags
             };
             return kOps;
         }

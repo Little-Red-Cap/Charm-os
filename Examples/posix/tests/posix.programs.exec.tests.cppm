@@ -32,11 +32,67 @@ import posix.test_harness;
 namespace {
     using namespace posix::testsupport;
 
+    struct TermStubCtx {
+        util::u32 refs{1};
+        bool non_block{false};
+    };
+
     util::Result<void> term_stat_stub(void*, posix::PosixStat& out) noexcept {
         out.mode = posix::make_stat_mode(posix::S_IFCHR, posix::kModePermChar);
         out.size = 0;
         return {};
     }
+
+    util::Result<util::usize> term_read_stub(void*, posix::MutByteView) noexcept {
+        return util::usize{0};
+    }
+
+    util::Result<util::usize> term_write_stub(void*, posix::ByteView buf) noexcept {
+        return buf.size();
+    }
+
+    util::Result<void> term_close_stub(void* ctx) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (state && state->refs > 0) {
+            --state->refs;
+        }
+        return {};
+    }
+
+    util::Result<void> term_dup_stub(void* ctx) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (state) {
+            ++state->refs;
+        }
+        return {};
+    }
+
+    util::Result<int> term_get_status_flags_stub(void* ctx) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (!state) {
+            return 0;
+        }
+        return state->non_block ? posix::O_NONBLOCK : 0;
+    }
+
+    util::Result<void> term_set_status_flags_stub(void* ctx, int flags) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (state) {
+            state->non_block = (flags & posix::O_NONBLOCK) != 0;
+        }
+        return {};
+    }
+
+    inline const posix::FdOps kTermOps{
+        &term_read_stub,
+        &term_write_stub,
+        &term_close_stub,
+        &term_stat_stub,
+        &term_dup_stub,
+        nullptr,
+        &term_get_status_flags_stub,
+        &term_set_status_flags_stub
+    };
 
     void test_hello() noexcept {
         Harness h{};
@@ -283,11 +339,9 @@ namespace {
         auto rreg = h.procs.register_executable("newlib_syscall_probe", &newlib_syscall_probe_main);
         check_true("newlib-syscall-register", rreg);
 
-        posix::FdOps term_ops{};
-        term_ops.stat = &term_stat_stub;
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("newlib-syscall-stdin", h.fds.attach(term_entry, 0));
         check_true("newlib-syscall-stdout-reserve", h.fds.attach(term_entry, 1));
         check_true("newlib-syscall-stderr", h.fds.attach(term_entry, 2));
@@ -311,6 +365,204 @@ namespace {
         auto st = h.procs.waitpid(sp.value().pid, 0);
         check_true("newlib-syscall-wait", st);
         check_eq("newlib-syscall-code", st.value().code, 0);
+    }
+
+    void test_newlib_dup() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_dup", &newlib_dup_main);
+        check_true("newlib-dup-register", rreg);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("newlib-dup-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-dup-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-dup-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-dup-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-dup-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_dup", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_dup";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-dup-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-dup-out", out, std::string_view{"dup-newlib-dup-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-dup-wait", st);
+        check_eq("newlib-dup-code", st.value().code, 0);
+    }
+
+    void test_newlib_dup2() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_dup2", &newlib_dup2_main);
+        check_true("newlib-dup2-register", rreg);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("newlib-dup2-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-dup2-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-dup2-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-dup2-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-dup2-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_dup2", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_dup2";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-dup2-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-dup2-out", out, std::string_view{"dup2-newlib-dup2-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-dup2-wait", st);
+        check_eq("newlib-dup2-code", st.value().code, 0);
+    }
+
+    void test_newlib_fcntl() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_fcntl", &newlib_fcntl_main);
+        check_true("newlib-fcntl-register", rreg);
+
+        TermStubCtx stdin_ctx{};
+        TermStubCtx stdout_ctx{};
+        TermStubCtx stderr_ctx{};
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        term_entry.flags = posix::FdFlags::read_only;
+        term_entry.ctx = &stdin_ctx;
+        check_true("newlib-fcntl-stdin", h.fds.attach(term_entry, 0));
+        term_entry.flags = posix::FdFlags::write_only;
+        term_entry.ctx = &stdout_ctx;
+        check_true("newlib-fcntl-stdout-reserve", h.fds.attach(term_entry, 1));
+        term_entry.ctx = &stderr_ctx;
+        check_true("newlib-fcntl-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-fcntl-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-fcntl-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_fcntl", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_fcntl";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-fcntl-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-fcntl-out", out, std::string_view{"fcntl-newlib-fcntl-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-fcntl-wait", st);
+        check_eq("newlib-fcntl-code", st.value().code, 0);
+    }
+
+    void test_newlib_pipe() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_pipe", &newlib_pipe_main);
+        check_true("newlib-pipe-register", rreg);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("newlib-pipe-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-pipe-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-pipe-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-pipe-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-pipe-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_pipe", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_pipe";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-pipe-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-pipe-out", out, std::string_view{"newlib-pipe-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-pipe-wait", st);
+        check_eq("newlib-pipe-code", st.value().code, 0);
+    }
+
+    void test_spawn_cloexec() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<64, 16, 64> ramfs{};
+        new (&ramfs) RamFsMount<64, 16, 64>();
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("cloexec-mount", mount_st);
+
+        Harness h{};
+        auto rreg = h.procs.register_executable("cloexec", &cloexec_main);
+        check_true("cloexec-register", rreg);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("cloexec-stdin", h.fds.attach(term_entry, 0));
+        check_true("cloexec-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("cloexec-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("cloexec-pipe", h.api.pipe(pipefd), 0);
+        check_true("cloexec-dup2", h.fds.dup2(pipefd[1], 1));
+
+        int cloexec_fd = h.api.open("/cloexec.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cloexec-open", cloexec_fd >= 0);
+        check_eq("cloexec-set", h.api.fcntl(cloexec_fd, posix::F_SETFD, posix::FD_CLOEXEC), 0);
+        check_eq("cloexec-get", h.api.fcntl(cloexec_fd, posix::F_GETFD), posix::FD_CLOEXEC);
+
+        char fd_arg[16]{};
+        std::snprintf(fd_arg, sizeof(fd_arg), "%d", cloexec_fd);
+        const char* argv[] = {"cloexec", fd_arg, nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "cloexec";
+        cfg.argv = std::span<const char* const>(argv, 2);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("cloexec-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("cloexec-out", out, std::string_view{"cloexec-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("cloexec-wait", st);
+        check_eq("cloexec-code", st.value().code, 0);
+
+        check_eq("cloexec-parent-write", h.api.write(cloexec_fd, "p", 1), static_cast<posix::ssize_t>(1));
+        check_eq("cloexec-parent-close", h.api.close(cloexec_fd), 0);
+
+        int verify_fd = h.api.open("/cloexec.txt", posix::O_RDONLY, 0);
+        check_true("cloexec-verify-open", verify_fd >= 0);
+        std::array<char, 8> verify_buf{};
+        auto r = h.api.read(verify_fd, verify_buf.data(), verify_buf.size());
+        check_eq("cloexec-verify-read", r, static_cast<posix::ssize_t>(1));
+        check_eq("cloexec-verify-text", std::string_view{verify_buf.data(), 1}, std::string_view{"p"});
+        check_eq("cloexec-verify-close", h.api.close(verify_fd), 0);
     }
 
     void test_newlib_kill_self() noexcept {
@@ -393,11 +645,9 @@ namespace {
         auto rreg = h.procs.register_executable("newlib_path", &newlib_path_main);
         check_true("newlib-path-register", rreg);
 
-        posix::FdOps term_ops{};
-        term_ops.stat = &term_stat_stub;
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("newlib-path-stdin", h.fds.attach(term_entry, 0));
         check_true("newlib-path-stdout-reserve", h.fds.attach(term_entry, 1));
         check_true("newlib-path-stderr", h.fds.attach(term_entry, 2));
@@ -424,6 +674,46 @@ namespace {
         check_eq("newlib-path-out", out, std::string_view{"newlib-path-ok\n"});
     }
 
+    void test_newlib_cwd() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<64, 16, 128> ramfs{};
+        new (&ramfs) RamFsMount<64, 16, 128>();
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("newlib-cwd-mount", mount_st);
+
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_cwd", &newlib_cwd_main);
+        check_true("newlib-cwd-register", rreg);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("newlib-cwd-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-cwd-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-cwd-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-cwd-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-cwd-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_cwd", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_cwd";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-cwd-spawn", sp);
+
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-cwd-wait", st);
+        check_eq("newlib-cwd-code", st.value().code, 0);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-cwd-out", out, std::string_view{"newlib-cwd-ok\n"});
+    }
+
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
     void test_newlib_stdio() noexcept {
         fs::clear_mounts();
@@ -436,11 +726,9 @@ namespace {
         auto rreg = h.procs.register_executable("newlib_stdio", &newlib_stdio_main);
         check_true("newlib-stdio-register", rreg);
 
-        posix::FdOps term_ops{};
-        term_ops.stat = &term_stat_stub;
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("newlib-stdio-stdin", h.fds.attach(term_entry, 0));
         check_true("newlib-stdio-stdout-reserve", h.fds.attach(term_entry, 1));
         check_true("newlib-stdio-stderr", h.fds.attach(term_entry, 2));
@@ -887,10 +1175,9 @@ namespace {
         }
         check_true("cat-file-load", cat_img);
 
-        posix::FdOps term_ops{};
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("cat-file-attach-term", h.fds.attach(term_entry, 1));
 
         {
@@ -1296,6 +1583,21 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase newlib-syscall begin");
     test_newlib_syscall_probe();
     log_line("[posix-smoke] programs phase newlib-syscall end");
+    log_line("[posix-smoke] programs phase newlib-dup begin");
+    test_newlib_dup();
+    log_line("[posix-smoke] programs phase newlib-dup end");
+    log_line("[posix-smoke] programs phase newlib-dup2 begin");
+    test_newlib_dup2();
+    log_line("[posix-smoke] programs phase newlib-dup2 end");
+    log_line("[posix-smoke] programs phase newlib-fcntl begin");
+    test_newlib_fcntl();
+    log_line("[posix-smoke] programs phase newlib-fcntl end");
+    log_line("[posix-smoke] programs phase newlib-pipe begin");
+    test_newlib_pipe();
+    log_line("[posix-smoke] programs phase newlib-pipe end");
+    log_line("[posix-smoke] programs phase cloexec begin");
+    test_spawn_cloexec();
+    log_line("[posix-smoke] programs phase cloexec end");
     log_line("[posix-smoke] programs phase newlib-kill begin");
     test_newlib_kill_self();
     log_line("[posix-smoke] programs phase newlib-kill end");
@@ -1305,6 +1607,9 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase newlib-path begin");
     test_newlib_path();
     log_line("[posix-smoke] programs phase newlib-path end");
+    log_line("[posix-smoke] programs phase newlib-cwd begin");
+    test_newlib_cwd();
+    log_line("[posix-smoke] programs phase newlib-cwd end");
     log_line("[posix-smoke] programs phase exit-code begin");
     log_line("[posix-smoke] programs exit-register ok");
     log_line("[posix-smoke] programs phase exit-code end");

@@ -99,7 +99,7 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - 可按头帧声明长度裁剪最后一个块（`trim_to_header_size`）
 - 会在写入过程中累计 payload CRC32，便于后续镜像校验链路复用
 - 以 Bootloader 分区上限和 `max_size` 共同约束下载尺寸
-- `boot_session` 可在传输完成后继续执行目标分区校验、写入 `BootInfo.pending`、选择启动槽位、在跳转前写入回滚预备，并在需要时确认成功
+- `boot_session` 可在传输完成后继续执行目标分区校验、写入 `BootInfo.pending`，再通过统一 `BootPlan` 完成槽位决策、跳转前回滚预备与成功确认
 
 ## 7. 实施建议（最小）
 
@@ -117,12 +117,12 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - `Examples/boot/bootloader_demo`：先写入有效 Slot A 镜像，再通过 `boot::XyModemSession` 下载并暂存 Slot B，随后执行：
   - 传输结果收口
   - 策略校验与 `BootInfo.pending` 写入
-  - 会话内槽位选择
+  - 生成 `BootPlan`
   - 跳转前回滚预备写回
-  - 会话内成功确认
+  - 基于计划的成功确认
   - 缺失头帧失败路径验证
 
-这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> Select -> MarkSuccess`。
+这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> BootPlan -> Prepare -> Confirm`。
 
 ## 9. Charm 落地点建议
 

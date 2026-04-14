@@ -38,6 +38,13 @@ export namespace boot {
         none = 0,
         pending_trial = 1u << 0
     };
+    enum class BootSelectionReason : util::u8 {
+        none = 0,
+        pending_trial,
+        active,
+        pending,
+        fallback
+    };
 
     struct BootResult {
         BootStatus status{BootStatus::invalid};

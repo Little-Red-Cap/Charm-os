@@ -84,24 +84,6 @@ export namespace boot {
         }
         const auto a_status = verify_partition_policy_status(s, cfg.slot_a, policy, info);
         const auto b_status = verify_partition_policy_status(s, cfg.slot_b, policy, info);
-        const bool a_ok = a_status == BootStatus::ok;
-        const bool b_ok = b_status == BootStatus::ok;
-
-        auto pick = [&](Slot slot) -> BootResult {
-            return {BootStatus::ok, slot};
-        };
-
-        if (pending_trial_armed(info) && info.pending == Slot::a && a_ok) return pick(Slot::a);
-        if (pending_trial_armed(info) && info.pending == Slot::b && b_ok) return pick(Slot::b);
-        if (info.active == Slot::a && a_ok) return pick(Slot::a);
-        if (info.active == Slot::b && b_ok) return pick(Slot::b);
-        if (info.pending == Slot::a && a_ok) return pick(Slot::a);
-        if (info.pending == Slot::b && b_ok) return pick(Slot::b);
-        if (a_ok) return pick(Slot::a);
-        if (b_ok) return pick(Slot::b);
-        if (a_status == BootStatus::io_error || b_status == BootStatus::io_error) {
-            return {BootStatus::io_error, Slot::a};
-        }
-        return {BootStatus::invalid, Slot::a};
+        return select_slot_candidate(info, a_status, b_status).boot;
     }
 }

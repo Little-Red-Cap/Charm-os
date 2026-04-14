@@ -19,6 +19,7 @@ export import boot_storage;
 export import boot_flash;
 export import boot_flow;
 export import boot_policy;
+export import boot_plan;
 export import boot_uart;
 export import boot_xymodem;
 export import boot_session;

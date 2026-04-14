@@ -93,6 +93,21 @@ namespace {
         return true;
     }
 
+    const char* selection_reason_name(boot::BootSelectionReason reason) noexcept {
+        switch (reason) {
+        case boot::BootSelectionReason::pending_trial:
+            return "trial";
+        case boot::BootSelectionReason::active:
+            return "active";
+        case boot::BootSelectionReason::pending:
+            return "pending";
+        case boot::BootSelectionReason::fallback:
+            return "fallback";
+        default:
+            return "none";
+        }
+    }
+
     std::vector<util::u8> make_header_frame(std::string_view file_name, util::u32 file_size) {
         std::array<util::u8, 128> payload{};
         util::usize pos = 0;
@@ -254,10 +269,10 @@ int main() {
         "slot_b.bin",
         std::span<const util::u8>(image_b.data(), image_b.size()));
     const auto download = receiver.complete();
-    const auto pick = receiver.select_boot();
+    const auto plan = receiver.decide_boot();
     const bool prepared = receiver.prepare_selected_boot();
-    boot::BootInfo rollback_info{};
-    const auto rollback_pick = boot::select_slot_policy(storage, cfg, rollback_info, policy);
+    const auto prepared_result = receiver.result();
+    const auto rollback_plan = boot::decide_boot_policy(storage, cfg, policy);
     const bool marked = receiver.mark_selected_success();
     const auto final_result = receiver.result();
     const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info);
@@ -288,15 +303,23 @@ int main() {
                     static_cast<bool>(download) &&
                     download.pending_set &&
                     download.boot_info_written &&
-                    pick.status == boot::BootStatus::ok &&
+                    static_cast<bool>(plan) &&
+                    plan.boot.status == boot::BootStatus::ok &&
                     slot_b_valid &&
-                    pick.slot == boot::Slot::b &&
+                    plan.boot.slot == boot::Slot::b &&
+                    plan.reason == boot::BootSelectionReason::pending_trial &&
+                    plan.prepare_required &&
                     prepared &&
-                    final_result.boot_prepared &&
-                    rollback_pick.status == boot::BootStatus::ok &&
-                    rollback_pick.slot == boot::Slot::a &&
+                    prepared_result.boot_prepared &&
+                    prepared_result.plan.prepared &&
+                    !prepared_result.plan.prepare_required &&
+                    static_cast<bool>(rollback_plan) &&
+                    rollback_plan.boot.slot == boot::Slot::a &&
+                    rollback_plan.reason == boot::BootSelectionReason::active &&
                     marked &&
                     final_result.success_marked &&
+                    final_result.plan.prepared &&
+                    !final_result.plan.confirm_required &&
                     final_result.info.active == boot::Slot::b &&
                     headerless_failed;
 
@@ -312,10 +335,14 @@ int main() {
                 download.transfer.expected_size,
                 static_cast<unsigned>(download.transfer.transport_status));
     std::printf("[boot] slot_b_valid=%d\n", slot_b_valid ? 1 : 0);
-    std::printf("[boot] pick=%s\n", pick.slot == boot::Slot::a ? "A" : "B");
-    std::printf("[boot] prepare_boot=%d rollback_pick=%s\n",
+    std::printf("[boot] boot_plan=%s slot=%s prepare=%d\n",
+                selection_reason_name(plan.reason),
+                plan.boot.slot == boot::Slot::a ? "A" : "B",
+                plan.prepare_required ? 1 : 0);
+    std::printf("[boot] prepare_boot=%d rollback_plan=%s:%s\n",
                 prepared ? 1 : 0,
-                rollback_pick.slot == boot::Slot::a ? "A" : "B");
+                selection_reason_name(rollback_plan.reason),
+                rollback_plan.boot.slot == boot::Slot::a ? "A" : "B");
     std::printf("[boot] mark_success=%d active=%s\n",
                 marked ? 1 : 0,
                 final_result.info.active == boot::Slot::a ? "A" : "B");

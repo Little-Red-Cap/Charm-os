@@ -120,6 +120,39 @@ export namespace boot {
                info.pending != info.active;
     }
 
+    struct BootSelection {
+        BootResult boot{};
+        BootSelectionReason reason{BootSelectionReason::none};
+    };
+
+    inline BootSelection select_slot_candidate(const BootInfo& info,
+                                               BootStatus a_status,
+                                               BootStatus b_status) noexcept {
+        const bool a_ok = a_status == BootStatus::ok;
+        const bool b_ok = b_status == BootStatus::ok;
+
+        auto pick = [&](Slot slot, BootSelectionReason reason) -> BootSelection {
+            return {{BootStatus::ok, slot}, reason};
+        };
+
+        if (pending_trial_armed(info) && info.pending == Slot::a && a_ok) {
+            return pick(Slot::a, BootSelectionReason::pending_trial);
+        }
+        if (pending_trial_armed(info) && info.pending == Slot::b && b_ok) {
+            return pick(Slot::b, BootSelectionReason::pending_trial);
+        }
+        if (info.active == Slot::a && a_ok) return pick(Slot::a, BootSelectionReason::active);
+        if (info.active == Slot::b && b_ok) return pick(Slot::b, BootSelectionReason::active);
+        if (info.pending == Slot::a && a_ok) return pick(Slot::a, BootSelectionReason::pending);
+        if (info.pending == Slot::b && b_ok) return pick(Slot::b, BootSelectionReason::pending);
+        if (a_ok) return pick(Slot::a, BootSelectionReason::fallback);
+        if (b_ok) return pick(Slot::b, BootSelectionReason::fallback);
+        if (a_status == BootStatus::io_error || b_status == BootStatus::io_error) {
+            return {{BootStatus::io_error, Slot::a}, BootSelectionReason::none};
+        }
+        return {{BootStatus::invalid, Slot::a}, BootSelectionReason::none};
+    }
+
     inline bool arm_pending_update(const Storage& s, const BootConfig& cfg,
                                    BootInfo& info, Slot slot) noexcept {
         info.pending = slot;
@@ -151,25 +184,7 @@ export namespace boot {
         const Partition& pb = cfg.slot_b;
         const auto a_status = verify_partition_status(s, pa);
         const auto b_status = verify_partition_status(s, pb);
-        const bool a_ok = a_status == BootStatus::ok;
-        const bool b_ok = b_status == BootStatus::ok;
-
-        auto pick = [&](Slot slot) -> BootResult {
-            return {BootStatus::ok, slot};
-        };
-
-        if (pending_trial_armed(info) && info.pending == Slot::a && a_ok) return pick(Slot::a);
-        if (pending_trial_armed(info) && info.pending == Slot::b && b_ok) return pick(Slot::b);
-        if (info.active == Slot::a && a_ok) return pick(Slot::a);
-        if (info.active == Slot::b && b_ok) return pick(Slot::b);
-        if (info.pending == Slot::a && a_ok) return pick(Slot::a);
-        if (info.pending == Slot::b && b_ok) return pick(Slot::b);
-        if (a_ok) return pick(Slot::a);
-        if (b_ok) return pick(Slot::b);
-        if (a_status == BootStatus::io_error || b_status == BootStatus::io_error) {
-            return {BootStatus::io_error, Slot::a};
-        }
-        return {BootStatus::invalid, Slot::a};
+        return select_slot_candidate(info, a_status, b_status).boot;
     }
 
     inline bool mark_success(const Storage& s, const BootConfig& cfg, BootInfo& info, Slot slot) noexcept {

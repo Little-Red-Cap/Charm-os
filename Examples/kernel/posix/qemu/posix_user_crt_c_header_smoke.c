@@ -34,14 +34,20 @@ int charm_posix_c_header_probe_entry(void) {
     if (charm_posix_write(-1, "x", 1) != -1) return 94;
     if (*err != CHARM_POSIX_EBADF) return 95;
     *err = 41;
-    if (charm_posix_getpid() <= 0) return 78;
-    if (*err != 41) return 86;
+    if (charm_posix_read(0, &ch, 0) != 0) return 100;
+    if (*err != 41) return 101;
     *err = 42;
-    if (charm_posix_sleep(0) != 0) return 87;
-    if (*err != 42) return 88;
+    if (charm_posix_write(1, "", 0) != 0) return 102;
+    if (*err != 42) return 103;
     *err = 43;
+    if (charm_posix_getpid() <= 0) return 78;
+    if (*err != 43) return 86;
+    *err = 44;
+    if (charm_posix_sleep(0) != 0) return 87;
+    if (*err != 44) return 88;
+    *err = 45;
     if (charm_posix_write(1, "c-header-ok\n", 12) != 12) return 79;
-    if (*err != 43) return 89;
+    if (*err != 45) return 89;
     return 0;
 }
 

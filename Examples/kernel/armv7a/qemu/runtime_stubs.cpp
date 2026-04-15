@@ -1,12 +1,18 @@
 #include <cstddef>
 
+#include "armv7a_diag_context.hpp"
 #include "armv7a_platform.hpp"
 
 namespace {
-[[noreturn]] void runtime_trap(const char* reason)
+[[noreturn]] void runtime_trap(const char* reason, const char* detail = nullptr)
 {
+    armv7a_diag_print_context("runtime");
     armv7a_platform_early_console_puts("runtime trap: ");
     armv7a_platform_early_console_puts(reason);
+    if (detail != nullptr) {
+        armv7a_platform_early_console_puts(": ");
+        armv7a_platform_early_console_puts(detail);
+    }
     armv7a_platform_early_console_puts("\r\n");
     armv7a_platform_idle_forever();
 }
@@ -117,6 +123,26 @@ extern "C" void __aeabi_memclr8(void* dest, std::size_t count)
     (void)memset(dest, 0, count);
 }
 
+extern "C" [[noreturn]] void __cxa_pure_virtual()
+{
+    runtime_trap("__cxa_pure_virtual");
+}
+
+extern "C" [[noreturn]] void __cxa_deleted_virtual()
+{
+    runtime_trap("__cxa_deleted_virtual");
+}
+
+extern "C" [[noreturn]] void __stack_chk_fail()
+{
+    runtime_trap("__stack_chk_fail");
+}
+
+extern "C" [[noreturn]] void abort()
+{
+    runtime_trap("abort");
+}
+
 namespace std {
 [[noreturn]] void terminate() noexcept
 {
@@ -128,12 +154,6 @@ namespace std {
                                         const char*,
                                         const char* condition) noexcept
 {
-    armv7a_platform_early_console_puts("runtime trap: libstdc++ assert");
-    if (condition != nullptr) {
-        armv7a_platform_early_console_puts(": ");
-        armv7a_platform_early_console_puts(condition);
-    }
-    armv7a_platform_early_console_puts("\r\n");
-    armv7a_platform_idle_forever();
+    runtime_trap("libstdc++ assert", condition);
 }
 } // namespace std

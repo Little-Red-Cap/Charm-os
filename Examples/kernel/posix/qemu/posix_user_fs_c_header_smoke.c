@@ -39,6 +39,9 @@ int charm_posix_c_fs_header_entry(void) {
     if (*err != 46) return 374;
     if (charm_posix_fstat(fd, &st) != 0) return 375;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 376;
+    *err = 0;
+    if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_SET) != -1) return 383;
+    if (*err != CHARM_POSIX_ESPIPE) return 384;
     if (charm_posix_close(fd) != 0) return 377;
 
     *err = 47;

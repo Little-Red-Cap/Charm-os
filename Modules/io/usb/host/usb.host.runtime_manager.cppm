@@ -6,6 +6,22 @@ import util.core;
 import util.error;
 
 export namespace usb::host {
+    template <typename PublishStateT, typename ExportStateT>
+    struct RuntimeBindingState {
+        bool tracked{false};
+        bool enumerated{false};
+        PublishStateT publish_state{PublishStateT::missing};
+        ExportStateT export_state{ExportStateT::missing};
+
+        [[nodiscard]] bool published() const noexcept {
+            return publish_state == PublishStateT::published;
+        }
+
+        [[nodiscard]] bool attached() const noexcept {
+            return export_state == ExportStateT::attached;
+        }
+    };
+
     template <util::usize MaxDevices, util::usize MaxDrivers>
     class RuntimeManager {
     public:
@@ -87,6 +103,20 @@ export namespace usb::host {
         [[nodiscard]] auto export_state(const BindingT& binding) const noexcept
             -> decltype(binding.export_state()) {
             return binding.export_state();
+        }
+
+        template <typename BindingT>
+        [[nodiscard]] auto state(const BindingT& binding) const noexcept
+            -> RuntimeBindingState<decltype(binding.publish_state()),
+                                   decltype(binding.export_state())> {
+            RuntimeBindingState<decltype(binding.publish_state()),
+                                decltype(binding.export_state())> state{};
+            const auto index = find_record_index(binding.device_record());
+            state.tracked = index < bus_.size();
+            state.enumerated = state.tracked && bus_.record_at(index).enumerated;
+            state.publish_state = binding.publish_state();
+            state.export_state = binding.export_state();
+            return state;
         }
 
         template <typename BindingT>

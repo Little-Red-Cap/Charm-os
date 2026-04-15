@@ -59,14 +59,20 @@ int main() {
     if (!expect_ok(cdc.add_to(runtime), "failed to add CDC exported binding")) {
         return 1;
     }
-    if (!expect(runtime.publish_state(msc.binding) == block::PublishState::published,
-                "runtime should report MSC capability as published")) return 1;
-    if (!expect(runtime.publish_state(cdc.binding) == io::PublishState::published,
-                "runtime should report CDC capability as published")) return 1;
-    if (!expect(msc.export_state() == block::ExportState::detached,
+    const auto msc_initial = runtime.state(msc.binding);
+    const auto cdc_initial = runtime.state(cdc.binding);
+    if (!expect(msc_initial.tracked && cdc_initial.tracked,
+                "new bindings should be tracked by runtime manager")) return 1;
+    if (!expect(msc_initial.published() && cdc_initial.published(),
+                "runtime state should report both capabilities as published")) return 1;
+    if (!expect(msc_initial.export_state == block::ExportState::detached,
                 "MSC binding should start exported but detached")) return 1;
-    if (!expect(cdc.export_state() == io::ExportState::detached,
+    if (!expect(cdc_initial.export_state == io::ExportState::detached,
                 "CDC binding should start exported but detached")) return 1;
+    if (!expect(msc.export_state() == block::ExportState::detached,
+                "MSC binding should agree with runtime state before enumeration")) return 1;
+    if (!expect(cdc.export_state() == io::ExportState::detached,
+                "CDC binding should agree with runtime state before enumeration")) return 1;
 
     auto* stable_block = msc.stable();
     auto* stable_channel = cdc.stable();
@@ -104,10 +110,12 @@ int main() {
 
     if (!expect(msc.attached(), "MSC slot was not attached")) return 1;
     if (!expect(cdc.attached(), "CDC slot was not attached")) return 1;
-    if (!expect(runtime.export_state(msc.binding) == block::ExportState::attached,
-                "runtime should report MSC export as attached")) return 1;
-    if (!expect(runtime.export_state(cdc.binding) == io::ExportState::attached,
-                "runtime should report CDC export as attached")) return 1;
+    const auto msc_attached = runtime.state(msc.binding);
+    const auto cdc_attached = runtime.state(cdc.binding);
+    if (!expect(msc_attached.enumerated && cdc_attached.enumerated,
+                "runtime state should mark both bindings as enumerated")) return 1;
+    if (!expect(msc_attached.attached() && cdc_attached.attached(),
+                "runtime state should report both exports as attached")) return 1;
     const auto cdc_generation_before = cdc.generation();
 
     auto block_read = read_lba0(*stable_block, block_buf);
@@ -168,15 +176,17 @@ int main() {
 
     if (!expect_ok(cdc.try_forget_from(runtime), "failed to forget CDC binding")) return 1;
     if (!expect_ok(msc.try_forget_from(runtime), "failed to forget MSC binding")) return 1;
-    if (!expect(!runtime.contains(msc.binding) && !runtime.contains(cdc.binding),
+    const auto msc_forgotten = runtime.state(msc.binding);
+    const auto cdc_forgotten = runtime.state(cdc.binding);
+    if (!expect(!msc_forgotten.tracked && !cdc_forgotten.tracked,
                 "forgotten bindings should be removed from runtime bus")) return 1;
-    if (!expect(runtime.publish_state(msc.binding) == block::PublishState::missing,
+    if (!expect(msc_forgotten.publish_state == block::PublishState::missing,
                 "forgotten MSC capability should become unpublished")) return 1;
-    if (!expect(runtime.publish_state(cdc.binding) == io::PublishState::missing,
+    if (!expect(cdc_forgotten.publish_state == io::PublishState::missing,
                 "forgotten CDC capability should become unpublished")) return 1;
-    if (!expect(msc.export_state() == block::ExportState::missing,
+    if (!expect(msc_forgotten.export_state == block::ExportState::missing,
                 "forgotten MSC export should become missing")) return 1;
-    if (!expect(cdc.export_state() == io::ExportState::missing,
+    if (!expect(cdc_forgotten.export_state == io::ExportState::missing,
                 "forgotten CDC export should become missing")) return 1;
     if (!expect(block_registry.open_device("block.usb0") == nullptr,
                 "forgotten MSC capability should be removed from block registry")) return 1;

@@ -71,6 +71,8 @@
 > 用来表达 capability 是否仍处于 published 视图中。
 > 这层 published 视图也可以继续由 runtime binding / manager 向上转发，
 > 让上层调用不必总是手动回到 registry 查询。
+> 如果要继续收敛用户侧查询接口，更推荐 manager 返回组合状态快照，
+> 而不是把 published / live / tracked 粗暴揉成一个枚举。
 
 ## 1. 核心概念
 

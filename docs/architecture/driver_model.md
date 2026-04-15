@@ -465,6 +465,9 @@ USB Device 不能简单地整体归入动态平面。
   用来把“已发布视图”从隐式 `find_* != nullptr` 提升为代码契约
 - 这层查询也可以继续由 runtime binding / manager 往上转发，
   让用户在更高层直接问“这个 capability 还在不在”
+- 如果 manager 需要提供更易消费的高层查询，推荐返回一个组合快照，
+  把 `tracked / enumerated / publish_state / export_state` 放在一起，
+  但不要把 `published` 与 `live` 折叠成单一魔法状态值
 
 稳定槽位导出现在补了一层显式状态：
 

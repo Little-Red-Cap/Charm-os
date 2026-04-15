@@ -1,7 +1,10 @@
 # POSIX / ELF Stage Summary
 
 ## Current Baseline
-- stage exit criteria are now captured separately in `docs/system/posix_v0_closure_checklist.md`, so “keep pushing” and “when to stop” can be judged against the same checklist
+- POSIX v0 can now be considered closed
+- the POSIX subsystem now enters maintenance mode rather than open-ended expansion
+- future POSIX work is expected to be demand-driven: real blocker -> minimal contract -> minimal smoke -> doc sync
+- stage exit criteria are now captured separately in `docs/system/posix_v0_closure_checklist.md`, so both `keep pushing` and `when to stop` are judged against the same checklist
 - QEMU mainline smoke is green: `posix smoke + busybox phase2 smoke`
 - dedicated newlib stdio smoke is green too: `posix-qemu-newlib-stdio.elf` passes `run_qemu_ci.ps1` with `-RequireBusyboxPhase2 $false`
 - ELF execution is on the regular path: `spawn -> load_image -> start_image`

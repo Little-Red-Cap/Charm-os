@@ -2,5 +2,11 @@
 
 #include <cstdint>
 
-bool armv7a_svc_observation_seen();
-std::uint32_t armv7a_svc_observation_spsr();
+struct Armv7aSvcObservation {
+    bool seen = false;
+    std::uint32_t origin_spsr = 0u;
+    std::uint32_t handler_cpsr = 0u;
+    std::uint32_t return_pc = 0u;
+};
+
+Armv7aSvcObservation armv7a_svc_last_observation();

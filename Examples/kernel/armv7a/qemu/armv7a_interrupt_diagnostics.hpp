@@ -24,6 +24,7 @@ Armv7aSgiPendingSnapshot armv7a_capture_sgi_pending_snapshot();
 bool armv7a_timer_pending_observed(const Armv7aTimerPendingSnapshot& snapshot);
 bool armv7a_sgi_pending_observed(const Armv7aSgiPendingSnapshot& snapshot);
 
+void armv7a_interrupt_print_reset_state();
 void armv7a_interrupt_print_timer_pending_evidence(const Armv7aTimerPendingSnapshot& snapshot);
 void armv7a_interrupt_print_sgi_pending_evidence(const Armv7aSgiPendingSnapshot& snapshot,
                                                  Armv7aPlatformInterruptRoute route);

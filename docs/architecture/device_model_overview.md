@@ -69,6 +69,8 @@
 > `io::PublishState::{missing, published}` /
 > `block::PublishState::{missing, published}`，
 > 用来表达 capability 是否仍处于 published 视图中。
+> 这层 published 视图也可以继续由 runtime binding / manager 向上转发，
+> 让上层调用不必总是手动回到 registry 查询。
 
 ## 1. 核心概念
 

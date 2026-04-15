@@ -183,6 +183,14 @@ export namespace usb::host {
             return exported_.exported();
         }
 
+        [[nodiscard]] io::PublishState publish_state() const noexcept {
+            return exported_.publish_state();
+        }
+
+        [[nodiscard]] bool published() const noexcept {
+            return exported_.published();
+        }
+
         [[nodiscard]] io::ExportState export_state() const noexcept {
             return exported_.state();
         }

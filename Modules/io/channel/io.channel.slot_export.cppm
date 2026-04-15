@@ -97,6 +97,17 @@ export namespace io {
                    ep->reactor == reactor_;
         }
 
+        [[nodiscard]] PublishState publish_state() const noexcept {
+            if (!registry_) {
+                return PublishState::missing;
+            }
+            return registry_->publish_state(desc_.cap);
+        }
+
+        [[nodiscard]] bool published() const noexcept {
+            return publish_state() == PublishState::published;
+        }
+
         [[nodiscard]] ExportState state() const noexcept {
             if (!exported()) {
                 return ExportState::missing;
@@ -164,9 +175,13 @@ export namespace io {
             "io.usb0",
             EndpointCaps::duplex
         };
+        if (exported.publish_state() != PublishState::missing) return false;
+        if (exported.published()) return false;
         if (exported.exported()) return false;
         if (exported.state() != ExportState::missing) return false;
         if (!exported.ensure_exported()) return false;
+        if (exported.publish_state() != PublishState::published) return false;
+        if (!exported.published()) return false;
         if (!exported.exported()) return false;
         if (exported.state() != ExportState::detached) return false;
         if (registry.open_channel("io.usb0") != &exported.channel()) return false;
@@ -195,6 +210,8 @@ export namespace io {
         if (r.error() != errc::noent) return false;
 
         if (!exported.unexport()) return false;
+        if (exported.publish_state() != PublishState::missing) return false;
+        if (exported.published()) return false;
         if (exported.exported()) return false;
         if (exported.state() != ExportState::missing) return false;
         if (registry.open_channel("io.usb0") != nullptr) return false;

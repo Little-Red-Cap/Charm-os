@@ -59,10 +59,10 @@ int main() {
     if (!expect_ok(cdc.add_to(runtime), "failed to add CDC exported binding")) {
         return 1;
     }
-    if (!expect(block_registry.publish_state("block.usb0") == block::PublishState::published,
-                "block registry should report MSC capability as published")) return 1;
-    if (!expect(io_registry.publish_state("io.usb0") == io::PublishState::published,
-                "io registry should report CDC capability as published")) return 1;
+    if (!expect(runtime.publish_state(msc.binding) == block::PublishState::published,
+                "runtime should report MSC capability as published")) return 1;
+    if (!expect(runtime.publish_state(cdc.binding) == io::PublishState::published,
+                "runtime should report CDC capability as published")) return 1;
     if (!expect(msc.export_state() == block::ExportState::detached,
                 "MSC binding should start exported but detached")) return 1;
     if (!expect(cdc.export_state() == io::ExportState::detached,
@@ -170,9 +170,9 @@ int main() {
     if (!expect_ok(msc.try_forget_from(runtime), "failed to forget MSC binding")) return 1;
     if (!expect(!runtime.contains(msc.binding) && !runtime.contains(cdc.binding),
                 "forgotten bindings should be removed from runtime bus")) return 1;
-    if (!expect(block_registry.publish_state("block.usb0") == block::PublishState::missing,
+    if (!expect(runtime.publish_state(msc.binding) == block::PublishState::missing,
                 "forgotten MSC capability should become unpublished")) return 1;
-    if (!expect(io_registry.publish_state("io.usb0") == io::PublishState::missing,
+    if (!expect(runtime.publish_state(cdc.binding) == io::PublishState::missing,
                 "forgotten CDC capability should become unpublished")) return 1;
     if (!expect(msc.export_state() == block::ExportState::missing,
                 "forgotten MSC export should become missing")) return 1;

@@ -208,9 +208,8 @@ export namespace net {
     }
 
     template <util::usize Capacity>
-    [[nodiscard]] Result<void> write_ipv4_packet(PacketBuffer<Capacity>& packet,
-                                                 const Ipv4PacketSpec& spec,
-                                                 ByteView payload) noexcept {
+    [[nodiscard]] Result<void> prepend_ipv4_header(PacketBuffer<Capacity>& packet,
+                                                   const Ipv4PacketSpec& spec) noexcept {
         if (!spec.source.is_ipv4() || !spec.destination.is_ipv4()) {
             return util::unexpected(errc::not_supported);
         }
@@ -232,14 +231,9 @@ export namespace net {
             return util::unexpected(errc::invalid_arg);
         }
 
-        const auto total_length = header_length + payload.size();
+        const auto total_length = header_length + packet.size();
         if (total_length > 0xFFFFu) {
             return util::unexpected(errc::buffer_overflow);
-        }
-
-        auto reset = packet.reset();
-        if (!reset) {
-            return util::unexpected(reset.error());
         }
 
         std::array<util::u8, ipv4_max_header_size()> header{};
@@ -264,17 +258,23 @@ export namespace net {
             0
         });
         detail::store_be16(header.data() + 10, checksum);
+        return packet.prepend(ByteView{header.data(), header_length});
+    }
 
-        auto appended_header = packet.append(ByteView{header.data(), header_length});
-        if (!appended_header) {
-            return util::unexpected(appended_header.error());
+    template <util::usize Capacity>
+    [[nodiscard]] Result<void> write_ipv4_packet(PacketBuffer<Capacity>& packet,
+                                                 const Ipv4PacketSpec& spec,
+                                                 ByteView payload) noexcept {
+        auto reset = packet.reset(ipv4_min_header_size() + spec.options.size());
+        if (!reset) {
+            return util::unexpected(reset.error());
         }
 
         auto appended_payload = packet.append(payload);
         if (!appended_payload) {
             return util::unexpected(appended_payload.error());
         }
-        return {};
+        return prepend_ipv4_header(packet, spec);
     }
 
     class Ipv4Service {

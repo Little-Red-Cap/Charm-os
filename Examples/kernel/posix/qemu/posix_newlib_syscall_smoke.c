@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -696,6 +697,29 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (remove((const char*)0) != -1) return 572;
     if (errno != EINVAL) return 573;
+    errno = 77;
+    fd = open("/newlib-remove-file.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
+    if (fd < 0) return 876;
+    if (errno != 77) return 877;
+    if (close(fd) != 0) return 878;
+    errno = 78;
+    if (remove("/newlib-remove-file.txt") != 0) return 879;
+    if (errno != 78) return 880;
+    errno = 0;
+    if (stat("/newlib-remove-file.txt", &st) != -1) return 881;
+    if (errno != ENOENT) return 882;
+    errno = 79;
+    if (mkdir("/newlib-remove-dir", 0) != 0) return 883;
+    if (errno != 79) return 884;
+    errno = 80;
+    if (remove("/newlib-remove-dir") != 0) return 885;
+    if (errno != 80) return 886;
+    errno = 0;
+    if (stat("/newlib-remove-dir", &st) != -1) return 887;
+    if (errno != ENOENT) return 888;
+    errno = 0;
+    if (remove("") != -1) return 889;
+    if (errno != ENOENT) return 890;
 
     errno = 0;
     if (rmdir("/newlib-dir") != -1) return 156;
@@ -740,6 +764,35 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (rename("/newlib-path.txt", "") != -1) return 683;
     if (errno != ENOENT) return 684;
+
+    errno = 72;
+    fd = open("/newlib-busy.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
+    if (fd < 0) return 749;
+    if (errno != 72) return 750;
+    errno = 73;
+    if (write(fd, "zz", 2) != 2) return 751;
+    if (errno != 73) return 752;
+    if (close(fd) != 0) return 753;
+
+    errno = 0;
+    if (rename("/newlib-path.txt", "/newlib-busy.txt") != -1) return 754;
+    if (errno != EBUSY) return 755;
+
+    errno = 74;
+    if (stat("/newlib-path.txt", &st) != 0) return 756;
+    if (errno != 74) return 757;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 758;
+    if (st.st_size != 5) return 759;
+
+    errno = 75;
+    if (stat("/newlib-busy.txt", &st) != 0) return 760;
+    if (errno != 75) return 761;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 762;
+    if (st.st_size != 2) return 763;
+
+    errno = 76;
+    if (unlink("/newlib-busy.txt") != 0) return 764;
+    if (errno != 76) return 765;
 
     errno = 64;
     if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 163;
@@ -838,13 +891,25 @@ int charm_posix_newlib_path_entry(void) {
 int charm_posix_newlib_cwd_entry(void) {
     char cwd[32] = {0};
     char small[2] = {0};
+    char buf[4] = {0};
+    DIR* dir = NULL;
+    struct dirent* ent = NULL;
     int fd = -1;
+    int saw_dot = 0;
+    int saw_parent = 0;
+    int saw_sub = 0;
     struct stat st;
 
     errno = 81;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 181;
     if (errno != 81) return 545;
     if (strcmp(cwd, "/") != 0) return 182;
+    errno = 0;
+    if (opendir("/newlib-cwd-missing") != NULL) return 868;
+    if (errno != ENOENT) return 869;
+    errno = 0;
+    if (opendir("") != NULL) return 870;
+    if (errno != ENOENT) return 871;
 
     if (mkdir("/newlib-cwd", 0) != 0) return 183;
     if (mkdir("/newlib-cwd/sub", 0) != 0) return 184;
@@ -870,6 +935,73 @@ int charm_posix_newlib_cwd_entry(void) {
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 195;
     if (strcmp(cwd, "/newlib-cwd/sub") != 0) return 196;
 
+    errno = 82;
+    if (stat(".", &st) != 0) return 787;
+    if (errno != 82) return 788;
+    if ((st.st_mode & S_IFMT) != S_IFDIR) return 789;
+    errno = 83;
+    if (stat("..", &st) != 0) return 790;
+    if (errno != 83) return 791;
+    if ((st.st_mode & S_IFMT) != S_IFDIR) return 792;
+
+    errno = 84;
+    fd = open("./dot.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
+    if (fd < 0) return 766;
+    if (errno != 84) return 767;
+    errno = 85;
+    if (write(fd, "d", 1) != 1) return 768;
+    if (errno != 85) return 769;
+    errno = 86;
+    if (close(fd) != 0) return 770;
+    if (errno != 86) return 771;
+    errno = 87;
+    if (stat("./dot.txt", &st) != 0) return 772;
+    if (errno != 87) return 773;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 774;
+    if (st.st_size != 1) return 775;
+    errno = 102;
+    dir = opendir(".");
+    if (dir == NULL) return 826;
+    if (errno != 102) return 827;
+    saw_dot = 0;
+    while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, "dot.txt") == 0) {
+            saw_dot = 1;
+            if (ent->d_type != DT_REG) return 828;
+            if (ent->d_size != 1) return 829;
+        }
+    }
+    if (!saw_dot) return 830;
+    errno = 103;
+    if (readdir(dir) != NULL) return 831;
+    if (errno != 103) return 832;
+    errno = 104;
+    if (closedir(dir) != 0) return 833;
+    if (errno != 104) return 834;
+    errno = 0;
+    if (readdir(dir) != NULL) return 872;
+    if (errno != EINVAL) return 873;
+    errno = 0;
+    if (closedir(dir) != -1) return 874;
+    if (errno != EINVAL) return 875;
+    errno = 88;
+    fd = open("./dot.txt", O_RDONLY, 0);
+    if (fd < 0) return 776;
+    if (errno != 88) return 777;
+    errno = 89;
+    if (read(fd, buf, 1) != 1) return 778;
+    if (errno != 89) return 779;
+    if (buf[0] != 'd') return 780;
+    errno = 90;
+    if (close(fd) != 0) return 781;
+    if (errno != 90) return 782;
+    errno = 91;
+    if (unlink("./dot.txt") != 0) return 783;
+    if (errno != 91) return 784;
+    errno = 0;
+    if (stat("./dot.txt", &st) != -1) return 785;
+    if (errno != ENOENT) return 786;
+
     fd = open("../parent.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 197;
     if (write(fd, "up", 2) != 2) return 198;
@@ -877,6 +1009,31 @@ int charm_posix_newlib_cwd_entry(void) {
 
     if (stat("/newlib-cwd/parent.txt", &st) != 0) return 200;
     if (st.st_size != 2) return 201;
+    errno = 105;
+    dir = opendir("..");
+    if (dir == NULL) return 835;
+    if (errno != 105) return 836;
+    saw_parent = 0;
+    saw_sub = 0;
+    while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, "parent.txt") == 0) {
+            saw_parent = 1;
+            if (ent->d_type != DT_REG) return 837;
+            if (ent->d_size != 2) return 838;
+        }
+        if (strcmp(ent->d_name, "sub") == 0) {
+            saw_sub = 1;
+            if (ent->d_type != DT_DIR) return 839;
+        }
+    }
+    if (!saw_parent) return 840;
+    if (!saw_sub) return 841;
+    errno = 106;
+    if (readdir(dir) != NULL) return 842;
+    if (errno != 106) return 843;
+    errno = 107;
+    if (closedir(dir) != 0) return 844;
+    if (errno != 107) return 845;
 
     errno = 0;
     if (getcwd(small, sizeof(small)) != NULL) return 202;
@@ -897,10 +1054,96 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 0;
     if (getcwd(cwd, 0) != NULL) return 582;
     if (errno != EINVAL) return 583;
+    errno = 0;
+    if (opendir((const char*)0) != NULL) return 860;
+    if (errno != EINVAL) return 861;
+    errno = 0;
+    if (opendir("parent.txt") != NULL) return 866;
+    if (errno != ENOTDIR) return 867;
+    errno = 0;
+    if (readdir((DIR*)0) != NULL) return 862;
+    if (errno != EINVAL) return 863;
+    errno = 0;
+    if (closedir((DIR*)0) != -1) return 864;
+    if (errno != EINVAL) return 865;
 
     if (chdir("..") != 0) return 204;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 205;
     if (strcmp(cwd, "/newlib-cwd") != 0) return 206;
+
+    errno = 92;
+    if (rename("parent.txt", "parent-renamed.txt") != 0) return 793;
+    if (errno != 92) return 794;
+    errno = 0;
+    if (stat("parent.txt", &st) != -1) return 795;
+    if (errno != ENOENT) return 796;
+    errno = 93;
+    if (stat("parent-renamed.txt", &st) != 0) return 797;
+    if (errno != 93) return 798;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 799;
+    if (st.st_size != 2) return 800;
+    errno = 94;
+    if (unlink("parent-renamed.txt") != 0) return 801;
+    if (errno != 94) return 802;
+    errno = 0;
+    if (stat("parent-renamed.txt", &st) != -1) return 803;
+    if (errno != ENOENT) return 804;
+
+    errno = 95;
+    if (rename("sub", "sub-renamed") != 0) return 805;
+    if (errno != 95) return 806;
+    errno = 0;
+    if (stat("sub", &st) != -1) return 807;
+    if (errno != ENOENT) return 808;
+    errno = 96;
+    if (stat("sub-renamed", &st) != 0) return 809;
+    if (errno != 96) return 810;
+    if ((st.st_mode & S_IFMT) != S_IFDIR) return 811;
+    errno = 98;
+    if (chdir("sub-renamed") != 0) return 816;
+    if (errno != 98) return 817;
+    errno = 99;
+    if (getcwd(cwd, sizeof(cwd)) != cwd) return 818;
+    if (errno != 99) return 819;
+    if (strcmp(cwd, "/newlib-cwd/sub-renamed") != 0) return 820;
+    errno = 108;
+    dir = opendir(".");
+    if (dir == NULL) return 846;
+    if (errno != 108) return 847;
+    errno = 109;
+    if (readdir(dir) != NULL) return 848;
+    if (errno != 109) return 849;
+    errno = 110;
+    if (closedir(dir) != 0) return 850;
+    if (errno != 110) return 851;
+    errno = 100;
+    if (chdir("..") != 0) return 821;
+    if (errno != 100) return 822;
+    errno = 101;
+    if (getcwd(cwd, sizeof(cwd)) != cwd) return 823;
+    if (errno != 101) return 824;
+    if (strcmp(cwd, "/newlib-cwd") != 0) return 825;
+    errno = 97;
+    if (rmdir("sub-renamed") != 0) return 812;
+    if (errno != 97) return 813;
+    errno = 0;
+    if (stat("sub-renamed", &st) != -1) return 814;
+    if (errno != ENOENT) return 815;
+    errno = 111;
+    if (remove("child.txt") != 0) return 891;
+    if (errno != 111) return 892;
+    errno = 0;
+    if (stat("child.txt", &st) != -1) return 893;
+    if (errno != ENOENT) return 894;
+    errno = 112;
+    if (mkdir("remove-dir", 0) != 0) return 895;
+    if (errno != 112) return 896;
+    errno = 113;
+    if (remove("remove-dir") != 0) return 897;
+    if (errno != 113) return 898;
+    errno = 0;
+    if (stat("remove-dir", &st) != -1) return 899;
+    if (errno != ENOENT) return 900;
 
     errno = 0;
     if (chdir("/missing-cwd") != -1) return 207;

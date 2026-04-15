@@ -169,6 +169,19 @@ int main() {
         }
     }
 
+    auto late_request = client_session.send_request(
+        0x44u,
+        net::ByteView{hold, 4},
+        1,
+        1000,
+        &ClientState::on_response,
+        &ClientState::on_timeout,
+        &client_state);
+    if (late_request || late_request.error() != net::errc::closed) {
+        std::fputs("reactor request close late send_request not rejected\n", stderr);
+        return 7;
+    }
+
     client_driver.stop();
     server_driver.stop();
     (void)client.close();
@@ -177,27 +190,27 @@ int main() {
 
     if (!done) {
         std::fputs("reactor request close timeout\n", stderr);
-        return 7;
+        return 8;
     }
     if (client_state.response_count != 0) {
         std::fputs("reactor request close unexpected response\n", stderr);
-        return 8;
+        return 9;
     }
     if (client_state.timeout_count != 0) {
         std::fputs("reactor request close unexpected timeout\n", stderr);
-        return 9;
+        return 10;
     }
     if (client_state.error_count != 1 || client_state.last_error != net::errc::closed) {
         std::fputs("reactor request close unexpected error state\n", stderr);
-        return 10;
+        return 11;
     }
     if (client_session.pending_count() != 0) {
         std::fputs("reactor request close pending not cleared\n", stderr);
-        return 11;
+        return 12;
     }
     if (!client_driver.closed() || client_driver.last_error() != net::errc::closed) {
         std::fputs("reactor request close driver state mismatch\n", stderr);
-        return 12;
+        return 13;
     }
 
     std::puts("net reactor request close smoke: ok");

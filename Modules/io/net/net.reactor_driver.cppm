@@ -149,6 +149,10 @@ export namespace net {
             if (!started_ || !watch_) {
                 return util::unexpected(errc::bad_state);
             }
+            auto terminal = terminal_error();
+            if (terminal != errc::ok) {
+                return util::unexpected(terminal);
+            }
             auto armed = poller_.arm(watch_, static_cast<util::u32>(io::Event::writable));
             if (!armed) {
                 return util::unexpected(armed.error());
@@ -176,6 +180,16 @@ export namespace net {
             if (!self || !self->started_) {
                 return util::unexpected(errc::bad_state);
             }
+            auto terminal = self->terminal_error();
+            if (terminal != errc::ok) {
+                return util::unexpected(terminal);
+            }
+            if (!self->binding_.bound() || self->binding_.socket() == nullptr) {
+                return util::unexpected(errc::bad_state);
+            }
+            if (!self->binding_.socket()->valid()) {
+                return util::unexpected(errc::closed);
+            }
             const auto pushed = self->tx_.push(data);
             if (pushed == 0) {
                 return util::unexpected(errc::would_block);
@@ -192,11 +206,6 @@ export namespace net {
                 }
             }
 
-            if ((events & static_cast<util::u32>(io::Event::writable)) != 0u) {
-                flush_tx();
-                session_.notify_writable();
-            }
-
             if ((events & static_cast<util::u32>(io::Event::closed)) != 0u) {
                 mark_closed();
                 return;
@@ -204,6 +213,15 @@ export namespace net {
 
             if ((events & static_cast<util::u32>(io::Event::error)) != 0u) {
                 mark_error(errc::io);
+                return;
+            }
+
+            if ((events & static_cast<util::u32>(io::Event::writable)) != 0u) {
+                flush_tx();
+                if (terminal_error() != errc::ok) {
+                    return;
+                }
+                session_.notify_writable();
             }
         }
 
@@ -224,12 +242,15 @@ export namespace net {
                 session_.feed(ByteView{rx_buf_.data(), r.value()});
             }
             flush_tx();
+            if (terminal_error() != errc::ok) {
+                return false;
+            }
             session_.notify_writable();
             return true;
         }
 
         void flush_tx() noexcept {
-            if (!started_) return;
+            if (!started_ || terminal_error() != errc::ok) return;
 
             for (int i = 0; i < tx_budget_; ++i) {
                 if (pending_len_ == 0) {
@@ -285,19 +306,34 @@ export namespace net {
         }
 
         void mark_closed() noexcept {
-            if (closed_) {
+            if (terminal_error() != errc::ok) {
                 return;
             }
             closed_ = true;
             last_error_ = errc::closed;
+            clear_tx_pending();
             quiet_watch();
             notify_transport_closed();
         }
 
         void mark_error(errc error) noexcept {
+            if (terminal_error() != errc::ok) {
+                return;
+            }
             last_error_ = error;
+            clear_tx_pending();
             quiet_watch();
             notify_transport_error();
+        }
+
+        [[nodiscard]] errc terminal_error() const noexcept {
+            if (closed_) {
+                return errc::closed;
+            }
+            if (last_error_ != errc::ok) {
+                return last_error_;
+            }
+            return errc::ok;
         }
 
         void notify_transport_closed() noexcept {
@@ -387,7 +423,7 @@ export namespace net {
 
     template <typename DriverT>
     concept AcceptDriver = requires(DriverT& t) {
-        { t.start() } -> std::same_as<Result<void>>;
+        { t.start(default_socket_reactor_events()) } -> std::same_as<Result<void>>;
         t.stop();
     };
 
@@ -423,6 +459,7 @@ export namespace net {
             accepted_ = false;
             failed_ = false;
             last_error_ = errc::ok;
+            accepted_events_ = persistent_events;
 
             auto sub = reactor_.subscribe(listener_binding_.channel(),
                                           persistent_events,
@@ -508,7 +545,7 @@ export namespace net {
                 return;
             }
 
-            auto started = accepted_driver_.start();
+            auto started = accepted_driver_.start(accepted_events_);
             if (!started) {
                 (void)accepted_socket_.close();
                 mark_failed(started.error());
@@ -534,6 +571,7 @@ export namespace net {
         io::Subscription sub_{};
         SocketWatch watch_{};
         Endpoint peer_{};
+        util::u32 accepted_events_{default_socket_reactor_events()};
         bool started_{false};
         bool accepted_{false};
         bool failed_{false};

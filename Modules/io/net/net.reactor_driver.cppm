@@ -330,6 +330,61 @@ export namespace net {
         errc last_error_{errc::ok};
     };
 
+    template <util::usize MaxWatches>
+    class SocketWatchDriver {
+    public:
+        SocketWatchDriver(SocketPoller<MaxWatches>& poller,
+                          SocketChannelBinding& binding,
+                          SocketWatch& watch_out) noexcept
+            : poller_(poller),
+              binding_(binding),
+              watch_out_(watch_out) {}
+
+        [[nodiscard]] Result<void> start(
+            util::u32 persistent_events = default_socket_reactor_events()) noexcept {
+            if (started_ || watch_out_) {
+                return util::unexpected(errc::bad_state);
+            }
+            if (!binding_.bound() || binding_.socket() == nullptr || !binding_.socket()->valid()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            auto watch = poller_.watch(*binding_.socket(), binding_.channel(), persistent_events);
+            if (!watch) {
+                return util::unexpected(watch.error());
+            }
+
+            watch_ = watch.value();
+            watch_out_ = watch_;
+            started_ = true;
+            return {};
+        }
+
+        void stop() noexcept {
+            if (watch_) {
+                poller_.unwatch(watch_);
+                watch_ = {};
+            }
+            watch_out_ = {};
+            started_ = false;
+        }
+
+        [[nodiscard]] bool started() const noexcept {
+            return started_;
+        }
+
+        [[nodiscard]] SocketWatch watch() const noexcept {
+            return watch_;
+        }
+
+    private:
+        SocketPoller<MaxWatches>& poller_;
+        SocketChannelBinding& binding_;
+        SocketWatch& watch_out_;
+        SocketWatch watch_{};
+        bool started_{false};
+    };
+
     template <typename DriverT>
     concept AcceptDriver = requires(DriverT& t) {
         { t.start() } -> std::same_as<Result<void>>;

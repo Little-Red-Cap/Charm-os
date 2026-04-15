@@ -3,6 +3,9 @@ param(
     [string]$CandidateBundleRoot = "",
     [string]$BaselineBundleRoot = "",
     [string]$BaselineIndex = "",
+    [string]$Profile = "",
+    [string]$Board = "",
+    [string[]]$Facet = @(),
     [string[]]$Case = @(),
     [switch]$AllCases,
     [switch]$Clean,
@@ -175,6 +178,11 @@ $summary = [ordered]@{
     schema = 'materialized_graph.ci_summary/v1'
     generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
     output_root = $resolvedOutputRoot
+    subject_defaults = [ordered]@{
+        profile = if ([string]::IsNullOrWhiteSpace($Profile)) { $null } else { $Profile }
+        board = if ([string]::IsNullOrWhiteSpace($Board)) { $null } else { $Board }
+        active_facets = @($Facet)
+    }
     case_selection = [ordered]@{
         all_cases = $selection.AllCases
         cases = @($selection.Cases)
@@ -232,6 +240,15 @@ function Invoke-ArtifactReportExport {
     }
     if (-not $selection.AllCases) {
         $artifactArgs.Case = $selection.Cases
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Profile)) {
+        $artifactArgs.Profile = $Profile
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Board)) {
+        $artifactArgs.Board = $Board
+    }
+    if ($Facet.Count -gt 0) {
+        $artifactArgs.Facet = @($Facet)
     }
     if (-not [string]::IsNullOrWhiteSpace($DiffPath)) {
         $artifactArgs.DiffJson = $DiffPath

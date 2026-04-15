@@ -8,6 +8,7 @@
     "schema",
     "generated_at_utc",
     "output_root",
+    "subject_defaults",
     "case_selection",
     "candidate",
     "baseline",
@@ -27,6 +28,9 @@
     },
     "output_root": {
       "type": "string"
+    },
+    "subject_defaults": {
+      "$ref": "#/$defs/subjectDefaults"
     },
     "case_selection": {
       "$ref": "#/$defs/caseSelection"
@@ -177,6 +181,32 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "subjectDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "board": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active_facets": {
+          "$ref": "#/$defs/stringArray"
         }
       }
     },

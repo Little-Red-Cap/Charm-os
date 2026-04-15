@@ -9,6 +9,11 @@
 
 ### `materialized_graph` 观察导出链
 
+- `materialized_graph.export_case_manifest.v1.schema.json`
+  - 对应 `scripts/materialized_graph.export_case_manifest.v1.json`
+  - 用途偏向 `materialized_graph` 批量导出 case 的声明式输入事实
+  - 它当前服务于 export 脚本与 case 审计，但不等于最终 `SystemSpec` DSL
+
 - `materialized_graph.sample.v2.schema.json`
   - 对应 `format_json_sample(...)` 当前导出的样例协议
   - 用途偏向字段勘探、原型接入、脚本分析
@@ -49,6 +54,7 @@
 
 当前建议这样理解稳定性：
 
+- `export_case_manifest/v1`：当前 `materialized_graph` 批量导出链依赖的 case manifest 输入协议
 - `sample/v2`：当前支持、显式校验，但不承诺长期冻结
 - `export_bundle/v1`：当前脚本链稳定依赖的 bundle 索引协议
 - `bundle_diff/v1`：当前 diff / report 链稳定依赖的差异协议

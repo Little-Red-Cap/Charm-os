@@ -19,65 +19,131 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$exportCaseManifestPath = Join-Path $PSScriptRoot 'materialized_graph.export_case_manifest.v1.json'
 . (Join-Path $PSScriptRoot 'materialized_graph_schema.ps1')
 
-function Get-ExportCases {
-    return @(
-        @{
-            Name = 'materialize-observe-demo'
-            Source = 'Examples/init/materialize_observe_demo'
-            BuildDir = 'cmake-build-init-observe-demo-clang'
-            BuildTarget = 'init-materialize-observe-demo'
-            ExportTarget = 'export_materialized_graph_demo'
-            DotCache = 'MATERIALIZE_OBSERVE_DOT_PATH'
-            JsonCache = 'MATERIALIZE_OBSERVE_JSON_PATH'
-            DefaultDot = 'materialized_graph.dot'
-            DefaultJson = 'materialized_graph.sample.json'
-            ExtraCache = @()
-            ActiveFacets = @()
-        },
-        @{
-            Name = 'bringup-block-observe-demo'
-            Source = 'Examples/init/bringup_block_observe_demo'
-            BuildDir = 'cmake-build-init-bringup-block-observe-clang'
-            BuildTarget = 'init-bringup-block-observe-demo'
-            ExportTarget = 'export_bringup_block_materialized_graph'
-            DotCache = 'BRINGUP_BLOCK_OBSERVE_DOT_PATH'
-            JsonCache = 'BRINGUP_BLOCK_OBSERVE_JSON_PATH'
-            DefaultDot = 'bringup_block_materialized_graph.dot'
-            DefaultJson = 'bringup_block_materialized_graph.sample.json'
-            ExtraCache = @()
-            Board = 'win_stub'
-            ActiveFacets = @('runtime', 'block')
-        },
-        @{
-            Name = 'bringup-minimal-observe-demo'
-            Source = 'Examples/init/bringup_minimal_observe_demo'
-            BuildDir = 'cmake-build-init-bringup-minimal-observe-clang'
-            BuildTarget = 'init-bringup-minimal-observe-demo'
-            ExportTarget = 'export_bringup_minimal_materialized_graph'
-            DotCache = 'BRINGUP_MINIMAL_OBSERVE_DOT_PATH'
-            JsonCache = 'BRINGUP_MINIMAL_OBSERVE_JSON_PATH'
-            DefaultDot = 'bringup_minimal_materialized_graph.dot'
-            DefaultJson = 'bringup_minimal_materialized_graph.sample.json'
-            ExtraCache = @()
-            Board = 'win_stub'
-            ActiveFacets = @('runtime', 'input')
-        },
-        @{
-            Name = 'usb-msc-block-demo'
-            Source = 'Examples/usb/usb_msc_block_demo'
-            BuildDir = 'cmake-build-usb-msc-block-demo-clang'
-            BuildTarget = 'usb-msc-block-demo'
-            ExportTarget = 'export_usb_msc_block_materialized_graph'
-            DotCache = 'USB_MSC_BLOCK_EXPORT_DOT_PATH'
-            JsonCache = 'USB_MSC_BLOCK_EXPORT_JSON_PATH'
-            DefaultDot = 'usb_msc_block_materialized_graph.dot'
-            DefaultJson = 'usb_msc_block_materialized_graph.sample.json'
-            ExtraCache = @('USB_MSC_BLOCK_EXPORT_IMAGE_PATH=observe-usb-block.img')
-            ActiveFacets = @('usb', 'block')
-        }
+function Get-ObjectPropertyValue {
+    param(
+        $Object,
+        [string]$PropertyName
     )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Get-RequiredStringProperty {
+    param(
+        $Object,
+        [string]$PropertyName,
+        [string]$Context
+    )
+
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName $PropertyName
+    if ([string]::IsNullOrWhiteSpace([string]$value)) {
+        throw "missing required string property '$PropertyName' in $Context"
+    }
+
+    return [string]$value
+}
+
+function Get-OptionalStringProperty {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName $PropertyName
+    if ([string]::IsNullOrWhiteSpace([string]$value)) {
+        return $null
+    }
+
+    return [string]$value
+}
+
+function Get-OptionalStringArrayProperty {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName $PropertyName
+    if ($null -eq $value) {
+        return @()
+    }
+
+    return @(
+        @($value) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+}
+
+function Convert-ExportCaseEntry {
+    param(
+        $CaseEntry,
+        [string]$ManifestPath,
+        [int]$Index
+    )
+
+    $context = "$ManifestPath cases[$Index]"
+    $subjectEntry = Get-ObjectPropertyValue -Object $CaseEntry -PropertyName 'subject'
+
+    return [pscustomobject]@{
+        Name = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'name' -Context $context
+        Source = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'source' -Context $context
+        BuildDir = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'build_dir' -Context $context
+        BuildTarget = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'build_target' -Context $context
+        ExportTarget = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'export_target'
+        DotCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'dot_cache'
+        JsonCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'json_cache'
+        DefaultDot = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'default_dot' -Context $context
+        DefaultJson = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'default_json' -Context $context
+        ExtraCache = Get-OptionalStringArrayProperty -Object $CaseEntry -PropertyName 'extra_cache'
+        Profile = Get-OptionalStringProperty -Object $subjectEntry -PropertyName 'profile'
+        Board = Get-OptionalStringProperty -Object $subjectEntry -PropertyName 'board'
+        ActiveFacets = Get-OptionalStringArrayProperty -Object $subjectEntry -PropertyName 'active_facets'
+    }
+}
+
+function Get-ExportCases {
+    if (-not (Test-Path $exportCaseManifestPath)) {
+        throw "export case manifest not found: $exportCaseManifestPath"
+    }
+
+    $manifestData = Get-Content -LiteralPath $exportCaseManifestPath -Raw -Encoding utf8 | ConvertFrom-Json
+    $schemaName = Get-RequiredStringProperty -Object $manifestData -PropertyName 'schema' -Context $exportCaseManifestPath
+    if ($schemaName -ne 'materialized_graph.export_case_manifest/v1') {
+        throw "unsupported export case manifest schema '$schemaName' in $exportCaseManifestPath"
+    }
+
+    $rawCases = Get-ObjectPropertyValue -Object $manifestData -PropertyName 'cases'
+    if ($null -eq $rawCases) {
+        throw "missing 'cases' array in $exportCaseManifestPath"
+    }
+
+    $cases = @()
+    $seenNames = @{}
+    $caseEntries = @($rawCases)
+    for ($index = 0; $index -lt $caseEntries.Count; ++$index) {
+        $entry = Convert-ExportCaseEntry -CaseEntry $caseEntries[$index] -ManifestPath $exportCaseManifestPath -Index $index
+        if ($seenNames.ContainsKey($entry.Name)) {
+            throw "duplicate export case name '$($entry.Name)' in $exportCaseManifestPath"
+        }
+
+        $seenNames[$entry.Name] = $true
+        $cases += $entry
+    }
+
+    return $cases
 }
 
 function Resolve-FullPath {

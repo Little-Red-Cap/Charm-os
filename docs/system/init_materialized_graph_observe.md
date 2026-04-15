@@ -369,6 +369,12 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 ./scripts/export_materialized_graph.ps1 -ListCases
 ```
 
+这些 case 当前来自 `scripts/materialized_graph.export_case_manifest.v1.json`，
+对应 schema 为 `schemas/materialized_graph.export_case_manifest.v1.schema.json`。
+它承载的是这条导出链当前最小的一组声明式输入事实，
+例如 `source / build target / export target / default artifact name / subject`，
+但它仍不是最终 `SystemSpec` DSL。
+
 如果只导出某一个样例：
 
 ```powershell
@@ -408,6 +414,9 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 这些 `subject` 字段当前不是最终 DSL，
 但它们已经可以作为 per-case 的声明式默认事实，
 继续被 `artifact report` 与 CI 摘要链自动继承。
+更准确地说，
+当前 `export case manifest` 负责声明输入侧的 case 事实，
+而 `index.json` 负责把这些事实投影到 bundle 消费面。
 
 仓库根目录还提供了一个最小 bundle 消费脚本：
 

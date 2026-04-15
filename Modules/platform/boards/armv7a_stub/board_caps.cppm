@@ -17,6 +17,29 @@ export namespace platform::board::armv7a_stub {
         util::usize ram_payload_base{0};
     };
 
+    struct BootExceptionLayout {
+        util::usize vector_base{0};
+    };
+
+    struct BootTranslationLayout {
+        util::usize translation_table_base{0};
+    };
+
+    struct BootContext;
+
+    struct BootPrepareContext {
+        const BootContext* boot{nullptr};
+        const BootExecRequest* request{nullptr};
+
+        constexpr explicit operator bool() const noexcept {
+            return boot && request;
+        }
+
+        const BootExecRequest& exec() const noexcept;
+        util::usize vector_base() const noexcept;
+        util::usize translation_table_base() const noexcept;
+    };
+
     struct BootTransferHooks {
         void* ctx{nullptr};
         bool (*copy_payload)(void* ctx,
@@ -26,19 +49,19 @@ export namespace platform::board::armv7a_stub {
     struct BootPrepareHooks {
         void* ctx{nullptr};
         bool (*mask_interrupts)(void* ctx,
-                                const BootExecRequest& request) noexcept {nullptr};
+                                const BootPrepareContext& request) noexcept {nullptr};
         bool (*activate_payload_mapping)(void* ctx,
-                                         const BootExecRequest& request) noexcept {nullptr};
+                                         const BootPrepareContext& request) noexcept {nullptr};
         bool (*clean_data_cache)(void* ctx,
-                                 const BootExecRequest& request) noexcept {nullptr};
+                                 const BootPrepareContext& request) noexcept {nullptr};
         bool (*invalidate_instruction_cache)(void* ctx,
-                                             const BootExecRequest& request) noexcept {nullptr};
+                                             const BootPrepareContext& request) noexcept {nullptr};
         bool (*invalidate_tlb)(void* ctx,
-                               const BootExecRequest& request) noexcept {nullptr};
+                               const BootPrepareContext& request) noexcept {nullptr};
         bool (*switch_exception_vectors)(void* ctx,
-                                         const BootExecRequest& request) noexcept {nullptr};
+                                         const BootPrepareContext& request) noexcept {nullptr};
         bool (*sync_context)(void* ctx,
-                             const BootExecRequest& request) noexcept {nullptr};
+                             const BootPrepareContext& request) noexcept {nullptr};
     };
 
     struct BootPreparePolicy {
@@ -54,18 +77,32 @@ export namespace platform::board::armv7a_stub {
     struct BootExecHooks {
         void* ctx{nullptr};
         bool (*prepare_jump)(void* ctx,
-                             const BootExecRequest& request) noexcept {nullptr};
+                             const BootPrepareContext& request) noexcept {nullptr};
         bool (*jump)(void* ctx,
-                     const BootExecRequest& request) noexcept {nullptr};
+                     const BootPrepareContext& request) noexcept {nullptr};
         BootPrepareHooks maintenance{};
         BootPreparePolicy policy{};
     };
 
     struct BootContext {
         BootAddressLayout layout{};
+        BootExceptionLayout exception{};
+        BootTranslationLayout translation{};
         BootTransferHooks transfer{};
         BootExecHooks exec{};
     };
+
+    inline const BootExecRequest& BootPrepareContext::exec() const noexcept {
+        return *request;
+    }
+
+    inline util::usize BootPrepareContext::vector_base() const noexcept {
+        return boot ? boot->exception.vector_base : 0;
+    }
+
+    inline util::usize BootPrepareContext::translation_table_base() const noexcept {
+        return boot ? boot->translation.translation_table_base : 0;
+    }
 
     inline util::usize resolve_payload_base(void* ctx,
                                             const BootLoadResolveRequest& request) noexcept {
@@ -108,14 +145,15 @@ export namespace platform::board::armv7a_stub {
         }
 
         const auto& boot = *static_cast<const BootContext*>(ctx);
+        const BootPrepareContext prepare_ctx{&boot, &request};
         const auto invoke_prepare_step =
             [&](bool enabled,
-                bool (*fn)(void*, const BootExecRequest&) noexcept,
+                bool (*fn)(void*, const BootPrepareContext&) noexcept,
                 void* hook_ctx) noexcept {
                 if (!enabled || !fn) {
                     return true;
                 }
-                return fn(detail::select_hook_ctx(ctx, hook_ctx), request);
+                return fn(detail::select_hook_ctx(ctx, hook_ctx), prepare_ctx);
             };
 
         const auto& maintenance = boot.exec.maintenance;
@@ -150,7 +188,7 @@ export namespace platform::board::armv7a_stub {
 
         return boot.exec.prepare_jump(
             detail::select_hook_ctx(ctx, boot.exec.ctx),
-            request);
+            prepare_ctx);
     }
 
     inline bool jump(void* ctx,
@@ -160,13 +198,14 @@ export namespace platform::board::armv7a_stub {
         }
 
         const auto& boot = *static_cast<const BootContext*>(ctx);
+        const BootPrepareContext prepare_ctx{&boot, &request};
         if (!boot.exec.jump) {
             return false;
         }
 
         return boot.exec.jump(
             detail::select_hook_ctx(ctx, boot.exec.ctx),
-            request);
+            prepare_ctx);
     }
 
     inline BootBoardCaps make_boot_caps(BootContext& ctx) noexcept {

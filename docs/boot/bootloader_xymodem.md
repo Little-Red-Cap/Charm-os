@@ -111,6 +111,7 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - `platform::board::BootBoardCaps` 已独立承载加载能力与 jump 能力，真实板级可以不必先依赖整板 `BoardCaps`
 - `platform::board::with_boot_caps(...)` 可在需要时把独立 boot 能力拼回 `BoardCaps`
 - `platform.board.armv7a_stub` 已提供 ARMv7-A 风格板级骨架，默认用固定 XIP window / RAM payload 基址解析加载落点，并把“关中断 / 映射切换 / cache-TLB 维护 / 向量切换 / 同步 / board prepare / jump”做成显式 hook 顺序
+- `platform.board.armv7a_stub::BootPrepareContext` 进一步把 `BootExecRequest` 与向量基址、translation table 基址这类静态布局一起传给 maintenance hook，便于后续接真实 MMU/异常向量切换代码
 
 这里同样要区分几类准备动作：
 - Boot 元数据准备：`prepare_selected_boot()` 负责把 `pending_trial` 写回旧 `active`，形成失败自动回滚语义

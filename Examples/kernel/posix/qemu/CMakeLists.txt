@@ -5,6 +5,10 @@ set(stdio_target_name posix-qemu-newlib-stdio)
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 
 set(CMAKE_CXX_STANDARD 26)
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
+charm_add_config_interface(charm_cfg_kernel_posix_qemu
+    POSIX_HEADERS
+    COMPILE_DEFINITIONS POSIX_TEST_BUILD=1)
 
 set(qemu_runtime_sources
     startup.cpp
@@ -33,11 +37,6 @@ set(qemu_stdio_modules
     "${CHARM_ROOT}/Examples/posix/tests/posix.test_harness.cppm"
     "${CHARM_ROOT}/Examples/posix/tests/posix.programs.exec.tests.cppm"
 )
-
-include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
-charm_add_config_interface(charm_cfg_kernel_posix_qemu
-    POSIX_HEADERS
-    COMPILE_DEFINITIONS POSIX_TEST_BUILD=1)
 
 add_executable(${target_name}
     main.cpp

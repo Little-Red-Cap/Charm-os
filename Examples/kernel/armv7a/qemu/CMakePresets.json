@@ -1,0 +1,185 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 4,
+    "minor": 0,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "debug",
+      "displayName": "ARMv7-A QEMU Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/../../../../cmake/toolchains/armv7a-none-eabi-gcc.cmake",
+        "CHARM_TARGET_ARCH": "armv7a",
+        "CHARM_TARGET_PLATFORM": "qemu_virt",
+        "CHARM_BAREMETAL": "ON"
+      }
+    },
+    {
+      "name": "debug-abort-data",
+      "displayName": "ARMv7-A QEMU Debug (Data Abort Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data"
+      }
+    },
+    {
+      "name": "debug-abort-data-align",
+      "displayName": "ARMv7-A QEMU Debug (Data Alignment Abort Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-align",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_align"
+      }
+    },
+    {
+      "name": "debug-abort-prefetch",
+      "displayName": "ARMv7-A QEMU Debug (Prefetch Abort Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-prefetch",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "prefetch"
+      }
+    },
+    {
+      "name": "debug-abort-prefetch-xn",
+      "displayName": "ARMv7-A QEMU Debug (Prefetch XN Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-prefetch-xn",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "prefetch_xn"
+      }
+    },
+    {
+      "name": "debug-abort-prefetch-page",
+      "displayName": "ARMv7-A QEMU Debug (Prefetch Page Translation Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-prefetch-page",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "prefetch_page"
+      }
+    },
+    {
+      "name": "debug-abort-prefetch-page-xn",
+      "displayName": "ARMv7-A QEMU Debug (Prefetch Page XN Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-prefetch-page-xn",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "prefetch_page_xn"
+      }
+    },
+    {
+      "name": "debug-abort-prefetch-page-xn-runtime",
+      "displayName": "ARMv7-A QEMU Debug (Runtime Prefetch Page XN Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-prefetch-page-xn-runtime",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "prefetch_page_xn_runtime"
+      }
+    },
+    {
+      "name": "debug-abort-data-perm",
+      "displayName": "ARMv7-A QEMU Debug (Data Permission Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-perm",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_perm"
+      }
+    },
+    {
+      "name": "debug-abort-data-page",
+      "displayName": "ARMv7-A QEMU Debug (Data Page Translation Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-page",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_page"
+      }
+    },
+    {
+      "name": "debug-abort-data-page-perm",
+      "displayName": "ARMv7-A QEMU Debug (Data Page Permission Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-page-perm",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_page_perm"
+      }
+    },
+    {
+      "name": "debug-abort-data-page-perm-runtime",
+      "displayName": "ARMv7-A QEMU Debug (Runtime Data Page Permission Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-page-perm-runtime",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_page_perm_runtime"
+      }
+    },
+    {
+      "name": "debug-exception-undefined",
+      "displayName": "ARMv7-A QEMU Debug (Undefined Exception Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-exception-undefined",
+      "cacheVariables": {
+        "CHARM_ARMV7A_EXCEPTION_SMOKE": "undefined"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "debug-abort-data",
+      "configurePreset": "debug-abort-data"
+    },
+    {
+      "name": "debug-abort-data-align",
+      "configurePreset": "debug-abort-data-align"
+    },
+    {
+      "name": "debug-abort-prefetch",
+      "configurePreset": "debug-abort-prefetch"
+    },
+    {
+      "name": "debug-abort-prefetch-xn",
+      "configurePreset": "debug-abort-prefetch-xn"
+    },
+    {
+      "name": "debug-abort-prefetch-page",
+      "configurePreset": "debug-abort-prefetch-page"
+    },
+    {
+      "name": "debug-abort-prefetch-page-xn",
+      "configurePreset": "debug-abort-prefetch-page-xn"
+    },
+    {
+      "name": "debug-abort-prefetch-page-xn-runtime",
+      "configurePreset": "debug-abort-prefetch-page-xn-runtime"
+    },
+    {
+      "name": "debug-abort-data-perm",
+      "configurePreset": "debug-abort-data-perm"
+    },
+    {
+      "name": "debug-abort-data-page",
+      "configurePreset": "debug-abort-data-page"
+    },
+    {
+      "name": "debug-abort-data-page-perm",
+      "configurePreset": "debug-abort-data-page-perm"
+    },
+    {
+      "name": "debug-abort-data-page-perm-runtime",
+      "configurePreset": "debug-abort-data-page-perm-runtime"
+    },
+    {
+      "name": "debug-exception-undefined",
+      "configurePreset": "debug-exception-undefined"
+    }
+  ]
+}

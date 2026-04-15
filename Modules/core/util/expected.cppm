@@ -1,6 +1,7 @@
 module;
 
 #include <expected>
+#include <new>
 
 export module util.expected;
 

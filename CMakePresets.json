@@ -23,7 +23,7 @@
       "binaryDir": "${sourceDir}/out/build/aarch64-baremetal",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/aarch64-none-elf-gcc.cmake",
+        "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/aarch64-none-elf-gcc.cmake",
         "CHARM_TARGET_ARCH": "aarch64",
         "CHARM_TARGET_PLATFORM": "qemu_virt",
         "CHARM_BAREMETAL": "ON",
@@ -43,7 +43,21 @@
       "binaryDir": "${sourceDir}/out/build/arm-none-eabi",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
+        "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
+        "CHARM_BAREMETAL": "ON"
+      }
+    },
+    {
+      "name": "armv7a-baremetal-base",
+      "displayName": "ARMv7-A Bare-metal Base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/armv7a-baremetal",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/armv7a-none-eabi-gcc.cmake",
+        "CHARM_TARGET_ARCH": "armv7a",
+        "CHARM_TARGET_PLATFORM": "qemu_virt",
         "CHARM_BAREMETAL": "ON"
       }
     }

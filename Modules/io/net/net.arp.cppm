@@ -290,8 +290,61 @@ export namespace net {
             return table_;
         }
 
+        [[nodiscard]] util::usize pending_count() const noexcept {
+            util::usize count = 0;
+            for (const auto& pending : pending_) {
+                if (pending.used) {
+                    ++count;
+                }
+            }
+            return count;
+        }
+
+        [[nodiscard]] util::usize request_count() const noexcept {
+            return request_count_;
+        }
+
         [[nodiscard]] util::usize reply_count() const noexcept {
             return reply_count_;
+        }
+
+        [[nodiscard]] Result<MacAddress> lookup_or_request(IpAddress ip) noexcept {
+            if (netif_ == nullptr) {
+                return util::unexpected(errc::bad_state);
+            }
+            if (!ip.is_ipv4() || ip.is_any()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            const auto cached = table_.lookup(ip);
+            if (cached) {
+                clear_pending(ip);
+                return cached;
+            }
+            if (cached.error() != errc::noent) {
+                return util::unexpected(cached.error());
+            }
+
+            if (find_pending(ip) != invalid_index()) {
+                return util::unexpected(errc::again);
+            }
+
+            const auto slot = reserve_pending_slot();
+            if (!slot) {
+                return util::unexpected(slot.error());
+            }
+
+            auto requested = send_arp_ipv4_request<TxCapacity>(*netif_, ip);
+            if (!requested) {
+                return util::unexpected(requested.error());
+            }
+
+            pending_[slot.value()] = PendingEntry{
+                .used = true,
+                .ip = ip,
+            };
+            ++request_count_;
+            return util::unexpected(errc::again);
         }
 
         [[nodiscard]] Result<void> consume(OwnedPacket packet) noexcept {
@@ -308,6 +361,7 @@ export namespace net {
             if (!remembered) {
                 return util::unexpected(remembered.error());
             }
+            clear_pending(parsed.value().sender_ip);
 
             if (parsed.value().operation != ArpOperation::request) {
                 return {};
@@ -337,8 +391,48 @@ export namespace net {
         }
 
     private:
+        struct PendingEntry {
+            bool used{false};
+            IpAddress ip{};
+        };
+
+        static constexpr util::usize invalid_index() noexcept {
+            return static_cast<util::usize>(-1);
+        }
+
+        [[nodiscard]] util::usize find_pending(IpAddress ip) const noexcept {
+            for (util::usize i = 0; i < pending_.size(); ++i) {
+                if (!pending_[i].used) {
+                    continue;
+                }
+                if (is_same_ipv4_address(pending_[i].ip, ip)) {
+                    return i;
+                }
+            }
+            return invalid_index();
+        }
+
+        [[nodiscard]] Result<util::usize> reserve_pending_slot() const noexcept {
+            for (util::usize i = 0; i < pending_.size(); ++i) {
+                if (!pending_[i].used) {
+                    return Result<util::usize>{std::in_place, i};
+                }
+            }
+            return util::unexpected(errc::buffer_overflow);
+        }
+
+        void clear_pending(IpAddress ip) noexcept {
+            const auto index = find_pending(ip);
+            if (index == invalid_index()) {
+                return;
+            }
+            pending_[index] = {};
+        }
+
         NetIf* netif_{nullptr};
         ArpTable<TableCapacity> table_{};
+        std::array<PendingEntry, TableCapacity> pending_{};
+        util::usize request_count_{0};
         util::usize reply_count_{0};
     };
 }

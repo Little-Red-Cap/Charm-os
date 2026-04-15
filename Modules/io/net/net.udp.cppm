@@ -75,7 +75,7 @@ export namespace net {
         return 8u;
     }
 
-    namespace detail {
+    namespace udp_detail {
         [[nodiscard]] constexpr util::u16 load_be16(PacketView packet, util::usize offset) noexcept {
             return static_cast<util::u16>(
                 (static_cast<util::u16>(packet[offset]) << 8)
@@ -137,6 +137,20 @@ export namespace net {
             }
             return true;
         }
+
+        [[nodiscard]] Result<Endpoint> normalize_udp_ipv4_local(const NetIf& netif, Endpoint local) noexcept {
+            if (local.port == 0u) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            if (local.address.is_unspecified() || local.address.is_any()) {
+                local.address = netif.address();
+            }
+            if (!local.address.is_ipv4() || !same_ipv4_address(local.address, netif.address())) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            return Result<Endpoint>{std::in_place, local};
+        }
     }
 
     [[nodiscard]] constexpr Result<UdpDatagramView> parse_udp_datagram(PacketView packet) noexcept {
@@ -144,16 +158,16 @@ export namespace net {
             return util::unexpected(errc::invalid_format);
         }
 
-        const auto length = detail::load_be16(packet, 4);
+        const auto length = udp_detail::load_be16(packet, 4);
         if (length < udp_header_size() || length > packet.size()) {
             return util::unexpected(errc::invalid_format);
         }
 
         return Result<UdpDatagramView>{std::in_place, UdpDatagramView{
-            .source_port = detail::load_be16(packet, 0),
-            .destination_port = detail::load_be16(packet, 2),
+            .source_port = udp_detail::load_be16(packet, 0),
+            .destination_port = udp_detail::load_be16(packet, 2),
             .length = length,
-            .checksum = detail::load_be16(packet, 6),
+            .checksum = udp_detail::load_be16(packet, 6),
             .payload = packet.subspan(udp_header_size(), length - udp_header_size()),
         }};
     }
@@ -162,8 +176,8 @@ export namespace net {
     [[nodiscard]] Result<void> prepend_udp_ipv4_header(PacketBuffer<Capacity>& packet,
                                                        const Endpoint& local,
                                                        const Endpoint& peer) noexcept {
-        if (!detail::is_concrete_ipv4_endpoint(local)
-            || !detail::is_concrete_ipv4_endpoint(peer)
+        if (!udp_detail::is_concrete_ipv4_endpoint(local)
+            || !udp_detail::is_concrete_ipv4_endpoint(peer)
             || local.port == 0u
             || peer.port == 0u) {
             return util::unexpected(errc::invalid_arg);
@@ -175,16 +189,16 @@ export namespace net {
         }
 
         std::array<util::u8, udp_header_size()> header{};
-        detail::store_be16(header.data(), local.port);
-        detail::store_be16(header.data() + 2, peer.port);
-        detail::store_be16(header.data() + 4, static_cast<util::u16>(datagram_size));
+        udp_detail::store_be16(header.data(), local.port);
+        udp_detail::store_be16(header.data() + 2, peer.port);
+        udp_detail::store_be16(header.data() + 4, static_cast<util::u16>(datagram_size));
 
         auto prepended_header = packet.prepend(ByteView{header.data(), header.size()});
         if (!prepended_header) {
             return util::unexpected(prepended_header.error());
         }
 
-        const auto checksum = detail::compute_udp_checksum_ipv4(
+        const auto checksum = udp_detail::compute_udp_checksum_ipv4(
             Ipv4PacketView{
                 .protocol = Ipv4Protocol::udp,
                 .source = local.address,
@@ -193,7 +207,7 @@ export namespace net {
             packet.view());
         const auto wire_checksum = checksum == 0u ? static_cast<util::u16>(0xFFFFu) : checksum;
         auto out = packet.mut_view();
-        detail::store_be16(out.data() + 6, wire_checksum);
+        udp_detail::store_be16(out.data() + 6, wire_checksum);
         return {};
     }
 
@@ -214,42 +228,15 @@ export namespace net {
         return prepend_udp_ipv4_header(packet, local, peer);
     }
 
-    template <util::usize TxCapacity, util::usize ArpCapacity>
-    [[nodiscard]] Result<void> send_udp_ipv4(NetIf& netif,
-                                             const ArpTable<ArpCapacity>& arp,
-                                             Endpoint local,
-                                             const Endpoint& peer,
-                                             ByteView payload,
-                                             util::u8 ttl = 64,
-                                             util::u16 identification = 0,
-                                             util::u8 dscp_ecn = 0) noexcept {
-        if (!peer.address.is_ipv4() || peer.address.is_any() || peer.port == 0u) {
-            return util::unexpected(errc::invalid_arg);
-        }
-        if (local.port == 0u) {
-            return util::unexpected(errc::invalid_arg);
-        }
-
-        if (local.address.is_unspecified() || local.address.is_any()) {
-            local.address = netif.address();
-        }
-        if (!local.address.is_ipv4() || !detail::same_ipv4_address(local.address, netif.address())) {
-            return util::unexpected(errc::invalid_arg);
-        }
-
-        const auto resolved = arp.lookup(peer.address);
-        if (!resolved) {
-            if (resolved.error() != errc::noent) {
-                return util::unexpected(resolved.error());
-            }
-
-            auto requested = send_arp_ipv4_request<TxCapacity>(netif, peer.address);
-            if (!requested) {
-                return util::unexpected(requested.error());
-            }
-            return util::unexpected(errc::again);
-        }
-
+    template <util::usize TxCapacity>
+    [[nodiscard]] Result<void> send_udp_ipv4_resolved(NetIf& netif,
+                                                      MacAddress peer_mac,
+                                                      Endpoint local,
+                                                      const Endpoint& peer,
+                                                      ByteView payload,
+                                                      util::u8 ttl,
+                                                      util::u16 identification,
+                                                      util::u8 dscp_ecn) noexcept {
         PacketBuffer<TxCapacity> frame{};
         auto reset = frame.reset(ether_header_size() + ipv4_min_header_size() + udp_header_size());
         if (!reset) {
@@ -281,7 +268,7 @@ export namespace net {
 
         auto prepended_ether = prepend_ether_header(
             frame,
-            resolved.value(),
+            peer_mac,
             netif.mac(),
             EtherType::ipv4);
         if (!prepended_ether) {
@@ -289,6 +276,74 @@ export namespace net {
         }
 
         return netif.transmit(frame.view());
+    }
+
+    template <util::usize TxCapacity, util::usize ArpCapacity>
+    [[nodiscard]] Result<void> send_udp_ipv4(NetIf& netif,
+                                             const ArpTable<ArpCapacity>& arp,
+                                             Endpoint local,
+                                             const Endpoint& peer,
+                                             ByteView payload,
+                                             util::u8 ttl = 64,
+                                             util::u16 identification = 0,
+                                             util::u8 dscp_ecn = 0) noexcept {
+        if (!peer.address.is_ipv4() || peer.address.is_any() || peer.port == 0u) {
+            return util::unexpected(errc::invalid_arg);
+        }
+
+        const auto normalized_local = udp_detail::normalize_udp_ipv4_local(netif, local);
+        if (!normalized_local) {
+            return util::unexpected(normalized_local.error());
+        }
+
+        const auto resolved = arp.lookup(peer.address);
+        if (!resolved) {
+            return util::unexpected(resolved.error());
+        }
+
+        return send_udp_ipv4_resolved<TxCapacity>(
+            netif,
+            resolved.value(),
+            normalized_local.value(),
+            peer,
+            payload,
+            ttl,
+            identification,
+            dscp_ecn);
+    }
+
+    template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+    [[nodiscard]] Result<void> send_udp_ipv4(NetIf& netif,
+                                             ArpService<ArpCapacity, ArpTxCapacity>& arp,
+                                             Endpoint local,
+                                             const Endpoint& peer,
+                                             ByteView payload,
+                                             util::u8 ttl = 64,
+                                             util::u16 identification = 0,
+                                             util::u8 dscp_ecn = 0) noexcept {
+        if (!peer.address.is_ipv4() || peer.address.is_any() || peer.port == 0u) {
+            return util::unexpected(errc::invalid_arg);
+        }
+
+        const auto normalized_local = udp_detail::normalize_udp_ipv4_local(netif, local);
+        if (!normalized_local) {
+            return util::unexpected(normalized_local.error());
+        }
+
+        const auto resolved = arp.lookup_or_request(peer.address);
+        if (!resolved) {
+            return util::unexpected(resolved.error());
+        }
+
+        return send_udp_ipv4_resolved<TxCapacity>(
+            netif,
+            resolved.value(),
+            normalized_local.value(),
+            peer,
+            payload,
+            ttl,
+            identification,
+            dscp_ecn);
     }
 
     template <util::usize Capacity>
@@ -341,7 +396,7 @@ export namespace net {
 
             const auto exact_datagram = packet.view().subspan(0, datagram.length);
             if (datagram.checksum != 0u) {
-                auto expected = detail::compute_udp_checksum_ipv4(ipv4, exact_datagram);
+                auto expected = udp_detail::compute_udp_checksum_ipv4(ipv4, exact_datagram);
                 if (expected == 0u) {
                     expected = 0xFFFFu;
                 }

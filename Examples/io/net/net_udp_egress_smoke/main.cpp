@@ -137,10 +137,36 @@ int main() {
         return 4;
     }
 
-    auto missing = net::send_udp_ipv4<128>(netif, arp.table(), local, peer, net::ByteView{payload, sizeof(payload)});
-    if (missing || missing.error() != net::errc::again || link.tx_calls != 1) {
-        std::fputs("udp egress smoke arp request trigger failed\n", stderr);
+    net::ArpTable<4> unresolved{};
+    auto unresolved_send = net::send_udp_ipv4<128>(
+        netif,
+        unresolved,
+        local,
+        peer,
+        net::ByteView{payload, sizeof(payload)});
+    if (unresolved_send || unresolved_send.error() != net::errc::noent || link.tx_calls != 0) {
+        std::fputs("udp egress smoke unresolved arp table check failed\n", stderr);
         return 5;
+    }
+
+    auto missing = net::send_udp_ipv4<128>(netif, arp, local, peer, net::ByteView{payload, sizeof(payload)});
+    if (missing
+        || missing.error() != net::errc::again
+        || link.tx_calls != 1
+        || arp.request_count() != 1
+        || arp.pending_count() != 1) {
+        std::fputs("udp egress smoke arp request trigger failed\n", stderr);
+        return 6;
+    }
+
+    auto duplicate = net::send_udp_ipv4<128>(netif, arp, local, peer, net::ByteView{payload, sizeof(payload)});
+    if (duplicate
+        || duplicate.error() != net::errc::again
+        || link.tx_calls != 1
+        || arp.request_count() != 1
+        || arp.pending_count() != 1) {
+        std::fputs("udp egress smoke arp pending dedup failed\n", stderr);
+        return 7;
     }
 
     auto request_frame = net::parse_ether_frame(net::PacketView{
@@ -150,25 +176,25 @@ int main() {
     });
     if (!request_frame || request_frame.value().type != net::EtherType::arp) {
         std::fputs("udp egress smoke arp request ether parse failed\n", stderr);
-        return 6;
+        return 8;
     }
     if (!same_mac(request_frame.value().destination, net::MacAddress::broadcast())
         || !same_mac(request_frame.value().source, local_mac)) {
         std::fputs("udp egress smoke arp request ether mismatch\n", stderr);
-        return 7;
+        return 9;
     }
 
     auto request_arp = net::parse_arp_ipv4_ethernet(request_frame.value().payload);
     if (!request_arp || request_arp.value().operation != net::ArpOperation::request) {
         std::fputs("udp egress smoke arp request parse failed\n", stderr);
-        return 8;
+        return 10;
     }
     if (!same_mac(request_arp.value().sender_mac, local_mac)
         || !same_ipv4(request_arp.value().sender_ip, local_ip)
         || !request_arp.value().target_mac.is_zero()
         || !same_ipv4(request_arp.value().target_ip, peer_ip)) {
         std::fputs("udp egress smoke arp request fields mismatch\n", stderr);
-        return 9;
+        return 11;
     }
 
     net::PacketBuffer<128> incoming_reply{};
@@ -181,25 +207,29 @@ int main() {
         local_ip);
     if (!wrote_reply) {
         std::fputs("udp egress smoke arp reply encode failed\n", stderr);
-        return 10;
+        return 12;
     }
 
     link.queue_rx(incoming_reply.view().payload);
     auto polled = stack.poll_links();
-    if (!polled || link.tx_calls != 1 || arp.reply_count() != 0 || link.rx_pool.in_use_count() != 0) {
+    if (!polled
+        || link.tx_calls != 1
+        || arp.reply_count() != 0
+        || arp.pending_count() != 0
+        || link.rx_pool.in_use_count() != 0) {
         std::fputs("udp egress smoke arp reply handling failed\n", stderr);
-        return 11;
+        return 13;
     }
 
     auto resolved = arp.table().lookup(peer_ip);
     if (!resolved || !same_mac(resolved.value(), peer_mac)) {
         std::fputs("udp egress smoke arp cache fill failed\n", stderr);
-        return 12;
+        return 14;
     }
 
     auto sent = net::send_udp_ipv4<128>(
         netif,
-        arp.table(),
+        arp,
         local,
         peer,
         net::ByteView{payload, sizeof(payload)},
@@ -208,7 +238,7 @@ int main() {
         0x2Eu);
     if (!sent || link.tx_calls != 2) {
         std::fputs("udp egress smoke send failed\n", stderr);
-        return 13;
+        return 15;
     }
 
     auto frame = net::parse_ether_frame(net::PacketView{
@@ -218,12 +248,12 @@ int main() {
     });
     if (!frame || frame.value().type != net::EtherType::ipv4) {
         std::fputs("udp egress smoke ether parse failed\n", stderr);
-        return 14;
+        return 16;
     }
     if (!same_mac(frame.value().destination, peer_mac)
         || !same_mac(frame.value().source, local_mac)) {
         std::fputs("udp egress smoke ether header mismatch\n", stderr);
-        return 15;
+        return 17;
     }
 
     auto ipv4 = net::parse_ipv4_packet(frame.value().payload);
@@ -235,7 +265,7 @@ int main() {
         || !same_ipv4(ipv4.value().source, local_ip)
         || !same_ipv4(ipv4.value().destination, peer_ip)) {
         std::fputs("udp egress smoke ipv4 fields mismatch\n", stderr);
-        return 16;
+        return 18;
     }
 
     auto udp = net::parse_udp_datagram(ipv4.value().payload);
@@ -245,13 +275,13 @@ int main() {
         || udp.value().length != net::udp_header_size() + sizeof(payload)
         || udp.value().checksum == 0u) {
         std::fputs("udp egress smoke udp fields mismatch\n", stderr);
-        return 17;
+        return 19;
     }
 
     for (util::usize i = 0; i < sizeof(payload); ++i) {
         if (udp.value().payload[i] != payload[i]) {
             std::fputs("udp egress smoke payload mismatch\n", stderr);
-            return 18;
+            return 20;
         }
     }
 

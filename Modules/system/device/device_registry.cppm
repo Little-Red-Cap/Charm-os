@@ -119,73 +119,114 @@ export namespace device {
             for (auto& r : drivers_) r = nullptr;
         }
 
-        void match_all() noexcept {
+        [[nodiscard]] util::Result<void> try_match_all() noexcept {
+            util::Errc first_error = util::Errc::ok;
             for (util::usize i = 0; i < device_count_; ++i) {
-                match_device(devices_[i]);
+                note_first_error(first_error, try_match_device(devices_[i]));
             }
+            return finish_error(first_error);
         }
 
-        void match_detected() noexcept {
+        void match_all() noexcept {
+            (void)try_match_all();
+        }
+
+        [[nodiscard]] util::Result<void> try_match_detected() noexcept {
+            util::Errc first_error = util::Errc::ok;
             for (util::usize i = 0; i < device_count_; ++i) {
                 auto& dev = devices_[i];
                 if (dev.state != DeviceState::detected) continue;
                 if (dev.driver != nullptr) continue;
-                match_device(dev);
+                note_first_error(first_error, try_match_device(dev));
             }
+            return finish_error(first_error);
+        }
+
+        void match_detected() noexcept {
+            (void)try_match_detected();
+        }
+
+        [[nodiscard]] util::Result<void> try_shutdown_all() noexcept {
+            return try_dispatch_bound_all(DeviceEvent::shutdown);
         }
 
         void shutdown_all() noexcept {
-            for (util::usize i = 0; i < device_count_; ++i) {
-                (void)dispatch(devices_[i], DeviceEvent::shutdown);
-            }
+            (void)try_shutdown_all();
+        }
+
+        [[nodiscard]] util::Result<void> try_remove_all() noexcept {
+            return try_dispatch_bound_all(DeviceEvent::remove);
         }
 
         void remove_all() noexcept {
-            for (util::usize i = 0; i < device_count_; ++i) {
-                (void)dispatch(devices_[i], DeviceEvent::remove);
-            }
+            (void)try_remove_all();
+        }
+
+        [[nodiscard]] util::Result<void> try_init_all() noexcept {
+            return try_match_all();
         }
 
         void init_all() noexcept {
-            match_all();
+            (void)try_init_all();
+        }
+
+        [[nodiscard]] util::Result<void> try_suspend_all() noexcept {
+            return try_dispatch_bound_all(DeviceEvent::suspend);
         }
 
         void suspend_all() noexcept {
-            for (util::usize i = 0; i < device_count_; ++i) {
-                (void)dispatch(devices_[i], DeviceEvent::suspend);
-            }
+            (void)try_suspend_all();
+        }
+
+        [[nodiscard]] util::Result<void> try_resume_all() noexcept {
+            return try_dispatch_bound_all(DeviceEvent::resume);
         }
 
         void resume_all() noexcept {
-            for (util::usize i = 0; i < device_count_; ++i) {
-                (void)dispatch(devices_[i], DeviceEvent::resume);
-            }
+            (void)try_resume_all();
         }
 
-        bool dispatch(Device& dev, DeviceEvent ev) noexcept {
+        [[nodiscard]] util::Result<void> try_dispatch(Device& dev, DeviceEvent ev) noexcept {
             if (ev == DeviceEvent::attach) {
                 dev.state = DeviceState::detected;
             }
-            if (!dev.driver) return false;
-            bool ok = true;
+            if (!dev.driver) {
+                return util::unexpected(util::Errc::noent);
+            }
+
+            util::Result<void> result{};
             switch (ev) {
             case DeviceEvent::probe:
-                if (dev.driver->ops.probe) ok = dev.driver->ops.probe(dev);
+                result = dispatch_driver_step(dev,
+                                              dev.driver->ops.try_probe,
+                                              dev.driver->ops.probe);
                 break;
             case DeviceEvent::init:
-                if (dev.driver->ops.init) ok = dev.driver->ops.init(dev);
-                if (ok) dev.state = DeviceState::initialized;
+                result = dispatch_driver_step(dev,
+                                              dev.driver->ops.try_init,
+                                              dev.driver->ops.init);
+                if (result) {
+                    dev.state = DeviceState::initialized;
+                }
                 break;
             case DeviceEvent::start:
                 dev.state = DeviceState::running;
                 break;
             case DeviceEvent::suspend:
-                if (dev.driver->ops.suspend) ok = dev.driver->ops.suspend(dev);
-                if (ok) dev.state = DeviceState::suspended;
+                result = dispatch_driver_step(dev,
+                                              dev.driver->ops.try_suspend,
+                                              dev.driver->ops.suspend);
+                if (result) {
+                    dev.state = DeviceState::suspended;
+                }
                 break;
             case DeviceEvent::resume:
-                if (dev.driver->ops.resume) ok = dev.driver->ops.resume(dev);
-                if (ok) dev.state = DeviceState::running;
+                result = dispatch_driver_step(dev,
+                                              dev.driver->ops.try_resume,
+                                              dev.driver->ops.resume);
+                if (result) {
+                    dev.state = DeviceState::running;
+                }
                 break;
             case DeviceEvent::shutdown:
                 if (dev.driver->ops.shutdown) dev.driver->ops.shutdown(dev);
@@ -199,7 +240,7 @@ export namespace device {
                 break;
             case DeviceEvent::error:
                 dev.state = DeviceState::stopped;
-                ok = false;
+                result = util::unexpected(util::Errc::io);
                 break;
             case DeviceEvent::attach:
             default:
@@ -208,7 +249,11 @@ export namespace device {
             if (dev.driver && dev.driver->ops.on_event) {
                 dev.driver->ops.on_event(dev, ev);
             }
-            return ok;
+            return result;
+        }
+
+        bool dispatch(Device& dev, DeviceEvent ev) noexcept {
+            return static_cast<bool>(try_dispatch(dev, ev));
         }
 
     private:
@@ -216,6 +261,33 @@ export namespace device {
             const Driver* drv{nullptr};
             util::u32 score{0};
         };
+
+        static void note_first_error(util::Errc& first_error,
+                                     const util::Result<void>& result) noexcept {
+            if (!result && first_error == util::Errc::ok) {
+                first_error = result.error();
+            }
+        }
+
+        [[nodiscard]] static util::Result<void> finish_error(util::Errc first_error) noexcept {
+            if (first_error != util::Errc::ok) {
+                return util::unexpected(first_error);
+            }
+            return {};
+        }
+
+        [[nodiscard]] static util::Result<void> dispatch_driver_step(
+            Device& dev,
+            util::Result<void> (*try_step)(Device&) noexcept,
+            bool (*step)(Device&) noexcept) noexcept {
+            if (try_step) {
+                return try_step(dev);
+            }
+            if (!step || step(dev)) {
+                return {};
+            }
+            return util::unexpected(util::Errc::bad_state);
+        }
 
         [[nodiscard]] util::usize find_exact_device_index(const DeviceDesc& desc,
                                                           void* ctx) const noexcept {
@@ -278,20 +350,37 @@ export namespace device {
             dev.match_score = best.score;
         }
 
-        void match_device(Device& dev) noexcept {
+        [[nodiscard]] util::Result<void> try_match_device(Device& dev) noexcept {
             select_driver(dev);
-            if (!dev.driver) return;
-            if (!dispatch(dev, DeviceEvent::probe)) {
+            if (!dev.driver) return {};
+
+            auto probed = try_dispatch(dev, DeviceEvent::probe);
+            if (!probed) {
                 dev.driver = nullptr;
-                return;
+                return probed;
             }
-            if (!dispatch(dev, DeviceEvent::init)) {
-                dispatch(dev, DeviceEvent::remove);
+
+            auto initialized = try_dispatch(dev, DeviceEvent::init);
+            if (!initialized) {
+                (void)try_dispatch(dev, DeviceEvent::remove);
                 dev.driver = nullptr;
                 dev.state = DeviceState::detected;
-                return;
+                return initialized;
             }
-            (void)dispatch(dev, DeviceEvent::start);
+
+            return try_dispatch(dev, DeviceEvent::start);
+        }
+
+        [[nodiscard]] util::Result<void> try_dispatch_bound_all(DeviceEvent ev) noexcept {
+            util::Errc first_error = util::Errc::ok;
+            for (util::usize i = 0; i < device_count_; ++i) {
+                auto& dev = devices_[i];
+                if (dev.driver == nullptr) {
+                    continue;
+                }
+                note_first_error(first_error, try_dispatch(dev, ev));
+            }
+            return finish_error(first_error);
         }
 
         std::array<Device, MaxDevices> devices_{};
@@ -323,6 +412,53 @@ export namespace device {
         if (overflow || overflow.error() != util::Errc::buffer_overflow) return false;
         return registry.device_at(0).ctx == &marker_a &&
                registry.device_at(1).ctx == &marker_b;
+    }
+
+    inline bool registry_dispatch_result_self_check() noexcept {
+        DeviceDesc desc{
+            .class_id = 0x08,
+            .vendor_id = 0x1234,
+            .product_id = 0x5678,
+            .type = "usb.host.msc"
+        };
+
+        Driver failing_driver{
+            .name = "failing.driver",
+            .match = desc,
+            .ops = DriverOps{
+                .probe = [](Device&) noexcept { return true; },
+                .init = [](Device&) noexcept { return false; }
+            }
+        };
+
+        Registry<2, 2> failing_registry{};
+        if (!failing_registry.try_add_driver(failing_driver)) return false;
+        if (!failing_registry.try_add_device(desc)) return false;
+        auto failed_match = failing_registry.try_match_all();
+        if (failed_match || failed_match.error() != util::Errc::bad_state) return false;
+        if (failing_registry.device_at(0).driver != nullptr) return false;
+        if (failing_registry.device_at(0).state != DeviceState::detected) return false;
+
+        Driver good_driver{
+            .name = "good.driver",
+            .match = desc,
+            .ops = DriverOps{
+                .probe = [](Device&) noexcept { return true; },
+                .init = [](Device&) noexcept { return true; },
+                .suspend = [](Device&) noexcept { return false; }
+            }
+        };
+
+        Registry<2, 2> registry{};
+        if (!registry.try_add_driver(good_driver)) return false;
+        if (!registry.try_add_device(desc)) return false;
+        if (!registry.try_match_all()) return false;
+        auto suspend_r = registry.try_dispatch(registry.device_at(0), DeviceEvent::suspend);
+        if (suspend_r || suspend_r.error() != util::Errc::bad_state) return false;
+        auto remove_r = registry.try_dispatch(registry.device_at(0), DeviceEvent::remove);
+        if (!remove_r) return false;
+        auto missing_r = registry.try_dispatch(registry.device_at(0), DeviceEvent::resume);
+        return !missing_r && missing_r.error() == util::Errc::noent;
     }
 #endif
 }

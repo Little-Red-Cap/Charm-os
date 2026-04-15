@@ -42,6 +42,15 @@ namespace usb::host::detail {
     }
 
     template <typename BlockRegistryT>
+    util::Result<void> msc_block_try_init(MscBlockDriverContext<BlockRegistryT>& ctx,
+                                          device::Device&) noexcept {
+        if (!ctx.exported || !ctx.backend) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        return ctx.exported->attach(*ctx.backend);
+    }
+
+    template <typename BlockRegistryT>
     void msc_block_detach(MscBlockDriverContext<BlockRegistryT>& ctx) noexcept {
         if (ctx.exported) {
             ctx.exported->detach();
@@ -91,13 +100,11 @@ export namespace usb::host {
               binding_{
                   &runtime_ctx_,
                   device::RuntimeDriverHook<DriverContext>{
-                      &detail::msc_block_probe<BlockRegistryT>,
-                      &detail::msc_block_init<BlockRegistryT>,
-                      &detail::msc_block_shutdown<BlockRegistryT>,
-                      &detail::msc_block_remove<BlockRegistryT>,
-                      nullptr,
-                      nullptr,
-                      nullptr
+                      .probe = &detail::msc_block_probe<BlockRegistryT>,
+                      .init = &detail::msc_block_init<BlockRegistryT>,
+                      .shutdown = &detail::msc_block_shutdown<BlockRegistryT>,
+                      .remove = &detail::msc_block_remove<BlockRegistryT>,
+                      .try_init = &detail::msc_block_try_init<BlockRegistryT>
                   }
               },
               discovery_(match, &binding_, bus_name),
@@ -129,6 +136,10 @@ export namespace usb::host {
 
         util::Result<void> ensure_exported() noexcept {
             return exported_.ensure_exported();
+        }
+
+        util::Result<void> unexport() noexcept {
+            return exported_.unexport();
         }
 
         template <typename RuntimeRegistryT>
@@ -163,6 +174,18 @@ export namespace usb::host {
 
         [[nodiscard]] bool exported() const noexcept {
             return exported_.exported();
+        }
+
+        [[nodiscard]] block::PublishState publish_state() const noexcept {
+            return exported_.publish_state();
+        }
+
+        [[nodiscard]] bool published() const noexcept {
+            return exported_.published();
+        }
+
+        [[nodiscard]] block::ExportState export_state() const noexcept {
+            return exported_.state();
         }
 
         [[nodiscard]] bool attached() const noexcept {

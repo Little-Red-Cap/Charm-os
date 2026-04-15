@@ -41,7 +41,8 @@ export namespace usb::host {
                     HostOps{
                         &SingleDeviceRuntimeBus::enumerate_cb,
                         nullptr,
-                        nullptr
+                        nullptr,
+                        &SingleDeviceRuntimeBus::try_enumerate_cb
                     },
                     name) {
         }
@@ -86,15 +87,20 @@ export namespace usb::host {
         const RuntimeDeviceRecord& record() const noexcept { return record_; }
 
     private:
-        static bool enumerate_cb(void* ctx, device::RegistryBase& registry) noexcept {
+        static util::Result<void> try_enumerate_cb(void* ctx,
+                                                   device::RegistryBase& registry) noexcept {
             auto* self = static_cast<SingleDeviceRuntimeBus*>(ctx);
             if (!self) {
-                return false;
+                return util::unexpected(util::Errc::bad_state);
             }
             if (self->record_.enumerated) {
-                return true;
+                return {};
             }
-            return static_cast<bool>(self->try_enumerate(registry));
+            return self->try_enumerate(registry);
+        }
+
+        static bool enumerate_cb(void* ctx, device::RegistryBase& registry) noexcept {
+            return static_cast<bool>(try_enumerate_cb(ctx, registry));
         }
 
         RuntimeDeviceRecord record_{};
@@ -109,7 +115,8 @@ export namespace usb::host {
                     HostOps{
                         &DeviceListRuntimeBus::enumerate_cb,
                         nullptr,
-                        nullptr
+                        nullptr,
+                        &DeviceListRuntimeBus::try_enumerate_cb
                     },
                     name) {
         }
@@ -239,13 +246,17 @@ export namespace usb::host {
             return count_;
         }
 
-        static bool enumerate_cb(void* ctx, device::RegistryBase& registry) noexcept {
+        static util::Result<void> try_enumerate_cb(void* ctx,
+                                                   device::RegistryBase& registry) noexcept {
             auto* self = static_cast<DeviceListRuntimeBus*>(ctx);
             if (!self) {
-                return false;
+                return util::unexpected(util::Errc::bad_state);
             }
+            return self->try_enumerate(registry);
+        }
 
-            return static_cast<bool>(self->try_enumerate(registry));
+        static bool enumerate_cb(void* ctx, device::RegistryBase& registry) noexcept {
+            return static_cast<bool>(try_enumerate_cb(ctx, registry));
         }
 
         std::array<RuntimeDeviceRecord, MaxDevices> records_{};
@@ -268,12 +279,15 @@ export namespace usb::host {
         };
 
         device::Registry<2, 1> registry{};
-        if (!bus.enumerate(registry)) return false;
+        auto exported_bus = bus.bus();
+        if (exported_bus.ops.try_enumerate == nullptr) return false;
+        if (!exported_bus.ops.try_enumerate(exported_bus.ctx, registry)) return false;
         if (!bus.enumerated()) return false;
         if (registry.device_count() != 1) return false;
         if (registry.device_at(0).ctx != &marker) return false;
         if (!same_desc(registry.device_at(0).desc, bus.record().desc)) return false;
-        return bus.enumerate(registry) && registry.device_count() == 1;
+        return exported_bus.ops.try_enumerate(exported_bus.ctx, registry) &&
+               registry.device_count() == 1;
     }
 
     inline bool device_list_runtime_bus_self_check() noexcept {
@@ -308,7 +322,9 @@ export namespace usb::host {
         }
 
         device::Registry<4, 1> registry{};
-        if (!bus.try_enumerate(registry)) return false;
+        auto exported_bus = bus.bus();
+        if (exported_bus.ops.try_enumerate == nullptr) return false;
+        if (!exported_bus.ops.try_enumerate(exported_bus.ctx, registry)) return false;
         if (registry.device_count() != 2) return false;
         if (registry.device_at(0).ctx != &marker_a) return false;
         if (registry.device_at(1).ctx != &marker_b) return false;
@@ -317,7 +333,8 @@ export namespace usb::host {
         if (bus.size() != 1) return false;
         auto missing = bus.try_reset_device(cdc_record);
         if (missing || missing.error() != util::Errc::noent) return false;
-        return bus.try_enumerate(registry) && registry.device_count() == 2;
+        return exported_bus.ops.try_enumerate(exported_bus.ctx, registry) &&
+               registry.device_count() == 2;
     }
 #endif
 }

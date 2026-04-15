@@ -6,6 +6,22 @@ import util.core;
 import util.error;
 
 export namespace usb::host {
+    template <typename PublishStateT, typename ExportStateT>
+    struct RuntimeBindingState {
+        bool tracked{false};
+        bool enumerated{false};
+        PublishStateT publish_state{PublishStateT::missing};
+        ExportStateT export_state{ExportStateT::missing};
+
+        [[nodiscard]] bool published() const noexcept {
+            return publish_state == PublishStateT::published;
+        }
+
+        [[nodiscard]] bool attached() const noexcept {
+            return export_state == ExportStateT::attached;
+        }
+    };
+
     template <util::usize MaxDevices, util::usize MaxDrivers>
     class RuntimeManager {
     public:
@@ -55,8 +71,11 @@ export namespace usb::host {
 
         [[nodiscard]] util::Result<void> try_scan() noexcept {
             auto enumerated = try_enumerate();
-            registry_.match_detected();
-            return enumerated;
+            auto matched = registry_.try_match_detected();
+            if (!enumerated) {
+                return enumerated;
+            }
+            return matched;
         }
 
         bool scan() noexcept {
@@ -75,6 +94,32 @@ export namespace usb::host {
         }
 
         template <typename BindingT>
+        [[nodiscard]] auto publish_state(const BindingT& binding) const noexcept
+            -> decltype(binding.publish_state()) {
+            return binding.publish_state();
+        }
+
+        template <typename BindingT>
+        [[nodiscard]] auto export_state(const BindingT& binding) const noexcept
+            -> decltype(binding.export_state()) {
+            return binding.export_state();
+        }
+
+        template <typename BindingT>
+        [[nodiscard]] auto state(const BindingT& binding) const noexcept
+            -> RuntimeBindingState<decltype(binding.publish_state()),
+                                   decltype(binding.export_state())> {
+            RuntimeBindingState<decltype(binding.publish_state()),
+                                decltype(binding.export_state())> state{};
+            const auto index = find_record_index(binding.device_record());
+            state.tracked = index < bus_.size();
+            state.enumerated = state.tracked && bus_.record_at(index).enumerated;
+            state.publish_state = binding.publish_state();
+            state.export_state = binding.export_state();
+            return state;
+        }
+
+        template <typename BindingT>
         util::Result<void> try_remove(BindingT& binding) noexcept {
             return binding.try_remove(registry_);
         }
@@ -82,6 +127,35 @@ export namespace usb::host {
         template <typename BindingT>
         bool remove(BindingT& binding) noexcept {
             return static_cast<bool>(try_remove(binding));
+        }
+
+        template <typename BindingT>
+        util::Result<void> try_unexport(BindingT& binding) noexcept {
+            return try_unexport_binding(binding);
+        }
+
+        template <typename BindingT>
+        bool unexport(BindingT& binding) noexcept {
+            return static_cast<bool>(try_unexport(binding));
+        }
+
+        template <typename BindingT>
+        util::Result<void> try_forget(BindingT& binding) noexcept {
+            util::Errc first_error = util::Errc::ok;
+
+            note_non_noent(first_error, binding.try_remove(registry_));
+            note_non_noent(first_error, try_unexport_binding(binding));
+            note_non_noent(first_error, bus_.try_remove_device(binding.device_record()));
+
+            if (first_error != util::Errc::ok) {
+                return util::unexpected(first_error);
+            }
+            return {};
+        }
+
+        template <typename BindingT>
+        bool forget(BindingT& binding) noexcept {
+            return static_cast<bool>(try_forget(binding));
         }
 
         template <typename BindingT>
@@ -119,6 +193,31 @@ export namespace usb::host {
         }
 
     private:
+        static void note_non_noent(util::Errc& first_error,
+                                   const util::Result<void>& result) noexcept {
+            if (result) {
+                return;
+            }
+            if (result.error() == util::Errc::noent) {
+                return;
+            }
+            if (first_error == util::Errc::ok) {
+                first_error = result.error();
+            }
+        }
+
+        template <typename BindingT>
+        static util::Result<void> try_unexport_binding(BindingT& binding) noexcept {
+            if constexpr (requires(BindingT& b) { b.exported(); b.unexport(); }) {
+                if (!binding.exported()) {
+                    return util::unexpected(util::Errc::noent);
+                }
+                return binding.unexport();
+            } else {
+                return {};
+            }
+        }
+
         [[nodiscard]] util::usize find_record_index(const RuntimeDeviceRecord& record) const noexcept {
             for (util::usize i = 0; i < bus_.size(); ++i) {
                 if (same_record(bus_.record_at(i), record)) {

@@ -7,12 +7,14 @@ export module usb.host.core;
 import device.bus;
 import device.desc;
 import device.registry;
+import util.error;
 
 export namespace usb::host {
     struct HostOps {
         bool (*enumerate)(void* ctx, device::RegistryBase& reg) noexcept { nullptr };
         void (*attach)(void* ctx, const device::DeviceDesc& desc) noexcept { nullptr };
         void (*detach)(void* ctx, const device::DeviceDesc& desc) noexcept { nullptr };
+        util::Result<void> (*try_enumerate)(void* ctx, device::RegistryBase& reg) noexcept { nullptr };
     };
 
     class HostBus {
@@ -32,14 +34,27 @@ export namespace usb::host {
             b.ops.enumerate = &HostBus::enumerate;
             b.ops.attach = &HostBus::attach;
             b.ops.detach = &HostBus::detach;
+            b.ops.try_enumerate = &HostBus::try_enumerate;
             return b;
         }
 
     private:
-        static bool enumerate(void* ctx, device::RegistryBase& reg) noexcept {
+        static util::Result<void> try_enumerate(void* ctx, device::RegistryBase& reg) noexcept {
             auto* self = static_cast<HostBus*>(ctx);
-            if (!self || !self->ops_.enumerate) return false;
-            return self->ops_.enumerate(self->ctx_, reg);
+            if (!self) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            if (self->ops_.try_enumerate) {
+                return self->ops_.try_enumerate(self->ctx_, reg);
+            }
+            if (!self->ops_.enumerate || !self->ops_.enumerate(self->ctx_, reg)) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            return {};
+        }
+
+        static bool enumerate(void* ctx, device::RegistryBase& reg) noexcept {
+            return static_cast<bool>(try_enumerate(ctx, reg));
         }
 
         static void attach(void* ctx, const device::DeviceDesc& desc) noexcept {

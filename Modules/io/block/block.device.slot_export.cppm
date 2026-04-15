@@ -12,6 +12,12 @@ import util.core;
 import util.error;
 
 export namespace block {
+    enum class ExportState : util::u8 {
+        missing,
+        detached,
+        attached,
+    };
+
     template <typename RegistryT>
     class DeviceSlotExport {
     public:
@@ -48,14 +54,47 @@ export namespace block {
             slot_.detach();
         }
 
+        util::Result<void> unexport() noexcept {
+            if (!registry_ || desc_.name.empty() || desc_.cap == 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            const auto* ep = registry_->find_device(desc_.cap);
+            if (!ep) {
+                return util::unexpected(util::Errc::noent);
+            }
+            if (ep->desc.name.compare(desc_.name) != 0 || ep->dev != &slot_.device()) {
+                return util::unexpected(util::Errc::exist);
+            }
+            slot_.detach();
+            return registry_->unregister_device(desc_.cap);
+        }
+
         [[nodiscard]] bool exported() const noexcept {
             if (!registry_) {
                 return false;
             }
             const auto* ep = registry_->find_device(desc_.cap);
             return ep != nullptr &&
-                   ep->desc.name.compare(desc_.name) == 0 &&
-                   ep->dev == &slot_.device();
+                    ep->desc.name.compare(desc_.name) == 0 &&
+                    ep->dev == &slot_.device();
+        }
+
+        [[nodiscard]] PublishState publish_state() const noexcept {
+            if (!registry_) {
+                return PublishState::missing;
+            }
+            return registry_->publish_state(desc_.cap);
+        }
+
+        [[nodiscard]] bool published() const noexcept {
+            return publish_state() == PublishState::published;
+        }
+
+        [[nodiscard]] ExportState state() const noexcept {
+            if (!exported()) {
+                return ExportState::missing;
+            }
+            return attached() ? ExportState::attached : ExportState::detached;
         }
 
         [[nodiscard]] bool attached() const noexcept { return slot_.attached(); }
@@ -101,14 +140,21 @@ export namespace block {
         registry.init();
 
         DeviceSlotExport<Registry<2>> exported{registry, "block.usb0"};
+        if (exported.publish_state() != PublishState::missing) return false;
+        if (exported.published()) return false;
         if (exported.exported()) return false;
+        if (exported.state() != ExportState::missing) return false;
         if (!exported.ensure_exported()) return false;
+        if (exported.publish_state() != PublishState::published) return false;
+        if (!exported.published()) return false;
         if (!exported.exported()) return false;
+        if (exported.state() != ExportState::detached) return false;
         if (registry.open_device("block.usb0") != &exported.device()) return false;
 
         DummyDisk disk{};
         if (!exported.attach(disk.dev)) return false;
         if (!exported.attached()) return false;
+        if (exported.state() != ExportState::attached) return false;
         if (exported.generation() != 1) return false;
 
         util::u8 byte = 0;
@@ -117,11 +163,21 @@ export namespace block {
 
         exported.detach();
         if (exported.attached()) return false;
+        if (exported.state() != ExportState::detached) return false;
         if (exported.generation() != 2) return false;
 
         byte = 0;
         st = exported.device().read(exported.device().ctx, 0, std::span<util::u8>(&byte, 1));
-        return st.err == Errc::noent;
+        if (st.err != Errc::noent) return false;
+
+        if (!exported.unexport()) return false;
+        if (exported.publish_state() != PublishState::missing) return false;
+        if (exported.published()) return false;
+        if (exported.exported()) return false;
+        if (exported.state() != ExportState::missing) return false;
+        if (registry.open_device("block.usb0") != nullptr) return false;
+
+        return exported.unexport().error() == util::Errc::noent;
     }
 #endif
 }

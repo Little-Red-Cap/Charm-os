@@ -43,6 +43,15 @@ namespace usb::host::detail {
     }
 
     template <typename IoRegistryT>
+    util::Result<void> cdc_channel_try_init(CdcChannelDriverContext<IoRegistryT>& ctx,
+                                            device::Device&) noexcept {
+        if (!ctx.exported || !ctx.backend) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        return ctx.exported->attach(*ctx.backend);
+    }
+
+    template <typename IoRegistryT>
     void cdc_channel_detach(CdcChannelDriverContext<IoRegistryT>& ctx) noexcept {
         if (ctx.exported) {
             ctx.exported->detach();
@@ -94,13 +103,11 @@ export namespace usb::host {
               binding_{
                   &runtime_ctx_,
                   device::RuntimeDriverHook<DriverContext>{
-                      &detail::cdc_channel_probe<IoRegistryT>,
-                      &detail::cdc_channel_init<IoRegistryT>,
-                      &detail::cdc_channel_shutdown<IoRegistryT>,
-                      &detail::cdc_channel_remove<IoRegistryT>,
-                      nullptr,
-                      nullptr,
-                      nullptr
+                      .probe = &detail::cdc_channel_probe<IoRegistryT>,
+                      .init = &detail::cdc_channel_init<IoRegistryT>,
+                      .shutdown = &detail::cdc_channel_shutdown<IoRegistryT>,
+                      .remove = &detail::cdc_channel_remove<IoRegistryT>,
+                      .try_init = &detail::cdc_channel_try_init<IoRegistryT>
                   }
               },
               discovery_(match, &binding_, bus_name),
@@ -138,6 +145,10 @@ export namespace usb::host {
             return exported_.ensure_exported();
         }
 
+        util::Result<void> unexport() noexcept {
+            return exported_.unexport();
+        }
+
         template <typename RuntimeRegistryT>
         util::Result<void> try_enumerate(RuntimeRegistryT& registry) noexcept {
             return discovery_.try_enumerate(registry);
@@ -170,6 +181,18 @@ export namespace usb::host {
 
         [[nodiscard]] bool exported() const noexcept {
             return exported_.exported();
+        }
+
+        [[nodiscard]] io::PublishState publish_state() const noexcept {
+            return exported_.publish_state();
+        }
+
+        [[nodiscard]] bool published() const noexcept {
+            return exported_.published();
+        }
+
+        [[nodiscard]] io::ExportState export_state() const noexcept {
+            return exported_.state();
         }
 
         [[nodiscard]] bool attached() const noexcept {

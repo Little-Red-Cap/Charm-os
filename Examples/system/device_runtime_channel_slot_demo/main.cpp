@@ -13,6 +13,7 @@ import io.channel;
 import io.channel.slot_export;
 import io.registry;
 import util.core;
+import util.error;
 
 namespace {
     struct DummyChannel {
@@ -102,6 +103,17 @@ namespace {
         return true;
     }
 
+    bool expect_ok(const util::Result<void>& result, const char* message) {
+        if (!result) {
+            std::fprintf(stderr,
+                         "[ERR] %s err=%d\n",
+                         message,
+                         static_cast<int>(result.error()));
+            return false;
+        }
+        return true;
+    }
+
     bool expect_error(const io::result& r, io::errc want, const char* message) {
         if (r.error() != want) {
             std::fprintf(stderr,
@@ -114,36 +126,50 @@ namespace {
         return true;
     }
 
-    bool runtime_enumerate(void* ctx, device::RegistryBase& reg) noexcept {
+    util::Result<void> runtime_try_enumerate(void* ctx, device::RegistryBase& reg) noexcept {
         auto* self = static_cast<RuntimeBusContext*>(ctx);
         if (!self || !self->binding) {
-            return false;
+            return util::unexpected(util::Errc::bad_state);
         }
         if (self->enumerated) {
-            return true;
+            return {};
         }
-        const bool added = reg.add_device(self->desc, self->binding);
+        auto added = reg.try_add_device(self->desc, self->binding);
         if (added) {
             self->enumerated = true;
         }
         return added;
     }
 
-    bool runtime_probe(RuntimeContext& ctx, device::Device& dev) noexcept {
-        return ctx.exported != nullptr &&
-               ctx.backend != nullptr &&
-               dev.desc.class_id == 0x02 &&
-               dev.desc.vendor_id == 0x1234 &&
-               dev.desc.product_id == 0x5678 &&
-               dev.desc.type.compare("usb.cdc") == 0;
+    bool runtime_enumerate(void* ctx, device::RegistryBase& reg) noexcept {
+        return static_cast<bool>(runtime_try_enumerate(ctx, reg));
     }
 
-    bool runtime_init(RuntimeContext& ctx, device::Device&) noexcept {
-        if (!ctx.exported || !ctx.backend) {
-            return false;
+    util::Result<void> runtime_try_probe(RuntimeContext& ctx, device::Device& dev) noexcept {
+        if (ctx.exported != nullptr &&
+            ctx.backend != nullptr &&
+            dev.desc.class_id == 0x02 &&
+            dev.desc.vendor_id == 0x1234 &&
+            dev.desc.product_id == 0x5678 &&
+            dev.desc.type.compare("usb.cdc") == 0) {
+            return {};
         }
-        auto attached = ctx.exported->attach(ctx.backend->channel);
-        return static_cast<bool>(attached);
+        return util::unexpected(util::Errc::bad_state);
+    }
+
+    bool runtime_probe(RuntimeContext& ctx, device::Device& dev) noexcept {
+        return static_cast<bool>(runtime_try_probe(ctx, dev));
+    }
+
+    util::Result<void> runtime_try_init(RuntimeContext& ctx, device::Device&) noexcept {
+        if (!ctx.exported || !ctx.backend) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        return ctx.exported->attach(ctx.backend->channel);
+    }
+
+    bool runtime_init(RuntimeContext& ctx, device::Device& dev) noexcept {
+        return static_cast<bool>(runtime_try_init(ctx, dev));
     }
 
     void runtime_remove(RuntimeContext& ctx, device::Device&) noexcept {
@@ -197,7 +223,9 @@ int main() {
         device::RuntimeDriverHook<RuntimeContext>{
             .probe = runtime_probe,
             .init = runtime_init,
-            .remove = runtime_remove
+            .remove = runtime_remove,
+            .try_probe = runtime_try_probe,
+            .try_init = runtime_try_init
         }
     };
 
@@ -218,20 +246,23 @@ int main() {
     device::Bus bus{
         .name = "demo.usb.host",
         .ctx = &bus_ctx,
-        .ops = device::BusOps{.enumerate = runtime_enumerate}
+        .ops = device::BusOps{
+            .enumerate = runtime_enumerate,
+            .try_enumerate = runtime_try_enumerate
+        }
     };
 
     device::Registry<4, 4> registry{};
     device::BusManager<1> bus_manager{};
 
-    if (!expect(registry.add_driver(driver), "failed to add runtime channel driver")) return 1;
-    if (!expect(bus_manager.add_bus(bus), "failed to add runtime channel bus")) return 1;
+    if (!expect_ok(registry.try_add_driver(driver), "failed to add runtime channel driver")) return 1;
+    if (!expect_ok(bus_manager.try_add_bus(bus), "failed to add runtime channel bus")) return 1;
 
-    bus_manager.enumerate_all(registry);
+    if (!expect_ok(bus_manager.try_enumerate_all(registry), "runtime bus enumerate failed")) return 1;
     if (!expect(bus_ctx.enumerated, "runtime bus did not enumerate the channel device")) return 1;
     if (!expect(registry.device_count() == 1, "runtime registry should contain one channel device")) return 1;
 
-    registry.match_all();
+    if (!expect_ok(registry.try_match_all(), "runtime registry match failed")) return 1;
     if (!expect(exported.attached(), "runtime init did not attach the channel slot")) return 1;
     if (!expect(exported.generation() == 1, "channel slot generation should advance after attach")) return 1;
     if (!expect(registry.device_at(0).state == device::DeviceState::running,
@@ -270,7 +301,10 @@ int main() {
     if (!expect(static_cast<bool>(flush_r), "attached slot should flush successfully")) return 1;
     if (!expect(backend.flushed, "backend flush callback was not observed")) return 1;
 
-    registry.dispatch(registry.device_at(0), device::DeviceEvent::remove);
+    if (!expect_ok(registry.try_dispatch(registry.device_at(0), device::DeviceEvent::remove),
+                   "runtime remove did not complete")) {
+        return 1;
+    }
     if (!expect(!exported.attached(), "runtime remove did not detach the channel slot")) return 1;
     if (!expect(exported.generation() == 2, "channel slot generation should advance after detach")) return 1;
     if (!expect(io_registry.open_channel(kCapName) == stable,

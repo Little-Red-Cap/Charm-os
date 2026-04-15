@@ -238,6 +238,7 @@ Modules/io/net/
 - `MutPacketView`
 - `PacketBuffer`
 - `PacketPool`
+- v0 可先采用“固定容量 buffer + move-only pool lease + prepend/append/trim”模型，先把 MCU 友好的包生命周期钉住，再逐步补 header helper / checksum / zero-copy 策略
 
 它服务于：
 
@@ -397,6 +398,18 @@ v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagn
 - `netif`：设备能力在网络域的投影
 - `stack`：消费 netif，向上提供 socket 能力
 
+当前实现推进顺序上，`net.packet` 已先落固定容量 `PacketBuffer/PacketPool` 地基；
+`net.netif` 的第一刀建议只收口 `mtu/mac/address/capability + bind/up/down + input/output packet hook`，
+先把接口对象语义钉住，再往后接 `driver / self backend / ARP / IPv4`。
+`net.driver` 的第一刀则只建议收口 `link info + tx sink + poll 驱动的 rx 注入`，
+让 `driver ↔ netif ↔ packet` 的边界先稳定，再决定后续是接 host stub、板级 MAC/PHY 还是自研 L2/L3。
+在此基础上，`rx` 路径再尽早抬升到 `PacketLease/PacketPool` 持有语义，
+避免后续 ARP/IPv4 纵切时又回头重做一次 packet 生命周期边界。
+`net.stack` 的当前第一刀建议进一步收口成“固定容量 netif/driver 注册表 + poll 驱动 + EtherType 分发入口”，
+先把 `ARP / IPv4` 两条最基础的 L3 入口切出来，但暂时还不急着铺开完整 ARP cache、路由表与 IPv4 状态机。
+在这之后，建议优先补一个最小 `net.arp` 纵切：先落 `ARP codec + 固定容量 cache/table + request/reply responder`，
+把第一条真正可闭环的 L2/L3 路径跑通，再进入 IPv4 header/route/udp 等更长链路。
+
 这样未来 USB 网卡、板载以太网、Host backend 都能用统一方式接入。
 
 ### 3. 与 POSIX 的关系
@@ -481,6 +494,7 @@ v0 推荐做法是把 socket readiness 投影到 `io.reactor`：
 - `SocketChannelBinding` 把已连接 socket 投影成 `io::Channel`，供上层协议直接走 `read/write`
 - `SocketEventChannelBinding` 提供纯事件通道，适合 `TcpListener` 这类只关心 accept-ready 的对象
 - 对“监听一次、accept 一个连接、立刻启动已准备好的 session driver”这种高频样板，可进一步收口成 `TcpSingleAcceptDriver`，把 listener 侧的 subscribe/watch/start 样板继续压回框架内部
+- 如果 accepted 侧暂时还不是完整的 `ReactorSocketDriver`，只需要把已 accept socket 绑定到某个 `io::Channel` 并注册 watch，也可配合 `SocketWatchDriver` 继续复用同一套 one-shot accept 收口
 - 如果同一次采样里同时观察到 `readable + closed`，driver 应先把剩余可读 payload 交给 session，再上报 transport closed，避免把“最后一帧数据”误伤成 error
 - 如果已经采样到 `writable`，但真正 flush 时写端发现对端已关闭，driver 也应收口为 transport closed，而不是把“迟到的写失败”继续上抛成 transport error
 - `RequestSession / ServiceSession / TypedServiceSession` 在 transport close 时应清空本地 pending / deferred 状态，并统一向 error handler 上抛 `errc::closed`，不要把断链拖成 timeout

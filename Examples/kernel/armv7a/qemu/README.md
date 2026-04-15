@@ -320,6 +320,10 @@ continue
   in dedicated leaf helpers (`armv7a_gic.cpp` and
   `armv7a_interrupt_smoke.cpp`), so `irq_timer.cpp` stays focused on how each
   smoke is triggered instead of also owning the whole IRQ/FIQ receive path.
+- QEMU `virt`-specific platform facts now also funnel through
+  `armv7a_platform.hpp` and `qemu_virt_platform.cpp`, which centralizes MMIO
+  bases, RAM extents, and the probe/abort alias-window layout instead of
+  scattering those addresses across every probe and bring-up helper.
 - Boot page-table bring-up now includes a tiny coarse L1 -> small-page L2
   path in an otherwise unmapped alias window, which gives us a 4KB-granular
   probe without disturbing the 1MB section identity map used by the default

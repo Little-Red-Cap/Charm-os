@@ -6,6 +6,7 @@
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cpu.hpp"
 #include "armv7a_mmu.hpp"
+#include "armv7a_platform.hpp"
 #include "armv7a_translation_walk.hpp"
 
 extern "C" void early_uart_putc(char ch);
@@ -13,7 +14,6 @@ extern "C" void early_uart_puts(const char* text);
 extern "C" [[noreturn]] void charm_spin();
 
 namespace {
-constexpr std::uintptr_t kAttributeProbeAliasBase = 0x52300000u;
 constexpr std::uintptr_t kSectionSize = 1u << 20;
 constexpr std::uintptr_t kSectionMask = ~(kSectionSize - 1u);
 constexpr std::uintptr_t kSmallPageSize = 1u << 12;
@@ -22,6 +22,11 @@ constexpr std::size_t kSmallPageWordCount = kSmallPageSize / sizeof(std::uint32_
 constexpr std::uint32_t kAttributeProbeInitialValue = 0x11223344u;
 constexpr std::uint32_t kAttributeProbeNormalWrite = 0x55667788u;
 constexpr std::uint32_t kAttributeProbeDeviceWrite = 0x99AABBCCu;
+
+const Armv7aPlatformProbeLayout& probe_layout()
+{
+    return armv7a_platform_probe_layout();
+}
 
 [[gnu::section(".probe_pages.armv7a_attribute")]]
 alignas(4096) volatile std::uint32_t g_armv7a_attribute_probe_page[kSmallPageWordCount];
@@ -48,8 +53,8 @@ std::uintptr_t armv7a_attribute_probe_section_base()
 
 Armv7aL2DescriptorDecode armv7a_attribute_probe_decode()
 {
-    return armv7a_decode_l2_descriptor(kAttributeProbeAliasBase,
-                                       armv7a_boot_l2_descriptor(kAttributeProbeAliasBase));
+    return armv7a_decode_l2_descriptor(probe_layout().attribute_alias_base,
+                                       armv7a_boot_l2_descriptor(probe_layout().attribute_alias_base));
 }
 
 void armv7a_attribute_probe_expect(bool condition, const char* message)
@@ -72,7 +77,7 @@ extern "C" void armv7a_prepare_attribute_probe_mapping()
     armv7a_boot_l1_map_section(armv7a_attribute_probe_section_base(),
                                armv7a_attribute_probe_section_base(),
                                Armv7aBootSectionType::kFault);
-    armv7a_boot_l2_map_small_page(kAttributeProbeAliasBase,
+    armv7a_boot_l2_map_small_page(probe_layout().attribute_alias_base,
                                   armv7a_attribute_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecuteNever);
 }
@@ -82,7 +87,7 @@ extern "C" void armv7a_print_attribute_probe_mapping_state()
     const auto decode = armv7a_attribute_probe_decode();
 
     early_uart_puts("ARMv7-A attr probe ready, va=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(kAttributeProbeAliasBase));
+    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().attribute_alias_base));
     early_uart_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_attribute_probe_target_address()));
     early_uart_puts(", section=0x");
@@ -90,7 +95,7 @@ extern "C" void armv7a_print_attribute_probe_mapping_state()
     early_uart_puts(", identity-l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(armv7a_attribute_probe_target_address()));
     early_uart_puts(", l1=0x");
-    early_uart_write_hex32(armv7a_boot_l1_descriptor(kAttributeProbeAliasBase));
+    early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().attribute_alias_base));
     early_uart_puts(", l2=0x");
     early_uart_write_hex32(decode.descriptor);
     early_uart_puts(", tex=0x");
@@ -102,7 +107,8 @@ extern "C" void armv7a_print_attribute_probe_mapping_state()
 
 extern "C" void armv7a_run_attribute_probe()
 {
-    auto* const alias = reinterpret_cast<volatile std::uint32_t*>(kAttributeProbeAliasBase);
+    auto* const alias =
+        reinterpret_cast<volatile std::uint32_t*>(probe_layout().attribute_alias_base);
 
     const auto before = *alias;
     *alias = kAttributeProbeNormalWrite;
@@ -110,12 +116,12 @@ extern "C" void armv7a_run_attribute_probe()
     const auto normal = *alias;
     const auto normal_decode = armv7a_attribute_probe_decode();
 
-    armv7a_boot_l2_map_small_page(kAttributeProbeAliasBase,
+    armv7a_boot_l2_map_small_page(probe_layout().attribute_alias_base,
                                   armv7a_attribute_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kDeviceData);
     armv7a_sync_tlb_mapping_change(
-        armv7a_boot_l2_descriptor_address(kAttributeProbeAliasBase),
-        kAttributeProbeAliasBase);
+        armv7a_boot_l2_descriptor_address(probe_layout().attribute_alias_base),
+        probe_layout().attribute_alias_base);
 
     const auto device_before = *alias;
     *alias = kAttributeProbeDeviceWrite;
@@ -123,18 +129,18 @@ extern "C" void armv7a_run_attribute_probe()
     const auto device = *alias;
     const auto device_decode = armv7a_attribute_probe_decode();
 
-    armv7a_boot_l2_map_small_page(kAttributeProbeAliasBase,
+    armv7a_boot_l2_map_small_page(probe_layout().attribute_alias_base,
                                   armv7a_attribute_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecuteNever);
     armv7a_sync_tlb_mapping_change(
-        armv7a_boot_l2_descriptor_address(kAttributeProbeAliasBase),
-        kAttributeProbeAliasBase);
+        armv7a_boot_l2_descriptor_address(probe_layout().attribute_alias_base),
+        probe_layout().attribute_alias_base);
 
     const auto restored = *alias;
     const auto restored_decode = armv7a_attribute_probe_decode();
 
     early_uart_puts("ARMv7-A attr probe, addr=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(kAttributeProbeAliasBase));
+    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().attribute_alias_base));
     early_uart_puts(", before=0x");
     early_uart_write_hex32(before);
     early_uart_puts(", normal=0x");

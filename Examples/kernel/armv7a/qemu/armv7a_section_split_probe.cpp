@@ -7,13 +7,13 @@
 #include "armv7a_cache.hpp"
 #include "armv7a_cpu.hpp"
 #include "armv7a_mmu.hpp"
+#include "armv7a_platform.hpp"
 
 extern "C" void early_uart_putc(char ch);
 extern "C" void early_uart_puts(const char* text);
 extern "C" [[noreturn]] void charm_spin();
 
 namespace {
-constexpr std::uintptr_t kSectionSplitProbeAliasBase = 0x52600000u;
 constexpr std::uintptr_t kSectionSize = 1u << 20;
 constexpr std::uintptr_t kSectionMask = ~(kSectionSize - 1u);
 constexpr std::uintptr_t kSectionOffsetMask = kSectionSize - 1u;
@@ -23,6 +23,11 @@ constexpr std::size_t kL2TableSizeBytes = 256u * sizeof(std::uint32_t);
 constexpr std::size_t kSmallPageWordCount = kSmallPageSize / sizeof(std::uint32_t);
 constexpr std::uint32_t kSectionSplitProbeValueA = 0x89ABCDEFu;
 constexpr std::uint32_t kSectionSplitProbeValueB = 0x76543210u;
+
+const Armv7aPlatformProbeLayout& probe_layout()
+{
+    return armv7a_platform_probe_layout();
+}
 
 [[gnu::section(".probe_sections.armv7a_section_split")]]
 alignas(4096) volatile std::uint32_t g_armv7a_section_split_probe_page_a[kSmallPageWordCount];
@@ -57,7 +62,7 @@ std::uintptr_t armv7a_section_split_probe_section_base()
 
 std::uintptr_t armv7a_section_split_probe_alias_address()
 {
-    return kSectionSplitProbeAliasBase +
+    return probe_layout().section_split_alias_base +
            (armv7a_section_split_probe_page_a_address() & kSectionOffsetMask);
 }
 
@@ -87,7 +92,7 @@ extern "C" void armv7a_prepare_section_split_probe_mapping()
     armv7a_boot_l1_map_section(armv7a_section_split_probe_section_base(),
                                armv7a_section_split_probe_section_base(),
                                Armv7aBootSectionType::kFault);
-    armv7a_boot_l1_map_section(kSectionSplitProbeAliasBase,
+    armv7a_boot_l1_map_section(probe_layout().section_split_alias_base,
                                armv7a_section_split_probe_section_base(),
                                Armv7aBootSectionType::kDeviceData);
 }
@@ -95,7 +100,7 @@ extern "C" void armv7a_prepare_section_split_probe_mapping()
 extern "C" void armv7a_print_section_split_probe_mapping_state()
 {
     early_uart_puts("ARMv7-A section-split probe ready, section=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(kSectionSplitProbeAliasBase));
+    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().section_split_alias_base));
     early_uart_puts(", addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_section_split_probe_alias_address()));
     early_uart_puts(", pa-section=0x");
@@ -105,7 +110,7 @@ extern "C" void armv7a_print_section_split_probe_mapping_state()
     early_uart_puts(", pa-b=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_section_split_probe_page_b_address()));
     early_uart_puts(", l1=0x");
-    early_uart_write_hex32(armv7a_boot_l1_descriptor(kSectionSplitProbeAliasBase));
+    early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().section_split_alias_base));
     early_uart_puts("\r\n");
 }
 
@@ -118,13 +123,15 @@ extern "C" void armv7a_run_section_split_probe()
     auto* const alias =
         reinterpret_cast<volatile std::uint32_t*>(armv7a_section_split_probe_alias_address());
     const auto alias_address = armv7a_section_split_probe_alias_address();
-    const auto l1_descriptor_address = armv7a_boot_l1_descriptor_address(kSectionSplitProbeAliasBase);
+    const auto l1_descriptor_address =
+        armv7a_boot_l1_descriptor_address(probe_layout().section_split_alias_base);
     const auto before = *alias;
 
     armv7a_section_split_probe_expect(
-        armv7a_boot_l1_split_section_to_small_pages(kSectionSplitProbeAliasBase),
+        armv7a_boot_l1_split_section_to_small_pages(probe_layout().section_split_alias_base),
         "ARMv7-A section-split probe failed to split live section");
-    const auto l2_table_base = armv7a_boot_l2_table_base(kSectionSplitProbeAliasBase);
+    const auto l2_table_base =
+        armv7a_boot_l2_table_base(probe_layout().section_split_alias_base);
     armv7a_section_split_probe_expect(l2_table_base != 0u,
                                       "ARMv7-A section-split probe missing L2 table");
 
@@ -155,7 +162,7 @@ extern "C" void armv7a_run_section_split_probe()
     early_uart_puts(", l2-table=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(l2_table_base));
     early_uart_puts(", l1=0x");
-    early_uart_write_hex32(armv7a_boot_l1_descriptor(kSectionSplitProbeAliasBase));
+    early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().section_split_alias_base));
     early_uart_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(alias_address));
     early_uart_puts("\r\n");

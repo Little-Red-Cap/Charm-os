@@ -11,6 +11,7 @@ import out.sink;
 #include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_page_table_probe.hpp"
+#include "armv7a_platform.hpp"
 #include "armv7a_section_split_probe.hpp"
 #include "armv7a_small_page_probe.hpp"
 
@@ -45,8 +46,10 @@ void early_uart_put_hex32(unsigned int value)
 
 void print_charm_module_status()
 {
+    const auto& mmio = armv7a_platform_mmio_layout();
     out::buffer_sink<96> buffer{};
-    auto status = out::vprint<"Charm out.format import active, PL011 @ 0x{:08X}\r\n">(buffer, 0x09000000u);
+    auto status = out::vprint<"Charm out.format import active, PL011 @ 0x{:08X}\r\n">(
+        buffer, mmio.pl011_base);
     if (!status) {
         early_uart_puts("out.format failed, err=0x");
         early_uart_put_hex32(static_cast<unsigned int>(status.error()));
@@ -135,14 +138,16 @@ void print_cpu_boot_state()
 
 void print_boot_page_table_state()
 {
+    const auto& address_space = armv7a_platform_address_space();
+    const auto& mmio = armv7a_platform_mmio_layout();
     early_uart_puts("ARMv7-A L1 table ready, base=0x");
     early_uart_put_hex32(static_cast<unsigned int>(armv7a_boot_l1_table_base()));
     early_uart_puts(", ram=0x");
-    early_uart_put_hex32(armv7a_boot_l1_descriptor(0x40200000u));
+    early_uart_put_hex32(armv7a_boot_l1_descriptor(address_space.image_load_base));
     early_uart_puts(", gic=0x");
-    early_uart_put_hex32(armv7a_boot_l1_descriptor(0x08000000u));
+    early_uart_put_hex32(armv7a_boot_l1_descriptor(mmio.gic_distributor_base));
     early_uart_puts(", uart=0x");
-    early_uart_put_hex32(armv7a_boot_l1_descriptor(0x09000000u));
+    early_uart_put_hex32(armv7a_boot_l1_descriptor(mmio.pl011_base));
     early_uart_puts("\r\n");
 }
 

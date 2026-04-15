@@ -5,6 +5,7 @@
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cpu.hpp"
 #include "armv7a_mmu.hpp"
+#include "armv7a_platform.hpp"
 
 extern "C" std::uint32_t armv7a_icache_probe_target_a();
 extern "C" std::uint32_t armv7a_icache_probe_target_b();
@@ -13,12 +14,16 @@ extern "C" void early_uart_puts(const char* text);
 extern "C" [[noreturn]] void charm_spin();
 
 namespace {
-constexpr std::uintptr_t kIcacheProbeAliasBase = 0x52200000u;
 constexpr std::uintptr_t kSmallPageSize = 1u << 12;
 constexpr std::uintptr_t kSmallPageMask = ~(kSmallPageSize - 1u);
 constexpr std::uintptr_t kSmallPageOffsetMask = kSmallPageSize - 1u;
 constexpr std::uint32_t kIcacheProbeReturnValueA = 0x000000A1u;
 constexpr std::uint32_t kIcacheProbeReturnValueB = 0x000000B2u;
+
+const Armv7aPlatformProbeLayout& probe_layout()
+{
+    return armv7a_platform_probe_layout();
+}
 
 void early_uart_write_hex32(std::uint32_t value)
 {
@@ -51,7 +56,7 @@ bool armv7a_icache_probe_layout_valid()
 
 std::uintptr_t armv7a_icache_probe_alias_address()
 {
-    return kIcacheProbeAliasBase + armv7a_icache_probe_target_offset();
+    return probe_layout().icache_alias_base + armv7a_icache_probe_target_offset();
 }
 
 void armv7a_icache_probe_require_layout()
@@ -74,7 +79,7 @@ void armv7a_icache_probe_require_layout()
 extern "C" void armv7a_prepare_icache_probe_mapping()
 {
     armv7a_icache_probe_require_layout();
-    armv7a_boot_l2_map_small_page(kIcacheProbeAliasBase,
+    armv7a_boot_l2_map_small_page(probe_layout().icache_alias_base,
                                   armv7a_icache_probe_target_a_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecutable);
 }
@@ -108,11 +113,11 @@ extern "C" void armv7a_run_icache_probe()
     const auto probe = reinterpret_cast<std::uint32_t (*)()>(alias_address);
     const auto before = probe();
 
-    armv7a_boot_l2_map_small_page(kIcacheProbeAliasBase,
+    armv7a_boot_l2_map_small_page(probe_layout().icache_alias_base,
                                   armv7a_icache_probe_target_b_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecutable);
     armv7a_sync_instruction_mapping_change(
-        armv7a_boot_l2_descriptor_address(kIcacheProbeAliasBase),
+        armv7a_boot_l2_descriptor_address(probe_layout().icache_alias_base),
         alias_address);
     const auto after = probe();
 

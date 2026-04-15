@@ -7,19 +7,24 @@
 #include "armv7a_cache.hpp"
 #include "armv7a_cpu.hpp"
 #include "armv7a_mmu.hpp"
+#include "armv7a_platform.hpp"
 
 extern "C" void early_uart_putc(char ch);
 extern "C" void early_uart_puts(const char* text);
 extern "C" [[noreturn]] void charm_spin();
 
 namespace {
-constexpr std::uintptr_t kDcacheProbeAliasBase = 0x52400000u;
 constexpr std::uintptr_t kSmallPageSize = 1u << 12;
 constexpr std::uintptr_t kSmallPageMask = ~(kSmallPageSize - 1u);
 constexpr std::size_t kSmallPageWordCount = kSmallPageSize / sizeof(std::uint32_t);
 constexpr std::uint32_t kDcacheProbeInitialValue = 0xCAFEBABEu;
 constexpr std::uint32_t kDcacheProbeCachedWriteValue = 0x10203040u;
 constexpr std::uint32_t kDcacheProbeDeviceWriteValue = 0x50607080u;
+
+const Armv7aPlatformProbeLayout& probe_layout()
+{
+    return armv7a_platform_probe_layout();
+}
 
 [[gnu::section(".probe_pages.armv7a_dcache")]]
 alignas(4096) volatile std::uint32_t g_armv7a_dcache_probe_page[kSmallPageWordCount];
@@ -55,7 +60,7 @@ extern "C" void armv7a_prepare_dcache_probe_mapping()
 {
     g_armv7a_dcache_probe_page[0] = kDcacheProbeInitialValue;
     armv7a_data_sync_barrier();
-    armv7a_boot_l2_map_small_page(kDcacheProbeAliasBase,
+    armv7a_boot_l2_map_small_page(probe_layout().dcache_alias_base,
                                   armv7a_dcache_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecuteNever);
 }
@@ -63,13 +68,13 @@ extern "C" void armv7a_prepare_dcache_probe_mapping()
 extern "C" void armv7a_print_dcache_probe_mapping_state()
 {
     early_uart_puts("ARMv7-A dcache probe ready, va=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(kDcacheProbeAliasBase));
+    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().dcache_alias_base));
     early_uart_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_dcache_probe_target_address()));
     early_uart_puts(", l1=0x");
-    early_uart_write_hex32(armv7a_boot_l1_descriptor(kDcacheProbeAliasBase));
+    early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().dcache_alias_base));
     early_uart_puts(", l2=0x");
-    early_uart_write_hex32(armv7a_boot_l2_descriptor(kDcacheProbeAliasBase));
+    early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().dcache_alias_base));
     early_uart_puts("\r\n");
 }
 
@@ -79,35 +84,35 @@ extern "C" void armv7a_run_dcache_probe()
     armv7a_dcache_probe_expect(armv7a_dcache_enabled(sctlr),
                                "ARMv7-A dcache probe requires dcache=on");
 
-    auto* const alias = reinterpret_cast<volatile std::uint32_t*>(kDcacheProbeAliasBase);
+    auto* const alias = reinterpret_cast<volatile std::uint32_t*>(probe_layout().dcache_alias_base);
     const auto before = *alias;
     *alias = kDcacheProbeCachedWriteValue;
     armv7a_data_sync_barrier();
 
-    armv7a_clean_invalidate_dcache_range(kDcacheProbeAliasBase, sizeof(std::uint32_t));
-    armv7a_boot_l2_map_small_page(kDcacheProbeAliasBase,
+    armv7a_clean_invalidate_dcache_range(probe_layout().dcache_alias_base, sizeof(std::uint32_t));
+    armv7a_boot_l2_map_small_page(probe_layout().dcache_alias_base,
                                   armv7a_dcache_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kDeviceData);
     armv7a_sync_tlb_mapping_change(
-        armv7a_boot_l2_descriptor_address(kDcacheProbeAliasBase),
-        kDcacheProbeAliasBase);
+        armv7a_boot_l2_descriptor_address(probe_layout().dcache_alias_base),
+        probe_layout().dcache_alias_base);
 
     const auto device_before = *alias;
     *alias = kDcacheProbeDeviceWriteValue;
     armv7a_data_sync_barrier();
 
-    armv7a_boot_l2_map_small_page(kDcacheProbeAliasBase,
+    armv7a_boot_l2_map_small_page(probe_layout().dcache_alias_base,
                                   armv7a_dcache_probe_target_address() & kSmallPageMask,
                                   Armv7aBootSmallPageType::kNormalExecuteNever);
     armv7a_sync_tlb_mapping_change(
-        armv7a_boot_l2_descriptor_address(kDcacheProbeAliasBase),
-        kDcacheProbeAliasBase);
-    armv7a_invalidate_dcache_range(kDcacheProbeAliasBase, sizeof(std::uint32_t));
+        armv7a_boot_l2_descriptor_address(probe_layout().dcache_alias_base),
+        probe_layout().dcache_alias_base);
+    armv7a_invalidate_dcache_range(probe_layout().dcache_alias_base, sizeof(std::uint32_t));
 
     const auto restored = *alias;
 
     early_uart_puts("ARMv7-A dcache probe, addr=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(kDcacheProbeAliasBase));
+    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().dcache_alias_base));
     early_uart_puts(", before=0x");
     early_uart_write_hex32(before);
     early_uart_puts(", cached=0x");
@@ -117,7 +122,7 @@ extern "C" void armv7a_run_dcache_probe()
     early_uart_puts(", restored=0x");
     early_uart_write_hex32(restored);
     early_uart_puts(", l2=0x");
-    early_uart_write_hex32(armv7a_boot_l2_descriptor(kDcacheProbeAliasBase));
+    early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().dcache_alias_base));
     early_uart_puts("\r\n");
 
     armv7a_dcache_probe_expect(before == kDcacheProbeInitialValue,

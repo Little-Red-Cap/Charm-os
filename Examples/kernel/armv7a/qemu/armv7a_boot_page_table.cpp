@@ -1,4 +1,5 @@
 #include "armv7a_boot_page_table.hpp"
+#include "armv7a_platform.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -9,10 +10,6 @@ constexpr std::size_t kL2EntryCount = 256u;
 constexpr std::size_t kBootL2TableCount = 8u;
 constexpr std::uintptr_t kSectionSize = 1u << 20;
 constexpr std::uintptr_t kSmallPageSize = 1u << 12;
-constexpr std::uintptr_t kQemuRamBase = 0x40000000u;
-constexpr std::uintptr_t kQemuRamSize = 64u * 1024u * 1024u;
-constexpr std::uintptr_t kQemuGicBase = 0x08000000u;
-constexpr std::uintptr_t kQemuPl011Base = 0x09000000u;
 
 constexpr std::uint32_t kL1TypeMask = 0x3u;
 constexpr std::uint32_t kL1PageTable = 0x1u;
@@ -210,14 +207,19 @@ std::uint32_t* ensure_boot_l2_table(std::uintptr_t virtual_address, std::uint32_
 
 void armv7a_prepare_boot_identity_map()
 {
+    const auto& address_space = armv7a_platform_address_space();
+    const auto& mmio = armv7a_platform_mmio_layout();
+
     for (auto& entry : g_boot_l1_table) {
         entry = 0u;
     }
     reset_l2_tables();
 
-    map_identity_sections(kQemuRamBase, kQemuRamSize, Armv7aBootSectionType::kNormalExecutable);
-    map_identity_sections(kQemuGicBase, kSectionSize, Armv7aBootSectionType::kDeviceData);
-    map_identity_sections(kQemuPl011Base, kSectionSize, Armv7aBootSectionType::kDeviceData);
+    map_identity_sections(address_space.ram_base,
+                          address_space.ram_size,
+                          Armv7aBootSectionType::kNormalExecutable);
+    map_identity_sections(mmio.gic_distributor_base, kSectionSize, Armv7aBootSectionType::kDeviceData);
+    map_identity_sections(mmio.pl011_base, kSectionSize, Armv7aBootSectionType::kDeviceData);
 }
 
 void armv7a_boot_l1_map_section(std::uintptr_t virtual_address,

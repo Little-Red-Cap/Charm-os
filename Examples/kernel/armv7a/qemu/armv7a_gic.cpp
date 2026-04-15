@@ -1,11 +1,9 @@
 #include "armv7a_gic.hpp"
 
 #include "armv7a_cpu.hpp"
+#include "armv7a_platform.hpp"
 
 namespace {
-constexpr std::uintptr_t kGicDistBase = 0x08000000u;
-constexpr std::uintptr_t kGicCpuBase = 0x08010000u;
-
 constexpr std::uint32_t kGicdCtlr = 0x0000u;
 constexpr std::uint32_t kGicdIgroupr = 0x0080u;
 constexpr std::uint32_t kGicdIsenabler = 0x0100u;
@@ -44,6 +42,16 @@ inline void mmio_write(std::uintptr_t base, std::uint32_t offset, std::uint32_t 
     reg(base + offset) = value;
 }
 
+std::uintptr_t gic_dist_base()
+{
+    return armv7a_platform_mmio_layout().gic_distributor_base;
+}
+
+std::uintptr_t gic_cpu_base()
+{
+    return armv7a_platform_mmio_layout().gic_cpu_interface_base;
+}
+
 std::uint32_t gic_current_cpu_mask()
 {
     const auto affinity0 = armv7a_read_mpidr() & 0x7u;
@@ -52,12 +60,12 @@ std::uint32_t gic_current_cpu_mask()
 
 std::uint32_t gic_read_line_bank(std::uint32_t offset, unsigned int intid)
 {
-    return mmio_read(kGicDistBase, offset + static_cast<std::uint32_t>(4u * (intid / 32u)));
+    return mmio_read(gic_dist_base(), offset + static_cast<std::uint32_t>(4u * (intid / 32u)));
 }
 
 void gic_clear_active(unsigned int intid)
 {
-    mmio_write(kGicDistBase,
+    mmio_write(gic_dist_base(),
                kGicdIcactiver + static_cast<std::uint32_t>(4u * (intid / 32u)),
                1u << (intid % 32u));
 }
@@ -65,49 +73,49 @@ void gic_clear_active(unsigned int intid)
 void gic_set_group0(unsigned int intid)
 {
     const auto offset = kGicdIgroupr + static_cast<std::uint32_t>(4u * (intid / 32u));
-    auto value = mmio_read(kGicDistBase, offset);
+    auto value = mmio_read(gic_dist_base(), offset);
     value &= ~(1u << (intid % 32u));
-    mmio_write(kGicDistBase, offset, value);
+    mmio_write(gic_dist_base(), offset, value);
 }
 
 void gic_set_group1(unsigned int intid)
 {
     const auto offset = kGicdIgroupr + static_cast<std::uint32_t>(4u * (intid / 32u));
-    auto value = mmio_read(kGicDistBase, offset);
+    auto value = mmio_read(gic_dist_base(), offset);
     value |= 1u << (intid % 32u);
-    mmio_write(kGicDistBase, offset, value);
+    mmio_write(gic_dist_base(), offset, value);
 }
 
 void gic_set_priority(unsigned int intid, std::uint8_t priority)
 {
     const auto offset = kGicdIpriorityr + static_cast<std::uint32_t>(4u * (intid / 4u));
     const auto shift = static_cast<unsigned int>((intid % 4u) * 8u);
-    auto value = mmio_read(kGicDistBase, offset);
+    auto value = mmio_read(gic_dist_base(), offset);
     value &= ~(0xffu << shift);
     value |= static_cast<std::uint32_t>(priority) << shift;
-    mmio_write(kGicDistBase, offset, value);
+    mmio_write(gic_dist_base(), offset, value);
 }
 
 void gic_set_level_triggered(unsigned int intid)
 {
     const auto offset = kGicdIcfgr + static_cast<std::uint32_t>(4u * (intid / 16u));
     const auto shift = static_cast<unsigned int>(((intid % 16u) * 2u) + 1u);
-    auto value = mmio_read(kGicDistBase, offset);
+    auto value = mmio_read(gic_dist_base(), offset);
     value &= ~(1u << shift);
-    mmio_write(kGicDistBase, offset, value);
+    mmio_write(gic_dist_base(), offset, value);
 }
 
 void gic_enable_line(unsigned int intid)
 {
-    mmio_write(kGicDistBase,
+    mmio_write(gic_dist_base(),
                kGicdIsenabler + static_cast<std::uint32_t>(4u * (intid / 32u)),
                1u << (intid % 32u));
 }
 
 void gic_reset_interfaces()
 {
-    mmio_write(kGicCpuBase, kGiccCtlr, 0u);
-    mmio_write(kGicDistBase, kGicdCtlr, 0u);
+    mmio_write(gic_cpu_base(), kGiccCtlr, 0u);
+    mmio_write(gic_dist_base(), kGicdCtlr, 0u);
 }
 
 void gic_configure_timer_line(unsigned int intid, Armv7aGicInterruptGroup group)
@@ -162,8 +170,8 @@ void armv7a_gic_init_sgi_irq(Armv7aGicInterruptGroup group)
 
 void armv7a_gic_enable_interfaces(bool fiq_enabled)
 {
-    mmio_write(kGicCpuBase, kGiccPmr, 0xffu);
-    mmio_write(kGicCpuBase, kGiccBpr, 0u);
+    mmio_write(gic_cpu_base(), kGiccPmr, 0xffu);
+    mmio_write(gic_cpu_base(), kGiccBpr, 0u);
 
     // AckCtl lets one IAR/EOIR pair handle both Group0 and Group1 IRQs.
     auto cpu_ctlr = 0x7u;
@@ -171,30 +179,30 @@ void armv7a_gic_enable_interfaces(bool fiq_enabled)
         cpu_ctlr |= kGiccCtlrFiqEn;
     }
 
-    mmio_write(kGicCpuBase, kGiccCtlr, cpu_ctlr);
-    mmio_write(kGicDistBase, kGicdCtlr, 0x3u);
+    mmio_write(gic_cpu_base(), kGiccCtlr, cpu_ctlr);
+    mmio_write(gic_dist_base(), kGicdCtlr, 0x3u);
     armv7a_data_sync_barrier();
     armv7a_instruction_sync_barrier();
 }
 
 void armv7a_gic_disable_interfaces()
 {
-    mmio_write(kGicCpuBase, kGiccCtlr, 0u);
-    mmio_write(kGicDistBase, kGicdCtlr, 0u);
+    mmio_write(gic_cpu_base(), kGiccCtlr, 0u);
+    mmio_write(gic_dist_base(), kGicdCtlr, 0u);
     armv7a_data_sync_barrier();
     armv7a_instruction_sync_barrier();
 }
 
 void armv7a_gic_disable_line(unsigned int intid)
 {
-    mmio_write(kGicDistBase,
+    mmio_write(gic_dist_base(),
                kGicdIcenabler + static_cast<std::uint32_t>(4u * (intid / 32u)),
                1u << (intid % 32u));
 }
 
 void armv7a_gic_clear_pending(unsigned int intid)
 {
-    mmio_write(kGicDistBase,
+    mmio_write(gic_dist_base(),
                kGicdIcpendr + static_cast<std::uint32_t>(4u * (intid / 32u)),
                1u << (intid % 32u));
 }
@@ -203,24 +211,24 @@ void armv7a_gic_clear_sgi_pending(unsigned int intid)
 {
     const auto offset = kGicdCpendsgir + static_cast<std::uint32_t>(4u * (intid / 4u));
     const auto shift = static_cast<unsigned int>((intid % 4u) * 8u);
-    mmio_write(kGicDistBase, offset, gic_current_cpu_mask() << shift);
+    mmio_write(gic_dist_base(), offset, gic_current_cpu_mask() << shift);
 }
 
 void armv7a_gic_send_self_sgi(unsigned int intid)
 {
-    mmio_write(kGicDistBase, kGicdSgir, kGicdSgirTargetFilterSelf | (intid & 0x0fu));
+    mmio_write(gic_dist_base(), kGicdSgir, kGicdSgirTargetFilterSelf | (intid & 0x0fu));
     armv7a_data_sync_barrier();
     armv7a_instruction_sync_barrier();
 }
 
 std::uint32_t armv7a_gic_acknowledge_irq()
 {
-    return mmio_read(kGicCpuBase, kGiccIar);
+    return mmio_read(gic_cpu_base(), kGiccIar);
 }
 
 void armv7a_gic_end_irq(std::uint32_t iar)
 {
-    mmio_write(kGicCpuBase, kGiccEoir, iar);
+    mmio_write(gic_cpu_base(), kGiccEoir, iar);
 }
 
 Armv7aGicLineState armv7a_gic_read_line_state(unsigned int intid)
@@ -236,8 +244,8 @@ Armv7aGicLineState armv7a_gic_read_line_state(unsigned int intid)
 Armv7aGicCpuState armv7a_gic_read_cpu_state()
 {
     return Armv7aGicCpuState{
-        .ctlr = mmio_read(kGicCpuBase, kGiccCtlr),
-        .hppir = mmio_read(kGicCpuBase, kGiccHppir),
+        .ctlr = mmio_read(gic_cpu_base(), kGiccCtlr),
+        .hppir = mmio_read(gic_cpu_base(), kGiccHppir),
     };
 }
 

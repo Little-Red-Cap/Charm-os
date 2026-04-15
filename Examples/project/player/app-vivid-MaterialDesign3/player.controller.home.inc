@@ -65,6 +65,246 @@
             }
         }
 
+        static std::string_view home_track_parent_path(std::string_view path) noexcept {
+            const auto slash = path.find_last_of("/\\");
+            if (slash == std::string_view::npos) return {};
+            return path.substr(0, slash);
+        }
+
+        auto home_cover_handles() const noexcept {
+            return std::array<WidgetHandle, kHomeCollageSlots>{
+                handles.home_cover_big,
+                handles.home_cover_left,
+                handles.home_cover_right,
+                handles.home_cover_small,
+                handles.home_cover_bottom_left,
+                handles.home_cover_bottom_right,
+            };
+        }
+
+        auto home_daily_mix_cover_handles() const noexcept {
+            return handles.home_daily_mix_covers;
+        }
+
+        auto home_recently_played_cover_handles() const noexcept {
+            return handles.home_recently_played_covers;
+        }
+
+        void clear_home_collage_images() {
+            if (!access.valid()) return;
+            const auto clear_range = [&](const auto& handles_range) {
+                for (WidgetHandle handle : handles_range) {
+                    if (handle && access.kind(handle) == WidgetKind::Image) {
+                        access.set_image(handle, ::ui::scene::invalid_image_id());
+                    }
+                }
+            };
+            clear_range(home_cover_handles());
+            clear_range(home_daily_mix_cover_handles());
+            clear_range(home_recently_played_cover_handles());
+        }
+
+        bool home_collage_cover_key_for_track(int idx,
+                                              FixedString<260>& out_cover_path,
+                                              FixedString<260>& out_key) const {
+            const auto* tracks = storage.tracks;
+            if (!tracks || idx < 0 || idx >= static_cast<int>(tracks->size())) return false;
+            const std::string_view track_path = (*tracks)[static_cast<std::size_t>(idx)].view();
+            if (track_path.empty()) return false;
+
+            if (!resolve_cover_path_for_track(track_path, out_cover_path) || out_cover_path.empty()) {
+                out_cover_path.assign(track_path);
+            }
+            if (out_cover_path.empty()) return false;
+
+            if (out_cover_path.view() != track_path) {
+                out_key.assign(out_cover_path.view());
+                return !out_key.empty();
+            }
+
+            const std::string_view parent = home_track_parent_path(track_path);
+            if (!parent.empty()) {
+                out_key.assign(parent);
+                return true;
+            }
+
+            out_key.assign(track_path);
+            return true;
+        }
+
+        void rebuild_home_collage_track_indices() {
+            home_collage_track_indices.fill(-1);
+            const auto* tracks = storage.tracks;
+            if (!tracks || tracks->size() == 0) return;
+
+            const int count = static_cast<int>(tracks->size());
+            int start = track_index;
+            if (start < 0 || start >= count) start = 0;
+
+            std::array<FixedString<260>, kHomeCollageSlots> used_keys{};
+            std::size_t used_count = 0;
+            std::size_t out_count = 0;
+
+            const auto try_push = [&](int candidate) -> bool {
+                if (candidate < 0 || candidate >= count) return false;
+                FixedString<260> cover_path;
+                FixedString<260> key;
+                if (!home_collage_cover_key_for_track(candidate, cover_path, key) || key.empty()) {
+                    return false;
+                }
+                for (std::size_t i = 0; i < used_count; ++i) {
+                    if (used_keys[i].view() == key.view()) {
+                        return false;
+                    }
+                }
+                used_keys[used_count++].assign(key.view());
+                home_collage_track_indices[out_count++] = candidate;
+                return true;
+            };
+
+            (void)try_push(start);
+            for (int offset = 1; offset < count && out_count < kHomeCollageSlots; ++offset) {
+                (void)try_push((start + offset) % count);
+            }
+            if (out_count == 0) {
+                for (int idx = 0; idx < count && out_count < kHomeCollageSlots; ++idx) {
+                    home_collage_track_indices[out_count++] = idx;
+                }
+            }
+            if (out_count == 0) return;
+
+            const std::size_t unique_count = out_count;
+            while (out_count < kHomeCollageSlots) {
+                home_collage_track_indices[out_count] =
+                    home_collage_track_indices[out_count % unique_count];
+                ++out_count;
+            }
+        }
+
+        void sync_home_collage_images(bool force = false) {
+            if (!access.valid()) return;
+
+            rebuild_home_collage_track_indices();
+            bool changed = force;
+            for (std::size_t i = 0; i < kHomeCollageSlots; ++i) {
+                if (home_collage_track_indices[i] != last_home_collage_track_indices[i]) {
+                    changed = true;
+                    break;
+                }
+            }
+            if (!changed) return;
+
+            const auto* tracks = storage.tracks;
+            if (!tracks || tracks->size() == 0) {
+                clear_home_collage_images();
+                last_home_collage_track_indices = home_collage_track_indices;
+                return;
+            }
+
+            const int count = static_cast<int>(tracks->size());
+            int start = track_index;
+            if (start < 0 || start >= count) start = 0;
+
+            bool retry_needed = false;
+            std::array<int, kHomeCollageSlots> resolved_indices{};
+            resolved_indices.fill(-1);
+            std::array<::ui::scene::ImageId, kHomeCollageSlots> resolved_images{};
+            std::array<int, kHomeCollageSlots> resolved_unique_indices{};
+            std::array<FixedString<260>, kHomeCollageSlots> used_keys{};
+            std::size_t resolved_count = 0;
+            const auto cover_handles = home_cover_handles();
+
+            const auto try_assign = [&](WidgetHandle handle, std::size_t slot, int candidate) -> int {
+                if (candidate < 0 || candidate >= count) return 0;
+
+                FixedString<260> cover_path;
+                FixedString<260> cover_key;
+                if (!home_collage_cover_key_for_track(candidate, cover_path, cover_key) || cover_key.empty()) {
+                    return 0;
+                }
+                for (std::size_t i = 0; i < resolved_count; ++i) {
+                    if (used_keys[i].view() == cover_key.view()) {
+                        return 0;
+                    }
+                }
+
+                const std::string_view track_path = (*tracks)[static_cast<std::size_t>(candidate)].view();
+                const auto image_id = resolve_list_cover_icon(track_path, cover_path.view());
+                if (::ui::scene::image_id_valid(image_id)) {
+                    access.set_image(handle, image_id);
+                    resolved_indices[slot] = candidate;
+                    resolved_images[resolved_count] = image_id;
+                    resolved_unique_indices[resolved_count] = candidate;
+                    used_keys[resolved_count].assign(cover_key.view());
+                    ++resolved_count;
+                    return 1;
+                }
+                return ::ui::gfx::image_registry_locked() ? -1 : 0;
+            };
+
+            for (std::size_t i = 0; i < kHomeCollageSlots; ++i) {
+                const WidgetHandle handle = cover_handles[i];
+                if (!handle || access.kind(handle) != WidgetKind::Image) continue;
+
+                bool assigned = false;
+                const int preferred_idx = home_collage_track_indices[i];
+                const int preferred_result = try_assign(handle, i, preferred_idx);
+                if (preferred_result > 0) {
+                    assigned = true;
+                } else if (preferred_result < 0) {
+                    retry_needed = true;
+                }
+
+                if (!assigned && !retry_needed) {
+                    for (int offset = 0; offset < count; ++offset) {
+                        const int candidate = (start + offset) % count;
+                        if (candidate == preferred_idx) continue;
+                        const int result = try_assign(handle, i, candidate);
+                        if (result > 0) {
+                            assigned = true;
+                            break;
+                        }
+                        if (result < 0) {
+                            retry_needed = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!assigned && resolved_count > 0) {
+                    const std::size_t repeat_index = i % resolved_count;
+                    access.set_image(handle, resolved_images[repeat_index]);
+                    resolved_indices[i] = resolved_unique_indices[repeat_index];
+                    assigned = true;
+                }
+
+                if (!assigned && !retry_needed) {
+                    access.set_image(handle, ::ui::scene::invalid_image_id());
+                }
+            }
+
+            const auto sync_card_covers = [&](const auto& handles_range, std::size_t start_index) {
+                for (std::size_t i = 0; i < handles_range.size(); ++i) {
+                    const WidgetHandle handle = handles_range[i];
+                    if (!handle || access.kind(handle) != WidgetKind::Image) continue;
+                    if (resolved_count == 0) {
+                        if (!retry_needed) {
+                            access.set_image(handle, ::ui::scene::invalid_image_id());
+                        }
+                        continue;
+                    }
+                    access.set_image(handle, resolved_images[(start_index + i) % resolved_count]);
+                }
+            };
+
+            sync_card_covers(home_daily_mix_cover_handles(), 0);
+            sync_card_covers(home_recently_played_cover_handles(), 3);
+
+            if (!retry_needed) {
+                last_home_collage_track_indices = home_collage_track_indices;
+            }
+        }
+
         void reset_weekly_listening_stats_for_week(int week_key) noexcept {
             weekly_listening_stats.week_key = week_key;
             weekly_listening_stats.seconds.fill(0);
@@ -119,6 +359,7 @@
             const WeekStamp stamp = current_week_stamp();
             load_weekly_listening_stats_from_history(stamp.key);
             sync_weekly_listening_stats_card();
+            sync_home_collage_images(true);
         }
 
         bool flush_weekly_listening_stats_history() {

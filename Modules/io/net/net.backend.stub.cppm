@@ -314,6 +314,11 @@ export namespace net::backend {
             if (!slot) return util::unexpected(errc::invalid_arg);
 
             EventMask mask = 0;
+            if (slot->poll_error != errc::ok) {
+                slot->poll_error = errc::ok;
+                mask |= event_mask(NetEvent::error);
+                return Result<EventMask>{std::in_place, mask};
+            }
             if (slot->kind == SocketKind::tcp && slot->state == SocketState::listening) {
                 discard_stale_pending(*slot);
                 if (slot->pending_size != 0) {
@@ -371,6 +376,16 @@ export namespace net::backend {
             return {};
         }
 
+        Result<void> inject_poll_error(SocketHandle handle, errc error) noexcept {
+            auto* slot = slot_for_handle(handle);
+            if (!slot) return util::unexpected(errc::invalid_arg);
+            if (error == errc::ok || error == errc::closed || error == errc::end_of_stream) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            slot->poll_error = error;
+            return {};
+        }
+
     private:
         struct Datagram {
             bool used{false};
@@ -396,6 +411,7 @@ export namespace net::backend {
             util::usize pending_head{0};
             util::usize pending_tail{0};
             util::usize pending_size{0};
+            errc poll_error{errc::ok};
         };
 
         [[nodiscard]] static constexpr SocketHandle make_handle(util::usize index) noexcept {
@@ -634,6 +650,13 @@ namespace net::backend {
 
         if (!listener.accept(server, &peer)) return false;
         if (peer.port == 0) return false;
+        if (!provider.inject_poll_error(server.handle(), errc::io)) return false;
+        auto error_events = server.poll();
+        if (!error_events) return false;
+        if (!has_event(error_events.value(), NetEvent::error)) return false;
+        auto recovered_events = server.poll();
+        if (!recovered_events) return false;
+        if (has_event(recovered_events.value(), NetEvent::error)) return false;
         if (!client.send(ByteView{tx, 4})) return false;
         if (!server.recv(MutByteView{rx, 8})) return false;
         if (rx[0] != 1 || rx[3] != 4) return false;

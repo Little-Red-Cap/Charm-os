@@ -2,7 +2,6 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
-#include <charconv>
 #include <expected>
 #include <string_view>
 #include <type_traits>
@@ -106,6 +105,24 @@ export namespace out {
                 if (!r) handle_error(r.error());
                 return;
             }
+        }
+
+        inline bool append_decimal(std::string_view& out, char* buffer, std::size_t capacity,
+                                   std::uint32_t value) noexcept {
+            if (capacity == 0) return false;
+
+            char* begin = buffer;
+            char* end = buffer + capacity;
+            char* p = end;
+
+            do {
+                if (p == begin) return false;
+                *--p = static_cast<char>('0' + (value % 10u));
+                value /= 10u;
+            } while (value != 0);
+
+            out = std::string_view{p, static_cast<std::size_t>(end - p)};
+            return true;
         }
 
         template <class S>
@@ -295,8 +312,14 @@ export namespace out {
                 char* p = tmp;
                 *p++ = '\x1b';
                 *p++ = '[';
-                auto [ptr, ec] = std::to_chars(p, tmp + sizeof(tmp), code);
-                if (ec != std::errc{}) return false;
+                std::string_view code_sv{};
+                if (code < 0) return false;
+                if (!detail::append_decimal(code_sv, p, static_cast<std::size_t>((tmp + sizeof(tmp)) - p),
+                                            static_cast<std::uint32_t>(code))) {
+                    return false;
+                }
+                std::memcpy(p, code_sv.data(), code_sv.size());
+                char* ptr = p + code_sv.size();
                 *ptr++ = 'm';
                 return append_sv(std::string_view{tmp, static_cast<std::size_t>(ptr - tmp)});
             };

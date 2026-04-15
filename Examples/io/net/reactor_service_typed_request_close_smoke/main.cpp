@@ -137,6 +137,14 @@ int main() {
         }
     }
 
+    auto retried = client_session.send_request<CloseOp>(
+        request,
+        1,
+        1000,
+        &ClientState::on_response,
+        &ClientState::on_timeout,
+        &client_state);
+
     client_driver.stop();
     (void)client.close();
     (void)listener.close();
@@ -153,17 +161,21 @@ int main() {
         std::fputs("reactor service typed request close unexpected timeout\n", stderr);
         return 11;
     }
+    if (retried || retried.error() != net::errc::closed) {
+        std::fputs("reactor service typed request close retry not rejected\n", stderr);
+        return 12;
+    }
     if (client_session.has_pending() || client_session.pending_count() != 0) {
         std::fputs("reactor service typed request close pending not cleared\n", stderr);
-        return 12;
+        return 13;
     }
     if (client_session.last_error() != net::errc::closed) {
         std::fputs("reactor service typed request close session error mismatch\n", stderr);
-        return 13;
+        return 14;
     }
     if (!client_driver.closed() || client_driver.last_error() != net::errc::closed) {
         std::fputs("reactor service typed request close driver state mismatch\n", stderr);
-        return 14;
+        return 15;
     }
 
     std::puts("net reactor service typed request close smoke: ok");

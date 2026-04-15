@@ -43,6 +43,15 @@ namespace usb::host::detail {
     }
 
     template <typename IoRegistryT>
+    util::Result<void> cdc_channel_try_init(CdcChannelDriverContext<IoRegistryT>& ctx,
+                                            device::Device&) noexcept {
+        if (!ctx.exported || !ctx.backend) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        return ctx.exported->attach(*ctx.backend);
+    }
+
+    template <typename IoRegistryT>
     void cdc_channel_detach(CdcChannelDriverContext<IoRegistryT>& ctx) noexcept {
         if (ctx.exported) {
             ctx.exported->detach();
@@ -94,13 +103,11 @@ export namespace usb::host {
               binding_{
                   &runtime_ctx_,
                   device::RuntimeDriverHook<DriverContext>{
-                      &detail::cdc_channel_probe<IoRegistryT>,
-                      &detail::cdc_channel_init<IoRegistryT>,
-                      &detail::cdc_channel_shutdown<IoRegistryT>,
-                      &detail::cdc_channel_remove<IoRegistryT>,
-                      nullptr,
-                      nullptr,
-                      nullptr
+                      .probe = &detail::cdc_channel_probe<IoRegistryT>,
+                      .init = &detail::cdc_channel_init<IoRegistryT>,
+                      .shutdown = &detail::cdc_channel_shutdown<IoRegistryT>,
+                      .remove = &detail::cdc_channel_remove<IoRegistryT>,
+                      .try_init = &detail::cdc_channel_try_init<IoRegistryT>
                   }
               },
               discovery_(match, &binding_, bus_name),

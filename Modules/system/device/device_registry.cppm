@@ -197,14 +197,15 @@ export namespace device {
             util::Result<void> result{};
             switch (ev) {
             case DeviceEvent::probe:
-                if (dev.driver->ops.probe && !dev.driver->ops.probe(dev)) {
-                    result = util::unexpected(util::Errc::bad_state);
-                }
+                result = dispatch_driver_step(dev,
+                                              dev.driver->ops.try_probe,
+                                              dev.driver->ops.probe);
                 break;
             case DeviceEvent::init:
-                if (dev.driver->ops.init && !dev.driver->ops.init(dev)) {
-                    result = util::unexpected(util::Errc::bad_state);
-                } else {
+                result = dispatch_driver_step(dev,
+                                              dev.driver->ops.try_init,
+                                              dev.driver->ops.init);
+                if (result) {
                     dev.state = DeviceState::initialized;
                 }
                 break;
@@ -212,16 +213,18 @@ export namespace device {
                 dev.state = DeviceState::running;
                 break;
             case DeviceEvent::suspend:
-                if (dev.driver->ops.suspend && !dev.driver->ops.suspend(dev)) {
-                    result = util::unexpected(util::Errc::bad_state);
-                } else {
+                result = dispatch_driver_step(dev,
+                                              dev.driver->ops.try_suspend,
+                                              dev.driver->ops.suspend);
+                if (result) {
                     dev.state = DeviceState::suspended;
                 }
                 break;
             case DeviceEvent::resume:
-                if (dev.driver->ops.resume && !dev.driver->ops.resume(dev)) {
-                    result = util::unexpected(util::Errc::bad_state);
-                } else {
+                result = dispatch_driver_step(dev,
+                                              dev.driver->ops.try_resume,
+                                              dev.driver->ops.resume);
+                if (result) {
                     dev.state = DeviceState::running;
                 }
                 break;
@@ -271,6 +274,19 @@ export namespace device {
                 return util::unexpected(first_error);
             }
             return {};
+        }
+
+        [[nodiscard]] static util::Result<void> dispatch_driver_step(
+            Device& dev,
+            util::Result<void> (*try_step)(Device&) noexcept,
+            bool (*step)(Device&) noexcept) noexcept {
+            if (try_step) {
+                return try_step(dev);
+            }
+            if (!step || step(dev)) {
+                return {};
+            }
+            return util::unexpected(util::Errc::bad_state);
         }
 
         [[nodiscard]] util::usize find_exact_device_index(const DeviceDesc& desc,

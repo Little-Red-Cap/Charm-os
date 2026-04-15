@@ -18,6 +18,10 @@ export namespace device {
         bool (*suspend)(ContextT& ctx, Device& dev) noexcept { nullptr };
         bool (*resume)(ContextT& ctx, Device& dev) noexcept { nullptr };
         void (*on_event)(ContextT& ctx, Device& dev, DeviceEvent ev) noexcept { nullptr };
+        util::Result<void> (*try_probe)(ContextT& ctx, Device& dev) noexcept { nullptr };
+        util::Result<void> (*try_init)(ContextT& ctx, Device& dev) noexcept { nullptr };
+        util::Result<void> (*try_suspend)(ContextT& ctx, Device& dev) noexcept { nullptr };
+        util::Result<void> (*try_resume)(ContextT& ctx, Device& dev) noexcept { nullptr };
     };
 
     template <typename ContextT>
@@ -46,23 +50,45 @@ namespace device::detail {
     }
 
     template <typename ContextT>
-    bool runtime_probe(Device& dev) noexcept {
+    util::Result<void> runtime_try_probe(Device& dev) noexcept {
         auto* ctx = runtime_context<ContextT>(dev);
         auto* hook = runtime_hook<ContextT>(dev);
         if (!ctx || !hook) {
-            return false;
+            return util::unexpected(util::Errc::bad_state);
         }
-        return hook->probe ? hook->probe(*ctx, dev) : true;
+        if (hook->try_probe) {
+            return hook->try_probe(*ctx, dev);
+        }
+        if (!hook->probe || hook->probe(*ctx, dev)) {
+            return {};
+        }
+        return util::unexpected(util::Errc::bad_state);
+    }
+
+    template <typename ContextT>
+    bool runtime_probe(Device& dev) noexcept {
+        return static_cast<bool>(runtime_try_probe<ContextT>(dev));
+    }
+
+    template <typename ContextT>
+    util::Result<void> runtime_try_init(Device& dev) noexcept {
+        auto* ctx = runtime_context<ContextT>(dev);
+        auto* hook = runtime_hook<ContextT>(dev);
+        if (!ctx || !hook) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        if (hook->try_init) {
+            return hook->try_init(*ctx, dev);
+        }
+        if (!hook->init || hook->init(*ctx, dev)) {
+            return {};
+        }
+        return util::unexpected(util::Errc::bad_state);
     }
 
     template <typename ContextT>
     bool runtime_init(Device& dev) noexcept {
-        auto* ctx = runtime_context<ContextT>(dev);
-        auto* hook = runtime_hook<ContextT>(dev);
-        if (!ctx || !hook) {
-            return false;
-        }
-        return hook->init ? hook->init(*ctx, dev) : true;
+        return static_cast<bool>(runtime_try_init<ContextT>(dev));
     }
 
     template <typename ContextT>
@@ -86,23 +112,45 @@ namespace device::detail {
     }
 
     template <typename ContextT>
-    bool runtime_suspend(Device& dev) noexcept {
+    util::Result<void> runtime_try_suspend(Device& dev) noexcept {
         auto* ctx = runtime_context<ContextT>(dev);
         auto* hook = runtime_hook<ContextT>(dev);
         if (!ctx || !hook) {
-            return false;
+            return util::unexpected(util::Errc::bad_state);
         }
-        return hook->suspend ? hook->suspend(*ctx, dev) : true;
+        if (hook->try_suspend) {
+            return hook->try_suspend(*ctx, dev);
+        }
+        if (!hook->suspend || hook->suspend(*ctx, dev)) {
+            return {};
+        }
+        return util::unexpected(util::Errc::bad_state);
+    }
+
+    template <typename ContextT>
+    bool runtime_suspend(Device& dev) noexcept {
+        return static_cast<bool>(runtime_try_suspend<ContextT>(dev));
+    }
+
+    template <typename ContextT>
+    util::Result<void> runtime_try_resume(Device& dev) noexcept {
+        auto* ctx = runtime_context<ContextT>(dev);
+        auto* hook = runtime_hook<ContextT>(dev);
+        if (!ctx || !hook) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        if (hook->try_resume) {
+            return hook->try_resume(*ctx, dev);
+        }
+        if (!hook->resume || hook->resume(*ctx, dev)) {
+            return {};
+        }
+        return util::unexpected(util::Errc::bad_state);
     }
 
     template <typename ContextT>
     bool runtime_resume(Device& dev) noexcept {
-        auto* ctx = runtime_context<ContextT>(dev);
-        auto* hook = runtime_hook<ContextT>(dev);
-        if (!ctx || !hook) {
-            return false;
-        }
-        return hook->resume ? hook->resume(*ctx, dev) : true;
+        return static_cast<bool>(runtime_try_resume<ContextT>(dev));
     }
 
     template <typename ContextT>
@@ -126,13 +174,17 @@ export namespace device {
         drv.match = match;
         drv.priority = priority;
         drv.ops = DriverOps{
-            &detail::runtime_probe<ContextT>,
-            &detail::runtime_init<ContextT>,
-            &detail::runtime_shutdown<ContextT>,
-            &detail::runtime_remove<ContextT>,
-            &detail::runtime_suspend<ContextT>,
-            &detail::runtime_resume<ContextT>,
-            &detail::runtime_on_event<ContextT>
+            .probe = &detail::runtime_probe<ContextT>,
+            .init = &detail::runtime_init<ContextT>,
+            .shutdown = &detail::runtime_shutdown<ContextT>,
+            .remove = &detail::runtime_remove<ContextT>,
+            .suspend = &detail::runtime_suspend<ContextT>,
+            .resume = &detail::runtime_resume<ContextT>,
+            .on_event = &detail::runtime_on_event<ContextT>,
+            .try_probe = &detail::runtime_try_probe<ContextT>,
+            .try_init = &detail::runtime_try_init<ContextT>,
+            .try_suspend = &detail::runtime_try_suspend<ContextT>,
+            .try_resume = &detail::runtime_try_resume<ContextT>
         };
         return drv;
     }
@@ -215,13 +267,14 @@ export namespace device {
         RuntimeDriverBinding<Context> failing_binding{
             &failing_ctx,
             RuntimeDriverHook<Context>{
-                probe,
-                [](Context&, Device&) noexcept -> bool { return false; },
-                nullptr,
-                remove,
-                suspend,
-                resume,
-                on_event
+                .probe = probe,
+                .remove = remove,
+                .suspend = suspend,
+                .resume = resume,
+                .on_event = on_event,
+                .try_init = [](Context&, Device&) noexcept -> util::Result<void> {
+                    return util::unexpected(util::Errc::invalid_arg);
+                }
             }
         };
         Registry<2, 2> failing_registry{};
@@ -229,7 +282,7 @@ export namespace device {
         if (!failing_registry.try_add_driver(failing_driver)) return false;
         if (!failing_registry.try_add_device(desc, &failing_binding)) return false;
         auto failed_match = failing_registry.try_match_all();
-        if (failed_match || failed_match.error() != util::Errc::bad_state) return false;
+        if (failed_match || failed_match.error() != util::Errc::invalid_arg) return false;
         if (!failing_ctx.probed) return false;
         return failing_registry.device_at(0).state == DeviceState::detected &&
                failing_registry.device_at(0).driver == nullptr;

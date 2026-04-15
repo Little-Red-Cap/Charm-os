@@ -1370,10 +1370,6 @@
             path.assign("Library");
             path.append(" / ");
             path.append(library_tab_title(library_tab));
-            if (library_has_context()) {
-                path.append(" / ");
-                path.append(library_context_key.view());
-            }
             if (list_shuffle_enabled) {
                 path.append(" / Shuffled");
             }

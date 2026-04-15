@@ -3,13 +3,16 @@
 #include <cstddef>
 #include <array>
 #include <utility>
-#include <charconv>
 #include <cstdint>
 #include <cstring>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <bit>  // std::bit_cast for NaN/Inf checks without <cmath>.
+#if defined(OUT_ENABLE_FLOAT) && CHARM_TARGET_HAS_HOSTED_CXX
+#include <charconv>
+#endif
+#include "out_digits_compat.h"
 export module out.format;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink
@@ -433,40 +436,24 @@ export namespace out {
   inline result<std::size_t> write_uint_base(auto& sink, UInt v, unsigned base, fmt_spec spec) noexcept {
     char buf[80]; // enough for 64-bit in binary? 64 + maybe. binary needs 64, so enlarge if you enable b.
     char* first = buf;
-    char* last  = buf + sizeof(buf);
-
-    // Use std::to_chars for base-10/16 conversion (usually smaller than printf).
-    auto ec = std::errc{};
+    char* last  = nullptr;
 
     if (base == 10) {
-      auto r = std::to_chars(first, last, v, 10);
-      ec = r.ec;
-      last = r.ptr;
+      last = out::detail::append_unsigned_decimal(first, buf + sizeof(buf), v);
     } else if (base == 16) {
-      auto r = std::to_chars(first, last, v, 16);
-      ec = r.ec;
-      last = r.ptr;
-      if (spec.upper) {
-        for (char* p = first; p < last; ++p)
-          if (*p >= 'a' && *p <= 'f') *p = static_cast<char>(*p - 'a' + 'A');
-      }
+      last = out::detail::append_unsigned_base(first, buf + sizeof(buf), v, 16u, spec.upper);
     } else if (base == 2) {
 #ifndef OUT_ENABLE_BINARY
       (void)v; (void)spec;
       return util::unexpected(errc::invalid_format);
 #else
-      char* p = last;
-      do {
-        *--p = char('0' + (v & 1u));
-        v >>= 1u;
-      } while (v != 0);
-      first = p;
+      last = out::detail::append_unsigned_base(first, buf + sizeof(buf), v, 2u, false);
 #endif
     } else {
       return util::unexpected(errc::invalid_format);
     }
 
-    if (ec != std::errc{}) return util::unexpected(errc::buffer_overflow);
+    if (!last) return util::unexpected(errc::buffer_overflow);
 
     std::size_t len = static_cast<std::size_t>(last - first);
     std::size_t total = 0;
@@ -493,8 +480,14 @@ export namespace out {
   }
 
 #ifdef OUT_ENABLE_FLOAT
+  namespace detail {
+    template <class S>
+    inline result<std::size_t> write_float_fixed_mcu(S& sink, float v, fmt_spec spec) noexcept;
+  }
+
   template <class F>
   inline result<std::size_t> write_float(auto& sink, F v, fmt_spec spec) noexcept {
+#if CHARM_TARGET_HAS_HOSTED_CXX
     char buf[128];
     char* first = buf;
     char* last  = buf + sizeof(buf);
@@ -542,6 +535,9 @@ export namespace out {
     if (!r1) return util::unexpected(r1.error());
     total += *r1;
     return ok(total);
+#else
+    return detail::write_float_fixed_mcu(sink, static_cast<float>(v), spec);
+#endif
   }
 #endif
 
@@ -664,9 +660,8 @@ namespace detail {
     char* p = buf;
     char* end = buf + sizeof(buf);
 
-    auto [ptr, ec] = std::to_chars(p, end, ip, 10);
-    if (ec != std::errc{}) return util::unexpected(errc::buffer_overflow);
-    p = ptr;
+    p = out::detail::append_unsigned_decimal(p, end, ip);
+    if (!p) return util::unexpected(errc::buffer_overflow);
 
     if (prec != 0) {
       if (p >= end) return util::unexpected(errc::buffer_overflow);

@@ -10,7 +10,9 @@ export import charm.system.init_input;
 export import charm.system.init_usart;
 export import charm.system.bringup;
 export import charm.system.bringup.stm32_stub;
+#if CHARM_TARGET_HAS_WIN32
 export import charm.system.bringup.win_stub;
+#endif
 export import charm.system.reactor_pump;
 export import charm.system.rtos;
 

@@ -9,6 +9,7 @@ import out.sink;
 #include "armv7a_exception_observation.hpp"
 #include "armv7a_handler_stack.hpp"
 #include "armv7a_icache_probe.hpp"
+#include "armv7a_interrupt_diagnostics.hpp"
 #include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_page_table_probe.hpp"

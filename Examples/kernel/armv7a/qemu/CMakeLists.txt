@@ -79,8 +79,10 @@ target_sources(${PROJECT_NAME} PRIVATE
     main.cpp
     armv7a_cpu.cpp
     armv7a_gic.cpp
+    armv7a_diag_console.cpp
     armv7a_handler_stack.cpp
     armv7a_interrupt_smoke.cpp
+    armv7a_interrupt_diagnostics.cpp
     armv7a_arch_timer.cpp
     armv7a_attribute_probe.cpp
     armv7a_cache.cpp
@@ -99,6 +101,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     early_uart.cpp
     qemu_virt_platform.cpp
     qemu_virt_platform_interrupts.cpp
+    armv7a_exception_diagnostics.cpp
     exceptions.cpp
     irq_timer.cpp
     runtime_stubs.cpp)

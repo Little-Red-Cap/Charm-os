@@ -1,3 +1,4 @@
+#include "armv7a_cpu.hpp"
 #include "armv7a_platform.hpp"
 
 namespace {
@@ -53,6 +54,19 @@ extern "C" void armv7a_platform_debug_trace(const char* text)
     register int op asm("r0") = 0x04;
     register const char* ptr asm("r1") = text;
     asm volatile("bkpt 0xab" : : "r"(op), "r"(ptr) : "memory");
+}
+
+extern "C" void armv7a_platform_reset_early()
+{
+    // Reserved for future board-specific reset sequencing.
+}
+
+extern "C" void armv7a_platform_install_exception_vectors(const void* vector_base)
+{
+    armv7a_write_vbar(static_cast<std::uint32_t>(
+        reinterpret_cast<std::uintptr_t>(vector_base)));
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
 }
 
 extern "C" [[noreturn]] void armv7a_platform_idle_forever()

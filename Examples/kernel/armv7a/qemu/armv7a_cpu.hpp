@@ -14,6 +14,7 @@ extern "C" std::uint32_t armv7a_read_id_pfr1();
 extern "C" std::uint32_t armv7a_read_mpidr();
 extern "C" std::uint32_t armv7a_read_sctlr();
 extern "C" std::uint32_t armv7a_read_vbar();
+extern "C" void armv7a_write_vbar(std::uint32_t value);
 extern "C" void armv7a_svc_smoke_test();
 
 std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value);

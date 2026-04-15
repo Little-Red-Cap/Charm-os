@@ -6,6 +6,9 @@
 .type reset_handler, %function
 .extern main
 .extern armv7a_vector_table
+.extern armv7a_platform_reset_early
+.extern armv7a_platform_install_exception_vectors
+.extern armv7a_platform_idle_forever
 .extern __bss_start
 .extern __bss_end
 .extern __svc_stack_top
@@ -45,18 +48,17 @@ reset_handler:
 2:
     bl init_mode_stacks
 
+    bl armv7a_platform_reset_early
+
     ldr r0, =armv7a_vector_table
-    mcr p15, 0, r0, c12, c0, 0
-    dsb
-    isb
+    bl armv7a_platform_install_exception_vectors
 
     enter_mode MODE_SYS
     ldr sp, =__sys_stack_top
     bl main
 
 3:
-    wfe
-    b 3b
+    bl armv7a_platform_idle_forever
 
 init_mode_stacks:
     ldr r0, =__und_stack_top

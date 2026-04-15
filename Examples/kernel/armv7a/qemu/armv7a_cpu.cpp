@@ -85,6 +85,11 @@ extern "C" std::uint32_t armv7a_read_vbar()
     return value;
 }
 
+extern "C" void armv7a_write_vbar(std::uint32_t value)
+{
+    asm volatile("mcr p15, 0, %0, c12, c0, 0" : : "r"(value) : "memory");
+}
+
 extern "C" void armv7a_svc_smoke_test()
 {
     asm volatile("svc #0x43" ::: "memory");

@@ -257,6 +257,9 @@ continue
 
 - Platform-facing console, debug trace, and idle hooks are routed through
   `armv7a_platform_*` declarations in `armv7a_platform.hpp`.
+- Reset-time platform hooks now also route early reset sequencing and
+  exception-vector installation through `armv7a_platform_*`, so `startup.S`
+  no longer writes `VBAR` or owns the terminal idle loop directly.
 - Timer and interrupt controller setup also flow through
   `armv7a_platform_*`, so the smoke paths no longer need direct GIC or Generic
   Timer knowledge.

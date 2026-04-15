@@ -60,6 +60,8 @@ extern "C" void armv7a_platform_early_console_init();
 extern "C" void armv7a_platform_early_console_putc(char ch);
 extern "C" void armv7a_platform_early_console_puts(const char* text);
 extern "C" void armv7a_platform_debug_trace(const char* text);
+extern "C" void armv7a_platform_reset_early();
+extern "C" void armv7a_platform_install_exception_vectors(const void* vector_base);
 extern "C" [[noreturn]] void armv7a_platform_idle_forever();
 
 const Armv7aPlatformAddressSpace& armv7a_platform_address_space();

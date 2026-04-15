@@ -78,21 +78,32 @@ int main() {
     }
     (void)reactor.drain(8);
 
+    auto after_close = session.send_(session.send_ctx_, net::ByteView{pong, 4});
+    if (after_close || after_close.error() != net::errc::closed) {
+        std::fputs("reactor write close sender terminal failed\n", stderr);
+        return 7;
+    }
+    auto arm_after_close = driver.arm_writable();
+    if (arm_after_close || arm_after_close.error() != net::errc::closed) {
+        std::fputs("reactor write close arm terminal failed\n", stderr);
+        return 8;
+    }
+
     driver.stop();
     (void)server.close();
     (void)listener.close();
 
     if (session.closed_count_ != 1) {
         std::fputs("reactor write close missing closed callback\n", stderr);
-        return 7;
+        return 9;
     }
     if (session.error_count_ != 0 || session.last_error_ != net::errc::ok) {
         std::fputs("reactor write close unexpected error callback\n", stderr);
-        return 8;
+        return 10;
     }
     if (!driver.closed() || driver.last_error() != net::errc::closed) {
         std::fputs("reactor write close driver state mismatch\n", stderr);
-        return 9;
+        return 11;
     }
 
     std::puts("net reactor write close smoke: ok");

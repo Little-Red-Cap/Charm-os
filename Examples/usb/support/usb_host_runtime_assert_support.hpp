@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdio>
 
 namespace examples::usb::support {
@@ -55,4 +56,18 @@ namespace examples::usb::support {
         }
         return true;
     }
+
+    template <typename TransitionT, std::size_t MaxEvents>
+    struct FixedTransitionLog {
+        std::array<TransitionT, MaxEvents> events{};
+        std::size_t count{0};
+
+        static void on_event(void* ctx, const TransitionT& transition) noexcept {
+            auto* self = static_cast<FixedTransitionLog*>(ctx);
+            if (!self || self->count >= self->events.size()) {
+                return;
+            }
+            self->events[self->count++] = transition;
+        }
+    };
 }

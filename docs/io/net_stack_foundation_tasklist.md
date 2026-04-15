@@ -27,6 +27,7 @@
 - `reactor_listener_close_smoke` 已锁住 accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭会向 reactor 收口为 `closed`
 - `reactor_write_close_smoke` 已锁住 transport 进入终态后 sender 不再继续排队
 - `reactor_request_close_smoke` 已锁住 closed transport 不再接受新的 request
+- `reactor_request_reset_close_smoke` 已锁住 WinProvider 在 peer abortive close / reset 下仍把 transport 收口为 `closed`，而不是误报成 `error`
 - `reactor_service_close_smoke` 已锁住 closed transport 后 deferred reply 会被拒绝，且 deferred 状态会被清理
 - `reactor_service_error_smoke` 已锁住 error transport 后 deferred reply 会被拒绝，且 deferred 状态会被清理
 - `reactor_service_request_close_smoke` 已锁住 closed transport 不再接受新的 service request，且 pending 状态不会泄漏
@@ -142,7 +143,7 @@
 
 #### 验收
 
-- `reactor_request_echo_smoke` 稳定通过
+- `reactor_request_echo_smoke`、`reactor_request_close_smoke`、`reactor_request_reset_close_smoke` 稳定通过
 - `reactor_service_echo_smoke`、`reactor_service_deferred_smoke`、`reactor_service_close_smoke`、`reactor_service_error_smoke`、`reactor_service_request_close_smoke`、`reactor_service_request_error_smoke`、`reactor_service_typed_smoke`、`reactor_service_typed_close_smoke`、`reactor_service_typed_error_smoke`、`reactor_service_typed_request_close_smoke`、`reactor_service_typed_request_error_smoke` 稳定通过
 - `schema_codec_smoke` 能继续充当 typed payload contract 的快速回归面
 

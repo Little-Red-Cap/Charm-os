@@ -498,6 +498,7 @@ v0 推荐做法是把 socket readiness 投影到 `io.reactor`：
 - 如果同一次采样里同时观察到 `readable + closed`，driver 应先把剩余可读 payload 交给 session，再上报 transport closed，避免把“最后一帧数据”误伤成 error
 - 如果已经采样到 `writable`，但真正 flush 时写端发现对端已关闭，driver 也应收口为 transport closed，而不是把“迟到的写失败”继续上抛成 transport error
 - `RequestSession / ServiceSession / TypedServiceSession` 在 transport close 时应清空本地 pending / deferred 状态，并统一向 error handler 上抛 `errc::closed`，不要把断链拖成 timeout
+- `WinProvider` 在 `select + SO_ERROR / MSG_PEEK` 路径上，如果 WinSock 已经把 `WSAECONNRESET / WSAECONNABORTED / WSAENETRESET / WSAESHUTDOWN / WSAENOTCONN` 映射成 `closed`，poll 阶段也应继续上报 `closed`，不要在 backend 采样时把真实断链反弹成 `error`
 - 对 `ServiceSession / TypedServiceSession` 而言，transport close 之后旧的 deferred reply token 也应立即失效，后续 `send_deferred_response()` 应返回 `noent`，避免业务层把断链后的迟到回复误判成还能发送
 - 协议驱动层可继续复用 `set_sender / feed / notify_writable` 这类 session 契约，把复杂状态机压在协议层内部，而不是散落在业务代码里
 - 文本协议可先落 `LineSession`；二进制协议优先落固定长度前缀的 `FrameSession`，先把最常见的 request/response 主路径钉稳

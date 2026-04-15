@@ -40,15 +40,16 @@ export import util.core;
 export import util.error;
 
 extern "C" int charm_posix_c_header_probe_entry(void);
-    extern "C" int charm_posix_c_header_exit_entry(void);
+extern "C" int charm_posix_c_header_exit_entry(void);
+extern "C" int charm_posix_c_header_abort_entry(void);
 extern "C" int charm_posix_c_fs_header_entry(void);
-    extern "C" int charm_posix_newlib_syscall_probe_entry(void);
-    extern "C" int charm_posix_newlib_dup_entry(void);
-    extern "C" int charm_posix_newlib_dup2_entry(void);
-    extern "C" int charm_posix_newlib_fcntl_entry(void);
-    extern "C" int charm_posix_newlib_pipe_entry(void);
-    extern "C" int charm_posix_newlib_kill_self_entry(void);
-    extern "C" int charm_posix_newlib_lseek_entry(void);
+extern "C" int charm_posix_newlib_syscall_probe_entry(void);
+extern "C" int charm_posix_newlib_dup_entry(void);
+extern "C" int charm_posix_newlib_dup2_entry(void);
+extern "C" int charm_posix_newlib_fcntl_entry(void);
+extern "C" int charm_posix_newlib_pipe_entry(void);
+extern "C" int charm_posix_newlib_kill_self_entry(void);
+extern "C" int charm_posix_newlib_lseek_entry(void);
 extern "C" int charm_posix_newlib_path_entry(void);
 extern "C" int charm_posix_newlib_cwd_entry(void);
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
@@ -284,6 +285,10 @@ export namespace posix::testsupport {
 
     int crt_c_header_exit_main(int, char**, char**) {
         return charm_posix_c_header_exit_entry();
+    }
+
+    int crt_c_header_abort_main(int, char**, char**) {
+        return charm_posix_c_header_abort_entry();
     }
 
     int crt_c_fs_header_main(int, char**, char**) {

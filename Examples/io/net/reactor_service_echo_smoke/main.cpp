@@ -161,47 +161,6 @@ namespace {
         }
     };
 
-    template <class DriverType>
-    struct ListenerState {
-        net::TcpListener* listener{nullptr};
-        net::TcpClient* server_socket{nullptr};
-        net::SocketChannelBinding* server_binding{nullptr};
-        DriverType* server_driver{nullptr};
-        bool accepted{false};
-        bool failed{false};
-
-        static void on_event(void* ctx, io::Channel&, util::u32 events) noexcept {
-            auto* self = static_cast<ListenerState*>(ctx);
-            if (!self || !self->listener || !self->server_socket || !self->server_binding || !self->server_driver) {
-                return;
-            }
-            if ((events & static_cast<util::u32>(io::Event::error)) != 0u) {
-                self->failed = true;
-                return;
-            }
-            if ((events & static_cast<util::u32>(io::Event::readable)) == 0u || self->accepted) {
-                return;
-            }
-
-            net::Endpoint peer{};
-            auto accepted = self->listener->accept(*self->server_socket, &peer);
-            if (!accepted) {
-                if (accepted.error() == net::errc::would_block) {
-                    return;
-                }
-                self->failed = true;
-                return;
-            }
-
-            self->server_binding->bind(self->server_socket->raw());
-            auto started = self->server_driver->start();
-            if (!started) {
-                self->failed = true;
-                return;
-            }
-            self->accepted = true;
-        }
-    };
 }
 
 int main() {
@@ -225,7 +184,6 @@ int main() {
         return 1;
     }
 
-    net::SocketEventChannelBinding listener_binding{listener.raw()};
     net::SocketChannelBinding client_binding{client.raw()};
     net::SocketChannelBinding server_binding{server_side.raw()};
 
@@ -246,34 +204,24 @@ int main() {
 
     Driver client_driver{reactor, socket_poller, client_binding, client_session};
     Driver server_driver{reactor, socket_poller, server_binding, server_session};
+    net::TcpSingleAcceptDriver<Driver, 8> listener_driver{
+        reactor, socket_poller, listener, server_side, server_driver};
 
-    ListenerState<Driver> listener_state{};
-    listener_state.listener = &listener;
-    listener_state.server_socket = &server_side;
-    listener_state.server_binding = &server_binding;
-    listener_state.server_driver = &server_driver;
-
-    auto listener_sub = reactor.subscribe(listener_binding.channel(), all_reactor_events(), &ListenerState<Driver>::on_event, &listener_state);
-    if (!listener_sub) {
-        std::fputs("reactor service listener subscribe failed\n", stderr);
+    auto listener_started = listener_driver.start(all_reactor_events());
+    if (!listener_started) {
+        std::fputs("reactor service listener driver start failed\n", stderr);
         return 3;
-    }
-
-    auto listener_watch = socket_poller.watch(listener.raw(), listener_binding.channel());
-    if (!listener_watch) {
-        std::fputs("reactor service listener watch failed\n", stderr);
-        return 4;
     }
 
     if (!client.connect(stack, net::Endpoint::ipv4_loopback(port))) {
         std::fputs("reactor service client connect failed\n", stderr);
-        return 5;
+        return 4;
     }
 
     auto client_started = client_driver.start();
     if (!client_started) {
         std::fputs("reactor service client driver start failed\n", stderr);
-        return 6;
+        return 5;
     }
 
     static constexpr util::u8 ping[]{'p', 'i', 'n', 'g'};
@@ -289,7 +237,7 @@ int main() {
         &client_state);
     if (!ping_request) {
         std::fputs("reactor service ping request failed\n", stderr);
-        return 7;
+        return 6;
     }
     client_state.ping_request_id = ping_request.value();
 
@@ -303,7 +251,7 @@ int main() {
         &client_state);
     if (!reject_request) {
         std::fputs("reactor service reject request failed\n", stderr);
-        return 8;
+        return 7;
     }
     client_state.reject_request_id = reject_request.value();
 
@@ -317,7 +265,7 @@ int main() {
         &client_state);
     if (!missing_request) {
         std::fputs("reactor service missing request failed\n", stderr);
-        return 9;
+        return 8;
     }
     client_state.missing_request_id = missing_request.value();
 
@@ -330,12 +278,12 @@ int main() {
         client_session.tick(now_ms);
         server_session.tick(now_ms);
 
-        if (listener_state.failed || client_state.failed || server_state.failed) {
+        if (listener_driver.failed() || client_state.failed || server_state.failed) {
             std::fputs("reactor service protocol failed\n", stderr);
-            return 10;
+            return 9;
         }
 
-        done = listener_state.accepted
+        done = listener_driver.accepted()
             && server_state.saw_ping_route
             && server_state.saw_reject_route
             && client_state.got_ping_response
@@ -347,8 +295,7 @@ int main() {
 
     client_driver.stop();
     server_driver.stop();
-    socket_poller.unwatch(listener_watch.value());
-    reactor.unsubscribe(listener_sub.value());
+    listener_driver.stop();
 
     (void)client.close();
     (void)server_side.close();
@@ -356,7 +303,7 @@ int main() {
 
     if (!done) {
         std::fputs("reactor service protocol timeout\n", stderr);
-        return 11;
+        return 10;
     }
 
     std::puts("net reactor service echo smoke: ok");

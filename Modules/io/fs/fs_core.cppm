@@ -44,6 +44,7 @@ export namespace fs {
         write = 1u << 1,
         create = 1u << 2,
         trunc = 1u << 3,
+        excl = 1u << 4,
     };
 
     [[nodiscard]] inline bool has_flag(OpenFlags value, OpenFlags flag) noexcept {

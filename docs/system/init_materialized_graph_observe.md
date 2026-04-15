@@ -381,6 +381,13 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest ./scripts/materialized_graph.export_case_manifest.v1.json
 ```
 
+如果要临时改用另一份 case manifest，
+当前也可以显式传入：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -ListCases -CaseManifest ./scripts/materialized_graph.export_case_manifest.v1.json
+```
+
 如果只导出某一个样例：
 
 ```powershell
@@ -411,6 +418,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 `index.json` 当前会汇总：
 
+- 这次导出使用的输入 `manifest path / schema`
 - case 名称
 - 对应 `source / build target / export target`
 - case 自带的 `subject` 元数据，例如 `profile / board / active_facets`
@@ -423,6 +431,8 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 更准确地说，
 当前 `export case manifest` 负责声明输入侧的 case 事实，
 而 `index.json` 负责把这些事实投影到 bundle 消费面。
+现在这层投影里也会显式保留输入 `manifest` provenance，
+这样 bundle/CI/inspect 不再只能“看到结果”，也能知道“这些结果是基于哪份输入清单生成的”。
 
 仓库根目录还提供了一个最小 bundle 消费脚本：
 
@@ -435,6 +445,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 它当前支持：
 
 - 从 `index.json` 汇总所有 case 的 `nodes / edges / phase / runlevel / node_kinds`
+- 显示 bundle 顶层记录的输入 `manifest` provenance（如果 index 提供）
 - 读取单个 case 的 `JSON sample` 并展开节点表
 - 按需展开依赖边表，验证 provider / consumer / capability
 - 用 `-AsJson` 把汇总结果重新转成更适合脚本继续消费的结构
@@ -514,6 +525,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 - 当前运行模式：`export_only / compare`
 - candidate / baseline 索引路径
+- candidate / baseline bundle 的输入 `manifest` provenance（如果对应 bundle index 提供）
 - 是否发现可见差异
 - 各类状态计数：`changed / added / removed / unchanged`
 - 按状态分组的 case 名单

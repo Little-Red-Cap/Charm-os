@@ -21,6 +21,9 @@
       "type": "integer",
       "minimum": 0
     },
+    "input_manifest": {
+      "$ref": "#/$defs/inputManifest"
+    },
     "cases": {
       "type": "array",
       "items": {
@@ -103,6 +106,22 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "inputManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
         }
       }
     },

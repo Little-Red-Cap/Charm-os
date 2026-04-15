@@ -3,6 +3,7 @@ param(
     [string]$CandidateBundleRoot = "",
     [string]$BaselineBundleRoot = "",
     [string]$BaselineIndex = "",
+    [string]$CaseManifest = "",
     [string]$Profile = "",
     [string]$Board = "",
     [string[]]$Facet = @(),
@@ -216,6 +217,38 @@ function Get-DerivedSubjectDefaults {
     }
 }
 
+function Get-BundleInputManifestInfo {
+    param(
+        $IndexData
+    )
+
+    if ($null -eq $IndexData -or $null -eq $IndexData.PSObject.Properties['input_manifest']) {
+        return $null
+    }
+
+    $manifest = $IndexData.input_manifest
+    if ($null -eq $manifest) {
+        return $null
+    }
+
+    $path = $null
+    $schema = $null
+    if ($null -ne $manifest.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.path)) {
+        $path = [string]$manifest.path
+    }
+    if ($null -ne $manifest.PSObject.Properties['schema'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.schema)) {
+        $schema = [string]$manifest.schema
+    }
+    if ([string]::IsNullOrWhiteSpace($path) -and [string]::IsNullOrWhiteSpace($schema)) {
+        return $null
+    }
+
+    return [ordered]@{
+        path = $path
+        schema = $schema
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $exportScript = Join-Path $PSScriptRoot 'export_materialized_graph.ps1'
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -231,6 +264,10 @@ foreach ($scriptPath in @($exportScript, $diffScript, $reportScript, $artifactRe
 $selection = Get-CaseSelection
 $resolvedOutputRoot = Resolve-FullPath $OutputRoot
 Ensure-Directory -Path $resolvedOutputRoot
+
+if ($SkipExport -and -not [string]::IsNullOrWhiteSpace($CaseManifest)) {
+    throw "-CaseManifest cannot be combined with -SkipExport"
+}
 
 $resolvedCandidateBundleRoot = if (-not [string]::IsNullOrWhiteSpace($CandidateBundleRoot)) {
     Resolve-FullPath $CandidateBundleRoot
@@ -257,6 +294,9 @@ if (-not $SkipExport) {
     $exportArgs = @{
         OutputRoot = $resolvedCandidateBundleRoot
         Jobs = $Jobs
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CaseManifest)) {
+        $exportArgs.CaseManifest = $CaseManifest
     }
     if ($selection.AllCases) {
         $exportArgs.AllCases = $true
@@ -290,6 +330,7 @@ $summary = [ordered]@{
     candidate = [ordered]@{
         bundle_root = $resolvedCandidateBundleRoot
         index = $candidateIndexPath
+        input_manifest = $null
     }
     baseline = $null
     diff = $null
@@ -299,6 +340,7 @@ $summary = [ordered]@{
 
 $candidateIndex = Get-Content -LiteralPath $candidateIndexPath -Raw -Encoding utf8 | ConvertFrom-Json
 $selectedCaseNames = @($candidateIndex.cases | ForEach-Object { [string]$_.name })
+$summary.candidate.input_manifest = Get-BundleInputManifestInfo -IndexData $candidateIndex
 $derivedSubjectDefaults = Get-DerivedSubjectDefaults -CaseEntries @($candidateIndex.cases)
 if ([string]::IsNullOrWhiteSpace($Profile)) {
     $summary.subject_defaults.profile = $derivedSubjectDefaults.profile
@@ -444,7 +486,10 @@ $summary.status = if ($hasVisibleDiff) { 'different' } else { 'same' }
 $summary.baseline = [ordered]@{
     bundle_root = if (-not [string]::IsNullOrWhiteSpace($resolvedBaselineBundleRoot)) { $resolvedBaselineBundleRoot } else { Split-Path -Parent ([string]$diffData.left.index) }
     index = [string]$diffData.left.index
+    input_manifest = $null
 }
+$baselineIndexData = Get-Content -LiteralPath ([string]$diffData.left.index) -Raw -Encoding utf8 | ConvertFrom-Json
+$summary.baseline.input_manifest = Get-BundleInputManifestInfo -IndexData $baselineIndexData
 $summary.diff = [ordered]@{
     json = $diffJsonPath
     case_count = [int]$diffData.case_count

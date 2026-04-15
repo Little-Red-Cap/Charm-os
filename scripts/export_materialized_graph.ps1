@@ -13,14 +13,23 @@ param(
     [string[]]$Case = @(),
     [switch]$AllCases,
     [switch]$ListCases,
-    [string]$OutputRoot = ""
+    [string]$OutputRoot = "",
+    [string]$CaseManifest = ""
 )
 
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$exportCaseManifestPath = Join-Path $PSScriptRoot 'materialized_graph.export_case_manifest.v1.json'
+$defaultExportCaseManifestPath = Join-Path $PSScriptRoot 'materialized_graph.export_case_manifest.v1.json'
 . (Join-Path $PSScriptRoot 'materialized_graph_schema.ps1')
+
+function Resolve-CaseManifestPath {
+    if (-not [string]::IsNullOrWhiteSpace($CaseManifest)) {
+        return Resolve-FullPath $CaseManifest
+    }
+
+    return Resolve-FullPath $defaultExportCaseManifestPath
+}
 
 function Get-ObjectPropertyValue {
     param(
@@ -115,35 +124,40 @@ function Convert-ExportCaseEntry {
 }
 
 function Get-ExportCases {
-    if (-not (Test-Path $exportCaseManifestPath)) {
-        throw "export case manifest not found: $exportCaseManifestPath"
+    $resolvedManifestPath = Resolve-CaseManifestPath
+    if (-not (Test-Path $resolvedManifestPath)) {
+        throw "export case manifest not found: $resolvedManifestPath"
     }
 
-    $manifestData = Get-Content -LiteralPath $exportCaseManifestPath -Raw -Encoding utf8 | ConvertFrom-Json
-    $schemaName = Get-RequiredStringProperty -Object $manifestData -PropertyName 'schema' -Context $exportCaseManifestPath
+    $manifestData = Get-Content -LiteralPath $resolvedManifestPath -Raw -Encoding utf8 | ConvertFrom-Json
+    $schemaName = Get-RequiredStringProperty -Object $manifestData -PropertyName 'schema' -Context $resolvedManifestPath
     if ($schemaName -ne 'materialized_graph.export_case_manifest/v1') {
-        throw "unsupported export case manifest schema '$schemaName' in $exportCaseManifestPath"
+        throw "unsupported export case manifest schema '$schemaName' in $resolvedManifestPath"
     }
 
     $rawCases = Get-ObjectPropertyValue -Object $manifestData -PropertyName 'cases'
     if ($null -eq $rawCases) {
-        throw "missing 'cases' array in $exportCaseManifestPath"
+        throw "missing 'cases' array in $resolvedManifestPath"
     }
 
     $cases = @()
     $seenNames = @{}
     $caseEntries = @($rawCases)
     for ($index = 0; $index -lt $caseEntries.Count; ++$index) {
-        $entry = Convert-ExportCaseEntry -CaseEntry $caseEntries[$index] -ManifestPath $exportCaseManifestPath -Index $index
+        $entry = Convert-ExportCaseEntry -CaseEntry $caseEntries[$index] -ManifestPath $resolvedManifestPath -Index $index
         if ($seenNames.ContainsKey($entry.Name)) {
-            throw "duplicate export case name '$($entry.Name)' in $exportCaseManifestPath"
+            throw "duplicate export case name '$($entry.Name)' in $resolvedManifestPath"
         }
 
         $seenNames[$entry.Name] = $true
         $cases += $entry
     }
 
-    return $cases
+    return [pscustomobject]@{
+        Path = $resolvedManifestPath
+        Schema = $schemaName
+        Cases = @($cases)
+    }
 }
 
 function Resolve-FullPath {
@@ -268,7 +282,8 @@ function New-CaseSubjectMetadata {
 function Write-ExportBundleIndex {
     param(
         [object[]]$Results,
-        [string]$OutputRootPath
+        [string]$OutputRootPath,
+        $CaseManifestInfo = $null
     )
 
     $bundleRoot = Resolve-FullPath $OutputRootPath
@@ -309,6 +324,12 @@ function Write-ExportBundleIndex {
         generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
         case_count = $cases.Count
         cases = $cases
+    }
+    if ($null -ne $CaseManifestInfo) {
+        $index.input_manifest = [ordered]@{
+            path = [string]$CaseManifestInfo.Path
+            schema = [string]$CaseManifestInfo.Schema
+        }
     }
 
     $indexPath = Join-Path $bundleRoot 'index.json'
@@ -383,7 +404,7 @@ function Invoke-LegacyExport {
 
 function Invoke-ManifestCase {
     param(
-        [hashtable]$Entry,
+        $Entry,
         [string]$DotOverride = '',
         [string]$JsonOverride = '',
         [string]$OutputRootPath = ''
@@ -487,9 +508,21 @@ function Invoke-ManifestCase {
     }
 }
 
-$manifestCases = Get-ExportCases
+$useManifest = $AllCases -or $Case.Count -gt 0
+$exportCaseManifest = $null
+$manifestCases = @()
+
+if (-not $ListCases -and -not $useManifest -and -not [string]::IsNullOrWhiteSpace($CaseManifest)) {
+    throw "-CaseManifest requires -Case, -AllCases, or -ListCases"
+}
+
+if ($ListCases -or $useManifest) {
+    $exportCaseManifest = Get-ExportCases
+    $manifestCases = @($exportCaseManifest.Cases)
+}
 
 if ($ListCases) {
+    Write-Host "[MANIFEST] $($exportCaseManifest.Path)"
     foreach ($entry in $manifestCases) {
         $subject = New-CaseSubjectMetadata -Entry $entry
         $subjectParts = @()
@@ -512,8 +545,6 @@ if ($ListCases) {
     }
     exit 0
 }
-
-$useManifest = $AllCases -or $Case.Count -gt 0
 
 if (-not [string]::IsNullOrWhiteSpace($OutputRoot) -and -not $useManifest) {
     throw "-OutputRoot requires -Case or -AllCases"
@@ -554,7 +585,7 @@ foreach ($entry in $selected) {
 
 $indexPath = ''
 if (-not $ConfigureOnly -and -not [string]::IsNullOrWhiteSpace($OutputRoot)) {
-    $indexPath = Write-ExportBundleIndex -Results $results -OutputRootPath $OutputRoot
+    $indexPath = Write-ExportBundleIndex -Results $results -OutputRootPath $OutputRoot -CaseManifestInfo $exportCaseManifest
 }
 
 if ($ConfigureOnly) {

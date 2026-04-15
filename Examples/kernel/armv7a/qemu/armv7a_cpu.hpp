@@ -13,6 +13,7 @@ extern "C" std::uint32_t armv7a_read_id_mmfr0();
 extern "C" std::uint32_t armv7a_read_id_pfr1();
 extern "C" std::uint32_t armv7a_read_mpidr();
 extern "C" std::uint32_t armv7a_read_sctlr();
+extern "C" void armv7a_write_sctlr(std::uint32_t value);
 extern "C" std::uint32_t armv7a_read_vbar();
 extern "C" void armv7a_write_vbar(std::uint32_t value);
 extern "C" void armv7a_svc_smoke_test();

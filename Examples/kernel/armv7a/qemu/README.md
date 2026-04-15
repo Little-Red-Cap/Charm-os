@@ -260,6 +260,9 @@ continue
 - Reset-time platform hooks now also route early reset sequencing and
   exception-vector installation through `armv7a_platform_*`, so `startup.S`
   no longer writes `VBAR` or owns the terminal idle loop directly.
+- The current QEMU `virt` reset hook also forces `SCTLR.V=0` before installing
+  `VBAR`, so the example does not quietly depend on the reset state already
+  using low vectors.
 - Timer and interrupt controller setup also flow through
   `armv7a_platform_*`, so the smoke paths no longer need direct GIC or Generic
   Timer knowledge.

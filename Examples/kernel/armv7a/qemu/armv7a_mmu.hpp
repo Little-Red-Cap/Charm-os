@@ -22,6 +22,7 @@ extern "C" void armv7a_invalidate_branch_predictor();
 
 std::uint32_t armv7a_build_ttbr0(std::uintptr_t table_base);
 std::uint32_t armv7a_early_dacr_value();
+void armv7a_ensure_low_vectors();
 void armv7a_enable_identity_mmu(std::uintptr_t table_base);
 void armv7a_enable_icache();
 void armv7a_sync_tlb_mapping_change(std::uintptr_t descriptor_address,

@@ -143,6 +143,16 @@ std::uint32_t armv7a_early_dacr_value()
     return kDomain0Client;
 }
 
+void armv7a_ensure_low_vectors()
+{
+    const auto sctlr = armv7a_read_sctlr();
+    if ((sctlr & kSctlrV) == 0u) {
+        return;
+    }
+
+    armv7a_write_sctlr(sctlr & ~kSctlrV);
+}
+
 void armv7a_enable_identity_mmu(std::uintptr_t table_base)
 {
     auto sctlr = armv7a_read_sctlr();
@@ -162,8 +172,7 @@ void armv7a_enable_identity_mmu(std::uintptr_t table_base)
     armv7a_instruction_sync_barrier();
 
     sctlr |= kSctlrM;
-    asm volatile("mcr p15, 0, %0, c1, c0, 0" : : "r"(sctlr) : "memory");
-    armv7a_instruction_sync_barrier();
+    armv7a_write_sctlr(sctlr);
 }
 
 void armv7a_enable_icache()
@@ -179,8 +188,7 @@ void armv7a_enable_icache()
     armv7a_instruction_sync_barrier();
 
     sctlr |= kSctlrI;
-    asm volatile("mcr p15, 0, %0, c1, c0, 0" : : "r"(sctlr) : "memory");
-    armv7a_instruction_sync_barrier();
+    armv7a_write_sctlr(sctlr);
 }
 
 void armv7a_sync_tlb_mapping_change(std::uintptr_t descriptor_address,

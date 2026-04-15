@@ -6,8 +6,6 @@
 
 #include "armv7a_cpu.hpp"
 
-extern "C" std::uint32_t armv7a_read_sctlr();
-
 namespace {
 constexpr std::uint32_t kSctlrC = 1u << 2;
 constexpr std::uint32_t kClidrLocShift = 24u;
@@ -198,6 +196,5 @@ void armv7a_enable_dcache()
     armv7a_instruction_sync_barrier();
 
     sctlr |= kSctlrC;
-    asm volatile("mcr p15, 0, %0, c1, c0, 0" : : "r"(sctlr) : "memory");
-    armv7a_instruction_sync_barrier();
+    armv7a_write_sctlr(sctlr);
 }

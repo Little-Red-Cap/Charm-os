@@ -1,4 +1,5 @@
 #include "armv7a_cpu.hpp"
+#include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 
 namespace {
@@ -58,7 +59,7 @@ extern "C" void armv7a_platform_debug_trace(const char* text)
 
 extern "C" void armv7a_platform_reset_early()
 {
-    // Reserved for future board-specific reset sequencing.
+    armv7a_ensure_low_vectors();
 }
 
 extern "C" void armv7a_platform_install_exception_vectors(const void* vector_base)

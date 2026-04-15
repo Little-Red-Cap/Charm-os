@@ -78,6 +78,12 @@ extern "C" std::uint32_t armv7a_read_sctlr()
     return value;
 }
 
+extern "C" void armv7a_write_sctlr(std::uint32_t value)
+{
+    asm volatile("mcr p15, 0, %0, c1, c0, 0" : : "r"(value) : "memory");
+    armv7a_instruction_sync_barrier();
+}
+
 extern "C" std::uint32_t armv7a_read_vbar()
 {
     std::uint32_t value = 0;

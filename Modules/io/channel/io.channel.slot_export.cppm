@@ -13,6 +13,12 @@ import util.core;
 import util.error;
 
 export namespace io {
+    enum class ExportState : util::u8 {
+        missing,
+        detached,
+        attached,
+    };
+
     template <typename RegistryT>
     class ChannelSlotExport {
     public:
@@ -91,6 +97,13 @@ export namespace io {
                    ep->reactor == reactor_;
         }
 
+        [[nodiscard]] ExportState state() const noexcept {
+            if (!exported()) {
+                return ExportState::missing;
+            }
+            return attached() ? ExportState::attached : ExportState::detached;
+        }
+
         [[nodiscard]] bool attached() const noexcept { return slot_.attached(); }
         [[nodiscard]] util::u32 generation() const noexcept { return slot_.generation(); }
         [[nodiscard]] Channel* target() const noexcept { return slot_.target(); }
@@ -152,8 +165,10 @@ export namespace io {
             EndpointCaps::duplex
         };
         if (exported.exported()) return false;
+        if (exported.state() != ExportState::missing) return false;
         if (!exported.ensure_exported()) return false;
         if (!exported.exported()) return false;
+        if (exported.state() != ExportState::detached) return false;
         if (registry.open_channel("io.usb0") != &exported.channel()) return false;
 
         util::u8 byte = 0;
@@ -163,6 +178,7 @@ export namespace io {
         DummyChannel target{};
         if (!exported.attach(target.ch)) return false;
         if (!exported.attached()) return false;
+        if (exported.state() != ExportState::attached) return false;
         if (exported.generation() != 1) return false;
 
         byte = 0;
@@ -171,6 +187,7 @@ export namespace io {
 
         exported.detach();
         if (exported.attached()) return false;
+        if (exported.state() != ExportState::detached) return false;
         if (exported.generation() != 2) return false;
 
         byte = 0;
@@ -179,6 +196,7 @@ export namespace io {
 
         if (!exported.unexport()) return false;
         if (exported.exported()) return false;
+        if (exported.state() != ExportState::missing) return false;
         if (registry.open_channel("io.usb0") != nullptr) return false;
 
         return exported.unexport().error() == util::Errc::noent;

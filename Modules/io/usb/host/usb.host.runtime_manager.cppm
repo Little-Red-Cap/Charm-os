@@ -78,6 +78,12 @@ export namespace usb::host {
         }
 
         template <typename BindingT>
+        [[nodiscard]] auto export_state(const BindingT& binding) const noexcept
+            -> decltype(binding.export_state()) {
+            return binding.export_state();
+        }
+
+        template <typename BindingT>
         util::Result<void> try_remove(BindingT& binding) noexcept {
             return binding.try_remove(registry_);
         }

@@ -119,6 +119,10 @@ namespace examples::usb::support {
             return binding.exported();
         }
 
+        [[nodiscard]] auto export_state() const noexcept {
+            return binding.export_state();
+        }
+
         [[nodiscard]] bool attached() const noexcept {
             return binding.attached();
         }

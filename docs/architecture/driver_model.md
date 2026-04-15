@@ -448,6 +448,44 @@ USB Device 不能简单地整体归入动态平面。
 
 但这仍然只是最小生命周期语言，还不是完整 revoke 模型。
 
+### 5.7 当前状态语言：published 与 live 要分开
+
+在当前实现里，需要把两个问题分开问：
+
+1. capability 还在不在 registry 里？
+2. 就算还在，它当前是不是 live 的？
+
+`io.registry` / `block.registry` 目前只能回答第一个问题。
+
+也就是：
+
+- `open_*` / `find_*` 只表示 capability 是否已发布
+- 它们不直接表达“底层目标是否仍 attached”
+
+稳定槽位导出现在补了一层显式状态：
+
+- `io::ExportState::{missing, detached, attached}`
+- `block::ExportState::{missing, detached, attached}`
+
+推荐理解为：
+
+- `missing`
+  capability 已不在 registry 中，或者从未导出成功
+- `detached`
+  capability 仍在 registry 中，但稳定槽位当前没有 live target
+- `attached`
+  capability 已发布，且稳定槽位当前有 live target
+
+这层状态语言的意义是：
+
+> **registry 负责“是否已发布”，stable slot export 负责“是否 live”。**
+
+这让当前模型至少能清楚地区分：
+
+- 已撤下
+- 仍可发现但暂时失活
+- 已恢复可用
+
 ## 6. 双平面如何收口
 
 双平面不能变成“两套货币体系”。

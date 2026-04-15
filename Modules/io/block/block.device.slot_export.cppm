@@ -12,6 +12,12 @@ import util.core;
 import util.error;
 
 export namespace block {
+    enum class ExportState : util::u8 {
+        missing,
+        detached,
+        attached,
+    };
+
     template <typename RegistryT>
     class DeviceSlotExport {
     public:
@@ -69,8 +75,15 @@ export namespace block {
             }
             const auto* ep = registry_->find_device(desc_.cap);
             return ep != nullptr &&
-                   ep->desc.name.compare(desc_.name) == 0 &&
-                   ep->dev == &slot_.device();
+                    ep->desc.name.compare(desc_.name) == 0 &&
+                    ep->dev == &slot_.device();
+        }
+
+        [[nodiscard]] ExportState state() const noexcept {
+            if (!exported()) {
+                return ExportState::missing;
+            }
+            return attached() ? ExportState::attached : ExportState::detached;
         }
 
         [[nodiscard]] bool attached() const noexcept { return slot_.attached(); }
@@ -117,13 +130,16 @@ export namespace block {
 
         DeviceSlotExport<Registry<2>> exported{registry, "block.usb0"};
         if (exported.exported()) return false;
+        if (exported.state() != ExportState::missing) return false;
         if (!exported.ensure_exported()) return false;
         if (!exported.exported()) return false;
+        if (exported.state() != ExportState::detached) return false;
         if (registry.open_device("block.usb0") != &exported.device()) return false;
 
         DummyDisk disk{};
         if (!exported.attach(disk.dev)) return false;
         if (!exported.attached()) return false;
+        if (exported.state() != ExportState::attached) return false;
         if (exported.generation() != 1) return false;
 
         util::u8 byte = 0;
@@ -132,6 +148,7 @@ export namespace block {
 
         exported.detach();
         if (exported.attached()) return false;
+        if (exported.state() != ExportState::detached) return false;
         if (exported.generation() != 2) return false;
 
         byte = 0;
@@ -140,6 +157,7 @@ export namespace block {
 
         if (!exported.unexport()) return false;
         if (exported.exported()) return false;
+        if (exported.state() != ExportState::missing) return false;
         if (registry.open_device("block.usb0") != nullptr) return false;
 
         return exported.unexport().error() == util::Errc::noent;

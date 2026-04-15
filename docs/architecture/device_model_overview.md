@@ -58,6 +58,12 @@
 > “移除 runtime device”、
 > “撤下稳定 capability”、
 > “连同 bus record 一并忘掉”。
+>
+> 此外，当前还补上了一层最小状态语言：
+> `io::ExportState::{missing, detached, attached}` /
+> `block::ExportState::{missing, detached, attached}`。
+> 它们用于表达“稳定 capability 是否还在 registry 中，以及当前是否 live”，
+> 补足 `open_*` / `find_*` 只能表达“是否已发布”的缺口。
 
 ## 1. 核心概念
 

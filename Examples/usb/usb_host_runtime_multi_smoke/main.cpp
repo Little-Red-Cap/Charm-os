@@ -4,9 +4,11 @@
 #include <span>
 
 import block.device;
+import block.device.slot_export;
 import block.registry;
 import device.manager;
 import io.channel;
+import io.channel.slot_export;
 import io.reactor;
 import io.registry;
 import usb.host.runtime_block;
@@ -57,6 +59,10 @@ int main() {
     if (!expect_ok(cdc.add_to(runtime), "failed to add CDC exported binding")) {
         return 1;
     }
+    if (!expect(msc.export_state() == block::ExportState::detached,
+                "MSC binding should start exported but detached")) return 1;
+    if (!expect(cdc.export_state() == io::ExportState::detached,
+                "CDC binding should start exported but detached")) return 1;
 
     auto* stable_block = msc.stable();
     auto* stable_channel = cdc.stable();
@@ -94,6 +100,10 @@ int main() {
 
     if (!expect(msc.attached(), "MSC slot was not attached")) return 1;
     if (!expect(cdc.attached(), "CDC slot was not attached")) return 1;
+    if (!expect(runtime.export_state(msc.binding) == block::ExportState::attached,
+                "runtime should report MSC export as attached")) return 1;
+    if (!expect(runtime.export_state(cdc.binding) == io::ExportState::attached,
+                "runtime should report CDC export as attached")) return 1;
     const auto cdc_generation_before = cdc.generation();
 
     auto block_read = read_lba0(*stable_block, block_buf);
@@ -120,6 +130,8 @@ int main() {
     if (!expect_ok(msc.try_remove_from(runtime), "failed to remove MSC device")) return 1;
     if (!expect(runtime.registry().device_count() == 1, "runtime registry should keep only CDC after MSC remove")) return 1;
     if (!expect(!msc.attached(), "MSC slot should detach after remove")) return 1;
+    if (!expect(msc.export_state() == block::ExportState::detached,
+                "removed MSC binding should remain exported but detached")) return 1;
     if (!expect_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
                        "removed MSC slot should read as noent")) return 1;
 
@@ -136,6 +148,10 @@ int main() {
 
     if (!expect(!msc.attached(), "MSC slot should be detached after remove")) return 1;
     if (!expect(!cdc.attached(), "CDC slot should be detached after remove")) return 1;
+    if (!expect(msc.export_state() == block::ExportState::detached,
+                "MSC should be detached before forget")) return 1;
+    if (!expect(cdc.export_state() == io::ExportState::detached,
+                "CDC should be detached before forget")) return 1;
     if (!expect(runtime.registry().device_count() == 0, "runtime registry should be empty after both removes")) return 1;
     if (!expect_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
                        "detached block slot should return noent after remove")) return 1;
@@ -150,6 +166,10 @@ int main() {
     if (!expect_ok(msc.try_forget_from(runtime), "failed to forget MSC binding")) return 1;
     if (!expect(!runtime.contains(msc.binding) && !runtime.contains(cdc.binding),
                 "forgotten bindings should be removed from runtime bus")) return 1;
+    if (!expect(msc.export_state() == block::ExportState::missing,
+                "forgotten MSC export should become missing")) return 1;
+    if (!expect(cdc.export_state() == io::ExportState::missing,
+                "forgotten CDC export should become missing")) return 1;
     if (!expect(block_registry.open_device("block.usb0") == nullptr,
                 "forgotten MSC capability should be removed from block registry")) return 1;
     if (!expect(io_registry.open_channel("io.usb0") == nullptr,

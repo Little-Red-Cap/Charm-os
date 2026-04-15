@@ -176,6 +176,10 @@ export namespace usb::host {
             return exported_.exported();
         }
 
+        [[nodiscard]] block::ExportState export_state() const noexcept {
+            return exported_.state();
+        }
+
         [[nodiscard]] bool attached() const noexcept {
             return exported_.attached();
         }

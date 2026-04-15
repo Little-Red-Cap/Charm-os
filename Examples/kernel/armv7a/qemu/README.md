@@ -52,6 +52,9 @@ cmake --build out\build\debug-exception-undefined --verbose
 
 cmake --preset debug-interrupt-special-irq
 cmake --build out\build\debug-interrupt-special-irq --verbose
+
+cmake --preset debug-interrupt-sgi-timeout
+cmake --build out\build\debug-interrupt-sgi-timeout --verbose
 ```
 
 ## Run
@@ -168,6 +171,10 @@ success-path CI stays stable while we harden the failure-path evidence:
 .\run_qemu_interrupt_special_ci.ps1
 ```
 
+```powershell
+.\run_qemu_interrupt_sgi_timeout_ci.ps1
+```
+
 ## Special IRQ acknowledge smoke
 
 Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
@@ -184,6 +191,26 @@ ARMv7-A phase, stage=special-irq-smoke
 ARMv7-A diagnostic context, subsystem=interrupt, stage=special-irq-smoke, last-complete=sgi-fiq-smoke, cpsr=0x........
 ARMv7-A special IRQ acknowledge, intid=1023, source=special-intid, ack=0x000003FF, hppir-before-ack=0x000003FF, route=irq, origin-mode=sys, current-mode=sys, return-pc=0x40000000, synthetic=yes
 ARMv7-A phase complete, stage=special-irq-smoke
+```
+
+## SGI IRQ timeout smoke
+
+Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
+
+```powershell
+.\run_qemu.ps1 -ElfPath out\build\debug-interrupt-sgi-timeout\charm-armv7a-qemu
+```
+
+Expected output includes the normal bringup banner, one SGI pending snapshot,
+then a timeout summary captured before the smoke cleans up the GIC state:
+
+```text
+ARMv7-A phase, stage=sgi-irq-timeout-smoke
+ARMv7-A SGI pending evidence, route=irq, line=group1/yes/yes/no, gicd=0x00000003, gicc=0x00000007, hppir=0x00000001, spurious=no
+ARMv7-A diagnostic context, subsystem=interrupt, stage=sgi-irq-timeout-smoke, last-complete=sgi-fiq-smoke, cpsr=0x........
+ARMv7-A interrupt timeout, expected=sgi-irq, route=irq, route-mask=masked, pending-observed=yes, last-observation=not-observed
+ARMv7-A SGI timeout, igroupr0=0x00000000, isenabler0=0x00000002, ispendr0=0x00000002, isactiver0=0x00000000, hppir=0x00000001
+ARMv7-A phase complete, stage=sgi-irq-timeout-smoke
 ```
 
 ## Undefined exception smoke
@@ -412,6 +439,10 @@ continue
   pending, which turns the GIC `special/spurious acknowledge` path into a
   first-class observable contract instead of leaving it hidden behind a later
   timeout.
+- A second optional `sgi-irq-timeout-smoke` preset now keeps CPU IRQ masked
+  on purpose after a self-targeted SGI has already become pending in the GIC,
+  so the timeout path records both the controller-pending evidence and the
+  masked CPU route instead of only printing a cleanup-time postmortem.
 - The same returning paths now also print one `return evidence` line after the
   handler returns to ordinary execution, comparing the pre-exception `SPSR`
   against the live post-return `CPSR`. That gives us direct evidence for

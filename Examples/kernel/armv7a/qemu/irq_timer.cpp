@@ -56,6 +56,11 @@ extern "C" void armv7a_irq_smoke_test()
         }
     }
 
+    Armv7aTimerTimeoutSnapshot timeout_snapshot{};
+    if (!interrupt_seen) {
+        timeout_snapshot = armv7a_capture_timer_timeout_snapshot(pending_seen);
+    }
+
     armv7a_disable_irq();
 
     armv7a_platform_timer_stop();
@@ -64,7 +69,7 @@ extern "C" void armv7a_irq_smoke_test()
     armv7a_interrupt_smoke_finish();
 
     if (!interrupt_seen) {
-        armv7a_interrupt_print_irq_timeout(armv7a_platform_timer_control());
+        armv7a_interrupt_print_irq_timeout(timeout_snapshot, observation);
         return;
     }
 }
@@ -113,6 +118,11 @@ extern "C" void armv7a_sgi_smoke_test()
         }
     }
 
+    Armv7aSgiTimeoutSnapshot timeout_snapshot{};
+    if (!interrupt_seen) {
+        timeout_snapshot = armv7a_capture_sgi_timeout_snapshot(pending_seen);
+    }
+
     armv7a_disable_irq();
 
     armv7a_platform_release_self_sgi();
@@ -120,7 +130,8 @@ extern "C" void armv7a_sgi_smoke_test()
     armv7a_interrupt_smoke_finish();
 
     if (!interrupt_seen) {
-        armv7a_interrupt_print_sgi_timeout();
+        armv7a_interrupt_print_sgi_timeout(
+            timeout_snapshot, observation, Armv7aPlatformInterruptRoute::kIrq);
         return;
     }
 }
@@ -169,6 +180,11 @@ extern "C" void armv7a_fiq_smoke_test()
         }
     }
 
+    Armv7aSgiTimeoutSnapshot timeout_snapshot{};
+    if (!interrupt_seen) {
+        timeout_snapshot = armv7a_capture_sgi_timeout_snapshot(pending_seen);
+    }
+
     armv7a_disable_fiq();
 
     armv7a_platform_release_self_sgi();
@@ -176,7 +192,7 @@ extern "C" void armv7a_fiq_smoke_test()
     armv7a_interrupt_smoke_finish();
 
     if (!interrupt_seen) {
-        armv7a_interrupt_print_fiq_timeout();
+        armv7a_interrupt_print_fiq_timeout(timeout_snapshot, observation);
         return;
     }
 }
@@ -207,4 +223,49 @@ extern "C" void armv7a_special_irq_ack_smoke_test()
     armv7a_platform_release_self_sgi();
     armv7a_platform_release_timer_interrupt();
     armv7a_interrupt_smoke_finish();
+}
+
+extern "C" void armv7a_sgi_irq_timeout_smoke_test()
+{
+    armv7a_disable_irq();
+    armv7a_interrupt_smoke_begin(Armv7aInterruptSmokeKind::kSgiIrqTimeout);
+
+    const auto frequency = armv7a_platform_timer_frequency_hz();
+    const auto start = armv7a_platform_timer_counter();
+    const auto pending_timeout = start + (frequency != 0u ? (frequency / 100u) : 0x100000u);
+    const auto timeout = start + (frequency != 0u ? (frequency / 50u) : 0x100000u);
+
+    armv7a_platform_prepare_self_sgi(Armv7aPlatformInterruptRoute::kIrq);
+    armv7a_platform_enable_interrupt_controller(Armv7aPlatformInterruptRoute::kIrq);
+    armv7a_platform_trigger_self_sgi();
+
+    Armv7aSgiPendingSnapshot pending_snapshot{};
+    bool pending_seen = false;
+    while (!pending_seen && armv7a_platform_timer_counter() < pending_timeout) {
+        pending_snapshot = armv7a_capture_sgi_pending_snapshot();
+        pending_seen = armv7a_sgi_pending_observed(pending_snapshot);
+    }
+
+    if (pending_seen) {
+        armv7a_interrupt_print_sgi_pending_evidence(
+            pending_snapshot, Armv7aPlatformInterruptRoute::kIrq);
+    }
+
+    while (!armv7a_interrupt_smoke_seen() && armv7a_platform_timer_counter() < timeout) {
+        // Keep IRQ masked on purpose so this edge smoke proves that a
+        // controller-pending SGI still times out when the CPU route is masked.
+    }
+
+    const auto interrupt_seen = armv7a_interrupt_smoke_seen();
+    const auto observation = armv7a_interrupt_smoke_last_observation();
+    const auto timeout_snapshot = armv7a_capture_sgi_timeout_snapshot(pending_seen);
+
+    armv7a_platform_release_self_sgi();
+    armv7a_platform_disable_interrupt_controller();
+    armv7a_interrupt_smoke_finish();
+
+    if (!interrupt_seen) {
+        armv7a_interrupt_print_sgi_timeout(
+            timeout_snapshot, observation, Armv7aPlatformInterruptRoute::kIrq);
+    }
 }

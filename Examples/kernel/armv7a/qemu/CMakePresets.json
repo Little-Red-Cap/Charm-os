@@ -135,6 +135,15 @@
       "cacheVariables": {
         "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "special_irq"
       }
+    },
+    {
+      "name": "debug-interrupt-sgi-timeout",
+      "displayName": "ARMv7-A QEMU Debug (SGI IRQ Timeout Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-interrupt-sgi-timeout",
+      "cacheVariables": {
+        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "sgi_irq_timeout"
+      }
     }
   ],
   "buildPresets": [
@@ -193,6 +202,10 @@
     {
       "name": "debug-interrupt-special-irq",
       "configurePreset": "debug-interrupt-special-irq"
+    },
+    {
+      "name": "debug-interrupt-sgi-timeout",
+      "configurePreset": "debug-interrupt-sgi-timeout"
     }
   ]
 }

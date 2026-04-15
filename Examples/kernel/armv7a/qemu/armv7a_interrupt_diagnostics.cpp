@@ -19,6 +19,14 @@ const char* route_name(Armv7aPlatformInterruptRoute route)
     return route == Armv7aPlatformInterruptRoute::kFiq ? "fiq" : "irq";
 }
 
+const char* route_mask_name(Armv7aPlatformInterruptRoute route, std::uint32_t cpsr)
+{
+    const auto masked = route == Armv7aPlatformInterruptRoute::kFiq
+                            ? armv7a_fiq_masked(cpsr)
+                            : armv7a_irq_masked(cpsr);
+    return masked ? "masked" : "enabled";
+}
+
 void print_source_summary(const Armv7aInterruptObservation& observation)
 {
     armv7a_platform_early_console_puts(armv7a_platform_interrupt_source_name(observation.intid));
@@ -81,6 +89,34 @@ Armv7aSgiPendingSnapshot armv7a_capture_sgi_pending_snapshot()
     return Armv7aSgiPendingSnapshot{
         .line = armv7a_platform_self_sgi_line_state(),
         .controller = armv7a_platform_interrupt_controller_state(),
+    };
+}
+
+Armv7aTimerTimeoutSnapshot armv7a_capture_timer_timeout_snapshot(bool pending_observed)
+{
+    return Armv7aTimerTimeoutSnapshot{
+        .context =
+            Armv7aInterruptTimeoutContext{
+                .pending_observed = pending_observed,
+                .current_cpsr = armv7a_read_cpsr(),
+                .controller = armv7a_platform_interrupt_controller_state(),
+            },
+        .timer_ctrl = armv7a_platform_timer_control(),
+        .secure_line = armv7a_platform_secure_timer_interrupt_line_state(),
+        .nonsecure_line = armv7a_platform_nonsecure_timer_interrupt_line_state(),
+    };
+}
+
+Armv7aSgiTimeoutSnapshot armv7a_capture_sgi_timeout_snapshot(bool pending_observed)
+{
+    return Armv7aSgiTimeoutSnapshot{
+        .context =
+            Armv7aInterruptTimeoutContext{
+                .pending_observed = pending_observed,
+                .current_cpsr = armv7a_read_cpsr(),
+                .controller = armv7a_platform_interrupt_controller_state(),
+            },
+        .line = armv7a_platform_self_sgi_line_state(),
     };
 }
 
@@ -230,6 +266,39 @@ void armv7a_interrupt_print_special_ack(const char* label,
     armv7a_platform_early_console_puts("\r\n");
 }
 
+void armv7a_interrupt_print_timeout_summary(const char* expected,
+                                            Armv7aPlatformInterruptRoute route,
+                                            const Armv7aInterruptTimeoutContext& context,
+                                            const Armv7aInterruptObservation& observation)
+{
+    armv7a_diag_print_context("interrupt");
+    armv7a_platform_early_console_puts("ARMv7-A interrupt timeout, expected=");
+    armv7a_platform_early_console_puts(expected);
+    armv7a_platform_early_console_puts(", route=");
+    armv7a_platform_early_console_puts(route_name(route));
+    armv7a_platform_early_console_puts(", route-mask=");
+    armv7a_platform_early_console_puts(route_mask_name(route, context.current_cpsr));
+    armv7a_platform_early_console_puts(", pending-observed=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(context.pending_observed));
+    if (!observation.seen) {
+        armv7a_platform_early_console_puts(", last-observation=not-observed");
+        armv7a_platform_early_console_puts("\r\n");
+        return;
+    }
+
+    armv7a_platform_early_console_puts(", last-observation=");
+    armv7a_platform_early_console_puts(armv7a_platform_interrupt_source_name(observation.intid));
+    armv7a_platform_early_console_puts(", last-intid=");
+    armv7a_diag_put_dec(observation.intid);
+    armv7a_platform_early_console_puts(", last-ack=0x");
+    armv7a_diag_put_hex(observation.raw_acknowledge);
+    armv7a_platform_early_console_puts(", last-hppir-before-ack=0x");
+    armv7a_diag_put_hex(observation.controller.highest_pending);
+    armv7a_platform_early_console_puts(", synthetic=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(observation.synthetic));
+    armv7a_platform_early_console_puts("\r\n");
+}
+
 void armv7a_interrupt_print_observed_intid(const char* label, unsigned int intid)
 {
     armv7a_diag_print_context("interrupt");
@@ -260,72 +329,71 @@ void armv7a_interrupt_print_unexpected(const char* label,
     armv7a_platform_early_console_puts("\r\n");
 }
 
-void armv7a_interrupt_print_irq_timeout(std::uint32_t timer_ctrl)
+void armv7a_interrupt_print_irq_timeout(const Armv7aTimerTimeoutSnapshot& snapshot,
+                                        const Armv7aInterruptObservation& observation)
 {
-    armv7a_diag_print_context("interrupt");
-    const auto secure_line = armv7a_platform_secure_timer_interrupt_line_state();
-    const auto nonsecure_line = armv7a_platform_nonsecure_timer_interrupt_line_state();
-    const auto cpu_state = armv7a_platform_interrupt_controller_state();
+    armv7a_interrupt_print_timeout_summary(
+        "timer-irq", Armv7aPlatformInterruptRoute::kIrq, snapshot.context, observation);
 
     armv7a_platform_early_console_puts("ARMv7-A timer IRQ timeout, ctrl=0x");
-    armv7a_diag_put_hex(timer_ctrl);
+    armv7a_diag_put_hex(snapshot.timer_ctrl);
     armv7a_platform_early_console_puts(", secure-igroupr0=0x");
-    armv7a_diag_put_hex(secure_line.group);
+    armv7a_diag_put_hex(snapshot.secure_line.group);
     armv7a_platform_early_console_puts(", secure-isenabler0=0x");
-    armv7a_diag_put_hex(secure_line.enabled);
+    armv7a_diag_put_hex(snapshot.secure_line.enabled);
     armv7a_platform_early_console_puts(", nonsecure-igroupr0=0x");
-    armv7a_diag_put_hex(nonsecure_line.group);
+    armv7a_diag_put_hex(snapshot.nonsecure_line.group);
     armv7a_platform_early_console_puts(", nonsecure-isenabler0=0x");
-    armv7a_diag_put_hex(nonsecure_line.enabled);
+    armv7a_diag_put_hex(snapshot.nonsecure_line.enabled);
     armv7a_platform_early_console_puts("\r\n");
     armv7a_platform_early_console_puts("ARMv7-A timer IRQ timeout, secure-ispendr0=0x");
-    armv7a_diag_put_hex(secure_line.pending);
+    armv7a_diag_put_hex(snapshot.secure_line.pending);
     armv7a_platform_early_console_puts(", secure-isactiver0=0x");
-    armv7a_diag_put_hex(secure_line.active);
+    armv7a_diag_put_hex(snapshot.secure_line.active);
     armv7a_platform_early_console_puts(", nonsecure-ispendr0=0x");
-    armv7a_diag_put_hex(nonsecure_line.pending);
+    armv7a_diag_put_hex(snapshot.nonsecure_line.pending);
     armv7a_platform_early_console_puts(", nonsecure-isactiver0=0x");
-    armv7a_diag_put_hex(nonsecure_line.active);
+    armv7a_diag_put_hex(snapshot.nonsecure_line.active);
     armv7a_platform_early_console_puts(", hppir=0x");
-    armv7a_diag_put_hex(cpu_state.highest_pending);
+    armv7a_diag_put_hex(snapshot.context.controller.highest_pending);
     armv7a_platform_early_console_puts("\r\n");
 }
 
-void armv7a_interrupt_print_sgi_timeout()
+void armv7a_interrupt_print_sgi_timeout(const Armv7aSgiTimeoutSnapshot& snapshot,
+                                        const Armv7aInterruptObservation& observation,
+                                        Armv7aPlatformInterruptRoute route)
 {
-    armv7a_diag_print_context("interrupt");
-    const auto line_state = armv7a_platform_self_sgi_line_state();
-    const auto cpu_state = armv7a_platform_interrupt_controller_state();
+    armv7a_interrupt_print_timeout_summary("sgi-irq", route, snapshot.context, observation);
 
     armv7a_platform_early_console_puts("ARMv7-A SGI timeout, igroupr0=0x");
-    armv7a_diag_put_hex(line_state.group);
+    armv7a_diag_put_hex(snapshot.line.group);
     armv7a_platform_early_console_puts(", isenabler0=0x");
-    armv7a_diag_put_hex(line_state.enabled);
+    armv7a_diag_put_hex(snapshot.line.enabled);
     armv7a_platform_early_console_puts(", ispendr0=0x");
-    armv7a_diag_put_hex(line_state.pending);
+    armv7a_diag_put_hex(snapshot.line.pending);
     armv7a_platform_early_console_puts(", isactiver0=0x");
-    armv7a_diag_put_hex(line_state.active);
+    armv7a_diag_put_hex(snapshot.line.active);
     armv7a_platform_early_console_puts(", hppir=0x");
-    armv7a_diag_put_hex(cpu_state.highest_pending);
+    armv7a_diag_put_hex(snapshot.context.controller.highest_pending);
     armv7a_platform_early_console_puts("\r\n");
 }
 
-void armv7a_interrupt_print_fiq_timeout()
+void armv7a_interrupt_print_fiq_timeout(const Armv7aSgiTimeoutSnapshot& snapshot,
+                                        const Armv7aInterruptObservation& observation)
 {
-    armv7a_diag_print_context("interrupt");
-    const auto line_state = armv7a_platform_self_sgi_line_state();
-    const auto cpu_state = armv7a_platform_interrupt_controller_state();
+    armv7a_interrupt_print_timeout_summary(
+        "sgi-fiq", Armv7aPlatformInterruptRoute::kFiq, snapshot.context, observation);
 
     armv7a_platform_early_console_puts("ARMv7-A FIQ timeout, cpsr=0x");
-    armv7a_diag_put_hex(armv7a_read_cpsr());
+    armv7a_diag_put_hex(snapshot.context.current_cpsr);
     armv7a_platform_early_console_puts(", ctlr=0x");
-    armv7a_diag_put_hex(cpu_state.cpu_control);
+    armv7a_diag_put_hex(snapshot.context.controller.cpu_control);
     armv7a_platform_early_console_puts(", igroupr0=0x");
-    armv7a_diag_put_hex(line_state.group);
+    armv7a_diag_put_hex(snapshot.line.group);
     armv7a_platform_early_console_puts(", isenabler0=0x");
-    armv7a_diag_put_hex(line_state.enabled);
+    armv7a_diag_put_hex(snapshot.line.enabled);
     armv7a_platform_early_console_puts(", hppir=0x");
-    armv7a_diag_put_hex(cpu_state.highest_pending);
+    armv7a_diag_put_hex(snapshot.context.controller.highest_pending);
     armv7a_platform_early_console_puts("\r\n");
 }
 

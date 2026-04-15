@@ -48,6 +48,21 @@ export namespace block {
             slot_.detach();
         }
 
+        util::Result<void> unexport() noexcept {
+            if (!registry_ || desc_.name.empty() || desc_.cap == 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            const auto* ep = registry_->find_device(desc_.cap);
+            if (!ep) {
+                return util::unexpected(util::Errc::noent);
+            }
+            if (ep->desc.name.compare(desc_.name) != 0 || ep->dev != &slot_.device()) {
+                return util::unexpected(util::Errc::exist);
+            }
+            slot_.detach();
+            return registry_->unregister_device(desc_.cap);
+        }
+
         [[nodiscard]] bool exported() const noexcept {
             if (!registry_) {
                 return false;
@@ -121,7 +136,13 @@ export namespace block {
 
         byte = 0;
         st = exported.device().read(exported.device().ctx, 0, std::span<util::u8>(&byte, 1));
-        return st.err == Errc::noent;
+        if (st.err != Errc::noent) return false;
+
+        if (!exported.unexport()) return false;
+        if (exported.exported()) return false;
+        if (registry.open_device("block.usb0") != nullptr) return false;
+
+        return exported.unexport().error() == util::Errc::noent;
     }
 #endif
 }

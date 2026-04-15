@@ -43,6 +43,12 @@
 > `Examples/usb/usb_host_runtime_channel_smoke`、
 > `Examples/usb/usb_host_runtime_multi_smoke`
 > 这条“稳定槽位 + 内部存活位”路线。
+>
+> 这条路线当前还补上了一层最小退出能力：
+> `io::ChannelSlotExport::unexport()` /
+> `block::DeviceSlotExport::unexport()`，
+> 它们会先 detach 稳定槽位，再把 capability 从 registry 中撤下；
+> 但这仍不等价于完整 revoke 语义。
 
 ## 1. 核心概念
 

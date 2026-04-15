@@ -63,6 +63,23 @@ export namespace io {
             slot_.detach();
         }
 
+        util::Result<void> unexport() noexcept {
+            if (!registry_ || desc_.name.empty() || desc_.cap == 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            const auto* ep = registry_->find_channel(desc_.cap);
+            if (!ep) {
+                return util::unexpected(util::Errc::noent);
+            }
+            if (ep->desc.name.compare(desc_.name) != 0 ||
+                ep->ch != &slot_.channel() ||
+                ep->reactor != reactor_) {
+                return util::unexpected(util::Errc::exist);
+            }
+            slot_.detach();
+            return registry_->unregister_channel(desc_.cap);
+        }
+
         [[nodiscard]] bool exported() const noexcept {
             if (!registry_) {
                 return false;
@@ -158,7 +175,13 @@ export namespace io {
 
         byte = 0;
         r = exported.channel().read(std::span<util::u8>(&byte, 1));
-        return r.error() == errc::noent;
+        if (r.error() != errc::noent) return false;
+
+        if (!exported.unexport()) return false;
+        if (exported.exported()) return false;
+        if (registry.open_channel("io.usb0") != nullptr) return false;
+
+        return exported.unexport().error() == util::Errc::noent;
     }
 #endif
 }

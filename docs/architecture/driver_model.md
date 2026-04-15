@@ -332,6 +332,13 @@ USB Device 不能简单地整体归入动态平面。
 - `open_*`
 - `unregister_*`
 
+当前稳定槽位导出也已具备一层最小包装：
+
+- `io::ChannelSlotExport::unexport()`
+- `block::DeviceSlotExport::unexport()`
+
+它们会先把槽位 `detach()`，再把稳定 capability 从 registry 中移除。
+
 但还没有：
 
 - `remove_*`
@@ -412,6 +419,10 @@ USB Device 不能简单地整体归入动态平面。
 
 - 把每个热插拔子设备都直接注册成新的短命 endpoint
 - 在没有 revoke 语义的情况下，把 raw device 指针长期暴露给外部
+
+因此当前更准确的边界是：
+
+> **仓库已经有“最小 unexport”能力，但还没有“完整 revoke / lease / 广播失效”能力。**
 
 ## 6. 双平面如何收口
 

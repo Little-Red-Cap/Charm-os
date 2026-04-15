@@ -26,6 +26,18 @@ int charm_posix_c_fs_header_entry(void) {
 
     if (charm_posix_fstat(1, &st) != 0) return 307;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFIFO) return 308;
+    *err = 49;
+    if (charm_posix_isatty(-1) != 0) return 405;
+    if (*err != CHARM_POSIX_EBADF) return 406;
+    *err = 0;
+    if (charm_posix_fstat(-1, &st) != -1) return 407;
+    if (*err != CHARM_POSIX_EBADF) return 408;
+    *err = 0;
+    if (charm_posix_fstat(1, 0) != -1) return 409;
+    if (*err != CHARM_POSIX_EINVAL) return 410;
+    *err = 0;
+    if (charm_posix_stat("/", 0) != -1) return 411;
+    if (*err != CHARM_POSIX_EINVAL) return 412;
 
     *err = 44;
     fd = charm_posix_open("/dev/null", CHARM_POSIX_O_RDONLY, 0);

@@ -56,6 +56,12 @@ struct Armv7aPlatformInterruptAcknowledge {
     bool special = false;
 };
 
+struct Armv7aPlatformResetState {
+    std::uint32_t initial_sctlr = 0u;
+    std::uint32_t initial_vbar = 0u;
+    bool forced_low_vectors = false;
+};
+
 extern "C" void armv7a_platform_early_console_init();
 extern "C" void armv7a_platform_early_console_putc(char ch);
 extern "C" void armv7a_platform_early_console_puts(const char* text);
@@ -67,6 +73,7 @@ extern "C" [[noreturn]] void armv7a_platform_idle_forever();
 const Armv7aPlatformAddressSpace& armv7a_platform_address_space();
 const Armv7aPlatformMmioLayout& armv7a_platform_mmio_layout();
 const Armv7aPlatformProbeLayout& armv7a_platform_probe_layout();
+const Armv7aPlatformResetState& armv7a_platform_reset_state();
 
 std::uint32_t armv7a_platform_timer_frequency_hz();
 std::uint64_t armv7a_platform_timer_counter();

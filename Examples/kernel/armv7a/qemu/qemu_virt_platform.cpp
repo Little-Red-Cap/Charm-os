@@ -33,6 +33,8 @@ constexpr Armv7aPlatformProbeLayout kQemuVirtProbeLayout{
     0x57000000u,
     0x58000000u,
 };
+
+Armv7aPlatformResetState g_qemuVirtResetState{};
 } // namespace
 
 const Armv7aPlatformAddressSpace& armv7a_platform_address_space()
@@ -50,6 +52,11 @@ const Armv7aPlatformProbeLayout& armv7a_platform_probe_layout()
     return kQemuVirtProbeLayout;
 }
 
+const Armv7aPlatformResetState& armv7a_platform_reset_state()
+{
+    return g_qemuVirtResetState;
+}
+
 extern "C" void armv7a_platform_debug_trace(const char* text)
 {
     register int op asm("r0") = 0x04;
@@ -59,6 +66,10 @@ extern "C" void armv7a_platform_debug_trace(const char* text)
 
 extern "C" void armv7a_platform_reset_early()
 {
+    g_qemuVirtResetState.initial_sctlr = armv7a_read_sctlr();
+    g_qemuVirtResetState.initial_vbar = armv7a_read_vbar();
+    g_qemuVirtResetState.forced_low_vectors =
+        armv7a_high_vectors_enabled(g_qemuVirtResetState.initial_sctlr);
     armv7a_ensure_low_vectors();
 }
 

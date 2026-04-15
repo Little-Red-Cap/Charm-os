@@ -69,6 +69,7 @@ Expected console output:
 Charm ARMv7-A QEMU skeleton
 Targeting Cortex-A7 first, RK3506 later.
 ARMv7-A boot state, cpsr=0x600001DF, mode=sys, irq=masked
+ARMv7-A reset evidence, sctlr=0x00C50078, vbar=0x00000000, high-vectors=off, low-vectors-forced=no
 ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=0x03B9ACA0
 ARMv7-A memory model, id_mmfr0=0x10101105, vmsa=0x00000005 (present), pmsa=0x00000000 (absent)
 ARMv7-A feature state, id_pfr1=0x00010001, security=0x00000000 (absent), virtualization=0x00000000 (absent), gentimer=0x00000001 (present)
@@ -263,6 +264,9 @@ continue
 - The current QEMU `virt` reset hook also forces `SCTLR.V=0` before installing
   `VBAR`, so the example does not quietly depend on the reset state already
   using low vectors.
+- That same reset hook now also records the initial `SCTLR/VBAR` evidence
+  printed by the boot banner, which gives later real-board bring-up a direct
+  comparison point against the QEMU reset state.
 - Timer and interrupt controller setup also flow through
   `armv7a_platform_*`, so the smoke paths no longer need direct GIC or Generic
   Timer knowledge.

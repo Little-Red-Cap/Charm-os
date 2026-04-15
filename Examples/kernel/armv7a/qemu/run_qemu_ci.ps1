@@ -83,6 +83,9 @@ $missing = $expected | Where-Object { -not $log.Contains($_) }
 if (($log -notmatch "ARMv7-A boot state, cpsr=0x[0-9A-F]{8}, mode=[a-z]+, irq=(masked|enabled)")) {
     $missing += "ARMv7-A boot state, cpsr=0x..."
 }
+if (($log -notmatch "ARMv7-A reset evidence, sctlr=0x[0-9A-F]{8}, vbar=0x[0-9A-F]{8}, high-vectors=(on|off), low-vectors-forced=(yes|no)")) {
+    $missing += "ARMv7-A reset evidence, sctlr=0x..."
+}
 if (($log -notmatch "ARMv7-A cp15 state, sctlr=0x[0-9A-F]{8}, vbar=0x[0-9A-F]{8}, mpidr=0x[0-9A-F]{8}, cntfrq=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A cp15 state, sctlr=0x..."
 }

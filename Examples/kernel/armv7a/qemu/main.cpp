@@ -63,12 +63,24 @@ void print_cpu_boot_state()
     const auto sctlr = armv7a_read_sctlr();
     const auto id_mmfr0 = armv7a_read_id_mmfr0();
     const auto id_pfr1 = armv7a_read_id_pfr1();
+    const auto& reset_state = armv7a_platform_reset_state();
     armv7a_platform_early_console_puts("ARMv7-A boot state, cpsr=0x");
     platform_console_put_hex32(cpsr);
     armv7a_platform_early_console_puts(", mode=");
     armv7a_platform_early_console_puts(armv7a_mode_name(cpsr));
     armv7a_platform_early_console_puts(", irq=");
     armv7a_platform_early_console_puts(armv7a_irq_masked(cpsr) ? "masked" : "enabled");
+    armv7a_platform_early_console_puts("\r\n");
+
+    armv7a_platform_early_console_puts("ARMv7-A reset evidence, sctlr=0x");
+    platform_console_put_hex32(reset_state.initial_sctlr);
+    armv7a_platform_early_console_puts(", vbar=0x");
+    platform_console_put_hex32(reset_state.initial_vbar);
+    armv7a_platform_early_console_puts(", high-vectors=");
+    armv7a_platform_early_console_puts(
+        armv7a_high_vectors_enabled(reset_state.initial_sctlr) ? "on" : "off");
+    armv7a_platform_early_console_puts(", low-vectors-forced=");
+    armv7a_platform_early_console_puts(reset_state.forced_low_vectors ? "yes" : "no");
     armv7a_platform_early_console_puts("\r\n");
 
     armv7a_platform_early_console_puts("ARMv7-A cp15 state, sctlr=0x");

@@ -51,9 +51,9 @@ extern "C" [[noreturn]] void rk3506_boot_main()
 
     rk3506_platform_early_console_puts("Charm RK3506 bare-metal skeleton\n");
     rk3506_platform_early_console_puts(
-        "Model: single-image Cortex-A7 board leaf, not a staged boot chain.\n");
+        "Model: Stage C post-DDR Cortex-A7 board leaf, not SRAM early stage.\n");
     rk3506_platform_early_console_puts(
-        "UART0 currently assumes BootROM or an earlier loader left clocks usable.\n");
+        "UART0 early console is initialized locally from CRU_PMU/CRU/GPIO0_IOC/UART0.\n");
 
     put_labeled_hex("Image start: ",
         reinterpret_cast<std::uintptr_t>(&__image_start));
@@ -83,6 +83,6 @@ extern "C" [[noreturn]] void rk3506_boot_main()
     put_bool_flag("Forced low vectors: ", reset.forced_low_vectors);
 
     rk3506_platform_early_console_puts(
-        "Next bring-up slices: real CRU/GRF/UART init, GIC/timer smoke, then MMU/cache/TLB.\n");
+        "Next bring-up slices: GIC/timer smoke, then MMU/cache/TLB.\n");
     rk3506_platform_idle_forever();
 }

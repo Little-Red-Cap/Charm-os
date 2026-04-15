@@ -100,6 +100,7 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - 会在写入过程中累计 payload CRC32，便于后续镜像校验链路复用
 - 以 Bootloader 分区上限和 `max_size` 共同约束下载尺寸
 - `boot_session` 可在传输完成后继续执行目标分区校验、写入 `BootInfo.pending`，再通过统一 `BootPlan` 完成槽位决策、跳转前回滚预备与成功确认
+- `boot_session` 的结果对象已收敛到 `BootPlan + XyModemFlashResult + compact flags`，避免重复携带 `boot/info/loaded` 快照
 - `boot_launch` 可把已决策的 `BootPlan` 进一步解析为目标分区、镜像头与 entry 偏移，便于后续板级跳转对接
 - `boot_load` 可把 `BootTarget` 进一步解析为显式加载契约，统一表达 `copy_to_ram` 与 `xip`
 - `boot_board_load` 进一步桥接 `platform::board::BootLoadDesc`，让真实板级代码只暴露 payload 基址解析与可选搬运 hook

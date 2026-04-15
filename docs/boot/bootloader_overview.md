@@ -29,7 +29,7 @@
 - `boot_board_exec`：把 `platform::board::BootExecDesc` 桥接到 `boot_exec`，让板级实现不必直接依赖 Boot 内部类型
 - `boot_handoff`：把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 收敛成一个更轻的启动前 handoff 对象，并通过 accessor 暴露阶段视图
 - `boot_uart` / `boot_xymodem`：串口接入与 X/YModem 下载到目标分区的 Stage2 侧封装
-- `boot_session`：把下载、镜像校验、`BootInfo.pending` 落盘与 `BootPlan` 决策串成一个显式 Stage2 会话入口
+- `boot_session`：把下载、镜像校验、`BootInfo.pending` 落盘与 `BootPlan` 决策串成一个显式 Stage2 会话入口，结果对象收敛到 `BootPlan + transfer + compact flags`
 - `Examples/boot/bootloader_demo`：可在主机侧演示“下载到 Slot B -> 校验 -> 生成 BootPlan -> 回滚预备 -> 标记成功”
 
 当前有几类“prepare”语义需要刻意区分：

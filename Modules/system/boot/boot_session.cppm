@@ -28,6 +28,14 @@ export namespace boot {
         failed
     };
 
+    enum class SessionResultFlag : util::u8 {
+        none = 0,
+        ready_to_boot = 1 << 0,
+        boot_info_written = 1 << 1,
+        pending_set = 1 << 2,
+        success_marked = 1 << 3
+    };
+
     struct XyModemSessionConfig {
         BootConfig boot{};
         Policy policy{};
@@ -45,22 +53,50 @@ export namespace boot {
         SessionStage stage{SessionStage::idle};
         Slot target_slot{Slot::a};
         BootStatus verify_status{BootStatus::invalid};
-        bool ready_to_boot{false};
-        bool boot_info_loaded{false};
-        bool boot_info_written{false};
-        bool pending_set{false};
-        bool boot_selected{false};
-        bool boot_prepared{false};
-        bool success_marked{false};
+        util::u8 flags{0};
         XyModemFlashResult transfer{};
-        BootResult boot{};
         BootPlan plan{};
-        BootInfo info{};
+
+        constexpr bool ready_to_boot() const noexcept {
+            return (flags & static_cast<util::u8>(SessionResultFlag::ready_to_boot)) != 0;
+        }
+
+        constexpr bool boot_info_loaded() const noexcept { return plan.boot_info_loaded; }
+
+        constexpr bool boot_info_written() const noexcept {
+            return (flags & static_cast<util::u8>(SessionResultFlag::boot_info_written)) != 0;
+        }
+
+        constexpr bool pending_set() const noexcept {
+            return (flags & static_cast<util::u8>(SessionResultFlag::pending_set)) != 0;
+        }
+
+        constexpr bool boot_selected() const noexcept { return static_cast<bool>(plan); }
+
+        constexpr bool boot_prepared() const noexcept { return plan.prepared; }
+
+        constexpr bool success_marked() const noexcept {
+            return (flags & static_cast<util::u8>(SessionResultFlag::success_marked)) != 0;
+        }
+
+        constexpr BootResult boot_result() const noexcept { return plan.boot; }
+
+        constexpr const BootInfo& info() const noexcept { return plan.info; }
 
         constexpr explicit operator bool() const noexcept {
-            return ready_to_boot;
+            return ready_to_boot();
         }
     };
+
+    constexpr void session_result_set_flag(XyModemSessionResult& result,
+                                           SessionResultFlag flag) noexcept {
+        result.flags |= static_cast<util::u8>(flag);
+    }
+
+    constexpr void session_result_clear_flag(XyModemSessionResult& result,
+                                             SessionResultFlag flag) noexcept {
+        result.flags &= ~static_cast<util::u8>(flag);
+    }
 
     template <util::usize MaxBlock = 1024>
     class XyModemSession {
@@ -71,7 +107,8 @@ export namespace boot {
         void start() noexcept {
             result_ = {};
             result_.target_slot = cfg_.target_slot;
-            stage_ = SessionStage::receiving;
+            result_.stage = SessionStage::receiving;
+            stage_ = result_.stage;
             receiver_.start();
         }
 
@@ -83,7 +120,7 @@ export namespace boot {
         SessionStage stage() const noexcept { return stage_; }
         const XyModemFlashState& transfer_state() const noexcept { return receiver_.state(); }
         const XyModemSessionResult& result() const noexcept { return result_; }
-        BootResult boot_result() const noexcept { return result_.boot; }
+        BootResult boot_result() const noexcept { return result_.boot_result(); }
 
         bool transport_finished() const noexcept {
             const auto state = receiver_.modem().state();
@@ -111,25 +148,24 @@ export namespace boot {
             result_.transfer = transfer;
             result_.target_slot = cfg_.target_slot;
             if (!transfer) {
-                stage_ = SessionStage::failed;
-                result_.stage = stage_;
+                mark_failed();
                 return result_;
             }
 
-            stage_ = SessionStage::transport_done;
-            result_.stage = stage_;
+            set_stage(SessionStage::transport_done);
 
             BootInfo info{};
+            bool boot_info_loaded = false;
             if (cfg_.has_seed_info) {
                 info = cfg_.seed_info;
-                result_.boot_info_loaded = true;
+                boot_info_loaded = true;
             } else if (read_boot_info(storage_, cfg_.boot.info, info)) {
-                result_.boot_info_loaded = true;
+                boot_info_loaded = true;
             }
 
-            stage_ = SessionStage::verified;
-            result_.stage = stage_;
-            result_.info = info;
+            set_stage(SessionStage::verified);
+            result_.plan.info = info;
+            result_.plan.boot_info_loaded = boot_info_loaded;
 
             const auto verify = verify_partition_policy_status(
                 storage_,
@@ -138,31 +174,26 @@ export namespace boot {
                 info);
             result_.verify_status = verify;
             if (verify != BootStatus::ok) {
-                stage_ = SessionStage::failed;
-                result_.stage = stage_;
-                result_.info = info;
+                mark_failed();
                 return result_;
             }
 
             if (!cfg_.write_pending) {
-                result_.ready_to_boot = true;
-                result_.info = info;
+                session_result_set_flag(result_, SessionResultFlag::ready_to_boot);
                 return result_;
             }
 
             if (!arm_pending_update(storage_, cfg_.boot, info, cfg_.target_slot)) {
-                stage_ = SessionStage::failed;
-                result_.stage = stage_;
-                result_.info = info;
+                mark_failed();
                 return result_;
             }
 
-            stage_ = SessionStage::pending;
-            result_.stage = stage_;
-            result_.boot_info_written = true;
-            result_.pending_set = true;
-            result_.ready_to_boot = true;
-            result_.info = info;
+            set_stage(SessionStage::pending);
+            result_.plan.info = info;
+            result_.plan.boot_info_loaded = true;
+            session_result_set_flag(result_, SessionResultFlag::boot_info_written);
+            session_result_set_flag(result_, SessionResultFlag::pending_set);
+            session_result_set_flag(result_, SessionResultFlag::ready_to_boot);
             return result_;
         }
 
@@ -171,18 +202,13 @@ export namespace boot {
                 return result_.plan;
             }
 
-            const auto plan = result_.boot_info_loaded
-                ? decide_boot_policy(storage_, cfg_.boot, result_.info, cfg_.policy)
+            const auto plan = result_.plan.boot_info_loaded
+                ? decide_boot_policy(storage_, cfg_.boot, result_.plan.info, cfg_.policy)
                 : decide_boot_policy(storage_, cfg_.boot, cfg_.policy);
             result_.plan = plan;
-            result_.boot = plan.boot;
-            result_.boot_selected = plan.boot.status == BootStatus::ok;
-            result_.info = plan.info;
-            result_.boot_info_loaded = plan.boot_info_loaded;
 
-            if (result_.boot_selected) {
-                stage_ = SessionStage::selected;
-                result_.stage = stage_;
+            if (result_.boot_selected()) {
+                set_stage(SessionStage::selected);
             }
 
             return result_.plan;
@@ -199,64 +225,47 @@ export namespace boot {
                 : decide_boot();
             auto handoff = prepare_boot_handoff(storage_, cfg_.boot, plan, caps);
             if (!handoff.ready_to_jump) {
-                stage_ = SessionStage::failed;
-                result_.stage = stage_;
-                result_.boot = handoff_plan(handoff).boot;
-                result_.info = handoff_plan(handoff).info;
-                result_.boot_info_loaded = handoff_plan(handoff).boot_info_loaded;
+                mark_failed();
+                result_.plan = handoff_plan(handoff);
                 return handoff;
             }
 
-            stage_ = SessionStage::prepared;
-            result_.stage = stage_;
-            result_.boot_prepared = handoff.rollback_prepared;
+            set_stage(SessionStage::prepared);
             result_.plan = handoff_plan(handoff);
-            result_.boot = handoff_plan(handoff).boot;
-            result_.boot_selected = handoff_plan(handoff).boot.status == BootStatus::ok;
-            result_.info = handoff_plan(handoff).info;
-            result_.boot_info_loaded = handoff_plan(handoff).boot_info_loaded;
-            result_.ready_to_boot = true;
+            session_result_set_flag(result_, SessionResultFlag::ready_to_boot);
             return handoff;
         }
 
         bool prepare_selected_boot() noexcept {
-            if (!result_.boot_selected || result_.boot.status != BootStatus::ok) {
+            if (!result_.boot_selected() || result_.plan.boot.status != BootStatus::ok) {
                 return false;
             }
 
             BootPlan plan = result_.plan;
             if (plan.boot.status != BootStatus::ok) {
-                plan.boot = result_.boot;
-                plan.info = result_.info;
-                plan.boot_info_loaded = result_.boot_info_loaded;
                 plan.prepare_required =
                     pending_trial_armed(plan.info) && plan.info.pending == plan.boot.slot;
                 plan.confirm_required = plan.boot.slot != plan.info.active;
                 plan.prepared = !plan.prepare_required;
             }
             if (!prepare_boot_plan(storage_, cfg_.boot, plan)) {
-                stage_ = SessionStage::failed;
-                result_.stage = stage_;
-                result_.info = plan.info;
+                mark_failed();
+                result_.plan.info = plan.info;
+                result_.plan.boot_info_loaded = plan.boot_info_loaded;
                 return false;
             }
 
-            stage_ = SessionStage::prepared;
-            result_.stage = stage_;
-            result_.boot_prepared = true;
+            set_stage(SessionStage::prepared);
             result_.plan = plan;
-            result_.boot = plan.boot;
-            result_.info = plan.info;
-            result_.boot_info_loaded = plan.boot_info_loaded;
-            result_.ready_to_boot = true;
+            session_result_set_flag(result_, SessionResultFlag::ready_to_boot);
             return true;
         }
 
         bool mark_selected_success() noexcept {
-            if (!result_.boot_selected || result_.boot.status != BootStatus::ok) {
+            if (!result_.boot_selected() || result_.plan.boot.status != BootStatus::ok) {
                 return false;
             }
-            return mark_success_for_slot(result_.boot.slot);
+            return mark_success_for_slot(result_.plan.boot.slot);
         }
 
         bool mark_success_for_slot(Slot slot) noexcept {
@@ -264,8 +273,8 @@ export namespace boot {
             if (plan.boot.status != BootStatus::ok || plan.boot.slot != slot) {
                 plan = {};
                 plan.boot = {BootStatus::ok, slot};
-                plan.info = result_.info;
-                plan.boot_info_loaded = result_.boot_info_loaded;
+                plan.info = result_.plan.info;
+                plan.boot_info_loaded = result_.plan.boot_info_loaded;
                 if (!plan.boot_info_loaded && load_boot_info(plan.info)) {
                     plan.boot_info_loaded = true;
                 }
@@ -273,25 +282,30 @@ export namespace boot {
                 plan.confirm_required = true;
             }
             if (!confirm_boot_plan(storage_, cfg_.boot, plan)) {
-                stage_ = SessionStage::failed;
-                result_.stage = stage_;
-                result_.info = plan.info;
+                mark_failed();
+                result_.plan.info = plan.info;
+                result_.plan.boot_info_loaded = plan.boot_info_loaded;
                 return false;
             }
 
-            stage_ = SessionStage::confirmed;
-            result_.stage = stage_;
+            set_stage(SessionStage::confirmed);
             result_.plan = plan;
-            result_.boot = plan.boot;
-            result_.boot_selected = true;
-            result_.success_marked = true;
-            result_.info = plan.info;
-            result_.boot_info_loaded = plan.boot_info_loaded;
-            result_.ready_to_boot = true;
+            session_result_set_flag(result_, SessionResultFlag::success_marked);
+            session_result_set_flag(result_, SessionResultFlag::ready_to_boot);
             return true;
         }
 
     private:
+        void set_stage(SessionStage stage) noexcept {
+            stage_ = stage;
+            result_.stage = stage_;
+        }
+
+        void mark_failed() noexcept {
+            set_stage(SessionStage::failed);
+            session_result_clear_flag(result_, SessionResultFlag::ready_to_boot);
+        }
+
         bool load_boot_info(BootInfo& info) const noexcept {
             if (cfg_.has_seed_info) {
                 info = cfg_.seed_info;

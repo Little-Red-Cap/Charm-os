@@ -381,7 +381,7 @@ int main() {
     const auto& execution = handoff.execution;
     const bool marked = receiver.mark_selected_success();
     const auto final_result = receiver.result();
-    const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info);
+    const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info());
 
     MockFlash headerless_flash{};
     auto headerless_storage = make_storage(headerless_flash);
@@ -402,7 +402,7 @@ int main() {
         !static_cast<bool>(headerless) &&
         headerless.stage == boot::SessionStage::failed &&
         headerless.transfer.header_missing &&
-        !headerless.ready_to_boot;
+        !headerless.ready_to_boot();
 
     MockFlash bad_entry_flash{};
     auto bad_entry_storage = make_storage(bad_entry_flash);
@@ -463,8 +463,8 @@ int main() {
     const bool ok = slot_a_written &&
                     transfer_ok &&
                     static_cast<bool>(download) &&
-                    download.pending_set &&
-                    download.boot_info_written &&
+                    download.pending_set() &&
+                    download.boot_info_written() &&
                     static_cast<bool>(plan) &&
                     plan.boot.status == boot::BootStatus::ok &&
                     slot_b_valid &&
@@ -482,7 +482,7 @@ int main() {
                     target.payload_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) &&
                     target.storage_entry_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) + 4 &&
                     prepared &&
-                    prepared_result.boot_prepared &&
+                    prepared_result.boot_prepared() &&
                     prepared_result.plan.prepared &&
                     !prepared_result.plan.prepare_required &&
                     static_cast<bool>(rollback_plan) &&
@@ -499,10 +499,10 @@ int main() {
                     launch_ctx.resolve_called &&
                     launch_ctx.load_called &&
                     marked &&
-                    final_result.success_marked &&
+                    final_result.success_marked() &&
                     final_result.plan.prepared &&
                     !final_result.plan.confirm_required &&
-                    final_result.info.active == boot::Slot::b &&
+                    final_result.info().active == boot::Slot::b &&
                     headerless_failed &&
                     bad_entry_rejected &&
                     xip_ok;
@@ -511,8 +511,8 @@ int main() {
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
     std::printf("[boot] session_stage=%u pending=%d bootinfo=%d\n",
                 static_cast<unsigned>(download.stage),
-                download.pending_set ? 1 : 0,
-                download.boot_info_written ? 1 : 0);
+                download.pending_set() ? 1 : 0,
+                download.boot_info_written() ? 1 : 0);
     std::printf("[boot] xymodem_download=%d bytes=%u expected=%u status=%u\n",
                 static_cast<bool>(download) ? 1 : 0,
                 download.transfer.bytes_written,
@@ -546,7 +546,7 @@ int main() {
                 rollback_plan.boot.slot == boot::Slot::a ? "A" : "B");
     std::printf("[boot] mark_success=%d active=%s\n",
                 marked ? 1 : 0,
-                final_result.info.active == boot::Slot::a ? "A" : "B");
+                final_result.info().active == boot::Slot::a ? "A" : "B");
     std::printf("[boot] headerless_fail=%d stage=%u missing_header=%d\n",
                 headerless_failed ? 1 : 0,
                 static_cast<unsigned>(headerless.stage),

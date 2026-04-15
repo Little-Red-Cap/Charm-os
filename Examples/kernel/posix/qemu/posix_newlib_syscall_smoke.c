@@ -684,6 +684,30 @@ int charm_posix_newlib_path_entry(void) {
     if (memcmp(buf, "bravo++", 7) != 0) return 172;
     if (close(fd) != 0) return 173;
 
+    memset(buf, 0, sizeof(buf));
+    errno = 69;
+    fd = open("/newlib-rw.txt", O_CREAT | O_TRUNC | O_RDWR, 0);
+    if (fd < 0) return 603;
+    if (errno != 69) return 604;
+    if ((fcntl(fd, F_GETFL) & O_ACCMODE) != O_RDWR) return 605;
+    if (write(fd, "rw", 2) != 2) return 606;
+    if (lseek(fd, 0, SEEK_SET) != 0) return 607;
+    if (read(fd, buf, 2) != 2) return 608;
+    if (memcmp(buf, "rw", 2) != 0) return 609;
+    if (lseek(fd, 0, SEEK_END) != 2) return 610;
+    if (write(fd, "+", 1) != 1) return 611;
+    if (close(fd) != 0) return 612;
+    if (stat("/newlib-rw.txt", &st) != 0) return 613;
+    if (st.st_size != 3) return 614;
+
+    memset(buf, 0, sizeof(buf));
+    fd = open("/newlib-rw.txt", O_RDONLY, 0);
+    if (fd < 0) return 615;
+    if (read(fd, buf, 3) != 3) return 616;
+    if (memcmp(buf, "rw+", 3) != 0) return 617;
+    if (close(fd) != 0) return 618;
+    if (unlink("/newlib-rw.txt") != 0) return 619;
+
     errno = 65;
     if (unlink("/newlib-renamed.txt") != 0) return 174;
     if (errno != 65) return 554;

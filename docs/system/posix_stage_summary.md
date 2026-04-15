@@ -3,6 +3,7 @@
 ## Current Baseline
 - stage exit criteria are now captured separately in `docs/system/posix_v0_closure_checklist.md`, so “keep pushing” and “when to stop” can be judged against the same checklist
 - QEMU mainline smoke is green: `posix smoke + busybox phase2 smoke`
+- dedicated newlib stdio smoke is green too: `posix-qemu-newlib-stdio.elf` passes `run_qemu_ci.ps1` with `-RequireBusyboxPhase2 $false`
 - ELF execution is on the regular path: `spawn -> load_image -> start_image`
 - ELF explicit exit ABI v0 is live: `_exit(code)` works through `ExecContext` + `setjmp/longjmp`
 - programs smoke is split into `posix.test_harness`, `exec`, `fdpath`, and `shell` modules

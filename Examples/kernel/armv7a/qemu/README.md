@@ -287,6 +287,10 @@ continue
   `Group0 + FIQEn`, keeps ordinary IRQ masked, and proves the FIQ vector can
   take, acknowledge, and EOIR a real GIC-delivered interrupt before we move
   toward board-specific secure/non-secure interrupt routing.
+- The GIC register layer and the interrupt-smoke handler/state layer now live
+  in dedicated leaf helpers (`armv7a_gic.cpp` and
+  `armv7a_interrupt_smoke.cpp`), so `irq_timer.cpp` stays focused on how each
+  smoke is triggered instead of also owning the whole IRQ/FIQ receive path.
 - Boot page-table bring-up now includes a tiny coarse L1 -> small-page L2
   path in an otherwise unmapped alias window, which gives us a 4KB-granular
   probe without disturbing the 1MB section identity map used by the default

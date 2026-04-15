@@ -155,7 +155,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 
 ## 5. v0 建议字段分组
 
-当前建议把 `artifact report` 分成七组字段。
+当前建议把 `artifact report` 分成八组字段。
 
 ### 5.1 报告身份
 
@@ -298,7 +298,23 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 
 这些已经存在的观察语言。
 
-### 5.7 支持工件引用
+### 5.7 比较摘要（compare 模式可选）
+
+这一组回答：
+
+> “如果当前报告来自 compare 模式，这个 case 相对 baseline 到底发生了什么。”
+
+建议至少包含：
+
+- `status`
+- `summary_changes`
+- `node_changes`
+- `edge_changes`
+
+这组字段不应取代底层 `bundle_diff`，
+但它应该把 case 级最重要的比较结论直接拉到报告顶层。
+
+### 5.8 支持工件引用
 
 这一组回答：
 
@@ -312,6 +328,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `diff`
 - `ci_summary`
 - `report_manifest`
+- `report_markdown`
+- `report_html`
 
 其中每个引用建议都以：
 
@@ -374,29 +392,40 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
       }
     ]
   },
+  "comparison": {
+    "status": "changed",
+    "summary_changes": ["node_count:9->10"],
+    "node_changes": {"added": 1, "removed": 0, "changed": 0},
+    "edge_changes": {"added": 1, "removed": 0}
+  },
   "artifacts": {
     "bundle": "out/materialized-graph-bundle/index.json",
     "dot": "out/materialized-graph-bundle/case/materialized_graph.dot",
     "sample_json": "out/materialized-graph-bundle/case/materialized_graph.sample.json",
     "diff": null,
     "ci_summary": null,
-    "report_manifest": "out/report/materialized_graph_bundle_diff_report.manifest.json"
+    "report_manifest": "out/report/materialized_graph_bundle_diff_report.manifest.json",
+    "report_markdown": "out/report/materialized_graph_bundle_diff_report.md",
+    "report_html": "out/report/materialized_graph_bundle_diff_report.html"
   }
 }
 ```
 
-这个样例的重点不是字段名已经最终拍板，  
+这个样例的重点不是字段名已经最终拍板，
 而是先把对象轮廓固定住：
 
 - 顶层是统一报告对象
 - 中层是若干摘要分组
 - 底层通过 `artifacts` 继续引用原始工件
 
+在 `export_only` 模式下，`comparison` 可以省略；
+在 `compare` 模式下，建议把它视为 case 级比较结论的第一摘要面。
+
 ## 7. 与其它文档的关系
 
 ### 7.1 与 `explain_surface_v0`
 
-`artifact report` 是 explain surface 的重要输入之一，  
+`artifact report` 是 explain surface 的重要输入之一，
 但两者不等价。
 
 - `artifact report`

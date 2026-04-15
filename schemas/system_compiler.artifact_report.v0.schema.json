@@ -52,6 +52,9 @@
     "runtime_observe": {
       "$ref": "#/$defs/runtimeObserve"
     },
+    "comparison": {
+      "$ref": "#/$defs/comparisonSummary"
+    },
     "artifacts": {
       "$ref": "#/$defs/artifacts"
     }
@@ -307,6 +310,58 @@
         }
       }
     },
+    "changeCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "comparisonSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "summary_changes",
+        "node_changes",
+        "edge_changes"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "changed",
+            "added",
+            "removed",
+            "unchanged"
+          ]
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "node_changes": {
+          "$ref": "#/$defs/changeCounts"
+        },
+        "edge_changes": {
+          "$ref": "#/$defs/changeCounts"
+        }
+      }
+    },
     "artifacts": {
       "type": "object",
       "additionalProperties": false,
@@ -335,6 +390,12 @@
           "$ref": "#/$defs/nullableString"
         },
         "report_manifest": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "report_markdown": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "report_html": {
           "$ref": "#/$defs/nullableString"
         }
       }

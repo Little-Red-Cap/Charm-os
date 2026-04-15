@@ -270,6 +270,8 @@ function Get-ArtifactContext {
     $resolvedCiSummary = $null
     $resolvedDiff = Resolve-OptionalArtifactPath -PathValue $DiffJson
     $resolvedReportManifest = Resolve-OptionalArtifactPath -PathValue $ReportManifest
+    $diffData = $null
+    $reportManifestData = $null
 
     if ($null -ne $ciSummaryInfo) {
         $resolvedCiSummary = $ciSummaryInfo.Path
@@ -284,11 +286,20 @@ function Get-ArtifactContext {
         }
     }
 
+    if ($null -ne $resolvedDiff -and (Test-Path $resolvedDiff)) {
+        $diffData = Get-Content -LiteralPath $resolvedDiff -Raw -Encoding utf8 | ConvertFrom-Json
+    }
+    if ($null -ne $resolvedReportManifest -and (Test-Path $resolvedReportManifest)) {
+        $reportManifestData = Get-Content -LiteralPath $resolvedReportManifest -Raw -Encoding utf8 | ConvertFrom-Json
+    }
+
     return [pscustomobject]@{
         Mode = $resolvedMode
         CiSummary = $resolvedCiSummary
         Diff = $resolvedDiff
         ReportManifest = $resolvedReportManifest
+        DiffData = $diffData
+        ReportManifestData = $reportManifestData
     }
 }
 
@@ -328,8 +339,53 @@ function New-ArtifactReport {
     $allCapabilities = @($providedFacts + $requiredFacts | Sort-Object -Unique)
     $unresolvedBindings = @(Get-UnresolvedBindings -RequiredFacts $requiredFacts -ProvidedFacts $providedFacts)
     $blockedReasons = @($unresolvedBindings | ForEach-Object { "unresolved binding: $_" })
+    $comparison = $null
+    if ($ArtifactContext.Mode -eq 'compare' -and $null -ne $ArtifactContext.DiffData) {
+        $caseName = [string]$CaseEntry.name
+        $caseDiff = @($ArtifactContext.DiffData.cases | Where-Object { [string]$_.name -eq $caseName } | Select-Object -First 1)
+        if ($caseDiff.Count -gt 0) {
+            $comparison = [ordered]@{
+                status = [string]$caseDiff[0].status
+                summary_changes = @($caseDiff[0].summary_changes)
+                node_changes = [ordered]@{
+                    added = @($caseDiff[0].node_changes.added).Count
+                    removed = @($caseDiff[0].node_changes.removed).Count
+                    changed = @($caseDiff[0].node_changes.changed).Count
+                }
+                edge_changes = [ordered]@{
+                    added = @($caseDiff[0].edge_changes.added).Count
+                    removed = @($caseDiff[0].edge_changes.removed).Count
+                }
+            }
+        } else {
+            $comparison = [ordered]@{
+                status = 'unchanged'
+                summary_changes = @()
+                node_changes = [ordered]@{
+                    added = 0
+                    removed = 0
+                    changed = 0
+                }
+                edge_changes = [ordered]@{
+                    added = 0
+                    removed = 0
+                }
+            }
+        }
+    }
 
-    return [ordered]@{
+    $reportMarkdown = $null
+    $reportHtml = $null
+    if ($null -ne $ArtifactContext.ReportManifestData -and $null -ne $ArtifactContext.ReportManifestData.reports) {
+        if ($null -ne $ArtifactContext.ReportManifestData.reports.markdown) {
+            $reportMarkdown = Resolve-OptionalArtifactPath -PathValue ([string]$ArtifactContext.ReportManifestData.reports.markdown)
+        }
+        if ($null -ne $ArtifactContext.ReportManifestData.reports.html) {
+            $reportHtml = Resolve-OptionalArtifactPath -PathValue ([string]$ArtifactContext.ReportManifestData.reports.html)
+        }
+    }
+
+    $report = [ordered]@{
         schema = 'system_compiler.artifact_report/v0'
         generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
         generator = 'scripts/export_system_compiler_artifact_report.ps1'
@@ -390,8 +446,16 @@ function New-ArtifactReport {
             diff = $ArtifactContext.Diff
             ci_summary = $ArtifactContext.CiSummary
             report_manifest = $ArtifactContext.ReportManifest
+            report_markdown = $reportMarkdown
+            report_html = $reportHtml
         }
     }
+
+    if ($null -ne $comparison) {
+        $report.comparison = $comparison
+    }
+
+    return $report
 }
 
 $bundle = Load-Bundle

@@ -158,6 +158,9 @@ if (($log -notmatch "ARMv7-A SGI active, intid=1")) {
 if (($log -notmatch "ARMv7-A FIQ active, intid=1")) {
     $missing += "ARMv7-A FIQ active, intid=1"
 }
+if (($log -notmatch "ARMv7-A security side evidence, scr-read=skipped, timer-route=(secure|non-secure)-phys-ppi, irq-origin=[a-z]+, irq-handler=irq, fiq-origin=[a-z]+, fiq-handler=fiq, monitor-mode=(observed|not-observed)")) {
+    $missing += "ARMv7-A security side evidence, scr-read=skipped..."
+}
 if ($missing.Count -gt 0) {
     Write-Output "[armv7a-qemu] log tail:"
     if (Test-Path $outFile) {

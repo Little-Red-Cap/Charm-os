@@ -309,6 +309,9 @@ if ($log.Contains("ARMv7-A SGI active")) {
 if ($log.Contains("ARMv7-A FIQ active")) {
     $unexpected += "ARMv7-A FIQ active"
 }
+if ($log.Contains("ARMv7-A security side evidence")) {
+    $unexpected += "ARMv7-A security side evidence"
+}
 
 if ($missing.Count -gt 0 -or $unexpected.Count -gt 0) {
     Show-LogTail -OutPath $outFile -ErrPath $errFile -Lines $TailLines

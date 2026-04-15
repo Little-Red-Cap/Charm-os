@@ -10,12 +10,24 @@ extern "C" void early_uart_puts(const char* text);
 
 namespace {
 constexpr std::uint32_t kTimerCtrlItMask = 1u << 1;
+constexpr std::uint32_t kPsrModeMask = 0x1fu;
+constexpr std::uint32_t kPsrModeMonitor = 0x16u;
+constexpr std::size_t kObservationSlotCount = 4u;
 
 volatile unsigned int g_interrupt_count = 0;
 volatile unsigned int g_last_interrupt_intid = kArmv7aGicSpuriousIntId;
 volatile Armv7aInterruptSmokeKind g_interrupt_smoke_kind = Armv7aInterruptSmokeKind::kNone;
 volatile std::uint32_t g_last_handler_cpsr = 0;
 volatile std::uint32_t g_last_handler_spsr = 0;
+volatile bool g_observation_seen[kObservationSlotCount]{};
+volatile unsigned int g_observation_intid[kObservationSlotCount]{
+    kArmv7aGicSpuriousIntId,
+    kArmv7aGicSpuriousIntId,
+    kArmv7aGicSpuriousIntId,
+    kArmv7aGicSpuriousIntId,
+};
+volatile std::uint32_t g_observation_handler_cpsr[kObservationSlotCount]{};
+volatile std::uint32_t g_observation_handler_spsr[kObservationSlotCount]{};
 
 void arch_timer_stop()
 {
@@ -30,12 +42,115 @@ void print_hex32(std::uint32_t value)
     }
 }
 
+std::size_t observation_index(Armv7aInterruptSmokeKind kind)
+{
+    return static_cast<std::size_t>(kind);
+}
+
+void clear_observation(Armv7aInterruptSmokeKind kind)
+{
+    const auto index = observation_index(kind);
+    if (index >= kObservationSlotCount) {
+        return;
+    }
+
+    g_observation_seen[index] = false;
+    g_observation_intid[index] = kArmv7aGicSpuriousIntId;
+    g_observation_handler_cpsr[index] = 0u;
+    g_observation_handler_spsr[index] = 0u;
+}
+
+void store_observation(Armv7aInterruptSmokeKind kind, unsigned int intid, const Armv7aExceptionFrame& frame)
+{
+    const auto index = observation_index(kind);
+    if (index >= kObservationSlotCount || kind == Armv7aInterruptSmokeKind::kNone) {
+        return;
+    }
+
+    g_observation_seen[index] = true;
+    g_observation_intid[index] = intid;
+    g_observation_handler_cpsr[index] = armv7a_read_cpsr();
+    g_observation_handler_spsr[index] = frame.spsr;
+}
+
+bool observation_seen(Armv7aInterruptSmokeKind kind)
+{
+    const auto index = observation_index(kind);
+    return index < kObservationSlotCount && g_observation_seen[index];
+}
+
+unsigned int observation_intid(Armv7aInterruptSmokeKind kind)
+{
+    const auto index = observation_index(kind);
+    if (index >= kObservationSlotCount) {
+        return kArmv7aGicSpuriousIntId;
+    }
+    return g_observation_intid[index];
+}
+
+std::uint32_t observation_handler_cpsr(Armv7aInterruptSmokeKind kind)
+{
+    const auto index = observation_index(kind);
+    if (index >= kObservationSlotCount) {
+        return 0u;
+    }
+    return g_observation_handler_cpsr[index];
+}
+
+std::uint32_t observation_handler_spsr(Armv7aInterruptSmokeKind kind)
+{
+    const auto index = observation_index(kind);
+    if (index >= kObservationSlotCount) {
+        return 0u;
+    }
+    return g_observation_handler_spsr[index];
+}
+
+const char* timer_route_name(unsigned int intid)
+{
+    switch (intid) {
+    case kArmv7aGicSecureTimerIntId:
+        return "secure-phys-ppi";
+    case kArmv7aGicNonSecureTimerIntId:
+        return "non-secure-phys-ppi";
+    default:
+        return "unexpected-intid";
+    }
+}
+
+bool is_monitor_mode(std::uint32_t psr)
+{
+    return (psr & kPsrModeMask) == kPsrModeMonitor;
+}
+
+bool monitor_mode_observed()
+{
+    constexpr Armv7aInterruptSmokeKind kKinds[] = {
+        Armv7aInterruptSmokeKind::kTimerIrq,
+        Armv7aInterruptSmokeKind::kSgiIrq,
+        Armv7aInterruptSmokeKind::kSgiFiq,
+    };
+
+    for (const auto kind : kKinds) {
+        if (!observation_seen(kind)) {
+            continue;
+        }
+        if (is_monitor_mode(observation_handler_cpsr(kind)) ||
+            is_monitor_mode(observation_handler_spsr(kind))) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void record_interrupt(unsigned int intid, const Armv7aExceptionFrame& frame)
 {
     g_last_interrupt_intid = intid;
     g_last_handler_cpsr = armv7a_read_cpsr();
     g_last_handler_spsr = frame.spsr;
     g_interrupt_count = 1u;
+    store_observation(g_interrupt_smoke_kind, intid, frame);
 }
 
 bool interrupt_matches_expected(unsigned int intid, bool fiq_route)
@@ -97,6 +212,7 @@ void armv7a_interrupt_smoke_begin(Armv7aInterruptSmokeKind kind)
     g_interrupt_smoke_kind = kind;
     g_last_handler_cpsr = 0;
     g_last_handler_spsr = 0;
+    clear_observation(kind);
 }
 
 void armv7a_interrupt_smoke_finish()
@@ -178,6 +294,48 @@ void armv7a_interrupt_print_fiq_timeout()
     print_hex32(line_state.isenabler);
     early_uart_puts(", hppir=0x");
     print_hex32(cpu_state.hppir);
+    early_uart_puts("\r\n");
+}
+
+void armv7a_interrupt_print_security_side_evidence()
+{
+    early_uart_puts("ARMv7-A security side evidence, scr-read=skipped, timer-route=");
+    if (observation_seen(Armv7aInterruptSmokeKind::kTimerIrq)) {
+        early_uart_puts(timer_route_name(observation_intid(Armv7aInterruptSmokeKind::kTimerIrq)));
+    } else {
+        early_uart_puts("not-observed");
+    }
+
+    early_uart_puts(", irq-origin=");
+    if (observation_seen(Armv7aInterruptSmokeKind::kSgiIrq)) {
+        early_uart_puts(armv7a_mode_name(observation_handler_spsr(Armv7aInterruptSmokeKind::kSgiIrq)));
+    } else {
+        early_uart_puts("not-observed");
+    }
+
+    early_uart_puts(", irq-handler=");
+    if (observation_seen(Armv7aInterruptSmokeKind::kSgiIrq)) {
+        early_uart_puts(armv7a_mode_name(observation_handler_cpsr(Armv7aInterruptSmokeKind::kSgiIrq)));
+    } else {
+        early_uart_puts("not-observed");
+    }
+
+    early_uart_puts(", fiq-origin=");
+    if (observation_seen(Armv7aInterruptSmokeKind::kSgiFiq)) {
+        early_uart_puts(armv7a_mode_name(observation_handler_spsr(Armv7aInterruptSmokeKind::kSgiFiq)));
+    } else {
+        early_uart_puts("not-observed");
+    }
+
+    early_uart_puts(", fiq-handler=");
+    if (observation_seen(Armv7aInterruptSmokeKind::kSgiFiq)) {
+        early_uart_puts(armv7a_mode_name(observation_handler_cpsr(Armv7aInterruptSmokeKind::kSgiFiq)));
+    } else {
+        early_uart_puts("not-observed");
+    }
+
+    early_uart_puts(", monitor-mode=");
+    early_uart_puts(monitor_mode_observed() ? "observed" : "not-observed");
     early_uart_puts("\r\n");
 }
 

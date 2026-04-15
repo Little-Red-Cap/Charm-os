@@ -8,6 +8,7 @@ import out.sink;
 #include "armv7a_cpu.hpp"
 #include "armv7a_dcache_probe.hpp"
 #include "armv7a_icache_probe.hpp"
+#include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_page_table_probe.hpp"
 #include "armv7a_section_split_probe.hpp"
@@ -200,5 +201,6 @@ int main()
     armv7a_irq_smoke_test();
     armv7a_sgi_smoke_test();
     armv7a_fiq_smoke_test();
+    armv7a_interrupt_print_security_side_evidence();
     charm_spin();
 }

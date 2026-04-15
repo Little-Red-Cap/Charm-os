@@ -96,6 +96,7 @@ ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc
 ARMv7-A timer IRQ active, intid=30, origin-mode=sys, handler-mode=irq
 ARMv7-A SGI active, intid=1, origin-mode=sys, handler-mode=irq
 ARMv7-A FIQ active, intid=1, origin-mode=sys, handler-mode=fiq
+ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-ppi, irq-origin=sys, irq-handler=irq, fiq-origin=sys, fiq-handler=fiq, monitor-mode=not-observed
 ```
 
 ## CI smoke
@@ -291,6 +292,11 @@ continue
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from
   QEMU toward real Cortex-A silicon.
+- We still deliberately skip direct `SCR/NSACR` reads in the default runtime.
+  Instead the example now prints one `security side evidence` line that
+  summarizes only what was safely observed from the live returning paths:
+  which architected timer PPI fired, which handler modes actually ran, and
+  whether monitor mode showed up anywhere in those observed paths.
 - The GIC register layer and the interrupt-smoke handler/state layer now live
   in dedicated leaf helpers (`armv7a_gic.cpp` and
   `armv7a_interrupt_smoke.cpp`), so `irq_timer.cpp` stays focused on how each

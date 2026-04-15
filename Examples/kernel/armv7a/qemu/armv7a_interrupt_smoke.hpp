@@ -22,6 +22,7 @@ std::uint32_t armv7a_interrupt_smoke_last_handler_spsr();
 void armv7a_interrupt_print_irq_timeout(std::uint32_t timer_ctrl);
 void armv7a_interrupt_print_sgi_timeout();
 void armv7a_interrupt_print_fiq_timeout();
+void armv7a_interrupt_print_security_side_evidence();
 
 extern "C" void armv7a_handle_irq(Armv7aExceptionFrame* frame);
 extern "C" void armv7a_handle_fiq(Armv7aExceptionFrame* frame);

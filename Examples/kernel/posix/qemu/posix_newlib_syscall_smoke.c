@@ -159,6 +159,7 @@ int charm_posix_newlib_fcntl_entry(void) {
     int dup_fd = fcntl(1, F_DUPFD, 3);
     int alias_fd = -1;
     int stdin_pipe[2] = {-1, -1};
+    int file_fd = -1;
     int flags = 0;
     struct stat st;
     if (dup_fd < 3) return 181;
@@ -386,6 +387,35 @@ int charm_posix_newlib_fcntl_entry(void) {
     errno = 0;
     if (stat("/dev/tty", &st) != -1) return 330;
     if (errno != ENOENT) return 331;
+
+    file_fd = open("/newlib-fcntl-file.txt", O_CREAT | O_TRUNC | O_RDWR, 0);
+    if (file_fd < 0) return 649;
+    if (write(file_fd, "ab", 2) != 2) return 650;
+    dup_fd = dup(file_fd);
+    if (dup_fd < 0) return 651;
+    errno = 96;
+    if (fcntl(dup_fd, F_SETFL, O_APPEND) != 0) return 652;
+    if (errno != 96) return 653;
+    errno = 97;
+    flags = fcntl(file_fd, F_GETFL);
+    if (flags < 0) return 654;
+    if (errno != 97) return 655;
+    if ((flags & O_ACCMODE) != O_RDWR) return 656;
+    if ((flags & O_APPEND) == 0) return 657;
+    if (lseek(file_fd, 0, SEEK_SET) != 0) return 658;
+    if (write(file_fd, "+", 1) != 1) return 659;
+    if (close(dup_fd) != 0) return 660;
+    if (close(file_fd) != 0) return 661;
+
+    file_fd = open("/newlib-fcntl-file.txt", O_RDONLY, 0);
+    if (file_fd < 0) return 662;
+    {
+        char file_buf[4] = {0};
+        if (read(file_fd, file_buf, 3) != 3) return 663;
+        if (memcmp(file_buf, "ab+", 3) != 0) return 664;
+    }
+    if (close(file_fd) != 0) return 665;
+    if (unlink("/newlib-fcntl-file.txt") != 0) return 666;
 
     return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 294;
 }

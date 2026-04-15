@@ -73,6 +73,7 @@
 - the exported C fs header surface now also smoke-pins `/dev/null` with `CHARM_POSIX_O_RDWR`: one fd still observes read-EOF, write-byte-count success, and `lseek(...) -> ESPIPE`
 - the exported C fs header surface now also smoke-pins regular-file fd success paths more directly: `open/write/fstat/lseek/close/unlink` keep `errno` stable on success, `fstat(fd)` reports `S_IFREG + size`, and `CHARM_POSIX_SEEK_CUR` remains observable on a live read/write descriptor
 - the exported C fs header surface now also smoke-pins relative cwd behavior directly: `chdir("sub")` enters a child directory, `open("../parent.txt", ...)` resolves against the live cwd, and `chdir("..")` returns to the parent without clobbering `errno`
+- the exported C fs header surface now also smoke-pins rename success more directly: the old path disappears with `ENOENT`, the new path keeps regular-file size/content, and the renamed file remains reachable through the live cwd
 - the exported C fs header surface now also smoke-pins `rmdir(nonempty-dir) -> ENOTEMPTY` directly on the public C layer
 - the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
 - the exported C fs header surface now also smoke-covers path-shape errors directly: `open(dir, O_WRONLY) -> EISDIR`, and bad-parent paths such as `file/child` now consistently report `ENOTDIR` across `open/stat/mkdir/unlink/rmdir/rename`

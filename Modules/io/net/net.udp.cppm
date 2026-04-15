@@ -372,6 +372,10 @@ export namespace net {
             return flushed_count_;
         }
 
+        [[nodiscard]] util::usize dropped_count() const noexcept {
+            return dropped_count_;
+        }
+
         template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
         [[nodiscard]] Result<UdpSendDisposition> send(NetIf& netif,
                                                       ArpService<ArpCapacity, ArpTxCapacity>& arp,
@@ -439,6 +443,11 @@ export namespace net {
                 if (sent.error() == errc::again) {
                     continue;
                 }
+                if (sent.error() == errc::timeout) {
+                    entry = {};
+                    ++dropped_count_;
+                    continue;
+                }
                 return util::unexpected(sent.error());
             }
             return Result<util::usize>{std::in_place, flushed};
@@ -494,6 +503,7 @@ export namespace net {
         std::array<PendingEntry, PendingCapacity> entries_{};
         util::usize queued_count_{0};
         util::usize flushed_count_{0};
+        util::usize dropped_count_{0};
     };
 
     template <util::usize Capacity>

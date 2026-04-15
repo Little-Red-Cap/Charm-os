@@ -293,7 +293,17 @@ export namespace net {
         [[nodiscard]] util::usize pending_count() const noexcept {
             util::usize count = 0;
             for (const auto& pending : pending_) {
-                if (pending.used) {
+                if (pending.used && !pending.failed) {
+                    ++count;
+                }
+            }
+            return count;
+        }
+
+        [[nodiscard]] util::usize failed_count() const noexcept {
+            util::usize count = 0;
+            for (const auto& pending : pending_) {
+                if (pending.used && pending.failed) {
                     ++count;
                 }
             }
@@ -301,7 +311,7 @@ export namespace net {
         }
 
         [[nodiscard]] util::usize pending_attempts(IpAddress ip) const noexcept {
-            const auto index = find_pending(ip);
+            const auto index = find_entry(ip);
             if (index == invalid_index()) {
                 return 0;
             }
@@ -316,14 +326,22 @@ export namespace net {
             return reply_count_;
         }
 
-        [[nodiscard]] Result<util::usize> retry_pending_requests() noexcept {
+        [[nodiscard]] Result<util::usize> retry_pending_requests(
+            util::usize max_attempts = static_cast<util::usize>(-1)) noexcept {
             if (netif_ == nullptr) {
                 return util::unexpected(errc::bad_state);
+            }
+            if (max_attempts == 0u) {
+                return util::unexpected(errc::invalid_arg);
             }
 
             util::usize retried = 0;
             for (auto& pending : pending_) {
-                if (!pending.used) {
+                if (!pending.used || pending.failed) {
+                    continue;
+                }
+                if (pending.attempts >= max_attempts) {
+                    pending.failed = true;
                     continue;
                 }
                 auto requested = issue_pending_request(pending);
@@ -345,13 +363,16 @@ export namespace net {
 
             const auto cached = table_.lookup(ip);
             if (cached) {
-                clear_pending(ip);
+                clear_resolution(ip);
                 return cached;
             }
             if (cached.error() != errc::noent) {
                 return util::unexpected(cached.error());
             }
 
+            if (find_failed(ip) != invalid_index()) {
+                return util::unexpected(errc::timeout);
+            }
             if (find_pending(ip) != invalid_index()) {
                 return util::unexpected(errc::again);
             }
@@ -387,7 +408,7 @@ export namespace net {
             if (!remembered) {
                 return util::unexpected(remembered.error());
             }
-            clear_pending(parsed.value().sender_ip);
+            clear_resolution(parsed.value().sender_ip);
 
             if (parsed.value().operation != ArpOperation::request) {
                 return {};
@@ -419,6 +440,7 @@ export namespace net {
     private:
         struct PendingEntry {
             bool used{false};
+            bool failed{false};
             IpAddress ip{};
             util::usize attempts{0};
         };
@@ -427,7 +449,7 @@ export namespace net {
             return static_cast<util::usize>(-1);
         }
 
-        [[nodiscard]] util::usize find_pending(IpAddress ip) const noexcept {
+        [[nodiscard]] util::usize find_entry(IpAddress ip) const noexcept {
             for (util::usize i = 0; i < pending_.size(); ++i) {
                 if (!pending_[i].used) {
                     continue;
@@ -437,6 +459,22 @@ export namespace net {
                 }
             }
             return invalid_index();
+        }
+
+        [[nodiscard]] util::usize find_pending(IpAddress ip) const noexcept {
+            const auto index = find_entry(ip);
+            if (index == invalid_index() || pending_[index].failed) {
+                return invalid_index();
+            }
+            return index;
+        }
+
+        [[nodiscard]] util::usize find_failed(IpAddress ip) const noexcept {
+            const auto index = find_entry(ip);
+            if (index == invalid_index() || !pending_[index].failed) {
+                return invalid_index();
+            }
+            return index;
         }
 
         [[nodiscard]] Result<util::usize> reserve_pending_slot() const noexcept {
@@ -458,8 +496,8 @@ export namespace net {
             return {};
         }
 
-        void clear_pending(IpAddress ip) noexcept {
-            const auto index = find_pending(ip);
+        void clear_resolution(IpAddress ip) noexcept {
+            const auto index = find_entry(ip);
             if (index == invalid_index()) {
                 return;
             }

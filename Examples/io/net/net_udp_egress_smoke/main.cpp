@@ -98,11 +98,14 @@ int main() {
     constexpr auto peer_ip = net::IpAddress::ipv4(10, 0, 0, 9);
     constexpr auto queued_peer_mac = net::MacAddress::from_bytes(0x02u, 0x99u, 0x88u, 0x77u, 0x66u, 0x55u);
     constexpr auto queued_peer_ip = net::IpAddress::ipv4(10, 0, 0, 19);
+    constexpr auto expired_peer_ip = net::IpAddress::ipv4(10, 0, 0, 29);
     constexpr auto local = net::Endpoint{net::IpAddress::ipv4_any(), 5000};
     constexpr auto peer = net::Endpoint{peer_ip, 7000};
     constexpr auto queued_peer = net::Endpoint{queued_peer_ip, 7100};
+    constexpr auto expired_peer = net::Endpoint{expired_peer_ip, 7200};
     static constexpr util::u8 payload[]{'p', 'o', 'n', 'g'};
     static constexpr util::u8 queued_payload[]{'q', 'u', 'e', 'u', 'e'};
+    static constexpr util::u8 expired_payload[]{'d', 'r', 'o', 'p'};
 
     net::NetIf netif{};
     auto configured = netif.configure(net::NetIfConfig{
@@ -440,6 +443,75 @@ int main() {
             std::fputs("udp egress smoke queued payload mismatch\n", stderr);
             return 34;
         }
+    }
+
+    auto expired = egress_queue.send<128>(
+        netif,
+        arp,
+        local,
+        expired_peer,
+        net::ByteView{expired_payload, sizeof(expired_payload)},
+        28,
+        0xBEEFu,
+        0x22u);
+    if (!expired
+        || expired.value() != net::UdpSendDisposition::queued
+        || link.tx_calls != 6
+        || arp.request_count() != 4
+        || arp.pending_count() != 1
+        || arp.failed_count() != 0
+        || egress_queue.pending_count() != 1) {
+        std::fputs("udp egress smoke timeout queue send failed\n", stderr);
+        return 35;
+    }
+
+    auto expired_request_frame = net::parse_ether_frame(net::PacketView{
+        net::ByteView{link.tx_bytes.data(), link.tx_size},
+        0,
+        0
+    });
+    if (!expired_request_frame || expired_request_frame.value().type != net::EtherType::arp) {
+        std::fputs("udp egress smoke timeout request parse failed\n", stderr);
+        return 36;
+    }
+    auto expired_request_arp = net::parse_arp_ipv4_ethernet(expired_request_frame.value().payload);
+    if (!expired_request_arp
+        || expired_request_arp.value().operation != net::ArpOperation::request
+        || !same_ipv4(expired_request_arp.value().target_ip, expired_peer_ip)) {
+        std::fputs("udp egress smoke timeout request parse failed\n", stderr);
+        return 36;
+    }
+
+    retried = arp.retry_pending_requests(2);
+    if (!retried
+        || retried.value() != 1
+        || link.tx_calls != 7
+        || arp.request_count() != 5
+        || arp.pending_count() != 1
+        || arp.pending_attempts(expired_peer_ip) != 2) {
+        std::fputs("udp egress smoke timeout retry failed\n", stderr);
+        return 37;
+    }
+
+    auto timeout_sweep = arp.retry_pending_requests(2);
+    if (!timeout_sweep
+        || timeout_sweep.value() != 0
+        || link.tx_calls != 7
+        || arp.pending_count() != 0
+        || arp.failed_count() != 1
+        || arp.pending_attempts(expired_peer_ip) != 2) {
+        std::fputs("udp egress smoke timeout exhaustion failed\n", stderr);
+        return 38;
+    }
+
+    auto dropped = egress_queue.flush<128>(netif, arp);
+    if (!dropped
+        || dropped.value() != 0
+        || link.tx_calls != 7
+        || egress_queue.pending_count() != 0
+        || egress_queue.dropped_count() != 1) {
+        std::fputs("udp egress smoke timeout drop failed\n", stderr);
+        return 39;
     }
 
     std::puts("net udp egress smoke: ok");

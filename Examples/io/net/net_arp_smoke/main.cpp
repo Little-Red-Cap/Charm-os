@@ -263,6 +263,24 @@ int main() {
         return 19;
     }
 
+    auto exhausted = arp.retry_pending_requests(2);
+    if (!exhausted
+        || exhausted.value() != 0
+        || arp.request_count() != 2
+        || arp.pending_count() != 0
+        || arp.failed_count() != 1
+        || arp.pending_attempts(retry_ip) != 2
+        || link.tx_calls != 3) {
+        std::fputs("arp smoke retry exhaustion failed\n", stderr);
+        return 20;
+    }
+
+    auto timed_out = arp.lookup_or_request(retry_ip);
+    if (timed_out || timed_out.error() != net::errc::timeout || link.tx_calls != 3) {
+        std::fputs("arp smoke timeout state failed\n", stderr);
+        return 21;
+    }
+
     net::PacketBuffer<96> retry_reply{};
     auto wrote_retry_reply = net::write_arp_ipv4_reply_frame(
         retry_reply,
@@ -273,20 +291,24 @@ int main() {
         local_ip);
     if (!wrote_retry_reply) {
         std::fputs("arp smoke retry reply encode failed\n", stderr);
-        return 20;
+        return 22;
     }
 
     link.queue_rx(retry_reply.view().payload);
     polled = stack.poll_links();
-    if (!polled || arp.pending_count() != 0 || link.tx_calls != 3 || link.rx_pool.in_use_count() != 0) {
+    if (!polled
+        || arp.pending_count() != 0
+        || arp.failed_count() != 0
+        || link.tx_calls != 3
+        || link.rx_pool.in_use_count() != 0) {
         std::fputs("arp smoke retry reply handling failed\n", stderr);
-        return 21;
+        return 23;
     }
 
     auto resolved_retry = arp.lookup_or_request(retry_ip);
     if (!resolved_retry || !same_mac(resolved_retry.value(), retry_mac) || arp.request_count() != 2) {
         std::fputs("arp smoke retry cache resolve failed\n", stderr);
-        return 22;
+        return 24;
     }
 
     std::puts("net arp smoke: ok");

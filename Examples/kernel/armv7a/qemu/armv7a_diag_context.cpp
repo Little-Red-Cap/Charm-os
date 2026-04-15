@@ -12,6 +12,9 @@ void armv7a_diag_print_context(const char* subsystem)
     armv7a_platform_early_console_puts(", stage=");
     armv7a_platform_early_console_puts(
         armv7a_bringup_phase_name(armv7a_current_bringup_phase()));
+    armv7a_platform_early_console_puts(", last-complete=");
+    armv7a_platform_early_console_puts(
+        armv7a_bringup_phase_name(armv7a_last_completed_bringup_phase()));
     armv7a_platform_early_console_puts(", cpsr=0x");
     armv7a_diag_put_hex(armv7a_read_cpsr());
     armv7a_platform_early_console_puts("\r\n");

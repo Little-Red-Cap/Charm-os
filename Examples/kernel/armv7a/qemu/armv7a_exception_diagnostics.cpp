@@ -227,6 +227,9 @@ void armv7a_exception_print_svc_active(const Armv7aExceptionFrame& frame, unsign
     armv7a_platform_early_console_puts("ARMv7-A exception phase, stage=");
     armv7a_platform_early_console_puts(
         armv7a_bringup_phase_name(armv7a_current_bringup_phase()));
+    armv7a_platform_early_console_puts(", last-complete=");
+    armv7a_platform_early_console_puts(
+        armv7a_bringup_phase_name(armv7a_last_completed_bringup_phase()));
     armv7a_platform_early_console_puts("\r\n");
     armv7a_print_handler_stack_evidence(exception_stack_tag_name(kind), current_cpsr);
     print_fault_registers(kind);

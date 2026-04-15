@@ -14,6 +14,7 @@ int main()
     armv7a_platform_early_console_puts("Targeting Cortex-A7 first, RK3506 later.\r\n");
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kBootCpuState);
     armv7a_print_boot_cpu_state();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kBootCpuState);
     armv7a_prepare_memory_probe_environment();
     armv7a_print_memory_probe_environment();
     armv7a_activate_memory_probe_environment();

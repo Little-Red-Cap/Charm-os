@@ -29,6 +29,7 @@ void armv7a_prepare_memory_probe_environment()
     armv7a_prepare_icache_probe_mapping();
     armv7a_prepare_page_table_probe_mapping();
     armv7a_prepare_section_split_probe_mapping();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kMemoryProbePrepare);
 }
 
 void armv7a_print_memory_probe_environment()
@@ -42,6 +43,7 @@ void armv7a_print_memory_probe_environment()
     armv7a_print_icache_probe_mapping_state();
     armv7a_print_page_table_probe_mapping_state();
     armv7a_print_section_split_probe_mapping_state();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kMemoryProbeDescribe);
 }
 
 void armv7a_activate_memory_probe_environment()
@@ -52,20 +54,26 @@ void armv7a_activate_memory_probe_environment()
     armv7a_enable_icache();
     armv7a_print_mmu_runtime_state();
     armv7a_print_charm_module_status();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kMmuActivate);
 }
 
 void armv7a_run_pre_dcache_probe_sequence()
 {
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSmallPageProbe);
     armv7a_run_small_page_probe();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kSmallPageProbe);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kAttributeProbe);
     armv7a_run_attribute_probe();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kAttributeProbe);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIcacheProbe);
     armv7a_run_icache_probe();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kIcacheProbe);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kAbortSmoke);
     armv7a_run_abort_smoke_if_enabled();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kAbortSmoke);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kExceptionSmoke);
     armv7a_run_exception_smoke_if_enabled();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kExceptionSmoke);
 }
 
 void armv7a_run_post_dcache_probe_sequence()
@@ -74,8 +82,11 @@ void armv7a_run_post_dcache_probe_sequence()
     armv7a_enable_dcache();
     armv7a_print_dcache_runtime_state();
     armv7a_run_dcache_probe();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kDcacheProbe);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kPageTableProbe);
     armv7a_run_page_table_probe();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kPageTableProbe);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSectionSplitProbe);
     armv7a_run_section_split_probe();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kSectionSplitProbe);
 }

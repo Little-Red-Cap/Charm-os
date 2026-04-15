@@ -108,8 +108,11 @@ $expected = @(
     "Targeting Cortex-A7 first, RK3506 later.",
     "Charm out.format import active, PL011 @ 0x09000000",
     "ARMv7-A phase, stage=boot-cpu-state",
+    "ARMv7-A phase complete, stage=boot-cpu-state",
     "ARMv7-A phase, stage=mmu-activate",
+    "ARMv7-A phase complete, stage=mmu-activate",
     "ARMv7-A phase, stage=exception-smoke",
+    "ARMv7-A phase complete, stage=abort-smoke",
     "ARMv7-A exception smoke, kind=undefined"
 )
 
@@ -164,8 +167,8 @@ if (($log -notmatch "ARMv7-A MMU flags, mmu=on, dcache=off, icache=on")) {
 if (($log -notmatch "ARMv7-A exception: undefined, pc=0x[0-9A-F]{8}, lr=0x[0-9A-F]{8}, spsr=0x[0-9A-F]{8}, origin-mode=[a-z]+, current-cpsr=0x[0-9A-F]{8}, current-mode=und")) {
     $missing += "ARMv7-A exception: undefined, pc=0x..."
 }
-if (($log -notmatch "ARMv7-A exception phase, stage=exception-smoke")) {
-    $missing += "ARMv7-A exception phase, stage=exception-smoke"
+if (($log -notmatch "ARMv7-A exception phase, stage=exception-smoke, last-complete=abort-smoke")) {
+    $missing += "ARMv7-A exception phase, stage=exception-smoke, last-complete=abort-smoke"
 }
 if (($log -notmatch "ARMv7-A handler stack, vector=undefined, mode=und, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
     $missing += "ARMv7-A handler stack, vector=undefined..."

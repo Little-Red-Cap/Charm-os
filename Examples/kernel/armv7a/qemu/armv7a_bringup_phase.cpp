@@ -4,6 +4,7 @@
 
 namespace {
 Armv7aBringupPhase g_armv7a_bringup_phase = Armv7aBringupPhase::kReset;
+Armv7aBringupPhase g_armv7a_last_completed_phase = Armv7aBringupPhase::kReset;
 }
 
 const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
@@ -55,6 +56,11 @@ Armv7aBringupPhase armv7a_current_bringup_phase()
     return g_armv7a_bringup_phase;
 }
 
+Armv7aBringupPhase armv7a_last_completed_bringup_phase()
+{
+    return g_armv7a_last_completed_phase;
+}
+
 void armv7a_enter_bringup_phase(Armv7aBringupPhase phase)
 {
     if (g_armv7a_bringup_phase == phase) {
@@ -63,6 +69,18 @@ void armv7a_enter_bringup_phase(Armv7aBringupPhase phase)
 
     g_armv7a_bringup_phase = phase;
     armv7a_platform_early_console_puts("ARMv7-A phase, stage=");
+    armv7a_platform_early_console_puts(armv7a_bringup_phase_name(phase));
+    armv7a_platform_early_console_puts("\r\n");
+}
+
+void armv7a_complete_bringup_phase(Armv7aBringupPhase phase)
+{
+    if (g_armv7a_last_completed_phase == phase) {
+        return;
+    }
+
+    g_armv7a_last_completed_phase = phase;
+    armv7a_platform_early_console_puts("ARMv7-A phase complete, stage=");
     armv7a_platform_early_console_puts(armv7a_bringup_phase_name(phase));
     armv7a_platform_early_console_puts("\r\n");
 }

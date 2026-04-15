@@ -248,8 +248,11 @@ $expected = @(
     "Targeting Cortex-A7 first, RK3506 later.",
     "Charm out.format import active, PL011 @ 0x09000000",
     "ARMv7-A phase, stage=boot-cpu-state",
+    "ARMv7-A phase complete, stage=boot-cpu-state",
     "ARMv7-A phase, stage=mmu-activate",
+    "ARMv7-A phase complete, stage=mmu-activate",
     "ARMv7-A phase, stage=abort-smoke",
+    "ARMv7-A phase complete, stage=icache-probe",
     $exceptionLine
 )
 
@@ -320,8 +323,8 @@ if (($log -notmatch "ARMv7-A icache probe, addr=0x522[0-9A-F]{5}, before=0x00000
 if (($log -notmatch $faultPattern)) {
     $missing += $faultPattern
 }
-if (($log -notmatch "ARMv7-A exception phase, stage=abort-smoke")) {
-    $missing += "ARMv7-A exception phase, stage=abort-smoke"
+if (($log -notmatch "ARMv7-A exception phase, stage=abort-smoke, last-complete=icache-probe")) {
+    $missing += "ARMv7-A exception phase, stage=abort-smoke, last-complete=icache-probe"
 }
 if (($log -notmatch $decodePattern)) {
     $missing += $decodePattern

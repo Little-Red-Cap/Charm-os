@@ -367,6 +367,17 @@ int charm_posix_c_fs_header_entry(void) {
     if (st.st_size != 0) return 359;
     if (charm_posix_unlink("/cfs/readonly-create.txt") != 0) return 360;
 
+    fd = charm_posix_open("rw.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_TRUNC | CHARM_POSIX_O_RDWR, 0);
+    if (fd < 0) return 534;
+    if (charm_posix_write(fd, "rw", 2) != 2) return 535;
+    if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_SET) != 0) return 536;
+    if (charm_posix_read(fd, buf, 2) != 2) return 537;
+    if (memcmp(buf, "rw", 2) != 0) return 538;
+    if (charm_posix_close(fd) != 0) return 539;
+    if (charm_posix_stat("/cfs/rw.txt", &st) != 0) return 540;
+    if (st.st_size != 2) return 541;
+    if (charm_posix_unlink("/cfs/rw.txt") != 0) return 542;
+
     *err = 0;
     if (charm_posix_chdir("/cfs/note.txt") != -1) return 342;
     if (*err != CHARM_POSIX_ENOTDIR) return 343;

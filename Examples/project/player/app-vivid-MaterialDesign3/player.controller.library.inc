@@ -475,7 +475,7 @@
 
         bool library_shows_context_watermark() const noexcept {
             return library_has_context()
-                && !list_order.empty()
+                && list_order.size() >= 2
                 && list_order.size() <= 3;
         }
 
@@ -488,14 +488,15 @@
             if (key.empty()) return;
 
             const int track_count = library_group_track_count(key);
+            const char* track_label = (track_count == 1) ? "track" : "tracks";
             bool duration_complete = false;
             const int total_sec = library_group_total_duration(key, &duration_complete);
             if (duration_complete && total_sec > 0) {
                 char duration_buf[16]{};
                 format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
-                std::snprintf(buf, buf_size, "%d tracks | %s", track_count, duration_buf);
+                std::snprintf(buf, buf_size, "%d %s | %s", track_count, track_label, duration_buf);
             } else {
-                std::snprintf(buf, buf_size, "%d tracks", track_count);
+                std::snprintf(buf, buf_size, "%d %s", track_count, track_label);
             }
         }
 

@@ -21,6 +21,17 @@ Charm 的驱动模型不是“`device::Registry` 一统天下”，而是：
 - 运行期枚举设备：走 `device::Bus / device::Driver / device::Registry`
 - 但最终对系统与用户暴露时，仍应回到统一 capability / registry 语言
 
+### 1.1 快速判定表
+
+| 对象 | 典型例子 | 归属平面 | 判断原因 | 推荐对外形态 |
+| --- | --- | --- | --- | --- |
+| 片上控制器 | UART / SPI / I2C / Timer / GPIO | 静态 capability 平面 | 板级已知、顺序已知、依赖已知 | `hal.*` capability |
+| 板级固定设备 | `block.sd0` / `block.flash0` / `io.console0` | 静态 capability 平面 | 不依赖运行期枚举，适合拓扑装配 | registry 中的稳定 capability |
+| 运行期发现子设备 | USB Host 枚举出的 MSC / CDC / NIC | 动态 discovery 平面 | attach / detach 是对象本体的一部分 | manager 或稳定槽位 capability |
+| USB Device controller | DCD / EP0 / device controller | 静态 capability 平面 | 控制器存在性由板级确定 | `hal.*` 或 controller binding |
+| USB Device class lifecycle | CDC ACM / MSC function | 借用动态语义，但不改变控制器归属 | class 生命周期更像 driver hook | class adapter / service capability |
+| 热插拔短生命周期 endpoint | 外部串口、U 盘、临时逻辑端点 | 动态 discovery 平面 | 生命周期不稳定 | 稳定槽位或长期存在 service |
+
 ## 2. 为什么不是单模型
 
 Charm 当前已经同时存在两条气质不同的主线。
@@ -430,6 +441,33 @@ USB Device 不能简单地整体归入动态平面。
 
 这些问题不回答清楚，双平面就会退化成两个互不相通的子系统。
 
+### 6.3 用户侧应该依赖什么
+
+双平面是框架内部的实现与编排语言，不应原样泄漏给普通调用方。
+
+默认规则：
+
+- 用户代码优先依赖稳定 capability name、registry handle 或长期存在的 service facade
+- 除 bringup / platform / runtime glue 外，业务代码不应把 `BoardCaps` 当成日常依赖入口
+- 除 discovery 平面内部外，用户代码不应直接围绕 `device::Bus` / `device::Driver` / `DeviceDesc` 编程
+- 如果调用方需要感知 attach / detach，也应优先感知“稳定 capability 的 live state”或 manager 事件，而不是裸露的 discovered device 指针
+
+可以把它理解成：
+
+```text
+框架内部可以复杂
+用户侧接口必须简单、稳定、低心智负担
+```
+
+如果最终调用方式让用户必须理解：
+
+- `match_score`
+- `probe/init/remove`
+- `BoardCaps`
+- controller handle / runtime ctx
+
+那就说明架构边界还没有真正收口完成。
+
 ## 7. 各层职责边界
 
 ### 7.1 `platform/*`
@@ -509,6 +547,7 @@ USB Device 不能简单地整体归入动态平面。
 - 用 `device::Registry` 替代 `init.graph`
 - 让用户直接面向复杂 driver lifecycle 编程
 - 为了统一而牺牲 MCU bringup 的确定性
+- 让样板迁移反过来主导核心架构决策
 
 ## 10. 推荐演进路径
 
@@ -533,6 +572,34 @@ USB Device 不能简单地整体归入动态平面。
 
 - 再决定 `io/driver` 与 `io/service` 的目录命名是否需要进一步收敛
 - 再决定是否为 discovery 平面增加 plan / observe / trace 支撑
+
+### 10.1 近期优先级（架构主线）
+
+如果只看当前最值得推进的主线，优先级建议是：
+
+1. 先补 runtime capability export / revoke 契约
+
+- 明确 `io.registry` / `block.registry` 对动态导出的进入、退出、失效语义
+- 把“稳定槽位 + 内部存活位”从样板经验升级为正式推荐路径
+
+2. 再冻结动态导出命名规则
+
+- 明确热插拔对象何时使用稳定 capability name
+- 明确 generation / alias / slot name 与用户可见名字的关系
+
+3. 继续把 `system/device/*` 约束为 discovery 平面
+
+- 文档与代码都避免把静态 controller 再塞回 `device::*`
+- 让 `device::*` 的职责更像 runtime 子系统，而不是总架构入口
+
+4. 最后再讨论命名和目录收敛
+
+- 例如 `io/driver` 与 `io/service` 是否需要进一步整理
+- 例如折叠式 binding 是否值得拆成更清晰的 `ControllerBinding + ServiceAdapter`
+
+执行原则也需要写死：
+
+> **核心契约先行，示例用于展示和验收，不反过来主导架构。**
 
 ## 11. 当前结论
 

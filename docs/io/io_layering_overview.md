@@ -69,6 +69,7 @@ platform/
   - fs 服务：块设备 -> VFS
   - usb/net 服务：端点/协议适配
 - 在驱动模型文档里，这一层对应 `ServiceAdapter`
+- 对普通调用方，优先暴露 service capability / registry handle，而不是 `BoardCaps` 或 runtime driver hook
 
 ## 推荐驱动路径
 
@@ -91,6 +92,12 @@ RuntimeBus
 ```
 
 两条线最终都应收敛到统一 capability / registry 语言，避免形成两套互不相通的资源模型。
+
+对用户侧的默认要求是：
+
+- 优先消费 `io.*` / `block.*` / service facade
+- 不要求理解 `BoardCaps` / `DeviceDesc` / `match_score`
+- 不直接围绕 `RuntimeBus` / `RuntimeDriver` 编程
 
 ## 依赖规则（硬约束）
 

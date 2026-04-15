@@ -9,7 +9,7 @@
 先看：`docs/architecture/charm_methodology_charter.md`
 
 ## 设计原则（只记 5 条）
-- 所有能力必须走 init.graph 装配
+- 静态能力必须走 `init.graph` 装配；运行期发现能力必须通过统一 capability export 进入系统
 - Channel 只能 non-blocking
 - 协议层禁止 busy-spin/自带超时
 - 默认禁止隐式全局入口
@@ -177,13 +177,14 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### 初始化顺序（统一约束）
 
-统一通过 `init.graph` 装配系统，避免“入口拼装地狱”：
+统一通过 `init.graph` 装配静态系统底座，避免“入口拼装地狱”：
 
 1) `CoreSystemChain`：`system.clock` / `io.registry` / `io.reactor` / `kernel.eda` / `reactor_pump` 等底座
 2) `BoardChain`：`platform.irq` / `hal.uart1` / `driver.usart_channel` 等板级能力
 3) `extra nodes`：仅允许服务/应用类节点（禁止底座能力进入 extra）
 
-> 说明：旧式 `service_init/hal_init/component_init` 已移除，新增功能必须走 `init.graph`。
+> 说明：旧式 `service_init/hal_init/component_init` 已移除，新增静态功能必须走 `init.graph`。  
+> 对运行期发现设备，则走 `device::*` 生命周期与 capability export，详见 `docs/architecture/driver_model.md`。
 
 ### Foundation（能力基座）
 范围：
@@ -337,6 +338,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 示例：`Examples/usb/usb_host_runtime_multi_smoke`（同一条 host bus 同时导出 block/channel，并验证增量扫描）
 
 ### Device Model
+- 当前结论：采用 `Capability First / Dual Plane`，静态装配以 `init.graph` 为主轴，`system/device/*` 只承担 runtime discovery plane
 - 设备/驱动/注册表骨架（device.desc/driver/registry）
 - 运行期注册表已支持 `match_detected`、`remove_device` / `remove_matching`，可用于 discovery 增量匹配与 detach 收敛
 - 示例：`Examples/system/device_registry_demo`

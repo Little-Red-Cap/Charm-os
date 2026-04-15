@@ -8,10 +8,13 @@
 ## 快速开始
 - 入门指南：`docs/overview.md`
 - 架构总览：`docs/architecture_overview.md`
+- 板级资料入口：`docs/board/README.md`
+- RK3506 上板资料：`docs/board/rk3506/README.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
+- ARMv7-A 平台契约：`docs/system/armv7a_platform_contract.md`
 - Recipe / Plan 草案：`docs/system/init_plan_recipe_draft.md`
 - Init Plan Review 规则：`docs/system/init_plan_review_rules.md`
 - Materialized Graph 观察导出：`docs/system/init_materialized_graph_observe.md`
@@ -39,10 +42,12 @@ flowchart TD
 
     B --> H["architecture/*"]
     B --> I["io/*"]
+    B --> M["board/*"]
     B --> J["system/*"]
 
     F --> K["storage/*"]
     F --> L["usb/*"]
+    F --> M
     F --> D
 ```
 
@@ -51,6 +56,8 @@ flowchart TD
 | 我要做什么 | 先看什么 |
 | --- | --- |
 | 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
+| 上 RK3506 板 / 查早期寄存器 | `docs/board/rk3506/README.md` → `docs/system/armv7a_platform_contract.md` |
+| 推进 ARMv7-A 平台 bring-up | `docs/system/armv7a_platform_contract.md` → `docs/boot/bootloader_overview.md` |
 | 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
 | 实现 USB 设备 | `docs/usb/usb_arch_plan.md` → `docs/usb/usb_dsl_overview.md` |
@@ -83,6 +90,7 @@ docs/
 ├─ README.md                  文档总索引
 ├─ agent/                     AI / Agent 协作体系
 ├─ architecture/              架构规则与依赖边界
+├─ board/                     板级 bring-up 与 SoC 资料收口
 ├─ io/                        IO 核心契约
 ├─ system/                    装配、启动、系统服务
 └─ ...
@@ -98,6 +106,10 @@ docs/
 - `docs/architecture/device_model_overview.md`
 - `docs/architecture/capability_recovery_rules.md`
 - `docs/architecture/capability_recovery_matrix.md`
+
+### Board / 板级 bring-up
+- `docs/board/README.md`
+- `docs/board/rk3506/README.md`
 
 ### IO 与输入
 - `docs/io/io_layering_overview.md`
@@ -134,6 +146,7 @@ docs/
 - `docs/system/init_plan_review_rules.md`
 - `docs/system/init_materialized_graph_observe.md`
 - `docs/system/init_materialized_graph_tooling_milestone.md`
+- `docs/system/armv7a_platform_contract.md`
 - `docs/system/service_component_init.md`
 - `docs/system/power_lowpower_overview.md`
 - `docs/system/at_system.md`

@@ -2,6 +2,10 @@
 
 目标：形成“可移植的 Stage2 + 可裁剪的 Stage1”的稳定骨架，并与现有模块（FS/USB/AT/EDA）对齐。
 
+相关文档：
+- `docs/system/armv7a_platform_contract.md`
+- `docs/board/rk3506/README.md`
+
 ## 1. 分层职责
 
 ### BL0 / ROM / 极简 Stage0

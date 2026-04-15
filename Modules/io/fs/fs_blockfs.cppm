@@ -142,7 +142,7 @@ export namespace fs {
             const bool want_create = has_flag(flags, OpenFlags::create);
             const bool want_trunc = has_flag(flags, OpenFlags::trunc);
             const bool want_excl = has_flag(flags, OpenFlags::excl);
-            if ((want_create || want_trunc) && !want_write) return Status{Errc::perm};
+            if (want_trunc && !want_write) return Status{Errc::perm};
             util::usize cur_idx = root_index;
             while (true) {
                 auto [head, rest] = split_first(pv);

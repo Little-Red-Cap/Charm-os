@@ -211,7 +211,7 @@ export namespace fs {
             const bool want_trunc = has_flag(flags, OpenFlags::trunc);
             const bool want_excl = has_flag(flags, OpenFlags::excl);
 
-            if ((want_create || want_trunc) && !want_write) {
+            if (want_trunc && !want_write) {
                 self->free_slot(slot);
                 return Status{Errc::perm};
             }

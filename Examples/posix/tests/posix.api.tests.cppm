@@ -717,6 +717,11 @@ namespace {
         check_eq("fs-open-excl-exist-errno", posix::get_errno(), posix::EEXIST);
         check_eq("fs-open-excl-cleanup", api.unlink("/work/excl.txt"), 0);
 
+        fd = api.open("/work/create-readonly.txt", posix::O_RDONLY | posix::O_CREAT, 0);
+        check_true("fs-open-create-readonly", fd >= 0);
+        check_eq("fs-open-create-readonly-close", api.close(fd), 0);
+        check_eq("fs-open-create-readonly-unlink", api.unlink("/work/create-readonly.txt"), 0);
+
         check_eq("fs-rename", api.rename("/work/a.txt", "/work/b.txt"), 0);
 
         posix::set_errno(0);

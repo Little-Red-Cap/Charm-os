@@ -719,6 +719,16 @@ int charm_posix_newlib_path_entry(void) {
     if (errno != EEXIST) return 624;
     if (unlink("/newlib-excl.txt") != 0) return 625;
 
+    errno = 71;
+    fd = open("/newlib-create-readonly.txt", O_RDONLY | O_CREAT, 0);
+    if (fd < 0) return 626;
+    if (errno != 71) return 627;
+    if ((fcntl(fd, F_GETFL) & O_ACCMODE) != O_RDONLY) return 628;
+    if (close(fd) != 0) return 629;
+    if (stat("/newlib-create-readonly.txt", &st) != 0) return 630;
+    if (st.st_size != 0) return 631;
+    if (unlink("/newlib-create-readonly.txt") != 0) return 632;
+
     errno = 65;
     if (unlink("/newlib-renamed.txt") != 0) return 174;
     if (errno != 65) return 554;

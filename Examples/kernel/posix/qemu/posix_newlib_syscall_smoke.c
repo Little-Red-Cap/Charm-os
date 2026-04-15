@@ -881,6 +881,12 @@ int charm_posix_newlib_cwd_entry(void) {
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 181;
     if (errno != 81) return 545;
     if (strcmp(cwd, "/") != 0) return 182;
+    errno = 0;
+    if (opendir("/newlib-cwd-missing") != NULL) return 868;
+    if (errno != ENOENT) return 869;
+    errno = 0;
+    if (opendir("") != NULL) return 870;
+    if (errno != ENOENT) return 871;
 
     if (mkdir("/newlib-cwd", 0) != 0) return 183;
     if (mkdir("/newlib-cwd/sub", 0) != 0) return 184;
@@ -949,6 +955,12 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 104;
     if (closedir(dir) != 0) return 833;
     if (errno != 104) return 834;
+    errno = 0;
+    if (readdir(dir) != NULL) return 872;
+    if (errno != EINVAL) return 873;
+    errno = 0;
+    if (closedir(dir) != -1) return 874;
+    if (errno != EINVAL) return 875;
     errno = 88;
     fd = open("./dot.txt", O_RDONLY, 0);
     if (fd < 0) return 776;

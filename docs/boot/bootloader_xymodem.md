@@ -102,6 +102,8 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - `boot_session` 可在传输完成后继续执行目标分区校验、写入 `BootInfo.pending`，再通过统一 `BootPlan` 完成槽位决策、跳转前回滚预备与成功确认
 - `boot_launch` 可把已决策的 `BootPlan` 进一步解析为目标分区、镜像头与 entry 偏移，便于后续板级跳转对接
 - `boot_exec` 可在板级提供的 hook 之上，把 `BootTarget` 进一步解析为实际可执行 payload/entry 地址，并统一 pre-jump/jump 调用面
+- `boot_board_exec` 则进一步桥接 `platform::board::BootExecDesc`，让真实板级代码可以只暴露基础地址与跳转 hook
+- `platform::board::BoardCaps.boot_exec` 已经预留，真实板级可以直接把 jump 能力跟其他 board caps 一起交给上层
 
 这里同样要区分两类准备动作：
 - Boot 元数据准备：`prepare_selected_boot()` 负责把 `pending_trial` 写回旧 `active`，形成失败自动回滚语义
@@ -123,11 +125,11 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - `Examples/boot/bootloader_demo`：先写入有效 Slot A 镜像，再通过 `boot::XyModemSession` 下载并暂存 Slot B，随后执行：
   - 传输结果收口
   - 策略校验与 `BootInfo.pending` 写入
-  - 生成 `BootPlan`
-  - 解析目标镜像 entry
-  - 通过 mock hook 验证执行入口解析与 jump 调用
-  - 跳转前回滚预备写回
-  - 基于计划的成功确认
+- 生成 `BootPlan`
+- 解析目标镜像 entry
+- 通过 `platform::board::BootExecDesc` mock hook 验证执行入口解析与 jump 调用
+- 跳转前回滚预备写回
+- 基于计划的成功确认
   - 缺失头帧失败路径验证
   - 非法 `entry_offset` 镜像拒绝验证
 

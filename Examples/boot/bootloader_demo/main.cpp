@@ -7,6 +7,7 @@
 
 import charm.foundation;
 import charm.runtime;
+import platform.board;
 
 namespace {
     constexpr util::u8 kPad = 0x1Au;
@@ -121,27 +122,39 @@ namespace {
         static_cast<MockLaunchContext*>(ctx)->entry_called = true;
     }
 
-    util::usize resolve_mock_payload_base(const boot::BootTarget& target, void* ctx) noexcept {
+    util::usize resolve_mock_payload_base(void* ctx,
+                                          util::u32 storage_payload_offset,
+                                          util::u32 storage_entry_offset,
+                                          util::u32 entry_offset,
+                                          util::u32,
+                                          util::u32,
+                                          util::u16) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
-        if (target.payload_offset != launch->expected_payload_offset) {
+        if (storage_payload_offset != launch->expected_payload_offset) {
             return 0;
         }
-        if (target.storage_entry_offset != launch->expected_storage_entry_offset) {
+        if (storage_entry_offset != launch->expected_storage_entry_offset) {
             return 0;
         }
-        return reinterpret_cast<util::usize>(&mock_boot_entry) - target.header.entry_offset;
+        return reinterpret_cast<util::usize>(&mock_boot_entry) - entry_offset;
     }
 
-    bool prepare_mock_execution(const boot::BootExecution& execution, void* ctx) noexcept {
+    bool prepare_mock_execution(void* ctx,
+                                util::usize,
+                                util::usize entry_addr,
+                                util::u32,
+                                util::u16) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->prepare_called = true;
-        return execution.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
+        return entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
     }
 
-    bool jump_mock_execution(const boot::BootExecution& execution, void* ctx) noexcept {
+    bool jump_mock_execution(void* ctx,
+                             util::usize,
+                             util::usize entry_addr) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->jump_called = true;
-        auto entry = reinterpret_cast<void (*)(void*) noexcept>(execution.entry_addr);
+        auto entry = reinterpret_cast<void (*)(void*) noexcept>(entry_addr);
         entry(ctx);
         return launch->entry_called;
     }
@@ -319,14 +332,15 @@ int main() {
         .expected_storage_entry_offset =
             cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)) + 4
     };
-    const boot::BootExecOps exec_ops{
+    platform::board::BoardCaps board_caps{};
+    board_caps.boot_exec = platform::board::BootExecDesc{
         .ctx = &launch_ctx,
         .resolve_payload_base = resolve_mock_payload_base,
-        .prepare = prepare_mock_execution,
+        .prepare_jump = prepare_mock_execution,
         .jump = jump_mock_execution
     };
-    auto execution = boot::resolve_boot_execution(target, exec_ops);
-    const bool executed = boot::execute_boot_execution(execution, exec_ops);
+    auto execution = boot::resolve_boot_execution(target, board_caps);
+    const bool executed = boot::execute_boot_execution(execution, board_caps);
     const bool marked = receiver.mark_selected_success();
     const auto final_result = receiver.result();
     const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info);

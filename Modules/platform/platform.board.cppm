@@ -63,6 +63,25 @@ export namespace platform::board {
         const char* hal_cap{nullptr};
     };
 
+    struct BootExecDesc {
+        void* ctx{nullptr};
+        util::usize (*resolve_payload_base)(void* ctx,
+                                            util::u32 storage_payload_offset,
+                                            util::u32 storage_entry_offset,
+                                            util::u32 entry_offset,
+                                            util::u32 payload_size,
+                                            util::u32 image_size,
+                                            util::u16 image_flags) noexcept {nullptr};
+        bool (*prepare_jump)(void* ctx,
+                             util::usize payload_base,
+                             util::usize entry_addr,
+                             util::u32 payload_size,
+                             util::u16 image_flags) noexcept {nullptr};
+        bool (*jump)(void* ctx,
+                     util::usize payload_base,
+                     util::usize entry_addr) noexcept {nullptr};
+    };
+
     struct BoardCaps {
         UartDesc uart1{};
         ClockDesc clock{};
@@ -73,6 +92,7 @@ export namespace platform::board {
         CanDesc can0{};
         SdmmcDesc sdmmc0{};
         SpiFlashDesc flash0{};
+        BootExecDesc boot_exec{};
     };
 
     struct ConsoleCaps {

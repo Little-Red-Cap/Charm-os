@@ -708,6 +708,15 @@ namespace {
         check_eq("fs-write", api.write(fd, "z", 1), 1);
         check_eq("fs-close", api.close(fd), 0);
 
+        fd = api.open("/work/excl.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_EXCL, 0);
+        check_true("fs-open-excl-create", fd >= 0);
+        check_eq("fs-open-excl-create-close", api.close(fd), 0);
+
+        posix::set_errno(0);
+        check_eq("fs-open-excl-exist", api.open("/work/excl.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_EXCL, 0), -1);
+        check_eq("fs-open-excl-exist-errno", posix::get_errno(), posix::EEXIST);
+        check_eq("fs-open-excl-cleanup", api.unlink("/work/excl.txt"), 0);
+
         check_eq("fs-rename", api.rename("/work/a.txt", "/work/b.txt"), 0);
 
         posix::set_errno(0);

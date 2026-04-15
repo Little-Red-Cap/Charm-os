@@ -708,6 +708,17 @@ int charm_posix_newlib_path_entry(void) {
     if (close(fd) != 0) return 618;
     if (unlink("/newlib-rw.txt") != 0) return 619;
 
+    errno = 70;
+    fd = open("/newlib-excl.txt", O_CREAT | O_EXCL | O_WRONLY, 0);
+    if (fd < 0) return 620;
+    if (errno != 70) return 621;
+    if (close(fd) != 0) return 622;
+
+    errno = 0;
+    if (open("/newlib-excl.txt", O_CREAT | O_EXCL | O_WRONLY, 0) != -1) return 623;
+    if (errno != EEXIST) return 624;
+    if (unlink("/newlib-excl.txt") != 0) return 625;
+
     errno = 65;
     if (unlink("/newlib-renamed.txt") != 0) return 174;
     if (errno != 65) return 554;

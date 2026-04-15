@@ -209,6 +209,7 @@ export namespace fs {
             const bool want_write = has_flag(flags, OpenFlags::write);
             const bool want_create = has_flag(flags, OpenFlags::create);
             const bool want_trunc = has_flag(flags, OpenFlags::trunc);
+            const bool want_excl = has_flag(flags, OpenFlags::excl);
 
             if ((want_create || want_trunc) && !want_write) {
                 self->free_slot(slot);
@@ -219,7 +220,9 @@ export namespace fs {
             mode |= want_write ? FA_WRITE : 0;
             if (!want_read && !want_write) mode |= FA_READ;
 
-            if (want_trunc && want_create) {
+            if (want_create && want_excl) {
+                mode |= FA_CREATE_NEW;
+            } else if (want_trunc && want_create) {
                 mode |= FA_CREATE_ALWAYS;
             } else if (want_create) {
                 mode |= FA_OPEN_ALWAYS;

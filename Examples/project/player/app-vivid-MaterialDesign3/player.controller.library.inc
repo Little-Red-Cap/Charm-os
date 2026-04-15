@@ -1086,6 +1086,7 @@
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
             if (row.current_row) {
+                if (row.group_row) return "";
                 return self->library_current_group_state_text();
             }
             if (row.model) {

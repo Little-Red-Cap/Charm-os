@@ -70,6 +70,7 @@ Charm ARMv7-A QEMU skeleton
 Targeting Cortex-A7 first, RK3506 later.
 ARMv7-A boot state, cpsr=0x600001DF, mode=sys, irq=masked
 ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=0x03B9ACA0
+ARMv7-A feature state, id_pfr1=0x00010001, security=0x00000000 (absent), virtualization=0x00000000 (absent), gentimer=0x00000001 (present)
 ARMv7-A cache state, mmu=off, dcache=off, icache=off, high-vectors=off
 ARMv7-A translation state, ttbr0=0x00000000, ttbr1=0x00000000, ttbcr=0x00000000, dacr=0x00000000
 ARMv7-A L1 table ready, base=0x40210000, ram=0x40211C0E, gic=0x08010C16, uart=0x09010C16
@@ -297,6 +298,15 @@ continue
   summarizes only what was safely observed from the live returning paths:
   which architected timer PPI fired, which handler modes actually ran, and
   whether monitor mode showed up anywhere in those observed paths.
+- The boot banner now also prints `ID_PFR1` capability bits for Security,
+  Virtualization, and the generic timer. That line is about CPU capability
+  only; it is intentionally separate from the later runtime `security side
+  evidence` line that talks about observed world/routing behavior.
+- Current QEMU `-cpu cortex-a7` runs report `ID_PFR1=0x00010001`, so the model
+  advertises the generic timer but not the Security/Virtualization capability
+  bits. That makes the later `security side evidence` line even more useful:
+  it documents the runtime routing we actually observed, without pretending
+  this QEMU CPU model is a full stand-in for a secure-world-enabled SoC.
 - The GIC register layer and the interrupt-smoke handler/state layer now live
   in dedicated leaf helpers (`armv7a_gic.cpp` and
   `armv7a_interrupt_smoke.cpp`), so `irq_timer.cpp` stays focused on how each

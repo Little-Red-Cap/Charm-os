@@ -4,6 +4,10 @@ namespace {
 constexpr std::uint32_t kPsrModeMask = 0x1fu;
 constexpr std::uint32_t kPsrIrqMask = 1u << 7;
 constexpr std::uint32_t kPsrFiqMask = 1u << 6;
+constexpr std::uint32_t kIdPfr1SecurityShift = 4u;
+constexpr std::uint32_t kIdPfr1VirtualizationShift = 12u;
+constexpr std::uint32_t kIdPfr1GentimerShift = 16u;
+constexpr std::uint32_t kIdPfr1FieldMask = 0xfu;
 } // namespace
 
 extern "C" void armv7a_data_sync_barrier()
@@ -50,6 +54,13 @@ extern "C" std::uint32_t armv7a_read_mpidr()
     return value;
 }
 
+extern "C" std::uint32_t armv7a_read_id_pfr1()
+{
+    std::uint32_t value = 0;
+    asm volatile("mrc p15, 0, %0, c0, c1, 1" : "=r"(value));
+    return value;
+}
+
 extern "C" std::uint32_t armv7a_read_sctlr()
 {
     std::uint32_t value = 0;
@@ -67,6 +78,26 @@ extern "C" std::uint32_t armv7a_read_vbar()
 extern "C" void armv7a_svc_smoke_test()
 {
     asm volatile("svc #0x43" ::: "memory");
+}
+
+std::uint32_t armv7a_id_pfr1_security_field(std::uint32_t value)
+{
+    return (value >> kIdPfr1SecurityShift) & kIdPfr1FieldMask;
+}
+
+std::uint32_t armv7a_id_pfr1_virtualization_field(std::uint32_t value)
+{
+    return (value >> kIdPfr1VirtualizationShift) & kIdPfr1FieldMask;
+}
+
+std::uint32_t armv7a_id_pfr1_gentimer_field(std::uint32_t value)
+{
+    return (value >> kIdPfr1GentimerShift) & kIdPfr1FieldMask;
+}
+
+const char* armv7a_feature_presence_name(std::uint32_t field)
+{
+    return field == 0u ? "absent" : "present";
 }
 
 bool armv7a_irq_masked(std::uint32_t psr)

@@ -359,13 +359,13 @@ int main() {
         .expected_storage_entry_offset =
             cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)) + 4
     };
-    platform::board::BoardCaps board_caps{};
-    board_caps.boot_load = platform::board::BootLoadDesc{
+    platform::board::BootBoardCaps board_caps{};
+    board_caps.load = platform::board::BootLoadDesc{
         .ctx = &launch_ctx,
         .resolve_payload_base = resolve_mock_payload_base,
         .load_payload = load_mock_payload
     };
-    board_caps.boot_exec = platform::board::BootExecDesc{
+    board_caps.exec = platform::board::BootExecDesc{
         .ctx = &launch_ctx,
         .prepare_jump = prepare_mock_execution,
         .jump = jump_mock_execution
@@ -374,9 +374,9 @@ int main() {
     const bool prepared = handoff.rollback_prepared;
     const auto prepared_result = receiver.result();
     const auto rollback_plan = boot::decide_boot_policy(storage, cfg, policy);
-    const auto& target = handoff.target;
-    const auto& load = handoff.load;
-    const auto& image = handoff.image;
+    const auto& target = boot::handoff_target(handoff);
+    const auto& load = boot::handoff_load(handoff);
+    const auto& image = boot::handoff_image(handoff);
     const bool executed = boot::execute_boot_handoff(handoff, board_caps);
     const auto& execution = handoff.execution;
     const bool marked = receiver.mark_selected_success();
@@ -436,8 +436,8 @@ int main() {
             cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)) + 2,
         .expected_load_kind = platform::board::BootLoadKind::xip
     };
-    platform::board::BoardCaps xip_caps{};
-    xip_caps.boot_load = platform::board::BootLoadDesc{
+    platform::board::BootBoardCaps xip_caps{};
+    xip_caps.load = platform::board::BootLoadDesc{
         .ctx = &xip_ctx,
         .resolve_payload_base = resolve_mock_payload_base,
         .load_payload = load_mock_payload

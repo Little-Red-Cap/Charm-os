@@ -201,20 +201,20 @@ export namespace boot {
             if (!handoff.ready_to_jump) {
                 stage_ = SessionStage::failed;
                 result_.stage = stage_;
-                result_.boot = handoff.plan.boot;
-                result_.info = handoff.plan.info;
-                result_.boot_info_loaded = handoff.plan.boot_info_loaded;
+                result_.boot = handoff_plan(handoff).boot;
+                result_.info = handoff_plan(handoff).info;
+                result_.boot_info_loaded = handoff_plan(handoff).boot_info_loaded;
                 return handoff;
             }
 
             stage_ = SessionStage::prepared;
             result_.stage = stage_;
             result_.boot_prepared = handoff.rollback_prepared;
-            result_.plan = handoff.plan;
-            result_.boot = handoff.plan.boot;
-            result_.boot_selected = handoff.plan.boot.status == BootStatus::ok;
-            result_.info = handoff.plan.info;
-            result_.boot_info_loaded = handoff.plan.boot_info_loaded;
+            result_.plan = handoff_plan(handoff);
+            result_.boot = handoff_plan(handoff).boot;
+            result_.boot_selected = handoff_plan(handoff).boot.status == BootStatus::ok;
+            result_.info = handoff_plan(handoff).info;
+            result_.boot_info_loaded = handoff_plan(handoff).boot_info_loaded;
             result_.ready_to_boot = true;
             return handoff;
         }

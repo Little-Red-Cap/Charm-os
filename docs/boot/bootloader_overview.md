@@ -27,7 +27,7 @@
 - `boot_board_load`：把 `platform::board::BootLoadDesc` 桥接到 `boot_load`，让板级只处理 payload 基址解析与可选搬运
 - `boot_exec`：在镜像已经 ready 之后，只负责 pre-jump 状态准备与实际 jump
 - `boot_board_exec`：把 `platform::board::BootExecDesc` 桥接到 `boot_exec`，让板级实现不必直接依赖 Boot 内部类型
-- `boot_handoff`：把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 收敛成一个启动前 handoff 对象
+- `boot_handoff`：把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 收敛成一个更轻的启动前 handoff 对象，并通过 accessor 暴露阶段视图
 - `boot_uart` / `boot_xymodem`：串口接入与 X/YModem 下载到目标分区的 Stage2 侧封装
 - `boot_session`：把下载、镜像校验、`BootInfo.pending` 落盘与 `BootPlan` 决策串成一个显式 Stage2 会话入口
 - `Examples/boot/bootloader_demo`：可在主机侧演示“下载到 Slot B -> 校验 -> 生成 BootPlan -> 回滚预备 -> 标记成功”
@@ -42,7 +42,7 @@
 - `platform::board::BootLoadDesc` 只负责 payload 基址解析与可选加载，Boot 子系统统一管理 `BootLoadKind`、payload 偏移、entry 偏移和 XIP/copy-to-RAM 语义
 - load/exec hook 已进一步改为 request 结构体入参，后续扩展字段时不必持续打碎函数签名
 - `platform::board::BootExecDesc` 只负责 jump 前机器状态准备与实际跳转，不再反向参与 payload 地址解析
-- `platform::board::BoardCaps` 已经同时预留 `boot_load` 与 `boot_exec` 槽位，后续板级可直接随 board caps 一起提供
+- `platform::board::BootBoardCaps` 已独立承载 boot 专属能力，避免 boot 阶段直接依赖整板 `BoardCaps`
 
 ## 2. 阶段目标
 

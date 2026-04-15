@@ -109,6 +109,11 @@ export namespace platform::board {
                      const BootExecRequest& request) noexcept {nullptr};
     };
 
+    struct BootBoardCaps {
+        BootLoadDesc load{};
+        BootExecDesc exec{};
+    };
+
     struct BoardCaps {
         UartDesc uart1{};
         ClockDesc clock{};
@@ -119,8 +124,7 @@ export namespace platform::board {
         CanDesc can0{};
         SdmmcDesc sdmmc0{};
         SpiFlashDesc flash0{};
-        BootLoadDesc boot_load{};
-        BootExecDesc boot_exec{};
+        BootBoardCaps boot{};
     };
 
     struct ConsoleCaps {

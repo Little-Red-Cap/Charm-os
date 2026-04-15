@@ -106,8 +106,8 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - `boot_exec` 则只在镜像 ready 之后处理 pre-jump/jump，不再反向承担 payload 地址解析
 - `boot_board_exec` 继续桥接 `platform::board::BootExecDesc`，让真实板级代码只暴露跳转准备与 jump hook
 - 板级 load/exec hook 已改为 request 结构体入参，便于后续扩展 MMU/cache/TLB 等目标相关字段
-- `boot_handoff` 把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 进一步串成一个显式 handoff
-- `platform::board::BoardCaps.boot_load / boot_exec` 已经预留，真实板级可以直接把加载能力与 jump 能力跟其他 board caps 一起交给上层
+- `boot_handoff` 把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 进一步串成一个更轻的 handoff，并通过 accessor 暴露 plan/target/load/image
+- `platform::board::BootBoardCaps` 已独立承载加载能力与 jump 能力，真实板级可以不必先依赖整板 `BoardCaps`
 
 这里同样要区分几类准备动作：
 - Boot 元数据准备：`prepare_selected_boot()` 负责把 `pending_trial` 写回旧 `active`，形成失败自动回滚语义
@@ -132,7 +132,7 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
   - 策略校验与 `BootInfo.pending` 写入
   - 生成 `BootPlan`
   - 通过 `prepare_handoff()` 一次性完成目标解析、加载解析、执行解析与回滚预备
-  - 通过 `platform::board::BootLoadDesc` / `BootExecDesc` mock hook 验证 load/jump 调用
+  - 通过独立的 `platform::board::BootBoardCaps` 与 `BootLoadDesc` / `BootExecDesc` mock hook 验证 load/jump 调用
   - 基于计划的成功确认
   - 缺失头帧失败路径验证
   - 非法 `entry_offset` 镜像拒绝验证

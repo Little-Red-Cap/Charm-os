@@ -79,18 +79,34 @@ export namespace boot {
     }
 
     inline BootLoadedImage resolve_boot_loaded_image(const BootLoadPlan& load,
+                                                     const platform::board::BootBoardCaps& caps) noexcept {
+        return resolve_boot_loaded_image(load, caps.load);
+    }
+
+    inline BootLoadedImage resolve_boot_loaded_image(const Storage& s, const BootConfig& cfg,
+                                                     BootPlan plan,
+                                                     const platform::board::BootBoardCaps& caps) noexcept {
+        return resolve_boot_loaded_image(s, cfg, plan, caps.load);
+    }
+
+    inline bool prepare_boot_loaded_image(BootLoadedImage& image,
+                                          const platform::board::BootBoardCaps& caps) noexcept {
+        return prepare_boot_loaded_image(image, caps.load);
+    }
+
+    inline BootLoadedImage resolve_boot_loaded_image(const BootLoadPlan& load,
                                                      const platform::board::BoardCaps& caps) noexcept {
-        return resolve_boot_loaded_image(load, caps.boot_load);
+        return resolve_boot_loaded_image(load, caps.boot);
     }
 
     inline BootLoadedImage resolve_boot_loaded_image(const Storage& s, const BootConfig& cfg,
                                                      BootPlan plan,
                                                      const platform::board::BoardCaps& caps) noexcept {
-        return resolve_boot_loaded_image(s, cfg, plan, caps.boot_load);
+        return resolve_boot_loaded_image(s, cfg, plan, caps.boot);
     }
 
     inline bool prepare_boot_loaded_image(BootLoadedImage& image,
                                           const platform::board::BoardCaps& caps) noexcept {
-        return prepare_boot_loaded_image(image, caps.boot_load);
+        return prepare_boot_loaded_image(image, caps.boot);
     }
 }

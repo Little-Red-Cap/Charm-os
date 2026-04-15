@@ -4,6 +4,7 @@
 
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_diag_context.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
@@ -55,6 +56,7 @@ void armv7a_icache_probe_require_layout()
         return;
     }
 
+    armv7a_diag_print_context("icache-probe");
     armv7a_platform_early_console_puts("ARMv7-A icache probe layout invalid, offset-a=0x");
     armv7a_diag_put_hex(static_cast<std::uint32_t>(
         armv7a_icache_probe_target_a_address() & kSmallPageOffsetMask));
@@ -95,8 +97,7 @@ extern "C" void armv7a_run_icache_probe()
 
     const auto sctlr = armv7a_read_sctlr();
     if (!armv7a_icache_enabled(sctlr)) {
-        armv7a_platform_early_console_puts("ARMv7-A icache probe requires icache=on\r\n");
-        armv7a_platform_idle_forever();
+        armv7a_diag_report_and_halt("icache-probe", "ARMv7-A icache probe requires icache=on");
     }
 
     const auto alias_address = armv7a_icache_probe_alias_address();
@@ -125,6 +126,7 @@ extern "C" void armv7a_run_icache_probe()
         return;
     }
 
+    armv7a_diag_print_context("icache-probe");
     armv7a_platform_early_console_puts("ARMv7-A icache probe failed, expected-a=0x");
     armv7a_diag_put_hex(kIcacheProbeReturnValueA);
     armv7a_platform_early_console_puts(", expected-b=0x");

@@ -81,6 +81,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_cpu.cpp
     armv7a_gic.cpp
     armv7a_diag_console.cpp
+    armv7a_diag_context.cpp
     armv7a_handler_stack.cpp
     armv7a_interrupt_smoke.cpp
     armv7a_interrupt_diagnostics.cpp

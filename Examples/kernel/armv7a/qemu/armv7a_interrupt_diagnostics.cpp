@@ -1,6 +1,7 @@
 #include "armv7a_interrupt_diagnostics.hpp"
 
 #include "armv7a_cpu.hpp"
+#include "armv7a_diag_context.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_exception_frame.hpp"
 #include "armv7a_interrupt_smoke.hpp"
@@ -189,6 +190,7 @@ void armv7a_interrupt_print_active(const char* label, const Armv7aInterruptObser
 
 void armv7a_interrupt_print_observed_intid(const char* label, unsigned int intid)
 {
+    armv7a_diag_print_context("interrupt");
     armv7a_platform_early_console_puts(label);
     armv7a_diag_put_dec(intid);
     armv7a_platform_early_console_puts("\r\n");
@@ -198,6 +200,7 @@ void armv7a_interrupt_print_unexpected(const char* label,
                                        unsigned int intid,
                                        const Armv7aExceptionFrame& frame)
 {
+    armv7a_diag_print_context("interrupt");
     armv7a_platform_early_console_puts("ARMv7-A unexpected ");
     armv7a_platform_early_console_puts(label);
     armv7a_platform_early_console_puts(", intid=0x");
@@ -213,6 +216,7 @@ void armv7a_interrupt_print_unexpected(const char* label,
 
 void armv7a_interrupt_print_irq_timeout(std::uint32_t timer_ctrl)
 {
+    armv7a_diag_print_context("interrupt");
     const auto secure_line = armv7a_platform_secure_timer_interrupt_line_state();
     const auto nonsecure_line = armv7a_platform_nonsecure_timer_interrupt_line_state();
     const auto cpu_state = armv7a_platform_interrupt_controller_state();
@@ -243,6 +247,7 @@ void armv7a_interrupt_print_irq_timeout(std::uint32_t timer_ctrl)
 
 void armv7a_interrupt_print_sgi_timeout()
 {
+    armv7a_diag_print_context("interrupt");
     const auto line_state = armv7a_platform_self_sgi_line_state();
     const auto cpu_state = armv7a_platform_interrupt_controller_state();
 
@@ -261,6 +266,7 @@ void armv7a_interrupt_print_sgi_timeout()
 
 void armv7a_interrupt_print_fiq_timeout()
 {
+    armv7a_diag_print_context("interrupt");
     const auto line_state = armv7a_platform_self_sgi_line_state();
     const auto cpu_state = armv7a_platform_interrupt_controller_state();
 

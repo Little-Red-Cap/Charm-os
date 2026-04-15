@@ -6,6 +6,7 @@
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cache.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_diag_context.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
@@ -61,9 +62,7 @@ void armv7a_section_split_probe_expect(bool condition, const char* message)
         return;
     }
 
-    armv7a_platform_early_console_puts(message);
-    armv7a_platform_early_console_puts("\r\n");
-    armv7a_platform_idle_forever();
+    armv7a_diag_report_and_halt("section-split-probe", message);
 }
 } // namespace
 

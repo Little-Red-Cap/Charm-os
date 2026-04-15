@@ -8,6 +8,12 @@
 ## 快速开始
 - 入门指南：`docs/overview.md`
 - 架构总览：`docs/architecture_overview.md`
+- 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
+- System Compiler 词汇表 v0：`docs/architecture/system_compiler_vocabulary_v0.md`
+- Artifact Report v0：`docs/system/artifact_report_v0.md`
+- Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
+- 资源契约 v0：`docs/system/resource_contract_v0.md`
+- bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
@@ -50,6 +56,12 @@ flowchart TD
 
 | 我要做什么 | 先看什么 |
 | --- | --- |
+| 看 Charm 中长期主轴 | `docs/architecture/system_compiler_roadmap.md` → `docs/architecture/charm_methodology_charter.md` |
+| 看 system compiler 核心词汇与当前仓库映射 | `docs/architecture/system_compiler_vocabulary_v0.md` → `docs/architecture/system_compiler_roadmap.md` |
+| 看 system compiler 最小结论对象怎么长 | `docs/system/artifact_report_v0.md` → `docs/system/explain_surface_v0.md` → `schemas/README.md` |
+| 看 system compiler 如何对外解释自己 | `docs/system/explain_surface_v0.md` → `docs/system/init_materialized_graph_observe.md` → `schemas/README.md` |
+| 看资源边界如何进入系统语言 | `docs/system/resource_contract_v0.md` → `docs/system/ssu_contract.md` → `docs/system/init_graph_contract.md` |
+| 看 bringup 如何从装配图变成证据 | `docs/system/bringup_evidence_pipeline_v0.md` → `docs/system/init_materialized_graph_observe.md` → `docs/system/init_graph_contract.md` |
 | 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
 | 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
@@ -92,6 +104,8 @@ docs/
 - `docs/architecture_overview.md`
 
 ### 架构与依赖
+- `docs/architecture/system_compiler_roadmap.md`
+- `docs/architecture/system_compiler_vocabulary_v0.md`
 - `docs/architecture/dependency_contract.md`
 - `docs/architecture/dependency_whitelist.md`
 - `docs/architecture/driver_model.md`
@@ -129,6 +143,10 @@ docs/
 - `docs/architecture/device_model_overview.md`（USB Host discovery / lifecycle）
 
 ### 系统与启动
+- `docs/system/artifact_report_v0.md`
+- `docs/system/explain_surface_v0.md`
+- `docs/system/resource_contract_v0.md`
+- `docs/system/bringup_evidence_pipeline_v0.md`
 - `docs/system/init_graph_contract.md`
 - `docs/system/init_plan_recipe_draft.md`
 - `docs/system/init_plan_review_rules.md`

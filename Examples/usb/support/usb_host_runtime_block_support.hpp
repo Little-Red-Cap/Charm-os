@@ -115,6 +115,10 @@ namespace examples::usb::support {
             return binding.exported();
         }
 
+        void set_observer(block::ExportObserver observer, void* ctx = nullptr) noexcept {
+            binding.set_observer(observer, ctx);
+        }
+
         [[nodiscard]] auto publish_state() const noexcept {
             return binding.publish_state();
         }

@@ -10,6 +10,7 @@ SCHEMA_FILES = {
     "materialized_graph.bundle_diff/v1": "schemas/materialized_graph.bundle_diff.v1.schema.json",
     "materialized_graph.ci_summary/v1": "schemas/materialized_graph.ci_summary.v1.schema.json",
     "materialized_graph.report_manifest/v1": "schemas/materialized_graph.report_manifest.v1.schema.json",
+    "system_compiler.artifact_report/v0": "schemas/system_compiler.artifact_report.v0.schema.json",
 }
 
 
@@ -73,6 +74,13 @@ def validate_ci_output_root(ci_root: Path, repo_root: Path, visited: set[Path]):
     if isinstance(report, dict) and report.get("manifest"):
         validate_once(Path(report["manifest"]).resolve(), repo_root, visited)
 
+    artifact_report = summary.get("artifact_report")
+    if isinstance(artifact_report, dict):
+        for case_entry in artifact_report.get("cases", []):
+            path_value = case_entry.get("path")
+            if isinstance(path_value, str) and path_value:
+                validate_once(Path(path_value).resolve(), repo_root, visited)
+
 
 def validate_once(path: Path, repo_root: Path, visited: set[Path]):
     resolved = path.resolve()
@@ -84,7 +92,7 @@ def validate_once(path: Path, repo_root: Path, visited: set[Path]):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate materialized graph JSON artifacts against repo schemas.")
+    parser = argparse.ArgumentParser(description="Validate exported JSON artifacts against repo schemas.")
     parser.add_argument("paths", nargs="*", help="JSON artifact paths to validate directly")
     parser.add_argument("--bundle-root", action="append", default=[], help="Validate bundle index.json and referenced case JSONs")
     parser.add_argument("--ci-output-root", action="append", default=[], help="Validate CI summary.json and linked artifacts")

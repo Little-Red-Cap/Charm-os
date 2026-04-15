@@ -1,0 +1,98 @@
+{
+  "schema": "system_compiler.artifact_report/v0",
+  "generated_at_utc": "2026-04-15T10:30:00Z",
+  "generator": "charm.system_compiler",
+  "report_kind": "system_compiler.artifact_report",
+  "mode": "export_only",
+  "subject": {
+    "case": "bringup-minimal-observe-demo",
+    "profile": "MCU_MIN",
+    "board": "stm32_stub",
+    "active_facets": [
+      "runtime",
+      "input"
+    ]
+  },
+  "structure": {
+    "capability_count": 12,
+    "node_count": 9,
+    "edge_count": 8,
+    "materialized_order": [
+      "system.clock",
+      "io.registry",
+      "platform.irq",
+      "hal.uart1",
+      "io.uart1"
+    ],
+    "required_facts": [
+      "platform.irq",
+      "system.clock"
+    ],
+    "unresolved_bindings": []
+  },
+  "bringup_evidence": {
+    "declared_count": 12,
+    "materialized_count": 12,
+    "published_count": 3,
+    "observed_count": 3,
+    "blocked_count": 0,
+    "failed_count": 0,
+    "published_capabilities": [
+      "io.uart1",
+      "io.console0",
+      "input.service"
+    ],
+    "blocked_reasons": [],
+    "failed_reasons": []
+  },
+  "resource_contract": {
+    "declared_contracts": 4,
+    "provided_facts": [
+      "system.clock",
+      "reactor",
+      "task_context"
+    ],
+    "audited_count": 4,
+    "satisfied_count": 4,
+    "violated_count": 0,
+    "unknown_count": 0,
+    "violations": [],
+    "unknown_contracts": [],
+    "resource_hotspots": [
+      "needs_monotonic_clock"
+    ]
+  },
+  "runtime_observe": {
+    "publish_state_summary": {
+      "missing": 0,
+      "published": 3
+    },
+    "export_state_summary": {
+      "missing": 0,
+      "detached": 2,
+      "attached": 1
+    },
+    "recent_transitions": [
+      {
+        "capability": "io.uart1",
+        "action": "ensure_exported",
+        "before": "missing",
+        "after": "detached"
+      },
+      {
+        "capability": "io.uart1",
+        "action": "attach",
+        "before": "detached",
+        "after": "attached"
+      }
+    ]
+  },
+  "artifacts": {
+    "bundle": "out/materialized-graph-bundle/index.json",
+    "dot": "out/materialized-graph-bundle/bringup-minimal-observe-demo/materialized_graph.dot",
+    "sample_json": "out/materialized-graph-bundle/bringup-minimal-observe-demo/materialized_graph.sample.json",
+    "diff": null,
+    "ci_summary": null,
+    "report_manifest": "out/report/materialized_graph_bundle_diff_report.manifest.json"
+  }
+}

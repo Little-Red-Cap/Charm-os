@@ -16,6 +16,20 @@ import util.core;
 import util.error;
 
 namespace {
+    template <typename TransitionT, std::size_t MaxEvents>
+    struct FixedTransitionLog {
+        std::array<TransitionT, MaxEvents> events{};
+        std::size_t count{0};
+
+        static void on_event(void* ctx, const TransitionT& transition) noexcept {
+            auto* self = static_cast<FixedTransitionLog*>(ctx);
+            if (!self || self->count >= self->events.size()) {
+                return;
+            }
+            self->events[self->count++] = transition;
+        }
+    };
+
     struct DummyChannel {
         std::array<util::u8, 8> rx_data{
             static_cast<util::u8>('O'),
@@ -192,12 +206,20 @@ int main() {
         io::EndpointCaps::duplex
     };
     DummyChannel backend{};
+    FixedTransitionLog<io::ExportTransition, 4> transitions{};
+    exported.set_observer(&FixedTransitionLog<io::ExportTransition, 4>::on_event, &transitions);
 
     auto register_r = exported.ensure_exported();
     if (!register_r) {
         std::fprintf(stderr, "[ERR] io registry register failed err=%d\n", static_cast<int>(register_r.error()));
         return 1;
     }
+    if (!expect(transitions.count == 1, "ensure_exported should emit one channel transition")) return 1;
+    if (!expect(transitions.events[0].action == io::ExportAction::ensure_exported,
+                "first channel transition should be ensure_exported")) return 1;
+    if (!expect(transitions.events[0].before == io::ExportState::missing &&
+                transitions.events[0].after == io::ExportState::detached,
+                "ensure_exported should move channel slot from missing to detached")) return 1;
 
     auto* stable = io_registry.open_channel(kCapName);
     if (!expect(stable == &exported.channel(), "registry did not expose the stable channel slot")) return 1;
@@ -263,6 +285,12 @@ int main() {
     if (!expect(registry.device_count() == 1, "runtime registry should contain one channel device")) return 1;
 
     if (!expect_ok(registry.try_match_all(), "runtime registry match failed")) return 1;
+    if (!expect(transitions.count == 2, "attach should emit a second channel transition")) return 1;
+    if (!expect(transitions.events[1].action == io::ExportAction::attach,
+                "second channel transition should be attach")) return 1;
+    if (!expect(transitions.events[1].before == io::ExportState::detached &&
+                transitions.events[1].after == io::ExportState::attached,
+                "attach should move channel slot from detached to attached")) return 1;
     if (!expect(exported.attached(), "runtime init did not attach the channel slot")) return 1;
     if (!expect(exported.generation() == 1, "channel slot generation should advance after attach")) return 1;
     if (!expect(registry.device_at(0).state == device::DeviceState::running,
@@ -305,6 +333,12 @@ int main() {
                    "runtime remove did not complete")) {
         return 1;
     }
+    if (!expect(transitions.count == 3, "remove should emit a detach transition")) return 1;
+    if (!expect(transitions.events[2].action == io::ExportAction::detach,
+                "third channel transition should be detach")) return 1;
+    if (!expect(transitions.events[2].before == io::ExportState::attached &&
+                transitions.events[2].after == io::ExportState::detached,
+                "detach should move channel slot from attached to detached")) return 1;
     if (!expect(!exported.attached(), "runtime remove did not detach the channel slot")) return 1;
     if (!expect(exported.generation() == 2, "channel slot generation should advance after detach")) return 1;
     if (!expect(io_registry.open_channel(kCapName) == stable,

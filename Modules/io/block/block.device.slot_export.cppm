@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <span>
 #include <string_view>
 
@@ -18,6 +19,23 @@ export namespace block {
         attached,
     };
 
+    enum class ExportAction : util::u8 {
+        ensure_exported,
+        attach,
+        detach,
+        unexport,
+    };
+
+    struct ExportTransition {
+        ExportAction action{ExportAction::ensure_exported};
+        PublishState publish_before{PublishState::missing};
+        PublishState publish_after{PublishState::missing};
+        ExportState before{ExportState::missing};
+        ExportState after{ExportState::missing};
+    };
+
+    using ExportObserver = void (*)(void* ctx, const ExportTransition& transition) noexcept;
+
     template <typename RegistryT>
     class DeviceSlotExport {
     public:
@@ -30,6 +48,8 @@ export namespace block {
         }
 
         util::Result<void> ensure_exported() noexcept {
+            const auto publish_before = publish_state();
+            const auto before = state();
             if (!registry_ || desc_.name.empty() || desc_.cap == 0) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
@@ -39,22 +59,37 @@ export namespace block {
                 }
                 return {};
             }
-            return registry_->register_device(desc_, slot_.device());
+            auto exported = registry_->register_device(desc_, slot_.device());
+            if (exported) {
+                notify_transition(ExportAction::ensure_exported, publish_before, before);
+            }
+            return exported;
         }
 
         util::Result<void> attach(Device& target) noexcept {
+            const auto publish_before = publish_state();
+            const auto before = state();
             auto exported = ensure_exported();
             if (!exported) {
                 return exported;
             }
-            return slot_.attach(target);
+            auto attached = slot_.attach(target);
+            if (attached) {
+                notify_transition(ExportAction::attach, publish_before, before);
+            }
+            return attached;
         }
 
         void detach() noexcept {
+            const auto publish_before = publish_state();
+            const auto before = state();
             slot_.detach();
+            notify_transition(ExportAction::detach, publish_before, before);
         }
 
         util::Result<void> unexport() noexcept {
+            const auto publish_before = publish_state();
+            const auto before = state();
             if (!registry_ || desc_.name.empty() || desc_.cap == 0) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
@@ -66,7 +101,11 @@ export namespace block {
                 return util::unexpected(util::Errc::exist);
             }
             slot_.detach();
-            return registry_->unregister_device(desc_.cap);
+            auto unexported = registry_->unregister_device(desc_.cap);
+            if (unexported) {
+                notify_transition(ExportAction::unexport, publish_before, before);
+            }
+            return unexported;
         }
 
         [[nodiscard]] bool exported() const noexcept {
@@ -102,6 +141,11 @@ export namespace block {
         [[nodiscard]] Device* target() const noexcept { return slot_.target(); }
         [[nodiscard]] const DeviceDesc& desc() const noexcept { return desc_; }
 
+        void set_observer(ExportObserver observer, void* ctx = nullptr) noexcept {
+            observer_ = observer;
+            observer_ctx_ = ctx;
+        }
+
         DeviceSlot& slot() noexcept { return slot_; }
         const DeviceSlot& slot() const noexcept { return slot_; }
 
@@ -109,9 +153,32 @@ export namespace block {
         const Device& device() const noexcept { return slot_.device(); }
 
     private:
+        void notify_transition(ExportAction action,
+                               PublishState publish_before,
+                               ExportState before) noexcept {
+            if (!observer_) {
+                return;
+            }
+            const auto publish_after = publish_state();
+            const auto after = state();
+            if (publish_before == publish_after && before == after) {
+                return;
+            }
+            observer_(observer_ctx_,
+                      ExportTransition{
+                          action,
+                          publish_before,
+                          publish_after,
+                          before,
+                          after
+                      });
+        }
+
         RegistryT* registry_{nullptr};
         DeviceDesc desc_{};
         DeviceSlot slot_{};
+        ExportObserver observer_{nullptr};
+        void* observer_ctx_{nullptr};
     };
 
 #ifndef NDEBUG
@@ -136,15 +203,36 @@ export namespace block {
             }
         };
 
+        struct TransitionLog {
+            std::array<ExportTransition, 4> events{};
+            util::usize count{0};
+
+            static void on_transition(void* ctx, const ExportTransition& transition) noexcept {
+                auto* self = static_cast<TransitionLog*>(ctx);
+                if (!self || self->count >= self->events.size()) {
+                    return;
+                }
+                self->events[self->count++] = transition;
+            }
+        };
+
         Registry<2> registry{};
         registry.init();
 
         DeviceSlotExport<Registry<2>> exported{registry, "block.usb0"};
+        TransitionLog log{};
+        exported.set_observer(&TransitionLog::on_transition, &log);
         if (exported.publish_state() != PublishState::missing) return false;
         if (exported.published()) return false;
         if (exported.exported()) return false;
         if (exported.state() != ExportState::missing) return false;
         if (!exported.ensure_exported()) return false;
+        if (log.count != 1) return false;
+        if (log.events[0].action != ExportAction::ensure_exported) return false;
+        if (log.events[0].publish_before != PublishState::missing ||
+            log.events[0].publish_after != PublishState::published) return false;
+        if (log.events[0].before != ExportState::missing ||
+            log.events[0].after != ExportState::detached) return false;
         if (exported.publish_state() != PublishState::published) return false;
         if (!exported.published()) return false;
         if (!exported.exported()) return false;
@@ -153,6 +241,10 @@ export namespace block {
 
         DummyDisk disk{};
         if (!exported.attach(disk.dev)) return false;
+        if (log.count != 2) return false;
+        if (log.events[1].action != ExportAction::attach) return false;
+        if (log.events[1].before != ExportState::detached ||
+            log.events[1].after != ExportState::attached) return false;
         if (!exported.attached()) return false;
         if (exported.state() != ExportState::attached) return false;
         if (exported.generation() != 1) return false;
@@ -162,6 +254,10 @@ export namespace block {
         if (!st || byte != 0xA5) return false;
 
         exported.detach();
+        if (log.count != 3) return false;
+        if (log.events[2].action != ExportAction::detach) return false;
+        if (log.events[2].before != ExportState::attached ||
+            log.events[2].after != ExportState::detached) return false;
         if (exported.attached()) return false;
         if (exported.state() != ExportState::detached) return false;
         if (exported.generation() != 2) return false;
@@ -171,6 +267,12 @@ export namespace block {
         if (st.err != Errc::noent) return false;
 
         if (!exported.unexport()) return false;
+        if (log.count != 4) return false;
+        if (log.events[3].action != ExportAction::unexport) return false;
+        if (log.events[3].publish_before != PublishState::published ||
+            log.events[3].publish_after != PublishState::missing) return false;
+        if (log.events[3].before != ExportState::detached ||
+            log.events[3].after != ExportState::missing) return false;
         if (exported.publish_state() != PublishState::missing) return false;
         if (exported.published()) return false;
         if (exported.exported()) return false;

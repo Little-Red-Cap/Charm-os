@@ -98,6 +98,8 @@ int main() {
     constexpr auto other_ip = net::IpAddress::ipv4(10, 0, 0, 12);
     constexpr auto retry_mac = net::MacAddress::from_bytes(0x02u, 0x77u, 0x66u, 0x55u, 0x44u, 0x33u);
     constexpr auto retry_ip = net::IpAddress::ipv4(10, 0, 0, 21);
+    constexpr auto auto_mac = net::MacAddress::from_bytes(0x02u, 0x22u, 0x33u, 0x44u, 0x55u, 0x66u);
+    constexpr auto auto_ip = net::IpAddress::ipv4(10, 0, 0, 31);
 
     net::NetIf netif{};
     auto configured = netif.configure(net::NetIfConfig{
@@ -309,6 +311,79 @@ int main() {
     if (!resolved_retry || !same_mac(resolved_retry.value(), retry_mac) || arp.request_count() != 2) {
         std::fputs("arp smoke retry cache resolve failed\n", stderr);
         return 24;
+    }
+
+    auto auto_pending = arp.lookup_or_request(auto_ip);
+    if (auto_pending
+        || auto_pending.error() != net::errc::again
+        || arp.request_count() != 3
+        || arp.pending_count() != 1
+        || arp.pending_attempts(auto_ip) != 1
+        || link.tx_calls != 4) {
+        std::fputs("arp smoke auto request seed failed\n", stderr);
+        return 25;
+    }
+
+    arp.advance_ticks(1);
+    auto idle = arp.service_pending(2, 2);
+    if (!idle
+        || idle.value().retried != 0
+        || idle.value().timed_out != 0
+        || arp.request_count() != 3
+        || arp.pending_count() != 1
+        || link.tx_calls != 4) {
+        std::fputs("arp smoke auto idle tick failed\n", stderr);
+        return 26;
+    }
+
+    arp.advance_ticks(1);
+    auto auto_retry = arp.service_pending(2, 2);
+    if (!auto_retry
+        || auto_retry.value().retried != 1
+        || auto_retry.value().timed_out != 0
+        || arp.request_count() != 4
+        || arp.pending_attempts(auto_ip) != 2
+        || link.tx_calls != 5) {
+        std::fputs("arp smoke auto retry tick failed\n", stderr);
+        return 27;
+    }
+
+    arp.advance_ticks(2);
+    auto auto_timeout = arp.service_pending(2, 2);
+    if (!auto_timeout
+        || auto_timeout.value().retried != 0
+        || auto_timeout.value().timed_out != 1
+        || arp.pending_count() != 0
+        || arp.failed_count() != 1
+        || link.tx_calls != 5) {
+        std::fputs("arp smoke auto timeout tick failed\n", stderr);
+        return 28;
+    }
+
+    net::PacketBuffer<96> auto_reply{};
+    auto wrote_auto_reply = net::write_arp_ipv4_reply_frame(
+        auto_reply,
+        local_mac,
+        auto_mac,
+        auto_ip,
+        local_mac,
+        local_ip);
+    if (!wrote_auto_reply) {
+        std::fputs("arp smoke auto reply encode failed\n", stderr);
+        return 29;
+    }
+
+    link.queue_rx(auto_reply.view().payload);
+    polled = stack.poll_links();
+    if (!polled || arp.failed_count() != 0 || link.tx_calls != 5 || link.rx_pool.in_use_count() != 0) {
+        std::fputs("arp smoke auto reply handling failed\n", stderr);
+        return 30;
+    }
+
+    auto auto_resolved = arp.lookup_or_request(auto_ip);
+    if (!auto_resolved || !same_mac(auto_resolved.value(), auto_mac) || arp.request_count() != 4) {
+        std::fputs("arp smoke auto cache resolve failed\n", stderr);
+        return 31;
     }
 
     std::puts("net arp smoke: ok");

@@ -25,6 +25,11 @@ export namespace net {
         IpAddress target_ip{};
     };
 
+    struct ArpRetryProgress {
+        util::usize retried{0};
+        util::usize timed_out{0};
+    };
+
     [[nodiscard]] constexpr util::u16 arp_hardware_type_ethernet() noexcept {
         return 1;
     }
@@ -326,6 +331,14 @@ export namespace net {
             return reply_count_;
         }
 
+        [[nodiscard]] util::usize tick_count() const noexcept {
+            return tick_count_;
+        }
+
+        void advance_ticks(util::usize ticks = 1) noexcept {
+            tick_count_ += ticks;
+        }
+
         [[nodiscard]] Result<util::usize> retry_pending_requests(
             util::usize max_attempts = static_cast<util::usize>(-1)) noexcept {
             if (netif_ == nullptr) {
@@ -351,6 +364,38 @@ export namespace net {
                 ++retried;
             }
             return Result<util::usize>{std::in_place, retried};
+        }
+
+        [[nodiscard]] Result<ArpRetryProgress> service_pending(
+            util::usize retry_interval_ticks,
+            util::usize max_attempts = static_cast<util::usize>(-1)) noexcept {
+            if (netif_ == nullptr) {
+                return util::unexpected(errc::bad_state);
+            }
+
+            ArpRetryProgress progress{};
+            for (auto& pending : pending_) {
+                if (!pending.used || pending.failed) {
+                    continue;
+                }
+
+                const auto elapsed = tick_count_ - pending.last_request_tick;
+                if (elapsed < retry_interval_ticks) {
+                    continue;
+                }
+                if (pending.attempts >= max_attempts) {
+                    pending.failed = true;
+                    ++progress.timed_out;
+                    continue;
+                }
+
+                auto requested = issue_pending_request(pending);
+                if (!requested) {
+                    return util::unexpected(requested.error());
+                }
+                ++progress.retried;
+            }
+            return Result<ArpRetryProgress>{std::in_place, progress};
         }
 
         [[nodiscard]] Result<MacAddress> lookup_or_request(IpAddress ip) noexcept {
@@ -443,6 +488,7 @@ export namespace net {
             bool failed{false};
             IpAddress ip{};
             util::usize attempts{0};
+            util::usize last_request_tick{0};
         };
 
         static constexpr util::usize invalid_index() noexcept {
@@ -492,6 +538,7 @@ export namespace net {
                 return util::unexpected(requested.error());
             }
             ++pending.attempts;
+            pending.last_request_tick = tick_count_;
             ++request_count_;
             return {};
         }
@@ -507,6 +554,7 @@ export namespace net {
         NetIf* netif_{nullptr};
         ArpTable<TableCapacity> table_{};
         std::array<PendingEntry, TableCapacity> pending_{};
+        util::usize tick_count_{0};
         util::usize request_count_{0};
         util::usize reply_count_{0};
     };

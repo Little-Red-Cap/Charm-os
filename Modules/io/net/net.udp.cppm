@@ -36,6 +36,13 @@ export namespace net {
         queued,
     };
 
+    struct UdpEgressProgress {
+        util::usize arp_retried{0};
+        util::usize arp_timed_out{0};
+        util::usize flushed{0};
+        util::usize dropped{0};
+    };
+
     template <typename T>
     concept UdpDatagramSink = requires(T& t, const UdpDatagramInfo& info, OwnedPacket packet) {
         { t.consume(info, static_cast<OwnedPacket&&>(packet)) } noexcept -> std::same_as<Result<void>>;
@@ -451,6 +458,33 @@ export namespace net {
                 return util::unexpected(sent.error());
             }
             return Result<util::usize>{std::in_place, flushed};
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<UdpEgressProgress> service(NetIf& netif,
+                                                        ArpService<ArpCapacity, ArpTxCapacity>& arp,
+                                                        util::usize elapsed_ticks = 1,
+                                                        util::usize retry_interval_ticks = 1,
+                                                        util::usize max_attempts = static_cast<util::usize>(-1)) noexcept {
+            arp.advance_ticks(elapsed_ticks);
+
+            auto arp_progress = arp.service_pending(retry_interval_ticks, max_attempts);
+            if (!arp_progress) {
+                return util::unexpected(arp_progress.error());
+            }
+
+            const auto dropped_before = dropped_count_;
+            auto flushed = flush<TxCapacity>(netif, arp);
+            if (!flushed) {
+                return util::unexpected(flushed.error());
+            }
+
+            return Result<UdpEgressProgress>{std::in_place, UdpEgressProgress{
+                .arp_retried = arp_progress.value().retried,
+                .arp_timed_out = arp_progress.value().timed_out,
+                .flushed = flushed.value(),
+                .dropped = dropped_count_ - dropped_before,
+            }};
         }
 
     private:

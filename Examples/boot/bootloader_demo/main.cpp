@@ -1,6 +1,7 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -123,6 +124,19 @@ namespace {
         }
     }
 
+    enum class MockPrepareStep : util::u8 {
+        mask_interrupts = 0,
+        activate_payload_mapping,
+        clean_data_cache,
+        invalidate_instruction_cache,
+        invalidate_tlb,
+        switch_exception_vectors,
+        sync_context,
+        prepare_jump,
+        jump,
+        entry
+    };
+
     struct MockLaunchContext {
         util::u32 expected_payload_offset{0};
         util::u32 expected_storage_entry_offset{0};
@@ -133,10 +147,37 @@ namespace {
         bool prepare_called{false};
         bool jump_called{false};
         bool entry_called{false};
+        std::array<MockPrepareStep, 16> trace{};
+        util::usize trace_count{0};
     };
 
+    bool push_trace(MockLaunchContext& launch, MockPrepareStep step) noexcept {
+        if (launch.trace_count >= launch.trace.size()) {
+            return false;
+        }
+        launch.trace[launch.trace_count++] = step;
+        return true;
+    }
+
+    bool expect_trace(const MockLaunchContext& launch,
+                      std::initializer_list<MockPrepareStep> expected) noexcept {
+        if (launch.trace_count != expected.size()) {
+            return false;
+        }
+
+        util::usize index = 0;
+        for (const auto step : expected) {
+            if (launch.trace[index++] != step) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void mock_boot_entry(void* ctx) noexcept {
-        static_cast<MockLaunchContext*>(ctx)->entry_called = true;
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->entry_called = true;
+        (void)push_trace(*launch, MockPrepareStep::entry);
     }
 
     util::usize resolve_mock_payload_base(void* ctx,
@@ -172,6 +213,9 @@ namespace {
                                 const platform::board::BootExecRequest& request) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->prepare_called = true;
+        if (!push_trace(*launch, MockPrepareStep::prepare_jump)) {
+            return false;
+        }
         return request.kind == launch->expected_load_kind &&
                request.storage_entry_offset == launch->expected_storage_entry_offset &&
                request.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
@@ -181,9 +225,63 @@ namespace {
                              const platform::board::BootExecRequest& request) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->jump_called = true;
+        if (!push_trace(*launch, MockPrepareStep::jump)) {
+            return false;
+        }
         auto entry = reinterpret_cast<void (*)(void*) noexcept>(request.entry_addr);
         entry(ctx);
         return launch->entry_called;
+    }
+
+    bool mask_mock_interrupts(void* ctx,
+                              const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::mask_interrupts) &&
+               request.entry_addr != 0;
+    }
+
+    bool activate_mock_payload_mapping(void* ctx,
+                                       const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::activate_payload_mapping) &&
+               request.kind == launch->expected_load_kind &&
+               request.storage_payload_offset == launch->expected_payload_offset &&
+               request.storage_entry_offset == launch->expected_storage_entry_offset;
+    }
+
+    bool clean_mock_data_cache(void* ctx,
+                               const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::clean_data_cache) &&
+               request.payload_size != 0;
+    }
+
+    bool invalidate_mock_instruction_cache(void* ctx,
+                                           const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::invalidate_instruction_cache) &&
+               request.image_size >= request.payload_size;
+    }
+
+    bool invalidate_mock_tlb(void* ctx,
+                             const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::invalidate_tlb) &&
+               request.entry_offset + request.payload_base == request.entry_addr;
+    }
+
+    bool switch_mock_exception_vectors(void* ctx,
+                                       const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::switch_exception_vectors) &&
+               request.entry_addr != 0;
+    }
+
+    bool sync_mock_context(void* ctx,
+                           const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::sync_context) &&
+               request.payload_base != 0;
     }
 
     std::vector<util::u8> make_header_frame(std::string_view file_name, util::u32 file_size) {
@@ -480,7 +578,26 @@ int main() {
         .exec = {
             .ctx = &armv7_copy_ctx,
             .prepare_jump = prepare_mock_execution,
-            .jump = jump_mock_execution
+            .jump = jump_mock_execution,
+            .maintenance = {
+                .ctx = &armv7_copy_ctx,
+                .mask_interrupts = mask_mock_interrupts,
+                .activate_payload_mapping = activate_mock_payload_mapping,
+                .clean_data_cache = clean_mock_data_cache,
+                .invalidate_instruction_cache = invalidate_mock_instruction_cache,
+                .invalidate_tlb = invalidate_mock_tlb,
+                .switch_exception_vectors = switch_mock_exception_vectors,
+                .sync_context = sync_mock_context
+            },
+            .policy = {
+                .mask_interrupts = true,
+                .activate_payload_mapping = true,
+                .clean_data_cache = true,
+                .invalidate_instruction_cache = true,
+                .invalidate_tlb = true,
+                .switch_exception_vectors = true,
+                .sync_context = true
+            }
         }
     };
     const auto armv7_copy_caps = platform::board::with_boot_caps(
@@ -504,7 +621,20 @@ int main() {
         armv7_copy_ctx.load_called &&
         armv7_copy_ctx.prepare_called &&
         armv7_copy_ctx.jump_called &&
-        armv7_copy_ctx.entry_called;
+        armv7_copy_ctx.entry_called &&
+        expect_trace(armv7_copy_ctx,
+                     {
+                         MockPrepareStep::mask_interrupts,
+                         MockPrepareStep::activate_payload_mapping,
+                         MockPrepareStep::clean_data_cache,
+                         MockPrepareStep::invalidate_instruction_cache,
+                         MockPrepareStep::invalidate_tlb,
+                         MockPrepareStep::switch_exception_vectors,
+                         MockPrepareStep::sync_context,
+                         MockPrepareStep::prepare_jump,
+                         MockPrepareStep::jump,
+                         MockPrepareStep::entry
+                     });
 
     MockLaunchContext armv7_xip_ctx{
         .expected_payload_offset = xip_load.storage_payload_offset,
@@ -520,7 +650,26 @@ int main() {
         .exec = {
             .ctx = &armv7_xip_ctx,
             .prepare_jump = prepare_mock_execution,
-            .jump = jump_mock_execution
+            .jump = jump_mock_execution,
+            .maintenance = {
+                .ctx = &armv7_xip_ctx,
+                .mask_interrupts = mask_mock_interrupts,
+                .activate_payload_mapping = activate_mock_payload_mapping,
+                .clean_data_cache = clean_mock_data_cache,
+                .invalidate_instruction_cache = invalidate_mock_instruction_cache,
+                .invalidate_tlb = invalidate_mock_tlb,
+                .switch_exception_vectors = switch_mock_exception_vectors,
+                .sync_context = sync_mock_context
+            },
+            .policy = {
+                .mask_interrupts = true,
+                .activate_payload_mapping = true,
+                .clean_data_cache = true,
+                .invalidate_instruction_cache = true,
+                .invalidate_tlb = true,
+                .switch_exception_vectors = true,
+                .sync_context = true
+            }
         }
     };
     const auto armv7_xip_caps = platform::board::armv7a_stub::make_boot_caps(armv7_xip_boot);
@@ -542,7 +691,20 @@ int main() {
         !armv7_xip_ctx.load_called &&
         armv7_xip_ctx.prepare_called &&
         armv7_xip_ctx.jump_called &&
-        armv7_xip_ctx.entry_called;
+        armv7_xip_ctx.entry_called &&
+        expect_trace(armv7_xip_ctx,
+                     {
+                         MockPrepareStep::mask_interrupts,
+                         MockPrepareStep::activate_payload_mapping,
+                         MockPrepareStep::clean_data_cache,
+                         MockPrepareStep::invalidate_instruction_cache,
+                         MockPrepareStep::invalidate_tlb,
+                         MockPrepareStep::switch_exception_vectors,
+                         MockPrepareStep::sync_context,
+                         MockPrepareStep::prepare_jump,
+                         MockPrepareStep::jump,
+                         MockPrepareStep::entry
+                     });
 
     const bool ok = slot_a_written &&
                     transfer_ok &&

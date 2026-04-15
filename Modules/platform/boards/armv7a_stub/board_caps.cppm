@@ -23,12 +23,42 @@ export namespace platform::board::armv7a_stub {
                              const BootLoadTransferRequest& request) noexcept {nullptr};
     };
 
+    struct BootPrepareHooks {
+        void* ctx{nullptr};
+        bool (*mask_interrupts)(void* ctx,
+                                const BootExecRequest& request) noexcept {nullptr};
+        bool (*activate_payload_mapping)(void* ctx,
+                                         const BootExecRequest& request) noexcept {nullptr};
+        bool (*clean_data_cache)(void* ctx,
+                                 const BootExecRequest& request) noexcept {nullptr};
+        bool (*invalidate_instruction_cache)(void* ctx,
+                                             const BootExecRequest& request) noexcept {nullptr};
+        bool (*invalidate_tlb)(void* ctx,
+                               const BootExecRequest& request) noexcept {nullptr};
+        bool (*switch_exception_vectors)(void* ctx,
+                                         const BootExecRequest& request) noexcept {nullptr};
+        bool (*sync_context)(void* ctx,
+                             const BootExecRequest& request) noexcept {nullptr};
+    };
+
+    struct BootPreparePolicy {
+        bool mask_interrupts{true};
+        bool activate_payload_mapping{true};
+        bool clean_data_cache{true};
+        bool invalidate_instruction_cache{true};
+        bool invalidate_tlb{true};
+        bool switch_exception_vectors{false};
+        bool sync_context{true};
+    };
+
     struct BootExecHooks {
         void* ctx{nullptr};
         bool (*prepare_jump)(void* ctx,
                              const BootExecRequest& request) noexcept {nullptr};
         bool (*jump)(void* ctx,
                      const BootExecRequest& request) noexcept {nullptr};
+        BootPrepareHooks maintenance{};
+        BootPreparePolicy policy{};
     };
 
     struct BootContext {
@@ -78,6 +108,42 @@ export namespace platform::board::armv7a_stub {
         }
 
         const auto& boot = *static_cast<const BootContext*>(ctx);
+        const auto invoke_prepare_step =
+            [&](bool enabled,
+                bool (*fn)(void*, const BootExecRequest&) noexcept,
+                void* hook_ctx) noexcept {
+                if (!enabled || !fn) {
+                    return true;
+                }
+                return fn(detail::select_hook_ctx(ctx, hook_ctx), request);
+            };
+
+        const auto& maintenance = boot.exec.maintenance;
+        const auto& policy = boot.exec.policy;
+        if (!invoke_prepare_step(policy.mask_interrupts,
+                                 maintenance.mask_interrupts,
+                                 maintenance.ctx) ||
+            !invoke_prepare_step(policy.activate_payload_mapping,
+                                 maintenance.activate_payload_mapping,
+                                 maintenance.ctx) ||
+            !invoke_prepare_step(policy.clean_data_cache,
+                                 maintenance.clean_data_cache,
+                                 maintenance.ctx) ||
+            !invoke_prepare_step(policy.invalidate_instruction_cache,
+                                 maintenance.invalidate_instruction_cache,
+                                 maintenance.ctx) ||
+            !invoke_prepare_step(policy.invalidate_tlb,
+                                 maintenance.invalidate_tlb,
+                                 maintenance.ctx) ||
+            !invoke_prepare_step(policy.switch_exception_vectors,
+                                 maintenance.switch_exception_vectors,
+                                 maintenance.ctx) ||
+            !invoke_prepare_step(policy.sync_context,
+                                 maintenance.sync_context,
+                                 maintenance.ctx)) {
+            return false;
+        }
+
         if (!boot.exec.prepare_jump) {
             return request.payload_base != 0 && request.entry_addr != 0;
         }

@@ -27,6 +27,7 @@
 - `reactor_listener_close_smoke` 已锁住 accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭会向 reactor 收口为 `closed`
 - `reactor_listener_win_close_smoke` 已把这条 listener / accept / watch 语义扩展到真实 WinProvider：accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭仍会向 reactor 收口为 `closed`
 - `reactor_write_close_smoke` 已锁住 transport 进入终态后 sender 不再继续排队
+- `reactor_write_reset_close_smoke` 已把这条语义扩展到真实 WinProvider：即便先采样到 `writable`，peer abortive close / reset 后真正 flush 时仍会统一收口为 `closed`，而不是反弹成 `error`
 - `reactor_request_close_smoke` 已锁住 closed transport 不再接受新的 request
 - `reactor_request_reset_close_smoke` 已锁住 WinProvider 在 peer abortive close / reset 下仍把 transport 收口为 `closed`，而不是误报成 `error`
 - `reactor_service_close_smoke` 已锁住 closed transport 后 deferred reply 会被拒绝，且 deferred 状态会被清理
@@ -129,6 +130,7 @@
 
 - `reactor_loopback_smoke` 稳定通过
 - `reactor_listener_close_smoke`、`reactor_listener_win_close_smoke` 稳定通过
+- `reactor_write_close_smoke`、`reactor_write_reset_close_smoke` 稳定通过
 - `reactor_line_echo_smoke` 与 `reactor_frame_echo_smoke` 能持续说明高层承载面可靠
 - reactor 事件含义不会因为 backend 变化而大幅漂移
 

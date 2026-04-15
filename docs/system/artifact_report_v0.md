@@ -14,6 +14,20 @@
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
 ```
 
+当前最小真实生成链脚本为：
+
+- `scripts/export_system_compiler_artifact_report.ps1`
+
+它当前会基于现有 `materialized_graph` bundle/index/sample，为每个 case 生成一份最小 `artifact report` JSON。
+
+当前最小真实链路可以这样跑：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case materialize-observe-demo -OutputRoot out/artifact-report-demo-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/artifact-report-demo-bundle -Case materialize-observe-demo -OutputRoot out/system-compiler-artifact-report-demo
+python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-artifact-report-demo/materialize-observe-demo.artifact_report.json
+```
+
 它要回答的核心问题不是“有哪些零散导出文件”，而是：
 
 > **当一次系统编译、bringup 举证与资源审计完成后，Charm 应该把哪些核心事实收束成一个可引用对象。**

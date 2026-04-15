@@ -1,7 +1,9 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdarg>
+#include <cstring>
 #include <csignal>
+#include <dirent.h>
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -172,6 +174,26 @@ namespace {
 
     bool has_any_perm(util::u32 mode_bits, util::u32 perm_mask) noexcept {
         return (mode_bits & perm_mask) != 0;
+    }
+
+    unsigned char dirent_type_from_mode(util::u32 mode_bits) noexcept {
+        switch (mode_bits & S_IFMT) {
+            case S_IFIFO: return DT_FIFO;
+            case S_IFCHR: return DT_CHR;
+            case S_IFDIR: return DT_DIR;
+            case S_IFREG: return DT_REG;
+            default: return DT_UNKNOWN;
+        }
+    }
+
+    dirent* copy_dirent(const posix::PosixDirent& in) noexcept {
+        static struct dirent out{};
+        out = {};
+        std::memcpy(out.d_name, in.d_name.data(), in.d_name.size());
+        out.d_type = dirent_type_from_mode(in.d_mode);
+        out.d_mode = static_cast<charm_posix_mode_t>(in.d_mode);
+        out.d_size = static_cast<unsigned long long>(in.d_size);
+        return &out;
     }
 }
 
@@ -461,6 +483,48 @@ extern "C" int _rename(const char* from, const char* to) {
 
 extern "C" int rename(const char* from, const char* to) {
     return _rename(from, to);
+}
+
+extern "C" DIR* opendir(const char* path) {
+    ErrnoScope guard{};
+    auto* dir = posix::user::opendir(path);
+    if (!dir) {
+        (void)guard.fail_from_runtime();
+        return nullptr;
+    }
+    guard.restore();
+    return reinterpret_cast<DIR*>(dir);
+}
+
+extern "C" struct dirent* readdir(DIR* dir) {
+    auto* runtime_errno = posix::user::errno_location();
+    const int saved_c_errno = errno;
+    const int saved_runtime_errno = *runtime_errno;
+    errno = 0;
+    *runtime_errno = 0;
+    const auto* entry = posix::user::readdir(reinterpret_cast<posix::PosixDir*>(dir));
+    if (!entry) {
+        if (*runtime_errno == 0) {
+            errno = saved_c_errno;
+            *runtime_errno = saved_runtime_errno;
+        } else {
+            errno = translate_runtime_errno_to_c(*runtime_errno);
+        }
+        return nullptr;
+    }
+    errno = saved_c_errno;
+    *runtime_errno = saved_runtime_errno;
+    return copy_dirent(*entry);
+}
+
+extern "C" int closedir(DIR* dir) {
+    ErrnoScope guard{};
+    const int r = posix::user::closedir(reinterpret_cast<posix::PosixDir*>(dir));
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
 }
 
 extern "C" int _chdir(const char* path) {

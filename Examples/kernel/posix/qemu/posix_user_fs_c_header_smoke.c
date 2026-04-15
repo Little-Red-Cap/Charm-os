@@ -625,11 +625,21 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_stat("parent-renamed.txt", &st) != -1) return 670;
     if (*err != CHARM_POSIX_ENOENT) return 671;
     *err = 103;
-    if (charm_posix_rmdir("sub") != 0) return 618;
-    if (*err != 103) return 619;
+    if (charm_posix_rename("sub", "sub-renamed") != 0) return 685;
+    if (*err != 103) return 686;
     *err = 0;
     if (charm_posix_stat("sub", &st) != -1) return 672;
     if (*err != CHARM_POSIX_ENOENT) return 673;
+    *err = 124;
+    if (charm_posix_stat("sub-renamed", &st) != 0) return 687;
+    if (*err != 124) return 688;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFDIR) return 689;
+    *err = 125;
+    if (charm_posix_rmdir("sub-renamed") != 0) return 618;
+    if (*err != 125) return 619;
+    *err = 0;
+    if (charm_posix_stat("sub-renamed", &st) != -1) return 690;
+    if (*err != CHARM_POSIX_ENOENT) return 691;
 
     *err = 60;
     if (charm_posix_chdir("/") != 0) return 346;

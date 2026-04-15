@@ -7,6 +7,8 @@ int charm_posix_c_header_probe_entry(void) {
     char** envp = charm_posix_envp();
     if (argv == 0 || envp == 0) return 72;
     if (argv[0] == 0 || argv[1] == 0) return 73;
+    if (argv[2] != 0) return 90;
+    if (envp[1] != 0) return 91;
 
     const char* foo = charm_posix_getenv("FOO");
     if (foo == 0) return 74;
@@ -14,12 +16,17 @@ int charm_posix_c_header_probe_entry(void) {
     if (charm_posix_environ() != envp) return 83;
     if (charm_posix_getenv("MISSING") != 0) return 84;
     if (charm_posix_getenv(0) != 0) return 85;
+    if (charm_posix_getenv("") != 0) return 92;
 
     char ch = 0;
     if (charm_posix_read(-1, &ch, 1) != -1) return 76;
 
     int* err = charm_posix_errno_location();
     if (err == 0 || *err != CHARM_POSIX_EBADF) return 77;
+    if (charm_posix_errno_location() != err) return 93;
+    *err = 44;
+    if (charm_posix_write(-1, "x", 1) != -1) return 94;
+    if (*err != CHARM_POSIX_EBADF) return 95;
     *err = 41;
     if (charm_posix_getpid() <= 0) return 78;
     if (*err != 41) return 86;

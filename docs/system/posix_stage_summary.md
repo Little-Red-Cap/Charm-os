@@ -17,6 +17,7 @@
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
 - freestanding C userland now keeps its minimal process/stdio surface in `charm_posix_user_crt.h`, while FS/FD/path/dir-facing contracts expand through the split header `Modules/io/posix/charm_posix_user_fs.h`
 - the exported C CRT header surface now also smoke-pins `argv/envp/environ` identity basics, `getenv(null-or-miss) -> nullptr`, and success-side `getpid/sleep(0)/write` errno preservation
+- the exported C CRT header surface now also smoke-pins argv/envp null termination, `getenv("") -> nullptr`, stable `errno_location()` identity, and `write(-1) -> EBADF`
 - the exported C CRT header surface now also smoke-covers explicit termination through `charm_posix_exit()` and `charm_posix_abort()`, with the current abort contract exiting with code `134`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`

@@ -1,6 +1,8 @@
 module;
 
 #include <array>
+#include <cstddef>
+#include <new>
 
 export module net.packet;
 
@@ -278,6 +280,190 @@ export namespace net {
 
         PacketPool<Count, Capacity>* pool_{nullptr};
         util::usize index_{invalid_index()};
+    };
+
+    class OwnedPacket {
+    public:
+        OwnedPacket() noexcept = default;
+        OwnedPacket(const OwnedPacket&) = delete;
+        OwnedPacket& operator=(const OwnedPacket&) = delete;
+
+        OwnedPacket(OwnedPacket&& other) noexcept {
+            move_from(static_cast<OwnedPacket&&>(other));
+        }
+
+        OwnedPacket& operator=(OwnedPacket&& other) noexcept {
+            if (this == &other) {
+                return *this;
+            }
+            reset();
+            move_from(static_cast<OwnedPacket&&>(other));
+            return *this;
+        }
+
+        template <util::usize Count, util::usize Capacity>
+        OwnedPacket(PacketLease<Count, Capacity>&& lease) noexcept {
+            emplace(static_cast<PacketLease<Count, Capacity>&&>(lease));
+        }
+
+        ~OwnedPacket() {
+            reset();
+        }
+
+        [[nodiscard]] static OwnedPacket borrowed(PacketView packet) noexcept {
+            OwnedPacket owned{};
+            owned.borrowed_view_ = packet;
+            owned.kind_ = Kind::borrowed_const;
+            return owned;
+        }
+
+        [[nodiscard]] static OwnedPacket borrowed(MutPacketView packet) noexcept {
+            OwnedPacket owned{};
+            owned.borrowed_mut_view_ = packet;
+            owned.kind_ = Kind::borrowed_mut;
+            return owned;
+        }
+
+        [[nodiscard]] bool valid() const noexcept {
+            return kind_ != Kind::empty;
+        }
+
+        [[nodiscard]] bool owns_storage() const noexcept {
+            return kind_ == Kind::leased;
+        }
+
+        [[nodiscard]] PacketView view() const noexcept {
+            switch (kind_) {
+                case Kind::borrowed_const:
+                    return borrowed_view_;
+                case Kind::borrowed_mut:
+                    return PacketView{borrowed_mut_view_.payload, borrowed_mut_view_.headroom, borrowed_mut_view_.tailroom};
+                case Kind::leased:
+                    return view_fn_ ? view_fn_(storage()) : PacketView{};
+                case Kind::empty:
+                default:
+                    return {};
+            }
+        }
+
+        [[nodiscard]] MutPacketView mut_view() noexcept {
+            switch (kind_) {
+                case Kind::borrowed_mut:
+                    return borrowed_mut_view_;
+                case Kind::leased:
+                    return mut_view_fn_ ? mut_view_fn_(storage()) : MutPacketView{};
+                case Kind::borrowed_const:
+                case Kind::empty:
+                default:
+                    return {};
+            }
+        }
+
+        void release() noexcept {
+            reset();
+        }
+
+    private:
+        enum class Kind : util::u8 {
+            empty,
+            borrowed_const,
+            borrowed_mut,
+            leased,
+        };
+
+        using ViewFn = PacketView (*)(const void*) noexcept;
+        using MutViewFn = MutPacketView (*)(void*) noexcept;
+        using MoveFn = void (*)(void*, void*) noexcept;
+        using DestroyFn = void (*)(void*) noexcept;
+
+        static constexpr util::usize inline_storage_size = sizeof(void*) * 4;
+
+        template <util::usize Count, util::usize Capacity>
+        void emplace(PacketLease<Count, Capacity>&& lease) noexcept {
+            using Lease = PacketLease<Count, Capacity>;
+            static_assert(sizeof(Lease) <= inline_storage_size);
+            ::new (storage()) Lease(static_cast<Lease&&>(lease));
+            view_fn_ = [](const void* self) noexcept {
+                return static_cast<const Lease*>(self)->buffer().view();
+            };
+            mut_view_fn_ = [](void* self) noexcept {
+                return static_cast<Lease*>(self)->buffer().mut_view();
+            };
+            move_fn_ = [](void* dst, void* src) noexcept {
+                auto* lease = static_cast<Lease*>(src);
+                ::new (dst) Lease(static_cast<Lease&&>(*lease));
+                lease->~Lease();
+            };
+            destroy_fn_ = [](void* self) noexcept {
+                static_cast<Lease*>(self)->~Lease();
+            };
+            kind_ = Kind::leased;
+        }
+
+        [[nodiscard]] void* storage() noexcept {
+            return lease_storage_.data();
+        }
+
+        [[nodiscard]] const void* storage() const noexcept {
+            return lease_storage_.data();
+        }
+
+        void reset() noexcept {
+            if (kind_ == Kind::leased && destroy_fn_ != nullptr) {
+                destroy_fn_(storage());
+            }
+            borrowed_view_ = {};
+            borrowed_mut_view_ = {};
+            view_fn_ = nullptr;
+            mut_view_fn_ = nullptr;
+            move_fn_ = nullptr;
+            destroy_fn_ = nullptr;
+            kind_ = Kind::empty;
+        }
+
+        void move_from(OwnedPacket&& other) noexcept {
+            switch (other.kind_) {
+                case Kind::borrowed_const:
+                    borrowed_view_ = other.borrowed_view_;
+                    kind_ = Kind::borrowed_const;
+                    other.borrowed_view_ = {};
+                    other.kind_ = Kind::empty;
+                    return;
+                case Kind::borrowed_mut:
+                    borrowed_mut_view_ = other.borrowed_mut_view_;
+                    kind_ = Kind::borrowed_mut;
+                    other.borrowed_mut_view_ = {};
+                    other.kind_ = Kind::empty;
+                    return;
+                case Kind::leased:
+                    view_fn_ = other.view_fn_;
+                    mut_view_fn_ = other.mut_view_fn_;
+                    move_fn_ = other.move_fn_;
+                    destroy_fn_ = other.destroy_fn_;
+                    kind_ = Kind::leased;
+                    if (move_fn_ != nullptr) {
+                        move_fn_(storage(), other.storage());
+                    }
+                    other.view_fn_ = nullptr;
+                    other.mut_view_fn_ = nullptr;
+                    other.move_fn_ = nullptr;
+                    other.destroy_fn_ = nullptr;
+                    other.kind_ = Kind::empty;
+                    return;
+                case Kind::empty:
+                default:
+                    return;
+            }
+        }
+
+        PacketView borrowed_view_{};
+        MutPacketView borrowed_mut_view_{};
+        alignas(std::max_align_t) std::array<unsigned char, inline_storage_size> lease_storage_{};
+        ViewFn view_fn_{nullptr};
+        MutViewFn mut_view_fn_{nullptr};
+        MoveFn move_fn_{nullptr};
+        DestroyFn destroy_fn_{nullptr};
+        Kind kind_{Kind::empty};
     };
 
     template <util::usize Count, util::usize Capacity>

@@ -88,10 +88,38 @@ int main() {
         return 10;
     }
 
+    {
+        auto owned_lease = pool.acquire(1);
+        if (!owned_lease) {
+            std::fputs("owned packet acquire failed\n", stderr);
+            return 11;
+        }
+        auto owned_append = owned_lease.value()->append(net::ByteView{payload, sizeof(payload)});
+        if (!owned_append) {
+            std::fputs("owned packet append failed\n", stderr);
+            return 12;
+        }
+
+        net::OwnedPacket owned{static_cast<net::PacketPool<2, 32>::Lease&&>(owned_lease.value())};
+        if (!owned.valid() || !owned.owns_storage()
+            || !bytes_eq(owned.view().payload, net::ByteView{payload, sizeof(payload)})) {
+            std::fputs("owned packet view failed\n", stderr);
+            return 13;
+        }
+        if (pool.in_use_count() != 2) {
+            std::fputs("owned packet did not retain lease\n", stderr);
+            return 14;
+        }
+    }
+    if (pool.in_use_count() != 1 || pool.free_count() != 1) {
+        std::fputs("owned packet release failed\n", stderr);
+        return 15;
+    }
+
     auto reacquired = pool.acquire(2);
     if (!reacquired || pool.in_use_count() != 2) {
         std::fputs("packet pool reacquire failed\n", stderr);
-        return 11;
+        return 16;
     }
 
     std::puts("net packet pool smoke: ok");

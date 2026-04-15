@@ -401,6 +401,10 @@ v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagn
 当前实现推进顺序上，`net.packet` 已先落固定容量 `PacketBuffer/PacketPool` 地基；
 `net.netif` 的第一刀建议只收口 `mtu/mac/address/capability + bind/up/down + input/output packet hook`，
 先把接口对象语义钉住，再往后接 `driver / self backend / ARP / IPv4`。
+`net.driver` 的第一刀则只建议收口 `link info + tx sink + poll 驱动的 rx 注入`，
+让 `driver ↔ netif ↔ packet` 的边界先稳定，再决定后续是接 host stub、板级 MAC/PHY 还是自研 L2/L3。
+在此基础上，`rx` 路径再尽早抬升到 `PacketLease/PacketPool` 持有语义，
+避免后续 ARP/IPv4 纵切时又回头重做一次 packet 生命周期边界。
 
 这样未来 USB 网卡、板载以太网、Host backend 都能用统一方式接入。
 

@@ -13,6 +13,25 @@ namespace {
         util::usize size{0};
         util::usize calls{0};
 
+        [[nodiscard]] net::Result<void> consume(net::OwnedPacket packet) noexcept {
+            const auto view = packet.view();
+            if (view.size() > bytes.size()) {
+                return util::unexpected(net::errc::buffer_overflow);
+            }
+            for (util::usize i = 0; i < view.size(); ++i) {
+                bytes[i] = view[i];
+            }
+            size = view.size();
+            ++calls;
+            return {};
+        }
+    };
+
+    struct TxProbe {
+        std::array<util::u8, 32> bytes{};
+        util::usize size{0};
+        util::usize calls{0};
+
         [[nodiscard]] net::Result<void> consume(net::PacketView packet) noexcept {
             if (packet.size() > bytes.size()) {
                 return util::unexpected(net::errc::buffer_overflow);
@@ -79,8 +98,8 @@ int main() {
     }
 
     PacketProbe rx{};
-    PacketProbe tx{};
-    netif.set_input_sink(net::make_packet_sink_ref(rx));
+    TxProbe tx{};
+    netif.set_input_sink(net::make_owned_packet_sink_ref(rx));
     netif.set_output_sink(net::make_packet_sink_ref(tx));
 
     auto up = netif.bring_up();
@@ -89,16 +108,25 @@ int main() {
         return 5;
     }
 
-    auto delivered = netif.deliver_input(packet.view());
-    auto transmitted = netif.transmit(packet.view());
-    if (!delivered || !transmitted || rx.calls != 1 || tx.calls != 1) {
-        std::fputs("netif packet hooks failed\n", stderr);
+    net::PacketPool<1, 16> rx_pool{};
+    auto rx_packet = rx_pool.acquire(2);
+    if (!rx_packet || !rx_packet.value()->append(net::ByteView{payload, sizeof(payload)})) {
+        std::fputs("netif rx packet acquire failed\n", stderr);
         return 6;
+    }
+
+    auto delivered = netif.deliver_input(net::OwnedPacket{
+        static_cast<net::PacketPool<1, 16>::Lease&&>(rx_packet.value())
+    });
+    auto transmitted = netif.transmit(packet.view());
+    if (!delivered || !transmitted || rx.calls != 1 || tx.calls != 1 || rx_pool.in_use_count() != 0) {
+        std::fputs("netif packet hooks failed\n", stderr);
+        return 7;
     }
     if (!bytes_eq(rx.bytes, rx.size, packet.view().payload)
         || !bytes_eq(tx.bytes, tx.size, packet.view().payload)) {
         std::fputs("netif packet payload mismatch\n", stderr);
-        return 7;
+        return 8;
     }
 
     net::PacketBuffer<16> oversized{};
@@ -112,19 +140,19 @@ int main() {
         || oversized_tx
         || oversized_tx.error() != net::errc::invalid_arg) {
         std::fputs("netif mtu check failed\n", stderr);
-        return 8;
+        return 9;
     }
 
     netif.bring_down();
     if (netif.state() != net::NetIfState::down) {
         std::fputs("netif bring_down failed\n", stderr);
-        return 9;
+        return 10;
     }
 
     netif.unbind();
     if (netif.bound() || netif.stack() != nullptr || netif.state() != net::NetIfState::detached) {
         std::fputs("netif unbind failed\n", stderr);
-        return 10;
+        return 11;
     }
 
     std::puts("net netif smoke: ok");

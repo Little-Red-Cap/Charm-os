@@ -105,8 +105,17 @@ export namespace net {
         { t.consume(packet) } noexcept -> std::same_as<Result<void>>;
     };
 
+    template <typename T>
+    concept OwnedPacketSink = requires(T& t, OwnedPacket packet) {
+        { t.consume(static_cast<OwnedPacket&&>(packet)) } noexcept -> std::same_as<Result<void>>;
+    };
+
     struct PacketSinkOps {
         Result<void> (*consume)(void*, PacketView) noexcept;
+    };
+
+    struct OwnedPacketSinkOps {
+        Result<void> (*consume)(void*, OwnedPacket) noexcept;
     };
 
     struct PacketSinkRef {
@@ -125,6 +134,22 @@ export namespace net {
         }
     };
 
+    struct OwnedPacketSinkRef {
+        void* self{nullptr};
+        const OwnedPacketSinkOps* ops{nullptr};
+
+        [[nodiscard]] constexpr bool valid() const noexcept {
+            return self != nullptr && ops != nullptr && ops->consume != nullptr;
+        }
+
+        [[nodiscard]] Result<void> consume(OwnedPacket packet) const noexcept {
+            if (!valid()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            return ops->consume(self, static_cast<OwnedPacket&&>(packet));
+        }
+    };
+
     template <PacketSink T>
     inline const PacketSinkOps* packet_sink_ops() noexcept {
         static const PacketSinkOps ops{
@@ -135,14 +160,38 @@ export namespace net {
         return &ops;
     }
 
+    template <OwnedPacketSink T>
+    inline const OwnedPacketSinkOps* owned_packet_sink_ops() noexcept {
+        static const OwnedPacketSinkOps ops{
+            .consume = [](void* self, OwnedPacket packet) noexcept {
+                return static_cast<T*>(self)->consume(static_cast<OwnedPacket&&>(packet));
+            }
+        };
+        return &ops;
+    }
+
     template <PacketSink T>
     inline PacketSinkRef make_packet_sink_ref(T& sink) noexcept {
         return PacketSinkRef{&sink, packet_sink_ops<T>()};
     }
 
+    template <OwnedPacketSink T>
+    inline OwnedPacketSinkRef make_owned_packet_sink_ref(T& sink) noexcept {
+        return OwnedPacketSinkRef{&sink, owned_packet_sink_ops<T>()};
+    }
+
     class NetIf {
     public:
         NetIf() noexcept = default;
+
+        [[nodiscard]] constexpr NetIfConfig config() const noexcept {
+            return NetIfConfig{
+                .mtu = mtu_,
+                .mac = mac_,
+                .address = address_,
+                .capabilities = capabilities_
+            };
+        }
 
         [[nodiscard]] constexpr util::u16 mtu() const noexcept {
             return mtu_;
@@ -176,7 +225,7 @@ export namespace net {
             return stack_;
         }
 
-        [[nodiscard]] constexpr PacketSinkRef input_sink() const noexcept {
+        [[nodiscard]] constexpr OwnedPacketSinkRef input_sink() const noexcept {
             return input_sink_;
         }
 
@@ -202,7 +251,7 @@ export namespace net {
             return {};
         }
 
-        constexpr void set_input_sink(PacketSinkRef sink) noexcept {
+        constexpr void set_input_sink(OwnedPacketSinkRef sink) noexcept {
             input_sink_ = sink;
         }
 
@@ -240,15 +289,19 @@ export namespace net {
             state_ = bound() ? NetIfState::down : NetIfState::detached;
         }
 
-        [[nodiscard]] Result<void> deliver_input(PacketView packet) const noexcept {
-            auto checked = validate_packet(packet, NetIfCapability::rx);
+        [[nodiscard]] Result<void> deliver_input(OwnedPacket packet) const noexcept {
+            auto checked = validate_packet(packet.view(), NetIfCapability::rx);
             if (!checked) {
                 return util::unexpected(checked.error());
             }
             if (!input_sink_.valid()) {
                 return util::unexpected(errc::not_supported);
             }
-            return input_sink_.consume(packet);
+            return input_sink_.consume(static_cast<OwnedPacket&&>(packet));
+        }
+
+        [[nodiscard]] Result<void> deliver_input(PacketView packet) const noexcept {
+            return deliver_input(OwnedPacket::borrowed(packet));
         }
 
         [[nodiscard]] Result<void> transmit(PacketView packet) const noexcept {
@@ -284,7 +337,7 @@ export namespace net {
             capability_mask(NetIfCapability::rx) | capability_mask(NetIfCapability::tx)
         };
         Stack* stack_{nullptr};
-        PacketSinkRef input_sink_{};
+        OwnedPacketSinkRef input_sink_{};
         PacketSinkRef output_sink_{};
         NetIfState state_{NetIfState::detached};
     };

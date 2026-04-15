@@ -92,10 +92,10 @@ ARMv7-A D-cache active, sctlr=0x00C5107D, clidr=0x........, ccsidr=0x........, l
 ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, cached=0x10203040, device-before=0x10203040, restored=0x50607080, l2=0x4030....
 ARMv7-A page-table probe, addr=0x52500000, before=0x31415926, after=0x27182818, restored=0x31415926, desc=0x4021...., l2=0x4030....
 ARMv7-A section-split probe, addr=0x5260...., before=0x89ABCDEF, after=0x76543210, restored=0x89ABCDEF, l1-desc=0x4021...., l2-table=0x4021...., l1=0x4021...., l2=0x4040....
-ARMv7-A SVC vector active, imm=0x000043
-ARMv7-A timer IRQ active, intid=30
-ARMv7-A SGI active, intid=1
-ARMv7-A FIQ active, intid=1
+ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc
+ARMv7-A timer IRQ active, intid=30, origin-mode=sys, handler-mode=irq
+ARMv7-A SGI active, intid=1, origin-mode=sys, handler-mode=irq
+ARMv7-A FIQ active, intid=1, origin-mode=sys, handler-mode=fiq
 ```
 
 ## CI smoke
@@ -287,6 +287,10 @@ continue
   `Group0 + FIQEn`, keeps ordinary IRQ masked, and proves the FIQ vector can
   take, acknowledge, and EOIR a real GIC-delivered interrupt before we move
   toward board-specific secure/non-secure interrupt routing.
+- Those returning SVC/IRQ/FIQ smoke lines now also print the pre-exception
+  `origin-mode` captured from `SPSR` and the live `handler-mode` read from
+  `CPSR`, so banked-mode routing mistakes become visible before we move from
+  QEMU toward real Cortex-A silicon.
 - The GIC register layer and the interrupt-smoke handler/state layer now live
   in dedicated leaf helpers (`armv7a_gic.cpp` and
   `armv7a_interrupt_smoke.cpp`), so `irq_timer.cpp` stays focused on how each

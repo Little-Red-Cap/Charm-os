@@ -88,6 +88,10 @@ extern "C" void armv7a_irq_smoke_test()
 
     early_uart_puts("ARMv7-A timer IRQ active, intid=");
     print_u32_dec(intid);
+    early_uart_puts(", origin-mode=");
+    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+    early_uart_puts(", handler-mode=");
+    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
     early_uart_puts("\r\n");
 }
 
@@ -132,6 +136,10 @@ extern "C" void armv7a_sgi_smoke_test()
 
     early_uart_puts("ARMv7-A SGI active, intid=");
     print_u32_dec(intid);
+    early_uart_puts(", origin-mode=");
+    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+    early_uart_puts(", handler-mode=");
+    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
     early_uart_puts("\r\n");
 }
 
@@ -176,5 +184,9 @@ extern "C" void armv7a_fiq_smoke_test()
 
     early_uart_puts("ARMv7-A FIQ active, intid=");
     print_u32_dec(intid);
+    early_uart_puts(", origin-mode=");
+    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+    early_uart_puts(", handler-mode=");
+    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
     early_uart_puts("\r\n");
 }

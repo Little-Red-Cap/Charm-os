@@ -14,6 +14,8 @@ constexpr std::uint32_t kTimerCtrlItMask = 1u << 1;
 volatile unsigned int g_interrupt_count = 0;
 volatile unsigned int g_last_interrupt_intid = kArmv7aGicSpuriousIntId;
 volatile Armv7aInterruptSmokeKind g_interrupt_smoke_kind = Armv7aInterruptSmokeKind::kNone;
+volatile std::uint32_t g_last_handler_cpsr = 0;
+volatile std::uint32_t g_last_handler_spsr = 0;
 
 void arch_timer_stop()
 {
@@ -28,9 +30,11 @@ void print_hex32(std::uint32_t value)
     }
 }
 
-void record_interrupt(unsigned int intid)
+void record_interrupt(unsigned int intid, const Armv7aExceptionFrame& frame)
 {
     g_last_interrupt_intid = intid;
+    g_last_handler_cpsr = armv7a_read_cpsr();
+    g_last_handler_spsr = frame.spsr;
     g_interrupt_count = 1u;
 }
 
@@ -77,7 +81,7 @@ void handle_interrupt(Armv7aExceptionFrame* frame, const char* label, bool fiq_r
         arch_timer_stop();
     }
 
-    record_interrupt(intid);
+    record_interrupt(intid, *frame);
     if (!interrupt_matches_expected(intid, fiq_route)) {
         print_unexpected_interrupt(label, intid, *frame);
     }
@@ -91,6 +95,8 @@ void armv7a_interrupt_smoke_begin(Armv7aInterruptSmokeKind kind)
     g_interrupt_count = 0;
     g_last_interrupt_intid = kArmv7aGicSpuriousIntId;
     g_interrupt_smoke_kind = kind;
+    g_last_handler_cpsr = 0;
+    g_last_handler_spsr = 0;
 }
 
 void armv7a_interrupt_smoke_finish()
@@ -106,6 +112,16 @@ bool armv7a_interrupt_smoke_seen()
 unsigned int armv7a_interrupt_smoke_last_intid()
 {
     return g_last_interrupt_intid;
+}
+
+std::uint32_t armv7a_interrupt_smoke_last_handler_cpsr()
+{
+    return g_last_handler_cpsr;
+}
+
+std::uint32_t armv7a_interrupt_smoke_last_handler_spsr()
+{
+    return g_last_handler_spsr;
 }
 
 void armv7a_interrupt_print_irq_timeout(std::uint32_t timer_ctrl)

@@ -175,8 +175,13 @@ extern "C" void armv7a_handle_svc(Armv7aExceptionFrame* frame)
     const auto* instruction =
         reinterpret_cast<const std::uint32_t*>(armv7a_exception_pc(*frame));
     const auto immediate = *instruction & 0x00FFFFFFu;
+    const auto current_cpsr = armv7a_read_cpsr();
     early_uart_puts("ARMv7-A SVC vector active, imm=0x");
     early_uart_write_hex(immediate, 6);
+    early_uart_puts(", origin-mode=");
+    early_uart_puts(armv7a_mode_name(frame->spsr));
+    early_uart_puts(", handler-mode=");
+    early_uart_puts(armv7a_mode_name(current_cpsr));
     early_uart_puts("\r\n");
 }
 

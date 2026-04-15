@@ -86,6 +86,23 @@ $expected = @(
     "Charm ARMv7-A QEMU skeleton",
     "Targeting Cortex-A7 first, RK3506 later.",
     "Charm out.format import active, PL011 @ 0x09000000",
+    "ARMv7-A phase, stage=boot-cpu-state",
+    "ARMv7-A phase, stage=memory-probe-prepare",
+    "ARMv7-A phase, stage=memory-probe-describe",
+    "ARMv7-A phase, stage=mmu-activate",
+    "ARMv7-A phase, stage=small-page-probe",
+    "ARMv7-A phase, stage=attribute-probe",
+    "ARMv7-A phase, stage=icache-probe",
+    "ARMv7-A phase, stage=abort-smoke",
+    "ARMv7-A phase, stage=exception-smoke",
+    "ARMv7-A phase, stage=dcache-probe",
+    "ARMv7-A phase, stage=page-table-probe",
+    "ARMv7-A phase, stage=section-split-probe",
+    "ARMv7-A phase, stage=svc-smoke",
+    "ARMv7-A phase, stage=timer-irq-smoke",
+    "ARMv7-A phase, stage=sgi-irq-smoke",
+    "ARMv7-A phase, stage=sgi-fiq-smoke",
+    "ARMv7-A phase, stage=idle",
     "ARMv7-A SVC vector active, imm=0x000043"
 )
 

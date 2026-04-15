@@ -974,6 +974,41 @@ int charm_posix_newlib_cwd_entry(void) {
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 205;
     if (strcmp(cwd, "/newlib-cwd") != 0) return 206;
 
+    errno = 92;
+    if (rename("parent.txt", "parent-renamed.txt") != 0) return 793;
+    if (errno != 92) return 794;
+    errno = 0;
+    if (stat("parent.txt", &st) != -1) return 795;
+    if (errno != ENOENT) return 796;
+    errno = 93;
+    if (stat("parent-renamed.txt", &st) != 0) return 797;
+    if (errno != 93) return 798;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 799;
+    if (st.st_size != 2) return 800;
+    errno = 94;
+    if (unlink("parent-renamed.txt") != 0) return 801;
+    if (errno != 94) return 802;
+    errno = 0;
+    if (stat("parent-renamed.txt", &st) != -1) return 803;
+    if (errno != ENOENT) return 804;
+
+    errno = 95;
+    if (rename("sub", "sub-renamed") != 0) return 805;
+    if (errno != 95) return 806;
+    errno = 0;
+    if (stat("sub", &st) != -1) return 807;
+    if (errno != ENOENT) return 808;
+    errno = 96;
+    if (stat("sub-renamed", &st) != 0) return 809;
+    if (errno != 96) return 810;
+    if ((st.st_mode & S_IFMT) != S_IFDIR) return 811;
+    errno = 97;
+    if (rmdir("sub-renamed") != 0) return 812;
+    if (errno != 97) return 813;
+    errno = 0;
+    if (stat("sub-renamed", &st) != -1) return 814;
+    if (errno != ENOENT) return 815;
+
     errno = 0;
     if (chdir("/missing-cwd") != -1) return 207;
     if (errno != ENOENT) return 208;

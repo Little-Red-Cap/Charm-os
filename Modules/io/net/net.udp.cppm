@@ -31,6 +31,18 @@ export namespace net {
         util::u16 checksum{0};
     };
 
+    enum class UdpSendDisposition : util::u8 {
+        transmitted,
+        queued,
+    };
+
+    struct UdpEgressProgress {
+        util::usize arp_retried{0};
+        util::usize arp_timed_out{0};
+        util::usize flushed{0};
+        util::usize dropped{0};
+    };
+
     template <typename T>
     concept UdpDatagramSink = requires(T& t, const UdpDatagramInfo& info, OwnedPacket packet) {
         { t.consume(info, static_cast<OwnedPacket&&>(packet)) } noexcept -> std::same_as<Result<void>>;
@@ -345,6 +357,188 @@ export namespace net {
             identification,
             dscp_ecn);
     }
+
+    template <util::usize PendingCapacity, util::usize PayloadCapacity>
+    class UdpEgressQueue {
+    public:
+        [[nodiscard]] util::usize pending_count() const noexcept {
+            util::usize count = 0;
+            for (const auto& entry : entries_) {
+                if (entry.used) {
+                    ++count;
+                }
+            }
+            return count;
+        }
+
+        [[nodiscard]] util::usize queued_count() const noexcept {
+            return queued_count_;
+        }
+
+        [[nodiscard]] util::usize flushed_count() const noexcept {
+            return flushed_count_;
+        }
+
+        [[nodiscard]] util::usize dropped_count() const noexcept {
+            return dropped_count_;
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<UdpSendDisposition> send(NetIf& netif,
+                                                      ArpService<ArpCapacity, ArpTxCapacity>& arp,
+                                                      Endpoint local,
+                                                      const Endpoint& peer,
+                                                      ByteView payload,
+                                                      util::u8 ttl = 64,
+                                                      util::u16 identification = 0,
+                                                      util::u8 dscp_ecn = 0) noexcept {
+            auto sent = send_udp_ipv4<TxCapacity>(
+                netif,
+                arp,
+                local,
+                peer,
+                payload,
+                ttl,
+                identification,
+                dscp_ecn);
+            if (sent) {
+                return Result<UdpSendDisposition>{std::in_place, UdpSendDisposition::transmitted};
+            }
+            if (sent.error() != errc::again) {
+                return util::unexpected(sent.error());
+            }
+
+            auto* entry = allocate_entry();
+            if (entry == nullptr) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+
+            auto stored = store_entry(*entry, local, peer, payload, ttl, identification, dscp_ecn);
+            if (!stored) {
+                *entry = {};
+                return util::unexpected(stored.error());
+            }
+
+            ++queued_count_;
+            return Result<UdpSendDisposition>{std::in_place, UdpSendDisposition::queued};
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<util::usize> flush(NetIf& netif,
+                                                ArpService<ArpCapacity, ArpTxCapacity>& arp) noexcept {
+            util::usize flushed = 0;
+            for (auto& entry : entries_) {
+                if (!entry.used) {
+                    continue;
+                }
+
+                auto sent = send_udp_ipv4<TxCapacity>(
+                    netif,
+                    arp,
+                    entry.local,
+                    entry.peer,
+                    ByteView{entry.payload.data(), entry.payload_size},
+                    entry.ttl,
+                    entry.identification,
+                    entry.dscp_ecn);
+                if (sent) {
+                    entry = {};
+                    ++flushed;
+                    ++flushed_count_;
+                    continue;
+                }
+                if (sent.error() == errc::again) {
+                    continue;
+                }
+                if (sent.error() == errc::timeout) {
+                    entry = {};
+                    ++dropped_count_;
+                    continue;
+                }
+                return util::unexpected(sent.error());
+            }
+            return Result<util::usize>{std::in_place, flushed};
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<UdpEgressProgress> service(NetIf& netif,
+                                                        ArpService<ArpCapacity, ArpTxCapacity>& arp,
+                                                        util::usize elapsed_ticks = 1,
+                                                        util::usize retry_interval_ticks = 1,
+                                                        util::usize max_attempts = static_cast<util::usize>(-1)) noexcept {
+            arp.advance_ticks(elapsed_ticks);
+
+            auto arp_progress = arp.service_pending(retry_interval_ticks, max_attempts);
+            if (!arp_progress) {
+                return util::unexpected(arp_progress.error());
+            }
+
+            const auto dropped_before = dropped_count_;
+            auto flushed = flush<TxCapacity>(netif, arp);
+            if (!flushed) {
+                return util::unexpected(flushed.error());
+            }
+
+            return Result<UdpEgressProgress>{std::in_place, UdpEgressProgress{
+                .arp_retried = arp_progress.value().retried,
+                .arp_timed_out = arp_progress.value().timed_out,
+                .flushed = flushed.value(),
+                .dropped = dropped_count_ - dropped_before,
+            }};
+        }
+
+    private:
+        struct PendingEntry {
+            bool used{false};
+            Endpoint local{};
+            Endpoint peer{};
+            util::u8 ttl{64};
+            util::u16 identification{0};
+            util::u8 dscp_ecn{0};
+            util::usize payload_size{0};
+            std::array<util::u8, PayloadCapacity> payload{};
+        };
+
+        [[nodiscard]] PendingEntry* allocate_entry() noexcept {
+            for (auto& entry : entries_) {
+                if (entry.used) {
+                    continue;
+                }
+                entry = {};
+                entry.used = true;
+                return &entry;
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] Result<void> store_entry(PendingEntry& entry,
+                                               Endpoint local,
+                                               Endpoint peer,
+                                               ByteView payload,
+                                               util::u8 ttl,
+                                               util::u16 identification,
+                                               util::u8 dscp_ecn) noexcept {
+            if (payload.size() > PayloadCapacity) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+
+            entry.local = local;
+            entry.peer = peer;
+            entry.ttl = ttl;
+            entry.identification = identification;
+            entry.dscp_ecn = dscp_ecn;
+            entry.payload_size = payload.size();
+            for (util::usize i = 0; i < payload.size(); ++i) {
+                entry.payload[i] = payload[i];
+            }
+            return {};
+        }
+
+        std::array<PendingEntry, PendingCapacity> entries_{};
+        util::usize queued_count_{0};
+        util::usize flushed_count_{0};
+        util::usize dropped_count_{0};
+    };
 
     template <util::usize Capacity>
     class UdpService {

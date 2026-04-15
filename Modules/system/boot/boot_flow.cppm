@@ -16,20 +16,29 @@ export namespace boot {
         Partition info{};
     };
 
+    inline Partition partition_for_slot(const BootConfig& cfg, Slot slot) noexcept {
+        return slot == Slot::a ? cfg.slot_a : cfg.slot_b;
+    }
+
     inline bool read_header(const Storage& s, const Partition& p, ImageHeader& out) noexcept {
         auto buf = std::span<util::u8>(reinterpret_cast<util::u8*>(&out), sizeof(ImageHeader));
         return storage_read(s, p.offset, buf);
+    }
+
+    inline bool image_layout_valid(const Partition& p, const ImageHeader& h) noexcept {
+        const util::u32 header_size = static_cast<util::u32>(sizeof(ImageHeader));
+        if (h.payload_size == 0) return false;
+        if (h.payload_size + header_size > p.size) return false;
+        if (h.image_size < h.payload_size + header_size || h.image_size > p.size) return false;
+        if (h.entry_offset >= h.payload_size) return false;
+        return true;
     }
 
     inline BootStatus verify_partition_status(const Storage& s, const Partition& p) noexcept {
         ImageHeader h{};
         if (!read_header(s, p, h)) return BootStatus::io_error;
         if (h.magic != k_magic || h.version != k_version) return BootStatus::invalid;
-        if (h.payload_size == 0) return BootStatus::invalid;
-        const util::u32 header_size = static_cast<util::u32>(sizeof(ImageHeader));
-        if (h.payload_size + header_size > p.size) return BootStatus::invalid;
-        if (h.image_size < h.payload_size + header_size || h.image_size > p.size) return BootStatus::invalid;
-        // TODO: validate entry_offset and handle compressed images when implemented.
+        if (!image_layout_valid(p, h)) return BootStatus::invalid;
         std::array<util::u8, 128> buf{};
         util::u32 crc = 0;
         util::u32 remaining = h.payload_size;
@@ -115,6 +124,67 @@ export namespace boot {
         return storage_write(s, offset, buf);
     }
 
+    inline bool pending_trial_armed(const BootInfo& info) noexcept {
+        return boot_info_has_flag(info, BootInfoFlags::pending_trial) &&
+               info.pending != info.active;
+    }
+
+    struct BootSelection {
+        BootResult boot{};
+        BootSelectionReason reason{BootSelectionReason::none};
+    };
+
+    inline BootSelection select_slot_candidate(const BootInfo& info,
+                                               BootStatus a_status,
+                                               BootStatus b_status) noexcept {
+        const bool a_ok = a_status == BootStatus::ok;
+        const bool b_ok = b_status == BootStatus::ok;
+
+        auto pick = [&](Slot slot, BootSelectionReason reason) -> BootSelection {
+            return {{BootStatus::ok, slot}, reason};
+        };
+
+        if (pending_trial_armed(info) && info.pending == Slot::a && a_ok) {
+            return pick(Slot::a, BootSelectionReason::pending_trial);
+        }
+        if (pending_trial_armed(info) && info.pending == Slot::b && b_ok) {
+            return pick(Slot::b, BootSelectionReason::pending_trial);
+        }
+        if (info.active == Slot::a && a_ok) return pick(Slot::a, BootSelectionReason::active);
+        if (info.active == Slot::b && b_ok) return pick(Slot::b, BootSelectionReason::active);
+        if (info.pending == Slot::a && a_ok) return pick(Slot::a, BootSelectionReason::pending);
+        if (info.pending == Slot::b && b_ok) return pick(Slot::b, BootSelectionReason::pending);
+        if (a_ok) return pick(Slot::a, BootSelectionReason::fallback);
+        if (b_ok) return pick(Slot::b, BootSelectionReason::fallback);
+        if (a_status == BootStatus::io_error || b_status == BootStatus::io_error) {
+            return {{BootStatus::io_error, Slot::a}, BootSelectionReason::none};
+        }
+        return {{BootStatus::invalid, Slot::a}, BootSelectionReason::none};
+    }
+
+    inline bool arm_pending_update(const Storage& s, const BootConfig& cfg,
+                                   BootInfo& info, Slot slot) noexcept {
+        info.pending = slot;
+        if (slot == info.active) {
+            boot_info_clear_flag(info, BootInfoFlags::pending_trial);
+        } else {
+            boot_info_set_flag(info, BootInfoFlags::pending_trial);
+        }
+        ++info.counter;
+        return write_boot_info(s, cfg.info, info);
+    }
+
+    inline bool prepare_boot(const Storage& s, const BootConfig& cfg,
+                             BootInfo& info, Slot slot) noexcept {
+        if (!pending_trial_armed(info) || info.pending != slot) {
+            return true;
+        }
+        info.pending = info.active;
+        boot_info_clear_flag(info, BootInfoFlags::pending_trial);
+        ++info.counter;
+        return write_boot_info(s, cfg.info, info);
+    }
+
     inline BootResult select_slot(const Storage& s, const BootConfig& cfg, BootInfo& info) noexcept {
         if (!read_boot_info(s, cfg.info, info)) {
             info = {};
@@ -123,28 +193,18 @@ export namespace boot {
         const Partition& pb = cfg.slot_b;
         const auto a_status = verify_partition_status(s, pa);
         const auto b_status = verify_partition_status(s, pb);
-        const bool a_ok = a_status == BootStatus::ok;
-        const bool b_ok = b_status == BootStatus::ok;
-
-        auto pick = [&](Slot slot) -> BootResult {
-            return {BootStatus::ok, slot};
-        };
-
-        if (info.pending == Slot::a && a_ok) return pick(Slot::a);
-        if (info.pending == Slot::b && b_ok) return pick(Slot::b);
-        if (info.active == Slot::a && a_ok) return pick(Slot::a);
-        if (info.active == Slot::b && b_ok) return pick(Slot::b);
-        if (a_ok) return pick(Slot::a);
-        if (b_ok) return pick(Slot::b);
-        if (a_status == BootStatus::io_error || b_status == BootStatus::io_error) {
-            return {BootStatus::io_error, Slot::a};
-        }
-        return {BootStatus::invalid, Slot::a};
+        return select_slot_candidate(info, a_status, b_status).boot;
     }
 
     inline bool mark_success(const Storage& s, const BootConfig& cfg, BootInfo& info, Slot slot) noexcept {
+        ImageHeader h{};
+        const Partition& part = slot == Slot::a ? cfg.slot_a : cfg.slot_b;
+        if (read_header(s, part, h) && h.magic == k_magic && h.version == k_version) {
+            info.last_good_version = h.image_version;
+        }
         info.active = slot;
         info.pending = slot;
+        boot_info_clear_flag(info, BootInfoFlags::pending_trial);
         ++info.counter;
         return write_boot_info(s, cfg.info, info);
     }

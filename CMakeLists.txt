@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.0)
-project(Charm-os)
+project(Charm-os LANGUAGES C CXX ASM)
 set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)
@@ -22,10 +22,12 @@ option(CHARM_BANNED_API_CHECK_EXAMPLES "Also check Examples/ for banned APIs" OF
 option(CHARM_ENABLE_BANNED_HEADER_CHECK "Ban selected headers in project code" OFF)
 option(CHARM_BANNED_HEADER_CHECK_EXAMPLES "Also check Examples/ for banned headers" OFF)
 option(CHARM_ENABLE_TEST_MODULES "Include Modules/*/tests/*.cppm" OFF)
+option(CHARM_BUILD_TARGET_BOOTSTRAP "Build the active leaf target bootstrap image when available" OFF)
 set(CHARM_BANNED_HEADERS "iostream;fstream;filesystem;regex;format;locale;codecvt" CACHE STRING "Semicolon list of banned headers")
 set(CHARM_BANNED_HEADERS_EXCLUDE_REGEX "" CACHE STRING "Semicolon list of regexes to exclude from banned header scan")
 option(CHARM_FORBID_SHARED_LIBS "Forbid shared/module library targets" OFF)
 option(CHARM_ENABLE_ARCH_LINT_GUARD "Run arch_lint guard during build" OFF)
+set(CHARM_TARGET_NAME "" CACHE STRING "Optional leaf target name under targets/<name>")
 
 set(_CHARM_DEFAULT_STRICT_ALIGNMENT OFF)
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|ARM)")
@@ -44,6 +46,30 @@ option(CHARM_TARGET_HAS_WINSOCK
     "Target provides WinSock and can build the Windows net backend"
     ${_CHARM_DEFAULT_WINSOCK})
 unset(_CHARM_DEFAULT_WINSOCK)
+
+set(_CHARM_DEFAULT_WIN32 OFF)
+if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(_CHARM_DEFAULT_WIN32 ON)
+endif()
+option(CHARM_TARGET_HAS_WIN32
+    "Target provides Win32-style host services and Windows stub backends"
+    ${_CHARM_DEFAULT_WIN32})
+unset(_CHARM_DEFAULT_WIN32)
+
+set(_CHARM_DEFAULT_HOSTED_CXX ON)
+if (CMAKE_SYSTEM_NAME STREQUAL "Generic")
+    set(_CHARM_DEFAULT_HOSTED_CXX OFF)
+endif()
+option(CHARM_TARGET_HAS_HOSTED_CXX
+    "Target provides hosted C++ standard library facilities for hosted third-party code"
+    ${_CHARM_DEFAULT_HOSTED_CXX})
+unset(_CHARM_DEFAULT_HOSTED_CXX)
+
+set(_CHARM_DEFAULT_CXX_MATH ${CHARM_TARGET_HAS_HOSTED_CXX})
+option(CHARM_TARGET_HAS_CXX_MATH
+    "Target C++ library provides math-related headers such as <cmath>, <complex>, and <numbers>"
+    ${_CHARM_DEFAULT_CXX_MATH})
+unset(_CHARM_DEFAULT_CXX_MATH)
 
 set(CHARM_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -64,6 +90,21 @@ target_include_directories(Charm-posix-headers INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/posix")
 add_library(Charm::posix-headers ALIAS Charm-posix-headers)
 
+set(CHARM_ACTIVE_TARGET_CONFIG "")
+if (NOT CHARM_TARGET_NAME STREQUAL "")
+    charm_load_target_config(CHARM_ACTIVE_TARGET_CONFIG "${CHARM_TARGET_NAME}")
+    charm_apply_config_targets(Charm-build-config ${CHARM_ACTIVE_TARGET_CONFIG})
+    message(STATUS "Charm leaf target: ${CHARM_TARGET_NAME} -> ${CHARM_ACTIVE_TARGET_CONFIG}")
+endif()
+
+if (CHARM_BUILD_TARGET_BOOTSTRAP)
+    if (NOT CHARM_ACTIVE_TARGET_CONFIG)
+        message(FATAL_ERROR
+            "CHARM_BUILD_TARGET_BOOTSTRAP=ON requires CHARM_TARGET_NAME to resolve a leaf target config")
+    endif()
+    charm_add_target_bootstrap(${CHARM_ACTIVE_TARGET_CONFIG})
+endif()
+
 target_compile_options(Charm-build-config INTERFACE
     -Wall
 )
@@ -73,6 +114,9 @@ target_compile_definitions(Charm-build-config INTERFACE
     CHARM_ENABLE_MEDIA=$<BOOL:${CHARM_ENABLE_MEDIA}>
     CHARM_ENABLE_UI_INK=$<BOOL:${CHARM_ENABLE_UI_INK}>
     CHARM_ENABLE_UI_VIVID=$<BOOL:${CHARM_ENABLE_UI_VIVID}>
+    CHARM_TARGET_HAS_HOSTED_CXX=$<BOOL:${CHARM_TARGET_HAS_HOSTED_CXX}>
+    CHARM_TARGET_HAS_CXX_MATH=$<BOOL:${CHARM_TARGET_HAS_CXX_MATH}>
+    CHARM_TARGET_HAS_WIN32=$<BOOL:${CHARM_TARGET_HAS_WIN32}>
 )
 
 if (CHARM_AUDIO_USE_VFS)
@@ -209,7 +253,7 @@ endif()
 
 set(CHARM_MATERIAL_COLOR_UTILS_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/material_color_utils")
-if (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
+if (CHARM_TARGET_HAS_HOSTED_CXX AND EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
     target_include_directories(Charm-runtime PRIVATE "${CHARM_MATERIAL_COLOR_UTILS_DIR}")
     set(MATERIAL_COLOR_UTILS_SOURCES
         "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/utils/utils.cc"
@@ -233,6 +277,8 @@ if (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
         "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc"
         "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_vibrant.cc")
     target_sources(Charm-runtime PRIVATE ${MATERIAL_COLOR_UTILS_SOURCES})
+elseif (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
+    message(STATUS "Charm-runtime: skipping material_color_utils for non-hosted C++ target")
 endif()
 
 if (CHARM_ENABLE_FATFS)
@@ -287,6 +333,9 @@ if (TARGET arch_lint AND CHARM_ENABLE_ARCH_LINT_GUARD)
     add_dependencies(${target_name} arch_lint)
 endif()
 target_link_libraries(${target_name} INTERFACE Charm-runtime)
+if (CHARM_ACTIVE_TARGET_CONFIG)
+    target_link_libraries(${target_name} INTERFACE ${CHARM_ACTIVE_TARGET_CONFIG})
+endif()
 if (TARGET Charm-ui)
     target_link_libraries(${target_name} INTERFACE Charm-ui)
 endif()

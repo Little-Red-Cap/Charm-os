@@ -1,8 +1,8 @@
 ﻿module;
 #include <cstdint>
-#include <cstring>
 #include <expected>
 #include <string_view>
+#include "out_digits_compat.h"
 
 export module out.ansi;
 // Dependency contract (DO NOT VIOLATE)
@@ -115,24 +115,6 @@ export namespace out::ansi {
         }
         constexpr int bg_code(color c) noexcept { return (fg_code(c) - 30) + 40; }
 
-        inline bool append_decimal(std::string_view& out, char* buffer, std::size_t capacity,
-                                   std::uint32_t value) noexcept {
-            if (capacity == 0) return false;
-
-            char* begin = buffer;
-            char* end = buffer + capacity;
-            char* p = end;
-
-            do {
-                if (p == begin) return false;
-                *--p = static_cast<char>('0' + (value % 10u));
-                value /= 10u;
-            } while (value != 0);
-
-            out = std::string_view{p, static_cast<std::size_t>(end - p)};
-            return true;
-        }
-
         template <AnsiSink S>
         inline result<std::size_t> write_code(S& s, int code) noexcept {
             char  buf[16];
@@ -141,14 +123,12 @@ export namespace out::ansi {
             *p++ = '\x1b';
             *p++ = '[';
 
-            std::string_view code_sv{};
             if (code < 0) return util::unexpected(errc::invalid_arg);
-            if (!append_decimal(code_sv, p, static_cast<std::size_t>((buf + sizeof(buf)) - p),
-                                static_cast<std::uint32_t>(code))) {
-                return util::unexpected(errc::buffer_overflow);
-            }
-            std::memcpy(p, code_sv.data(), code_sv.size());
-            char* ptr = p + code_sv.size();
+            char* ptr = out::detail::append_unsigned_decimal(
+                p,
+                buf + sizeof(buf),
+                static_cast<unsigned>(code));
+            if (!ptr) return util::unexpected(errc::buffer_overflow);
 
             *ptr++ = 'm';
             return s.write_ansi(std::string_view{buf, static_cast<std::size_t>(ptr - buf)});

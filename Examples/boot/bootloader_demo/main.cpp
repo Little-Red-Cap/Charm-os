@@ -322,10 +322,6 @@ int main() {
         std::span<const util::u8>(image_b.data(), image_b.size()));
     const auto download = receiver.complete();
     const auto plan = receiver.decide_boot();
-    const auto target = boot::resolve_boot_target(storage, cfg, plan);
-    const bool prepared = receiver.prepare_selected_boot();
-    const auto prepared_result = receiver.result();
-    const auto rollback_plan = boot::decide_boot_policy(storage, cfg, policy);
     MockLaunchContext launch_ctx{
         .expected_payload_offset =
             cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)),
@@ -339,8 +335,13 @@ int main() {
         .prepare_jump = prepare_mock_execution,
         .jump = jump_mock_execution
     };
-    auto execution = boot::resolve_boot_execution(target, board_caps);
-    const bool executed = boot::execute_boot_execution(execution, board_caps);
+    auto handoff = receiver.prepare_handoff(board_caps);
+    const bool prepared = handoff.rollback_prepared;
+    const auto prepared_result = receiver.result();
+    const auto rollback_plan = boot::decide_boot_policy(storage, cfg, policy);
+    const auto& target = handoff.target;
+    const bool executed = boot::execute_boot_handoff(handoff, board_caps);
+    const auto& execution = handoff.execution;
     const bool marked = receiver.mark_selected_success();
     const auto final_result = receiver.result();
     const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info);
@@ -395,6 +396,7 @@ int main() {
                     plan.boot.slot == boot::Slot::b &&
                     plan.reason == boot::BootSelectionReason::pending_trial &&
                     plan.prepare_required &&
+                    static_cast<bool>(handoff) &&
                     static_cast<bool>(target) &&
                     target.partition.offset == cfg.slot_b.offset &&
                     target.payload_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) &&
@@ -442,6 +444,10 @@ int main() {
                 static_cast<bool>(target) ? 1 : 0,
                 target.payload_offset,
                 target.storage_entry_offset);
+    std::printf("[boot] boot_handoff=%d rollback=%d ready=%d\n",
+                static_cast<bool>(handoff) ? 1 : 0,
+                handoff.rollback_prepared ? 1 : 0,
+                handoff.ready_to_jump ? 1 : 0);
     std::printf("[boot] boot_exec=%d prepared=%d jumped=%d entry=%d\n",
                 static_cast<bool>(execution) ? 1 : 0,
                 execution.prepared ? 1 : 0,

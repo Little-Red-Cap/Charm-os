@@ -8,6 +8,7 @@ import util.core;
 import boot_core;
 import boot_flash;
 import boot_flow;
+import boot_handoff;
 import boot_plan;
 import boot_policy;
 import boot_storage;
@@ -189,6 +190,33 @@ export namespace boot {
 
         BootResult select_boot() noexcept {
             return decide_boot().boot;
+        }
+
+        template <typename ExecCaps>
+        BootHandoff prepare_handoff(const ExecCaps& caps) noexcept {
+            BootPlan plan = result_.plan.boot.status == BootStatus::ok
+                ? result_.plan
+                : decide_boot();
+            auto handoff = prepare_boot_handoff(storage_, cfg_.boot, plan, caps);
+            if (!handoff.ready_to_jump) {
+                stage_ = SessionStage::failed;
+                result_.stage = stage_;
+                result_.boot = handoff.plan.boot;
+                result_.info = handoff.plan.info;
+                result_.boot_info_loaded = handoff.plan.boot_info_loaded;
+                return handoff;
+            }
+
+            stage_ = SessionStage::prepared;
+            result_.stage = stage_;
+            result_.boot_prepared = handoff.rollback_prepared;
+            result_.plan = handoff.plan;
+            result_.boot = handoff.plan.boot;
+            result_.boot_selected = handoff.plan.boot.status == BootStatus::ok;
+            result_.info = handoff.plan.info;
+            result_.boot_info_loaded = handoff.plan.boot_info_loaded;
+            result_.ready_to_boot = true;
+            return handoff;
         }
 
         bool prepare_selected_boot() noexcept {

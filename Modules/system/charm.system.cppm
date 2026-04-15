@@ -23,6 +23,7 @@ export import boot_plan;
 export import boot_launch;
 export import boot_exec;
 export import boot_board_exec;
+export import boot_handoff;
 export import boot_uart;
 export import boot_xymodem;
 export import boot_session;

@@ -8,10 +8,6 @@
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 
-extern "C" void early_uart_putc(char ch);
-extern "C" void early_uart_puts(const char* text);
-extern "C" [[noreturn]] void charm_spin();
-
 namespace {
 constexpr std::uintptr_t kSmallPageSize = 1u << 12;
 constexpr std::uintptr_t kSmallPageMask = ~(kSmallPageSize - 1u);
@@ -36,7 +32,7 @@ void early_uart_write_hex32(std::uint32_t value)
 {
     constexpr char kHex[] = "0123456789ABCDEF";
     for (int shift = 28; shift >= 0; shift -= 4) {
-        early_uart_putc(kHex[(value >> shift) & 0x0Fu]);
+        armv7a_platform_early_console_putc(kHex[(value >> shift) & 0x0Fu]);
     }
 }
 
@@ -56,9 +52,9 @@ void armv7a_page_table_probe_expect(bool condition, const char* message)
         return;
     }
 
-    early_uart_puts(message);
-    early_uart_puts("\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts(message);
+    armv7a_platform_early_console_puts("\r\n");
+    armv7a_platform_idle_forever();
 }
 } // namespace
 
@@ -75,21 +71,21 @@ extern "C" void armv7a_prepare_page_table_probe_mapping()
 
 extern "C" void armv7a_print_page_table_probe_mapping_state()
 {
-    early_uart_puts("ARMv7-A page-table probe ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A page-table probe ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().page_table_alias_base));
-    early_uart_puts(", pa-a=0x");
+    armv7a_platform_early_console_puts(", pa-a=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_page_table_probe_page_a_address()));
-    early_uart_puts(", pa-b=0x");
+    armv7a_platform_early_console_puts(", pa-b=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_page_table_probe_page_b_address()));
-    early_uart_puts(", desc=0x");
+    armv7a_platform_early_console_puts(", desc=0x");
     early_uart_write_hex32(
         static_cast<std::uint32_t>(
             armv7a_boot_l2_descriptor_address(probe_layout().page_table_alias_base)));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().page_table_alias_base));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().page_table_alias_base));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_run_page_table_probe()
@@ -117,19 +113,19 @@ extern "C" void armv7a_run_page_table_probe()
     armv7a_sync_tlb_mapping_change(descriptor_address, probe_layout().page_table_alias_base);
     const auto restored = *alias;
 
-    early_uart_puts("ARMv7-A page-table probe, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A page-table probe, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().page_table_alias_base));
-    early_uart_puts(", before=0x");
+    armv7a_platform_early_console_puts(", before=0x");
     early_uart_write_hex32(before);
-    early_uart_puts(", after=0x");
+    armv7a_platform_early_console_puts(", after=0x");
     early_uart_write_hex32(after);
-    early_uart_puts(", restored=0x");
+    armv7a_platform_early_console_puts(", restored=0x");
     early_uart_write_hex32(restored);
-    early_uart_puts(", desc=0x");
+    armv7a_platform_early_console_puts(", desc=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(descriptor_address));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().page_table_alias_base));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 
     armv7a_page_table_probe_expect(before == kPageTableProbeValueA,
                                    "ARMv7-A page-table probe initial value mismatch");

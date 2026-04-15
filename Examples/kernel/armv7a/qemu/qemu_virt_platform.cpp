@@ -48,14 +48,14 @@ const Armv7aPlatformProbeLayout& armv7a_platform_probe_layout()
     return kQemuVirtProbeLayout;
 }
 
-extern "C" void qemu_semihost_write0(const char* text)
+extern "C" void armv7a_platform_debug_trace(const char* text)
 {
     register int op asm("r0") = 0x04;
     register const char* ptr asm("r1") = text;
     asm volatile("bkpt 0xab" : : "r"(op), "r"(ptr) : "memory");
 }
 
-extern "C" [[noreturn]] void charm_spin()
+extern "C" [[noreturn]] void armv7a_platform_idle_forever()
 {
     for (;;) {
         asm volatile("wfe");

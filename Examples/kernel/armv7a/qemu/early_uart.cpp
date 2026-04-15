@@ -27,7 +27,7 @@ std::uintptr_t uart_reg(std::uint32_t offset)
 }
 } // namespace
 
-extern "C" void early_uart_init()
+extern "C" void armv7a_platform_early_console_init()
 {
     reg(uart_reg(kUartCrOffset)) = 0u;
     reg(uart_reg(kUartIcrOffset)) = 0x7FFu;
@@ -37,20 +37,20 @@ extern "C" void early_uart_init()
     reg(uart_reg(kUartCrOffset)) = kUartCrEnable | kUartCrTxEnable | kUartCrRxEnable;
 }
 
-extern "C" void early_uart_putc(char ch)
+extern "C" void armv7a_platform_early_console_putc(char ch)
 {
     while ((reg(uart_reg(kUartFrOffset)) & kUartFrTxFifoFull) != 0u) {
     }
     reg(uart_reg(kUartDrOffset)) = static_cast<std::uint32_t>(static_cast<unsigned char>(ch));
 }
 
-extern "C" void early_uart_puts(const char* text)
+extern "C" void armv7a_platform_early_console_puts(const char* text)
 {
     if (text == nullptr) {
         return;
     }
 
     while (*text != '\0') {
-        early_uart_putc(*text++);
+        armv7a_platform_early_console_putc(*text++);
     }
 }

@@ -8,9 +8,6 @@
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 
-extern "C" void early_uart_putc(char ch);
-extern "C" void early_uart_puts(const char* text);
-
 namespace {
 constexpr std::uintptr_t kSmallPageSize = 1u << 12;
 constexpr std::uintptr_t kSmallPageMask = ~(kSmallPageSize - 1u);
@@ -41,7 +38,7 @@ void early_uart_write_hex32(std::uint32_t value)
 {
     constexpr char kHex[] = "0123456789ABCDEF";
     for (int shift = 28; shift >= 0; shift -= 4) {
-        early_uart_putc(kHex[(value >> shift) & 0xFu]);
+        armv7a_platform_early_console_putc(kHex[(value >> shift) & 0xFu]);
     }
 }
 
@@ -85,27 +82,27 @@ extern "C" void armv7a_prepare_small_page_probe_mapping()
 
 extern "C" void armv7a_print_small_page_probe_mapping_state()
 {
-    early_uart_puts("ARMv7-A small-page alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A small-page alias ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_probe_alias_address()));
-    early_uart_puts(", pa=0x");
+    armv7a_platform_early_console_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_probe_target_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().small_page_alias_base));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_small_page_probe_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 
-    early_uart_puts("ARMv7-A small-page remap ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A small-page remap ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_remap_alias_address()));
-    early_uart_puts(", pa-a=0x");
+    armv7a_platform_early_console_puts(", pa-a=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_remap_page_a_address()));
-    early_uart_puts(", pa-b=0x");
+    armv7a_platform_early_console_puts(", pa-b=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_remap_page_b_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(armv7a_small_page_remap_alias_address()));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_small_page_remap_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_run_small_page_probe()
@@ -119,15 +116,15 @@ extern "C" void armv7a_run_small_page_probe()
     g_armv7a_small_page_probe_target = before;
     armv7a_data_sync_barrier();
 
-    early_uart_puts("ARMv7-A small-page probe, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A small-page probe, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_probe_alias_address()));
-    early_uart_puts(", before=0x");
+    armv7a_platform_early_console_puts(", before=0x");
     early_uart_write_hex32(before);
-    early_uart_puts(", via-alias=0x");
+    armv7a_platform_early_console_puts(", via-alias=0x");
     early_uart_write_hex32(kSmallPageProbeWriteValue);
-    early_uart_puts(", direct=0x");
+    armv7a_platform_early_console_puts(", direct=0x");
     early_uart_write_hex32(direct);
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 
     auto* const remap_alias =
         reinterpret_cast<volatile std::uint32_t*>(armv7a_small_page_remap_alias_address());
@@ -140,13 +137,13 @@ extern "C" void armv7a_run_small_page_probe()
         probe_layout().small_page_remap_alias_base);
     const auto remap_after = *remap_alias;
 
-    early_uart_puts("ARMv7-A small-page remap, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A small-page remap, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_small_page_remap_alias_address()));
-    early_uart_puts(", before=0x");
+    armv7a_platform_early_console_puts(", before=0x");
     early_uart_write_hex32(remap_before);
-    early_uart_puts(", after=0x");
+    armv7a_platform_early_console_puts(", after=0x");
     early_uart_write_hex32(remap_after);
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_small_page_remap_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 }

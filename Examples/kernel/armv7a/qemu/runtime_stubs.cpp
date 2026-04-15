@@ -1,15 +1,14 @@
 #include <cstddef>
 
-extern "C" void early_uart_puts(const char* text);
-extern "C" [[noreturn]] void charm_spin();
+#include "armv7a_platform.hpp"
 
 namespace {
 [[noreturn]] void runtime_trap(const char* reason)
 {
-    early_uart_puts("runtime trap: ");
-    early_uart_puts(reason);
-    early_uart_puts("\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("runtime trap: ");
+    armv7a_platform_early_console_puts(reason);
+    armv7a_platform_early_console_puts("\r\n");
+    armv7a_platform_idle_forever();
 }
 } // namespace
 
@@ -129,12 +128,12 @@ namespace std {
                                         const char*,
                                         const char* condition) noexcept
 {
-    early_uart_puts("runtime trap: libstdc++ assert");
+    armv7a_platform_early_console_puts("runtime trap: libstdc++ assert");
     if (condition != nullptr) {
-        early_uart_puts(": ");
-        early_uart_puts(condition);
+        armv7a_platform_early_console_puts(": ");
+        armv7a_platform_early_console_puts(condition);
     }
-    early_uart_puts("\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("\r\n");
+    armv7a_platform_idle_forever();
 }
 } // namespace std

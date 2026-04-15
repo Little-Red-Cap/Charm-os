@@ -4,9 +4,7 @@
 #include "armv7a_cpu.hpp"
 #include "armv7a_gic.hpp"
 #include "armv7a_interrupt_smoke.hpp"
-
-extern "C" void early_uart_putc(char ch);
-extern "C" void early_uart_puts(const char* text);
+#include "armv7a_platform.hpp"
 
 namespace {
 constexpr std::uint32_t kTimerCtrlEnable = 1u << 0;
@@ -35,7 +33,7 @@ void print_u32_dec(std::uint32_t value)
     } while (value != 0u);
 
     while (index > 0) {
-        early_uart_putc(buffer[--index]);
+        armv7a_platform_early_console_putc(buffer[--index]);
     }
 }
 } // namespace
@@ -80,19 +78,19 @@ extern "C" void armv7a_irq_smoke_test()
 
     const auto intid = armv7a_interrupt_smoke_last_intid();
     if (!armv7a_gic_is_timer_intid(intid)) {
-        early_uart_puts("ARMv7-A timer IRQ test observed intid=");
+        armv7a_platform_early_console_puts("ARMv7-A timer IRQ test observed intid=");
         print_u32_dec(intid);
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
         return;
     }
 
-    early_uart_puts("ARMv7-A timer IRQ active, intid=");
+    armv7a_platform_early_console_puts("ARMv7-A timer IRQ active, intid=");
     print_u32_dec(intid);
-    early_uart_puts(", origin-mode=");
-    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
-    early_uart_puts(", handler-mode=");
-    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts(", origin-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+    armv7a_platform_early_console_puts(", handler-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_sgi_smoke_test()
@@ -128,19 +126,19 @@ extern "C" void armv7a_sgi_smoke_test()
 
     const auto intid = armv7a_interrupt_smoke_last_intid();
     if (!armv7a_gic_is_sgi_intid(intid)) {
-        early_uart_puts("ARMv7-A SGI test observed intid=");
+        armv7a_platform_early_console_puts("ARMv7-A SGI test observed intid=");
         print_u32_dec(intid);
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
         return;
     }
 
-    early_uart_puts("ARMv7-A SGI active, intid=");
+    armv7a_platform_early_console_puts("ARMv7-A SGI active, intid=");
     print_u32_dec(intid);
-    early_uart_puts(", origin-mode=");
-    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
-    early_uart_puts(", handler-mode=");
-    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts(", origin-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+    armv7a_platform_early_console_puts(", handler-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_fiq_smoke_test()
@@ -176,17 +174,17 @@ extern "C" void armv7a_fiq_smoke_test()
 
     const auto intid = armv7a_interrupt_smoke_last_intid();
     if (!armv7a_gic_is_sgi_intid(intid)) {
-        early_uart_puts("ARMv7-A FIQ test observed intid=");
+        armv7a_platform_early_console_puts("ARMv7-A FIQ test observed intid=");
         print_u32_dec(intid);
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
         return;
     }
 
-    early_uart_puts("ARMv7-A FIQ active, intid=");
+    armv7a_platform_early_console_puts("ARMv7-A FIQ active, intid=");
     print_u32_dec(intid);
-    early_uart_puts(", origin-mode=");
-    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
-    early_uart_puts(", handler-mode=");
-    early_uart_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts(", origin-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+    armv7a_platform_early_console_puts(", handler-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
+    armv7a_platform_early_console_puts("\r\n");
 }

@@ -4,9 +4,7 @@
 #include "armv7a_cpu.hpp"
 #include "armv7a_exception_frame.hpp"
 #include "armv7a_gic.hpp"
-
-extern "C" void early_uart_putc(char ch);
-extern "C" void early_uart_puts(const char* text);
+#include "armv7a_platform.hpp"
 
 namespace {
 constexpr std::uint32_t kTimerCtrlItMask = 1u << 1;
@@ -38,7 +36,7 @@ void print_hex32(std::uint32_t value)
 {
     constexpr char kHex[] = "0123456789ABCDEF";
     for (int shift = 28; shift >= 0; shift -= 4) {
-        early_uart_putc(kHex[(value >> shift) & 0x0fu]);
+        armv7a_platform_early_console_putc(kHex[(value >> shift) & 0x0fu]);
     }
 }
 
@@ -170,17 +168,17 @@ bool interrupt_matches_expected(unsigned int intid, bool fiq_route)
 
 void print_unexpected_interrupt(const char* label, unsigned int intid, const Armv7aExceptionFrame& frame)
 {
-    early_uart_puts("ARMv7-A unexpected ");
-    early_uart_puts(label);
-    early_uart_puts(", intid=0x");
+    armv7a_platform_early_console_puts("ARMv7-A unexpected ");
+    armv7a_platform_early_console_puts(label);
+    armv7a_platform_early_console_puts(", intid=0x");
     print_hex32(intid);
-    early_uart_puts(", pc=0x");
+    armv7a_platform_early_console_puts(", pc=0x");
     print_hex32(armv7a_exception_pc(frame));
-    early_uart_puts(", lr=0x");
+    armv7a_platform_early_console_puts(", lr=0x");
     print_hex32(frame.lr);
-    early_uart_puts(", spsr=0x");
+    armv7a_platform_early_console_puts(", spsr=0x");
     print_hex32(frame.spsr);
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 void handle_interrupt(Armv7aExceptionFrame* frame, const char* label, bool fiq_route)
@@ -245,20 +243,20 @@ void armv7a_interrupt_print_irq_timeout(std::uint32_t timer_ctrl)
     const auto line_state = armv7a_gic_read_line_state(kArmv7aGicSecureTimerIntId);
     const auto cpu_state = armv7a_gic_read_cpu_state();
 
-    early_uart_puts("ARMv7-A timer IRQ timeout, ctrl=0x");
+    armv7a_platform_early_console_puts("ARMv7-A timer IRQ timeout, ctrl=0x");
     print_hex32(timer_ctrl);
-    early_uart_puts(", igroupr0=0x");
+    armv7a_platform_early_console_puts(", igroupr0=0x");
     print_hex32(line_state.igroupr);
-    early_uart_puts(", isenabler0=0x");
+    armv7a_platform_early_console_puts(", isenabler0=0x");
     print_hex32(line_state.isenabler);
-    early_uart_puts("\r\n");
-    early_uart_puts("ARMv7-A timer IRQ timeout, ispendr0=0x");
+    armv7a_platform_early_console_puts("\r\n");
+    armv7a_platform_early_console_puts("ARMv7-A timer IRQ timeout, ispendr0=0x");
     print_hex32(line_state.ispendr);
-    early_uart_puts(", isactiver0=0x");
+    armv7a_platform_early_console_puts(", isactiver0=0x");
     print_hex32(line_state.isactiver);
-    early_uart_puts(", hppir=0x");
+    armv7a_platform_early_console_puts(", hppir=0x");
     print_hex32(cpu_state.hppir);
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 void armv7a_interrupt_print_sgi_timeout()
@@ -266,17 +264,17 @@ void armv7a_interrupt_print_sgi_timeout()
     const auto line_state = armv7a_gic_read_line_state(kArmv7aGicSelfSgiIntId);
     const auto cpu_state = armv7a_gic_read_cpu_state();
 
-    early_uart_puts("ARMv7-A SGI timeout, igroupr0=0x");
+    armv7a_platform_early_console_puts("ARMv7-A SGI timeout, igroupr0=0x");
     print_hex32(line_state.igroupr);
-    early_uart_puts(", isenabler0=0x");
+    armv7a_platform_early_console_puts(", isenabler0=0x");
     print_hex32(line_state.isenabler);
-    early_uart_puts(", ispendr0=0x");
+    armv7a_platform_early_console_puts(", ispendr0=0x");
     print_hex32(line_state.ispendr);
-    early_uart_puts(", isactiver0=0x");
+    armv7a_platform_early_console_puts(", isactiver0=0x");
     print_hex32(line_state.isactiver);
-    early_uart_puts(", hppir=0x");
+    armv7a_platform_early_console_puts(", hppir=0x");
     print_hex32(cpu_state.hppir);
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 void armv7a_interrupt_print_fiq_timeout()
@@ -284,59 +282,59 @@ void armv7a_interrupt_print_fiq_timeout()
     const auto line_state = armv7a_gic_read_line_state(kArmv7aGicSelfSgiIntId);
     const auto cpu_state = armv7a_gic_read_cpu_state();
 
-    early_uart_puts("ARMv7-A FIQ timeout, cpsr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A FIQ timeout, cpsr=0x");
     print_hex32(armv7a_read_cpsr());
-    early_uart_puts(", ctlr=0x");
+    armv7a_platform_early_console_puts(", ctlr=0x");
     print_hex32(cpu_state.ctlr);
-    early_uart_puts(", igroupr0=0x");
+    armv7a_platform_early_console_puts(", igroupr0=0x");
     print_hex32(line_state.igroupr);
-    early_uart_puts(", isenabler0=0x");
+    armv7a_platform_early_console_puts(", isenabler0=0x");
     print_hex32(line_state.isenabler);
-    early_uart_puts(", hppir=0x");
+    armv7a_platform_early_console_puts(", hppir=0x");
     print_hex32(cpu_state.hppir);
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 void armv7a_interrupt_print_security_side_evidence()
 {
-    early_uart_puts("ARMv7-A security side evidence, scr-read=skipped, timer-route=");
+    armv7a_platform_early_console_puts("ARMv7-A security side evidence, scr-read=skipped, timer-route=");
     if (observation_seen(Armv7aInterruptSmokeKind::kTimerIrq)) {
-        early_uart_puts(timer_route_name(observation_intid(Armv7aInterruptSmokeKind::kTimerIrq)));
+        armv7a_platform_early_console_puts(timer_route_name(observation_intid(Armv7aInterruptSmokeKind::kTimerIrq)));
     } else {
-        early_uart_puts("not-observed");
+        armv7a_platform_early_console_puts("not-observed");
     }
 
-    early_uart_puts(", irq-origin=");
+    armv7a_platform_early_console_puts(", irq-origin=");
     if (observation_seen(Armv7aInterruptSmokeKind::kSgiIrq)) {
-        early_uart_puts(armv7a_mode_name(observation_handler_spsr(Armv7aInterruptSmokeKind::kSgiIrq)));
+        armv7a_platform_early_console_puts(armv7a_mode_name(observation_handler_spsr(Armv7aInterruptSmokeKind::kSgiIrq)));
     } else {
-        early_uart_puts("not-observed");
+        armv7a_platform_early_console_puts("not-observed");
     }
 
-    early_uart_puts(", irq-handler=");
+    armv7a_platform_early_console_puts(", irq-handler=");
     if (observation_seen(Armv7aInterruptSmokeKind::kSgiIrq)) {
-        early_uart_puts(armv7a_mode_name(observation_handler_cpsr(Armv7aInterruptSmokeKind::kSgiIrq)));
+        armv7a_platform_early_console_puts(armv7a_mode_name(observation_handler_cpsr(Armv7aInterruptSmokeKind::kSgiIrq)));
     } else {
-        early_uart_puts("not-observed");
+        armv7a_platform_early_console_puts("not-observed");
     }
 
-    early_uart_puts(", fiq-origin=");
+    armv7a_platform_early_console_puts(", fiq-origin=");
     if (observation_seen(Armv7aInterruptSmokeKind::kSgiFiq)) {
-        early_uart_puts(armv7a_mode_name(observation_handler_spsr(Armv7aInterruptSmokeKind::kSgiFiq)));
+        armv7a_platform_early_console_puts(armv7a_mode_name(observation_handler_spsr(Armv7aInterruptSmokeKind::kSgiFiq)));
     } else {
-        early_uart_puts("not-observed");
+        armv7a_platform_early_console_puts("not-observed");
     }
 
-    early_uart_puts(", fiq-handler=");
+    armv7a_platform_early_console_puts(", fiq-handler=");
     if (observation_seen(Armv7aInterruptSmokeKind::kSgiFiq)) {
-        early_uart_puts(armv7a_mode_name(observation_handler_cpsr(Armv7aInterruptSmokeKind::kSgiFiq)));
+        armv7a_platform_early_console_puts(armv7a_mode_name(observation_handler_cpsr(Armv7aInterruptSmokeKind::kSgiFiq)));
     } else {
-        early_uart_puts("not-observed");
+        armv7a_platform_early_console_puts("not-observed");
     }
 
-    early_uart_puts(", monitor-mode=");
-    early_uart_puts(monitor_mode_observed() ? "observed" : "not-observed");
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts(", monitor-mode=");
+    armv7a_platform_early_console_puts(monitor_mode_observed() ? "observed" : "not-observed");
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_handle_irq(Armv7aExceptionFrame* frame)

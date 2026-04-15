@@ -9,10 +9,6 @@
 #include "armv7a_platform.hpp"
 #include "armv7a_translation_walk.hpp"
 
-extern "C" void early_uart_putc(char ch);
-extern "C" void early_uart_puts(const char* text);
-extern "C" [[noreturn]] void charm_spin();
-
 namespace {
 constexpr std::uintptr_t kSectionSize = 1u << 20;
 constexpr std::uintptr_t kSectionMask = ~(kSectionSize - 1u);
@@ -37,7 +33,7 @@ void early_uart_write_hex32(std::uint32_t value)
 {
     constexpr char kHex[] = "0123456789ABCDEF";
     for (int shift = 28; shift >= 0; shift -= 4) {
-        early_uart_putc(kHex[(value >> shift) & 0x0Fu]);
+        armv7a_platform_early_console_putc(kHex[(value >> shift) & 0x0Fu]);
     }
 }
 
@@ -63,9 +59,9 @@ void armv7a_attribute_probe_expect(bool condition, const char* message)
         return;
     }
 
-    early_uart_puts(message);
-    early_uart_puts("\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts(message);
+    armv7a_platform_early_console_puts("\r\n");
+    armv7a_platform_idle_forever();
 }
 } // namespace
 
@@ -86,23 +82,23 @@ extern "C" void armv7a_print_attribute_probe_mapping_state()
 {
     const auto decode = armv7a_attribute_probe_decode();
 
-    early_uart_puts("ARMv7-A attr probe ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A attr probe ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().attribute_alias_base));
-    early_uart_puts(", pa=0x");
+    armv7a_platform_early_console_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_attribute_probe_target_address()));
-    early_uart_puts(", section=0x");
+    armv7a_platform_early_console_puts(", section=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_attribute_probe_section_base()));
-    early_uart_puts(", identity-l1=0x");
+    armv7a_platform_early_console_puts(", identity-l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(armv7a_attribute_probe_target_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().attribute_alias_base));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(decode.descriptor);
-    early_uart_puts(", tex=0x");
+    armv7a_platform_early_console_puts(", tex=0x");
     early_uart_write_hex32(decode.tex);
-    early_uart_puts(", mem=");
-    early_uart_puts(armv7a_memory_type_name(decode.memory_type));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts(", mem=");
+    armv7a_platform_early_console_puts(armv7a_memory_type_name(decode.memory_type));
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_run_attribute_probe()
@@ -139,39 +135,39 @@ extern "C" void armv7a_run_attribute_probe()
     const auto restored = *alias;
     const auto restored_decode = armv7a_attribute_probe_decode();
 
-    early_uart_puts("ARMv7-A attr probe, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A attr probe, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().attribute_alias_base));
-    early_uart_puts(", before=0x");
+    armv7a_platform_early_console_puts(", before=0x");
     early_uart_write_hex32(before);
-    early_uart_puts(", normal=0x");
+    armv7a_platform_early_console_puts(", normal=0x");
     early_uart_write_hex32(normal);
-    early_uart_puts(", device-before=0x");
+    armv7a_platform_early_console_puts(", device-before=0x");
     early_uart_write_hex32(device_before);
-    early_uart_puts(", device=0x");
+    armv7a_platform_early_console_puts(", device=0x");
     early_uart_write_hex32(device);
-    early_uart_puts(", restored=0x");
+    armv7a_platform_early_console_puts(", restored=0x");
     early_uart_write_hex32(restored);
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 
-    early_uart_puts("ARMv7-A attr descriptors, normal=0x");
+    armv7a_platform_early_console_puts("ARMv7-A attr descriptors, normal=0x");
     early_uart_write_hex32(normal_decode.descriptor);
-    early_uart_puts(" (tex=0x");
+    armv7a_platform_early_console_puts(" (tex=0x");
     early_uart_write_hex32(normal_decode.tex);
-    early_uart_puts(", mem=");
-    early_uart_puts(armv7a_memory_type_name(normal_decode.memory_type));
-    early_uart_puts("), device=0x");
+    armv7a_platform_early_console_puts(", mem=");
+    armv7a_platform_early_console_puts(armv7a_memory_type_name(normal_decode.memory_type));
+    armv7a_platform_early_console_puts("), device=0x");
     early_uart_write_hex32(device_decode.descriptor);
-    early_uart_puts(" (tex=0x");
+    armv7a_platform_early_console_puts(" (tex=0x");
     early_uart_write_hex32(device_decode.tex);
-    early_uart_puts(", mem=");
-    early_uart_puts(armv7a_memory_type_name(device_decode.memory_type));
-    early_uart_puts("), restored=0x");
+    armv7a_platform_early_console_puts(", mem=");
+    armv7a_platform_early_console_puts(armv7a_memory_type_name(device_decode.memory_type));
+    armv7a_platform_early_console_puts("), restored=0x");
     early_uart_write_hex32(restored_decode.descriptor);
-    early_uart_puts(" (tex=0x");
+    armv7a_platform_early_console_puts(" (tex=0x");
     early_uart_write_hex32(restored_decode.tex);
-    early_uart_puts(", mem=");
-    early_uart_puts(armv7a_memory_type_name(restored_decode.memory_type));
-    early_uart_puts(")\r\n");
+    armv7a_platform_early_console_puts(", mem=");
+    armv7a_platform_early_console_puts(armv7a_memory_type_name(restored_decode.memory_type));
+    armv7a_platform_early_console_puts(")\r\n");
 
     armv7a_attribute_probe_expect(before == kAttributeProbeInitialValue,
                                   "ARMv7-A attr probe initial value mismatch");

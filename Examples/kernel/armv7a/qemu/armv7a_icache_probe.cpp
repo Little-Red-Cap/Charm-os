@@ -9,9 +9,6 @@
 
 extern "C" std::uint32_t armv7a_icache_probe_target_a();
 extern "C" std::uint32_t armv7a_icache_probe_target_b();
-extern "C" void early_uart_putc(char ch);
-extern "C" void early_uart_puts(const char* text);
-extern "C" [[noreturn]] void charm_spin();
 
 namespace {
 constexpr std::uintptr_t kSmallPageSize = 1u << 12;
@@ -29,7 +26,7 @@ void early_uart_write_hex32(std::uint32_t value)
 {
     constexpr char kHex[] = "0123456789ABCDEF";
     for (int shift = 28; shift >= 0; shift -= 4) {
-        early_uart_putc(kHex[(value >> shift) & 0x0Fu]);
+        armv7a_platform_early_console_putc(kHex[(value >> shift) & 0x0Fu]);
     }
 }
 
@@ -65,14 +62,14 @@ void armv7a_icache_probe_require_layout()
         return;
     }
 
-    early_uart_puts("ARMv7-A icache probe layout invalid, offset-a=0x");
+    armv7a_platform_early_console_puts("ARMv7-A icache probe layout invalid, offset-a=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(
         armv7a_icache_probe_target_a_address() & kSmallPageOffsetMask));
-    early_uart_puts(", offset-b=0x");
+    armv7a_platform_early_console_puts(", offset-b=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(
         armv7a_icache_probe_target_b_address() & kSmallPageOffsetMask));
-    early_uart_puts("\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("\r\n");
+    armv7a_platform_idle_forever();
 }
 } // namespace
 
@@ -86,17 +83,17 @@ extern "C" void armv7a_prepare_icache_probe_mapping()
 
 extern "C" void armv7a_print_icache_probe_mapping_state()
 {
-    early_uart_puts("ARMv7-A icache probe ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A icache probe ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_icache_probe_alias_address()));
-    early_uart_puts(", pa-a=0x");
+    armv7a_platform_early_console_puts(", pa-a=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_icache_probe_target_a_address()));
-    early_uart_puts(", pa-b=0x");
+    armv7a_platform_early_console_puts(", pa-b=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_icache_probe_target_b_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(armv7a_icache_probe_alias_address()));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_icache_probe_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_run_icache_probe()
@@ -105,8 +102,8 @@ extern "C" void armv7a_run_icache_probe()
 
     const auto sctlr = armv7a_read_sctlr();
     if (!armv7a_icache_enabled(sctlr)) {
-        early_uart_puts("ARMv7-A icache probe requires icache=on\r\n");
-        charm_spin();
+        armv7a_platform_early_console_puts("ARMv7-A icache probe requires icache=on\r\n");
+        armv7a_platform_idle_forever();
     }
 
     const auto alias_address = armv7a_icache_probe_alias_address();
@@ -121,24 +118,24 @@ extern "C" void armv7a_run_icache_probe()
         alias_address);
     const auto after = probe();
 
-    early_uart_puts("ARMv7-A icache probe, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A icache probe, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));
-    early_uart_puts(", before=0x");
+    armv7a_platform_early_console_puts(", before=0x");
     early_uart_write_hex32(before);
-    early_uart_puts(", after=0x");
+    armv7a_platform_early_console_puts(", after=0x");
     early_uart_write_hex32(after);
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(alias_address));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 
     if (before == kIcacheProbeReturnValueA && after == kIcacheProbeReturnValueB) {
         return;
     }
 
-    early_uart_puts("ARMv7-A icache probe failed, expected-a=0x");
+    armv7a_platform_early_console_puts("ARMv7-A icache probe failed, expected-a=0x");
     early_uart_write_hex32(kIcacheProbeReturnValueA);
-    early_uart_puts(", expected-b=0x");
+    armv7a_platform_early_console_puts(", expected-b=0x");
     early_uart_write_hex32(kIcacheProbeReturnValueB);
-    early_uart_puts("\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("\r\n");
+    armv7a_platform_idle_forever();
 }

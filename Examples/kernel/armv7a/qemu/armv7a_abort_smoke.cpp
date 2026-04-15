@@ -5,9 +5,6 @@
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 
-extern "C" void early_uart_puts(const char* text);
-extern "C" [[noreturn]] void charm_spin();
-
 namespace {
 constexpr std::uintptr_t kSectionSize = 1u << 20;
 constexpr std::uintptr_t kSectionMask = ~(kSectionSize - 1u);
@@ -34,7 +31,7 @@ void early_uart_write_hex32(std::uint32_t value)
         const auto shift = 28 - (i * 4);
         buffer[i] = kHex[(value >> shift) & 0x0fu];
     }
-    early_uart_puts(buffer);
+    armv7a_platform_early_console_puts(buffer);
 }
 
 extern "C" [[gnu::noinline]] void armv7a_abort_xn_target()
@@ -183,146 +180,146 @@ extern "C" void armv7a_prepare_abort_smoke_runtime()
 extern "C" void armv7a_print_abort_smoke_mapping_state()
 {
 #if defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_XN)
-    early_uart_puts("ARMv7-A XN alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A XN alias ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_xn_alias_address()));
-    early_uart_puts(", pa=0x");
+    armv7a_platform_early_console_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_xn_target_address()));
-    early_uart_puts(", desc=0x");
+    armv7a_platform_early_console_puts(", desc=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().abort_xn_alias_base));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_PAGE)
-    early_uart_puts("ARMv7-A prefetch-page alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A prefetch-page alias ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_prefetch_page_alias_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(armv7a_abort_prefetch_page_alias_address()));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_abort_prefetch_page_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_PAGE_XN)
-    early_uart_puts("ARMv7-A page-XN alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A page-XN alias ready, va=0x");
     early_uart_write_hex32(
         static_cast<std::uint32_t>(armv7a_abort_prefetch_page_xn_alias_address()));
-    early_uart_puts(", pa=0x");
+    armv7a_platform_early_console_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_xn_target_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(
         armv7a_boot_l1_descriptor(armv7a_abort_prefetch_page_xn_alias_address()));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(
         armv7a_boot_l2_descriptor(armv7a_abort_prefetch_page_xn_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_PAGE_XN_RUNTIME)
-    early_uart_puts("ARMv7-A runtime page-XN alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A runtime page-XN alias ready, va=0x");
     early_uart_write_hex32(
         static_cast<std::uint32_t>(armv7a_abort_prefetch_page_xn_runtime_alias_address()));
-    early_uart_puts(", pa=0x");
+    armv7a_platform_early_console_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_exec_probe_target_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(
         armv7a_boot_l1_descriptor(armv7a_abort_prefetch_page_xn_runtime_alias_address()));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(
         armv7a_boot_l2_descriptor(armv7a_abort_prefetch_page_xn_runtime_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PERM)
-    early_uart_puts("ARMv7-A data alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A data alias ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_perm_alias_address()));
-    early_uart_puts(", pa=0x");
+    armv7a_platform_early_console_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_perm_target_address()));
-    early_uart_puts(", desc=0x");
+    armv7a_platform_early_console_puts(", desc=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().abort_data_perm_alias_base));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE)
-    early_uart_puts("ARMv7-A data-page alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A data-page alias ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().abort_data_page_alias_address));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().abort_data_page_alias_address));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().abort_data_page_alias_address));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE_PERM)
-    early_uart_puts("ARMv7-A data-page-perm alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A data-page-perm alias ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_page_perm_alias_address()));
-    early_uart_puts(", pa=0x");
+    armv7a_platform_early_console_puts(", pa=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_page_perm_target_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(armv7a_boot_l1_descriptor(armv7a_abort_data_page_perm_alias_address()));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(armv7a_boot_l2_descriptor(armv7a_abort_data_page_perm_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE_PERM_RUNTIME)
-    early_uart_puts("ARMv7-A runtime data-page alias ready, va=0x");
+    armv7a_platform_early_console_puts("ARMv7-A runtime data-page alias ready, va=0x");
     early_uart_write_hex32(
         static_cast<std::uint32_t>(armv7a_abort_data_page_perm_runtime_alias_address()));
-    early_uart_puts(", pa=0x");
+    armv7a_platform_early_console_puts(", pa=0x");
     early_uart_write_hex32(
         static_cast<std::uint32_t>(armv7a_abort_data_page_perm_runtime_target_address()));
-    early_uart_puts(", l1=0x");
+    armv7a_platform_early_console_puts(", l1=0x");
     early_uart_write_hex32(
         armv7a_boot_l1_descriptor(armv7a_abort_data_page_perm_runtime_alias_address()));
-    early_uart_puts(", l2=0x");
+    armv7a_platform_early_console_puts(", l2=0x");
     early_uart_write_hex32(
         armv7a_boot_l2_descriptor(armv7a_abort_data_page_perm_runtime_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
 #endif
 }
 
 extern "C" void armv7a_run_abort_smoke_if_enabled()
 {
 #if defined(CHARM_ARMV7A_ABORT_SMOKE_DATA)
-    early_uart_puts("ARMv7-A abort smoke, kind=data, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=data, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().abort_unmapped_address));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
     auto* const probe =
         reinterpret_cast<volatile std::uint32_t*>(probe_layout().abort_unmapped_address);
     const auto value = *probe;
     static_cast<void>(value);
-    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH)
-    early_uart_puts("ARMv7-A abort smoke, kind=prefetch, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=prefetch, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().abort_unmapped_address));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
     const auto target = static_cast<std::uint32_t>(probe_layout().abort_unmapped_address);
     asm volatile("bx %0" : : "r"(target) : "memory");
-    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_XN)
-    early_uart_puts("ARMv7-A abort smoke, kind=prefetch-xn, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=prefetch-xn, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_xn_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
     const auto target = reinterpret_cast<void (*)()>(armv7a_abort_xn_alias_address());
     target();
-    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_PAGE)
-    early_uart_puts("ARMv7-A abort smoke, kind=prefetch-page, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=prefetch-page, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_prefetch_page_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
     const auto target = reinterpret_cast<void (*)()>(armv7a_abort_prefetch_page_alias_address());
     target();
-    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_PAGE_XN)
-    early_uart_puts("ARMv7-A abort smoke, kind=prefetch-page-xn, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=prefetch-page-xn, addr=0x");
     early_uart_write_hex32(
         static_cast<std::uint32_t>(armv7a_abort_prefetch_page_xn_alias_address()));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
     const auto target =
         reinterpret_cast<void (*)()>(armv7a_abort_prefetch_page_xn_alias_address());
     target();
-    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_PAGE_XN_RUNTIME)
     {
         const auto alias_address = armv7a_abort_prefetch_page_xn_runtime_alias_address();
         auto* const probe = reinterpret_cast<std::uint32_t (*)()>(alias_address);
         const auto returned = probe();
-        early_uart_puts("ARMv7-A runtime page-XN probe, addr=0x");
+        armv7a_platform_early_console_puts("ARMv7-A runtime page-XN probe, addr=0x");
         early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));
-        early_uart_puts(", return=0x");
+        armv7a_platform_early_console_puts(", return=0x");
         early_uart_write_hex32(returned);
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
 
         const auto target = armv7a_abort_exec_probe_target_address();
         armv7a_boot_l2_map_small_page(probe_layout().abort_prefetch_page_xn_runtime_alias_base,
@@ -333,52 +330,52 @@ extern "C" void armv7a_run_abort_smoke_if_enabled()
             armv7a_boot_l2_descriptor_address(probe_layout().abort_prefetch_page_xn_runtime_alias_base),
             alias_address);
 
-        early_uart_puts("ARMv7-A runtime page-XN flip, addr=0x");
+        armv7a_platform_early_console_puts("ARMv7-A runtime page-XN flip, addr=0x");
         early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));
-        early_uart_puts(", l2=0x");
+        armv7a_platform_early_console_puts(", l2=0x");
         early_uart_write_hex32(armv7a_boot_l2_descriptor(alias_address));
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
 
-        early_uart_puts("ARMv7-A abort smoke, kind=prefetch-page-xn-runtime, addr=0x");
+        armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=prefetch-page-xn-runtime, addr=0x");
         early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
         const auto target_fn = reinterpret_cast<void (*)()>(alias_address);
         target_fn();
-        early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-        charm_spin();
+        armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+        armv7a_platform_idle_forever();
     }
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PERM)
-    early_uart_puts("ARMv7-A abort smoke, kind=data-perm, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=data-perm, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_perm_alias_address()));
-    early_uart_puts(", value=0x");
+    armv7a_platform_early_console_puts(", value=0x");
     early_uart_write_hex32(kAbortSmokeDataWriteValue);
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
     auto* const target =
         reinterpret_cast<volatile std::uint32_t*>(armv7a_abort_data_perm_alias_address());
     *target = kAbortSmokeDataWriteValue;
-    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE)
-    early_uart_puts("ARMv7-A abort smoke, kind=data-page, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=data-page, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().abort_data_page_alias_address));
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
     auto* const probe =
         reinterpret_cast<volatile std::uint32_t*>(probe_layout().abort_data_page_alias_address);
     const auto value = *probe;
     static_cast<void>(value);
-    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE_PERM)
-    early_uart_puts("ARMv7-A abort smoke, kind=data-page-perm, addr=0x");
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=data-page-perm, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_page_perm_alias_address()));
-    early_uart_puts(", value=0x");
+    armv7a_platform_early_console_puts(", value=0x");
     early_uart_write_hex32(kAbortSmokeDataWriteValue);
-    early_uart_puts("\r\n");
+    armv7a_platform_early_console_puts("\r\n");
     auto* const target =
         reinterpret_cast<volatile std::uint32_t*>(armv7a_abort_data_page_perm_alias_address());
     *target = kAbortSmokeDataWriteValue;
-    early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-    charm_spin();
+    armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+    armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE_PERM_RUNTIME)
     {
         const auto alias_address = armv7a_abort_data_page_perm_runtime_alias_address();
@@ -388,15 +385,15 @@ extern "C" void armv7a_run_abort_smoke_if_enabled()
         armv7a_data_sync_barrier();
         const auto direct = g_armv7a_abort_data_page_perm_runtime_target;
 
-        early_uart_puts("ARMv7-A runtime data-page probe, addr=0x");
+        armv7a_platform_early_console_puts("ARMv7-A runtime data-page probe, addr=0x");
         early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));
-        early_uart_puts(", before=0x");
+        armv7a_platform_early_console_puts(", before=0x");
         early_uart_write_hex32(before);
-        early_uart_puts(", after=0x");
+        armv7a_platform_early_console_puts(", after=0x");
         early_uart_write_hex32(kAbortSmokeRuntimeDataWriteValue);
-        early_uart_puts(", direct=0x");
+        armv7a_platform_early_console_puts(", direct=0x");
         early_uart_write_hex32(direct);
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
 
         const auto target_address = armv7a_abort_data_page_perm_runtime_target_address();
         armv7a_boot_l2_map_small_page(probe_layout().abort_data_page_perm_runtime_alias_base,
@@ -407,20 +404,20 @@ extern "C" void armv7a_run_abort_smoke_if_enabled()
             armv7a_boot_l2_descriptor_address(probe_layout().abort_data_page_perm_runtime_alias_base),
             alias_address);
 
-        early_uart_puts("ARMv7-A runtime data-page flip, addr=0x");
+        armv7a_platform_early_console_puts("ARMv7-A runtime data-page flip, addr=0x");
         early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));
-        early_uart_puts(", l2=0x");
+        armv7a_platform_early_console_puts(", l2=0x");
         early_uart_write_hex32(armv7a_boot_l2_descriptor(alias_address));
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
 
-        early_uart_puts("ARMv7-A abort smoke, kind=data-page-perm-runtime, addr=0x");
+        armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=data-page-perm-runtime, addr=0x");
         early_uart_write_hex32(static_cast<std::uint32_t>(alias_address));
-        early_uart_puts(", value=0x");
+        armv7a_platform_early_console_puts(", value=0x");
         early_uart_write_hex32(kAbortSmokeDataWriteValue);
-        early_uart_puts("\r\n");
+        armv7a_platform_early_console_puts("\r\n");
         *target = kAbortSmokeDataWriteValue;
-        early_uart_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
-        charm_spin();
+        armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+        armv7a_platform_idle_forever();
     }
 #else
     // Keep the default smoke path stable unless a preset explicitly opts in.

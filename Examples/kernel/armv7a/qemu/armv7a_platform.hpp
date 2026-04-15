@@ -33,6 +33,12 @@ struct Armv7aPlatformProbeLayout {
     std::uintptr_t abort_prefetch_page_xn_runtime_alias_base = 0u;
 };
 
+extern "C" void armv7a_platform_early_console_init();
+extern "C" void armv7a_platform_early_console_putc(char ch);
+extern "C" void armv7a_platform_early_console_puts(const char* text);
+extern "C" void armv7a_platform_debug_trace(const char* text);
+extern "C" [[noreturn]] void armv7a_platform_idle_forever();
+
 const Armv7aPlatformAddressSpace& armv7a_platform_address_space();
 const Armv7aPlatformMmioLayout& armv7a_platform_mmio_layout();
 const Armv7aPlatformProbeLayout& armv7a_platform_probe_layout();

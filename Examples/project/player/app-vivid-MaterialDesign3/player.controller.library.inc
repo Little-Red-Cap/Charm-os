@@ -173,6 +173,7 @@
             out.model = library_row_model(row_index);
             out.track_index = list_index_to_track(row_index);
             out.group_row = out.model ? out.model->group_row : false;
+            out.selected_row = (row_index == last_list_selected);
             out.menu_title_cstr = out.group_row ? "Group" : "Track";
             if (out.group_row) {
                 out.current_row = library_group_row_is_current(row_index);
@@ -184,7 +185,7 @@
                 out.detail_primary = out.model->title.view();
                 out.detail_secondary = out.model->subtitle.view();
             }
-            out.show_tail_action = (row_index == last_list_selected) || out.current_row;
+            out.show_tail_action = out.selected_row;
             out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
             out.tail_icon = out.current_row
                 ? (is_paused() ? icons.pause : icons.play)
@@ -1048,6 +1049,9 @@
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            if (row.current_row) {
+                return self->library_current_group_state_text();
+            }
             if (row.model) {
                 return row.tail_c_str();
             }
@@ -1338,6 +1342,17 @@
             if (key.empty()) return false;
             library_context_key.assign(key);
             refresh_list_view();
+            return true;
+        }
+
+        bool set_library_selected_index_for_preview(int list_index) {
+            close_list_action_menu();
+            if (!access.valid() || !handles.list) return false;
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return false;
+            ignore_list_select = true;
+            access.set_list_view_selected(handles.list, list_index);
+            ignore_list_select = false;
+            last_list_selected = list_index;
             return true;
         }
 

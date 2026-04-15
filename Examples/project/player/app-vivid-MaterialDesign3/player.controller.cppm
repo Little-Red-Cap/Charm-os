@@ -207,6 +207,7 @@ export namespace player {
             int track_index{-1};
             bool group_row{false};
             bool current_row{false};
+            bool selected_row{false};
             bool show_tail_action{false};
             const char* menu_title_cstr{"Track"};
             std::string_view detail_primary{};

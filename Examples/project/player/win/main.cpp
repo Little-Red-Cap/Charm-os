@@ -423,6 +423,7 @@ int main(int argc, char** argv) {
     std::optional<player::LibraryTab> library_tab_override{};
     std::string library_context_override{};
     bool library_open_first_group = false;
+    int library_select_index = -1;
     bool ui_ci = false;
     std::string font_ttf_path{};
     std::string font_fallback_ttf_path{};
@@ -480,6 +481,8 @@ int main(int argc, char** argv) {
             library_context_override.assign(arg.substr(18));
         } else if (arg == "--library-open-first-group") {
             library_open_first_group = true;
+        } else if (arg.rfind("--library-select-index=", 0) == 0) {
+            library_select_index = std::atoi(std::string(arg.substr(23)).c_str());
         } else if (arg == "--screenshot-verbose") {
             screenshot_verbose = true;
         } else if (arg == "--screenshot-exit") {
@@ -579,6 +582,9 @@ int main(int argc, char** argv) {
         (void)g_ctx.set_library_context_for_preview(library_context_override);
     } else if (library_open_first_group) {
         (void)g_ctx.open_first_library_group_for_preview();
+    }
+    if (library_select_index >= 0) {
+        (void)g_ctx.set_library_selected_index_for_preview(library_select_index);
     }
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");

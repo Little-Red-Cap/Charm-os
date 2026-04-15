@@ -3,6 +3,17 @@
 本文不是最终冻结的 JSON Schema，也不是新的导出脚本实现说明。  
 它用于定义 Charm 在 `system compiler v0` 阶段的最小统一报告对象：`artifact report`。
 
+当前 schema 草案与最小机器可验样例见：
+
+- `schemas/system_compiler.artifact_report.v0.schema.json`
+- `schemas/examples/system_compiler.artifact_report.v0.sample.json`
+
+当前可以直接这样校验样例：
+
+```powershell
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
+```
+
 它要回答的核心问题不是“有哪些零散导出文件”，而是：
 
 > **当一次系统编译、bringup 举证与资源审计完成后，Charm 应该把哪些核心事实收束成一个可引用对象。**
@@ -329,7 +340,7 @@
   },
   "resource_contract": {
     "declared_contracts": 4,
-    "provided_facts": 3,
+    "provided_facts": ["system.clock", "reactor", "task_context"],
     "audited_count": 4,
     "satisfied_count": 4,
     "violated_count": 0,
@@ -337,11 +348,22 @@
   },
   "runtime_observe": {
     "publish_state_summary": {"published": 3, "missing": 0},
-    "export_state_summary": {"attached": 1, "detached": 2, "missing": 0}
+    "export_state_summary": {"attached": 1, "detached": 2, "missing": 0},
+    "recent_transitions": [
+      {
+        "capability": "io.uart1",
+        "action": "attach",
+        "before": "detached",
+        "after": "attached"
+      }
+    ]
   },
   "artifacts": {
     "bundle": "out/materialized-graph-bundle/index.json",
+    "dot": "out/materialized-graph-bundle/case/materialized_graph.dot",
     "sample_json": "out/materialized-graph-bundle/case/materialized_graph.sample.json",
+    "diff": null,
+    "ci_summary": null,
     "report_manifest": "out/report/materialized_graph_bundle_diff_report.manifest.json"
   }
 }

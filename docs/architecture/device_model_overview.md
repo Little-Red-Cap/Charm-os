@@ -64,6 +64,11 @@
 > `block::ExportState::{missing, detached, attached}`。
 > 它们用于表达“稳定 capability 是否还在 registry 中，以及当前是否 live”，
 > 补足 `open_*` / `find_*` 只能表达“是否已发布”的缺口。
+>
+> 与之对应，registry 自身现在也开始显式暴露
+> `io::PublishState::{missing, published}` /
+> `block::PublishState::{missing, published}`，
+> 用来表达 capability 是否仍处于 published 视图中。
 
 ## 1. 核心概念
 

@@ -461,6 +461,8 @@ USB Device 不能简单地整体归入动态平面。
 
 - `open_*` / `find_*` 只表示 capability 是否已发布
 - 它们不直接表达“底层目标是否仍 attached”
+- 现在这一层还补上了显式 `PublishState::{missing, published}` 查询，
+  用来把“已发布视图”从隐式 `find_* != nullptr` 提升为代码契约
 
 稳定槽位导出现在补了一层显式状态：
 

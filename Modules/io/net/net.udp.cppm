@@ -75,7 +75,7 @@ export namespace net {
         return 8u;
     }
 
-    namespace detail {
+    namespace udp_detail {
         [[nodiscard]] constexpr util::u16 load_be16(PacketView packet, util::usize offset) noexcept {
             return static_cast<util::u16>(
                 (static_cast<util::u16>(packet[offset]) << 8)
@@ -144,16 +144,16 @@ export namespace net {
             return util::unexpected(errc::invalid_format);
         }
 
-        const auto length = detail::load_be16(packet, 4);
+        const auto length = udp_detail::load_be16(packet, 4);
         if (length < udp_header_size() || length > packet.size()) {
             return util::unexpected(errc::invalid_format);
         }
 
         return Result<UdpDatagramView>{std::in_place, UdpDatagramView{
-            .source_port = detail::load_be16(packet, 0),
-            .destination_port = detail::load_be16(packet, 2),
+            .source_port = udp_detail::load_be16(packet, 0),
+            .destination_port = udp_detail::load_be16(packet, 2),
             .length = length,
-            .checksum = detail::load_be16(packet, 6),
+            .checksum = udp_detail::load_be16(packet, 6),
             .payload = packet.subspan(udp_header_size(), length - udp_header_size()),
         }};
     }
@@ -162,8 +162,8 @@ export namespace net {
     [[nodiscard]] Result<void> prepend_udp_ipv4_header(PacketBuffer<Capacity>& packet,
                                                        const Endpoint& local,
                                                        const Endpoint& peer) noexcept {
-        if (!detail::is_concrete_ipv4_endpoint(local)
-            || !detail::is_concrete_ipv4_endpoint(peer)
+        if (!udp_detail::is_concrete_ipv4_endpoint(local)
+            || !udp_detail::is_concrete_ipv4_endpoint(peer)
             || local.port == 0u
             || peer.port == 0u) {
             return util::unexpected(errc::invalid_arg);
@@ -175,16 +175,16 @@ export namespace net {
         }
 
         std::array<util::u8, udp_header_size()> header{};
-        detail::store_be16(header.data(), local.port);
-        detail::store_be16(header.data() + 2, peer.port);
-        detail::store_be16(header.data() + 4, static_cast<util::u16>(datagram_size));
+        udp_detail::store_be16(header.data(), local.port);
+        udp_detail::store_be16(header.data() + 2, peer.port);
+        udp_detail::store_be16(header.data() + 4, static_cast<util::u16>(datagram_size));
 
         auto prepended_header = packet.prepend(ByteView{header.data(), header.size()});
         if (!prepended_header) {
             return util::unexpected(prepended_header.error());
         }
 
-        const auto checksum = detail::compute_udp_checksum_ipv4(
+        const auto checksum = udp_detail::compute_udp_checksum_ipv4(
             Ipv4PacketView{
                 .protocol = Ipv4Protocol::udp,
                 .source = local.address,
@@ -193,7 +193,7 @@ export namespace net {
             packet.view());
         const auto wire_checksum = checksum == 0u ? static_cast<util::u16>(0xFFFFu) : checksum;
         auto out = packet.mut_view();
-        detail::store_be16(out.data() + 6, wire_checksum);
+        udp_detail::store_be16(out.data() + 6, wire_checksum);
         return {};
     }
 
@@ -233,7 +233,7 @@ export namespace net {
         if (local.address.is_unspecified() || local.address.is_any()) {
             local.address = netif.address();
         }
-        if (!local.address.is_ipv4() || !detail::same_ipv4_address(local.address, netif.address())) {
+        if (!local.address.is_ipv4() || !udp_detail::same_ipv4_address(local.address, netif.address())) {
             return util::unexpected(errc::invalid_arg);
         }
 
@@ -333,7 +333,7 @@ export namespace net {
 
             const auto exact_datagram = packet.view().subspan(0, datagram.length);
             if (datagram.checksum != 0u) {
-                auto expected = detail::compute_udp_checksum_ipv4(ipv4, exact_datagram);
+                auto expected = udp_detail::compute_udp_checksum_ipv4(ipv4, exact_datagram);
                 if (expected == 0u) {
                     expected = 0xFFFFu;
                 }

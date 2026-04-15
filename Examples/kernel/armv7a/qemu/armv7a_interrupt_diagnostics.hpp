@@ -30,6 +30,9 @@ void armv7a_interrupt_print_sgi_pending_evidence(const Armv7aSgiPendingSnapshot&
                                                  Armv7aPlatformInterruptRoute route);
 void armv7a_interrupt_print_active(const char* label,
                                    const Armv7aInterruptObservation& observation);
+void armv7a_interrupt_print_special_ack(const char* label,
+                                        Armv7aPlatformInterruptRoute route,
+                                        const Armv7aInterruptObservation& observation);
 void armv7a_interrupt_print_observed_intid(const char* label, unsigned int intid);
 void armv7a_interrupt_print_unexpected(const char* label,
                                        unsigned int intid,

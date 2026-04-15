@@ -49,6 +49,9 @@ cmake --build out\build\debug-abort-data-page-perm-runtime --verbose
 
 cmake --preset debug-exception-undefined
 cmake --build out\build\debug-exception-undefined --verbose
+
+cmake --preset debug-interrupt-special-irq
+cmake --build out\build\debug-interrupt-special-irq --verbose
 ```
 
 ## Run
@@ -156,6 +159,31 @@ fatal undefined handler instead of continuing into the later IRQ/FIQ smoke:
 
 ```powershell
 .\run_qemu_exception_ci.ps1 -Kind undefined
+```
+
+The synthetic special-ack edge smoke is also kept separate so the default
+success-path CI stays stable while we harden the failure-path evidence:
+
+```powershell
+.\run_qemu_interrupt_special_ci.ps1
+```
+
+## Special IRQ acknowledge smoke
+
+Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
+
+```powershell
+.\run_qemu.ps1 -ElfPath out\build\debug-interrupt-special-irq\charm-armv7a-qemu
+```
+
+Expected output includes the same normal bringup banner as the default smoke,
+then adds one synthetic IRQ acknowledge probe before idle:
+
+```text
+ARMv7-A phase, stage=special-irq-smoke
+ARMv7-A diagnostic context, subsystem=interrupt, stage=special-irq-smoke, last-complete=sgi-fiq-smoke, cpsr=0x........
+ARMv7-A special IRQ acknowledge, intid=1023, source=special-intid, ack=0x000003FF, hppir-before-ack=0x000003FF, route=irq, origin-mode=sys, current-mode=sys, return-pc=0x40000000, synthetic=yes
+ARMv7-A phase complete, stage=special-irq-smoke
 ```
 
 ## Undefined exception smoke
@@ -379,6 +407,11 @@ continue
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from
   QEMU toward real Cortex-A silicon.
+- An optional `special-irq-smoke` preset now also synthesizes one IRQ-frame
+  entry while the GIC CPU/distributor interfaces are live but no line is
+  pending, which turns the GIC `special/spurious acknowledge` path into a
+  first-class observable contract instead of leaving it hidden behind a later
+  timeout.
 - The same returning paths now also print one `return evidence` line after the
   handler returns to ordinary execution, comparing the pre-exception `SPSR`
   against the live post-return `CPSR`. That gives us direct evidence for

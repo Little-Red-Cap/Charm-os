@@ -28,4 +28,10 @@ void armv7a_run_interrupt_observation_sequence()
     armv7a_fiq_smoke_test();
     armv7a_interrupt_print_security_side_evidence();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kSgiFiqSmoke);
+
+#if defined(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_SPECIAL_IRQ)
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kSpecialIrqSmoke);
+    armv7a_special_irq_ack_smoke_test();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kSpecialIrqSmoke);
+#endif
 }

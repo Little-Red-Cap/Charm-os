@@ -1,6 +1,7 @@
 #include <cstdint>
 
 #include "armv7a_cpu.hpp"
+#include "armv7a_exception_frame.hpp"
 #include "armv7a_handler_stack.hpp"
 #include "armv7a_interrupt_diagnostics.hpp"
 #include "armv7a_interrupt_smoke.hpp"
@@ -42,8 +43,9 @@ extern "C" void armv7a_irq_smoke_test()
         // reaches the timeout diagnostics instead of stalling forever.
     }
 
+    const auto interrupt_seen = armv7a_interrupt_smoke_seen();
     const auto observation = armv7a_interrupt_smoke_last_observation();
-    if (observation.seen) {
+    if (observation.seen && !observation.special) {
         if (!armv7a_platform_is_timer_interrupt(observation.intid)) {
             armv7a_interrupt_print_observed_intid(
                 "ARMv7-A timer IRQ test observed intid=", observation.intid);
@@ -61,7 +63,7 @@ extern "C" void armv7a_irq_smoke_test()
     armv7a_platform_disable_interrupt_controller();
     armv7a_interrupt_smoke_finish();
 
-    if (!observation.seen) {
+    if (!interrupt_seen) {
         armv7a_interrupt_print_irq_timeout(armv7a_platform_timer_control());
         return;
     }
@@ -99,8 +101,9 @@ extern "C" void armv7a_sgi_smoke_test()
         // so timeout diagnostics remain visible if the GIC route is broken.
     }
 
+    const auto interrupt_seen = armv7a_interrupt_smoke_seen();
     const auto observation = armv7a_interrupt_smoke_last_observation();
-    if (observation.seen) {
+    if (observation.seen && !observation.special) {
         if (!armv7a_platform_is_self_sgi_interrupt(observation.intid)) {
             armv7a_interrupt_print_observed_intid("ARMv7-A SGI test observed intid=", observation.intid);
         } else {
@@ -116,7 +119,7 @@ extern "C" void armv7a_sgi_smoke_test()
     armv7a_platform_disable_interrupt_controller();
     armv7a_interrupt_smoke_finish();
 
-    if (!observation.seen) {
+    if (!interrupt_seen) {
         armv7a_interrupt_print_sgi_timeout();
         return;
     }
@@ -154,8 +157,9 @@ extern "C" void armv7a_fiq_smoke_test()
         // Keep IRQ masked so this path proves the Group0+FIQ route on its own.
     }
 
+    const auto interrupt_seen = armv7a_interrupt_smoke_seen();
     const auto observation = armv7a_interrupt_smoke_last_observation();
-    if (observation.seen) {
+    if (observation.seen && !observation.special) {
         if (!armv7a_platform_is_self_sgi_interrupt(observation.intid)) {
             armv7a_interrupt_print_observed_intid("ARMv7-A FIQ test observed intid=", observation.intid);
         } else {
@@ -171,8 +175,36 @@ extern "C" void armv7a_fiq_smoke_test()
     armv7a_platform_disable_interrupt_controller();
     armv7a_interrupt_smoke_finish();
 
-    if (!observation.seen) {
+    if (!interrupt_seen) {
         armv7a_interrupt_print_fiq_timeout();
         return;
     }
+}
+
+extern "C" void armv7a_special_irq_ack_smoke_test()
+{
+    armv7a_disable_irq();
+    armv7a_interrupt_smoke_begin(Armv7aInterruptSmokeKind::kSpecialIrq);
+
+    armv7a_platform_timer_stop();
+    armv7a_platform_release_timer_interrupt();
+    armv7a_platform_release_self_sgi();
+    armv7a_platform_enable_interrupt_controller(Armv7aPlatformInterruptRoute::kIrq);
+
+    Armv7aExceptionFrame frame{
+        .spsr = armv7a_read_cpsr(),
+        .vector_id = kArmv7aExceptionIrq,
+        .r0 = 0u,
+        .r1 = 0u,
+        .r2 = 0u,
+        .r3 = 0u,
+        .r12 = 0u,
+        .lr = 0x40000004u,
+    };
+    armv7a_handle_irq_synthetic(&frame);
+
+    armv7a_platform_disable_interrupt_controller();
+    armv7a_platform_release_self_sgi();
+    armv7a_platform_release_timer_interrupt();
+    armv7a_interrupt_smoke_finish();
 }

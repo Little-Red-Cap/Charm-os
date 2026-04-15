@@ -126,6 +126,15 @@
       "cacheVariables": {
         "CHARM_ARMV7A_EXCEPTION_SMOKE": "undefined"
       }
+    },
+    {
+      "name": "debug-interrupt-special-irq",
+      "displayName": "ARMv7-A QEMU Debug (Special IRQ Acknowledge Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-interrupt-special-irq",
+      "cacheVariables": {
+        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "special_irq"
+      }
     }
   ],
   "buildPresets": [
@@ -180,6 +189,10 @@
     {
       "name": "debug-exception-undefined",
       "configurePreset": "debug-exception-undefined"
+    },
+    {
+      "name": "debug-interrupt-special-irq",
+      "configurePreset": "debug-interrupt-special-irq"
     }
   ]
 }

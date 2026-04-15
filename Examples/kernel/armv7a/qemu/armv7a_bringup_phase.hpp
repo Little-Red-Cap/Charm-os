@@ -18,6 +18,7 @@ enum class Armv7aBringupPhase : unsigned char {
     kTimerIrqSmoke,
     kSgiIrqSmoke,
     kSgiFiqSmoke,
+    kSpecialIrqSmoke,
     kIdle,
 };
 

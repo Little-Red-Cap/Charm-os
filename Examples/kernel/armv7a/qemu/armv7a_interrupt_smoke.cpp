@@ -9,10 +9,12 @@
 #include "armv7a_platform.hpp"
 
 namespace {
-constexpr std::size_t kObservationSlotCount = 4u;
+constexpr std::size_t kObservationSlotCount = 5u;
 
 struct Armv7aInterruptStoredObservation {
     bool seen = false;
+    bool special = false;
+    bool synthetic = false;
     unsigned int intid = 0u;
     std::uint32_t raw_acknowledge = 0u;
     std::uint32_t controller_distributor_control = 0u;
@@ -48,6 +50,8 @@ std::size_t observation_index(Armv7aInterruptSmokeKind kind)
 void clear_stored_observation(volatile Armv7aInterruptStoredObservation& observation)
 {
     observation.seen = false;
+    observation.special = false;
+    observation.synthetic = false;
     observation.intid = armv7a_platform_spurious_interrupt_id();
     observation.raw_acknowledge = 0u;
     observation.controller_distributor_control = 0u;
@@ -75,6 +79,8 @@ Armv7aInterruptObservation load_observation(
 {
     return Armv7aInterruptObservation{
         .seen = observation.seen,
+        .special = observation.special,
+        .synthetic = observation.synthetic,
         .intid = observation.intid,
         .raw_acknowledge = observation.raw_acknowledge,
         .controller =
@@ -119,9 +125,12 @@ void store_observation(volatile Armv7aInterruptStoredObservation& observation,
                        const Armv7aPlatformInterruptAcknowledge& acknowledge,
                        const Armv7aPlatformInterruptControllerState& controller,
                        const Armv7aPlatformInterruptLineState& line,
-                       const Armv7aExceptionFrame& frame)
+                       const Armv7aExceptionFrame& frame,
+                       bool synthetic)
 {
     observation.seen = true;
+    observation.special = acknowledge.special;
+    observation.synthetic = synthetic;
     observation.intid = acknowledge.intid;
     observation.raw_acknowledge = acknowledge.raw;
     observation.controller_distributor_control = controller.distributor_control;
@@ -147,17 +156,20 @@ void store_observation(volatile Armv7aInterruptStoredObservation& observation,
 void record_interrupt(const Armv7aPlatformInterruptAcknowledge& acknowledge,
                       const Armv7aPlatformInterruptControllerState& controller,
                       const Armv7aPlatformInterruptLineState& line,
-                      const Armv7aExceptionFrame& frame)
+                      const Armv7aExceptionFrame& frame,
+                      bool synthetic)
 {
-    store_observation(g_last_observation, acknowledge, controller, line, frame);
-    g_interrupt_count = 1u;
+    store_observation(g_last_observation, acknowledge, controller, line, frame, synthetic);
+    if (!acknowledge.special) {
+        g_interrupt_count = 1u;
+    }
 
     const auto index = observation_index(g_interrupt_smoke_kind);
     if (index >= kObservationSlotCount || g_interrupt_smoke_kind == Armv7aInterruptSmokeKind::kNone) {
         return;
     }
 
-    store_observation(g_observations[index], acknowledge, controller, line, frame);
+    store_observation(g_observations[index], acknowledge, controller, line, frame, synthetic);
 }
 
 bool interrupt_matches_expected(unsigned int intid, bool fiq_route)
@@ -169,29 +181,44 @@ bool interrupt_matches_expected(unsigned int intid, bool fiq_route)
         return !fiq_route && armv7a_platform_is_self_sgi_interrupt(intid);
     case Armv7aInterruptSmokeKind::kSgiFiq:
         return fiq_route && armv7a_platform_is_self_sgi_interrupt(intid);
+    case Armv7aInterruptSmokeKind::kSpecialIrq:
+        return !fiq_route && armv7a_platform_is_special_interrupt(intid);
     case Armv7aInterruptSmokeKind::kNone:
     default:
         return false;
     }
 }
 
-void handle_interrupt(Armv7aExceptionFrame* frame, const char* label, bool fiq_route)
+void handle_interrupt(Armv7aExceptionFrame* frame,
+                      const char* label,
+                      bool fiq_route,
+                      bool synthetic)
 {
     const auto controller_before_ack = armv7a_platform_interrupt_controller_state();
     const auto acknowledge = armv7a_platform_acknowledge_interrupt();
     const auto intid = acknowledge.intid;
 
+    const auto line = armv7a_platform_interrupt_line_state(intid);
+
     if (acknowledge.special) {
+        record_interrupt(acknowledge, controller_before_ack, line, *frame, synthetic);
+        if (!synthetic) {
+            armv7a_print_handler_stack_evidence(fiq_route ? "fiq" : "irq", armv7a_read_cpsr());
+        }
+        armv7a_interrupt_print_special_ack(
+            fiq_route ? "ARMv7-A special FIQ acknowledge"
+                      : "ARMv7-A special IRQ acknowledge",
+            fiq_route ? Armv7aPlatformInterruptRoute::kFiq
+                      : Armv7aPlatformInterruptRoute::kIrq,
+            load_observation(g_last_observation));
         return;
     }
-
-    const auto line = armv7a_platform_interrupt_line_state(intid);
 
     if (!fiq_route) {
         armv7a_platform_timer_stop();
     }
 
-    record_interrupt(acknowledge, controller_before_ack, line, *frame);
+    record_interrupt(acknowledge, controller_before_ack, line, *frame, synthetic);
     armv7a_print_handler_stack_evidence(fiq_route ? "fiq" : "irq", armv7a_read_cpsr());
     if (!interrupt_matches_expected(intid, fiq_route)) {
         armv7a_interrupt_print_unexpected(label, intid, *frame);
@@ -221,9 +248,7 @@ bool armv7a_interrupt_smoke_seen()
 
 Armv7aInterruptObservation armv7a_interrupt_smoke_last_observation()
 {
-    auto observation = load_observation(g_last_observation);
-    observation.seen = g_interrupt_count != 0u;
-    return observation;
+    return load_observation(g_last_observation);
 }
 
 Armv7aInterruptObservation armv7a_interrupt_smoke_observation(Armv7aInterruptSmokeKind kind)
@@ -232,6 +257,8 @@ Armv7aInterruptObservation armv7a_interrupt_smoke_observation(Armv7aInterruptSmo
     if (index >= kObservationSlotCount) {
         return Armv7aInterruptObservation{
             .seen = false,
+            .special = false,
+            .synthetic = false,
             .intid = armv7a_platform_spurious_interrupt_id(),
             .raw_acknowledge = 0u,
             .controller =
@@ -252,12 +279,17 @@ Armv7aInterruptObservation armv7a_interrupt_smoke_observation(Armv7aInterruptSmo
     return load_observation(g_observations[index]);
 }
 
+void armv7a_handle_irq_synthetic(Armv7aExceptionFrame* frame)
+{
+    handle_interrupt(frame, "IRQ", false, true);
+}
+
 extern "C" void armv7a_handle_irq(Armv7aExceptionFrame* frame)
 {
-    handle_interrupt(frame, "IRQ", false);
+    handle_interrupt(frame, "IRQ", false, false);
 }
 
 extern "C" void armv7a_handle_fiq(Armv7aExceptionFrame* frame)
 {
-    handle_interrupt(frame, "FIQ", true);
+    handle_interrupt(frame, "FIQ", true, false);
 }

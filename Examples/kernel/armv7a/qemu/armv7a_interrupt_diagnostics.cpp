@@ -52,7 +52,7 @@ bool monitor_mode_observed()
 
     for (const auto kind : kKinds) {
         const auto observation = armv7a_interrupt_smoke_observation(kind);
-        if (!observation.seen) {
+        if (!observation.seen || observation.special) {
             continue;
         }
 
@@ -203,6 +203,33 @@ void armv7a_interrupt_print_active(const char* label, const Armv7aInterruptObser
     armv7a_platform_early_console_puts("\r\n");
 }
 
+void armv7a_interrupt_print_special_ack(const char* label,
+                                        Armv7aPlatformInterruptRoute route,
+                                        const Armv7aInterruptObservation& observation)
+{
+    armv7a_diag_print_context("interrupt");
+    armv7a_platform_early_console_puts(label);
+    armv7a_platform_early_console_puts(", intid=");
+    armv7a_diag_put_dec(observation.intid);
+    armv7a_platform_early_console_puts(", source=");
+    armv7a_platform_early_console_puts(armv7a_platform_interrupt_source_name(observation.intid));
+    armv7a_platform_early_console_puts(", ack=0x");
+    armv7a_diag_put_hex(observation.raw_acknowledge);
+    armv7a_platform_early_console_puts(", hppir-before-ack=0x");
+    armv7a_diag_put_hex(observation.controller.highest_pending);
+    armv7a_platform_early_console_puts(", route=");
+    armv7a_platform_early_console_puts(route_name(route));
+    armv7a_platform_early_console_puts(", origin-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_spsr));
+    armv7a_platform_early_console_puts(", current-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_cpsr));
+    armv7a_platform_early_console_puts(", return-pc=0x");
+    armv7a_diag_put_hex(observation.return_pc);
+    armv7a_platform_early_console_puts(", synthetic=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(observation.synthetic));
+    armv7a_platform_early_console_puts("\r\n");
+}
+
 void armv7a_interrupt_print_observed_intid(const char* label, unsigned int intid)
 {
     armv7a_diag_print_context("interrupt");
@@ -312,49 +339,49 @@ void armv7a_interrupt_print_security_side_evidence()
         armv7a_interrupt_smoke_observation(Armv7aInterruptSmokeKind::kSgiFiq);
 
     armv7a_platform_early_console_puts("ARMv7-A security side evidence, scr-read=skipped, timer-source=");
-    if (timer_observation.seen) {
+    if (timer_observation.seen && !timer_observation.special) {
         print_source_summary(timer_observation);
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", irq-source=");
-    if (irq_observation.seen) {
+    if (irq_observation.seen && !irq_observation.special) {
         print_source_summary(irq_observation);
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", irq-origin=");
-    if (irq_observation.seen) {
+    if (irq_observation.seen && !irq_observation.special) {
         armv7a_platform_early_console_puts(armv7a_mode_name(irq_observation.handler_spsr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", irq-handler=");
-    if (irq_observation.seen) {
+    if (irq_observation.seen && !irq_observation.special) {
         armv7a_platform_early_console_puts(armv7a_mode_name(irq_observation.handler_cpsr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", fiq-source=");
-    if (fiq_observation.seen) {
+    if (fiq_observation.seen && !fiq_observation.special) {
         print_source_summary(fiq_observation);
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", fiq-origin=");
-    if (fiq_observation.seen) {
+    if (fiq_observation.seen && !fiq_observation.special) {
         armv7a_platform_early_console_puts(armv7a_mode_name(fiq_observation.handler_spsr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", fiq-handler=");
-    if (fiq_observation.seen) {
+    if (fiq_observation.seen && !fiq_observation.special) {
         armv7a_platform_early_console_puts(armv7a_mode_name(fiq_observation.handler_cpsr));
     } else {
         armv7a_platform_early_console_puts("not-observed");

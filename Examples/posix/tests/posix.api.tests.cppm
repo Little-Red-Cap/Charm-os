@@ -708,6 +708,20 @@ namespace {
         check_eq("fs-write", api.write(fd, "z", 1), 1);
         check_eq("fs-close", api.close(fd), 0);
 
+        fd = api.open("/work/excl.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_EXCL, 0);
+        check_true("fs-open-excl-create", fd >= 0);
+        check_eq("fs-open-excl-create-close", api.close(fd), 0);
+
+        posix::set_errno(0);
+        check_eq("fs-open-excl-exist", api.open("/work/excl.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_EXCL, 0), -1);
+        check_eq("fs-open-excl-exist-errno", posix::get_errno(), posix::EEXIST);
+        check_eq("fs-open-excl-cleanup", api.unlink("/work/excl.txt"), 0);
+
+        fd = api.open("/work/create-readonly.txt", posix::O_RDONLY | posix::O_CREAT, 0);
+        check_true("fs-open-create-readonly", fd >= 0);
+        check_eq("fs-open-create-readonly-close", api.close(fd), 0);
+        check_eq("fs-open-create-readonly-unlink", api.unlink("/work/create-readonly.txt"), 0);
+
         check_eq("fs-rename", api.rename("/work/a.txt", "/work/b.txt"), 0);
 
         posix::set_errno(0);
@@ -826,6 +840,38 @@ namespace {
         posix::set_errno(0);
         check_eq("fs-rmdir-missing", api.rmdir("/work"), -1);
         check_eq("fs-rmdir-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-open-empty-path-rc", api.open("", posix::O_RDONLY, 0), -1);
+        check_eq("fs-open-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-stat-empty-path-rc", api.stat("", &dir_stat), -1);
+        check_eq("fs-stat-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-mkdir-empty-path-rc", api.mkdir(""), -1);
+        check_eq("fs-mkdir-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-unlink-empty-path-rc", api.unlink(""), -1);
+        check_eq("fs-unlink-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-rmdir-empty-path-rc", api.rmdir(""), -1);
+        check_eq("fs-rmdir-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-empty-from-rc", api.rename("", "/work/c.txt"), -1);
+        check_eq("fs-rename-empty-from-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-empty-to-rc", api.rename("/work/b.txt", ""), -1);
+        check_eq("fs-rename-empty-to-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-opendir-empty-path", api.opendir(""), nullptr);
+        check_eq("fs-opendir-empty-path-errno", posix::get_errno(), posix::ENOENT);
 
         work_dir = api.opendir("/work");
         check_true("fs-opendir-empty", work_dir == nullptr);
@@ -1937,6 +1983,10 @@ namespace {
         posix::set_errno(0);
         check_eq("cwd-chdir-file-parent", api.chdir("/work/alpha.txt/sub"), -1);
         check_eq("cwd-chdir-file-parent-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("cwd-chdir-empty-path-rc", api.chdir(""), -1);
+        check_eq("cwd-chdir-empty-path-errno", posix::get_errno(), posix::ENOENT);
 
         check_eq("cwd-chdir-root", api.chdir("/"), 0);
         const char* override_argv[] = {"cwd-demo", "override.txt", nullptr};

@@ -346,6 +346,32 @@ namespace {
         check_eq("crt-c-header-exit-code", st.value().code, 37);
     }
 
+    void test_crt_c_header_abort() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_c_header_abort", &crt_c_header_abort_main);
+        check_true("crt-c-header-abort-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-c-header-abort-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-c-header-abort-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_c_header_abort", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_c_header_abort";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-c-header-abort-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-c-header-abort-out", out, std::string_view{"c-header-abort\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-c-header-abort-wait", st);
+        check_eq("crt-c-header-abort-code", st.value().code, 134);
+    }
+
     void test_crt_c_fs_header() noexcept {
         fs::clear_mounts();
         static RamFsMount<64, 16, 128> ramfs{};
@@ -1695,6 +1721,9 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase crt-c-header-exit begin");
     test_crt_c_header_exit();
     log_line("[posix-smoke] programs phase crt-c-header-exit end");
+    log_line("[posix-smoke] programs phase crt-c-header-abort begin");
+    test_crt_c_header_abort();
+    log_line("[posix-smoke] programs phase crt-c-header-abort end");
     log_line("[posix-smoke] programs phase crt-c-fs-header begin");
     test_crt_c_fs_header();
     log_line("[posix-smoke] programs phase crt-c-fs-header end");

@@ -57,6 +57,7 @@ typedef struct charm_posix_dir_t {
 #define CHARM_POSIX_O_RDWR 0x2
 #define CHARM_POSIX_O_ACCMODE 0x3
 #define CHARM_POSIX_O_CREAT 0x40
+#define CHARM_POSIX_O_EXCL 0x80
 #define CHARM_POSIX_O_TRUNC 0x200
 #define CHARM_POSIX_O_APPEND 0x400
 #define CHARM_POSIX_O_NONBLOCK 0x800

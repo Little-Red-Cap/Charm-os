@@ -21,6 +21,7 @@ export namespace posix {
     inline constexpr int O_RDWR = 0x2;
     inline constexpr int O_ACCMODE = 0x3;
     inline constexpr int O_CREAT = 0x40;
+    inline constexpr int O_EXCL = 0x80;
     inline constexpr int O_TRUNC = 0x200;
     inline constexpr int O_APPEND = 0x400;
     inline constexpr int O_NONBLOCK = 0x800;
@@ -122,6 +123,9 @@ export namespace posix {
             }
             if ((flags & O_CREAT) != 0) {
                 fs_flags = combine_flags(fs_flags, fs::OpenFlags::create);
+            }
+            if ((flags & O_EXCL) != 0) {
+                fs_flags = combine_flags(fs_flags, fs::OpenFlags::excl);
             }
             if ((flags & O_TRUNC) != 0) {
                 fs_flags = combine_flags(fs_flags, fs::OpenFlags::trunc);

@@ -59,7 +59,8 @@ export namespace fs {
             const bool want_write = has_flag(flags, OpenFlags::write);
             const bool want_create = has_flag(flags, OpenFlags::create);
             const bool want_trunc = has_flag(flags, OpenFlags::trunc);
-            if ((want_create || want_trunc) && !want_write) return Status{Errc::perm};
+            const bool want_excl = has_flag(flags, OpenFlags::excl);
+            if (want_trunc && !want_write) return Status{Errc::perm};
 
             auto cur_idx = root_index;
             while (true) {
@@ -76,6 +77,7 @@ export namespace fs {
                     }
                 }
                 if (last) {
+                    if (want_create && want_excl && fe->used) return Status{Errc::exist};
                     if (fe->is_dir) return Status{Errc::isdir};
                     if (want_trunc) {
                         auto st = truncate(path, 0);

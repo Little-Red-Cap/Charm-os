@@ -18,6 +18,7 @@ namespace {
     inline constexpr int kPosixOpenWriteOnly = 0x1;
     inline constexpr int kPosixOpenReadWrite = 0x2;
     inline constexpr int kPosixOpenCreate = 0x40;
+    inline constexpr int kPosixOpenExcl = 0x80;
     inline constexpr int kPosixOpenTrunc = 0x200;
     inline constexpr int kPosixOpenAppend = 0x400;
     inline constexpr int kPosixOpenNonBlock = 0x800;
@@ -132,6 +133,7 @@ namespace {
                 break;
         }
         if ((flags & O_CREAT) != 0) out |= kPosixOpenCreate;
+        if ((flags & O_EXCL) != 0) out |= kPosixOpenExcl;
         if ((flags & O_TRUNC) != 0) out |= kPosixOpenTrunc;
         if ((flags & O_APPEND) != 0) out |= kPosixOpenAppend;
         if ((flags & O_NONBLOCK) != 0) out |= kPosixOpenNonBlock;

@@ -363,7 +363,7 @@ int charm_posix_c_fs_header_entry(void) {
         if (strcmp(ent->d_name, "note.txt") == 0) {
             saw_note = 1;
             if ((ent->d_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 330;
-            if (ent->d_size != 2) return 331;
+            if (ent->d_size != 3) return 331;
         }
     }
     if (!saw_note) return 332;

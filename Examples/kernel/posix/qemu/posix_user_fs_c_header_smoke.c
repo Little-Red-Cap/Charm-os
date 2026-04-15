@@ -127,6 +127,16 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_write(fd, "z", 1) != 1) return 380;
     if (*err != 48) return 381;
     if (charm_posix_close(fd) != 0) return 382;
+    *err = 83;
+    fd = charm_posix_open("/dev/null", CHARM_POSIX_O_RDWR, 0);
+    if (fd < 0) return 572;
+    if (*err != 83) return 573;
+    if (charm_posix_read(fd, buf, 1) != 0) return 574;
+    if (charm_posix_write(fd, "q", 1) != 1) return 575;
+    *err = 0;
+    if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_SET) != -1) return 576;
+    if (*err != CHARM_POSIX_ESPIPE) return 577;
+    if (charm_posix_close(fd) != 0) return 578;
     *err = 62;
     fd = charm_posix_open("/dev/stdin", CHARM_POSIX_O_RDONLY, 0);
     if (fd < 0) return 469;

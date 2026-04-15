@@ -69,6 +69,7 @@
 - the exported C fs header surface now also smoke-pins path-level alias stats directly: `stat("/dev/stdin")`, `stat("/dev/stdout")`, `stat("/dev/stderr")`, `stat("/dev/tty")`, and `stat("/dev/console")` reflect the current live descriptor shape
 - the exported C fs header surface now also smoke-pins missing-path `ENOENT` edges directly across representative calls such as `open`, `unlink`, `rmdir`, `rename`, `chdir`, and `opendir`
 - the exported C fs header surface now also smoke-pins `stat("/missing") -> ENOENT`, `mkdir(existing-dir-or-file) -> EEXIST`, and path-level `stat("/dev/null") -> S_IFCHR`
+- the exported C fs header surface now also smoke-pins `/dev/null` with `CHARM_POSIX_O_RDWR`: one fd still observes read-EOF, write-byte-count success, and `lseek(...) -> ESPIPE`
 - the exported C fs header surface now also smoke-pins `rmdir(nonempty-dir) -> ENOTEMPTY` directly on the public C layer
 - the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
 - the exported C fs header surface now also smoke-covers path-shape errors directly: `open(dir, O_WRONLY) -> EISDIR`, and bad-parent paths such as `file/child` now consistently report `ENOTDIR` across `open/stat/mkdir/unlink/rmdir/rename`

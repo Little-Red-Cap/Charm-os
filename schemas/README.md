@@ -13,6 +13,7 @@
   - 对应 `scripts/materialized_graph.export_case_manifest.v1.json`
   - 用途偏向 `materialized_graph` 批量导出 case 的声明式输入事实
   - 它当前服务于 export 脚本与 case 审计，但不等于最终 `SystemSpec` DSL
+  - 当前也可通过 `python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest ...` 进入统一校验脚本
 
 - `materialized_graph.sample.v2.schema.json`
   - 对应 `format_json_sample(...)` 当前导出的样例协议

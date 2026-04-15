@@ -374,6 +374,12 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 它承载的是这条导出链当前最小的一组声明式输入事实，
 例如 `source / build target / export target / default artifact name / subject`，
 但它仍不是最终 `SystemSpec` DSL。
+如果只想校验这份输入 manifest 本身，
+当前也可以直接运行：
+
+```powershell
+python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest ./scripts/materialized_graph.export_case_manifest.v1.json
+```
 
 如果只导出某一个样例：
 

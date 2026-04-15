@@ -7,6 +7,10 @@
 #include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_platform.hpp"
 
+namespace {
+constexpr unsigned int kArmv7aUnexpectedSgiIntId = 2u;
+}
+
 extern "C" void armv7a_irq_smoke_test()
 {
     armv7a_disable_irq();
@@ -267,5 +271,66 @@ extern "C" void armv7a_sgi_irq_timeout_smoke_test()
     if (!interrupt_seen) {
         armv7a_interrupt_print_sgi_timeout(
             timeout_snapshot, observation, Armv7aPlatformInterruptRoute::kIrq);
+    }
+}
+
+extern "C" void armv7a_unexpected_irq_smoke_test()
+{
+    armv7a_disable_irq();
+    armv7a_interrupt_smoke_begin(Armv7aInterruptSmokeKind::kUnexpectedIrq);
+
+    const auto frequency = armv7a_platform_timer_frequency_hz();
+    const auto start = armv7a_platform_timer_counter();
+    const auto pending_timeout = start + (frequency != 0u ? (frequency / 100u) : 0x100000u);
+    const auto timeout = start + (frequency != 0u ? (frequency / 50u) : 0x100000u);
+
+    armv7a_platform_prepare_sgi(kArmv7aUnexpectedSgiIntId, Armv7aPlatformInterruptRoute::kIrq);
+    armv7a_platform_enable_interrupt_controller(Armv7aPlatformInterruptRoute::kIrq);
+    armv7a_platform_trigger_sgi(kArmv7aUnexpectedSgiIntId);
+
+    Armv7aSgiPendingSnapshot pending_snapshot{};
+    bool pending_seen = false;
+    while (!pending_seen && armv7a_platform_timer_counter() < pending_timeout) {
+        pending_snapshot = armv7a_capture_sgi_pending_snapshot(kArmv7aUnexpectedSgiIntId);
+        pending_seen = armv7a_sgi_pending_observed(pending_snapshot);
+    }
+
+    if (pending_seen) {
+        armv7a_interrupt_print_unexpected_pending_evidence(
+            pending_snapshot, Armv7aPlatformInterruptRoute::kIrq);
+    }
+
+    armv7a_enable_irq();
+    while (!armv7a_interrupt_smoke_seen() && armv7a_platform_timer_counter() < timeout) {
+        // Keep polling so the dedicated unexpected-intid evidence remains
+        // visible even if this SGI never reaches the CPU interface.
+    }
+
+    const auto interrupt_seen = armv7a_interrupt_smoke_seen();
+    const auto observation = armv7a_interrupt_smoke_last_observation();
+    if (observation.seen && !observation.special) {
+        if (observation.intid != kArmv7aUnexpectedSgiIntId) {
+            armv7a_interrupt_print_observed_intid(
+                "ARMv7-A unexpected IRQ smoke observed intid=", observation.intid);
+        } else {
+            armv7a_print_return_state_evidence(
+                "irq", observation.handler_spsr, armv7a_read_cpsr());
+        }
+    }
+
+    Armv7aSgiTimeoutSnapshot timeout_snapshot{};
+    if (!interrupt_seen) {
+        timeout_snapshot =
+            armv7a_capture_sgi_timeout_snapshot(kArmv7aUnexpectedSgiIntId, pending_seen);
+    }
+
+    armv7a_disable_irq();
+
+    armv7a_platform_release_sgi(kArmv7aUnexpectedSgiIntId);
+    armv7a_platform_disable_interrupt_controller();
+    armv7a_interrupt_smoke_finish();
+
+    if (!interrupt_seen) {
+        armv7a_interrupt_print_unexpected_irq_timeout(timeout_snapshot, observation);
     }
 }

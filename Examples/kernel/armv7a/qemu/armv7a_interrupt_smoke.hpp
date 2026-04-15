@@ -13,6 +13,7 @@ enum class Armv7aInterruptSmokeKind : std::uint8_t {
     kSgiFiq = 3,
     kSpecialIrq = 4,
     kSgiIrqTimeout = 5,
+    kUnexpectedIrq = 6,
 };
 
 struct Armv7aInterruptObservation {
@@ -44,3 +45,4 @@ extern "C" void armv7a_sgi_smoke_test();
 extern "C" void armv7a_fiq_smoke_test();
 extern "C" void armv7a_special_irq_ack_smoke_test();
 extern "C" void armv7a_sgi_irq_timeout_smoke_test();
+extern "C" void armv7a_unexpected_irq_smoke_test();

@@ -37,5 +37,9 @@ void armv7a_run_interrupt_observation_sequence()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSgiIrqTimeoutSmoke);
     armv7a_sgi_irq_timeout_smoke_test();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kSgiIrqTimeoutSmoke);
+#elif defined(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_UNEXPECTED_IRQ)
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kUnexpectedIrqSmoke);
+    armv7a_unexpected_irq_smoke_test();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kUnexpectedIrqSmoke);
 #endif
 }

@@ -92,6 +92,14 @@ Armv7aSgiPendingSnapshot armv7a_capture_sgi_pending_snapshot()
     };
 }
 
+Armv7aSgiPendingSnapshot armv7a_capture_sgi_pending_snapshot(unsigned int intid)
+{
+    return Armv7aSgiPendingSnapshot{
+        .line = armv7a_platform_interrupt_line_state(intid),
+        .controller = armv7a_platform_interrupt_controller_state(),
+    };
+}
+
 Armv7aTimerTimeoutSnapshot armv7a_capture_timer_timeout_snapshot(bool pending_observed)
 {
     return Armv7aTimerTimeoutSnapshot{
@@ -117,6 +125,20 @@ Armv7aSgiTimeoutSnapshot armv7a_capture_sgi_timeout_snapshot(bool pending_observ
                 .controller = armv7a_platform_interrupt_controller_state(),
             },
         .line = armv7a_platform_self_sgi_line_state(),
+    };
+}
+
+Armv7aSgiTimeoutSnapshot armv7a_capture_sgi_timeout_snapshot(unsigned int intid,
+                                                             bool pending_observed)
+{
+    return Armv7aSgiTimeoutSnapshot{
+        .context =
+            Armv7aInterruptTimeoutContext{
+                .pending_observed = pending_observed,
+                .current_cpsr = armv7a_read_cpsr(),
+                .controller = armv7a_platform_interrupt_controller_state(),
+            },
+        .line = armv7a_platform_interrupt_line_state(intid),
     };
 }
 
@@ -202,6 +224,30 @@ void armv7a_interrupt_print_sgi_pending_evidence(const Armv7aSgiPendingSnapshot&
                                                  Armv7aPlatformInterruptRoute route)
 {
     armv7a_platform_early_console_puts("ARMv7-A SGI pending evidence, route=");
+    armv7a_platform_early_console_puts(route_name(route));
+    armv7a_platform_early_console_puts(", line=");
+    print_interrupt_line_state(snapshot.line);
+    armv7a_platform_early_console_puts(", gicd=0x");
+    armv7a_diag_put_hex(snapshot.controller.distributor_control);
+    armv7a_platform_early_console_puts(", gicc=0x");
+    armv7a_diag_put_hex(snapshot.controller.cpu_control);
+    armv7a_platform_early_console_puts(", hppir=0x");
+    armv7a_diag_put_hex(snapshot.controller.highest_pending);
+    armv7a_platform_early_console_puts(", spurious=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(snapshot.controller.highest_pending_special));
+    armv7a_platform_early_console_puts("\r\n");
+}
+
+void armv7a_interrupt_print_unexpected_pending_evidence(const Armv7aSgiPendingSnapshot& snapshot,
+                                                        Armv7aPlatformInterruptRoute route)
+{
+    armv7a_platform_early_console_puts("ARMv7-A unexpected IRQ pending evidence, intid=0x");
+    armv7a_diag_put_hex(snapshot.line.intid);
+    armv7a_platform_early_console_puts(", source=");
+    armv7a_platform_early_console_puts(
+        armv7a_platform_interrupt_source_name(snapshot.line.intid));
+    armv7a_platform_early_console_puts(", route=");
     armv7a_platform_early_console_puts(route_name(route));
     armv7a_platform_early_console_puts(", line=");
     print_interrupt_line_state(snapshot.line);
@@ -310,16 +356,29 @@ void armv7a_interrupt_print_observed_intid(const char* label, unsigned int intid
 }
 
 void armv7a_interrupt_print_unexpected(const char* label,
-                                       unsigned int intid,
+                                       const Armv7aInterruptObservation& observation,
                                        const Armv7aExceptionFrame& frame)
 {
     armv7a_diag_print_context("interrupt");
     armv7a_platform_early_console_puts("ARMv7-A unexpected ");
     armv7a_platform_early_console_puts(label);
     armv7a_platform_early_console_puts(", intid=0x");
-    armv7a_diag_put_hex(intid);
+    armv7a_diag_put_hex(observation.intid);
     armv7a_platform_early_console_puts(", source=");
-    armv7a_platform_early_console_puts(armv7a_platform_interrupt_source_name(intid));
+    armv7a_platform_early_console_puts(
+        armv7a_platform_interrupt_source_name(observation.intid));
+    armv7a_platform_early_console_puts(", ack=0x");
+    armv7a_diag_put_hex(observation.raw_acknowledge);
+    armv7a_platform_early_console_puts(", hppir-before-ack=0x");
+    armv7a_diag_put_hex(observation.controller.highest_pending);
+    armv7a_platform_early_console_puts(", line=");
+    print_interrupt_line_state(observation.line);
+    armv7a_platform_early_console_puts(", origin-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_spsr));
+    armv7a_platform_early_console_puts(", handler-mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_cpsr));
+    armv7a_platform_early_console_puts(", return-pc=0x");
+    armv7a_diag_put_hex(observation.return_pc);
     armv7a_platform_early_console_puts(", pc=0x");
     armv7a_diag_put_hex(armv7a_exception_pc(frame));
     armv7a_platform_early_console_puts(", lr=0x");
@@ -366,6 +425,31 @@ void armv7a_interrupt_print_sgi_timeout(const Armv7aSgiTimeoutSnapshot& snapshot
     armv7a_interrupt_print_timeout_summary("sgi-irq", route, snapshot.context, observation);
 
     armv7a_platform_early_console_puts("ARMv7-A SGI timeout, igroupr0=0x");
+    armv7a_diag_put_hex(snapshot.line.group);
+    armv7a_platform_early_console_puts(", isenabler0=0x");
+    armv7a_diag_put_hex(snapshot.line.enabled);
+    armv7a_platform_early_console_puts(", ispendr0=0x");
+    armv7a_diag_put_hex(snapshot.line.pending);
+    armv7a_platform_early_console_puts(", isactiver0=0x");
+    armv7a_diag_put_hex(snapshot.line.active);
+    armv7a_platform_early_console_puts(", hppir=0x");
+    armv7a_diag_put_hex(snapshot.context.controller.highest_pending);
+    armv7a_platform_early_console_puts("\r\n");
+}
+
+void armv7a_interrupt_print_unexpected_irq_timeout(
+    const Armv7aSgiTimeoutSnapshot& snapshot,
+    const Armv7aInterruptObservation& observation)
+{
+    armv7a_interrupt_print_timeout_summary(
+        "unexpected-irq", Armv7aPlatformInterruptRoute::kIrq, snapshot.context, observation);
+
+    armv7a_platform_early_console_puts("ARMv7-A unexpected IRQ timeout, intid=0x");
+    armv7a_diag_put_hex(snapshot.line.intid);
+    armv7a_platform_early_console_puts(", source=");
+    armv7a_platform_early_console_puts(
+        armv7a_platform_interrupt_source_name(snapshot.line.intid));
+    armv7a_platform_early_console_puts(", igroupr0=0x");
     armv7a_diag_put_hex(snapshot.line.group);
     armv7a_platform_early_console_puts(", isenabler0=0x");
     armv7a_diag_put_hex(snapshot.line.enabled);

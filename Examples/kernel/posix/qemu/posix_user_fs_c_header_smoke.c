@@ -566,6 +566,33 @@ int charm_posix_c_fs_header_entry(void) {
     if (*err != CHARM_POSIX_EEXIST) return 354;
     if (charm_posix_unlink("/cfs/excl.txt") != 0) return 355;
 
+    *err = 141;
+    fd = charm_posix_open("busy.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_TRUNC | CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 731;
+    if (*err != 141) return 732;
+    *err = 142;
+    if (charm_posix_write(fd, "zz", 2) != 2) return 733;
+    if (*err != 142) return 734;
+    *err = 143;
+    if (charm_posix_close(fd) != 0) return 735;
+    if (*err != 143) return 736;
+    *err = 0;
+    if (charm_posix_rename("note.txt", "busy.txt") != -1) return 737;
+    if (*err != CHARM_POSIX_EBUSY) return 738;
+    *err = 144;
+    if (charm_posix_stat("note.txt", &st) != 0) return 739;
+    if (*err != 144) return 740;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 741;
+    if (st.st_size != 3) return 742;
+    *err = 145;
+    if (charm_posix_stat("busy.txt", &st) != 0) return 743;
+    if (*err != 145) return 744;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 745;
+    if (st.st_size != 2) return 746;
+    *err = 146;
+    if (charm_posix_unlink("/cfs/busy.txt") != 0) return 747;
+    if (*err != 146) return 748;
+
     fd = charm_posix_open("readonly-create.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_RDONLY, 0);
     if (fd < 0) return 356;
     if (charm_posix_close(fd) != 0) return 357;

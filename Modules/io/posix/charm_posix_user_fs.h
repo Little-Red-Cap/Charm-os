@@ -34,6 +34,7 @@ typedef struct charm_posix_dir_t {
 
 #define CHARM_POSIX_ENOENT 2
 #define CHARM_POSIX_EACCES 13
+#define CHARM_POSIX_EBUSY 16
 #define CHARM_POSIX_EEXIST 17
 #define CHARM_POSIX_ENOTDIR 20
 #define CHARM_POSIX_EISDIR 21

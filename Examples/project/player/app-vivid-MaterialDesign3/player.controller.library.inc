@@ -1337,16 +1337,25 @@
         void update_list_placeholder() {
             if (!access.valid() || !handles.list_hint) return;
             const int count = static_cast<int>(list_order.size());
-            const bool show = (count == 0);
+            const bool show_empty = (count == 0);
+            const bool show_group_hint = !show_empty && library_shows_group_rows();
+            const bool show = show_empty || show_group_hint;
             access.set_visible(handles.list_hint, show);
             if (!show) return;
-            if (!mount_status.empty()) {
+            if (show_empty && !mount_status.empty()) {
                 if (last_list_hint_text.view() == mount_status.view()) return;
                 last_list_hint_text.assign(mount_status.view());
                 set_label_slot(handles.list_hint, text_slots.list_hint, mount_status.c_str());
                 return;
             }
-            const char* hint = fs_ready ? "No items in current library view" : "FS not ready";
+            const char* hint = "";
+            if (show_group_hint) {
+                hint = (library_tab == LibraryTab::Albums)
+                    ? "Open an album row to view tracks"
+                    : "Open an artist row to view tracks";
+            } else {
+                hint = fs_ready ? "No items in current library view" : "FS not ready";
+            }
             if (last_list_hint_text.view() == hint) return;
             last_list_hint_text.assign(hint);
             set_label_slot(handles.list_hint, text_slots.list_hint, hint);

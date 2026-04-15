@@ -105,6 +105,17 @@
             return false;
         }
 
+        static bool library_looks_like_format(std::string_view value) noexcept {
+            if (value.empty()) return true;
+            if (value == "UNKNOWN") return true;
+            if (is_audio_extension(value)) return true;
+            if (value.size() > 5) return false;
+            for (char ch : value) {
+                if (!std::isalnum(static_cast<unsigned char>(ch))) return false;
+            }
+            return true;
+        }
+
         static std::string_view library_artist_from_stem(std::string_view stem) noexcept {
             std::string_view title{};
             std::string_view artist{};
@@ -977,8 +988,6 @@
                 const std::string_view artist = library_artist_from_stem(stem);
                 const std::string_view title = library_title_from_stem(stem);
                 const std::string_view album = library_parent_folder(path);
-                const std::string_view format = format_from_path(path);
-
                 std::string_view display_title{};
                 std::string_view display_subtitle{};
                 if (library_shows_group_rows()) {
@@ -1001,30 +1010,24 @@
                         display_subtitle = artist;
                     } else if (!album.empty()) {
                         display_subtitle = album;
-                    } else {
-                        display_subtitle = format.empty() ? std::string_view{"Track"} : format;
                     }
                     break;
                 case LibraryTab::Albums:
                     display_title = title.empty() ? (stem.empty() ? std::string_view{"Track"} : stem) : title;
                     if (!artist.empty()) {
                         display_subtitle = artist;
-                    } else {
-                        display_subtitle = format.empty() ? std::string_view{"Track"} : format;
                     }
                     break;
                 case LibraryTab::Artists:
                     display_title = title.empty() ? (stem.empty() ? std::string_view{"Track"} : stem) : title;
                     if (!album.empty()) {
                         display_subtitle = album;
-                    } else {
-                        display_subtitle = format.empty() ? std::string_view{"Track"} : format;
                     }
                     break;
                 }
 
                 if (display_title.empty()) display_title = "Unknown Track";
-                if (display_subtitle.empty()) display_subtitle = "Track";
+                if (library_looks_like_format(display_subtitle)) display_subtitle = {};
                 row.title.assign(display_title);
                 row.subtitle.assign(display_subtitle);
                 player::font_cache::ensure_text(row.title.view());

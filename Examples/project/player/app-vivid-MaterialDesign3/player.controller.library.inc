@@ -64,18 +64,59 @@
             return (prev == std::string_view::npos) ? parent : parent.substr(prev + 1);
         }
 
+        static std::string_view library_trim_space(std::string_view value) noexcept {
+            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
+                value.remove_prefix(1);
+            }
+            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+                value.remove_suffix(1);
+            }
+            return value;
+        }
+
+        static bool library_split_track_stem(std::string_view stem,
+                                             std::string_view& title_out,
+                                             std::string_view& artist_out) noexcept {
+            title_out = {};
+            artist_out = {};
+            const auto assign_split = [&](std::string_view title,
+                                          std::string_view artist) noexcept -> bool {
+                title = library_trim_space(title);
+                artist = library_trim_space(artist);
+                if (title.empty() || artist.empty()) return false;
+                title_out = title;
+                artist_out = artist;
+                return true;
+            };
+
+            const auto spaced_sep = stem.find(" - ");
+            if (spaced_sep != std::string_view::npos) {
+                if (assign_split(stem.substr(spaced_sep + 3), stem.substr(0, spaced_sep))) {
+                    return true;
+                }
+            }
+
+            const auto compact_sep = stem.find_last_of('-');
+            if (compact_sep != std::string_view::npos && compact_sep > 0 && compact_sep + 1 < stem.size()) {
+                if (assign_split(stem.substr(0, compact_sep), stem.substr(compact_sep + 1))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         static std::string_view library_artist_from_stem(std::string_view stem) noexcept {
-            const auto sep = stem.find(" - ");
-            if (sep == std::string_view::npos || sep == 0) return {};
-            return stem.substr(0, sep);
+            std::string_view title{};
+            std::string_view artist{};
+            if (!library_split_track_stem(stem, title, artist)) return {};
+            return artist;
         }
 
         static std::string_view library_title_from_stem(std::string_view stem) noexcept {
-            const auto sep = stem.find(" - ");
-            if (sep == std::string_view::npos) return stem;
-            const auto title_start = sep + 3;
-            if (title_start >= stem.size()) return stem;
-            return stem.substr(title_start);
+            std::string_view title{};
+            std::string_view artist{};
+            if (!library_split_track_stem(stem, title, artist)) return stem;
+            return title;
         }
 
         static std::uint32_t library_shuffle_key(int track_index, std::uint32_t seed) noexcept {

@@ -54,6 +54,7 @@
 - `dup(valid-fd) -> new-fd`, `dup2(old,new) -> new`, `fcntl(fd, F_DUPFD, min) -> lowest-available>=min`, `fcntl(fd, F_GETFD) -> {0|FD_CLOEXEC}`, `fcntl(fd, F_SETFD, flag) -> 0`, `fcntl(fd, F_GETFL) -> access-mode | status-flags`, `fcntl(fd, F_SETFL, flags) -> 0`, `fcntl(fd, F_SETFD/F_SETFL, invalid) -> -1 && errno == EINVAL`, `dup(-1) -> -1 && errno == EBADF`, `dup2(-1,new) -> -1 && errno == EBADF`, `fcntl(-1, F_DUPFD/F_GETFD/F_SETFD/F_GETFL/F_SETFL, ...) -> -1 && errno == EBADF`, `fcntl(fd, F_DUPFD, -1) -> -1 && errno == EINVAL`, `dup/full-table` style exhaustion returns `EMFILE`, dup-family-created descriptors always clear `FD_CLOEXEC` on the new fd, and duplicated descriptors share open-file status flags such as `O_APPEND` / `O_NONBLOCK` through the backend ctx
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
+- newlib `_open()` now also has direct bridge smoke for status-flag translation: `O_NONBLOCK` remains observable through `fcntl(F_GETFL)`, and `O_APPEND` appends at end-of-file on regular files
 - `open("/dev/stdin")` / `open("/dev/stdout")` / `open("/dev/stderr")` now alias the active stdio fd set, while `open("/dev/console", ...)` and `open("/dev/tty", ...)` alias a live terminal fd; `stat/fstat` on term-style descriptors stabilizes at `S_IFCHR`
 - `mkdir("/work") -> 0`, repeated `mkdir("/work") -> -1 && errno == EEXIST`, and `mkdir("/file") -> -1 && errno == EEXIST`
 - `unlink("/missing") -> -1 && errno == ENOENT`
@@ -97,10 +98,12 @@
 - busybox direct-dispatch smoke now also validates `busybox ps`, `busybox sleep 2`, and `busybox kill {TERM|INT|KILL} <pid>`, so process applets are covered outside the shell wrapper path
 
 ## Isolated / Deferred Issues
-- no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
+- full `posix-qemu-demo.elf` / `posix-qemu-newlib-stdio.elf` link validation is currently blocked by an unrelated `Modules/io/net/net.socket.cppm:303` toolchain issue: under `arm-none-eabi` 15.2, `std::expected<net::Socket, util::Errc>` move construction fails during the `return accepted;` path
+- object-level `ninja` rebuilds for `posix_newlib_syscall_smoke.c.obj` remain usable, so POSIX/newlib smoke expansion can continue without waiting for the unrelated `net.socket` baseline to be repaired
 
 ## Toolchain Notes
 - shared singleton-style module state is safer when it lives in one module object rather than a class-scope `inline static`; `charm.system.clock` now keeps the active time-source binding in module storage so real-ELF hostcalls and test harness code observe the same bound clock under the current GCC `modules-ts` toolchain
+- when the current `arm-none-eabi` 15.2 baseline blocks full link through an unrelated module, prefer object-level `ninja` rebuilds (for example `posix_newlib_syscall_smoke.c.obj`) to keep POSIX/newlib smoke work moving
 - QEMU smoke RAMFS fixtures should stay proportional to the sample they carry; oversized per-test RAMFS instances can look like a logic hang on the emulated target even when the POSIX path itself is correct
 - `Examples/kernel/posix/qemu/run_qemu_ci.ps1` defaults to the full smoke contract; when validating partial targets such as `posix-qemu-newlib-stdio.elf`, pass `-RequireBusyboxPhase2:$false` so the runner only gates on the POSIX smoke marker
 - GCC `-fmodules-ts` 下的 `net` / `posix` 导入冲突解阻经验已记录到 `docs/system/posix_modules_ts_build_notes.md`

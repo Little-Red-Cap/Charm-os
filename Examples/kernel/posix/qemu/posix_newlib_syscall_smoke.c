@@ -473,7 +473,7 @@ int charm_posix_newlib_lseek_entry(void) {
 
 int charm_posix_newlib_path_entry(void) {
     struct stat st;
-    char buf[6] = {0};
+    char buf[8] = {0};
     errno = 61;
     int fd = open("/newlib-path.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 131;
@@ -661,10 +661,27 @@ int charm_posix_newlib_path_entry(void) {
     if (st.st_size != 5) return 168;
     if (access("/newlib-renamed.txt", F_OK) != 0) return 169;
 
+    errno = 67;
+    fd = open("/newlib-renamed.txt", O_RDONLY | O_NONBLOCK, 0);
+    if (fd < 0) return 593;
+    if (errno != 67) return 594;
+    if ((fcntl(fd, F_GETFL) & O_NONBLOCK) == 0) return 595;
+    if (close(fd) != 0) return 596;
+
+    errno = 68;
+    fd = open("/newlib-renamed.txt", O_WRONLY | O_APPEND, 0);
+    if (fd < 0) return 597;
+    if (errno != 68) return 598;
+    if (write(fd, "++", 2) != 2) return 599;
+    if (close(fd) != 0) return 600;
+
+    if (stat("/newlib-renamed.txt", &st) != 0) return 601;
+    if (st.st_size != 7) return 602;
+
     fd = open("/newlib-renamed.txt", O_RDONLY, 0);
     if (fd < 0) return 170;
-    if (read(fd, buf, 5) != 5) return 171;
-    if (memcmp(buf, "bravo", 5) != 0) return 172;
+    if (read(fd, buf, 7) != 7) return 171;
+    if (memcmp(buf, "bravo++", 7) != 0) return 172;
     if (close(fd) != 0) return 173;
 
     errno = 65;

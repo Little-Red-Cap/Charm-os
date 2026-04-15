@@ -13,6 +13,8 @@ int charm_posix_c_fs_header_entry(void) {
     int* err = charm_posix_errno_location();
     int saw_cfs = 0;
     int saw_note = 0;
+    int saw_note_rel = 0;
+    int saw_sub = 0;
 
     if (err == 0) return 301;
     if (charm_posix_getpid() <= 0) return 302;
@@ -386,6 +388,40 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_read(fd, buf, 3) != 3) return 402;
     if (memcmp(buf, "fs+", 3) != 0) return 403;
     if (charm_posix_close(fd) != 0) return 404;
+    *err = 108;
+    dir = charm_posix_opendir(".");
+    if (dir == 0) return 633;
+    if (*err != 108) return 634;
+    saw_note_rel = 0;
+    saw_sub = 0;
+    while ((ent = charm_posix_readdir(dir)) != 0) {
+        if (strcmp(ent->d_name, "note.txt") == 0) {
+            saw_note_rel = 1;
+            if ((ent->d_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 635;
+        }
+        if (strcmp(ent->d_name, "sub") == 0) {
+            saw_sub = 1;
+            if ((ent->d_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFDIR) return 636;
+        }
+    }
+    if (!saw_note_rel) return 637;
+    if (!saw_sub) return 638;
+    *err = 109;
+    if (charm_posix_readdir(dir) != 0) return 639;
+    if (*err != 109) return 640;
+    *err = 110;
+    if (charm_posix_closedir(dir) != 0) return 641;
+    if (*err != 110) return 642;
+    *err = 111;
+    dir = charm_posix_opendir("sub");
+    if (dir == 0) return 643;
+    if (*err != 111) return 644;
+    *err = 112;
+    if (charm_posix_readdir(dir) != 0) return 645;
+    if (*err != 112) return 646;
+    *err = 113;
+    if (charm_posix_closedir(dir) != 0) return 647;
+    if (*err != 113) return 648;
 
     *err = 0;
     if (charm_posix_opendir("/cfs/note.txt") != 0) return 323;

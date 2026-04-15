@@ -37,3 +37,9 @@ int charm_posix_c_header_exit_entry(void) {
     charm_posix_exit(37);
     return 82;
 }
+
+int charm_posix_c_header_abort_entry(void) {
+    if (charm_posix_write(1, "c-header-abort\n", 15) != 15) return 91;
+    charm_posix_abort();
+    return 92;
+}

@@ -105,8 +105,11 @@ ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, cached=0x10203040, dev
 ARMv7-A page-table probe, addr=0x52500000, before=0x31415926, after=0x27182818, restored=0x31415926, desc=0x4021...., l2=0x4030....
 ARMv7-A section-split probe, addr=0x5260...., before=0x89ABCDEF, after=0x76543210, restored=0x89ABCDEF, l1-desc=0x4021...., l2-table=0x4021...., l1=0x4021...., l2=0x4040....
 ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc
+ARMv7-A timer pending evidence, cntp_ctl=0x00000001, secure-line=group0/yes/no/no, nonsecure-line=group1/yes/yes/no, gicd=0x00000003, gicc=0x00000007, hppir=0x0000001E, spurious=no
 ARMv7-A timer IRQ active, intid=30, origin-mode=sys, handler-mode=irq
+ARMv7-A SGI pending evidence, route=irq, line=group1/yes/yes/no, gicd=0x00000003, gicc=0x00000007, hppir=0x00000001, spurious=no
 ARMv7-A SGI active, intid=1, origin-mode=sys, handler-mode=irq
+ARMv7-A SGI pending evidence, route=fiq, line=group0/yes/yes/no, gicd=0x00000003, gicc=0x0000000F, hppir=0x00000001, spurious=no
 ARMv7-A FIQ active, intid=1, origin-mode=sys, handler-mode=fiq
 ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-ppi, irq-origin=sys, irq-handler=irq, fiq-origin=sys, fiq-handler=fiq, monitor-mode=not-observed
 ```
@@ -359,6 +362,10 @@ continue
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from
   QEMU toward real Cortex-A silicon.
+- Timer IRQ and self-SGI smoke now also log one masked `pending evidence`
+  snapshot before unmasking CPU IRQ/FIQ, so we can distinguish "the timer or
+  SGI already reached the GIC as pending" from "the CPU later took the
+  handler" when bring-up moves beyond QEMU.
 - We still deliberately skip direct `SCR/NSACR` reads in the default runtime.
   Instead the example now prints one `security side evidence` line that
   summarizes only what was safely observed from the live returning paths:

@@ -170,11 +170,20 @@ if (($log -notmatch "ARMv7-A section-split probe, addr=0x526[0-9A-F]{5}, before=
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30"
 }
+if (($log -notmatch "ARMv7-A timer pending evidence, cntp_ctl=0x[0-9A-F]{8}, secure-line=group[01]/(yes|no)/(yes|no)/(yes|no), nonsecure-line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
+    $missing += "ARMv7-A timer pending evidence, cntp_ctl=0x..."
+}
 if (($log -notmatch "ARMv7-A SGI active, intid=1")) {
     $missing += "ARMv7-A SGI active, intid=1"
 }
+if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
+    $missing += "ARMv7-A SGI pending evidence, route=irq..."
+}
 if (($log -notmatch "ARMv7-A FIQ active, intid=1")) {
     $missing += "ARMv7-A FIQ active, intid=1"
+}
+if (($log -notmatch "ARMv7-A SGI pending evidence, route=fiq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
+    $missing += "ARMv7-A SGI pending evidence, route=fiq..."
 }
 if (($log -notmatch "ARMv7-A security side evidence, scr-read=skipped, timer-route=(secure|non-secure)-phys-ppi, irq-origin=[a-z]+, irq-handler=irq, fiq-origin=[a-z]+, fiq-handler=fiq, monitor-mode=(observed|not-observed)")) {
     $missing += "ARMv7-A security side evidence, scr-read=skipped..."

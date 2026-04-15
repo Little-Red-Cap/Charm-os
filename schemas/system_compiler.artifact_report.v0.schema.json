@@ -367,6 +367,7 @@
       "additionalProperties": false,
       "required": [
         "bundle",
+        "input_manifest",
         "dot",
         "sample_json",
         "diff",
@@ -375,6 +376,9 @@
       ],
       "properties": {
         "bundle": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "input_manifest": {
           "$ref": "#/$defs/nullableString"
         },
         "dot": {

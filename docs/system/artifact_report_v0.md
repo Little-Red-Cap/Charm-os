@@ -22,6 +22,10 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 
 如果调用方显式传入 `-Profile`、`-Board`、`-Facet`，
 当前生成链也会把这些 subject 元数据写入报告对象。
+如果 bundle 的 case entry 自带 `subject` 元数据，
+当前导出脚本也会在没有显式 override 时自动继承它。
+如果 bundle 顶层已经保留了输入 `manifest` provenance，
+当前 `artifact report` 也会把它继续写入 `artifacts.input_manifest`。
 
 当前最小真实链路可以这样跑：
 
@@ -34,6 +38,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 当前 `scripts/ci_materialized_graph_bundle.ps1` 也已经能在生成 `summary.json` 时同步产出 candidate 侧的 `artifact report`，并把这些报告路径写回 CI 摘要。
 当 CI 调用方提供 `-Profile`、`-Board`、`-Facet` 时，
 这些默认 subject 元数据也会继续透传到 case 级 `artifact report`。
+如果调用方没有显式提供这些参数，
+当前 CI 摘要也会在所选 case 的 bundle `subject` 一致时自动提炼出 `subject_defaults`。
 
 它要回答的核心问题不是“有哪些零散导出文件”，而是：
 
@@ -328,6 +334,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 建议至少包含：
 
 - `bundle`
+- `input_manifest`
 - `dot`
 - `sample_json`
 - `diff`
@@ -405,6 +412,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
   },
   "artifacts": {
     "bundle": "out/materialized-graph-bundle/index.json",
+    "input_manifest": "scripts/materialized_graph.export_case_manifest.v1.json",
     "dot": "out/materialized-graph-bundle/case/materialized_graph.dot",
     "sample_json": "out/materialized-graph-bundle/case/materialized_graph.sample.json",
     "diff": null,

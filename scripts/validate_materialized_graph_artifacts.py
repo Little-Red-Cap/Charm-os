@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 SCHEMA_FILES = {
+    "materialized_graph.export_case_manifest/v1": "schemas/materialized_graph.export_case_manifest.v1.schema.json",
     "materialized_graph.sample/v2": "schemas/materialized_graph.sample.v2.schema.json",
     "materialized_graph.export_bundle/v1": "schemas/materialized_graph.export_bundle.v1.schema.json",
     "materialized_graph.bundle_diff/v1": "schemas/materialized_graph.bundle_diff.v1.schema.json",
@@ -82,6 +83,10 @@ def validate_ci_output_root(ci_root: Path, repo_root: Path, visited: set[Path]):
                 validate_once(Path(path_value).resolve(), repo_root, visited)
 
 
+def validate_manifest_path(manifest_path: Path, repo_root: Path, visited: set[Path]):
+    validate_once(manifest_path.resolve(), repo_root, visited)
+
+
 def validate_once(path: Path, repo_root: Path, visited: set[Path]):
     resolved = path.resolve()
     if resolved in visited:
@@ -94,6 +99,7 @@ def validate_once(path: Path, repo_root: Path, visited: set[Path]):
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate exported JSON artifacts against repo schemas.")
     parser.add_argument("paths", nargs="*", help="JSON artifact paths to validate directly")
+    parser.add_argument("--export-case-manifest", action="append", default=[], help="Validate export case manifest JSON files")
     parser.add_argument("--bundle-root", action="append", default=[], help="Validate bundle index.json and referenced case JSONs")
     parser.add_argument("--ci-output-root", action="append", default=[], help="Validate CI summary.json and linked artifacts")
     args = parser.parse_args()
@@ -108,6 +114,9 @@ def main() -> int:
     visited: set[Path] = set()
 
     try:
+        for manifest_path in args.export_case_manifest:
+            validate_manifest_path(Path(manifest_path).resolve(), repo_root, visited)
+
         for bundle_root in args.bundle_root:
             validate_bundle_root(Path(bundle_root).resolve(), repo_root, visited)
 
@@ -120,7 +129,7 @@ def main() -> int:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 1
 
-    if not args.bundle_root and not args.ci_output_root and not args.paths:
+    if not args.export_case_manifest and not args.bundle_root and not args.ci_output_root and not args.paths:
         print("[WARN] nothing to validate")
         return 0
 

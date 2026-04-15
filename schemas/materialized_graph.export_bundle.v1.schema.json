@@ -21,6 +21,9 @@
       "type": "integer",
       "minimum": 0
     },
+    "input_manifest": {
+      "$ref": "#/$defs/inputManifest"
+    },
     "cases": {
       "type": "array",
       "items": {
@@ -77,6 +80,51 @@
         }
       }
     },
+    "subjectSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "board": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active_facets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "inputManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
     "caseEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -110,6 +158,9 @@
         },
         "json": {
           "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/subjectSummary"
         },
         "graph": {
           "$ref": "#/$defs/graphSummary"

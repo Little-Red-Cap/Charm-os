@@ -13,65 +13,151 @@ param(
     [string[]]$Case = @(),
     [switch]$AllCases,
     [switch]$ListCases,
-    [string]$OutputRoot = ""
+    [string]$OutputRoot = "",
+    [string]$CaseManifest = ""
 )
 
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$defaultExportCaseManifestPath = Join-Path $PSScriptRoot 'materialized_graph.export_case_manifest.v1.json'
 . (Join-Path $PSScriptRoot 'materialized_graph_schema.ps1')
 
-function Get-ExportCases {
-    return @(
-        @{
-            Name = 'materialize-observe-demo'
-            Source = 'Examples/init/materialize_observe_demo'
-            BuildDir = 'cmake-build-init-observe-demo-clang'
-            BuildTarget = 'init-materialize-observe-demo'
-            ExportTarget = 'export_materialized_graph_demo'
-            DotCache = 'MATERIALIZE_OBSERVE_DOT_PATH'
-            JsonCache = 'MATERIALIZE_OBSERVE_JSON_PATH'
-            DefaultDot = 'materialized_graph.dot'
-            DefaultJson = 'materialized_graph.sample.json'
-            ExtraCache = @()
-        },
-        @{
-            Name = 'bringup-block-observe-demo'
-            Source = 'Examples/init/bringup_block_observe_demo'
-            BuildDir = 'cmake-build-init-bringup-block-observe-clang'
-            BuildTarget = 'init-bringup-block-observe-demo'
-            ExportTarget = 'export_bringup_block_materialized_graph'
-            DotCache = 'BRINGUP_BLOCK_OBSERVE_DOT_PATH'
-            JsonCache = 'BRINGUP_BLOCK_OBSERVE_JSON_PATH'
-            DefaultDot = 'bringup_block_materialized_graph.dot'
-            DefaultJson = 'bringup_block_materialized_graph.sample.json'
-            ExtraCache = @()
-        },
-        @{
-            Name = 'bringup-minimal-observe-demo'
-            Source = 'Examples/init/bringup_minimal_observe_demo'
-            BuildDir = 'cmake-build-init-bringup-minimal-observe-clang'
-            BuildTarget = 'init-bringup-minimal-observe-demo'
-            ExportTarget = 'export_bringup_minimal_materialized_graph'
-            DotCache = 'BRINGUP_MINIMAL_OBSERVE_DOT_PATH'
-            JsonCache = 'BRINGUP_MINIMAL_OBSERVE_JSON_PATH'
-            DefaultDot = 'bringup_minimal_materialized_graph.dot'
-            DefaultJson = 'bringup_minimal_materialized_graph.sample.json'
-            ExtraCache = @()
-        },
-        @{
-            Name = 'usb-msc-block-demo'
-            Source = 'Examples/usb/usb_msc_block_demo'
-            BuildDir = 'cmake-build-usb-msc-block-demo-clang'
-            BuildTarget = 'usb-msc-block-demo'
-            ExportTarget = 'export_usb_msc_block_materialized_graph'
-            DotCache = 'USB_MSC_BLOCK_EXPORT_DOT_PATH'
-            JsonCache = 'USB_MSC_BLOCK_EXPORT_JSON_PATH'
-            DefaultDot = 'usb_msc_block_materialized_graph.dot'
-            DefaultJson = 'usb_msc_block_materialized_graph.sample.json'
-            ExtraCache = @('USB_MSC_BLOCK_EXPORT_IMAGE_PATH=observe-usb-block.img')
-        }
+function Resolve-CaseManifestPath {
+    if (-not [string]::IsNullOrWhiteSpace($CaseManifest)) {
+        return Resolve-FullPath $CaseManifest
+    }
+
+    return Resolve-FullPath $defaultExportCaseManifestPath
+}
+
+function Get-ObjectPropertyValue {
+    param(
+        $Object,
+        [string]$PropertyName
     )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Get-RequiredStringProperty {
+    param(
+        $Object,
+        [string]$PropertyName,
+        [string]$Context
+    )
+
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName $PropertyName
+    if ([string]::IsNullOrWhiteSpace([string]$value)) {
+        throw "missing required string property '$PropertyName' in $Context"
+    }
+
+    return [string]$value
+}
+
+function Get-OptionalStringProperty {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName $PropertyName
+    if ([string]::IsNullOrWhiteSpace([string]$value)) {
+        return $null
+    }
+
+    return [string]$value
+}
+
+function Get-OptionalStringArrayProperty {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName $PropertyName
+    if ($null -eq $value) {
+        return @()
+    }
+
+    return @(
+        @($value) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+}
+
+function Convert-ExportCaseEntry {
+    param(
+        $CaseEntry,
+        [string]$ManifestPath,
+        [int]$Index
+    )
+
+    $context = "$ManifestPath cases[$Index]"
+    $subjectEntry = Get-ObjectPropertyValue -Object $CaseEntry -PropertyName 'subject'
+
+    return [pscustomobject]@{
+        Name = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'name' -Context $context
+        Source = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'source' -Context $context
+        BuildDir = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'build_dir' -Context $context
+        BuildTarget = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'build_target' -Context $context
+        ExportTarget = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'export_target'
+        DotCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'dot_cache'
+        JsonCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'json_cache'
+        DefaultDot = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'default_dot' -Context $context
+        DefaultJson = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'default_json' -Context $context
+        ExtraCache = Get-OptionalStringArrayProperty -Object $CaseEntry -PropertyName 'extra_cache'
+        Profile = Get-OptionalStringProperty -Object $subjectEntry -PropertyName 'profile'
+        Board = Get-OptionalStringProperty -Object $subjectEntry -PropertyName 'board'
+        ActiveFacets = Get-OptionalStringArrayProperty -Object $subjectEntry -PropertyName 'active_facets'
+    }
+}
+
+function Get-ExportCases {
+    $resolvedManifestPath = Resolve-CaseManifestPath
+    if (-not (Test-Path $resolvedManifestPath)) {
+        throw "export case manifest not found: $resolvedManifestPath"
+    }
+
+    $manifestData = Get-Content -LiteralPath $resolvedManifestPath -Raw -Encoding utf8 | ConvertFrom-Json
+    $schemaName = Get-RequiredStringProperty -Object $manifestData -PropertyName 'schema' -Context $resolvedManifestPath
+    if ($schemaName -ne 'materialized_graph.export_case_manifest/v1') {
+        throw "unsupported export case manifest schema '$schemaName' in $resolvedManifestPath"
+    }
+
+    $rawCases = Get-ObjectPropertyValue -Object $manifestData -PropertyName 'cases'
+    if ($null -eq $rawCases) {
+        throw "missing 'cases' array in $resolvedManifestPath"
+    }
+
+    $cases = @()
+    $seenNames = @{}
+    $caseEntries = @($rawCases)
+    for ($index = 0; $index -lt $caseEntries.Count; ++$index) {
+        $entry = Convert-ExportCaseEntry -CaseEntry $caseEntries[$index] -ManifestPath $resolvedManifestPath -Index $index
+        if ($seenNames.ContainsKey($entry.Name)) {
+            throw "duplicate export case name '$($entry.Name)' in $resolvedManifestPath"
+        }
+
+        $seenNames[$entry.Name] = $true
+        $cases += $entry
+    }
+
+    return [pscustomobject]@{
+        Path = $resolvedManifestPath
+        Schema = $schemaName
+        Cases = @($cases)
+    }
 }
 
 function Resolve-FullPath {
@@ -162,10 +248,42 @@ function Get-GraphSummary {
     return $summary
 }
 
+function New-CaseSubjectMetadata {
+    param(
+        $Entry
+    )
+
+    $profile = $null
+    if ($null -ne $Entry.Profile -and -not [string]::IsNullOrWhiteSpace([string]$Entry.Profile)) {
+        $profile = [string]$Entry.Profile
+    }
+
+    $board = $null
+    if ($null -ne $Entry.Board -and -not [string]::IsNullOrWhiteSpace([string]$Entry.Board)) {
+        $board = [string]$Entry.Board
+    }
+
+    $activeFacets = @()
+    if ($null -ne $Entry.ActiveFacets) {
+        $activeFacets = @(
+            @($Entry.ActiveFacets) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ }
+        )
+    }
+
+    return [ordered]@{
+        profile = $profile
+        board = $board
+        active_facets = $activeFacets
+    }
+}
+
 function Write-ExportBundleIndex {
     param(
         [object[]]$Results,
-        [string]$OutputRootPath
+        [string]$OutputRootPath,
+        $CaseManifestInfo = $null
     )
 
     $bundleRoot = Resolve-FullPath $OutputRootPath
@@ -189,6 +307,10 @@ function Write-ExportBundleIndex {
             json = Get-RelativePath -BasePath $bundleRoot -TargetPath $result.JsonPath
         }
 
+        if ($null -ne $result.PSObject.Properties['Subject'] -and $null -ne $result.Subject) {
+            $caseEntry.subject = $result.Subject
+        }
+
         $summary = Get-GraphSummary -JsonPath $result.JsonPath
         if ($null -ne $summary) {
             $caseEntry.graph = $summary
@@ -202,6 +324,12 @@ function Write-ExportBundleIndex {
         generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
         case_count = $cases.Count
         cases = $cases
+    }
+    if ($null -ne $CaseManifestInfo) {
+        $index.input_manifest = [ordered]@{
+            path = [string]$CaseManifestInfo.Path
+            schema = [string]$CaseManifestInfo.Schema
+        }
     }
 
     $indexPath = Join-Path $bundleRoot 'index.json'
@@ -276,7 +404,7 @@ function Invoke-LegacyExport {
 
 function Invoke-ManifestCase {
     param(
-        [hashtable]$Entry,
+        $Entry,
         [string]$DotOverride = '',
         [string]$JsonOverride = '',
         [string]$OutputRootPath = ''
@@ -348,6 +476,7 @@ function Invoke-ManifestCase {
             ExportTarget = $Entry.ExportTarget
             DotPath = $dotPath
             JsonPath = $jsonPath
+            Subject = New-CaseSubjectMetadata -Entry $Entry
         }
     }
 
@@ -375,19 +504,47 @@ function Invoke-ManifestCase {
         ExportTarget = $Entry.ExportTarget
         DotPath = $dotPath
         JsonPath = $jsonPath
+        Subject = New-CaseSubjectMetadata -Entry $Entry
     }
-}
-
-$manifestCases = Get-ExportCases
-
-if ($ListCases) {
-    foreach ($entry in $manifestCases) {
-        Write-Host "$($entry.Name) -> source=$($entry.Source) target=$($entry.ExportTarget)"
-    }
-    exit 0
 }
 
 $useManifest = $AllCases -or $Case.Count -gt 0
+$exportCaseManifest = $null
+$manifestCases = @()
+
+if (-not $ListCases -and -not $useManifest -and -not [string]::IsNullOrWhiteSpace($CaseManifest)) {
+    throw "-CaseManifest requires -Case, -AllCases, or -ListCases"
+}
+
+if ($ListCases -or $useManifest) {
+    $exportCaseManifest = Get-ExportCases
+    $manifestCases = @($exportCaseManifest.Cases)
+}
+
+if ($ListCases) {
+    Write-Host "[MANIFEST] $($exportCaseManifest.Path)"
+    foreach ($entry in $manifestCases) {
+        $subject = New-CaseSubjectMetadata -Entry $entry
+        $subjectParts = @()
+        if (-not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
+            $subjectParts += "profile=$([string]$subject.profile)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$subject.board)) {
+            $subjectParts += "board=$([string]$subject.board)"
+        }
+        if (@($subject.active_facets).Count -gt 0) {
+            $subjectParts += "facets=$((@($subject.active_facets) -join ','))"
+        }
+
+        $line = "$($entry.Name) -> source=$($entry.Source) target=$($entry.ExportTarget)"
+        if ($subjectParts.Count -gt 0) {
+            $line += " subject={$($subjectParts -join '; ')}"
+        }
+
+        Write-Host $line
+    }
+    exit 0
+}
 
 if (-not [string]::IsNullOrWhiteSpace($OutputRoot) -and -not $useManifest) {
     throw "-OutputRoot requires -Case or -AllCases"
@@ -428,7 +585,7 @@ foreach ($entry in $selected) {
 
 $indexPath = ''
 if (-not $ConfigureOnly -and -not [string]::IsNullOrWhiteSpace($OutputRoot)) {
-    $indexPath = Write-ExportBundleIndex -Results $results -OutputRootPath $OutputRoot
+    $indexPath = Write-ExportBundleIndex -Results $results -OutputRootPath $OutputRoot -CaseManifestInfo $exportCaseManifest
 }
 
 if ($ConfigureOnly) {

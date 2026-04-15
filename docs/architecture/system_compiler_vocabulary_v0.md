@@ -63,6 +63,7 @@ v0 阶段的使用规则如下：
 当前仓库里的主要载体是分散的：
 
 - 示例或应用目标的 CMake 组合
+- `scripts/materialized_graph.export_case_manifest.v1.json` 这类当前导出链输入清单
 - `init.graph` 的装配链与 case 选择
 - 系统设计文档里的目标描述
 - `materialized_graph` / `artifact report` 里的 `subject.case` 作为临时投影
@@ -263,6 +264,7 @@ report / system 侧的现实载体包括：
 
 当前载体包括：
 
+- `scripts/materialized_graph.export_case_manifest.v1.json` 中的 case 条目
 - `materialized_graph` 导出 case
 - `bundle` / `bundle_diff` / `ci_summary` 中的 case 条目
 - `artifact report` 的 `subject.case`
@@ -381,12 +383,12 @@ report / system 侧的现实载体包括：
 
 | 目标词汇 | 当前主要载体 | 当前状态 | 当前不要误写成 |
 | --- | --- | --- | --- |
-| `SystemSpec` | 应用/示例目标、init case、设计文档 | 词已确立，尚未单对象化 | 单个 case / 单个 CMakeLists |
+| `SystemSpec` | 应用/示例目标、export case manifest、init case、设计文档 | 词已确立，尚未单对象化 | 单个 case / 单个 CMakeLists |
 | `Profile` | target profile、局部 featureset、report profile 字段 | 已有碎片化载体 | Debug/Release、单个 UI 配置 |
 | `BoardPackage` | `BoardCaps` + 板级 target/config | 事实载体已存在，汇总词尚未收口 | 隐式 init / BSP 黑盒 |
 | `Binding` | `*Binding`、init chain、runtime driver/export | 双平面都已存在 | 只等于 `device::Driver` |
 | `Facet` | facet target、`active_facets`、语义面文档 | 词已出现，命名仍在收敛 | profile / target / component |
-| `Case` | export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
+| `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `required_facts` / `provided_facts` | 已在报告链出现 | 单纯等于 capability 名字 |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |

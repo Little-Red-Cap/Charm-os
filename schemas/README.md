@@ -9,6 +9,12 @@
 
 ### `materialized_graph` 观察导出链
 
+- `materialized_graph.export_case_manifest.v1.schema.json`
+  - 对应 `scripts/materialized_graph.export_case_manifest.v1.json`
+  - 用途偏向 `materialized_graph` 批量导出 case 的声明式输入事实
+  - 它当前服务于 export 脚本与 case 审计，但不等于最终 `SystemSpec` DSL
+  - 当前也可通过 `python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest ...` 进入统一校验脚本
+
 - `materialized_graph.sample.v2.schema.json`
   - 对应 `format_json_sample(...)` 当前导出的样例协议
   - 用途偏向字段勘探、原型接入、脚本分析
@@ -17,17 +23,17 @@
 - `materialized_graph.export_bundle.v1.schema.json`
   - 对应 `scripts/export_materialized_graph.ps1` 生成的 `index.json`
   - 用途偏向批量导出结果组织、bundle 检视与 diff
-  - 它已经是当前脚本链的稳定消费面之一
+  - 它已经是当前脚本链的稳定消费面之一，并且现在也可承载 per-case `subject` 元数据与输入 `manifest` provenance
 
 - `materialized_graph.bundle_diff.v1.schema.json`
   - 对应 `scripts/diff_materialized_graph_bundle.ps1 -AsJson` 的输出
   - 用途偏向结构差异分析、报告生成前的数据交换、工具侧增量审阅
-  - 它已经是 diff / report / CI 这条链上的机器可读中间协议
+  - 它已经是 diff / report / CI 这条链上的机器可读中间协议，并可继续带出左右 case 的 `subject` 视图
 
 - `materialized_graph.ci_summary.v1.schema.json`
   - 对应 `scripts/ci_materialized_graph_bundle.ps1` 生成的 `summary.json`
   - 用途偏向 CI 编排、状态汇总、上层自动化消费
-  - 它已经是当前 CI / 工作流消费面之一，并且现在也可引用生成出的 `artifact report`
+  - 它已经是当前 CI / 工作流消费面之一，并且现在也可引用生成出的 `artifact report`、`subject_defaults` 与 candidate/baseline bundle 的输入 `manifest` provenance
 
 - `materialized_graph.report_manifest.v1.schema.json`
   - 对应 `scripts/report_materialized_graph_bundle.ps1` 生成的 `report manifest`
@@ -39,7 +45,7 @@
 - `system_compiler.artifact_report.v0.schema.json`
   - 对应 `docs/system/artifact_report_v0.md` 中定义的最小统一报告对象
   - 用途偏向字段收敛、样例校验、后续脚本/CI 接入前的协议锚定
-  - 它当前是 v0 草案协议，已能覆盖 `export_only` 与 `compare` 两种最小输出场景
+  - 它当前是 v0 草案协议，已能覆盖 `export_only` 与 `compare` 两种最小输出场景，并可继续引用 `bundle / input_manifest / diff / report manifest`
 
 - `examples/system_compiler.artifact_report.v0.sample.json`
   - 对应 `system_compiler.artifact_report/v0` 的最小机器可验样例
@@ -49,6 +55,7 @@
 
 当前建议这样理解稳定性：
 
+- `export_case_manifest/v1`：当前 `materialized_graph` 批量导出链依赖的 case manifest 输入协议
 - `sample/v2`：当前支持、显式校验，但不承诺长期冻结
 - `export_bundle/v1`：当前脚本链稳定依赖的 bundle 索引协议
 - `bundle_diff/v1`：当前 diff / report 链稳定依赖的差异协议

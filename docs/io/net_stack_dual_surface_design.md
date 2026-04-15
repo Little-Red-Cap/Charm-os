@@ -398,6 +398,10 @@ v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagn
 - `netif`：设备能力在网络域的投影
 - `stack`：消费 netif，向上提供 socket 能力
 
+当前实现推进顺序上，`net.packet` 已先落固定容量 `PacketBuffer/PacketPool` 地基；
+`net.netif` 的第一刀建议只收口 `mtu/mac/address/capability + bind/up/down + input/output packet hook`，
+先把接口对象语义钉住，再往后接 `driver / self backend / ARP / IPv4`。
+
 这样未来 USB 网卡、板载以太网、Host backend 都能用统一方式接入。
 
 ### 3. 与 POSIX 的关系

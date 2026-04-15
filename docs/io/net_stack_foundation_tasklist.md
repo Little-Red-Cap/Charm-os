@@ -30,8 +30,10 @@
 - `reactor_write_reset_close_smoke` 已把这条语义扩展到真实 WinProvider：即便先采样到 `writable`，peer abortive close / reset 后真正 flush 时仍会统一收口为 `closed`，而不是反弹成 `error`
 - `reactor_close_drain_win_smoke` 已把 close-drain 语义扩展到真实 WinProvider：peer 在发送最后一帧后正常断开时，driver 会先把尾帧交给 session，再统一收口为 `closed`
 - `reactor_request_close_smoke` 已锁住 closed transport 不再接受新的 request
+- `reactor_request_close_win_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer 在收到 request 后正常断开时，pending 会被清理，late request 会被拒绝，session/driver 会统一收口为 `closed`
 - `reactor_request_reset_close_smoke` 已锁住 WinProvider 在 peer abortive close / reset 下仍把 transport 收口为 `closed`，而不是误报成 `error`
 - `reactor_service_close_smoke` 已锁住 closed transport 后 deferred reply 会被拒绝，且 deferred 状态会被清理
+- `reactor_service_close_win_smoke` 已把这条语义扩展到真实 WinProvider server 侧：peer 在送达 request 后正常断开时，deferred token 会失效，late reply 会被拒绝，session/driver 会统一收口为 `closed`
 - `reactor_service_reset_close_smoke`、`reactor_service_typed_reset_close_smoke` 已把这条语义扩展到真实 WinProvider server 侧：peer abortive close / reset 后 deferred token 会失效，late reply 会被拒绝，session/driver 统一收口为 `closed`
 - `reactor_service_error_smoke` 已锁住 error transport 后 deferred reply 会被拒绝，且 deferred 状态会被清理
 - `reactor_service_request_close_smoke` 已锁住 closed transport 不再接受新的 service request，且 pending 状态不会泄漏
@@ -151,8 +153,8 @@
 
 #### 验收
 
-- `reactor_request_echo_smoke`、`reactor_request_close_smoke`、`reactor_request_reset_close_smoke` 稳定通过
-- `reactor_service_echo_smoke`、`reactor_service_deferred_smoke`、`reactor_service_close_smoke`、`reactor_service_reset_close_smoke`、`reactor_service_error_smoke`、`reactor_service_request_close_smoke`、`reactor_service_request_reset_close_smoke`、`reactor_service_request_error_smoke`、`reactor_service_typed_smoke`、`reactor_service_typed_close_smoke`、`reactor_service_typed_reset_close_smoke`、`reactor_service_typed_error_smoke`、`reactor_service_typed_request_close_smoke`、`reactor_service_typed_request_reset_close_smoke`、`reactor_service_typed_request_error_smoke` 稳定通过
+- `reactor_request_echo_smoke`、`reactor_request_close_smoke`、`reactor_request_close_win_smoke`、`reactor_request_reset_close_smoke` 稳定通过
+- `reactor_service_echo_smoke`、`reactor_service_deferred_smoke`、`reactor_service_close_smoke`、`reactor_service_close_win_smoke`、`reactor_service_reset_close_smoke`、`reactor_service_error_smoke`、`reactor_service_request_close_smoke`、`reactor_service_request_reset_close_smoke`、`reactor_service_request_error_smoke`、`reactor_service_typed_smoke`、`reactor_service_typed_close_smoke`、`reactor_service_typed_reset_close_smoke`、`reactor_service_typed_error_smoke`、`reactor_service_typed_request_close_smoke`、`reactor_service_typed_request_reset_close_smoke`、`reactor_service_typed_request_error_smoke` 稳定通过
 - `schema_codec_smoke` 能继续充当 typed payload contract 的快速回归面
 
 ### M6. 对外 facade 收敛

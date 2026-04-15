@@ -3,6 +3,9 @@
 This is the first Cortex-A oriented leaf target for Charm.
 It keeps startup, linker, and early UART code inside the example target
 instead of pushing ARMv7-A specifics into shared `Modules/`.
+The shared ARMv7-A handoff prepare contract now lives in
+`targets/armv7a/common/`, while this QEMU leaf keeps the hook
+implementation and runtime evidence local.
 
 ## Build
 

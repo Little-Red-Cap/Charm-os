@@ -84,6 +84,7 @@ set(charm_armv7a_qemu_module_files
 add_executable(${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME} PRIVATE
+    "${CHARM_ROOT}/targets/armv7a/common/armv7a_handoff_contract.cpp"
     vectors.S
     startup.S
     main.cpp
@@ -131,7 +132,8 @@ target_sources(${PROJECT_NAME}
         ${charm_armv7a_qemu_module_files})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}")
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CHARM_ROOT}/targets/armv7a/common")
 
 target_compile_options(${PROJECT_NAME} PRIVATE
     -mcpu=${CHARM_ARMV7A_CPU}

@@ -31,6 +31,16 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_stat("/cfs", &st) != 0) return 310;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFDIR) return 311;
 
+    *err = 0;
+    if (charm_posix_open("", CHARM_POSIX_O_RDONLY, 0) != -1) return 361;
+    if (*err != CHARM_POSIX_ENOENT) return 362;
+    *err = 0;
+    if (charm_posix_stat("", &st) != -1) return 363;
+    if (*err != CHARM_POSIX_ENOENT) return 364;
+    *err = 0;
+    if (charm_posix_opendir("") != 0) return 365;
+    if (*err != CHARM_POSIX_ENOENT) return 366;
+
     dir = charm_posix_opendir("/");
     if (dir == 0) return 312;
     while ((ent = charm_posix_readdir(dir)) != 0) {
@@ -119,6 +129,10 @@ int charm_posix_c_fs_header_entry(void) {
     *err = 0;
     if (charm_posix_chdir("/cfs/note.txt") != -1) return 342;
     if (*err != CHARM_POSIX_ENOTDIR) return 343;
+
+    *err = 0;
+    if (charm_posix_chdir("") != -1) return 367;
+    if (*err != CHARM_POSIX_ENOENT) return 368;
 
     if (charm_posix_rename("/cfs/note.txt", "/cfs/renamed.txt") != 0) return 344;
     if (charm_posix_unlink("/cfs/renamed.txt") != 0) return 345;

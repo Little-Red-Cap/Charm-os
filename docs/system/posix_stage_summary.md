@@ -63,6 +63,7 @@
 - the exported C fs header surface now also smoke-uses the matching `CHARM_POSIX_O_EXCL` and `CHARM_POSIX_O_CREAT | CHARM_POSIX_O_RDONLY` flags, so the public macro layer stays aligned with the runtime bridge contract
 - the exported C fs header surface now also smoke-pins minimum bad-fd / argument-guard edges: `isatty(-1) -> EBADF`, `fstat(-1) -> EBADF`, `stat/fstat(..., nullptr) -> EINVAL`, null-path fs calls -> `EINVAL`, and `getcwd(nullptr, size)` / `getcwd(buf, 0)` -> `EINVAL`
 - the exported C fs header surface now also smoke-pins success-side errno preservation across representative path/cwd operations such as `getcwd`, `mkdir`, `stat`, `opendir`, `chdir`, `rename`, `unlink`, and `rmdir`
+- the exported C fs header surface now also smoke-covers stdio alias basics directly: `/dev/stdin` follows the current read-side terminal shape, `/dev/stdout` follows the redirected pipe shape, `/dev/stderr` stays terminal-shaped, and `close(-1)` still reports `EBADF`
 - the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
 - the exported C fs header surface now also smoke-covers path-shape errors directly: `open(dir, O_WRONLY) -> EISDIR`, and bad-parent paths such as `file/child` now consistently report `ENOTDIR` across `open/stat/mkdir/unlink/rmdir/rename`
 - the exported C fs header surface now also smoke-pins `CHARM_POSIX_O_APPEND` against real append-at-end behavior on regular files, even after a manual `lseek(..., SEEK_SET)`

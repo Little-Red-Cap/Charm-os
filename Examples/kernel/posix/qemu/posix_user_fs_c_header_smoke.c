@@ -50,6 +50,9 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_lseek(-1, 0, CHARM_POSIX_SEEK_SET) != -1) return 413;
     if (*err != CHARM_POSIX_EBADF) return 414;
     *err = 0;
+    if (charm_posix_close(-1) != -1) return 467;
+    if (*err != CHARM_POSIX_EBADF) return 468;
+    *err = 0;
     if (charm_posix_open(0, CHARM_POSIX_O_RDONLY, 0) != -1) return 421;
     if (*err != CHARM_POSIX_EINVAL) return 422;
     *err = 0;
@@ -99,6 +102,40 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_write(fd, "z", 1) != 1) return 380;
     if (*err != 48) return 381;
     if (charm_posix_close(fd) != 0) return 382;
+    *err = 62;
+    fd = charm_posix_open("/dev/stdin", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 469;
+    if (*err != 62) return 470;
+    if (charm_posix_isatty(fd) != 1) return 471;
+    if (charm_posix_fstat(fd, &st) != 0) return 472;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 473;
+    *err = 63;
+    if (charm_posix_close(fd) != 0) return 474;
+    if (*err != 63) return 475;
+
+    *err = 64;
+    fd = charm_posix_open("/dev/stdout", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 476;
+    if (*err != 64) return 477;
+    *err = 65;
+    if (charm_posix_isatty(fd) != 0) return 478;
+    if (*err != 65) return 479;
+    if (charm_posix_fstat(fd, &st) != 0) return 480;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFIFO) return 481;
+    *err = 66;
+    if (charm_posix_close(fd) != 0) return 482;
+    if (*err != 66) return 483;
+
+    *err = 67;
+    fd = charm_posix_open("/dev/stderr", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 484;
+    if (*err != 67) return 485;
+    if (charm_posix_isatty(fd) != 1) return 486;
+    if (charm_posix_fstat(fd, &st) != 0) return 487;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 488;
+    *err = 68;
+    if (charm_posix_close(fd) != 0) return 489;
+    if (*err != 68) return 490;
 
     *err = 51;
     if (charm_posix_mkdir("/cfs") != 0) return 309;

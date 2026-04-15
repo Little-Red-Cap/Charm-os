@@ -10,6 +10,24 @@
 > 因此本页模型更适合描述“发现、匹配、激活”过程，而不宜被误读为
 > “已经具备完整热插拔 capability 导出/回收闭环”。
 >
+> 另外，`device::Registry` / `device::System` 现在已经开始补
+> `try_add_device` / `try_add_driver` / `try_add_bus` 这类
+> `util::Result<void>` 风格入口；旧 `add_*` 仍保留为兼容包装。
+>
+> 目前代码里的收敛进度可以简要理解为：
+> - `device::Registry` / `device::System`：已有 `try_dispatch` / `try_match_detected` /
+>   `try_suspend_all` / `try_resume_all` / `try_enumerate_all`
+> - `device::Bus` / `usb::host::HostBus`：已有可选 `try_enumerate` callback bridge，
+>   旧 `enumerate` 仍保留
+> - `device::DriverOps` / `device::RuntimeDriverHook`：已有可选
+>   `try_probe / try_init / try_suspend / try_resume`，
+>   旧 `bool` hook 仍保留为兼容入口
+> - `device::make_runtime_driver(...)` 与 `usb::device::make_device_driver(...)`
+>   这两条主要驱动适配入口，已经开始默认接入上述 `try_*` 语义
+>
+> 因此，这一页更适合被理解为“动态 discovery 平面的当前实现快照 + 后续演进方向”，
+> 而不是一份完全独立于现有代码状态的理想化白纸设计。
+>
 > 如果当前 discovered device 需要导出为稳定 capability，
 > 仓库里可以优先参考：
 > `io.channel.slot_export`、`block.device.slot_export`，
@@ -25,6 +43,36 @@
 > `Examples/usb/usb_host_runtime_channel_smoke`、
 > `Examples/usb/usb_host_runtime_multi_smoke`
 > 这条“稳定槽位 + 内部存活位”路线。
+>
+> 这条路线当前还补上了一层最小退出能力：
+> `io::ChannelSlotExport::unexport()` /
+> `block::DeviceSlotExport::unexport()`，
+> 它们会先 detach 稳定槽位，再把 capability 从 registry 中撤下；
+> 但这仍不等价于完整 revoke 语义。
+>
+> 对 USB Host runtime glue，目前还多了一层 manager 级组合动作：
+> `usb::host::RuntimeManager::try_remove(binding)`、
+> `try_unexport(binding)`、
+> `try_forget(binding)`。
+> 可以把它们分别理解为：
+> “移除 runtime device”、
+> “撤下稳定 capability”、
+> “连同 bus record 一并忘掉”。
+>
+> 此外，当前还补上了一层最小状态语言：
+> `io::ExportState::{missing, detached, attached}` /
+> `block::ExportState::{missing, detached, attached}`。
+> 它们用于表达“稳定 capability 是否还在 registry 中，以及当前是否 live”，
+> 补足 `open_*` / `find_*` 只能表达“是否已发布”的缺口。
+>
+> 与之对应，registry 自身现在也开始显式暴露
+> `io::PublishState::{missing, published}` /
+> `block::PublishState::{missing, published}`，
+> 用来表达 capability 是否仍处于 published 视图中。
+> 这层 published 视图也可以继续由 runtime binding / manager 向上转发，
+> 让上层调用不必总是手动回到 registry 查询。
+> 如果要继续收敛用户侧查询接口，更推荐 manager 返回组合状态快照，
+> 而不是把 published / live / tracked 粗暴揉成一个枚举。
 
 ## 1. 核心概念
 
@@ -47,8 +95,10 @@ register_driver -> probe -> init -> running -> shutdown -> remove
 ```
 
 推荐回调：
-- `probe(dev)`：匹配 + 资源检查（不分配大资源）。
-- `init(dev)`：初始化并进入 running。
+- 新代码优先提供 `try_probe(dev)` / `try_init(dev)`：
+  直接返回 `util::Result<void>`，便于保留更精确错误。
+- 兼容代码仍可提供 `probe(dev)` / `init(dev)`：
+  返回 `bool`，失败时由 Registry 统一折叠为 `util::Errc::bad_state`。
 - `shutdown(dev)`：停设备（可重复调用）。
 - `remove(dev)`：释放资源并解绑。
 
@@ -93,8 +143,8 @@ register_driver -> probe -> init -> running -> shutdown -> remove
 - `stopped`
 
 ### Power Hooks
-- `suspend(dev)`
-- `resume(dev)`
+- 新代码优先提供 `try_suspend(dev)` / `try_resume(dev)`
+- 兼容代码仍可提供 `suspend(dev)` / `resume(dev)`
 
 ## 6. 设备模型与现有模块的对接方向
 
@@ -172,6 +222,8 @@ void register_usb(DeviceSystem& sys) {
 - Driver 不得直接依赖具体平台实现（必须走 Device/Bus 接口）。
 - Registry 不得阻塞。
 - 匹配失败不影响其它设备。
+- 新增 `try_*` 入口时，优先使用 `util::Result<T>` + `util::Errc`，
+  不要再引入第三套错误返回约定。
 
 ## 9. VSF 对照表（接口形状参考）
 

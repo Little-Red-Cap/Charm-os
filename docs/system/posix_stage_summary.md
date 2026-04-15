@@ -16,6 +16,9 @@
 - busybox-style applet entry shapes are now smoke-covered: both `/bin/sh` via `argv[0]` and `busybox sh -c ...` via `argv[1]`
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
 - freestanding C userland now keeps its minimal process/stdio surface in `charm_posix_user_crt.h`, while FS/FD/path/dir-facing contracts expand through the split header `Modules/io/posix/charm_posix_user_fs.h`
+- the exported C CRT header surface now also smoke-pins `argv/envp/environ` identity basics, `getenv(null-or-miss) -> nullptr`, and success-side `getpid/sleep(0)/write` errno preservation
+- the exported C CRT header surface now also smoke-pins argv/envp null termination, `getenv("") -> nullptr`, stable `errno_location()` identity, and `write(-1) -> EBADF`
+- the exported C CRT header surface now also smoke-covers explicit termination through `charm_posix_exit()` and `charm_posix_abort()`, with the current abort contract exiting with code `134`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
 - process-control slice now includes `kill v0`, `minimal ps`, shell/busybox `kill` applet coverage, and real-ELF `sleep/kill` hostcall coverage: `getpid`, `sleep`, the minimum `kill(SIGTERM/SIGINT/SIGKILL)` contract across proc/api/shell/busybox, and a minimum `ps(pid/state/name)` view are smoke-covered on the current same-address-space model
@@ -28,6 +31,7 @@
 - `explicit exit > return` is the active exit resolution rule
 - `waitpid()` consumes the unified final exit result, not the internal exit mechanism
 - `kill()` currently supports `SIGTERM` / `SIGKILL` / `SIGINT`; a killed process now reports `WaitKind::signaled` with the signal number as wait code
+- newlib `kill()` smoke now also pins the minimum negative bridge contract: unsupported signals fail with `EINVAL`, while a visible-miss pid with a supported signal fails with `ENOENT`
 - ELF hostcalls use `ExecContext`; they no longer depend on the old global service/pid slot pair
 - path-bearing real-ELF hostcalls must resolve against the spawned process cwd before touching `file_service_`; the raw exec-loader path remains a separate already-resolved input lane
 
@@ -35,26 +39,55 @@
 - `open("/missing.txt") -> -1 && errno == ENOENT`
 - `isatty(file/pipe) -> 0 && errno == 0`
 - `isatty(non-tty) -> 0 && errno == 0`
+- `isatty(-1) -> 0 && errno == EBADF`
 - `fstat(-1, ...) -> -1 && errno == EBADF`
+- bridge pointer guards are now smoke-pinned too: `fstat(fd, nullptr)`, `stat(path, nullptr)`, and `pipe(nullptr)` fail with `EINVAL`
+- newlib path/cwd-facing invalid-arg guards are now smoke-pinned too: null-path `open/stat/access/mkdir/unlink/rmdir/remove/rename/chdir` and invalid `getcwd(nullptr, size)` / `getcwd(buf, 0)` all fail with `EINVAL`
+- empty-string path inputs now also have a pinned minimum contract: unlike null pointers, `""` maps to `ENOENT` across path-facing `open/stat/access/mkdir/unlink/rmdir/rename/chdir/opendir`
 - `read(EOF) -> 0 && errno == 0`
 - `read(-1, ...) -> -1 && errno == EBADF`
 - `write(-1, ...) -> -1 && errno == EBADF`
 - `close(-1) -> -1 && errno == EBADF`
+- newlib `getpid()` / successful `read()` / successful `write()` / successful `close()` now also keep `errno` unchanged across the current bridge
+- newlib `dup()` / `dup2()` / successful `pipe()` and successful `fcntl(F_DUPFD/F_GETFD/F_SETFD/F_GETFL/F_SETFL)` now also keep `errno` unchanged across the current bridge
+- newlib regular-file status flags are now smoke-pinned directly too: `fcntl(F_SETFL, O_APPEND)` is observable via `F_GETFL`, shared across dup aliases on the same open-file description, and still forces write-at-end behavior
+- `lseek(file, SEEK_{SET|END}) -> offset`, `lseek(pipe/tty/dev, ...) -> -1 && errno == ESPIPE`, `lseek(-1, ...) -> -1 && errno == EBADF`, and `lseek(fd, ..., invalid-whence) -> -1 && errno == EINVAL`
 - `pipe()` v0 currently behaves as an eager nonblocking primitive: empty reads with a live writer return `-1 && errno == EAGAIN`, full writes with a live reader return `-1 && errno == EAGAIN`, writer shutdown still yields `read() -> 0`, and per-endpoint `O_NONBLOCK` remains observable through `fcntl(F_GETFL/F_SETFL)` and shared across dup-family aliases on that endpoint
 - term-backed stdio now also exposes minimal status-flag state through `fcntl(F_GETFL/F_SETFL)`; `stdin` / `stdout` / `stderr` keep separate open-file-description state, while `/dev/tty` and `/dev/stderr` aliases inherit and share the selected source descriptor's `O_NONBLOCK` bit
 - `/dev/console` and `/dev/tty` currently share the same live-terminal selection rule: read opens prefer the active read-side terminal source, write opens prefer the active write-side terminal source, and both aliases share that source descriptor's observable status flags
 - when no live terminal fd remains in the table, `open("/dev/console", ...)`, `open("/dev/tty", ...)`, `stat("/dev/console", ...)`, and `stat("/dev/tty", ...)` fail with `ENOENT`
 - `dup(valid-fd) -> new-fd`, `dup2(old,new) -> new`, `fcntl(fd, F_DUPFD, min) -> lowest-available>=min`, `fcntl(fd, F_GETFD) -> {0|FD_CLOEXEC}`, `fcntl(fd, F_SETFD, flag) -> 0`, `fcntl(fd, F_GETFL) -> access-mode | status-flags`, `fcntl(fd, F_SETFL, flags) -> 0`, `fcntl(fd, F_SETFD/F_SETFL, invalid) -> -1 && errno == EINVAL`, `dup(-1) -> -1 && errno == EBADF`, `dup2(-1,new) -> -1 && errno == EBADF`, `fcntl(-1, F_DUPFD/F_GETFD/F_SETFD/F_GETFL/F_SETFL, ...) -> -1 && errno == EBADF`, `fcntl(fd, F_DUPFD, -1) -> -1 && errno == EINVAL`, `dup/full-table` style exhaustion returns `EMFILE`, dup-family-created descriptors always clear `FD_CLOEXEC` on the new fd, and duplicated descriptors share open-file status flags such as `O_APPEND` / `O_NONBLOCK` through the backend ctx
+- newlib `fcntl(fd, unsupported-cmd, ...)` now also has a pinned minimum bridge contract: it fails with `EINVAL` instead of silently falling through
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
+- newlib `_open()` now also has direct bridge smoke for flag translation: `O_NONBLOCK` remains observable through `fcntl(F_GETFL)`, `O_APPEND` appends at end-of-file on regular files, `O_RDWR` yields a read/write descriptor that stays readable and writable through the same fd, `O_CREAT|O_EXCL` fails with `EEXIST` on an existing path, and `O_RDONLY|O_CREAT` now creates a zero-length file without requiring write access
+- the exported C fs header surface now also smoke-uses the matching `CHARM_POSIX_O_EXCL` and `CHARM_POSIX_O_CREAT | CHARM_POSIX_O_RDONLY` flags, so the public macro layer stays aligned with the runtime bridge contract
+- the exported C fs header surface now also smoke-pins minimum bad-fd / argument-guard edges: `isatty(-1) -> EBADF`, `fstat(-1) -> EBADF`, `stat/fstat(..., nullptr) -> EINVAL`, null-path fs calls -> `EINVAL`, and `getcwd(nullptr, size)` / `getcwd(buf, 0)` -> `EINVAL`
+- the exported C fs header surface now also smoke-pins success-side errno preservation across representative path/cwd operations such as `getcwd`, `mkdir`, `stat`, `opendir`, `chdir`, `rename`, `unlink`, and `rmdir`
+- the exported C fs header surface now also smoke-covers stdio alias basics directly: `/dev/stdin` follows the current read-side terminal shape, `/dev/stdout` follows the redirected pipe shape, `/dev/stderr` stays terminal-shaped, and `close(-1)` still reports `EBADF`
+- the exported C fs header surface now also smoke-covers live terminal aliases directly: `/dev/tty` and `/dev/console` currently resolve to terminal-shaped descriptors for both read and write opens when live term fds exist
+- the exported C fs header surface now also smoke-pins path-level alias stats directly: `stat("/dev/stdin")`, `stat("/dev/stdout")`, `stat("/dev/stderr")`, `stat("/dev/tty")`, and `stat("/dev/console")` reflect the current live descriptor shape
+- the exported C fs header surface now also smoke-pins missing-path `ENOENT` edges directly across representative calls such as `open`, `unlink`, `rmdir`, `rename`, `chdir`, and `opendir`
+- the exported C fs header surface now also smoke-pins `stat("/missing") -> ENOENT`, `mkdir(existing-dir-or-file) -> EEXIST`, and path-level `stat("/dev/null") -> S_IFCHR`
+- the exported C fs header surface now also smoke-pins `rmdir(nonempty-dir) -> ENOTEMPTY` directly on the public C layer
+- the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
+- the exported C fs header surface now also smoke-covers path-shape errors directly: `open(dir, O_WRONLY) -> EISDIR`, and bad-parent paths such as `file/child` now consistently report `ENOTDIR` across `open/stat/mkdir/unlink/rmdir/rename`
+- the exported C fs header surface now also smoke-pins `CHARM_POSIX_O_RDWR` directly: one fd can `write -> lseek -> read` on the same regular file descriptor
+- the exported C fs header surface now also smoke-pins access-mode edges directly: `O_RDONLY` fds reject `write()` with `EBADF`, and `O_WRONLY` fds reject `read()` with `EBADF`
+- the exported C fs header surface now also smoke-pins `CHARM_POSIX_O_APPEND` against real append-at-end behavior on regular files, even after a manual `lseek(..., SEEK_SET)`
+- the exported C fs header surface now also smoke-covers the empty-path `ENOENT` contract across `open/stat/mkdir/unlink/rmdir/rename/chdir/opendir`, including both empty-`from` and empty-`to` rename edges
+- the exported C fs header surface now also smoke-pins `/dev/null` basics directly: read-side EOF, write-side byte-count success, `isatty()==0` without clobbering `errno`, `fstat()->S_IFCHR`, and `lseek()->ESPIPE`
+- newlib `/dev/null` is now smoke-pinned directly too: `open()` succeeds for read/write, `read()` returns EOF, `write()` reports full byte count, `fstat()` reports `S_IFCHR`, `isatty()` stays false without clobbering `errno`, and `lseek()` fails with `ESPIPE`
 - `open("/dev/stdin")` / `open("/dev/stdout")` / `open("/dev/stderr")` now alias the active stdio fd set, while `open("/dev/console", ...)` and `open("/dev/tty", ...)` alias a live terminal fd; `stat/fstat` on term-style descriptors stabilizes at `S_IFCHR`
 - `mkdir("/work") -> 0`, repeated `mkdir("/work") -> -1 && errno == EEXIST`, and `mkdir("/file") -> -1 && errno == EEXIST`
 - `unlink("/missing") -> -1 && errno == ENOENT`
 - `mkdir("/file/sub")`, `unlink("/file/sub")`, `rmdir("/file/sub")`, and `stat("/file/sub", ...)` now consistently fail with `ENOTDIR`
 - newlib path-facing probes now also confirm `access("/file/sub", F_OK) -> -1 && errno == ENOTDIR` on the same bad parent-path shape
 - newlib `access()` now also keeps `errno` unchanged on success and rejects invalid mode bits with `EINVAL`
+- newlib `stat()` / `chdir()` / `getcwd()` / `remove()` now also keep `errno` unchanged on success across the current bridge
+- newlib `open()` / `mkdir()` / `rename()` / `unlink()` / `rmdir()` now also keep `errno` unchanged on success across the current bridge
 - `rename("/missing", "/target") -> -1 && errno == ENOENT`, `rename("/file/sub", "/target") -> -1 && errno == ENOTDIR`, and `rename("/source", "/file/sub") -> -1 && errno == ENOTDIR`
-- `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `opendir(file)` fails with `ENOTDIR`, `opendir()` with the dir-handle pool exhausted fails with `EMFILE`, `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, and `readdir()` / `closedir()` on a null, invalid, or already-closed directory handle fail with `EINVAL`
+- `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `opendir(file)` fails with `ENOTDIR`, `opendir()` with the dir-handle pool exhausted fails with `EMFILE`, `opendir()` also fails with `ENOMEM` when the fixed dir-entry snapshot buffer overflows and with `ENAMETOOLONG` when a listed entry exceeds the exported dirent name buffer, `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, and `readdir()` / `closedir()` on a null, invalid, or already-closed directory handle fail with `EINVAL`
 - `chdir("/missing") -> -1 && errno == ENOENT`, `chdir("/file") -> -1 && errno == ENOTDIR`, and `chdir("/file/sub") -> -1 && errno == ENOTDIR`
 - newlib `remove()` now also has a pinned minimum path contract: `remove("/missing") -> ENOENT`, `remove("/file/sub") -> ENOTDIR`, and `remove("/nonempty-dir") -> ENOTEMPTY`
 
@@ -88,10 +121,12 @@
 - busybox direct-dispatch smoke now also validates `busybox ps`, `busybox sleep 2`, and `busybox kill {TERM|INT|KILL} <pid>`, so process applets are covered outside the shell wrapper path
 
 ## Isolated / Deferred Issues
-- no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
+- full `posix-qemu-demo.elf` / `posix-qemu-newlib-stdio.elf` link validation is currently blocked by an unrelated `Modules/io/net/net.socket.cppm:303` toolchain issue: under `arm-none-eabi` 15.2, `std::expected<net::Socket, util::Errc>` move construction fails during the `return accepted;` path
+- object-level `ninja` rebuilds for `posix_newlib_syscall_smoke.c.obj` remain usable, so POSIX/newlib smoke expansion can continue without waiting for the unrelated `net.socket` baseline to be repaired
 
 ## Toolchain Notes
 - shared singleton-style module state is safer when it lives in one module object rather than a class-scope `inline static`; `charm.system.clock` now keeps the active time-source binding in module storage so real-ELF hostcalls and test harness code observe the same bound clock under the current GCC `modules-ts` toolchain
+- when the current `arm-none-eabi` 15.2 baseline blocks full link through an unrelated module, prefer object-level `ninja` rebuilds (for example `posix_newlib_syscall_smoke.c.obj`) to keep POSIX/newlib smoke work moving
 - QEMU smoke RAMFS fixtures should stay proportional to the sample they carry; oversized per-test RAMFS instances can look like a logic hang on the emulated target even when the POSIX path itself is correct
 - `Examples/kernel/posix/qemu/run_qemu_ci.ps1` defaults to the full smoke contract; when validating partial targets such as `posix-qemu-newlib-stdio.elf`, pass `-RequireBusyboxPhase2:$false` so the runner only gates on the POSIX smoke marker
 - GCC `-fmodules-ts` 下的 `net` / `posix` 导入冲突解阻经验已记录到 `docs/system/posix_modules_ts_build_notes.md`

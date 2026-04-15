@@ -15,6 +15,7 @@ import usb.dsl;
 import device.desc;
 import device.types;
 import util.core;
+import util.error;
 
 export namespace usb::device {
     class DeviceDriver;
@@ -30,6 +31,7 @@ export namespace usb::device {
                                              const ::device::DeviceDesc& match,
                                              const char* name,
                                              util::u32 priority) noexcept {
+        (void)hook;
         ::device::Driver drv{};
         drv.name = name;
         drv.match = match;
@@ -38,12 +40,28 @@ export namespace usb::device {
             auto* h = static_cast<DeviceModelHook*>(dev.ctx);
             return h && h->driver != nullptr;
         };
+        drv.ops.try_probe = [](::device::Device& dev) noexcept -> util::Result<void> {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (h && h->driver != nullptr) {
+                return {};
+            }
+            return util::unexpected(util::Errc::bad_state);
+        };
         drv.ops.init = [](::device::Device& dev) noexcept -> bool {
             auto* h = static_cast<DeviceModelHook*>(dev.ctx);
             if (!h || !h->driver) return false;
             if (h->dev) h->dev->reset();
             if (h->start) h->start(*h->driver);
             return true;
+        };
+        drv.ops.try_init = [](::device::Device& dev) noexcept -> util::Result<void> {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            if (h->dev) h->dev->reset();
+            if (h->start) h->start(*h->driver);
+            return {};
         };
         drv.ops.shutdown = [](::device::Device& dev) noexcept {
             auto* h = static_cast<DeviceModelHook*>(dev.ctx);
@@ -57,11 +75,27 @@ export namespace usb::device {
             if (h->stop) h->stop(*h->driver);
             return true;
         };
+        drv.ops.try_suspend = [](::device::Device& dev) noexcept -> util::Result<void> {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            if (h->stop) h->stop(*h->driver);
+            return {};
+        };
         drv.ops.resume = [](::device::Device& dev) noexcept -> bool {
             auto* h = static_cast<DeviceModelHook*>(dev.ctx);
             if (!h || !h->driver) return false;
             if (h->start) h->start(*h->driver);
             return true;
+        };
+        drv.ops.try_resume = [](::device::Device& dev) noexcept -> util::Result<void> {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            if (h->start) h->start(*h->driver);
+            return {};
         };
         return drv;
     }

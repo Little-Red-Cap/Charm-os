@@ -32,50 +32,6 @@ namespace {
         return true;
     }
 
-    struct ListenerCtx {
-        net::SocketPoller<8>* poller{nullptr};
-        net::TcpListener* listener{nullptr};
-        net::TcpClient* accepted_client{nullptr};
-        net::SocketChannelBinding* accepted_binding{nullptr};
-        net::SocketWatch* accepted_watch{nullptr};
-        net::Endpoint peer{};
-        bool accepted{false};
-        bool failed{false};
-
-        static void on_event(void* ctx, io::Channel&, util::u32 events) noexcept {
-            auto* self = static_cast<ListenerCtx*>(ctx);
-            if (!self || !self->poller || !self->listener || !self->accepted_client
-                || !self->accepted_binding || !self->accepted_watch) {
-                return;
-            }
-            if ((events & (closed_event() | error_event())) != 0u) {
-                self->failed = true;
-                return;
-            }
-            if ((events & readable_event()) == 0u || self->accepted) {
-                return;
-            }
-
-            auto accepted = self->listener->accept(*self->accepted_client, &self->peer);
-            if (!accepted) {
-                if (accepted.error() == net::errc::would_block) {
-                    return;
-                }
-                self->failed = true;
-                return;
-            }
-
-            self->accepted_binding->bind(self->accepted_client->raw());
-            auto watch = self->poller->watch(self->accepted_client->raw(), self->accepted_binding->channel());
-            if (!watch) {
-                self->failed = true;
-                return;
-            }
-            *self->accepted_watch = watch.value();
-            self->accepted = true;
-        }
-    };
-
     struct ClientCtx {
         net::SocketPoller<8>* poller{nullptr};
         net::TcpClient* client{nullptr};
@@ -222,7 +178,6 @@ int main() {
     net::TcpClient client{};
     net::TcpClient server_side{};
 
-    net::SocketEventChannelBinding listener_binding{listener.raw()};
     net::SocketChannelBinding client_binding{client.raw()};
     net::SocketChannelBinding server_binding{server_side.raw()};
 
@@ -237,15 +192,8 @@ int main() {
         return 1;
     }
 
-    ListenerCtx listener_ctx{};
     ServerCtx server_ctx{};
     ClientCtx client_ctx{};
-
-    listener_ctx.poller = &socket_poller;
-    listener_ctx.listener = &listener;
-    listener_ctx.accepted_client = &server_side;
-    listener_ctx.accepted_binding = &server_binding;
-    listener_ctx.accepted_watch = &server_ctx.watch;
 
     server_ctx.poller = &socket_poller;
 
@@ -258,18 +206,20 @@ int main() {
     client_ctx.tx_len = 4;
 
     const util::u32 all_events = readable_event() | writable_event() | closed_event() | error_event();
+    net::SocketWatchDriver<8> server_accept_driver{socket_poller, server_binding, server_ctx.watch};
+    net::TcpSingleAcceptDriver<net::SocketWatchDriver<8>, 8> listener_driver{
+        reactor, socket_poller, listener, server_side, server_accept_driver};
 
-    auto listener_sub = reactor.subscribe(listener_binding.channel(), all_events, &ListenerCtx::on_event, &listener_ctx);
     auto server_sub = reactor.subscribe(server_binding.channel(), all_events, &ServerCtx::on_event, &server_ctx);
     auto client_sub = reactor.subscribe(client_binding.channel(), all_events, &ClientCtx::on_event, &client_ctx);
-    if (!listener_sub || !server_sub || !client_sub) {
+    if (!server_sub || !client_sub) {
         std::fputs("reactor subscribe failed\n", stderr);
         return 2;
     }
 
-    auto listener_watch = socket_poller.watch(listener.raw(), listener_binding.channel());
-    if (!listener_watch) {
-        std::fputs("reactor listener watch failed\n", stderr);
+    auto listener_started = listener_driver.start(all_events);
+    if (!listener_started) {
+        std::fputs("reactor listener driver start failed\n", stderr);
         return 3;
     }
 
@@ -294,12 +244,12 @@ int main() {
         (void)socket_poller.poll();
         (void)reactor.drain(8);
 
-        if (listener_ctx.failed || client_ctx.failed || server_ctx.failed) {
+        if (listener_driver.failed() || client_ctx.failed || server_ctx.failed) {
             std::fputs("reactor callback failed\n", stderr);
             return 7;
         }
 
-        done = listener_ctx.accepted
+        done = listener_driver.accepted()
             && client_ctx.sent_ping
             && client_ctx.received_pong
             && server_ctx.received_ping
@@ -311,7 +261,8 @@ int main() {
 
     reactor.unsubscribe(client_sub.value());
     reactor.unsubscribe(server_sub.value());
-    reactor.unsubscribe(listener_sub.value());
+    server_accept_driver.stop();
+    listener_driver.stop();
     socket_poller.clear();
 
     (void)client.close();

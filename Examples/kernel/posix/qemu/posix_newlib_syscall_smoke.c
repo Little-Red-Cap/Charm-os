@@ -12,6 +12,7 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     int stdout_fd = -1;
     int stderr_fd = -1;
     int tty_fd = -1;
+    int null_fd = -1;
     struct stat st;
 
     errno = 55;
@@ -25,52 +26,106 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (fstat(0, &st) != 0) return 95;
     if ((st.st_mode & S_IFMT) != S_IFCHR) return 96;
 
+    errno = 0;
+    if (fstat(0, (struct stat*)0) != -1) return 532;
+    if (errno != EINVAL) return 533;
+
     if (fstat(1, &st) != 0) return 97;
     if ((st.st_mode & S_IFMT) != S_IFIFO) return 98;
 
+    errno = 88;
     if (getpid() <= 0) return 99;
+    if (errno != 88) return 556;
+
+    errno = 0;
+    if (isatty(-1) != 0) return 125;
+    if (errno != EBADF) return 126;
 
     errno = 0;
     if (read(-1, &ch, 1) != -1) return 100;
     if (errno != EBADF) return 101;
 
+    errno = 0;
+    if (write(-1, "x", 1) != -1) return 102;
+    if (errno != EBADF) return 103;
+
+    errno = 0;
+    if (fstat(-1, &st) != -1) return 104;
+    if (errno != EBADF) return 105;
+
+    errno = 0;
+    if (close(-1) != -1) return 106;
+    if (errno != EBADF) return 107;
+
     stdin_fd = open("/dev/stdin", O_RDONLY, 0);
-    if (stdin_fd < 0) return 102;
-    if (isatty(stdin_fd) != 1) return 103;
-    if (fstat(stdin_fd, &st) != 0) return 104;
-    if ((st.st_mode & S_IFMT) != S_IFCHR) return 105;
-    if (close(stdin_fd) != 0) return 106;
+    if (stdin_fd < 0) return 108;
+    if (isatty(stdin_fd) != 1) return 109;
+    if (fstat(stdin_fd, &st) != 0) return 110;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 111;
+    errno = 89;
+    if (close(stdin_fd) != 0) return 112;
+    if (errno != 89) return 557;
 
     stdout_fd = open("/dev/stdout", O_WRONLY, 0);
-    if (stdout_fd < 0) return 107;
+    if (stdout_fd < 0) return 113;
     errno = 77;
-    if (isatty(stdout_fd) != 0) return 108;
-    if (errno != 77) return 109;
-    if (fstat(stdout_fd, &st) != 0) return 110;
-    if ((st.st_mode & S_IFMT) != S_IFIFO) return 111;
-    if (close(stdout_fd) != 0) return 112;
+    if (isatty(stdout_fd) != 0) return 114;
+    if (errno != 77) return 115;
+    if (fstat(stdout_fd, &st) != 0) return 116;
+    if ((st.st_mode & S_IFMT) != S_IFIFO) return 117;
+    if (close(stdout_fd) != 0) return 118;
 
     stderr_fd = open("/dev/stderr", O_WRONLY, 0);
-    if (stderr_fd < 0) return 113;
-    if (isatty(stderr_fd) != 1) return 114;
-    if (fstat(stderr_fd, &st) != 0) return 115;
-    if ((st.st_mode & S_IFMT) != S_IFCHR) return 116;
-    if (close(stderr_fd) != 0) return 117;
+    if (stderr_fd < 0) return 119;
+    if (isatty(stderr_fd) != 1) return 120;
+    if (fstat(stderr_fd, &st) != 0) return 121;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 122;
+    if (close(stderr_fd) != 0) return 123;
 
     tty_fd = open("/dev/tty", O_WRONLY, 0);
-    if (tty_fd < 0) return 118;
-    if (isatty(tty_fd) != 1) return 119;
-    if (fstat(tty_fd, &st) != 0) return 120;
-    if ((st.st_mode & S_IFMT) != S_IFCHR) return 121;
-    if (write(tty_fd, "tty", 3) != 3) return 122;
-    if (close(tty_fd) != 0) return 123;
+    if (tty_fd < 0) return 124;
+    if (isatty(tty_fd) != 1) return 125;
+    if (fstat(tty_fd, &st) != 0) return 126;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 127;
+    errno = 90;
+    if (write(tty_fd, "tty", 3) != 3) return 128;
+    if (errno != 90) return 558;
+    if (close(tty_fd) != 0) return 129;
 
-    return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 124;
+    errno = 91;
+    null_fd = open("/dev/null", O_RDONLY, 0);
+    if (null_fd < 0) return 633;
+    if (errno != 91) return 634;
+    errno = 92;
+    if (read(null_fd, &ch, 1) != 0) return 635;
+    if (errno != 92) return 636;
+    errno = 93;
+    if (isatty(null_fd) != 0) return 637;
+    if (errno != 93) return 638;
+    if (fstat(null_fd, &st) != 0) return 639;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 640;
+    errno = 0;
+    if (lseek(null_fd, 0, SEEK_SET) != (off_t)-1) return 641;
+    if (errno != ESPIPE) return 642;
+    if (close(null_fd) != 0) return 643;
+
+    errno = 94;
+    null_fd = open("/dev/null", O_WRONLY, 0);
+    if (null_fd < 0) return 644;
+    if (errno != 94) return 645;
+    errno = 95;
+    if (write(null_fd, "null", 4) != 4) return 646;
+    if (errno != 95) return 647;
+    if (close(null_fd) != 0) return 648;
+
+    return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 130;
 }
 
 int charm_posix_newlib_dup_entry(void) {
+    errno = 92;
     int dup_fd = dup(1);
     if (dup_fd < 0) return 161;
+    if (errno != 92) return 584;
     if (dup_fd == 1) return 162;
     if (write(dup_fd, "dup-", 4) != 4) return 163;
     if (close(dup_fd) != 0) return 164;
@@ -83,25 +138,32 @@ int charm_posix_newlib_dup_entry(void) {
 }
 
 int charm_posix_newlib_dup2_entry(void) {
+    errno = 93;
     if (dup2(1, 2) != 2) return 171;
+    if (errno != 93) return 585;
     if (write(2, "dup2-", 5) != 5) return 172;
 
     errno = 0;
     if (dup2(-1, 4) != -1) return 173;
     if (errno != EBADF) return 174;
 
+    errno = 94;
     if (dup2(2, 2) != 2) return 175;
+    if (errno != 94) return 586;
 
     return write(1, "newlib-dup2-ok\n", 15) == 15 ? 0 : 176;
 }
 
 int charm_posix_newlib_fcntl_entry(void) {
+    errno = 95;
     int dup_fd = fcntl(1, F_DUPFD, 3);
     int alias_fd = -1;
     int stdin_pipe[2] = {-1, -1};
+    int file_fd = -1;
     int flags = 0;
     struct stat st;
     if (dup_fd < 3) return 181;
+    if (errno != 95) return 587;
     if (write(dup_fd, "fcntl-", 6) != 6) return 182;
     if (close(dup_fd) != 0) return 183;
 
@@ -121,8 +183,12 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fcntl(1, F_DUPFD, -1) != -1) return 192;
     if (errno != EINVAL) return 193;
 
+    errno = 96;
     if (fcntl(1, F_GETFD) != 0) return 194;
+    if (errno != 96) return 588;
+    errno = 97;
     if (fcntl(1, F_SETFD, FD_CLOEXEC) != 0) return 195;
+    if (errno != 97) return 589;
     if (fcntl(1, F_GETFD) != FD_CLOEXEC) return 196;
 
     errno = 0;
@@ -210,12 +276,16 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fcntl(1, F_SETFD, 0) != 0) return 233;
     if (fcntl(1, F_GETFD) != 0) return 234;
 
+    errno = 98;
     flags = fcntl(1, F_GETFL);
     if (flags < 0) return 235;
+    if (errno != 98) return 590;
     if ((flags & O_ACCMODE) != O_WRONLY) return 236;
     if ((flags & O_NONBLOCK) != 0) return 237;
 
+    errno = 99;
     if (fcntl(1, F_SETFL, O_NONBLOCK) != 0) return 238;
+    if (errno != 99) return 591;
     flags = fcntl(1, F_GETFL);
     if ((flags & O_NONBLOCK) == 0) return 239;
 
@@ -233,6 +303,10 @@ int charm_posix_newlib_fcntl_entry(void) {
     errno = 0;
     if (fcntl(-1, F_GETFL) != -1) return 247;
     if (errno != EBADF) return 248;
+
+    errno = 0;
+    if (fcntl(1, 999) != -1) return 667;
+    if (errno != EINVAL) return 668;
 
     flags = fcntl(2, F_GETFL);
     if (flags < 0) return 249;
@@ -318,6 +392,35 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (stat("/dev/tty", &st) != -1) return 330;
     if (errno != ENOENT) return 331;
 
+    file_fd = open("/newlib-fcntl-file.txt", O_CREAT | O_TRUNC | O_RDWR, 0);
+    if (file_fd < 0) return 649;
+    if (write(file_fd, "ab", 2) != 2) return 650;
+    dup_fd = dup(file_fd);
+    if (dup_fd < 0) return 651;
+    errno = 96;
+    if (fcntl(dup_fd, F_SETFL, O_APPEND) != 0) return 652;
+    if (errno != 96) return 653;
+    errno = 97;
+    flags = fcntl(file_fd, F_GETFL);
+    if (flags < 0) return 654;
+    if (errno != 97) return 655;
+    if ((flags & O_ACCMODE) != O_RDWR) return 656;
+    if ((flags & O_APPEND) == 0) return 657;
+    if (lseek(file_fd, 0, SEEK_SET) != 0) return 658;
+    if (write(file_fd, "+", 1) != 1) return 659;
+    if (close(dup_fd) != 0) return 660;
+    if (close(file_fd) != 0) return 661;
+
+    file_fd = open("/newlib-fcntl-file.txt", O_RDONLY, 0);
+    if (file_fd < 0) return 662;
+    {
+        char file_buf[4] = {0};
+        if (read(file_fd, file_buf, 3) != 3) return 663;
+        if (memcmp(file_buf, "ab+", 3) != 0) return 664;
+    }
+    if (close(file_fd) != 0) return 665;
+    if (unlink("/newlib-fcntl-file.txt") != 0) return 666;
+
     return write(1, "newlib-fcntl-ok\n", 16) == 16 ? 0 : 294;
 }
 
@@ -330,7 +433,13 @@ int charm_posix_newlib_pipe_entry(void) {
     char ch = 0;
     char buf[8] = {0};
 
+    errno = 0;
+    if (pipe((int*)0) != -1) return 534;
+    if (errno != EINVAL) return 535;
+
+    errno = 100;
     if (pipe(fds) != 0) return 221;
+    if (errno != 100) return 592;
 
     flags = fcntl(fds[0], F_GETFL);
     if (flags < 0) return 222;
@@ -382,9 +491,20 @@ int charm_posix_newlib_pipe_entry(void) {
 }
 
 int charm_posix_newlib_kill_self_entry(void) {
-    if (write(1, "newlib-kill\n", 12) != 12) return 111;
-    (void)kill(getpid(), SIGTERM);
-    return 112;
+    int self = getpid();
+    if (self <= 0) return 111;
+
+    errno = 0;
+    if (kill(self, 1) != -1) return 112;
+    if (errno != EINVAL) return 113;
+
+    errno = 0;
+    if (kill(self + 4096, SIGTERM) != -1) return 114;
+    if (errno != ENOENT) return 115;
+
+    if (write(1, "newlib-kill\n", 12) != 12) return 116;
+    (void)kill(self, SIGTERM);
+    return 117;
 }
 
 int charm_posix_newlib_lseek_entry(void) {
@@ -392,33 +512,69 @@ int charm_posix_newlib_lseek_entry(void) {
     off_t end = lseek(0, 0, SEEK_END);
     if (end != 5) return 121;
     if (lseek(0, 0, SEEK_SET) != 0) return 122;
+    errno = 91;
     if (read(0, buf, 5) != 5) return 123;
+    if (errno != 91) return 559;
     if (memcmp(buf, "alpha", 5) != 0) return 124;
 
     errno = 0;
     if (lseek(1, 0, SEEK_SET) != (off_t)-1) return 125;
     if (errno != ESPIPE) return 126;
 
-    return write(1, "newlib-lseek-ok\n", 16) == 16 ? 0 : 127;
+    errno = 0;
+    if (lseek(-1, 0, SEEK_SET) != (off_t)-1) return 127;
+    if (errno != EBADF) return 128;
+
+    errno = 0;
+    if (lseek(0, 0, 99) != (off_t)-1) return 129;
+    if (errno != EINVAL) return 130;
+
+    return write(1, "newlib-lseek-ok\n", 16) == 16 ? 0 : 131;
 }
 
 int charm_posix_newlib_path_entry(void) {
     struct stat st;
-    char buf[6] = {0};
+    char buf[8] = {0};
+    errno = 61;
     int fd = open("/newlib-path.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 131;
+    if (errno != 61) return 550;
     if (write(fd, "bravo", 5) != 5) return 132;
     if (close(fd) != 0) return 133;
 
+    errno = 71;
     if (stat("/newlib-path.txt", &st) != 0) return 134;
+    if (errno != 71) return 542;
     if ((st.st_mode & S_IFMT) != S_IFREG) return 135;
     if (st.st_size != 5) return 136;
+
+    errno = 0;
+    if (stat("/newlib-path.txt", (struct stat*)0) != -1) return 530;
+    if (errno != EINVAL) return 531;
+
+    errno = 0;
+    if (open((const char*)0, O_RDONLY, 0) != -1) return 560;
+    if (errno != EINVAL) return 561;
+
+    errno = 0;
+    if (stat((const char*)0, &st) != -1) return 562;
+    if (errno != EINVAL) return 563;
+
+    errno = 0;
+    if (open("", O_RDONLY, 0) != -1) return 669;
+    if (errno != ENOENT) return 670;
+
+    errno = 0;
+    if (stat("", &st) != -1) return 671;
+    if (errno != ENOENT) return 672;
 
     errno = 77;
     if (access("/newlib-path.txt", F_OK) != 0) return 137;
     if (errno != 77) return 138;
     if (access("/newlib-path.txt", R_OK) != 0) return 138;
+    if (errno != 77) return 543;
     if (access("/newlib-path.txt", W_OK) != 0) return 139;
+    if (errno != 77) return 544;
     errno = 0;
     if (access("/newlib-path.txt", X_OK) != -1) return 140;
     if (errno != EACCES) return 141;
@@ -429,7 +585,21 @@ int charm_posix_newlib_path_entry(void) {
     if (access("/newlib-missing.txt", F_OK) != -1) return 142;
     if (errno != ENOENT) return 143;
 
+    errno = 0;
+    if (access((const char*)0, F_OK) != -1) return 564;
+    if (errno != EINVAL) return 565;
+
+    errno = 0;
+    if (access("", F_OK) != -1) return 673;
+    if (errno != ENOENT) return 674;
+
+    errno = 0;
+    if (open("/newlib-missing.txt", O_RDONLY, 0) != -1) return 536;
+    if (errno != ENOENT) return 537;
+
+    errno = 62;
     if (mkdir("/newlib-dir", 0) != 0) return 144;
+    if (errno != 62) return 551;
 
     errno = 0;
     if (mkdir("/newlib-dir", 0) != -1) return 522;
@@ -438,6 +608,18 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (mkdir("/newlib-path.txt", 0) != -1) return 524;
     if (errno != EEXIST) return 525;
+
+    errno = 0;
+    if (mkdir((const char*)0, 0) != -1) return 566;
+    if (errno != EINVAL) return 567;
+
+    errno = 0;
+    if (mkdir("", 0) != -1) return 675;
+    if (errno != ENOENT) return 676;
+
+    errno = 0;
+    if (open("/newlib-dir", O_WRONLY, 0) != -1) return 538;
+    if (errno != EISDIR) return 539;
 
     if (stat("/newlib-dir", &st) != 0) return 145;
     if ((st.st_mode & S_IFMT) != S_IFDIR) return 146;
@@ -451,6 +633,22 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (rmdir("/newlib-path.txt") != -1) return 151;
     if (errno != ENOTDIR) return 152;
+
+    errno = 0;
+    if (unlink((const char*)0) != -1) return 568;
+    if (errno != EINVAL) return 569;
+
+    errno = 0;
+    if (rmdir((const char*)0) != -1) return 570;
+    if (errno != EINVAL) return 571;
+
+    errno = 0;
+    if (unlink("") != -1) return 677;
+    if (errno != ENOENT) return 678;
+
+    errno = 0;
+    if (rmdir("") != -1) return 679;
+    if (errno != ENOENT) return 680;
 
     errno = 0;
     if (mkdir("/newlib-path.txt/sub", 0) != -1) return 506;
@@ -472,8 +670,14 @@ int charm_posix_newlib_path_entry(void) {
     if (access("/newlib-path.txt/sub", F_OK) != -1) return 514;
     if (errno != ENOTDIR) return 515;
 
+    errno = 0;
+    if (open("/newlib-path.txt/sub", O_RDONLY, 0) != -1) return 540;
+    if (errno != ENOTDIR) return 541;
+
+    errno = 63;
     fd = open("/newlib-dir/probe.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 153;
+    if (errno != 63) return 552;
     if (write(fd, "x", 1) != 1) return 154;
     if (close(fd) != 0) return 155;
 
@@ -490,11 +694,17 @@ int charm_posix_newlib_path_entry(void) {
     if (errno != ENOTEMPTY) return 521;
 
     errno = 0;
+    if (remove((const char*)0) != -1) return 572;
+    if (errno != EINVAL) return 573;
+
+    errno = 0;
     if (rmdir("/newlib-dir") != -1) return 156;
     if (errno != ENOTEMPTY) return 157;
 
     if (unlink("/newlib-dir/probe.txt") != 0) return 158;
+    errno = 66;
     if (rmdir("/newlib-dir") != 0) return 159;
+    if (errno != 66) return 555;
 
     errno = 0;
     if (stat("/newlib-dir", &st) != -1) return 160;
@@ -515,7 +725,25 @@ int charm_posix_newlib_path_entry(void) {
     if (rename("/newlib-path.txt", "/newlib-path.txt/sub") != -1) return 504;
     if (errno != ENOTDIR) return 505;
 
+    errno = 0;
+    if (rename((const char*)0, "/newlib-dir/from-null.txt") != -1) return 574;
+    if (errno != EINVAL) return 575;
+
+    errno = 0;
+    if (rename("/newlib-path.txt", (const char*)0) != -1) return 576;
+    if (errno != EINVAL) return 577;
+
+    errno = 0;
+    if (rename("", "/newlib-dir/from-empty.txt") != -1) return 681;
+    if (errno != ENOENT) return 682;
+
+    errno = 0;
+    if (rename("/newlib-path.txt", "") != -1) return 683;
+    if (errno != ENOENT) return 684;
+
+    errno = 64;
     if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 163;
+    if (errno != 64) return 553;
 
     errno = 0;
     if (stat("/newlib-path.txt", &st) != -1) return 164;
@@ -526,13 +754,77 @@ int charm_posix_newlib_path_entry(void) {
     if (st.st_size != 5) return 168;
     if (access("/newlib-renamed.txt", F_OK) != 0) return 169;
 
+    errno = 67;
+    fd = open("/newlib-renamed.txt", O_RDONLY | O_NONBLOCK, 0);
+    if (fd < 0) return 593;
+    if (errno != 67) return 594;
+    if ((fcntl(fd, F_GETFL) & O_NONBLOCK) == 0) return 595;
+    if (close(fd) != 0) return 596;
+
+    errno = 68;
+    fd = open("/newlib-renamed.txt", O_WRONLY | O_APPEND, 0);
+    if (fd < 0) return 597;
+    if (errno != 68) return 598;
+    if (write(fd, "++", 2) != 2) return 599;
+    if (close(fd) != 0) return 600;
+
+    if (stat("/newlib-renamed.txt", &st) != 0) return 601;
+    if (st.st_size != 7) return 602;
+
     fd = open("/newlib-renamed.txt", O_RDONLY, 0);
     if (fd < 0) return 170;
-    if (read(fd, buf, 5) != 5) return 171;
-    if (memcmp(buf, "bravo", 5) != 0) return 172;
+    if (read(fd, buf, 7) != 7) return 171;
+    if (memcmp(buf, "bravo++", 7) != 0) return 172;
     if (close(fd) != 0) return 173;
 
+    memset(buf, 0, sizeof(buf));
+    errno = 69;
+    fd = open("/newlib-rw.txt", O_CREAT | O_TRUNC | O_RDWR, 0);
+    if (fd < 0) return 603;
+    if (errno != 69) return 604;
+    if ((fcntl(fd, F_GETFL) & O_ACCMODE) != O_RDWR) return 605;
+    if (write(fd, "rw", 2) != 2) return 606;
+    if (lseek(fd, 0, SEEK_SET) != 0) return 607;
+    if (read(fd, buf, 2) != 2) return 608;
+    if (memcmp(buf, "rw", 2) != 0) return 609;
+    if (lseek(fd, 0, SEEK_END) != 2) return 610;
+    if (write(fd, "+", 1) != 1) return 611;
+    if (close(fd) != 0) return 612;
+    if (stat("/newlib-rw.txt", &st) != 0) return 613;
+    if (st.st_size != 3) return 614;
+
+    memset(buf, 0, sizeof(buf));
+    fd = open("/newlib-rw.txt", O_RDONLY, 0);
+    if (fd < 0) return 615;
+    if (read(fd, buf, 3) != 3) return 616;
+    if (memcmp(buf, "rw+", 3) != 0) return 617;
+    if (close(fd) != 0) return 618;
+    if (unlink("/newlib-rw.txt") != 0) return 619;
+
+    errno = 70;
+    fd = open("/newlib-excl.txt", O_CREAT | O_EXCL | O_WRONLY, 0);
+    if (fd < 0) return 620;
+    if (errno != 70) return 621;
+    if (close(fd) != 0) return 622;
+
+    errno = 0;
+    if (open("/newlib-excl.txt", O_CREAT | O_EXCL | O_WRONLY, 0) != -1) return 623;
+    if (errno != EEXIST) return 624;
+    if (unlink("/newlib-excl.txt") != 0) return 625;
+
+    errno = 71;
+    fd = open("/newlib-create-readonly.txt", O_RDONLY | O_CREAT, 0);
+    if (fd < 0) return 626;
+    if (errno != 71) return 627;
+    if ((fcntl(fd, F_GETFL) & O_ACCMODE) != O_RDONLY) return 628;
+    if (close(fd) != 0) return 629;
+    if (stat("/newlib-create-readonly.txt", &st) != 0) return 630;
+    if (st.st_size != 0) return 631;
+    if (unlink("/newlib-create-readonly.txt") != 0) return 632;
+
+    errno = 65;
     if (unlink("/newlib-renamed.txt") != 0) return 174;
+    if (errno != 65) return 554;
     errno = 0;
     if (stat("/newlib-renamed.txt", &st) != -1) return 175;
     if (errno != ENOENT) return 176;
@@ -549,14 +841,20 @@ int charm_posix_newlib_cwd_entry(void) {
     int fd = -1;
     struct stat st;
 
+    errno = 81;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 181;
+    if (errno != 81) return 545;
     if (strcmp(cwd, "/") != 0) return 182;
 
     if (mkdir("/newlib-cwd", 0) != 0) return 183;
     if (mkdir("/newlib-cwd/sub", 0) != 0) return 184;
 
+    errno = 82;
     if (chdir("/newlib-cwd") != 0) return 185;
+    if (errno != 82) return 546;
+    errno = 83;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 186;
+    if (errno != 83) return 547;
     if (strcmp(cwd, "/newlib-cwd") != 0) return 187;
 
     fd = open("child.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
@@ -583,6 +881,22 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 0;
     if (getcwd(small, sizeof(small)) != NULL) return 202;
     if (errno != ERANGE) return 203;
+
+    errno = 0;
+    if (chdir((const char*)0) != -1) return 578;
+    if (errno != EINVAL) return 579;
+
+    errno = 0;
+    if (chdir("") != -1) return 685;
+    if (errno != ENOENT) return 686;
+
+    errno = 0;
+    if (getcwd((char*)0, sizeof(cwd)) != NULL) return 580;
+    if (errno != EINVAL) return 581;
+
+    errno = 0;
+    if (getcwd(cwd, 0) != NULL) return 582;
+    if (errno != EINVAL) return 583;
 
     if (chdir("..") != 0) return 204;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 205;
@@ -628,10 +942,14 @@ int charm_posix_newlib_stdio_entry(void) {
     if (memcmp(buf, "echo\n", 5) != 0) return 161;
     if (fclose(fp) != 0) return 162;
 
+    errno = 91;
     if (remove("/newlib-stdio.txt") != 0) return 163;
+    if (errno != 91) return 548;
 
     if (mkdir("/newlib-stdio-dir", 0) != 0) return 164;
+    errno = 92;
     if (remove("/newlib-stdio-dir") != 0) return 165;
+    if (errno != 92) return 549;
 
     if (fputs("newlib-stdio-ok\n", stdout) == EOF) return 166;
     if (fflush(stdout) != 0) return 167;

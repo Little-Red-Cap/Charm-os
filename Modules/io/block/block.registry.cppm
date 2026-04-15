@@ -31,6 +31,11 @@ export namespace block {
         Device* dev{nullptr};
     };
 
+    enum class PublishState : util::u8 {
+        missing,
+        published,
+    };
+
     constexpr CapId cap_id(std::string_view sv) {
         CapId hash = 2166136261u;
         for (unsigned char c : sv) {
@@ -129,6 +134,22 @@ export namespace block {
         Device* open_device(CapId cap) noexcept {
             auto* ep = find_device(cap);
             return ep ? ep->dev : nullptr;
+        }
+
+        [[nodiscard]] PublishState publish_state(std::string_view name) const noexcept {
+            return find_device(name) ? PublishState::published : PublishState::missing;
+        }
+
+        [[nodiscard]] PublishState publish_state(CapId cap) const noexcept {
+            return find_device(cap) ? PublishState::published : PublishState::missing;
+        }
+
+        [[nodiscard]] bool published(std::string_view name) const noexcept {
+            return publish_state(name) == PublishState::published;
+        }
+
+        [[nodiscard]] bool published(CapId cap) const noexcept {
+            return publish_state(cap) == PublishState::published;
         }
 
         const DeviceEndpoint* find_device(std::string_view name) const noexcept {
@@ -264,6 +285,8 @@ export namespace block {
         DeviceDesc b{"block.flash0", cap_id("block.flash0")};
         if (!reg.register_device(a, dev_a)) return false;
         if (reg.register_device(a, dev_a)) return false;
+        if (reg.publish_state("block.sd0") != PublishState::published) return false;
+        if (!reg.published(a.cap)) return false;
         if (reg.find_device("block.sd0") == nullptr) return false;
         if (reg.open_device(a.cap) != &dev_a) return false;
         if (reg.replace_device(b, dev_b)) return false;
@@ -271,11 +294,14 @@ export namespace block {
         if (reg.open_device("block.sd0") != &dev_b) return false;
         if (reg.unregister_device("block.missing")) return false;
         if (!reg.unregister_device("block.sd0")) return false;
+        if (reg.publish_state("block.sd0") != PublishState::missing) return false;
+        if (reg.published(a.cap)) return false;
         if (reg.find_device("block.sd0") != nullptr) return false;
         if (reg.open_device(a.cap) != nullptr) return false;
         if (reg.size() != 0) return false;
         if (!reg.register_device(a, dev_a)) return false;
         if (!reg.unregister_device(a.cap)) return false;
+        if (reg.publish_state(a.cap) != PublishState::missing) return false;
         if (reg.open_device("block.sd0") != nullptr) return false;
         util::usize count = 0;
         reg.list_devices([](void* ctx, const DeviceEndpoint&) noexcept {

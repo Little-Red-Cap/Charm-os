@@ -119,6 +119,18 @@ namespace examples::usb::support {
             return binding.exported();
         }
 
+        [[nodiscard]] auto publish_state() const noexcept {
+            return binding.publish_state();
+        }
+
+        [[nodiscard]] bool published() const noexcept {
+            return binding.published();
+        }
+
+        [[nodiscard]] auto export_state() const noexcept {
+            return binding.export_state();
+        }
+
         [[nodiscard]] bool attached() const noexcept {
             return binding.attached();
         }
@@ -133,13 +145,49 @@ namespace examples::usb::support {
         }
 
         template <typename RuntimeManagerT>
+        auto try_remove_from(RuntimeManagerT& runtime) noexcept -> decltype(runtime.try_remove(binding)) {
+            return runtime.try_remove(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        auto try_unexport_from(RuntimeManagerT& runtime) noexcept -> decltype(runtime.try_unexport(binding)) {
+            return runtime.try_unexport(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        auto try_forget_from(RuntimeManagerT& runtime) noexcept -> decltype(runtime.try_forget(binding)) {
+            return runtime.try_forget(binding);
+        }
+
+        template <typename RuntimeManagerT>
         [[nodiscard]] bool enumerated_in(const RuntimeManagerT& runtime) const noexcept {
             return runtime.enumerated(binding);
         }
 
         template <typename RuntimeManagerT>
+        [[nodiscard]] auto state_in(const RuntimeManagerT& runtime) const noexcept
+            -> decltype(runtime.state(binding)) {
+            return runtime.state(binding);
+        }
+
+        template <typename RuntimeManagerT>
         bool remove_from(RuntimeManagerT& runtime) noexcept {
             return runtime.remove(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        bool unexport_from(RuntimeManagerT& runtime) noexcept {
+            return runtime.unexport(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        bool forget_from(RuntimeManagerT& runtime) noexcept {
+            return runtime.forget(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        auto try_rediscover_in(RuntimeManagerT& runtime) noexcept -> decltype(runtime.try_rediscover(binding)) {
+            return runtime.try_rediscover(binding);
         }
 
         template <typename RuntimeManagerT>

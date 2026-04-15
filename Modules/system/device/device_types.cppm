@@ -5,6 +5,7 @@ module;
 export module device.types;
 
 import util.core;
+import util.error;
 import device.desc;
 export namespace device {
     struct Device;
@@ -29,6 +30,10 @@ export namespace device {
         bool (*suspend)(Device& dev) noexcept { nullptr };
         bool (*resume)(Device& dev) noexcept { nullptr };
         void (*on_event)(Device& dev, DeviceEvent ev) noexcept { nullptr };
+        util::Result<void> (*try_probe)(Device& dev) noexcept { nullptr };
+        util::Result<void> (*try_init)(Device& dev) noexcept { nullptr };
+        util::Result<void> (*try_suspend)(Device& dev) noexcept { nullptr };
+        util::Result<void> (*try_resume)(Device& dev) noexcept { nullptr };
     };
 
     struct Driver {

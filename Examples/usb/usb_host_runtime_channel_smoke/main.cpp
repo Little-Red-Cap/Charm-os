@@ -10,30 +10,14 @@ import usb.host.runtime_channel;
 import usb.host.runtime_manager;
 import util.core;
 
+#include "../support/usb_host_runtime_assert_support.hpp"
 #include "../support/usb_host_runtime_channel_support.hpp"
 
 namespace {
     using examples::usb::support::CdcRuntimeHarness;
-
-    bool expect(bool cond, const char* message) {
-        if (!cond) {
-            std::fprintf(stderr, "[ERR] %s\n", message);
-            return false;
-        }
-        return true;
-    }
-
-    bool expect_error(const io::result& r, io::errc want, const char* message) {
-        if (r.error() != want) {
-            std::fprintf(stderr,
-                         "[ERR] %s err=%d want=%d\n",
-                         message,
-                         static_cast<int>(r.error()),
-                         static_cast<int>(want));
-            return false;
-        }
-        return true;
-    }
+    using examples::usb::support::expect;
+    using examples::usb::support::expect_error;
+    using examples::usb::support::expect_ok;
 }
 
 int main() {
@@ -50,11 +34,7 @@ int main() {
         0x0006
     };
 
-    auto add_r = cdc.add_to(runtime);
-    if (!add_r) {
-        std::fprintf(stderr,
-                     "[ERR] runtime manager add_exported failed err=%d\n",
-                     static_cast<int>(add_r.error()));
+    if (!expect_ok(cdc.add_to(runtime), "runtime manager add_exported failed")) {
         return 1;
     }
 
@@ -79,7 +59,7 @@ int main() {
     if (!expect_error(stable->write(write_buf), io::errc::noent, "detached slot should write as noent")) return 1;
     if (!expect_error(stable->flush(), io::errc::noent, "detached slot should flush as noent")) return 1;
 
-    if (!expect(runtime.scan(), "runtime manager scan failed")) {
+    if (!expect_ok(runtime.try_scan(), "runtime manager scan failed")) {
         return 1;
     }
     if (!expect(cdc.enumerated_in(runtime),
@@ -138,8 +118,8 @@ int main() {
     if (!expect(static_cast<bool>(flush_r), "attached slot should flush successfully")) return 1;
     if (!expect(cdc.backend.flushed, "backend flush callback was not observed")) return 1;
 
-    if (!expect(cdc.remove_from(runtime),
-                "runtime remove did not detach the CDC slot")) {
+    if (!expect_ok(cdc.try_remove_from(runtime),
+                   "runtime remove did not detach the CDC slot")) {
         return 1;
     }
     if (!expect(!cdc.attached(), "CDC slot should be detached after remove")) return 1;

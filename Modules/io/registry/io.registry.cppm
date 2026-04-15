@@ -52,6 +52,11 @@ export namespace io {
         Reactor* reactor{nullptr};
     };
 
+    enum class PublishState : util::u8 {
+        missing,
+        published,
+    };
+
     constexpr CapId cap_id(std::string_view sv) {
         CapId hash = 2166136261u;
         for (unsigned char c : sv) {
@@ -152,6 +157,22 @@ export namespace io {
         Channel* open_channel(CapId cap) noexcept {
             auto* ep = find_channel(cap);
             return ep ? ep->ch : nullptr;
+        }
+
+        [[nodiscard]] PublishState publish_state(std::string_view name) const noexcept {
+            return find_channel(name) ? PublishState::published : PublishState::missing;
+        }
+
+        [[nodiscard]] PublishState publish_state(CapId cap) const noexcept {
+            return find_channel(cap) ? PublishState::published : PublishState::missing;
+        }
+
+        [[nodiscard]] bool published(std::string_view name) const noexcept {
+            return publish_state(name) == PublishState::published;
+        }
+
+        [[nodiscard]] bool published(CapId cap) const noexcept {
+            return publish_state(cap) == PublishState::published;
         }
 
         const ChannelEndpoint* find_channel(std::string_view name) const noexcept {
@@ -287,6 +308,8 @@ export namespace io {
         EndpointDesc b{"io.uart1", cap_id("io.uart1"), EndpointKind::channel, EndpointCaps::readable};
         if (!reg.register_channel(a, ch_a)) return false;
         if (reg.register_channel(a, ch_a)) return false;
+        if (reg.publish_state("io.console0") != PublishState::published) return false;
+        if (!reg.published(a.cap)) return false;
         if (reg.find_channel("io.console0") == nullptr) return false;
         if (reg.open_channel(a.cap) != &ch_a) return false;
         if (reg.replace_channel(b, ch_b)) return false;
@@ -294,11 +317,14 @@ export namespace io {
         if (reg.open_channel("io.console0") != &ch_b) return false;
         if (reg.unregister_channel("io.missing")) return false;
         if (!reg.unregister_channel("io.console0")) return false;
+        if (reg.publish_state("io.console0") != PublishState::missing) return false;
+        if (reg.published(a.cap)) return false;
         if (reg.find_channel("io.console0") != nullptr) return false;
         if (reg.open_channel(a.cap) != nullptr) return false;
         if (reg.size() != 0) return false;
         if (!reg.register_channel(a, ch_a)) return false;
         if (!reg.unregister_channel(a.cap)) return false;
+        if (reg.publish_state(a.cap) != PublishState::missing) return false;
         if (reg.open_channel("io.console0") != nullptr) return false;
         util::usize count = 0;
         reg.list_channels([](void* ctx, const ChannelEndpoint&) noexcept {

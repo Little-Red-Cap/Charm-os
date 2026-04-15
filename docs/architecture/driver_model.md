@@ -21,6 +21,17 @@ Charm 的驱动模型不是“`device::Registry` 一统天下”，而是：
 - 运行期枚举设备：走 `device::Bus / device::Driver / device::Registry`
 - 但最终对系统与用户暴露时，仍应回到统一 capability / registry 语言
 
+### 1.1 快速判定表
+
+| 对象 | 典型例子 | 归属平面 | 判断原因 | 推荐对外形态 |
+| --- | --- | --- | --- | --- |
+| 片上控制器 | UART / SPI / I2C / Timer / GPIO | 静态 capability 平面 | 板级已知、顺序已知、依赖已知 | `hal.*` capability |
+| 板级固定设备 | `block.sd0` / `block.flash0` / `io.console0` | 静态 capability 平面 | 不依赖运行期枚举，适合拓扑装配 | registry 中的稳定 capability |
+| 运行期发现子设备 | USB Host 枚举出的 MSC / CDC / NIC | 动态 discovery 平面 | attach / detach 是对象本体的一部分 | manager 或稳定槽位 capability |
+| USB Device controller | DCD / EP0 / device controller | 静态 capability 平面 | 控制器存在性由板级确定 | `hal.*` 或 controller binding |
+| USB Device class lifecycle | CDC ACM / MSC function | 借用动态语义，但不改变控制器归属 | class 生命周期更像 driver hook | class adapter / service capability |
+| 热插拔短生命周期 endpoint | 外部串口、U 盘、临时逻辑端点 | 动态 discovery 平面 | 生命周期不稳定 | 稳定槽位或长期存在 service |
+
 ## 2. 为什么不是单模型
 
 Charm 当前已经同时存在两条气质不同的主线。
@@ -321,6 +332,15 @@ USB Device 不能简单地整体归入动态平面。
 - `open_*`
 - `unregister_*`
 
+当前稳定槽位导出也已具备一层最小包装：
+
+- `io::ChannelSlotExport::unexport()`
+- `block::DeviceSlotExport::unexport()`
+- `usb::host::RuntimeManager::try_unexport(binding)`
+- `usb::host::RuntimeManager::try_forget(binding)`
+
+它们会先把槽位 `detach()`，再把稳定 capability 从 registry 中移除。
+
 但还没有：
 
 - `remove_*`
@@ -402,6 +422,77 @@ USB Device 不能简单地整体归入动态平面。
 - 把每个热插拔子设备都直接注册成新的短命 endpoint
 - 在没有 revoke 语义的情况下，把 raw device 指针长期暴露给外部
 
+因此当前更准确的边界是：
+
+> **仓库已经有“最小 unexport”能力，但还没有“完整 revoke / lease / 广播失效”能力。**
+
+### 5.6 当前推荐生命周期动词
+
+为了避免不同层各说各话，当前建议把几个动作明确区分：
+
+- `remove`
+  运行期设备从 `device::Registry` 中移除，并触发 runtime driver 的 `remove`/`shutdown`
+  路径；对稳定槽位导出来说，这通常意味着 capability 仍存在，但内部已 `detach`
+- `unexport`
+  稳定 capability 从 `io.registry` / `block.registry` 中撤下；旧槽位指针如果仍被外部持有，
+  应继续通过 `noent` 表示“对象已失活”
+- `forget`
+  由 manager 级别把“runtime device 移除 + capability 撤下 + bus record 忘掉”组合起来，
+  用于整条 runtime glue 的完整退出或 teardown
+
+当前代码里，对 USB Host runtime glue 来说，这几个入口已经分别有了最小落点：
+
+- `RuntimeManager::try_remove(binding)`
+- `RuntimeManager::try_unexport(binding)`
+- `RuntimeManager::try_forget(binding)`
+
+但这仍然只是最小生命周期语言，还不是完整 revoke 模型。
+
+### 5.7 当前状态语言：published 与 live 要分开
+
+在当前实现里，需要把两个问题分开问：
+
+1. capability 还在不在 registry 里？
+2. 就算还在，它当前是不是 live 的？
+
+`io.registry` / `block.registry` 目前只能回答第一个问题。
+
+也就是：
+
+- `open_*` / `find_*` 只表示 capability 是否已发布
+- 它们不直接表达“底层目标是否仍 attached”
+- 现在这一层还补上了显式 `PublishState::{missing, published}` 查询，
+  用来把“已发布视图”从隐式 `find_* != nullptr` 提升为代码契约
+- 这层查询也可以继续由 runtime binding / manager 往上转发，
+  让用户在更高层直接问“这个 capability 还在不在”
+- 如果 manager 需要提供更易消费的高层查询，推荐返回一个组合快照，
+  把 `tracked / enumerated / publish_state / export_state` 放在一起，
+  但不要把 `published` 与 `live` 折叠成单一魔法状态值
+
+稳定槽位导出现在补了一层显式状态：
+
+- `io::ExportState::{missing, detached, attached}`
+- `block::ExportState::{missing, detached, attached}`
+
+推荐理解为：
+
+- `missing`
+  capability 已不在 registry 中，或者从未导出成功
+- `detached`
+  capability 仍在 registry 中，但稳定槽位当前没有 live target
+- `attached`
+  capability 已发布，且稳定槽位当前有 live target
+
+这层状态语言的意义是：
+
+> **registry 负责“是否已发布”，stable slot export 负责“是否 live”。**
+
+这让当前模型至少能清楚地区分：
+
+- 已撤下
+- 仍可发现但暂时失活
+- 已恢复可用
+
 ## 6. 双平面如何收口
 
 双平面不能变成“两套货币体系”。
@@ -429,6 +520,33 @@ USB Device 不能简单地整体归入动态平面。
 4. 释放后调用方如何感知失效？
 
 这些问题不回答清楚，双平面就会退化成两个互不相通的子系统。
+
+### 6.3 用户侧应该依赖什么
+
+双平面是框架内部的实现与编排语言，不应原样泄漏给普通调用方。
+
+默认规则：
+
+- 用户代码优先依赖稳定 capability name、registry handle 或长期存在的 service facade
+- 除 bringup / platform / runtime glue 外，业务代码不应把 `BoardCaps` 当成日常依赖入口
+- 除 discovery 平面内部外，用户代码不应直接围绕 `device::Bus` / `device::Driver` / `DeviceDesc` 编程
+- 如果调用方需要感知 attach / detach，也应优先感知“稳定 capability 的 live state”或 manager 事件，而不是裸露的 discovered device 指针
+
+可以把它理解成：
+
+```text
+框架内部可以复杂
+用户侧接口必须简单、稳定、低心智负担
+```
+
+如果最终调用方式让用户必须理解：
+
+- `match_score`
+- `probe/init/remove`
+- `BoardCaps`
+- controller handle / runtime ctx
+
+那就说明架构边界还没有真正收口完成。
 
 ## 7. 各层职责边界
 
@@ -466,11 +584,31 @@ USB Device 不能简单地整体归入动态平面。
 
 ## 8. 错误模型与契约要求
 
-当前 `device::*` 仍以 `bool` 风格为主。
+当前 `device::*` 仍没有完全收敛成统一错误模型。
+
+虽然 `device::Registry` / `device::System` / `usb::host::RuntimeManager`
+已经开始补 `util::Result<void>` 风格的 `try_add_*` / `try_add(...)` 入口，
+并且 `usb::host::SingleDeviceRuntimeBus` / `DeviceListRuntimeBus`
+以及对应 `RuntimeManager` 生命周期也已经开始补
+`try_enumerate / try_scan / try_remove / try_rediscover`，
+`device::Registry` / `device::System` 也已经开始补
+`try_dispatch / try_match_detected / try_suspend_all / try_resume_all` 这类包装层，
+`device::Bus` / `usb::host::HostBus` 这类运行时总线桥接点
+也已经开始补可选的 `try_enumerate` callback，
+使 `BusManager::try_enumerate_all()` 可以优先保留底层错误；
+`DriverOps` / `RuntimeDriverHook` 也已经开始补可选的
+`try_probe / try_init / try_suspend / try_resume`，
+使 `Registry::try_dispatch()` 可以优先保留更精确的驱动错误；
+其中 `device::make_runtime_driver(...)` 与
+`usb::device::make_device_driver(...)` 这两条主要驱动适配入口
+都已经接上了这套兼容通道；
+但兼容口里的 `enumerate` 与旧 `bool` hook 仍然保留，
+大多数现有调用点也仍在走这些兼容入口。
 
 这意味着：
 
-- 它暂时更像运行期子系统草案
+- 它正在向统一错误语义收敛
+- 但它暂时仍更像运行期子系统草案
 - 还不适合作为全局唯一驱动模型
 
 后续如需增强，应优先收敛到：
@@ -489,6 +627,7 @@ USB Device 不能简单地整体归入动态平面。
 - 用 `device::Registry` 替代 `init.graph`
 - 让用户直接面向复杂 driver lifecycle 编程
 - 为了统一而牺牲 MCU bringup 的确定性
+- 让样板迁移反过来主导核心架构决策
 
 ## 10. 推荐演进路径
 
@@ -513,6 +652,34 @@ USB Device 不能简单地整体归入动态平面。
 
 - 再决定 `io/driver` 与 `io/service` 的目录命名是否需要进一步收敛
 - 再决定是否为 discovery 平面增加 plan / observe / trace 支撑
+
+### 10.1 近期优先级（架构主线）
+
+如果只看当前最值得推进的主线，优先级建议是：
+
+1. 先补 runtime capability export / revoke 契约
+
+- 明确 `io.registry` / `block.registry` 对动态导出的进入、退出、失效语义
+- 把“稳定槽位 + 内部存活位”从样板经验升级为正式推荐路径
+
+2. 再冻结动态导出命名规则
+
+- 明确热插拔对象何时使用稳定 capability name
+- 明确 generation / alias / slot name 与用户可见名字的关系
+
+3. 继续把 `system/device/*` 约束为 discovery 平面
+
+- 文档与代码都避免把静态 controller 再塞回 `device::*`
+- 让 `device::*` 的职责更像 runtime 子系统，而不是总架构入口
+
+4. 最后再讨论命名和目录收敛
+
+- 例如 `io/driver` 与 `io/service` 是否需要进一步整理
+- 例如折叠式 binding 是否值得拆成更清晰的 `ControllerBinding + ServiceAdapter`
+
+执行原则也需要写死：
+
+> **核心契约先行，示例用于展示和验收，不反过来主导架构。**
 
 ## 11. 当前结论
 

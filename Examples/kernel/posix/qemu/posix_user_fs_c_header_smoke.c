@@ -17,8 +17,16 @@ int charm_posix_c_fs_header_entry(void) {
     if (err == 0) return 301;
     if (charm_posix_getpid() <= 0) return 302;
 
+    *err = 50;
     if (charm_posix_getcwd(cwd, sizeof(cwd)) != cwd) return 303;
+    if (*err != 50) return 439;
     if (strcmp(cwd, "/") != 0) return 304;
+    *err = 0;
+    if (charm_posix_getcwd(0, sizeof(cwd)) != 0) return 417;
+    if (*err != CHARM_POSIX_EINVAL) return 418;
+    *err = 0;
+    if (charm_posix_getcwd(cwd, 0) != 0) return 419;
+    if (*err != CHARM_POSIX_EINVAL) return 420;
 
     *err = 41;
     if (charm_posix_isatty(1) != 0) return 305;
@@ -26,13 +34,236 @@ int charm_posix_c_fs_header_entry(void) {
 
     if (charm_posix_fstat(1, &st) != 0) return 307;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFIFO) return 308;
+    *err = 49;
+    if (charm_posix_isatty(-1) != 0) return 405;
+    if (*err != CHARM_POSIX_EBADF) return 406;
+    *err = 0;
+    if (charm_posix_fstat(-1, &st) != -1) return 407;
+    if (*err != CHARM_POSIX_EBADF) return 408;
+    *err = 0;
+    if (charm_posix_fstat(1, 0) != -1) return 409;
+    if (*err != CHARM_POSIX_EINVAL) return 410;
+    *err = 0;
+    if (charm_posix_stat("/", 0) != -1) return 411;
+    if (*err != CHARM_POSIX_EINVAL) return 412;
+    *err = 0;
+    if (charm_posix_lseek(-1, 0, CHARM_POSIX_SEEK_SET) != -1) return 413;
+    if (*err != CHARM_POSIX_EBADF) return 414;
+    *err = 0;
+    if (charm_posix_close(-1) != -1) return 467;
+    if (*err != CHARM_POSIX_EBADF) return 468;
+    *err = 0;
+    if (charm_posix_open(0, CHARM_POSIX_O_RDONLY, 0) != -1) return 421;
+    if (*err != CHARM_POSIX_EINVAL) return 422;
+    *err = 0;
+    if (charm_posix_open("/missing", CHARM_POSIX_O_RDONLY, 0) != -1) return 549;
+    if (*err != CHARM_POSIX_ENOENT) return 550;
+    *err = 0;
+    if (charm_posix_stat("/missing", &st) != -1) return 563;
+    if (*err != CHARM_POSIX_ENOENT) return 564;
+    *err = 0;
+    if (charm_posix_stat(0, &st) != -1) return 423;
+    if (*err != CHARM_POSIX_EINVAL) return 424;
+    *err = 0;
+    if (charm_posix_unlink("/missing") != -1) return 551;
+    if (*err != CHARM_POSIX_ENOENT) return 552;
+    *err = 0;
+    if (charm_posix_rmdir("/missing") != -1) return 553;
+    if (*err != CHARM_POSIX_ENOENT) return 554;
+    *err = 0;
+    if (charm_posix_rename("/missing", "/missing-target") != -1) return 555;
+    if (*err != CHARM_POSIX_ENOENT) return 556;
+    *err = 0;
+    if (charm_posix_chdir("/missing") != -1) return 557;
+    if (*err != CHARM_POSIX_ENOENT) return 558;
+    *err = 0;
+    if (charm_posix_opendir("/missing") != 0) return 559;
+    if (*err != CHARM_POSIX_ENOENT) return 560;
+    *err = 0;
+    if (charm_posix_mkdir(0) != -1) return 425;
+    if (*err != CHARM_POSIX_EINVAL) return 426;
+    *err = 0;
+    if (charm_posix_unlink(0) != -1) return 427;
+    if (*err != CHARM_POSIX_EINVAL) return 428;
+    *err = 0;
+    if (charm_posix_rmdir(0) != -1) return 429;
+    if (*err != CHARM_POSIX_EINVAL) return 430;
+    *err = 0;
+    if (charm_posix_chdir(0) != -1) return 431;
+    if (*err != CHARM_POSIX_EINVAL) return 432;
+    *err = 0;
+    if (charm_posix_opendir(0) != 0) return 433;
+    if (*err != CHARM_POSIX_EINVAL) return 434;
+    *err = 0;
+    if (charm_posix_rename(0, "/null-from") != -1) return 435;
+    if (*err != CHARM_POSIX_EINVAL) return 436;
 
+    *err = 44;
+    fd = charm_posix_open("/dev/null", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 369;
+    if (*err != 44) return 370;
+    *err = 82;
+    if (charm_posix_stat("/dev/null", &st) != 0) return 565;
+    if (*err != 82) return 566;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 567;
+    *err = 45;
+    if (charm_posix_read(fd, buf, 1) != 0) return 371;
+    if (*err != 45) return 372;
+    *err = 46;
+    if (charm_posix_isatty(fd) != 0) return 373;
+    if (*err != 46) return 374;
+    if (charm_posix_fstat(fd, &st) != 0) return 375;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 376;
+    *err = 0;
+    if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_SET) != -1) return 383;
+    if (*err != CHARM_POSIX_ESPIPE) return 384;
+    if (charm_posix_close(fd) != 0) return 377;
+
+    *err = 47;
+    fd = charm_posix_open("/dev/null", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 378;
+    if (*err != 47) return 379;
+    *err = 48;
+    if (charm_posix_write(fd, "z", 1) != 1) return 380;
+    if (*err != 48) return 381;
+    if (charm_posix_close(fd) != 0) return 382;
+    *err = 62;
+    fd = charm_posix_open("/dev/stdin", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 469;
+    if (*err != 62) return 470;
+    if (charm_posix_isatty(fd) != 1) return 471;
+    if (charm_posix_fstat(fd, &st) != 0) return 472;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 473;
+    *err = 63;
+    if (charm_posix_close(fd) != 0) return 474;
+    if (*err != 63) return 475;
+
+    *err = 64;
+    fd = charm_posix_open("/dev/stdout", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 476;
+    if (*err != 64) return 477;
+    *err = 65;
+    if (charm_posix_isatty(fd) != 0) return 478;
+    if (*err != 65) return 479;
+    if (charm_posix_fstat(fd, &st) != 0) return 480;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFIFO) return 481;
+    *err = 66;
+    if (charm_posix_close(fd) != 0) return 482;
+    if (*err != 66) return 483;
+
+    *err = 67;
+    fd = charm_posix_open("/dev/stderr", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 484;
+    if (*err != 67) return 485;
+    if (charm_posix_isatty(fd) != 1) return 486;
+    if (charm_posix_fstat(fd, &st) != 0) return 487;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 488;
+    *err = 68;
+    if (charm_posix_close(fd) != 0) return 489;
+    if (*err != 68) return 490;
+
+    *err = 69;
+    fd = charm_posix_open("/dev/tty", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 491;
+    if (*err != 69) return 492;
+    if (charm_posix_isatty(fd) != 1) return 493;
+    if (charm_posix_fstat(fd, &st) != 0) return 494;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 495;
+    *err = 70;
+    if (charm_posix_close(fd) != 0) return 496;
+    if (*err != 70) return 497;
+
+    *err = 71;
+    fd = charm_posix_open("/dev/tty", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 498;
+    if (*err != 71) return 499;
+    if (charm_posix_isatty(fd) != 1) return 500;
+    if (charm_posix_fstat(fd, &st) != 0) return 501;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 502;
+    *err = 72;
+    if (charm_posix_close(fd) != 0) return 503;
+    if (*err != 72) return 504;
+
+    *err = 73;
+    fd = charm_posix_open("/dev/console", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 505;
+    if (*err != 73) return 506;
+    if (charm_posix_isatty(fd) != 1) return 507;
+    if (charm_posix_fstat(fd, &st) != 0) return 508;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 509;
+    *err = 74;
+    if (charm_posix_close(fd) != 0) return 510;
+    if (*err != 74) return 511;
+
+    *err = 75;
+    fd = charm_posix_open("/dev/console", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 512;
+    if (*err != 75) return 513;
+    if (charm_posix_isatty(fd) != 1) return 514;
+    if (charm_posix_fstat(fd, &st) != 0) return 515;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 516;
+    *err = 76;
+    if (charm_posix_close(fd) != 0) return 517;
+    if (*err != 76) return 518;
+
+    *err = 77;
+    if (charm_posix_stat("/dev/stdin", &st) != 0) return 519;
+    if (*err != 77) return 520;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 521;
+    *err = 78;
+    if (charm_posix_stat("/dev/stdout", &st) != 0) return 522;
+    if (*err != 78) return 523;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFIFO) return 524;
+    *err = 79;
+    if (charm_posix_stat("/dev/stderr", &st) != 0) return 525;
+    if (*err != 79) return 526;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 527;
+    *err = 80;
+    if (charm_posix_stat("/dev/tty", &st) != 0) return 528;
+    if (*err != 80) return 529;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 530;
+    *err = 81;
+    if (charm_posix_stat("/dev/console", &st) != 0) return 531;
+    if (*err != 81) return 532;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 533;
+
+    *err = 51;
     if (charm_posix_mkdir("/cfs") != 0) return 309;
+    if (*err != 51) return 440;
+    *err = 52;
     if (charm_posix_stat("/cfs", &st) != 0) return 310;
+    if (*err != 52) return 441;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFDIR) return 311;
+    *err = 0;
+    if (charm_posix_mkdir("/cfs") != -1) return 568;
+    if (*err != CHARM_POSIX_EEXIST) return 569;
 
+    *err = 0;
+    if (charm_posix_open("", CHARM_POSIX_O_RDONLY, 0) != -1) return 361;
+    if (*err != CHARM_POSIX_ENOENT) return 362;
+    *err = 0;
+    if (charm_posix_stat("", &st) != -1) return 363;
+    if (*err != CHARM_POSIX_ENOENT) return 364;
+    *err = 0;
+    if (charm_posix_opendir("") != 0) return 365;
+    if (*err != CHARM_POSIX_ENOENT) return 366;
+    *err = 0;
+    if (charm_posix_mkdir("") != -1) return 385;
+    if (*err != CHARM_POSIX_ENOENT) return 386;
+    *err = 0;
+    if (charm_posix_unlink("") != -1) return 387;
+    if (*err != CHARM_POSIX_ENOENT) return 388;
+    *err = 0;
+    if (charm_posix_rmdir("") != -1) return 389;
+    if (*err != CHARM_POSIX_ENOENT) return 390;
+    *err = 0;
+    if (charm_posix_rename("", "/cfs-from-empty") != -1) return 391;
+    if (*err != CHARM_POSIX_ENOENT) return 392;
+
+    *err = 53;
     dir = charm_posix_opendir("/");
     if (dir == 0) return 312;
+    if (*err != 53) return 442;
     while ((ent = charm_posix_readdir(dir)) != 0) {
         if (strcmp(ent->d_name, "cfs") == 0) {
             saw_cfs = 1;
@@ -51,8 +282,12 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_closedir(dir) != -1) return 320;
     if (*err != CHARM_POSIX_EINVAL) return 321;
 
+    *err = 54;
     if (charm_posix_chdir("/cfs") != 0) return 312;
+    if (*err != 54) return 443;
+    *err = 55;
     if (charm_posix_getcwd(cwd, sizeof(cwd)) != cwd) return 313;
+    if (*err != 55) return 444;
     if (strcmp(cwd, "/cfs") != 0) return 314;
 
     *err = 0;
@@ -64,9 +299,51 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_write(fd, "fs", 2) != 2) return 318;
     if (charm_posix_close(fd) != 0) return 319;
 
+    *err = 56;
     if (charm_posix_stat("/cfs/note.txt", &st) != 0) return 320;
+    if (*err != 56) return 445;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 321;
     if (st.st_size != 2) return 322;
+    *err = 0;
+    if (charm_posix_mkdir("/cfs/note.txt") != -1) return 570;
+    if (*err != CHARM_POSIX_EEXIST) return 571;
+    *err = 0;
+    if (charm_posix_open("/cfs", CHARM_POSIX_O_WRONLY, 0) != -1) return 451;
+    if (*err != CHARM_POSIX_EISDIR) return 452;
+    *err = 0;
+    if (charm_posix_open("/cfs/note.txt/child", CHARM_POSIX_O_RDONLY, 0) != -1) return 453;
+    if (*err != CHARM_POSIX_ENOTDIR) return 454;
+    *err = 0;
+    if (charm_posix_stat("/cfs/note.txt/child", &st) != -1) return 455;
+    if (*err != CHARM_POSIX_ENOTDIR) return 456;
+    *err = 0;
+    if (charm_posix_mkdir("/cfs/note.txt/child") != -1) return 457;
+    if (*err != CHARM_POSIX_ENOTDIR) return 458;
+    *err = 0;
+    if (charm_posix_unlink("/cfs/note.txt/child") != -1) return 459;
+    if (*err != CHARM_POSIX_ENOTDIR) return 460;
+    *err = 0;
+    if (charm_posix_rmdir("/cfs/note.txt/child") != -1) return 461;
+    if (*err != CHARM_POSIX_ENOTDIR) return 462;
+    *err = 0;
+    if (charm_posix_rename("/cfs/note.txt/child", "/cfs/missing") != -1) return 463;
+    if (*err != CHARM_POSIX_ENOTDIR) return 464;
+    *err = 0;
+    if (charm_posix_rename("/cfs/note.txt", "/cfs/note.txt/child") != -1) return 465;
+    if (*err != CHARM_POSIX_ENOTDIR) return 466;
+    fd = charm_posix_open("note.txt", CHARM_POSIX_O_WRONLY | CHARM_POSIX_O_APPEND, 0);
+    if (fd < 0) return 395;
+    if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_SET) != 0) return 396;
+    if (charm_posix_write(fd, "+", 1) != 1) return 397;
+    if (charm_posix_close(fd) != 0) return 398;
+    if (charm_posix_stat("/cfs/note.txt", &st) != 0) return 399;
+    if (st.st_size != 3) return 400;
+
+    fd = charm_posix_open("note.txt", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 401;
+    if (charm_posix_read(fd, buf, 3) != 3) return 402;
+    if (memcmp(buf, "fs+", 3) != 0) return 403;
+    if (charm_posix_close(fd) != 0) return 404;
 
     *err = 0;
     if (charm_posix_opendir("/cfs/note.txt") != 0) return 323;
@@ -78,13 +355,15 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_closedir(0) != -1) return 327;
     if (*err != CHARM_POSIX_EINVAL) return 328;
 
+    *err = 57;
     dir = charm_posix_opendir("/cfs");
     if (dir == 0) return 329;
+    if (*err != 57) return 446;
     while ((ent = charm_posix_readdir(dir)) != 0) {
         if (strcmp(ent->d_name, "note.txt") == 0) {
             saw_note = 1;
             if ((ent->d_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 330;
-            if (ent->d_size != 2) return 331;
+            if (ent->d_size != 3) return 331;
         }
     }
     if (!saw_note) return 332;
@@ -95,21 +374,81 @@ int charm_posix_c_fs_header_entry(void) {
 
     fd = charm_posix_open("note.txt", CHARM_POSIX_O_RDONLY, 0);
     if (fd < 0) return 336;
-    if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_END) != 2) return 337;
+    *err = 0;
+    if (charm_posix_write(fd, "!", 1) != -1) return 543;
+    if (*err != CHARM_POSIX_EBADF) return 544;
+    *err = 0;
+    if (charm_posix_lseek(fd, 0, 99) != -1) return 415;
+    if (*err != CHARM_POSIX_EINVAL) return 416;
+    if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_END) != 3) return 337;
     if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_SET) != 0) return 338;
-    if (charm_posix_read(fd, buf, 2) != 2) return 339;
-    if (memcmp(buf, "fs", 2) != 0) return 340;
+    if (charm_posix_read(fd, buf, 3) != 3) return 339;
+    if (memcmp(buf, "fs+", 3) != 0) return 340;
     if (charm_posix_close(fd) != 0) return 341;
+
+    fd = charm_posix_open("note.txt", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 545;
+    *err = 0;
+    if (charm_posix_read(fd, buf, 1) != -1) return 546;
+    if (*err != CHARM_POSIX_EBADF) return 547;
+    if (charm_posix_close(fd) != 0) return 548;
+
+    fd = charm_posix_open("excl.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_EXCL | CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 351;
+    if (charm_posix_close(fd) != 0) return 352;
+    *err = 0;
+    if (charm_posix_open("excl.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_EXCL | CHARM_POSIX_O_WRONLY, 0) != -1) return 353;
+    if (*err != CHARM_POSIX_EEXIST) return 354;
+    if (charm_posix_unlink("/cfs/excl.txt") != 0) return 355;
+
+    fd = charm_posix_open("readonly-create.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 356;
+    if (charm_posix_close(fd) != 0) return 357;
+    if (charm_posix_stat("/cfs/readonly-create.txt", &st) != 0) return 358;
+    if (st.st_size != 0) return 359;
+    if (charm_posix_unlink("/cfs/readonly-create.txt") != 0) return 360;
+
+    fd = charm_posix_open("rw.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_TRUNC | CHARM_POSIX_O_RDWR, 0);
+    if (fd < 0) return 534;
+    if (charm_posix_write(fd, "rw", 2) != 2) return 535;
+    if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_SET) != 0) return 536;
+    if (charm_posix_read(fd, buf, 2) != 2) return 537;
+    if (memcmp(buf, "rw", 2) != 0) return 538;
+    if (charm_posix_close(fd) != 0) return 539;
+    if (charm_posix_stat("/cfs/rw.txt", &st) != 0) return 540;
+    if (st.st_size != 2) return 541;
+    if (charm_posix_unlink("/cfs/rw.txt") != 0) return 542;
 
     *err = 0;
     if (charm_posix_chdir("/cfs/note.txt") != -1) return 342;
     if (*err != CHARM_POSIX_ENOTDIR) return 343;
 
-    if (charm_posix_rename("/cfs/note.txt", "/cfs/renamed.txt") != 0) return 344;
-    if (charm_posix_unlink("/cfs/renamed.txt") != 0) return 345;
+    *err = 0;
+    if (charm_posix_chdir("") != -1) return 367;
+    if (*err != CHARM_POSIX_ENOENT) return 368;
+    *err = 0;
+    if (charm_posix_rmdir("/cfs") != -1) return 561;
+    if (*err != CHARM_POSIX_ENOTEMPTY) return 562;
+    *err = 0;
+    if (charm_posix_rename("/cfs/note.txt", 0) != -1) return 437;
+    if (*err != CHARM_POSIX_EINVAL) return 438;
+    *err = 0;
+    if (charm_posix_rename("/cfs/note.txt", "") != -1) return 393;
+    if (*err != CHARM_POSIX_ENOENT) return 394;
 
+    *err = 58;
+    if (charm_posix_rename("/cfs/note.txt", "/cfs/renamed.txt") != 0) return 344;
+    if (*err != 58) return 447;
+    *err = 59;
+    if (charm_posix_unlink("/cfs/renamed.txt") != 0) return 345;
+    if (*err != 59) return 448;
+
+    *err = 60;
     if (charm_posix_chdir("/") != 0) return 346;
+    if (*err != 60) return 449;
+    *err = 61;
     if (charm_posix_rmdir("/cfs") != 0) return 347;
+    if (*err != 61) return 450;
 
     *err = 0;
     if (charm_posix_stat("/cfs", &st) != -1) return 348;

@@ -42,6 +42,15 @@ namespace usb::host::detail {
     }
 
     template <typename BlockRegistryT>
+    util::Result<void> msc_block_try_init(MscBlockDriverContext<BlockRegistryT>& ctx,
+                                          device::Device&) noexcept {
+        if (!ctx.exported || !ctx.backend) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        return ctx.exported->attach(*ctx.backend);
+    }
+
+    template <typename BlockRegistryT>
     void msc_block_detach(MscBlockDriverContext<BlockRegistryT>& ctx) noexcept {
         if (ctx.exported) {
             ctx.exported->detach();
@@ -91,13 +100,11 @@ export namespace usb::host {
               binding_{
                   &runtime_ctx_,
                   device::RuntimeDriverHook<DriverContext>{
-                      &detail::msc_block_probe<BlockRegistryT>,
-                      &detail::msc_block_init<BlockRegistryT>,
-                      &detail::msc_block_shutdown<BlockRegistryT>,
-                      &detail::msc_block_remove<BlockRegistryT>,
-                      nullptr,
-                      nullptr,
-                      nullptr
+                      .probe = &detail::msc_block_probe<BlockRegistryT>,
+                      .init = &detail::msc_block_init<BlockRegistryT>,
+                      .shutdown = &detail::msc_block_shutdown<BlockRegistryT>,
+                      .remove = &detail::msc_block_remove<BlockRegistryT>,
+                      .try_init = &detail::msc_block_try_init<BlockRegistryT>
                   }
               },
               discovery_(match, &binding_, bus_name),
@@ -131,9 +138,18 @@ export namespace usb::host {
             return exported_.ensure_exported();
         }
 
+        util::Result<void> unexport() noexcept {
+            return exported_.unexport();
+        }
+
+        template <typename RuntimeRegistryT>
+        util::Result<void> try_enumerate(RuntimeRegistryT& registry) noexcept {
+            return discovery_.try_enumerate(registry);
+        }
+
         template <typename RuntimeRegistryT>
         bool enumerate(RuntimeRegistryT& registry) noexcept {
-            return discovery_.enumerate(registry);
+            return static_cast<bool>(try_enumerate(registry));
         }
 
         device::Bus bus() const noexcept {
@@ -158,6 +174,18 @@ export namespace usb::host {
 
         [[nodiscard]] bool exported() const noexcept {
             return exported_.exported();
+        }
+
+        [[nodiscard]] block::PublishState publish_state() const noexcept {
+            return exported_.publish_state();
+        }
+
+        [[nodiscard]] bool published() const noexcept {
+            return exported_.published();
+        }
+
+        [[nodiscard]] block::ExportState export_state() const noexcept {
+            return exported_.state();
         }
 
         [[nodiscard]] bool attached() const noexcept {
@@ -217,8 +245,13 @@ export namespace usb::host {
         }
 
         template <typename RuntimeRegistryT>
+        util::Result<void> try_remove(RuntimeRegistryT& registry) noexcept {
+            return registry.try_remove_matching(runtime_ctx_.match, &binding_);
+        }
+
+        template <typename RuntimeRegistryT>
         bool remove(RuntimeRegistryT& registry) noexcept {
-            return registry.remove_matching(runtime_ctx_.match, &binding_);
+            return static_cast<bool>(try_remove(registry));
         }
 
     private:

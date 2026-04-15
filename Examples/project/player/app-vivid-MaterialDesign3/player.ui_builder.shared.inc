@@ -1177,17 +1177,22 @@
         const int tile_w = std::max(0, content.w - play_size - next_size - bar_gap * 2);
         const int tile_h = content.h;
         const Rect tile_rect = bottom_row.next_rect(tile_w, tile_h);
+        const int bottom_text_x = 56;
+        const int bottom_text_w = std::max(0, tile_rect.w - bottom_text_x - 4);
         ::ui::scene::TileBuilder bottom_tile{builder, tile_rect, 48, 8, false,
                                              kStyleClassInvalid, true, ""};
         h.bottom_cover = bottom_tile.image();
         h.bottom_title = bottom_tile.label();
+        anchor_rect(builder, h.bottom_title, {bottom_text_x, 4, bottom_text_w, 18});
         builder.set_label_align(h.bottom_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        apply_text_label_style(builder, h.bottom_title, kUiTitle, get_player_font_px(14, FontWeight::Medium));
         bottom_row.add_at(bottom_tile.root(), tile_rect);
 
         h.bottom_subtitle = builder.create_label_static("");
-        anchor_rect(builder, h.bottom_subtitle, {tile_rect.x + 56, tile_rect.y + 22,
-                                                 tile_rect.w - 56, 18});
+        anchor_rect(builder, h.bottom_subtitle, {bottom_text_x, 24, bottom_text_w, 16});
         builder.set_label_align(h.bottom_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        apply_text_label_style(builder, h.bottom_subtitle, kUiSubtitle, get_player_font_px(12, FontWeight::Regular));
+        builder.link(bottom_tile.root(), h.bottom_subtitle);
 
         h.bottom_hit = builder.create_button_static("");
         anchor_rect(builder, h.bottom_hit, {0, 0, bottom_bar_rect.w, bottom_bar_rect.h});
@@ -1207,7 +1212,6 @@
         builder.set_button_icon(h.bottom_play, icons.play);
         builder.set_button_icon_size(h.bottom_play, 18);
         apply_bottom_play_style(builder, h.bottom_play, play_size, 18);
-        builder.link(h.bottom_bar, h.bottom_subtitle);
 
         h.bottom_next = builder.create_button_static("");
         bottom_row.add(h.bottom_next, next_size, next_size);

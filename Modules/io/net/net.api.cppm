@@ -134,17 +134,17 @@ export namespace net {
         }
 
         [[nodiscard]] Result<TcpClient> accept() noexcept {
-            Result<TcpClient> accepted{std::in_place};
-            auto ok = accept(accepted.value(), nullptr);
+            TcpClient accepted{};
+            auto ok = accept(accepted, nullptr);
             if (!ok) return util::unexpected(ok.error());
-            return accepted;
+            return Result<TcpClient>{std::in_place, std::move(accepted)};
         }
 
         [[nodiscard]] Result<TcpClient> accept(Endpoint& peer) noexcept {
-            Result<TcpClient> accepted{std::in_place};
-            auto ok = accept(accepted.value(), &peer);
+            TcpClient accepted{};
+            auto ok = accept(accepted, &peer);
             if (!ok) return util::unexpected(ok.error());
-            return accepted;
+            return Result<TcpClient>{std::in_place, std::move(accepted)};
         }
 
         [[nodiscard]] Result<EventMask> poll() const noexcept {

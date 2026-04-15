@@ -91,6 +91,7 @@
 - `Examples/io/net/reactor_service_echo_smoke`
 - `Examples/io/net/reactor_service_deferred_smoke`
 - `Examples/io/net/reactor_service_typed_smoke`
+- `Examples/io/net/reactor_listener_close_smoke`
 - `Examples/io/net/schema_codec_smoke`
 - `Examples/io/net/net_udp_egress_smoke`
 - `Examples/io/net/net_pump_smoke`

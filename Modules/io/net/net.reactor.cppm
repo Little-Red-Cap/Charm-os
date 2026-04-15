@@ -324,8 +324,31 @@ export namespace net {
             for (util::usize i = 0; i < slots_.size(); ++i) {
                 auto& slot = slots_[i];
                 if (!slot.used) continue;
-                if (!slot.socket || !slot.channel || !slot.socket->valid()) {
+                if (!slot.socket || !slot.channel) {
                     slot = {};
+                    continue;
+                }
+
+                if (!slot.socket->valid()) {
+                    const auto interest = slot.persistent_interest | slot.one_shot_interest;
+                    auto* channel = slot.channel;
+                    slot = {};
+
+                    if ((interest & event_mask(NetEvent::closed)) == 0u) {
+                        continue;
+                    }
+
+                    reactor_->notify(*channel, static_cast<util::u32>(io::Event::closed));
+                    ++dispatched;
+
+                    if (dispatched >= budget) {
+                        for (util::usize j = i + 1; j < slots_.size(); ++j) {
+                            if (slots_[j].used) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
                     continue;
                 }
 

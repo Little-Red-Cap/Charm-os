@@ -480,7 +480,7 @@
         }
 
         void format_library_group_summary(std::string_view key,
-                                          bool current_group,
+                                          bool /*current_group*/,
                                           char* buf,
                                           std::size_t buf_size) const noexcept {
             if (!buf || buf_size == 0) return;
@@ -493,15 +493,7 @@
             if (duration_complete && total_sec > 0) {
                 char duration_buf[16]{};
                 format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
-                if (current_group) {
-                    std::snprintf(buf, buf_size, "%s | %d tracks | %s",
-                                  library_current_group_state_text(), track_count, duration_buf);
-                } else {
-                    std::snprintf(buf, buf_size, "%d tracks | %s", track_count, duration_buf);
-                }
-            } else if (current_group) {
-                std::snprintf(buf, buf_size, "%s | %d tracks",
-                              library_current_group_state_text(), track_count);
+                std::snprintf(buf, buf_size, "%d tracks | %s", track_count, duration_buf);
             } else {
                 std::snprintf(buf, buf_size, "%d tracks", track_count);
             }

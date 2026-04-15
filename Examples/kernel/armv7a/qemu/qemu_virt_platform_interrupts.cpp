@@ -119,6 +119,17 @@ void armv7a_platform_complete_interrupt(std::uint32_t raw_acknowledge)
     armv7a_gic_end_irq(raw_acknowledge);
 }
 
+Armv7aPlatformInterruptLineState armv7a_platform_interrupt_line_state(unsigned int intid)
+{
+    if (armv7a_platform_is_special_interrupt(intid)) {
+        return Armv7aPlatformInterruptLineState{
+            .intid = intid,
+        };
+    }
+
+    return to_platform_state(intid, armv7a_gic_read_line_state(intid));
+}
+
 Armv7aPlatformInterruptLineState armv7a_platform_secure_timer_interrupt_line_state()
 {
     return to_platform_state(
@@ -171,6 +182,20 @@ bool armv7a_platform_is_timer_interrupt(unsigned int intid)
 bool armv7a_platform_is_self_sgi_interrupt(unsigned int intid)
 {
     return armv7a_gic_is_sgi_intid(intid);
+}
+
+const char* armv7a_platform_interrupt_source_name(unsigned int intid)
+{
+    switch (intid) {
+    case kArmv7aGicSecureTimerIntId:
+        return "secure-phys-ppi";
+    case kArmv7aGicNonSecureTimerIntId:
+        return "non-secure-phys-ppi";
+    case kArmv7aGicSelfSgiIntId:
+        return "self-sgi";
+    default:
+        return armv7a_platform_is_special_interrupt(intid) ? "special-intid" : "unexpected-intid";
+    }
 }
 
 const char* armv7a_platform_timer_interrupt_route_name(unsigned int intid)

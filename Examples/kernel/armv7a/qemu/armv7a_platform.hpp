@@ -106,6 +106,7 @@ void armv7a_platform_disable_interrupt_controller();
 void armv7a_platform_trigger_self_sgi();
 Armv7aPlatformInterruptAcknowledge armv7a_platform_acknowledge_interrupt();
 void armv7a_platform_complete_interrupt(std::uint32_t raw_acknowledge);
+Armv7aPlatformInterruptLineState armv7a_platform_interrupt_line_state(unsigned int intid);
 Armv7aPlatformInterruptLineState armv7a_platform_secure_timer_interrupt_line_state();
 Armv7aPlatformInterruptLineState armv7a_platform_nonsecure_timer_interrupt_line_state();
 Armv7aPlatformInterruptLineState armv7a_platform_self_sgi_line_state();
@@ -114,6 +115,7 @@ unsigned int armv7a_platform_spurious_interrupt_id();
 bool armv7a_platform_is_special_interrupt(unsigned int intid);
 bool armv7a_platform_is_timer_interrupt(unsigned int intid);
 bool armv7a_platform_is_self_sgi_interrupt(unsigned int intid);
+const char* armv7a_platform_interrupt_source_name(unsigned int intid);
 const char* armv7a_platform_timer_interrupt_route_name(unsigned int intid);
 
 inline const char* armv7a_platform_interrupt_line_group_name(

@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "armv7a_platform.hpp"
+
 struct Armv7aExceptionFrame;
 
 enum class Armv7aInterruptSmokeKind : std::uint8_t {
@@ -14,6 +16,9 @@ enum class Armv7aInterruptSmokeKind : std::uint8_t {
 struct Armv7aInterruptObservation {
     bool seen = false;
     unsigned int intid = 0u;
+    std::uint32_t raw_acknowledge = 0u;
+    Armv7aPlatformInterruptControllerState controller{};
+    Armv7aPlatformInterruptLineState line{};
     std::uint32_t handler_cpsr = 0u;
     std::uint32_t handler_spsr = 0u;
     std::uint32_t return_pc = 0u;

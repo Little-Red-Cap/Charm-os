@@ -101,6 +101,21 @@ int charm_posix_c_fs_header_entry(void) {
     if (memcmp(buf, "fs", 2) != 0) return 340;
     if (charm_posix_close(fd) != 0) return 341;
 
+    fd = charm_posix_open("excl.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_EXCL | CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 351;
+    if (charm_posix_close(fd) != 0) return 352;
+    *err = 0;
+    if (charm_posix_open("excl.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_EXCL | CHARM_POSIX_O_WRONLY, 0) != -1) return 353;
+    if (*err != CHARM_POSIX_EEXIST) return 354;
+    if (charm_posix_unlink("/cfs/excl.txt") != 0) return 355;
+
+    fd = charm_posix_open("readonly-create.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 356;
+    if (charm_posix_close(fd) != 0) return 357;
+    if (charm_posix_stat("/cfs/readonly-create.txt", &st) != 0) return 358;
+    if (st.st_size != 0) return 359;
+    if (charm_posix_unlink("/cfs/readonly-create.txt") != 0) return 360;
+
     *err = 0;
     if (charm_posix_chdir("/cfs/note.txt") != -1) return 342;
     if (*err != CHARM_POSIX_ENOTDIR) return 343;

@@ -58,6 +58,7 @@
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
 - newlib `_open()` now also has direct bridge smoke for flag translation: `O_NONBLOCK` remains observable through `fcntl(F_GETFL)`, `O_APPEND` appends at end-of-file on regular files, `O_RDWR` yields a read/write descriptor that stays readable and writable through the same fd, `O_CREAT|O_EXCL` fails with `EEXIST` on an existing path, and `O_RDONLY|O_CREAT` now creates a zero-length file without requiring write access
+- the exported C fs header surface now also smoke-uses the matching `CHARM_POSIX_O_EXCL` and `CHARM_POSIX_O_CREAT | CHARM_POSIX_O_RDONLY` flags, so the public macro layer stays aligned with the runtime bridge contract
 - newlib `/dev/null` is now smoke-pinned directly too: `open()` succeeds for read/write, `read()` returns EOF, `write()` reports full byte count, `fstat()` reports `S_IFCHR`, `isatty()` stays false without clobbering `errno`, and `lseek()` fails with `ESPIPE`
 - `open("/dev/stdin")` / `open("/dev/stdout")` / `open("/dev/stderr")` now alias the active stdio fd set, while `open("/dev/console", ...)` and `open("/dev/tty", ...)` alias a live terminal fd; `stat/fstat` on term-style descriptors stabilizes at `S_IFCHR`
 - `mkdir("/work") -> 0`, repeated `mkdir("/work") -> -1 && errno == EEXIST`, and `mkdir("/file") -> -1 && errno == EEXIST`

@@ -58,6 +58,9 @@ cmake --build out\build\debug-interrupt-sgi-timeout --verbose
 
 cmake --preset debug-interrupt-unexpected-irq
 cmake --build out\build\debug-interrupt-unexpected-irq --verbose
+
+cmake --preset debug-interrupt-sgi-fiq-timeout
+cmake --build out\build\debug-interrupt-sgi-fiq-timeout --verbose
 ```
 
 ## Run
@@ -182,6 +185,10 @@ success-path CI stays stable while we harden the failure-path evidence:
 .\run_qemu_interrupt_unexpected_ci.ps1
 ```
 
+```powershell
+.\run_qemu_interrupt_sgi_fiq_timeout_ci.ps1
+```
+
 ## Special IRQ acknowledge smoke
 
 Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
@@ -238,6 +245,26 @@ ARMv7-A diagnostic context, subsystem=interrupt, stage=unexpected-irq-smoke, las
 ARMv7-A unexpected IRQ, intid=0x00000002, source=unexpected-intid, ack=0x00000002, hppir-before-ack=0x00000002, line=group1/yes/(yes|no)/yes, origin-mode=sys, handler-mode=irq, return-pc=0x........, pc=0x........, lr=0x........, spsr=0x........
 ARMv7-A return evidence, vector=irq, origin-mode=sys, current-mode=sys, origin-irq=enabled, current-irq=enabled, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x........, base=0x........, top=0x........, used=0x........, in-range=yes
 ARMv7-A phase complete, stage=unexpected-irq-smoke
+```
+
+## SGI FIQ timeout smoke
+
+Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
+
+```powershell
+.\run_qemu.ps1 -ElfPath out\build\debug-interrupt-sgi-fiq-timeout\charm-armv7a-qemu
+```
+
+Expected output includes the normal bringup banner, one Group0 SGI pending
+snapshot, then a timeout summary captured while CPU FIQ is still masked:
+
+```text
+ARMv7-A phase, stage=sgi-fiq-timeout-smoke
+ARMv7-A SGI pending evidence, route=fiq, line=group0/yes/yes/no, gicd=0x00000003, gicc=0x0000000F, hppir=0x00000001, spurious=no
+ARMv7-A diagnostic context, subsystem=interrupt, stage=sgi-fiq-timeout-smoke, last-complete=sgi-fiq-smoke, cpsr=0x........
+ARMv7-A interrupt timeout, expected=sgi-fiq, route=fiq, route-mask=masked, pending-observed=yes, last-observation=not-observed
+ARMv7-A FIQ timeout, cpsr=0x........, ctlr=0x0000000F, igroupr0=0x00000000, isenabler0=0x00000002, hppir=0x00000001
+ARMv7-A phase complete, stage=sgi-fiq-timeout-smoke
 ```
 
 ## Undefined exception smoke
@@ -474,6 +501,10 @@ continue
   self-targeted `SGI intid=2` through the normal IRQ path, so the
   `unexpected-intid` handler contract is exercised by a real GIC-delivered
   interrupt instead of only existing as a defensive log branch.
+- A fourth optional `sgi-fiq-timeout-smoke` preset now keeps CPU FIQ masked
+  on purpose after a Group0 self-targeted SGI is already pending in the GIC,
+  so the Group0 + FIQ route has the same dedicated timeout evidence that the
+  IRQ route already has.
 - The same returning paths now also print one `return evidence` line after the
   handler returns to ordinary execution, comparing the pre-exception `SPSR`
   against the live post-return `CPSR`. That gives us direct evidence for

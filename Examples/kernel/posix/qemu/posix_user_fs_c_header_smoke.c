@@ -27,6 +27,29 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_fstat(1, &st) != 0) return 307;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFIFO) return 308;
 
+    *err = 44;
+    fd = charm_posix_open("/dev/null", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 369;
+    if (*err != 44) return 370;
+    *err = 45;
+    if (charm_posix_read(fd, buf, 1) != 0) return 371;
+    if (*err != 45) return 372;
+    *err = 46;
+    if (charm_posix_isatty(fd) != 0) return 373;
+    if (*err != 46) return 374;
+    if (charm_posix_fstat(fd, &st) != 0) return 375;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 376;
+    if (charm_posix_close(fd) != 0) return 377;
+
+    *err = 47;
+    fd = charm_posix_open("/dev/null", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 378;
+    if (*err != 47) return 379;
+    *err = 48;
+    if (charm_posix_write(fd, "z", 1) != 1) return 380;
+    if (*err != 48) return 381;
+    if (charm_posix_close(fd) != 0) return 382;
+
     if (charm_posix_mkdir("/cfs") != 0) return 309;
     if (charm_posix_stat("/cfs", &st) != 0) return 310;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFDIR) return 311;

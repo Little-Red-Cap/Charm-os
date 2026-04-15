@@ -46,7 +46,10 @@ struct Armv7aPlatformInterruptLineState {
 };
 
 struct Armv7aPlatformInterruptControllerState {
-    std::uint32_t control = 0u;
+    std::uint32_t distributor_control = 0u;
+    std::uint32_t cpu_control = 0u;
+    std::uint32_t priority_mask = 0u;
+    std::uint32_t binary_point = 0u;
     std::uint32_t highest_pending = 0u;
 };
 

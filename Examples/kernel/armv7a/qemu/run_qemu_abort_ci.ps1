@@ -257,6 +257,15 @@ if (($log -notmatch "ARMv7-A boot state, cpsr=0x[0-9A-F]{8}, mode=[a-z]+, irq=(m
 if (($log -notmatch "ARMv7-A cp15 state, sctlr=0x[0-9A-F]{8}, vbar=0x[0-9A-F]{8}, mpidr=0x[0-9A-F]{8}, cntfrq=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A cp15 state, sctlr=0x..."
 }
+if (($log -notmatch "ARMv7-A interrupt reset state, gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, pmr=0x[0-9A-F]{8}, bpr=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=(yes|no)")) {
+    $missing += "ARMv7-A interrupt reset state, gicd=0x..."
+}
+if (($log -notmatch "ARMv7-A timer reset state, cntp_ctl=0x[0-9A-F]{8}, enabled=(yes|no), imask=(yes|no), istatus=(yes|no), secure-line=group[01]/(yes|no)/(yes|no)/(yes|no), nonsecure-line=group[01]/(yes|no)/(yes|no)/(yes|no)")) {
+    $missing += "ARMv7-A timer reset state, cntp_ctl=0x..."
+}
+if (($log -notmatch "ARMv7-A SGI reset state, line=group[01]/(yes|no)/(yes|no)/(yes|no)")) {
+    $missing += "ARMv7-A SGI reset state, line=group..."
+}
 if (($log -notmatch "ARMv7-A memory model, id_mmfr0=0x[0-9A-F]{8}, vmsa=0x[0-9A-F]{8} \((present|absent)\), pmsa=0x[0-9A-F]{8} \((present|absent)\)")) {
     $missing += "ARMv7-A memory model, id_mmfr0=0x..."
 }

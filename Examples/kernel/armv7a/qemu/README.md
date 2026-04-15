@@ -77,6 +77,9 @@ Targeting Cortex-A7 first, RK3506 later.
 ARMv7-A boot state, cpsr=0x600001DF, mode=sys, irq=masked
 ARMv7-A reset evidence, sctlr=0x00C50078, vbar=0x00000000, high-vectors=off, low-vectors-forced=no
 ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=0x03B9ACA0
+ARMv7-A interrupt reset state, gicd=0x00000000, gicc=0x00000000, pmr=0x00000000, bpr=0x00000000, hppir=0x000003FF, spurious=yes
+ARMv7-A timer reset state, cntp_ctl=0x00000000, enabled=no, imask=no, istatus=no, secure-line=group0/no/no/no, nonsecure-line=group0/no/no/no
+ARMv7-A SGI reset state, line=group0/yes/no/no
 ARMv7-A memory model, id_mmfr0=0x10101105, vmsa=0x00000005 (present), pmsa=0x00000000 (absent)
 ARMv7-A feature state, id_pfr1=0x00010001, security=0x00000000 (absent), virtualization=0x00000000 (absent), gentimer=0x00000001 (present)
 ARMv7-A cache state, mmu=off, dcache=off, icache=off, high-vectors=off

@@ -125,9 +125,13 @@ Armv7aPlatformInterruptLineState armv7a_platform_self_sgi_line_state()
 
 Armv7aPlatformInterruptControllerState armv7a_platform_interrupt_controller_state()
 {
+    const auto dist_state = armv7a_gic_read_distributor_state();
     const auto state = armv7a_gic_read_cpu_state();
     return Armv7aPlatformInterruptControllerState{
-        .control = state.ctlr,
+        .distributor_control = dist_state.ctlr,
+        .cpu_control = state.ctlr,
+        .priority_mask = state.pmr,
+        .binary_point = state.bpr,
         .highest_pending = state.hppir,
     };
 }

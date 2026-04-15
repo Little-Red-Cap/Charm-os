@@ -241,10 +241,19 @@ Armv7aGicLineState armv7a_gic_read_line_state(unsigned int intid)
     };
 }
 
+Armv7aGicDistributorState armv7a_gic_read_distributor_state()
+{
+    return Armv7aGicDistributorState{
+        .ctlr = mmio_read(gic_dist_base(), kGicdCtlr),
+    };
+}
+
 Armv7aGicCpuState armv7a_gic_read_cpu_state()
 {
     return Armv7aGicCpuState{
         .ctlr = mmio_read(gic_cpu_base(), kGiccCtlr),
+        .pmr = mmio_read(gic_cpu_base(), kGiccPmr),
+        .bpr = mmio_read(gic_cpu_base(), kGiccBpr),
         .hppir = mmio_read(gic_cpu_base(), kGiccHppir),
     };
 }

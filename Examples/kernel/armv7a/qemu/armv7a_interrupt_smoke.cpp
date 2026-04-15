@@ -274,7 +274,7 @@ void armv7a_interrupt_print_fiq_timeout()
     armv7a_platform_early_console_puts("ARMv7-A FIQ timeout, cpsr=0x");
     print_hex32(armv7a_read_cpsr());
     armv7a_platform_early_console_puts(", ctlr=0x");
-    print_hex32(cpu_state.control);
+    print_hex32(cpu_state.cpu_control);
     armv7a_platform_early_console_puts(", igroupr0=0x");
     print_hex32(line_state.group);
     armv7a_platform_early_console_puts(", isenabler0=0x");

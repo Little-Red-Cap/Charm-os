@@ -6,6 +6,7 @@ import out.sink;
 #include "armv7a_cache.hpp"
 #include "armv7a_cpu.hpp"
 #include "armv7a_dcache_probe.hpp"
+#include "armv7a_gic.hpp"
 #include "armv7a_icache_probe.hpp"
 #include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_mmu.hpp"
@@ -24,6 +25,11 @@ extern "C" void armv7a_run_abort_smoke_if_enabled();
 extern "C" void armv7a_run_exception_smoke_if_enabled();
 
 namespace {
+constexpr std::uint32_t kArmv7aTimerCtrlEnable = 1u << 0;
+constexpr std::uint32_t kArmv7aTimerCtrlImask = 1u << 1;
+constexpr std::uint32_t kArmv7aTimerCtrlIstatus = 1u << 2;
+constexpr std::uint32_t kArmv7aGicIntIdMask = 0x3ffu;
+
 void platform_console_write(auto text)
 {
     for (char ch : text) {
@@ -37,6 +43,22 @@ void platform_console_put_hex32(unsigned int value)
     for (int shift = 28; shift >= 0; shift -= 4) {
         armv7a_platform_early_console_putc(kHex[(value >> shift) & 0xFu]);
     }
+}
+
+const char* yes_no_name(bool value)
+{
+    return value ? "yes" : "no";
+}
+
+bool line_bank_bit(std::uint32_t bank, unsigned int intid)
+{
+    return ((bank >> (intid % 32u)) & 1u) != 0u;
+}
+
+const char* interrupt_line_group_name(const Armv7aPlatformInterruptLineState& state,
+                                      unsigned int intid)
+{
+    return line_bank_bit(state.group, intid) ? "group1" : "group0";
 }
 
 void print_charm_module_status()
@@ -92,6 +114,77 @@ void print_cpu_boot_state()
     platform_console_put_hex32(armv7a_read_mpidr());
     armv7a_platform_early_console_puts(", cntfrq=0x");
     platform_console_put_hex32(armv7a_platform_timer_frequency_hz());
+    armv7a_platform_early_console_puts("\r\n");
+
+    const auto interrupt_state = armv7a_platform_interrupt_controller_state();
+    const auto secure_timer_line = armv7a_platform_secure_timer_interrupt_line_state();
+    const auto nonsecure_timer_line = armv7a_platform_nonsecure_timer_interrupt_line_state();
+    const auto sgi_line = armv7a_platform_self_sgi_line_state();
+    const auto timer_ctrl = armv7a_platform_timer_control();
+    const auto hppir_intid = interrupt_state.highest_pending & kArmv7aGicIntIdMask;
+
+    armv7a_platform_early_console_puts("ARMv7-A interrupt reset state, gicd=0x");
+    platform_console_put_hex32(interrupt_state.distributor_control);
+    armv7a_platform_early_console_puts(", gicc=0x");
+    platform_console_put_hex32(interrupt_state.cpu_control);
+    armv7a_platform_early_console_puts(", pmr=0x");
+    platform_console_put_hex32(interrupt_state.priority_mask);
+    armv7a_platform_early_console_puts(", bpr=0x");
+    platform_console_put_hex32(interrupt_state.binary_point);
+    armv7a_platform_early_console_puts(", hppir=0x");
+    platform_console_put_hex32(interrupt_state.highest_pending);
+    armv7a_platform_early_console_puts(", spurious=");
+    armv7a_platform_early_console_puts(
+        yes_no_name(armv7a_platform_is_special_interrupt(hppir_intid)));
+    armv7a_platform_early_console_puts("\r\n");
+
+    armv7a_platform_early_console_puts("ARMv7-A timer reset state, cntp_ctl=0x");
+    platform_console_put_hex32(timer_ctrl);
+    armv7a_platform_early_console_puts(", enabled=");
+    armv7a_platform_early_console_puts(yes_no_name((timer_ctrl & kArmv7aTimerCtrlEnable) != 0u));
+    armv7a_platform_early_console_puts(", imask=");
+    armv7a_platform_early_console_puts(yes_no_name((timer_ctrl & kArmv7aTimerCtrlImask) != 0u));
+    armv7a_platform_early_console_puts(", istatus=");
+    armv7a_platform_early_console_puts(
+        yes_no_name((timer_ctrl & kArmv7aTimerCtrlIstatus) != 0u));
+    armv7a_platform_early_console_puts(", secure-line=");
+    armv7a_platform_early_console_puts(
+        interrupt_line_group_name(secure_timer_line, kArmv7aGicSecureTimerIntId));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(secure_timer_line.enabled, kArmv7aGicSecureTimerIntId)));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(secure_timer_line.pending, kArmv7aGicSecureTimerIntId)));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(secure_timer_line.active, kArmv7aGicSecureTimerIntId)));
+    armv7a_platform_early_console_puts(", nonsecure-line=");
+    armv7a_platform_early_console_puts(
+        interrupt_line_group_name(nonsecure_timer_line, kArmv7aGicNonSecureTimerIntId));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(nonsecure_timer_line.enabled, kArmv7aGicNonSecureTimerIntId)));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(nonsecure_timer_line.pending, kArmv7aGicNonSecureTimerIntId)));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(nonsecure_timer_line.active, kArmv7aGicNonSecureTimerIntId)));
+    armv7a_platform_early_console_puts("\r\n");
+
+    armv7a_platform_early_console_puts("ARMv7-A SGI reset state, line=");
+    armv7a_platform_early_console_puts(
+        interrupt_line_group_name(sgi_line, kArmv7aGicSelfSgiIntId));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(sgi_line.enabled, kArmv7aGicSelfSgiIntId)));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(sgi_line.pending, kArmv7aGicSelfSgiIntId)));
+    armv7a_platform_early_console_puts("/");
+    armv7a_platform_early_console_puts(
+        yes_no_name(line_bank_bit(sgi_line.active, kArmv7aGicSelfSgiIntId)));
     armv7a_platform_early_console_puts("\r\n");
 
     armv7a_platform_early_console_puts("ARMv7-A memory model, id_mmfr0=0x");

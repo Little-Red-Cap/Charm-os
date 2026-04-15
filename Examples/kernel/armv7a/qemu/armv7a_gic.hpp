@@ -14,8 +14,14 @@ struct Armv7aGicLineState {
     std::uint32_t isactiver = 0;
 };
 
+struct Armv7aGicDistributorState {
+    std::uint32_t ctlr = 0;
+};
+
 struct Armv7aGicCpuState {
     std::uint32_t ctlr = 0;
+    std::uint32_t pmr = 0;
+    std::uint32_t bpr = 0;
     std::uint32_t hppir = 0;
 };
 
@@ -39,6 +45,7 @@ std::uint32_t armv7a_gic_acknowledge_irq();
 void armv7a_gic_end_irq(std::uint32_t iar);
 
 Armv7aGicLineState armv7a_gic_read_line_state(unsigned int intid);
+Armv7aGicDistributorState armv7a_gic_read_distributor_state();
 Armv7aGicCpuState armv7a_gic_read_cpu_state();
 
 bool armv7a_gic_is_timer_intid(unsigned int intid);

@@ -867,6 +867,7 @@ int charm_posix_newlib_path_entry(void) {
 int charm_posix_newlib_cwd_entry(void) {
     char cwd[32] = {0};
     char small[2] = {0};
+    char buf[4] = {0};
     int fd = -1;
     struct stat st;
 
@@ -898,6 +899,39 @@ int charm_posix_newlib_cwd_entry(void) {
     if (chdir("sub") != 0) return 194;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 195;
     if (strcmp(cwd, "/newlib-cwd/sub") != 0) return 196;
+
+    errno = 84;
+    fd = open("./dot.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
+    if (fd < 0) return 766;
+    if (errno != 84) return 767;
+    errno = 85;
+    if (write(fd, "d", 1) != 1) return 768;
+    if (errno != 85) return 769;
+    errno = 86;
+    if (close(fd) != 0) return 770;
+    if (errno != 86) return 771;
+    errno = 87;
+    if (stat("./dot.txt", &st) != 0) return 772;
+    if (errno != 87) return 773;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 774;
+    if (st.st_size != 1) return 775;
+    errno = 88;
+    fd = open("./dot.txt", O_RDONLY, 0);
+    if (fd < 0) return 776;
+    if (errno != 88) return 777;
+    errno = 89;
+    if (read(fd, buf, 1) != 1) return 778;
+    if (errno != 89) return 779;
+    if (buf[0] != 'd') return 780;
+    errno = 90;
+    if (close(fd) != 0) return 781;
+    if (errno != 90) return 782;
+    errno = 91;
+    if (unlink("./dot.txt") != 0) return 783;
+    if (errno != 91) return 784;
+    errno = 0;
+    if (stat("./dot.txt", &st) != -1) return 785;
+    if (errno != ENOENT) return 786;
 
     fd = open("../parent.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 197;

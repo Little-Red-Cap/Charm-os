@@ -900,6 +900,15 @@ int charm_posix_newlib_cwd_entry(void) {
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 195;
     if (strcmp(cwd, "/newlib-cwd/sub") != 0) return 196;
 
+    errno = 82;
+    if (stat(".", &st) != 0) return 787;
+    if (errno != 82) return 788;
+    if ((st.st_mode & S_IFMT) != S_IFDIR) return 789;
+    errno = 83;
+    if (stat("..", &st) != 0) return 790;
+    if (errno != 83) return 791;
+    if ((st.st_mode & S_IFMT) != S_IFDIR) return 792;
+
     errno = 84;
     fd = open("./dot.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
     if (fd < 0) return 766;

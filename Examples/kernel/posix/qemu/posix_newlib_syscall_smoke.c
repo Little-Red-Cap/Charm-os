@@ -304,6 +304,10 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fcntl(-1, F_GETFL) != -1) return 247;
     if (errno != EBADF) return 248;
 
+    errno = 0;
+    if (fcntl(1, 999) != -1) return 667;
+    if (errno != EINVAL) return 668;
+
     flags = fcntl(2, F_GETFL);
     if (flags < 0) return 249;
     if ((flags & O_ACCMODE) != O_WRONLY) return 250;

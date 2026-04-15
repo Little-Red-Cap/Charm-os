@@ -423,7 +423,7 @@ export namespace net {
 
     template <typename DriverT>
     concept AcceptDriver = requires(DriverT& t) {
-        { t.start() } -> std::same_as<Result<void>>;
+        { t.start(default_socket_reactor_events()) } -> std::same_as<Result<void>>;
         t.stop();
     };
 
@@ -459,6 +459,7 @@ export namespace net {
             accepted_ = false;
             failed_ = false;
             last_error_ = errc::ok;
+            accepted_events_ = persistent_events;
 
             auto sub = reactor_.subscribe(listener_binding_.channel(),
                                           persistent_events,
@@ -544,7 +545,7 @@ export namespace net {
                 return;
             }
 
-            auto started = accepted_driver_.start();
+            auto started = accepted_driver_.start(accepted_events_);
             if (!started) {
                 (void)accepted_socket_.close();
                 mark_failed(started.error());
@@ -570,6 +571,7 @@ export namespace net {
         io::Subscription sub_{};
         SocketWatch watch_{};
         Endpoint peer_{};
+        util::u32 accepted_events_{default_socket_reactor_events()};
         bool started_{false};
         bool accepted_{false};
         bool failed_{false};

@@ -24,7 +24,7 @@
 - `posix_socket_bridge_smoke` 已可作为一条直接回归路径
 - host 侧 smoke 已经形成矩阵
 - `net.pump` 已开始把 `ARP / IPv4 / UDP ingress/egress` 收口到统一推进面，`net_pump_smoke` 可覆盖最小闭环
-- `reactor_listener_close_smoke` 已锁住 watched listener 的本地关闭会向 reactor 收口为 `closed`
+- `reactor_listener_close_smoke` 已锁住 accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭会向 reactor 收口为 `closed`
 - `reactor_write_close_smoke` 已锁住 transport 进入终态后 sender 不再继续排队
 - ARM / QEMU 路径当前已恢复稳定构建，之前围绕 `std::span` / module 边界的阻塞已在 `net.common`、`net.posix`、`net.stack` 这一层收住
 

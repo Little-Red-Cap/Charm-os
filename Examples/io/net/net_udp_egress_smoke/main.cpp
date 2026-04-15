@@ -96,9 +96,13 @@ int main() {
     constexpr auto local_ip = net::IpAddress::ipv4(10, 0, 0, 2);
     constexpr auto peer_mac = net::MacAddress::from_bytes(0x02u, 0xAAu, 0xBBu, 0xCCu, 0xDDu, 0xEEu);
     constexpr auto peer_ip = net::IpAddress::ipv4(10, 0, 0, 9);
+    constexpr auto queued_peer_mac = net::MacAddress::from_bytes(0x02u, 0x99u, 0x88u, 0x77u, 0x66u, 0x55u);
+    constexpr auto queued_peer_ip = net::IpAddress::ipv4(10, 0, 0, 19);
     constexpr auto local = net::Endpoint{net::IpAddress::ipv4_any(), 5000};
     constexpr auto peer = net::Endpoint{peer_ip, 7000};
+    constexpr auto queued_peer = net::Endpoint{queued_peer_ip, 7100};
     static constexpr util::u8 payload[]{'p', 'o', 'n', 'g'};
+    static constexpr util::u8 queued_payload[]{'q', 'u', 'e', 'u', 'e'};
 
     net::NetIf netif{};
     auto configured = netif.configure(net::NetIfConfig{
@@ -282,6 +286,134 @@ int main() {
         if (udp.value().payload[i] != payload[i]) {
             std::fputs("udp egress smoke payload mismatch\n", stderr);
             return 20;
+        }
+    }
+
+    net::UdpEgressQueue<4, 16> egress_queue{};
+    auto queued = egress_queue.send<128>(
+        netif,
+        arp,
+        local,
+        queued_peer,
+        net::ByteView{queued_payload, sizeof(queued_payload)},
+        32,
+        0x1357u,
+        0x11u);
+    if (!queued
+        || queued.value() != net::UdpSendDisposition::queued
+        || link.tx_calls != 3
+        || arp.request_count() != 2
+        || arp.pending_count() != 1
+        || egress_queue.pending_count() != 1
+        || egress_queue.queued_count() != 1) {
+        std::fputs("udp egress smoke queue send failed\n", stderr);
+        return 21;
+    }
+
+    auto queued_request_frame = net::parse_ether_frame(net::PacketView{
+        net::ByteView{link.tx_bytes.data(), link.tx_size},
+        0,
+        0
+    });
+    if (!queued_request_frame || queued_request_frame.value().type != net::EtherType::arp) {
+        std::fputs("udp egress smoke queued request ether parse failed\n", stderr);
+        return 22;
+    }
+
+    auto queued_request_arp = net::parse_arp_ipv4_ethernet(queued_request_frame.value().payload);
+    if (!queued_request_arp
+        || queued_request_arp.value().operation != net::ArpOperation::request
+        || !same_ipv4(queued_request_arp.value().target_ip, queued_peer_ip)) {
+        std::fputs("udp egress smoke queued request arp mismatch\n", stderr);
+        return 23;
+    }
+
+    auto flush_before_reply = egress_queue.flush<128>(netif, arp);
+    if (!flush_before_reply
+        || flush_before_reply.value() != 0
+        || link.tx_calls != 3
+        || arp.request_count() != 2
+        || arp.pending_count() != 1
+        || egress_queue.pending_count() != 1) {
+        std::fputs("udp egress smoke flush before reply failed\n", stderr);
+        return 24;
+    }
+
+    net::PacketBuffer<128> queued_reply{};
+    auto wrote_queued_reply = net::write_arp_ipv4_reply_frame(
+        queued_reply,
+        local_mac,
+        queued_peer_mac,
+        queued_peer_ip,
+        local_mac,
+        local_ip);
+    if (!wrote_queued_reply) {
+        std::fputs("udp egress smoke queued reply encode failed\n", stderr);
+        return 25;
+    }
+
+    link.queue_rx(queued_reply.view().payload);
+    polled = stack.poll_links();
+    if (!polled
+        || link.tx_calls != 3
+        || arp.pending_count() != 0
+        || egress_queue.pending_count() != 1
+        || link.rx_pool.in_use_count() != 0) {
+        std::fputs("udp egress smoke queued reply handling failed\n", stderr);
+        return 26;
+    }
+
+    auto flushed = egress_queue.flush<128>(netif, arp);
+    if (!flushed
+        || flushed.value() != 1
+        || link.tx_calls != 4
+        || egress_queue.pending_count() != 0
+        || egress_queue.flushed_count() != 1) {
+        std::fputs("udp egress smoke queue flush failed\n", stderr);
+        return 27;
+    }
+
+    auto queued_frame = net::parse_ether_frame(net::PacketView{
+        net::ByteView{link.tx_bytes.data(), link.tx_size},
+        0,
+        0
+    });
+    if (!queued_frame || queued_frame.value().type != net::EtherType::ipv4) {
+        std::fputs("udp egress smoke queued ether parse failed\n", stderr);
+        return 28;
+    }
+    if (!same_mac(queued_frame.value().destination, queued_peer_mac)
+        || !same_mac(queued_frame.value().source, local_mac)) {
+        std::fputs("udp egress smoke queued ether header mismatch\n", stderr);
+        return 29;
+    }
+
+    auto queued_ipv4 = net::parse_ipv4_packet(queued_frame.value().payload);
+    if (!queued_ipv4
+        || queued_ipv4.value().protocol != net::Ipv4Protocol::udp
+        || queued_ipv4.value().ttl != 32
+        || queued_ipv4.value().identification != 0x1357u
+        || queued_ipv4.value().dscp_ecn != 0x11u
+        || !same_ipv4(queued_ipv4.value().source, local_ip)
+        || !same_ipv4(queued_ipv4.value().destination, queued_peer_ip)) {
+        std::fputs("udp egress smoke queued ipv4 fields mismatch\n", stderr);
+        return 30;
+    }
+
+    auto queued_udp = net::parse_udp_datagram(queued_ipv4.value().payload);
+    if (!queued_udp
+        || queued_udp.value().source_port != 5000
+        || queued_udp.value().destination_port != 7100
+        || queued_udp.value().length != net::udp_header_size() + sizeof(queued_payload)
+        || queued_udp.value().checksum == 0u) {
+        std::fputs("udp egress smoke queued udp fields mismatch\n", stderr);
+        return 31;
+    }
+
+    for (util::usize i = 0; i < sizeof(queued_payload); ++i) {
+        if (queued_udp.value().payload[i] != queued_payload[i]) {
+            std::fputs("udp egress smoke queued payload mismatch\n", stderr);
+            return 32;
         }
     }
 

@@ -145,6 +145,10 @@ export namespace usb::host {
             return exported_.ensure_exported();
         }
 
+        util::Result<void> unexport() noexcept {
+            return exported_.unexport();
+        }
+
         template <typename RuntimeRegistryT>
         util::Result<void> try_enumerate(RuntimeRegistryT& registry) noexcept {
             return discovery_.try_enumerate(registry);

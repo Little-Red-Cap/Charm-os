@@ -49,6 +49,15 @@
 > `block::DeviceSlotExport::unexport()`，
 > 它们会先 detach 稳定槽位，再把 capability 从 registry 中撤下；
 > 但这仍不等价于完整 revoke 语义。
+>
+> 对 USB Host runtime glue，目前还多了一层 manager 级组合动作：
+> `usb::host::RuntimeManager::try_remove(binding)`、
+> `try_unexport(binding)`、
+> `try_forget(binding)`。
+> 可以把它们分别理解为：
+> “移除 runtime device”、
+> “撤下稳定 capability”、
+> “连同 bus record 一并忘掉”。
 
 ## 1. 核心概念
 

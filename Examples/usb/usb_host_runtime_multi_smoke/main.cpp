@@ -146,6 +146,19 @@ int main() {
     if (!expect_error(stable_channel->flush(), io::errc::noent,
                       "detached channel slot should reject flush after remove")) return 1;
 
+    if (!expect_ok(cdc.try_forget_from(runtime), "failed to forget CDC binding")) return 1;
+    if (!expect_ok(msc.try_forget_from(runtime), "failed to forget MSC binding")) return 1;
+    if (!expect(!runtime.contains(msc.binding) && !runtime.contains(cdc.binding),
+                "forgotten bindings should be removed from runtime bus")) return 1;
+    if (!expect(block_registry.open_device("block.usb0") == nullptr,
+                "forgotten MSC capability should be removed from block registry")) return 1;
+    if (!expect(io_registry.open_channel("io.usb0") == nullptr,
+                "forgotten CDC capability should be removed from io registry")) return 1;
+    if (!expect_status(read_lba0(*stable_block, block_buf), block::Errc::noent,
+                       "forgotten block slot pointer should remain revoked")) return 1;
+    if (!expect_error(stable_channel->read(read_buf), io::errc::noent,
+                      "forgotten channel slot pointer should remain revoked")) return 1;
+
     std::puts("[OK] usb-host-runtime-multi-smoke passed");
     return 0;
 }

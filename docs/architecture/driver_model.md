@@ -336,6 +336,8 @@ USB Device 不能简单地整体归入动态平面。
 
 - `io::ChannelSlotExport::unexport()`
 - `block::DeviceSlotExport::unexport()`
+- `usb::host::RuntimeManager::try_unexport(binding)`
+- `usb::host::RuntimeManager::try_forget(binding)`
 
 它们会先把槽位 `detach()`，再把稳定 capability 从 registry 中移除。
 
@@ -423,6 +425,28 @@ USB Device 不能简单地整体归入动态平面。
 因此当前更准确的边界是：
 
 > **仓库已经有“最小 unexport”能力，但还没有“完整 revoke / lease / 广播失效”能力。**
+
+### 5.6 当前推荐生命周期动词
+
+为了避免不同层各说各话，当前建议把几个动作明确区分：
+
+- `remove`
+  运行期设备从 `device::Registry` 中移除，并触发 runtime driver 的 `remove`/`shutdown`
+  路径；对稳定槽位导出来说，这通常意味着 capability 仍存在，但内部已 `detach`
+- `unexport`
+  稳定 capability 从 `io.registry` / `block.registry` 中撤下；旧槽位指针如果仍被外部持有，
+  应继续通过 `noent` 表示“对象已失活”
+- `forget`
+  由 manager 级别把“runtime device 移除 + capability 撤下 + bus record 忘掉”组合起来，
+  用于整条 runtime glue 的完整退出或 teardown
+
+当前代码里，对 USB Host runtime glue 来说，这几个入口已经分别有了最小落点：
+
+- `RuntimeManager::try_remove(binding)`
+- `RuntimeManager::try_unexport(binding)`
+- `RuntimeManager::try_forget(binding)`
+
+但这仍然只是最小生命周期语言，还不是完整 revoke 模型。
 
 ## 6. 双平面如何收口
 

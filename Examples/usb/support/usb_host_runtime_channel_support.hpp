@@ -138,6 +138,16 @@ namespace examples::usb::support {
         }
 
         template <typename RuntimeManagerT>
+        auto try_unexport_from(RuntimeManagerT& runtime) noexcept -> decltype(runtime.try_unexport(binding)) {
+            return runtime.try_unexport(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        auto try_forget_from(RuntimeManagerT& runtime) noexcept -> decltype(runtime.try_forget(binding)) {
+            return runtime.try_forget(binding);
+        }
+
+        template <typename RuntimeManagerT>
         [[nodiscard]] bool enumerated_in(const RuntimeManagerT& runtime) const noexcept {
             return runtime.enumerated(binding);
         }
@@ -145,6 +155,16 @@ namespace examples::usb::support {
         template <typename RuntimeManagerT>
         bool remove_from(RuntimeManagerT& runtime) noexcept {
             return runtime.remove(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        bool unexport_from(RuntimeManagerT& runtime) noexcept {
+            return runtime.unexport(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        bool forget_from(RuntimeManagerT& runtime) noexcept {
+            return runtime.forget(binding);
         }
 
         template <typename RuntimeManagerT>

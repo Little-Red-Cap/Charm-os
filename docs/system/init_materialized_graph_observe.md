@@ -401,8 +401,13 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 
 - case 名称
 - 对应 `source / build target / export target`
+- case 自带的 `subject` 元数据，例如 `profile / board / active_facets`
 - bundle 内相对路径形式的 `dot / json`
 - 从 `JSON sample` 提取出的轻量摘要，例如 `node_count / edge_count / phase / runlevel / node_kinds`
+
+这些 `subject` 字段当前不是最终 DSL，
+但它们已经可以作为 per-case 的声明式默认事实，
+继续被 `artifact report` 与 CI 摘要链自动继承。
 
 仓库根目录还提供了一个最小 bundle 消费脚本：
 

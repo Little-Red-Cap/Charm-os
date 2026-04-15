@@ -77,6 +77,35 @@
         }
       }
     },
+    "subjectSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "board": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active_facets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "caseEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -110,6 +139,9 @@
         },
         "json": {
           "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/subjectSummary"
         },
         "graph": {
           "$ref": "#/$defs/graphSummary"

@@ -116,6 +116,106 @@ function Get-CaseNamesByStatus {
     return @($Cases | Where-Object { $_.status -eq $Status } | ForEach-Object { [string]$_.name })
 }
 
+function Compare-StringArrays {
+    param(
+        [string[]]$Left,
+        [string[]]$Right
+    )
+
+    $leftValues = @($Left | ForEach-Object { [string]$_ } | Sort-Object)
+    $rightValues = @($Right | ForEach-Object { [string]$_ } | Sort-Object)
+    if ($leftValues.Count -ne $rightValues.Count) {
+        return $false
+    }
+
+    for ($i = 0; $i -lt $leftValues.Count; ++$i) {
+        if ($leftValues[$i] -ne $rightValues[$i]) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Get-CaseSubjectInfo {
+    param(
+        $CaseEntry
+    )
+
+    $profile = $null
+    $board = $null
+    $activeFacets = @()
+
+    if ($null -ne $CaseEntry -and $null -ne $CaseEntry.PSObject.Properties['subject']) {
+        $subject = $CaseEntry.subject
+        if ($null -ne $subject.PSObject.Properties['profile'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
+            $profile = [string]$subject.profile
+        }
+        if ($null -ne $subject.PSObject.Properties['board'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.board)) {
+            $board = [string]$subject.board
+        }
+        if ($null -ne $subject.PSObject.Properties['active_facets']) {
+            $activeFacets = @(
+                @($subject.active_facets) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ }
+            )
+        }
+    }
+
+    return [pscustomobject]@{
+        profile = $profile
+        board = $board
+        active_facets = @($activeFacets)
+    }
+}
+
+function Get-DerivedSubjectDefaults {
+    param(
+        [object[]]$CaseEntries
+    )
+
+    if (@($CaseEntries).Count -eq 0) {
+        return [ordered]@{
+            profile = $null
+            board = $null
+            active_facets = @()
+        }
+    }
+
+    $subjects = @($CaseEntries | ForEach-Object { Get-CaseSubjectInfo -CaseEntry $_ })
+    $first = $subjects[0]
+    foreach ($subject in @($subjects | Select-Object -Skip 1)) {
+        if ($first.profile -ne $subject.profile) {
+            return [ordered]@{
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+        }
+        if ($first.board -ne $subject.board) {
+            return [ordered]@{
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+        }
+        if (-not (Compare-StringArrays -Left $first.active_facets -Right $subject.active_facets)) {
+            return [ordered]@{
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+        }
+    }
+
+    return [ordered]@{
+        profile = $first.profile
+        board = $first.board
+        active_facets = @($first.active_facets)
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $exportScript = Join-Path $PSScriptRoot 'export_materialized_graph.ps1'
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -199,6 +299,16 @@ $summary = [ordered]@{
 
 $candidateIndex = Get-Content -LiteralPath $candidateIndexPath -Raw -Encoding utf8 | ConvertFrom-Json
 $selectedCaseNames = @($candidateIndex.cases | ForEach-Object { [string]$_.name })
+$derivedSubjectDefaults = Get-DerivedSubjectDefaults -CaseEntries @($candidateIndex.cases)
+if ([string]::IsNullOrWhiteSpace($Profile)) {
+    $summary.subject_defaults.profile = $derivedSubjectDefaults.profile
+}
+if ([string]::IsNullOrWhiteSpace($Board)) {
+    $summary.subject_defaults.board = $derivedSubjectDefaults.board
+}
+if ($Facet.Count -eq 0) {
+    $summary.subject_defaults.active_facets = @($derivedSubjectDefaults.active_facets)
+}
 
 function New-ArtifactReportSummary {
     param(

@@ -17,17 +17,17 @@
 - `materialized_graph.export_bundle.v1.schema.json`
   - 对应 `scripts/export_materialized_graph.ps1` 生成的 `index.json`
   - 用途偏向批量导出结果组织、bundle 检视与 diff
-  - 它已经是当前脚本链的稳定消费面之一
+  - 它已经是当前脚本链的稳定消费面之一，并且现在也可承载 per-case `subject` 元数据
 
 - `materialized_graph.bundle_diff.v1.schema.json`
   - 对应 `scripts/diff_materialized_graph_bundle.ps1 -AsJson` 的输出
   - 用途偏向结构差异分析、报告生成前的数据交换、工具侧增量审阅
-  - 它已经是 diff / report / CI 这条链上的机器可读中间协议
+  - 它已经是 diff / report / CI 这条链上的机器可读中间协议，并可继续带出左右 case 的 `subject` 视图
 
 - `materialized_graph.ci_summary.v1.schema.json`
   - 对应 `scripts/ci_materialized_graph_bundle.ps1` 生成的 `summary.json`
   - 用途偏向 CI 编排、状态汇总、上层自动化消费
-  - 它已经是当前 CI / 工作流消费面之一，并且现在也可引用生成出的 `artifact report`
+  - 它已经是当前 CI / 工作流消费面之一，并且现在也可引用生成出的 `artifact report` 与 `subject_defaults`
 
 - `materialized_graph.report_manifest.v1.schema.json`
   - 对应 `scripts/report_materialized_graph_bundle.ps1` 生成的 `report manifest`

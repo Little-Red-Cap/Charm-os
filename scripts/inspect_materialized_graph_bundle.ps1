@@ -94,6 +94,64 @@ function Format-CapabilityList {
     return ($names -join ', ')
 }
 
+function Format-ActiveFacets {
+    param(
+        [string[]]$ActiveFacets
+    )
+
+    return (@($ActiveFacets) -join ', ')
+}
+
+function Get-CaseSubjectInfo {
+    param(
+        $CaseEntry
+    )
+
+    $profile = $null
+    $board = $null
+    $activeFacets = @()
+
+    if ($null -ne $CaseEntry -and $null -ne $CaseEntry.PSObject.Properties['subject']) {
+        $subject = $CaseEntry.subject
+        if ($null -ne $subject.PSObject.Properties['profile'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
+            $profile = [string]$subject.profile
+        }
+        if ($null -ne $subject.PSObject.Properties['board'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.board)) {
+            $board = [string]$subject.board
+        }
+        if ($null -ne $subject.PSObject.Properties['active_facets']) {
+            $activeFacets = @(
+                @($subject.active_facets) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ }
+            )
+        }
+    }
+
+    return [pscustomobject]@{
+        Profile = $profile
+        Board = $board
+        ActiveFacets = @($activeFacets)
+    }
+}
+
+function New-CaseSubjectJsonView {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['subject']) {
+        return $null
+    }
+
+    $subject = Get-CaseSubjectInfo -CaseEntry $CaseEntry
+    return [ordered]@{
+        profile = $subject.Profile
+        board = $subject.Board
+        active_facets = @($subject.ActiveFacets)
+    }
+}
+
 function Resolve-CaseArtifactPath {
     param(
         [string]$BundleRootPath,
@@ -158,8 +216,12 @@ function New-CaseSummaryRow {
         $CaseEntry
     )
 
+    $subject = Get-CaseSubjectInfo -CaseEntry $CaseEntry
     return [pscustomobject]@{
         Case = [string]$CaseEntry.name
+        Profile = $subject.Profile
+        Board = $subject.Board
+        Facets = Format-ActiveFacets $subject.ActiveFacets
         Nodes = [int]$CaseEntry.graph.node_count
         Edges = [int]$CaseEntry.graph.edge_count
         Phase = [string]$CaseEntry.graph.effective_max_phase
@@ -240,7 +302,7 @@ if ($selectedCases.Count -ne 1) {
         } | ConvertTo-Json -Depth 6
     } else {
         Write-Host "[BUNDLE] $($bundle.IndexPath)"
-        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
+        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
     }
     exit 0
 }
@@ -266,6 +328,10 @@ if ($AsJson) {
         }
         nodes = $nodeRows
     }
+    $subjectJson = New-CaseSubjectJsonView -CaseEntry $selectedCase
+    if ($null -ne $subjectJson) {
+        $payload.case.subject = $subjectJson
+    }
     if ($ShowEdges) {
         $payload.edges = $edgeRows
     }
@@ -280,7 +346,7 @@ Write-Host "[DOT]  $(Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot
 Write-Host "[JSON] $($caseGraph.Path)"
 Write-Host ''
 
-$summaryRows | Format-List Case, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
+$summaryRows | Format-List Case, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
 Write-Host '[NODES]'
 $nodeRows | Format-Table -AutoSize Index, Kind, Phase, Name, Provides, Requires | Out-Host
 

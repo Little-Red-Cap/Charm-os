@@ -34,6 +34,7 @@ function Get-ExportCases {
             DefaultDot = 'materialized_graph.dot'
             DefaultJson = 'materialized_graph.sample.json'
             ExtraCache = @()
+            ActiveFacets = @()
         },
         @{
             Name = 'bringup-block-observe-demo'
@@ -46,6 +47,8 @@ function Get-ExportCases {
             DefaultDot = 'bringup_block_materialized_graph.dot'
             DefaultJson = 'bringup_block_materialized_graph.sample.json'
             ExtraCache = @()
+            Board = 'win_stub'
+            ActiveFacets = @('runtime', 'block')
         },
         @{
             Name = 'bringup-minimal-observe-demo'
@@ -58,6 +61,8 @@ function Get-ExportCases {
             DefaultDot = 'bringup_minimal_materialized_graph.dot'
             DefaultJson = 'bringup_minimal_materialized_graph.sample.json'
             ExtraCache = @()
+            Board = 'win_stub'
+            ActiveFacets = @('runtime', 'input')
         },
         @{
             Name = 'usb-msc-block-demo'
@@ -70,6 +75,7 @@ function Get-ExportCases {
             DefaultDot = 'usb_msc_block_materialized_graph.dot'
             DefaultJson = 'usb_msc_block_materialized_graph.sample.json'
             ExtraCache = @('USB_MSC_BLOCK_EXPORT_IMAGE_PATH=observe-usb-block.img')
+            ActiveFacets = @('usb', 'block')
         }
     )
 }
@@ -162,6 +168,37 @@ function Get-GraphSummary {
     return $summary
 }
 
+function New-CaseSubjectMetadata {
+    param(
+        $Entry
+    )
+
+    $profile = $null
+    if ($null -ne $Entry.Profile -and -not [string]::IsNullOrWhiteSpace([string]$Entry.Profile)) {
+        $profile = [string]$Entry.Profile
+    }
+
+    $board = $null
+    if ($null -ne $Entry.Board -and -not [string]::IsNullOrWhiteSpace([string]$Entry.Board)) {
+        $board = [string]$Entry.Board
+    }
+
+    $activeFacets = @()
+    if ($null -ne $Entry.ActiveFacets) {
+        $activeFacets = @(
+            @($Entry.ActiveFacets) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ }
+        )
+    }
+
+    return [ordered]@{
+        profile = $profile
+        board = $board
+        active_facets = $activeFacets
+    }
+}
+
 function Write-ExportBundleIndex {
     param(
         [object[]]$Results,
@@ -187,6 +224,10 @@ function Write-ExportBundleIndex {
             export_target = $result.ExportTarget
             dot = Get-RelativePath -BasePath $bundleRoot -TargetPath $result.DotPath
             json = Get-RelativePath -BasePath $bundleRoot -TargetPath $result.JsonPath
+        }
+
+        if ($null -ne $result.PSObject.Properties['Subject'] -and $null -ne $result.Subject) {
+            $caseEntry.subject = $result.Subject
         }
 
         $summary = Get-GraphSummary -JsonPath $result.JsonPath
@@ -348,6 +389,7 @@ function Invoke-ManifestCase {
             ExportTarget = $Entry.ExportTarget
             DotPath = $dotPath
             JsonPath = $jsonPath
+            Subject = New-CaseSubjectMetadata -Entry $Entry
         }
     }
 
@@ -375,6 +417,7 @@ function Invoke-ManifestCase {
         ExportTarget = $Entry.ExportTarget
         DotPath = $dotPath
         JsonPath = $jsonPath
+        Subject = New-CaseSubjectMetadata -Entry $Entry
     }
 }
 
@@ -382,7 +425,24 @@ $manifestCases = Get-ExportCases
 
 if ($ListCases) {
     foreach ($entry in $manifestCases) {
-        Write-Host "$($entry.Name) -> source=$($entry.Source) target=$($entry.ExportTarget)"
+        $subject = New-CaseSubjectMetadata -Entry $entry
+        $subjectParts = @()
+        if (-not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
+            $subjectParts += "profile=$([string]$subject.profile)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$subject.board)) {
+            $subjectParts += "board=$([string]$subject.board)"
+        }
+        if (@($subject.active_facets).Count -gt 0) {
+            $subjectParts += "facets=$((@($subject.active_facets) -join ','))"
+        }
+
+        $line = "$($entry.Name) -> source=$($entry.Source) target=$($entry.ExportTarget)"
+        if ($subjectParts.Count -gt 0) {
+            $line += " subject={$($subjectParts -join '; ')}"
+        }
+
+        Write-Host $line
     }
     exit 0
 }

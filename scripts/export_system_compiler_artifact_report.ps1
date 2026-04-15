@@ -235,6 +235,79 @@ function Get-UnresolvedBindings {
     return @($unresolved | Sort-Object -Unique)
 }
 
+function Get-SubjectInfo {
+    param(
+        $SubjectLike
+    )
+
+    $profile = $null
+    $board = $null
+    $activeFacets = @()
+
+    if ($null -ne $SubjectLike) {
+        if ($null -ne $SubjectLike.PSObject.Properties['profile'] -and -not [string]::IsNullOrWhiteSpace([string]$SubjectLike.profile)) {
+            $profile = [string]$SubjectLike.profile
+        }
+        if ($null -ne $SubjectLike.PSObject.Properties['board'] -and -not [string]::IsNullOrWhiteSpace([string]$SubjectLike.board)) {
+            $board = [string]$SubjectLike.board
+        }
+        if ($null -ne $SubjectLike.PSObject.Properties['active_facets']) {
+            $activeFacets = @(
+                @($SubjectLike.active_facets) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ }
+            )
+        }
+    }
+
+    return [pscustomobject]@{
+        Profile = $profile
+        Board = $board
+        ActiveFacets = @($activeFacets)
+    }
+}
+
+function Resolve-SubjectScalar {
+    param(
+        [string]$ExplicitValue,
+        [string]$DefaultValue,
+        [string]$CaseValue
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitValue)) {
+        return [string]$ExplicitValue
+    }
+    if (-not [string]::IsNullOrWhiteSpace($DefaultValue)) {
+        return [string]$DefaultValue
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CaseValue)) {
+        return [string]$CaseValue
+    }
+
+    return $null
+}
+
+function Resolve-SubjectFacets {
+    param(
+        [string[]]$ExplicitFacets,
+        [string[]]$DefaultFacets,
+        [string[]]$CaseFacets
+    )
+
+    if (@($ExplicitFacets).Count -gt 0) {
+        return @(
+            @($ExplicitFacets) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ }
+        )
+    }
+    if (@($DefaultFacets).Count -gt 0) {
+        return @($DefaultFacets)
+    }
+
+    return @($CaseFacets)
+}
+
 function Load-CiSummaryData {
     if ([string]::IsNullOrWhiteSpace($CiSummary)) {
         return $null
@@ -272,6 +345,7 @@ function Get-ArtifactContext {
     $resolvedReportManifest = Resolve-OptionalArtifactPath -PathValue $ReportManifest
     $diffData = $null
     $reportManifestData = $null
+    $subjectDefaults = Get-SubjectInfo -SubjectLike $null
 
     if ($null -ne $ciSummaryInfo) {
         $resolvedCiSummary = $ciSummaryInfo.Path
@@ -283,6 +357,9 @@ function Get-ArtifactContext {
         }
         if ($null -eq $resolvedReportManifest -and $null -ne $ciSummaryInfo.Data.report -and $null -ne $ciSummaryInfo.Data.report.manifest) {
             $resolvedReportManifest = Resolve-OptionalArtifactPath -PathValue ([string]$ciSummaryInfo.Data.report.manifest)
+        }
+        if ($null -ne $ciSummaryInfo.Data.PSObject.Properties['subject_defaults']) {
+            $subjectDefaults = Get-SubjectInfo -SubjectLike $ciSummaryInfo.Data.subject_defaults
         }
     }
 
@@ -300,6 +377,7 @@ function Get-ArtifactContext {
         ReportManifest = $resolvedReportManifest
         DiffData = $diffData
         ReportManifestData = $reportManifestData
+        SubjectDefaults = $subjectDefaults
     }
 }
 
@@ -385,6 +463,12 @@ function New-ArtifactReport {
         }
     }
 
+    $caseSubject = Get-SubjectInfo -SubjectLike $CaseEntry.subject
+    $defaultSubject = $ArtifactContext.SubjectDefaults
+    $resolvedProfile = Resolve-SubjectScalar -ExplicitValue $Profile -DefaultValue $defaultSubject.Profile -CaseValue $caseSubject.Profile
+    $resolvedBoard = Resolve-SubjectScalar -ExplicitValue $Board -DefaultValue $defaultSubject.Board -CaseValue $caseSubject.Board
+    $resolvedFacets = Resolve-SubjectFacets -ExplicitFacets $Facet -DefaultFacets $defaultSubject.ActiveFacets -CaseFacets $caseSubject.ActiveFacets
+
     $report = [ordered]@{
         schema = 'system_compiler.artifact_report/v0'
         generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
@@ -393,9 +477,9 @@ function New-ArtifactReport {
         mode = $ArtifactContext.Mode
         subject = [ordered]@{
             case = [string]$CaseEntry.name
-            profile = if ([string]::IsNullOrWhiteSpace($Profile)) { $null } else { $Profile }
-            board = if ([string]::IsNullOrWhiteSpace($Board)) { $null } else { $Board }
-            active_facets = @($Facet)
+            profile = $resolvedProfile
+            board = $resolvedBoard
+            active_facets = @($resolvedFacets)
         }
         structure = [ordered]@{
             capability_count = $allCapabilities.Count

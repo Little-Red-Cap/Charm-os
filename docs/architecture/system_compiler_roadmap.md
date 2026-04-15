@@ -194,6 +194,9 @@ Charm 已经有一批 system compiler 的前身，不是从白纸起步：
 
 目标：先有法律文本，再谈执法。
 
+具体 v0 法律文本、报告语言与当前胚胎映射，
+见：`docs/system/resource_contract_v0.md`
+
 建议先引入最小资源/行为元数据：
 
 - `may_block`

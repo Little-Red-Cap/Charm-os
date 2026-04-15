@@ -105,12 +105,16 @@ ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, cached=0x10203040, dev
 ARMv7-A page-table probe, addr=0x52500000, before=0x31415926, after=0x27182818, restored=0x31415926, desc=0x4021...., l2=0x4030....
 ARMv7-A section-split probe, addr=0x5260...., before=0x89ABCDEF, after=0x76543210, restored=0x89ABCDEF, l1-desc=0x4021...., l2-table=0x4021...., l1=0x4021...., l2=0x4040....
 ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc
+ARMv7-A handler stack, vector=svc, mode=svc, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A timer pending evidence, cntp_ctl=0x00000001, secure-line=group0/yes/no/no, nonsecure-line=group1/yes/yes/no, gicd=0x00000003, gicc=0x00000007, hppir=0x0000001E, spurious=no
 ARMv7-A timer IRQ active, intid=30, origin-mode=sys, handler-mode=irq
+ARMv7-A handler stack, vector=irq, mode=irq, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A SGI pending evidence, route=irq, line=group1/yes/yes/no, gicd=0x00000003, gicc=0x00000007, hppir=0x00000001, spurious=no
 ARMv7-A SGI active, intid=1, origin-mode=sys, handler-mode=irq
+ARMv7-A handler stack, vector=irq, mode=irq, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A SGI pending evidence, route=fiq, line=group0/yes/yes/no, gicd=0x00000003, gicc=0x0000000F, hppir=0x00000001, spurious=no
 ARMv7-A FIQ active, intid=1, origin-mode=sys, handler-mode=fiq
+ARMv7-A handler stack, vector=fiq, mode=fiq, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-ppi, irq-origin=sys, irq-handler=irq, fiq-origin=sys, fiq-handler=fiq, monitor-mode=not-observed
 ```
 
@@ -158,6 +162,7 @@ stops in the undefined handler before the later D-cache and IRQ smoke:
 ```text
 ARMv7-A exception smoke, kind=undefined
 ARMv7-A exception: undefined, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=und
+ARMv7-A handler stack, vector=undefined, mode=und, sp=0x........, base=0x........, top=0x........, used=0x........, in-range=yes
 ```
 
 ## Abort smoke
@@ -180,7 +185,9 @@ Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
 
 Expected abort-mode output includes the same boot/MMU banner as the default
 smoke, then stops in one of these fault paths instead of printing the later
-SVC/IRQ lines:
+SVC/IRQ lines. The fatal exception header is now also followed by one
+`ARMv7-A handler stack, vector=...` line proving the abort handler ran on the
+expected `abt` banked stack:
 
 ```text
 ARMv7-A abort smoke, kind=data, addr=0x20000000
@@ -362,6 +369,11 @@ continue
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from
   QEMU toward real Cortex-A silicon.
+- The returning and fatal exception paths now also print one `handler stack`
+  line that shows the live `SP`, the linker-defined stack range for the
+  current mode, and whether `SP` landed inside that banked stack. That gives
+  us direct evidence that `svc/irq/fiq/und/abt` are using the per-mode stacks
+  initialized in `startup.S`, not accidentally reusing the system stack.
 - Timer IRQ and self-SGI smoke now also log one masked `pending evidence`
   snapshot before unmasking CPU IRQ/FIQ, so we can distinguish "the timer or
   SGI already reached the GIC as pending" from "the CPU later took the

@@ -3,6 +3,7 @@
 #include "armv7a_cpu.hpp"
 #include "armv7a_exception_frame.hpp"
 #include "armv7a_fault_status.hpp"
+#include "armv7a_handler_stack.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 #include "armv7a_translation_walk.hpp"
@@ -27,6 +28,28 @@ const char* exception_name(Armv7aExceptionKind kind)
         return "data abort";
     case kArmv7aExceptionReserved:
         return "reserved vector";
+    case kArmv7aExceptionIrq:
+        return "irq";
+    case kArmv7aExceptionFiq:
+        return "fiq";
+    case kArmv7aExceptionSvc:
+        return "svc";
+    default:
+        return "unknown";
+    }
+}
+
+const char* exception_stack_tag_name(Armv7aExceptionKind kind)
+{
+    switch (kind) {
+    case kArmv7aExceptionUndefined:
+        return "undefined";
+    case kArmv7aExceptionPrefetchAbort:
+        return "prefetch-abort";
+    case kArmv7aExceptionDataAbort:
+        return "data-abort";
+    case kArmv7aExceptionReserved:
+        return "reserved";
     case kArmv7aExceptionIrq:
         return "irq";
     case kArmv7aExceptionFiq:
@@ -179,6 +202,7 @@ extern "C" void armv7a_handle_svc(Armv7aExceptionFrame* frame)
     armv7a_platform_early_console_puts(", handler-mode=");
     armv7a_platform_early_console_puts(armv7a_mode_name(current_cpsr));
     armv7a_platform_early_console_puts("\r\n");
+    armv7a_print_handler_stack_evidence("svc", current_cpsr);
 }
 
 extern "C" [[noreturn]] void armv7a_exception_fatal(const Armv7aExceptionFrame* frame)
@@ -201,6 +225,7 @@ extern "C" [[noreturn]] void armv7a_exception_fatal(const Armv7aExceptionFrame* 
     armv7a_platform_early_console_puts(", current-mode=");
     armv7a_platform_early_console_puts(armv7a_mode_name(current_cpsr));
     armv7a_platform_early_console_puts("\r\n");
+    armv7a_print_handler_stack_evidence(exception_stack_tag_name(kind), current_cpsr);
     print_fault_registers(kind);
     armv7a_platform_idle_forever();
 }

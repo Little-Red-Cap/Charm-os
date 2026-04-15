@@ -56,6 +56,13 @@ extern "C" std::uint32_t armv7a_read_cpsr()
     return value;
 }
 
+extern "C" std::uintptr_t armv7a_read_sp()
+{
+    std::uintptr_t value = 0;
+    asm volatile("mov %0, sp" : "=r"(value));
+    return value;
+}
+
 extern "C" std::uint32_t armv7a_read_mpidr()
 {
     std::uint32_t value = 0;

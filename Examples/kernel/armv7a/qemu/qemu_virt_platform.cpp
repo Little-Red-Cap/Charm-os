@@ -2,7 +2,30 @@
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 
+extern "C" {
+extern char __und_stack_base;
+extern char __und_stack_top;
+extern char __abt_stack_base;
+extern char __abt_stack_top;
+extern char __irq_stack_base;
+extern char __irq_stack_top;
+extern char __fiq_stack_base;
+extern char __fiq_stack_top;
+extern char __svc_stack_base;
+extern char __svc_stack_top;
+extern char __sys_stack_base;
+extern char __sys_stack_top;
+}
+
 namespace {
+constexpr std::uint32_t kPsrModeMask = 0x1fu;
+constexpr std::uint32_t kModeFiq = 0x11u;
+constexpr std::uint32_t kModeIrq = 0x12u;
+constexpr std::uint32_t kModeSvc = 0x13u;
+constexpr std::uint32_t kModeAbt = 0x17u;
+constexpr std::uint32_t kModeUnd = 0x1bu;
+constexpr std::uint32_t kModeSys = 0x1fu;
+
 constexpr Armv7aPlatformAddressSpace kQemuVirtAddressSpace{
     0x40000000u,
     64u * 1024u * 1024u,
@@ -35,6 +58,14 @@ constexpr Armv7aPlatformProbeLayout kQemuVirtProbeLayout{
 };
 
 Armv7aPlatformResetState g_qemuVirtResetState{};
+
+Armv7aPlatformStackRange stack_range(char& base, char& top)
+{
+    return Armv7aPlatformStackRange{
+        .base = reinterpret_cast<std::uintptr_t>(&base),
+        .top = reinterpret_cast<std::uintptr_t>(&top),
+    };
+}
 } // namespace
 
 const Armv7aPlatformAddressSpace& armv7a_platform_address_space()
@@ -55,6 +86,26 @@ const Armv7aPlatformProbeLayout& armv7a_platform_probe_layout()
 const Armv7aPlatformResetState& armv7a_platform_reset_state()
 {
     return g_qemuVirtResetState;
+}
+
+Armv7aPlatformStackRange armv7a_platform_stack_range_for_mode(std::uint32_t psr)
+{
+    switch (psr & kPsrModeMask) {
+    case kModeUnd:
+        return stack_range(__und_stack_base, __und_stack_top);
+    case kModeAbt:
+        return stack_range(__abt_stack_base, __abt_stack_top);
+    case kModeIrq:
+        return stack_range(__irq_stack_base, __irq_stack_top);
+    case kModeFiq:
+        return stack_range(__fiq_stack_base, __fiq_stack_top);
+    case kModeSvc:
+        return stack_range(__svc_stack_base, __svc_stack_top);
+    case kModeSys:
+        return stack_range(__sys_stack_base, __sys_stack_top);
+    default:
+        return Armv7aPlatformStackRange{};
+    }
 }
 
 extern "C" void armv7a_platform_debug_trace(const char* text)

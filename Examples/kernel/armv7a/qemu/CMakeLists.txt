@@ -79,6 +79,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     main.cpp
     armv7a_cpu.cpp
     armv7a_gic.cpp
+    armv7a_handler_stack.cpp
     armv7a_interrupt_smoke.cpp
     armv7a_arch_timer.cpp
     armv7a_attribute_probe.cpp

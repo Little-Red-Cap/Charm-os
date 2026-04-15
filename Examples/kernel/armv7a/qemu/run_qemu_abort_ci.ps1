@@ -67,6 +67,7 @@ function Show-LogTail {
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $qemu = Resolve-ToolPath -Tool $QemuExe
 $extraPatterns = @()
+$stackVector = ""
 
 switch ($Kind) {
     "data" {
@@ -78,6 +79,7 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A data fault decode, status=0x05 \(section translation fault\), domain=0x0, write=no, cm=no"
         $mapPattern = "ARMv7-A fault map, far=0x20000000, ttbr0=0x[0-9A-F]{8}, l1\[0x200\]=0x00000000 \(fault\)"
         $smokePattern = "ARMv7-A abort smoke, kind=data, addr=0x20000000"
+        $stackVector = "data-abort"
     }
     "data-align" {
         $configurePreset = "debug-abort-data-align"
@@ -90,6 +92,7 @@ switch ($Kind) {
         $smokePattern = "ARMv7-A abort smoke, kind=data-align, addr=0x4[0-9A-F]{7}"
         $extraPatterns += "ARMv7-A data-align target ready, addr=0x4[0-9A-F]{7}, base=0x4[0-9A-F]{7}, value=0x89ABCDEF"
         $extraPatterns += "ARMv7-A alignment trap armed, addr=0x4[0-9A-F]{7}, base=0x4[0-9A-F]{7}, sctlr=0x[0-9A-F]{8}, alignment-check=on"
+        $stackVector = "data-abort"
     }
     "prefetch" {
         $configurePreset = "debug-abort-prefetch"
@@ -100,6 +103,7 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A prefetch fault decode, status=0x05 \(section translation fault\), domain=0x0"
         $mapPattern = "ARMv7-A fault map, far=0x20000000, ttbr0=0x[0-9A-F]{8}, l1\[0x200\]=0x00000000 \(fault\)"
         $smokePattern = "ARMv7-A abort smoke, kind=prefetch, addr=0x20000000"
+        $stackVector = "prefetch-abort"
     }
     "prefetch-xn" {
         $configurePreset = "debug-abort-prefetch-xn"
@@ -111,6 +115,7 @@ switch ($Kind) {
         $mapPattern = "ARMv7-A fault map, far=0x5[0-9A-F]{7}, ttbr0=0x[0-9A-F]{8}, l1\[0x500\]=0x[0-9A-F]{8} \(section\), domain=0x1, xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=prefetch-xn, addr=0x5[0-9A-F]{7}"
         $extraPatterns += "ARMv7-A XN alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
+        $stackVector = "prefetch-abort"
     }
     "prefetch-page" {
         $configurePreset = "debug-abort-prefetch-page"
@@ -122,6 +127,7 @@ switch ($Kind) {
         $mapPattern = "ARMv7-A fault map, far=0x56[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x560\]=0x[0-9A-F]{8} \(page table\), domain=0x0, l2\[0x00\]=0x00000000 \(fault\)"
         $smokePattern = "ARMv7-A abort smoke, kind=prefetch-page, addr=0x56[0-9A-F]{6}"
         $extraPatterns += "ARMv7-A prefetch-page alias ready, va=0x56[0-9A-F]{6}, l1=0x[0-9A-F]{8}, l2=0x00000000"
+        $stackVector = "prefetch-abort"
     }
     "prefetch-page-xn" {
         $configurePreset = "debug-abort-prefetch-page-xn"
@@ -133,6 +139,7 @@ switch ($Kind) {
         $mapPattern = "ARMv7-A fault map, far=0x55[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x550\]=0x[0-9A-F]{8} \(page table\), domain=0x1, l2\[0x00\]=0x[0-9A-F]{8} \(small page\), xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=prefetch-page-xn, addr=0x55[0-9A-F]{6}"
         $extraPatterns += "ARMv7-A page-XN alias ready, va=0x55[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
+        $stackVector = "prefetch-abort"
     }
     "prefetch-page-xn-runtime" {
         $configurePreset = "debug-abort-prefetch-page-xn-runtime"
@@ -146,6 +153,7 @@ switch ($Kind) {
         $extraPatterns += "ARMv7-A runtime page-XN alias ready, va=0x58[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
         $extraPatterns += "ARMv7-A runtime page-XN probe, addr=0x58[0-9A-F]{6}, return=0x00000043"
         $extraPatterns += "ARMv7-A runtime page-XN flip, addr=0x58[0-9A-F]{6}, l2=0x[0-9A-F]{8}"
+        $stackVector = "prefetch-abort"
     }
     "data-perm" {
         $configurePreset = "debug-abort-data-perm"
@@ -157,6 +165,7 @@ switch ($Kind) {
         $mapPattern = "ARMv7-A fault map, far=0x5[0-9A-F]{7}, ttbr0=0x[0-9A-F]{8}, l1\[0x510\]=0x[0-9A-F]{8} \(section\), domain=0x1, xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=data-perm, addr=0x5[0-9A-F]{7}, value=0xA5A55A5A"
         $extraPatterns += "ARMv7-A data alias ready, va=0x5[0-9A-F]{7}, pa=0x4[0-9A-F]{7}, desc=0x[0-9A-F]{8}"
+        $stackVector = "data-abort"
     }
     "data-page" {
         $configurePreset = "debug-abort-data-page"
@@ -168,6 +177,7 @@ switch ($Kind) {
         $mapPattern = "ARMv7-A fault map, far=0x53000040, ttbr0=0x[0-9A-F]{8}, l1\[0x530\]=0x[0-9A-F]{8} \(page table\), domain=0x0, l2\[0x00\]=0x00000000 \(fault\)"
         $smokePattern = "ARMv7-A abort smoke, kind=data-page, addr=0x53000040"
         $extraPatterns += "ARMv7-A data-page alias ready, va=0x53000040, l1=0x[0-9A-F]{8}, l2=0x00000000"
+        $stackVector = "data-abort"
     }
     "data-page-perm" {
         $configurePreset = "debug-abort-data-page-perm"
@@ -179,6 +189,7 @@ switch ($Kind) {
         $mapPattern = "ARMv7-A fault map, far=0x54[0-9A-F]{6}, ttbr0=0x[0-9A-F]{8}, l1\[0x540\]=0x[0-9A-F]{8} \(page table\), domain=0x1, l2\[0x00\]=0x[0-9A-F]{8} \(small page\), xn=yes, s=yes, c=yes, b=yes"
         $smokePattern = "ARMv7-A abort smoke, kind=data-page-perm, addr=0x54[0-9A-F]{6}, value=0xA5A55A5A"
         $extraPatterns += "ARMv7-A data-page-perm alias ready, va=0x54[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
+        $stackVector = "data-abort"
     }
     "data-page-perm-runtime" {
         $configurePreset = "debug-abort-data-page-perm-runtime"
@@ -192,6 +203,7 @@ switch ($Kind) {
         $extraPatterns += "ARMv7-A runtime data-page alias ready, va=0x57[0-9A-F]{6}, pa=0x4[0-9A-F]{7}, l1=0x[0-9A-F]{8}, l2=0x[0-9A-F]{8}"
         $extraPatterns += "ARMv7-A runtime data-page probe, addr=0x57[0-9A-F]{6}, before=0x0BADCAFE, after=0x5AA55AA5, direct=0x5AA55AA5"
         $extraPatterns += "ARMv7-A runtime data-page flip, addr=0x57[0-9A-F]{6}, l2=0x[0-9A-F]{8}"
+        $stackVector = "data-abort"
     }
     default {
         throw "unsupported abort kind: $Kind"
@@ -310,6 +322,9 @@ if (($log -notmatch $decodePattern)) {
 }
 if (($log -notmatch $mapPattern)) {
     $missing += $mapPattern
+}
+if (($log -notmatch "ARMv7-A handler stack, vector=$stackVector, mode=abt, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
+    $missing += "ARMv7-A handler stack, vector=$stackVector..."
 }
 foreach ($extraPattern in $extraPatterns) {
     if ($log -notmatch $extraPattern) {

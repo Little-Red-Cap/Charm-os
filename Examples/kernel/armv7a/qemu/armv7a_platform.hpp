@@ -65,6 +65,11 @@ struct Armv7aPlatformResetState {
     bool forced_low_vectors = false;
 };
 
+struct Armv7aPlatformStackRange {
+    std::uintptr_t base = 0u;
+    std::uintptr_t top = 0u;
+};
+
 extern "C" void armv7a_platform_early_console_init();
 extern "C" void armv7a_platform_early_console_putc(char ch);
 extern "C" void armv7a_platform_early_console_puts(const char* text);
@@ -77,6 +82,7 @@ const Armv7aPlatformAddressSpace& armv7a_platform_address_space();
 const Armv7aPlatformMmioLayout& armv7a_platform_mmio_layout();
 const Armv7aPlatformProbeLayout& armv7a_platform_probe_layout();
 const Armv7aPlatformResetState& armv7a_platform_reset_state();
+Armv7aPlatformStackRange armv7a_platform_stack_range_for_mode(std::uint32_t psr);
 
 std::uint32_t armv7a_platform_timer_frequency_hz();
 std::uint64_t armv7a_platform_timer_counter();

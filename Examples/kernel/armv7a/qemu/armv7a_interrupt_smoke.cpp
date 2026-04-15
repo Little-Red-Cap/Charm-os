@@ -2,6 +2,7 @@
 
 #include "armv7a_cpu.hpp"
 #include "armv7a_exception_frame.hpp"
+#include "armv7a_handler_stack.hpp"
 #include "armv7a_platform.hpp"
 
 namespace {
@@ -175,6 +176,7 @@ void handle_interrupt(Armv7aExceptionFrame* frame, const char* label, bool fiq_r
     }
 
     record_interrupt(intid, *frame);
+    armv7a_print_handler_stack_evidence(fiq_route ? "fiq" : "irq", armv7a_read_cpsr());
     if (!interrupt_matches_expected(intid, fiq_route)) {
         print_unexpected_interrupt(label, intid, *frame);
     }

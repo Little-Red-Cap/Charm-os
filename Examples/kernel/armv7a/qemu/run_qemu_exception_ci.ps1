@@ -161,6 +161,9 @@ if (($log -notmatch "ARMv7-A MMU flags, mmu=on, dcache=off, icache=on")) {
 if (($log -notmatch "ARMv7-A exception: undefined, pc=0x[0-9A-F]{8}, lr=0x[0-9A-F]{8}, spsr=0x[0-9A-F]{8}, origin-mode=[a-z]+, current-cpsr=0x[0-9A-F]{8}, current-mode=und")) {
     $missing += "ARMv7-A exception: undefined, pc=0x..."
 }
+if (($log -notmatch "ARMv7-A handler stack, vector=undefined, mode=und, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
+    $missing += "ARMv7-A handler stack, vector=undefined..."
+}
 
 $unexpected = @()
 if ($log.Contains("ARMv7-A exception smoke unexpectedly returned")) {

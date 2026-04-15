@@ -10,6 +10,7 @@ extern "C" void armv7a_enable_fiq();
 extern "C" void armv7a_disable_fiq();
 extern "C" void armv7a_compiler_barrier();
 extern "C" std::uint32_t armv7a_read_cpsr();
+extern "C" std::uintptr_t armv7a_read_sp();
 extern "C" std::uint32_t armv7a_read_id_mmfr0();
 extern "C" std::uint32_t armv7a_read_id_pfr1();
 extern "C" std::uint32_t armv7a_read_mpidr();

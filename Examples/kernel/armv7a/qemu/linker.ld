@@ -58,21 +58,27 @@ SECTIONS
     {
         __stack_region_start = .;
 
+        __und_stack_base = .;
         . += 0x0400;
         __und_stack_top = .;
 
+        __abt_stack_base = .;
         . += 0x0400;
         __abt_stack_top = .;
 
+        __irq_stack_base = .;
         . += 0x0400;
         __irq_stack_top = .;
 
+        __fiq_stack_base = .;
         . += 0x0400;
         __fiq_stack_top = .;
 
+        __svc_stack_base = .;
         . += 0x0800;
         __svc_stack_top = .;
 
+        __sys_stack_base = .;
         . += 0x1000;
         __sys_stack_top = .;
 

@@ -11,6 +11,8 @@ export namespace boot {
     struct BootHandoff {
         BootPlan plan{};
         BootTarget target{};
+        BootLoadPlan load{};
+        BootLoadedImage image{};
         BootExecution execution{};
         bool rollback_prepared{false};
         bool ready_to_jump{false};
@@ -22,7 +24,8 @@ export namespace boot {
 
     inline BootHandoff prepare_boot_handoff(const Storage& s, const BootConfig& cfg,
                                             BootPlan plan,
-                                            const platform::board::BootExecDesc& desc) noexcept {
+                                            const platform::board::BootLoadDesc& load_desc,
+                                            const platform::board::BootExecDesc& exec_desc) noexcept {
         BootHandoff handoff{};
         handoff.plan = plan;
         if (!handoff.plan) {
@@ -34,7 +37,17 @@ export namespace boot {
             return handoff;
         }
 
-        handoff.execution = resolve_boot_execution(handoff.target, desc);
+        handoff.load = make_boot_load_plan(handoff.target);
+        if (!handoff.load) {
+            return handoff;
+        }
+
+        handoff.image = resolve_boot_loaded_image(handoff.load, load_desc);
+        if (!handoff.image.address_resolved || !prepare_boot_loaded_image(handoff.image, load_desc)) {
+            return handoff;
+        }
+
+        handoff.execution = resolve_boot_execution(handoff.image, exec_desc);
         if (!handoff.execution) {
             return handoff;
         }
@@ -45,7 +58,9 @@ export namespace boot {
 
         handoff.rollback_prepared = true;
         handoff.target.plan = handoff.plan;
-        handoff.execution.target.plan = handoff.plan;
+        handoff.load.target.plan = handoff.plan;
+        handoff.image.load = handoff.load;
+        handoff.execution.image = handoff.image;
         handoff.ready_to_jump = handoff.rollback_prepared && static_cast<bool>(handoff.execution);
         return handoff;
     }
@@ -53,13 +68,14 @@ export namespace boot {
     inline BootHandoff prepare_boot_handoff(const Storage& s, const BootConfig& cfg,
                                             BootPlan plan,
                                             const platform::board::BoardCaps& caps) noexcept {
-        return prepare_boot_handoff(s, cfg, plan, caps.boot_exec);
+        return prepare_boot_handoff(s, cfg, plan, caps.boot_load, caps.boot_exec);
     }
 
     inline BootHandoff prepare_boot_handoff(const Storage& s, const BootConfig& cfg,
                                             const Policy& policy,
-                                            const platform::board::BootExecDesc& desc) noexcept {
-        return prepare_boot_handoff(s, cfg, decide_boot_policy(s, cfg, policy), desc);
+                                            const platform::board::BootLoadDesc& load_desc,
+                                            const platform::board::BootExecDesc& exec_desc) noexcept {
+        return prepare_boot_handoff(s, cfg, decide_boot_policy(s, cfg, policy), load_desc, exec_desc);
     }
 
     inline BootHandoff prepare_boot_handoff(const Storage& s, const BootConfig& cfg,

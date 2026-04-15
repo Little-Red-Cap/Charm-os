@@ -55,7 +55,8 @@ namespace {
 
     std::vector<util::u8> build_image(std::string_view payload, bool valid,
                                       util::u32 version, util::u32 key,
-                                      util::u32 entry_offset = 0) {
+                                      util::u32 entry_offset = 0,
+                                      util::u16 extra_flags = 0) {
         boot::ImageHeader h{};
         h.payload_size = static_cast<util::u32>(payload.size());
         h.image_size = h.payload_size + sizeof(boot::ImageHeader);
@@ -65,7 +66,7 @@ namespace {
         h.entry_offset = entry_offset;
         h.image_version = version;
         h.min_version = 1;
-        h.flags = static_cast<util::u16>(boot::ImageFlags::signed_image);
+        h.flags = static_cast<util::u16>(boot::ImageFlags::signed_image) | extra_flags;
         h.signature = boot::calc_signature(key,
                                            reinterpret_cast<const util::u8*>(&h.payload_crc32),
                                            sizeof(h.payload_crc32));
@@ -110,9 +111,24 @@ namespace {
         }
     }
 
+    const char* load_kind_name(boot::BootLoadKind kind) noexcept {
+        switch (kind) {
+        case boot::BootLoadKind::xip:
+            return "xip";
+        case boot::BootLoadKind::copy_to_ram:
+            return "copy";
+        default:
+            return "unknown";
+        }
+    }
+
     struct MockLaunchContext {
         util::u32 expected_payload_offset{0};
         util::u32 expected_storage_entry_offset{0};
+        platform::board::BootLoadKind expected_load_kind{
+            platform::board::BootLoadKind::copy_to_ram};
+        bool resolve_called{false};
+        bool load_called{false};
         bool prepare_called{false};
         bool jump_called{false};
         bool entry_called{false};
@@ -123,6 +139,7 @@ namespace {
     }
 
     util::usize resolve_mock_payload_base(void* ctx,
+                                          platform::board::BootLoadKind kind,
                                           util::u32 storage_payload_offset,
                                           util::u32 storage_entry_offset,
                                           util::u32 entry_offset,
@@ -130,6 +147,10 @@ namespace {
                                           util::u32,
                                           util::u16) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->resolve_called = true;
+        if (kind != launch->expected_load_kind) {
+            return 0;
+        }
         if (storage_payload_offset != launch->expected_payload_offset) {
             return 0;
         }
@@ -137,6 +158,23 @@ namespace {
             return 0;
         }
         return reinterpret_cast<util::usize>(&mock_boot_entry) - entry_offset;
+    }
+
+    bool load_mock_payload(void* ctx,
+                           platform::board::BootLoadKind kind,
+                           util::usize payload_base,
+                           util::u32 storage_payload_offset,
+                           util::u32,
+                           util::u16) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->load_called = true;
+        if (kind != launch->expected_load_kind) {
+            return false;
+        }
+        if (storage_payload_offset != launch->expected_payload_offset) {
+            return false;
+        }
+        return payload_base != 0;
     }
 
     bool prepare_mock_execution(void* ctx,
@@ -284,6 +322,13 @@ int main() {
     const auto image_a = build_image("image_a", true, 2, key);
     const auto image_b = build_image("image_b_upgrade", true, 3, key, 4);
     const auto image_bad_entry = build_image("tiny", true, 4, key, 8);
+    const auto image_xip = build_image(
+        "xip_image",
+        true,
+        5,
+        key,
+        2,
+        static_cast<util::u16>(boot::ImageFlags::xip_payload));
 
     boot::BootInfo initial_info{};
     initial_info.active = boot::Slot::a;
@@ -329,9 +374,13 @@ int main() {
             cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)) + 4
     };
     platform::board::BoardCaps board_caps{};
-    board_caps.boot_exec = platform::board::BootExecDesc{
+    board_caps.boot_load = platform::board::BootLoadDesc{
         .ctx = &launch_ctx,
         .resolve_payload_base = resolve_mock_payload_base,
+        .load_payload = load_mock_payload
+    };
+    board_caps.boot_exec = platform::board::BootExecDesc{
+        .ctx = &launch_ctx,
         .prepare_jump = prepare_mock_execution,
         .jump = jump_mock_execution
     };
@@ -340,6 +389,8 @@ int main() {
     const auto prepared_result = receiver.result();
     const auto rollback_plan = boot::decide_boot_policy(storage, cfg, policy);
     const auto& target = handoff.target;
+    const auto& load = handoff.load;
+    const auto& image = handoff.image;
     const bool executed = boot::execute_boot_handoff(handoff, board_caps);
     const auto& execution = handoff.execution;
     const bool marked = receiver.mark_selected_success();
@@ -385,6 +436,44 @@ int main() {
         !bad_entry_valid &&
         !static_cast<bool>(bad_entry_target);
 
+    MockFlash xip_flash{};
+    auto xip_storage = make_storage(xip_flash);
+    const bool xip_written = boot::flash_write(
+        xip_storage,
+        cfg.slot_b.offset,
+        std::span<const util::u8>(image_xip.data(), image_xip.size()),
+        flash_cfg);
+    MockLaunchContext xip_ctx{
+        .expected_payload_offset =
+            cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)),
+        .expected_storage_entry_offset =
+            cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)) + 2,
+        .expected_load_kind = platform::board::BootLoadKind::xip
+    };
+    platform::board::BoardCaps xip_caps{};
+    xip_caps.boot_load = platform::board::BootLoadDesc{
+        .ctx = &xip_ctx,
+        .resolve_payload_base = resolve_mock_payload_base,
+        .load_payload = load_mock_payload
+    };
+    boot::BootPlan xip_plan{};
+    xip_plan.boot = {boot::BootStatus::ok, boot::Slot::b};
+    xip_plan.info = initial_info;
+    const auto xip_target = boot::resolve_boot_target(xip_storage, cfg, xip_plan);
+    const auto xip_load = boot::make_boot_load_plan(xip_target);
+    auto xip_image_loaded = boot::resolve_boot_loaded_image(xip_load, xip_caps);
+    const bool xip_ready = boot::prepare_boot_loaded_image(xip_image_loaded, xip_caps);
+    const bool xip_ok =
+        xip_written &&
+        static_cast<bool>(xip_target) &&
+        static_cast<bool>(xip_load) &&
+        xip_load.kind == boot::BootLoadKind::xip &&
+        !xip_load.transfer_required &&
+        xip_ready &&
+        static_cast<bool>(xip_image_loaded) &&
+        xip_ctx.resolve_called &&
+        !xip_ctx.load_called;
+
     const bool ok = slot_a_written &&
                     transfer_ok &&
                     static_cast<bool>(download) &&
@@ -399,6 +488,11 @@ int main() {
                     static_cast<bool>(handoff) &&
                     static_cast<bool>(target) &&
                     target.partition.offset == cfg.slot_b.offset &&
+                    static_cast<bool>(load) &&
+                    load.kind == boot::BootLoadKind::copy_to_ram &&
+                    load.transfer_required &&
+                    static_cast<bool>(image) &&
+                    image.payload_ready &&
                     target.payload_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) &&
                     target.storage_entry_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) + 4 &&
                     prepared &&
@@ -416,13 +510,16 @@ int main() {
                     launch_ctx.prepare_called &&
                     launch_ctx.jump_called &&
                     launch_ctx.entry_called &&
+                    launch_ctx.resolve_called &&
+                    launch_ctx.load_called &&
                     marked &&
                     final_result.success_marked &&
                     final_result.plan.prepared &&
                     !final_result.plan.confirm_required &&
                     final_result.info.active == boot::Slot::b &&
                     headerless_failed &&
-                    bad_entry_rejected;
+                    bad_entry_rejected &&
+                    xip_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -444,6 +541,10 @@ int main() {
                 static_cast<bool>(target) ? 1 : 0,
                 target.payload_offset,
                 target.storage_entry_offset);
+    std::printf("[boot] boot_load=%s transfer=%d ready=%d\n",
+                load_kind_name(load.kind),
+                load.transfer_required ? 1 : 0,
+                image.payload_ready ? 1 : 0);
     std::printf("[boot] boot_handoff=%d rollback=%d ready=%d\n",
                 static_cast<bool>(handoff) ? 1 : 0,
                 handoff.rollback_prepared ? 1 : 0,
@@ -465,6 +566,7 @@ int main() {
                 static_cast<unsigned>(headerless.stage),
                 headerless.transfer.header_missing ? 1 : 0);
     std::printf("[boot] bad_entry_rejected=%d\n", bad_entry_rejected ? 1 : 0);
+    std::printf("[boot] xip_load=%d kind=%s\n", xip_ok ? 1 : 0, load_kind_name(xip_load.kind));
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

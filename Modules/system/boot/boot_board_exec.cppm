@@ -2,38 +2,13 @@ export module boot_board_exec;
 
 import platform.board;
 
+export import boot_board_load;
 export import boot_exec;
 
 export namespace boot {
-    inline BootExecution resolve_boot_execution(const BootTarget& target,
-                                                const platform::board::BootExecDesc& desc) noexcept {
-        BootExecution execution{};
-        execution.target = target;
-        if (!execution.target || !desc.resolve_payload_base) {
-            return execution;
-        }
-
-        execution.payload_base = desc.resolve_payload_base(
-            desc.ctx,
-            target.payload_offset,
-            target.storage_entry_offset,
-            target.header.entry_offset,
-            target.header.payload_size,
-            target.header.image_size,
-            target.header.flags);
-        if (execution.payload_base == 0) {
-            return execution;
-        }
-
-        execution.entry_addr = execution.payload_base + target.header.entry_offset;
-        execution.address_resolved = true;
-        return execution;
-    }
-
-    inline BootExecution resolve_boot_execution(const Storage& s, const BootConfig& cfg,
-                                                BootPlan plan,
-                                                const platform::board::BootExecDesc& desc) noexcept {
-        return resolve_boot_execution(resolve_boot_target(s, cfg, plan), desc);
+    inline BootExecution resolve_boot_execution(BootLoadedImage image,
+                                                const platform::board::BootExecDesc&) noexcept {
+        return resolve_boot_execution(image);
     }
 
     inline bool prepare_boot_execution(BootExecution& execution,
@@ -48,8 +23,8 @@ export namespace boot {
         execution.prepared = desc.prepare_jump(desc.ctx,
                                                execution.payload_base,
                                                execution.entry_addr,
-                                               execution.target.header.payload_size,
-                                               execution.target.header.flags);
+                                               execution.image.load.target.header.payload_size,
+                                               execution.image.load.target.header.flags);
         return execution.prepared;
     }
 
@@ -65,15 +40,9 @@ export namespace boot {
         return execution.jumped;
     }
 
-    inline BootExecution resolve_boot_execution(const BootTarget& target,
+    inline BootExecution resolve_boot_execution(BootLoadedImage image,
                                                 const platform::board::BoardCaps& caps) noexcept {
-        return resolve_boot_execution(target, caps.boot_exec);
-    }
-
-    inline BootExecution resolve_boot_execution(const Storage& s, const BootConfig& cfg,
-                                                BootPlan plan,
-                                                const platform::board::BoardCaps& caps) noexcept {
-        return resolve_boot_execution(s, cfg, plan, caps.boot_exec);
+        return resolve_boot_execution(image, caps.boot_exec);
     }
 
     inline bool prepare_boot_execution(BootExecution& execution,

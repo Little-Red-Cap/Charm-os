@@ -16,7 +16,8 @@ export namespace boot {
     enum class ImageFlags : util::u16 {
         none = 0,
         compressed = 1 << 0,
-        signed_image = 1 << 1
+        signed_image = 1 << 1,
+        xip_payload = 1 << 2
     };
 
     struct ImageHeader {
@@ -79,6 +80,10 @@ export namespace boot {
 
     constexpr void boot_info_clear_flag(BootInfo& info, BootInfoFlags flag) noexcept {
         info.flags &= ~static_cast<util::u32>(flag);
+    }
+
+    constexpr bool image_has_flag(const ImageHeader& header, ImageFlags flag) noexcept {
+        return (header.flags & static_cast<util::u16>(flag)) != 0;
     }
 
     static_assert(std::is_trivially_copyable_v<ImageHeader>);

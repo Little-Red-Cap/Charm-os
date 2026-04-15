@@ -101,13 +101,16 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - 以 Bootloader 分区上限和 `max_size` 共同约束下载尺寸
 - `boot_session` 可在传输完成后继续执行目标分区校验、写入 `BootInfo.pending`，再通过统一 `BootPlan` 完成槽位决策、跳转前回滚预备与成功确认
 - `boot_launch` 可把已决策的 `BootPlan` 进一步解析为目标分区、镜像头与 entry 偏移，便于后续板级跳转对接
-- `boot_exec` 可在板级提供的 hook 之上，把 `BootTarget` 进一步解析为实际可执行 payload/entry 地址，并统一 pre-jump/jump 调用面
-- `boot_board_exec` 则进一步桥接 `platform::board::BootExecDesc`，让真实板级代码可以只暴露基础地址与跳转 hook
-- `boot_handoff` 把 `BootPlan -> BootTarget -> BootExecution -> rollback prepare` 进一步串成一个显式 handoff
-- `platform::board::BoardCaps.boot_exec` 已经预留，真实板级可以直接把 jump 能力跟其他 board caps 一起交给上层
+- `boot_load` 可把 `BootTarget` 进一步解析为显式加载契约，统一表达 `copy_to_ram` 与 `xip`
+- `boot_board_load` 进一步桥接 `platform::board::BootLoadDesc`，让真实板级代码只暴露 payload 基址解析与可选搬运 hook
+- `boot_exec` 则只在镜像 ready 之后处理 pre-jump/jump，不再反向承担 payload 地址解析
+- `boot_board_exec` 继续桥接 `platform::board::BootExecDesc`，让真实板级代码只暴露跳转准备与 jump hook
+- `boot_handoff` 把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 进一步串成一个显式 handoff
+- `platform::board::BoardCaps.boot_load / boot_exec` 已经预留，真实板级可以直接把加载能力与 jump 能力跟其他 board caps 一起交给上层
 
-这里同样要区分两类准备动作：
+这里同样要区分几类准备动作：
 - Boot 元数据准备：`prepare_selected_boot()` 负责把 `pending_trial` 写回旧 `active`，形成失败自动回滚语义
+- 加载准备：`prepare_boot_loaded_image()` 负责让目标镜像进入可执行态，包括 XIP 就绪或 copy-to-RAM 搬运
 - 板级执行准备：`prepare_boot_execution()` 负责真正跳转前的机器状态切换
 
 ## 7. 实施建议（最小）
@@ -126,14 +129,15 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - `Examples/boot/bootloader_demo`：先写入有效 Slot A 镜像，再通过 `boot::XyModemSession` 下载并暂存 Slot B，随后执行：
   - 传输结果收口
   - 策略校验与 `BootInfo.pending` 写入
-- 生成 `BootPlan`
-- 通过 `prepare_handoff()` 一次性完成目标解析、执行解析与回滚预备
-- 通过 `platform::board::BootExecDesc` mock hook 验证 jump 调用
-- 基于计划的成功确认
+  - 生成 `BootPlan`
+  - 通过 `prepare_handoff()` 一次性完成目标解析、加载解析、执行解析与回滚预备
+  - 通过 `platform::board::BootLoadDesc` / `BootExecDesc` mock hook 验证 load/jump 调用
+  - 基于计划的成功确认
   - 缺失头帧失败路径验证
   - 非法 `entry_offset` 镜像拒绝验证
+  - `xip_payload` 镜像旁路加载验证
 
-这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> BootPlan -> Target -> RollbackPrepare -> Exec -> Confirm`。
+这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> BootPlan -> Target -> Load -> RollbackPrepare -> Exec -> Confirm`。
 
 ## 9. Charm 落地点建议
 

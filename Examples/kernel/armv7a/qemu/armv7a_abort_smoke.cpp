@@ -36,12 +36,12 @@ void early_uart_write_hex32(std::uint32_t value)
 
 extern "C" [[gnu::noinline]] void armv7a_abort_xn_target()
 {
-    asm volatile("" ::: "memory");
+    armv7a_compiler_barrier();
 }
 
 extern "C" [[gnu::noinline]] std::uint32_t armv7a_abort_exec_probe_target()
 {
-    asm volatile("" ::: "memory");
+    armv7a_compiler_barrier();
     return kAbortSmokeExecProbeReturnValue;
 }
 
@@ -280,8 +280,7 @@ extern "C" void armv7a_run_abort_smoke_if_enabled()
     armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=prefetch, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().abort_unmapped_address));
     armv7a_platform_early_console_puts("\r\n");
-    const auto target = static_cast<std::uint32_t>(probe_layout().abort_unmapped_address);
-    asm volatile("bx %0" : : "r"(target) : "memory");
+    armv7a_branch_to_address(probe_layout().abort_unmapped_address);
     armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
     armv7a_platform_idle_forever();
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_XN)

@@ -43,6 +43,11 @@ extern "C" void armv7a_disable_fiq()
     asm volatile("cpsid f" ::: "memory");
 }
 
+extern "C" void armv7a_compiler_barrier()
+{
+    asm volatile("" ::: "memory");
+}
+
 extern "C" std::uint32_t armv7a_read_cpsr()
 {
     std::uint32_t value = 0;
@@ -94,6 +99,11 @@ extern "C" std::uint32_t armv7a_read_vbar()
 extern "C" void armv7a_write_vbar(std::uint32_t value)
 {
     asm volatile("mcr p15, 0, %0, c12, c0, 0" : : "r"(value) : "memory");
+}
+
+extern "C" void armv7a_branch_to_address(std::uintptr_t target)
+{
+    asm volatile("bx %0" : : "r"(target) : "memory");
 }
 
 extern "C" void armv7a_svc_smoke_test()

@@ -420,6 +420,12 @@
                 && compare_ci(current_group, library_context_key.view()) == 0;
         }
 
+        bool library_shows_context_watermark() const noexcept {
+            return library_has_context()
+                && !list_order.empty()
+                && list_order.size() <= 3;
+        }
+
         void format_library_group_summary(std::string_view key,
                                           bool current_group,
                                           char* buf,
@@ -445,6 +451,64 @@
                               library_current_group_state_text(), track_count);
             } else {
                 std::snprintf(buf, buf_size, "%d tracks", track_count);
+            }
+        }
+
+        bool library_context_cover_for_view(std::string_view& track_path_out,
+                                            std::string_view& cover_path_out) const noexcept {
+            track_path_out = {};
+            cover_path_out = {};
+            if (!library_has_context()) return false;
+            const auto* tracks = storage.tracks;
+            if (!tracks) return false;
+            for (const int track_index : list_order) {
+                if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
+                    continue;
+                }
+                track_path_out = (*tracks)[static_cast<std::size_t>(track_index)].view();
+                if (track_index < static_cast<int>(list_cover_paths.size())) {
+                    cover_path_out = list_cover_paths[static_cast<std::size_t>(track_index)].view();
+                }
+                return !track_path_out.empty();
+            }
+            return false;
+        }
+
+        void update_library_context_watermark() {
+            if (!access.valid()) return;
+            const auto hide = [&]() {
+                if (handles.list_context_cover) {
+                    access.set_visible(handles.list_context_cover, false);
+                    if (access.kind(handles.list_context_cover) == WidgetKind::Image) {
+                        access.set_image(handles.list_context_cover, ::ui::scene::invalid_image_id());
+                    }
+                }
+                if (handles.list_context_cover_scrim) {
+                    access.set_visible(handles.list_context_cover_scrim, false);
+                }
+            };
+            if (!library_shows_context_watermark()) {
+                hide();
+                return;
+            }
+
+            std::string_view track_path{};
+            std::string_view cover_path{};
+            if (!library_context_cover_for_view(track_path, cover_path)) {
+                hide();
+                return;
+            }
+            const auto image_id = resolve_list_cover_icon(track_path, cover_path);
+            if (!::ui::scene::image_id_valid(image_id)) {
+                hide();
+                return;
+            }
+            if (handles.list_context_cover && access.kind(handles.list_context_cover) == WidgetKind::Image) {
+                access.set_image(handles.list_context_cover, image_id);
+                access.set_visible(handles.list_context_cover, true);
+            }
+            if (handles.list_context_cover_scrim) {
+                access.set_visible(handles.list_context_cover_scrim, true);
             }
         }
 
@@ -1226,6 +1290,7 @@
             update_list_shuffle_label();
             update_list_placeholder();
             update_library_state_visuals();
+            update_library_context_watermark();
         }
 
         void invoke_list_action(int list_index) {

@@ -163,6 +163,8 @@ export namespace player {
         WidgetHandle list_sort{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
+        WidgetHandle list_context_cover{};
+        WidgetHandle list_context_cover_scrim{};
         WidgetHandle list_action_scrim{};
         WidgetHandle list_action_card{};
         WidgetHandle list_action_title{};

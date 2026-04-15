@@ -254,6 +254,27 @@
             builder.set_style_override(list_body_plate, patch);
             builder.set_hit_testable(list_body_plate, false);
         }
+        h.list_context_cover = builder.create_image();
+        anchor_rect(builder, h.list_context_cover,
+                    {list_card_rect.w - 212, list_card_rect.h - 284, 156, 156});
+        apply_home_cover_style(builder, h.list_context_cover, 28);
+        builder.set_hit_testable(h.list_context_cover, false);
+        h.list_context_cover_scrim = builder.create_container();
+        anchor_rect(builder, h.list_context_cover_scrim,
+                    {list_card_rect.w - 216, list_card_rect.h - 288, 164, 164});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {8, 14, 30, 176};
+            patch.has_border_color = true;
+            patch.border_color = {kUiLibraryPathBorderActive.r, kUiLibraryPathBorderActive.g, kUiLibraryPathBorderActive.b, 18};
+            patch.has_border_width = true;
+            patch.border_width = 1;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 30;
+            builder.set_style_override(h.list_context_cover_scrim, patch);
+            builder.set_hit_testable(h.list_context_cover_scrim, false);
+        }
         const WidgetHandle list_body_glow = builder.create_container();
         anchor_rect(builder, list_body_glow,
                     {list_card_rect.w - 158, list_body_plate_y + 48, 104, 104});
@@ -303,6 +324,8 @@
         builder.link(library_layers.content, h.list_sort);
         builder.link(library_layers.content, list_card_root);
         builder.link(list_card_root, list_body_plate);
+        builder.link(list_card_root, h.list_context_cover);
+        builder.link(list_card_root, h.list_context_cover_scrim);
         builder.link(list_card_root, list_body_glow);
         builder.link(list_card_root, list_body_strip);
         builder.link(list_card_root, list_header_plate);

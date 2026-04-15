@@ -64,6 +64,7 @@
 - the exported C fs header surface now also smoke-pins minimum bad-fd / argument-guard edges: `isatty(-1) -> EBADF`, `fstat(-1) -> EBADF`, `stat/fstat(..., nullptr) -> EINVAL`, null-path fs calls -> `EINVAL`, and `getcwd(nullptr, size)` / `getcwd(buf, 0)` -> `EINVAL`
 - the exported C fs header surface now also smoke-pins success-side errno preservation across representative path/cwd operations such as `getcwd`, `mkdir`, `stat`, `opendir`, `chdir`, `rename`, `unlink`, and `rmdir`
 - the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
+- the exported C fs header surface now also smoke-covers path-shape errors directly: `open(dir, O_WRONLY) -> EISDIR`, and bad-parent paths such as `file/child` now consistently report `ENOTDIR` across `open/stat/mkdir/unlink/rmdir/rename`
 - the exported C fs header surface now also smoke-pins `CHARM_POSIX_O_APPEND` against real append-at-end behavior on regular files, even after a manual `lseek(..., SEEK_SET)`
 - the exported C fs header surface now also smoke-covers the empty-path `ENOENT` contract across `open/stat/mkdir/unlink/rmdir/rename/chdir/opendir`, including both empty-`from` and empty-`to` rename edges
 - the exported C fs header surface now also smoke-pins `/dev/null` basics directly: read-side EOF, write-side byte-count success, `isatty()==0` without clobbering `errno`, `fstat()->S_IFCHR`, and `lseek()->ESPIPE`

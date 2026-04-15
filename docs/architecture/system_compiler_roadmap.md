@@ -163,6 +163,9 @@ Charm 已经有一批 system compiler 的前身，不是从白纸起步：
 
 目标：把“图”转成“证据”。
 
+具体 v0 状态语言、当前胚胎映射与工程边界，
+见：`docs/system/bringup_evidence_pipeline_v0.md`
+
 这条线当前最贴仓库现状，也最适合作为 Charm 第一批对外可见价值。
 
 建议最小落地点：

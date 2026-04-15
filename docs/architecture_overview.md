@@ -11,6 +11,9 @@
 如果你想看 Charm 中长期主轴、近中期路线与传奇路线边界，
 再看：`docs/architecture/system_compiler_roadmap.md`
 
+如果你想看 bringup 如何从“系统装配”继续收束成“可举证结果”，
+再看：`docs/system/bringup_evidence_pipeline_v0.md`
+
 ## 设计原则（只记 5 条）
 - 静态能力必须走 `init.graph` 装配；运行期发现能力必须通过统一 capability export 进入系统
 - Channel 只能 non-blocking
@@ -139,6 +142,7 @@ Draft/        # 计划/草案（可变动）
 - 驱动模型：`docs/architecture/driver_model.md`
 - 设备发现模型草案：`docs/architecture/device_model_overview.md`
 - 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
+- bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
 - trace_core 统一入口：`docs/trace/trace_core_entry.md`
 - trace_core ID 清单：`docs/trace/trace_core_ids.md`
 - VFS 挂载规则：`docs/storage/fs_vfs_mount_rules.md`

@@ -8,6 +8,7 @@
 import charm.foundation;
 import charm.runtime;
 import platform.board;
+import platform.board.armv7a_stub;
 
 namespace {
     constexpr util::u8 kPad = 0x1Au;
@@ -460,6 +461,85 @@ int main() {
         xip_ctx.resolve_called &&
         !xip_ctx.load_called;
 
+    MockLaunchContext armv7_copy_ctx{
+        .expected_payload_offset = load.storage_payload_offset
+    };
+    platform::board::armv7a_stub::BootContext armv7_copy_boot{
+        .layout = {
+            .xip_window_base = 0,
+            .ram_payload_base =
+                reinterpret_cast<util::usize>(&mock_boot_entry) - load.entry_offset
+        },
+        .transfer = {
+            .ctx = &armv7_copy_ctx,
+            .copy_payload = load_mock_payload
+        },
+        .exec = {
+            .ctx = &armv7_copy_ctx,
+            .prepare_jump = prepare_mock_execution,
+            .jump = jump_mock_execution
+        }
+    };
+    const auto armv7_copy_caps = platform::board::with_boot_caps(
+        platform::board::BoardCaps{},
+        platform::board::armv7a_stub::make_boot_caps(armv7_copy_boot));
+    auto armv7_copy_loaded = boot::resolve_boot_loaded_image(load, armv7_copy_caps);
+    const bool armv7_copy_ready = boot::prepare_boot_loaded_image(armv7_copy_loaded, armv7_copy_caps);
+    auto armv7_copy_execution = boot::resolve_boot_execution(armv7_copy_loaded, armv7_copy_caps);
+    const bool armv7_copy_prepared =
+        boot::prepare_boot_execution(armv7_copy_execution, armv7_copy_caps);
+    const bool armv7_copy_executed =
+        boot::execute_boot_execution(armv7_copy_execution, armv7_copy_caps);
+    const bool armv7_copy_ok =
+        static_cast<bool>(armv7_copy_loaded) &&
+        armv7_copy_loaded.payload_base ==
+            reinterpret_cast<util::usize>(&mock_boot_entry) - load.entry_offset &&
+        armv7_copy_ready &&
+        static_cast<bool>(armv7_copy_execution) &&
+        armv7_copy_prepared &&
+        armv7_copy_executed &&
+        armv7_copy_ctx.load_called &&
+        armv7_copy_ctx.prepare_called &&
+        armv7_copy_ctx.jump_called &&
+        armv7_copy_ctx.entry_called;
+
+    MockLaunchContext armv7_xip_ctx{
+        .expected_payload_offset = xip_load.storage_payload_offset,
+        .expected_load_kind = platform::board::BootLoadKind::xip
+    };
+    platform::board::armv7a_stub::BootContext armv7_xip_boot{
+        .layout = {
+            .xip_window_base =
+                reinterpret_cast<util::usize>(&mock_boot_entry) - xip_load.storage_entry_offset,
+            .ram_payload_base = 0
+        },
+        .exec = {
+            .ctx = &armv7_xip_ctx,
+            .prepare_jump = prepare_mock_execution,
+            .jump = jump_mock_execution
+        }
+    };
+    const auto armv7_xip_caps = platform::board::armv7a_stub::make_boot_caps(armv7_xip_boot);
+    auto armv7_xip_loaded = boot::resolve_boot_loaded_image(xip_load, armv7_xip_caps);
+    const bool armv7_xip_ready = boot::prepare_boot_loaded_image(armv7_xip_loaded, armv7_xip_caps);
+    auto armv7_xip_execution = boot::resolve_boot_execution(armv7_xip_loaded, armv7_xip_caps);
+    const bool armv7_xip_prepared =
+        boot::prepare_boot_execution(armv7_xip_execution, armv7_xip_caps);
+    const bool armv7_xip_executed =
+        boot::execute_boot_execution(armv7_xip_execution, armv7_xip_caps);
+    const bool armv7_xip_ok =
+        static_cast<bool>(armv7_xip_loaded) &&
+        armv7_xip_loaded.payload_base ==
+            reinterpret_cast<util::usize>(&mock_boot_entry) - xip_load.entry_offset &&
+        armv7_xip_ready &&
+        static_cast<bool>(armv7_xip_execution) &&
+        armv7_xip_prepared &&
+        armv7_xip_executed &&
+        !armv7_xip_ctx.load_called &&
+        armv7_xip_ctx.prepare_called &&
+        armv7_xip_ctx.jump_called &&
+        armv7_xip_ctx.entry_called;
+
     const bool ok = slot_a_written &&
                     transfer_ok &&
                     static_cast<bool>(download) &&
@@ -505,7 +585,9 @@ int main() {
                     final_result.info().active == boot::Slot::b &&
                     headerless_failed &&
                     bad_entry_rejected &&
-                    xip_ok;
+                    xip_ok &&
+                    armv7_copy_ok &&
+                    armv7_xip_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -553,6 +635,9 @@ int main() {
                 headerless.transfer.header_missing ? 1 : 0);
     std::printf("[boot] bad_entry_rejected=%d\n", bad_entry_rejected ? 1 : 0);
     std::printf("[boot] xip_load=%d kind=%s\n", xip_ok ? 1 : 0, load_kind_name(xip_load.kind));
+    std::printf("[boot] armv7_copy=%d armv7_xip=%d\n",
+                armv7_copy_ok ? 1 : 0,
+                armv7_xip_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

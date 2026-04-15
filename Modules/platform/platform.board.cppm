@@ -127,6 +127,12 @@ export namespace platform::board {
         BootBoardCaps boot{};
     };
 
+    constexpr BoardCaps with_boot_caps(BoardCaps caps,
+                                       const BootBoardCaps& boot) noexcept {
+        caps.boot = boot;
+        return caps;
+    }
+
     struct ConsoleCaps {
         UartDesc uart{};
         ClockDesc clock{};

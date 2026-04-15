@@ -43,6 +43,8 @@
 - load/exec hook 已进一步改为 request 结构体入参，后续扩展字段时不必持续打碎函数签名
 - `platform::board::BootExecDesc` 只负责 jump 前机器状态准备与实际跳转，不再反向参与 payload 地址解析
 - `platform::board::BootBoardCaps` 已独立承载 boot 专属能力，避免 boot 阶段直接依赖整板 `BoardCaps`
+- `platform::board::with_boot_caps(...)` 可把独立的 boot 能力按需并回 `BoardCaps`，让 Stage2/板级初始化路径继续共存，但不再要求 boot 实现先凑整板能力
+- `platform.board.armv7a_stub` 现已提供一个 ARMv7-A 风格骨架：用固定 XIP window / RAM payload 基址表达加载落点，把 copy-to-RAM、pre-jump、jump 留给真实板级 hook 去填充
 
 ## 2. 阶段目标
 
@@ -137,8 +139,9 @@ sequenceDiagram
   - 支持 `copy_to_ram` 与 `xip` 两类加载路径的显式表达
   - 跳转前的试启动回滚预备（未确认成功则回到旧 active）
   - 会话内的 `pending -> active` 成功确认
+  - ARMv7-A 风格的独立 `BootBoardCaps` 骨架已落点，可单独验证 copy-to-RAM / XIP 两条板级接口，而不必先依赖完整 `BoardCaps`
 - 当前仍偏向“主机侧可验证骨架”，尚未进入板级 Stage1 搬运与跳转实现。
 - 下一阶段建议优先推进：
   - 在现有 `boot_session` 基础上继续扩展更完整的 Stage2 状态机/命令流
   - 为 `boot_xymodem` / `boot_session` 增加更多错误路径与边界条件测试
-  - 再向真实 UART / 板级 Flash 驱动适配收敛
+  - 把 `platform.board.armv7a_stub` 中的 pre-jump / jump hook 逐步替换为真实 cache/TLB/MMU/向量切换实现，再向真实 UART / 板级 Flash 驱动适配收敛

@@ -6,6 +6,7 @@
 namespace {
 constexpr std::uint32_t kTimerCtrlEnable = 1u << 0;
 constexpr std::uint32_t kTimerCtrlItMask = 1u << 1;
+constexpr std::uint32_t kArmv7aGicIntIdMask = 0x3ffu;
 
 Armv7aGicInterruptGroup to_gic_group(Armv7aPlatformInterruptRoute route)
 {
@@ -14,13 +15,23 @@ Armv7aGicInterruptGroup to_gic_group(Armv7aPlatformInterruptRoute route)
                : Armv7aGicInterruptGroup::kGroup1;
 }
 
-Armv7aPlatformInterruptLineState to_platform_state(const Armv7aGicLineState& state)
+bool line_bank_bit(std::uint32_t bank, unsigned int intid)
+{
+    return ((bank >> (intid % 32u)) & 1u) != 0u;
+}
+
+Armv7aPlatformInterruptLineState to_platform_state(unsigned int intid, const Armv7aGicLineState& state)
 {
     return Armv7aPlatformInterruptLineState{
+        .intid = intid,
         .group = state.igroupr,
         .enabled = state.isenabler,
         .pending = state.ispendr,
         .active = state.isactiver,
+        .line_group1 = line_bank_bit(state.igroupr, intid),
+        .line_enabled = line_bank_bit(state.isenabler, intid),
+        .line_pending = line_bank_bit(state.ispendr, intid),
+        .line_active = line_bank_bit(state.isactiver, intid),
     };
 }
 } // namespace
@@ -110,29 +121,35 @@ void armv7a_platform_complete_interrupt(std::uint32_t raw_acknowledge)
 
 Armv7aPlatformInterruptLineState armv7a_platform_secure_timer_interrupt_line_state()
 {
-    return to_platform_state(armv7a_gic_read_line_state(kArmv7aGicSecureTimerIntId));
+    return to_platform_state(
+        kArmv7aGicSecureTimerIntId, armv7a_gic_read_line_state(kArmv7aGicSecureTimerIntId));
 }
 
 Armv7aPlatformInterruptLineState armv7a_platform_nonsecure_timer_interrupt_line_state()
 {
-    return to_platform_state(armv7a_gic_read_line_state(kArmv7aGicNonSecureTimerIntId));
+    return to_platform_state(kArmv7aGicNonSecureTimerIntId,
+                             armv7a_gic_read_line_state(kArmv7aGicNonSecureTimerIntId));
 }
 
 Armv7aPlatformInterruptLineState armv7a_platform_self_sgi_line_state()
 {
-    return to_platform_state(armv7a_gic_read_line_state(kArmv7aGicSelfSgiIntId));
+    return to_platform_state(
+        kArmv7aGicSelfSgiIntId, armv7a_gic_read_line_state(kArmv7aGicSelfSgiIntId));
 }
 
 Armv7aPlatformInterruptControllerState armv7a_platform_interrupt_controller_state()
 {
     const auto dist_state = armv7a_gic_read_distributor_state();
     const auto state = armv7a_gic_read_cpu_state();
+    const auto highest_pending_intid = state.hppir & kArmv7aGicIntIdMask;
     return Armv7aPlatformInterruptControllerState{
         .distributor_control = dist_state.ctlr,
         .cpu_control = state.ctlr,
         .priority_mask = state.pmr,
         .binary_point = state.bpr,
         .highest_pending = state.hppir,
+        .highest_pending_intid = highest_pending_intid,
+        .highest_pending_special = armv7a_platform_is_special_interrupt(highest_pending_intid),
     };
 }
 

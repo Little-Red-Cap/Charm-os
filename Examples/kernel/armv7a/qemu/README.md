@@ -419,6 +419,10 @@ continue
   in dedicated leaf helpers (`armv7a_gic.cpp` and
   `armv7a_interrupt_smoke.cpp`), so `irq_timer.cpp` stays focused on how each
   smoke is triggered instead of also owning the whole IRQ/FIQ receive path.
+- The QEMU `virt` platform interrupt layer now also decodes the per-line GIC
+  bits and highest-pending state before handing them to upper layers, so
+  `main.cpp` and `irq_timer.cpp` no longer need direct GIC intid constants
+  just to print reset or pending evidence.
 - QEMU `virt`-specific platform facts now also funnel through
   `armv7a_platform.hpp` and `qemu_virt_platform.cpp`, which centralizes MMIO
   bases, RAM extents, and the probe/abort alias-window layout instead of

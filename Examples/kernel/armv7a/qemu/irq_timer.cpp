@@ -1,14 +1,11 @@
 #include <cstdint>
 
 #include "armv7a_cpu.hpp"
-#include "armv7a_gic.hpp"
 #include "armv7a_handler_stack.hpp"
 #include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_platform.hpp"
 
 namespace {
-constexpr std::uint32_t kArmv7aGicIntIdMask = 0x3ffu;
-
 struct Armv7aTimerPendingSnapshot {
     std::uint32_t timer_ctrl = 0u;
     Armv7aPlatformInterruptLineState secure_line{};
@@ -54,26 +51,15 @@ const char* route_name(Armv7aPlatformInterruptRoute route)
     return route == Armv7aPlatformInterruptRoute::kFiq ? "fiq" : "irq";
 }
 
-bool line_bank_bit(std::uint32_t bank, unsigned int intid)
+void print_interrupt_line_state(const Armv7aPlatformInterruptLineState& state)
 {
-    return ((bank >> (intid % 32u)) & 1u) != 0u;
-}
-
-const char* interrupt_line_group_name(const Armv7aPlatformInterruptLineState& state,
-                                      unsigned int intid)
-{
-    return line_bank_bit(state.group, intid) ? "group1" : "group0";
-}
-
-void print_interrupt_line_state(const Armv7aPlatformInterruptLineState& state, unsigned int intid)
-{
-    armv7a_platform_early_console_puts(interrupt_line_group_name(state, intid));
+    armv7a_platform_early_console_puts(armv7a_platform_interrupt_line_group_name(state));
     armv7a_platform_early_console_puts("/");
-    armv7a_platform_early_console_puts(yes_no_name(line_bank_bit(state.enabled, intid)));
+    armv7a_platform_early_console_puts(yes_no_name(state.line_enabled));
     armv7a_platform_early_console_puts("/");
-    armv7a_platform_early_console_puts(yes_no_name(line_bank_bit(state.pending, intid)));
+    armv7a_platform_early_console_puts(yes_no_name(state.line_pending));
     armv7a_platform_early_console_puts("/");
-    armv7a_platform_early_console_puts(yes_no_name(line_bank_bit(state.active, intid)));
+    armv7a_platform_early_console_puts(yes_no_name(state.line_active));
 }
 
 Armv7aTimerPendingSnapshot capture_timer_pending_snapshot()
@@ -96,32 +82,25 @@ Armv7aSgiPendingSnapshot capture_sgi_pending_snapshot()
 
 bool timer_pending_observed(const Armv7aTimerPendingSnapshot& snapshot)
 {
-    const auto hppir_intid = snapshot.controller.highest_pending & kArmv7aGicIntIdMask;
-    return line_bank_bit(snapshot.secure_line.pending, kArmv7aGicSecureTimerIntId) ||
-           line_bank_bit(snapshot.secure_line.active, kArmv7aGicSecureTimerIntId) ||
-           line_bank_bit(snapshot.nonsecure_line.pending, kArmv7aGicNonSecureTimerIntId) ||
-           line_bank_bit(snapshot.nonsecure_line.active, kArmv7aGicNonSecureTimerIntId) ||
-           !armv7a_platform_is_special_interrupt(hppir_intid);
+    return snapshot.secure_line.line_pending || snapshot.secure_line.line_active ||
+           snapshot.nonsecure_line.line_pending || snapshot.nonsecure_line.line_active ||
+           !snapshot.controller.highest_pending_special;
 }
 
 bool sgi_pending_observed(const Armv7aSgiPendingSnapshot& snapshot)
 {
-    const auto hppir_intid = snapshot.controller.highest_pending & kArmv7aGicIntIdMask;
-    return line_bank_bit(snapshot.line.pending, kArmv7aGicSelfSgiIntId) ||
-           line_bank_bit(snapshot.line.active, kArmv7aGicSelfSgiIntId) ||
-           !armv7a_platform_is_special_interrupt(hppir_intid);
+    return snapshot.line.line_pending || snapshot.line.line_active ||
+           !snapshot.controller.highest_pending_special;
 }
 
 void print_timer_pending_evidence(const Armv7aTimerPendingSnapshot& snapshot)
 {
-    const auto hppir_intid = snapshot.controller.highest_pending & kArmv7aGicIntIdMask;
-
     armv7a_platform_early_console_puts("ARMv7-A timer pending evidence, cntp_ctl=0x");
     print_u32_hex(snapshot.timer_ctrl);
     armv7a_platform_early_console_puts(", secure-line=");
-    print_interrupt_line_state(snapshot.secure_line, kArmv7aGicSecureTimerIntId);
+    print_interrupt_line_state(snapshot.secure_line);
     armv7a_platform_early_console_puts(", nonsecure-line=");
-    print_interrupt_line_state(snapshot.nonsecure_line, kArmv7aGicNonSecureTimerIntId);
+    print_interrupt_line_state(snapshot.nonsecure_line);
     armv7a_platform_early_console_puts(", gicd=0x");
     print_u32_hex(snapshot.controller.distributor_control);
     armv7a_platform_early_console_puts(", gicc=0x");
@@ -129,20 +108,17 @@ void print_timer_pending_evidence(const Armv7aTimerPendingSnapshot& snapshot)
     armv7a_platform_early_console_puts(", hppir=0x");
     print_u32_hex(snapshot.controller.highest_pending);
     armv7a_platform_early_console_puts(", spurious=");
-    armv7a_platform_early_console_puts(
-        yes_no_name(armv7a_platform_is_special_interrupt(hppir_intid)));
+    armv7a_platform_early_console_puts(yes_no_name(snapshot.controller.highest_pending_special));
     armv7a_platform_early_console_puts("\r\n");
 }
 
 void print_sgi_pending_evidence(const Armv7aSgiPendingSnapshot& snapshot,
                                 Armv7aPlatformInterruptRoute route)
 {
-    const auto hppir_intid = snapshot.controller.highest_pending & kArmv7aGicIntIdMask;
-
     armv7a_platform_early_console_puts("ARMv7-A SGI pending evidence, route=");
     armv7a_platform_early_console_puts(route_name(route));
     armv7a_platform_early_console_puts(", line=");
-    print_interrupt_line_state(snapshot.line, kArmv7aGicSelfSgiIntId);
+    print_interrupt_line_state(snapshot.line);
     armv7a_platform_early_console_puts(", gicd=0x");
     print_u32_hex(snapshot.controller.distributor_control);
     armv7a_platform_early_console_puts(", gicc=0x");
@@ -150,8 +126,7 @@ void print_sgi_pending_evidence(const Armv7aSgiPendingSnapshot& snapshot,
     armv7a_platform_early_console_puts(", hppir=0x");
     print_u32_hex(snapshot.controller.highest_pending);
     armv7a_platform_early_console_puts(", spurious=");
-    armv7a_platform_early_console_puts(
-        yes_no_name(armv7a_platform_is_special_interrupt(hppir_intid)));
+    armv7a_platform_early_console_puts(yes_no_name(snapshot.controller.highest_pending_special));
     armv7a_platform_early_console_puts("\r\n");
 }
 } // namespace

@@ -39,10 +39,15 @@ enum class Armv7aPlatformInterruptRoute : std::uint8_t {
 };
 
 struct Armv7aPlatformInterruptLineState {
+    unsigned int intid = 0u;
     std::uint32_t group = 0u;
     std::uint32_t enabled = 0u;
     std::uint32_t pending = 0u;
     std::uint32_t active = 0u;
+    bool line_group1 = false;
+    bool line_enabled = false;
+    bool line_pending = false;
+    bool line_active = false;
 };
 
 struct Armv7aPlatformInterruptControllerState {
@@ -51,6 +56,8 @@ struct Armv7aPlatformInterruptControllerState {
     std::uint32_t priority_mask = 0u;
     std::uint32_t binary_point = 0u;
     std::uint32_t highest_pending = 0u;
+    unsigned int highest_pending_intid = 0u;
+    bool highest_pending_special = false;
 };
 
 struct Armv7aPlatformInterruptAcknowledge {
@@ -108,3 +115,9 @@ bool armv7a_platform_is_special_interrupt(unsigned int intid);
 bool armv7a_platform_is_timer_interrupt(unsigned int intid);
 bool armv7a_platform_is_self_sgi_interrupt(unsigned int intid);
 const char* armv7a_platform_timer_interrupt_route_name(unsigned int intid);
+
+inline const char* armv7a_platform_interrupt_line_group_name(
+    const Armv7aPlatformInterruptLineState& state)
+{
+    return state.line_group1 ? "group1" : "group0";
+}

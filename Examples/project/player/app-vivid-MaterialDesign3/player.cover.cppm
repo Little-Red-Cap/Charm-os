@@ -97,7 +97,7 @@ export namespace player {
                 reinterpret_cast<const std::byte*>(out.argb.data()),
                 false,
                 false);
-            const auto res = ui::gfx::register_image_dedup(view);
+            const auto res = ui::gfx::register_image(view);
             out.image_id = res.ok() ? res.id : ui::gfx::invalid_image_id();
             return ui::gfx::image_id_valid(out.image_id);
         }

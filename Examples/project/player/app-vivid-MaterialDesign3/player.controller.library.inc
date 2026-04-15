@@ -10,6 +10,7 @@
             update_list_title();
             update_list_path();
             update_list_sort_label();
+            update_list_shuffle_label();
             update_list_placeholder();
             tick_list_duration_probe();
             update_debug_overlay();
@@ -28,8 +29,9 @@
             return 0;
         }
 
-        static constexpr int kLibraryTabRadius = 19;
-        static constexpr int kLibraryPathRadius = 10;
+        static constexpr int kLibraryTabRadius = 20;
+        static constexpr int kLibrarySortRadius = 18;
+        static constexpr int kLibraryPathRadius = 16;
         static constexpr int kLibraryListRowHeight = 72;
         static constexpr int kTrackDurationUnknown = -1;
         static constexpr int kTrackDurationUnavailable = -2;
@@ -171,6 +173,7 @@
             out.model = library_row_model(row_index);
             out.track_index = list_index_to_track(row_index);
             out.group_row = out.model ? out.model->group_row : false;
+            out.selected_row = (row_index == last_list_selected);
             out.menu_title_cstr = out.group_row ? "Group" : "Track";
             if (out.group_row) {
                 out.current_row = library_group_row_is_current(row_index);
@@ -182,7 +185,7 @@
                 out.detail_primary = out.model->title.view();
                 out.detail_secondary = out.model->subtitle.view();
             }
-            out.show_tail_action = (row_index == last_list_selected) || out.current_row;
+            out.show_tail_action = out.selected_row;
             out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
             out.tail_icon = out.current_row
                 ? (is_paused() ? icons.pause : icons.play)
@@ -343,10 +346,7 @@
             return compare_ci(library_group_title_for_track(track_index), library_context_key.view()) == 0;
         }
 
-        int library_group_track_count_for_row(int row_index) const noexcept {
-            if (!library_shows_group_rows()) return 0;
-            if (row_index < 0 || row_index >= static_cast<int>(list_order.size())) return 0;
-            const auto key = library_group_title_for_track(list_order[static_cast<std::size_t>(row_index)]);
+        int library_group_track_count(std::string_view key) const noexcept {
             if (key.empty()) return 0;
             const auto* tracks = storage.tracks;
             if (!tracks) return 0;
@@ -359,11 +359,15 @@
             return count;
         }
 
-        int library_group_total_duration_for_row(int row_index, bool* complete_out = nullptr) const noexcept {
-            if (complete_out) *complete_out = false;
+        int library_group_track_count_for_row(int row_index) const noexcept {
             if (!library_shows_group_rows()) return 0;
             if (row_index < 0 || row_index >= static_cast<int>(list_order.size())) return 0;
             const auto key = library_group_title_for_track(list_order[static_cast<std::size_t>(row_index)]);
+            return library_group_track_count(key);
+        }
+
+        int library_group_total_duration(std::string_view key, bool* complete_out = nullptr) const noexcept {
+            if (complete_out) *complete_out = false;
             if (key.empty()) return 0;
             const auto* tracks = storage.tracks;
             if (!tracks) return 0;
@@ -386,6 +390,14 @@
             return total_sec;
         }
 
+        int library_group_total_duration_for_row(int row_index, bool* complete_out = nullptr) const noexcept {
+            if (complete_out) *complete_out = false;
+            if (!library_shows_group_rows()) return 0;
+            if (row_index < 0 || row_index >= static_cast<int>(list_order.size())) return 0;
+            const auto key = library_group_title_for_track(list_order[static_cast<std::size_t>(row_index)]);
+            return library_group_total_duration(key, complete_out);
+        }
+
         bool library_group_row_is_current(int row_index) const noexcept {
             if (!library_shows_group_rows()) return false;
             if (track_index < 0) return false;
@@ -399,6 +411,106 @@
             if (is_paused()) return "Paused";
             if (is_playing()) return "Playing";
             return "Current";
+        }
+
+        bool library_context_is_current_group() const noexcept {
+            if (!library_has_context()) return false;
+            if (track_index < 0) return false;
+            const auto current_group = library_group_title_for_track(track_index);
+            return !current_group.empty()
+                && compare_ci(current_group, library_context_key.view()) == 0;
+        }
+
+        bool library_shows_context_watermark() const noexcept {
+            return library_has_context()
+                && !list_order.empty()
+                && list_order.size() <= 3;
+        }
+
+        void format_library_group_summary(std::string_view key,
+                                          bool current_group,
+                                          char* buf,
+                                          std::size_t buf_size) const noexcept {
+            if (!buf || buf_size == 0) return;
+            buf[0] = '\0';
+            if (key.empty()) return;
+
+            const int track_count = library_group_track_count(key);
+            bool duration_complete = false;
+            const int total_sec = library_group_total_duration(key, &duration_complete);
+            if (duration_complete && total_sec > 0) {
+                char duration_buf[16]{};
+                format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
+                if (current_group) {
+                    std::snprintf(buf, buf_size, "%s | %d tracks | %s",
+                                  library_current_group_state_text(), track_count, duration_buf);
+                } else {
+                    std::snprintf(buf, buf_size, "%d tracks | %s", track_count, duration_buf);
+                }
+            } else if (current_group) {
+                std::snprintf(buf, buf_size, "%s | %d tracks",
+                              library_current_group_state_text(), track_count);
+            } else {
+                std::snprintf(buf, buf_size, "%d tracks", track_count);
+            }
+        }
+
+        bool library_context_cover_for_view(std::string_view& track_path_out,
+                                            std::string_view& cover_path_out) const noexcept {
+            track_path_out = {};
+            cover_path_out = {};
+            if (!library_has_context()) return false;
+            const auto* tracks = storage.tracks;
+            if (!tracks) return false;
+            for (const int track_index : list_order) {
+                if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
+                    continue;
+                }
+                track_path_out = (*tracks)[static_cast<std::size_t>(track_index)].view();
+                if (track_index < static_cast<int>(list_cover_paths.size())) {
+                    cover_path_out = list_cover_paths[static_cast<std::size_t>(track_index)].view();
+                }
+                return !track_path_out.empty();
+            }
+            return false;
+        }
+
+        void update_library_context_watermark() {
+            if (!access.valid()) return;
+            const auto hide = [&]() {
+                if (handles.list_context_cover) {
+                    access.set_visible(handles.list_context_cover, false);
+                    if (access.kind(handles.list_context_cover) == WidgetKind::Image) {
+                        access.set_image(handles.list_context_cover, ::ui::scene::invalid_image_id());
+                    }
+                }
+                if (handles.list_context_cover_scrim) {
+                    access.set_visible(handles.list_context_cover_scrim, false);
+                }
+            };
+            if (!library_shows_context_watermark()) {
+                hide();
+                return;
+            }
+
+            std::string_view track_path{};
+            std::string_view cover_path{};
+            if (!library_context_cover_for_view(track_path, cover_path)) {
+                hide();
+                return;
+            }
+            const auto image_id = resolve_list_cover_icon(track_path, cover_path);
+            if (!::ui::scene::image_id_valid(image_id)) {
+                hide();
+                return;
+            }
+            if (handles.list_context_cover && access.kind(handles.list_context_cover) == WidgetKind::Image) {
+                access.set_image(handles.list_context_cover, image_id);
+                access.set_visible(handles.list_context_cover, true);
+            }
+            if (handles.list_context_cover_scrim) {
+                access.set_visible(handles.list_context_cover_scrim, true);
+            }
         }
 
         ::ui::scene::AnchoredMenuHandles list_action_menu_handles() const noexcept {
@@ -474,17 +586,17 @@
 
         StylePatch list_action_menu_focus_patch() const noexcept {
             StylePatch patch = ::ui::scene::make_pill_surface_patch({
-                .bg_color = kUiTabActive,
-                .border_color = kUiOk,
+                .bg_color = kUiLibraryChipActive,
+                .border_color = kUiLibraryPathBorderActive,
                 .corner_radius = 12,
                 .inner_stroke_enabled = true,
-                .inner_stroke_color = kUiButtonHover,
+                .inner_stroke_color = with_alpha(kUiLibraryListOnAccent, 56),
                 .inner_stroke_width = 1,
             });
             patch.has_font_color = true;
-            patch.font_color = kUiTitle;
+            patch.font_color = kUiLibraryChipTextActive;
             patch.has_border_focus = true;
-            patch.border_focus = kUiOk;
+            patch.border_focus = kUiLibraryPathBorderActive;
             return patch;
         }
 
@@ -702,22 +814,30 @@
             if (!access.valid() || !handle) return;
             ::ui::scene::PillSurfaceSpec spec{};
             spec.bg_color = active ? kUiLibraryChipActive : kUiLibraryChipIdle;
-            spec.border_color = active ? kUiLibraryChipActive : kUiLibraryChipBorder;
+            spec.border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder;
             spec.corner_radius = radius;
             if (active || elevated) {
                 spec.shadow.enabled = true;
-                spec.shadow.color = kUiCardShadow;
+                spec.shadow.color = active ? with_alpha(kUiCardShadow, 96)
+                                           : with_alpha(kUiCardShadow, 72);
                 spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = active ? 2 : 4;
-                spec.shadow.spread = active ? 2 : 4;
-                spec.shadow.radius = active ? 10 : 18;
+                spec.shadow.offset_y = active ? 3 : 4;
+                spec.shadow.spread = active ? 1 : 3;
+                spec.shadow.radius = active ? 12 : 16;
             }
             if (active) {
                 spec.inner_stroke_enabled = true;
-                spec.inner_stroke_color = kUiButtonHover;
+                spec.inner_stroke_color = with_alpha(kUiLibraryListOnAccent, 52);
                 spec.inner_stroke_width = 1;
             }
-            access.set_style_override(handle, ::ui::scene::make_pill_surface_patch(spec));
+            StylePatch patch = ::ui::scene::make_pill_surface_patch(spec);
+            patch.has_font_color = true;
+            patch.font_color = active
+                ? kUiLibraryChipTextActive
+                : (elevated ? kUiLibraryChipText : kUiLibraryChipTextMuted);
+            patch.has_border_focus = true;
+            patch.border_focus = kUiLibraryPathBorderActive;
+            access.set_style_override(handle, patch);
         }
 
         void update_library_state_visuals() {
@@ -725,22 +845,35 @@
             apply_library_chip_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
             apply_library_chip_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
             apply_library_chip_style(handles.list_shuffle, list_shuffle_enabled, kLibraryTabRadius, true);
+            apply_library_chip_style(handles.list_sort, list_sort == ListSort::NameDesc, kLibrarySortRadius, true);
 
             if (handles.list_path_bg) {
-                const bool active = (library_tab != LibraryTab::Songs) || list_shuffle_enabled;
+                const bool active = library_has_context()
+                    || (library_tab != LibraryTab::Songs)
+                    || list_shuffle_enabled;
                 const auto patch = ::ui::scene::make_pill_surface_patch({
                     .bg_color = active ? kUiLibraryPathActive : kUiLibraryPathIdle,
                     .border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder,
                     .corner_radius = kLibraryPathRadius,
+                    .shadow = {
+                        .enabled = active,
+                        .color = with_alpha(kUiCardShadow, 72),
+                        .offset_x = 0,
+                        .offset_y = 2,
+                        .spread = 1,
+                        .radius = 12,
+                    },
                 });
                 access.set_style_override(handles.list_path_bg, patch);
             }
             if (handles.list_path) {
                 StylePatch patch{};
                 patch.has_font_color = true;
-                patch.font_color = ((library_tab != LibraryTab::Songs) || list_shuffle_enabled)
-                    ? kUiOk
-                    : kUiListTitle;
+                patch.font_color = (library_has_context()
+                    || (library_tab != LibraryTab::Songs)
+                    || list_shuffle_enabled)
+                    ? kUiLibraryPathTextActive
+                    : kUiLibraryPathText;
                 access.set_style_override(handles.list_path, patch);
             }
         }
@@ -811,30 +944,8 @@
                     row.group_row = true;
                     display_title = library_group_title_for_track(track_index);
                     char buf[64]{};
-                    const int track_count = library_group_track_count_for_row(static_cast<int>(i));
-                    bool duration_complete = false;
-                    const int total_sec = library_group_total_duration_for_row(static_cast<int>(i), &duration_complete);
                     const bool is_current_group = library_group_row_is_current(static_cast<int>(i));
-                    if (duration_complete && total_sec > 0) {
-                        char duration_buf[16]{};
-                        format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
-                        std::snprintf(buf, sizeof(buf), "%d tracks | %s", track_count, duration_buf);
-                    } else {
-                        std::snprintf(buf, sizeof(buf), "%d tracks", track_count);
-                    }
-                    if (duration_complete && total_sec > 0) {
-                        char duration_buf[16]{};
-                        format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
-                        if (is_current_group) {
-                            std::snprintf(buf, sizeof(buf), "%s | %d tracks | %s",
-                                          library_current_group_state_text(), track_count, duration_buf);
-                        } else {
-                            std::snprintf(buf, sizeof(buf), "%d tracks | %s", track_count, duration_buf);
-                        }
-                    } else if (is_current_group) {
-                        std::snprintf(buf, sizeof(buf), "%s | %d tracks",
-                                      library_current_group_state_text(), track_count);
-                    }
+                    format_library_group_summary(display_title, is_current_group, buf, sizeof(buf));
                     row.title.assign(display_title.empty() ? std::string_view{"Library"} : display_title);
                     row.subtitle.assign(buf);
                     player::font_cache::ensure_text(row.title.view());
@@ -938,6 +1049,9 @@
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            if (row.current_row) {
+                return self->library_current_group_state_text();
+            }
             if (row.model) {
                 return row.tail_c_str();
             }
@@ -1162,10 +1276,10 @@
                                          &PlayerController::list_view_text);
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
-            access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 18);
-            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 18);
-            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 44);
-            access.set_list_view_icon_corner_radius(handles.list, 12);
+            access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 20);
+            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 20);
+            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 48);
+            access.set_list_view_icon_corner_radius(handles.list, 14);
             access.set_list_row_height(handles.list, kLibraryListRowHeight);
             access.set_scroll_step(handles.list, kLibraryListRowHeight);
             if (count > 0) {
@@ -1177,8 +1291,10 @@
             update_list_title();
             update_list_path();
             update_list_sort_label();
+            update_list_shuffle_label();
             update_list_placeholder();
             update_library_state_visuals();
+            update_library_context_watermark();
         }
 
         void invoke_list_action(int list_index) {
@@ -1199,6 +1315,45 @@
             library_tab = tab;
             library_context_key.clear();
             refresh_list_view();
+        }
+
+        bool set_library_context_for_preview(std::string_view key) {
+            close_list_action_menu();
+            if (library_tab == LibraryTab::Songs) return false;
+            if (key.empty()) return false;
+            const auto* tracks = storage.tracks;
+            if (!tracks || tracks->size() == 0) return false;
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                if (compare_ci(library_group_title_for_track(static_cast<int>(i)), key) == 0) {
+                    library_context_key.assign(library_group_title_for_track(static_cast<int>(i)));
+                    refresh_list_view();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool open_first_library_group_for_preview() {
+            close_list_action_menu();
+            if (library_tab == LibraryTab::Songs) return false;
+            if (!library_shows_group_rows()) return false;
+            if (list_order.empty()) return false;
+            const auto key = library_group_title_for_track(list_order.front());
+            if (key.empty()) return false;
+            library_context_key.assign(key);
+            refresh_list_view();
+            return true;
+        }
+
+        bool set_library_selected_index_for_preview(int list_index) {
+            close_list_action_menu();
+            if (!access.valid() || !handles.list) return false;
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return false;
+            ignore_list_select = true;
+            access.set_list_view_selected(handles.list, list_index);
+            ignore_list_select = false;
+            last_list_selected = list_index;
+            return true;
         }
 
         void toggle_library_shuffle() {
@@ -1242,6 +1397,7 @@
             reset_track_duration_cache();
             refresh_track_labels();
             build_list_cover_paths();
+            sync_home_collage_images(true);
             if (fs_ready && !font_retry_done && !font_ttf_path.empty()) {
                 rebind_player_fonts();
                 font_retry_done = true;
@@ -1266,9 +1422,16 @@
         void update_list_title() {
             if (!access.valid()) return;
             const int count = static_cast<int>(list_order.size());
+            const std::string_view context = library_has_context()
+                ? library_context_key.view()
+                : std::string_view{};
             const char* base = library_tab_title(library_tab);
             char buf[64]{};
-            if (count > 0) {
+            if (!context.empty()) {
+                if (last_list_title_text.view() == context) return;
+                last_list_title_text.assign(context);
+                set_label_slot(handles.list_title, text_slots.list_title, last_list_title_text.c_str());
+            } else if (count > 0) {
                 std::snprintf(buf, sizeof(buf), "%s (%d)", base, count);
                 if (last_list_title_text.view() == buf) return;
                 last_list_title_text.assign(buf);
@@ -1284,14 +1447,11 @@
         void update_list_path() {
             if (!access.valid() || !handles.list_path) return;
             FixedString<192> path;
-            path.assign("/library/");
-            path.append(library_tab_path(library_tab));
-            if (library_has_context()) {
-                path.append("/");
-                path.append(library_context_key.view());
-            }
+            path.assign("Library");
+            path.append(" / ");
+            path.append(library_tab_title(library_tab));
             if (list_shuffle_enabled) {
-                path.append("/shuffle");
+                path.append(" / Shuffled");
             }
             set_label_slot(handles.list_path, text_slots.list_path, path.c_str());
         }
@@ -1302,19 +1462,49 @@
             set_label_slot(handles.list_sort, text_slots.list_sort, label);
         }
 
+        void update_list_shuffle_label() {
+            if (!access.valid() || !handles.list_shuffle) return;
+            const char* label = "Shuffle All";
+            if (list_shuffle_enabled) {
+                label = "Shuffled";
+            } else if (library_has_context()) {
+                label = (library_tab == LibraryTab::Albums)
+                    ? "Shuffle Album"
+                    : "Shuffle Artist";
+            }
+            set_label_slot(handles.list_shuffle, text_slots.list_shuffle, label);
+        }
+
         void update_list_placeholder() {
             if (!access.valid() || !handles.list_hint) return;
             const int count = static_cast<int>(list_order.size());
-            const bool show = (count == 0);
+            const bool show_empty = (count == 0);
+            const bool show_group_hint = !show_empty && library_shows_group_rows();
+            const bool show_context_summary = !show_empty && library_has_context();
+            const bool show = show_empty || show_group_hint || show_context_summary;
             access.set_visible(handles.list_hint, show);
             if (!show) return;
-            if (!mount_status.empty()) {
+            if (show_empty && !mount_status.empty()) {
                 if (last_list_hint_text.view() == mount_status.view()) return;
                 last_list_hint_text.assign(mount_status.view());
                 set_label_slot(handles.list_hint, text_slots.list_hint, mount_status.c_str());
                 return;
             }
-            const char* hint = fs_ready ? "No items in current library view" : "FS not ready";
+            const char* hint = "";
+            char buf[96]{};
+            if (show_group_hint) {
+                hint = (library_tab == LibraryTab::Albums)
+                    ? "Open an album row to view tracks"
+                    : "Open an artist row to view tracks";
+            } else if (show_context_summary) {
+                format_library_group_summary(library_context_key.view(),
+                                             library_context_is_current_group(),
+                                             buf,
+                                             sizeof(buf));
+                hint = buf;
+            } else {
+                hint = fs_ready ? "No items in current library view" : "FS not ready";
+            }
             if (last_list_hint_text.view() == hint) return;
             last_list_hint_text.assign(hint);
             set_label_slot(handles.list_hint, text_slots.list_hint, hint);

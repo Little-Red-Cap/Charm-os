@@ -137,6 +137,50 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_close(fd) != 0) return 489;
     if (*err != 68) return 490;
 
+    *err = 69;
+    fd = charm_posix_open("/dev/tty", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 491;
+    if (*err != 69) return 492;
+    if (charm_posix_isatty(fd) != 1) return 493;
+    if (charm_posix_fstat(fd, &st) != 0) return 494;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 495;
+    *err = 70;
+    if (charm_posix_close(fd) != 0) return 496;
+    if (*err != 70) return 497;
+
+    *err = 71;
+    fd = charm_posix_open("/dev/tty", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 498;
+    if (*err != 71) return 499;
+    if (charm_posix_isatty(fd) != 1) return 500;
+    if (charm_posix_fstat(fd, &st) != 0) return 501;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 502;
+    *err = 72;
+    if (charm_posix_close(fd) != 0) return 503;
+    if (*err != 72) return 504;
+
+    *err = 73;
+    fd = charm_posix_open("/dev/console", CHARM_POSIX_O_RDONLY, 0);
+    if (fd < 0) return 505;
+    if (*err != 73) return 506;
+    if (charm_posix_isatty(fd) != 1) return 507;
+    if (charm_posix_fstat(fd, &st) != 0) return 508;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 509;
+    *err = 74;
+    if (charm_posix_close(fd) != 0) return 510;
+    if (*err != 74) return 511;
+
+    *err = 75;
+    fd = charm_posix_open("/dev/console", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 512;
+    if (*err != 75) return 513;
+    if (charm_posix_isatty(fd) != 1) return 514;
+    if (charm_posix_fstat(fd, &st) != 0) return 515;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 516;
+    *err = 76;
+    if (charm_posix_close(fd) != 0) return 517;
+    if (*err != 76) return 518;
+
     *err = 51;
     if (charm_posix_mkdir("/cfs") != 0) return 309;
     if (*err != 51) return 440;

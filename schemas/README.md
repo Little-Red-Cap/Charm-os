@@ -45,7 +45,7 @@
 - `system_compiler.artifact_report.v0.schema.json`
   - 对应 `docs/system/artifact_report_v0.md` 中定义的最小统一报告对象
   - 用途偏向字段收敛、样例校验、后续脚本/CI 接入前的协议锚定
-  - 它当前是 v0 草案协议，已能覆盖 `export_only` 与 `compare` 两种最小输出场景
+  - 它当前是 v0 草案协议，已能覆盖 `export_only` 与 `compare` 两种最小输出场景，并可继续引用 `bundle / input_manifest / diff / report manifest`
 
 - `examples/system_compiler.artifact_report.v0.sample.json`
   - 对应 `system_compiler.artifact_report/v0` 的最小机器可验样例

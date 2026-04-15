@@ -70,6 +70,11 @@ function Load-Bundle {
     return [pscustomobject]@{
         IndexPath = $indexPath
         BundleRoot = Split-Path -Parent $indexPath
+        InputManifestPath = if ($null -ne $indexData.PSObject.Properties['input_manifest'] -and $null -ne $indexData.input_manifest -and $null -ne $indexData.input_manifest.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace([string]$indexData.input_manifest.path)) {
+            Resolve-FullPath ([string]$indexData.input_manifest.path)
+        } else {
+            $null
+        }
         Cases = @($indexData.cases)
     }
 }
@@ -525,6 +530,7 @@ function New-ArtifactReport {
         }
         artifacts = [ordered]@{
             bundle = $Bundle.IndexPath
+            input_manifest = $Bundle.InputManifestPath
             dot = Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.dot)
             sample_json = $CaseGraph.Path
             diff = $ArtifactContext.Diff

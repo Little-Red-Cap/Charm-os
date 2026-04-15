@@ -24,6 +24,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 当前生成链也会把这些 subject 元数据写入报告对象。
 如果 bundle 的 case entry 自带 `subject` 元数据，
 当前导出脚本也会在没有显式 override 时自动继承它。
+如果 bundle 顶层已经保留了输入 `manifest` provenance，
+当前 `artifact report` 也会把它继续写入 `artifacts.input_manifest`。
 
 当前最小真实链路可以这样跑：
 
@@ -332,6 +334,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 建议至少包含：
 
 - `bundle`
+- `input_manifest`
 - `dot`
 - `sample_json`
 - `diff`
@@ -409,6 +412,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
   },
   "artifacts": {
     "bundle": "out/materialized-graph-bundle/index.json",
+    "input_manifest": "scripts/materialized_graph.export_case_manifest.v1.json",
     "dot": "out/materialized-graph-bundle/case/materialized_graph.dot",
     "sample_json": "out/materialized-graph-bundle/case/materialized_graph.sample.json",
     "diff": null,

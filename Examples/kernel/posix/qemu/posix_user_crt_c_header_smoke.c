@@ -1,5 +1,7 @@
 #include "charm_posix_user_crt.h"
 
+#include <string.h>
+
 int charm_posix_c_header_probe_entry(void) {
     if (charm_posix_argc() != 2) return 71;
 
@@ -7,7 +9,11 @@ int charm_posix_c_header_probe_entry(void) {
     char** envp = charm_posix_envp();
     if (argv == 0 || envp == 0) return 72;
     if (argv[0] == 0 || argv[1] == 0) return 73;
+    if (strcmp(argv[0], "crt_c_header_probe") != 0) return 96;
+    if (strcmp(argv[1], "beta") != 0) return 97;
     if (argv[2] != 0) return 90;
+    if (envp[0] == 0) return 98;
+    if (strcmp(envp[0], "FOO=BAR") != 0) return 99;
     if (envp[1] != 0) return 91;
 
     const char* foo = charm_posix_getenv("FOO");

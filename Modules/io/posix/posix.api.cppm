@@ -406,6 +406,13 @@ export namespace posix {
                 set_errno(EBADF);
                 return -1;
             }
+            if (count == 0) {
+                return 0;
+            }
+            if (!fd_allows_read(entry.value()->flags)) {
+                set_errno(EBADF);
+                return -1;
+            }
             MutByteView view{static_cast<util::u8*>(buf), count};
             auto r = entry.value()->ops->read(entry.value()->ctx, view);
             if (!r) {
@@ -432,6 +439,13 @@ export namespace posix {
             }
             auto entry = table->get(fd);
             if (!entry || !entry.value()->ops || !entry.value()->ops->write) {
+                set_errno(EBADF);
+                return -1;
+            }
+            if (count == 0) {
+                return 0;
+            }
+            if (!fd_allows_write(entry.value()->flags)) {
                 set_errno(EBADF);
                 return -1;
             }
@@ -661,6 +675,14 @@ export namespace posix {
             auto st = fs::vfs_list(resolved_path.value(), handle, &Api::collect_dir_entry);
             if (!st) {
                 handle->used = false;
+                if (st.err == fs::Errc::noent || st.err == fs::Errc::inval) {
+                    PosixStat st_out{};
+                    auto stat_result = stat_path(resolved_path.value(), st_out);
+                    if (stat_result && (st_out.mode & S_IFMT) != S_IFDIR) {
+                        set_errno(ENOTDIR);
+                        return nullptr;
+                    }
+                }
                 set_errno(map_errno(st.err));
                 return nullptr;
             }
@@ -1178,10 +1200,26 @@ export namespace posix {
             return FdFlags::read_only;
         }
 
+        static constexpr util::u16 fd_flags_bits(FdFlags flags) noexcept {
+            return static_cast<util::u16>(flags);
+        }
+
+        static bool fd_allows_read(FdFlags flags) noexcept {
+            const auto bits = fd_flags_bits(flags);
+            return (bits & fd_flags_bits(FdFlags::read_only)) != 0 ||
+                   (bits & fd_flags_bits(FdFlags::read_write)) != 0;
+        }
+
+        static bool fd_allows_write(FdFlags flags) noexcept {
+            const auto bits = fd_flags_bits(flags);
+            return (bits & fd_flags_bits(FdFlags::write_only)) != 0 ||
+                   (bits & fd_flags_bits(FdFlags::read_write)) != 0;
+        }
+
 
         static int fd_flags_to_open_mode(FdFlags flags) noexcept {
-            if (flags == FdFlags::read_write) return O_RDWR;
-            if (flags == FdFlags::write_only) return O_WRONLY;
+            if (fd_allows_read(flags) && fd_allows_write(flags)) return O_RDWR;
+            if (fd_allows_write(flags)) return O_WRONLY;
             return O_RDONLY;
         }
 

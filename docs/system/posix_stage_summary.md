@@ -146,12 +146,13 @@
 - busybox direct-dispatch smoke now also validates `busybox ps`, `busybox sleep 2`, and `busybox kill {TERM|INT|KILL} <pid>`, so process applets are covered outside the shell wrapper path
 
 ## Isolated / Deferred Issues
-- full `posix-qemu-demo.elf` / `posix-qemu-newlib-stdio.elf` link validation is currently blocked by an unrelated `Modules/io/net/net.socket.cppm:303` toolchain issue: under `arm-none-eabi` 15.2, `std::expected<net::Socket, util::Errc>` move construction fails during the `return accepted;` path
-- object-level `ninja` rebuilds for `posix_newlib_syscall_smoke.c.obj` remain usable, so POSIX/newlib smoke expansion can continue without waiting for the unrelated `net.socket` baseline to be repaired
+- full `posix-qemu-demo.elf` / `posix-qemu-newlib-stdio.elf` link validation is back on the mainline: the prior unrelated `Modules/io/net/net.socket.cppm` blocker under `arm-none-eabi` 15.2 was sidestepped by rewriting the convenience `accept()` overloads to return prvalue `Result<Socket>` values instead of moving a local `std::expected<net::Socket, util::Errc>`
+- object-level `ninja` rebuilds for `posix_newlib_syscall_smoke.c.obj` remain a useful fallback when an unrelated modules-ts regression blocks a full link, but they are no longer required for the current POSIX/newlib smoke expansion path
 
 ## Toolchain Notes
 - shared singleton-style module state is safer when it lives in one module object rather than a class-scope `inline static`; `charm.system.clock` now keeps the active time-source binding in module storage so real-ELF hostcalls and test harness code observe the same bound clock under the current GCC `modules-ts` toolchain
 - when the current `arm-none-eabi` 15.2 baseline blocks full link through an unrelated module, prefer object-level `ninja` rebuilds (for example `posix_newlib_syscall_smoke.c.obj`) to keep POSIX/newlib smoke work moving
+- under the current GCC `-fmodules-ts` baseline, returning a local move-only `std::expected<T, E>` across a module boundary can fail in the library move-construction path; when a convenience API only needs to hand back a freshly-produced value, prefer direct prvalue construction of the final `expected` result over `return local_expected;`
 - QEMU smoke RAMFS fixtures should stay proportional to the sample they carry; oversized per-test RAMFS instances can look like a logic hang on the emulated target even when the POSIX path itself is correct
 - `Examples/kernel/posix/qemu/run_qemu_ci.ps1` defaults to the full smoke contract; when validating partial targets such as `posix-qemu-newlib-stdio.elf`, pass `-RequireBusyboxPhase2:$false` so the runner only gates on the POSIX smoke marker
 - GCC `-fmodules-ts` 下的 `net` / `posix` 导入冲突解阻经验已记录到 `docs/system/posix_modules_ts_build_notes.md`

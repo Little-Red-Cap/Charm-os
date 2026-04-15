@@ -196,7 +196,13 @@ namespace posix::user::detail {
 
     template <class Fn>
     auto invoke_with_errno_sync(Fn&& fn) noexcept(noexcept(fn())) -> decltype(fn()) {
-        posix::set_errno(0);
+        const int saved_errno = [&]() noexcept {
+            if (auto* context = posix::active_exec_context()) {
+                return context->errno_value;
+            }
+            return posix::get_errno();
+        }();
+        posix::set_errno(saved_errno);
         auto result = fn();
         if (auto* context = posix::active_exec_context()) {
             context->errno_value = posix::get_errno();

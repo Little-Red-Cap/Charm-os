@@ -436,13 +436,13 @@ namespace {
         auto sp = h.procs.spawn(cfg);
         check_true("newlib-syscall-spawn", sp);
 
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-syscall-wait", st);
+        check_eq("newlib-syscall-code", st.value().code, 0);
         std::array<char, 48> buf{};
         util::usize out_size = 0;
         auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
         check_eq("newlib-syscall-out", out, std::string_view{"newlib-syscall-ok\n"});
-        auto st = h.procs.waitpid(sp.value().pid, 0);
-        check_true("newlib-syscall-wait", st);
-        check_eq("newlib-syscall-code", st.value().code, 0);
     }
 
     void test_newlib_dup() noexcept {

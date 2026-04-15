@@ -1077,7 +1077,7 @@ int charm_posix_newlib_cwd_entry(void) {
     if (opendir((const char*)0) != NULL) return 860;
     if (errno != EINVAL) return 861;
     errno = 0;
-    if (opendir("parent.txt") != NULL) return 866;
+    if (opendir("../parent.txt") != NULL) return 866;
     if (errno != ENOTDIR) return 867;
     errno = 0;
     if (readdir((DIR*)0) != NULL) return 862;
@@ -1148,6 +1148,12 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 0;
     if (stat("sub-renamed", &st) != -1) return 814;
     if (errno != ENOENT) return 815;
+    errno = 0;
+    if (chdir("/newlib-cwd/child.txt") != -1) return 212;
+    if (errno != ENOTDIR) return 213;
+    errno = 0;
+    if (chdir("/newlib-cwd/child.txt/sub") != -1) return 214;
+    if (errno != ENOTDIR) return 215;
     errno = 111;
     if (remove("child.txt") != 0) return 891;
     if (errno != 111) return 892;
@@ -1167,14 +1173,6 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 0;
     if (chdir("/missing-cwd") != -1) return 207;
     if (errno != ENOENT) return 208;
-
-    errno = 0;
-    if (chdir("/newlib-cwd/child.txt") != -1) return 212;
-    if (errno != ENOTDIR) return 213;
-
-    errno = 0;
-    if (chdir("/newlib-cwd/child.txt/sub") != -1) return 214;
-    if (errno != ENOTDIR) return 215;
 
     if (chdir("/") != 0) return 209;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 210;

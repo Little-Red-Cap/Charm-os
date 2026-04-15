@@ -149,6 +149,7 @@ export namespace fs {
                 if (head.size == 0) return Status{Errc::inval};
                 const bool last = (rest.size == 0);
                 auto* e = find_child(cur_idx, head);
+                const bool existed = e != nullptr;
                 if (!e) {
                     if (last && want_create) {
                         e = create_entry(cur_idx, head, false);
@@ -158,7 +159,7 @@ export namespace fs {
                     }
                 }
                 if (last) {
-                    if (want_create && want_excl && e->used) return Status{Errc::exist};
+                    if (want_create && want_excl && existed) return Status{Errc::exist};
                     if (e->is_dir) return Status{Errc::inval};
                     if (want_trunc) {
                         auto st = truncate(path, 0);

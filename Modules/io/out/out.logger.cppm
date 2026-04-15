@@ -7,6 +7,8 @@
 #include <type_traits>
 #include <utility>
 #include <cstring>
+
+#include "out_digits_compat.h"
 export module out.logger;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink, out.format, out.domain, out.ansi, out.channel
@@ -105,24 +107,6 @@ export namespace out {
                 if (!r) handle_error(r.error());
                 return;
             }
-        }
-
-        inline bool append_decimal(std::string_view& out, char* buffer, std::size_t capacity,
-                                   std::uint32_t value) noexcept {
-            if (capacity == 0) return false;
-
-            char* begin = buffer;
-            char* end = buffer + capacity;
-            char* p = end;
-
-            do {
-                if (p == begin) return false;
-                *--p = static_cast<char>('0' + (value % 10u));
-                value /= 10u;
-            } while (value != 0);
-
-            out = std::string_view{p, static_cast<std::size_t>(end - p)};
-            return true;
         }
 
         template <class S>
@@ -312,14 +296,12 @@ export namespace out {
                 char* p = tmp;
                 *p++ = '\x1b';
                 *p++ = '[';
-                std::string_view code_sv{};
                 if (code < 0) return false;
-                if (!detail::append_decimal(code_sv, p, static_cast<std::size_t>((tmp + sizeof(tmp)) - p),
-                                            static_cast<std::uint32_t>(code))) {
-                    return false;
-                }
-                std::memcpy(p, code_sv.data(), code_sv.size());
-                char* ptr = p + code_sv.size();
+                char* ptr = out::detail::append_unsigned_decimal(
+                    p,
+                    tmp + sizeof(tmp),
+                    static_cast<unsigned>(code));
+                if (!ptr) return false;
                 *ptr++ = 'm';
                 return append_sv(std::string_view{tmp, static_cast<std::size_t>(ptr - tmp)});
             };

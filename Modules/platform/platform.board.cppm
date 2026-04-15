@@ -63,6 +63,62 @@ export namespace platform::board {
         const char* hal_cap{nullptr};
     };
 
+    enum class BootLoadKind : util::u8 {
+        copy_to_ram = 0,
+        xip
+    };
+
+    struct BootLoadResolveRequest {
+        BootLoadKind kind{BootLoadKind::copy_to_ram};
+        util::u32 storage_payload_offset{0};
+        util::u32 storage_entry_offset{0};
+        util::u32 entry_offset{0};
+        util::u32 payload_size{0};
+        util::u32 image_size{0};
+        util::u16 image_flags{0};
+    };
+
+    struct BootLoadTransferRequest {
+        BootLoadKind kind{BootLoadKind::copy_to_ram};
+        util::usize payload_base{0};
+        util::u32 storage_payload_offset{0};
+        util::u32 payload_size{0};
+        util::u16 image_flags{0};
+    };
+
+    struct BootLoadDesc {
+        void* ctx{nullptr};
+        util::usize (*resolve_payload_base)(void* ctx,
+                                            const BootLoadResolveRequest& request) noexcept {nullptr};
+        bool (*load_payload)(void* ctx,
+                             const BootLoadTransferRequest& request) noexcept {nullptr};
+    };
+
+    struct BootExecRequest {
+        BootLoadKind kind{BootLoadKind::copy_to_ram};
+        util::usize payload_base{0};
+        util::usize entry_addr{0};
+        util::u32 storage_payload_offset{0};
+        util::u32 storage_entry_offset{0};
+        util::u32 entry_offset{0};
+        util::u32 payload_size{0};
+        util::u32 image_size{0};
+        util::u16 image_flags{0};
+    };
+
+    struct BootExecDesc {
+        void* ctx{nullptr};
+        bool (*prepare_jump)(void* ctx,
+                             const BootExecRequest& request) noexcept {nullptr};
+        bool (*jump)(void* ctx,
+                     const BootExecRequest& request) noexcept {nullptr};
+    };
+
+    struct BootBoardCaps {
+        BootLoadDesc load{};
+        BootExecDesc exec{};
+    };
+
     struct BoardCaps {
         UartDesc uart1{};
         ClockDesc clock{};
@@ -73,7 +129,14 @@ export namespace platform::board {
         CanDesc can0{};
         SdmmcDesc sdmmc0{};
         SpiFlashDesc flash0{};
+        BootBoardCaps boot{};
     };
+
+    constexpr BoardCaps with_boot_caps(BoardCaps caps,
+                                       const BootBoardCaps& boot) noexcept {
+        caps.boot = boot;
+        return caps;
+    }
 
     struct ConsoleCaps {
         UartDesc uart{};

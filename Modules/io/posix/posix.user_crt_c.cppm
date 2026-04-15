@@ -20,6 +20,13 @@ export {
 #undef CHARM_POSIX_HEADER_SKIP_STDDEF
 
 namespace {
+    inline void sync_user_errno(int value) noexcept {
+        posix::set_errno(value);
+        if (auto* err = posix::user::errno_location()) {
+            *err = value;
+        }
+    }
+
     inline void map_charm_posix_stat(const posix::PosixStat& in, charm_posix_stat_t& out) noexcept {
         out.st_mode = static_cast<charm_posix_mode_t>(in.mode);
         out.st_size = static_cast<unsigned long long>(in.size);
@@ -87,7 +94,7 @@ extern "C" int charm_posix_close(int fd) noexcept {
 
 extern "C" int charm_posix_stat(const char* path, charm_posix_stat_t* out) noexcept {
     if (!out) {
-        posix::set_errno(posix::EINVAL);
+        sync_user_errno(posix::EINVAL);
         return -1;
     }
     posix::PosixStat st{};
@@ -101,7 +108,7 @@ extern "C" int charm_posix_stat(const char* path, charm_posix_stat_t* out) noexc
 
 extern "C" int charm_posix_fstat(int fd, charm_posix_stat_t* out) noexcept {
     if (!out) {
-        posix::set_errno(posix::EINVAL);
+        sync_user_errno(posix::EINVAL);
         return -1;
     }
     posix::PosixStat st{};
@@ -117,7 +124,7 @@ extern "C" int charm_posix_isatty(int fd) noexcept {
     auto* err = posix::user::errno_location();
     const int saved_errno = err ? *err : 0;
     const int rc = posix::user::isatty(fd);
-    if (rc == 0 && err) {
+    if (rc == 0 && err && *err == 0) {
         *err = saved_errno;
     }
     return rc;

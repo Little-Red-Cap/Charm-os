@@ -6,8 +6,8 @@ set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off,
 set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data data_align prefetch prefetch_xn prefetch_page prefetch_page_xn prefetch_page_xn_runtime data_perm data_page data_page_perm data_page_perm_runtime)
 set(CHARM_ARMV7A_EXCEPTION_SMOKE "off" CACHE STRING "Optional exception smoke kind: off, undefined")
 set_property(CACHE CHARM_ARMV7A_EXCEPTION_SMOKE PROPERTY STRINGS off undefined)
-set(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE "off" CACHE STRING "Optional interrupt edge smoke kind: off, special_irq")
-set_property(CACHE CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE PROPERTY STRINGS off special_irq)
+set(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE "off" CACHE STRING "Optional interrupt edge smoke kind: off, special_irq, sgi_irq_timeout, unexpected_irq, sgi_fiq_timeout")
+set_property(CACHE CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE PROPERTY STRINGS off special_irq sgi_irq_timeout unexpected_irq sgi_fiq_timeout)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -50,9 +50,12 @@ if (NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "off"
         "CHARM_ARMV7A_EXCEPTION_SMOKE must be one of: off, undefined")
 endif()
 if (NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "off"
-    AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "special_irq")
+    AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "special_irq"
+    AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_irq_timeout"
+    AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "unexpected_irq"
+    AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_fiq_timeout")
     message(FATAL_ERROR
-        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE must be one of: off, special_irq")
+        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE must be one of: off, special_irq, sgi_irq_timeout, unexpected_irq, sgi_fiq_timeout")
 endif()
 if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "off")
@@ -181,4 +184,13 @@ endif()
 if (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "special_irq")
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_SPECIAL_IRQ=1)
+elseif (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_irq_timeout")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_SGI_IRQ_TIMEOUT=1)
+elseif (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "unexpected_irq")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_UNEXPECTED_IRQ=1)
+elseif (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_fiq_timeout")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_SGI_FIQ_TIMEOUT=1)
 endif()

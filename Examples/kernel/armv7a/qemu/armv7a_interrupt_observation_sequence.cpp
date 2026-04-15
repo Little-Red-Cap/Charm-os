@@ -33,5 +33,17 @@ void armv7a_run_interrupt_observation_sequence()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSpecialIrqSmoke);
     armv7a_special_irq_ack_smoke_test();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kSpecialIrqSmoke);
+#elif defined(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_SGI_IRQ_TIMEOUT)
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kSgiIrqTimeoutSmoke);
+    armv7a_sgi_irq_timeout_smoke_test();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kSgiIrqTimeoutSmoke);
+#elif defined(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_UNEXPECTED_IRQ)
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kUnexpectedIrqSmoke);
+    armv7a_unexpected_irq_smoke_test();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kUnexpectedIrqSmoke);
+#elif defined(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_SGI_FIQ_TIMEOUT)
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kSgiFiqTimeoutSmoke);
+    armv7a_sgi_fiq_timeout_smoke_test();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kSgiFiqTimeoutSmoke);
 #endif
 }

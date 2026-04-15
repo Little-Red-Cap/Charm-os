@@ -315,17 +315,17 @@ Charm 追求的不是“让裸机应用也自己写链接脚本”，
 - ABI 契约持续稳定
 - 新能力不破坏既有样本
 
-## 9. 第一阶段建议聚焦点
+## 9. 收口后的聚焦点
 
-基于当前仓库状态，建议继续按下面顺序推进：
+基于当前仓库状态，`POSIX v0` 已经收口，因此后续更合适的节奏是：
 
-1. 稳固 `fd_table/file/pipe/proc/term/errno/env/api` 这条主骨架
-2. 继续围绕 BusyBox 与小型真实样本补齐路径/errno/fd 细节
-3. 在主骨架稳定后，再扩展 `select/poll`
-4. 只有在明确被真实程序阻塞时，再推进 `socket/devfs/termios` 更宽接口面
+1. 维护 `fd_table/file/pipe/proc/term/errno/env/api` 这条已收口主骨架
+2. 只在 BusyBox、real-ELF、newlib 或真实用户态样例出现阻塞时补路径/errno/fd 细节
+3. 继续把每次增量约束为“真实阻塞点 -> 最小契约 -> 最小 smoke -> 文档同步”
+4. 把 `select/poll`、`socket/devfs/termios` 等更宽接口面保留为需求驱动项，而不是默认推进项
 
 这意味着 Charm 的目标不是“比 VSF 更快铺满 POSIX 头文件”，
-而是“比 VSF 更可维护地长成一个真正可用的用户态执行面”。
+而是“在已收口的最小用户态骨架上，按真实需求稳定成长为可维护的执行面”。
 
 ## 10. 这份文档不负责什么
 

@@ -99,6 +99,9 @@ void armv7a_platform_timer_stop();
 
 void armv7a_platform_prepare_timer_interrupt();
 void armv7a_platform_release_timer_interrupt();
+void armv7a_platform_prepare_sgi(unsigned int intid, Armv7aPlatformInterruptRoute route);
+void armv7a_platform_release_sgi(unsigned int intid);
+void armv7a_platform_trigger_sgi(unsigned int intid);
 void armv7a_platform_prepare_self_sgi(Armv7aPlatformInterruptRoute route);
 void armv7a_platform_release_self_sgi();
 void armv7a_platform_enable_interrupt_controller(Armv7aPlatformInterruptRoute route);

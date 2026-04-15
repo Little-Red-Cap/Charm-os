@@ -9,7 +9,7 @@
 #include "armv7a_platform.hpp"
 
 namespace {
-constexpr std::size_t kObservationSlotCount = 5u;
+constexpr std::size_t kObservationSlotCount = 8u;
 
 struct Armv7aInterruptStoredObservation {
     bool seen = false;
@@ -183,6 +183,9 @@ bool interrupt_matches_expected(unsigned int intid, bool fiq_route)
         return fiq_route && armv7a_platform_is_self_sgi_interrupt(intid);
     case Armv7aInterruptSmokeKind::kSpecialIrq:
         return !fiq_route && armv7a_platform_is_special_interrupt(intid);
+    case Armv7aInterruptSmokeKind::kSgiIrqTimeout:
+    case Armv7aInterruptSmokeKind::kUnexpectedIrq:
+    case Armv7aInterruptSmokeKind::kSgiFiqTimeout:
     case Armv7aInterruptSmokeKind::kNone:
     default:
         return false;
@@ -220,8 +223,9 @@ void handle_interrupt(Armv7aExceptionFrame* frame,
 
     record_interrupt(acknowledge, controller_before_ack, line, *frame, synthetic);
     armv7a_print_handler_stack_evidence(fiq_route ? "fiq" : "irq", armv7a_read_cpsr());
+    const auto observation = load_observation(g_last_observation);
     if (!interrupt_matches_expected(intid, fiq_route)) {
-        armv7a_interrupt_print_unexpected(label, intid, *frame);
+        armv7a_interrupt_print_unexpected(label, observation, *frame);
     }
 
     armv7a_platform_complete_interrupt(acknowledge.raw);

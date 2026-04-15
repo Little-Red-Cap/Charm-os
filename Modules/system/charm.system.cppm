@@ -12,7 +12,7 @@ export import charm.system.init_input;
 export import charm.system.init_usart;
 export import charm.system.bringup;
 export import charm.system.bringup.stm32_stub;
-#if !defined(CHARM_BAREMETAL)
+#if CHARM_TARGET_HAS_WIN32
 export import charm.system.bringup.win_stub;
 #endif
 export import charm.system.reactor_pump;
@@ -23,6 +23,13 @@ export import boot_storage;
 export import boot_flash;
 export import boot_flow;
 export import boot_policy;
+export import boot_plan;
+export import boot_launch;
+export import boot_load;
+export import boot_board_load;
+export import boot_exec;
+export import boot_board_exec;
+export import boot_handoff;
 export import boot_uart;
 export import boot_xymodem;
 export import boot_session;

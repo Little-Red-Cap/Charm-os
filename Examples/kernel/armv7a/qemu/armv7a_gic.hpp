@@ -32,6 +32,7 @@ inline constexpr unsigned int kArmv7aGicSpecialIntIdMin = 1020u;
 inline constexpr unsigned int kArmv7aGicSpuriousIntId = 1023u;
 
 void armv7a_gic_init_timer_irq();
+void armv7a_gic_init_sgi_line(unsigned int intid, Armv7aGicInterruptGroup group);
 void armv7a_gic_init_sgi_irq(Armv7aGicInterruptGroup group);
 void armv7a_gic_enable_interfaces(bool fiq_enabled);
 void armv7a_gic_disable_interfaces();

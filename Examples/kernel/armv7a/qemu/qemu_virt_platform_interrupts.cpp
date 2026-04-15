@@ -76,16 +76,31 @@ void armv7a_platform_release_timer_interrupt()
     armv7a_gic_clear_pending(kArmv7aGicNonSecureTimerIntId);
 }
 
+void armv7a_platform_prepare_sgi(unsigned int intid, Armv7aPlatformInterruptRoute route)
+{
+    armv7a_gic_init_sgi_line(intid, to_gic_group(route));
+}
+
+void armv7a_platform_release_sgi(unsigned int intid)
+{
+    armv7a_gic_disable_line(intid);
+    armv7a_gic_clear_pending(intid);
+    armv7a_gic_clear_sgi_pending(intid);
+}
+
+void armv7a_platform_trigger_sgi(unsigned int intid)
+{
+    armv7a_gic_send_self_sgi(intid);
+}
+
 void armv7a_platform_prepare_self_sgi(Armv7aPlatformInterruptRoute route)
 {
-    armv7a_gic_init_sgi_irq(to_gic_group(route));
+    armv7a_platform_prepare_sgi(kArmv7aGicSelfSgiIntId, route);
 }
 
 void armv7a_platform_release_self_sgi()
 {
-    armv7a_gic_disable_line(kArmv7aGicSelfSgiIntId);
-    armv7a_gic_clear_pending(kArmv7aGicSelfSgiIntId);
-    armv7a_gic_clear_sgi_pending(kArmv7aGicSelfSgiIntId);
+    armv7a_platform_release_sgi(kArmv7aGicSelfSgiIntId);
 }
 
 void armv7a_platform_enable_interrupt_controller(Armv7aPlatformInterruptRoute route)
@@ -100,7 +115,7 @@ void armv7a_platform_disable_interrupt_controller()
 
 void armv7a_platform_trigger_self_sgi()
 {
-    armv7a_gic_send_self_sgi(kArmv7aGicSelfSgiIntId);
+    armv7a_platform_trigger_sgi(kArmv7aGicSelfSgiIntId);
 }
 
 Armv7aPlatformInterruptAcknowledge armv7a_platform_acknowledge_interrupt()

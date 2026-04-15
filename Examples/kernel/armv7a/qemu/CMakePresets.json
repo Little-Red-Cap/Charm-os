@@ -135,6 +135,33 @@
       "cacheVariables": {
         "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "special_irq"
       }
+    },
+    {
+      "name": "debug-interrupt-sgi-timeout",
+      "displayName": "ARMv7-A QEMU Debug (SGI IRQ Timeout Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-interrupt-sgi-timeout",
+      "cacheVariables": {
+        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "sgi_irq_timeout"
+      }
+    },
+    {
+      "name": "debug-interrupt-unexpected-irq",
+      "displayName": "ARMv7-A QEMU Debug (Unexpected IRQ Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-interrupt-unexpected-irq",
+      "cacheVariables": {
+        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "unexpected_irq"
+      }
+    },
+    {
+      "name": "debug-interrupt-sgi-fiq-timeout",
+      "displayName": "ARMv7-A QEMU Debug (SGI FIQ Timeout Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-interrupt-sgi-fiq-timeout",
+      "cacheVariables": {
+        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "sgi_fiq_timeout"
+      }
     }
   ],
   "buildPresets": [
@@ -193,6 +220,18 @@
     {
       "name": "debug-interrupt-special-irq",
       "configurePreset": "debug-interrupt-special-irq"
+    },
+    {
+      "name": "debug-interrupt-sgi-timeout",
+      "configurePreset": "debug-interrupt-sgi-timeout"
+    },
+    {
+      "name": "debug-interrupt-unexpected-irq",
+      "configurePreset": "debug-interrupt-unexpected-irq"
+    },
+    {
+      "name": "debug-interrupt-sgi-fiq-timeout",
+      "configurePreset": "debug-interrupt-sgi-fiq-timeout"
     }
   ]
 }

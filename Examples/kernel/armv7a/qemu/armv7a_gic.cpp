@@ -160,12 +160,17 @@ void armv7a_gic_init_timer_irq()
     armv7a_instruction_sync_barrier();
 }
 
-void armv7a_gic_init_sgi_irq(Armv7aGicInterruptGroup group)
+void armv7a_gic_init_sgi_line(unsigned int intid, Armv7aGicInterruptGroup group)
 {
     gic_reset_interfaces();
-    gic_configure_sgi_line(kArmv7aGicSelfSgiIntId, group);
+    gic_configure_sgi_line(intid, group);
     armv7a_data_sync_barrier();
     armv7a_instruction_sync_barrier();
+}
+
+void armv7a_gic_init_sgi_irq(Armv7aGicInterruptGroup group)
+{
+    armv7a_gic_init_sgi_line(kArmv7aGicSelfSgiIntId, group);
 }
 
 void armv7a_gic_enable_interfaces(bool fiq_enabled)

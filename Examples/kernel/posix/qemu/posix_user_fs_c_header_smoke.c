@@ -15,6 +15,8 @@ int charm_posix_c_fs_header_entry(void) {
     int saw_note = 0;
     int saw_note_rel = 0;
     int saw_sub = 0;
+    int saw_parent_rel = 0;
+    int saw_sub_parent = 0;
 
     if (err == 0) return 301;
     if (charm_posix_getpid() <= 0) return 302;
@@ -340,6 +342,31 @@ int charm_posix_c_fs_header_entry(void) {
     *err = 118;
     if (charm_posix_close(fd) != 0) return 660;
     if (*err != 118) return 661;
+    *err = 121;
+    dir = charm_posix_opendir("..");
+    if (dir == 0) return 674;
+    if (*err != 121) return 675;
+    saw_parent_rel = 0;
+    saw_sub_parent = 0;
+    while ((ent = charm_posix_readdir(dir)) != 0) {
+        if (strcmp(ent->d_name, "parent.txt") == 0) {
+            saw_parent_rel = 1;
+            if ((ent->d_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 676;
+            if (ent->d_size != 2) return 677;
+        }
+        if (strcmp(ent->d_name, "sub") == 0) {
+            saw_sub_parent = 1;
+            if ((ent->d_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFDIR) return 678;
+        }
+    }
+    if (!saw_parent_rel) return 679;
+    if (!saw_sub_parent) return 680;
+    *err = 122;
+    if (charm_posix_readdir(dir) != 0) return 681;
+    if (*err != 122) return 682;
+    *err = 123;
+    if (charm_posix_closedir(dir) != 0) return 683;
+    if (*err != 123) return 684;
     *err = 99;
     if (charm_posix_stat("/cfs/parent.txt", &st) != 0) return 607;
     if (*err != 99) return 608;

@@ -181,6 +181,27 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_close(fd) != 0) return 517;
     if (*err != 76) return 518;
 
+    *err = 77;
+    if (charm_posix_stat("/dev/stdin", &st) != 0) return 519;
+    if (*err != 77) return 520;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 521;
+    *err = 78;
+    if (charm_posix_stat("/dev/stdout", &st) != 0) return 522;
+    if (*err != 78) return 523;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFIFO) return 524;
+    *err = 79;
+    if (charm_posix_stat("/dev/stderr", &st) != 0) return 525;
+    if (*err != 79) return 526;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 527;
+    *err = 80;
+    if (charm_posix_stat("/dev/tty", &st) != 0) return 528;
+    if (*err != 80) return 529;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 530;
+    *err = 81;
+    if (charm_posix_stat("/dev/console", &st) != 0) return 531;
+    if (*err != 81) return 532;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFCHR) return 533;
+
     *err = 51;
     if (charm_posix_mkdir("/cfs") != 0) return 309;
     if (*err != 51) return 440;

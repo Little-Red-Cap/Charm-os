@@ -28,3 +28,6 @@ Armv7aInterruptObservation armv7a_interrupt_smoke_observation(Armv7aInterruptSmo
 
 extern "C" void armv7a_handle_irq(Armv7aExceptionFrame* frame);
 extern "C" void armv7a_handle_fiq(Armv7aExceptionFrame* frame);
+extern "C" void armv7a_irq_smoke_test();
+extern "C" void armv7a_sgi_smoke_test();
+extern "C" void armv7a_fiq_smoke_test();

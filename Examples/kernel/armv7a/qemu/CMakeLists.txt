@@ -83,6 +83,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_handler_stack.cpp
     armv7a_interrupt_smoke.cpp
     armv7a_interrupt_diagnostics.cpp
+    armv7a_interrupt_observation_sequence.cpp
     armv7a_arch_timer.cpp
     armv7a_attribute_probe.cpp
     armv7a_cache.cpp
@@ -91,6 +92,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_icache_probe.cpp
     armv7a_mmu.cpp
     armv7a_boot_diagnostics.cpp
+    armv7a_memory_probe_sequence.cpp
     armv7a_page_table_probe.cpp
     armv7a_section_split_probe.cpp
     armv7a_boot_page_table.cpp

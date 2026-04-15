@@ -424,6 +424,7 @@ int main(int argc, char** argv) {
     bool ui_ci = false;
     std::string font_ttf_path{};
     std::string font_fallback_ttf_path{};
+    bool disable_system_font_fallback = false;
     int font_small_px = 0;
     int font_normal_px = 0;
     int font_large_px = 0;
@@ -486,6 +487,8 @@ int main(int argc, char** argv) {
             font_ttf_path.assign(arg.substr(11));
         } else if (arg.rfind("--font-fallback-ttf=", 0) == 0) {
             font_fallback_ttf_path.assign(arg.substr(20));
+        } else if (arg == "--font-disable-system-fallback") {
+            disable_system_font_fallback = true;
         } else if (arg.rfind("--font-small=", 0) == 0) {
             font_small_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
         } else if (arg.rfind("--font-normal=", 0) == 0) {
@@ -530,6 +533,7 @@ int main(int argc, char** argv) {
     g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
     g_player_cfg.fixed_rate = 48000;
     charm::system::ClockCaps::TimeSource::bind(g_clock);
+    player::ui::set_player_system_font_fallback_enabled(!disable_system_font_fallback);
     player::AppConfig app_cfg{g_player_cfg};
     if (!font_ttf_path.empty()) {
         app_cfg.ttf_path = font_ttf_path;

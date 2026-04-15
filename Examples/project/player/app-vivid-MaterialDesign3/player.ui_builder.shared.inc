@@ -56,6 +56,8 @@
         int play_y{};
         int collage_x{};
         int collage_y{};
+        int collage_w{};
+        int collage_h{};
         int collage_big{};
         int collage_small_left{};
         int collage_small_right{};
@@ -200,16 +202,16 @@
         const int controls_w = control_side * 2 + control_play + control_gap * 2;
         const int controls_x = (screen_width - controls_w) / 2;
 
-        const int tabs_y = top_bar_y + top_bar_h + 14;
-        const int tabs_h = 38;
-        const int tabs_gap = 12;
+        const int tabs_y = top_bar_y + top_bar_h + 18;
+        const int tabs_h = 40;
+        const int tabs_gap = 10;
         const int tabs_w = screen_width - kUiPadding * 2;
         const int tab_w = (tabs_w - tabs_gap * 2) / 3;
 
-        const int shuffle_y = tabs_y + tabs_h + 14;
-        const int shuffle_h = 36;
-        const int list_card_y = shuffle_y + shuffle_h + 10;
-        const int list_card_h = std::max(240, bottom_bar_y - list_card_y - 22);
+        const int shuffle_y = tabs_y + tabs_h + 16;
+        const int shuffle_h = 38;
+        const int list_card_y = shuffle_y + shuffle_h + 14;
+        const int list_card_h = std::max(240, bottom_bar_y - list_card_y - 20);
 
         return UiLayout{
             .top_bar_x = top_bar_x,
@@ -266,7 +268,9 @@
 
     static HomeLayout make_home_layout(const UiLayout& layout) noexcept {
         const int title_y = layout.top_bar_y + 8;
-        const int collage_big = 286;
+        const int collage_w = 320;
+        const int collage_h = 304;
+        const int collage_big = 214;
         return HomeLayout{
             .scroll_bottom_gap = 8,
             .scroll_step = 32,
@@ -274,24 +278,26 @@
             .title_x = kUiPadding,
             .title_y = title_y,
             .title_w = screen_width - kUiPadding * 2 - 96,
-            .title_line_h = 102,
-            .title_line_gap = 86,
-            .subtitle_y = title_y + 194,
+            .title_line_h = 94,
+            .title_line_gap = 80,
+            .subtitle_y = title_y + 180,
             .subtitle_h = 30,
             .play_size = 78,
             .play_icon_px = 28,
             .play_y = title_y + 78,
-            .collage_x = (screen_width - collage_big) / 2,
-            .collage_y = title_y + 230,
+            .collage_x = (screen_width - collage_w) / 2,
+            .collage_y = title_y + 214,
+            .collage_w = collage_w,
+            .collage_h = collage_h,
             .collage_big = collage_big,
-            .collage_small_left = 88,
-            .collage_small_right = 76,
-            .collage_small_center = 70,
+            .collage_small_left = 78,
+            .collage_small_right = 88,
+            .collage_small_center = 76,
             .stat_card_x = kUiPadding,
-            .stat_card_y = title_y + 230 + collage_big + 118,
+            .stat_card_y = title_y + 214 + collage_h + 72,
             .stat_card_w = screen_width - kUiPadding * 2,
-            .stat_card_h = 76,
-            .stat_card_gap = 14,
+            .stat_card_h = 122,
+            .stat_card_gap = 16,
             .stat_probe_card_h = 248,
             .toolbar_button_size = 40,
             .toolbar_icon_px = 14,
@@ -361,40 +367,40 @@
             .top_button_size = 40,
             .top_icon_px = 14,
             .top_button_right_gap = 44,
-            .shuffle_w = 120,
-            .list_row_h = 60,
-            .list_header_h = 82,
-            .list_title_h = 18,
-            .list_path_h = 16,
-            .list_title_top_gap = 12,
-            .list_title_left_gap = 14,
-            .list_title_right_gap = 112,
-            .list_sort_w = 76,
-            .list_sort_h = 28,
-            .list_sort_top_offset = -6,
-            .list_sort_right_gap = 88,
-            .list_path_top_gap = 8,
-            .list_path_side_gap = 14,
-            .list_path_bg_h_extra = 8,
-            .list_path_bg_radius = 12,
-            .list_path_icon_left_gap = 8,
-            .list_path_icon_top_gap = 2,
+            .shuffle_w = 144,
+            .list_row_h = 72,
+            .list_header_h = 102,
+            .list_title_h = 22,
+            .list_path_h = 20,
+            .list_title_top_gap = 18,
+            .list_title_left_gap = 20,
+            .list_title_right_gap = 24,
+            .list_sort_w = 92,
+            .list_sort_h = 32,
+            .list_sort_top_offset = 0,
+            .list_sort_right_gap = 92,
+            .list_path_top_gap = 14,
+            .list_path_side_gap = 20,
+            .list_path_bg_h_extra = 12,
+            .list_path_bg_radius = 16,
+            .list_path_icon_left_gap = 12,
+            .list_path_icon_top_gap = 4,
             .list_path_icon_size = 24,
             .list_path_icon_px = 12,
-            .list_path_text_left = 30,
-            .list_path_text_top = 4,
-            .list_path_text_right_gap = 36,
-            .list_sort_radius = 14,
+            .list_path_text_left = 36,
+            .list_path_text_top = 6,
+            .list_path_text_right_gap = 42,
+            .list_sort_radius = 18,
             .list_path_icon_radius = 12,
-            .list_body_top_gap = 20,
+            .list_body_top_gap = 24,
             .list_body_bottom_gap = 18,
-            .list_body_side_gap = 10,
+            .list_body_side_gap = 14,
             .list_scroll_w = 10,
             .list_scroll_right_gap = 12,
-            .list_hint_left_gap = 14,
-            .list_hint_bottom_gap = 22,
+            .list_hint_left_gap = 20,
+            .list_hint_bottom_gap = 18,
             .list_hint_h = 18,
-            .list_hint_right_gap = 24,
+            .list_hint_right_gap = 32,
         };
     }
 
@@ -452,6 +458,24 @@
                                         PlayerTextRole role,
                                         const rgba& color) {
         builder.set_style_override(h, make_player_text_patch(role, color));
+    }
+
+    static void apply_home_hero_title_style(::ui::scene::SceneBuilder& builder,
+                                            WidgetHandle h,
+                                            const rgba& color) {
+        StylePatch patch = make_player_text_patch(PlayerTextRole::HeroTitle, color);
+        patch.has_font = true;
+        patch.font = &get_player_font_px(68, FontWeight::Bold);
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_home_mix_title_style(::ui::scene::SceneBuilder& builder,
+                                           WidgetHandle h,
+                                           const rgba& color) {
+        StylePatch patch = make_player_text_patch(PlayerTextRole::CardTitle, color);
+        patch.has_font = true;
+        patch.font = &get_player_font_px(22, FontWeight::Bold);
+        builder.set_style_override(h, patch);
     }
 
     static void apply_text_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, const rgba& color,
@@ -550,23 +574,38 @@
 
     static void apply_home_cover_style(::ui::scene::SceneBuilder& builder,
                                        WidgetHandle h,
-                                       int size,
-                                       bool with_shadow) {
+                                       int corner_radius) {
         StylePatch patch{};
         patch.has_corner_radius = true;
-        patch.corner_radius = size / 2;
-        if (with_shadow) {
-            patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = kUiCardShadow;
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 6;
-            patch.has_shadow_spread = true;
-            patch.shadow_spread = 2;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = 16;
-        }
+        patch.corner_radius = corner_radius;
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_home_cover_plate_style(::ui::scene::SceneBuilder& builder,
+                                             WidgetHandle h,
+                                             int corner_radius,
+                                             bool emphasize = false) {
+        StylePatch patch{};
+        patch.has_bg_color = true;
+        patch.bg_color = emphasize ? rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 222}
+                                   : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 210};
+        patch.has_border_color = true;
+        patch.border_color = emphasize ? rgba{kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 38}
+                                       : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 14};
+        patch.has_border_width = true;
+        patch.border_width = 1;
+        patch.has_corner_radius = true;
+        patch.corner_radius = corner_radius;
+        patch.has_shadow_enabled = true;
+        patch.shadow_enabled = true;
+        patch.has_shadow_color = true;
+        patch.shadow_color = emphasize ? rgba{0, 0, 0, 62} : rgba{0, 0, 0, 48};
+        patch.has_shadow_offset_y = true;
+        patch.shadow_offset_y = emphasize ? 6 : 5;
+        patch.has_shadow_spread = true;
+        patch.shadow_spread = emphasize ? 2 : 1;
+        patch.has_shadow_radius = true;
+        patch.shadow_radius = emphasize ? 14 : 12;
         builder.set_style_override(h, patch);
     }
 
@@ -724,6 +763,218 @@
         builder.set_button_icon_size(button, icon_px);
         apply_top_bar_button_style(builder, button);
         return button;
+    }
+
+    static void apply_home_card_style(::ui::scene::SceneBuilder& builder,
+                                      WidgetHandle h,
+                                      int corner_radius) {
+        StylePatch patch{};
+        patch.has_bg_color = true;
+        patch.bg_color = rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 244};
+        patch.has_border_color = true;
+        patch.border_color = rgba{kUiListBorder.r, kUiListBorder.g, kUiListBorder.b, 190};
+        patch.has_border_width = true;
+        patch.border_width = 1;
+        patch.has_corner_radius = true;
+        patch.corner_radius = corner_radius;
+        patch.has_shadow_enabled = true;
+        patch.shadow_enabled = true;
+        patch.has_shadow_color = true;
+        patch.shadow_color = rgba{0, 0, 0, 54};
+        patch.has_shadow_offset_x = true;
+        patch.shadow_offset_x = 0;
+        patch.has_shadow_offset_y = true;
+        patch.shadow_offset_y = 4;
+        patch.has_shadow_spread = true;
+        patch.shadow_spread = 2;
+        patch.has_shadow_radius = true;
+        patch.shadow_radius = 14;
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_home_card_preview_plate_style(::ui::scene::SceneBuilder& builder,
+                                                    WidgetHandle h,
+                                                    int corner_radius,
+                                                    bool emphasize = false) {
+        StylePatch patch{};
+        patch.has_bg_color = true;
+        patch.bg_color = emphasize ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 232}
+                                   : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 214};
+        patch.has_border_color = true;
+        patch.border_color = emphasize ? rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 66}
+                                       : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 40};
+        patch.has_border_width = true;
+        patch.border_width = 1;
+        patch.has_corner_radius = true;
+        patch.corner_radius = corner_radius;
+        patch.has_shadow_enabled = true;
+        patch.shadow_enabled = true;
+        patch.has_shadow_color = true;
+        patch.shadow_color = rgba{0, 0, 0, static_cast<std::uint8_t>(emphasize ? 44 : 34)};
+        patch.has_shadow_offset_y = true;
+        patch.shadow_offset_y = 3;
+        patch.has_shadow_spread = true;
+        patch.shadow_spread = 1;
+        patch.has_shadow_radius = true;
+        patch.shadow_radius = 8;
+        builder.set_style_override(h, patch);
+    }
+
+    static WidgetHandle create_home_daily_mix_card(::ui::scene::SceneBuilder& builder,
+                                                   UiHandles& h,
+                                                   WidgetHandle parent,
+                                                   const Rect& rect,
+                                                   std::string_view body,
+                                                   std::string_view meta) {
+        ::ui::scene::CardBuilder card{builder, rect, 0, 0,
+                                      ::ui::scene::LayoutAlign::Start,
+                                      static_cast<StyleClassId>(PlayerStyleClass::ListCard),
+                                      true};
+        const WidgetHandle root = card.root();
+        apply_home_card_style(builder, root, 24);
+
+        const WidgetHandle header_band = builder.create_container();
+        anchor_rect(builder, header_band, {0, 0, rect.w, 74});
+        {
+            StylePatch patch{};
+            patch.has_gradient_enabled = true;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = kUiHomeDailyMixTop;
+            patch.has_gradient_end = true;
+            patch.gradient_end = kUiHomeDailyMixBottom;
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 1;
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 24;
+            builder.set_style_override(header_band, patch);
+        }
+        builder.set_hit_testable(header_band, false);
+        builder.link(root, header_band);
+
+        const WidgetHandle title_label = builder.create_label_static("DAILY MIX");
+        apply_home_mix_title_style(builder, title_label, kUiTitle);
+        builder.set_label_align(title_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, title_label, {18, 14, rect.w - 160, 24});
+        builder.link(root, title_label);
+
+        const WidgetHandle subtitle_label = builder.create_label_static("Based on history");
+        apply_player_text_style(builder, subtitle_label, PlayerTextRole::MetaText,
+                                rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 214});
+        builder.set_label_align(subtitle_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, subtitle_label, {19, 40, rect.w - 160, 16});
+        builder.link(root, subtitle_label);
+
+        const auto add_preview = [&](WidgetHandle& out_image,
+                                     const Rect& image_rect,
+                                     int corner_radius,
+                                     bool emphasize = false) {
+            const int pad = 2;
+            const WidgetHandle plate = builder.create_container();
+            anchor_rect(builder, plate,
+                        {image_rect.x - pad, image_rect.y - pad, image_rect.w + pad * 2, image_rect.h + pad * 2});
+            apply_home_card_preview_plate_style(builder, plate, corner_radius + pad, emphasize);
+            builder.set_hit_testable(plate, false);
+            builder.link(root, plate);
+
+            out_image = builder.create_image();
+            anchor_rect(builder, out_image, image_rect);
+            apply_home_cover_style(builder, out_image, corner_radius);
+            builder.set_hit_testable(out_image, false);
+            builder.link(root, out_image);
+        };
+
+        add_preview(h.home_daily_mix_covers[0], {rect.w - 138, 14, 38, 38}, 12, true);
+        add_preview(h.home_daily_mix_covers[1], {rect.w - 104, 18, 34, 34}, 17, false);
+        add_preview(h.home_daily_mix_covers[2], {rect.w - 66, 14, 42, 42}, 14, true);
+
+        const WidgetHandle body_label = builder.create_label_static(body.data());
+        apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
+        builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, body_label, {18, 88, rect.w - 116, 18});
+        builder.link(root, body_label);
+
+        const WidgetHandle meta_chip = builder.create_label_static(meta.data());
+        apply_time_label_style(builder, meta_chip);
+        builder.set_label_align(meta_chip, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, meta_chip, {rect.w - 92, 84, 72, 24});
+        apply_info_tag_style(builder, meta_chip);
+        builder.link(root, meta_chip);
+
+        builder.link(parent, root);
+        return root;
+    }
+
+    static WidgetHandle create_home_recently_played_card(::ui::scene::SceneBuilder& builder,
+                                                         UiHandles& h,
+                                                         WidgetHandle parent,
+                                                         const Rect& rect,
+                                                         const PlayerIconIds& icons,
+                                                         std::string_view body,
+                                                         std::string_view meta) {
+        ::ui::scene::CardBuilder card{builder, rect, 0, 0,
+                                      ::ui::scene::LayoutAlign::Start,
+                                      static_cast<StyleClassId>(PlayerStyleClass::ListCard),
+                                      true};
+        const WidgetHandle root = card.root();
+        apply_home_card_style(builder, root, 24);
+
+        const WidgetHandle title_label = builder.create_label_static("Recently Played");
+        apply_player_text_style(builder, title_label, PlayerTextRole::CardTitle, kUiTitle);
+        builder.set_label_align(title_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, title_label, {18, 14, rect.w - 92, 24});
+        builder.link(root, title_label);
+
+        const WidgetHandle action_button = builder.create_button_static("");
+        anchor_rect(builder, action_button, {rect.w - 60, 12, 42, 42});
+        builder.set_button_icon(action_button, icons.next);
+        builder.set_button_icon_size(action_button, 14);
+        apply_top_bar_button_style(builder, action_button);
+        builder.set_hit_testable(action_button, false);
+        builder.link(root, action_button);
+
+        const WidgetHandle body_label = builder.create_label_static(body.data());
+        apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
+        builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, body_label, {18, 40, rect.w - 120, 18});
+        builder.link(root, body_label);
+
+        const WidgetHandle meta_chip = builder.create_label_static(meta.data());
+        apply_time_label_style(builder, meta_chip);
+        builder.set_label_align(meta_chip, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, meta_chip, {rect.w - 92, 40, 72, 24});
+        apply_info_tag_style(builder, meta_chip);
+        builder.link(root, meta_chip);
+
+        const auto add_preview = [&](WidgetHandle& out_image,
+                                     const Rect& image_rect,
+                                     int corner_radius,
+                                     bool emphasize = false) {
+            const int pad = 2;
+            const WidgetHandle plate = builder.create_container();
+            anchor_rect(builder, plate,
+                        {image_rect.x - pad, image_rect.y - pad, image_rect.w + pad * 2, image_rect.h + pad * 2});
+            apply_home_card_preview_plate_style(builder, plate, corner_radius + pad, emphasize);
+            builder.set_hit_testable(plate, false);
+            builder.link(root, plate);
+
+            out_image = builder.create_image();
+            anchor_rect(builder, out_image, image_rect);
+            apply_home_cover_style(builder, out_image, corner_radius);
+            builder.set_hit_testable(out_image, false);
+            builder.link(root, out_image);
+        };
+
+        add_preview(h.home_recently_played_covers[0], {18, 72, 94, 34}, 17, true);
+        add_preview(h.home_recently_played_covers[1], {120, 72, 78, 34}, 17, false);
+        add_preview(h.home_recently_played_covers[2], {rect.w - 58, 68, 40, 40}, 20, true);
+
+        builder.link(parent, root);
+        return root;
     }
 
     static WidgetHandle create_home_stat_card(::ui::scene::SceneBuilder& builder,

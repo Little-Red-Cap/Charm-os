@@ -10,6 +10,7 @@
             update_list_title();
             update_list_path();
             update_list_sort_label();
+            update_list_shuffle_label();
             update_list_placeholder();
             tick_list_duration_probe();
             update_debug_overlay();
@@ -28,8 +29,9 @@
             return 0;
         }
 
-        static constexpr int kLibraryTabRadius = 19;
-        static constexpr int kLibraryPathRadius = 10;
+        static constexpr int kLibraryTabRadius = 20;
+        static constexpr int kLibrarySortRadius = 18;
+        static constexpr int kLibraryPathRadius = 16;
         static constexpr int kLibraryListRowHeight = 72;
         static constexpr int kTrackDurationUnknown = -1;
         static constexpr int kTrackDurationUnavailable = -2;
@@ -474,17 +476,17 @@
 
         StylePatch list_action_menu_focus_patch() const noexcept {
             StylePatch patch = ::ui::scene::make_pill_surface_patch({
-                .bg_color = kUiTabActive,
-                .border_color = kUiOk,
+                .bg_color = kUiLibraryChipActive,
+                .border_color = kUiLibraryPathBorderActive,
                 .corner_radius = 12,
                 .inner_stroke_enabled = true,
-                .inner_stroke_color = kUiButtonHover,
+                .inner_stroke_color = with_alpha(kUiLibraryListOnAccent, 56),
                 .inner_stroke_width = 1,
             });
             patch.has_font_color = true;
-            patch.font_color = kUiTitle;
+            patch.font_color = kUiLibraryChipTextActive;
             patch.has_border_focus = true;
-            patch.border_focus = kUiOk;
+            patch.border_focus = kUiLibraryPathBorderActive;
             return patch;
         }
 
@@ -702,22 +704,30 @@
             if (!access.valid() || !handle) return;
             ::ui::scene::PillSurfaceSpec spec{};
             spec.bg_color = active ? kUiLibraryChipActive : kUiLibraryChipIdle;
-            spec.border_color = active ? kUiLibraryChipActive : kUiLibraryChipBorder;
+            spec.border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder;
             spec.corner_radius = radius;
             if (active || elevated) {
                 spec.shadow.enabled = true;
-                spec.shadow.color = kUiCardShadow;
+                spec.shadow.color = active ? with_alpha(kUiCardShadow, 96)
+                                           : with_alpha(kUiCardShadow, 72);
                 spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = active ? 2 : 4;
-                spec.shadow.spread = active ? 2 : 4;
-                spec.shadow.radius = active ? 10 : 18;
+                spec.shadow.offset_y = active ? 3 : 4;
+                spec.shadow.spread = active ? 1 : 3;
+                spec.shadow.radius = active ? 12 : 16;
             }
             if (active) {
                 spec.inner_stroke_enabled = true;
-                spec.inner_stroke_color = kUiButtonHover;
+                spec.inner_stroke_color = with_alpha(kUiLibraryListOnAccent, 52);
                 spec.inner_stroke_width = 1;
             }
-            access.set_style_override(handle, ::ui::scene::make_pill_surface_patch(spec));
+            StylePatch patch = ::ui::scene::make_pill_surface_patch(spec);
+            patch.has_font_color = true;
+            patch.font_color = active
+                ? kUiLibraryChipTextActive
+                : (elevated ? kUiLibraryChipText : kUiLibraryChipTextMuted);
+            patch.has_border_focus = true;
+            patch.border_focus = kUiLibraryPathBorderActive;
+            access.set_style_override(handle, patch);
         }
 
         void update_library_state_visuals() {
@@ -725,22 +735,35 @@
             apply_library_chip_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
             apply_library_chip_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
             apply_library_chip_style(handles.list_shuffle, list_shuffle_enabled, kLibraryTabRadius, true);
+            apply_library_chip_style(handles.list_sort, list_sort == ListSort::NameDesc, kLibrarySortRadius, true);
 
             if (handles.list_path_bg) {
-                const bool active = (library_tab != LibraryTab::Songs) || list_shuffle_enabled;
+                const bool active = library_has_context()
+                    || (library_tab != LibraryTab::Songs)
+                    || list_shuffle_enabled;
                 const auto patch = ::ui::scene::make_pill_surface_patch({
                     .bg_color = active ? kUiLibraryPathActive : kUiLibraryPathIdle,
                     .border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder,
                     .corner_radius = kLibraryPathRadius,
+                    .shadow = {
+                        .enabled = active,
+                        .color = with_alpha(kUiCardShadow, 72),
+                        .offset_x = 0,
+                        .offset_y = 2,
+                        .spread = 1,
+                        .radius = 12,
+                    },
                 });
                 access.set_style_override(handles.list_path_bg, patch);
             }
             if (handles.list_path) {
                 StylePatch patch{};
                 patch.has_font_color = true;
-                patch.font_color = ((library_tab != LibraryTab::Songs) || list_shuffle_enabled)
-                    ? kUiOk
-                    : kUiListTitle;
+                patch.font_color = (library_has_context()
+                    || (library_tab != LibraryTab::Songs)
+                    || list_shuffle_enabled)
+                    ? kUiLibraryPathTextActive
+                    : kUiLibraryPathText;
                 access.set_style_override(handles.list_path, patch);
             }
         }
@@ -1162,10 +1185,10 @@
                                          &PlayerController::list_view_text);
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
-            access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 18);
-            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 18);
-            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 44);
-            access.set_list_view_icon_corner_radius(handles.list, 12);
+            access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 20);
+            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 20);
+            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 48);
+            access.set_list_view_icon_corner_radius(handles.list, 14);
             access.set_list_row_height(handles.list, kLibraryListRowHeight);
             access.set_scroll_step(handles.list, kLibraryListRowHeight);
             if (count > 0) {
@@ -1177,6 +1200,7 @@
             update_list_title();
             update_list_path();
             update_list_sort_label();
+            update_list_shuffle_label();
             update_list_placeholder();
             update_library_state_visuals();
         }
@@ -1242,6 +1266,7 @@
             reset_track_duration_cache();
             refresh_track_labels();
             build_list_cover_paths();
+            sync_home_collage_images(true);
             if (fs_ready && !font_retry_done && !font_ttf_path.empty()) {
                 rebind_player_fonts();
                 font_retry_done = true;
@@ -1284,14 +1309,15 @@
         void update_list_path() {
             if (!access.valid() || !handles.list_path) return;
             FixedString<192> path;
-            path.assign("/library/");
-            path.append(library_tab_path(library_tab));
+            path.assign("Library");
+            path.append(" / ");
+            path.append(library_tab_title(library_tab));
             if (library_has_context()) {
-                path.append("/");
+                path.append(" / ");
                 path.append(library_context_key.view());
             }
             if (list_shuffle_enabled) {
-                path.append("/shuffle");
+                path.append(" / Shuffled");
             }
             set_label_slot(handles.list_path, text_slots.list_path, path.c_str());
         }
@@ -1300,6 +1326,12 @@
             if (!access.valid() || !handles.list_sort) return;
             const char* label = (list_sort == ListSort::NameAsc) ? "Sort A-Z" : "Sort Z-A";
             set_label_slot(handles.list_sort, text_slots.list_sort, label);
+        }
+
+        void update_list_shuffle_label() {
+            if (!access.valid() || !handles.list_shuffle) return;
+            const char* label = list_shuffle_enabled ? "Shuffled" : "Shuffle All";
+            set_label_slot(handles.list_shuffle, text_slots.list_shuffle, label);
         }
 
         void update_list_placeholder() {

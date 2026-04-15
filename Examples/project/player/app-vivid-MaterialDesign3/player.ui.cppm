@@ -149,21 +149,35 @@ export namespace player::ui {
     inline constexpr rgba kUiPlayBg = {14, 18, 30, 255};
     inline constexpr rgba kUiPlayShadow = {0, 0, 0, 160};
     inline constexpr rgba kUiCardShadow = {0, 0, 0, 70};
-    inline constexpr rgba kUiLibraryHeroTopStart = {118, 168, 220, 140};
-    inline constexpr rgba kUiLibraryHeroTopEnd = {42, 78, 130, 24};
-    inline constexpr rgba kUiLibraryHeroBottomStart = {14, 34, 68, 92};
-    inline constexpr rgba kUiLibraryHeroBottomEnd = {4, 10, 26, 240};
-    inline constexpr rgba kUiLibraryCardTop = {58, 96, 150, 174};
-    inline constexpr rgba kUiLibraryCardBottom = {10, 18, 40, 242};
-    inline constexpr rgba kUiLibraryCardBorder = {98, 126, 182, 208};
-    inline constexpr rgba kUiLibraryChipIdle = {42, 48, 70, 236};
-    inline constexpr rgba kUiLibraryChipBorder = {90, 102, 142, 220};
-    inline constexpr rgba kUiLibraryChipActive = {95, 118, 171, 255};
-    inline constexpr rgba kUiLibraryListAccent = {94, 123, 184, 232};
-    inline constexpr rgba kUiLibraryListOnAccent = {247, 249, 255, 255};
-    inline constexpr rgba kUiLibraryPathIdle = {40, 48, 72, 228};
-    inline constexpr rgba kUiLibraryPathActive = {54, 68, 100, 238};
-    inline constexpr rgba kUiLibraryPathBorderActive = {116, 146, 202, 255};
+    inline constexpr rgba kUiLibraryHeroTopStart = {112, 148, 208, 120};
+    inline constexpr rgba kUiLibraryHeroTopEnd = {30, 58, 112, 20};
+    inline constexpr rgba kUiLibraryHeroBottomStart = {10, 22, 48, 104};
+    inline constexpr rgba kUiLibraryHeroBottomEnd = {4, 10, 24, 248};
+    inline constexpr rgba kUiLibraryControlsTop = {34, 50, 86, 156};
+    inline constexpr rgba kUiLibraryControlsBottom = {16, 26, 50, 214};
+    inline constexpr rgba kUiLibraryControlsBorder = {104, 126, 182, 116};
+    inline constexpr rgba kUiLibraryCardTop = {38, 60, 100, 176};
+    inline constexpr rgba kUiLibraryCardBottom = {8, 14, 34, 244};
+    inline constexpr rgba kUiLibraryCardBorder = {86, 110, 164, 164};
+    inline constexpr rgba kUiLibraryHeaderPlate = {46, 74, 124, 82};
+    inline constexpr rgba kUiLibraryHeaderBorder = {128, 154, 214, 88};
+    inline constexpr rgba kUiLibraryBodyPlate = {8, 16, 36, 96};
+    inline constexpr rgba kUiLibraryBodyBorder = {96, 120, 174, 72};
+    inline constexpr rgba kUiHomeDailyMixTop = {94, 130, 220, 255};
+    inline constexpr rgba kUiHomeDailyMixBottom = {172, 102, 202, 255};
+    inline constexpr rgba kUiLibraryChipIdle = {24, 32, 52, 214};
+    inline constexpr rgba kUiLibraryChipBorder = {86, 100, 142, 184};
+    inline constexpr rgba kUiLibraryChipActive = {94, 122, 182, 244};
+    inline constexpr rgba kUiLibraryChipTextMuted = {186, 194, 220, 226};
+    inline constexpr rgba kUiLibraryChipText = {220, 226, 244, 242};
+    inline constexpr rgba kUiLibraryChipTextActive = {248, 250, 255, 255};
+    inline constexpr rgba kUiLibraryListAccent = {112, 144, 206, 222};
+    inline constexpr rgba kUiLibraryListOnAccent = {248, 250, 255, 255};
+    inline constexpr rgba kUiLibraryPathIdle = {24, 34, 54, 216};
+    inline constexpr rgba kUiLibraryPathActive = {38, 54, 84, 236};
+    inline constexpr rgba kUiLibraryPathBorderActive = {126, 154, 214, 255};
+    inline constexpr rgba kUiLibraryPathText = {194, 206, 232, 234};
+    inline constexpr rgba kUiLibraryPathTextActive = {232, 240, 255, 255};
 
     struct PlayerIconIds {
         ::ui::gfx::ImageId prev{};
@@ -355,6 +369,11 @@ export namespace player::ui {
         FreetypeLoaderState& freetype_state() {
             static FreetypeLoaderState state{};
             return state;
+        }
+
+        bool& system_font_fallback_enabled_state() noexcept {
+            static bool enabled = true;
+            return enabled;
         }
 
         void reset_exact_font_cache(FreetypeLoaderState& state) noexcept {
@@ -612,6 +631,14 @@ export namespace player::ui {
         return get_font(FontId::Normal);
     }
 
+    void set_player_system_font_fallback_enabled(bool enabled) noexcept {
+        detail::system_font_fallback_enabled_state() = enabled;
+    }
+
+    bool player_system_font_fallback_enabled() noexcept {
+        return detail::system_font_fallback_enabled_state();
+    }
+
     bool font_package_bound() noexcept {
         return detail::font_package_state().bound;
     }
@@ -745,7 +772,8 @@ export namespace player::ui {
         set_default_font_weight(FontId::Large, FontWeight::Regular, &font_noto_ascii_16);
         set_default_font_weight(FontId::Mono, FontWeight::Regular, &font_noto_ascii_16);
 
-        const bool system_fallback_ready = player::font_cache::init();
+        const bool system_fallback_ready =
+            detail::system_font_fallback_enabled_state() && player::font_cache::init();
         if (!system_fallback_ready) {
             set_default_fallback_font(&font_noto_sc_16);
         }
@@ -868,7 +896,7 @@ export namespace player::ui {
             patch.has_border_color = true;
             patch.border_color = kUiLibraryCardBorder;
             patch.has_corner_radius = true;
-            patch.corner_radius = 20;
+            patch.corner_radius = 24;
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
@@ -876,11 +904,11 @@ export namespace player::ui {
             patch.has_shadow_offset_x = true;
             patch.shadow_offset_x = 0;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 6;
+            patch.shadow_offset_y = 4;
             patch.has_shadow_spread = true;
-            patch.shadow_spread = 6;
+            patch.shadow_spread = 2;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 22;
+            patch.shadow_radius = 16;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard), patch);
         }
 
@@ -971,7 +999,7 @@ export namespace player::ui {
         preset.list_view.colors.accent_color = kUiLibraryListAccent;
         preset.list_view.colors.on_accent = kUiLibraryListOnAccent;
         preset.list_view.colors.border_focus = kUiLibraryPathBorderActive;
-        preset.list_view.metrics.corner_radius = 12;
+        preset.list_view.metrics.corner_radius = 14;
         preset.list_view.metrics.padding = 12;
         preset.list_view.colors.font_color = kUiListFont;
         preset.has_progress = true;

@@ -66,6 +66,46 @@
             builder.set_hit_testable(library_bg_bottom, false);
         }
 
+        const Rect library_controls_rect{
+            kUiPadding - 4,
+            layout.tabs_y - 12,
+            screen_width - (kUiPadding - 4) * 2,
+            (layout.shuffle_y + layout.shuffle_h) - (layout.tabs_y - 12) + 10
+        };
+        const WidgetHandle library_controls = builder.create_container();
+        anchor_rect(builder, library_controls, library_controls_rect);
+        {
+            StylePatch patch{};
+            patch.has_gradient_enabled = true;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = kUiLibraryControlsTop;
+            patch.has_gradient_end = true;
+            patch.gradient_end = kUiLibraryControlsBottom;
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
+            patch.has_border_color = true;
+            patch.border_color = kUiLibraryControlsBorder;
+            patch.has_border_width = true;
+            patch.border_width = 1;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 28;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = {0, 0, 0, 60};
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 3;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 1;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 12;
+            builder.set_style_override(library_controls, patch);
+            builder.set_hit_testable(library_controls, false);
+        }
+
         const WidgetHandle lib_top = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};
         const ::ui::scene::TopBarTitleSpec lib_title_spec{
@@ -88,6 +128,9 @@
         anchor_rect(builder, lib_top, top_bar_rect);
         const WidgetHandle lib_title = builder.create_label_static("Library");
         anchor_rect(builder, lib_title, lib_top_layout.title_rect);
+        apply_player_text_style(builder, lib_title, PlayerTextRole::PageTitle, kUiTitle);
+        builder.set_label_align(lib_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        builder.set_hit_testable(lib_title, false);
         const WidgetHandle lib_settings = create_top_icon_button(builder,
             lib_top_layout.right_primary_rect,
             icons.settings, lib_layout.top_icon_px);
@@ -96,7 +139,7 @@
         h.list_tab_albums = builder.create_button_static("Albums");
         h.list_tab_artist = builder.create_button_static("Artists");
 
-        h.list_shuffle = builder.create_button_static("Shuffle");
+        h.list_shuffle = builder.create_button_static("Shuffle All");
         const int tab_radius = layout.tabs_h / 2;
         apply_tab_base_style(builder, h.list_tab_songs, tab_radius);
         apply_tab_base_style(builder, h.list_tab_albums, tab_radius);
@@ -116,11 +159,17 @@
         tabs_row.add(h.list_tab_artist, layout.tab_w, layout.tabs_h);
 
         ::ui::scene::RowBuilder shuffle_row{builder,
-                                            {kUiPadding, layout.shuffle_y, lib_layout.shuffle_w, layout.shuffle_h},
+                                            {kUiPadding, layout.shuffle_y, screen_width - kUiPadding * 2, layout.shuffle_h},
                                             0, lib_layout.shuffle_padding,
-                                            ::ui::scene::LayoutAlign::Center};
+                                            ::ui::scene::LayoutAlign::Start};
         const WidgetHandle shuffle_root = shuffle_row.root();
         shuffle_row.add(h.list_shuffle, lib_layout.shuffle_w, layout.shuffle_h);
+        const Rect sort_action_rect{
+            screen_width - kUiPadding - lib_layout.list_sort_w,
+            layout.shuffle_y,
+            lib_layout.list_sort_w,
+            layout.shuffle_h
+        };
 
         const Rect list_card_rect{kUiPadding, layout.list_card_y,
                                   screen_width - kUiPadding * 2, layout.list_card_h};
@@ -156,6 +205,40 @@
                                            static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard),
                                            true};
         const WidgetHandle list_card_root = list_card.root();
+        const WidgetHandle list_header_plate = builder.create_container();
+        anchor_rect(builder, list_header_plate, {12, 12, list_card_rect.w - 24, lib_layout.list_header_h - 20});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiLibraryHeaderPlate;
+            patch.has_border_color = true;
+            patch.border_color = kUiLibraryHeaderBorder;
+            patch.has_border_width = true;
+            patch.border_width = 1;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 20;
+            builder.set_style_override(list_header_plate, patch);
+            builder.set_hit_testable(list_header_plate, false);
+        }
+        const int list_body_plate_y = list_header_layout.body_rect.y - 8;
+        const WidgetHandle list_body_plate = builder.create_container();
+        anchor_rect(builder, list_body_plate,
+                    {lib_layout.list_body_side_gap - 4, list_body_plate_y,
+                     list_card_rect.w - (lib_layout.list_body_side_gap - 4) * 2,
+                     list_card_rect.h - list_body_plate_y - 12});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiLibraryBodyPlate;
+            patch.has_border_color = true;
+            patch.border_color = kUiLibraryBodyBorder;
+            patch.has_border_width = true;
+            patch.border_width = 1;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 18;
+            builder.set_style_override(list_body_plate, patch);
+            builder.set_hit_testable(list_body_plate, false);
+        }
 
         builder.link(h.root, library);
         builder.link(library_layers.backdrop, library_bg_top);
@@ -163,14 +246,18 @@
         builder.link(library_layers.chrome, lib_top);
         builder.link(lib_top, lib_title);
         builder.link(lib_top, lib_settings);
+        builder.link(library_layers.content, library_controls);
         builder.link(library_layers.content, tabs_root);
         builder.link(library_layers.content, shuffle_root);
+        builder.link(library_layers.content, h.list_sort);
         builder.link(library_layers.content, list_card_root);
+        builder.link(list_card_root, list_body_plate);
+        builder.link(list_card_root, list_header_plate);
         anchor_rect(builder, h.list_title, list_header_layout.title_rect);
         apply_player_text_style(builder, h.list_title, PlayerTextRole::CardTitle, kUiTitle);
         builder.set_label_align(h.list_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.list_title, false);
-        anchor_rect(builder, h.list_sort, list_header_layout.action_rect);
+        anchor_rect(builder, h.list_sort, sort_action_rect);
         const Rect list_path_rect = list_header_layout.path_rect;
         h.list_path_bg = builder.create_container();
         anchor_rect(builder, h.list_path_bg, list_path_rect);
@@ -227,9 +314,9 @@
             builder.set_style_override(h.list_path_hit, patch);
         }
         apply_tab_base_style(builder, h.list_sort, lib_layout.list_sort_radius);
-        apply_player_text_style(builder, h.list_sort, PlayerTextRole::MetaText, kUiTitle);
+        apply_player_text_style(builder, h.list_sort, PlayerTextRole::MetaText, kUiLibraryChipText);
         builder.set_label_align(h.list_sort, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
-        apply_time_label_style(builder, h.list_path);
+        apply_player_text_style(builder, h.list_path, PlayerTextRole::MetaText, kUiLibraryPathText);
         builder.set_label_align(h.list_path, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.list, list_header_layout.body_rect);
         anchor_rect(builder, h.list_scroll, list_header_layout.scroll_rect);
@@ -249,7 +336,6 @@
         builder.link(list_card_root, h.list);
         builder.link(list_card_root, h.list_scroll);
         builder.link(list_card_root, h.list_title);
-        builder.link(list_card_root, h.list_sort);
         builder.link(list_card_root, h.list_path_bg);
         builder.link(list_card_root, h.list_path);
         builder.link(list_card_root, h.list_hint);

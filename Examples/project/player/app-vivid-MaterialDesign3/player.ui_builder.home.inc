@@ -31,13 +31,13 @@
         }
 
         h.home_title_top = builder.create_label_static("Your");
-        apply_player_text_style(builder, h.home_title_top, PlayerTextRole::HeroTitle, kUiTitle);
+        apply_home_hero_title_style(builder, h.home_title_top, kUiTitle);
         builder.set_label_align(h.home_title_top, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.home_title_top,
                     {home_layout.title_x, home_layout.title_y, home_layout.title_w, home_layout.title_line_h});
 
         h.home_title_bottom = builder.create_label_static("Mix");
-        apply_player_text_style(builder, h.home_title_bottom, PlayerTextRole::HeroTitle, kUiTitle);
+        apply_home_hero_title_style(builder, h.home_title_bottom, kUiTitle);
         builder.set_label_align(h.home_title_bottom, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.home_title_bottom,
                     {home_layout.title_x,
@@ -68,66 +68,134 @@
             builder.set_style_override(h.home_play, patch);
         }
 
-        h.home_cover_big = builder.create_image();
-        anchor_rect(builder, h.home_cover_big,
+        const WidgetHandle collage_root = builder.create_container();
+        anchor_rect(builder, collage_root,
                     {home_layout.collage_x,
                      home_layout.collage_y,
-                     home_layout.collage_big,
-                     home_layout.collage_big});
-        apply_home_cover_style(builder, h.home_cover_big, home_layout.collage_big, false);
+                     home_layout.collage_w,
+                     home_layout.collage_h});
 
-        h.home_cover_left = builder.create_image();
-        anchor_rect(builder, h.home_cover_left,
-                    {home_layout.collage_x - 26,
-                     home_layout.collage_y + home_layout.collage_big - home_layout.collage_small_left + 20,
-                     home_layout.collage_small_left,
-                     home_layout.collage_small_left});
-        apply_home_cover_style(builder, h.home_cover_left, home_layout.collage_small_left, true);
+        const auto add_collage_glow = [&](const Rect& rect,
+                                          rgba bg,
+                                          rgba shadow,
+                                          int radius,
+                                          int shadow_offset_y,
+                                          int shadow_spread,
+                                          int shadow_radius) {
+            const WidgetHandle glow = builder.create_container();
+            anchor_rect(builder, glow, rect);
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = bg;
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_corner_radius = true;
+            patch.corner_radius = radius;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = shadow;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = shadow_offset_y;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = shadow_spread;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = shadow_radius;
+            builder.set_style_override(glow, patch);
+            builder.link(collage_root, glow);
+        };
 
-        h.home_cover_right = builder.create_image();
-        anchor_rect(builder, h.home_cover_right,
-                    {home_layout.collage_x + home_layout.collage_big - home_layout.collage_small_right + 12,
-                     home_layout.collage_y + home_layout.collage_big / 2 + 18,
-                     home_layout.collage_small_right,
-                     home_layout.collage_small_right});
-        apply_home_cover_style(builder, h.home_cover_right, home_layout.collage_small_right, true);
+        add_collage_glow({46, 12, 228, 228},
+                         {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 20},
+                         {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 28},
+                         114, 18, 10, 42);
+        add_collage_glow({92, 202, 136, 42},
+                         {kUiTitle.r, kUiTitle.g, kUiTitle.b, 10},
+                         {0, 0, 0, 34},
+                         21, 8, 6, 24);
 
-        h.home_cover_small = builder.create_image();
-        anchor_rect(builder, h.home_cover_small,
-                    {home_layout.collage_x + home_layout.collage_big / 2 - home_layout.collage_small_center / 2,
-                     home_layout.collage_y + home_layout.collage_big - home_layout.collage_small_center + 8,
-                     home_layout.collage_small_center,
-                     home_layout.collage_small_center});
-        apply_home_cover_style(builder, h.home_cover_small, home_layout.collage_small_center, true);
+        const Rect big_cover_rect{
+            (home_layout.collage_w - home_layout.collage_big) / 2,
+            18,
+            home_layout.collage_big,
+            home_layout.collage_big,
+        };
+        const Rect left_cover_rect{
+            12,
+            54,
+            home_layout.collage_small_left,
+            home_layout.collage_small_left,
+        };
+        const Rect right_cover_rect{
+            home_layout.collage_w - (home_layout.collage_small_right + 34) - 6,
+            36,
+            home_layout.collage_small_right + 34,
+            home_layout.collage_small_right,
+        };
+        const Rect center_cover_rect{
+            (home_layout.collage_w - (home_layout.collage_small_center + 46)) / 2,
+            184,
+            home_layout.collage_small_center + 46,
+            home_layout.collage_small_center - 18,
+        };
+        const Rect bottom_left_cover_rect{
+            30,
+            home_layout.collage_h - (home_layout.collage_small_center + 12) - 18,
+            home_layout.collage_small_center + 12,
+            home_layout.collage_small_center + 12,
+        };
+        const Rect bottom_right_cover_rect{
+            home_layout.collage_w - (home_layout.collage_small_center - 2) - 18,
+            home_layout.collage_h - (home_layout.collage_small_center - 2) - 8,
+            home_layout.collage_small_center - 2,
+            home_layout.collage_small_center - 2,
+        };
 
-        h.home_cover_bottom_left = builder.create_image();
-        anchor_rect(builder, h.home_cover_bottom_left,
-                    {home_layout.collage_x + home_layout.collage_big / 2 - home_layout.collage_small_center - 44,
-                     home_layout.collage_y + home_layout.collage_big - home_layout.collage_small_center + 28,
-                     home_layout.collage_small_center,
-                     home_layout.collage_small_center});
-        apply_home_cover_style(builder, h.home_cover_bottom_left, home_layout.collage_small_center, true);
+        const auto expand_rect = [](const Rect& rect, int pad) noexcept -> Rect {
+            return {rect.x - pad, rect.y - pad, rect.w + pad * 2, rect.h + pad * 2};
+        };
 
-        h.home_cover_bottom_right = builder.create_image();
-        anchor_rect(builder, h.home_cover_bottom_right,
-                    {home_layout.collage_x + home_layout.collage_big / 2 + 38,
-                     home_layout.collage_y + home_layout.collage_big - home_layout.collage_small_center + 28,
-                     home_layout.collage_small_center,
-                     home_layout.collage_small_center});
-        apply_home_cover_style(builder, h.home_cover_bottom_right, home_layout.collage_small_center, true);
+        const auto add_cover = [&](WidgetHandle& image_handle,
+                                   const Rect& image_rect,
+                                   int image_radius,
+                                   int plate_pad,
+                                   int plate_radius,
+                                   bool emphasize = false) {
+            const WidgetHandle plate = builder.create_container();
+            anchor_rect(builder, plate, expand_rect(image_rect, plate_pad));
+            apply_home_cover_plate_style(builder, plate, plate_radius, emphasize);
+            builder.link(collage_root, plate);
 
-        create_home_stat_card(builder, home_content,
-                              {home_layout.stat_card_x,
-                               home_layout.stat_card_y,
-                               home_layout.stat_card_w,
-                               home_layout.stat_card_h},
-                              "Daily MIX", "Fresh picks from your favorites", "24 tracks");
-        create_home_stat_card(builder, home_content,
-                              {home_layout.stat_card_x,
-                               home_layout.stat_card_y + home_layout.stat_card_h + home_layout.stat_card_gap,
-                               home_layout.stat_card_w,
-                               home_layout.stat_card_h},
-                              "Recently Played", "Resume albums and mixes you touched", "2 hours");
+            image_handle = builder.create_image();
+            anchor_rect(builder, image_handle, image_rect);
+            apply_home_cover_style(builder, image_handle, image_radius);
+            builder.link(collage_root, image_handle);
+        };
+
+        add_cover(h.home_cover_big, big_cover_rect, 30, 5, 33, true);
+        add_cover(h.home_cover_left, left_cover_rect, left_cover_rect.w / 2, 4, (left_cover_rect.w + 8) / 2);
+        add_cover(h.home_cover_right, right_cover_rect, 28, 4, 31, true);
+        add_cover(h.home_cover_small, center_cover_rect, center_cover_rect.h / 2, 4, center_cover_rect.h / 2 + 4);
+        add_cover(h.home_cover_bottom_left, bottom_left_cover_rect, 24, 4, 27);
+        add_cover(h.home_cover_bottom_right,
+                  bottom_right_cover_rect,
+                  bottom_right_cover_rect.w / 2,
+                  4,
+                  (bottom_right_cover_rect.w + 8) / 2);
+
+        create_home_daily_mix_card(builder, h, home_content,
+                                   {home_layout.stat_card_x,
+                                    home_layout.stat_card_y,
+                                    home_layout.stat_card_w,
+                                    home_layout.stat_card_h},
+                                   "Fresh picks from your favorites", "24 tracks");
+        create_home_recently_played_card(builder, h, home_content,
+                                         {home_layout.stat_card_x,
+                                          home_layout.stat_card_y + home_layout.stat_card_h + home_layout.stat_card_gap,
+                                          home_layout.stat_card_w,
+                                          home_layout.stat_card_h},
+                                         icons,
+                                         "Resume albums and mixes you touched", "2 hours");
         create_home_stats_probe_card(builder, h, home_content,
                                      {home_layout.stat_card_x,
                                       home_layout.stat_card_y + (home_layout.stat_card_h + home_layout.stat_card_gap) * 2,
@@ -169,12 +237,7 @@
         builder.link(home_content, h.home_title_bottom);
         builder.link(home_content, h.home_subtitle);
         builder.link(home_content, h.home_play);
-        builder.link(home_content, h.home_cover_big);
-        builder.link(home_content, h.home_cover_left);
-        builder.link(home_content, h.home_cover_right);
-        builder.link(home_content, h.home_cover_small);
-        builder.link(home_content, h.home_cover_bottom_left);
-        builder.link(home_content, h.home_cover_bottom_right);
+        builder.link(home_content, collage_root);
         builder.link(home_layers.chrome, home_toolbar);
         builder.link(home_toolbar, home_settings);
         builder.link(home_toolbar, home_more);

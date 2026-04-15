@@ -22,6 +22,8 @@
 > - `device::DriverOps` / `device::RuntimeDriverHook`：已有可选
 >   `try_probe / try_init / try_suspend / try_resume`，
 >   旧 `bool` hook 仍保留为兼容入口
+> - `device::make_runtime_driver(...)` 与 `usb::device::make_device_driver(...)`
+>   这两条主要驱动适配入口，已经开始默认接入上述 `try_*` 语义
 >
 > 因此，这一页更适合被理解为“动态 discovery 平面的当前实现快照 + 后续演进方向”，
 > 而不是一份完全独立于现有代码状态的理想化白纸设计。

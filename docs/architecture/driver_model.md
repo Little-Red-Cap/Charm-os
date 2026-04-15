@@ -481,6 +481,9 @@ USB Device 不能简单地整体归入动态平面。
 `DriverOps` / `RuntimeDriverHook` 也已经开始补可选的
 `try_probe / try_init / try_suspend / try_resume`，
 使 `Registry::try_dispatch()` 可以优先保留更精确的驱动错误；
+其中 `device::make_runtime_driver(...)` 与
+`usb::device::make_device_driver(...)` 这两条主要驱动适配入口
+都已经接上了这套兼容通道；
 但兼容口里的 `enumerate` 与旧 `bool` hook 仍然保留，
 大多数现有调用点也仍在走这些兼容入口。
 

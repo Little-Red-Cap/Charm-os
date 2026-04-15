@@ -5,7 +5,7 @@
         anchor_rect(builder, h.list_title, {0, 0, 0, 0});
         h.list_path = builder.create_label_static("");
         anchor_rect(builder, h.list_path, {0, 0, 0, 0});
-        h.list_sort = builder.create_button_static("Sort");
+        h.list_sort = builder.create_button_static("A-Z");
         anchor_rect(builder, h.list_sort, {0, 0, 0, 0});
 
         h.list = builder.create_list_view();
@@ -69,9 +69,9 @@
         const int controls_inset = kUiPadding - 2;
         const Rect library_controls_rect{
             controls_inset,
-            layout.tabs_y - 14,
+            layout.tabs_y - 10,
             screen_width - controls_inset * 2,
-            (layout.shuffle_y + layout.shuffle_h) - (layout.tabs_y - 14) + 14
+            (layout.shuffle_y + layout.shuffle_h) - (layout.tabs_y - 10) + 8
         };
         const WidgetHandle library_controls = builder.create_container();
         anchor_rect(builder, library_controls, library_controls_rect);
@@ -90,19 +90,19 @@
             patch.has_border_width = true;
             patch.border_width = 1;
             patch.has_corner_radius = true;
-            patch.corner_radius = 30;
+            patch.corner_radius = 28;
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
-            patch.shadow_color = {0, 0, 0, 48};
+            patch.shadow_color = {0, 0, 0, 34};
             patch.has_shadow_offset_x = true;
             patch.shadow_offset_x = 0;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 2;
+            patch.shadow_offset_y = 1;
             patch.has_shadow_spread = true;
             patch.shadow_spread = 0;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 14;
+            patch.shadow_radius = 10;
             builder.set_style_override(library_controls, patch);
             builder.set_hit_testable(library_controls, false);
         }
@@ -148,6 +148,8 @@
         apply_tab_base_style(builder, h.list_shuffle, tab_radius);
         apply_tab_active_style(builder, h.list_tab_songs);
         apply_shuffle_shadow_style(builder, h.list_shuffle);
+        builder.set_button_icon(h.list_shuffle, icons.shuffle);
+        builder.set_button_icon_size(h.list_shuffle, lib_layout.shuffle_icon_px);
 
         ::ui::scene::RowBuilder tabs_row{builder,
                                          {kUiPadding, layout.tabs_y,
@@ -351,6 +353,8 @@
             builder.set_style_override(h.list_path_hit, patch);
         }
         apply_tab_base_style(builder, h.list_sort, lib_layout.list_sort_radius);
+        builder.set_button_icon(h.list_sort, icons.down);
+        builder.set_button_icon_size(h.list_sort, lib_layout.list_sort_icon_px);
         apply_player_text_style(builder, h.list_sort, PlayerTextRole::MetaText, kUiLibraryChipText);
         builder.set_label_align(h.list_sort, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         apply_player_text_style(builder, h.list_path, PlayerTextRole::MetaText, kUiLibraryPathText);

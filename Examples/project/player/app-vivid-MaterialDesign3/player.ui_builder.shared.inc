@@ -133,6 +133,7 @@
         int top_icon_px{};
         int top_button_right_gap{};
         int shuffle_w{};
+        int shuffle_icon_px{};
         int list_row_h{};
         int list_header_h{};
         int list_title_h{};
@@ -144,6 +145,7 @@
         int list_sort_h{};
         int list_sort_top_offset{};
         int list_sort_right_gap{};
+        int list_sort_icon_px{};
         int list_path_top_gap{};
         int list_path_side_gap{};
         int list_path_bg_h_extra{};
@@ -208,9 +210,9 @@
         const int tabs_w = screen_width - kUiPadding * 2;
         const int tab_w = (tabs_w - tabs_gap * 2) / 3;
 
-        const int shuffle_y = tabs_y + tabs_h + 16;
-        const int shuffle_h = 38;
-        const int list_card_y = shuffle_y + shuffle_h + 14;
+        const int shuffle_y = tabs_y + tabs_h + 12;
+        const int shuffle_h = 34;
+        const int list_card_y = shuffle_y + shuffle_h + 12;
         const int list_card_h = std::max(240, bottom_bar_y - list_card_y - 20);
 
         return UiLayout{
@@ -370,7 +372,8 @@
             .top_button_size = 40,
             .top_icon_px = 14,
             .top_button_right_gap = 46,
-            .shuffle_w = 156,
+            .shuffle_w = 132,
+            .shuffle_icon_px = 12,
             .list_row_h = 74,
             .list_header_h = 110,
             .list_title_h = 32,
@@ -378,10 +381,11 @@
             .list_title_top_gap = 12,
             .list_title_left_gap = 22,
             .list_title_right_gap = 28,
-            .list_sort_w = 104,
-            .list_sort_h = 34,
-            .list_sort_top_offset = 0,
-            .list_sort_right_gap = 104,
+            .list_sort_w = 76,
+            .list_sort_h = 32,
+            .list_sort_top_offset = 1,
+            .list_sort_right_gap = 76,
+            .list_sort_icon_px = 10,
             .list_path_top_gap = 14,
             .list_path_side_gap = 22,
             .list_path_bg_h_extra = 14,
@@ -393,7 +397,7 @@
             .list_path_text_left = 40,
             .list_path_text_top = 7,
             .list_path_text_right_gap = 46,
-            .list_sort_radius = 19,
+            .list_sort_radius = 16,
             .list_path_icon_radius = 12,
             .list_body_top_gap = 24,
             .list_body_bottom_gap = 20,

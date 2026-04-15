@@ -861,14 +861,27 @@
             spec.bg_color = active ? kUiLibraryChipActive : kUiLibraryChipIdle;
             spec.border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder;
             spec.corner_radius = radius;
-            if (active || elevated) {
+            if (active && elevated) {
                 spec.shadow.enabled = true;
-                spec.shadow.color = active ? with_alpha(kUiCardShadow, 96)
-                                           : with_alpha(kUiCardShadow, 72);
+                spec.shadow.color = with_alpha(kUiCardShadow, 76);
                 spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = active ? 3 : 4;
-                spec.shadow.spread = active ? 1 : 3;
-                spec.shadow.radius = active ? 12 : 16;
+                spec.shadow.offset_y = 2;
+                spec.shadow.spread = 0;
+                spec.shadow.radius = 10;
+            } else if (active) {
+                spec.shadow.enabled = true;
+                spec.shadow.color = with_alpha(kUiCardShadow, 96);
+                spec.shadow.offset_x = 0;
+                spec.shadow.offset_y = 3;
+                spec.shadow.spread = 1;
+                spec.shadow.radius = 12;
+            } else if (elevated) {
+                spec.shadow.enabled = true;
+                spec.shadow.color = with_alpha(kUiCardShadow, 40);
+                spec.shadow.offset_x = 0;
+                spec.shadow.offset_y = 1;
+                spec.shadow.spread = 0;
+                spec.shadow.radius = 7;
             }
             if (active) {
                 spec.inner_stroke_enabled = true;
@@ -1518,20 +1531,13 @@
 
         void update_list_sort_label() {
             if (!access.valid() || !handles.list_sort) return;
-            const char* label = (list_sort == ListSort::NameAsc) ? "Sort A-Z" : "Sort Z-A";
+            const char* label = (list_sort == ListSort::NameAsc) ? "A-Z" : "Z-A";
             set_label_slot(handles.list_sort, text_slots.list_sort, label);
         }
 
         void update_list_shuffle_label() {
             if (!access.valid() || !handles.list_shuffle) return;
-            const char* label = "Shuffle All";
-            if (list_shuffle_enabled) {
-                label = "Shuffled";
-            } else if (library_has_context()) {
-                label = (library_tab == LibraryTab::Albums)
-                    ? "Shuffle Album"
-                    : "Shuffle Artist";
-            }
+            const char* label = list_shuffle_enabled ? "Shuffled" : "Shuffle";
             set_label_slot(handles.list_shuffle, text_slots.list_shuffle, label);
         }
 

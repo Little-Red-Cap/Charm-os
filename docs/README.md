@@ -8,6 +8,7 @@
 ## 快速开始
 - 入门指南：`docs/overview.md`
 - 架构总览：`docs/architecture_overview.md`
+- 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
@@ -50,6 +51,7 @@ flowchart TD
 
 | 我要做什么 | 先看什么 |
 | --- | --- |
+| 看 Charm 中长期主轴 | `docs/architecture/system_compiler_roadmap.md` → `docs/architecture/charm_methodology_charter.md` |
 | 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
 | 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
@@ -92,6 +94,7 @@ docs/
 - `docs/architecture_overview.md`
 
 ### 架构与依赖
+- `docs/architecture/system_compiler_roadmap.md`
 - `docs/architecture/dependency_contract.md`
 - `docs/architecture/dependency_whitelist.md`
 - `docs/architecture/driver_model.md`

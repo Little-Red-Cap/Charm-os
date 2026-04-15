@@ -257,7 +257,7 @@ export namespace player {
         FixedString<12> track_format_text{};
         FixedString<128> last_status_text{};
         FixedString<48> last_mode_text{};
-        FixedString<64> last_list_title_text{};
+        FixedString<192> last_list_title_text{};
         FixedString<128> last_list_hint_text{};
         FixedString<128> last_debug_text{};
         FixedString<96> last_info_text{};

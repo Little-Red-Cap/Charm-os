@@ -1225,6 +1225,34 @@
             refresh_list_view();
         }
 
+        bool set_library_context_for_preview(std::string_view key) {
+            close_list_action_menu();
+            if (library_tab == LibraryTab::Songs) return false;
+            if (key.empty()) return false;
+            const auto* tracks = storage.tracks;
+            if (!tracks || tracks->size() == 0) return false;
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                if (compare_ci(library_group_title_for_track(static_cast<int>(i)), key) == 0) {
+                    library_context_key.assign(library_group_title_for_track(static_cast<int>(i)));
+                    refresh_list_view();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool open_first_library_group_for_preview() {
+            close_list_action_menu();
+            if (library_tab == LibraryTab::Songs) return false;
+            if (!library_shows_group_rows()) return false;
+            if (list_order.empty()) return false;
+            const auto key = library_group_title_for_track(list_order.front());
+            if (key.empty()) return false;
+            library_context_key.assign(key);
+            refresh_list_view();
+            return true;
+        }
+
         void toggle_library_shuffle() {
             close_list_action_menu();
             list_shuffle_enabled = !list_shuffle_enabled;
@@ -1291,9 +1319,16 @@
         void update_list_title() {
             if (!access.valid()) return;
             const int count = static_cast<int>(list_order.size());
+            const std::string_view context = library_has_context()
+                ? library_context_key.view()
+                : std::string_view{};
             const char* base = library_tab_title(library_tab);
             char buf[64]{};
-            if (count > 0) {
+            if (!context.empty()) {
+                if (last_list_title_text.view() == context) return;
+                last_list_title_text.assign(context);
+                set_label_slot(handles.list_title, text_slots.list_title, last_list_title_text.c_str());
+            } else if (count > 0) {
                 std::snprintf(buf, sizeof(buf), "%s (%d)", base, count);
                 if (last_list_title_text.view() == buf) return;
                 last_list_title_text.assign(buf);
@@ -1330,7 +1365,12 @@
 
         void update_list_shuffle_label() {
             if (!access.valid() || !handles.list_shuffle) return;
-            const char* label = list_shuffle_enabled ? "Shuffled" : "Shuffle All";
+            const char* label = "Shuffle All";
+            if (list_shuffle_enabled) {
+                label = "Shuffled";
+            } else if (library_has_context()) {
+                label = "Shuffle Tracks";
+            }
             set_label_slot(handles.list_shuffle, text_slots.list_shuffle, label);
         }
 

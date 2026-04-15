@@ -421,6 +421,8 @@ int main(int argc, char** argv) {
     player::PlayerPage start_page = player::PlayerPage::Home;
     bool start_page_set = false;
     std::optional<player::LibraryTab> library_tab_override{};
+    std::string library_context_override{};
+    bool library_open_first_group = false;
     bool ui_ci = false;
     std::string font_ttf_path{};
     std::string font_fallback_ttf_path{};
@@ -474,6 +476,10 @@ int main(int argc, char** argv) {
             } else if (tab == "artists") {
                 library_tab_override = player::LibraryTab::Artists;
             }
+        } else if (arg.rfind("--library-context=", 0) == 0) {
+            library_context_override.assign(arg.substr(18));
+        } else if (arg == "--library-open-first-group") {
+            library_open_first_group = true;
         } else if (arg == "--screenshot-verbose") {
             screenshot_verbose = true;
         } else if (arg == "--screenshot-exit") {
@@ -568,6 +574,11 @@ int main(int argc, char** argv) {
     const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
     if (library_tab_override.has_value()) {
         g_ctx.set_library_tab(*library_tab_override);
+    }
+    if (!library_context_override.empty()) {
+        (void)g_ctx.set_library_context_for_preview(library_context_override);
+    } else if (library_open_first_group) {
+        (void)g_ctx.open_first_library_group_for_preview();
     }
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");

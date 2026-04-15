@@ -26,7 +26,6 @@ include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
 
 enable_language(C ASM CXX)
 
-add_library(charm_cfg_aarch64_qemu INTERFACE)
 charm_add_config_interface(charm_cfg_aarch64_qemu
     ARCH aarch64
     PLATFORM qemu_virt

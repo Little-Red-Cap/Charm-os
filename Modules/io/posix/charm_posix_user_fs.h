@@ -3,7 +3,9 @@
 
 #include "charm_posix_user_crt.h"
 
+#ifndef CHARM_POSIX_HEADER_SKIP_STDDEF
 #include <stddef.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {

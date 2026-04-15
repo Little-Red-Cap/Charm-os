@@ -1,8 +1,8 @@
 ﻿module;
-#include <charconv>
 #include <cstdint>
 #include <expected>
 #include <string_view>
+#include "out_digits_compat.h"
 
 export module out.ansi;
 // Dependency contract (DO NOT VIOLATE)
@@ -123,8 +123,12 @@ export namespace out::ansi {
             *p++ = '\x1b';
             *p++ = '[';
 
-            auto [ptr, ec] = std::to_chars(p, buf + sizeof(buf), code);
-            if (ec != std::errc{}) return util::unexpected(errc::buffer_overflow);
+            if (code < 0) return util::unexpected(errc::invalid_arg);
+            char* ptr = out::detail::append_unsigned_decimal(
+                p,
+                buf + sizeof(buf),
+                static_cast<unsigned>(code));
+            if (!ptr) return util::unexpected(errc::buffer_overflow);
 
             *ptr++ = 'm';
             return s.write_ansi(std::string_view{buf, static_cast<std::size_t>(ptr - buf)});

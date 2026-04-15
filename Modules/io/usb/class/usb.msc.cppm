@@ -5,13 +5,13 @@ module;
 #include <cstring>
 #include <span>
 #include <utility>
-#include <vector>
 
 export module usb.class_msc;
 
 import usb.common;
 import usb.device;
 import block.device;
+import service.small_vector;
 
 export namespace usb::class_driver {
     constexpr u8 msc_class = 0x08;
@@ -248,6 +248,8 @@ export namespace usb::class_driver {
         bool flag{false};
     };
 
+    inline constexpr std::size_t kMscTraceEventCapacity = 64;
+
     class MscBot {
     public:
         enum class TraceInResult : u8 { none = 0, data = 1, csw = 2, blocked_wait_csw = 3 };
@@ -432,7 +434,7 @@ export namespace usb::class_driver {
             event.blocks = blocks;
             event.residue = residue;
             event.flag = flag;
-            trace_events_.push_back(std::move(event));
+            static_cast<void>(trace_events_.push_back(event));
         }
 
         void trace_phase_error(u8 command, u32 residue) {
@@ -1236,7 +1238,7 @@ export namespace usb::class_driver {
         u8 last_in_result_{static_cast<u8>(TraceInResult::none)};
         bool last_clear_stall_in_ep_{false};
         u32 clear_stall_count_{0};
-        std::vector<MscTraceEvent> trace_events_{};
+        service::SmallVector<MscTraceEvent, kMscTraceEventCapacity> trace_events_{};
     };
 
     inline MscOps make_msc_ops(MscBot& bot) noexcept {

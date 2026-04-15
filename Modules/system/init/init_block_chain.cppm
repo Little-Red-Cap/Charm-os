@@ -8,7 +8,9 @@ import init.materialize;
 import init.plan;
 import block.device;
 import block.device.node;
+#if !defined(CHARM_BAREMETAL)
 import block.file.node;
+#endif
 import block.registry;
 import block.sdmmc;
 import block.spi_flash;
@@ -46,6 +48,7 @@ export namespace charm::system {
         }
     };
 
+#if !defined(CHARM_BAREMETAL)
     template <typename RegistryT>
     struct FileInitChain {
         block::FileBinding<RegistryT> binding;
@@ -68,6 +71,7 @@ export namespace charm::system {
             fn(binding.node);
         }
     };
+#endif
 
     template <typename RegistryT>
     struct SdmmcInitChain {

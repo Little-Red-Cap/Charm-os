@@ -119,6 +119,10 @@ namespace platform::board::stm32_stub::detail {
 } // namespace platform::board::stm32_stub::detail
 
 export namespace platform::board::stm32_stub {
+    inline BootBoardCaps make_boot_caps() noexcept {
+        return {};
+    }
+
     inline ConsoleCaps make_console_caps() noexcept {
         static detail::Stm32UartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
         static const hal::UartOps kStm32UartOps{
@@ -183,6 +187,6 @@ export namespace platform::board::stm32_stub {
         caps.input.driver = &kStm32RawInput;
         caps.can0.channel = &can0_channel;
         caps.can0.io_cap = "io.can0";
-        return caps;
+        return with_boot_caps(caps, make_boot_caps());
     }
 }

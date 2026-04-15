@@ -1,7 +1,9 @@
 #ifndef CHARM_POSIX_USER_CRT_H
 #define CHARM_POSIX_USER_CRT_H
 
+#ifndef CHARM_POSIX_HEADER_SKIP_STDDEF
 #include <stddef.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {

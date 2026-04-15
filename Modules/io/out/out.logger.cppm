@@ -2,12 +2,13 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
-#include <charconv>
 #include <expected>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <cstring>
+
+#include "out_digits_compat.h"
 export module out.logger;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink, out.format, out.domain, out.ansi, out.channel
@@ -295,8 +296,12 @@ export namespace out {
                 char* p = tmp;
                 *p++ = '\x1b';
                 *p++ = '[';
-                auto [ptr, ec] = std::to_chars(p, tmp + sizeof(tmp), code);
-                if (ec != std::errc{}) return false;
+                if (code < 0) return false;
+                char* ptr = out::detail::append_unsigned_decimal(
+                    p,
+                    tmp + sizeof(tmp),
+                    static_cast<unsigned>(code));
+                if (!ptr) return false;
                 *ptr++ = 'm';
                 return append_sv(std::string_view{tmp, static_cast<std::size_t>(ptr - tmp)});
             };

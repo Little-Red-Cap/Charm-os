@@ -11,6 +11,9 @@
 如果你想看 Charm 中长期主轴、近中期路线与传奇路线边界，
 再看：`docs/architecture/system_compiler_roadmap.md`
 
+如果你想看 system compiler 的当前核心词汇与仓库映射，
+再看：`docs/architecture/system_compiler_vocabulary_v0.md`
+
 如果你想看 system compiler 的最小结论对象应该长什么样，
 再看：`docs/system/artifact_report_v0.md`
 
@@ -151,6 +154,7 @@ Draft/        # 计划/草案（可变动）
 - 驱动模型：`docs/architecture/driver_model.md`
 - 设备发现模型草案：`docs/architecture/device_model_overview.md`
 - 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
+- System Compiler 词汇表 v0：`docs/architecture/system_compiler_vocabulary_v0.md`
 - Artifact Report v0：`docs/system/artifact_report_v0.md`
 - Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
 - 资源契约 v0：`docs/system/resource_contract_v0.md`

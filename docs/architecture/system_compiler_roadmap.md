@@ -62,6 +62,9 @@ Charm 需要保留大野心，但近期推进必须严格区分：
 
 ## 2. 核心主轴：系统编译器
 
+当前关于 system compiler 核心词汇与现有仓库映射，
+见：`docs/architecture/system_compiler_vocabulary_v0.md`
+
 ### 2.1 主判断
 
 Charm 的主干不是“再多一个子系统”，而是成为一个真正的 system compiler。
@@ -150,6 +153,9 @@ Charm 已经有一批 system compiler 的前身，不是从白纸起步：
 
 当前关于最小 `artifact report` 对象边界与字段草案，
 见：`docs/system/artifact_report_v0.md`
+
+当前关于最小 system compiler 词汇表与概念映射，
+见：`docs/architecture/system_compiler_vocabulary_v0.md`
 
 建议最小落地点：
 

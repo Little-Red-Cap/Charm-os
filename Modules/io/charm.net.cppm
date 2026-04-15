@@ -7,6 +7,7 @@ export import net.common;
 export import net.socket;
 export import net.stack;
 export import net.api;
+export import net.pump;
 export import net.reactor;
 export import net.reactor_driver;
 export import net.line_session;

@@ -23,6 +23,11 @@
 - `net.posix` 已开始把 socket 投影到 POSIX fd 体系
 - `posix_socket_bridge_smoke` 已可作为一条直接回归路径
 - host 侧 smoke 已经形成矩阵
+- `net.pump` 已开始把 `ARP / IPv4 / UDP ingress/egress` 收口到统一推进面，`net_pump_smoke` 可覆盖最小闭环
+- `reactor_listener_close_smoke` 已锁住 accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭会向 reactor 收口为 `closed`
+- `reactor_write_close_smoke` 已锁住 transport 进入终态后 sender 不再继续排队
+- `reactor_request_close_smoke` 已锁住 closed transport 不再接受新的 request
+- `reactor_service_typed_request_close_smoke` 已锁住 closed transport 不再接受新的 typed request，且 typed pending 状态不会泄漏
 - ARM / QEMU 路径当前已恢复稳定构建，之前围绕 `std::span` / module 边界的阻塞已在 `net.common`、`net.posix`、`net.stack` 这一层收住
 
 ---
@@ -132,7 +137,7 @@
 #### 验收
 
 - `reactor_request_echo_smoke` 稳定通过
-- `reactor_service_echo_smoke`、`reactor_service_deferred_smoke`、`reactor_service_typed_smoke` 稳定通过
+- `reactor_service_echo_smoke`、`reactor_service_deferred_smoke`、`reactor_service_typed_smoke`、`reactor_service_typed_close_smoke`、`reactor_service_typed_request_close_smoke` 稳定通过
 - `schema_codec_smoke` 能继续充当 typed payload contract 的快速回归面
 
 ### M6. 对外 facade 收敛

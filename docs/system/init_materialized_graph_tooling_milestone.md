@@ -43,12 +43,13 @@
 ### 2. 批量导出
 
 - `scripts/export_materialized_graph.ps1`
+- `scripts/materialized_graph.export_case_manifest.v1.json`
 - 多 case bundle
 - `index.json`
 
 这一层解决的是：
 
-> 观察结果开始可以被组织成批量工件，而不是零散 demo 产物。
+> 观察结果开始可以被组织成批量工件，而且 case 输入事实也开始脱离脚本内硬编码，并在 bundle 顶层保留输入 provenance。
 
 ### 3. 批量检视与差异比较
 
@@ -83,6 +84,7 @@
 ### 6. 协议与自动验证
 
 - `schemas/materialized_graph.sample.v2.schema.json`
+- `schemas/materialized_graph.export_case_manifest.v1.schema.json`
 - `schemas/materialized_graph.export_bundle.v1.schema.json`
 - `schemas/materialized_graph.bundle_diff.v1.schema.json`
 - `schemas/materialized_graph.report_manifest.v1.schema.json`

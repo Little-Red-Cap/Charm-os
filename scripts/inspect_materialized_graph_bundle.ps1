@@ -52,6 +52,38 @@ function Load-BundleIndex {
     }
 }
 
+function Get-BundleInputManifestInfo {
+    param(
+        $Bundle
+    )
+
+    if ($null -eq $Bundle -or $null -eq $Bundle.Data -or $null -eq $Bundle.Data.PSObject.Properties['input_manifest']) {
+        return $null
+    }
+
+    $manifest = $Bundle.Data.input_manifest
+    if ($null -eq $manifest) {
+        return $null
+    }
+
+    $path = $null
+    $schema = $null
+    if ($null -ne $manifest.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.path)) {
+        $path = [string]$manifest.path
+    }
+    if ($null -ne $manifest.PSObject.Properties['schema'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.schema)) {
+        $schema = [string]$manifest.schema
+    }
+    if ([string]::IsNullOrWhiteSpace($path) -and [string]::IsNullOrWhiteSpace($schema)) {
+        return $null
+    }
+
+    return [ordered]@{
+        path = $path
+        schema = $schema
+    }
+}
+
 function Format-NodeKinds {
     param(
         $NodeKinds
@@ -92,6 +124,64 @@ function Format-CapabilityList {
     }
 
     return ($names -join ', ')
+}
+
+function Format-ActiveFacets {
+    param(
+        [string[]]$ActiveFacets
+    )
+
+    return (@($ActiveFacets) -join ', ')
+}
+
+function Get-CaseSubjectInfo {
+    param(
+        $CaseEntry
+    )
+
+    $profile = $null
+    $board = $null
+    $activeFacets = @()
+
+    if ($null -ne $CaseEntry -and $null -ne $CaseEntry.PSObject.Properties['subject']) {
+        $subject = $CaseEntry.subject
+        if ($null -ne $subject.PSObject.Properties['profile'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
+            $profile = [string]$subject.profile
+        }
+        if ($null -ne $subject.PSObject.Properties['board'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.board)) {
+            $board = [string]$subject.board
+        }
+        if ($null -ne $subject.PSObject.Properties['active_facets']) {
+            $activeFacets = @(
+                @($subject.active_facets) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ }
+            )
+        }
+    }
+
+    return [pscustomobject]@{
+        Profile = $profile
+        Board = $board
+        ActiveFacets = @($activeFacets)
+    }
+}
+
+function New-CaseSubjectJsonView {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['subject']) {
+        return $null
+    }
+
+    $subject = Get-CaseSubjectInfo -CaseEntry $CaseEntry
+    return [ordered]@{
+        profile = $subject.Profile
+        board = $subject.Board
+        active_facets = @($subject.ActiveFacets)
+    }
 }
 
 function Resolve-CaseArtifactPath {
@@ -158,8 +248,12 @@ function New-CaseSummaryRow {
         $CaseEntry
     )
 
+    $subject = Get-CaseSubjectInfo -CaseEntry $CaseEntry
     return [pscustomobject]@{
         Case = [string]$CaseEntry.name
+        Profile = $subject.Profile
+        Board = $subject.Board
+        Facets = Format-ActiveFacets $subject.ActiveFacets
         Nodes = [int]$CaseEntry.graph.node_count
         Edges = [int]$CaseEntry.graph.edge_count
         Phase = [string]$CaseEntry.graph.effective_max_phase
@@ -213,12 +307,16 @@ function New-EdgeRows {
 }
 
 $bundle = Load-BundleIndex
+$inputManifest = Get-BundleInputManifestInfo -Bundle $bundle
 $selectedCases = @(Get-SelectedCases -Bundle $bundle)
 
 if ($ListCases) {
     if ($AsJson) {
         @($selectedCases | ForEach-Object { [string]$_.name }) | ConvertTo-Json -Depth 2
     } else {
+        if ($null -ne $inputManifest) {
+            Write-Host "[MANIFEST] $($inputManifest.path) ($($inputManifest.schema))"
+        }
         $selectedCases | ForEach-Object { [string]$_.name }
     }
     exit 0
@@ -232,15 +330,22 @@ $summaryRows = @($selectedCases | ForEach-Object { New-CaseSummaryRow -CaseEntry
 
 if ($selectedCases.Count -ne 1) {
     if ($AsJson) {
-        [ordered]@{
+        $payload = [ordered]@{
             index = $bundle.IndexPath
             bundle_root = $bundle.BundleRoot
             case_count = $summaryRows.Count
             cases = $summaryRows
-        } | ConvertTo-Json -Depth 6
+        }
+        if ($null -ne $inputManifest) {
+            $payload.input_manifest = $inputManifest
+        }
+        $payload | ConvertTo-Json -Depth 6
     } else {
         Write-Host "[BUNDLE] $($bundle.IndexPath)"
-        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
+        if ($null -ne $inputManifest) {
+            Write-Host "[MANIFEST] $($inputManifest.path) ($($inputManifest.schema))"
+        }
+        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
     }
     exit 0
 }
@@ -266,6 +371,13 @@ if ($AsJson) {
         }
         nodes = $nodeRows
     }
+    if ($null -ne $inputManifest) {
+        $payload.input_manifest = $inputManifest
+    }
+    $subjectJson = New-CaseSubjectJsonView -CaseEntry $selectedCase
+    if ($null -ne $subjectJson) {
+        $payload.case.subject = $subjectJson
+    }
     if ($ShowEdges) {
         $payload.edges = $edgeRows
     }
@@ -275,12 +387,15 @@ if ($AsJson) {
 }
 
 Write-Host "[BUNDLE] $($bundle.IndexPath)"
+if ($null -ne $inputManifest) {
+    Write-Host "[MANIFEST] $($inputManifest.path) ($($inputManifest.schema))"
+}
 Write-Host "[CASE] $($selectedCase.name)"
 Write-Host "[DOT]  $(Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.dot))"
 Write-Host "[JSON] $($caseGraph.Path)"
 Write-Host ''
 
-$summaryRows | Format-List Case, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
+$summaryRows | Format-List Case, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
 Write-Host '[NODES]'
 $nodeRows | Format-Table -AutoSize Index, Kind, Phase, Name, Provides, Requires | Out-Host
 

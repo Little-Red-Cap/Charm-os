@@ -188,6 +188,68 @@ function Join-Names {
     return (@($Names) -join ', ')
 }
 
+function Format-NullableValue {
+    param(
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return '<null>'
+    }
+
+    return $Value
+}
+
+function Get-CaseSubjectInfo {
+    param(
+        $CaseEntry
+    )
+
+    $profile = $null
+    $board = $null
+    $activeFacets = @()
+
+    if ($null -ne $CaseEntry -and $null -ne $CaseEntry.PSObject.Properties['subject']) {
+        $subject = $CaseEntry.subject
+        if ($null -ne $subject.PSObject.Properties['profile'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
+            $profile = [string]$subject.profile
+        }
+        if ($null -ne $subject.PSObject.Properties['board'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.board)) {
+            $board = [string]$subject.board
+        }
+        if ($null -ne $subject.PSObject.Properties['active_facets']) {
+            $activeFacets = @(
+                @($subject.active_facets) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ }
+            )
+        }
+    }
+
+    return [pscustomobject]@{
+        Profile = $profile
+        Board = $board
+        ActiveFacets = @($activeFacets)
+    }
+}
+
+function New-CaseSubjectJsonView {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['subject']) {
+        return $null
+    }
+
+    $subject = Get-CaseSubjectInfo -CaseEntry $CaseEntry
+    return [ordered]@{
+        profile = $subject.Profile
+        board = $subject.Board
+        active_facets = @($subject.ActiveFacets)
+    }
+}
+
 function Get-NodeKey {
     param(
         $Node,
@@ -411,6 +473,18 @@ function Compare-CaseSummary {
         $changes += "node_kinds:[$(Join-Names $leftKinds)]->[$(Join-Names $rightKinds)]"
     }
 
+    $leftSubject = Get-CaseSubjectInfo -CaseEntry $LeftCase
+    $rightSubject = Get-CaseSubjectInfo -CaseEntry $RightCase
+    if ($leftSubject.Profile -ne $rightSubject.Profile) {
+        $changes += "subject.profile:$(Format-NullableValue $leftSubject.Profile)->$(Format-NullableValue $rightSubject.Profile)"
+    }
+    if ($leftSubject.Board -ne $rightSubject.Board) {
+        $changes += "subject.board:$(Format-NullableValue $leftSubject.Board)->$(Format-NullableValue $rightSubject.Board)"
+    }
+    if (-not (Compare-StringArrays -Left $leftSubject.ActiveFacets -Right $rightSubject.ActiveFacets)) {
+        $changes += "subject.active_facets:[$(Join-Names $leftSubject.ActiveFacets)]->[$(Join-Names $rightSubject.ActiveFacets)]"
+    }
+
     return $changes
 }
 
@@ -539,7 +613,7 @@ function New-CaseJsonView {
         return $null
     }
 
-    return [ordered]@{
+    $caseJson = [ordered]@{
         name = [string]$CaseEntry.name
         source = [string]$CaseEntry.source
         build_dir = [string]$CaseEntry.build_dir
@@ -549,6 +623,13 @@ function New-CaseJsonView {
         json = Resolve-ArtifactPath -BundleRoot $Bundle.BundleRoot -Path ([string]$CaseEntry.json)
         graph = $CaseEntry.graph
     }
+
+    $subjectJson = New-CaseSubjectJsonView -CaseEntry $CaseEntry
+    if ($null -ne $subjectJson) {
+        $caseJson.subject = $subjectJson
+    }
+
+    return $caseJson
 }
 
 function Write-CaseDetails {

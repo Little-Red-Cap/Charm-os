@@ -297,17 +297,17 @@ export namespace net {
         }
 
         [[nodiscard]] Result<Socket> accept() noexcept {
-            Result<Socket> accepted{std::in_place};
-            auto ok = accept(accepted.value(), nullptr);
+            Socket accepted{};
+            auto ok = accept(accepted, nullptr);
             if (!ok) return util::unexpected(ok.error());
-            return accepted;
+            return Result<Socket>{std::in_place, std::move(accepted)};
         }
 
         [[nodiscard]] Result<Socket> accept(Endpoint& peer) noexcept {
-            Result<Socket> accepted{std::in_place};
-            auto ok = accept(accepted.value(), &peer);
+            Socket accepted{};
+            auto ok = accept(accepted, &peer);
             if (!ok) return util::unexpected(ok.error());
-            return accepted;
+            return Result<Socket>{std::in_place, std::move(accepted)};
         }
 
         [[nodiscard]] IoResult send(ByteView buf) noexcept {

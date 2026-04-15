@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.dev/schemas/materialized_graph.export_case_manifest.v1.schema.json",
+  "title": "Charm materialized graph export case manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "cases"
+  ],
+  "properties": {
+    "schema": {
+      "const": "materialized_graph.export_case_manifest/v1"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/caseEntry"
+      }
+    }
+  },
+  "$defs": {
+    "subjectSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "board": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active_facets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "caseEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "source",
+        "build_dir",
+        "build_target",
+        "export_target",
+        "dot_cache",
+        "json_cache",
+        "default_dot",
+        "default_json",
+        "extra_cache",
+        "subject"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "build_dir": {
+          "type": "string"
+        },
+        "build_target": {
+          "type": "string"
+        },
+        "export_target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dot_cache": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "json_cache": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default_dot": {
+          "type": "string"
+        },
+        "default_json": {
+          "type": "string"
+        },
+        "extra_cache": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subject": {
+          "$ref": "#/$defs/subjectSummary"
+        }
+      }
+    }
+  }
+}

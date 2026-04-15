@@ -1,0 +1,84 @@
+{
+  "schema": "materialized_graph.export_case_manifest/v1",
+  "cases": [
+    {
+      "name": "materialize-observe-demo",
+      "source": "Examples/init/materialize_observe_demo",
+      "build_dir": "cmake-build-init-observe-demo-clang",
+      "build_target": "init-materialize-observe-demo",
+      "export_target": "export_materialized_graph_demo",
+      "dot_cache": "MATERIALIZE_OBSERVE_DOT_PATH",
+      "json_cache": "MATERIALIZE_OBSERVE_JSON_PATH",
+      "default_dot": "materialized_graph.dot",
+      "default_json": "materialized_graph.sample.json",
+      "extra_cache": [],
+      "subject": {
+        "profile": null,
+        "board": null,
+        "active_facets": []
+      }
+    },
+    {
+      "name": "bringup-block-observe-demo",
+      "source": "Examples/init/bringup_block_observe_demo",
+      "build_dir": "cmake-build-init-bringup-block-observe-clang",
+      "build_target": "init-bringup-block-observe-demo",
+      "export_target": "export_bringup_block_materialized_graph",
+      "dot_cache": "BRINGUP_BLOCK_OBSERVE_DOT_PATH",
+      "json_cache": "BRINGUP_BLOCK_OBSERVE_JSON_PATH",
+      "default_dot": "bringup_block_materialized_graph.dot",
+      "default_json": "bringup_block_materialized_graph.sample.json",
+      "extra_cache": [],
+      "subject": {
+        "profile": null,
+        "board": "win_stub",
+        "active_facets": [
+          "runtime",
+          "block"
+        ]
+      }
+    },
+    {
+      "name": "bringup-minimal-observe-demo",
+      "source": "Examples/init/bringup_minimal_observe_demo",
+      "build_dir": "cmake-build-init-bringup-minimal-observe-clang",
+      "build_target": "init-bringup-minimal-observe-demo",
+      "export_target": "export_bringup_minimal_materialized_graph",
+      "dot_cache": "BRINGUP_MINIMAL_OBSERVE_DOT_PATH",
+      "json_cache": "BRINGUP_MINIMAL_OBSERVE_JSON_PATH",
+      "default_dot": "bringup_minimal_materialized_graph.dot",
+      "default_json": "bringup_minimal_materialized_graph.sample.json",
+      "extra_cache": [],
+      "subject": {
+        "profile": null,
+        "board": "win_stub",
+        "active_facets": [
+          "runtime",
+          "input"
+        ]
+      }
+    },
+    {
+      "name": "usb-msc-block-demo",
+      "source": "Examples/usb/usb_msc_block_demo",
+      "build_dir": "cmake-build-usb-msc-block-demo-clang",
+      "build_target": "usb-msc-block-demo",
+      "export_target": "export_usb_msc_block_materialized_graph",
+      "dot_cache": "USB_MSC_BLOCK_EXPORT_DOT_PATH",
+      "json_cache": "USB_MSC_BLOCK_EXPORT_JSON_PATH",
+      "default_dot": "usb_msc_block_materialized_graph.dot",
+      "default_json": "usb_msc_block_materialized_graph.sample.json",
+      "extra_cache": [
+        "USB_MSC_BLOCK_EXPORT_IMAGE_PATH=observe-usb-block.img"
+      ],
+      "subject": {
+        "profile": null,
+        "board": null,
+        "active_facets": [
+          "usb",
+          "block"
+        ]
+      }
+    }
+  ]
+}

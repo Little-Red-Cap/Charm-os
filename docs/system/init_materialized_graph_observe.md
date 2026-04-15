@@ -369,6 +369,25 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 ./scripts/export_materialized_graph.ps1 -ListCases
 ```
 
+这些 case 当前来自 `scripts/materialized_graph.export_case_manifest.v1.json`，
+对应 schema 为 `schemas/materialized_graph.export_case_manifest.v1.schema.json`。
+它承载的是这条导出链当前最小的一组声明式输入事实，
+例如 `source / build target / export target / default artifact name / subject`，
+但它仍不是最终 `SystemSpec` DSL。
+如果只想校验这份输入 manifest 本身，
+当前也可以直接运行：
+
+```powershell
+python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest ./scripts/materialized_graph.export_case_manifest.v1.json
+```
+
+如果要临时改用另一份 case manifest，
+当前也可以显式传入：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -ListCases -CaseManifest ./scripts/materialized_graph.export_case_manifest.v1.json
+```
+
 如果只导出某一个样例：
 
 ```powershell
@@ -399,10 +418,21 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 
 `index.json` 当前会汇总：
 
+- 这次导出使用的输入 `manifest path / schema`
 - case 名称
 - 对应 `source / build target / export target`
+- case 自带的 `subject` 元数据，例如 `profile / board / active_facets`
 - bundle 内相对路径形式的 `dot / json`
 - 从 `JSON sample` 提取出的轻量摘要，例如 `node_count / edge_count / phase / runlevel / node_kinds`
+
+这些 `subject` 字段当前不是最终 DSL，
+但它们已经可以作为 per-case 的声明式默认事实，
+继续被 `artifact report` 与 CI 摘要链自动继承。
+更准确地说，
+当前 `export case manifest` 负责声明输入侧的 case 事实，
+而 `index.json` 负责把这些事实投影到 bundle 消费面。
+现在这层投影里也会显式保留输入 `manifest` provenance，
+这样 bundle/CI/inspect 不再只能“看到结果”，也能知道“这些结果是基于哪份输入清单生成的”。
 
 仓库根目录还提供了一个最小 bundle 消费脚本：
 
@@ -415,6 +445,7 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 它当前支持：
 
 - 从 `index.json` 汇总所有 case 的 `nodes / edges / phase / runlevel / node_kinds`
+- 显示 bundle 顶层记录的输入 `manifest` provenance（如果 index 提供）
 - 读取单个 case 的 `JSON sample` 并展开节点表
 - 按需展开依赖边表，验证 provider / consumer / capability
 - 用 `-AsJson` 把汇总结果重新转成更适合脚本继续消费的结构
@@ -494,6 +525,7 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 
 - 当前运行模式：`export_only / compare`
 - candidate / baseline 索引路径
+- candidate / baseline bundle 的输入 `manifest` provenance（如果对应 bundle index 提供）
 - 是否发现可见差异
 - 各类状态计数：`changed / added / removed / unchanged`
 - 按状态分组的 case 名单

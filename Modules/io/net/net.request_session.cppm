@@ -49,6 +49,7 @@ export namespace net {
             clear_ignored();
             next_request_id_ = 1;
             last_error_ = errc::ok;
+            transport_error_ = errc::ok;
         }
 
         [[nodiscard]] bool has_pending() const noexcept {
@@ -87,6 +88,10 @@ export namespace net {
                                                      ResponseFn on_response,
                                                      TimeoutFn on_timeout,
                                                      void* user = nullptr) noexcept {
+            auto terminal = terminal_error();
+            if (terminal != errc::ok) {
+                return util::unexpected(terminal);
+            }
             if (timeout_ms == 0) {
                 return util::unexpected(errc::invalid_arg);
             }
@@ -119,6 +124,10 @@ export namespace net {
                                                  util::u8 opcode,
                                                  ByteView payload,
                                                  bool ok = true) noexcept {
+            auto terminal = terminal_error();
+            if (terminal != errc::ok) {
+                return util::unexpected(terminal);
+            }
             if (payload.size() > MaxPayload) {
                 return util::unexpected(errc::buffer_overflow);
             }
@@ -178,6 +187,7 @@ export namespace net {
         }
 
         void on_transport_closed() noexcept {
+            transport_error_ = errc::closed;
             last_error_ = errc::closed;
             clear_pending();
             clear_ignored();
@@ -185,6 +195,7 @@ export namespace net {
         }
 
         void on_transport_error(errc error) noexcept {
+            transport_error_ = error;
             last_error_ = error;
             clear_pending();
             clear_ignored();
@@ -242,6 +253,10 @@ export namespace net {
                                                 util::u8 opcode,
                                                 util::u8 flags,
                                                 ByteView payload) noexcept {
+            auto terminal = terminal_error();
+            if (terminal != errc::ok) {
+                return util::unexpected(terminal);
+            }
             if (request_id == 0) {
                 return util::unexpected(errc::invalid_arg);
             }
@@ -369,6 +384,10 @@ export namespace net {
             next_ignored_ = 0;
         }
 
+        [[nodiscard]] errc terminal_error() const noexcept {
+            return transport_error_;
+        }
+
         void notify_error(errc error) noexcept {
             if (error_) {
                 error_(error_ctx_, error);
@@ -385,5 +404,6 @@ export namespace net {
         void* error_ctx_{nullptr};
         util::u16 next_request_id_{1};
         errc last_error_{errc::ok};
+        errc transport_error_{errc::ok};
     };
 }

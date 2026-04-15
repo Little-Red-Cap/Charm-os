@@ -3,6 +3,7 @@ param(
     [string]$CandidateBundleRoot = "",
     [string]$BaselineBundleRoot = "",
     [string]$BaselineIndex = "",
+    [string]$CaseManifest = "",
     [string]$Profile = "",
     [string]$Board = "",
     [string[]]$Facet = @(),
@@ -116,6 +117,138 @@ function Get-CaseNamesByStatus {
     return @($Cases | Where-Object { $_.status -eq $Status } | ForEach-Object { [string]$_.name })
 }
 
+function Compare-StringArrays {
+    param(
+        [string[]]$Left,
+        [string[]]$Right
+    )
+
+    $leftValues = @($Left | ForEach-Object { [string]$_ } | Sort-Object)
+    $rightValues = @($Right | ForEach-Object { [string]$_ } | Sort-Object)
+    if ($leftValues.Count -ne $rightValues.Count) {
+        return $false
+    }
+
+    for ($i = 0; $i -lt $leftValues.Count; ++$i) {
+        if ($leftValues[$i] -ne $rightValues[$i]) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Get-CaseSubjectInfo {
+    param(
+        $CaseEntry
+    )
+
+    $profile = $null
+    $board = $null
+    $activeFacets = @()
+
+    if ($null -ne $CaseEntry -and $null -ne $CaseEntry.PSObject.Properties['subject']) {
+        $subject = $CaseEntry.subject
+        if ($null -ne $subject.PSObject.Properties['profile'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
+            $profile = [string]$subject.profile
+        }
+        if ($null -ne $subject.PSObject.Properties['board'] -and -not [string]::IsNullOrWhiteSpace([string]$subject.board)) {
+            $board = [string]$subject.board
+        }
+        if ($null -ne $subject.PSObject.Properties['active_facets']) {
+            $activeFacets = @(
+                @($subject.active_facets) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ }
+            )
+        }
+    }
+
+    return [pscustomobject]@{
+        profile = $profile
+        board = $board
+        active_facets = @($activeFacets)
+    }
+}
+
+function Get-DerivedSubjectDefaults {
+    param(
+        [object[]]$CaseEntries
+    )
+
+    if (@($CaseEntries).Count -eq 0) {
+        return [ordered]@{
+            profile = $null
+            board = $null
+            active_facets = @()
+        }
+    }
+
+    $subjects = @($CaseEntries | ForEach-Object { Get-CaseSubjectInfo -CaseEntry $_ })
+    $first = $subjects[0]
+    foreach ($subject in @($subjects | Select-Object -Skip 1)) {
+        if ($first.profile -ne $subject.profile) {
+            return [ordered]@{
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+        }
+        if ($first.board -ne $subject.board) {
+            return [ordered]@{
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+        }
+        if (-not (Compare-StringArrays -Left $first.active_facets -Right $subject.active_facets)) {
+            return [ordered]@{
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+        }
+    }
+
+    return [ordered]@{
+        profile = $first.profile
+        board = $first.board
+        active_facets = @($first.active_facets)
+    }
+}
+
+function Get-BundleInputManifestInfo {
+    param(
+        $IndexData
+    )
+
+    if ($null -eq $IndexData -or $null -eq $IndexData.PSObject.Properties['input_manifest']) {
+        return $null
+    }
+
+    $manifest = $IndexData.input_manifest
+    if ($null -eq $manifest) {
+        return $null
+    }
+
+    $path = $null
+    $schema = $null
+    if ($null -ne $manifest.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.path)) {
+        $path = [string]$manifest.path
+    }
+    if ($null -ne $manifest.PSObject.Properties['schema'] -and -not [string]::IsNullOrWhiteSpace([string]$manifest.schema)) {
+        $schema = [string]$manifest.schema
+    }
+    if ([string]::IsNullOrWhiteSpace($path) -and [string]::IsNullOrWhiteSpace($schema)) {
+        return $null
+    }
+
+    return [ordered]@{
+        path = $path
+        schema = $schema
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $exportScript = Join-Path $PSScriptRoot 'export_materialized_graph.ps1'
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -131,6 +264,10 @@ foreach ($scriptPath in @($exportScript, $diffScript, $reportScript, $artifactRe
 $selection = Get-CaseSelection
 $resolvedOutputRoot = Resolve-FullPath $OutputRoot
 Ensure-Directory -Path $resolvedOutputRoot
+
+if ($SkipExport -and -not [string]::IsNullOrWhiteSpace($CaseManifest)) {
+    throw "-CaseManifest cannot be combined with -SkipExport"
+}
 
 $resolvedCandidateBundleRoot = if (-not [string]::IsNullOrWhiteSpace($CandidateBundleRoot)) {
     Resolve-FullPath $CandidateBundleRoot
@@ -157,6 +294,9 @@ if (-not $SkipExport) {
     $exportArgs = @{
         OutputRoot = $resolvedCandidateBundleRoot
         Jobs = $Jobs
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CaseManifest)) {
+        $exportArgs.CaseManifest = $CaseManifest
     }
     if ($selection.AllCases) {
         $exportArgs.AllCases = $true
@@ -190,6 +330,7 @@ $summary = [ordered]@{
     candidate = [ordered]@{
         bundle_root = $resolvedCandidateBundleRoot
         index = $candidateIndexPath
+        input_manifest = $null
     }
     baseline = $null
     diff = $null
@@ -199,6 +340,17 @@ $summary = [ordered]@{
 
 $candidateIndex = Get-Content -LiteralPath $candidateIndexPath -Raw -Encoding utf8 | ConvertFrom-Json
 $selectedCaseNames = @($candidateIndex.cases | ForEach-Object { [string]$_.name })
+$summary.candidate.input_manifest = Get-BundleInputManifestInfo -IndexData $candidateIndex
+$derivedSubjectDefaults = Get-DerivedSubjectDefaults -CaseEntries @($candidateIndex.cases)
+if ([string]::IsNullOrWhiteSpace($Profile)) {
+    $summary.subject_defaults.profile = $derivedSubjectDefaults.profile
+}
+if ([string]::IsNullOrWhiteSpace($Board)) {
+    $summary.subject_defaults.board = $derivedSubjectDefaults.board
+}
+if ($Facet.Count -eq 0) {
+    $summary.subject_defaults.active_facets = @($derivedSubjectDefaults.active_facets)
+}
 
 function New-ArtifactReportSummary {
     param(
@@ -334,7 +486,10 @@ $summary.status = if ($hasVisibleDiff) { 'different' } else { 'same' }
 $summary.baseline = [ordered]@{
     bundle_root = if (-not [string]::IsNullOrWhiteSpace($resolvedBaselineBundleRoot)) { $resolvedBaselineBundleRoot } else { Split-Path -Parent ([string]$diffData.left.index) }
     index = [string]$diffData.left.index
+    input_manifest = $null
 }
+$baselineIndexData = Get-Content -LiteralPath ([string]$diffData.left.index) -Raw -Encoding utf8 | ConvertFrom-Json
+$summary.baseline.input_manifest = Get-BundleInputManifestInfo -IndexData $baselineIndexData
 $summary.diff = [ordered]@{
     json = $diffJsonPath
     case_count = [int]$diffData.case_count

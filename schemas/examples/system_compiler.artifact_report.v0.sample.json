@@ -89,6 +89,7 @@
   },
   "artifacts": {
     "bundle": "out/materialized-graph-bundle/index.json",
+    "input_manifest": "scripts/materialized_graph.export_case_manifest.v1.json",
     "dot": "out/materialized-graph-bundle/bringup-minimal-observe-demo/materialized_graph.dot",
     "sample_json": "out/materialized-graph-bundle/bringup-minimal-observe-demo/materialized_graph.sample.json",
     "diff": null,

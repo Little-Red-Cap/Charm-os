@@ -137,6 +137,7 @@ ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-pp
 ARMv7-A handoff context, vector-base=0x40200000, translation-table=0x4021...., image-base=0x40200000
 ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
 ARMv7-A handoff quiesced, cntp_ctl=0x00000002, secure-line=group0/no/no/no, nonsecure-line=group1/no/no/no, sgi-line=group0/yes/no/no, gicd=0x00000000, gicc=0x00000000, hppir=0x000003FF, spurious=yes
+ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, tlb=yes, vectors=yes, sync=yes
 ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00000000, dacr=0x00000001, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked
 ```
 

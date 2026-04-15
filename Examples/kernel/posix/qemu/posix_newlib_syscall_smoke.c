@@ -930,6 +930,16 @@ int charm_posix_newlib_cwd_entry(void) {
     if (stat("/newlib-cwd/child.txt", &st) != 0) return 191;
     if ((st.st_mode & S_IFMT) != S_IFREG) return 192;
     if (st.st_size != 3) return 193;
+    errno = 114;
+    dir = opendir("sub");
+    if (dir == NULL) return 901;
+    if (errno != 114) return 902;
+    errno = 115;
+    if (readdir(dir) != NULL) return 903;
+    if (errno != 115) return 904;
+    errno = 116;
+    if (closedir(dir) != 0) return 905;
+    if (errno != 116) return 906;
 
     if (chdir("sub") != 0) return 194;
     if (getcwd(cwd, sizeof(cwd)) != cwd) return 195;

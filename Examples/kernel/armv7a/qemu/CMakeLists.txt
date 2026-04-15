@@ -90,6 +90,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_icache_probe.S
     armv7a_icache_probe.cpp
     armv7a_mmu.cpp
+    armv7a_boot_diagnostics.cpp
     armv7a_page_table_probe.cpp
     armv7a_section_split_probe.cpp
     armv7a_boot_page_table.cpp

@@ -592,11 +592,17 @@ int charm_posix_c_fs_header_entry(void) {
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 668;
     if (st.st_size != 2) return 669;
     *err = 102;
-    if (charm_posix_unlink("/cfs/parent-renamed.txt") != 0) return 616;
+    if (charm_posix_unlink("parent-renamed.txt") != 0) return 616;
     if (*err != 102) return 617;
+    *err = 0;
+    if (charm_posix_stat("parent-renamed.txt", &st) != -1) return 670;
+    if (*err != CHARM_POSIX_ENOENT) return 671;
     *err = 103;
-    if (charm_posix_rmdir("/cfs/sub") != 0) return 618;
+    if (charm_posix_rmdir("sub") != 0) return 618;
     if (*err != 103) return 619;
+    *err = 0;
+    if (charm_posix_stat("sub", &st) != -1) return 672;
+    if (*err != CHARM_POSIX_ENOENT) return 673;
 
     *err = 60;
     if (charm_posix_chdir("/") != 0) return 346;

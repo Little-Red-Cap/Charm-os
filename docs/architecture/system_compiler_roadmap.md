@@ -312,6 +312,9 @@ Charm 真正应该统一的是：
 “自解释固件”不应作为独立飘走的平行路线，
 它更适合作为 system compiler 对人类和工具暴露的观察面。
 
+当前关于 `artifact report` 与 `explain surface` 的 v0 输出面，
+见：`docs/system/explain_surface_v0.md`
+
 近程应先做只读 inspector / report / graph explain。
 
 中程建议形成最小 explain surface：

@@ -9,6 +9,7 @@
 - 入门指南：`docs/overview.md`
 - 架构总览：`docs/architecture_overview.md`
 - 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
+- Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
 - 资源契约 v0：`docs/system/resource_contract_v0.md`
 - bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
 - 驱动模型：`docs/architecture/driver_model.md`
@@ -54,6 +55,7 @@ flowchart TD
 | 我要做什么 | 先看什么 |
 | --- | --- |
 | 看 Charm 中长期主轴 | `docs/architecture/system_compiler_roadmap.md` → `docs/architecture/charm_methodology_charter.md` |
+| 看 system compiler 如何对外解释自己 | `docs/system/explain_surface_v0.md` → `docs/system/init_materialized_graph_observe.md` → `schemas/README.md` |
 | 看资源边界如何进入系统语言 | `docs/system/resource_contract_v0.md` → `docs/system/ssu_contract.md` → `docs/system/init_graph_contract.md` |
 | 看 bringup 如何从装配图变成证据 | `docs/system/bringup_evidence_pipeline_v0.md` → `docs/system/init_materialized_graph_observe.md` → `docs/system/init_graph_contract.md` |
 | 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
@@ -136,6 +138,7 @@ docs/
 - `docs/architecture/device_model_overview.md`（USB Host discovery / lifecycle）
 
 ### 系统与启动
+- `docs/system/explain_surface_v0.md`
 - `docs/system/resource_contract_v0.md`
 - `docs/system/bringup_evidence_pipeline_v0.md`
 - `docs/system/init_graph_contract.md`

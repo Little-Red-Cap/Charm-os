@@ -17,6 +17,7 @@ int charm_posix_c_fs_header_entry(void) {
     int saw_sub = 0;
     int saw_parent_rel = 0;
     int saw_sub_parent = 0;
+    int saw_dot = 0;
 
     if (err == 0) return 301;
     if (charm_posix_getpid() <= 0) return 302;
@@ -321,6 +322,46 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_stat("..", &st) != 0) return 652;
     if (*err != 115) return 653;
     if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFDIR) return 654;
+    *err = 133;
+    fd = charm_posix_open("./dot.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_TRUNC | CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 708;
+    if (*err != 133) return 709;
+    *err = 134;
+    if (charm_posix_write(fd, "d", 1) != 1) return 710;
+    if (*err != 134) return 711;
+    *err = 135;
+    if (charm_posix_close(fd) != 0) return 712;
+    if (*err != 135) return 713;
+    *err = 136;
+    if (charm_posix_stat("./dot.txt", &st) != 0) return 714;
+    if (*err != 136) return 715;
+    if ((st.st_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 716;
+    if (st.st_size != 1) return 717;
+    *err = 137;
+    dir = charm_posix_opendir("./");
+    if (dir == 0) return 718;
+    if (*err != 137) return 719;
+    saw_dot = 0;
+    while ((ent = charm_posix_readdir(dir)) != 0) {
+        if (strcmp(ent->d_name, "dot.txt") == 0) {
+            saw_dot = 1;
+            if ((ent->d_mode & CHARM_POSIX_S_IFMT) != CHARM_POSIX_S_IFREG) return 720;
+            if (ent->d_size != 1) return 721;
+        }
+    }
+    if (!saw_dot) return 722;
+    *err = 138;
+    if (charm_posix_readdir(dir) != 0) return 723;
+    if (*err != 138) return 724;
+    *err = 139;
+    if (charm_posix_closedir(dir) != 0) return 725;
+    if (*err != 139) return 726;
+    *err = 140;
+    if (charm_posix_unlink("./dot.txt") != 0) return 727;
+    if (*err != 140) return 728;
+    *err = 0;
+    if (charm_posix_stat("./dot.txt", &st) != -1) return 729;
+    if (*err != CHARM_POSIX_ENOENT) return 730;
     *err = 96;
     fd = charm_posix_open("../parent.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_TRUNC | CHARM_POSIX_O_WRONLY, 0);
     if (fd < 0) return 601;

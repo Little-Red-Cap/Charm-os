@@ -741,6 +741,35 @@ int charm_posix_newlib_path_entry(void) {
     if (rename("/newlib-path.txt", "") != -1) return 683;
     if (errno != ENOENT) return 684;
 
+    errno = 72;
+    fd = open("/newlib-busy.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
+    if (fd < 0) return 749;
+    if (errno != 72) return 750;
+    errno = 73;
+    if (write(fd, "zz", 2) != 2) return 751;
+    if (errno != 73) return 752;
+    if (close(fd) != 0) return 753;
+
+    errno = 0;
+    if (rename("/newlib-path.txt", "/newlib-busy.txt") != -1) return 754;
+    if (errno != EBUSY) return 755;
+
+    errno = 74;
+    if (stat("/newlib-path.txt", &st) != 0) return 756;
+    if (errno != 74) return 757;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 758;
+    if (st.st_size != 5) return 759;
+
+    errno = 75;
+    if (stat("/newlib-busy.txt", &st) != 0) return 760;
+    if (errno != 75) return 761;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 762;
+    if (st.st_size != 2) return 763;
+
+    errno = 76;
+    if (unlink("/newlib-busy.txt") != 0) return 764;
+    if (errno != 76) return 765;
+
     errno = 64;
     if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 163;
     if (errno != 64) return 553;

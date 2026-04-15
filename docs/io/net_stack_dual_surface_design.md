@@ -238,6 +238,7 @@ Modules/io/net/
 - `MutPacketView`
 - `PacketBuffer`
 - `PacketPool`
+- v0 可先采用“固定容量 buffer + move-only pool lease + prepend/append/trim”模型，先把 MCU 友好的包生命周期钉住，再逐步补 header helper / checksum / zero-copy 策略
 
 它服务于：
 

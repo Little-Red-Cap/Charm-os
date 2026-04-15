@@ -106,6 +106,11 @@ extern "C" void armv7a_branch_to_address(std::uintptr_t target)
     asm volatile("bx %0" : : "r"(target) : "memory");
 }
 
+extern "C" void armv7a_undefined_instruction()
+{
+    asm volatile("udf #0" ::: "memory");
+}
+
 extern "C" void armv7a_svc_smoke_test()
 {
     asm volatile("svc #0x43" ::: "memory");

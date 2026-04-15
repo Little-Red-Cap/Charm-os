@@ -21,6 +21,7 @@ extern "C" void armv7a_prepare_abort_smoke_mappings();
 extern "C" void armv7a_prepare_abort_smoke_runtime();
 extern "C" void armv7a_print_abort_smoke_mapping_state();
 extern "C" void armv7a_run_abort_smoke_if_enabled();
+extern "C" void armv7a_run_exception_smoke_if_enabled();
 
 namespace {
 void platform_console_write(auto text)
@@ -233,6 +234,7 @@ int main()
     armv7a_run_attribute_probe();
     armv7a_run_icache_probe();
     armv7a_run_abort_smoke_if_enabled();
+    armv7a_run_exception_smoke_if_enabled();
     armv7a_enable_dcache();
     print_dcache_runtime_state();
     armv7a_run_dcache_probe();

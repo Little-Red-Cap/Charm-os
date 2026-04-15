@@ -43,6 +43,9 @@ cmake --build out\build\debug-abort-data-page-perm --verbose
 
 cmake --preset debug-abort-data-page-perm-runtime
 cmake --build out\build\debug-abort-data-page-perm-runtime --verbose
+
+cmake --preset debug-exception-undefined
+cmake --build out\build\debug-exception-undefined --verbose
 ```
 
 ## Run
@@ -122,6 +125,29 @@ exception path instead of returning to the regular SVC/IRQ smoke:
 .\run_qemu_abort_ci.ps1 -Kind data-page
 .\run_qemu_abort_ci.ps1 -Kind data-page-perm
 .\run_qemu_abort_ci.ps1 -Kind data-page-perm-runtime
+```
+
+Undefined exception smoke also has a dedicated CI entry because it ends in the
+fatal undefined handler instead of continuing into the later IRQ/FIQ smoke:
+
+```powershell
+.\run_qemu_exception_ci.ps1 -Kind undefined
+```
+
+## Undefined exception smoke
+
+Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
+
+```powershell
+.\run_qemu.ps1 -ElfPath out\build\debug-exception-undefined\charm-armv7a-qemu
+```
+
+Expected output includes the same boot/MMU banner as the default smoke, then
+stops in the undefined handler before the later D-cache and IRQ smoke:
+
+```text
+ARMv7-A exception smoke, kind=undefined
+ARMv7-A exception: undefined, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=und
 ```
 
 ## Abort smoke

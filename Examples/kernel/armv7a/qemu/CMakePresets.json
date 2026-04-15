@@ -108,6 +108,15 @@
       "cacheVariables": {
         "CHARM_ARMV7A_ABORT_SMOKE": "data_page_perm_runtime"
       }
+    },
+    {
+      "name": "debug-exception-undefined",
+      "displayName": "ARMv7-A QEMU Debug (Undefined Exception Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-exception-undefined",
+      "cacheVariables": {
+        "CHARM_ARMV7A_EXCEPTION_SMOKE": "undefined"
+      }
     }
   ],
   "buildPresets": [
@@ -154,6 +163,10 @@
     {
       "name": "debug-abort-data-page-perm-runtime",
       "configurePreset": "debug-abort-data-page-perm-runtime"
+    },
+    {
+      "name": "debug-exception-undefined",
+      "configurePreset": "debug-exception-undefined"
     }
   ]
 }

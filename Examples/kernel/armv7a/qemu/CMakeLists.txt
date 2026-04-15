@@ -4,6 +4,8 @@ project(charm-armv7a-qemu LANGUAGES C CXX ASM)
 option(CHARM_QEMU_SEMIHOST_DEBUG "Enable semihosting debug breadcrumbs for QEMU runs" OFF)
 set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off, data, prefetch, prefetch_xn, prefetch_page, prefetch_page_xn, prefetch_page_xn_runtime, data_perm, data_page, data_page_perm, data_page_perm_runtime")
 set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data prefetch prefetch_xn prefetch_page prefetch_page_xn prefetch_page_xn_runtime data_perm data_page data_page_perm data_page_perm_runtime)
+set(CHARM_ARMV7A_EXCEPTION_SMOKE "off" CACHE STRING "Optional exception smoke kind: off, undefined")
+set_property(CACHE CHARM_ARMV7A_EXCEPTION_SMOKE PROPERTY STRINGS off undefined)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -38,6 +40,16 @@ if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_page_perm_runtime")
     message(FATAL_ERROR
         "CHARM_ARMV7A_ABORT_SMOKE must be one of: off, data, prefetch, prefetch_xn, prefetch_page, prefetch_page_xn, prefetch_page_xn_runtime, data_perm, data_page, data_page_perm, data_page_perm_runtime")
+endif()
+if (NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "off"
+    AND NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "undefined")
+    message(FATAL_ERROR
+        "CHARM_ARMV7A_EXCEPTION_SMOKE must be one of: off, undefined")
+endif()
+if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
+    AND NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "off")
+    message(FATAL_ERROR
+        "Only one of CHARM_ARMV7A_ABORT_SMOKE or CHARM_ARMV7A_EXCEPTION_SMOKE may be enabled at a time")
 endif()
 
 get_filename_component(CHARM_ROOT
@@ -80,6 +92,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_fault_status.cpp
     armv7a_translation_walk.cpp
     armv7a_abort_smoke.cpp
+    armv7a_exception_smoke.cpp
     armv7a_small_page_probe.cpp
     early_uart.cpp
     qemu_virt_platform.cpp
@@ -140,4 +153,8 @@ elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_page_perm")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE_PERM=1)
 elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_page_perm_runtime")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_DATA_PAGE_PERM_RUNTIME=1)
+endif()
+
+if (CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "undefined")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_EXCEPTION_SMOKE_UNDEFINED=1)
 endif()

@@ -18,6 +18,7 @@ extern "C" void armv7a_write_sctlr(std::uint32_t value);
 extern "C" std::uint32_t armv7a_read_vbar();
 extern "C" void armv7a_write_vbar(std::uint32_t value);
 extern "C" void armv7a_branch_to_address(std::uintptr_t target);
+extern "C" void armv7a_undefined_instruction();
 extern "C" void armv7a_svc_smoke_test();
 
 std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value);

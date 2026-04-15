@@ -14,6 +14,18 @@
 > `try_add_device` / `try_add_driver` / `try_add_bus` 这类
 > `util::Result<void>` 风格入口；旧 `add_*` 仍保留为兼容包装。
 >
+> 目前代码里的收敛进度可以简要理解为：
+> - `device::Registry` / `device::System`：已有 `try_dispatch` / `try_match_detected` /
+>   `try_suspend_all` / `try_resume_all` / `try_enumerate_all`
+> - `device::Bus` / `usb::host::HostBus`：已有可选 `try_enumerate` callback bridge，
+>   旧 `enumerate` 仍保留
+> - `device::DriverOps` / `device::RuntimeDriverHook`：已有可选
+>   `try_probe / try_init / try_suspend / try_resume`，
+>   旧 `bool` hook 仍保留为兼容入口
+>
+> 因此，这一页更适合被理解为“动态 discovery 平面的当前实现快照 + 后续演进方向”，
+> 而不是一份完全独立于现有代码状态的理想化白纸设计。
+>
 > 如果当前 discovered device 需要导出为稳定 capability，
 > 仓库里可以优先参考：
 > `io.channel.slot_export`、`block.device.slot_export`，
@@ -51,8 +63,10 @@ register_driver -> probe -> init -> running -> shutdown -> remove
 ```
 
 推荐回调：
-- `probe(dev)`：匹配 + 资源检查（不分配大资源）。
-- `init(dev)`：初始化并进入 running。
+- 新代码优先提供 `try_probe(dev)` / `try_init(dev)`：
+  直接返回 `util::Result<void>`，便于保留更精确错误。
+- 兼容代码仍可提供 `probe(dev)` / `init(dev)`：
+  返回 `bool`，失败时由 Registry 统一折叠为 `util::Errc::bad_state`。
 - `shutdown(dev)`：停设备（可重复调用）。
 - `remove(dev)`：释放资源并解绑。
 
@@ -97,8 +111,8 @@ register_driver -> probe -> init -> running -> shutdown -> remove
 - `stopped`
 
 ### Power Hooks
-- `suspend(dev)`
-- `resume(dev)`
+- 新代码优先提供 `try_suspend(dev)` / `try_resume(dev)`
+- 兼容代码仍可提供 `suspend(dev)` / `resume(dev)`
 
 ## 6. 设备模型与现有模块的对接方向
 
@@ -176,6 +190,8 @@ void register_usb(DeviceSystem& sys) {
 - Driver 不得直接依赖具体平台实现（必须走 Device/Bus 接口）。
 - Registry 不得阻塞。
 - 匹配失败不影响其它设备。
+- 新增 `try_*` 入口时，优先使用 `util::Result<T>` + `util::Errc`，
+  不要再引入第三套错误返回约定。
 
 ## 9. VSF 对照表（接口形状参考）
 

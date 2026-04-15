@@ -125,7 +125,8 @@ namespace {
     }
 
     enum class MockPrepareStep : util::u8 {
-        mask_interrupts = 0,
+        mask_cpu_exceptions = 0,
+        quiesce_interrupt_controller,
         activate_payload_mapping,
         clean_data_cache,
         invalidate_instruction_cache,
@@ -256,10 +257,18 @@ namespace {
         return jump_mock_execution(ctx, prepare.exec());
     }
 
-    bool mask_mock_interrupts(void* ctx,
-                              const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+    bool mask_mock_cpu_exceptions(
+        void* ctx, const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
-        return push_trace(*launch, MockPrepareStep::mask_interrupts) &&
+        return push_trace(*launch, MockPrepareStep::mask_cpu_exceptions) &&
+               prepare &&
+               prepare.exec().entry_addr != 0;
+    }
+
+    bool quiesce_mock_interrupt_controller(
+        void* ctx, const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::quiesce_interrupt_controller) &&
                prepare &&
                prepare.exec().entry_addr != 0;
     }
@@ -624,7 +633,8 @@ int main() {
             .jump = jump_armv7_mock_execution,
             .maintenance = {
                 .ctx = &armv7_copy_ctx,
-                .mask_interrupts = mask_mock_interrupts,
+                .mask_cpu_exceptions = mask_mock_cpu_exceptions,
+                .quiesce_interrupt_controller = quiesce_mock_interrupt_controller,
                 .activate_payload_mapping = activate_mock_payload_mapping,
                 .clean_data_cache = clean_mock_data_cache,
                 .invalidate_instruction_cache = invalidate_mock_instruction_cache,
@@ -633,7 +643,8 @@ int main() {
                 .sync_context = sync_mock_context
             },
             .policy = {
-                .mask_interrupts = true,
+                .mask_cpu_exceptions = true,
+                .quiesce_interrupt_controller = true,
                 .activate_payload_mapping = true,
                 .clean_data_cache = true,
                 .invalidate_instruction_cache = true,
@@ -667,7 +678,8 @@ int main() {
         armv7_copy_ctx.entry_called &&
         expect_trace(armv7_copy_ctx,
                      {
-                         MockPrepareStep::mask_interrupts,
+                         MockPrepareStep::mask_cpu_exceptions,
+                         MockPrepareStep::quiesce_interrupt_controller,
                          MockPrepareStep::activate_payload_mapping,
                          MockPrepareStep::clean_data_cache,
                          MockPrepareStep::invalidate_instruction_cache,
@@ -704,7 +716,8 @@ int main() {
             .jump = jump_armv7_mock_execution,
             .maintenance = {
                 .ctx = &armv7_xip_ctx,
-                .mask_interrupts = mask_mock_interrupts,
+                .mask_cpu_exceptions = mask_mock_cpu_exceptions,
+                .quiesce_interrupt_controller = quiesce_mock_interrupt_controller,
                 .activate_payload_mapping = activate_mock_payload_mapping,
                 .clean_data_cache = clean_mock_data_cache,
                 .invalidate_instruction_cache = invalidate_mock_instruction_cache,
@@ -713,7 +726,8 @@ int main() {
                 .sync_context = sync_mock_context
             },
             .policy = {
-                .mask_interrupts = true,
+                .mask_cpu_exceptions = true,
+                .quiesce_interrupt_controller = true,
                 .activate_payload_mapping = true,
                 .clean_data_cache = true,
                 .invalidate_instruction_cache = true,
@@ -745,7 +759,8 @@ int main() {
         armv7_xip_ctx.entry_called &&
         expect_trace(armv7_xip_ctx,
                      {
-                         MockPrepareStep::mask_interrupts,
+                         MockPrepareStep::mask_cpu_exceptions,
+                         MockPrepareStep::quiesce_interrupt_controller,
                          MockPrepareStep::activate_payload_mapping,
                          MockPrepareStep::clean_data_cache,
                          MockPrepareStep::invalidate_instruction_cache,

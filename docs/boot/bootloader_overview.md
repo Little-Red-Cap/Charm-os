@@ -49,7 +49,7 @@
 - `BootExecRequest` 现在会连同 load kind、storage payload/entry offset 一并传给板级，便于 ARMv7-A 这类目标在 pre-jump 阶段做映射、cache/TLB 维护与状态切换
 - `platform::board::BootBoardCaps` 已独立承载 boot 专属能力，避免 boot 阶段直接依赖整板 `BoardCaps`
 - `platform::board::with_boot_caps(...)` 可把独立的 boot 能力按需并回 `BoardCaps`，让 Stage2/板级初始化路径继续共存，但不再要求 boot 实现先凑整板能力
-- `platform.board.armv7a_stub` 现已提供一个 ARMv7-A 风格骨架：用固定 XIP window / RAM payload 基址表达加载落点，并把 pre-jump 顺序显式化为“关中断 -> 激活 payload 映射/属性 -> cache/TLB 维护 -> 向量切换 -> 同步屏障 -> board prepare -> jump”
+- `platform.board.armv7a_stub` 现已提供一个 ARMv7-A 风格骨架：用固定 XIP window / RAM payload 基址表达加载落点，并把 pre-jump 顺序显式化为“屏蔽 CPU 异常入口 -> 静默中断控制器 -> 激活 payload 映射/属性 -> cache/TLB 维护 -> 向量切换 -> 同步屏障 -> board prepare -> jump”
 - `platform.board.armv7a_stub::BootPrepareContext` 会把动态 `BootExecRequest` 与静态向量基址/页表基址这类 ARMv7-A 布局信息一起传给 maintenance hook，避免真实板级实现继续把关键信息塞回自定义上下文
 
 ## 2. 阶段目标

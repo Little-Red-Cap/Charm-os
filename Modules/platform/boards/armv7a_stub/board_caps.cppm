@@ -48,8 +48,10 @@ export namespace platform::board::armv7a_stub {
 
     struct BootPrepareHooks {
         void* ctx{nullptr};
-        bool (*mask_interrupts)(void* ctx,
-                                const BootPrepareContext& request) noexcept {nullptr};
+        bool (*mask_cpu_exceptions)(void* ctx,
+                                    const BootPrepareContext& request) noexcept {nullptr};
+        bool (*quiesce_interrupt_controller)(void* ctx,
+                                             const BootPrepareContext& request) noexcept {nullptr};
         bool (*activate_payload_mapping)(void* ctx,
                                          const BootPrepareContext& request) noexcept {nullptr};
         bool (*clean_data_cache)(void* ctx,
@@ -65,7 +67,8 @@ export namespace platform::board::armv7a_stub {
     };
 
     struct BootPreparePolicy {
-        bool mask_interrupts{true};
+        bool mask_cpu_exceptions{true};
+        bool quiesce_interrupt_controller{true};
         bool activate_payload_mapping{true};
         bool clean_data_cache{true};
         bool invalidate_instruction_cache{true};
@@ -158,8 +161,11 @@ export namespace platform::board::armv7a_stub {
 
         const auto& maintenance = boot.exec.maintenance;
         const auto& policy = boot.exec.policy;
-        if (!invoke_prepare_step(policy.mask_interrupts,
-                                 maintenance.mask_interrupts,
+        if (!invoke_prepare_step(policy.mask_cpu_exceptions,
+                                 maintenance.mask_cpu_exceptions,
+                                 maintenance.ctx) ||
+            !invoke_prepare_step(policy.quiesce_interrupt_controller,
+                                 maintenance.quiesce_interrupt_controller,
                                  maintenance.ctx) ||
             !invoke_prepare_step(policy.activate_payload_mapping,
                                  maintenance.activate_payload_mapping,

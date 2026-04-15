@@ -19,7 +19,8 @@
 
 - 早期 reset 收口
 - 异常向量安装和 VBAR 所有权
-- IRQ/FIQ 屏蔽与路由
+- CPU 级 IRQ/FIQ 屏蔽与路由
+- 中断控制器静默、摘线与重新接线
 - 早期串口
 - GIC 和 generic timer 接线
 - MMU 属性切换

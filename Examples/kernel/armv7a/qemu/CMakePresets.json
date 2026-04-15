@@ -29,6 +29,15 @@
       }
     },
     {
+      "name": "debug-abort-data-align",
+      "displayName": "ARMv7-A QEMU Debug (Data Alignment Abort Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-abort-data-align",
+      "cacheVariables": {
+        "CHARM_ARMV7A_ABORT_SMOKE": "data_align"
+      }
+    },
+    {
       "name": "debug-abort-prefetch",
       "displayName": "ARMv7-A QEMU Debug (Prefetch Abort Smoke)",
       "inherits": "debug",
@@ -127,6 +136,10 @@
     {
       "name": "debug-abort-data",
       "configurePreset": "debug-abort-data"
+    },
+    {
+      "name": "debug-abort-data-align",
+      "configurePreset": "debug-abort-data-align"
     },
     {
       "name": "debug-abort-prefetch",

@@ -18,6 +18,7 @@ extern "C" void armv7a_write_sctlr(std::uint32_t value);
 extern "C" std::uint32_t armv7a_read_vbar();
 extern "C" void armv7a_write_vbar(std::uint32_t value);
 extern "C" void armv7a_branch_to_address(std::uintptr_t target);
+extern "C" std::uint32_t armv7a_load_word_relaxed(std::uintptr_t address);
 extern "C" void armv7a_undefined_instruction();
 extern "C" void armv7a_svc_smoke_test();
 
@@ -29,4 +30,5 @@ std::uint32_t armv7a_id_pfr1_gentimer_field(std::uint32_t value);
 const char* armv7a_feature_presence_name(std::uint32_t field);
 bool armv7a_irq_masked(std::uint32_t psr);
 bool armv7a_fiq_masked(std::uint32_t psr);
+bool armv7a_alignment_check_enabled(std::uint32_t sctlr);
 const char* armv7a_mode_name(std::uint32_t psr);

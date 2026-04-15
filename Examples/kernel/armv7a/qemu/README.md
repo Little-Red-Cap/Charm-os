@@ -17,6 +17,9 @@ Abort smoke presets stay separate so the default IRQ/SVC smoke remains stable:
 cmake --preset debug-abort-data
 cmake --build out\build\debug-abort-data --verbose
 
+cmake --preset debug-abort-data-align
+cmake --build out\build\debug-abort-data-align --verbose
+
 cmake --preset debug-abort-prefetch
 cmake --build out\build\debug-abort-prefetch --verbose
 
@@ -116,6 +119,7 @@ exception path instead of returning to the regular SVC/IRQ smoke:
 
 ```powershell
 .\run_qemu_abort_ci.ps1 -Kind data
+.\run_qemu_abort_ci.ps1 -Kind data-align
 .\run_qemu_abort_ci.ps1 -Kind prefetch
 .\run_qemu_abort_ci.ps1 -Kind prefetch-xn
 .\run_qemu_abort_ci.ps1 -Kind prefetch-page
@@ -156,6 +160,7 @@ Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
 
 ```powershell
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-data\charm-armv7a-qemu
+.\run_qemu.ps1 -ElfPath out\build\debug-abort-data-align\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-xn\charm-armv7a-qemu
 .\run_qemu.ps1 -ElfPath out\build\debug-abort-prefetch-page\charm-armv7a-qemu
@@ -177,6 +182,16 @@ ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, or
 ARMv7-A data fault, dfsr=0x........, dfar=0x20000000, adfsr=0x........
 ARMv7-A data fault decode, status=0x05 (section translation fault), domain=0x0, write=no, cm=no
 ARMv7-A fault map, far=0x20000000, ttbr0=0x........, l1[0x200]=0x00000000 (fault)
+```
+
+```text
+ARMv7-A data-align target ready, addr=0x4020...., base=0x4020...., value=0x89ABCDEF
+ARMv7-A alignment trap armed, addr=0x4020...., base=0x4020...., sctlr=0x00C5107B, alignment-check=on
+ARMv7-A abort smoke, kind=data-align, addr=0x4020....
+ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
+ARMv7-A data fault, dfsr=0x00000001, dfar=0x4020...., adfsr=0x00000000
+ARMv7-A data fault decode, status=0x01 (alignment exception), domain=0x0, write=no, cm=no
+ARMv7-A fault map, far=0x4020...., ttbr0=0x........, l1[0x402]=0x........ (section), domain=0x0, xn=no, s=yes, c=yes, b=yes, ap=0x3
 ```
 
 ```text

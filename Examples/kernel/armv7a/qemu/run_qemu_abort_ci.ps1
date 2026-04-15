@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("data", "prefetch", "prefetch-xn", "prefetch-page", "prefetch-page-xn", "prefetch-page-xn-runtime", "data-perm", "data-page", "data-page-perm", "data-page-perm-runtime")]
+    [ValidateSet("data", "data-align", "prefetch", "prefetch-xn", "prefetch-page", "prefetch-page-xn", "prefetch-page-xn-runtime", "data-perm", "data-page", "data-page-perm", "data-page-perm-runtime")]
     [string]$Kind = "data",
     [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
@@ -78,6 +78,18 @@ switch ($Kind) {
         $decodePattern = "ARMv7-A data fault decode, status=0x05 \(section translation fault\), domain=0x0, write=no, cm=no"
         $mapPattern = "ARMv7-A fault map, far=0x20000000, ttbr0=0x[0-9A-F]{8}, l1\[0x200\]=0x00000000 \(fault\)"
         $smokePattern = "ARMv7-A abort smoke, kind=data, addr=0x20000000"
+    }
+    "data-align" {
+        $configurePreset = "debug-abort-data-align"
+        $buildPreset = "debug-abort-data-align"
+        $elfPath = "out\\build\\debug-abort-data-align\\charm-armv7a-qemu"
+        $exceptionLine = "ARMv7-A exception: data abort"
+        $faultPattern = "ARMv7-A data fault, dfsr=0x[0-9A-F]{8}, dfar=0x4[0-9A-F]{7}, adfsr=0x[0-9A-F]{8}"
+        $decodePattern = "ARMv7-A data fault decode, status=0x01 \(alignment exception\), domain=0x[0-9A-F], write=no, cm=no"
+        $mapPattern = "ARMv7-A fault map, far=0x4[0-9A-F]{7}, ttbr0=0x[0-9A-F]{8}, l1\[0x40[0-9A-F]\]=0x[0-9A-F]{8} \(section\), domain=0x0, xn=no, s=yes, c=yes, b=yes"
+        $smokePattern = "ARMv7-A abort smoke, kind=data-align, addr=0x4[0-9A-F]{7}"
+        $extraPatterns += "ARMv7-A data-align target ready, addr=0x4[0-9A-F]{7}, base=0x4[0-9A-F]{7}, value=0x89ABCDEF"
+        $extraPatterns += "ARMv7-A alignment trap armed, addr=0x4[0-9A-F]{7}, base=0x4[0-9A-F]{7}, sctlr=0x[0-9A-F]{8}, alignment-check=on"
     }
     "prefetch" {
         $configurePreset = "debug-abort-prefetch"

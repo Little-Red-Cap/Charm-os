@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 4.0)
 project(charm-armv7a-qemu LANGUAGES C CXX ASM)
 
 option(CHARM_QEMU_SEMIHOST_DEBUG "Enable semihosting debug breadcrumbs for QEMU runs" OFF)
-set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off, data, prefetch, prefetch_xn, prefetch_page, prefetch_page_xn, prefetch_page_xn_runtime, data_perm, data_page, data_page_perm, data_page_perm_runtime")
-set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data prefetch prefetch_xn prefetch_page prefetch_page_xn prefetch_page_xn_runtime data_perm data_page data_page_perm data_page_perm_runtime)
+set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off, data, data_align, prefetch, prefetch_xn, prefetch_page, prefetch_page_xn, prefetch_page_xn_runtime, data_perm, data_page, data_page_perm, data_page_perm_runtime")
+set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data data_align prefetch prefetch_xn prefetch_page prefetch_page_xn prefetch_page_xn_runtime data_perm data_page data_page_perm data_page_perm_runtime)
 set(CHARM_ARMV7A_EXCEPTION_SMOKE "off" CACHE STRING "Optional exception smoke kind: off, undefined")
 set_property(CACHE CHARM_ARMV7A_EXCEPTION_SMOKE PROPERTY STRINGS off undefined)
 
@@ -29,6 +29,7 @@ if (DEFINED CHARM_BAREMETAL AND NOT CHARM_BAREMETAL)
 endif()
 if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data"
+    AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_align"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_xn"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_page"
@@ -39,7 +40,7 @@ if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_page_perm"
     AND NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_page_perm_runtime")
     message(FATAL_ERROR
-        "CHARM_ARMV7A_ABORT_SMOKE must be one of: off, data, prefetch, prefetch_xn, prefetch_page, prefetch_page_xn, prefetch_page_xn_runtime, data_perm, data_page, data_page_perm, data_page_perm_runtime")
+        "CHARM_ARMV7A_ABORT_SMOKE must be one of: off, data, data_align, prefetch, prefetch_xn, prefetch_page, prefetch_page_xn, prefetch_page_xn_runtime, data_perm, data_page, data_page_perm, data_page_perm_runtime")
 endif()
 if (NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "undefined")
@@ -135,6 +136,8 @@ endif()
 
 if (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_DATA=1)
+elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "data_align")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_DATA_ALIGN=1)
 elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch")
     target_compile_definitions(${PROJECT_NAME} PRIVATE CHARM_ARMV7A_ABORT_SMOKE_PREFETCH=1)
 elseif (CHARM_ARMV7A_ABORT_SMOKE STREQUAL "prefetch_xn")

@@ -17,6 +17,8 @@ constexpr std::uint32_t kAbortSmokeClientDacr = 0x5u;
 constexpr std::uint32_t kAbortSmokeExecProbeReturnValue = 0x00000043u;
 constexpr std::uint32_t kAbortSmokeDataWriteValue = 0xA5A55A5Au;
 constexpr std::uint32_t kAbortSmokeRuntimeDataWriteValue = 0x5AA55AA5u;
+constexpr std::uint32_t kAbortSmokeAlignmentCheckMask = 1u << 1;
+constexpr std::uint32_t kAbortSmokeDataAlignInitialValue = 0x89ABCDEFu;
 
 const Armv7aPlatformProbeLayout& probe_layout()
 {
@@ -48,6 +50,7 @@ extern "C" [[gnu::noinline]] std::uint32_t armv7a_abort_exec_probe_target()
 volatile std::uint32_t g_armv7a_abort_data_perm_target = 0x13579BDFu;
 volatile std::uint32_t g_armv7a_abort_data_page_perm_target = 0x2468ACE0u;
 volatile std::uint32_t g_armv7a_abort_data_page_perm_runtime_target = 0x0BADCAFEu;
+volatile std::uint32_t g_armv7a_abort_data_align_target = kAbortSmokeDataAlignInitialValue;
 
 std::uintptr_t armv7a_abort_xn_target_address()
 {
@@ -87,6 +90,16 @@ std::uintptr_t armv7a_abort_prefetch_page_xn_runtime_alias_address()
 std::uintptr_t armv7a_abort_data_perm_target_address()
 {
     return reinterpret_cast<std::uintptr_t>(&g_armv7a_abort_data_perm_target);
+}
+
+std::uintptr_t armv7a_abort_data_align_target_address()
+{
+    return reinterpret_cast<std::uintptr_t>(&g_armv7a_abort_data_align_target);
+}
+
+std::uintptr_t armv7a_abort_data_align_fault_address()
+{
+    return armv7a_abort_data_align_target_address() + 1u;
 }
 
 std::uintptr_t armv7a_abort_data_perm_alias_address()
@@ -179,7 +192,15 @@ extern "C" void armv7a_prepare_abort_smoke_runtime()
 
 extern "C" void armv7a_print_abort_smoke_mapping_state()
 {
-#if defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_XN)
+#if defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_ALIGN)
+    armv7a_platform_early_console_puts("ARMv7-A data-align target ready, addr=0x");
+    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_align_fault_address()));
+    armv7a_platform_early_console_puts(", base=0x");
+    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_data_align_target_address()));
+    armv7a_platform_early_console_puts(", value=0x");
+    early_uart_write_hex32(g_armv7a_abort_data_align_target);
+    armv7a_platform_early_console_puts("\r\n");
+#elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH_XN)
     armv7a_platform_early_console_puts("ARMv7-A XN alias ready, va=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_abort_xn_alias_address()));
     armv7a_platform_early_console_puts(", pa=0x");
@@ -276,6 +297,35 @@ extern "C" void armv7a_run_abort_smoke_if_enabled()
     static_cast<void>(value);
     armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
     armv7a_platform_idle_forever();
+#elif defined(CHARM_ARMV7A_ABORT_SMOKE_DATA_ALIGN)
+    {
+        const auto base_address = armv7a_abort_data_align_target_address();
+        const auto fault_address = armv7a_abort_data_align_fault_address();
+        const auto initial_sctlr = armv7a_read_sctlr();
+        armv7a_write_sctlr(initial_sctlr | kAbortSmokeAlignmentCheckMask);
+        armv7a_data_sync_barrier();
+        armv7a_instruction_sync_barrier();
+        const auto armed_sctlr = armv7a_read_sctlr();
+
+        armv7a_platform_early_console_puts("ARMv7-A alignment trap armed, addr=0x");
+        early_uart_write_hex32(static_cast<std::uint32_t>(fault_address));
+        armv7a_platform_early_console_puts(", base=0x");
+        early_uart_write_hex32(static_cast<std::uint32_t>(base_address));
+        armv7a_platform_early_console_puts(", sctlr=0x");
+        early_uart_write_hex32(armed_sctlr);
+        armv7a_platform_early_console_puts(", alignment-check=");
+        armv7a_platform_early_console_puts(
+            armv7a_alignment_check_enabled(armed_sctlr) ? "on" : "off");
+        armv7a_platform_early_console_puts("\r\n");
+
+        armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=data-align, addr=0x");
+        early_uart_write_hex32(static_cast<std::uint32_t>(fault_address));
+        armv7a_platform_early_console_puts("\r\n");
+        const auto value = armv7a_load_word_relaxed(fault_address);
+        static_cast<void>(value);
+        armv7a_platform_early_console_puts("ARMv7-A abort smoke unexpectedly returned\r\n");
+        armv7a_platform_idle_forever();
+    }
 #elif defined(CHARM_ARMV7A_ABORT_SMOKE_PREFETCH)
     armv7a_platform_early_console_puts("ARMv7-A abort smoke, kind=prefetch, addr=0x");
     early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().abort_unmapped_address));

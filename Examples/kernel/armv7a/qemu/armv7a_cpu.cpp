@@ -4,6 +4,7 @@ namespace {
 constexpr std::uint32_t kPsrModeMask = 0x1fu;
 constexpr std::uint32_t kPsrIrqMask = 1u << 7;
 constexpr std::uint32_t kPsrFiqMask = 1u << 6;
+constexpr std::uint32_t kSctlrAlignmentCheckMask = 1u << 1;
 constexpr std::uint32_t kIdMmfr0VmsaShift = 0u;
 constexpr std::uint32_t kIdMmfr0PmsaShift = 4u;
 constexpr std::uint32_t kIdMmfr0FieldMask = 0xfu;
@@ -106,6 +107,13 @@ extern "C" void armv7a_branch_to_address(std::uintptr_t target)
     asm volatile("bx %0" : : "r"(target) : "memory");
 }
 
+extern "C" std::uint32_t armv7a_load_word_relaxed(std::uintptr_t address)
+{
+    std::uint32_t value = 0;
+    asm volatile("ldr %0, [%1]" : "=r"(value) : "r"(address) : "memory");
+    return value;
+}
+
 extern "C" void armv7a_undefined_instruction()
 {
     asm volatile("udf #0" ::: "memory");
@@ -154,6 +162,11 @@ bool armv7a_irq_masked(std::uint32_t psr)
 bool armv7a_fiq_masked(std::uint32_t psr)
 {
     return (psr & kPsrFiqMask) != 0u;
+}
+
+bool armv7a_alignment_check_enabled(std::uint32_t sctlr)
+{
+    return (sctlr & kSctlrAlignmentCheckMask) != 0u;
 }
 
 const char* armv7a_mode_name(std::uint32_t psr)

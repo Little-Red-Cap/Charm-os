@@ -6,20 +6,18 @@ import net.ether;
 import net.ipv4;
 import net.packet;
 import net.stack;
+import net.udp;
 import util.core;
 import util.expected;
 
 namespace {
-    struct PayloadProbe {
+    struct DatagramProbe {
         std::array<util::u8, 96> bytes{};
         util::usize size{0};
         util::usize calls{0};
-        net::IpAddress source{};
-        net::IpAddress destination{};
-        net::Ipv4Protocol protocol{net::Ipv4Protocol::icmp};
-        util::u8 ttl{0};
+        net::UdpDatagramInfo info{};
 
-        [[nodiscard]] net::Result<void> consume(const net::Ipv4PacketView& header,
+        [[nodiscard]] net::Result<void> consume(const net::UdpDatagramInfo& datagram,
                                                 net::OwnedPacket packet) noexcept {
             const auto view = packet.view();
             if (view.size() > bytes.size()) {
@@ -29,10 +27,7 @@ namespace {
                 bytes[i] = view[i];
             }
             size = view.size();
-            source = header.source;
-            destination = header.destination;
-            protocol = header.protocol;
-            ttl = header.ttl;
+            info = datagram;
             ++calls;
             return {};
         }
@@ -101,7 +96,8 @@ namespace {
                                                       net::MacAddress destination,
                                                       net::MacAddress source,
                                                       net::EtherType type,
-                                                      net::ByteView payload) noexcept {
+                                                      net::ByteView payload,
+                                                      net::ByteView padding = {}) noexcept {
         auto reset = packet.reset();
         if (!reset) {
             return util::unexpected(reset.error());
@@ -124,6 +120,11 @@ namespace {
         auto appended_payload = packet.append(payload);
         if (!appended_payload) {
             return util::unexpected(appended_payload.error());
+        }
+
+        auto appended_padding = packet.append(padding);
+        if (!appended_padding) {
+            return util::unexpected(appended_padding.error());
         }
         return {};
     }
@@ -159,7 +160,8 @@ int main() {
     constexpr auto local_mac = net::MacAddress::from_bytes(0x02u, 0x11u, 0x22u, 0x33u, 0x44u, 0x55u);
     constexpr auto local_ip = net::IpAddress::ipv4(10, 0, 0, 2);
     constexpr auto peer_ip = net::IpAddress::ipv4(10, 0, 0, 9);
-    constexpr auto other_ip = net::IpAddress::ipv4(10, 0, 0, 12);
+    constexpr auto peer = net::Endpoint{peer_ip, 7000};
+    constexpr auto local = net::Endpoint{local_ip, 5000};
 
     net::NetIf netif{};
     auto configured = netif.configure(net::NetIfConfig{
@@ -171,7 +173,7 @@ int main() {
             | net::NetIfCapability::broadcast
     });
     if (!configured) {
-        std::fputs("ipv4 smoke netif configure failed\n", stderr);
+        std::fputs("udp smoke netif configure failed\n", stderr);
         return 1;
     }
 
@@ -179,154 +181,133 @@ int main() {
     net::NetDriver driver{};
     auto attached = driver.attach(net::make_net_driver_provider_ref(link), netif);
     if (!attached) {
-        std::fputs("ipv4 smoke driver attach failed\n", stderr);
+        std::fputs("udp smoke driver attach failed\n", stderr);
         return 2;
     }
 
     net::Stack stack{};
-    PayloadProbe icmp{};
-    PayloadProbe udp{};
     net::Ipv4Service ipv4{netif};
-    ipv4.set_icmp_sink(net::make_ipv4_packet_sink_ref(icmp));
+    net::UdpService<4> udp{};
+    DatagramProbe probe{};
+    auto bound_port = udp.bind(local.port, net::make_udp_datagram_sink_ref(probe));
+    if (!bound_port || udp.binding_count() != 1) {
+        std::fputs("udp smoke bind failed\n", stderr);
+        return 3;
+    }
     ipv4.set_udp_sink(net::make_ipv4_packet_sink_ref(udp));
     stack.set_ipv4_sink(net::make_owned_packet_sink_ref(ipv4));
 
     auto registered = stack.register_driver(driver);
     if (!registered || stack.driver_count() != 1 || stack.netif_count() != 1) {
-        std::fputs("ipv4 smoke stack register failed\n", stderr);
-        return 3;
+        std::fputs("udp smoke stack register failed\n", stderr);
+        return 4;
     }
 
     auto up = netif.bring_up();
     if (!up) {
-        std::fputs("ipv4 smoke netif bring_up failed\n", stderr);
-        return 4;
-    }
-
-    static constexpr util::u8 icmp_payload[]{0x08u, 0x00u, 0x12u, 0x34u};
-    net::PacketBuffer<128> icmp_packet{};
-    auto encoded_icmp = net::write_ipv4_packet(
-        icmp_packet,
-        net::Ipv4PacketSpec{
-            .dscp_ecn = 0,
-            .identification = 0x1234u,
-            .flags_fragment = net::ipv4_do_not_fragment_flag(),
-            .ttl = 64,
-            .protocol = net::Ipv4Protocol::icmp,
-            .source = peer_ip,
-            .destination = local_ip,
-        },
-        net::ByteView{icmp_payload, sizeof(icmp_payload)});
-    if (!encoded_icmp) {
-        std::fputs("ipv4 smoke icmp encode failed\n", stderr);
+        std::fputs("udp smoke netif bring_up failed\n", stderr);
         return 5;
     }
 
-    auto parsed_icmp = net::parse_ipv4_packet(icmp_packet.view());
-    if (!parsed_icmp
-        || parsed_icmp.value().header_length != net::ipv4_min_header_size()
-        || parsed_icmp.value().total_length != net::ipv4_min_header_size() + sizeof(icmp_payload)
-        || parsed_icmp.value().protocol != net::Ipv4Protocol::icmp
-        || parsed_icmp.value().ttl != 64
-        || !same_ipv4(parsed_icmp.value().source, peer_ip)
-        || !same_ipv4(parsed_icmp.value().destination, local_ip)) {
-        std::fputs("ipv4 smoke icmp parse mismatch\n", stderr);
+    static constexpr util::u8 payload[]{'p', 'i', 'n', 'g'};
+    net::PacketBuffer<128> udp_datagram{};
+    auto encoded_udp = net::write_udp_ipv4_datagram(
+        udp_datagram,
+        peer,
+        local,
+        net::ByteView{payload, sizeof(payload)});
+    if (!encoded_udp) {
+        std::fputs("udp smoke datagram encode failed\n", stderr);
         return 6;
     }
 
-    net::PacketBuffer<128> icmp_frame{};
-    auto wrote_icmp_frame = write_ether_frame(
-        icmp_frame,
-        net::MacAddress::broadcast(),
-        local_mac,
-        net::EtherType::ipv4,
-        icmp_packet.view().payload);
-    if (!wrote_icmp_frame) {
-        std::fputs("ipv4 smoke icmp ether encode failed\n", stderr);
+    auto parsed_udp = net::parse_udp_datagram(udp_datagram.view());
+    if (!parsed_udp
+        || parsed_udp.value().source_port != peer.port
+        || parsed_udp.value().destination_port != local.port
+        || parsed_udp.value().length != net::udp_header_size() + sizeof(payload)
+        || parsed_udp.value().checksum == 0u) {
+        std::fputs("udp smoke datagram parse mismatch\n", stderr);
         return 7;
     }
 
-    link.queue_rx(icmp_frame.view().payload);
-    auto polled = stack.poll_links();
-    if (!polled || ipv4.packet_count() != 1 || ipv4.drop_count() != 0 || icmp.calls != 1 || udp.calls != 0 || link.rx_pool.in_use_count() != 0) {
-        std::fputs("ipv4 smoke icmp dispatch failed\n", stderr);
+    net::PacketBuffer<128> ipv4_packet{};
+    auto encoded_ipv4 = net::write_ipv4_packet(
+        ipv4_packet,
+        net::Ipv4PacketSpec{
+            .identification = 0x1357u,
+            .flags_fragment = net::ipv4_do_not_fragment_flag(),
+            .ttl = 48,
+            .protocol = net::Ipv4Protocol::udp,
+            .source = peer.address,
+            .destination = local.address,
+        },
+        udp_datagram.view().payload);
+    if (!encoded_ipv4) {
+        std::fputs("udp smoke ipv4 encode failed\n", stderr);
         return 8;
     }
-    if (!bytes_eq(icmp.bytes, icmp.size, net::ByteView{icmp_payload, sizeof(icmp_payload)})) {
-        std::fputs("ipv4 smoke icmp payload mismatch\n", stderr);
-        return 9;
-    }
-    if (!same_ipv4(icmp.source, peer_ip)
-        || !same_ipv4(icmp.destination, local_ip)
-        || icmp.protocol != net::Ipv4Protocol::icmp
-        || icmp.ttl != 64) {
-        std::fputs("ipv4 smoke icmp header forwarding mismatch\n", stderr);
-        return 10;
-    }
 
-    static constexpr util::u8 udp_payload[]{0x13u, 0x88u, 0x17u, 0x70u, 0x00u, 0x08u, 0x00u, 0x00u};
-    net::PacketBuffer<128> udp_packet{};
-    auto encoded_udp = net::write_ipv4_packet(
-        udp_packet,
-        net::Ipv4PacketSpec{
-            .identification = 0x3456u,
-            .flags_fragment = net::ipv4_do_not_fragment_flag(),
-            .ttl = 32,
-            .protocol = net::Ipv4Protocol::udp,
-            .source = peer_ip,
-            .destination = local_ip,
-        },
-        net::ByteView{udp_payload, sizeof(udp_payload)});
-    if (!encoded_udp) {
-        std::fputs("ipv4 smoke udp encode failed\n", stderr);
-        return 11;
-    }
-
-    net::PacketBuffer<128> udp_frame{};
-    auto wrote_udp_frame = write_ether_frame(
-        udp_frame,
+    static constexpr util::u8 ether_padding[]{0x00u, 0x00u, 0x00u, 0x00u};
+    net::PacketBuffer<128> frame{};
+    auto wrote_frame = write_ether_frame(
+        frame,
         net::MacAddress::broadcast(),
         local_mac,
         net::EtherType::ipv4,
-        udp_packet.view().payload);
-    if (!wrote_udp_frame) {
-        std::fputs("ipv4 smoke udp ether encode failed\n", stderr);
+        ipv4_packet.view().payload,
+        net::ByteView{ether_padding, sizeof(ether_padding)});
+    if (!wrote_frame) {
+        std::fputs("udp smoke ether encode failed\n", stderr);
+        return 9;
+    }
+
+    link.queue_rx(frame.view().payload);
+    auto polled = stack.poll_links();
+    if (!polled || udp.packet_count() != 1 || udp.drop_count() != 0 || probe.calls != 1 || link.rx_pool.in_use_count() != 0) {
+        std::fputs("udp smoke dispatch failed\n", stderr);
+        return 10;
+    }
+    if (!bytes_eq(probe.bytes, probe.size, net::ByteView{payload, sizeof(payload)})) {
+        std::fputs("udp smoke payload trim mismatch\n", stderr);
+        return 11;
+    }
+    if (!same_ipv4(probe.info.local.address, local.address)
+        || probe.info.local.port != local.port
+        || !same_ipv4(probe.info.peer.address, peer.address)
+        || probe.info.peer.port != peer.port
+        || probe.info.length != net::udp_header_size() + sizeof(payload)
+        || probe.info.checksum != parsed_udp.value().checksum) {
+        std::fputs("udp smoke endpoint metadata mismatch\n", stderr);
         return 12;
     }
 
-    link.queue_rx(udp_frame.view().payload);
-    polled = stack.poll_links();
-    if (!polled || ipv4.packet_count() != 2 || udp.calls != 1 || link.rx_pool.in_use_count() != 0) {
-        std::fputs("ipv4 smoke udp dispatch failed\n", stderr);
+    net::PacketBuffer<128> dropped_udp{};
+    auto encoded_dropped_udp = net::write_udp_ipv4_datagram(
+        dropped_udp,
+        peer,
+        net::Endpoint{local.address, 6001},
+        net::ByteView{payload, sizeof(payload)});
+    if (!encoded_dropped_udp) {
+        std::fputs("udp smoke drop datagram encode failed\n", stderr);
         return 13;
     }
-    if (!bytes_eq(udp.bytes, udp.size, net::ByteView{udp_payload, sizeof(udp_payload)})) {
-        std::fputs("ipv4 smoke udp payload mismatch\n", stderr);
-        return 14;
-    }
-    if (!same_ipv4(udp.source, peer_ip)
-        || !same_ipv4(udp.destination, local_ip)
-        || udp.protocol != net::Ipv4Protocol::udp
-        || udp.ttl != 32) {
-        std::fputs("ipv4 smoke udp header forwarding mismatch\n", stderr);
-        return 15;
-    }
 
-    net::PacketBuffer<128> dropped_packet{};
-    auto encoded_dropped = net::write_ipv4_packet(
-        dropped_packet,
+    net::PacketBuffer<128> dropped_ipv4{};
+    auto encoded_dropped_ipv4 = net::write_ipv4_packet(
+        dropped_ipv4,
         net::Ipv4PacketSpec{
-            .identification = 0x789Au,
+            .identification = 0x2468u,
             .flags_fragment = net::ipv4_do_not_fragment_flag(),
-            .ttl = 16,
-            .protocol = net::Ipv4Protocol::icmp,
-            .source = peer_ip,
-            .destination = other_ip,
+            .ttl = 48,
+            .protocol = net::Ipv4Protocol::udp,
+            .source = peer.address,
+            .destination = local.address,
         },
-        net::ByteView{icmp_payload, sizeof(icmp_payload)});
-    if (!encoded_dropped) {
-        std::fputs("ipv4 smoke drop encode failed\n", stderr);
-        return 16;
+        dropped_udp.view().payload);
+    if (!encoded_dropped_ipv4) {
+        std::fputs("udp smoke drop ipv4 encode failed\n", stderr);
+        return 14;
     }
 
     net::PacketBuffer<128> dropped_frame{};
@@ -335,36 +316,47 @@ int main() {
         net::MacAddress::broadcast(),
         local_mac,
         net::EtherType::ipv4,
-        dropped_packet.view().payload);
+        dropped_ipv4.view().payload);
     if (!wrote_dropped_frame) {
-        std::fputs("ipv4 smoke drop ether encode failed\n", stderr);
-        return 17;
+        std::fputs("udp smoke drop ether encode failed\n", stderr);
+        return 15;
     }
 
     link.queue_rx(dropped_frame.view().payload);
     polled = stack.poll_links();
-    if (!polled || ipv4.packet_count() != 2 || ipv4.drop_count() != 1 || icmp.calls != 1 || udp.calls != 1) {
-        std::fputs("ipv4 smoke drop filter failed\n", stderr);
-        return 18;
+    if (!polled || udp.packet_count() != 1 || udp.drop_count() != 1 || probe.calls != 1) {
+        std::fputs("udp smoke unbound-port drop failed\n", stderr);
+        return 16;
     }
 
-    net::PacketBuffer<128> invalid_packet{};
-    auto encoded_invalid = net::write_ipv4_packet(
-        invalid_packet,
-        net::Ipv4PacketSpec{
-            .identification = 0xBCDEu,
-            .flags_fragment = net::ipv4_do_not_fragment_flag(),
-            .ttl = 8,
-            .protocol = net::Ipv4Protocol::icmp,
-            .source = peer_ip,
-            .destination = local_ip,
-        },
-        net::ByteView{icmp_payload, sizeof(icmp_payload)});
-    if (!encoded_invalid) {
-        std::fputs("ipv4 smoke invalid encode failed\n", stderr);
-        return 19;
+    net::PacketBuffer<128> invalid_udp{};
+    auto encoded_invalid_udp = net::write_udp_ipv4_datagram(
+        invalid_udp,
+        peer,
+        local,
+        net::ByteView{payload, sizeof(payload)});
+    if (!encoded_invalid_udp) {
+        std::fputs("udp smoke invalid datagram encode failed\n", stderr);
+        return 17;
     }
-    invalid_packet.mut_view()[10] ^= 0x5Au;
+    invalid_udp.mut_view()[6] ^= 0x5Au;
+
+    net::PacketBuffer<128> invalid_ipv4{};
+    auto encoded_invalid_ipv4 = net::write_ipv4_packet(
+        invalid_ipv4,
+        net::Ipv4PacketSpec{
+            .identification = 0x369Cu,
+            .flags_fragment = net::ipv4_do_not_fragment_flag(),
+            .ttl = 48,
+            .protocol = net::Ipv4Protocol::udp,
+            .source = peer.address,
+            .destination = local.address,
+        },
+        invalid_udp.view().payload);
+    if (!encoded_invalid_ipv4) {
+        std::fputs("udp smoke invalid ipv4 encode failed\n", stderr);
+        return 18;
+    }
 
     net::PacketBuffer<128> invalid_frame{};
     auto wrote_invalid_frame = write_ether_frame(
@@ -372,19 +364,19 @@ int main() {
         net::MacAddress::broadcast(),
         local_mac,
         net::EtherType::ipv4,
-        invalid_packet.view().payload);
+        invalid_ipv4.view().payload);
     if (!wrote_invalid_frame) {
-        std::fputs("ipv4 smoke invalid ether encode failed\n", stderr);
-        return 20;
+        std::fputs("udp smoke invalid ether encode failed\n", stderr);
+        return 19;
     }
 
     link.queue_rx(invalid_frame.view().payload);
     polled = stack.poll_links();
     if (polled || polled.error() != net::errc::invalid_format) {
-        std::fputs("ipv4 smoke checksum validation failed\n", stderr);
-        return 21;
+        std::fputs("udp smoke checksum validation failed\n", stderr);
+        return 20;
     }
 
-    std::puts("net ipv4 smoke: ok");
+    std::puts("net udp smoke: ok");
     return 0;
 }

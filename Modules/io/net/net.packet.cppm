@@ -371,6 +371,31 @@ export namespace net {
             }
         }
 
+        [[nodiscard]] Result<void> trim_back(util::usize count) noexcept {
+            switch (kind_) {
+                case Kind::borrowed_const:
+                    if (count > borrowed_view_.size()) {
+                        return util::unexpected(errc::invalid_arg);
+                    }
+                    borrowed_view_ = borrowed_view_.subspan(0, borrowed_view_.size() - count);
+                    return {};
+                case Kind::borrowed_mut:
+                    if (count > borrowed_mut_view_.size()) {
+                        return util::unexpected(errc::invalid_arg);
+                    }
+                    borrowed_mut_view_ = borrowed_mut_view_.subspan(0, borrowed_mut_view_.size() - count);
+                    return {};
+                case Kind::leased:
+                    if (trim_back_fn_ == nullptr) {
+                        return util::unexpected(errc::not_supported);
+                    }
+                    return trim_back_fn_(storage(), count);
+                case Kind::empty:
+                default:
+                    return util::unexpected(errc::bad_state);
+            }
+        }
+
         [[nodiscard]] MutPacketView mut_view() noexcept {
             switch (kind_) {
                 case Kind::borrowed_mut:
@@ -418,6 +443,9 @@ export namespace net {
             trim_front_fn_ = [](void* self, util::usize count) noexcept {
                 return static_cast<Lease*>(self)->buffer().trim_front(count);
             };
+            trim_back_fn_ = [](void* self, util::usize count) noexcept {
+                return static_cast<Lease*>(self)->buffer().trim_back(count);
+            };
             move_fn_ = [](void* dst, void* src) noexcept {
                 auto* lease = static_cast<Lease*>(src);
                 ::new (dst) Lease(static_cast<Lease&&>(*lease));
@@ -446,6 +474,7 @@ export namespace net {
             view_fn_ = nullptr;
             mut_view_fn_ = nullptr;
             trim_front_fn_ = nullptr;
+            trim_back_fn_ = nullptr;
             move_fn_ = nullptr;
             destroy_fn_ = nullptr;
             kind_ = Kind::empty;
@@ -469,6 +498,7 @@ export namespace net {
                     view_fn_ = other.view_fn_;
                     mut_view_fn_ = other.mut_view_fn_;
                     trim_front_fn_ = other.trim_front_fn_;
+                    trim_back_fn_ = other.trim_back_fn_;
                     move_fn_ = other.move_fn_;
                     destroy_fn_ = other.destroy_fn_;
                     kind_ = Kind::leased;
@@ -478,6 +508,7 @@ export namespace net {
                     other.view_fn_ = nullptr;
                     other.mut_view_fn_ = nullptr;
                     other.trim_front_fn_ = nullptr;
+                    other.trim_back_fn_ = nullptr;
                     other.move_fn_ = nullptr;
                     other.destroy_fn_ = nullptr;
                     other.kind_ = Kind::empty;
@@ -494,6 +525,7 @@ export namespace net {
         ViewFn view_fn_{nullptr};
         MutViewFn mut_view_fn_{nullptr};
         TrimFn trim_front_fn_{nullptr};
+        TrimFn trim_back_fn_{nullptr};
         MoveFn move_fn_{nullptr};
         DestroyFn destroy_fn_{nullptr};
         Kind kind_{Kind::empty};

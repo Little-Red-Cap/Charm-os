@@ -1,6 +1,7 @@
 module;
 
 #include <array>
+#include <concepts>
 
 export module net.ipv4;
 
@@ -42,6 +43,46 @@ export namespace net {
         IpAddress destination{};
         ByteView options{};
     };
+
+    template <typename T>
+    concept Ipv4PacketSink = requires(T& t, const Ipv4PacketView& header, OwnedPacket packet) {
+        { t.consume(header, static_cast<OwnedPacket&&>(packet)) } noexcept -> std::same_as<Result<void>>;
+    };
+
+    struct Ipv4PacketSinkOps {
+        Result<void> (*consume)(void*, const Ipv4PacketView&, OwnedPacket) noexcept;
+    };
+
+    struct Ipv4PacketSinkRef {
+        void* self{nullptr};
+        const Ipv4PacketSinkOps* ops{nullptr};
+
+        [[nodiscard]] constexpr bool valid() const noexcept {
+            return self != nullptr && ops != nullptr && ops->consume != nullptr;
+        }
+
+        [[nodiscard]] Result<void> consume(const Ipv4PacketView& header, OwnedPacket packet) const noexcept {
+            if (!valid()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            return ops->consume(self, header, static_cast<OwnedPacket&&>(packet));
+        }
+    };
+
+    template <Ipv4PacketSink T>
+    inline const Ipv4PacketSinkOps* ipv4_packet_sink_ops() noexcept {
+        static const Ipv4PacketSinkOps ops{
+            .consume = [](void* self, const Ipv4PacketView& header, OwnedPacket packet) noexcept {
+                return static_cast<T*>(self)->consume(header, static_cast<OwnedPacket&&>(packet));
+            }
+        };
+        return &ops;
+    }
+
+    template <Ipv4PacketSink T>
+    inline Ipv4PacketSinkRef make_ipv4_packet_sink_ref(T& sink) noexcept {
+        return Ipv4PacketSinkRef{&sink, ipv4_packet_sink_ops<T>()};
+    }
 
     [[nodiscard]] constexpr util::u8 ipv4_version() noexcept {
         return 4u;
@@ -247,15 +288,15 @@ export namespace net {
             netif_ = &netif;
         }
 
-        void set_icmp_sink(OwnedPacketSinkRef sink) noexcept {
+        void set_icmp_sink(Ipv4PacketSinkRef sink) noexcept {
             icmp_sink_ = sink;
         }
 
-        void set_udp_sink(OwnedPacketSinkRef sink) noexcept {
+        void set_udp_sink(Ipv4PacketSinkRef sink) noexcept {
             udp_sink_ = sink;
         }
 
-        void set_tcp_sink(OwnedPacketSinkRef sink) noexcept {
+        void set_tcp_sink(Ipv4PacketSinkRef sink) noexcept {
             tcp_sink_ = sink;
         }
 
@@ -272,38 +313,50 @@ export namespace net {
             if (!parsed) {
                 return util::unexpected(parsed.error());
             }
+            const auto& datagram = parsed.value();
 
             if (netif_ != nullptr
                 && netif_->address().is_ipv4()
-                && !detail::same_ipv4_address(parsed.value().destination, netif_->address())) {
+                && !detail::same_ipv4_address(datagram.destination, netif_->address())) {
                 ++drop_count_;
                 return {};
             }
 
-            auto trimmed = packet.trim_front(parsed.value().header_length);
+            auto trimmed = packet.trim_front(datagram.header_length);
             if (!trimmed) {
                 return util::unexpected(trimmed.error());
             }
 
-            switch (parsed.value().protocol) {
+            if (packet.view().size() < datagram.payload.size()) {
+                return util::unexpected(errc::invalid_format);
+            }
+            const auto excess_tail = packet.view().size() - datagram.payload.size();
+            if (excess_tail != 0u) {
+                auto trimmed_back = packet.trim_back(excess_tail);
+                if (!trimmed_back) {
+                    return util::unexpected(trimmed_back.error());
+                }
+            }
+
+            switch (datagram.protocol) {
                 case Ipv4Protocol::icmp:
                     if (!icmp_sink_.valid()) {
                         return util::unexpected(errc::not_supported);
                     }
                     ++packet_count_;
-                    return icmp_sink_.consume(static_cast<OwnedPacket&&>(packet));
+                    return icmp_sink_.consume(datagram, static_cast<OwnedPacket&&>(packet));
                 case Ipv4Protocol::udp:
                     if (!udp_sink_.valid()) {
                         return util::unexpected(errc::not_supported);
                     }
                     ++packet_count_;
-                    return udp_sink_.consume(static_cast<OwnedPacket&&>(packet));
+                    return udp_sink_.consume(datagram, static_cast<OwnedPacket&&>(packet));
                 case Ipv4Protocol::tcp:
                     if (!tcp_sink_.valid()) {
                         return util::unexpected(errc::not_supported);
                     }
                     ++packet_count_;
-                    return tcp_sink_.consume(static_cast<OwnedPacket&&>(packet));
+                    return tcp_sink_.consume(datagram, static_cast<OwnedPacket&&>(packet));
                 default:
                     return util::unexpected(errc::not_supported);
             }
@@ -311,9 +364,9 @@ export namespace net {
 
     private:
         NetIf* netif_{nullptr};
-        OwnedPacketSinkRef icmp_sink_{};
-        OwnedPacketSinkRef udp_sink_{};
-        OwnedPacketSinkRef tcp_sink_{};
+        Ipv4PacketSinkRef icmp_sink_{};
+        Ipv4PacketSinkRef udp_sink_{};
+        Ipv4PacketSinkRef tcp_sink_{};
         util::usize packet_count_{0};
         util::usize drop_count_{0};
     };

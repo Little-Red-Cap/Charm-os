@@ -300,12 +300,39 @@ export namespace net {
             return count;
         }
 
+        [[nodiscard]] util::usize pending_attempts(IpAddress ip) const noexcept {
+            const auto index = find_pending(ip);
+            if (index == invalid_index()) {
+                return 0;
+            }
+            return pending_[index].attempts;
+        }
+
         [[nodiscard]] util::usize request_count() const noexcept {
             return request_count_;
         }
 
         [[nodiscard]] util::usize reply_count() const noexcept {
             return reply_count_;
+        }
+
+        [[nodiscard]] Result<util::usize> retry_pending_requests() noexcept {
+            if (netif_ == nullptr) {
+                return util::unexpected(errc::bad_state);
+            }
+
+            util::usize retried = 0;
+            for (auto& pending : pending_) {
+                if (!pending.used) {
+                    continue;
+                }
+                auto requested = issue_pending_request(pending);
+                if (!requested) {
+                    return util::unexpected(requested.error());
+                }
+                ++retried;
+            }
+            return Result<util::usize>{std::in_place, retried};
         }
 
         [[nodiscard]] Result<MacAddress> lookup_or_request(IpAddress ip) noexcept {
@@ -334,16 +361,15 @@ export namespace net {
                 return util::unexpected(slot.error());
             }
 
-            auto requested = send_arp_ipv4_request<TxCapacity>(*netif_, ip);
-            if (!requested) {
-                return util::unexpected(requested.error());
-            }
-
             pending_[slot.value()] = PendingEntry{
                 .used = true,
                 .ip = ip,
             };
-            ++request_count_;
+            auto requested = issue_pending_request(pending_[slot.value()]);
+            if (!requested) {
+                pending_[slot.value()] = {};
+                return util::unexpected(requested.error());
+            }
             return util::unexpected(errc::again);
         }
 
@@ -394,6 +420,7 @@ export namespace net {
         struct PendingEntry {
             bool used{false};
             IpAddress ip{};
+            util::usize attempts{0};
         };
 
         static constexpr util::usize invalid_index() noexcept {
@@ -419,6 +446,16 @@ export namespace net {
                 }
             }
             return util::unexpected(errc::buffer_overflow);
+        }
+
+        [[nodiscard]] Result<void> issue_pending_request(PendingEntry& pending) noexcept {
+            auto requested = send_arp_ipv4_request<TxCapacity>(*netif_, pending.ip);
+            if (!requested) {
+                return util::unexpected(requested.error());
+            }
+            ++pending.attempts;
+            ++request_count_;
+            return {};
         }
 
         void clear_pending(IpAddress ip) noexcept {

@@ -328,15 +328,40 @@ int main() {
         return 23;
     }
 
+    auto retried = arp.retry_pending_requests();
+    if (!retried
+        || retried.value() != 1
+        || link.tx_calls != 4
+        || arp.request_count() != 3
+        || arp.pending_count() != 1
+        || arp.pending_attempts(queued_peer_ip) != 2
+        || egress_queue.pending_count() != 1) {
+        std::fputs("udp egress smoke arp retry failed\n", stderr);
+        return 24;
+    }
+
+    queued_request_frame = net::parse_ether_frame(net::PacketView{
+        net::ByteView{link.tx_bytes.data(), link.tx_size},
+        0,
+        0
+    });
+    queued_request_arp = net::parse_arp_ipv4_ethernet(queued_request_frame.value().payload);
+    if (!queued_request_arp
+        || queued_request_arp.value().operation != net::ArpOperation::request
+        || !same_ipv4(queued_request_arp.value().target_ip, queued_peer_ip)) {
+        std::fputs("udp egress smoke arp retry frame mismatch\n", stderr);
+        return 25;
+    }
+
     auto flush_before_reply = egress_queue.flush<128>(netif, arp);
     if (!flush_before_reply
         || flush_before_reply.value() != 0
-        || link.tx_calls != 3
-        || arp.request_count() != 2
+        || link.tx_calls != 4
+        || arp.request_count() != 3
         || arp.pending_count() != 1
         || egress_queue.pending_count() != 1) {
         std::fputs("udp egress smoke flush before reply failed\n", stderr);
-        return 24;
+        return 26;
     }
 
     net::PacketBuffer<128> queued_reply{};
@@ -349,28 +374,28 @@ int main() {
         local_ip);
     if (!wrote_queued_reply) {
         std::fputs("udp egress smoke queued reply encode failed\n", stderr);
-        return 25;
+        return 27;
     }
 
     link.queue_rx(queued_reply.view().payload);
     polled = stack.poll_links();
     if (!polled
-        || link.tx_calls != 3
+        || link.tx_calls != 4
         || arp.pending_count() != 0
         || egress_queue.pending_count() != 1
         || link.rx_pool.in_use_count() != 0) {
         std::fputs("udp egress smoke queued reply handling failed\n", stderr);
-        return 26;
+        return 28;
     }
 
     auto flushed = egress_queue.flush<128>(netif, arp);
     if (!flushed
         || flushed.value() != 1
-        || link.tx_calls != 4
+        || link.tx_calls != 5
         || egress_queue.pending_count() != 0
         || egress_queue.flushed_count() != 1) {
         std::fputs("udp egress smoke queue flush failed\n", stderr);
-        return 27;
+        return 29;
     }
 
     auto queued_frame = net::parse_ether_frame(net::PacketView{
@@ -380,12 +405,12 @@ int main() {
     });
     if (!queued_frame || queued_frame.value().type != net::EtherType::ipv4) {
         std::fputs("udp egress smoke queued ether parse failed\n", stderr);
-        return 28;
+        return 30;
     }
     if (!same_mac(queued_frame.value().destination, queued_peer_mac)
         || !same_mac(queued_frame.value().source, local_mac)) {
         std::fputs("udp egress smoke queued ether header mismatch\n", stderr);
-        return 29;
+        return 31;
     }
 
     auto queued_ipv4 = net::parse_ipv4_packet(queued_frame.value().payload);
@@ -397,7 +422,7 @@ int main() {
         || !same_ipv4(queued_ipv4.value().source, local_ip)
         || !same_ipv4(queued_ipv4.value().destination, queued_peer_ip)) {
         std::fputs("udp egress smoke queued ipv4 fields mismatch\n", stderr);
-        return 30;
+        return 32;
     }
 
     auto queued_udp = net::parse_udp_datagram(queued_ipv4.value().payload);
@@ -407,13 +432,13 @@ int main() {
         || queued_udp.value().length != net::udp_header_size() + sizeof(queued_payload)
         || queued_udp.value().checksum == 0u) {
         std::fputs("udp egress smoke queued udp fields mismatch\n", stderr);
-        return 31;
+        return 33;
     }
 
     for (util::usize i = 0; i < sizeof(queued_payload); ++i) {
         if (queued_udp.value().payload[i] != queued_payload[i]) {
             std::fputs("udp egress smoke queued payload mismatch\n", stderr);
-            return 32;
+            return 34;
         }
     }
 

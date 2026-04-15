@@ -96,6 +96,8 @@ int main() {
     constexpr auto peer_ip = net::IpAddress::ipv4(10, 0, 0, 9);
     constexpr auto other_mac = net::MacAddress::from_bytes(0x02u, 0x10u, 0x20u, 0x30u, 0x40u, 0x50u);
     constexpr auto other_ip = net::IpAddress::ipv4(10, 0, 0, 12);
+    constexpr auto retry_mac = net::MacAddress::from_bytes(0x02u, 0x77u, 0x66u, 0x55u, 0x44u, 0x33u);
+    constexpr auto retry_ip = net::IpAddress::ipv4(10, 0, 0, 21);
 
     net::NetIf netif{};
     auto configured = netif.configure(net::NetIfConfig{
@@ -206,6 +208,85 @@ int main() {
     if (!cached_other || !same_mac(cached_other.value(), other_mac) || arp.table().entry_count() != 2) {
         std::fputs("arp smoke cache update from reply failed\n", stderr);
         return 14;
+    }
+
+    auto unresolved = arp.lookup_or_request(retry_ip);
+    if (unresolved
+        || unresolved.error() != net::errc::again
+        || arp.request_count() != 1
+        || arp.pending_count() != 1
+        || arp.pending_attempts(retry_ip) != 1
+        || link.tx_calls != 2) {
+        std::fputs("arp smoke lookup_or_request failed\n", stderr);
+        return 15;
+    }
+
+    auto retry_request_frame = net::parse_ether_frame(net::PacketView{
+        net::ByteView{link.tx_bytes.data(), link.tx_size},
+        0,
+        0
+    });
+    if (!retry_request_frame || retry_request_frame.value().type != net::EtherType::arp) {
+        std::fputs("arp smoke retry request ether parse failed\n", stderr);
+        return 16;
+    }
+
+    auto retry_request = net::parse_arp_ipv4_ethernet(retry_request_frame.value().payload);
+    if (!retry_request
+        || retry_request.value().operation != net::ArpOperation::request
+        || !same_ipv4(retry_request.value().target_ip, retry_ip)) {
+        std::fputs("arp smoke retry request fields mismatch\n", stderr);
+        return 17;
+    }
+
+    auto retried = arp.retry_pending_requests();
+    if (!retried
+        || retried.value() != 1
+        || arp.request_count() != 2
+        || arp.pending_count() != 1
+        || arp.pending_attempts(retry_ip) != 2
+        || link.tx_calls != 3) {
+        std::fputs("arp smoke retry_pending_requests failed\n", stderr);
+        return 18;
+    }
+
+    retry_request_frame = net::parse_ether_frame(net::PacketView{
+        net::ByteView{link.tx_bytes.data(), link.tx_size},
+        0,
+        0
+    });
+    retry_request = net::parse_arp_ipv4_ethernet(retry_request_frame.value().payload);
+    if (!retry_request
+        || retry_request.value().operation != net::ArpOperation::request
+        || !same_ipv4(retry_request.value().target_ip, retry_ip)) {
+        std::fputs("arp smoke retry resend mismatch\n", stderr);
+        return 19;
+    }
+
+    net::PacketBuffer<96> retry_reply{};
+    auto wrote_retry_reply = net::write_arp_ipv4_reply_frame(
+        retry_reply,
+        local_mac,
+        retry_mac,
+        retry_ip,
+        local_mac,
+        local_ip);
+    if (!wrote_retry_reply) {
+        std::fputs("arp smoke retry reply encode failed\n", stderr);
+        return 20;
+    }
+
+    link.queue_rx(retry_reply.view().payload);
+    polled = stack.poll_links();
+    if (!polled || arp.pending_count() != 0 || link.tx_calls != 3 || link.rx_pool.in_use_count() != 0) {
+        std::fputs("arp smoke retry reply handling failed\n", stderr);
+        return 21;
+    }
+
+    auto resolved_retry = arp.lookup_or_request(retry_ip);
+    if (!resolved_retry || !same_mac(resolved_retry.value(), retry_mac) || arp.request_count() != 2) {
+        std::fputs("arp smoke retry cache resolve failed\n", stderr);
+        return 22;
     }
 
     std::puts("net arp smoke: ok");

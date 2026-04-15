@@ -1456,6 +1456,9 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             } else if (row_active) {
                 out.fill_round_rect(row_surface, row_radius, with_alpha(colors.accent, 40));
                 out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.accent, 220));
+            } else if (row_h >= 44) {
+                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.bg, 120));
+                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.border, 52));
             }
         }
         const rgba font = row_selected ? colors.on_accent

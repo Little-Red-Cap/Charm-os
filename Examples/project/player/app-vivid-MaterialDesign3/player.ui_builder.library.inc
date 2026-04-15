@@ -221,11 +221,11 @@
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
-            patch.shadow_color = {0, 0, 0, 28};
+            patch.shadow_color = {0, 0, 0, 18};
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 2;
+            patch.shadow_offset_y = 1;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 8;
+            patch.shadow_radius = 5;
             builder.set_style_override(list_header_plate, patch);
             builder.set_hit_testable(list_header_plate, false);
         }
@@ -240,9 +240,9 @@
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {kUiLibraryBodyPlate.r, kUiLibraryBodyPlate.g, kUiLibraryBodyPlate.b, 132};
+            patch.gradient_start = {kUiLibraryBodyPlate.r, kUiLibraryBodyPlate.g, kUiLibraryBodyPlate.b, 112};
             patch.has_gradient_end = true;
-            patch.gradient_end = {4, 8, 22, 188};
+            patch.gradient_end = {4, 8, 20, 172};
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;

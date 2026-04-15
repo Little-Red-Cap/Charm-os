@@ -73,6 +73,12 @@
 > 让上层调用不必总是手动回到 registry 查询。
 > 如果要继续收敛用户侧查询接口，更推荐 manager 返回组合状态快照，
 > 而不是把 published / live / tracked 粗暴揉成一个枚举。
+>
+> 对“状态变化如何通知上层”这一层，当前更稳的最小落点也开始收敛到
+> stable slot export 自身：
+> `io::ChannelSlotExport` / `block::DeviceSlotExport`
+> 直接发出 `ensure_exported / attach / detach / unexport` transition，
+> 从而避免把 attach/detach 语义绑死在某一种 manager 调用路径上。
 
 ## 1. 核心概念
 

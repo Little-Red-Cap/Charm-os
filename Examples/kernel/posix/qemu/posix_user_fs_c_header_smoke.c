@@ -414,6 +414,9 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_chdir("") != -1) return 367;
     if (*err != CHARM_POSIX_ENOENT) return 368;
     *err = 0;
+    if (charm_posix_rmdir("/cfs") != -1) return 561;
+    if (*err != CHARM_POSIX_ENOTEMPTY) return 562;
+    *err = 0;
     if (charm_posix_rename("/cfs/note.txt", 0) != -1) return 437;
     if (*err != CHARM_POSIX_EINVAL) return 438;
     *err = 0;

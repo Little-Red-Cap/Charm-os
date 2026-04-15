@@ -68,6 +68,7 @@
 - the exported C fs header surface now also smoke-covers live terminal aliases directly: `/dev/tty` and `/dev/console` currently resolve to terminal-shaped descriptors for both read and write opens when live term fds exist
 - the exported C fs header surface now also smoke-pins path-level alias stats directly: `stat("/dev/stdin")`, `stat("/dev/stdout")`, `stat("/dev/stderr")`, `stat("/dev/tty")`, and `stat("/dev/console")` reflect the current live descriptor shape
 - the exported C fs header surface now also smoke-pins missing-path `ENOENT` edges directly across representative calls such as `open`, `unlink`, `rmdir`, `rename`, `chdir`, and `opendir`
+- the exported C fs header surface now also smoke-pins `rmdir(nonempty-dir) -> ENOTEMPTY` directly on the public C layer
 - the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
 - the exported C fs header surface now also smoke-covers path-shape errors directly: `open(dir, O_WRONLY) -> EISDIR`, and bad-parent paths such as `file/child` now consistently report `ENOTDIR` across `open/stat/mkdir/unlink/rmdir/rename`
 - the exported C fs header surface now also smoke-pins `CHARM_POSIX_O_RDWR` directly: one fd can `write -> lseek -> read` on the same regular file descriptor

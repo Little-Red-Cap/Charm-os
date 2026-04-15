@@ -68,34 +68,45 @@ export namespace platform::board {
         xip
     };
 
+    struct BootLoadResolveRequest {
+        BootLoadKind kind{BootLoadKind::copy_to_ram};
+        util::u32 storage_payload_offset{0};
+        util::u32 storage_entry_offset{0};
+        util::u32 entry_offset{0};
+        util::u32 payload_size{0};
+        util::u32 image_size{0};
+        util::u16 image_flags{0};
+    };
+
+    struct BootLoadTransferRequest {
+        BootLoadKind kind{BootLoadKind::copy_to_ram};
+        util::usize payload_base{0};
+        util::u32 storage_payload_offset{0};
+        util::u32 payload_size{0};
+        util::u16 image_flags{0};
+    };
+
     struct BootLoadDesc {
         void* ctx{nullptr};
         util::usize (*resolve_payload_base)(void* ctx,
-                                            BootLoadKind kind,
-                                            util::u32 storage_payload_offset,
-                                            util::u32 storage_entry_offset,
-                                            util::u32 entry_offset,
-                                            util::u32 payload_size,
-                                            util::u32 image_size,
-                                            util::u16 image_flags) noexcept {nullptr};
+                                            const BootLoadResolveRequest& request) noexcept {nullptr};
         bool (*load_payload)(void* ctx,
-                             BootLoadKind kind,
-                             util::usize payload_base,
-                             util::u32 storage_payload_offset,
-                             util::u32 payload_size,
-                             util::u16 image_flags) noexcept {nullptr};
+                             const BootLoadTransferRequest& request) noexcept {nullptr};
+    };
+
+    struct BootExecRequest {
+        util::usize payload_base{0};
+        util::usize entry_addr{0};
+        util::u32 payload_size{0};
+        util::u16 image_flags{0};
     };
 
     struct BootExecDesc {
         void* ctx{nullptr};
         bool (*prepare_jump)(void* ctx,
-                             util::usize payload_base,
-                             util::usize entry_addr,
-                             util::u32 payload_size,
-                             util::u16 image_flags) noexcept {nullptr};
+                             const BootExecRequest& request) noexcept {nullptr};
         bool (*jump)(void* ctx,
-                     util::usize payload_base,
-                     util::usize entry_addr) noexcept {nullptr};
+                     const BootExecRequest& request) noexcept {nullptr};
     };
 
     struct BoardCaps {

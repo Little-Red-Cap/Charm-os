@@ -139,60 +139,46 @@ namespace {
     }
 
     util::usize resolve_mock_payload_base(void* ctx,
-                                          platform::board::BootLoadKind kind,
-                                          util::u32 storage_payload_offset,
-                                          util::u32 storage_entry_offset,
-                                          util::u32 entry_offset,
-                                          util::u32,
-                                          util::u32,
-                                          util::u16) noexcept {
+                                          const platform::board::BootLoadResolveRequest& request) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->resolve_called = true;
-        if (kind != launch->expected_load_kind) {
+        if (request.kind != launch->expected_load_kind) {
             return 0;
         }
-        if (storage_payload_offset != launch->expected_payload_offset) {
+        if (request.storage_payload_offset != launch->expected_payload_offset) {
             return 0;
         }
-        if (storage_entry_offset != launch->expected_storage_entry_offset) {
+        if (request.storage_entry_offset != launch->expected_storage_entry_offset) {
             return 0;
         }
-        return reinterpret_cast<util::usize>(&mock_boot_entry) - entry_offset;
+        return reinterpret_cast<util::usize>(&mock_boot_entry) - request.entry_offset;
     }
 
     bool load_mock_payload(void* ctx,
-                           platform::board::BootLoadKind kind,
-                           util::usize payload_base,
-                           util::u32 storage_payload_offset,
-                           util::u32,
-                           util::u16) noexcept {
+                           const platform::board::BootLoadTransferRequest& request) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->load_called = true;
-        if (kind != launch->expected_load_kind) {
+        if (request.kind != launch->expected_load_kind) {
             return false;
         }
-        if (storage_payload_offset != launch->expected_payload_offset) {
+        if (request.storage_payload_offset != launch->expected_payload_offset) {
             return false;
         }
-        return payload_base != 0;
+        return request.payload_base != 0;
     }
 
     bool prepare_mock_execution(void* ctx,
-                                util::usize,
-                                util::usize entry_addr,
-                                util::u32,
-                                util::u16) noexcept {
+                                const platform::board::BootExecRequest& request) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->prepare_called = true;
-        return entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
+        return request.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
     }
 
     bool jump_mock_execution(void* ctx,
-                             util::usize,
-                             util::usize entry_addr) noexcept {
+                             const platform::board::BootExecRequest& request) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->jump_called = true;
-        auto entry = reinterpret_cast<void (*)(void*) noexcept>(entry_addr);
+        auto entry = reinterpret_cast<void (*)(void*) noexcept>(request.entry_addr);
         entry(ctx);
         return launch->entry_called;
     }

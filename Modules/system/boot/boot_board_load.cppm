@@ -11,6 +11,30 @@ export namespace boot {
             : platform::board::BootLoadKind::copy_to_ram;
     }
 
+    constexpr platform::board::BootLoadResolveRequest
+    make_board_boot_load_resolve_request(const BootLoadPlan& load) noexcept {
+        return platform::board::BootLoadResolveRequest{
+            .kind = to_board_boot_load_kind(load.kind),
+            .storage_payload_offset = load.storage_payload_offset,
+            .storage_entry_offset = load.storage_entry_offset,
+            .entry_offset = load.entry_offset,
+            .payload_size = load.payload_size,
+            .image_size = load.image_size,
+            .image_flags = load.target.header.flags
+        };
+    }
+
+    constexpr platform::board::BootLoadTransferRequest
+    make_board_boot_load_transfer_request(const BootLoadedImage& image) noexcept {
+        return platform::board::BootLoadTransferRequest{
+            .kind = to_board_boot_load_kind(image.load.kind),
+            .payload_base = image.payload_base,
+            .storage_payload_offset = image.load.storage_payload_offset,
+            .payload_size = image.load.payload_size,
+            .image_flags = image.load.target.header.flags
+        };
+    }
+
     inline BootLoadedImage resolve_boot_loaded_image(const BootLoadPlan& load,
                                                      const platform::board::BootLoadDesc& desc) noexcept {
         BootLoadedImage image{};
@@ -19,15 +43,8 @@ export namespace boot {
             return image;
         }
 
-        image.payload_base = desc.resolve_payload_base(
-            desc.ctx,
-            to_board_boot_load_kind(image.load.kind),
-            image.load.storage_payload_offset,
-            image.load.storage_entry_offset,
-            image.load.entry_offset,
-            image.load.payload_size,
-            image.load.image_size,
-            image.load.target.header.flags);
+        const auto request = make_board_boot_load_resolve_request(image.load);
+        image.payload_base = desc.resolve_payload_base(desc.ctx, request);
         if (image.payload_base == 0) {
             return image;
         }
@@ -56,13 +73,8 @@ export namespace boot {
             return false;
         }
 
-        image.payload_ready = desc.load_payload(
-            desc.ctx,
-            to_board_boot_load_kind(image.load.kind),
-            image.payload_base,
-            image.load.storage_payload_offset,
-            image.load.payload_size,
-            image.load.target.header.flags);
+        const auto request = make_board_boot_load_transfer_request(image);
+        image.payload_ready = desc.load_payload(desc.ctx, request);
         return image.payload_ready;
     }
 

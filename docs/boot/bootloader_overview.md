@@ -40,6 +40,7 @@
 
 为了让板级实现更稳定，当前把板级启动契约拆成了 load/exec 两层：
 - `platform::board::BootLoadDesc` 只负责 payload 基址解析与可选加载，Boot 子系统统一管理 `BootLoadKind`、payload 偏移、entry 偏移和 XIP/copy-to-RAM 语义
+- load/exec hook 已进一步改为 request 结构体入参，后续扩展字段时不必持续打碎函数签名
 - `platform::board::BootExecDesc` 只负责 jump 前机器状态准备与实际跳转，不再反向参与 payload 地址解析
 - `platform::board::BoardCaps` 已经同时预留 `boot_load` 与 `boot_exec` 槽位，后续板级可直接随 board caps 一起提供
 

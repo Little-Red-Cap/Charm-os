@@ -6,6 +6,16 @@ export import boot_board_load;
 export import boot_exec;
 
 export namespace boot {
+    constexpr platform::board::BootExecRequest
+    make_board_boot_exec_request(const BootExecution& execution) noexcept {
+        return platform::board::BootExecRequest{
+            .payload_base = execution.payload_base,
+            .entry_addr = execution.entry_addr,
+            .payload_size = execution.image.load.target.header.payload_size,
+            .image_flags = execution.image.load.target.header.flags
+        };
+    }
+
     inline BootExecution resolve_boot_execution(BootLoadedImage image,
                                                 const platform::board::BootExecDesc&) noexcept {
         return resolve_boot_execution(image);
@@ -20,11 +30,8 @@ export namespace boot {
             execution.prepared = true;
             return true;
         }
-        execution.prepared = desc.prepare_jump(desc.ctx,
-                                               execution.payload_base,
-                                               execution.entry_addr,
-                                               execution.image.load.target.header.payload_size,
-                                               execution.image.load.target.header.flags);
+        const auto request = make_board_boot_exec_request(execution);
+        execution.prepared = desc.prepare_jump(desc.ctx, request);
         return execution.prepared;
     }
 
@@ -36,7 +43,8 @@ export namespace boot {
         if (!execution.prepared && !prepare_boot_execution(execution, desc)) {
             return false;
         }
-        execution.jumped = desc.jump(desc.ctx, execution.payload_base, execution.entry_addr);
+        const auto request = make_board_boot_exec_request(execution);
+        execution.jumped = desc.jump(desc.ctx, request);
         return execution.jumped;
     }
 

@@ -268,37 +268,40 @@
 
     static HomeLayout make_home_layout(const UiLayout& layout) noexcept {
         const int title_y = layout.top_bar_y + 8;
-        const int collage_w = 320;
-        const int collage_h = 304;
-        const int collage_big = 214;
+        const int collage_w = std::clamp(screen_width - 108, 320, 430);
+        const int collage_h = std::clamp(collage_w - 4, 304, 396);
+        const int collage_big = std::clamp(collage_w - 132, 214, 276);
+        const int collage_small_left = std::clamp(collage_w / 4, 78, 100);
+        const int collage_small_right = std::clamp(collage_w / 4 + 10, 88, 110);
+        const int collage_small_center = std::clamp(collage_w / 5 + 4, 76, 92);
         return HomeLayout{
             .scroll_bottom_gap = 8,
             .scroll_step = 32,
-            .scroll_extra = 560,
+            .scroll_extra = 620,
             .title_x = kUiPadding,
             .title_y = title_y,
             .title_w = screen_width - kUiPadding * 2 - 96,
-            .title_line_h = 94,
-            .title_line_gap = 80,
-            .subtitle_y = title_y + 180,
-            .subtitle_h = 30,
-            .play_size = 78,
-            .play_icon_px = 28,
-            .play_y = title_y + 78,
+            .title_line_h = 92,
+            .title_line_gap = 76,
+            .subtitle_y = title_y + 176,
+            .subtitle_h = 28,
+            .play_size = 74,
+            .play_icon_px = 26,
+            .play_y = title_y + 84,
             .collage_x = (screen_width - collage_w) / 2,
-            .collage_y = title_y + 214,
+            .collage_y = title_y + 220,
             .collage_w = collage_w,
             .collage_h = collage_h,
             .collage_big = collage_big,
-            .collage_small_left = 78,
-            .collage_small_right = 88,
-            .collage_small_center = 76,
+            .collage_small_left = collage_small_left,
+            .collage_small_right = collage_small_right,
+            .collage_small_center = collage_small_center,
             .stat_card_x = kUiPadding,
-            .stat_card_y = title_y + 214 + collage_h + 72,
+            .stat_card_y = title_y + 220 + collage_h + 60,
             .stat_card_w = screen_width - kUiPadding * 2,
-            .stat_card_h = 122,
-            .stat_card_gap = 16,
-            .stat_probe_card_h = 248,
+            .stat_card_h = 134,
+            .stat_card_gap = 18,
+            .stat_probe_card_h = 256,
             .toolbar_button_size = 40,
             .toolbar_icon_px = 14,
             .toolbar_button_gap = 48,
@@ -465,7 +468,7 @@
                                             const rgba& color) {
         StylePatch patch = make_player_text_patch(PlayerTextRole::HeroTitle, color);
         patch.has_font = true;
-        patch.font = &get_player_font_px(68, FontWeight::Bold);
+        patch.font = &get_player_font_px(66, FontWeight::Bold);
         builder.set_style_override(h, patch);
     }
 
@@ -474,7 +477,7 @@
                                            const rgba& color) {
         StylePatch patch = make_player_text_patch(PlayerTextRole::CardTitle, color);
         patch.has_font = true;
-        patch.font = &get_player_font_px(22, FontWeight::Bold);
+        patch.font = &get_player_font_px(24, FontWeight::Bold);
         builder.set_style_override(h, patch);
     }
 
@@ -587,11 +590,11 @@
                                              bool emphasize = false) {
         StylePatch patch{};
         patch.has_bg_color = true;
-        patch.bg_color = emphasize ? rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 222}
-                                   : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 210};
+        patch.bg_color = emphasize ? rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 196}
+                                   : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 176};
         patch.has_border_color = true;
-        patch.border_color = emphasize ? rgba{kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 38}
-                                       : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 14};
+        patch.border_color = emphasize ? rgba{kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 24}
+                                       : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 10};
         patch.has_border_width = true;
         patch.border_width = 1;
         patch.has_corner_radius = true;
@@ -599,13 +602,13 @@
         patch.has_shadow_enabled = true;
         patch.shadow_enabled = true;
         patch.has_shadow_color = true;
-        patch.shadow_color = emphasize ? rgba{0, 0, 0, 62} : rgba{0, 0, 0, 48};
+        patch.shadow_color = emphasize ? rgba{0, 0, 0, 38} : rgba{0, 0, 0, 28};
         patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = emphasize ? 6 : 5;
+        patch.shadow_offset_y = emphasize ? 4 : 3;
         patch.has_shadow_spread = true;
-        patch.shadow_spread = emphasize ? 2 : 1;
+        patch.shadow_spread = 0;
         patch.has_shadow_radius = true;
-        patch.shadow_radius = emphasize ? 14 : 12;
+        patch.shadow_radius = emphasize ? 10 : 8;
         builder.set_style_override(h, patch);
     }
 
@@ -770,9 +773,9 @@
                                       int corner_radius) {
         StylePatch patch{};
         patch.has_bg_color = true;
-        patch.bg_color = rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 244};
+        patch.bg_color = rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 238};
         patch.has_border_color = true;
-        patch.border_color = rgba{kUiListBorder.r, kUiListBorder.g, kUiListBorder.b, 190};
+        patch.border_color = rgba{kUiListBorder.r, kUiListBorder.g, kUiListBorder.b, 156};
         patch.has_border_width = true;
         patch.border_width = 1;
         patch.has_corner_radius = true;
@@ -780,15 +783,15 @@
         patch.has_shadow_enabled = true;
         patch.shadow_enabled = true;
         patch.has_shadow_color = true;
-        patch.shadow_color = rgba{0, 0, 0, 54};
+        patch.shadow_color = rgba{0, 0, 0, 40};
         patch.has_shadow_offset_x = true;
         patch.shadow_offset_x = 0;
         patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = 4;
+        patch.shadow_offset_y = 3;
         patch.has_shadow_spread = true;
-        patch.shadow_spread = 2;
+        patch.shadow_spread = 1;
         patch.has_shadow_radius = true;
-        patch.shadow_radius = 14;
+        patch.shadow_radius = 10;
         builder.set_style_override(h, patch);
     }
 
@@ -798,11 +801,11 @@
                                                     bool emphasize = false) {
         StylePatch patch{};
         patch.has_bg_color = true;
-        patch.bg_color = emphasize ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 232}
-                                   : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 214};
+        patch.bg_color = emphasize ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 214}
+                                   : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 192};
         patch.has_border_color = true;
-        patch.border_color = emphasize ? rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 66}
-                                       : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 40};
+        patch.border_color = emphasize ? rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 42}
+                                       : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 28};
         patch.has_border_width = true;
         patch.border_width = 1;
         patch.has_corner_radius = true;
@@ -810,13 +813,13 @@
         patch.has_shadow_enabled = true;
         patch.shadow_enabled = true;
         patch.has_shadow_color = true;
-        patch.shadow_color = rgba{0, 0, 0, static_cast<std::uint8_t>(emphasize ? 44 : 34)};
+        patch.shadow_color = rgba{0, 0, 0, static_cast<std::uint8_t>(emphasize ? 28 : 22)};
         patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = 3;
+        patch.shadow_offset_y = 2;
         patch.has_shadow_spread = true;
-        patch.shadow_spread = 1;
+        patch.shadow_spread = 0;
         patch.has_shadow_radius = true;
-        patch.shadow_radius = 8;
+        patch.shadow_radius = 6;
         builder.set_style_override(h, patch);
     }
 
@@ -834,7 +837,7 @@
         apply_home_card_style(builder, root, 24);
 
         const WidgetHandle header_band = builder.create_container();
-        anchor_rect(builder, header_band, {0, 0, rect.w, 74});
+        anchor_rect(builder, header_band, {0, 0, rect.w, 80});
         {
             StylePatch patch{};
             patch.has_gradient_enabled = true;
@@ -859,14 +862,14 @@
         const WidgetHandle title_label = builder.create_label_static("DAILY MIX");
         apply_home_mix_title_style(builder, title_label, kUiTitle);
         builder.set_label_align(title_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, title_label, {18, 14, rect.w - 160, 24});
+        anchor_rect(builder, title_label, {20, 14, rect.w - 200, 28});
         builder.link(root, title_label);
 
         const WidgetHandle subtitle_label = builder.create_label_static("Based on history");
         apply_player_text_style(builder, subtitle_label, PlayerTextRole::MetaText,
                                 rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 214});
         builder.set_label_align(subtitle_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, subtitle_label, {19, 40, rect.w - 160, 16});
+        anchor_rect(builder, subtitle_label, {21, 44, rect.w - 200, 16});
         builder.link(root, subtitle_label);
 
         const auto add_preview = [&](WidgetHandle& out_image,
@@ -888,20 +891,20 @@
             builder.link(root, out_image);
         };
 
-        add_preview(h.home_daily_mix_covers[0], {rect.w - 138, 14, 38, 38}, 12, true);
-        add_preview(h.home_daily_mix_covers[1], {rect.w - 104, 18, 34, 34}, 17, false);
-        add_preview(h.home_daily_mix_covers[2], {rect.w - 66, 14, 42, 42}, 14, true);
+        add_preview(h.home_daily_mix_covers[0], {rect.w - 160, 16, 46, 46}, 14, true);
+        add_preview(h.home_daily_mix_covers[1], {rect.w - 118, 20, 40, 40}, 20, false);
+        add_preview(h.home_daily_mix_covers[2], {rect.w - 70, 16, 48, 48}, 16, true);
 
         const WidgetHandle body_label = builder.create_label_static(body.data());
         apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
         builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, body_label, {18, 88, rect.w - 116, 18});
+        anchor_rect(builder, body_label, {20, 94, rect.w - 120, 18});
         builder.link(root, body_label);
 
         const WidgetHandle meta_chip = builder.create_label_static(meta.data());
         apply_time_label_style(builder, meta_chip);
         builder.set_label_align(meta_chip, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, meta_chip, {rect.w - 92, 84, 72, 24});
+        anchor_rect(builder, meta_chip, {rect.w - 102, 90, 82, 26});
         apply_info_tag_style(builder, meta_chip);
         builder.link(root, meta_chip);
 
@@ -926,11 +929,11 @@
         const WidgetHandle title_label = builder.create_label_static("Recently Played");
         apply_player_text_style(builder, title_label, PlayerTextRole::CardTitle, kUiTitle);
         builder.set_label_align(title_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, title_label, {18, 14, rect.w - 92, 24});
+        anchor_rect(builder, title_label, {20, 14, rect.w - 112, 24});
         builder.link(root, title_label);
 
         const WidgetHandle action_button = builder.create_button_static("");
-        anchor_rect(builder, action_button, {rect.w - 60, 12, 42, 42});
+        anchor_rect(builder, action_button, {rect.w - 64, 12, 44, 44});
         builder.set_button_icon(action_button, icons.next);
         builder.set_button_icon_size(action_button, 14);
         apply_top_bar_button_style(builder, action_button);
@@ -940,13 +943,13 @@
         const WidgetHandle body_label = builder.create_label_static(body.data());
         apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
         builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, body_label, {18, 40, rect.w - 120, 18});
+        anchor_rect(builder, body_label, {20, 44, rect.w - 136, 18});
         builder.link(root, body_label);
 
         const WidgetHandle meta_chip = builder.create_label_static(meta.data());
         apply_time_label_style(builder, meta_chip);
         builder.set_label_align(meta_chip, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, meta_chip, {rect.w - 92, 40, 72, 24});
+        anchor_rect(builder, meta_chip, {rect.w - 96, 44, 76, 24});
         apply_info_tag_style(builder, meta_chip);
         builder.link(root, meta_chip);
 
@@ -969,9 +972,9 @@
             builder.link(root, out_image);
         };
 
-        add_preview(h.home_recently_played_covers[0], {18, 72, 94, 34}, 17, true);
-        add_preview(h.home_recently_played_covers[1], {120, 72, 78, 34}, 17, false);
-        add_preview(h.home_recently_played_covers[2], {rect.w - 58, 68, 40, 40}, 20, true);
+        add_preview(h.home_recently_played_covers[0], {20, 82, 118, 40}, 20, true);
+        add_preview(h.home_recently_played_covers[1], {148, 82, 96, 40}, 20, false);
+        add_preview(h.home_recently_played_covers[2], {rect.w - 68, 76, 48, 48}, 24, true);
 
         builder.link(parent, root);
         return root;

@@ -105,55 +105,61 @@
             builder.link(collage_root, glow);
         };
 
-        add_collage_glow({46, 12, 228, 228},
-                         {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 20},
-                         {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 28},
-                         114, 18, 10, 42);
-        add_collage_glow({92, 202, 136, 42},
-                         {kUiTitle.r, kUiTitle.g, kUiTitle.b, 10},
-                         {0, 0, 0, 34},
-                         21, 8, 6, 24);
-
         const Rect big_cover_rect{
             (home_layout.collage_w - home_layout.collage_big) / 2,
-            18,
+            22,
             home_layout.collage_big,
             home_layout.collage_big,
         };
         const Rect left_cover_rect{
-            12,
-            54,
+            18,
+            42,
             home_layout.collage_small_left,
             home_layout.collage_small_left,
         };
         const Rect right_cover_rect{
-            home_layout.collage_w - (home_layout.collage_small_right + 34) - 6,
-            36,
-            home_layout.collage_small_right + 34,
-            home_layout.collage_small_right,
+            home_layout.collage_w - (home_layout.collage_small_right + 28) - 18,
+            34,
+            home_layout.collage_small_right + 28,
+            home_layout.collage_small_right - 8,
         };
         const Rect center_cover_rect{
-            (home_layout.collage_w - (home_layout.collage_small_center + 46)) / 2,
-            184,
-            home_layout.collage_small_center + 46,
-            home_layout.collage_small_center - 18,
+            (home_layout.collage_w - (home_layout.collage_small_center + 62)) / 2,
+            big_cover_rect.y + big_cover_rect.h - 18,
+            home_layout.collage_small_center + 62,
+            home_layout.collage_small_center - 12,
         };
         const Rect bottom_left_cover_rect{
-            30,
-            home_layout.collage_h - (home_layout.collage_small_center + 12) - 18,
-            home_layout.collage_small_center + 12,
-            home_layout.collage_small_center + 12,
+            28,
+            home_layout.collage_h - (home_layout.collage_small_center + 18) - 18,
+            home_layout.collage_small_center + 18,
+            home_layout.collage_small_center + 18,
         };
         const Rect bottom_right_cover_rect{
-            home_layout.collage_w - (home_layout.collage_small_center - 2) - 18,
-            home_layout.collage_h - (home_layout.collage_small_center - 2) - 8,
-            home_layout.collage_small_center - 2,
-            home_layout.collage_small_center - 2,
+            home_layout.collage_w - home_layout.collage_small_center - 20,
+            home_layout.collage_h - home_layout.collage_small_center - 18,
+            home_layout.collage_small_center,
+            home_layout.collage_small_center,
         };
 
         const auto expand_rect = [](const Rect& rect, int pad) noexcept -> Rect {
             return {rect.x - pad, rect.y - pad, rect.w + pad * 2, rect.h + pad * 2};
         };
+
+        add_collage_glow(expand_rect(big_cover_rect, 18),
+                         {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 18},
+                         {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 24},
+                         (big_cover_rect.w + 36) / 2,
+                         14,
+                         4,
+                         28);
+        add_collage_glow(expand_rect(center_cover_rect, 10),
+                         {kUiTitle.r, kUiTitle.g, kUiTitle.b, 8},
+                         {0, 0, 0, 22},
+                         (center_cover_rect.h + 20) / 2,
+                         6,
+                         0,
+                         16);
 
         const auto add_cover = [&](WidgetHandle& image_handle,
                                    const Rect& image_rect,
@@ -172,16 +178,16 @@
             builder.link(collage_root, image_handle);
         };
 
-        add_cover(h.home_cover_big, big_cover_rect, 30, 5, 33, true);
-        add_cover(h.home_cover_left, left_cover_rect, left_cover_rect.w / 2, 4, (left_cover_rect.w + 8) / 2);
-        add_cover(h.home_cover_right, right_cover_rect, 28, 4, 31, true);
-        add_cover(h.home_cover_small, center_cover_rect, center_cover_rect.h / 2, 4, center_cover_rect.h / 2 + 4);
-        add_cover(h.home_cover_bottom_left, bottom_left_cover_rect, 24, 4, 27);
+        add_cover(h.home_cover_big, big_cover_rect, 28, 3, 31, true);
+        add_cover(h.home_cover_left, left_cover_rect, left_cover_rect.w / 2, 3, (left_cover_rect.w + 6) / 2);
+        add_cover(h.home_cover_right, right_cover_rect, right_cover_rect.h / 2, 3, right_cover_rect.h / 2 + 3, true);
+        add_cover(h.home_cover_small, center_cover_rect, center_cover_rect.h / 2, 3, center_cover_rect.h / 2 + 3);
+        add_cover(h.home_cover_bottom_left, bottom_left_cover_rect, 26, 3, 29);
         add_cover(h.home_cover_bottom_right,
                   bottom_right_cover_rect,
                   bottom_right_cover_rect.w / 2,
-                  4,
-                  (bottom_right_cover_rect.w + 8) / 2);
+                  3,
+                  (bottom_right_cover_rect.w + 6) / 2);
 
         create_home_daily_mix_card(builder, h, home_content,
                                    {home_layout.stat_card_x,

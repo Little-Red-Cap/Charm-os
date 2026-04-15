@@ -6,7 +6,9 @@ import out.sink;
 #include "armv7a_cache.hpp"
 #include "armv7a_cpu.hpp"
 #include "armv7a_dcache_probe.hpp"
+#include "armv7a_exception_observation.hpp"
 #include "armv7a_gic.hpp"
+#include "armv7a_handler_stack.hpp"
 #include "armv7a_icache_probe.hpp"
 #include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_mmu.hpp"
@@ -334,6 +336,10 @@ int main()
     armv7a_run_page_table_probe();
     armv7a_run_section_split_probe();
     armv7a_svc_smoke_test();
+    if (armv7a_svc_observation_seen()) {
+        armv7a_print_return_state_evidence(
+            "svc", armv7a_svc_observation_spsr(), armv7a_read_cpsr());
+    }
     armv7a_irq_smoke_test();
     armv7a_sgi_smoke_test();
     armv7a_fiq_smoke_test();

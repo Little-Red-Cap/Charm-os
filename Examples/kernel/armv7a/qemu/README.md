@@ -8,7 +8,7 @@ instead of pushing ARMv7-A specifics into shared `Modules/`.
 
 ```powershell
 cmake --preset debug
-cmake --build out\build\debug --verbose
+cmake --build --preset debug --verbose
 ```
 
 Abort smoke presets stay separate so the default IRQ/SVC smoke remains stable:
@@ -52,6 +52,8 @@ cmake --build out\build\debug-exception-undefined --verbose
 ```
 
 ## Run
+
+Build the selected preset first, then launch QEMU:
 
 ```powershell
 .\run_qemu.ps1
@@ -104,17 +106,21 @@ ARMv7-A D-cache active, sctlr=0x00C5107D, clidr=0x........, ccsidr=0x........, l
 ARMv7-A dcache probe, addr=0x52400000, before=0xCAFEBABE, cached=0x10203040, device-before=0x10203040, restored=0x50607080, l2=0x4030....
 ARMv7-A page-table probe, addr=0x52500000, before=0x31415926, after=0x27182818, restored=0x31415926, desc=0x4021...., l2=0x4030....
 ARMv7-A section-split probe, addr=0x5260...., before=0x89ABCDEF, after=0x76543210, restored=0x89ABCDEF, l1-desc=0x4021...., l2-table=0x4021...., l1=0x4021...., l2=0x4040....
-ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc
+ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc, return-pc=0x4020....
 ARMv7-A handler stack, vector=svc, mode=svc, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
+ARMv7-A return evidence, vector=svc, origin-mode=sys, current-mode=sys, origin-irq=masked, current-irq=masked, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A timer pending evidence, cntp_ctl=0x00000001, secure-line=group0/yes/no/no, nonsecure-line=group1/yes/yes/no, gicd=0x00000003, gicc=0x00000007, hppir=0x0000001E, spurious=no
-ARMv7-A timer IRQ active, intid=30, origin-mode=sys, handler-mode=irq
+ARMv7-A timer IRQ active, intid=30, origin-mode=sys, handler-mode=irq, return-pc=0x4020....
 ARMv7-A handler stack, vector=irq, mode=irq, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
+ARMv7-A return evidence, vector=irq, origin-mode=sys, current-mode=sys, origin-irq=enabled, current-irq=enabled, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A SGI pending evidence, route=irq, line=group1/yes/yes/no, gicd=0x00000003, gicc=0x00000007, hppir=0x00000001, spurious=no
-ARMv7-A SGI active, intid=1, origin-mode=sys, handler-mode=irq
+ARMv7-A SGI active, intid=1, origin-mode=sys, handler-mode=irq, return-pc=0x4020....
 ARMv7-A handler stack, vector=irq, mode=irq, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
+ARMv7-A return evidence, vector=irq, origin-mode=sys, current-mode=sys, origin-irq=enabled, current-irq=enabled, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A SGI pending evidence, route=fiq, line=group0/yes/yes/no, gicd=0x00000003, gicc=0x0000000F, hppir=0x00000001, spurious=no
-ARMv7-A FIQ active, intid=1, origin-mode=sys, handler-mode=fiq
+ARMv7-A FIQ active, intid=1, origin-mode=sys, handler-mode=fiq, return-pc=0x4020....
 ARMv7-A handler stack, vector=fiq, mode=fiq, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
+ARMv7-A return evidence, vector=fiq, origin-mode=sys, current-mode=sys, origin-irq=masked, current-irq=masked, origin-fiq=enabled, current-fiq=enabled, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-ppi, irq-origin=sys, irq-handler=irq, fiq-origin=sys, fiq-handler=fiq, monitor-mode=not-observed
 ```
 
@@ -123,6 +129,10 @@ ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-pp
 ```powershell
 .\run_qemu_ci.ps1
 ```
+
+`run_qemu_ci.ps1` now configures and rebuilds the default `debug` preset
+before launching QEMU, so the smoke log stays aligned with the current source
+instead of whatever ELF happened to be left in `out\build\debug`.
 
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:
@@ -369,6 +379,11 @@ continue
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from
   QEMU toward real Cortex-A silicon.
+- The same returning paths now also print one `return evidence` line after the
+  handler returns to ordinary execution, comparing the pre-exception `SPSR`
+  against the live post-return `CPSR`. That gives us direct evidence for
+  `return-pc`, restored mode, restored mask bits, and the stack that the CPU
+  came back to after leaving `svc/irq/fiq`.
 - The returning and fatal exception paths now also print one `handler stack`
   line that shows the live `SP`, the linker-defined stack range for the
   current mode, and whether `SP` landed inside that banked stack. That gives

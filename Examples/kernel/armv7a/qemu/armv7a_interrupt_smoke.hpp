@@ -18,6 +18,7 @@ bool armv7a_interrupt_smoke_seen();
 unsigned int armv7a_interrupt_smoke_last_intid();
 std::uint32_t armv7a_interrupt_smoke_last_handler_cpsr();
 std::uint32_t armv7a_interrupt_smoke_last_handler_spsr();
+std::uint32_t armv7a_interrupt_smoke_last_return_pc();
 
 void armv7a_interrupt_print_irq_timeout(std::uint32_t timer_ctrl);
 void armv7a_interrupt_print_sgi_timeout();

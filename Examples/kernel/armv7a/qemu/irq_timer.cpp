@@ -2,6 +2,7 @@
 
 #include "armv7a_cpu.hpp"
 #include "armv7a_gic.hpp"
+#include "armv7a_handler_stack.hpp"
 #include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_platform.hpp"
 
@@ -190,6 +191,32 @@ extern "C" void armv7a_irq_smoke_test()
         // Keep polling instead of sleeping in WFI so a broken IRQ route still
         // reaches the timeout diagnostics instead of stalling forever.
     }
+
+    if (armv7a_interrupt_smoke_seen()) {
+        const auto intid = armv7a_interrupt_smoke_last_intid();
+        if (!armv7a_platform_is_timer_interrupt(intid)) {
+            armv7a_platform_early_console_puts("ARMv7-A timer IRQ test observed intid=");
+            print_u32_dec(intid);
+            armv7a_platform_early_console_puts("\r\n");
+        } else {
+            armv7a_platform_early_console_puts("ARMv7-A timer IRQ active, intid=");
+            print_u32_dec(intid);
+            armv7a_platform_early_console_puts(", origin-mode=");
+            armv7a_platform_early_console_puts(
+                armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+            armv7a_platform_early_console_puts(", handler-mode=");
+            armv7a_platform_early_console_puts(
+                armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
+            armv7a_platform_early_console_puts(", return-pc=0x");
+            print_u32_hex(armv7a_interrupt_smoke_last_return_pc());
+            armv7a_platform_early_console_puts("\r\n");
+            armv7a_print_return_state_evidence(
+                "irq",
+                armv7a_interrupt_smoke_last_handler_spsr(),
+                armv7a_read_cpsr());
+        }
+    }
+
     armv7a_disable_irq();
 
     armv7a_platform_timer_stop();
@@ -201,22 +228,6 @@ extern "C" void armv7a_irq_smoke_test()
         armv7a_interrupt_print_irq_timeout(armv7a_platform_timer_control());
         return;
     }
-
-    const auto intid = armv7a_interrupt_smoke_last_intid();
-    if (!armv7a_platform_is_timer_interrupt(intid)) {
-        armv7a_platform_early_console_puts("ARMv7-A timer IRQ test observed intid=");
-        print_u32_dec(intid);
-        armv7a_platform_early_console_puts("\r\n");
-        return;
-    }
-
-    armv7a_platform_early_console_puts("ARMv7-A timer IRQ active, intid=");
-    print_u32_dec(intid);
-    armv7a_platform_early_console_puts(", origin-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
-    armv7a_platform_early_console_puts(", handler-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
-    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_sgi_smoke_test()
@@ -249,6 +260,32 @@ extern "C" void armv7a_sgi_smoke_test()
         // A self-targeted SGI should arrive almost immediately; keep polling
         // so timeout diagnostics remain visible if the GIC route is broken.
     }
+
+    if (armv7a_interrupt_smoke_seen()) {
+        const auto intid = armv7a_interrupt_smoke_last_intid();
+        if (!armv7a_platform_is_self_sgi_interrupt(intid)) {
+            armv7a_platform_early_console_puts("ARMv7-A SGI test observed intid=");
+            print_u32_dec(intid);
+            armv7a_platform_early_console_puts("\r\n");
+        } else {
+            armv7a_platform_early_console_puts("ARMv7-A SGI active, intid=");
+            print_u32_dec(intid);
+            armv7a_platform_early_console_puts(", origin-mode=");
+            armv7a_platform_early_console_puts(
+                armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+            armv7a_platform_early_console_puts(", handler-mode=");
+            armv7a_platform_early_console_puts(
+                armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
+            armv7a_platform_early_console_puts(", return-pc=0x");
+            print_u32_hex(armv7a_interrupt_smoke_last_return_pc());
+            armv7a_platform_early_console_puts("\r\n");
+            armv7a_print_return_state_evidence(
+                "irq",
+                armv7a_interrupt_smoke_last_handler_spsr(),
+                armv7a_read_cpsr());
+        }
+    }
+
     armv7a_disable_irq();
 
     armv7a_platform_release_self_sgi();
@@ -259,22 +296,6 @@ extern "C" void armv7a_sgi_smoke_test()
         armv7a_interrupt_print_sgi_timeout();
         return;
     }
-
-    const auto intid = armv7a_interrupt_smoke_last_intid();
-    if (!armv7a_platform_is_self_sgi_interrupt(intid)) {
-        armv7a_platform_early_console_puts("ARMv7-A SGI test observed intid=");
-        print_u32_dec(intid);
-        armv7a_platform_early_console_puts("\r\n");
-        return;
-    }
-
-    armv7a_platform_early_console_puts("ARMv7-A SGI active, intid=");
-    print_u32_dec(intid);
-    armv7a_platform_early_console_puts(", origin-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
-    armv7a_platform_early_console_puts(", handler-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
-    armv7a_platform_early_console_puts("\r\n");
 }
 
 extern "C" void armv7a_fiq_smoke_test()
@@ -307,6 +328,32 @@ extern "C" void armv7a_fiq_smoke_test()
     while (!armv7a_interrupt_smoke_seen() && armv7a_platform_timer_counter() < timeout) {
         // Keep IRQ masked so this path proves the Group0+FIQ route on its own.
     }
+
+    if (armv7a_interrupt_smoke_seen()) {
+        const auto intid = armv7a_interrupt_smoke_last_intid();
+        if (!armv7a_platform_is_self_sgi_interrupt(intid)) {
+            armv7a_platform_early_console_puts("ARMv7-A FIQ test observed intid=");
+            print_u32_dec(intid);
+            armv7a_platform_early_console_puts("\r\n");
+        } else {
+            armv7a_platform_early_console_puts("ARMv7-A FIQ active, intid=");
+            print_u32_dec(intid);
+            armv7a_platform_early_console_puts(", origin-mode=");
+            armv7a_platform_early_console_puts(
+                armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
+            armv7a_platform_early_console_puts(", handler-mode=");
+            armv7a_platform_early_console_puts(
+                armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
+            armv7a_platform_early_console_puts(", return-pc=0x");
+            print_u32_hex(armv7a_interrupt_smoke_last_return_pc());
+            armv7a_platform_early_console_puts("\r\n");
+            armv7a_print_return_state_evidence(
+                "fiq",
+                armv7a_interrupt_smoke_last_handler_spsr(),
+                armv7a_read_cpsr());
+        }
+    }
+
     armv7a_disable_fiq();
 
     armv7a_platform_release_self_sgi();
@@ -317,20 +364,4 @@ extern "C" void armv7a_fiq_smoke_test()
         armv7a_interrupt_print_fiq_timeout();
         return;
     }
-
-    const auto intid = armv7a_interrupt_smoke_last_intid();
-    if (!armv7a_platform_is_self_sgi_interrupt(intid)) {
-        armv7a_platform_early_console_puts("ARMv7-A FIQ test observed intid=");
-        print_u32_dec(intid);
-        armv7a_platform_early_console_puts("\r\n");
-        return;
-    }
-
-    armv7a_platform_early_console_puts("ARMv7-A FIQ active, intid=");
-    print_u32_dec(intid);
-    armv7a_platform_early_console_puts(", origin-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_spsr()));
-    armv7a_platform_early_console_puts(", handler-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(armv7a_interrupt_smoke_last_handler_cpsr()));
-    armv7a_platform_early_console_puts("\r\n");
 }

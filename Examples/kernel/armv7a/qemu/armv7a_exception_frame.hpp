@@ -47,3 +47,22 @@ inline std::uint32_t armv7a_exception_pc(const Armv7aExceptionFrame& frame)
         return frame.lr;
     }
 }
+
+inline std::uint32_t armv7a_exception_return_pc(const Armv7aExceptionFrame& frame)
+{
+    switch (armv7a_exception_kind(frame)) {
+    case kArmv7aExceptionSvc:
+        return frame.lr;
+    case kArmv7aExceptionIrq:
+    case kArmv7aExceptionFiq:
+        return frame.lr - 4u;
+    case kArmv7aExceptionPrefetchAbort:
+        return frame.lr - 4u;
+    case kArmv7aExceptionDataAbort:
+        return frame.lr - 8u;
+    case kArmv7aExceptionUndefined:
+    case kArmv7aExceptionReserved:
+    default:
+        return frame.lr;
+    }
+}

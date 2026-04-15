@@ -2,6 +2,7 @@
 
 #include "armv7a_cpu.hpp"
 #include "armv7a_exception_frame.hpp"
+#include "armv7a_exception_observation.hpp"
 #include "armv7a_fault_status.hpp"
 #include "armv7a_handler_stack.hpp"
 #include "armv7a_mmu.hpp"
@@ -9,6 +10,9 @@
 #include "armv7a_translation_walk.hpp"
 
 namespace {
+volatile bool g_svc_observation_seen = false;
+volatile std::uint32_t g_svc_observation_spsr = 0;
+
 void platform_console_write_hex(std::uint32_t value, int digits)
 {
     constexpr char kHex[] = "0123456789ABCDEF";
@@ -195,14 +199,28 @@ extern "C" void armv7a_handle_svc(Armv7aExceptionFrame* frame)
         reinterpret_cast<const std::uint32_t*>(armv7a_exception_pc(*frame));
     const auto immediate = *instruction & 0x00FFFFFFu;
     const auto current_cpsr = armv7a_read_cpsr();
+    g_svc_observation_seen = true;
+    g_svc_observation_spsr = frame->spsr;
     armv7a_platform_early_console_puts("ARMv7-A SVC vector active, imm=0x");
     platform_console_write_hex(immediate, 6);
     armv7a_platform_early_console_puts(", origin-mode=");
     armv7a_platform_early_console_puts(armv7a_mode_name(frame->spsr));
     armv7a_platform_early_console_puts(", handler-mode=");
     armv7a_platform_early_console_puts(armv7a_mode_name(current_cpsr));
+    armv7a_platform_early_console_puts(", return-pc=0x");
+    platform_console_write_hex(armv7a_exception_return_pc(*frame), 8);
     armv7a_platform_early_console_puts("\r\n");
     armv7a_print_handler_stack_evidence("svc", current_cpsr);
+}
+
+bool armv7a_svc_observation_seen()
+{
+    return g_svc_observation_seen;
+}
+
+std::uint32_t armv7a_svc_observation_spsr()
+{
+    return g_svc_observation_spsr;
 }
 
 extern "C" [[noreturn]] void armv7a_exception_fatal(const Armv7aExceptionFrame* frame)

@@ -15,6 +15,7 @@ volatile unsigned int g_last_interrupt_intid = 0u;
 volatile Armv7aInterruptSmokeKind g_interrupt_smoke_kind = Armv7aInterruptSmokeKind::kNone;
 volatile std::uint32_t g_last_handler_cpsr = 0;
 volatile std::uint32_t g_last_handler_spsr = 0;
+volatile std::uint32_t g_last_return_pc = 0;
 volatile bool g_observation_seen[kObservationSlotCount]{};
 volatile unsigned int g_observation_intid[kObservationSlotCount]{};
 volatile std::uint32_t g_observation_handler_cpsr[kObservationSlotCount]{};
@@ -128,6 +129,7 @@ void record_interrupt(unsigned int intid, const Armv7aExceptionFrame& frame)
     g_last_interrupt_intid = intid;
     g_last_handler_cpsr = armv7a_read_cpsr();
     g_last_handler_spsr = frame.spsr;
+    g_last_return_pc = armv7a_exception_return_pc(frame);
     g_interrupt_count = 1u;
     store_observation(g_interrupt_smoke_kind, intid, frame);
 }
@@ -192,6 +194,7 @@ void armv7a_interrupt_smoke_begin(Armv7aInterruptSmokeKind kind)
     g_interrupt_smoke_kind = kind;
     g_last_handler_cpsr = 0;
     g_last_handler_spsr = 0;
+    g_last_return_pc = 0;
     clear_observation(kind);
 }
 
@@ -218,6 +221,11 @@ std::uint32_t armv7a_interrupt_smoke_last_handler_cpsr()
 std::uint32_t armv7a_interrupt_smoke_last_handler_spsr()
 {
     return g_last_handler_spsr;
+}
+
+std::uint32_t armv7a_interrupt_smoke_last_return_pc()
+{
+    return g_last_return_pc;
 }
 
 void armv7a_interrupt_print_irq_timeout(std::uint32_t timer_ctrl)

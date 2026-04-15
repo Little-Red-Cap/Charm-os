@@ -1,4 +1,5 @@
 param(
+    [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
     [string]$ElfPath = "out\\build\\debug\\charm-armv7a-qemu",
     [int]$TimeoutSec = 10,
@@ -46,7 +47,24 @@ function Read-LogSafe {
     }
 }
 
+$cmake = Resolve-ToolPath -Tool $CMakeExe
 $qemu = Resolve-ToolPath -Tool $QemuExe
+
+Push-Location $PSScriptRoot
+try {
+    & $cmake --preset debug
+    if ($LASTEXITCODE -ne 0) {
+        throw "cmake configure failed for preset: debug"
+    }
+
+    & $cmake --build --preset debug
+    if ($LASTEXITCODE -ne 0) {
+        throw "cmake build failed for preset: debug"
+    }
+} finally {
+    Pop-Location
+}
+
 $elf = Resolve-ExamplePath -Path $ElfPath
 $outFile = Join-Path $PSScriptRoot "qemu-ci.log"
 $errFile = Join-Path $PSScriptRoot "qemu-ci.err.log"
@@ -173,10 +191,22 @@ if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
 if (($log -notmatch "ARMv7-A timer pending evidence, cntp_ctl=0x[0-9A-F]{8}, secure-line=group[01]/(yes|no)/(yes|no)/(yes|no), nonsecure-line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A timer pending evidence, cntp_ctl=0x..."
 }
+if (($log -notmatch "ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc, return-pc=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc, return-pc=0x..."
+}
 if (($log -notmatch "ARMv7-A handler stack, vector=svc, mode=svc, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
     $missing += "ARMv7-A handler stack, vector=svc..."
 }
-if (($log -notmatch "ARMv7-A SGI active, intid=1")) {
+if (($log -notmatch "ARMv7-A return evidence, vector=svc, origin-mode=sys, current-mode=sys, origin-irq=masked, current-irq=masked, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
+    $missing += "ARMv7-A return evidence, vector=svc..."
+}
+if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30), origin-mode=sys, handler-mode=irq, return-pc=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A timer IRQ active, intid=29|30, origin-mode=sys, handler-mode=irq, return-pc=0x..."
+}
+if (([regex]::Matches($log, "ARMv7-A return evidence, vector=irq, origin-mode=sys, current-mode=sys, origin-irq=enabled, current-irq=enabled, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")).Count -lt 2) {
+    $missing += "ARMv7-A return evidence, vector=irq x2"
+}
+if (($log -notmatch "ARMv7-A SGI active, intid=1, origin-mode=sys, handler-mode=irq, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A SGI active, intid=1"
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
@@ -185,7 +215,7 @@ if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(ye
 if (($log -notmatch "ARMv7-A handler stack, vector=irq, mode=irq, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
     $missing += "ARMv7-A handler stack, vector=irq..."
 }
-if (($log -notmatch "ARMv7-A FIQ active, intid=1")) {
+if (($log -notmatch "ARMv7-A FIQ active, intid=1, origin-mode=sys, handler-mode=fiq, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A FIQ active, intid=1"
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=fiq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
@@ -193,6 +223,9 @@ if (($log -notmatch "ARMv7-A SGI pending evidence, route=fiq, line=group[01]/(ye
 }
 if (($log -notmatch "ARMv7-A handler stack, vector=fiq, mode=fiq, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
     $missing += "ARMv7-A handler stack, vector=fiq..."
+}
+if (($log -notmatch "ARMv7-A return evidence, vector=fiq, origin-mode=sys, current-mode=sys, origin-irq=masked, current-irq=masked, origin-fiq=enabled, current-fiq=enabled, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
+    $missing += "ARMv7-A return evidence, vector=fiq..."
 }
 if (($log -notmatch "ARMv7-A security side evidence, scr-read=skipped, timer-route=(secure|non-secure)-phys-ppi, irq-origin=[a-z]+, irq-handler=irq, fiq-origin=[a-z]+, fiq-handler=fiq, monitor-mode=(observed|not-observed)")) {
     $missing += "ARMv7-A security side evidence, scr-read=skipped..."

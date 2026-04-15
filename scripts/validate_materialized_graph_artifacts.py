@@ -74,6 +74,13 @@ def validate_ci_output_root(ci_root: Path, repo_root: Path, visited: set[Path]):
     if isinstance(report, dict) and report.get("manifest"):
         validate_once(Path(report["manifest"]).resolve(), repo_root, visited)
 
+    artifact_report = summary.get("artifact_report")
+    if isinstance(artifact_report, dict):
+        for case_entry in artifact_report.get("cases", []):
+            path_value = case_entry.get("path")
+            if isinstance(path_value, str) and path_value:
+                validate_once(Path(path_value).resolve(), repo_root, visited)
+
 
 def validate_once(path: Path, repo_root: Path, visited: set[Path]):
     resolved = path.resolve()

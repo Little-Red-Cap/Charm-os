@@ -28,6 +28,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-artifact-report-demo/materialize-observe-demo.artifact_report.json
 ```
 
+当前 `scripts/ci_materialized_graph_bundle.ps1` 也已经能在生成 `summary.json` 时同步产出 candidate 侧的 `artifact report`，并把这些报告路径写回 CI 摘要。
+
 它要回答的核心问题不是“有哪些零散导出文件”，而是：
 
 > **当一次系统编译、bringup 举证与资源审计完成后，Charm 应该把哪些核心事实收束成一个可引用对象。**

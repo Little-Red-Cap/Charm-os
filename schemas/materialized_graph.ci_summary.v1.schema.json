@@ -13,6 +13,7 @@
     "baseline",
     "diff",
     "report",
+    "artifact_report",
     "mode",
     "has_diff",
     "status"
@@ -62,6 +63,9 @@
           "$ref": "#/$defs/reportSummary"
         }
       ]
+    },
+    "artifact_report": {
+      "$ref": "#/$defs/artifactReportSummary"
     },
     "mode": {
       "type": "string",
@@ -275,6 +279,46 @@
             "string",
             "null"
           ]
+        }
+      }
+    },
+    "artifactReportCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "path"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "artifactReportSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "output_root",
+        "count",
+        "cases"
+      ],
+      "properties": {
+        "output_root": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifactReportCase"
+          }
         }
       }
     },

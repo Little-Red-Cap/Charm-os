@@ -117,8 +117,9 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $exportScript = Join-Path $PSScriptRoot 'export_materialized_graph.ps1'
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
 $reportScript = Join-Path $PSScriptRoot 'report_materialized_graph_bundle.ps1'
+$artifactReportScript = Join-Path $PSScriptRoot 'export_system_compiler_artifact_report.ps1'
 
-foreach ($scriptPath in @($exportScript, $diffScript, $reportScript)) {
+foreach ($scriptPath in @($exportScript, $diffScript, $reportScript, $artifactReportScript)) {
     if (-not (Test-Path $scriptPath)) {
         throw "required script not found: $scriptPath"
     }
@@ -135,6 +136,7 @@ $resolvedCandidateBundleRoot = if (-not [string]::IsNullOrWhiteSpace($CandidateB
 }
 
 $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
+$artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $resolvedSummaryPath = Get-SummaryPath -OutputRootPath $resolvedOutputRoot
 $diffJsonPath = Join-Path $resolvedOutputRoot 'materialized_graph_bundle_diff.json'
 
@@ -143,6 +145,7 @@ if ($Clean) {
         Remove-PathIfExists -Path $resolvedCandidateBundleRoot
     }
     Remove-PathIfExists -Path $reportOutputRoot
+    Remove-PathIfExists -Path $artifactReportOutputRoot
     Remove-PathIfExists -Path $diffJsonPath
     Remove-PathIfExists -Path $resolvedSummaryPath
 }
@@ -183,12 +186,70 @@ $summary = [ordered]@{
     baseline = $null
     diff = $null
     report = $null
+    artifact_report = $null
+}
+
+$candidateIndex = Get-Content -LiteralPath $candidateIndexPath -Raw -Encoding utf8 | ConvertFrom-Json
+$selectedCaseNames = @($candidateIndex.cases | ForEach-Object { [string]$_.name })
+
+function New-ArtifactReportSummary {
+    param(
+        [string]$OutputRootPath,
+        [string[]]$CaseNames
+    )
+
+    $entries = @()
+    foreach ($caseName in @($CaseNames)) {
+        $path = Join-Path $OutputRootPath ($caseName + '.artifact_report.json')
+        if (-not (Test-Path $path)) {
+            throw "artifact report not found: $path"
+        }
+
+        $entries += [ordered]@{
+            name = $caseName
+            path = $path
+        }
+    }
+
+    return [ordered]@{
+        output_root = $OutputRootPath
+        count = $entries.Count
+        cases = $entries
+    }
+}
+
+function Invoke-ArtifactReportExport {
+    param(
+        [string]$ModeValue,
+        [string]$DiffPath = '',
+        [string]$ReportManifestPath = ''
+    )
+
+    $artifactArgs = @{
+        BundleRoot = $resolvedCandidateBundleRoot
+        OutputRoot = $artifactReportOutputRoot
+        Mode = $ModeValue
+    }
+    if (-not $selection.AllCases) {
+        $artifactArgs.Case = $selection.Cases
+    }
+    if (-not [string]::IsNullOrWhiteSpace($DiffPath)) {
+        $artifactArgs.DiffJson = $DiffPath
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ReportManifestPath)) {
+        $artifactArgs.ReportManifest = $ReportManifestPath
+    }
+
+    Write-Host "[CI] generate artifact reports -> $artifactReportOutputRoot"
+    & $artifactReportScript @artifactArgs
 }
 
 if (-not $hasBaseline) {
+    Invoke-ArtifactReportExport -ModeValue 'export_only'
     $summary.mode = 'export_only'
     $summary.has_diff = $false
     $summary.status = 'exported'
+    $summary.artifact_report = New-ArtifactReportSummary -OutputRootPath $artifactReportOutputRoot -CaseNames $selectedCaseNames
     Ensure-Directory -Path (Split-Path -Parent $resolvedSummaryPath)
     $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedSummaryPath -Encoding utf8
     Write-Host "[CI] export only summary -> $resolvedSummaryPath"
@@ -279,6 +340,9 @@ $summary.report = [ordered]@{
     html = if (-not [string]::IsNullOrWhiteSpace($reportHtmlPath) -and (Test-Path $reportHtmlPath)) { $reportHtmlPath } else { $null }
 }
 
+Invoke-ArtifactReportExport -ModeValue 'compare' -DiffPath $diffJsonPath -ReportManifestPath $summary.report.manifest
+$summary.artifact_report = New-ArtifactReportSummary -OutputRootPath $artifactReportOutputRoot -CaseNames $selectedCaseNames
+
 Ensure-Directory -Path (Split-Path -Parent $resolvedSummaryPath)
 $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedSummaryPath -Encoding utf8
 
@@ -292,6 +356,9 @@ if ($summary.report.markdown) {
 }
 if ($summary.report.html) {
     Write-Host "[CI] report  -> $($summary.report.html)"
+}
+if ($summary.artifact_report -and $summary.artifact_report.output_root) {
+    Write-Host "[CI] artifact reports -> $($summary.artifact_report.output_root)"
 }
 
 if ($FailOnDiff -and $hasVisibleDiff) {

@@ -27,7 +27,7 @@
 - `materialized_graph.ci_summary.v1.schema.json`
   - 对应 `scripts/ci_materialized_graph_bundle.ps1` 生成的 `summary.json`
   - 用途偏向 CI 编排、状态汇总、上层自动化消费
-  - 它已经是当前 CI / 工作流消费面之一
+  - 它已经是当前 CI / 工作流消费面之一，并且现在也可引用生成出的 `artifact report`
 
 - `materialized_graph.report_manifest.v1.schema.json`
   - 对应 `scripts/report_materialized_graph_bundle.ps1` 生成的 `report manifest`

@@ -12,6 +12,7 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     int stdout_fd = -1;
     int stderr_fd = -1;
     int tty_fd = -1;
+    int null_fd = -1;
     struct stat st;
 
     errno = 55;
@@ -90,6 +91,32 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (write(tty_fd, "tty", 3) != 3) return 128;
     if (errno != 90) return 558;
     if (close(tty_fd) != 0) return 129;
+
+    errno = 91;
+    null_fd = open("/dev/null", O_RDONLY, 0);
+    if (null_fd < 0) return 633;
+    if (errno != 91) return 634;
+    errno = 92;
+    if (read(null_fd, &ch, 1) != 0) return 635;
+    if (errno != 92) return 636;
+    errno = 93;
+    if (isatty(null_fd) != 0) return 637;
+    if (errno != 93) return 638;
+    if (fstat(null_fd, &st) != 0) return 639;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 640;
+    errno = 0;
+    if (lseek(null_fd, 0, SEEK_SET) != (off_t)-1) return 641;
+    if (errno != ESPIPE) return 642;
+    if (close(null_fd) != 0) return 643;
+
+    errno = 94;
+    null_fd = open("/dev/null", O_WRONLY, 0);
+    if (null_fd < 0) return 644;
+    if (errno != 94) return 645;
+    errno = 95;
+    if (write(null_fd, "null", 4) != 4) return 646;
+    if (errno != 95) return 647;
+    if (close(null_fd) != 0) return 648;
 
     return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 130;
 }

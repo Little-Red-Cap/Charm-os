@@ -9,7 +9,7 @@
 #include "armv7a_platform.hpp"
 
 namespace {
-constexpr std::size_t kObservationSlotCount = 7u;
+constexpr std::size_t kObservationSlotCount = 8u;
 
 struct Armv7aInterruptStoredObservation {
     bool seen = false;
@@ -185,6 +185,7 @@ bool interrupt_matches_expected(unsigned int intid, bool fiq_route)
         return !fiq_route && armv7a_platform_is_special_interrupt(intid);
     case Armv7aInterruptSmokeKind::kSgiIrqTimeout:
     case Armv7aInterruptSmokeKind::kUnexpectedIrq:
+    case Armv7aInterruptSmokeKind::kSgiFiqTimeout:
     case Armv7aInterruptSmokeKind::kNone:
     default:
         return false;

@@ -2,6 +2,10 @@
 
 目标：形成“可移植的 Stage2 + 可裁剪的 Stage1”的稳定骨架，并与现有模块（FS/USB/AT/EDA）对齐。
 
+相关文档：
+- `docs/system/armv7a_platform_contract.md`
+- `docs/board/rk3506/README.md`
+
 ## 1. 分层职责
 
 ### BL0 / ROM / 极简 Stage0
@@ -21,9 +25,32 @@
 当前仓库内已具备一条最小可验证链路：
 - `boot_core` / `boot_storage` / `boot_flash`：镜像头、存储抽象与按擦写粒度写入 Flash
 - `boot_flow` / `boot_policy`：A/B 槽位选择、镜像校验、成功确认与回滚策略骨架
+- `boot_plan`：把“策略决策 / 跳转前预备 / 成功确认”收敛为统一的启动计划接口
+- `boot_launch`：把 `BootPlan` 进一步解析为分区、镜像头与可跳转 entry 元数据
+- `boot_load`：把 `BootTarget` 收敛成显式加载契约，统一表达 XIP 与 copy-to-RAM 两类加载路径
+- `boot_board_load`：把 `platform::board::BootLoadDesc` 桥接到 `boot_load`，让板级只处理 payload 基址解析与可选搬运
+- `boot_exec`：在镜像已经 ready 之后，只负责 pre-jump 状态准备与实际 jump
+- `boot_board_exec`：把 `platform::board::BootExecDesc` 桥接到 `boot_exec`，让板级实现不必直接依赖 Boot 内部类型
+- `boot_handoff`：把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 收敛成一个更轻的启动前 handoff 对象，并通过 accessor 暴露阶段视图
 - `boot_uart` / `boot_xymodem`：串口接入与 X/YModem 下载到目标分区的 Stage2 侧封装
-- `boot_session`：把下载、镜像校验与 `BootInfo.pending` 落盘串成一个显式会话入口
-- `Examples/boot/bootloader_demo`：可在主机侧演示“下载到 Slot B -> 校验 -> 选择启动 -> 标记成功”
+- `boot_session`：把下载、镜像校验、`BootInfo.pending` 落盘与 `BootPlan` 决策串成一个显式 Stage2 会话入口，结果对象收敛到 `BootPlan + transfer + compact flags`
+- `Examples/boot/bootloader_demo`：可在主机侧演示“下载到 Slot B -> 校验 -> 生成 BootPlan -> 回滚预备 -> 标记成功”
+
+当前有几类“prepare”语义需要刻意区分：
+- `prepare_selected_boot()` / `prepare_boot_plan()`：写回 BootInfo fallback，确保试启动失败时能回到旧 `active`
+- `prepare_boot_loaded_image()`：按加载契约完成 XIP 就绪或 copy-to-RAM 搬运，确保 payload 进入可执行状态
+- `prepare_boot_execution()`：板级执行面 pre-jump hook，例如关中断、cache/TLB 维护、地址映射切换等
+- `prepare_boot_handoff()`：把回滚预备、目标解析、加载解析与执行解析统一收口，供 Stage2/板级跳转路径直接使用
+
+为了让板级实现更稳定，当前把板级启动契约拆成了 load/exec 两层：
+- `platform::board::BootLoadDesc` 只负责 payload 基址解析与可选加载，Boot 子系统统一管理 `BootLoadKind`、payload 偏移、entry 偏移和 XIP/copy-to-RAM 语义
+- load/exec hook 已进一步改为 request 结构体入参，后续扩展字段时不必持续打碎函数签名
+- `platform::board::BootExecDesc` 只负责 jump 前机器状态准备与实际跳转，不再反向参与 payload 地址解析
+- `BootExecRequest` 现在会连同 load kind、storage payload/entry offset 一并传给板级，便于 ARMv7-A 这类目标在 pre-jump 阶段做映射、cache/TLB 维护与状态切换
+- `platform::board::BootBoardCaps` 已独立承载 boot 专属能力，避免 boot 阶段直接依赖整板 `BoardCaps`
+- `platform::board::with_boot_caps(...)` 可把独立的 boot 能力按需并回 `BoardCaps`，让 Stage2/板级初始化路径继续共存，但不再要求 boot 实现先凑整板能力
+- `platform.board.armv7a_stub` 现已提供一个 ARMv7-A 风格骨架：用固定 XIP window / RAM payload 基址表达加载落点，并把 pre-jump 顺序显式化为“关中断 -> 激活 payload 映射/属性 -> cache/TLB 维护 -> 向量切换 -> 同步屏障 -> board prepare -> jump”
+- `platform.board.armv7a_stub::BootPrepareContext` 会把动态 `BootExecRequest` 与静态向量基址/页表基址这类 ARMv7-A 布局信息一起传给 maintenance hook，避免真实板级实现继续把关键信息塞回自定义上下文
 
 ## 2. 阶段目标
 
@@ -112,10 +139,15 @@ sequenceDiagram
   - UART/X-YModem 接收
   - 写入目标 Flash 分区
   - 下载完成后的 Stage2 会话收口（verify + pending）
-  - 基于镜像头与策略的槽位校验
-  - `pending -> active` 成功确认
+  - 基于镜像头与策略生成统一 `BootPlan`
+  - 基于 `BootPlan` 解析启动目标分区、头部与 entry 偏移
+  - 通过 `boot_load` / `boot_exec` 拆分统一加载与跳转接口
+  - 支持 `copy_to_ram` 与 `xip` 两类加载路径的显式表达
+  - 跳转前的试启动回滚预备（未确认成功则回到旧 active）
+  - 会话内的 `pending -> active` 成功确认
+  - ARMv7-A 风格的独立 `BootBoardCaps` 骨架已落点，可单独验证 copy-to-RAM / XIP 两条板级接口，而不必先依赖完整 `BoardCaps`
 - 当前仍偏向“主机侧可验证骨架”，尚未进入板级 Stage1 搬运与跳转实现。
 - 下一阶段建议优先推进：
-  - 将 `boot_session` 从“会话收口”扩展为更完整的 Stage2 状态机/命令流
+  - 在现有 `boot_session` 基础上继续扩展更完整的 Stage2 状态机/命令流
   - 为 `boot_xymodem` / `boot_session` 增加更多错误路径与边界条件测试
-  - 再向真实 UART / 板级 Flash 驱动适配收敛
+  - 把 `platform.board.armv7a_stub` 中的 pre-jump / jump hook 逐步替换为真实 cache/TLB/MMU/向量切换实现，再向真实 UART / 板级 Flash 驱动适配收敛

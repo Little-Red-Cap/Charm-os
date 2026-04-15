@@ -27,6 +27,7 @@
         "CHARM_TARGET_ARCH": "aarch64",
         "CHARM_TARGET_PLATFORM": "qemu_virt",
         "CHARM_BAREMETAL": "ON",
+        "CHARM_TARGET_HAS_HOSTED_CXX": "OFF",
         "CHARM_ENABLE_MEDIA": "OFF",
         "CHARM_ENABLE_UI_INK": "OFF",
         "CHARM_ENABLE_UI_VIVID": "OFF",
@@ -44,7 +45,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
-        "CHARM_BAREMETAL": "ON"
+        "CHARM_BAREMETAL": "ON",
+        "CHARM_TARGET_HAS_HOSTED_CXX": "OFF"
       }
     },
     {
@@ -58,7 +60,46 @@
         "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/armv7a-none-eabi-gcc.cmake",
         "CHARM_TARGET_ARCH": "armv7a",
         "CHARM_TARGET_PLATFORM": "qemu_virt",
-        "CHARM_BAREMETAL": "ON"
+        "CHARM_BAREMETAL": "ON",
+        "CHARM_TARGET_HAS_HOSTED_CXX": "OFF"
+      }
+    },
+    {
+      "name": "rk3506-baremetal-base",
+      "displayName": "RK3506 Bare-metal Base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-rk3506-baremetal",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/armv7a-none-eabi-gcc.cmake",
+        "CHARM_TARGET_NAME": "rk3506",
+        "CHARM_ENABLE_MEDIA": "OFF",
+        "CHARM_ENABLE_UI_INK": "OFF",
+        "CHARM_ENABLE_UI_VIVID": "OFF",
+        "CHARM_ENABLE_SDL3": "OFF",
+        "CHARM_ENABLE_FATFS": "OFF",
+        "CHARM_ENABLE_POSIX": "OFF",
+        "CHARM_AUDIO_USE_VFS": "OFF",
+        "CHARM_TARGET_HAS_HOSTED_CXX": "OFF",
+        "CHARM_TARGET_HAS_CXX_MATH": "OFF",
+        "CHARM_TARGET_HAS_WIN32": "OFF",
+        "CHARM_TARGET_HAS_WINSOCK": "OFF",
+        "CHARM_TARGET_STRICT_ALIGNMENT": "ON"
+      }
+    },
+    {
+      "name": "rk3506-baremetal-debug",
+      "displayName": "RK3506 Bare-metal Debug",
+      "inherits": "rk3506-baremetal-base"
+    },
+    {
+      "name": "rk3506-baremetal-image-debug",
+      "displayName": "RK3506 Bare-metal Image Debug",
+      "inherits": "rk3506-baremetal-base",
+      "binaryDir": "${sourceDir}/cmake-build-rk3506-baremetal-image",
+      "cacheVariables": {
+        "CHARM_BUILD_TARGET_BOOTSTRAP": "ON"
       }
     }
   ],
@@ -66,6 +107,14 @@
     {
       "name": "host-debug",
       "configurePreset": "host-debug"
+    },
+    {
+      "name": "rk3506-baremetal-debug",
+      "configurePreset": "rk3506-baremetal-debug"
+    },
+    {
+      "name": "rk3506-baremetal-image-debug",
+      "configurePreset": "rk3506-baremetal-image-debug"
     }
   ]
 }

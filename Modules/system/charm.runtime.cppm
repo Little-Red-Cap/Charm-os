@@ -41,7 +41,9 @@ export import hal_spi;
 export import hal_stm32_stub;
 export import hal_timer;
 export import hal_uart;
+#if CHARM_TARGET_HAS_WIN32
 export import hal_win;
+#endif
 
 export import out.ansi;
 export import out.api;

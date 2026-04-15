@@ -1,12 +1,15 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <span>
 #include <string_view>
 #include <vector>
 
 import charm.foundation;
 import charm.runtime;
+import platform.board;
+import platform.board.armv7a_stub;
 
 namespace {
     constexpr util::u8 kPad = 0x1Au;
@@ -53,17 +56,19 @@ namespace {
     }
 
     std::vector<util::u8> build_image(std::string_view payload, bool valid,
-                                      util::u32 version, util::u32 key) {
+                                      util::u32 version, util::u32 key,
+                                      util::u32 entry_offset = 0,
+                                      util::u16 extra_flags = 0) {
         boot::ImageHeader h{};
         h.payload_size = static_cast<util::u32>(payload.size());
         h.image_size = h.payload_size + sizeof(boot::ImageHeader);
         h.payload_crc32 = valid
             ? boot::crc32_update(0, reinterpret_cast<const util::u8*>(payload.data()), payload.size())
             : 0x12345678u;
-        h.entry_offset = 0;
+        h.entry_offset = entry_offset;
         h.image_version = version;
         h.min_version = 1;
-        h.flags = static_cast<util::u16>(boot::ImageFlags::signed_image);
+        h.flags = static_cast<util::u16>(boot::ImageFlags::signed_image) | extra_flags;
         h.signature = boot::calc_signature(key,
                                            reinterpret_cast<const util::u8*>(&h.payload_crc32),
                                            sizeof(h.payload_crc32));
@@ -91,6 +96,227 @@ namespace {
             if (actual[i] != expected[i]) return false;
         }
         return true;
+    }
+
+    const char* selection_reason_name(boot::BootSelectionReason reason) noexcept {
+        switch (reason) {
+        case boot::BootSelectionReason::pending_trial:
+            return "trial";
+        case boot::BootSelectionReason::active:
+            return "active";
+        case boot::BootSelectionReason::pending:
+            return "pending";
+        case boot::BootSelectionReason::fallback:
+            return "fallback";
+        default:
+            return "none";
+        }
+    }
+
+    const char* load_kind_name(boot::BootLoadKind kind) noexcept {
+        switch (kind) {
+        case boot::BootLoadKind::xip:
+            return "xip";
+        case boot::BootLoadKind::copy_to_ram:
+            return "copy";
+        default:
+            return "unknown";
+        }
+    }
+
+    enum class MockPrepareStep : util::u8 {
+        mask_interrupts = 0,
+        activate_payload_mapping,
+        clean_data_cache,
+        invalidate_instruction_cache,
+        invalidate_tlb,
+        switch_exception_vectors,
+        sync_context,
+        prepare_jump,
+        jump,
+        entry
+    };
+
+    struct MockLaunchContext {
+        util::u32 expected_payload_offset{0};
+        util::u32 expected_storage_entry_offset{0};
+        util::usize expected_vector_base{0};
+        util::usize expected_translation_table_base{0};
+        platform::board::BootLoadKind expected_load_kind{
+            platform::board::BootLoadKind::copy_to_ram};
+        bool resolve_called{false};
+        bool load_called{false};
+        bool prepare_called{false};
+        bool jump_called{false};
+        bool entry_called{false};
+        std::array<MockPrepareStep, 16> trace{};
+        util::usize trace_count{0};
+    };
+
+    bool push_trace(MockLaunchContext& launch, MockPrepareStep step) noexcept {
+        if (launch.trace_count >= launch.trace.size()) {
+            return false;
+        }
+        launch.trace[launch.trace_count++] = step;
+        return true;
+    }
+
+    bool expect_trace(const MockLaunchContext& launch,
+                      std::initializer_list<MockPrepareStep> expected) noexcept {
+        if (launch.trace_count != expected.size()) {
+            return false;
+        }
+
+        util::usize index = 0;
+        for (const auto step : expected) {
+            if (launch.trace[index++] != step) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void mock_boot_entry(void* ctx) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->entry_called = true;
+        (void)push_trace(*launch, MockPrepareStep::entry);
+    }
+
+    util::usize resolve_mock_payload_base(void* ctx,
+                                          const platform::board::BootLoadResolveRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->resolve_called = true;
+        if (request.kind != launch->expected_load_kind) {
+            return 0;
+        }
+        if (request.storage_payload_offset != launch->expected_payload_offset) {
+            return 0;
+        }
+        if (request.storage_entry_offset != launch->expected_storage_entry_offset) {
+            return 0;
+        }
+        return reinterpret_cast<util::usize>(&mock_boot_entry) - request.entry_offset;
+    }
+
+    bool load_mock_payload(void* ctx,
+                           const platform::board::BootLoadTransferRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->load_called = true;
+        if (request.kind != launch->expected_load_kind) {
+            return false;
+        }
+        if (request.storage_payload_offset != launch->expected_payload_offset) {
+            return false;
+        }
+        return request.payload_base != 0;
+    }
+
+    bool prepare_mock_execution(void* ctx,
+                                const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->prepare_called = true;
+        if (!push_trace(*launch, MockPrepareStep::prepare_jump)) {
+            return false;
+        }
+        return request.kind == launch->expected_load_kind &&
+               request.storage_entry_offset == launch->expected_storage_entry_offset &&
+               request.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
+    }
+
+    bool jump_mock_execution(void* ctx,
+                             const platform::board::BootExecRequest& request) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        launch->jump_called = true;
+        if (!push_trace(*launch, MockPrepareStep::jump)) {
+            return false;
+        }
+        auto entry = reinterpret_cast<void (*)(void*) noexcept>(request.entry_addr);
+        entry(ctx);
+        return launch->entry_called;
+    }
+
+    bool prepare_armv7_mock_execution(void* ctx,
+                                      const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        if (!prepare) {
+            return false;
+        }
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        if (!prepare_mock_execution(ctx, prepare.exec())) {
+            return false;
+        }
+        return prepare.vector_base() == launch->expected_vector_base &&
+               prepare.translation_table_base() == launch->expected_translation_table_base;
+    }
+
+    bool jump_armv7_mock_execution(void* ctx,
+                                   const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        if (!prepare) {
+            return false;
+        }
+        return jump_mock_execution(ctx, prepare.exec());
+    }
+
+    bool mask_mock_interrupts(void* ctx,
+                              const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::mask_interrupts) &&
+               prepare &&
+               prepare.exec().entry_addr != 0;
+    }
+
+    bool activate_mock_payload_mapping(void* ctx,
+                                       const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        if (!prepare) {
+            return false;
+        }
+        const auto& request = prepare.exec();
+        return push_trace(*launch, MockPrepareStep::activate_payload_mapping) &&
+               request.kind == launch->expected_load_kind &&
+               request.storage_payload_offset == launch->expected_payload_offset &&
+               request.storage_entry_offset == launch->expected_storage_entry_offset &&
+               prepare.translation_table_base() == launch->expected_translation_table_base;
+    }
+
+    bool clean_mock_data_cache(void* ctx,
+                               const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::clean_data_cache) &&
+               prepare &&
+               prepare.exec().payload_size != 0;
+    }
+
+    bool invalidate_mock_instruction_cache(void* ctx,
+                                           const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::invalidate_instruction_cache) &&
+               prepare &&
+               prepare.exec().image_size >= prepare.exec().payload_size;
+    }
+
+    bool invalidate_mock_tlb(void* ctx,
+                             const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::invalidate_tlb) &&
+               prepare &&
+               prepare.exec().entry_offset + prepare.exec().payload_base ==
+                   prepare.exec().entry_addr;
+    }
+
+    bool switch_mock_exception_vectors(void* ctx,
+                                       const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::switch_exception_vectors) &&
+               prepare &&
+               prepare.vector_base() == launch->expected_vector_base;
+    }
+
+    bool sync_mock_context(void* ctx,
+                           const platform::board::armv7a_stub::BootPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::sync_context) &&
+               prepare &&
+               prepare.exec().payload_base != 0;
     }
 
     std::vector<util::u8> make_header_frame(std::string_view file_name, util::u32 file_size) {
@@ -216,7 +442,15 @@ int main() {
 
     constexpr util::u32 key = 0xA5A5u;
     const auto image_a = build_image("image_a", true, 2, key);
-    const auto image_b = build_image("image_b_upgrade", true, 3, key);
+    const auto image_b = build_image("image_b_upgrade", true, 3, key, 4);
+    const auto image_bad_entry = build_image("tiny", true, 4, key, 8);
+    const auto image_xip = build_image(
+        "xip_image",
+        true,
+        5,
+        key,
+        2,
+        static_cast<util::u16>(boot::ImageFlags::xip_payload));
 
     boot::BootInfo initial_info{};
     initial_info.active = boot::Slot::a;
@@ -254,11 +488,36 @@ int main() {
         "slot_b.bin",
         std::span<const util::u8>(image_b.data(), image_b.size()));
     const auto download = receiver.complete();
-
-    boot::BootInfo boot_info{};
-    auto pick = boot::select_slot_policy(storage, cfg, boot_info, policy);
-    const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, boot_info);
-    const bool marked = boot::mark_success(storage, cfg, boot_info, pick.slot);
+    const auto plan = receiver.decide_boot();
+    MockLaunchContext launch_ctx{
+        .expected_payload_offset =
+            cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)),
+        .expected_storage_entry_offset =
+            cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)) + 4
+    };
+    platform::board::BootBoardCaps board_caps{};
+    board_caps.load = platform::board::BootLoadDesc{
+        .ctx = &launch_ctx,
+        .resolve_payload_base = resolve_mock_payload_base,
+        .load_payload = load_mock_payload
+    };
+    board_caps.exec = platform::board::BootExecDesc{
+        .ctx = &launch_ctx,
+        .prepare_jump = prepare_mock_execution,
+        .jump = jump_mock_execution
+    };
+    auto handoff = receiver.prepare_handoff(board_caps);
+    const bool prepared = handoff.rollback_prepared;
+    const auto prepared_result = receiver.result();
+    const auto rollback_plan = boot::decide_boot_policy(storage, cfg, policy);
+    const auto& target = boot::handoff_target(handoff);
+    const auto& load = boot::handoff_load(handoff);
+    const auto& image = boot::handoff_image(handoff);
+    const bool executed = boot::execute_boot_handoff(handoff, board_caps);
+    const auto& execution = handoff.execution;
+    const bool marked = receiver.mark_selected_success();
+    const auto final_result = receiver.result();
+    const bool slot_b_valid = boot::verify_partition_policy(storage, cfg.slot_b, policy, final_result.info());
 
     MockFlash headerless_flash{};
     auto headerless_storage = make_storage(headerless_flash);
@@ -279,40 +538,323 @@ int main() {
         !static_cast<bool>(headerless) &&
         headerless.stage == boot::SessionStage::failed &&
         headerless.transfer.header_missing &&
-        !headerless.ready_to_boot;
+        !headerless.ready_to_boot();
+
+    MockFlash bad_entry_flash{};
+    auto bad_entry_storage = make_storage(bad_entry_flash);
+    const bool bad_entry_written = boot::flash_write(
+        bad_entry_storage,
+        cfg.slot_b.offset,
+        std::span<const util::u8>(image_bad_entry.data(), image_bad_entry.size()),
+        flash_cfg);
+    const bool bad_entry_valid =
+        boot::verify_partition_policy(bad_entry_storage, cfg.slot_b, policy, initial_info);
+    boot::BootPlan bad_entry_plan{};
+    bad_entry_plan.boot = {boot::BootStatus::ok, boot::Slot::b};
+    bad_entry_plan.info = initial_info;
+    const auto bad_entry_target = boot::resolve_boot_target(bad_entry_storage, cfg, bad_entry_plan);
+    const bool bad_entry_rejected =
+        bad_entry_written &&
+        !bad_entry_valid &&
+        !static_cast<bool>(bad_entry_target);
+
+    MockFlash xip_flash{};
+    auto xip_storage = make_storage(xip_flash);
+    const bool xip_written = boot::flash_write(
+        xip_storage,
+        cfg.slot_b.offset,
+        std::span<const util::u8>(image_xip.data(), image_xip.size()),
+        flash_cfg);
+    MockLaunchContext xip_ctx{
+        .expected_payload_offset =
+            cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)),
+        .expected_storage_entry_offset =
+            cfg.slot_b.offset + static_cast<util::u32>(sizeof(boot::ImageHeader)) + 2,
+        .expected_load_kind = platform::board::BootLoadKind::xip
+    };
+    platform::board::BootBoardCaps xip_caps{};
+    xip_caps.load = platform::board::BootLoadDesc{
+        .ctx = &xip_ctx,
+        .resolve_payload_base = resolve_mock_payload_base,
+        .load_payload = load_mock_payload
+    };
+    boot::BootPlan xip_plan{};
+    xip_plan.boot = {boot::BootStatus::ok, boot::Slot::b};
+    xip_plan.info = initial_info;
+    const auto xip_target = boot::resolve_boot_target(xip_storage, cfg, xip_plan);
+    const auto xip_load = boot::make_boot_load_plan(xip_target);
+    auto xip_image_loaded = boot::resolve_boot_loaded_image(xip_load, xip_caps);
+    const bool xip_ready = boot::prepare_boot_loaded_image(xip_image_loaded, xip_caps);
+    const bool xip_ok =
+        xip_written &&
+        static_cast<bool>(xip_target) &&
+        static_cast<bool>(xip_load) &&
+        xip_load.kind == boot::BootLoadKind::xip &&
+        !xip_load.transfer_required &&
+        xip_ready &&
+        static_cast<bool>(xip_image_loaded) &&
+        xip_ctx.resolve_called &&
+        !xip_ctx.load_called;
+
+    MockLaunchContext armv7_copy_ctx{
+        .expected_payload_offset = load.storage_payload_offset,
+        .expected_storage_entry_offset = load.storage_entry_offset,
+        .expected_vector_base = 0x8000u,
+        .expected_translation_table_base = 0x4000u
+    };
+    platform::board::armv7a_stub::BootContext armv7_copy_boot{
+        .layout = {
+            .xip_window_base = 0,
+            .ram_payload_base =
+                reinterpret_cast<util::usize>(&mock_boot_entry) - load.entry_offset
+        },
+        .exception = {
+            .vector_base = armv7_copy_ctx.expected_vector_base
+        },
+        .translation = {
+            .translation_table_base = armv7_copy_ctx.expected_translation_table_base
+        },
+        .transfer = {
+            .ctx = &armv7_copy_ctx,
+            .copy_payload = load_mock_payload
+        },
+        .exec = {
+            .ctx = &armv7_copy_ctx,
+            .prepare_jump = prepare_armv7_mock_execution,
+            .jump = jump_armv7_mock_execution,
+            .maintenance = {
+                .ctx = &armv7_copy_ctx,
+                .mask_interrupts = mask_mock_interrupts,
+                .activate_payload_mapping = activate_mock_payload_mapping,
+                .clean_data_cache = clean_mock_data_cache,
+                .invalidate_instruction_cache = invalidate_mock_instruction_cache,
+                .invalidate_tlb = invalidate_mock_tlb,
+                .switch_exception_vectors = switch_mock_exception_vectors,
+                .sync_context = sync_mock_context
+            },
+            .policy = {
+                .mask_interrupts = true,
+                .activate_payload_mapping = true,
+                .clean_data_cache = true,
+                .invalidate_instruction_cache = true,
+                .invalidate_tlb = true,
+                .switch_exception_vectors = true,
+                .sync_context = true
+            }
+        }
+    };
+    const auto armv7_copy_caps = platform::board::with_boot_caps(
+        platform::board::BoardCaps{},
+        platform::board::armv7a_stub::make_boot_caps(armv7_copy_boot));
+    auto armv7_copy_loaded = boot::resolve_boot_loaded_image(load, armv7_copy_caps);
+    const bool armv7_copy_ready = boot::prepare_boot_loaded_image(armv7_copy_loaded, armv7_copy_caps);
+    auto armv7_copy_execution = boot::resolve_boot_execution(armv7_copy_loaded, armv7_copy_caps);
+    const bool armv7_copy_prepared =
+        boot::prepare_boot_execution(armv7_copy_execution, armv7_copy_caps);
+    const bool armv7_copy_executed =
+        boot::execute_boot_execution(armv7_copy_execution, armv7_copy_caps);
+    const bool armv7_copy_ok =
+        static_cast<bool>(armv7_copy_loaded) &&
+        armv7_copy_loaded.payload_base ==
+            reinterpret_cast<util::usize>(&mock_boot_entry) - load.entry_offset &&
+        armv7_copy_ready &&
+        static_cast<bool>(armv7_copy_execution) &&
+        armv7_copy_prepared &&
+        armv7_copy_executed &&
+        armv7_copy_ctx.load_called &&
+        armv7_copy_ctx.prepare_called &&
+        armv7_copy_ctx.jump_called &&
+        armv7_copy_ctx.entry_called &&
+        expect_trace(armv7_copy_ctx,
+                     {
+                         MockPrepareStep::mask_interrupts,
+                         MockPrepareStep::activate_payload_mapping,
+                         MockPrepareStep::clean_data_cache,
+                         MockPrepareStep::invalidate_instruction_cache,
+                         MockPrepareStep::invalidate_tlb,
+                         MockPrepareStep::switch_exception_vectors,
+                         MockPrepareStep::sync_context,
+                         MockPrepareStep::prepare_jump,
+                         MockPrepareStep::jump,
+                         MockPrepareStep::entry
+                     });
+
+    MockLaunchContext armv7_xip_ctx{
+        .expected_payload_offset = xip_load.storage_payload_offset,
+        .expected_storage_entry_offset = xip_load.storage_entry_offset,
+        .expected_vector_base = 0x9000u,
+        .expected_translation_table_base = 0x5000u,
+        .expected_load_kind = platform::board::BootLoadKind::xip
+    };
+    platform::board::armv7a_stub::BootContext armv7_xip_boot{
+        .layout = {
+            .xip_window_base =
+                reinterpret_cast<util::usize>(&mock_boot_entry) - xip_load.storage_entry_offset,
+            .ram_payload_base = 0
+        },
+        .exception = {
+            .vector_base = armv7_xip_ctx.expected_vector_base
+        },
+        .translation = {
+            .translation_table_base = armv7_xip_ctx.expected_translation_table_base
+        },
+        .exec = {
+            .ctx = &armv7_xip_ctx,
+            .prepare_jump = prepare_armv7_mock_execution,
+            .jump = jump_armv7_mock_execution,
+            .maintenance = {
+                .ctx = &armv7_xip_ctx,
+                .mask_interrupts = mask_mock_interrupts,
+                .activate_payload_mapping = activate_mock_payload_mapping,
+                .clean_data_cache = clean_mock_data_cache,
+                .invalidate_instruction_cache = invalidate_mock_instruction_cache,
+                .invalidate_tlb = invalidate_mock_tlb,
+                .switch_exception_vectors = switch_mock_exception_vectors,
+                .sync_context = sync_mock_context
+            },
+            .policy = {
+                .mask_interrupts = true,
+                .activate_payload_mapping = true,
+                .clean_data_cache = true,
+                .invalidate_instruction_cache = true,
+                .invalidate_tlb = true,
+                .switch_exception_vectors = true,
+                .sync_context = true
+            }
+        }
+    };
+    const auto armv7_xip_caps = platform::board::armv7a_stub::make_boot_caps(armv7_xip_boot);
+    auto armv7_xip_loaded = boot::resolve_boot_loaded_image(xip_load, armv7_xip_caps);
+    const bool armv7_xip_ready = boot::prepare_boot_loaded_image(armv7_xip_loaded, armv7_xip_caps);
+    auto armv7_xip_execution = boot::resolve_boot_execution(armv7_xip_loaded, armv7_xip_caps);
+    const bool armv7_xip_prepared =
+        boot::prepare_boot_execution(armv7_xip_execution, armv7_xip_caps);
+    const bool armv7_xip_executed =
+        boot::execute_boot_execution(armv7_xip_execution, armv7_xip_caps);
+    const bool armv7_xip_ok =
+        static_cast<bool>(armv7_xip_loaded) &&
+        armv7_xip_loaded.payload_base ==
+            reinterpret_cast<util::usize>(&mock_boot_entry) - xip_load.entry_offset &&
+        armv7_xip_ready &&
+        static_cast<bool>(armv7_xip_execution) &&
+        armv7_xip_prepared &&
+        armv7_xip_executed &&
+        !armv7_xip_ctx.load_called &&
+        armv7_xip_ctx.prepare_called &&
+        armv7_xip_ctx.jump_called &&
+        armv7_xip_ctx.entry_called &&
+        expect_trace(armv7_xip_ctx,
+                     {
+                         MockPrepareStep::mask_interrupts,
+                         MockPrepareStep::activate_payload_mapping,
+                         MockPrepareStep::clean_data_cache,
+                         MockPrepareStep::invalidate_instruction_cache,
+                         MockPrepareStep::invalidate_tlb,
+                         MockPrepareStep::switch_exception_vectors,
+                         MockPrepareStep::sync_context,
+                         MockPrepareStep::prepare_jump,
+                         MockPrepareStep::jump,
+                         MockPrepareStep::entry
+                     });
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
                     static_cast<bool>(download) &&
-                    download.pending_set &&
-                    download.boot_info_written &&
+                    download.pending_set() &&
+                    download.boot_info_written() &&
+                    static_cast<bool>(plan) &&
+                    plan.boot.status == boot::BootStatus::ok &&
                     slot_b_valid &&
-                    pick.status == boot::BootStatus::ok &&
-                    pick.slot == boot::Slot::b &&
+                    plan.boot.slot == boot::Slot::b &&
+                    plan.reason == boot::BootSelectionReason::pending_trial &&
+                    plan.prepare_required &&
+                    static_cast<bool>(handoff) &&
+                    static_cast<bool>(target) &&
+                    target.partition.offset == cfg.slot_b.offset &&
+                    static_cast<bool>(load) &&
+                    load.kind == boot::BootLoadKind::copy_to_ram &&
+                    load.transfer_required &&
+                    static_cast<bool>(image) &&
+                    image.payload_ready &&
+                    target.payload_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) &&
+                    target.storage_entry_offset == cfg.slot_b.offset + sizeof(boot::ImageHeader) + 4 &&
+                    prepared &&
+                    prepared_result.boot_prepared() &&
+                    prepared_result.plan.prepared &&
+                    !prepared_result.plan.prepare_required &&
+                    static_cast<bool>(rollback_plan) &&
+                    rollback_plan.boot.slot == boot::Slot::a &&
+                    rollback_plan.reason == boot::BootSelectionReason::active &&
+                    static_cast<bool>(execution) &&
+                    execution.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry) &&
+                    execution.prepared &&
+                    execution.jumped &&
+                    executed &&
+                    launch_ctx.prepare_called &&
+                    launch_ctx.jump_called &&
+                    launch_ctx.entry_called &&
+                    launch_ctx.resolve_called &&
+                    launch_ctx.load_called &&
                     marked &&
-                    boot_info.active == boot::Slot::b &&
-                    headerless_failed;
+                    final_result.success_marked() &&
+                    final_result.plan.prepared &&
+                    !final_result.plan.confirm_required &&
+                    final_result.info().active == boot::Slot::b &&
+                    headerless_failed &&
+                    bad_entry_rejected &&
+                    xip_ok &&
+                    armv7_copy_ok &&
+                    armv7_xip_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
     std::printf("[boot] session_stage=%u pending=%d bootinfo=%d\n",
                 static_cast<unsigned>(download.stage),
-                download.pending_set ? 1 : 0,
-                download.boot_info_written ? 1 : 0);
+                download.pending_set() ? 1 : 0,
+                download.boot_info_written() ? 1 : 0);
     std::printf("[boot] xymodem_download=%d bytes=%u expected=%u status=%u\n",
                 static_cast<bool>(download) ? 1 : 0,
                 download.transfer.bytes_written,
                 download.transfer.expected_size,
                 static_cast<unsigned>(download.transfer.transport_status));
     std::printf("[boot] slot_b_valid=%d\n", slot_b_valid ? 1 : 0);
-    std::printf("[boot] pick=%s\n", pick.slot == boot::Slot::a ? "A" : "B");
+    std::printf("[boot] boot_plan=%s slot=%s prepare=%d\n",
+                selection_reason_name(plan.reason),
+                plan.boot.slot == boot::Slot::a ? "A" : "B",
+                plan.prepare_required ? 1 : 0);
+    std::printf("[boot] boot_target=%d payload=%u entry=%u\n",
+                static_cast<bool>(target) ? 1 : 0,
+                target.payload_offset,
+                target.storage_entry_offset);
+    std::printf("[boot] boot_load=%s transfer=%d ready=%d\n",
+                load_kind_name(load.kind),
+                load.transfer_required ? 1 : 0,
+                image.payload_ready ? 1 : 0);
+    std::printf("[boot] boot_handoff=%d rollback=%d ready=%d\n",
+                static_cast<bool>(handoff) ? 1 : 0,
+                handoff.rollback_prepared ? 1 : 0,
+                handoff.ready_to_jump ? 1 : 0);
+    std::printf("[boot] boot_exec=%d prepared=%d jumped=%d entry=%d\n",
+                static_cast<bool>(execution) ? 1 : 0,
+                execution.prepared ? 1 : 0,
+                execution.jumped ? 1 : 0,
+                launch_ctx.entry_called ? 1 : 0);
+    std::printf("[boot] prepare_boot=%d rollback_plan=%s:%s\n",
+                prepared ? 1 : 0,
+                selection_reason_name(rollback_plan.reason),
+                rollback_plan.boot.slot == boot::Slot::a ? "A" : "B");
     std::printf("[boot] mark_success=%d active=%s\n",
                 marked ? 1 : 0,
-                boot_info.active == boot::Slot::a ? "A" : "B");
+                final_result.info().active == boot::Slot::a ? "A" : "B");
     std::printf("[boot] headerless_fail=%d stage=%u missing_header=%d\n",
                 headerless_failed ? 1 : 0,
                 static_cast<unsigned>(headerless.stage),
                 headerless.transfer.header_missing ? 1 : 0);
+    std::printf("[boot] bad_entry_rejected=%d\n", bad_entry_rejected ? 1 : 0);
+    std::printf("[boot] xip_load=%d kind=%s\n", xip_ok ? 1 : 0, load_kind_name(xip_load.kind));
+    std::printf("[boot] armv7_copy=%d armv7_xip=%d\n",
+                armv7_copy_ok ? 1 : 0,
+                armv7_xip_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

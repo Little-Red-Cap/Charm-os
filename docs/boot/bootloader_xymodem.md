@@ -99,7 +99,24 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - 可按头帧声明长度裁剪最后一个块（`trim_to_header_size`）
 - 会在写入过程中累计 payload CRC32，便于后续镜像校验链路复用
 - 以 Bootloader 分区上限和 `max_size` 共同约束下载尺寸
-- `boot_session` 可在传输完成后继续执行目标分区校验，并写入 `BootInfo.pending`
+- `boot_session` 可在传输完成后继续执行目标分区校验、写入 `BootInfo.pending`，再通过统一 `BootPlan` 完成槽位决策、跳转前回滚预备与成功确认
+- `boot_session` 的结果对象已收敛到 `BootPlan + XyModemFlashResult + compact flags`，避免重复携带 `boot/info/loaded` 快照
+- `boot_launch` 可把已决策的 `BootPlan` 进一步解析为目标分区、镜像头与 entry 偏移，便于后续板级跳转对接
+- `boot_load` 可把 `BootTarget` 进一步解析为显式加载契约，统一表达 `copy_to_ram` 与 `xip`
+- `boot_board_load` 进一步桥接 `platform::board::BootLoadDesc`，让真实板级代码只暴露 payload 基址解析与可选搬运 hook
+- `boot_exec` 则只在镜像 ready 之后处理 pre-jump/jump，不再反向承担 payload 地址解析
+- `boot_board_exec` 继续桥接 `platform::board::BootExecDesc`，让真实板级代码只暴露跳转准备与 jump hook
+- 板级 load/exec hook 已改为 request 结构体入参，且 `BootExecRequest` 现在会带上 load kind 与 storage offset，便于后续扩展 MMU/cache/TLB/映射切换等目标相关字段
+- `boot_handoff` 把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 进一步串成一个更轻的 handoff，并通过 accessor 暴露 plan/target/load/image
+- `platform::board::BootBoardCaps` 已独立承载加载能力与 jump 能力，真实板级可以不必先依赖整板 `BoardCaps`
+- `platform::board::with_boot_caps(...)` 可在需要时把独立 boot 能力拼回 `BoardCaps`
+- `platform.board.armv7a_stub` 已提供 ARMv7-A 风格板级骨架，默认用固定 XIP window / RAM payload 基址解析加载落点，并把“关中断 / 映射切换 / cache-TLB 维护 / 向量切换 / 同步 / board prepare / jump”做成显式 hook 顺序
+- `platform.board.armv7a_stub::BootPrepareContext` 进一步把 `BootExecRequest` 与向量基址、translation table 基址这类静态布局一起传给 maintenance hook，便于后续接真实 MMU/异常向量切换代码
+
+这里同样要区分几类准备动作：
+- Boot 元数据准备：`prepare_selected_boot()` 负责把 `pending_trial` 写回旧 `active`，形成失败自动回滚语义
+- 加载准备：`prepare_boot_loaded_image()` 负责让目标镜像进入可执行态，包括 XIP 就绪或 copy-to-RAM 搬运
+- 板级执行准备：`prepare_boot_execution()` 负责真正跳转前的机器状态切换
 
 ## 7. 实施建议（最小）
 
@@ -116,13 +133,17 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - `Examples/io/xymodem_demo`：主机侧构造 YModem 头帧与数据帧，验证握手、文件名、文件大小与逻辑字节数。
 - `Examples/boot/bootloader_demo`：先写入有效 Slot A 镜像，再通过 `boot::XyModemSession` 下载并暂存 Slot B，随后执行：
   - 传输结果收口
-  - 策略校验
-  - `BootInfo.pending` 写入
-  - 槽位选择
-  - `mark_success`
+  - 策略校验与 `BootInfo.pending` 写入
+  - 生成 `BootPlan`
+  - 通过 `prepare_handoff()` 一次性完成目标解析、加载解析、执行解析与回滚预备
+  - 通过独立的 `platform::board::BootBoardCaps` 与 `BootLoadDesc` / `BootExecDesc` mock hook 验证 load/jump 调用
+  - 通过 `platform.board.armv7a_stub` 验证 ARMv7-A 风格 copy-to-RAM / XIP 两条板级骨架路径，以及 pre-jump maintenance 顺序
+  - 基于计划的成功确认
   - 缺失头帧失败路径验证
+  - 非法 `entry_offset` 镜像拒绝验证
+  - `xip_payload` 镜像旁路加载验证
 
-这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> Select -> MarkSuccess`。
+这条示例链路对应当前 Bootloader 的最小闭环：`X/YModem -> Flash -> Verify -> Pending -> BootPlan -> Target -> Load -> RollbackPrepare -> Exec -> Confirm`。
 
 ## 9. Charm 落地点建议
 

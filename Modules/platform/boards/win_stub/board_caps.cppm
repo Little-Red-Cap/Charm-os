@@ -120,6 +120,10 @@ namespace platform::board::win_stub::detail {
 } // namespace platform::board::win_stub::detail
 
 export namespace platform::board::win_stub {
+    inline BootBoardCaps make_boot_caps() noexcept {
+        return {};
+    }
+
     inline ConsoleCaps make_console_caps() noexcept {
         static detail::WinUartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
         static const hal::UartOps kWinUartOps{
@@ -184,6 +188,6 @@ export namespace platform::board::win_stub {
         caps.input.driver = &kWinRawInput;
         caps.can0.channel = &can0_channel;
         caps.can0.io_cap = "io.can0";
-        return caps;
+        return with_boot_caps(caps, make_boot_caps());
     }
 }

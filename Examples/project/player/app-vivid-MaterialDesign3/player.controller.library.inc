@@ -886,22 +886,44 @@
         }
 
         void update_library_state_visuals() {
+            const bool has_context = library_has_context();
+            const bool path_active = has_context
+                || (library_tab != LibraryTab::Songs)
+                || list_shuffle_enabled;
             apply_library_chip_style(handles.list_tab_songs, library_tab == LibraryTab::Songs, kLibraryTabRadius);
             apply_library_chip_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
             apply_library_chip_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
             apply_library_chip_style(handles.list_shuffle, list_shuffle_enabled, kLibraryTabRadius, true);
             apply_library_chip_style(handles.list_sort, list_sort == ListSort::NameDesc, kLibrarySortRadius, true);
+            if (handles.list_title) {
+                StylePatch patch{};
+                patch.has_font_color = true;
+                patch.font_color = has_context
+                    ? rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 255}
+                    : kUiTitle;
+                if (has_context) {
+                    patch.has_font = true;
+                    patch.font = &get_player_font_px(26, FontWeight::Bold);
+                } else {
+                    patch.has_font_role = true;
+                    patch.font_role = FontId::Normal;
+                    patch.has_font_weight = true;
+                    patch.font_weight = FontWeight::Bold;
+                }
+                access.set_style_override(handles.list_title, patch);
+            }
 
             if (handles.list_path_bg) {
-                const bool active = library_has_context()
-                    || (library_tab != LibraryTab::Songs)
-                    || list_shuffle_enabled;
                 const auto patch = ::ui::scene::make_pill_surface_patch({
-                    .bg_color = active ? kUiLibraryPathActive : kUiLibraryPathIdle,
-                    .border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder,
+                    .bg_color = has_context
+                        ? with_alpha(kUiLibraryPathIdle, 180)
+                        : (path_active ? kUiLibraryPathActive : kUiLibraryPathIdle),
+                    .border_color = has_context
+                        ? with_alpha(kUiLibraryPathBorderActive, 88)
+                        : (path_active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder),
                     .corner_radius = kLibraryPathRadius,
                     .shadow = {
-                        .enabled = active,
+                        .enabled = path_active && !has_context,
                         .color = with_alpha(kUiCardShadow, 72),
                         .offset_x = 0,
                         .offset_y = 2,
@@ -914,9 +936,9 @@
             if (handles.list_path) {
                 StylePatch patch{};
                 patch.has_font_color = true;
-                patch.font_color = (library_has_context()
-                    || (library_tab != LibraryTab::Songs)
-                    || list_shuffle_enabled)
+                patch.font_color = has_context
+                    ? with_alpha(kUiLibraryPathTextActive, 176)
+                    : path_active
                     ? kUiLibraryPathTextActive
                     : kUiLibraryPathText;
                 access.set_style_override(handles.list_path, patch);

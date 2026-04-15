@@ -1,0 +1,472 @@
+# System Compiler Vocabulary v0
+
+本文不是新的 DSL，也不是已经冻结的配置协议。
+它用于收敛 Charm 在 `system compiler v0` 阶段最核心的一组词汇，
+并把这些词和仓库当前已经存在的代码/文档载体做一轮正式映射。
+
+它要回答的核心问题不是“未来最终配置文件长什么样”，而是：
+
+> **当我们讨论 system compiler 时，仓库里哪些词已经可以当正式语言使用，它们当前分别落在什么地方。**
+
+## 1. 为什么现在要先写词汇表
+
+`docs/architecture/system_compiler_roadmap.md` 已经明确：
+
+- v0 优先做“解释系统”
+- 先冻结核心术语
+- 先建立概念映射表
+
+如果这一步不先做，后面会很容易出现几类漂移：
+
+- 同一个词在不同文档里指不同东西
+- 当前临时载体被误认为最终形态
+- build 层概念、system 层概念、runtime 层概念互相挤占
+
+词汇表的价值不是把未来一次说死，
+而是先把“现在允许怎样说话”讲清楚。
+
+## 2. v0 使用规则
+
+当前建议把这份词汇表当成 **架构语言**，而不是新的配置格式。
+
+v0 阶段的使用规则如下：
+
+- 先固定词义，再决定是否需要新的配置对象或 codegen。
+- 当“目标词汇”和“当前载体”不同名时，文档里要同时点名两者。
+- 不把单一现有实现误写成最终唯一宇宙中心。
+- 输入词汇和输出词汇要分开，不要把 `artifact report` 当成输入配置。
+
+一个安全写法是：
+
+> `BoardPackage`（当前核心载体是 `BoardCaps`）
+
+而不是：
+
+> `BoardCaps` 就已经等于最终 `BoardPackage`
+
+## 3. 核心输入词汇
+
+### 3.1 `SystemSpec`
+
+它回答的是：
+
+> **这个系统想成为什么样。**
+
+它关心的通常不是某个单模块，
+而是系统级目标，例如：
+
+- 要暴露哪些 capability / service
+- 要走哪条 bringup 路径
+- 哪些 facet 应该处于活动状态
+- 在哪些 board / profile 组合上应成立
+
+当前仓库里的主要载体是分散的：
+
+- 示例或应用目标的 CMake 组合
+- `init.graph` 的装配链与 case 选择
+- 系统设计文档里的目标描述
+- `materialized_graph` / `artifact report` 里的 `subject.case` 作为临时投影
+
+当前明确不要把它误解成：
+
+- 单个 `CMakeLists.txt`
+- 单个 `init chain`
+- 单个导出 case 名字
+
+当前状态：
+
+- `SystemSpec` 已经是路线图正式词汇
+- 但还没有收敛成单一源码对象
+
+### 3.2 `Profile`
+
+它回答的是：
+
+> **这个系统允许活在哪种资源宇宙里。**
+
+它更偏向资源/功能等级，
+而不是某一个具体模块的启用开关。
+
+当前仓库里的主要载体包括：
+
+- `cmake/CharmTargetConfig.cmake` 中的 `charm_apply_target_profile(...)`
+- `CMakeLists.txt` 中局部 featureset 语义，例如 `CHARM_VIVID_FEATURESET=FULL|MCU_MIN`
+- `artifact report` 的 `subject.profile`
+
+`Profile` 当前明确不等于：
+
+- Debug / Release
+- 单个 UI featureset
+- 某一个编译器选项集合
+
+更准确地说：
+
+- `target profile`
+  是当前 build 层对 `Profile` 的一部分承载
+- `featureset`
+  是局部子系统对 `Profile` 的一部分投影
+
+当前状态：
+
+- 词已经有现实载体
+- 但载体仍然分散，还没统一成单一 profile 语言
+
+### 3.3 `BoardPackage`
+
+它回答的是：
+
+> **板级已知事实是什么。**
+
+它应承担的是板级事实声明，
+而不是偷偷推进生命周期。
+
+一个成熟的 `BoardPackage` 未来通常应能承载：
+
+- 板级资源事实
+- live handle / ops / 默认配置
+- capability 名称与绑定关系
+- bringup 所需的已知事实
+- 板级 smoke / evidence 的入口信息
+
+当前仓库里的核心载体是：
+
+- `platform::board::BoardCaps`
+- 各板级 `make_board_caps()`
+
+当前还可能伴随：
+
+- 板级 CMake/target 配置
+- bringup 相关脚本或示例入口
+
+这里要明确：
+
+> **`BoardCaps` 是当前 `BoardPackage` 的核心事实载体，但不是全部。**
+
+当前不要把 `BoardPackage` 误写成：
+
+- 隐式初始化函数
+- 偷偷注册全局状态的 BSP 钩子
+- 运行期 probe / match 容器
+
+当前状态：
+
+- `BoardCaps` 已经很稳定
+- `BoardPackage` 仍是更上位的汇总词
+
+### 3.4 `Binding`
+
+它回答的是：
+
+> **这些事实如何连接到 capability、服务与最终系统结果。**
+
+`Binding` 在 Charm 里不应被缩成单个类名，
+它更像一门桥接语言。
+
+当前它主要有两条承载平面：
+
+- 静态 capability 平面
+- 动态 discovery 平面
+
+静态平面当前的主要载体包括：
+
+- `hal::*Binding`
+- `driver::*::ChannelBinding`
+- `io::ChannelAliasBinding`
+- `block::*Binding`
+- `CoreSystemChain` / `UsartInitChain` 这类装配组合器
+
+动态平面当前的主要载体包括：
+
+- `device::Bus`
+- `device::Driver`
+- `device::Registry`
+- capability export / stable slot export
+
+这里最重要的边界是：
+
+> **`Binding` 不等于单个 `device::Driver`，也不只等于某个 `*Binding` 类。**
+
+在静态 capability 主轴下，
+当前更安全的理解是：
+
+```text
+BoardCaps
+  -> ControllerBinding
+  -> ServiceAdapter
+  -> capability export / registry
+```
+
+在动态 discovery 平面下，
+当前更安全的理解是：
+
+```text
+RuntimeBus
+  -> RuntimeDriver
+  -> capability export
+```
+
+当前状态：
+
+- 词义已经比较清楚
+- 但它仍由多组现有实现共同承载
+
+### 3.5 `Facet`
+
+它回答的是：
+
+> **同一套架构在当前实例里，到底启用了哪些面。**
+
+`Facet` 不是 profile，
+也不是简单的“有没有编某个模块”。
+
+它更像系统 embodiment 的切面语言。
+
+当前仓库里至少已经有两类载体：
+
+- build 侧 facet
+- report / system 侧 facet
+
+build 侧的现实载体包括：
+
+- `CMakeLists.txt` 里的 `charm_add_runtime_facet(...)`
+- `Charm::core` / `Charm::io` / `Charm::platform` / `Charm::system`
+
+report / system 侧的现实载体包括：
+
+- `artifact report` 的 `subject.active_facets`
+- 各类文档里描述的 `runtime` / `input` / `ui` 等语义面
+
+这里要特别避免一个误解：
+
+> **当前 build facet 和 report facet 还不是完全同一套命名体系。**
+
+因此 v0 阶段建议这样写：
+
+- `build facet`
+  指构建组织层的 facet target
+- `system facet`
+  指 system compiler / report 语义里的活动面
+
+当前状态：
+
+- 词已经有现实入口
+- 但命名和粒度仍在收敛
+
+### 3.6 `Case`
+
+它回答的是：
+
+> **当前被导出、比较、报告的这个具体场景是谁。**
+
+`Case` 是当前工具链里已经很稳定的工程词，
+但它不应被误认成完整 `SystemSpec`。
+
+当前载体包括：
+
+- `materialized_graph` 导出 case
+- `bundle` / `bundle_diff` / `ci_summary` 中的 case 条目
+- `artifact report` 的 `subject.case`
+
+更准确的理解是：
+
+> **`Case` 是当前 system compiler v0 对某个场景的命名投影。**
+
+当前状态：
+
+- 工具链已稳定使用
+- 但它仍是 `SystemSpec` 的临时投影，不是最终同义词
+
+## 4. 核心输出词汇
+
+### 4.1 `Capability`
+
+它回答的是：
+
+> **系统最终对外提供、并允许其它部分消费的能力是什么。**
+
+当前对应载体包括：
+
+- `init.graph` 中的 capability provider / consumer
+- `io.registry` / block registry 中的稳定入口
+- 动态 discovery 平面导出的 slot / endpoint / registry entry
+
+它是 Charm 最终统一语言之一。
+
+### 4.2 `Fact`
+
+它回答的是：
+
+> **为了让某条绑定或某条资源法律成立，系统当前已知哪些事实。**
+
+当前对应载体包括：
+
+- `required_facts`
+- `provided_facts`
+- board 已知资源与环境条件
+
+这里需要特别注意：
+
+> **同一个名字在不同视角下，可能既是 capability，也可能是 fact。**
+
+例如：
+
+- `system.clock`
+  既可以是系统对外可消费的 capability
+  也可以是资源契约或绑定检查中的 provided fact
+
+两者差异不在名字，而在语义位置。
+
+### 4.3 `Materialized Graph`
+
+它回答的是：
+
+> **系统装配后，真正形成的图是什么。**
+
+当前对应载体包括：
+
+- `init.materialize`
+- `materialized_graph.sample/v2`
+- DOT / JSON sample 导出
+- export bundle
+
+它是当前 system compiler 最成熟的结果物之一。
+
+### 4.4 `Bringup Evidence`
+
+它回答的是：
+
+> **这条 bringup 路径被推进到什么状态，并且有哪些证据。**
+
+当前对应载体包括：
+
+- `docs/system/bringup_evidence_pipeline_v0.md`
+- `artifact report` 中的 `bringup_evidence` 摘要
+
+### 4.5 `Resource Contract`
+
+它回答的是：
+
+> **这些系统部分在当前资源/执行宇宙里是否合法。**
+
+当前对应载体包括：
+
+- `docs/system/resource_contract_v0.md`
+- `artifact report` 中的 `resource_contract` 摘要
+
+### 4.6 `Artifact Report`
+
+它回答的是：
+
+> **本次 system compiler/export/compare 到底稳定产出了哪些结论对象。**
+
+当前对应载体包括：
+
+- `docs/system/artifact_report_v0.md`
+- `schemas/system_compiler.artifact_report.v0.schema.json`
+- `scripts/export_system_compiler_artifact_report.ps1`
+
+### 4.7 `Explain Surface`
+
+它回答的是：
+
+> **当人和工具想继续追问系统事实时，应通过什么统一问题面来追问。**
+
+当前对应载体包括：
+
+- `docs/system/explain_surface_v0.md`
+- runtime observe / publish / export 状态
+- `artifact report` 作为 explain 输入工件
+
+## 5. 最小概念映射表
+
+| 目标词汇 | 当前主要载体 | 当前状态 | 当前不要误写成 |
+| --- | --- | --- | --- |
+| `SystemSpec` | 应用/示例目标、init case、设计文档 | 词已确立，尚未单对象化 | 单个 case / 单个 CMakeLists |
+| `Profile` | target profile、局部 featureset、report profile 字段 | 已有碎片化载体 | Debug/Release、单个 UI 配置 |
+| `BoardPackage` | `BoardCaps` + 板级 target/config | 事实载体已存在，汇总词尚未收口 | 隐式 init / BSP 黑盒 |
+| `Binding` | `*Binding`、init chain、runtime driver/export | 双平面都已存在 | 只等于 `device::Driver` |
+| `Facet` | facet target、`active_facets`、语义面文档 | 词已出现，命名仍在收敛 | profile / target / component |
+| `Case` | export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
+| `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
+| `Fact` | `required_facts` / `provided_facts` | 已在报告链出现 | 单纯等于 capability 名字 |
+| `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
+
+## 6. 一个最小 worked example
+
+以 `bringup-minimal-observe-demo` 这类最小导出场景为例，
+可以把词汇映射成下面这条链：
+
+```text
+SystemSpec
+  -> 我想得到一个最小可观察系统，并暴露 console / input 等能力
+
+Profile
+  -> MCU_MIN（资源/功能等级的当前投影）
+
+BoardPackage
+  -> stm32_stub 的 BoardCaps、handle、默认绑定关系
+
+Binding
+  -> hal::UartBinding
+  -> driver::usart::ChannelBinding
+  -> io::ChannelAliasBinding
+
+Facet
+  -> runtime / input（当前 report 语义里的 active facets）
+
+Outputs
+  -> materialized graph
+  -> bringup evidence summary
+  -> resource contract summary
+  -> artifact report
+```
+
+这条例子最重要的价值不是展示某个具体 demo，
+而是说明：
+
+> **system compiler 词汇不是悬在空中的术语，它们已经可以映到当前仓库里的真实链路。**
+
+## 7. v0 写作建议
+
+如果后续文档要使用这组词，当前建议遵守下面几条写法：
+
+- 先写目标词，再点名当前载体。
+- 当 build 侧与 system/report 侧同名但不同义时，加前缀说明。
+- 不把 `Case`、`Profile`、`Facet` 三者写成同一个东西。
+- 不把 `BoardCaps`、`device::Registry` 这类现有实现提升成唯一世界模型。
+
+一个推荐句式是：
+
+> 当前 `BoardPackage` 的核心事实载体是 `BoardCaps`，  
+> 当前 `Binding` 主要由 `*Binding + init chain + capability export` 共同承载。
+
+## 8. 与其它文档的关系
+
+- `docs/architecture/system_compiler_roadmap.md`
+  负责给出主轴、维度、边界与时间线
+- `docs/architecture/system_compiler_vocabulary_v0.md`
+  负责给出核心词义与当前仓库映射
+- `docs/system/artifact_report_v0.md`
+  负责给出最小结论对象
+- `docs/system/explain_surface_v0.md`
+  负责给出人和工具继续追问系统的表面
+- `docs/system/bringup_evidence_pipeline_v0.md`
+  负责给出 bringup 证据语言
+- `docs/system/resource_contract_v0.md`
+  负责给出资源法律语言
+
+## 9. 当前结论
+
+`System Compiler Vocabulary v0` 当前最重要的作用不是制造新对象，
+而是先把 Charm 已经长出来的那几根主词压稳：
+
+- `SystemSpec`
+- `Profile`
+- `BoardPackage`
+- `Binding`
+- `Facet`
+
+只要这些词义稳定，
+后续无论是 `artifact report`、bringup evidence、resource contract，
+还是更远一点的 managed time / guest world，
+都能在同一套语言里继续生长。

@@ -26,6 +26,7 @@ namespace {
     using examples::usb::support::expect_error;
     using examples::usb::support::expect_ok;
     using examples::usb::support::expect_status;
+    using examples::usb::support::FixedTransitionLog;
     using examples::usb::support::MemoryDisk;
     using examples::usb::support::MscRuntimeHarness;
     using examples::usb::support::read_lba0;
@@ -51,6 +52,10 @@ int main() {
         0x1209,
         0x0011
     };
+    FixedTransitionLog<block::ExportTransition, 8> msc_transitions{};
+    FixedTransitionLog<io::ExportTransition, 8> cdc_transitions{};
+    msc.set_observer(&FixedTransitionLog<block::ExportTransition, 8>::on_event, &msc_transitions);
+    cdc.set_observer(&FixedTransitionLog<io::ExportTransition, 8>::on_event, &cdc_transitions);
 
     usb::host::RuntimeManager<8, 8> runtime{"usb.host.multi"};
     if (!expect_ok(msc.add_to(runtime), "failed to add MSC exported binding")) {
@@ -69,6 +74,11 @@ int main() {
                 "MSC binding should start exported but detached")) return 1;
     if (!expect(cdc_initial.export_state == io::ExportState::detached,
                 "CDC binding should start exported but detached")) return 1;
+    if (!expect(msc_transitions.count == 1 && cdc_transitions.count == 1,
+                "add_exported should emit one publish transition per binding")) return 1;
+    if (!expect(msc_transitions.events[0].action == block::ExportAction::ensure_exported &&
+                cdc_transitions.events[0].action == io::ExportAction::ensure_exported,
+                "first transition should be ensure_exported")) return 1;
     if (!expect(msc.export_state() == block::ExportState::detached,
                 "MSC binding should agree with runtime state before enumeration")) return 1;
     if (!expect(cdc.export_state() == io::ExportState::detached,
@@ -116,6 +126,11 @@ int main() {
                 "runtime state should mark both bindings as enumerated")) return 1;
     if (!expect(msc_attached.attached() && cdc_attached.attached(),
                 "runtime state should report both exports as attached")) return 1;
+    if (!expect(msc_transitions.count == 2 && cdc_transitions.count == 2,
+                "enumeration should emit attach transitions for both bindings")) return 1;
+    if (!expect(msc_transitions.events[1].action == block::ExportAction::attach &&
+                cdc_transitions.events[1].action == io::ExportAction::attach,
+                "second transition should be attach")) return 1;
     const auto cdc_generation_before = cdc.generation();
 
     auto block_read = read_lba0(*stable_block, block_buf);
@@ -141,6 +156,9 @@ int main() {
 
     if (!expect_ok(msc.try_remove_from(runtime), "failed to remove MSC device")) return 1;
     if (!expect(runtime.registry().device_count() == 1, "runtime registry should keep only CDC after MSC remove")) return 1;
+    if (!expect(msc_transitions.count == 3, "MSC remove should emit a detach transition")) return 1;
+    if (!expect(msc_transitions.events[2].action == block::ExportAction::detach,
+                "MSC remove should report detach")) return 1;
     if (!expect(!msc.attached(), "MSC slot should detach after remove")) return 1;
     if (!expect(msc.export_state() == block::ExportState::detached,
                 "removed MSC binding should remain exported but detached")) return 1;
@@ -149,6 +167,9 @@ int main() {
 
     if (!expect_ok(msc.try_rediscover_in(runtime), "failed to rediscover MSC device")) return 1;
     if (!expect(runtime.registry().device_count() == 2, "runtime registry should restore MSC after re-enumeration")) return 1;
+    if (!expect(msc_transitions.count == 4, "MSC rediscover should emit an attach transition")) return 1;
+    if (!expect(msc_transitions.events[3].action == block::ExportAction::attach,
+                "MSC rediscover should report attach")) return 1;
     if (!expect(msc.attached(), "MSC slot should reattach after re-enumeration")) return 1;
     if (!expect(static_cast<bool>(read_lba0(*stable_block, block_buf)),
                 "re-enumerated MSC slot should read successfully")) return 1;
@@ -157,6 +178,8 @@ int main() {
 
     if (!expect_ok(cdc.try_remove_from(runtime), "failed to remove CDC device")) return 1;
     if (!expect_ok(msc.try_remove_from(runtime), "failed to remove MSC device the second time")) return 1;
+    if (!expect(cdc_transitions.count == 3 && msc_transitions.count == 5,
+                "second remove round should emit detach transitions")) return 1;
 
     if (!expect(!msc.attached(), "MSC slot should be detached after remove")) return 1;
     if (!expect(!cdc.attached(), "CDC slot should be detached after remove")) return 1;
@@ -180,6 +203,11 @@ int main() {
     const auto cdc_forgotten = cdc.state_in(runtime);
     if (!expect(!msc_forgotten.tracked && !cdc_forgotten.tracked,
                 "forgotten bindings should be removed from runtime bus")) return 1;
+    if (!expect(msc_transitions.count == 6 && cdc_transitions.count == 4,
+                "forget should emit one unexport transition per binding")) return 1;
+    if (!expect(msc_transitions.events[5].action == block::ExportAction::unexport &&
+                cdc_transitions.events[3].action == io::ExportAction::unexport,
+                "forget should report unexport")) return 1;
     if (!expect(msc_forgotten.publish_state == block::PublishState::missing,
                 "forgotten MSC capability should become unpublished")) return 1;
     if (!expect(cdc_forgotten.publish_state == io::PublishState::missing,

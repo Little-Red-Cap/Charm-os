@@ -8,6 +8,24 @@
 如果你想先理解这些架构规则背后更上位的目标与不变量，
 先看：`docs/architecture/charm_methodology_charter.md`
 
+如果你想看 Charm 中长期主轴、近中期路线与传奇路线边界，
+再看：`docs/architecture/system_compiler_roadmap.md`
+
+如果你想看 system compiler 的当前核心词汇与仓库映射，
+再看：`docs/architecture/system_compiler_vocabulary_v0.md`
+
+如果你想看 system compiler 的最小结论对象应该长什么样，
+再看：`docs/system/artifact_report_v0.md`
+
+如果你想看 system compiler 如何把结果暴露给人和工具，
+再看：`docs/system/explain_surface_v0.md`
+
+如果你想看资源与行为边界如何进入系统语言，
+再看：`docs/system/resource_contract_v0.md`
+
+如果你想看 bringup 如何从“系统装配”继续收束成“可举证结果”，
+再看：`docs/system/bringup_evidence_pipeline_v0.md`
+
 ## 设计原则（只记 5 条）
 - 静态能力必须走 `init.graph` 装配；运行期发现能力必须通过统一 capability export 进入系统
 - Channel 只能 non-blocking
@@ -135,6 +153,12 @@ Draft/        # 计划/草案（可变动）
 - USB String/Lang 装配：`docs/usb/usb_strings_overview.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 设备发现模型草案：`docs/architecture/device_model_overview.md`
+- 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
+- System Compiler 词汇表 v0：`docs/architecture/system_compiler_vocabulary_v0.md`
+- Artifact Report v0：`docs/system/artifact_report_v0.md`
+- Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
+- 资源契约 v0：`docs/system/resource_contract_v0.md`
+- bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
 - trace_core 统一入口：`docs/trace/trace_core_entry.md`
 - trace_core ID 清单：`docs/trace/trace_core_ids.md`
 - VFS 挂载规则：`docs/storage/fs_vfs_mount_rules.md`

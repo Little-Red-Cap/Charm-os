@@ -17,6 +17,20 @@ import util.core;
 import util.error;
 
 namespace {
+    template <typename TransitionT, std::size_t MaxEvents>
+    struct FixedTransitionLog {
+        std::array<TransitionT, MaxEvents> events{};
+        std::size_t count{0};
+
+        static void on_event(void* ctx, const TransitionT& transition) noexcept {
+            auto* self = static_cast<FixedTransitionLog*>(ctx);
+            if (!self || self->count >= self->events.size()) {
+                return;
+            }
+            self->events[self->count++] = transition;
+        }
+    };
+
     struct MemoryDisk {
         static constexpr std::size_t block_size = 512;
         static constexpr std::size_t block_count = 4;
@@ -170,12 +184,20 @@ int main() {
 
     block::DeviceSlotExport<block::Registry<4>> exported{block_registry, kCapName};
     MemoryDisk disk{};
+    FixedTransitionLog<block::ExportTransition, 4> transitions{};
+    exported.set_observer(&FixedTransitionLog<block::ExportTransition, 4>::on_event, &transitions);
 
     auto register_r = exported.ensure_exported();
     if (!register_r) {
         std::fprintf(stderr, "[ERR] block registry register failed err=%d\n", static_cast<int>(register_r.error()));
         return 1;
     }
+    if (!expect(transitions.count == 1, "ensure_exported should emit one block transition")) return 1;
+    if (!expect(transitions.events[0].action == block::ExportAction::ensure_exported,
+                "first block transition should be ensure_exported")) return 1;
+    if (!expect(transitions.events[0].before == block::ExportState::missing &&
+                transitions.events[0].after == block::ExportState::detached,
+                "ensure_exported should move block slot from missing to detached")) return 1;
 
     auto* stable = block_registry.open_device(kCapName);
     if (!expect(stable == &exported.device(), "registry did not expose the stable slot")) return 1;
@@ -233,6 +255,12 @@ int main() {
     if (!expect(registry.device_count() == 1, "runtime registry should contain one device")) return 1;
 
     if (!expect_ok(registry.try_match_all(), "runtime registry match failed")) return 1;
+    if (!expect(transitions.count == 2, "attach should emit a second block transition")) return 1;
+    if (!expect(transitions.events[1].action == block::ExportAction::attach,
+                "second block transition should be attach")) return 1;
+    if (!expect(transitions.events[1].before == block::ExportState::detached &&
+                transitions.events[1].after == block::ExportState::attached,
+                "attach should move block slot from detached to attached")) return 1;
     if (!expect(exported.attached(), "runtime init did not attach the block slot")) return 1;
     if (!expect(exported.generation() == 1, "slot generation should advance after attach")) return 1;
     if (!expect(registry.device_at(0).state == device::DeviceState::running,
@@ -258,6 +286,12 @@ int main() {
                    "runtime remove did not complete")) {
         return 1;
     }
+    if (!expect(transitions.count == 3, "remove should emit a detach transition")) return 1;
+    if (!expect(transitions.events[2].action == block::ExportAction::detach,
+                "third block transition should be detach")) return 1;
+    if (!expect(transitions.events[2].before == block::ExportState::attached &&
+                transitions.events[2].after == block::ExportState::detached,
+                "detach should move block slot from attached to detached")) return 1;
     if (!expect(!exported.attached(), "runtime remove did not detach the block slot")) return 1;
     if (!expect(exported.generation() == 2, "slot generation should advance after detach")) return 1;
     if (!expect(block_registry.open_device(kCapName) == stable,

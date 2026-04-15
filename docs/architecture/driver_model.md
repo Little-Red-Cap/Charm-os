@@ -532,6 +532,14 @@ USB Device 不能简单地整体归入动态平面。
 - 除 discovery 平面内部外，用户代码不应直接围绕 `device::Bus` / `device::Driver` / `DeviceDesc` 编程
 - 如果调用方需要感知 attach / detach，也应优先感知“稳定 capability 的 live state”或 manager 事件，而不是裸露的 discovered device 指针
 
+当前代码里，更稳的最小观察缝已经开始落在 stable slot export 本身：
+
+- `io::ChannelSlotExport` / `block::DeviceSlotExport`
+  可以直接发出 `ensure_exported / attach / detach / unexport` transition callback
+- 这样无论状态变化是来自 runtime manager、bus enumerate，还是别的 runtime glue，
+  只要最终经过稳定槽位导出，观察语义就不会漂移
+- manager 级事件后续仍然可以补，但更适合作为转发层，而不是唯一事实源
+
 可以把它理解成：
 
 ```text

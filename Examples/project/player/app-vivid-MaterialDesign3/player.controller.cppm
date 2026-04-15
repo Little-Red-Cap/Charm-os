@@ -119,6 +119,8 @@ export namespace player {
         WidgetHandle home_stats_avg{};
         std::array<WidgetHandle, 7> home_stats_bars{};
         std::array<Rect, 7> home_stats_bar_slots{};
+        std::array<WidgetHandle, 3> home_daily_mix_covers{};
+        std::array<WidgetHandle, 3> home_recently_played_covers{};
         WidgetHandle now_back{};
         WidgetHandle now_more{};
         WidgetHandle now_lyrics{};
@@ -161,6 +163,8 @@ export namespace player {
         WidgetHandle list_sort{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
+        WidgetHandle list_context_cover{};
+        WidgetHandle list_context_cover_scrim{};
         WidgetHandle list_action_scrim{};
         WidgetHandle list_action_card{};
         WidgetHandle list_action_title{};
@@ -203,6 +207,7 @@ export namespace player {
             int track_index{-1};
             bool group_row{false};
             bool current_row{false};
+            bool selected_row{false};
             bool show_tail_action{false};
             const char* menu_title_cstr{"Track"};
             std::string_view detail_primary{};
@@ -255,7 +260,7 @@ export namespace player {
         FixedString<12> track_format_text{};
         FixedString<128> last_status_text{};
         FixedString<48> last_mode_text{};
-        FixedString<64> last_list_title_text{};
+        FixedString<192> last_list_title_text{};
         FixedString<128> last_list_hint_text{};
         FixedString<128> last_debug_text{};
         FixedString<96> last_info_text{};
@@ -293,9 +298,12 @@ export namespace player {
             FixedString<260> path{};
             CoverImage image{};
         };
+        static constexpr std::size_t kHomeCollageSlots = 6;
         static constexpr std::size_t kListCoverCache = 12;
         std::array<ListCoverCacheEntry, kListCoverCache> list_cover_cache{};
         std::size_t list_cover_next{0};
+        std::array<int, kHomeCollageSlots> home_collage_track_indices{{-1, -1, -1, -1, -1, -1}};
+        std::array<int, kHomeCollageSlots> last_home_collage_track_indices{{-2, -2, -2, -2, -2, -2}};
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
@@ -587,6 +595,7 @@ export namespace player {
             ::ui::scene::TextSlotId list_title{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId list_path{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId list_sort{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId list_shuffle{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId list_hint{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId btn_pause{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId bottom_title{::ui::scene::kInvalidTextSlot};
@@ -722,6 +731,7 @@ export namespace player {
             text_slots.list_title = alloc();
             text_slots.list_path = alloc();
             text_slots.list_sort = alloc();
+            text_slots.list_shuffle = alloc();
             text_slots.list_hint = alloc();
             text_slots.btn_pause = alloc();
             text_slots.cover_debug = alloc();
@@ -785,12 +795,6 @@ export namespace player {
             clear_image(handles.cover_left);
             clear_image(handles.cover_right);
             clear_image(handles.bottom_cover);
-            clear_image(handles.home_cover_big);
-            clear_image(handles.home_cover_left);
-            clear_image(handles.home_cover_right);
-            clear_image(handles.home_cover_small);
-            clear_image(handles.home_cover_bottom_left);
-            clear_image(handles.home_cover_bottom_right);
         }
 
         void update_cover_image() {
@@ -809,12 +813,6 @@ export namespace player {
                 clear_image(handles.cover_left);
                 clear_image(handles.cover_right);
                 clear_image(handles.bottom_cover);
-                clear_image(handles.home_cover_big);
-                clear_image(handles.home_cover_left);
-                clear_image(handles.home_cover_right);
-                clear_image(handles.home_cover_small);
-                clear_image(handles.home_cover_bottom_left);
-                clear_image(handles.home_cover_bottom_right);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                 std::printf("[cover] no cover for track\n");
 #endif
@@ -832,12 +830,6 @@ export namespace player {
                     set_image(handles.cover_left);
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
-                    set_image(handles.home_cover_big);
-                    set_image(handles.home_cover_left);
-                    set_image(handles.home_cover_right);
-                    set_image(handles.home_cover_small);
-                    set_image(handles.home_cover_bottom_left);
-                    set_image(handles.home_cover_bottom_right);
                     cover_path.assign(candidate);
                     if (cover_tint_path.view() != cover_image.path) {
                         cover_theme = derive_cover_theme(cover_image);
@@ -859,12 +851,6 @@ export namespace player {
                     set_image(handles.cover_left);
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
-                    set_image(handles.home_cover_big);
-                    set_image(handles.home_cover_left);
-                    set_image(handles.home_cover_right);
-                    set_image(handles.home_cover_small);
-                    set_image(handles.home_cover_bottom_left);
-                    set_image(handles.home_cover_bottom_right);
                     cover_path.assign(candidate);
                     cover_theme = derive_cover_theme(cover_image);
                     cover_tint_path.assign(cover_image.path);
@@ -1092,6 +1078,7 @@ export namespace player {
             update_nav_page_indicator();
             update_duration_from_player();
             update_info_label();
+            sync_home_collage_images();
             sync_weekly_listening_stats_card();
             update_debug_overlay();
         }

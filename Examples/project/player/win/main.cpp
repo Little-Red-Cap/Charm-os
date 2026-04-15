@@ -421,9 +421,13 @@ int main(int argc, char** argv) {
     player::PlayerPage start_page = player::PlayerPage::Home;
     bool start_page_set = false;
     std::optional<player::LibraryTab> library_tab_override{};
+    std::string library_context_override{};
+    bool library_open_first_group = false;
+    int library_select_index = -1;
     bool ui_ci = false;
     std::string font_ttf_path{};
     std::string font_fallback_ttf_path{};
+    bool disable_system_font_fallback = false;
     int font_small_px = 0;
     int font_normal_px = 0;
     int font_large_px = 0;
@@ -473,6 +477,12 @@ int main(int argc, char** argv) {
             } else if (tab == "artists") {
                 library_tab_override = player::LibraryTab::Artists;
             }
+        } else if (arg.rfind("--library-context=", 0) == 0) {
+            library_context_override.assign(arg.substr(18));
+        } else if (arg == "--library-open-first-group") {
+            library_open_first_group = true;
+        } else if (arg.rfind("--library-select-index=", 0) == 0) {
+            library_select_index = std::atoi(std::string(arg.substr(23)).c_str());
         } else if (arg == "--screenshot-verbose") {
             screenshot_verbose = true;
         } else if (arg == "--screenshot-exit") {
@@ -486,6 +496,8 @@ int main(int argc, char** argv) {
             font_ttf_path.assign(arg.substr(11));
         } else if (arg.rfind("--font-fallback-ttf=", 0) == 0) {
             font_fallback_ttf_path.assign(arg.substr(20));
+        } else if (arg == "--font-disable-system-fallback") {
+            disable_system_font_fallback = true;
         } else if (arg.rfind("--font-small=", 0) == 0) {
             font_small_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
         } else if (arg.rfind("--font-normal=", 0) == 0) {
@@ -530,6 +542,7 @@ int main(int argc, char** argv) {
     g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
     g_player_cfg.fixed_rate = 48000;
     charm::system::ClockCaps::TimeSource::bind(g_clock);
+    player::ui::set_player_system_font_fallback_enabled(!disable_system_font_fallback);
     player::AppConfig app_cfg{g_player_cfg};
     if (!font_ttf_path.empty()) {
         app_cfg.ttf_path = font_ttf_path;
@@ -564,6 +577,14 @@ int main(int argc, char** argv) {
     const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
     if (library_tab_override.has_value()) {
         g_ctx.set_library_tab(*library_tab_override);
+    }
+    if (!library_context_override.empty()) {
+        (void)g_ctx.set_library_context_for_preview(library_context_override);
+    } else if (library_open_first_group) {
+        (void)g_ctx.open_first_library_group_for_preview();
+    }
+    if (library_select_index >= 0) {
+        (void)g_ctx.set_library_selected_index_for_preview(library_select_index);
     }
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");

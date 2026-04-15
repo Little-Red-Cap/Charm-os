@@ -262,7 +262,6 @@ if (CHARM_ENABLE_MEDIA)
         BASE_DIRS ${CHARM_MEDIA_BASE_DIRS}
         FILES ${CHARM_MEDIA_MODULES})
     add_library(Charm::media ALIAS Charm-media)
-
     if (CHARM_TARGET_STRICT_ALIGNMENT)
         set_source_files_properties(
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_decoder_mp3.cppm"

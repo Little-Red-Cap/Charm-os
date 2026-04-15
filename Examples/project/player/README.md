@@ -62,3 +62,11 @@ Examples/project/player/
 ## 资源
 
 - 示例音频：`Examples/project/player/assets/beautiful-trick.flac`
+
+## 主机字体构建
+
+- Windows / Host 侧 Player 需要 FreeType 才能走 TTF / OTF 字体链路。
+- CMake 会优先使用 `Modules/thirdparty/freetype`；若仓库内未放置源码，会继续尝试：
+  - `CHARM_FREETYPE_DIR` / `FREETYPE_DIR` 环境变量
+  - Cargo 缓存中的 `freetype-sys-*/freetype2`
+- 如需显式固定路径，仍可传入：`-DCHARM_FREETYPE_DIR=<path>`

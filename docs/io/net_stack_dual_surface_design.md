@@ -405,6 +405,8 @@ v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagn
 让 `driver ↔ netif ↔ packet` 的边界先稳定，再决定后续是接 host stub、板级 MAC/PHY 还是自研 L2/L3。
 在此基础上，`rx` 路径再尽早抬升到 `PacketLease/PacketPool` 持有语义，
 避免后续 ARP/IPv4 纵切时又回头重做一次 packet 生命周期边界。
+`net.stack` 的当前第一刀建议进一步收口成“固定容量 netif/driver 注册表 + poll 驱动 + EtherType 分发入口”，
+先把 `ARP / IPv4` 两条最基础的 L3 入口切出来，但暂时还不急着铺开完整 ARP cache、路由表与 IPv4 状态机。
 
 这样未来 USB 网卡、板载以太网、Host backend 都能用统一方式接入。
 

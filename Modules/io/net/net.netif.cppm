@@ -12,7 +12,49 @@ import util.error;
 import util.expected;
 
 export namespace net {
-    class Stack;
+    struct StackRef {
+        const void* self{nullptr};
+
+        [[nodiscard]] constexpr bool valid() const noexcept {
+            return self != nullptr;
+        }
+    };
+
+    template <typename T>
+    [[nodiscard]] constexpr bool operator==(StackRef lhs, const T* rhs) noexcept {
+        return lhs.self == rhs;
+    }
+
+    template <typename T>
+    [[nodiscard]] constexpr bool operator==(const T* lhs, StackRef rhs) noexcept {
+        return rhs == lhs;
+    }
+
+    template <typename T>
+    [[nodiscard]] constexpr bool operator!=(StackRef lhs, const T* rhs) noexcept {
+        return !(lhs == rhs);
+    }
+
+    template <typename T>
+    [[nodiscard]] constexpr bool operator!=(const T* lhs, StackRef rhs) noexcept {
+        return !(rhs == lhs);
+    }
+
+    [[nodiscard]] constexpr bool operator==(StackRef lhs, decltype(nullptr)) noexcept {
+        return lhs.self == nullptr;
+    }
+
+    [[nodiscard]] constexpr bool operator==(decltype(nullptr), StackRef rhs) noexcept {
+        return rhs == nullptr;
+    }
+
+    [[nodiscard]] constexpr bool operator!=(StackRef lhs, decltype(nullptr)) noexcept {
+        return !(lhs == nullptr);
+    }
+
+    [[nodiscard]] constexpr bool operator!=(decltype(nullptr), StackRef rhs) noexcept {
+        return !(rhs == nullptr);
+    }
 
     struct MacAddress {
         std::array<util::u8, 6> bytes{};
@@ -218,10 +260,10 @@ export namespace net {
         }
 
         [[nodiscard]] constexpr bool bound() const noexcept {
-            return stack_ != nullptr;
+            return stack_.valid();
         }
 
-        [[nodiscard]] constexpr Stack* stack() const noexcept {
+        [[nodiscard]] constexpr StackRef stack() const noexcept {
             return stack_;
         }
 
@@ -259,21 +301,29 @@ export namespace net {
             output_sink_ = sink;
         }
 
-        [[nodiscard]] Result<void> bind(Stack& stack) noexcept {
-            if (stack_ == &stack) {
+        [[nodiscard]] Result<void> bind(StackRef stack) noexcept {
+            if (!stack.valid()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            if (stack_ == stack.self) {
                 return util::unexpected(errc::exist);
             }
-            if (stack_ != nullptr) {
+            if (stack_.valid()) {
                 return util::unexpected(errc::busy);
             }
 
-            stack_ = &stack;
+            stack_ = stack;
             state_ = NetIfState::down;
             return {};
         }
 
+        template <typename T>
+        [[nodiscard]] Result<void> bind(T& stack) noexcept {
+            return bind(StackRef{&stack});
+        }
+
         void unbind() noexcept {
-            stack_ = nullptr;
+            stack_ = {};
             state_ = NetIfState::detached;
         }
 
@@ -336,7 +386,7 @@ export namespace net {
         NetIfCapabilityMask capabilities_{
             capability_mask(NetIfCapability::rx) | capability_mask(NetIfCapability::tx)
         };
-        Stack* stack_{nullptr};
+        StackRef stack_{};
         OwnedPacketSinkRef input_sink_{};
         PacketSinkRef output_sink_{};
         NetIfState state_{NetIfState::detached};

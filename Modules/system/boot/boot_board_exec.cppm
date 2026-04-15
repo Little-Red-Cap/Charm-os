@@ -9,9 +9,14 @@ export namespace boot {
     constexpr platform::board::BootExecRequest
     make_board_boot_exec_request(const BootExecution& execution) noexcept {
         return platform::board::BootExecRequest{
+            .kind = to_board_boot_load_kind(execution.image.load.kind),
             .payload_base = execution.payload_base,
             .entry_addr = execution.entry_addr,
+            .storage_payload_offset = execution.image.load.storage_payload_offset,
+            .storage_entry_offset = execution.image.load.storage_entry_offset,
+            .entry_offset = execution.image.load.entry_offset,
             .payload_size = execution.image.load.target.header.payload_size,
+            .image_size = execution.image.load.target.header.image_size,
             .image_flags = execution.image.load.target.header.flags
         };
     }

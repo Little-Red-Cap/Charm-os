@@ -42,6 +42,7 @@
 - `platform::board::BootLoadDesc` 只负责 payload 基址解析与可选加载，Boot 子系统统一管理 `BootLoadKind`、payload 偏移、entry 偏移和 XIP/copy-to-RAM 语义
 - load/exec hook 已进一步改为 request 结构体入参，后续扩展字段时不必持续打碎函数签名
 - `platform::board::BootExecDesc` 只负责 jump 前机器状态准备与实际跳转，不再反向参与 payload 地址解析
+- `BootExecRequest` 现在会连同 load kind、storage payload/entry offset 一并传给板级，便于 ARMv7-A 这类目标在 pre-jump 阶段做映射、cache/TLB 维护与状态切换
 - `platform::board::BootBoardCaps` 已独立承载 boot 专属能力，避免 boot 阶段直接依赖整板 `BoardCaps`
 - `platform::board::with_boot_caps(...)` 可把独立的 boot 能力按需并回 `BoardCaps`，让 Stage2/板级初始化路径继续共存，但不再要求 boot 实现先凑整板能力
 - `platform.board.armv7a_stub` 现已提供一个 ARMv7-A 风格骨架：用固定 XIP window / RAM payload 基址表达加载落点，把 copy-to-RAM、pre-jump、jump 留给真实板级 hook 去填充

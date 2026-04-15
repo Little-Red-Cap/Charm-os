@@ -95,9 +95,14 @@ export namespace platform::board {
     };
 
     struct BootExecRequest {
+        BootLoadKind kind{BootLoadKind::copy_to_ram};
         util::usize payload_base{0};
         util::usize entry_addr{0};
+        util::u32 storage_payload_offset{0};
+        util::u32 storage_entry_offset{0};
+        util::u32 entry_offset{0};
         util::u32 payload_size{0};
+        util::u32 image_size{0};
         util::u16 image_flags{0};
     };
 

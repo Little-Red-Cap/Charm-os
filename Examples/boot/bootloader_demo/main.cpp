@@ -172,7 +172,9 @@ namespace {
                                 const platform::board::BootExecRequest& request) noexcept {
         auto* launch = static_cast<MockLaunchContext*>(ctx);
         launch->prepare_called = true;
-        return request.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
+        return request.kind == launch->expected_load_kind &&
+               request.storage_entry_offset == launch->expected_storage_entry_offset &&
+               request.entry_addr == reinterpret_cast<util::usize>(&mock_boot_entry);
     }
 
     bool jump_mock_execution(void* ctx,
@@ -462,7 +464,8 @@ int main() {
         !xip_ctx.load_called;
 
     MockLaunchContext armv7_copy_ctx{
-        .expected_payload_offset = load.storage_payload_offset
+        .expected_payload_offset = load.storage_payload_offset,
+        .expected_storage_entry_offset = load.storage_entry_offset
     };
     platform::board::armv7a_stub::BootContext armv7_copy_boot{
         .layout = {
@@ -505,6 +508,7 @@ int main() {
 
     MockLaunchContext armv7_xip_ctx{
         .expected_payload_offset = xip_load.storage_payload_offset,
+        .expected_storage_entry_offset = xip_load.storage_entry_offset,
         .expected_load_kind = platform::board::BootLoadKind::xip
     };
     platform::board::armv7a_stub::BootContext armv7_xip_boot{

@@ -106,7 +106,7 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 - `boot_board_load` 进一步桥接 `platform::board::BootLoadDesc`，让真实板级代码只暴露 payload 基址解析与可选搬运 hook
 - `boot_exec` 则只在镜像 ready 之后处理 pre-jump/jump，不再反向承担 payload 地址解析
 - `boot_board_exec` 继续桥接 `platform::board::BootExecDesc`，让真实板级代码只暴露跳转准备与 jump hook
-- 板级 load/exec hook 已改为 request 结构体入参，便于后续扩展 MMU/cache/TLB 等目标相关字段
+- 板级 load/exec hook 已改为 request 结构体入参，且 `BootExecRequest` 现在会带上 load kind 与 storage offset，便于后续扩展 MMU/cache/TLB/映射切换等目标相关字段
 - `boot_handoff` 把 `BootPlan -> BootTarget -> BootLoadPlan -> BootLoadedImage -> BootExecution -> rollback prepare` 进一步串成一个更轻的 handoff，并通过 accessor 暴露 plan/target/load/image
 - `platform::board::BootBoardCaps` 已独立承载加载能力与 jump 能力，真实板级可以不必先依赖整板 `BoardCaps`
 - `platform::board::with_boot_caps(...)` 可在需要时把独立 boot 能力拼回 `BoardCaps`

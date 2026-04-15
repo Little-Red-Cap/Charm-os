@@ -5,6 +5,7 @@
 
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_diag_console.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 
@@ -27,14 +28,6 @@ alignas(4096) volatile std::uint32_t g_armv7a_page_table_probe_page_b[kSmallPage
 
 static_assert(sizeof(g_armv7a_page_table_probe_page_a) == kSmallPageSize);
 static_assert(sizeof(g_armv7a_page_table_probe_page_b) == kSmallPageSize);
-
-void early_uart_write_hex32(std::uint32_t value)
-{
-    constexpr char kHex[] = "0123456789ABCDEF";
-    for (int shift = 28; shift >= 0; shift -= 4) {
-        armv7a_platform_early_console_putc(kHex[(value >> shift) & 0x0Fu]);
-    }
-}
 
 std::uintptr_t armv7a_page_table_probe_page_a_address()
 {
@@ -72,19 +65,19 @@ extern "C" void armv7a_prepare_page_table_probe_mapping()
 extern "C" void armv7a_print_page_table_probe_mapping_state()
 {
     armv7a_platform_early_console_puts("ARMv7-A page-table probe ready, va=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().page_table_alias_base));
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(probe_layout().page_table_alias_base));
     armv7a_platform_early_console_puts(", pa-a=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_page_table_probe_page_a_address()));
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(armv7a_page_table_probe_page_a_address()));
     armv7a_platform_early_console_puts(", pa-b=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_page_table_probe_page_b_address()));
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(armv7a_page_table_probe_page_b_address()));
     armv7a_platform_early_console_puts(", desc=0x");
-    early_uart_write_hex32(
+    armv7a_diag_put_hex(
         static_cast<std::uint32_t>(
             armv7a_boot_l2_descriptor_address(probe_layout().page_table_alias_base)));
     armv7a_platform_early_console_puts(", l1=0x");
-    early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().page_table_alias_base));
+    armv7a_diag_put_hex(armv7a_boot_l1_descriptor(probe_layout().page_table_alias_base));
     armv7a_platform_early_console_puts(", l2=0x");
-    early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().page_table_alias_base));
+    armv7a_diag_put_hex(armv7a_boot_l2_descriptor(probe_layout().page_table_alias_base));
     armv7a_platform_early_console_puts("\r\n");
 }
 
@@ -114,17 +107,17 @@ extern "C" void armv7a_run_page_table_probe()
     const auto restored = *alias;
 
     armv7a_platform_early_console_puts("ARMv7-A page-table probe, addr=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().page_table_alias_base));
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(probe_layout().page_table_alias_base));
     armv7a_platform_early_console_puts(", before=0x");
-    early_uart_write_hex32(before);
+    armv7a_diag_put_hex(before);
     armv7a_platform_early_console_puts(", after=0x");
-    early_uart_write_hex32(after);
+    armv7a_diag_put_hex(after);
     armv7a_platform_early_console_puts(", restored=0x");
-    early_uart_write_hex32(restored);
+    armv7a_diag_put_hex(restored);
     armv7a_platform_early_console_puts(", desc=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(descriptor_address));
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(descriptor_address));
     armv7a_platform_early_console_puts(", l2=0x");
-    early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().page_table_alias_base));
+    armv7a_diag_put_hex(armv7a_boot_l2_descriptor(probe_layout().page_table_alias_base));
     armv7a_platform_early_console_puts("\r\n");
 
     armv7a_page_table_probe_expect(before == kPageTableProbeValueA,

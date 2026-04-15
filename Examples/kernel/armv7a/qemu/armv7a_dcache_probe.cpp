@@ -6,6 +6,7 @@
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cache.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_diag_console.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 
@@ -26,14 +27,6 @@ const Armv7aPlatformProbeLayout& probe_layout()
 alignas(4096) volatile std::uint32_t g_armv7a_dcache_probe_page[kSmallPageWordCount];
 
 static_assert(sizeof(g_armv7a_dcache_probe_page) == kSmallPageSize);
-
-void early_uart_write_hex32(std::uint32_t value)
-{
-    constexpr char kHex[] = "0123456789ABCDEF";
-    for (int shift = 28; shift >= 0; shift -= 4) {
-        armv7a_platform_early_console_putc(kHex[(value >> shift) & 0x0Fu]);
-    }
-}
 
 std::uintptr_t armv7a_dcache_probe_target_address()
 {
@@ -64,13 +57,13 @@ extern "C" void armv7a_prepare_dcache_probe_mapping()
 extern "C" void armv7a_print_dcache_probe_mapping_state()
 {
     armv7a_platform_early_console_puts("ARMv7-A dcache probe ready, va=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().dcache_alias_base));
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(probe_layout().dcache_alias_base));
     armv7a_platform_early_console_puts(", pa=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(armv7a_dcache_probe_target_address()));
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(armv7a_dcache_probe_target_address()));
     armv7a_platform_early_console_puts(", l1=0x");
-    early_uart_write_hex32(armv7a_boot_l1_descriptor(probe_layout().dcache_alias_base));
+    armv7a_diag_put_hex(armv7a_boot_l1_descriptor(probe_layout().dcache_alias_base));
     armv7a_platform_early_console_puts(", l2=0x");
-    early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().dcache_alias_base));
+    armv7a_diag_put_hex(armv7a_boot_l2_descriptor(probe_layout().dcache_alias_base));
     armv7a_platform_early_console_puts("\r\n");
 }
 
@@ -108,17 +101,17 @@ extern "C" void armv7a_run_dcache_probe()
     const auto restored = *alias;
 
     armv7a_platform_early_console_puts("ARMv7-A dcache probe, addr=0x");
-    early_uart_write_hex32(static_cast<std::uint32_t>(probe_layout().dcache_alias_base));
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(probe_layout().dcache_alias_base));
     armv7a_platform_early_console_puts(", before=0x");
-    early_uart_write_hex32(before);
+    armv7a_diag_put_hex(before);
     armv7a_platform_early_console_puts(", cached=0x");
-    early_uart_write_hex32(kDcacheProbeCachedWriteValue);
+    armv7a_diag_put_hex(kDcacheProbeCachedWriteValue);
     armv7a_platform_early_console_puts(", device-before=0x");
-    early_uart_write_hex32(device_before);
+    armv7a_diag_put_hex(device_before);
     armv7a_platform_early_console_puts(", restored=0x");
-    early_uart_write_hex32(restored);
+    armv7a_diag_put_hex(restored);
     armv7a_platform_early_console_puts(", l2=0x");
-    early_uart_write_hex32(armv7a_boot_l2_descriptor(probe_layout().dcache_alias_base));
+    armv7a_diag_put_hex(armv7a_boot_l2_descriptor(probe_layout().dcache_alias_base));
     armv7a_platform_early_console_puts("\r\n");
 
     armv7a_dcache_probe_expect(before == kDcacheProbeInitialValue,

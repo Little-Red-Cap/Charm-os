@@ -2,6 +2,7 @@
 
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cpu.hpp"
+#include "armv7a_diag_console.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
 
@@ -27,13 +28,7 @@ const Armv7aPlatformProbeLayout& probe_layout()
 
 void early_uart_write_hex32(std::uint32_t value)
 {
-    constexpr char kHex[] = "0123456789ABCDEF";
-    char buffer[9]{};
-    for (int i = 0; i < 8; ++i) {
-        const auto shift = 28 - (i * 4);
-        buffer[i] = kHex[(value >> shift) & 0x0fu];
-    }
-    armv7a_platform_early_console_puts(buffer);
+    armv7a_diag_put_hex(value);
 }
 
 extern "C" [[gnu::noinline]] void armv7a_abort_xn_target()

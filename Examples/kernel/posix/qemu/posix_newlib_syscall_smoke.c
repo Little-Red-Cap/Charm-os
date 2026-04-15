@@ -560,6 +560,14 @@ int charm_posix_newlib_path_entry(void) {
     if (stat((const char*)0, &st) != -1) return 562;
     if (errno != EINVAL) return 563;
 
+    errno = 0;
+    if (open("", O_RDONLY, 0) != -1) return 669;
+    if (errno != ENOENT) return 670;
+
+    errno = 0;
+    if (stat("", &st) != -1) return 671;
+    if (errno != ENOENT) return 672;
+
     errno = 77;
     if (access("/newlib-path.txt", F_OK) != 0) return 137;
     if (errno != 77) return 138;
@@ -582,6 +590,10 @@ int charm_posix_newlib_path_entry(void) {
     if (errno != EINVAL) return 565;
 
     errno = 0;
+    if (access("", F_OK) != -1) return 673;
+    if (errno != ENOENT) return 674;
+
+    errno = 0;
     if (open("/newlib-missing.txt", O_RDONLY, 0) != -1) return 536;
     if (errno != ENOENT) return 537;
 
@@ -600,6 +612,10 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (mkdir((const char*)0, 0) != -1) return 566;
     if (errno != EINVAL) return 567;
+
+    errno = 0;
+    if (mkdir("", 0) != -1) return 675;
+    if (errno != ENOENT) return 676;
 
     errno = 0;
     if (open("/newlib-dir", O_WRONLY, 0) != -1) return 538;
@@ -625,6 +641,14 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (rmdir((const char*)0) != -1) return 570;
     if (errno != EINVAL) return 571;
+
+    errno = 0;
+    if (unlink("") != -1) return 677;
+    if (errno != ENOENT) return 678;
+
+    errno = 0;
+    if (rmdir("") != -1) return 679;
+    if (errno != ENOENT) return 680;
 
     errno = 0;
     if (mkdir("/newlib-path.txt/sub", 0) != -1) return 506;
@@ -708,6 +732,14 @@ int charm_posix_newlib_path_entry(void) {
     errno = 0;
     if (rename("/newlib-path.txt", (const char*)0) != -1) return 576;
     if (errno != EINVAL) return 577;
+
+    errno = 0;
+    if (rename("", "/newlib-dir/from-empty.txt") != -1) return 681;
+    if (errno != ENOENT) return 682;
+
+    errno = 0;
+    if (rename("/newlib-path.txt", "") != -1) return 683;
+    if (errno != ENOENT) return 684;
 
     errno = 64;
     if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 163;
@@ -853,6 +885,10 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 0;
     if (chdir((const char*)0) != -1) return 578;
     if (errno != EINVAL) return 579;
+
+    errno = 0;
+    if (chdir("") != -1) return 685;
+    if (errno != ENOENT) return 686;
 
     errno = 0;
     if (getcwd((char*)0, sizeof(cwd)) != NULL) return 580;

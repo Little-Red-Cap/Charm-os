@@ -1064,7 +1064,7 @@ export namespace posix {
             }
             const std::string_view input{path};
             if (input.empty()) {
-                return util::unexpected(util::Errc::invalid_arg);
+                return util::unexpected(util::Errc::noent);
             }
 
             util::usize size = 1;

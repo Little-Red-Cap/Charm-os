@@ -40,6 +40,7 @@
 - `fstat(-1, ...) -> -1 && errno == EBADF`
 - bridge pointer guards are now smoke-pinned too: `fstat(fd, nullptr)`, `stat(path, nullptr)`, and `pipe(nullptr)` fail with `EINVAL`
 - newlib path/cwd-facing invalid-arg guards are now smoke-pinned too: null-path `open/stat/access/mkdir/unlink/rmdir/remove/rename/chdir` and invalid `getcwd(nullptr, size)` / `getcwd(buf, 0)` all fail with `EINVAL`
+- empty-string path inputs now also have a pinned minimum contract: unlike null pointers, `""` maps to `ENOENT` across path-facing `open/stat/access/mkdir/unlink/rmdir/rename/chdir/opendir`
 - `read(EOF) -> 0 && errno == 0`
 - `read(-1, ...) -> -1 && errno == EBADF`
 - `write(-1, ...) -> -1 && errno == EBADF`

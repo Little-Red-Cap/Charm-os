@@ -841,6 +841,38 @@ namespace {
         check_eq("fs-rmdir-missing", api.rmdir("/work"), -1);
         check_eq("fs-rmdir-missing-errno", posix::get_errno(), posix::ENOENT);
 
+        posix::set_errno(0);
+        check_eq("fs-open-empty-path-rc", api.open("", posix::O_RDONLY, 0), -1);
+        check_eq("fs-open-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-stat-empty-path-rc", api.stat("", &dir_stat), -1);
+        check_eq("fs-stat-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-mkdir-empty-path-rc", api.mkdir(""), -1);
+        check_eq("fs-mkdir-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-unlink-empty-path-rc", api.unlink(""), -1);
+        check_eq("fs-unlink-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-rmdir-empty-path-rc", api.rmdir(""), -1);
+        check_eq("fs-rmdir-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-empty-from-rc", api.rename("", "/work/c.txt"), -1);
+        check_eq("fs-rename-empty-from-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-rename-empty-to-rc", api.rename("/work/b.txt", ""), -1);
+        check_eq("fs-rename-empty-to-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("fs-opendir-empty-path", api.opendir(""), nullptr);
+        check_eq("fs-opendir-empty-path-errno", posix::get_errno(), posix::ENOENT);
+
         work_dir = api.opendir("/work");
         check_true("fs-opendir-empty", work_dir == nullptr);
         check_eq("fs-opendir-empty-errno", posix::get_errno(), posix::ENOENT);
@@ -1951,6 +1983,10 @@ namespace {
         posix::set_errno(0);
         check_eq("cwd-chdir-file-parent", api.chdir("/work/alpha.txt/sub"), -1);
         check_eq("cwd-chdir-file-parent-errno", posix::get_errno(), posix::ENOTDIR);
+
+        posix::set_errno(0);
+        check_eq("cwd-chdir-empty-path-rc", api.chdir(""), -1);
+        check_eq("cwd-chdir-empty-path-errno", posix::get_errno(), posix::ENOENT);
 
         check_eq("cwd-chdir-root", api.chdir("/"), 0);
         const char* override_argv[] = {"cwd-demo", "override.txt", nullptr};

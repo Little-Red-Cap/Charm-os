@@ -1129,6 +1129,21 @@ int charm_posix_newlib_cwd_entry(void) {
     errno = 0;
     if (stat("sub-renamed", &st) != -1) return 814;
     if (errno != ENOENT) return 815;
+    errno = 111;
+    if (remove("child.txt") != 0) return 891;
+    if (errno != 111) return 892;
+    errno = 0;
+    if (stat("child.txt", &st) != -1) return 893;
+    if (errno != ENOENT) return 894;
+    errno = 112;
+    if (mkdir("remove-dir", 0) != 0) return 895;
+    if (errno != 112) return 896;
+    errno = 113;
+    if (remove("remove-dir") != 0) return 897;
+    if (errno != 113) return 898;
+    errno = 0;
+    if (stat("remove-dir", &st) != -1) return 899;
+    if (errno != ENOENT) return 900;
 
     errno = 0;
     if (chdir("/missing-cwd") != -1) return 207;

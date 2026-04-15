@@ -11,15 +11,25 @@ int charm_posix_c_header_probe_entry(void) {
     const char* foo = charm_posix_getenv("FOO");
     if (foo == 0) return 74;
     if (foo[0] != 'B' || foo[1] != 'A' || foo[2] != 'R' || foo[3] != '\0') return 75;
+    if (charm_posix_environ() != envp) return 83;
+    if (charm_posix_getenv("MISSING") != 0) return 84;
+    if (charm_posix_getenv(0) != 0) return 85;
 
     char ch = 0;
     if (charm_posix_read(-1, &ch, 1) != -1) return 76;
 
     int* err = charm_posix_errno_location();
     if (err == 0 || *err != CHARM_POSIX_EBADF) return 77;
+    *err = 41;
     if (charm_posix_getpid() <= 0) return 78;
-
-    return charm_posix_write(1, "c-header-ok\n", 12) == 12 ? 0 : 79;
+    if (*err != 41) return 86;
+    *err = 42;
+    if (charm_posix_sleep(0) != 0) return 87;
+    if (*err != 42) return 88;
+    *err = 43;
+    if (charm_posix_write(1, "c-header-ok\n", 12) != 12) return 79;
+    if (*err != 43) return 89;
+    return 0;
 }
 
 int charm_posix_c_header_exit_entry(void) {

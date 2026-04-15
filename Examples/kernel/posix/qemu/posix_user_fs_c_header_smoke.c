@@ -38,6 +38,9 @@ int charm_posix_c_fs_header_entry(void) {
     *err = 0;
     if (charm_posix_stat("/", 0) != -1) return 411;
     if (*err != CHARM_POSIX_EINVAL) return 412;
+    *err = 0;
+    if (charm_posix_lseek(-1, 0, CHARM_POSIX_SEEK_SET) != -1) return 413;
+    if (*err != CHARM_POSIX_EBADF) return 414;
 
     *err = 44;
     fd = charm_posix_open("/dev/null", CHARM_POSIX_O_RDONLY, 0);
@@ -168,6 +171,9 @@ int charm_posix_c_fs_header_entry(void) {
 
     fd = charm_posix_open("note.txt", CHARM_POSIX_O_RDONLY, 0);
     if (fd < 0) return 336;
+    *err = 0;
+    if (charm_posix_lseek(fd, 0, 99) != -1) return 415;
+    if (*err != CHARM_POSIX_EINVAL) return 416;
     if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_END) != 3) return 337;
     if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_SET) != 0) return 338;
     if (charm_posix_read(fd, buf, 3) != 3) return 339;

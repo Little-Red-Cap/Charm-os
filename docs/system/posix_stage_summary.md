@@ -62,6 +62,7 @@
 - newlib `_open()` now also has direct bridge smoke for flag translation: `O_NONBLOCK` remains observable through `fcntl(F_GETFL)`, `O_APPEND` appends at end-of-file on regular files, `O_RDWR` yields a read/write descriptor that stays readable and writable through the same fd, `O_CREAT|O_EXCL` fails with `EEXIST` on an existing path, and `O_RDONLY|O_CREAT` now creates a zero-length file without requiring write access
 - the exported C fs header surface now also smoke-uses the matching `CHARM_POSIX_O_EXCL` and `CHARM_POSIX_O_CREAT | CHARM_POSIX_O_RDONLY` flags, so the public macro layer stays aligned with the runtime bridge contract
 - the exported C fs header surface now also smoke-pins minimum bad-fd / pointer-guard edges: `isatty(-1) -> EBADF`, `fstat(-1) -> EBADF`, and `stat/fstat(..., nullptr) -> EINVAL`
+- the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
 - the exported C fs header surface now also smoke-pins `CHARM_POSIX_O_APPEND` against real append-at-end behavior on regular files, even after a manual `lseek(..., SEEK_SET)`
 - the exported C fs header surface now also smoke-covers the empty-path `ENOENT` contract across `open/stat/mkdir/unlink/rmdir/rename/chdir/opendir`, including both empty-`from` and empty-`to` rename edges
 - the exported C fs header surface now also smoke-pins `/dev/null` basics directly: read-side EOF, write-side byte-count success, `isatty()==0` without clobbering `errno`, `fstat()->S_IFCHR`, and `lseek()->ESPIPE`

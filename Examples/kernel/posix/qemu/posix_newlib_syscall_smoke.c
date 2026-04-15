@@ -95,8 +95,10 @@ int charm_posix_newlib_syscall_probe_entry(void) {
 }
 
 int charm_posix_newlib_dup_entry(void) {
+    errno = 92;
     int dup_fd = dup(1);
     if (dup_fd < 0) return 161;
+    if (errno != 92) return 584;
     if (dup_fd == 1) return 162;
     if (write(dup_fd, "dup-", 4) != 4) return 163;
     if (close(dup_fd) != 0) return 164;
@@ -109,25 +111,31 @@ int charm_posix_newlib_dup_entry(void) {
 }
 
 int charm_posix_newlib_dup2_entry(void) {
+    errno = 93;
     if (dup2(1, 2) != 2) return 171;
+    if (errno != 93) return 585;
     if (write(2, "dup2-", 5) != 5) return 172;
 
     errno = 0;
     if (dup2(-1, 4) != -1) return 173;
     if (errno != EBADF) return 174;
 
+    errno = 94;
     if (dup2(2, 2) != 2) return 175;
+    if (errno != 94) return 586;
 
     return write(1, "newlib-dup2-ok\n", 15) == 15 ? 0 : 176;
 }
 
 int charm_posix_newlib_fcntl_entry(void) {
+    errno = 95;
     int dup_fd = fcntl(1, F_DUPFD, 3);
     int alias_fd = -1;
     int stdin_pipe[2] = {-1, -1};
     int flags = 0;
     struct stat st;
     if (dup_fd < 3) return 181;
+    if (errno != 95) return 587;
     if (write(dup_fd, "fcntl-", 6) != 6) return 182;
     if (close(dup_fd) != 0) return 183;
 
@@ -147,8 +155,12 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fcntl(1, F_DUPFD, -1) != -1) return 192;
     if (errno != EINVAL) return 193;
 
+    errno = 96;
     if (fcntl(1, F_GETFD) != 0) return 194;
+    if (errno != 96) return 588;
+    errno = 97;
     if (fcntl(1, F_SETFD, FD_CLOEXEC) != 0) return 195;
+    if (errno != 97) return 589;
     if (fcntl(1, F_GETFD) != FD_CLOEXEC) return 196;
 
     errno = 0;
@@ -236,12 +248,16 @@ int charm_posix_newlib_fcntl_entry(void) {
     if (fcntl(1, F_SETFD, 0) != 0) return 233;
     if (fcntl(1, F_GETFD) != 0) return 234;
 
+    errno = 98;
     flags = fcntl(1, F_GETFL);
     if (flags < 0) return 235;
+    if (errno != 98) return 590;
     if ((flags & O_ACCMODE) != O_WRONLY) return 236;
     if ((flags & O_NONBLOCK) != 0) return 237;
 
+    errno = 99;
     if (fcntl(1, F_SETFL, O_NONBLOCK) != 0) return 238;
+    if (errno != 99) return 591;
     flags = fcntl(1, F_GETFL);
     if ((flags & O_NONBLOCK) == 0) return 239;
 
@@ -360,7 +376,9 @@ int charm_posix_newlib_pipe_entry(void) {
     if (pipe((int*)0) != -1) return 534;
     if (errno != EINVAL) return 535;
 
+    errno = 100;
     if (pipe(fds) != 0) return 221;
+    if (errno != 100) return 592;
 
     flags = fcntl(fds[0], F_GETFL);
     if (flags < 0) return 222;

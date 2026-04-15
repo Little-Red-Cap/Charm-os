@@ -2,7 +2,6 @@ module;
 
 #include <cstddef>
 #include <type_traits>
-#include "charm_posix_user_fs.h"
 
 #ifdef environ
 #undef environ
@@ -11,8 +10,11 @@ module;
 export module posix.user_crt_c;
 
 export import posix.user_crt;
-
 import util.core;
+
+export {
+#include "charm_posix_user_fs.h"
+}
 
 namespace {
     inline void map_charm_posix_stat(const posix::PosixStat& in, charm_posix_stat_t& out) noexcept {

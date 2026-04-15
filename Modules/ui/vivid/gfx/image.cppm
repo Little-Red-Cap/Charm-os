@@ -139,6 +139,7 @@ export namespace ui::gfx {
         std::array<ImageView, kMaxImageResources> views{};
         std::array<std::uint16_t, kMaxImageResources> generations{};
         std::array<std::uint8_t, kMaxImageResources> used{};
+        std::array<std::uint16_t, kMaxImageResources> refs{};
         std::array<std::uint64_t, kMaxImageResources> hashes{};
         std::array<std::uint32_t, kMaxImageResources> keys{};
         std::array<std::uint32_t, kMaxImageResources> bytes{};
@@ -262,6 +263,7 @@ export namespace ui::gfx {
             for (std::size_t i = 0; i < views.size(); ++i) {
                 if (used[i] == 0) {
                     used[i] = 1;
+                    refs[i] = 1;
                     views[i] = view;
                     hashes[i] = hash;
                     keys[i] = 0;
@@ -289,6 +291,9 @@ export namespace ui::gfx {
                     if (used[i] == 0) continue;
                     if (keys[i] == key) {
                         dedup_hits++;
+                        if (refs[i] != 0xFFFF) {
+                            refs[i] = static_cast<std::uint16_t>(refs[i] + 1u);
+                        }
                         return {ImageId{static_cast<std::uint16_t>(i), generations[i]},
                                 ImageRegisterStatus::Ok};
                     }
@@ -302,6 +307,7 @@ export namespace ui::gfx {
             for (std::size_t i = 0; i < views.size(); ++i) {
                 if (used[i] == 0) {
                     used[i] = 1;
+                    refs[i] = 1;
                     views[i] = view;
                     hashes[i] = hash;
                     keys[i] = key;
@@ -330,6 +336,9 @@ export namespace ui::gfx {
                 if (hashes[i] != hash) continue;
                 if (image_view_equals(views[i], view, data_bytes)) {
                     dedup_hits++;
+                    if (refs[i] != 0xFFFF) {
+                        refs[i] = static_cast<std::uint16_t>(refs[i] + 1u);
+                    }
                     return {ImageId{static_cast<std::uint16_t>(i), generations[i]},
                             ImageRegisterStatus::Ok};
                 }
@@ -340,6 +349,7 @@ export namespace ui::gfx {
             for (std::size_t i = 0; i < views.size(); ++i) {
                 if (used[i] == 0) {
                     used[i] = 1;
+                    refs[i] = 1;
                     views[i] = view;
                     hashes[i] = hash;
                     keys[i] = 0;
@@ -365,7 +375,12 @@ export namespace ui::gfx {
             }
             if (used[id.slot] == 0) return;
             if (generations[id.slot] != id.generation) return;
+            if (refs[id.slot] > 1) {
+                refs[id.slot] = static_cast<std::uint16_t>(refs[id.slot] - 1u);
+                return;
+            }
             used[id.slot] = 0;
+            refs[id.slot] = 0;
             views[id.slot] = ImageView{};
             hashes[id.slot] = 0;
             keys[id.slot] = 0;
@@ -454,6 +469,7 @@ export namespace ui::gfx {
         registry.views.fill(ImageView{});
         registry.generations.fill(0);
         registry.used.fill(0);
+        registry.refs.fill(0);
         registry.hashes.fill(0);
         registry.keys.fill(0);
         registry.bytes.fill(0);
@@ -513,6 +529,7 @@ export namespace ui::gfx {
         }
         registry.views[id.slot] = view;
         registry.used[id.slot] = 1;
+        registry.refs[id.slot] = 1;
         registry.generations[id.slot] = (id.generation == 0) ? 1 : id.generation;
         registry.hashes[id.slot] = hash;
         registry.keys[id.slot] = 0;

@@ -275,43 +275,6 @@
             builder.set_style_override(h.list_context_cover_scrim, patch);
             builder.set_hit_testable(h.list_context_cover_scrim, false);
         }
-        const WidgetHandle list_body_glow = builder.create_container();
-        anchor_rect(builder, list_body_glow,
-                    {list_card_rect.w - 158, list_body_plate_y + 48, 104, 104});
-        {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = {kUiLibraryListAccent.r, kUiLibraryListAccent.g, kUiLibraryListAccent.b, 22};
-            patch.has_border_color = true;
-            patch.border_color = {0, 0, 0, 0};
-            patch.has_corner_radius = true;
-            patch.corner_radius = 52;
-            patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = {kUiLibraryListAccent.r, kUiLibraryListAccent.g, kUiLibraryListAccent.b, 20};
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 0;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = 26;
-            builder.set_style_override(list_body_glow, patch);
-            builder.set_hit_testable(list_body_glow, false);
-        }
-        const WidgetHandle list_body_strip = builder.create_container();
-        anchor_rect(builder, list_body_strip,
-                    {26, list_card_rect.h - 88, 196, 18});
-        {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = {kUiLibraryPathBorderActive.r, kUiLibraryPathBorderActive.g, kUiLibraryPathBorderActive.b, 18};
-            patch.has_border_color = true;
-            patch.border_color = {0, 0, 0, 0};
-            patch.has_corner_radius = true;
-            patch.corner_radius = 9;
-            builder.set_style_override(list_body_strip, patch);
-            builder.set_hit_testable(list_body_strip, false);
-        }
-
         builder.link(h.root, library);
         builder.link(library_layers.backdrop, library_bg_top);
         builder.link(library_layers.backdrop, library_bg_bottom);
@@ -326,8 +289,6 @@
         builder.link(list_card_root, list_body_plate);
         builder.link(list_card_root, h.list_context_cover);
         builder.link(list_card_root, h.list_context_cover_scrim);
-        builder.link(list_card_root, list_body_glow);
-        builder.link(list_card_root, list_body_strip);
         builder.link(list_card_root, list_header_plate);
         anchor_rect(builder, h.list_title, list_header_layout.title_rect);
         apply_player_text_style(builder, h.list_title, PlayerTextRole::CardTitle, kUiTitle);

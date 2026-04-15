@@ -1563,7 +1563,8 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             const Rect title_rect{text_x, top, main_text_w, title_h};
             const Rect subtitle_rect{text_x, top + title_h + line_gap, main_text_w, subtitle_h};
             const auto subtitle_color = row_selected ? colors.on_accent
-                                                     : (row_active ? colors.accent : colors.border);
+                                                     : (row_active ? colors.accent
+                                                                   : with_alpha(colors.font, 172));
             out.draw_text_box(title_rect, title ? title : "", font, title_font,
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             out.draw_text_box(subtitle_rect, subtitle, subtitle_color, subtitle_font,
@@ -1575,7 +1576,8 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         if (draw_tail) {
             const Font& tail_font = get_font(FontId::Small);
             const auto tail_color = row_selected ? colors.on_accent
-                                                 : (row_active ? colors.accent : colors.border);
+                                                 : (row_active ? colors.accent
+                                                               : with_alpha(colors.font, 172));
             out.draw_text_box(tail_rect, tail, tail_color, tail_font,
                               TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         }

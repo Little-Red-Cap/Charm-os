@@ -92,6 +92,9 @@
 - `Examples/io/net/reactor_service_deferred_smoke`
 - `Examples/io/net/reactor_service_typed_smoke`
 - `Examples/io/net/schema_codec_smoke`
+- `Examples/io/net/net_udp_egress_smoke`
+- `Examples/io/net/net_pump_smoke`
+- `Examples/io/net/net_api_facade_smoke`
 
 这说明我们不是只写了一套“设计上看起来优雅”的层次，而是已经让这些层次有了可执行、可观察、可回归的验证面。
 

@@ -23,6 +23,7 @@
 - `net.posix` 已开始把 socket 投影到 POSIX fd 体系
 - `posix_socket_bridge_smoke` 已可作为一条直接回归路径
 - host 侧 smoke 已经形成矩阵
+- `net.pump` 已开始把 `ARP / IPv4 / UDP ingress/egress` 收口到统一推进面，`net_pump_smoke` 可覆盖最小闭环
 - ARM / QEMU 路径当前已恢复稳定构建，之前围绕 `std::span` / module 边界的阻塞已在 `net.common`、`net.posix`、`net.stack` 这一层收住
 
 ---

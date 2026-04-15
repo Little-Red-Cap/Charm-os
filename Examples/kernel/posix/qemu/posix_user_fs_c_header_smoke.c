@@ -19,6 +19,12 @@ int charm_posix_c_fs_header_entry(void) {
 
     if (charm_posix_getcwd(cwd, sizeof(cwd)) != cwd) return 303;
     if (strcmp(cwd, "/") != 0) return 304;
+    *err = 0;
+    if (charm_posix_getcwd(0, sizeof(cwd)) != 0) return 417;
+    if (*err != CHARM_POSIX_EINVAL) return 418;
+    *err = 0;
+    if (charm_posix_getcwd(cwd, 0) != 0) return 419;
+    if (*err != CHARM_POSIX_EINVAL) return 420;
 
     *err = 41;
     if (charm_posix_isatty(1) != 0) return 305;
@@ -41,6 +47,30 @@ int charm_posix_c_fs_header_entry(void) {
     *err = 0;
     if (charm_posix_lseek(-1, 0, CHARM_POSIX_SEEK_SET) != -1) return 413;
     if (*err != CHARM_POSIX_EBADF) return 414;
+    *err = 0;
+    if (charm_posix_open(0, CHARM_POSIX_O_RDONLY, 0) != -1) return 421;
+    if (*err != CHARM_POSIX_EINVAL) return 422;
+    *err = 0;
+    if (charm_posix_stat(0, &st) != -1) return 423;
+    if (*err != CHARM_POSIX_EINVAL) return 424;
+    *err = 0;
+    if (charm_posix_mkdir(0) != -1) return 425;
+    if (*err != CHARM_POSIX_EINVAL) return 426;
+    *err = 0;
+    if (charm_posix_unlink(0) != -1) return 427;
+    if (*err != CHARM_POSIX_EINVAL) return 428;
+    *err = 0;
+    if (charm_posix_rmdir(0) != -1) return 429;
+    if (*err != CHARM_POSIX_EINVAL) return 430;
+    *err = 0;
+    if (charm_posix_chdir(0) != -1) return 431;
+    if (*err != CHARM_POSIX_EINVAL) return 432;
+    *err = 0;
+    if (charm_posix_opendir(0) != 0) return 433;
+    if (*err != CHARM_POSIX_EINVAL) return 434;
+    *err = 0;
+    if (charm_posix_rename(0, "/null-from") != -1) return 435;
+    if (*err != CHARM_POSIX_EINVAL) return 436;
 
     *err = 44;
     fd = charm_posix_open("/dev/null", CHARM_POSIX_O_RDONLY, 0);
@@ -202,6 +232,9 @@ int charm_posix_c_fs_header_entry(void) {
     *err = 0;
     if (charm_posix_chdir("") != -1) return 367;
     if (*err != CHARM_POSIX_ENOENT) return 368;
+    *err = 0;
+    if (charm_posix_rename("/cfs/note.txt", 0) != -1) return 437;
+    if (*err != CHARM_POSIX_EINVAL) return 438;
     *err = 0;
     if (charm_posix_rename("/cfs/note.txt", "") != -1) return 393;
     if (*err != CHARM_POSIX_ENOENT) return 394;

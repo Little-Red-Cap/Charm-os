@@ -119,6 +119,14 @@ namespace examples::usb::support {
             return binding.exported();
         }
 
+        [[nodiscard]] auto publish_state() const noexcept {
+            return binding.publish_state();
+        }
+
+        [[nodiscard]] bool published() const noexcept {
+            return binding.published();
+        }
+
         [[nodiscard]] auto export_state() const noexcept {
             return binding.export_state();
         }
@@ -154,6 +162,12 @@ namespace examples::usb::support {
         template <typename RuntimeManagerT>
         [[nodiscard]] bool enumerated_in(const RuntimeManagerT& runtime) const noexcept {
             return runtime.enumerated(binding);
+        }
+
+        template <typename RuntimeManagerT>
+        [[nodiscard]] auto state_in(const RuntimeManagerT& runtime) const noexcept
+            -> decltype(runtime.state(binding)) {
+            return runtime.state(binding);
         }
 
         template <typename RuntimeManagerT>

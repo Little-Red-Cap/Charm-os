@@ -59,8 +59,8 @@ int main() {
     if (!expect_ok(cdc.add_to(runtime), "failed to add CDC exported binding")) {
         return 1;
     }
-    const auto msc_initial = runtime.state(msc.binding);
-    const auto cdc_initial = runtime.state(cdc.binding);
+    const auto msc_initial = msc.state_in(runtime);
+    const auto cdc_initial = cdc.state_in(runtime);
     if (!expect(msc_initial.tracked && cdc_initial.tracked,
                 "new bindings should be tracked by runtime manager")) return 1;
     if (!expect(msc_initial.published() && cdc_initial.published(),
@@ -110,8 +110,8 @@ int main() {
 
     if (!expect(msc.attached(), "MSC slot was not attached")) return 1;
     if (!expect(cdc.attached(), "CDC slot was not attached")) return 1;
-    const auto msc_attached = runtime.state(msc.binding);
-    const auto cdc_attached = runtime.state(cdc.binding);
+    const auto msc_attached = msc.state_in(runtime);
+    const auto cdc_attached = cdc.state_in(runtime);
     if (!expect(msc_attached.enumerated && cdc_attached.enumerated,
                 "runtime state should mark both bindings as enumerated")) return 1;
     if (!expect(msc_attached.attached() && cdc_attached.attached(),
@@ -176,8 +176,8 @@ int main() {
 
     if (!expect_ok(cdc.try_forget_from(runtime), "failed to forget CDC binding")) return 1;
     if (!expect_ok(msc.try_forget_from(runtime), "failed to forget MSC binding")) return 1;
-    const auto msc_forgotten = runtime.state(msc.binding);
-    const auto cdc_forgotten = runtime.state(cdc.binding);
+    const auto msc_forgotten = msc.state_in(runtime);
+    const auto cdc_forgotten = cdc.state_in(runtime);
     if (!expect(!msc_forgotten.tracked && !cdc_forgotten.tracked,
                 "forgotten bindings should be removed from runtime bus")) return 1;
     if (!expect(msc_forgotten.publish_state == block::PublishState::missing,

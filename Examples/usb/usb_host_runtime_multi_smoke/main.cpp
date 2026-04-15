@@ -5,6 +5,7 @@
 
 import block.device;
 import block.registry;
+import device.manager;
 import io.channel;
 import io.reactor;
 import io.registry;
@@ -76,7 +77,17 @@ int main() {
     if (!expect_error(stable_channel->read(read_buf), io::errc::noent,
                       "detached channel slot should read as noent")) return 1;
 
-    if (!expect_ok(runtime.try_scan(), "runtime manager scan failed")) return 1;
+    device::BusManager<1> bus_manager{};
+    const auto runtime_bus = runtime.bus().bus();
+    if (!expect(runtime_bus.ops.try_enumerate != nullptr,
+                "runtime host bus should expose try_enumerate")) return 1;
+    if (!expect(bus_manager.add_bus(runtime_bus),
+                "failed to add runtime host bus")) return 1;
+
+    if (!expect_ok(bus_manager.try_enumerate_all(runtime.registry()),
+                   "runtime host bus enumerate failed")) return 1;
+    if (!expect_ok(runtime.registry().try_match_detected(),
+                   "runtime registry match_detected failed")) return 1;
     if (!expect(runtime.registry().device_count() == 2, "runtime registry should contain two devices")) return 1;
     if (!expect(msc.enumerated_in(runtime) && cdc.enumerated_in(runtime),
                 "runtime manager did not enumerate all records")) return 1;

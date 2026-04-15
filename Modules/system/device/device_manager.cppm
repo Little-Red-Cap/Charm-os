@@ -32,6 +32,13 @@ export namespace device {
             util::Errc first_error = util::Errc::ok;
             for (util::usize i = 0; i < bus_count_; ++i) {
                 auto& b = buses_[i];
+                if (b.ops.try_enumerate) {
+                    auto enumerated = b.ops.try_enumerate(b.ctx, reg);
+                    if (!enumerated && first_error == util::Errc::ok) {
+                        first_error = enumerated.error();
+                    }
+                    continue;
+                }
                 if (!b.ops.enumerate) {
                     continue;
                 }

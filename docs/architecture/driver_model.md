@@ -475,7 +475,10 @@ USB Device 不能简单地整体归入动态平面。
 `try_enumerate / try_scan / try_remove / try_rediscover`，
 `device::Registry` / `device::System` 也已经开始补
 `try_dispatch / try_match_detected / try_suspend_all / try_resume_all` 这类包装层，
-但 `device::Bus` 回调签名以及 `DriverOps` / `RuntimeDriverHook`
+`device::Bus` / `usb::host::HostBus` 这类运行时总线桥接点
+也已经开始补可选的 `try_enumerate` callback，
+使 `BusManager::try_enumerate_all()` 可以优先保留底层错误；
+但兼容口里的 `enumerate` 回调，以及 `DriverOps` / `RuntimeDriverHook`
 本身仍以 `bool` / `void` 形状为主。
 
 这意味着：

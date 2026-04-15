@@ -5,8 +5,11 @@ module;
 
 export module net.udp;
 
+import net.arp;
 import net.common;
+import net.ether;
 import net.ipv4;
+import net.netif;
 import net.packet;
 import util.core;
 import util.error;
@@ -122,6 +125,18 @@ export namespace net {
         [[nodiscard]] constexpr bool is_concrete_ipv4_endpoint(const Endpoint& endpoint) noexcept {
             return endpoint.address.is_ipv4() && !endpoint.address.is_any();
         }
+
+        [[nodiscard]] constexpr bool same_ipv4_address(const IpAddress& lhs, const IpAddress& rhs) noexcept {
+            if (!lhs.is_ipv4() || !rhs.is_ipv4()) {
+                return false;
+            }
+            for (util::usize i = 0; i < 4; ++i) {
+                if (lhs.bytes[i] != rhs.bytes[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     [[nodiscard]] constexpr Result<UdpDatagramView> parse_udp_datagram(PacketView packet) noexcept {
@@ -144,24 +159,19 @@ export namespace net {
     }
 
     template <util::usize Capacity>
-    [[nodiscard]] Result<void> write_udp_ipv4_datagram(PacketBuffer<Capacity>& packet,
+    [[nodiscard]] Result<void> prepend_udp_ipv4_header(PacketBuffer<Capacity>& packet,
                                                        const Endpoint& local,
-                                                       const Endpoint& peer,
-                                                       ByteView payload) noexcept {
+                                                       const Endpoint& peer) noexcept {
         if (!detail::is_concrete_ipv4_endpoint(local)
             || !detail::is_concrete_ipv4_endpoint(peer)
+            || local.port == 0u
             || peer.port == 0u) {
             return util::unexpected(errc::invalid_arg);
         }
 
-        const auto datagram_size = udp_header_size() + payload.size();
+        const auto datagram_size = udp_header_size() + packet.size();
         if (datagram_size > 0xFFFFu) {
             return util::unexpected(errc::buffer_overflow);
-        }
-
-        auto reset = packet.reset();
-        if (!reset) {
-            return util::unexpected(reset.error());
         }
 
         std::array<util::u8, udp_header_size()> header{};
@@ -169,14 +179,9 @@ export namespace net {
         detail::store_be16(header.data() + 2, peer.port);
         detail::store_be16(header.data() + 4, static_cast<util::u16>(datagram_size));
 
-        auto appended_header = packet.append(ByteView{header.data(), header.size()});
-        if (!appended_header) {
-            return util::unexpected(appended_header.error());
-        }
-
-        auto appended_payload = packet.append(payload);
-        if (!appended_payload) {
-            return util::unexpected(appended_payload.error());
+        auto prepended_header = packet.prepend(ByteView{header.data(), header.size()});
+        if (!prepended_header) {
+            return util::unexpected(prepended_header.error());
         }
 
         const auto checksum = detail::compute_udp_checksum_ipv4(
@@ -190,6 +195,92 @@ export namespace net {
         auto out = packet.mut_view();
         detail::store_be16(out.data() + 6, wire_checksum);
         return {};
+    }
+
+    template <util::usize Capacity>
+    [[nodiscard]] Result<void> write_udp_ipv4_datagram(PacketBuffer<Capacity>& packet,
+                                                       const Endpoint& local,
+                                                       const Endpoint& peer,
+                                                       ByteView payload) noexcept {
+        auto reset = packet.reset(udp_header_size());
+        if (!reset) {
+            return util::unexpected(reset.error());
+        }
+
+        auto appended_payload = packet.append(payload);
+        if (!appended_payload) {
+            return util::unexpected(appended_payload.error());
+        }
+        return prepend_udp_ipv4_header(packet, local, peer);
+    }
+
+    template <util::usize TxCapacity, util::usize ArpCapacity>
+    [[nodiscard]] Result<void> send_udp_ipv4(NetIf& netif,
+                                             const ArpTable<ArpCapacity>& arp,
+                                             Endpoint local,
+                                             const Endpoint& peer,
+                                             ByteView payload,
+                                             util::u8 ttl = 64,
+                                             util::u16 identification = 0,
+                                             util::u8 dscp_ecn = 0) noexcept {
+        if (!peer.address.is_ipv4() || peer.address.is_any() || peer.port == 0u) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        if (local.port == 0u) {
+            return util::unexpected(errc::invalid_arg);
+        }
+
+        if (local.address.is_unspecified() || local.address.is_any()) {
+            local.address = netif.address();
+        }
+        if (!local.address.is_ipv4() || !detail::same_ipv4_address(local.address, netif.address())) {
+            return util::unexpected(errc::invalid_arg);
+        }
+
+        const auto resolved = arp.lookup(peer.address);
+        if (!resolved) {
+            return util::unexpected(resolved.error());
+        }
+
+        PacketBuffer<TxCapacity> frame{};
+        auto reset = frame.reset(ether_header_size() + ipv4_min_header_size() + udp_header_size());
+        if (!reset) {
+            return util::unexpected(reset.error());
+        }
+
+        auto appended_payload = frame.append(payload);
+        if (!appended_payload) {
+            return util::unexpected(appended_payload.error());
+        }
+
+        auto prepended_udp = prepend_udp_ipv4_header(frame, local, peer);
+        if (!prepended_udp) {
+            return util::unexpected(prepended_udp.error());
+        }
+
+        auto prepended_ipv4 = prepend_ipv4_header(frame, Ipv4PacketSpec{
+            .dscp_ecn = dscp_ecn,
+            .identification = identification,
+            .flags_fragment = ipv4_do_not_fragment_flag(),
+            .ttl = ttl,
+            .protocol = Ipv4Protocol::udp,
+            .source = local.address,
+            .destination = peer.address,
+        });
+        if (!prepended_ipv4) {
+            return util::unexpected(prepended_ipv4.error());
+        }
+
+        auto prepended_ether = prepend_ether_header(
+            frame,
+            resolved.value(),
+            netif.mac(),
+            EtherType::ipv4);
+        if (!prepended_ether) {
+            return util::unexpected(prepended_ether.error());
+        }
+
+        return netif.transmit(frame.view());
     }
 
     template <util::usize Capacity>

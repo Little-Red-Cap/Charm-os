@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <utility>
 
 export module net.ether;
@@ -29,6 +30,22 @@ export namespace net {
 
     [[nodiscard]] constexpr util::u16 ether_type_value(EtherType type) noexcept {
         return static_cast<util::u16>(type);
+    }
+
+    template <util::usize Capacity>
+    [[nodiscard]] Result<void> prepend_ether_header(PacketBuffer<Capacity>& packet,
+                                                    MacAddress destination,
+                                                    MacAddress source,
+                                                    EtherType type) noexcept {
+        std::array<util::u8, ether_header_size()> header{};
+        for (util::usize i = 0; i < 6; ++i) {
+            header[i] = destination.bytes[i];
+            header[6 + i] = source.bytes[i];
+        }
+        const auto raw_type = ether_type_value(type);
+        header[12] = static_cast<util::u8>((raw_type >> 8) & 0xFFu);
+        header[13] = static_cast<util::u8>(raw_type & 0xFFu);
+        return packet.prepend(ByteView{header.data(), header.size()});
     }
 
     [[nodiscard]] constexpr Result<EtherFrameView> parse_ether_frame(PacketView packet) noexcept {

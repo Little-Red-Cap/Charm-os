@@ -17,6 +17,7 @@
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
 - freestanding C userland now keeps its minimal process/stdio surface in `charm_posix_user_crt.h`, while FS/FD/path/dir-facing contracts expand through the split header `Modules/io/posix/charm_posix_user_fs.h`
 - the exported C CRT header surface now also smoke-pins `argv/envp/environ` identity basics, `getenv(null-or-miss) -> nullptr`, and success-side `getpid/sleep(0)/write` errno preservation
+- the exported C CRT header surface now also smoke-pins zero-length I/O on valid stdio descriptors: `read(fd, ..., 0) -> 0` and `write(fd, ..., 0) -> 0`, both without clobbering `errno`
 - the exported C CRT header surface now also smoke-pins argv/envp null termination, `getenv("") -> nullptr`, stable `errno_location()` identity, and `write(-1) -> EBADF`
 - the exported C CRT header surface now also smoke-covers explicit termination through `charm_posix_exit()` and `charm_posix_abort()`, with the current abort contract exiting with code `134`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
@@ -69,6 +70,11 @@
 - the exported C fs header surface now also smoke-pins path-level alias stats directly: `stat("/dev/stdin")`, `stat("/dev/stdout")`, `stat("/dev/stderr")`, `stat("/dev/tty")`, and `stat("/dev/console")` reflect the current live descriptor shape
 - the exported C fs header surface now also smoke-pins missing-path `ENOENT` edges directly across representative calls such as `open`, `unlink`, `rmdir`, `rename`, `chdir`, and `opendir`
 - the exported C fs header surface now also smoke-pins `stat("/missing") -> ENOENT`, `mkdir(existing-dir-or-file) -> EEXIST`, and path-level `stat("/dev/null") -> S_IFCHR`
+- the exported C fs header surface now also smoke-pins `/dev/null` with `CHARM_POSIX_O_RDWR`: one fd still observes read-EOF, write-byte-count success, and `lseek(...) -> ESPIPE`
+- the exported C fs header surface now also smoke-pins regular-file fd success paths more directly: `open/write/fstat/lseek/close/unlink` keep `errno` stable on success, `fstat(fd)` reports `S_IFREG + size`, and `CHARM_POSIX_SEEK_CUR` remains observable on a live read/write descriptor
+- the exported C fs header surface now also smoke-pins relative cwd behavior directly: `chdir("sub")` enters a child directory, `open("../parent.txt", ...)` resolves against the live cwd, and `chdir("..")` returns to the parent without clobbering `errno`
+- the exported C fs header surface now also smoke-pins rename success more directly: the old path disappears with `ENOENT`, the new path keeps regular-file size/content, and the renamed file remains reachable through the live cwd
+- the exported C fs header surface now also smoke-pins relative directory traversal directly: `opendir(".")` resolves against the live cwd, and `opendir("sub")` can enumerate an empty child directory without clobbering `errno`
 - the exported C fs header surface now also smoke-pins `rmdir(nonempty-dir) -> ENOTEMPTY` directly on the public C layer
 - the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
 - the exported C fs header surface now also smoke-covers path-shape errors directly: `open(dir, O_WRONLY) -> EISDIR`, and bad-parent paths such as `file/child` now consistently report `ENOTDIR` across `open/stat/mkdir/unlink/rmdir/rename`

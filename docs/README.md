@@ -72,6 +72,7 @@ flowchart TD
 | POSIX errno 映射 | `docs/system/posix_errno_mapping.md` |
 | POSIX 错误语义约定 | `docs/system/posix_error_semantics.md` |
 | BusyBox 验收清单 | `docs/system/posix_busybox_phase_checklist.md` |
+| POSIX v0 收口清单 | `docs/system/posix_v0_closure_checklist.md` |
 
 ## 按专题索引
 

@@ -1,7 +1,6 @@
 import out.format;
 import out.sink;
 
-#include "armv7a_arch_timer.hpp"
 #include "armv7a_attribute_probe.hpp"
 #include "armv7a_boot_page_table.hpp"
 #include "armv7a_cache.hpp"
@@ -79,7 +78,7 @@ void print_cpu_boot_state()
     armv7a_platform_early_console_puts(", mpidr=0x");
     platform_console_put_hex32(armv7a_read_mpidr());
     armv7a_platform_early_console_puts(", cntfrq=0x");
-    platform_console_put_hex32(armv7a_timer_read_cntfrq());
+    platform_console_put_hex32(armv7a_platform_timer_frequency_hz());
     armv7a_platform_early_console_puts("\r\n");
 
     armv7a_platform_early_console_puts("ARMv7-A memory model, id_mmfr0=0x");

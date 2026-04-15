@@ -83,6 +83,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_small_page_probe.cpp
     early_uart.cpp
     qemu_virt_platform.cpp
+    qemu_virt_platform_interrupts.cpp
     exceptions.cpp
     irq_timer.cpp
     runtime_stubs.cpp)

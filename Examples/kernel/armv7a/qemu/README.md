@@ -257,9 +257,15 @@ continue
 
 - Platform-facing console, debug trace, and idle hooks are routed through
   `armv7a_platform_*` declarations in `armv7a_platform.hpp`.
+- Timer and interrupt controller setup also flow through
+  `armv7a_platform_*`, so the smoke paths no longer need direct GIC or Generic
+  Timer knowledge.
 - `early_uart.cpp` and `qemu_virt_platform.cpp` provide the current QEMU `virt`
   implementation so upper layers no longer need to reference PL011 or semihost
   details directly.
+- `qemu_virt_platform_interrupts.cpp` provides the current QEMU `virt`
+  implementation for timer and interrupt routing while preserving a platform
+  contract for future boards.
 - The linker starts at `0x40200000` to stay clear of the `virt` DTB area
   near `0x40000000`.
 - Current scope is intentionally small: reset entry, per-mode stacks,

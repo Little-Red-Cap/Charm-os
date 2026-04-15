@@ -176,6 +176,9 @@ system compiler 正在长出多张可被解释的面。
 
 当前建议把 system compiler 的最小工件面先收敛成一份统一的 `artifact report` 语义，而不是继续平铺很多彼此独立的小报告。
 
+具体字段分组、最小样例对象与工程边界，
+见：`docs/system/artifact_report_v0.md`
+
 v0 阶段建议至少覆盖：
 
 - capabilities

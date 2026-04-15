@@ -148,6 +148,9 @@ Charm 已经有一批 system compiler 的前身，不是从白纸起步：
 
 目标：冻结术语与编译结果形态，而不是先扩展功能面。
 
+当前关于最小 `artifact report` 对象边界与字段草案，
+见：`docs/system/artifact_report_v0.md`
+
 建议最小落地点：
 
 - 建立 `SystemSpec / Profile / BoardPackage / Binding / Facet` 词汇表

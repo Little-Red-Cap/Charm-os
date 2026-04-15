@@ -112,7 +112,7 @@
 - newlib `dirent` smoke now also pins bridge edge behavior directly: missing-path and empty-path `opendir()` fail with `ENOENT`, while `readdir()` / `closedir()` on an already-closed handle fail with `EINVAL`
 - `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage; `opendir(file)` fails with `ENOTDIR`, `opendir()` with the dir-handle pool exhausted fails with `EMFILE`, `opendir()` also fails with `ENOMEM` when the fixed dir-entry snapshot buffer overflows and with `ENAMETOOLONG` when a listed entry exceeds the exported dirent name buffer, `readdir()` on end-of-directory returns `nullptr` without clobbering `errno`, and `readdir()` / `closedir()` on a null, invalid, or already-closed directory handle fail with `EINVAL`
 - `chdir("/missing") -> -1 && errno == ENOENT`, `chdir("/file") -> -1 && errno == ENOTDIR`, and `chdir("/file/sub") -> -1 && errno == ENOTDIR`
-- newlib `remove()` now also has a pinned minimum path contract: `remove("/missing") -> ENOENT`, `remove("/file/sub") -> ENOTDIR`, and `remove("/nonempty-dir") -> ENOTEMPTY`
+- newlib `remove()` now also has a pinned minimum path contract: `remove("/missing") -> ENOENT`, `remove("/file/sub") -> ENOTDIR`, `remove("/nonempty-dir") -> ENOTEMPTY`, `remove("") -> ENOENT`, and successful regular-file / empty-directory removal keeps `errno` unchanged
 
 ## Mainline Capabilities Already Holding
 - file-backed ELF can be loaded and spawned from a path

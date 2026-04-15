@@ -165,6 +165,28 @@ export namespace net {
             target_ip);
     }
 
+    template <util::usize TxCapacity>
+    [[nodiscard]] Result<void> send_arp_ipv4_request(NetIf& netif, IpAddress target_ip) noexcept {
+        const auto local_ip = netif.address();
+        if (!local_ip.is_ipv4() || local_ip.is_any()) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        if (!target_ip.is_ipv4() || target_ip.is_any()) {
+            return util::unexpected(errc::invalid_arg);
+        }
+
+        PacketBuffer<TxCapacity> request{};
+        auto encoded = write_arp_ipv4_request_frame(
+            request,
+            netif.mac(),
+            local_ip,
+            target_ip);
+        if (!encoded) {
+            return util::unexpected(encoded.error());
+        }
+        return netif.transmit(request.view());
+    }
+
     template <util::usize Capacity>
     [[nodiscard]] Result<void> write_arp_ipv4_reply_frame(PacketBuffer<Capacity>& packet,
                                                           MacAddress destination_mac,

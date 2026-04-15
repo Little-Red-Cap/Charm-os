@@ -239,7 +239,15 @@ export namespace net {
 
         const auto resolved = arp.lookup(peer.address);
         if (!resolved) {
-            return util::unexpected(resolved.error());
+            if (resolved.error() != errc::noent) {
+                return util::unexpected(resolved.error());
+            }
+
+            auto requested = send_arp_ipv4_request<TxCapacity>(netif, peer.address);
+            if (!requested) {
+                return util::unexpected(requested.error());
+            }
+            return util::unexpected(errc::again);
         }
 
         PacketBuffer<TxCapacity> frame{};

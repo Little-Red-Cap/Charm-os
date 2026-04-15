@@ -9,12 +9,15 @@ extern "C" void armv7a_disable_irq();
 extern "C" void armv7a_enable_fiq();
 extern "C" void armv7a_disable_fiq();
 extern "C" std::uint32_t armv7a_read_cpsr();
+extern "C" std::uint32_t armv7a_read_id_mmfr0();
 extern "C" std::uint32_t armv7a_read_id_pfr1();
 extern "C" std::uint32_t armv7a_read_mpidr();
 extern "C" std::uint32_t armv7a_read_sctlr();
 extern "C" std::uint32_t armv7a_read_vbar();
 extern "C" void armv7a_svc_smoke_test();
 
+std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value);
+std::uint32_t armv7a_id_mmfr0_pmsa_field(std::uint32_t value);
 std::uint32_t armv7a_id_pfr1_security_field(std::uint32_t value);
 std::uint32_t armv7a_id_pfr1_virtualization_field(std::uint32_t value);
 std::uint32_t armv7a_id_pfr1_gentimer_field(std::uint32_t value);

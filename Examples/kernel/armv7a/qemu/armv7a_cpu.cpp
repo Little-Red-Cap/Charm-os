@@ -4,6 +4,9 @@ namespace {
 constexpr std::uint32_t kPsrModeMask = 0x1fu;
 constexpr std::uint32_t kPsrIrqMask = 1u << 7;
 constexpr std::uint32_t kPsrFiqMask = 1u << 6;
+constexpr std::uint32_t kIdMmfr0VmsaShift = 0u;
+constexpr std::uint32_t kIdMmfr0PmsaShift = 4u;
+constexpr std::uint32_t kIdMmfr0FieldMask = 0xfu;
 constexpr std::uint32_t kIdPfr1SecurityShift = 4u;
 constexpr std::uint32_t kIdPfr1VirtualizationShift = 12u;
 constexpr std::uint32_t kIdPfr1GentimerShift = 16u;
@@ -54,6 +57,13 @@ extern "C" std::uint32_t armv7a_read_mpidr()
     return value;
 }
 
+extern "C" std::uint32_t armv7a_read_id_mmfr0()
+{
+    std::uint32_t value = 0;
+    asm volatile("mrc p15, 0, %0, c0, c1, 4" : "=r"(value));
+    return value;
+}
+
 extern "C" std::uint32_t armv7a_read_id_pfr1()
 {
     std::uint32_t value = 0;
@@ -78,6 +88,16 @@ extern "C" std::uint32_t armv7a_read_vbar()
 extern "C" void armv7a_svc_smoke_test()
 {
     asm volatile("svc #0x43" ::: "memory");
+}
+
+std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value)
+{
+    return (value >> kIdMmfr0VmsaShift) & kIdMmfr0FieldMask;
+}
+
+std::uint32_t armv7a_id_mmfr0_pmsa_field(std::uint32_t value)
+{
+    return (value >> kIdMmfr0PmsaShift) & kIdMmfr0FieldMask;
 }
 
 std::uint32_t armv7a_id_pfr1_security_field(std::uint32_t value)

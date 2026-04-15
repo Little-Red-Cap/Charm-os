@@ -86,6 +86,9 @@ if (($log -notmatch "ARMv7-A boot state, cpsr=0x[0-9A-F]{8}, mode=[a-z]+, irq=(m
 if (($log -notmatch "ARMv7-A cp15 state, sctlr=0x[0-9A-F]{8}, vbar=0x[0-9A-F]{8}, mpidr=0x[0-9A-F]{8}, cntfrq=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A cp15 state, sctlr=0x..."
 }
+if (($log -notmatch "ARMv7-A memory model, id_mmfr0=0x[0-9A-F]{8}, vmsa=0x[0-9A-F]{8} \((present|absent)\), pmsa=0x[0-9A-F]{8} \((present|absent)\)")) {
+    $missing += "ARMv7-A memory model, id_mmfr0=0x..."
+}
 if (($log -notmatch "ARMv7-A feature state, id_pfr1=0x[0-9A-F]{8}, security=0x[0-9A-F]{8} \((present|absent)\), virtualization=0x[0-9A-F]{8} \((present|absent)\), gentimer=0x[0-9A-F]{8} \((present|absent)\)")) {
     $missing += "ARMv7-A feature state, id_pfr1=0x..."
 }

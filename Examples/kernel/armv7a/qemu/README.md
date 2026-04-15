@@ -70,6 +70,7 @@ Charm ARMv7-A QEMU skeleton
 Targeting Cortex-A7 first, RK3506 later.
 ARMv7-A boot state, cpsr=0x600001DF, mode=sys, irq=masked
 ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=0x03B9ACA0
+ARMv7-A memory model, id_mmfr0=0x10101105, vmsa=0x00000005 (present), pmsa=0x00000000 (absent)
 ARMv7-A feature state, id_pfr1=0x00010001, security=0x00000000 (absent), virtualization=0x00000000 (absent), gentimer=0x00000001 (present)
 ARMv7-A cache state, mmu=off, dcache=off, icache=off, high-vectors=off
 ARMv7-A translation state, ttbr0=0x00000000, ttbr1=0x00000000, ttbcr=0x00000000, dacr=0x00000000
@@ -302,6 +303,14 @@ continue
   Virtualization, and the generic timer. That line is about CPU capability
   only; it is intentionally separate from the later runtime `security side
   evidence` line that talks about observed world/routing behavior.
+- The same banner now also prints `ID_MMFR0` capability bits for `VMSA` and
+  `PMSA`, so the logs say explicitly whether the CPU model claims an MMU-style
+  virtual memory system, an MPU-style protected memory system, or both before
+  we interpret any later page-table and abort behavior.
+- Current QEMU `-cpu cortex-a7` runs report `ID_MMFR0=0x10101105`, with
+  `VMSA=0x5` and `PMSA=0x0`. That matches the direction we are taking here:
+  this CPU model advertises virtual-memory/MMU-style machinery, while not
+  advertising a PMSA/MPU-only profile.
 - Current QEMU `-cpu cortex-a7` runs report `ID_PFR1=0x00010001`, so the model
   advertises the generic timer but not the Security/Virtualization capability
   bits. That makes the later `security side evidence` line even more useful:

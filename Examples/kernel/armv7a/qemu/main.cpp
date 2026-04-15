@@ -64,6 +64,7 @@ void print_cpu_boot_state()
 {
     const auto cpsr = armv7a_read_cpsr();
     const auto sctlr = armv7a_read_sctlr();
+    const auto id_mmfr0 = armv7a_read_id_mmfr0();
     const auto id_pfr1 = armv7a_read_id_pfr1();
     early_uart_puts("ARMv7-A boot state, cpsr=0x");
     early_uart_put_hex32(cpsr);
@@ -82,6 +83,18 @@ void print_cpu_boot_state()
     early_uart_puts(", cntfrq=0x");
     early_uart_put_hex32(armv7a_timer_read_cntfrq());
     early_uart_puts("\r\n");
+
+    early_uart_puts("ARMv7-A memory model, id_mmfr0=0x");
+    early_uart_put_hex32(id_mmfr0);
+    early_uart_puts(", vmsa=0x");
+    early_uart_put_hex32(armv7a_id_mmfr0_vmsa_field(id_mmfr0));
+    early_uart_puts(" (");
+    early_uart_puts(armv7a_feature_presence_name(armv7a_id_mmfr0_vmsa_field(id_mmfr0)));
+    early_uart_puts("), pmsa=0x");
+    early_uart_put_hex32(armv7a_id_mmfr0_pmsa_field(id_mmfr0));
+    early_uart_puts(" (");
+    early_uart_puts(armv7a_feature_presence_name(armv7a_id_mmfr0_pmsa_field(id_mmfr0)));
+    early_uart_puts(")\r\n");
 
     early_uart_puts("ARMv7-A feature state, id_pfr1=0x");
     early_uart_put_hex32(id_pfr1);

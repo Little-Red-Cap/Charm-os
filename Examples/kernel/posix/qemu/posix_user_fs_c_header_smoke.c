@@ -344,6 +344,9 @@ int charm_posix_c_fs_header_entry(void) {
     fd = charm_posix_open("note.txt", CHARM_POSIX_O_RDONLY, 0);
     if (fd < 0) return 336;
     *err = 0;
+    if (charm_posix_write(fd, "!", 1) != -1) return 543;
+    if (*err != CHARM_POSIX_EBADF) return 544;
+    *err = 0;
     if (charm_posix_lseek(fd, 0, 99) != -1) return 415;
     if (*err != CHARM_POSIX_EINVAL) return 416;
     if (charm_posix_lseek(fd, 0, CHARM_POSIX_SEEK_END) != 3) return 337;
@@ -351,6 +354,13 @@ int charm_posix_c_fs_header_entry(void) {
     if (charm_posix_read(fd, buf, 3) != 3) return 339;
     if (memcmp(buf, "fs+", 3) != 0) return 340;
     if (charm_posix_close(fd) != 0) return 341;
+
+    fd = charm_posix_open("note.txt", CHARM_POSIX_O_WRONLY, 0);
+    if (fd < 0) return 545;
+    *err = 0;
+    if (charm_posix_read(fd, buf, 1) != -1) return 546;
+    if (*err != CHARM_POSIX_EBADF) return 547;
+    if (charm_posix_close(fd) != 0) return 548;
 
     fd = charm_posix_open("excl.txt", CHARM_POSIX_O_CREAT | CHARM_POSIX_O_EXCL | CHARM_POSIX_O_WRONLY, 0);
     if (fd < 0) return 351;

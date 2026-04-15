@@ -69,6 +69,7 @@
 - the exported C fs header surface now also smoke-pins `lseek` error edges directly: `lseek(-1, ...) -> EBADF` and `lseek(valid, ..., invalid-whence) -> EINVAL`
 - the exported C fs header surface now also smoke-covers path-shape errors directly: `open(dir, O_WRONLY) -> EISDIR`, and bad-parent paths such as `file/child` now consistently report `ENOTDIR` across `open/stat/mkdir/unlink/rmdir/rename`
 - the exported C fs header surface now also smoke-pins `CHARM_POSIX_O_RDWR` directly: one fd can `write -> lseek -> read` on the same regular file descriptor
+- the exported C fs header surface now also smoke-pins access-mode edges directly: `O_RDONLY` fds reject `write()` with `EBADF`, and `O_WRONLY` fds reject `read()` with `EBADF`
 - the exported C fs header surface now also smoke-pins `CHARM_POSIX_O_APPEND` against real append-at-end behavior on regular files, even after a manual `lseek(..., SEEK_SET)`
 - the exported C fs header surface now also smoke-covers the empty-path `ENOENT` contract across `open/stat/mkdir/unlink/rmdir/rename/chdir/opendir`, including both empty-`from` and empty-`to` rename edges
 - the exported C fs header surface now also smoke-pins `/dev/null` basics directly: read-side EOF, write-side byte-count success, `isatty()==0` without clobbering `errno`, `fstat()->S_IFCHR`, and `lseek()->ESPIPE`

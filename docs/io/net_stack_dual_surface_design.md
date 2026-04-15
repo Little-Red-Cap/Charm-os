@@ -407,6 +407,8 @@ v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagn
 避免后续 ARP/IPv4 纵切时又回头重做一次 packet 生命周期边界。
 `net.stack` 的当前第一刀建议进一步收口成“固定容量 netif/driver 注册表 + poll 驱动 + EtherType 分发入口”，
 先把 `ARP / IPv4` 两条最基础的 L3 入口切出来，但暂时还不急着铺开完整 ARP cache、路由表与 IPv4 状态机。
+在这之后，建议优先补一个最小 `net.arp` 纵切：先落 `ARP codec + 固定容量 cache/table + request/reply responder`，
+把第一条真正可闭环的 L2/L3 路径跑通，再进入 IPv4 header/route/udp 等更长链路。
 
 这样未来 USB 网卡、板载以太网、Host backend 都能用统一方式接入。
 

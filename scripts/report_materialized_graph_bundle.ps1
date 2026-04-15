@@ -152,10 +152,12 @@ function New-ReportManifest {
         left = [ordered]@{
             index = [string]$DiffData.left.index
             bundle_root = [string]$DiffData.left.bundle_root
+            input_manifest = if ($null -ne $DiffData.left.PSObject.Properties['input_manifest']) { $DiffData.left.input_manifest } else { $null }
         }
         right = [ordered]@{
             index = [string]$DiffData.right.index
             bundle_root = [string]$DiffData.right.bundle_root
+            input_manifest = if ($null -ne $DiffData.right.PSObject.Properties['input_manifest']) { $DiffData.right.input_manifest } else { $null }
         }
         diff = [ordered]@{
             schema = if ($null -ne $DiffData.PSObject.Properties['schema']) { [string]$DiffData.schema } else { $null }
@@ -479,7 +481,13 @@ function Build-MarkdownReport {
     [void]$builder.AppendLine('')
     [void]$builder.AppendLine('- Generated: `' + (Get-Date -Format s) + '`')
     [void]$builder.AppendLine('- Left bundle: `' + (Escape-MarkdownCell ([string]$DiffData.left.index)) + '`')
+    if ($null -ne $DiffData.left.PSObject.Properties['input_manifest'] -and $null -ne $DiffData.left.input_manifest -and -not [string]::IsNullOrWhiteSpace([string]$DiffData.left.input_manifest.path)) {
+        [void]$builder.AppendLine('- Left input manifest: `' + (Escape-MarkdownCell ([string]$DiffData.left.input_manifest.path)) + '`')
+    }
     [void]$builder.AppendLine('- Right bundle: `' + (Escape-MarkdownCell ([string]$DiffData.right.index)) + '`')
+    if ($null -ne $DiffData.right.PSObject.Properties['input_manifest'] -and $null -ne $DiffData.right.input_manifest -and -not [string]::IsNullOrWhiteSpace([string]$DiffData.right.input_manifest.path)) {
+        [void]$builder.AppendLine('- Right input manifest: `' + (Escape-MarkdownCell ([string]$DiffData.right.input_manifest.path)) + '`')
+    }
     [void]$builder.AppendLine('- Cases in report: `' + [string]$DiffData.case_count + '`')
     [void]$builder.AppendLine('- Changed: `' + (Get-CaseStatusCount -Cases $cases -Status 'changed') + '`, Added: `' + (Get-CaseStatusCount -Cases $cases -Status 'added') + '`, Removed: `' + (Get-CaseStatusCount -Cases $cases -Status 'removed') + '`, Unchanged: `' + (Get-CaseStatusCount -Cases $cases -Status 'unchanged') + '`')
     [void]$builder.AppendLine('')
@@ -559,7 +567,13 @@ function Build-HtmlReport {
     [void]$builder.AppendLine('<ul class=meta>')
     [void]$builder.AppendLine("<li>Generated: <code>$(Escape-HtmlText ((Get-Date -Format s)))</code></li>")
     [void]$builder.AppendLine("<li>Left bundle: <code>$(Escape-HtmlText ([string]$DiffData.left.index))</code></li>")
+    if ($null -ne $DiffData.left.PSObject.Properties['input_manifest'] -and $null -ne $DiffData.left.input_manifest -and -not [string]::IsNullOrWhiteSpace([string]$DiffData.left.input_manifest.path)) {
+        [void]$builder.AppendLine("<li>Left input manifest: <code>$(Escape-HtmlText ([string]$DiffData.left.input_manifest.path))</code></li>")
+    }
     [void]$builder.AppendLine("<li>Right bundle: <code>$(Escape-HtmlText ([string]$DiffData.right.index))</code></li>")
+    if ($null -ne $DiffData.right.PSObject.Properties['input_manifest'] -and $null -ne $DiffData.right.input_manifest -and -not [string]::IsNullOrWhiteSpace([string]$DiffData.right.input_manifest.path)) {
+        [void]$builder.AppendLine("<li>Right input manifest: <code>$(Escape-HtmlText ([string]$DiffData.right.input_manifest.path))</code></li>")
+    }
     [void]$builder.AppendLine("<li>Cases in report: <code>$($DiffData.case_count)</code></li>")
     [void]$builder.AppendLine("<li>Changed: <code>$(Get-CaseStatusCount -Cases $cases -Status 'changed')</code>, Added: <code>$(Get-CaseStatusCount -Cases $cases -Status 'added')</code>, Removed: <code>$(Get-CaseStatusCount -Cases $cases -Status 'removed')</code>, Unchanged: <code>$(Get-CaseStatusCount -Cases $cases -Status 'unchanged')</code></li>")
     [void]$builder.AppendLine('</ul>')

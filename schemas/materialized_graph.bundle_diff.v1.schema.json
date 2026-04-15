@@ -58,6 +58,32 @@
         },
         "bundle_root": {
           "type": "string"
+        },
+        "input_manifest": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/inputManifest"
+            }
+          ]
+        }
+      }
+    },
+    "inputManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
         }
       }
     },

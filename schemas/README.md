@@ -28,7 +28,7 @@
 - `materialized_graph.bundle_diff.v1.schema.json`
   - 对应 `scripts/diff_materialized_graph_bundle.ps1 -AsJson` 的输出
   - 用途偏向结构差异分析、报告生成前的数据交换、工具侧增量审阅
-  - 它已经是 diff / report / CI 这条链上的机器可读中间协议，并可继续带出左右 case 的 `subject` 视图
+  - 它已经是 diff / report / CI 这条链上的机器可读中间协议，并可继续带出左右 case 的 `subject` 视图与左右 bundle 的输入 `manifest` provenance
 
 - `materialized_graph.ci_summary.v1.schema.json`
   - 对应 `scripts/ci_materialized_graph_bundle.ps1` 生成的 `summary.json`
@@ -38,7 +38,7 @@
 - `materialized_graph.report_manifest.v1.schema.json`
   - 对应 `scripts/report_materialized_graph_bundle.ps1` 生成的 `report manifest`
   - 用途偏向报告工件发现、报告层元数据交换、上层工具对 Markdown / HTML 的稳定引用
-  - 它把“报告本身”从纯文件输出推进成可被自动化消费的对象
+  - 它把“报告本身”从纯文件输出推进成可被自动化消费的对象，并继续保留左右 bundle 的输入 `manifest` provenance
 
 ### `system_compiler` 输出面草案
 

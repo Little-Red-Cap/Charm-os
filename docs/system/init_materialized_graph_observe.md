@@ -470,6 +470,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - `schema = materialized_graph.bundle_diff/v1`
 - `generated_at_utc`
 - `include_unchanged`
+- 左右 bundle 的输入 `manifest` provenance（如果对应 index 提供）
 - `status_counts`
 
 对应机器可读协议见：
@@ -502,6 +503,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 其中 `manifest.json` 当前会汇总：
 
 - 左右 bundle 引用
+- 左右 bundle 的输入 `manifest` provenance（如果 diff 已带出）
 - diff 协议名与 case / status 计数
 - Markdown / HTML / manifest 自身路径
 - 报告中包含的 case 名单与状态

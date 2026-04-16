@@ -14,6 +14,8 @@ target_sources(${target_name}
     BASE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
     FILES
+        ../../../Modules/media/charm.media.cppm
+        ../../../Modules/media/charm.media.audio.cppm
         ../../../Modules/core/util/core.cppm
         ../../../Modules/core/util/expected.cppm
         ../../../Modules/core/service/ring_queue.cppm

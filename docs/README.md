@@ -80,6 +80,7 @@ flowchart TD
 | 做网络协议栈设计 | `docs/io/net_stack_dual_surface_design.md` |
 | 看网络协议栈阶段复盘 | `docs/io/net_stack_stage_review.md` |
 | 拆网络底座收口任务 | `docs/io/net_stack_foundation_tasklist.md` |
+| 做主框架全仓体检 / 收敛排期 | `docs/project/tracking/主框架全仓审查与收敛_backlog.md` |
 | POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
 | POSIX 分层与演进原则 | `docs/system/posix_subsystem_principles.md` |
 | POSIX 三层执行模型 | `docs/system/posix_three_layer_contract.md` |
@@ -200,6 +201,7 @@ docs/
 - `docs/project/standards/项目C++编码要求.md`
 - `docs/project/collaboration/《协作期待与规范》.md`
 - `docs/project/collaboration/《现代 C++ 单片机代码协作认知》.md`
+- `docs/project/tracking/主框架全仓审查与收敛_backlog.md`
 - `docs/project/tracking/推进TODO与分工.md`
 - `docs/project/tracking/refactor_todo_ownership.md`
 - `docs/project/tracking/player_issue_log.md`

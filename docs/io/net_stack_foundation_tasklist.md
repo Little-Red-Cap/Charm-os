@@ -32,6 +32,7 @@
 - `reactor_request_close_smoke` 已锁住 closed transport 不再接受新的 request
 - `reactor_request_close_win_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer 在收到 request 后正常断开时，pending 会被清理，late request 会被拒绝，session/driver 会统一收口为 `closed`
 - `reactor_request_reset_close_smoke` 已锁住 WinProvider 在 peer abortive close / reset 下仍把 transport 收口为 `closed`，而不是误报成 `error`
+- `reactor_request_error_smoke` 已锁住 error transport 不再接受新的 request，且 pending 状态会被清理
 - `reactor_service_close_smoke` 已锁住 closed transport 后 deferred reply 会被拒绝，且 deferred 状态会被清理
 - `reactor_service_close_win_smoke` 已把这条语义扩展到真实 WinProvider server 侧：peer 在送达 request 后正常断开时，deferred token 会失效，late reply 会被拒绝，session/driver 会统一收口为 `closed`
 - `reactor_service_typed_close_win_smoke` 已把这条语义扩展到真实 WinProvider server 侧：peer 在送达 typed request 后正常断开时，typed deferred token 会失效，late typed reply 会被拒绝，session/driver 会统一收口为 `closed`
@@ -160,7 +161,7 @@
 
 #### 验收
 
-- `reactor_request_echo_smoke`、`reactor_request_close_smoke`、`reactor_request_close_win_smoke`、`reactor_request_reset_close_smoke` 稳定通过
+- `reactor_request_echo_smoke`、`reactor_request_close_smoke`、`reactor_request_close_win_smoke`、`reactor_request_reset_close_smoke`、`reactor_request_error_smoke` 稳定通过
 - `reactor_service_echo_smoke`、`reactor_service_deferred_smoke`、`reactor_service_close_smoke`、`reactor_service_close_win_smoke`、`reactor_service_reset_close_smoke`、`reactor_service_error_smoke`、`reactor_service_error_win_smoke`、`reactor_service_request_close_smoke`、`reactor_service_request_close_win_smoke`、`reactor_service_request_reset_close_smoke`、`reactor_service_request_error_smoke`、`reactor_service_request_error_win_smoke`、`reactor_service_typed_smoke`、`reactor_service_typed_close_smoke`、`reactor_service_typed_close_win_smoke`、`reactor_service_typed_reset_close_smoke`、`reactor_service_typed_error_smoke`、`reactor_service_typed_error_win_smoke`、`reactor_service_typed_request_close_smoke`、`reactor_service_typed_request_close_win_smoke`、`reactor_service_typed_request_reset_close_smoke`、`reactor_service_typed_request_error_smoke`、`reactor_service_typed_request_error_win_smoke` 稳定通过
 - `schema_codec_smoke` 能继续充当 typed payload contract 的快速回归面
 

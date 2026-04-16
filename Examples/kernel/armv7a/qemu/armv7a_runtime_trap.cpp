@@ -28,17 +28,8 @@ Armv7aRuntimeTrapObservation armv7a_capture_runtime_trap_ingress() noexcept
 Armv7aRuntimeTrapObservation armv7a_capture_runtime_trap_ingress_for_service(
     std::uint32_t service_id) noexcept
 {
-    const auto svc = armv7a_svc_observation_for_immediate(service_id);
-    const auto observed = armv7a_svc_observation_observed(svc);
-
-    return Armv7aRuntimeTrapObservation{
-        .path = observed ? Armv7aRuntimeTrapPath::svc_immediate
-                         : Armv7aRuntimeTrapPath::none,
-        .service_id = svc.immediate,
-        .service_id_sampled = observed,
-        .arguments_sampled = svc.arguments_sampled,
-        .svc = svc,
-    };
+    return armv7a_capture_runtime_trap_observation(
+        armv7a_svc_frame_sample_for_immediate(service_id));
 }
 
 void armv7a_print_runtime_trap_ingress()

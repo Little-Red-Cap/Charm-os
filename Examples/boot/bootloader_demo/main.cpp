@@ -8,6 +8,7 @@
 #include "armv7a_kernel_port_contract.hpp"
 #include "armv7a_runtime_trap_adapter_contract.hpp"
 #include "armv7a_runtime_bridge_contract.hpp"
+#include "armv7a_runtime_trap_frame_contract.hpp"
 #include "armv7a_runtime_trap_mapping_contract.hpp"
 #include "armv7a_runtime_trap_ingress_contract.hpp"
 #include "armv7a_scheduler_dispatch_contract.hpp"
@@ -1941,6 +1942,84 @@ namespace {
                    unobserved_projection);
     }
 
+    bool verify_armv7a_runtime_trap_frame_contract() noexcept {
+        const auto yield_sample = armv7a_make_runtime_trap_frame_sample(
+            Armv7aExceptionFrame{
+                .spsr = 0x1Fu,
+                .vector_id = kArmv7aExceptionSvc,
+                .r0 = 0x00000001u,
+                .r1 = 0x00000001u,
+                .r2 = 0x00000000u,
+                .r3 = 0x00000000u,
+                .r12 = 0x000000AAu,
+                .lr = 0x00009304u,
+            },
+            0x13u,
+            0xEF000043u);
+        const auto yield_capture =
+            armv7a_observe_runtime_trap_frame_capture(yield_sample);
+
+        const auto sleep_sample = armv7a_make_runtime_trap_frame_sample(
+            Armv7aExceptionFrame{
+                .spsr = 0x10u,
+                .vector_id = kArmv7aExceptionSvc,
+                .r0 = 0x00000005u,
+                .r1 = 0x00000000u,
+                .r2 = 0x00000002u,
+                .r3 = 0x00000005u,
+                .r12 = 0x000000BBu,
+                .lr = 0x00009404u,
+            },
+            0x13u,
+            0xEF000044u);
+        const auto sleep_capture =
+            armv7a_observe_runtime_trap_frame_capture(sleep_sample);
+
+        auto bad_instruction_sample = yield_sample;
+        bad_instruction_sample.instruction_word = 0xE1A00000u;
+        const auto bad_instruction_capture =
+            armv7a_observe_runtime_trap_frame_capture(bad_instruction_sample);
+
+        auto bad_vector_sample = yield_sample;
+        bad_vector_sample.frame.vector_id = kArmv7aExceptionIrq;
+        const auto bad_vector_capture =
+            armv7a_observe_runtime_trap_frame_capture(bad_vector_sample);
+
+        auto missing_handler_sample = yield_sample;
+        missing_handler_sample.handler_sampled = false;
+        const auto missing_handler_capture =
+            armv7a_observe_runtime_trap_frame_capture(missing_handler_sample);
+
+        return std::string_view(armv7a_runtime_trap_frame_path_name(
+                   yield_capture.path)) == "svc-frame" &&
+               armv7a_runtime_trap_frame_capture_ready(yield_capture) &&
+               yield_capture.trap.service_id ==
+                   kArmv7aRuntimeBridgeYieldServiceId &&
+               yield_capture.immediate_from_instruction ==
+                   kArmv7aRuntimeBridgeYieldServiceId &&
+               yield_capture.trap.svc.entry.handler_psr == 0x13u &&
+               yield_capture.trap.svc.entry.return_pc == 0x00009304u &&
+               yield_capture.trap.svc.arg0 == 0x00000001u &&
+               yield_capture.arguments_match_frame &&
+               armv7a_runtime_trap_frame_capture_ready(sleep_capture) &&
+               sleep_capture.trap.service_id ==
+                   kArmv7aRuntimeBridgeSleepServiceId &&
+               sleep_capture.immediate_from_instruction ==
+                   kArmv7aRuntimeBridgeSleepServiceId &&
+               sleep_capture.trap.svc.entry.handler_psr == 0x13u &&
+               sleep_capture.trap.svc.entry.return_pc == 0x00009404u &&
+               sleep_capture.trap.svc.arg2 == 0x00000002u &&
+               sleep_capture.arguments_match_frame &&
+               !bad_instruction_capture.instruction_is_svc &&
+               !armv7a_runtime_trap_frame_capture_ready(
+                   bad_instruction_capture) &&
+               !bad_vector_capture.frame_is_svc &&
+               !armv7a_runtime_trap_frame_capture_ready(bad_vector_capture) &&
+               !missing_handler_capture.handler_ready &&
+               !armv7a_runtime_trap_frame_capture_ready(
+                   missing_handler_capture);
+    }
+
     bool verify_armv7a_runtime_trap_mapping_contract() noexcept {
         const auto policy = Armv7aRuntimeTrapMappingPolicy{
             .yield_event_id = 0x00000007u,
@@ -2935,6 +3014,8 @@ int main() {
         verify_armv7a_runtime_bridge_contract();
     const bool armv7_runtime_trap_ingress_contract_ok =
         verify_armv7a_runtime_trap_ingress_contract();
+    const bool armv7_runtime_trap_frame_contract_ok =
+        verify_armv7a_runtime_trap_frame_contract();
     const bool armv7_runtime_trap_mapping_contract_ok =
         verify_armv7a_runtime_trap_mapping_contract();
     const bool armv7_runtime_trap_adapter_contract_ok =
@@ -3008,6 +3089,7 @@ int main() {
                      armv7_runtime_trap_contract_ok &&
                      armv7_runtime_bridge_contract_ok &&
                      armv7_runtime_trap_ingress_contract_ok &&
+                     armv7_runtime_trap_frame_contract_ok &&
                      armv7_runtime_trap_mapping_contract_ok &&
                      armv7_runtime_trap_adapter_contract_ok;
 
@@ -3099,6 +3181,8 @@ int main() {
                 armv7_runtime_bridge_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_runtime_trap_ingress_contract=%d\n",
                 armv7_runtime_trap_ingress_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_frame_contract=%d\n",
+                armv7_runtime_trap_frame_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_runtime_trap_mapping_contract=%d\n",
                 armv7_runtime_trap_mapping_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_runtime_trap_adapter_contract=%d\n",

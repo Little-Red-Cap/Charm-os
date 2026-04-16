@@ -124,6 +124,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=kernel-ingress",
     "ARMv7-A phase, stage=scheduler-tick-ingress",
     "ARMv7-A phase complete, stage=scheduler-tick-ingress",
+    "ARMv7-A phase, stage=runtime-trap-frame",
+    "ARMv7-A phase complete, stage=runtime-trap-frame",
     "ARMv7-A phase, stage=runtime-trap-ingress",
     "ARMv7-A phase complete, stage=runtime-trap-ingress",
     "ARMv7-A phase, stage=runtime-trap-mapping",
@@ -283,6 +285,9 @@ if (($log -notmatch "ARMv7-A kernel ingress, vector-base=0x[0-9A-F]{8}, tick-mod
 }
 if (($log -notmatch "ARMv7-A scheduler tick ingress, source=timer-irq, route=irq, mode=oneshot, intid=(29|30), hz=[0-9]+, now=0x[0-9A-F]{16}, source-match=yes, counter=yes, isr-safe=yes, retired=yes, handoff=yes, rearm=yes")) {
     $missing += "ARMv7-A scheduler tick ingress, source=timer-irq..."
+}
+if (($log -notmatch "ARMv7-A runtime trap frame, yield-path=svc-frame, yield-handler=svc, yield-return-pc=0x[0-9A-F]{8}, yield-ready=yes, sleep-path=svc-frame, sleep-handler=svc, sleep-return-pc=0x[0-9A-F]{8}, sleep-ready=yes, frame=yes")) {
+    $missing += "ARMv7-A runtime trap frame, yield-path=svc-frame..."
 }
 if (($log -notmatch "ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x00000001, arg1=0x00000001, arg2=0x00000000, arg3=0x00000000, service-ready=yes, args-ready=yes, trap=yes")) {
     $missing += "ARMv7-A runtime trap ingress, source=svc..."

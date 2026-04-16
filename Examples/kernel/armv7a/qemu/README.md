@@ -150,6 +150,7 @@ ARMv7-A return evidence, vector=fiq, origin-mode=sys, current-mode=sys, origin-i
 ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-ppi, irq-origin=sys, irq-handler=irq, fiq-origin=sys, fiq-handler=fiq, monitor-mode=not-observed
 ARMv7-A kernel ingress, vector-base=0x40200000, tick-mode=oneshot, tick-route=irq, timer-hz=62500000, exception=yes, interrupt=yes, timer=yes, context-ready=yes, context-model=software-frame, tick-runtime=yes, thread-runtime=yes
 ARMv7-A scheduler tick ingress, source=timer-irq, route=irq, mode=oneshot, intid=30, hz=62500000, now=0x00000000........, source-match=yes, counter=yes, isr-safe=yes, retired=yes, handoff=yes, rearm=yes
+ARMv7-A runtime trap frame, yield-path=svc-frame, yield-handler=svc, yield-return-pc=0x4020...., yield-ready=yes, sleep-path=svc-frame, sleep-handler=svc, sleep-return-pc=0x4020...., sleep-ready=yes, frame=yes
 ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x00000001, arg1=0x00000001, arg2=0x00000000, arg3=0x00000000, service-ready=yes, args-ready=yes, trap=yes
 ARMv7-A runtime trap mapping, yield=yield-current, yield-generic=0x0001, yield-origin=kernel-thread, yield-return-pc=0x4020...., yield-ready=yes, sleep=sleep-until, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-due=0x0000000000000005, sleep-ready=yes, mapping=yes
 ARMv7-A runtime trap adapter, yield-path=svc-r0, yield-r0=0x00000001, yield-preserve=yes, yield-ready=yes, sleep-path=svc-r0, sleep-r0=0x00000005, sleep-preserve=yes, sleep-ready=yes, adapter=yes
@@ -527,6 +528,10 @@ continue
   trap-time `r0-r3` values into one explicit `runtime trap ingress` contract,
   so later `yield / sleep / syscall-like` runtime glue can bind to a proven
   task-side trap envelope instead of treating SVC as a black box.
+- The same leaf now also prints one `runtime trap frame` line that proves the
+  live `Armv7aExceptionFrame + handler CPSR + SVC instruction word` sample is
+  already being captured through a common contract before the later ingress,
+  mapping, and writeback layers consume it.
 - The same QEMU leaf now also turns those live SVC observations into one
   explicit `runtime trap mapping` line, so we can see the lower-layer
   `svc immediate / origin psr / return-pc / event payload` bundle land on the

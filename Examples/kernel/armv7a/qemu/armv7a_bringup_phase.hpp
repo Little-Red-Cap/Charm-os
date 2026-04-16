@@ -24,6 +24,7 @@ enum class Armv7aBringupPhase : unsigned char {
     kSgiFiqTimeoutSmoke,
     kKernelIngress,
     kSchedulerTickIngress,
+    kRuntimeTrapFrame,
     kRuntimeTrapIngress,
     kRuntimeTrapMapping,
     kRuntimeTrapAdapter,

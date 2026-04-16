@@ -7,6 +7,7 @@
 #include "armv7a_memory_probe_sequence.hpp"
 #include "armv7a_platform.hpp"
 #include "armv7a_runtime_bridge.hpp"
+#include "armv7a_runtime_trap_frame.hpp"
 #include "armv7a_runtime_trap.hpp"
 #include "armv7a_runtime_trap_adapter.hpp"
 #include "armv7a_runtime_trap_mapping.hpp"
@@ -36,6 +37,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSchedulerTickIngress);
     armv7a_print_scheduler_tick_ingress();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kSchedulerTickIngress);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapFrame);
+    armv7a_print_runtime_trap_frame_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapFrame);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapIngress);
     armv7a_print_runtime_trap_ingress();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapIngress);

@@ -13,28 +13,6 @@
 #include "armv7a_translation_walk.hpp"
 
 namespace {
-const char* exception_name(Armv7aExceptionKind kind)
-{
-    switch (kind) {
-    case kArmv7aExceptionUndefined:
-        return "undefined";
-    case kArmv7aExceptionPrefetchAbort:
-        return "prefetch abort";
-    case kArmv7aExceptionDataAbort:
-        return "data abort";
-    case kArmv7aExceptionReserved:
-        return "reserved vector";
-    case kArmv7aExceptionIrq:
-        return "irq";
-    case kArmv7aExceptionFiq:
-        return "fiq";
-    case kArmv7aExceptionSvc:
-        return "svc";
-    default:
-        return "unknown";
-    }
-}
-
 const char* exception_stack_tag_name(Armv7aExceptionKind kind)
 {
     switch (kind) {
@@ -210,7 +188,7 @@ void armv7a_exception_print_svc_active(const Armv7aExceptionFrame& frame, unsign
 
     armv7a_platform_early_console_init();
     armv7a_platform_early_console_puts("ARMv7-A exception: ");
-    armv7a_platform_early_console_puts(exception_name(kind));
+    armv7a_platform_early_console_puts(armv7a_exception_name(kind));
     armv7a_platform_early_console_puts(", pc=0x");
     armv7a_diag_put_hex(armv7a_exception_pc(frame));
     armv7a_platform_early_console_puts(", lr=0x");

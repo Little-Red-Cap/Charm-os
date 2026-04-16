@@ -1,3 +1,4 @@
+#include "armv7a_exception_contract.hpp"
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
 
@@ -447,6 +448,78 @@ namespace {
                observation_unseen.line.intid == 1023u &&
                std::string_view(armv7a_platform_interrupt_line_group_name(sgi_active.line)) ==
                    "group1";
+    }
+
+    bool verify_armv7a_exception_contract() noexcept {
+        Armv7aExceptionFrame undefined_frame{
+            .vector_id = kArmv7aExceptionUndefined,
+            .lr = 0x1004u,
+        };
+        Armv7aExceptionFrame prefetch_abort_frame{
+            .vector_id = kArmv7aExceptionPrefetchAbort,
+            .lr = 0x2004u,
+        };
+        Armv7aExceptionFrame data_abort_frame{
+            .vector_id = kArmv7aExceptionDataAbort,
+            .lr = 0x3008u,
+        };
+        Armv7aExceptionFrame reserved_frame{
+            .vector_id = kArmv7aExceptionReserved,
+            .lr = 0x4000u,
+        };
+        Armv7aExceptionFrame irq_frame{
+            .vector_id = kArmv7aExceptionIrq,
+            .lr = 0x5004u,
+        };
+        Armv7aExceptionFrame fiq_frame{
+            .vector_id = kArmv7aExceptionFiq,
+            .lr = 0x6004u,
+        };
+        Armv7aExceptionFrame svc_frame{
+            .vector_id = kArmv7aExceptionSvc,
+            .lr = 0x7004u,
+        };
+
+        Armv7aSvcObservation svc_idle{};
+        Armv7aSvcObservation svc_seen{
+            .seen = true,
+            .origin_spsr = 0x1Fu,
+            .handler_cpsr = 0x13u,
+            .return_pc = 0x7004u,
+        };
+
+        return armv7a_exception_kind(undefined_frame) == kArmv7aExceptionUndefined &&
+               armv7a_exception_kind(svc_frame) == kArmv7aExceptionSvc &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionUndefined)) ==
+                   "undefined" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionPrefetchAbort)) ==
+                   "prefetch abort" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionDataAbort)) ==
+                   "data abort" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionReserved)) ==
+                   "reserved vector" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionIrq)) == "irq" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionFiq)) == "fiq" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionSvc)) == "svc" &&
+               armv7a_exception_pc(undefined_frame) == 0x1000u &&
+               armv7a_exception_return_pc(undefined_frame) == 0x1004u &&
+               armv7a_exception_pc(prefetch_abort_frame) == 0x2000u &&
+               armv7a_exception_return_pc(prefetch_abort_frame) == 0x2000u &&
+               armv7a_exception_pc(data_abort_frame) == 0x3000u &&
+               armv7a_exception_return_pc(data_abort_frame) == 0x3000u &&
+               armv7a_exception_pc(reserved_frame) == 0x4000u &&
+               armv7a_exception_return_pc(reserved_frame) == 0x4000u &&
+               armv7a_exception_pc(irq_frame) == 0x5000u &&
+               armv7a_exception_return_pc(irq_frame) == 0x5000u &&
+               armv7a_exception_pc(fiq_frame) == 0x6000u &&
+               armv7a_exception_return_pc(fiq_frame) == 0x6000u &&
+               armv7a_exception_pc(svc_frame) == 0x7000u &&
+               armv7a_exception_return_pc(svc_frame) == 0x7004u &&
+               !armv7a_svc_observation_observed(svc_idle) &&
+               armv7a_svc_observation_observed(svc_seen) &&
+               svc_seen.origin_spsr == 0x1Fu &&
+               svc_seen.handler_cpsr == 0x13u &&
+               svc_seen.return_pc == 0x7004u;
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -1101,6 +1174,7 @@ int main() {
                          MockPrepareStep::entry
                      });
     const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
+    const bool armv7_exception_contract_ok = verify_armv7a_exception_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1152,7 +1226,8 @@ int main() {
                     armv7_xip_ok &&
                     armv7_common_copy_ok &&
                     armv7_common_xip_ok &&
-                    armv7_interrupt_contract_ok;
+                    armv7_interrupt_contract_ok &&
+                    armv7_exception_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1208,6 +1283,8 @@ int main() {
                 armv7_common_xip_ok ? 1 : 0);
     std::printf("[boot] armv7_interrupt_contract=%d\n",
                 armv7_interrupt_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_exception_contract=%d\n",
+                armv7_exception_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

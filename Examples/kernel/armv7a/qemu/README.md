@@ -6,9 +6,9 @@ instead of pushing ARMv7-A specifics into shared `Modules/`.
 The shared ARMv7-A handoff prepare contract now lives in
 `targets/armv7a/common/`, carries explicit load/payload/entry metadata,
 and lets this QEMU leaf keep the hook implementation and runtime evidence
-local. The shared ARMv7-A interrupt contract also lives there, so pending,
-timeout, and observation state can be validated on the host side before a
-real board leaf joins the same path.
+local. Shared ARMv7-A exception and interrupt contracts also live there, so
+frame math, pending/timeout state, and observation semantics can be validated
+on the host side before a real board leaf joins the same path.
 
 ## Build
 

@@ -5,6 +5,34 @@ module;
 #include <span>
 #include <string_view>
 
+#ifdef S_IFMT
+#undef S_IFMT
+#endif
+#ifdef S_IFIFO
+#undef S_IFIFO
+#endif
+#ifdef S_IFCHR
+#undef S_IFCHR
+#endif
+#ifdef S_IFDIR
+#undef S_IFDIR
+#endif
+#ifdef S_IFREG
+#undef S_IFREG
+#endif
+#ifdef S_IFSOCK
+#undef S_IFSOCK
+#endif
+#ifdef SEEK_SET
+#undef SEEK_SET
+#endif
+#ifdef SEEK_CUR
+#undef SEEK_CUR
+#endif
+#ifdef SEEK_END
+#undef SEEK_END
+#endif
+
 export module posix.fd_table;
 
 import init.binding;

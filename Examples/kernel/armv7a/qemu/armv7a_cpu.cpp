@@ -9,6 +9,10 @@ constexpr std::uint32_t kIdPfr1SecurityShift = 4u;
 constexpr std::uint32_t kIdPfr1VirtualizationShift = 12u;
 constexpr std::uint32_t kIdPfr1GentimerShift = 16u;
 constexpr std::uint32_t kIdPfr1FieldMask = 0xfu;
+constexpr std::uint32_t kArmv7aSvcSmokeArg0 = 0x13579BDFu;
+constexpr std::uint32_t kArmv7aSvcSmokeArg1 = 0x2468ACE0u;
+constexpr std::uint32_t kArmv7aSvcSmokeArg2 = 0x11223344u;
+constexpr std::uint32_t kArmv7aSvcSmokeArg3 = 0x55667788u;
 } // namespace
 
 extern "C" void armv7a_data_sync_barrier()
@@ -125,7 +129,18 @@ extern "C" void armv7a_undefined_instruction()
 
 extern "C" void armv7a_svc_smoke_test()
 {
-    asm volatile("svc #0x43" ::: "memory");
+    asm volatile(
+        "mov r0, %0\n"
+        "mov r1, %1\n"
+        "mov r2, %2\n"
+        "mov r3, %3\n"
+        "svc #0x43"
+        :
+        : "r"(kArmv7aSvcSmokeArg0),
+          "r"(kArmv7aSvcSmokeArg1),
+          "r"(kArmv7aSvcSmokeArg2),
+          "r"(kArmv7aSvcSmokeArg3)
+        : "r0", "r1", "r2", "r3", "memory");
 }
 
 std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value)

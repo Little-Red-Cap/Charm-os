@@ -8,6 +8,7 @@
 #include "armv7a_kernel_port_contract.hpp"
 #include "armv7a_scheduler_dispatch_contract.hpp"
 #include "armv7a_scheduler_tick_contract.hpp"
+#include "armv7a_runtime_trap_contract.hpp"
 #include "armv7a_special_interrupt_contract.hpp"
 #include "armv7a_interrupt_timeout_contract.hpp"
 #include "armv7a_thread_context_contract.hpp"
@@ -591,6 +592,12 @@ namespace {
         Armv7aSvcObservation svc_idle{};
         Armv7aSvcObservation svc_seen{
             .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
+            .immediate = 0x43u,
+            .arg0 = 0x13579BDFu,
+            .arg1 = 0x2468ACE0u,
+            .arg2 = 0x11223344u,
+            .arg3 = 0x55667788u,
+            .arguments_sampled = true,
         };
 
         return armv7a_exception_kind(undefined_frame) == kArmv7aExceptionUndefined &&
@@ -619,12 +626,21 @@ namespace {
                armv7a_exception_pc(fiq_frame) == 0x6000u &&
                armv7a_exception_return_pc(fiq_frame) == 0x6000u &&
                armv7a_exception_pc(svc_frame) == 0x7000u &&
-               armv7a_exception_return_pc(svc_frame) == 0x7004u &&
-               !armv7a_svc_observation_observed(svc_idle) &&
-               armv7a_svc_observation_observed(svc_seen) &&
-               svc_seen.entry.origin_psr == 0x1Fu &&
-               svc_seen.entry.handler_psr == 0x13u &&
-               svc_seen.entry.return_pc == 0x7004u;
+                armv7a_exception_return_pc(svc_frame) == 0x7004u &&
+                !armv7a_svc_observation_observed(svc_idle) &&
+                armv7a_svc_observation_observed(svc_seen) &&
+                !armv7a_svc_service_sampled(svc_idle) &&
+                armv7a_svc_service_sampled(svc_seen) &&
+                !armv7a_svc_arguments_ready(svc_idle) &&
+                armv7a_svc_arguments_ready(svc_seen) &&
+                armv7a_svc_service_matches(svc_seen, 0x43u) &&
+                svc_seen.entry.origin_psr == 0x1Fu &&
+                svc_seen.entry.handler_psr == 0x13u &&
+                svc_seen.entry.return_pc == 0x7004u &&
+                svc_seen.arg0 == 0x13579BDFu &&
+                svc_seen.arg1 == 0x2468ACE0u &&
+                svc_seen.arg2 == 0x11223344u &&
+                svc_seen.arg3 == 0x55667788u;
     }
 
     bool verify_armv7a_vector_entry_contract() noexcept {
@@ -1513,6 +1529,57 @@ namespace {
                !armv7a_scheduler_dispatch_ready(bad_tick);
     }
 
+    bool verify_armv7a_runtime_trap_contract() noexcept {
+        const Armv7aRuntimeTrapObservation empty{};
+
+        const Armv7aRuntimeTrapObservation ready{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = 0x43u,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc =
+                Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x1Fu, 0x13u, 0x7004u),
+                    .immediate = 0x43u,
+                    .arg0 = 0x13579BDFu,
+                    .arg1 = 0x2468ACE0u,
+                    .arg2 = 0x11223344u,
+                    .arg3 = 0x55667788u,
+                    .arguments_sampled = true,
+                },
+        };
+
+        auto service_missing = ready;
+        service_missing.service_id_sampled = false;
+
+        auto arguments_missing = ready;
+        arguments_missing.arguments_sampled = false;
+
+        auto mismatched_service = ready;
+        mismatched_service.service_id = 0x44u;
+
+        auto missing_svc_args = ready;
+        missing_svc_args.svc.arguments_sampled = false;
+
+        return !armv7a_runtime_trap_path_ready(empty) &&
+               !armv7a_runtime_trap_service_ready(empty) &&
+               !armv7a_runtime_trap_arguments_ready(empty) &&
+               !armv7a_runtime_trap_ready(empty) &&
+               armv7a_runtime_trap_path_ready(ready) &&
+               armv7a_runtime_trap_service_ready(ready) &&
+               armv7a_runtime_trap_arguments_ready(ready) &&
+               armv7a_runtime_trap_ready(ready) &&
+               !armv7a_runtime_trap_service_ready(service_missing) &&
+               !armv7a_runtime_trap_ready(service_missing) &&
+               !armv7a_runtime_trap_arguments_ready(arguments_missing) &&
+               !armv7a_runtime_trap_ready(arguments_missing) &&
+               !armv7a_runtime_trap_service_ready(mismatched_service) &&
+               !armv7a_runtime_trap_ready(mismatched_service) &&
+               !armv7a_runtime_trap_arguments_ready(missing_svc_args) &&
+               !armv7a_runtime_trap_ready(missing_svc_args);
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -2190,6 +2257,8 @@ int main() {
         verify_armv7a_scheduler_tick_contract();
     const bool armv7_scheduler_dispatch_contract_ok =
         verify_armv7a_scheduler_dispatch_contract();
+    const bool armv7_runtime_trap_contract_ok =
+        verify_armv7a_runtime_trap_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -2255,7 +2324,8 @@ int main() {
                      armv7_kernel_port_contract_ok &&
                      armv7_thread_context_contract_ok &&
                      armv7_scheduler_tick_contract_ok &&
-                     armv7_scheduler_dispatch_contract_ok;
+                     armv7_scheduler_dispatch_contract_ok &&
+                     armv7_runtime_trap_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -2339,6 +2409,8 @@ int main() {
                 armv7_scheduler_tick_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_scheduler_dispatch_contract=%d\n",
                 armv7_scheduler_dispatch_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_contract=%d\n",
+                armv7_runtime_trap_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

@@ -6,6 +6,7 @@
 #include "armv7a_kernel_port.hpp"
 #include "armv7a_memory_probe_sequence.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_runtime_trap.hpp"
 #include "armv7a_scheduler_dispatch.hpp"
 #include "armv7a_scheduler_tick.hpp"
 
@@ -32,6 +33,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSchedulerTickIngress);
     armv7a_print_scheduler_tick_ingress();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kSchedulerTickIngress);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapIngress);
+    armv7a_print_runtime_trap_ingress();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapIngress);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
     armv7a_run_context_switch_smoke();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);

@@ -148,6 +148,7 @@ ARMv7-A return evidence, vector=fiq, origin-mode=sys, current-mode=sys, origin-i
 ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-ppi, irq-origin=sys, irq-handler=irq, fiq-origin=sys, fiq-handler=fiq, monitor-mode=not-observed
 ARMv7-A kernel ingress, vector-base=0x40200000, tick-mode=oneshot, tick-route=irq, timer-hz=62500000, exception=yes, interrupt=yes, timer=yes, context-ready=yes, context-model=software-frame, tick-runtime=yes, thread-runtime=yes
 ARMv7-A scheduler tick ingress, source=timer-irq, route=irq, mode=oneshot, intid=30, hz=62500000, now=0x00000000........, source-match=yes, counter=yes, isr-safe=yes, retired=yes, handoff=yes, rearm=yes
+ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x13579BDF, arg1=0x2468ACE0, arg2=0x11223344, arg3=0x55667788, service-ready=yes, args-ready=yes, trap=yes
 ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x40...., stack-top=0x40...., prepared-sp=0x40...., resume=0x40...., return=0x40...., entry=0x40...., arg=0x40...., aligned=yes, in-range=yes, ready=yes
 ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-entry-sp=0x40...., thread-saved=0x40...., thread-resume-sp=0x40...., entry=yes, resumed=yes, round-trip=yes
 ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, dispatch=yes
@@ -517,6 +518,10 @@ continue
   which says the task-side `svc-trap` path, the ISR-side `timer-tick` path,
   and the cooperative context round-trip can all meet at one future scheduler
   dispatch seam without the generic kernel core knowing anything QEMU-specific.
+- The returning SVC path now also records the 24-bit service tag and the
+  trap-time `r0-r3` values into one explicit `runtime trap ingress` contract,
+  so later `yield / sleep / syscall-like` runtime glue can bind to a proven
+  task-side trap envelope instead of treating SVC as a black box.
 - Those returning SVC/IRQ/FIQ smoke lines now also print the pre-exception
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from

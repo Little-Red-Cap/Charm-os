@@ -107,12 +107,11 @@
 
 ### T3. 清理已确认失效的文档引用
 
-**已确认的失效引用**
+**已确认的失效引用（现已收口）**
 
-- `docs/architecture/dependency_whitelist.md` → `docs/vsf/vsf_comparison.md`
-- `docs/capability_map.md` → `docs/generated/capability_map.generated.md`
-- `docs/project/collaboration/《现代 C++ 单片机代码协作认知》.md` → `docs/benchmarks/spi_transfer.md`
-- `docs/project/collaboration/《现代 C++ 单片机代码协作认知》.md` → `docs/escape_hatches.md`
+- `docs/architecture/dependency_whitelist.md` 中的 VSF 对照链接曾指向旧路径，现已改正。
+- `docs/capability_map.md` 曾直接指向未入库的生成文件，现改由 `docs/generated/README.md` 承接。
+- `docs/project/collaboration/《现代 C++ 单片机代码协作认知》.md` 现已接回稳定的 benchmark 与 escape hatch 文档入口。
 
 **为什么这是 P0**
 
@@ -366,7 +365,7 @@
 |---|---|---|---|---|
 | T1 统一 `charm.runtime` 仓库叙事 | P0 | Docs + Modules + Examples | 收口 | DONE |
 | T2 给文档索引增加状态模型 | P0 | Docs | 收口 | TODO |
-| T3 清理失效文档引用 | P0 | Docs | 快速修复 | TODO |
+| T3 清理失效文档引用 | P0 | Docs | 快速修复 | DONE |
 | T4 拆分 UI/Vivid God Module | P1 | UI | 结构治理 | TODO |
 | T5 拆分 scheduler 观察职责 | P1 | System | 结构治理 | TODO |
 | T6 收敛 bringup 回调桥接 | P1 | System | 边界治理 | TODO |

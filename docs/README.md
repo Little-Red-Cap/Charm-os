@@ -201,6 +201,7 @@ docs/
 - `docs/project/standards/项目C++编码要求.md`
 - `docs/project/collaboration/《协作期待与规范》.md`
 - `docs/project/collaboration/《现代 C++ 单片机代码协作认知》.md`
+- `docs/project/escape_hatches.md`
 - `docs/project/tracking/主框架全仓审查与收敛_backlog.md`
 - `docs/project/tracking/推进TODO与分工.md`
 - `docs/project/tracking/refactor_todo_ownership.md`

@@ -19,6 +19,7 @@
 - 网络双表面设计已明确：见 `docs/io/net_stack_dual_surface_design.md`
 - 统一网络入口已建立：`Modules/io/charm.net.cppm`
 - `api_facade_smoke` 已锁住 `TcpClient/TcpListener/UdpSocket` 的 `connected/listening/bound` 工厂式入口，并保持与 `*_loopback/*_any` 便捷入口、`u8` 数组直传 `send/recv` 兼容
+- `Examples/io/net` 中面向用户的 reactor / request / service / typed service / Win smoke 已大面积收敛到 `TcpClient::connected_loopback`、`TcpListener::listening_loopback` 与默认构造后 `bind()` 的 `SocketChannelBinding` 用法；旧式 `listener.listen(...loopback...)`、`client.connect(...loopback...)`、`SocketChannelBinding{client.raw()}` 已基本从示例层退出
 - socket / stack / endpoint / event 等基础抽象已存在
 - reactor / session / codec / service 分层已落地
 - `net.posix` 已开始把 socket 投影到 POSIX fd 体系
@@ -63,7 +64,7 @@
 - `M3`：已完成第一阶段收口；socket fd 的 `dup / close / fstat / EOF / spawn` 最小语义已经落地并有 smoke 支撑
 - `M4`：主体能力已基本落地；reactor / channel / driver 的 close / reset / error / accepted 语义在 `stub / win` 两条路径上都已有 contract smoke，当前更偏向回归矩阵补齐、示例收口与文档归档
 - `M5`：主体能力已基本落地；`request_session / service_session / typed service / deferred reply / schema codec` 已形成可复用骨架，当前更偏向边界钉牢、回归矩阵补齐与协议层复用入口收口
-- `M6`：已进入收尾阶段；`TcpClient / TcpListener / UdpSocket` 的工厂式 façade 已建立，若干面向用户的示例已切到新风格，当前主要工作是继续扫尾旧示例、统一文档口径，并决定何时把“网络底座 v0”正式关单
+- `M6`：已进入关单准备阶段；`TcpClient / TcpListener / UdpSocket` 的工厂式 façade 已建立，`Examples/io/net` 中主要用户面示例已基本完成新风格收敛，当前主要工作从“继续改调用形状”转为“整理关单证据、统一文档口径、决定何时把网络底座 v0 正式关单”
 
 ---
 
@@ -304,6 +305,72 @@
 - 把 `IPv4` 的最小主路径继续打通
 - 在 `UDP` 之上跑一个更贴近真实用途的最小诊断/回显协议
 - 只在上述路径站稳后，再讨论更重的协议与更大的用户面
+
+### 当前判断（截至 2026-04-17）
+
+如果按上面的四类关单口径来判断，当前状态更接近“关单准备”而不是“继续发散设计”：
+
+- **对外 façade 收口**：这条已经非常接近满足；`Examples/io/net` 里的主流用户路径已经基本切到 `connected / listening / bound` 及其 `*_loopback / *_any` 便捷入口，旧式 loopback `listen/connect` 与直接花括号构造 `SocketChannelBinding` 的写法已基本退出示例层
+- **回归矩阵稳定性**：host / stub / WinProvider 路径当前已经有较强的 contract smoke 支撑，而且首轮“小而硬”的关单回归批次已经实际跑通；如果还要更稳地关单，剩下更像是按同一口径补跑，而不是新的 API 设计工作
+- **承载面契约**：`reactor / request / service / typed service / deferred reply` 的 close / reset / error 语义已经被一批真实 smoke 压实；只要后续不再出现新的 contract 漂移，就不需要继续把主要精力花在底座承载面重写上
+- **文档与阶段边界**：当任务单、阶段复盘和对外示例口径同步后，网络底座 v0 是否关单，主要就变成项目节奏判断，而不再是技术方向不清
+
+### 已完成的关单回归批次（截至 2026-04-17）
+
+这轮回归的目的，不是“把所有网络示例再跑一遍”，而是先固定一组足以说明底座已基本站稳的最小证据面。
+
+#### 1. 用户入口与系统桥接
+
+- `net-api-facade-smoke`
+- `net-posix-socket-bridge-smoke`
+- `net-pump-smoke`
+
+这组三个目标分别覆盖：
+
+- 对外 façade 的最小用户入口
+- socket 并入 POSIX fd 体系后的关键桥接语义
+- `ARP / IPv4 / UDP` 数据面的最小推进闭环
+
+#### 2. close / reset / error / request / service / typed 代表面
+
+- `net-reactor-request-close-smoke`
+- `net-reactor-close-drain-win-smoke`
+- `net-reactor-write-reset-close-smoke`
+- `net-reactor-service-close-win-smoke`
+- `net-reactor-service-typed-request-error-win-smoke`
+
+这组目标用于证明我们不是只把“快乐路径”跑通，而是已经覆盖：
+
+- request 侧的 `close`
+- transport / driver 侧的 `close drain`
+- transport 侧的 `reset -> closed`
+- service / deferred reply 侧的 `close`
+- typed request / client 侧的 `error`
+
+#### 3. 跨目标构建检查
+
+- 已补做一轮 armv7a / QEMU 方向的最小构建检查：root 配置成功，`Charm-runtime` 成功构建
+
+这条证据的价值不在于“ARM 路径已经做了大量运行时网络回归”，而在于：
+
+- 最近一轮网络收口没有把跨目标构建卫生重新弄脏
+- `net.*` 与 `posix.*` 当前仍能继续参与非 host 路径回归
+
+#### 4. 回归中顺手清掉的真实阻塞点
+
+这轮回归过程中，还顺手暴露并修掉了一处真实构建阻塞：
+
+- Windows CRT 宏污染导致 `posix.fd_table` / `posix.api` / `posix.file` / `posix.term` 中的 `S_IF*` 与 `SEEK_*` 常量名发生冲突
+
+这说明当前回归批次不仅能证明“东西还能跑”，也确实能继续帮助我们发现底座级卫生问题。
+
+### 关单前建议最后三刀
+
+如果我们想把“网络底座 v0”收得更利索，建议最后动作压缩成三件事：
+
+- 把当前这组已跑通的关单回归批次固定成后续收尾时的标准证据面；如果后面再补跑，也尽量围绕这组最小集合做增量，而不是无限扩表
+- 在正式关单前视节奏再补一次 ARM / QEMU 网络相关构建检查点，确保跨目标解释面没有在后续改动后回潮
+- 明确宣布“网络底座 v0 关单”与“下一阶段切到自研数据面最小闭环推进”，避免底座扫尾和下一阶段工作长期互相抢焦点
 
 ### 一句话关单标准
 

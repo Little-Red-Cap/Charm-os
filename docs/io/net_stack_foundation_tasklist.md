@@ -26,6 +26,7 @@
 - `posix_socket_bridge_smoke` 已可作为一条直接回归路径
 - host 侧 smoke 已经形成矩阵
 - `net.pump` 已开始把 `ARP / IPv4 / UDP ingress/egress` 收口到统一推进面，`net_pump_smoke` 可覆盖最小闭环
+- `net.protocol.diagnostic_udp` 已把最小 UDP 诊断协议挂到 `UdpStackPump` 数据面上，`net_udp_diag_smoke` 可覆盖 `ping / count / meta` 回复以及 `unsupported / bad_request` 错误回复
 - `reactor_listener_close_smoke` 已锁住 accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭会向 reactor 收口为 `closed`
 - `reactor_listener_win_close_smoke` 已把这条 listener / accept / watch 语义扩展到真实 WinProvider：accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭仍会向 reactor 收口为 `closed`
 - `reactor_write_close_smoke` 已锁住 transport 进入终态后 sender 不再继续排队

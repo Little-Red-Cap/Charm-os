@@ -16,6 +16,7 @@
 - bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
 - 板级资料入口：`docs/board/README.md`
 - RK3506 上板资料：`docs/board/rk3506/README.md`
+- RK3506 post-DDR handoff 契约：`docs/board/rk3506/post_ddr_handoff_contract.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
@@ -68,7 +69,7 @@ flowchart TD
 | 看资源边界如何进入系统语言 | `docs/system/resource_contract_v0.md` → `docs/system/ssu_contract.md` → `docs/system/init_graph_contract.md` |
 | 看 bringup 如何从装配图变成证据 | `docs/system/bringup_evidence_pipeline_v0.md` → `docs/system/init_materialized_graph_observe.md` → `docs/system/init_graph_contract.md` |
 | 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
-| 上 RK3506 板 / 查早期寄存器 | `docs/board/rk3506/README.md` → `docs/system/armv7a_platform_contract.md` |
+| 上 RK3506 板 / 查早期寄存器 | `docs/board/rk3506/README.md` → `docs/board/rk3506/post_ddr_handoff_contract.md` → `docs/system/armv7a_platform_contract.md` |
 | 推进 ARMv7-A 平台 bring-up | `docs/system/armv7a_platform_contract.md` → `docs/boot/bootloader_overview.md` |
 | 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
@@ -125,6 +126,7 @@ docs/
 ### Board / 板级 bring-up
 - `docs/board/README.md`
 - `docs/board/rk3506/README.md`
+- `docs/board/rk3506/post_ddr_handoff_contract.md`
 
 ### IO 与输入
 - `docs/io/io_layering_overview.md`

@@ -9,7 +9,7 @@ export module usb.class_msc_block.node;
 
 import block.device;
 import block.registry;
-import init.node;
+import init.binding;
 import usb.class_msc;
 import usb.class_msc_block;
 import usb.common;
@@ -68,32 +68,25 @@ export namespace usb::device {
                         util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : registry(&reg),
               desc(d) {
-            provides[0] = init::cap_id(desc.cap_name);
-            requires_caps[0] = init::cap_id("block.registry");
-            requires_caps[1] = init::cap_id(desc.block_cap);
-            node = init::Node{
-                desc.cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &MscBlockBinding::init_trampoline,
-                &MscBlockBinding::deinit_trampoline,
-                this
-            };
+            provides = init::capability_ids(desc.cap_name);
+            requires_caps = init::capability_ids(registry_cap_name, desc.block_cap);
+            node = init::make_binding_node(init::capability_name_view(desc.cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           requires_caps,
+                                           &MscBlockBinding::init_trampoline,
+                                           &MscBlockBinding::deinit_trampoline,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return std::string_view{desc.cap_name ? desc.cap_name : ""};
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{registry_cap_name};
-            }
-            if (id == requires_caps[1]) {
-                return std::string_view{desc.block_cap ? desc.block_cap : ""};
-            }
-            return {};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(node.name),
+                                                requires_caps,
+                                                init::capability_names(registry_cap_name,
+                                                                       desc.block_cap));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

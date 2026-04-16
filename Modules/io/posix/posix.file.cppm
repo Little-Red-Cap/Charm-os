@@ -10,7 +10,7 @@ export module posix.file;
 
 import fs_core;
 import fs_vfs;
-import init.node;
+import init.binding;
 import posix.fd_table;
 import util.core;
 import util.error;
@@ -348,17 +348,20 @@ export namespace posix {
                                     init::Phase phase = init::Phase::core,
                                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : service(&file_service) {
-            provides[0] = init::cap_id(cap_name);
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                {},
-                &FileServiceBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(cap_name);
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           &FileServiceBinding::init_trampoline,
+                                           nullptr,
+                                           this);
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(node.name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

@@ -2,10 +2,11 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module canopen.transport.node;
 
-import init.node;
+import init.binding;
 import canopen.transport;
 import util.core;
 import util.error;
@@ -21,17 +22,20 @@ export namespace canopen {
                                   init::Phase phase = init::Phase::core,
                                   util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : transport(&transport_in) {
-            provides[0] = init::cap_id(cap_name);
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                {},
-                &TransportBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(cap_name);
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           &TransportBinding::init_trampoline,
+                                           nullptr,
+                                           this);
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(node.name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

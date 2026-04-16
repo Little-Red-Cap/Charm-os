@@ -251,7 +251,7 @@ export namespace kernel {
                     --task_boost_remaining_[task.value];
                 }
             }
-            auto guard = Caps::IrqGuard::enter();
+            [[maybe_unused]] auto guard = Caps::IrqGuard::enter();
             bool ok = false;
             if constexpr (use_list_queue<Config>) {
                 if constexpr (Config::enable_event_coalesce) {
@@ -527,7 +527,7 @@ export namespace kernel {
                 const std::size_t i = (level + Config::priority_levels - iter) % Config::priority_levels;
                 std::optional<EventNode> node{};
                 {
-                    auto guard = Caps::IrqGuard::enter();
+                    [[maybe_unused]] auto guard = Caps::IrqGuard::enter();
                     if constexpr (use_list_queue<Config>) {
                         node = queues_.pop(i);
                     } else {
@@ -1287,7 +1287,7 @@ export namespace kernel {
 
     private:
         [[nodiscard]] util::u64 next_tag() noexcept {
-            auto guard = Caps::IrqGuard::enter();
+            [[maybe_unused]] auto guard = Caps::IrqGuard::enter();
             return ++seq_;
         }
         Registry* registry_{nullptr};

@@ -11,7 +11,7 @@ export module block.file.node;
 import block.device;
 import block.file;
 import block.registry;
-import init.node;
+import init.binding;
 import util.core;
 import util.error;
 
@@ -38,28 +38,24 @@ export namespace block {
               desc{cap_name, cap_id(cap_name)},
               path(file_path),
               block_size(block_sz) {
-            provides[0] = init::cap_id(cap_name);
-            requires_caps[0] = init::cap_id("block.registry");
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &FileBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(cap_name);
+            requires_caps = init::capability_ids(registry_cap_name);
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           requires_caps,
+                                           &FileBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return desc.name;
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{registry_cap_name};
-            }
-            return {};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(desc.name),
+                                                requires_caps,
+                                                init::capability_names(registry_cap_name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

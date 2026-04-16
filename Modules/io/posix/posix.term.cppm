@@ -2,12 +2,13 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module posix.term;
 
 import io.channel;
 import io.registry;
-import init.node;
+import init.binding;
 import posix.fd_table;
 import posix.file;
 import util.core;
@@ -161,6 +162,7 @@ export namespace posix {
         RegistryT* registry{nullptr};
         TermDevice* term{nullptr};
         const char* console_cap{"io.console0"};
+        const char* registry_cap_name{"io.registry"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 2> requires_caps{};
         init::Node node{};
@@ -172,20 +174,29 @@ export namespace posix {
                     const char* registry_cap = "io.registry",
                     init::Phase phase = init::Phase::core,
                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
-            : registry(&reg), term(&term_dev), console_cap(console_cap_in) {
-            provides[0] = init::cap_id(cap_name);
-            requires_caps[0] = init::cap_id(registry_cap);
-            requires_caps[1] = init::cap_id(console_cap);
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &TermBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            : registry(&reg),
+              term(&term_dev),
+              console_cap(console_cap_in),
+              registry_cap_name(registry_cap) {
+            provides = init::capability_ids(cap_name);
+            requires_caps = init::capability_ids(registry_cap, console_cap_in);
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           requires_caps,
+                                           &TermBinding::init_trampoline,
+                                           nullptr,
+                                           this);
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(node.name),
+                                                requires_caps,
+                                                init::capability_names(registry_cap_name,
+                                                                       console_cap));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

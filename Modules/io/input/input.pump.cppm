@@ -8,7 +8,7 @@
 export module input.pump;
 
 import charm.system.clock;
-import init.node;
+import init.binding;
 import input.raw_event;
 import input.service;
 import kernel.eda;
@@ -207,40 +207,30 @@ export namespace input {
               service_cap_name(service_cap_name),
               clock_cap_name(clock_cap_name),
               router_cap_name(router_cap_name) {
-            provides[0] = init::cap_id(cap_name);
-            requires_caps[0] = init::cap_id(eda_cap_name);
-            requires_caps[1] = init::cap_id(service_cap_name);
-            requires_caps[2] = init::cap_id(clock_cap_name);
-            requires_caps[3] = init::cap_id(router_cap_name);
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &InputPumpBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(cap_name);
+            requires_caps = init::capability_ids(eda_cap_name,
+                                                 service_cap_name,
+                                                 clock_cap_name,
+                                                 router_cap_name);
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           requires_caps,
+                                           &InputPumpBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return node.name;
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{eda_cap_name ? eda_cap_name : ""};
-            }
-            if (id == requires_caps[1]) {
-                return std::string_view{service_cap_name ? service_cap_name : ""};
-            }
-            if (id == requires_caps[2]) {
-                return std::string_view{clock_cap_name ? clock_cap_name : ""};
-            }
-            if (id == requires_caps[3]) {
-                return std::string_view{router_cap_name ? router_cap_name : ""};
-            }
-            return {};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(node.name),
+                                                requires_caps,
+                                                init::capability_names(eda_cap_name,
+                                                                       service_cap_name,
+                                                                       clock_cap_name,
+                                                                       router_cap_name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

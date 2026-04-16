@@ -3,8 +3,6 @@ module;
 export module charm.system.init_usart;
 
 import init.node;
-import init.graph;
-import init.materialize;
 import init.plan;
 import io.reactor;
 import platform.irq;
@@ -12,7 +10,6 @@ import hal_uart;
 import hal_uart.node;
 import driver.usart_channel;
 import util.core;
-import util.error;
 
 export namespace charm::system {
     template <typename RegistryT, util::usize RxCap, util::usize TxCap>
@@ -39,20 +36,5 @@ export namespace charm::system {
                 init::as_plan(channel_binding));
         }
 
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(irq.node);
-            fn(uart_binding.node);
-            fn(channel_binding.node);
-        }
-
-        template <util::usize MaxNodes, util::usize MaxCaps>
-        util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
-                                 util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
-                                 init::Phase max_phase = init::Phase::app) noexcept {
-            return init::build_graph(
-                graph,
-                plan().runlevel(runlevel_mask).phase_limit(max_phase));
-        }
     };
 }

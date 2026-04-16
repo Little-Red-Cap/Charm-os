@@ -3,7 +3,6 @@ module;
 export module charm.system.init_core;
 
 import block.registry;
-import init.graph;
 import init.node;
 import init.plan;
 import io.registry;
@@ -13,7 +12,6 @@ import kernel.eda;
 import kernel.eda.node;
 import charm.system.reactor_pump;
 import util.core;
-import util.error;
 
 export namespace charm::system {
     template <util::usize MaxEndpoints>
@@ -60,16 +58,6 @@ export namespace charm::system {
                 init::as_plan(reactor_binding),
                 init::as_plan(eda_binding),
                 init::as_plan(pump_binding));
-        }
-
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(clock_binding.node);
-            fn(registry_binding.node);
-            fn(block_registry_binding.node);
-            fn(reactor_binding.node);
-            fn(eda_binding.node);
-            fn(pump_binding.node);
         }
     };
 }

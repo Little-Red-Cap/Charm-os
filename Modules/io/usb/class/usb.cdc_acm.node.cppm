@@ -7,7 +7,7 @@ module;
 
 export module usb.class_cdc_acm.node;
 
-import init.node;
+import init.binding;
 import usb.class_cdc;
 import usb.common;
 import usb.device;
@@ -40,7 +40,6 @@ export namespace usb::device {
     struct CdcAcmBinding {
         CdcAcmDesc desc{};
         std::array<init::CapId, 1> provides{};
-        std::array<init::CapId, 0> requires_caps{};
         init::Node node{};
 
         std::array<usb::u8, DevDescSize> dev_desc{};
@@ -55,23 +54,20 @@ export namespace usb::device {
                       init::Phase phase = init::Phase::core,
                       util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : desc(d) {
-            provides[0] = init::cap_id(desc.cap_name);
-            node = init::Node{
-                desc.cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &CdcAcmBinding::init_trampoline,
-                &CdcAcmBinding::deinit_trampoline,
-                this
-            };
+            provides = init::capability_ids(desc.cap_name);
+            node = init::make_binding_node(init::capability_name_view(desc.cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           &CdcAcmBinding::init_trampoline,
+                                           &CdcAcmBinding::deinit_trampoline,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            return id == provides[0]
-                ? std::string_view{desc.cap_name ? desc.cap_name : ""}
-                : std::string_view{};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(desc.cap_name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

@@ -142,15 +142,13 @@ Capability 不负责：
 
 当前迁移原则：
 
-- 旧式 `node_span()` / `Node* span` 先通过 `legacy(...)` / `compat_nodes(...)` 接入；单节点 binding 优先用 `as_plan(...)`；可选装配单元优先用 `maybe(...)`
+- 旧式 `node_span()` / `Node* span` 不再作为装配入口；接入对象统一收敛到 `plan()`、`as_plan(...)`、`maybe(...)`
 - 新增装配代码优先写成 `Recipe + Plan`
 - 业务/驱动接入层不直接写 `init::Node`
-- 框架级 bringup helper 优先暴露 `start_plan(...)`，而不是继续要求外部传 `node_span()`
-- 旧式 `start(runlevel, phase, extra_nodes)` 仅保留为兼容入口，并逐步退场
-- `wrap_nodes_with_requires(...)` 仅保留为过渡兼容接口，不再作为推荐写法；优先识别 `for_each_legacy_node(...)`，`node_span()` 仅保留为最后的 compat fallback
-- 框架内的 `*Chain` / `CoreSystemChain` 现在默认暴露 `plan()` 与 `for_each_legacy_node(...)`；`node_span()` 已退出这些框架链路的公开表面，仅保留在通用 compat 层
-- 框架内旧式 chain 优先补齐 `for_each_legacy_node(...)` 这类窄协议，把 `node_span()` 压成最后的 compat fallback
-- multi-node legacy 在框架内部优先走 `for_each_legacy_node(...)` 这类窄协议，而不是继续把 `node_span()` 当默认适配面
+- 框架级 bringup helper 统一暴露 `start_plan(...)`，不再保留 `extra_nodes` 形态
+- `wrap_nodes_with_requires(...)` 这类 raw-node 过渡接口已退出主路；遗留链路先补齐 `plan()` 再接入
+- 框架内的 `*Chain` / `CoreSystemChain` 现在默认只暴露 `plan()`
+- multi-node 组件通过 `compose(...)` 组织，而不是继续暴露 legacy 遍历协议
 
 ## 当前迁移状态
 
@@ -171,10 +169,10 @@ Capability 不负责：
 这几处目前统一采用：
 
 - `compose(...)` 组织装配树
-- `legacy(...)` 只保留给旧 chain 迁移；`as_plan(...)` 负责单节点 binding；`maybe(...)` 负责可选装配单元；`compat_nodes(...)` 负责旧节点数组兼容；`legacy_nodes(...)` 仅保留为兼容别名
-- 单节点 binding 通过 `as_plan(...)` 直接落成单节点装配项，不再借道 `legacy(...)`
-- 框架内默认组合表面优先用 `chain.plan()`，不再把 `legacy(chain)` 当作主路
-- 对旧式 chain，`materialize(...)` / `node_wrap` 优先识别 `for_each_legacy_node(...)`，`node_span()` 退居兼容层
+- `as_plan(...)` 负责单节点 binding；`maybe(...)` 负责可选装配单元；`chain.plan()` / `compose(...)` 负责多节点装配
+- 单节点 binding 通过 `as_plan(...)` 直接落成单节点装配项
+- 框架内默认组合表面优先用 `chain.plan()`
+- `materialize(...)` 只识别新的 `Plan` 主路径，旧 raw-node compat 与 legacy chain 桥接已退出主路
 - `runlevel(...)` / `phase_limit(...)` 施加继承约束
 - `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR
 - `Graph::build(...)` 使用 `materialized_graph` 给出的有效 `runlevel/phase` 过滤参数，避免双重语义源

@@ -204,9 +204,19 @@ artifact_root 级该查询现在也会继续带出：
 
 - `capability`
 - `state / availability_state`
+- `comparison`
 - `direct_edges`
 - `provider_paths`
 - `consumer_paths`
+
+如果当前 report 来自 compare 模式，
+`graph path` 现在也会继续为目标 capability 带出最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
 
 其中：
 

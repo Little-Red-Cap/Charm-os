@@ -1690,6 +1690,7 @@ function New-GraphPathResult {
         state = $graphState
         availability_state = [string]$whyResult.state
         reasons = @($whyResult.reasons)
+        comparison = $whyResult.comparison
         direct_edges = @(
             @($directEdges) |
                 ForEach-Object {
@@ -3798,6 +3799,21 @@ if (-not [string]::IsNullOrWhiteSpace($GraphPath)) {
     Write-Host "availability_state = $([string]$graphPathResult.availability_state)"
     if (@($graphPathResult.reasons).Count -gt 0) {
         Write-Host "reasons = $((@($graphPathResult.reasons) -join '; '))"
+    }
+    if ($null -ne $graphPathResult.comparison) {
+        Write-Host '[COMPARE]'
+        Write-Host "changed = $([bool]$graphPathResult.comparison.changed)"
+        Write-Host "bringup_changed = $([bool]$graphPathResult.comparison.bringup_changed)"
+        Write-Host "resource_changed = $([bool]$graphPathResult.comparison.resource_changed)"
+        if (@($graphPathResult.comparison.bringup_change_kinds).Count -gt 0) {
+            Write-Host "bringup_change_kinds = $((@($graphPathResult.comparison.bringup_change_kinds) -join ', '))"
+        }
+        if (@($graphPathResult.comparison.resource_change_kinds).Count -gt 0) {
+            Write-Host "resource_change_kinds = $((@($graphPathResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($graphPathResult.comparison.resource_contracts).Count -gt 0) {
+            Write-Host "resource_contracts = $((@($graphPathResult.comparison.resource_contracts) -join ', '))"
+        }
     }
     if (@($graphPathResult.direct_edges).Count -gt 0) {
         Write-Host '[DIRECT EDGES]'

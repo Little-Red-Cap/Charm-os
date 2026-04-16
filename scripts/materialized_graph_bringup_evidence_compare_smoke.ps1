@@ -159,6 +159,7 @@ $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.inspect.json'
 $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.summary.inspect.json'
 $whyInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.why.inspect.json'
+$graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.graph_path.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -301,6 +302,17 @@ Assert-Condition ([int]@($whyInspectResult.query.comparison.bringup_change_kinds
 Assert-Condition ((@($whyInspectResult.query.comparison.bringup_change_kinds) -contains 'changed')) 'inspect why comparison missing changed kind'
 Assert-Condition ([string]$whyInspectResult.query.comparison.bringup_evidence.right_publish_state -eq 'published') 'inspect why comparison right_publish_state must become published'
 
+$graphPathInspectResult = Invoke-CommandJson -OutputPath $graphPathInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -GraphPath $PublishedCapability -AsJson
+}
+Assert-Condition ([string]$graphPathInspectResult.query.kind -eq 'graph_path') 'inspect graph path query kind mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.scope -eq 'report') 'inspect graph path query scope mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.result.capability -eq $PublishedCapability) 'inspect graph path capability mismatch'
+Assert-Condition ($null -ne $graphPathInspectResult.query.result.comparison) 'inspect graph path must expose comparison payload'
+Assert-Condition ([bool]$graphPathInspectResult.query.result.comparison.bringup_changed) 'inspect graph path comparison must mark bringup changed'
+Assert-Condition ([string]$graphPathInspectResult.query.result.comparison.bringup_evidence.right_export_state -eq 'attached') 'inspect graph path comparison right_export_state must become attached'
+Assert-Condition (@($graphPathInspectResult.query.result.direct_edges).Count -gt 0) 'inspect graph path should expose direct edges for published capability'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -311,6 +323,7 @@ $summary = [ordered]@{
     inspect_json = $inspectJsonPath
     summary_inspect_json = $summaryInspectJsonPath
     why_inspect_json = $whyInspectJsonPath
+    graph_path_inspect_json = $graphPathInspectJsonPath
     assertions = [ordered]@{
         sidecar_only_diff_preserved = $true
         comparison_bringup_evidence_present = $true
@@ -318,6 +331,7 @@ $summary = [ordered]@{
         inspect_bringup_evidence_exposes_compare = $true
         inspect_default_summary_exposes_capability_compare = $true
         inspect_why_exposes_compare = $true
+        inspect_graph_path_exposes_compare = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

@@ -512,6 +512,7 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 
 - `capability`
 - `state / availability_state`
+- `comparison`
 - `direct_edges`
 - `provider_paths`
 - `consumer_paths`
@@ -533,6 +534,15 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
   就给出通向该 provider 节点的最小依赖路径
 - 如果它只出现在 consumer 需求里但没有 provider，
   就给出通向 consumer 的依赖路径
+
+如果当前 report 来自 compare 模式，
+`-GraphPath -AsJson` 现在也会继续带出目标 capability 的最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
 
 也就是说，v0 当前还不是“图查询语言”，
 而是一个面向 explain surface 的最小稳定问题面：

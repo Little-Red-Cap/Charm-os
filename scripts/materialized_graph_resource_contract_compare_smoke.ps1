@@ -114,6 +114,7 @@ $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.inspect.json'
 $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.summary.inspect.json'
 $whyInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.why.inspect.json'
+$graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.graph_path.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -248,6 +249,18 @@ Assert-Condition (@(
         Where-Object { [string]$_.contract -eq $AddedContract }
 ).Count -eq 1) 'inspect why comparison missing target contract change entry'
 
+$graphPathInspectResult = Invoke-CommandJson -OutputPath $graphPathInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -GraphPath $AddedRequiredFact -AsJson
+}
+Assert-Condition ([string]$graphPathInspectResult.query.kind -eq 'graph_path') 'inspect graph path query kind mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.scope -eq 'report') 'inspect graph path query scope mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.result.capability -eq $AddedRequiredFact) 'inspect graph path capability mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.result.state -eq 'undeclared') 'inspect graph path state must stay undeclared for missing fact'
+Assert-Condition ($null -ne $graphPathInspectResult.query.result.comparison) 'inspect graph path must expose comparison payload'
+Assert-Condition ([bool]$graphPathInspectResult.query.result.comparison.resource_changed) 'inspect graph path comparison must mark resource changed'
+Assert-Condition ((@($graphPathInspectResult.query.result.comparison.resource_change_kinds) -contains 'contract_added')) 'inspect graph path comparison missing contract_added kind'
+Assert-Condition ((@($graphPathInspectResult.query.result.comparison.resource_contracts) -contains $AddedContract)) 'inspect graph path comparison missing changed contract'
+
 $summary = [ordered]@{
     left_bundle_root = $resolvedBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -259,6 +272,7 @@ $summary = [ordered]@{
     inspect_json = $inspectJsonPath
     summary_inspect_json = $summaryInspectJsonPath
     why_inspect_json = $whyInspectJsonPath
+    graph_path_inspect_json = $graphPathInspectJsonPath
     assertions = [ordered]@{
         metadata_only_diff_preserved = $true
         comparison_resource_contract_present = $true
@@ -266,6 +280,7 @@ $summary = [ordered]@{
         inspect_resource_summary_exposes_compare = $true
         inspect_default_summary_exposes_capability_compare = $true
         inspect_why_exposes_compare = $true
+        inspect_graph_path_exposes_compare = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

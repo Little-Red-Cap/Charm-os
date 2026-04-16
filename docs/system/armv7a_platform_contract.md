@@ -86,3 +86,8 @@ RK3506 之后负责把这些语义落在真实地址和真实外设上。
 5. 最后再推进 MMU、cache/TLB、SMP、BootROM 媒介链路
 
 这个顺序的核心不是保守，而是避免把多个耦合面一次性绑在一起。
+
+## 继续往上走时看哪里
+
+如果你关心的是“ARMv7-A 裸机基础打稳以后，怎样继续长成最小内核”，
+继续看：`docs/system/armv7a_minimal_kernel_staging_plan.md`

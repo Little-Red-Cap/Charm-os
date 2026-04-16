@@ -338,6 +338,9 @@ export namespace player::ui {
             rasterize_svg_path(buf, kPathMore, color);
         }
 
+        // TODO(player/ui): Make exact font cache size product-configurable after host-side typography tuning stabilizes.
+        inline constexpr std::size_t kPlayerExactFontCacheSlots = 24;
+
         struct FontPackageState {
             charm::font::VfsFontPackage package{};
             bool bound{false};
@@ -353,6 +356,7 @@ export namespace player::ui {
             std::string path{};
             int px{0};
             FontWeight weight{FontWeight::Regular};
+            std::uint64_t last_used{0};
             bool loaded{false};
         };
 
@@ -365,7 +369,8 @@ export namespace player::ui {
             std::string ttf_large{};
             std::string ttf_mono{};
             std::string ttf_fallback{};
-            std::array<ExactFontSlot, 8> exact_fonts{};
+            std::array<ExactFontSlot, kPlayerExactFontCacheSlots> exact_fonts{};
+            std::uint64_t exact_font_use_tick{0};
             bool ready{false};
         };
 
@@ -390,8 +395,10 @@ export namespace player::ui {
                 slot.path.clear();
                 slot.px = 0;
                 slot.weight = FontWeight::Regular;
+                slot.last_used = 0;
                 slot.loaded = false;
             }
+            state.exact_font_use_tick = 0;
         }
 
         const Font& fallback_font_for_px(int px, FontWeight weight) noexcept {
@@ -684,8 +691,10 @@ export namespace player::ui {
                                            int px,
                                            FontWeight weight) noexcept {
             auto& state = freetype_state();
+            const std::uint64_t use_tick = ++state.exact_font_use_tick;
             for (auto& slot : state.exact_fonts) {
                 if (slot.loaded && slot.path == resolved_path) {
+                    slot.last_used = use_tick;
                     return slot.font;
                 }
             }
@@ -696,12 +705,28 @@ export namespace player::ui {
                     break;
                 }
             }
+            if (free_slot->loaded) {
+                for (auto& slot : state.exact_fonts) {
+                    if (!slot.loaded) continue;
+                    if (slot.last_used < free_slot->last_used) {
+                        free_slot = &slot;
+                    }
+                }
+            }
+            const auto api = state.loader.vfs_api();
+            if (free_slot->loaded) {
+                if (api.reset) {
+                    api.reset(&state.loader, free_slot->font);
+                } else {
+                    free_slot->font = Font{};
+                }
+            }
             free_slot->path.assign(resolved_path.begin(), resolved_path.end());
             free_slot->px = px;
             free_slot->weight = weight;
+            free_slot->last_used = use_tick;
             free_slot->loaded = false;
             free_slot->font = Font{};
-            const auto api = state.loader.vfs_api();
             if (api.load && api.load(&state.loader, free_slot->path, free_slot->font)) {
                 free_slot->loaded = true;
                 return free_slot->font;
@@ -712,6 +737,7 @@ export namespace player::ui {
             free_slot->path.clear();
             free_slot->px = 0;
             free_slot->weight = FontWeight::Regular;
+            free_slot->last_used = 0;
             const auto& fallback = fallback_font_for_px(px, weight);
             return fallback;
         }

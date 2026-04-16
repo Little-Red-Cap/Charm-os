@@ -6,6 +6,7 @@
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
 #include "armv7a_kernel_port_contract.hpp"
+#include "armv7a_scheduler_tick_contract.hpp"
 #include "armv7a_special_interrupt_contract.hpp"
 #include "armv7a_interrupt_timeout_contract.hpp"
 #include "armv7a_thread_context_contract.hpp"
@@ -1319,6 +1320,108 @@ namespace {
                !wrong_kind_ready;
     }
 
+    bool verify_armv7a_scheduler_tick_contract() noexcept {
+        auto delivery = armv7a_make_unobserved_interrupt_observation(1023u);
+        delivery.intid = 30u;
+        delivery.line = Armv7aPlatformInterruptLineState{
+            .intid = 30u,
+            .group = 0u,
+            .enabled = 0u,
+            .pending = 0u,
+            .active = 0u,
+            .line_group1 = true,
+            .line_enabled = true,
+            .line_pending = true,
+            .line_active = true,
+        };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 1023u,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 30u,
+                .group = 0u,
+                .enabled = 0u,
+                .pending = 0u,
+                .active = 0u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = false,
+                .line_active = false,
+            });
+
+        const Armv7aSchedulerTickIngressObservation ready{
+            .tick_mode = Armv7aKernelTickMode::one_shot,
+            .route = Armv7aPlatformInterruptRoute::kIrq,
+            .frequency_hz = 62500000u,
+            .now = 0x12345678u,
+            .now_sampled = true,
+            .timer_source = true,
+            .scheduler_tick_isr_safe = true,
+            .delivery = delivery,
+            .completion = completion,
+        };
+
+        auto periodic = ready;
+        periodic.tick_mode = Armv7aKernelTickMode::periodic;
+
+        auto missing_source = ready;
+        missing_source.timer_source = false;
+
+        auto missing_counter = ready;
+        missing_counter.now_sampled = false;
+
+        auto missing_isr_safety = ready;
+        missing_isr_safety.scheduler_tick_isr_safe = false;
+
+        auto wrong_route = ready;
+        wrong_route.route = Armv7aPlatformInterruptRoute::kFiq;
+
+        auto not_retired = ready;
+        not_retired.completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 30u,
+                .highest_pending_intid = 30u,
+                .highest_pending_special = false,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 30u,
+                .group = 0u,
+                .enabled = 0u,
+                .pending = 0u,
+                .active = 0u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = false,
+                .line_active = true,
+            });
+
+        auto no_tick_mode = ready;
+        no_tick_mode.tick_mode = Armv7aKernelTickMode::none;
+
+        return armv7a_scheduler_tick_source_matches_timer(ready) &&
+               armv7a_scheduler_tick_counter_ready(ready) &&
+               armv7a_scheduler_tick_delivery_retired(ready) &&
+               armv7a_scheduler_tick_handoff_ready(ready) &&
+               armv7a_scheduler_tick_requires_rearm(ready) &&
+               armv7a_scheduler_tick_handoff_ready(periodic) &&
+               !armv7a_scheduler_tick_requires_rearm(periodic) &&
+               !armv7a_scheduler_tick_source_matches_timer(missing_source) &&
+               !armv7a_scheduler_tick_counter_ready(missing_counter) &&
+               !armv7a_scheduler_tick_handoff_ready(missing_counter) &&
+               !armv7a_scheduler_tick_handoff_ready(missing_isr_safety) &&
+               !armv7a_scheduler_tick_handoff_ready(wrong_route) &&
+               !armv7a_scheduler_tick_delivery_retired(not_retired) &&
+               !armv7a_scheduler_tick_handoff_ready(not_retired) &&
+               !armv7a_scheduler_tick_handoff_ready(no_tick_mode);
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -1992,6 +2095,8 @@ int main() {
         verify_armv7a_kernel_port_contract();
     const bool armv7_thread_context_contract_ok =
         verify_armv7a_thread_context_contract();
+    const bool armv7_scheduler_tick_contract_ok =
+        verify_armv7a_scheduler_tick_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -2052,10 +2157,11 @@ int main() {
                     armv7_stack_observation_contract_ok &&
                     armv7_vector_exit_contract_ok &&
                     armv7_interrupt_lifecycle_contract_ok &&
-                    armv7_interrupt_timeout_contract_ok &&
-                    armv7_special_interrupt_contract_ok &&
-                    armv7_kernel_port_contract_ok &&
-                    armv7_thread_context_contract_ok;
+                     armv7_interrupt_timeout_contract_ok &&
+                     armv7_special_interrupt_contract_ok &&
+                     armv7_kernel_port_contract_ok &&
+                     armv7_thread_context_contract_ok &&
+                     armv7_scheduler_tick_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -2135,6 +2241,8 @@ int main() {
                 armv7_kernel_port_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_thread_context_contract=%d\n",
                 armv7_thread_context_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_scheduler_tick_contract=%d\n",
+                armv7_scheduler_tick_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

@@ -364,7 +364,7 @@
 | 任务 | 优先级 | 范围 | 性质 | 状态 |
 |---|---|---|---|---|
 | T1 统一 `charm.runtime` 仓库叙事 | P0 | Docs + Modules + Examples | 收口 | DONE |
-| T2 给文档索引增加状态模型 | P0 | Docs | 收口 | TODO |
+| T2 给文档索引增加状态模型 | P0 | Docs | 收口 | DONE |
 | T3 清理失效文档引用 | P0 | Docs | 快速修复 | DONE |
 | T4 拆分 UI/Vivid God Module | P1 | UI | 结构治理 | TODO |
 | T5 拆分 scheduler 观察职责 | P1 | System | 结构治理 | TODO |

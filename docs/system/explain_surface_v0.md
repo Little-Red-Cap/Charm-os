@@ -597,17 +597,44 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - `before`
 - `after`
 
+如果当前 report 来自 compare 模式，
+`recent transitions` 现在也会继续复用现有 capability compare 语言，
+但只覆盖真正出现在 transition 列表里的 capability。
+
+它会在 `query.result` 上额外带出一份最小 `comparison` 摘要，
+至少包括：
+
+- `compared_transition_count / bringup_compare_transition_count / resource_compare_transition_count`
+- `compared_capability_count / bringup_compare_capability_count / resource_compare_capability_count`
+- `compared_capabilities`
+- `bringup_change_kinds / resource_change_kinds`
+- `resource_contracts`
+
+与此同时，`transitions[*]` 现在也会继续带出 capability 级最小 compare 摘要，
+至少包括：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
 这意味着 `recent transitions` 现在先回答的是：
 
 - 最近到底有没有状态切换发生
 - 切换集中在哪些 capability
 - 切换动作是 `attach`、`ensure_exported` 还是其它 runtime export 事件
 - 当前 publish/export 统计摘要是什么
+- 这些最近切换里的哪些 capability，恰好也是 compare 维度上的漂移热点
+- 这些漂移更偏向 bringup 证据变化，还是资源契约变化
 
 也就是说，v0 当前不是在承诺“完整运行时历史”，
 而是在把 runtime observe 面先压成一个最小稳定查询：
 
 > **围绕 artifact report 当前保留下来的最近切换，稳定回答“发生了什么、发生在谁身上、在 publish/export 语义里当前是什么样”。**
+
+它当前仍然保持两个边界不变：
+
+- 只接受精确单 report
+- 不把未出现在 `recent_transitions` 里的 capability compare 强行混进 runtime 视图
 
 当前仓库里已经有一条真实 runtime-only producer：
 

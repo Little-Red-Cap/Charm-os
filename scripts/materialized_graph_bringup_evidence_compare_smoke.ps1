@@ -160,6 +160,7 @@ $inspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.inspe
 $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.summary.inspect.json'
 $whyInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.why.inspect.json'
 $graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.graph_path.inspect.json'
+$recentTransitionsInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.recent_transitions.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -313,6 +314,29 @@ Assert-Condition ([bool]$graphPathInspectResult.query.result.comparison.bringup_
 Assert-Condition ([string]$graphPathInspectResult.query.result.comparison.bringup_evidence.right_export_state -eq 'attached') 'inspect graph path comparison right_export_state must become attached'
 Assert-Condition (@($graphPathInspectResult.query.result.direct_edges).Count -gt 0) 'inspect graph path should expose direct edges for published capability'
 
+$recentTransitionsInspectResult = Invoke-CommandJson -OutputPath $recentTransitionsInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -RecentTransitions -AsJson
+}
+Assert-Condition ([string]$recentTransitionsInspectResult.query.kind -eq 'recent_transitions') 'inspect recent transitions query kind mismatch'
+Assert-Condition ([string]$recentTransitionsInspectResult.query.scope -eq 'report') 'inspect recent transitions query scope mismatch'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.transition_count -eq 2) 'inspect recent transitions transition_count must be 2'
+Assert-Condition ((@($recentTransitionsInspectResult.query.result.transition_capabilities) -contains $PublishedCapability)) 'inspect recent transitions missing published capability'
+Assert-Condition ($null -ne $recentTransitionsInspectResult.query.result.comparison) 'inspect recent transitions must expose comparison payload'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.comparison.compared_transition_count -eq 2) 'inspect recent transitions compared_transition_count must be 2'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.comparison.bringup_compare_transition_count -eq 2) 'inspect recent transitions bringup_compare_transition_count must be 2'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.comparison.resource_compare_transition_count -eq 0) 'inspect recent transitions resource_compare_transition_count must stay 0'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.comparison.compared_capability_count -eq 1) 'inspect recent transitions compared_capability_count must be 1'
+Assert-Condition ((@($recentTransitionsInspectResult.query.result.comparison.compared_capabilities) -contains $PublishedCapability)) 'inspect recent transitions compared_capabilities missing published capability'
+Assert-Condition ((@($recentTransitionsInspectResult.query.result.comparison.bringup_change_kinds) -contains 'changed')) 'inspect recent transitions comparison missing changed kind'
+Assert-Condition (@(
+    @($recentTransitionsInspectResult.query.result.transitions) |
+        Where-Object {
+            [string]$_.capability -eq $PublishedCapability -and
+            [bool]$_.comparison.bringup_changed -and
+            (@($_.comparison.bringup_change_kinds) -contains 'changed')
+        }
+).Count -eq 2) 'inspect recent transitions must expose bringup compare details on every synthetic transition'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -324,6 +348,7 @@ $summary = [ordered]@{
     summary_inspect_json = $summaryInspectJsonPath
     why_inspect_json = $whyInspectJsonPath
     graph_path_inspect_json = $graphPathInspectJsonPath
+    recent_transitions_inspect_json = $recentTransitionsInspectJsonPath
     assertions = [ordered]@{
         sidecar_only_diff_preserved = $true
         comparison_bringup_evidence_present = $true
@@ -332,6 +357,7 @@ $summary = [ordered]@{
         inspect_default_summary_exposes_capability_compare = $true
         inspect_why_exposes_compare = $true
         inspect_graph_path_exposes_compare = $true
+        inspect_recent_transitions_exposes_compare = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

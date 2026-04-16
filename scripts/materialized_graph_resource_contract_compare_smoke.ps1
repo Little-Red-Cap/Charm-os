@@ -115,6 +115,7 @@ $inspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.insp
 $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.summary.inspect.json'
 $whyInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.why.inspect.json'
 $graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.graph_path.inspect.json'
+$recentTransitionsInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.recent_transitions.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -261,6 +262,21 @@ Assert-Condition ([bool]$graphPathInspectResult.query.result.comparison.resource
 Assert-Condition ((@($graphPathInspectResult.query.result.comparison.resource_change_kinds) -contains 'contract_added')) 'inspect graph path comparison missing contract_added kind'
 Assert-Condition ((@($graphPathInspectResult.query.result.comparison.resource_contracts) -contains $AddedContract)) 'inspect graph path comparison missing changed contract'
 
+$recentTransitionsInspectResult = Invoke-CommandJson -OutputPath $recentTransitionsInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -RecentTransitions -AsJson
+}
+Assert-Condition ([string]$recentTransitionsInspectResult.query.kind -eq 'recent_transitions') 'inspect recent transitions query kind mismatch'
+Assert-Condition ([string]$recentTransitionsInspectResult.query.scope -eq 'report') 'inspect recent transitions query scope mismatch'
+Assert-Condition (@($recentTransitionsInspectResult.query.result.transitions).Count -eq [int]$recentTransitionsInspectResult.query.result.transition_count) 'inspect recent transitions transition_count must match transitions array size'
+Assert-Condition ($null -eq $recentTransitionsInspectResult.query.result.comparison) 'resource compare without matching transition capability must not surface query-level recent transition comparison'
+Assert-Condition (@(
+    @($recentTransitionsInspectResult.query.result.transitions) |
+        Where-Object {
+            [bool]$_.comparison.bringup_changed -or
+            [bool]$_.comparison.resource_changed
+        }
+).Count -eq 0) 'resource compare without matching transition capability must not surface transition-level compare drift'
+
 $summary = [ordered]@{
     left_bundle_root = $resolvedBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -273,6 +289,7 @@ $summary = [ordered]@{
     summary_inspect_json = $summaryInspectJsonPath
     why_inspect_json = $whyInspectJsonPath
     graph_path_inspect_json = $graphPathInspectJsonPath
+    recent_transitions_inspect_json = $recentTransitionsInspectJsonPath
     assertions = [ordered]@{
         metadata_only_diff_preserved = $true
         comparison_resource_contract_present = $true
@@ -281,6 +298,7 @@ $summary = [ordered]@{
         inspect_default_summary_exposes_capability_compare = $true
         inspect_why_exposes_compare = $true
         inspect_graph_path_exposes_compare = $true
+        inspect_recent_transitions_keeps_compare_scope_narrow = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

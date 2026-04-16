@@ -258,6 +258,34 @@ artifact_root 级该查询现在也会继续带出：
 如果尚未接入 sidecar，
 则继续返回稳定形状，但结果为空。
 
+如果当前 report 来自 compare 模式，
+`recent transitions` 现在也会继续为“出现在 transition 列表里的 capability”
+带出最小 compare 摘要。
+
+其中 `query.result.comparison` 当前至少包括：
+
+- `compared_transition_count / bringup_compare_transition_count / resource_compare_transition_count`
+- `compared_capability_count / bringup_compare_capability_count / resource_compare_capability_count`
+- `compared_capabilities`
+- `bringup_change_kinds / resource_change_kinds`
+- `resource_contracts`
+
+与此同时，`query.result.transitions[*]` 当前至少继续带出：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+这意味着 compare 模式下，
+`recent transitions` 现在可以直接回答：
+
+> **最近这批 runtime export 切换里，哪些 capability 既发生了切换，也在 compare 维度上发生了漂移。**
+
+但它仍保持一个边界：
+
+- 不做 artifact_root 聚合
+- 不把未出现在 `recent_transitions` 里的 compare capability 强行混入 runtime 视图
+
 当前仓库里，`Examples/usb/usb_host_runtime_multi_smoke` 已经作为第一条正式
 `runtime_only` case 接入 `export_case_manifest -> export_bundle -> artifact_report`，
 并稳定产出一份真实 `system_compiler.runtime_observe_snapshot/v0` sidecar。

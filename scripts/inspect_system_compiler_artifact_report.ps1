@@ -1257,6 +1257,7 @@ function New-ArtifactRootResourceContractComparisonResult {
 function New-RecentTransitionEntry {
     param(
         [int]$Index,
+        $ReportData,
         $Transition
     )
 
@@ -1264,12 +1265,101 @@ function New-RecentTransitionEntry {
         return $null
     }
 
+    $capabilityName = [string]$Transition.capability
+    $comparison = New-CapabilityComparisonResult -ReportData $ReportData -CapabilityName $capabilityName
+
     return [pscustomobject][ordered]@{
         order = $Index
-        capability = [string]$Transition.capability
+        capability = $capabilityName
         action = [string]$Transition.action
         before = [string]$Transition.before
         after = [string]$Transition.after
+        comparison = $comparison
+    }
+}
+
+function New-RecentTransitionsComparisonResult {
+    param(
+        [object[]]$TransitionEntries
+    )
+
+    $comparedTransitions = @(
+        @($TransitionEntries) |
+            Where-Object {
+                $comparison = $_.comparison
+                ($null -ne $comparison) -and (
+                    [bool]$comparison.bringup_changed -or
+                    [bool]$comparison.resource_changed
+                )
+            }
+    )
+    $bringupComparedTransitions = @(
+        @($TransitionEntries) |
+            Where-Object {
+                $comparison = $_.comparison
+                ($null -ne $comparison) -and [bool]$comparison.bringup_changed
+            }
+    )
+    $resourceComparedTransitions = @(
+        @($TransitionEntries) |
+            Where-Object {
+                $comparison = $_.comparison
+                ($null -ne $comparison) -and [bool]$comparison.resource_changed
+            }
+    )
+
+    if (@($comparedTransitions).Count -eq 0) {
+        return $null
+    }
+
+    $comparedCapabilities = @(
+        @($comparedTransitions) |
+            ForEach-Object { [string]$_.capability } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $bringupComparedCapabilities = @(
+        @($bringupComparedTransitions) |
+            ForEach-Object { [string]$_.capability } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $resourceComparedCapabilities = @(
+        @($resourceComparedTransitions) |
+            ForEach-Object { [string]$_.capability } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+
+    $bringupChangeKinds = @(
+        foreach ($entry in @($comparedTransitions)) {
+            @($entry.comparison.bringup_change_kinds)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $resourceChangeKinds = @(
+        foreach ($entry in @($comparedTransitions)) {
+            @($entry.comparison.resource_change_kinds)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $resourceContracts = @(
+        foreach ($entry in @($comparedTransitions)) {
+            @($entry.comparison.resource_contracts)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    return [ordered]@{
+        compared_transition_count = @($comparedTransitions).Count
+        bringup_compare_transition_count = @($bringupComparedTransitions).Count
+        resource_compare_transition_count = @($resourceComparedTransitions).Count
+        compared_capability_count = @($comparedCapabilities).Count
+        bringup_compare_capability_count = @($bringupComparedCapabilities).Count
+        resource_compare_capability_count = @($resourceComparedCapabilities).Count
+        compared_capabilities = @($comparedCapabilities)
+        bringup_compare_capabilities = @($bringupComparedCapabilities)
+        resource_compare_capabilities = @($resourceComparedCapabilities)
+        bringup_change_kinds = @($bringupChangeKinds)
+        resource_change_kinds = @($resourceChangeKinds)
+        resource_contracts = @($resourceContracts)
     }
 }
 
@@ -1281,7 +1371,7 @@ function New-RecentTransitionsResult {
     $transitionEntries = @()
     $transitionIndex = 0
     foreach ($transition in @($ReportData.runtime_observe.recent_transitions)) {
-        $entry = New-RecentTransitionEntry -Index $transitionIndex -Transition $transition
+        $entry = New-RecentTransitionEntry -Index $transitionIndex -ReportData $ReportData -Transition $transition
         if ($null -ne $entry) {
             $transitionEntries += $entry
             $transitionIndex += 1
@@ -1314,7 +1404,24 @@ function New-RecentTransitionsResult {
                 Sort-Object -Unique
         )
         action_counts = $actionCounts
+        comparison = New-RecentTransitionsComparisonResult -TransitionEntries $transitionEntries
         transitions = @($transitionEntries)
+    }
+}
+
+function Format-RecentTransitionDisplayRow {
+    param(
+        $Entry
+    )
+
+    return [pscustomobject]@{
+        order = [int]$Entry.order
+        capability = [string]$Entry.capability
+        action = [string]$Entry.action
+        before = [string]$Entry.before
+        after = [string]$Entry.after
+        BrCmp = Format-StringArrayOrDash -Values @($Entry.comparison.bringup_change_kinds)
+        ResCmp = Format-StringArrayOrDash -Values @($Entry.comparison.resource_change_kinds)
     }
 }
 
@@ -3524,11 +3631,29 @@ if ($RecentTransitions) {
         }
         Write-Host "action_counts = $((@($actionParts) -join ', '))"
     }
+    if ($null -ne $recentTransitionsResult.comparison) {
+        Write-Host ''
+        Write-Host '[COMPARE]'
+        Write-Host "compared_transitions = $([int]$recentTransitionsResult.comparison.compared_transition_count) bringup_compare = $([int]$recentTransitionsResult.comparison.bringup_compare_transition_count) resource_compare = $([int]$recentTransitionsResult.comparison.resource_compare_transition_count)"
+        Write-Host "compare_capabilities = $([int]$recentTransitionsResult.comparison.compared_capability_count) bringup_capabilities = $([int]$recentTransitionsResult.comparison.bringup_compare_capability_count) resource_capabilities = $([int]$recentTransitionsResult.comparison.resource_compare_capability_count)"
+        if (@($recentTransitionsResult.comparison.compared_capabilities).Count -gt 0) {
+            Write-Host "compared_capabilities = $((@($recentTransitionsResult.comparison.compared_capabilities) -join ', '))"
+        }
+        if (@($recentTransitionsResult.comparison.bringup_change_kinds).Count -gt 0) {
+            Write-Host "bringup_change_kinds = $((@($recentTransitionsResult.comparison.bringup_change_kinds) -join ', '))"
+        }
+        if (@($recentTransitionsResult.comparison.resource_change_kinds).Count -gt 0) {
+            Write-Host "resource_change_kinds = $((@($recentTransitionsResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($recentTransitionsResult.comparison.resource_contracts).Count -gt 0) {
+            Write-Host "resource_contracts = $((@($recentTransitionsResult.comparison.resource_contracts) -join ', '))"
+        }
+    }
     if (@($recentTransitionsResult.transitions).Count -gt 0) {
         Write-Host ''
         Write-Host '[TRANSITIONS]'
         @($recentTransitionsResult.transitions) |
-            Select-Object order, capability, action, before, after |
+            ForEach-Object { Format-RecentTransitionDisplayRow -Entry $_ } |
             Format-Table -AutoSize |
             Out-Host
     }

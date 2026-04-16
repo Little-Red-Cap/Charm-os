@@ -9,7 +9,9 @@ and lets this QEMU leaf keep the hook implementation and runtime evidence
 local. Shared ARMv7-A exception and interrupt contracts also live there, so
 frame math, pending/timeout state, observation semantics, and abort-decode
 helpers can be validated on the host side before a real board leaf joins the
-same path.
+same path. Fault register/map/context snapshots are now also shaped as a
+shared observation contract, while the QEMU leaf still owns the actual CP15
+reads and translation-table sampling.
 
 ## Build
 

@@ -1,4 +1,5 @@
 #include "armv7a_exception_contract.hpp"
+#include "armv7a_fault_observation_contract.hpp"
 #include "armv7a_fault_status_contract.hpp"
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
@@ -580,6 +581,108 @@ namespace {
                    "small page" &&
                std::string_view(armv7a_memory_type_name(Armv7aMemoryType::kDevice)) ==
                    "device";
+    }
+
+    bool verify_armv7a_fault_observation_contract() noexcept {
+        Armv7aFaultObservation svc_observation{
+            .kind = kArmv7aExceptionSvc,
+            .context =
+                Armv7aFaultContextSnapshot{
+                    .sctlr = 0x00C51079u,
+                    .ttbr0 = 0x40210000u,
+                    .ttbcr = 0x00000000u,
+                    .dacr = 0x00000001u,
+                },
+        };
+
+        Armv7aFaultObservation data_observation{
+            .kind = kArmv7aExceptionDataAbort,
+            .registers_valid = true,
+            .registers =
+                Armv7aFaultRegistersSnapshot{
+                    .syndrome = 0x0000081Fu,
+                    .fault_address = 0x54000040u,
+                    .aux_syndrome = 0x00000000u,
+                    .decode = armv7a_decode_data_fault_status(0x0000081Fu),
+                },
+            .map_valid = true,
+            .map =
+                Armv7aFaultMapSnapshot{
+                    .fault_address = 0x54000040u,
+                    .ttbr0 = 0x40210000u,
+                    .l1 = armv7a_decode_l1_descriptor(0x54000040u, 0x4021FC21u),
+                    .l2_descriptor = 0x40567003u,
+                    .l2 = armv7a_decode_l2_descriptor(0x54000040u, 0x40567003u),
+                },
+            .context =
+                Armv7aFaultContextSnapshot{
+                    .sctlr = 0x00C51079u,
+                    .ttbr0 = 0x40210000u,
+                    .ttbcr = 0x00000000u,
+                    .dacr = 0x00000005u,
+                },
+        };
+
+        Armv7aFaultObservation prefetch_observation{
+            .kind = kArmv7aExceptionPrefetchAbort,
+            .registers_valid = true,
+            .registers =
+                Armv7aFaultRegistersSnapshot{
+                    .syndrome = 0x0000001Du,
+                    .fault_address = 0x51000000u,
+                    .aux_syndrome = 0x00000000u,
+                    .decode = armv7a_decode_prefetch_fault_status(0x0000001Du),
+                },
+            .map_valid = true,
+            .map =
+                Armv7aFaultMapSnapshot{
+                    .fault_address = 0x51000000u,
+                    .ttbr0 = 0x40210000u,
+                    .l1 = armv7a_decode_l1_descriptor(0x51000000u, 0x40300C12u),
+                },
+            .context =
+                Armv7aFaultContextSnapshot{
+                    .sctlr = 0x00C51079u,
+                    .ttbr0 = 0x40210000u,
+                    .ttbcr = 0x00000000u,
+                    .dacr = 0x00000005u,
+                },
+        };
+
+        return !armv7a_exception_has_fault_registers(kArmv7aExceptionSvc) &&
+               armv7a_exception_has_fault_registers(kArmv7aExceptionPrefetchAbort) &&
+               armv7a_exception_has_fault_registers(kArmv7aExceptionDataAbort) &&
+               !armv7a_fault_map_has_domain(Armv7aL1DescriptorKind::kFault) &&
+               armv7a_fault_map_has_domain(Armv7aL1DescriptorKind::kPageTable) &&
+               armv7a_fault_map_has_domain(Armv7aL1DescriptorKind::kSection) &&
+               !armv7a_fault_map_uses_l2(Armv7aL1DescriptorKind::kSection) &&
+               armv7a_fault_map_uses_l2(Armv7aL1DescriptorKind::kPageTable) &&
+               armv7a_fault_map_has_l1_attributes(Armv7aL1DescriptorKind::kSection) &&
+               !armv7a_fault_map_has_l1_attributes(Armv7aL1DescriptorKind::kPageTable) &&
+               armv7a_fault_map_has_l2_attributes(Armv7aL2DescriptorKind::kSmallPage) &&
+               !armv7a_fault_map_has_l2_attributes(Armv7aL2DescriptorKind::kFault) &&
+               !armv7a_fault_observation_has_registers(svc_observation) &&
+               !armv7a_fault_observation_has_map(svc_observation) &&
+               armv7a_fault_observation_has_registers(data_observation) &&
+               armv7a_fault_observation_has_map(data_observation) &&
+               armv7a_fault_observation_has_registers(prefetch_observation) &&
+               armv7a_fault_observation_has_map(prefetch_observation) &&
+               data_observation.registers.decode.write &&
+               !data_observation.registers.decode.cache_maintenance &&
+               data_observation.map.l1.kind == Armv7aL1DescriptorKind::kPageTable &&
+               data_observation.map.l2.kind == Armv7aL2DescriptorKind::kSmallPage &&
+               data_observation.map.l2.execute_never &&
+               !data_observation.map.l2.shareable &&
+               !data_observation.map.l2.cacheable &&
+               !data_observation.map.l2.bufferable &&
+               data_observation.context.dacr == 0x00000005u &&
+               !prefetch_observation.registers.decode.write &&
+               prefetch_observation.map.l1.kind == Armv7aL1DescriptorKind::kSection &&
+               prefetch_observation.map.l1.execute_never &&
+               !prefetch_observation.map.l1.shareable &&
+               !prefetch_observation.map.l1.cacheable &&
+               !prefetch_observation.map.l1.bufferable &&
+               prefetch_observation.context.ttbr0 == 0x40210000u;
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -1236,6 +1339,8 @@ int main() {
     const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
     const bool armv7_exception_contract_ok = verify_armv7a_exception_contract();
     const bool armv7_abort_decode_contract_ok = verify_armv7a_abort_decode_contract();
+    const bool armv7_fault_observation_contract_ok =
+        verify_armv7a_fault_observation_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1289,7 +1394,8 @@ int main() {
                     armv7_common_xip_ok &&
                     armv7_interrupt_contract_ok &&
                     armv7_exception_contract_ok &&
-                    armv7_abort_decode_contract_ok;
+                    armv7_abort_decode_contract_ok &&
+                    armv7_fault_observation_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1349,6 +1455,8 @@ int main() {
                 armv7_exception_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_abort_decode_contract=%d\n",
                 armv7_abort_decode_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_fault_observation_contract=%d\n",
+                armv7_fault_observation_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

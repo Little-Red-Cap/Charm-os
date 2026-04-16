@@ -84,6 +84,7 @@ set(charm_armv7a_qemu_module_files
 add_executable(${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME} PRIVATE
+    "${CHARM_ROOT}/targets/armv7a/common/armv7a_handoff_contract.cpp"
     vectors.S
     startup.S
     main.cpp
@@ -93,6 +94,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_diag_console.cpp
     armv7a_diag_context.cpp
     armv7a_handler_stack.cpp
+    armv7a_handoff_prepare.cpp
     armv7a_interrupt_smoke.cpp
     armv7a_interrupt_diagnostics.cpp
     armv7a_interrupt_observation_sequence.cpp
@@ -108,7 +110,6 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_page_table_probe.cpp
     armv7a_section_split_probe.cpp
     armv7a_boot_page_table.cpp
-    armv7a_fault_status.cpp
     armv7a_translation_walk.cpp
     armv7a_abort_smoke.cpp
     armv7a_exception_smoke.cpp
@@ -130,7 +131,8 @@ target_sources(${PROJECT_NAME}
         ${charm_armv7a_qemu_module_files})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}")
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CHARM_ROOT}/targets/armv7a/common")
 
 target_compile_options(${PROJECT_NAME} PRIVATE
     -mcpu=${CHARM_ARMV7A_CPU}

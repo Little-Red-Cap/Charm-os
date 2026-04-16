@@ -52,6 +52,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "unexpected-irq-smoke";
     case Armv7aBringupPhase::kSgiFiqTimeoutSmoke:
         return "sgi-fiq-timeout-smoke";
+    case Armv7aBringupPhase::kHandoffPrepare:
+        return "handoff-prepare";
     case Armv7aBringupPhase::kIdle:
         return "idle";
     default:

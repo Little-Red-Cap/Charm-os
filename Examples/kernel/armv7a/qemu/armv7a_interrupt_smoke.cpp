@@ -259,25 +259,8 @@ Armv7aInterruptObservation armv7a_interrupt_smoke_observation(Armv7aInterruptSmo
 {
     const auto index = observation_index(kind);
     if (index >= kObservationSlotCount) {
-        return Armv7aInterruptObservation{
-            .seen = false,
-            .special = false,
-            .synthetic = false,
-            .intid = armv7a_platform_spurious_interrupt_id(),
-            .raw_acknowledge = 0u,
-            .controller =
-                Armv7aPlatformInterruptControllerState{
-                    .highest_pending_intid = armv7a_platform_spurious_interrupt_id(),
-                    .highest_pending_special = true,
-                },
-            .line =
-                Armv7aPlatformInterruptLineState{
-                    .intid = armv7a_platform_spurious_interrupt_id(),
-                },
-            .handler_cpsr = 0u,
-            .handler_spsr = 0u,
-            .return_pc = 0u,
-        };
+        return armv7a_make_unobserved_interrupt_observation(
+            armv7a_platform_spurious_interrupt_id());
     }
 
     return load_observation(g_observations[index]);

@@ -7,6 +7,8 @@
 - 当前软件栈约定：例如 SPL boot order、text base、默认 console，这些适合参考，但不等于 SoC 唯一真相
 - 待补项：需要 TRM、板卡原理图或实板验证后才能定稿
 
+如果当前问题不是“寄存器和地址在哪里”，而是“前级最少要保证什么状态才能跳到我们的裸机镜像”，请配合阅读 `docs/board/rk3506/post_ddr_handoff_contract.md`。
+
 ## 1. 资料来源
 
 以下路径均相对于当前使用的 RK3506 SDK 根目录：
@@ -155,6 +157,13 @@ SPL DTS 里还能看到：
 
 对裸机 bring-up 的含义是：
 - 直接轮询 `UART0` 做最小输出是合理起点
+- 当前仓库里的 `targets/rk3506` 已经开始把这条起点落成真实板级初始化：
+  - `CRU_GATE_CON11` 打开 `PCLK_UART0` / `SCLK_UART0_SRC`
+  - `CRU_CLKSEL_CON29` 把 `SCLK_UART0` 收口到 `XIN24M`
+  - `GPIO0_IOC` 把 `GPIO0_C6/C7` 切到 `func1`
+  - `UART0` 本地按 `115200 8N1` 初始化
+  - 同时保留一份 `divisor + CRU/GPIO0C readback` 快照，便于把我们的默认写法和真板实际状态对照起来
+- 现在还会额外做一轮只读型 `generic timer + GIC` smoke，帮助确认 `CNTFRQ/CNTPCT` 和 `GICD/GICC` 至少在当前 handoff 条件下可达
 - `ttyFIQ0` 是 Rockchip/Linux 侧包装语义，不应被误当成裸机最小依赖
 - 如果后续要复用 vendor 的 FIQ debugger 设计，需要额外处理 IRQ `115` 这条线
 
@@ -237,3 +246,70 @@ SPL DTS 里还能看到：
 - CRU / GRF 中与 UART0、GIC、DDR、PMIC、复位链直接相关的寄存器位说明
 - 实板 SRAM / OCRAM / secure memory / reserved memory 的真实分布
 - SMP / PSCI / secondary core release 的最小可控路径
+
+## 9. HAL 目录侦察结论
+
+### 9.1 它是什么
+
+当前 SDK 的 `hal/` 不是零散附件，而是一套完整的 Rockchip HAL 仓，内部同时包含：
+
+- `lib/CMSIS/Device/RK3506`：SoC 头文件、startup 模板、`system_rk3506.c`、`mmu_rk3506.c`
+- `lib/bsp/RK3506`：BSP 设备描述，例如 `g_uart0Dev`、`g_uart4Dev`、`g_cruDev`
+- `lib/hal/src/*`：CRU、pinctrl、UART、GIC 等驱动实现
+- `project/rk3506`：Cortex-A7 AP core 工程
+- `project/rk3506-mcu`：M0 侧工程
+
+这说明它确实包含裸机代码，但它表达的是 Rockchip 自己的 HAL 参考模型，不等于我们要直接照搬的 Boot 模型。
+
+### 9.2 对我们最有价值的已确认项
+
+- `soc.h` 明确给出了 `GIC_DISTRIBUTOR_BASE = 0xff581000` 与 `GIC_CPU_INTERFACE_BASE = 0xff582000`
+- `soc.h` 把 RK3506 AP 侧定义为 `__CORTEX_A = 7`、`HAL_GIC_V2 = 1`，并给出 `PLATFORM_CORE_COUNT = 3`
+- `rk3506.h` 明确给出了 `UART0..4 @ 0xff0a0000..0xff0e0000`、`UART5 @ 0xff4e0000`
+- `rk3506.h` 明确给出了 `CRU @ 0xff9a0000`、`SCRU @ 0xff9a8000`、`GRF @ 0xff288000`、`GRF_PMU @ 0xff910000`
+- `rk3506.h` 明确给出了 `TIMER5 @ 0xff255000`，而 `project/rk3506/src/hal_conf.h` 把 `SYS_TIMER` 指到 `TIMER5`
+- `hal_bsp.c` 给出了 `g_uart0Dev` / `g_uart4Dev` 的 clock gate、pclk gate 和 IRQ 绑定，可作为后续真实 UART bring-up 的参考入口
+- `hal_bsp.c` 里的 `g_cruDev` 也确认了 CRU/SCRU/CRU_PMU/SCRU_PMU 这四组 bank 的组织方式
+
+这些内容适合吸收到我们的 `targets/rk3506` 平台常量、早期初始化顺序和文档里。
+
+### 9.3 不能直接照搬的部分
+
+`project/rk3506` 虽然是 AP 侧裸机工程，但它不是“从冷启动开始的首级程序”，而更像一个 post-DDR 的 AMP 固件：
+
+- `GCC/Makefile` 默认把固件放到 `FIRMWARE_CPU_BASE = 0x03e00000`
+- 同一个工程还定义了 `SHMEM_BASE = 0x03b00000` 与 `LINUX_RPMSG_BASE = 0x03c00000`
+- `Image/amp_linux.its` 把镜像打成 FIT，并写明了 “linux on cpu0”
+- `main.c` 里的 GIC 示例把 IRQ 路由到 `CPU_GET_AFFINITY(1, 0)`
+- `main.c` 默认配置的是 `UART4`，而不是公开启动链更稳定的 `UART0`
+
+这意味着：
+
+- 它更适合作为“DDR 已可用之后，AP 固件如何接管”的参考
+- 不适合直接替代我们的首级 bring-up 心智模型
+- 更不应该把 Linux AMP / RPMsg 的共享内存布局抬成 Charm 的公共平台契约
+
+### 9.4 startup / MMU 模板给我们的启发
+
+`startup_rk3506.c` 和 `system_rk3506.c` 仍然很有参考价值，因为它们收敛了 Cortex-A7 最小启动序列：
+
+- reset 入口先关中断、关 MMU、关 cache、清 high vectors，并把 `VBAR` 指到自己的向量表
+- 为 `FIQ/IRQ/SVC/ABT/UND/SYS` 分别布栈
+- 在 `SystemInit()` 中依次做 TLB / branch predictor / I-cache 失效、D-cache clean+invalidate、建页表、开 MMU、开 cache
+- `mmu_rk3506.c` 明确把 `0xFF000000` 高地址外设窗映射成 device memory
+
+所以我们后续应当：
+
+- 继续保留“单镜像、post-DDR、板级叶子 target”的公开模型
+- 借用 vendor startup/MMU 模板里的顺序意识，而不是照搬它的 AMP 内存布局
+- 把早期 UART、CRU、GRF、GIC、timer 初始化逐步下沉到 `targets/rk3506`，而不是塞回公共 Boot 层
+
+### 9.5 当前对仓库的直接落点
+
+基于这轮 HAL 侦察，仓库里当前最稳妥的落点是：
+
+- `targets/rk3506` 继续默认 `UART0` 作为最小早期 console
+- 同时允许板级把 early UART 覆盖成 `UART4` 这类 demo/载板选择
+- 但当前只有 `UART0` 默认路径已经具备本地 early init；其他 early UART 仍应视为前级负责
+- `system SRAM @ 0xfff80000` 与 `size = 0x0000c000` 可以先作为 post-DDR handoff 线索保留下来
+- 真正的 `CRU/GRF/UART/GIC` 早期初始化可以开始以 HAL 已确认的寄存器入口为锚点推进

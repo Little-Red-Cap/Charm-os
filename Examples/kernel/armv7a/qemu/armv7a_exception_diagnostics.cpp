@@ -6,6 +6,7 @@
 #include "armv7a_cpu.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_exception_frame.hpp"
+#include "armv7a_fault_observation_contract.hpp"
 #include "armv7a_fault_status.hpp"
 #include "armv7a_handler_stack.hpp"
 #include "armv7a_mmu.hpp"
@@ -13,28 +14,6 @@
 #include "armv7a_translation_walk.hpp"
 
 namespace {
-const char* exception_name(Armv7aExceptionKind kind)
-{
-    switch (kind) {
-    case kArmv7aExceptionUndefined:
-        return "undefined";
-    case kArmv7aExceptionPrefetchAbort:
-        return "prefetch abort";
-    case kArmv7aExceptionDataAbort:
-        return "data abort";
-    case kArmv7aExceptionReserved:
-        return "reserved vector";
-    case kArmv7aExceptionIrq:
-        return "irq";
-    case kArmv7aExceptionFiq:
-        return "fiq";
-    case kArmv7aExceptionSvc:
-        return "svc";
-    default:
-        return "unknown";
-    }
-}
-
 const char* exception_stack_tag_name(Armv7aExceptionKind kind)
 {
     switch (kind) {
@@ -57,131 +36,191 @@ const char* exception_stack_tag_name(Armv7aExceptionKind kind)
     }
 }
 
-void print_fault_registers(Armv7aExceptionKind kind)
+Armv7aFaultRegistersSnapshot capture_prefetch_fault_registers()
 {
-    std::uint32_t fault_address = 0;
+    const auto syndrome = armv7a_read_ifsr();
+    return Armv7aFaultRegistersSnapshot{
+        .syndrome = syndrome,
+        .fault_address = armv7a_read_ifar(),
+        .aux_syndrome = armv7a_read_aifsr(),
+        .decode = armv7a_decode_prefetch_fault_status(syndrome),
+    };
+}
+
+Armv7aFaultRegistersSnapshot capture_data_fault_registers()
+{
+    const auto syndrome = armv7a_read_dfsr();
+    return Armv7aFaultRegistersSnapshot{
+        .syndrome = syndrome,
+        .fault_address = armv7a_read_dfar(),
+        .aux_syndrome = armv7a_read_adfsr(),
+        .decode = armv7a_decode_data_fault_status(syndrome),
+    };
+}
+
+Armv7aFaultMapSnapshot capture_fault_map(std::uint32_t fault_address)
+{
+    const auto ttbr0 = armv7a_read_ttbr0();
+    const auto l1_descriptor = armv7a_l1_descriptor_from_ttbr0(ttbr0, fault_address);
+    auto snapshot = Armv7aFaultMapSnapshot{
+        .fault_address = fault_address,
+        .ttbr0 = ttbr0,
+        .l1 = armv7a_decode_l1_descriptor(fault_address, l1_descriptor),
+    };
+    if (armv7a_fault_map_uses_l2(snapshot.l1.kind)) {
+        snapshot.l2_descriptor = armv7a_l2_descriptor_from_l1(l1_descriptor, fault_address);
+        snapshot.l2 = armv7a_decode_l2_descriptor(fault_address, snapshot.l2_descriptor);
+    }
+    return snapshot;
+}
+
+Armv7aFaultContextSnapshot capture_fault_context()
+{
+    return Armv7aFaultContextSnapshot{
+        .sctlr = armv7a_read_sctlr(),
+        .ttbr0 = armv7a_read_ttbr0(),
+        .ttbcr = armv7a_read_ttbcr(),
+        .dacr = armv7a_read_dacr(),
+    };
+}
+
+Armv7aFaultObservation capture_fault_observation(Armv7aExceptionKind kind)
+{
+    auto observation = Armv7aFaultObservation{
+        .kind = kind,
+        .context = capture_fault_context(),
+    };
     switch (kind) {
     case kArmv7aExceptionPrefetchAbort:
-    {
-        const auto ifsr = armv7a_read_ifsr();
-        const auto decode = armv7a_decode_prefetch_fault_status(ifsr);
-        fault_address = armv7a_read_ifar();
-        armv7a_platform_early_console_puts("ARMv7-A prefetch fault, ifsr=0x");
-        armv7a_diag_put_hex(ifsr);
-        armv7a_platform_early_console_puts(", ifar=0x");
-        armv7a_diag_put_hex(fault_address);
-        armv7a_platform_early_console_puts(", aifsr=0x");
-        armv7a_diag_put_hex(armv7a_read_aifsr());
-        armv7a_platform_early_console_puts("\r\n");
-        armv7a_platform_early_console_puts("ARMv7-A prefetch fault decode, status=0x");
-        armv7a_diag_put_hex(decode.status_code, 2);
-        armv7a_platform_early_console_puts(" (");
-        armv7a_platform_early_console_puts(decode.description);
-        armv7a_platform_early_console_puts("), domain=0x");
-        armv7a_diag_put_hex(decode.domain, 1);
-        armv7a_platform_early_console_puts("\r\n");
+        observation.registers_valid = true;
+        observation.registers = capture_prefetch_fault_registers();
         break;
-    }
     case kArmv7aExceptionDataAbort:
-    {
-        const auto dfsr = armv7a_read_dfsr();
-        const auto decode = armv7a_decode_data_fault_status(dfsr);
-        fault_address = armv7a_read_dfar();
-        armv7a_platform_early_console_puts("ARMv7-A data fault, dfsr=0x");
-        armv7a_diag_put_hex(dfsr);
-        armv7a_platform_early_console_puts(", dfar=0x");
-        armv7a_diag_put_hex(fault_address);
-        armv7a_platform_early_console_puts(", adfsr=0x");
-        armv7a_diag_put_hex(armv7a_read_adfsr());
-        armv7a_platform_early_console_puts("\r\n");
-        armv7a_platform_early_console_puts("ARMv7-A data fault decode, status=0x");
-        armv7a_diag_put_hex(decode.status_code, 2);
-        armv7a_platform_early_console_puts(" (");
-        armv7a_platform_early_console_puts(decode.description);
-        armv7a_platform_early_console_puts("), domain=0x");
-        armv7a_diag_put_hex(decode.domain, 1);
-        armv7a_platform_early_console_puts(", write=");
-        armv7a_platform_early_console_puts(armv7a_diag_yes_no(decode.write));
-        armv7a_platform_early_console_puts(", cm=");
-        armv7a_platform_early_console_puts(armv7a_diag_yes_no(decode.cache_maintenance));
-        armv7a_platform_early_console_puts("\r\n");
+        observation.registers_valid = true;
+        observation.registers = capture_data_fault_registers();
         break;
-    }
     default:
         break;
     }
 
-    if (fault_address != 0u) {
-        const auto ttbr0 = armv7a_read_ttbr0();
-        const auto descriptor = armv7a_l1_descriptor_from_ttbr0(ttbr0, fault_address);
-        const auto decode = armv7a_decode_l1_descriptor(fault_address, descriptor);
+    if (observation.registers_valid && observation.registers.fault_address != 0u) {
+        observation.map_valid = true;
+        observation.map = capture_fault_map(observation.registers.fault_address);
+    }
+    return observation;
+}
 
-        armv7a_platform_early_console_puts("ARMv7-A fault map, far=0x");
-        armv7a_diag_put_hex(fault_address);
-        armv7a_platform_early_console_puts(", ttbr0=0x");
-        armv7a_diag_put_hex(ttbr0);
-        armv7a_platform_early_console_puts(", l1[0x");
-        armv7a_diag_put_hex(decode.index, 3);
-        armv7a_platform_early_console_puts("]=0x");
-        armv7a_diag_put_hex(decode.descriptor);
+void print_fault_observation(const Armv7aFaultObservation& observation)
+{
+    if (observation.kind == kArmv7aExceptionPrefetchAbort &&
+        armv7a_fault_observation_has_registers(observation)) {
+        armv7a_platform_early_console_puts("ARMv7-A prefetch fault, ifsr=0x");
+        armv7a_diag_put_hex(observation.registers.syndrome);
+        armv7a_platform_early_console_puts(", ifar=0x");
+        armv7a_diag_put_hex(observation.registers.fault_address);
+        armv7a_platform_early_console_puts(", aifsr=0x");
+        armv7a_diag_put_hex(observation.registers.aux_syndrome);
+        armv7a_platform_early_console_puts("\r\n");
+        armv7a_platform_early_console_puts("ARMv7-A prefetch fault decode, status=0x");
+        armv7a_diag_put_hex(observation.registers.decode.status_code, 2);
         armv7a_platform_early_console_puts(" (");
-        armv7a_platform_early_console_puts(armv7a_l1_descriptor_kind_name(decode.kind));
-        armv7a_platform_early_console_puts(")");
-        if (decode.kind == Armv7aL1DescriptorKind::kPageTable ||
-            decode.kind == Armv7aL1DescriptorKind::kSection ||
-            decode.kind == Armv7aL1DescriptorKind::kSupersection) {
-            armv7a_platform_early_console_puts(", domain=0x");
-            armv7a_diag_put_hex(decode.domain, 1);
-        }
-        if (decode.kind == Armv7aL1DescriptorKind::kPageTable) {
-            const auto l2_descriptor = armv7a_l2_descriptor_from_l1(descriptor, fault_address);
-            const auto l2_decode = armv7a_decode_l2_descriptor(fault_address, l2_descriptor);
+        armv7a_platform_early_console_puts(observation.registers.decode.description);
+        armv7a_platform_early_console_puts("), domain=0x");
+        armv7a_diag_put_hex(observation.registers.decode.domain, 1);
+        armv7a_platform_early_console_puts("\r\n");
+    } else if (observation.kind == kArmv7aExceptionDataAbort &&
+               armv7a_fault_observation_has_registers(observation)) {
+        armv7a_platform_early_console_puts("ARMv7-A data fault, dfsr=0x");
+        armv7a_diag_put_hex(observation.registers.syndrome);
+        armv7a_platform_early_console_puts(", dfar=0x");
+        armv7a_diag_put_hex(observation.registers.fault_address);
+        armv7a_platform_early_console_puts(", adfsr=0x");
+        armv7a_diag_put_hex(observation.registers.aux_syndrome);
+        armv7a_platform_early_console_puts("\r\n");
+        armv7a_platform_early_console_puts("ARMv7-A data fault decode, status=0x");
+        armv7a_diag_put_hex(observation.registers.decode.status_code, 2);
+        armv7a_platform_early_console_puts(" (");
+        armv7a_platform_early_console_puts(observation.registers.decode.description);
+        armv7a_platform_early_console_puts("), domain=0x");
+        armv7a_diag_put_hex(observation.registers.decode.domain, 1);
+        armv7a_platform_early_console_puts(", write=");
+        armv7a_platform_early_console_puts(
+            armv7a_diag_yes_no(observation.registers.decode.write));
+        armv7a_platform_early_console_puts(", cm=");
+        armv7a_platform_early_console_puts(
+            armv7a_diag_yes_no(observation.registers.decode.cache_maintenance));
+        armv7a_platform_early_console_puts("\r\n");
+    }
 
+    if (armv7a_fault_observation_has_map(observation)) {
+        armv7a_platform_early_console_puts("ARMv7-A fault map, far=0x");
+        armv7a_diag_put_hex(observation.map.fault_address);
+        armv7a_platform_early_console_puts(", ttbr0=0x");
+        armv7a_diag_put_hex(observation.map.ttbr0);
+        armv7a_platform_early_console_puts(", l1[0x");
+        armv7a_diag_put_hex(observation.map.l1.index, 3);
+        armv7a_platform_early_console_puts("]=0x");
+        armv7a_diag_put_hex(observation.map.l1.descriptor);
+        armv7a_platform_early_console_puts(" (");
+        armv7a_platform_early_console_puts(
+            armv7a_l1_descriptor_kind_name(observation.map.l1.kind));
+        armv7a_platform_early_console_puts(")");
+        if (armv7a_fault_map_has_domain(observation.map.l1.kind)) {
+            armv7a_platform_early_console_puts(", domain=0x");
+            armv7a_diag_put_hex(observation.map.l1.domain, 1);
+        }
+        if (armv7a_fault_map_uses_l2(observation.map.l1.kind)) {
             armv7a_platform_early_console_puts(", l2[0x");
-            armv7a_diag_put_hex(l2_decode.index, 2);
+            armv7a_diag_put_hex(observation.map.l2.index, 2);
             armv7a_platform_early_console_puts("]=0x");
-            armv7a_diag_put_hex(l2_decode.descriptor);
+            armv7a_diag_put_hex(observation.map.l2.descriptor);
             armv7a_platform_early_console_puts(" (");
-            armv7a_platform_early_console_puts(armv7a_l2_descriptor_kind_name(l2_decode.kind));
+            armv7a_platform_early_console_puts(
+                armv7a_l2_descriptor_kind_name(observation.map.l2.kind));
             armv7a_platform_early_console_puts(")");
-            if (l2_decode.kind == Armv7aL2DescriptorKind::kSmallPage ||
-                l2_decode.kind == Armv7aL2DescriptorKind::kLargePage) {
+            if (armv7a_fault_map_has_l2_attributes(observation.map.l2.kind)) {
                 armv7a_platform_early_console_puts(", xn=");
                 armv7a_platform_early_console_puts(
-                    armv7a_diag_yes_no(l2_decode.execute_never));
+                    armv7a_diag_yes_no(observation.map.l2.execute_never));
                 armv7a_platform_early_console_puts(", s=");
-                armv7a_platform_early_console_puts(armv7a_diag_yes_no(l2_decode.shareable));
+                armv7a_platform_early_console_puts(
+                    armv7a_diag_yes_no(observation.map.l2.shareable));
                 armv7a_platform_early_console_puts(", c=");
-                armv7a_platform_early_console_puts(armv7a_diag_yes_no(l2_decode.cacheable));
+                armv7a_platform_early_console_puts(
+                    armv7a_diag_yes_no(observation.map.l2.cacheable));
                 armv7a_platform_early_console_puts(", b=");
-                armv7a_platform_early_console_puts(armv7a_diag_yes_no(l2_decode.bufferable));
+                armv7a_platform_early_console_puts(
+                    armv7a_diag_yes_no(observation.map.l2.bufferable));
                 armv7a_platform_early_console_puts(", ap=0x");
-                armv7a_diag_put_hex(l2_decode.access_permission, 1);
+                armv7a_diag_put_hex(observation.map.l2.access_permission, 1);
             }
-        } else if (decode.kind == Armv7aL1DescriptorKind::kSection ||
-                   decode.kind == Armv7aL1DescriptorKind::kSupersection) {
+        } else if (armv7a_fault_map_has_l1_attributes(observation.map.l1.kind)) {
             armv7a_platform_early_console_puts(", xn=");
-            armv7a_platform_early_console_puts(armv7a_diag_yes_no(decode.execute_never));
+            armv7a_platform_early_console_puts(
+                armv7a_diag_yes_no(observation.map.l1.execute_never));
             armv7a_platform_early_console_puts(", s=");
-            armv7a_platform_early_console_puts(armv7a_diag_yes_no(decode.shareable));
+            armv7a_platform_early_console_puts(
+                armv7a_diag_yes_no(observation.map.l1.shareable));
             armv7a_platform_early_console_puts(", c=");
-            armv7a_platform_early_console_puts(armv7a_diag_yes_no(decode.cacheable));
+            armv7a_platform_early_console_puts(
+                armv7a_diag_yes_no(observation.map.l1.cacheable));
             armv7a_platform_early_console_puts(", b=");
-            armv7a_platform_early_console_puts(armv7a_diag_yes_no(decode.bufferable));
+            armv7a_platform_early_console_puts(
+                armv7a_diag_yes_no(observation.map.l1.bufferable));
             armv7a_platform_early_console_puts(", ap=0x");
-            armv7a_diag_put_hex(decode.access_permission, 1);
+            armv7a_diag_put_hex(observation.map.l1.access_permission, 1);
         }
         armv7a_platform_early_console_puts("\r\n");
     }
 
     armv7a_platform_early_console_puts("ARMv7-A fault context, sctlr=0x");
-    armv7a_diag_put_hex(armv7a_read_sctlr());
+    armv7a_diag_put_hex(observation.context.sctlr);
     armv7a_platform_early_console_puts(", ttbr0=0x");
-    armv7a_diag_put_hex(armv7a_read_ttbr0());
+    armv7a_diag_put_hex(observation.context.ttbr0);
     armv7a_platform_early_console_puts(", ttbcr=0x");
-    armv7a_diag_put_hex(armv7a_read_ttbcr());
+    armv7a_diag_put_hex(observation.context.ttbcr);
     armv7a_platform_early_console_puts(", dacr=0x");
-    armv7a_diag_put_hex(armv7a_read_dacr());
+    armv7a_diag_put_hex(observation.context.dacr);
     armv7a_platform_early_console_puts("\r\n");
 }
 } // namespace
@@ -210,7 +249,7 @@ void armv7a_exception_print_svc_active(const Armv7aExceptionFrame& frame, unsign
 
     armv7a_platform_early_console_init();
     armv7a_platform_early_console_puts("ARMv7-A exception: ");
-    armv7a_platform_early_console_puts(exception_name(kind));
+    armv7a_platform_early_console_puts(armv7a_exception_name(kind));
     armv7a_platform_early_console_puts(", pc=0x");
     armv7a_diag_put_hex(armv7a_exception_pc(frame));
     armv7a_platform_early_console_puts(", lr=0x");
@@ -232,6 +271,6 @@ void armv7a_exception_print_svc_active(const Armv7aExceptionFrame& frame, unsign
         armv7a_bringup_phase_name(armv7a_last_completed_bringup_phase()));
     armv7a_platform_early_console_puts("\r\n");
     armv7a_print_handler_stack_evidence(exception_stack_tag_name(kind), current_cpsr);
-    print_fault_registers(kind);
+    print_fault_observation(capture_fault_observation(kind));
     armv7a_platform_idle_forever();
 }

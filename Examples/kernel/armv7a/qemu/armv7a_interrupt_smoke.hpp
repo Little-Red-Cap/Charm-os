@@ -17,19 +17,6 @@ enum class Armv7aInterruptSmokeKind : std::uint8_t {
     kSgiFiqTimeout = 7,
 };
 
-struct Armv7aInterruptObservation {
-    bool seen = false;
-    bool special = false;
-    bool synthetic = false;
-    unsigned int intid = 0u;
-    std::uint32_t raw_acknowledge = 0u;
-    Armv7aPlatformInterruptControllerState controller{};
-    Armv7aPlatformInterruptLineState line{};
-    std::uint32_t handler_cpsr = 0u;
-    std::uint32_t handler_spsr = 0u;
-    std::uint32_t return_pc = 0u;
-};
-
 void armv7a_interrupt_smoke_begin(Armv7aInterruptSmokeKind kind);
 void armv7a_interrupt_smoke_finish();
 

@@ -1,3 +1,12 @@
+#include "armv7a_exception_contract.hpp"
+#include "armv7a_fault_observation_contract.hpp"
+#include "armv7a_fault_status_contract.hpp"
+#include "armv7a_handoff_contract.hpp"
+#include "armv7a_interrupt_contract.hpp"
+#include "armv7a_psr_contract.hpp"
+#include "armv7a_stack_observation_contract.hpp"
+#include "armv7a_translation_decode_contract.hpp"
+
 #include <array>
 #include <cstdio>
 #include <cstring>
@@ -124,6 +133,38 @@ namespace {
         }
     }
 
+    Armv7aHandoffLoadKind to_armv7a_handoff_load_kind(
+        platform::board::BootLoadKind kind) noexcept {
+        switch (kind) {
+        case platform::board::BootLoadKind::xip:
+            return Armv7aHandoffLoadKind::xip;
+        case platform::board::BootLoadKind::copy_to_ram:
+        default:
+            return Armv7aHandoffLoadKind::copy_to_ram;
+        }
+    }
+
+    Armv7aHandoffLoadKind to_armv7a_handoff_load_kind(boot::BootLoadKind kind) noexcept {
+        switch (kind) {
+        case boot::BootLoadKind::xip:
+            return Armv7aHandoffLoadKind::xip;
+        case boot::BootLoadKind::copy_to_ram:
+        default:
+            return Armv7aHandoffLoadKind::copy_to_ram;
+        }
+    }
+
+    platform::board::BootLoadKind to_board_boot_load_kind(
+        Armv7aHandoffLoadKind kind) noexcept {
+        switch (kind) {
+        case Armv7aHandoffLoadKind::xip:
+            return platform::board::BootLoadKind::xip;
+        case Armv7aHandoffLoadKind::copy_to_ram:
+        default:
+            return platform::board::BootLoadKind::copy_to_ram;
+        }
+    }
+
     enum class MockPrepareStep : util::u8 {
         mask_cpu_exceptions = 0,
         quiesce_interrupt_controller,
@@ -143,6 +184,7 @@ namespace {
         util::u32 expected_storage_entry_offset{0};
         util::usize expected_vector_base{0};
         util::usize expected_translation_table_base{0};
+        util::usize expected_image_load_base{0};
         platform::board::BootLoadKind expected_load_kind{
             platform::board::BootLoadKind::copy_to_ram};
         bool resolve_called{false};
@@ -326,6 +368,484 @@ namespace {
         return push_trace(*launch, MockPrepareStep::sync_context) &&
                prepare &&
                prepare.exec().payload_base != 0;
+    }
+
+    Armv7aHandoffPrepareContext make_armv7a_common_prepare_context(
+        const boot::BootExecution& execution,
+        util::usize vector_base,
+        util::usize translation_table_base,
+        util::usize image_load_base) noexcept {
+        return Armv7aHandoffPrepareContext{
+            .exec =
+                Armv7aHandoffExecRequest{
+                    .kind = to_armv7a_handoff_load_kind(execution.image.load.kind),
+                    .payload_base = execution.payload_base,
+                    .entry_addr = execution.entry_addr,
+                    .storage_payload_offset = execution.image.load.storage_payload_offset,
+                    .storage_entry_offset = execution.image.load.storage_entry_offset,
+                    .entry_offset = execution.image.load.entry_offset,
+                    .payload_size = execution.image.load.target.header.payload_size,
+                    .image_size = execution.image.load.target.header.image_size,
+                    .image_flags = execution.image.load.target.header.flags
+                },
+            .vector_base = vector_base,
+            .translation_table_base = translation_table_base,
+            .image_load_base = image_load_base
+        };
+    }
+
+    bool verify_armv7a_interrupt_contract() noexcept {
+        Armv7aTimerPendingSnapshot timer_idle{};
+        timer_idle.controller.highest_pending_special = true;
+
+        Armv7aTimerPendingSnapshot timer_pending{};
+        timer_pending.controller.highest_pending_special = true;
+        timer_pending.nonsecure_line.line_pending = true;
+
+        Armv7aTimerPendingSnapshot timer_hppir{};
+        timer_hppir.controller.highest_pending_special = false;
+
+        Armv7aSgiPendingSnapshot sgi_idle{};
+        sgi_idle.controller.highest_pending_special = true;
+
+        Armv7aSgiPendingSnapshot sgi_active{};
+        sgi_active.controller.highest_pending_special = true;
+        sgi_active.line.line_active = true;
+        sgi_active.line.line_group1 = true;
+
+        Armv7aSgiPendingSnapshot sgi_hppir{};
+        sgi_hppir.controller.highest_pending_special = false;
+
+        Armv7aInterruptObservation observation_unseen =
+            armv7a_make_unobserved_interrupt_observation(1023u);
+
+        Armv7aInterruptObservation observation_special{};
+        observation_special.seen = true;
+        observation_special.special = true;
+        observation_special.intid = 1023u;
+
+        Armv7aInterruptObservation observation_irq{};
+        observation_irq.seen = true;
+        observation_irq.intid = 1u;
+        observation_irq.line.line_group1 = true;
+
+        Armv7aInterruptObservation observation_monitor{};
+        observation_monitor.seen = true;
+        observation_monitor.handler_cpsr = 0x16u;
+
+        return !armv7a_timer_pending_observed(timer_idle) &&
+               armv7a_timer_pending_observed(timer_pending) &&
+               armv7a_timer_pending_observed(timer_hppir) &&
+               !armv7a_sgi_pending_observed(sgi_idle) &&
+               armv7a_sgi_pending_observed(sgi_active) &&
+               armv7a_sgi_pending_observed(sgi_hppir) &&
+               !armv7a_interrupt_delivery_observed(observation_unseen) &&
+               !armv7a_interrupt_delivery_observed(observation_special) &&
+               armv7a_interrupt_delivery_observed(observation_irq) &&
+               !armv7a_interrupt_observation_monitor_mode(observation_irq) &&
+               armv7a_interrupt_observation_monitor_mode(observation_monitor) &&
+               std::string_view(armv7a_interrupt_route_name(
+                                    Armv7aPlatformInterruptRoute::kIrq)) == "irq" &&
+               std::string_view(armv7a_interrupt_route_name(
+                                    Armv7aPlatformInterruptRoute::kFiq)) == "fiq" &&
+               observation_unseen.controller.highest_pending_special &&
+               observation_unseen.controller.highest_pending_intid == 1023u &&
+               observation_unseen.line.intid == 1023u &&
+               std::string_view(armv7a_platform_interrupt_line_group_name(sgi_active.line)) ==
+                   "group1";
+    }
+
+    bool verify_armv7a_exception_contract() noexcept {
+        Armv7aExceptionFrame undefined_frame{
+            .vector_id = kArmv7aExceptionUndefined,
+            .lr = 0x1004u,
+        };
+        Armv7aExceptionFrame prefetch_abort_frame{
+            .vector_id = kArmv7aExceptionPrefetchAbort,
+            .lr = 0x2004u,
+        };
+        Armv7aExceptionFrame data_abort_frame{
+            .vector_id = kArmv7aExceptionDataAbort,
+            .lr = 0x3008u,
+        };
+        Armv7aExceptionFrame reserved_frame{
+            .vector_id = kArmv7aExceptionReserved,
+            .lr = 0x4000u,
+        };
+        Armv7aExceptionFrame irq_frame{
+            .vector_id = kArmv7aExceptionIrq,
+            .lr = 0x5004u,
+        };
+        Armv7aExceptionFrame fiq_frame{
+            .vector_id = kArmv7aExceptionFiq,
+            .lr = 0x6004u,
+        };
+        Armv7aExceptionFrame svc_frame{
+            .vector_id = kArmv7aExceptionSvc,
+            .lr = 0x7004u,
+        };
+
+        Armv7aSvcObservation svc_idle{};
+        Armv7aSvcObservation svc_seen{
+            .seen = true,
+            .origin_spsr = 0x1Fu,
+            .handler_cpsr = 0x13u,
+            .return_pc = 0x7004u,
+        };
+
+        return armv7a_exception_kind(undefined_frame) == kArmv7aExceptionUndefined &&
+               armv7a_exception_kind(svc_frame) == kArmv7aExceptionSvc &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionUndefined)) ==
+                   "undefined" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionPrefetchAbort)) ==
+                   "prefetch abort" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionDataAbort)) ==
+                   "data abort" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionReserved)) ==
+                   "reserved vector" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionIrq)) == "irq" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionFiq)) == "fiq" &&
+               std::string_view(armv7a_exception_name(kArmv7aExceptionSvc)) == "svc" &&
+               armv7a_exception_pc(undefined_frame) == 0x1000u &&
+               armv7a_exception_return_pc(undefined_frame) == 0x1004u &&
+               armv7a_exception_pc(prefetch_abort_frame) == 0x2000u &&
+               armv7a_exception_return_pc(prefetch_abort_frame) == 0x2000u &&
+               armv7a_exception_pc(data_abort_frame) == 0x3000u &&
+               armv7a_exception_return_pc(data_abort_frame) == 0x3000u &&
+               armv7a_exception_pc(reserved_frame) == 0x4000u &&
+               armv7a_exception_return_pc(reserved_frame) == 0x4000u &&
+               armv7a_exception_pc(irq_frame) == 0x5000u &&
+               armv7a_exception_return_pc(irq_frame) == 0x5000u &&
+               armv7a_exception_pc(fiq_frame) == 0x6000u &&
+               armv7a_exception_return_pc(fiq_frame) == 0x6000u &&
+               armv7a_exception_pc(svc_frame) == 0x7000u &&
+               armv7a_exception_return_pc(svc_frame) == 0x7004u &&
+               !armv7a_svc_observation_observed(svc_idle) &&
+               armv7a_svc_observation_observed(svc_seen) &&
+               svc_seen.origin_spsr == 0x1Fu &&
+               svc_seen.handler_cpsr == 0x13u &&
+               svc_seen.return_pc == 0x7004u;
+    }
+
+    bool verify_armv7a_abort_decode_contract() noexcept {
+        constexpr auto data_fault = armv7a_decode_data_fault_status(0x0000081Du);
+        constexpr auto prefetch_fault = armv7a_decode_prefetch_fault_status(0x0000001Fu);
+
+        constexpr auto l1_section = armv7a_decode_l1_descriptor(0x40301234u, 0x40311C0Eu);
+        constexpr auto l1_page_table =
+            armv7a_decode_l1_descriptor(0x52567000u, 0x4021FC21u);
+        constexpr auto l2_small_page =
+            armv7a_decode_l2_descriptor(0x52545000u, 0x4056747Eu);
+        constexpr auto l2_fault = armv7a_decode_l2_descriptor(0x53000040u, 0x00000000u);
+
+        return data_fault.status_code == 0x0Du &&
+               data_fault.domain == 0x1u &&
+               data_fault.write &&
+               !data_fault.cache_maintenance &&
+               std::string_view(data_fault.description) == "section permission fault" &&
+               prefetch_fault.status_code == 0x0Fu &&
+               prefetch_fault.domain == 0x1u &&
+               !prefetch_fault.write &&
+               !prefetch_fault.cache_maintenance &&
+               std::string_view(prefetch_fault.description) == "page permission fault" &&
+               l1_section.index == 0x403u &&
+               l1_section.kind == Armv7aL1DescriptorKind::kSection &&
+               l1_section.table_base == 0x40311C00u &&
+               l1_section.domain == 0x0u &&
+               l1_section.tex == 0x1u &&
+               l1_section.access_permission == 0x3u &&
+               l1_section.memory_type == Armv7aMemoryType::kNormalCached &&
+               !l1_section.execute_never &&
+               l1_section.shareable &&
+               l1_section.cacheable &&
+               l1_section.bufferable &&
+               l1_page_table.index == 0x525u &&
+               l1_page_table.kind == Armv7aL1DescriptorKind::kPageTable &&
+               l1_page_table.table_base == 0x4021FC00u &&
+               l1_page_table.domain == 0x1u &&
+               l2_small_page.index == 0x45u &&
+               l2_small_page.kind == Armv7aL2DescriptorKind::kSmallPage &&
+               l2_small_page.physical_base == 0x40567000u &&
+               l2_small_page.tex == 0x1u &&
+               l2_small_page.access_permission == 0x3u &&
+               l2_small_page.memory_type == Armv7aMemoryType::kNormalCached &&
+               !l2_small_page.execute_never &&
+               l2_small_page.shareable &&
+               l2_small_page.cacheable &&
+               l2_small_page.bufferable &&
+               l2_fault.index == 0x0u &&
+               l2_fault.kind == Armv7aL2DescriptorKind::kFault &&
+               std::string_view(
+                   armv7a_l1_descriptor_kind_name(Armv7aL1DescriptorKind::kSection)) ==
+                   "section" &&
+               std::string_view(
+                   armv7a_l2_descriptor_kind_name(Armv7aL2DescriptorKind::kSmallPage)) ==
+                   "small page" &&
+               std::string_view(armv7a_memory_type_name(Armv7aMemoryType::kDevice)) ==
+                   "device";
+    }
+
+    bool verify_armv7a_fault_observation_contract() noexcept {
+        Armv7aFaultObservation svc_observation{
+            .kind = kArmv7aExceptionSvc,
+            .context =
+                Armv7aFaultContextSnapshot{
+                    .sctlr = 0x00C51079u,
+                    .ttbr0 = 0x40210000u,
+                    .ttbcr = 0x00000000u,
+                    .dacr = 0x00000001u,
+                },
+        };
+
+        Armv7aFaultObservation data_observation{
+            .kind = kArmv7aExceptionDataAbort,
+            .registers_valid = true,
+            .registers =
+                Armv7aFaultRegistersSnapshot{
+                    .syndrome = 0x0000081Fu,
+                    .fault_address = 0x54000040u,
+                    .aux_syndrome = 0x00000000u,
+                    .decode = armv7a_decode_data_fault_status(0x0000081Fu),
+                },
+            .map_valid = true,
+            .map =
+                Armv7aFaultMapSnapshot{
+                    .fault_address = 0x54000040u,
+                    .ttbr0 = 0x40210000u,
+                    .l1 = armv7a_decode_l1_descriptor(0x54000040u, 0x4021FC21u),
+                    .l2_descriptor = 0x40567003u,
+                    .l2 = armv7a_decode_l2_descriptor(0x54000040u, 0x40567003u),
+                },
+            .context =
+                Armv7aFaultContextSnapshot{
+                    .sctlr = 0x00C51079u,
+                    .ttbr0 = 0x40210000u,
+                    .ttbcr = 0x00000000u,
+                    .dacr = 0x00000005u,
+                },
+        };
+
+        Armv7aFaultObservation prefetch_observation{
+            .kind = kArmv7aExceptionPrefetchAbort,
+            .registers_valid = true,
+            .registers =
+                Armv7aFaultRegistersSnapshot{
+                    .syndrome = 0x0000001Du,
+                    .fault_address = 0x51000000u,
+                    .aux_syndrome = 0x00000000u,
+                    .decode = armv7a_decode_prefetch_fault_status(0x0000001Du),
+                },
+            .map_valid = true,
+            .map =
+                Armv7aFaultMapSnapshot{
+                    .fault_address = 0x51000000u,
+                    .ttbr0 = 0x40210000u,
+                    .l1 = armv7a_decode_l1_descriptor(0x51000000u, 0x40300C12u),
+                },
+            .context =
+                Armv7aFaultContextSnapshot{
+                    .sctlr = 0x00C51079u,
+                    .ttbr0 = 0x40210000u,
+                    .ttbcr = 0x00000000u,
+                    .dacr = 0x00000005u,
+                },
+        };
+
+        return !armv7a_exception_has_fault_registers(kArmv7aExceptionSvc) &&
+               armv7a_exception_has_fault_registers(kArmv7aExceptionPrefetchAbort) &&
+               armv7a_exception_has_fault_registers(kArmv7aExceptionDataAbort) &&
+               !armv7a_fault_map_has_domain(Armv7aL1DescriptorKind::kFault) &&
+               armv7a_fault_map_has_domain(Armv7aL1DescriptorKind::kPageTable) &&
+               armv7a_fault_map_has_domain(Armv7aL1DescriptorKind::kSection) &&
+               !armv7a_fault_map_uses_l2(Armv7aL1DescriptorKind::kSection) &&
+               armv7a_fault_map_uses_l2(Armv7aL1DescriptorKind::kPageTable) &&
+               armv7a_fault_map_has_l1_attributes(Armv7aL1DescriptorKind::kSection) &&
+               !armv7a_fault_map_has_l1_attributes(Armv7aL1DescriptorKind::kPageTable) &&
+               armv7a_fault_map_has_l2_attributes(Armv7aL2DescriptorKind::kSmallPage) &&
+               !armv7a_fault_map_has_l2_attributes(Armv7aL2DescriptorKind::kFault) &&
+               !armv7a_fault_observation_has_registers(svc_observation) &&
+               !armv7a_fault_observation_has_map(svc_observation) &&
+               armv7a_fault_observation_has_registers(data_observation) &&
+               armv7a_fault_observation_has_map(data_observation) &&
+               armv7a_fault_observation_has_registers(prefetch_observation) &&
+               armv7a_fault_observation_has_map(prefetch_observation) &&
+               data_observation.registers.decode.write &&
+               !data_observation.registers.decode.cache_maintenance &&
+               data_observation.map.l1.kind == Armv7aL1DescriptorKind::kPageTable &&
+               data_observation.map.l2.kind == Armv7aL2DescriptorKind::kSmallPage &&
+               data_observation.map.l2.execute_never &&
+               !data_observation.map.l2.shareable &&
+               !data_observation.map.l2.cacheable &&
+               !data_observation.map.l2.bufferable &&
+               data_observation.context.dacr == 0x00000005u &&
+               !prefetch_observation.registers.decode.write &&
+               prefetch_observation.map.l1.kind == Armv7aL1DescriptorKind::kSection &&
+               prefetch_observation.map.l1.execute_never &&
+               !prefetch_observation.map.l1.shareable &&
+               !prefetch_observation.map.l1.cacheable &&
+               !prefetch_observation.map.l1.bufferable &&
+               prefetch_observation.context.ttbr0 == 0x40210000u;
+    }
+
+    bool verify_armv7a_stack_observation_contract() noexcept {
+        constexpr Armv7aStackRange handler_range{
+            .base = 0x40500000u,
+            .top = 0x40501000u,
+        };
+        constexpr auto handler_observation = armv7a_make_handler_stack_observation(
+            0x00000012u, 0x40500FF0u, handler_range);
+        constexpr auto return_restored = armv7a_make_return_state_observation(
+            0x000000DFu, 0x000000DFu, 0x40500FE0u, handler_range);
+        constexpr auto return_irq_changed = armv7a_make_return_state_observation(
+            0x00000053u, 0x000000DFu, 0x40500FD0u, handler_range);
+        constexpr auto return_out_of_range = armv7a_make_return_state_observation(
+            0x000000D2u, 0x000000D2u, 0x40502000u, handler_range);
+        constexpr Armv7aStackRange empty_range{};
+
+        return armv7a_psr_mode(0x000000DFu) == 0x1Fu &&
+               armv7a_psr_mode(0x000000D2u) == 0x12u &&
+               armv7a_irq_masked(0x000000D2u) &&
+               !armv7a_irq_masked(0x00000052u) &&
+               armv7a_fiq_masked(0x000000DFu) &&
+               !armv7a_fiq_masked(0x0000009Fu) &&
+               std::string_view(armv7a_mode_name(0x000000DFu)) == "sys" &&
+               std::string_view(armv7a_mode_name(0x000000D2u)) == "irq" &&
+               std::string_view(armv7a_mode_name(0x00000013u)) == "svc" &&
+               armv7a_stack_range_has_bounds(handler_range) &&
+               !armv7a_stack_range_has_bounds(empty_range) &&
+               armv7a_stack_pointer_in_range(0x40500FF0u, handler_range) &&
+               !armv7a_stack_pointer_in_range(0x40502000u, handler_range) &&
+               armv7a_stack_used(0x40500FF0u, handler_range) == 0x10u &&
+               armv7a_stack_used(0x40502000u, handler_range) == 0u &&
+               handler_observation.current_psr == 0x00000012u &&
+               handler_observation.sp == 0x40500FF0u &&
+               handler_observation.used == 0x10u &&
+               handler_observation.in_range &&
+               return_restored.mode_restored &&
+               return_restored.irq_restored &&
+               return_restored.fiq_restored &&
+               return_restored.stack.in_range &&
+               return_restored.stack.used == 0x20u &&
+               !return_irq_changed.mode_restored &&
+               !return_irq_changed.irq_restored &&
+               return_irq_changed.fiq_restored &&
+               return_irq_changed.stack.in_range &&
+               return_out_of_range.mode_restored &&
+               return_out_of_range.irq_restored &&
+               return_out_of_range.fiq_restored &&
+               !return_out_of_range.stack.in_range &&
+               return_out_of_range.stack.used == 0u;
+    }
+
+    platform::board::BootExecRequest make_common_boot_exec_request(
+        const Armv7aHandoffPrepareContext& prepare) noexcept {
+        return platform::board::BootExecRequest{
+            .kind = to_board_boot_load_kind(prepare.exec.kind),
+            .payload_base = prepare.exec.payload_base,
+            .entry_addr = prepare.exec.entry_addr,
+            .storage_payload_offset = prepare.exec.storage_payload_offset,
+            .storage_entry_offset = prepare.exec.storage_entry_offset,
+            .entry_offset = prepare.exec.entry_offset,
+            .payload_size = prepare.exec.payload_size,
+            .image_size = prepare.exec.image_size,
+            .image_flags = prepare.exec.image_flags
+        };
+    }
+
+    bool matches_common_handoff_layout(const MockLaunchContext& launch,
+                                       const Armv7aHandoffPrepareContext& prepare) noexcept {
+        return prepare.vector_base == launch.expected_vector_base &&
+               prepare.translation_table_base == launch.expected_translation_table_base &&
+               (launch.expected_image_load_base == 0 ||
+                prepare.image_load_base == launch.expected_image_load_base);
+    }
+
+    bool matches_common_handoff_request(const MockLaunchContext& launch,
+                                        const Armv7aHandoffPrepareContext& prepare) noexcept {
+        return prepare.exec.kind == to_armv7a_handoff_load_kind(launch.expected_load_kind) &&
+               prepare.exec.storage_payload_offset == launch.expected_payload_offset &&
+               prepare.exec.storage_entry_offset == launch.expected_storage_entry_offset;
+    }
+
+    bool mask_common_cpu_exceptions(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::mask_cpu_exceptions) &&
+               prepare.exec.entry_addr != 0;
+    }
+
+    bool quiesce_common_interrupt_controller(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::quiesce_interrupt_controller) &&
+               prepare.exec.entry_addr != 0;
+    }
+
+    bool activate_common_payload_mapping(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::activate_payload_mapping) &&
+               matches_common_handoff_request(*launch, prepare) &&
+               matches_common_handoff_layout(*launch, prepare) &&
+               prepare.image_load_base != 0;
+    }
+
+    bool clean_common_data_cache(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::clean_data_cache) &&
+               prepare.exec.payload_size != 0;
+    }
+
+    bool invalidate_common_instruction_cache(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::invalidate_instruction_cache) &&
+               prepare.exec.image_size >= prepare.exec.payload_size &&
+               prepare.exec.image_flags != 0;
+    }
+
+    bool invalidate_common_tlb(void* ctx,
+                               const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::invalidate_tlb) &&
+               prepare.exec.entry_offset + prepare.exec.payload_base ==
+                   prepare.exec.entry_addr;
+    }
+
+    bool switch_common_exception_vectors(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::switch_exception_vectors) &&
+               matches_common_handoff_layout(*launch, prepare);
+    }
+
+    bool sync_common_context(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::sync_context) &&
+               prepare.exec.payload_base != 0;
+    }
+
+    Armv7aHandoffPrepareContract make_armv7a_mock_handoff_contract(
+        MockLaunchContext& launch) noexcept {
+        return Armv7aHandoffPrepareContract{
+            .hooks =
+                Armv7aHandoffPrepareHooks{
+                    .ctx = &launch,
+                    .mask_cpu_exceptions = mask_common_cpu_exceptions,
+                    .quiesce_interrupt_controller =
+                        quiesce_common_interrupt_controller,
+                    .activate_payload_mapping = activate_common_payload_mapping,
+                    .clean_data_cache = clean_common_data_cache,
+                    .invalidate_instruction_cache =
+                        invalidate_common_instruction_cache,
+                    .invalidate_tlb = invalidate_common_tlb,
+                    .switch_exception_vectors = switch_common_exception_vectors,
+                    .sync_context = sync_common_context
+                },
+            .policy = Armv7aHandoffPreparePolicy{}
+        };
     }
 
     std::vector<util::u8> make_header_frame(std::string_view file_name, util::u32 file_size) {
@@ -691,6 +1211,54 @@ int main() {
                          MockPrepareStep::entry
                      });
 
+    MockLaunchContext armv7_common_copy_ctx{
+        .expected_payload_offset = load.storage_payload_offset,
+        .expected_storage_entry_offset = load.storage_entry_offset,
+        .expected_vector_base = 0xA000u,
+        .expected_translation_table_base = 0x6000u,
+        .expected_image_load_base = armv7_copy_execution.payload_base
+    };
+    const auto armv7_common_copy_prepare = make_armv7a_common_prepare_context(
+        armv7_copy_execution,
+        armv7_common_copy_ctx.expected_vector_base,
+        armv7_common_copy_ctx.expected_translation_table_base,
+        armv7_common_copy_ctx.expected_image_load_base);
+    const auto armv7_common_copy_contract =
+        make_armv7a_mock_handoff_contract(armv7_common_copy_ctx);
+    const auto armv7_common_copy_report =
+        armv7a_run_handoff_prepare(
+            armv7_common_copy_prepare,
+            armv7_common_copy_contract);
+    const auto armv7_common_copy_request =
+        make_common_boot_exec_request(armv7_common_copy_prepare);
+    const bool armv7_common_copy_prepared =
+        static_cast<bool>(armv7_common_copy_report) &&
+        prepare_mock_execution(&armv7_common_copy_ctx, armv7_common_copy_request);
+    const bool armv7_common_copy_executed =
+        armv7_common_copy_prepared &&
+        jump_mock_execution(&armv7_common_copy_ctx, armv7_common_copy_request);
+    const bool armv7_common_copy_ok =
+        static_cast<bool>(armv7_common_copy_report) &&
+        armv7_common_copy_prepared &&
+        armv7_common_copy_executed &&
+        armv7_common_copy_ctx.prepare_called &&
+        armv7_common_copy_ctx.jump_called &&
+        armv7_common_copy_ctx.entry_called &&
+        expect_trace(armv7_common_copy_ctx,
+                     {
+                         MockPrepareStep::mask_cpu_exceptions,
+                         MockPrepareStep::quiesce_interrupt_controller,
+                         MockPrepareStep::activate_payload_mapping,
+                         MockPrepareStep::clean_data_cache,
+                         MockPrepareStep::invalidate_instruction_cache,
+                         MockPrepareStep::invalidate_tlb,
+                         MockPrepareStep::switch_exception_vectors,
+                         MockPrepareStep::sync_context,
+                         MockPrepareStep::prepare_jump,
+                         MockPrepareStep::jump,
+                         MockPrepareStep::entry
+                     });
+
     MockLaunchContext armv7_xip_ctx{
         .expected_payload_offset = xip_load.storage_payload_offset,
         .expected_storage_entry_offset = xip_load.storage_entry_offset,
@@ -772,6 +1340,62 @@ int main() {
                          MockPrepareStep::entry
                      });
 
+    MockLaunchContext armv7_common_xip_ctx{
+        .expected_payload_offset = xip_load.storage_payload_offset,
+        .expected_storage_entry_offset = xip_load.storage_entry_offset,
+        .expected_vector_base = 0xB000u,
+        .expected_translation_table_base = 0x7000u,
+        .expected_image_load_base = armv7_xip_execution.payload_base,
+        .expected_load_kind = platform::board::BootLoadKind::xip
+    };
+    const auto armv7_common_xip_prepare = make_armv7a_common_prepare_context(
+        armv7_xip_execution,
+        armv7_common_xip_ctx.expected_vector_base,
+        armv7_common_xip_ctx.expected_translation_table_base,
+        armv7_common_xip_ctx.expected_image_load_base);
+    const auto armv7_common_xip_contract =
+        make_armv7a_mock_handoff_contract(armv7_common_xip_ctx);
+    const auto armv7_common_xip_report =
+        armv7a_run_handoff_prepare(
+            armv7_common_xip_prepare,
+            armv7_common_xip_contract);
+    const auto armv7_common_xip_request =
+        make_common_boot_exec_request(armv7_common_xip_prepare);
+    const bool armv7_common_xip_prepared =
+        static_cast<bool>(armv7_common_xip_report) &&
+        prepare_mock_execution(&armv7_common_xip_ctx, armv7_common_xip_request);
+    const bool armv7_common_xip_executed =
+        armv7_common_xip_prepared &&
+        jump_mock_execution(&armv7_common_xip_ctx, armv7_common_xip_request);
+    const bool armv7_common_xip_ok =
+        static_cast<bool>(armv7_common_xip_report) &&
+        armv7_common_xip_prepared &&
+        armv7_common_xip_executed &&
+        armv7_common_xip_ctx.prepare_called &&
+        armv7_common_xip_ctx.jump_called &&
+        armv7_common_xip_ctx.entry_called &&
+        expect_trace(armv7_common_xip_ctx,
+                     {
+                         MockPrepareStep::mask_cpu_exceptions,
+                         MockPrepareStep::quiesce_interrupt_controller,
+                         MockPrepareStep::activate_payload_mapping,
+                         MockPrepareStep::clean_data_cache,
+                         MockPrepareStep::invalidate_instruction_cache,
+                         MockPrepareStep::invalidate_tlb,
+                         MockPrepareStep::switch_exception_vectors,
+                         MockPrepareStep::sync_context,
+                         MockPrepareStep::prepare_jump,
+                         MockPrepareStep::jump,
+                         MockPrepareStep::entry
+                     });
+    const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
+    const bool armv7_exception_contract_ok = verify_armv7a_exception_contract();
+    const bool armv7_abort_decode_contract_ok = verify_armv7a_abort_decode_contract();
+    const bool armv7_fault_observation_contract_ok =
+        verify_armv7a_fault_observation_contract();
+    const bool armv7_stack_observation_contract_ok =
+        verify_armv7a_stack_observation_contract();
+
     const bool ok = slot_a_written &&
                     transfer_ok &&
                     static_cast<bool>(download) &&
@@ -819,7 +1443,14 @@ int main() {
                     bad_entry_rejected &&
                     xip_ok &&
                     armv7_copy_ok &&
-                    armv7_xip_ok;
+                    armv7_xip_ok &&
+                    armv7_common_copy_ok &&
+                    armv7_common_xip_ok &&
+                    armv7_interrupt_contract_ok &&
+                    armv7_exception_contract_ok &&
+                    armv7_abort_decode_contract_ok &&
+                    armv7_fault_observation_contract_ok &&
+                    armv7_stack_observation_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -870,6 +1501,19 @@ int main() {
     std::printf("[boot] armv7_copy=%d armv7_xip=%d\n",
                 armv7_copy_ok ? 1 : 0,
                 armv7_xip_ok ? 1 : 0);
+    std::printf("[boot] armv7_common_copy=%d armv7_common_xip=%d\n",
+                armv7_common_copy_ok ? 1 : 0,
+                armv7_common_xip_ok ? 1 : 0);
+    std::printf("[boot] armv7_interrupt_contract=%d\n",
+                armv7_interrupt_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_exception_contract=%d\n",
+                armv7_exception_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_abort_decode_contract=%d\n",
+                armv7_abort_decode_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_fault_observation_contract=%d\n",
+                armv7_fault_observation_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_stack_observation_contract=%d\n",
+                armv7_stack_observation_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

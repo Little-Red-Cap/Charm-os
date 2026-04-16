@@ -126,3 +126,10 @@ constexpr bool armv7a_svc_service_matches(
     return armv7a_svc_service_sampled(observation) &&
            observation.immediate == immediate;
 }
+
+constexpr std::uint64_t armv7a_svc_args01_u64(
+    const Armv7aSvcObservation& observation) noexcept
+{
+    return (static_cast<std::uint64_t>(observation.arg1) << 32u) |
+           static_cast<std::uint64_t>(observation.arg0);
+}

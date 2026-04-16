@@ -11,6 +11,7 @@ void armv7a_run_interrupt_observation_sequence()
 {
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSvcSmoke);
     armv7a_svc_smoke_test();
+    armv7a_svc_sleep_smoke_test();
     const auto svc_observation = armv7a_svc_last_observation();
     if (armv7a_svc_observation_observed(svc_observation)) {
         armv7a_print_return_state_evidence("svc", svc_observation.entry, armv7a_read_cpsr());

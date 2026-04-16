@@ -62,6 +62,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "context-switch-smoke";
     case Armv7aBringupPhase::kSchedulerDispatch:
         return "scheduler-dispatch";
+    case Armv7aBringupPhase::kRuntimeBridge:
+        return "runtime-bridge";
     case Armv7aBringupPhase::kHandoffPrepare:
         return "handoff-prepare";
     case Armv7aBringupPhase::kIdle:

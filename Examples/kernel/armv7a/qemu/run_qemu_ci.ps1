@@ -129,10 +129,13 @@ $expected = @(
     "ARMv7-A phase complete, stage=context-switch-smoke",
     "ARMv7-A phase, stage=scheduler-dispatch",
     "ARMv7-A phase complete, stage=scheduler-dispatch",
+    "ARMv7-A phase, stage=runtime-bridge",
+    "ARMv7-A phase complete, stage=runtime-bridge",
     "ARMv7-A phase, stage=handoff-prepare",
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=idle",
-    "ARMv7-A SVC vector active, imm=0x000043"
+    "ARMv7-A SVC vector active, imm=0x000043",
+    "ARMv7-A SVC vector active, imm=0x000044"
 )
 
 Start-Sleep -Seconds $TimeoutSec
@@ -240,6 +243,9 @@ if (($log -notmatch "ARMv7-A timer pending evidence, cntp_ctl=0x[0-9A-F]{8}, sec
 if (($log -notmatch "ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A SVC vector active, imm=0x000043, origin-mode=sys, handler-mode=svc, return-pc=0x..."
 }
+if (($log -notmatch "ARMv7-A SVC vector active, imm=0x000044, origin-mode=sys, handler-mode=svc, return-pc=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A SVC vector active, imm=0x000044, origin-mode=sys, handler-mode=svc, return-pc=0x..."
+}
 if (($log -notmatch "ARMv7-A handler stack, vector=svc, mode=svc, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
     $missing += "ARMv7-A handler stack, vector=svc..."
 }
@@ -273,7 +279,7 @@ if (($log -notmatch "ARMv7-A kernel ingress, vector-base=0x[0-9A-F]{8}, tick-mod
 if (($log -notmatch "ARMv7-A scheduler tick ingress, source=timer-irq, route=irq, mode=oneshot, intid=(29|30), hz=[0-9]+, now=0x[0-9A-F]{16}, source-match=yes, counter=yes, isr-safe=yes, retired=yes, handoff=yes, rearm=yes")) {
     $missing += "ARMv7-A scheduler tick ingress, source=timer-irq..."
 }
-if (($log -notmatch "ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x13579BDF, arg1=0x2468ACE0, arg2=0x11223344, arg3=0x55667788, service-ready=yes, args-ready=yes, trap=yes")) {
+if (($log -notmatch "ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x00000001, arg1=0x00000001, arg2=0x00000000, arg3=0x00000000, service-ready=yes, args-ready=yes, trap=yes")) {
     $missing += "ARMv7-A runtime trap ingress, source=svc..."
 }
 if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0-9A-F]{8}, stack-top=0x[0-9A-F]{8}, prepared-sp=0x[0-9A-F]{8}, resume=0x[0-9A-F]{8}, return=0x[0-9A-F]{8}, entry=0x[0-9A-F]{8}, arg=0x[0-9A-F]{8}, aligned=yes, in-range=yes, ready=yes")) {
@@ -284,6 +290,9 @@ if (($log -notmatch "ARMv7-A context switch smoke, main-before=0x[0-9A-F]{8}, ma
 }
 if (($log -notmatch "ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, dispatch=yes")) {
     $missing += "ARMv7-A scheduler dispatch, task=svc-trap..."
+}
+if (($log -notmatch "ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000002, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes")) {
+    $missing += "ARMv7-A runtime bridge, tick=yes..."
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."

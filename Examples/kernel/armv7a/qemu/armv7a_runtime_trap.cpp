@@ -3,6 +3,7 @@
 #include "armv7a_diag_console.hpp"
 #include "armv7a_exception_observation.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_runtime_bridge_contract.hpp"
 
 namespace {
 const char* armv7a_runtime_trap_path_name(
@@ -20,7 +21,14 @@ const char* armv7a_runtime_trap_path_name(
 
 Armv7aRuntimeTrapObservation armv7a_capture_runtime_trap_ingress() noexcept
 {
-    const auto svc = armv7a_svc_last_observation();
+    return armv7a_capture_runtime_trap_ingress_for_service(
+        kArmv7aRuntimeBridgeYieldServiceId);
+}
+
+Armv7aRuntimeTrapObservation armv7a_capture_runtime_trap_ingress_for_service(
+    std::uint32_t service_id) noexcept
+{
+    const auto svc = armv7a_svc_observation_for_immediate(service_id);
     const auto observed = armv7a_svc_observation_observed(svc);
 
     return Armv7aRuntimeTrapObservation{

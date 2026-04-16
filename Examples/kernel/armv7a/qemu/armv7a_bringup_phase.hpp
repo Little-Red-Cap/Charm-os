@@ -27,6 +27,7 @@ enum class Armv7aBringupPhase : unsigned char {
     kRuntimeTrapIngress,
     kContextSwitchSmoke,
     kSchedulerDispatch,
+    kRuntimeBridge,
     kHandoffPrepare,
     kIdle,
 };

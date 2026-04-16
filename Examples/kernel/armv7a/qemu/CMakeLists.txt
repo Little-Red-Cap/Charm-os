@@ -98,6 +98,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_scheduler_dispatch.cpp
     armv7a_scheduler_tick.cpp
     armv7a_runtime_trap.cpp
+    armv7a_runtime_bridge.cpp
     armv7a_diag_console.cpp
     armv7a_diag_context.cpp
     armv7a_handler_stack.cpp

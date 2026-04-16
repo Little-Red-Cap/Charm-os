@@ -6,6 +6,7 @@
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
 #include "armv7a_kernel_port_contract.hpp"
+#include "armv7a_runtime_bridge_contract.hpp"
 #include "armv7a_scheduler_dispatch_contract.hpp"
 #include "armv7a_scheduler_tick_contract.hpp"
 #include "armv7a_runtime_trap_contract.hpp"
@@ -1534,18 +1535,18 @@ namespace {
 
         const Armv7aRuntimeTrapObservation ready{
             .path = Armv7aRuntimeTrapPath::svc_immediate,
-            .service_id = 0x43u,
+            .service_id = kArmv7aRuntimeBridgeYieldServiceId,
             .service_id_sampled = true,
             .arguments_sampled = true,
             .svc =
                 Armv7aSvcObservation{
                     .entry = armv7a_make_vector_entry_observation(
                         0x1Fu, 0x13u, 0x7004u),
-                    .immediate = 0x43u,
-                    .arg0 = 0x13579BDFu,
-                    .arg1 = 0x2468ACE0u,
-                    .arg2 = 0x11223344u,
-                    .arg3 = 0x55667788u,
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000001u,
+                    .arg1 = 0x00000001u,
+                    .arg2 = 0x00000000u,
+                    .arg3 = 0x00000000u,
                     .arguments_sampled = true,
                 },
         };
@@ -1557,7 +1558,7 @@ namespace {
         arguments_missing.arguments_sampled = false;
 
         auto mismatched_service = ready;
-        mismatched_service.service_id = 0x44u;
+        mismatched_service.service_id = kArmv7aRuntimeBridgeSleepServiceId;
 
         auto missing_svc_args = ready;
         missing_svc_args.svc.arguments_sampled = false;
@@ -1578,6 +1579,148 @@ namespace {
                !armv7a_runtime_trap_ready(mismatched_service) &&
                !armv7a_runtime_trap_arguments_ready(missing_svc_args) &&
                !armv7a_runtime_trap_ready(missing_svc_args);
+    }
+
+    bool verify_armv7a_runtime_bridge_contract() noexcept {
+        auto delivery = armv7a_make_unobserved_interrupt_observation(1023u);
+        delivery.intid = 30u;
+        delivery.line = Armv7aPlatformInterruptLineState{
+            .intid = 30u,
+            .group = 0u,
+            .enabled = 0u,
+            .pending = 0u,
+            .active = 0u,
+            .line_group1 = true,
+            .line_enabled = true,
+            .line_pending = true,
+            .line_active = true,
+        };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 1023u,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 30u,
+                .group = 0u,
+                .enabled = 0u,
+                .pending = 0u,
+                .active = 0u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = false,
+                .line_active = false,
+            });
+
+        const auto tick = Armv7aSchedulerTickIngressObservation{
+            .tick_mode = Armv7aKernelTickMode::one_shot,
+            .route = Armv7aPlatformInterruptRoute::kIrq,
+            .frequency_hz = 62500000u,
+            .now = 0x12345678u,
+            .now_sampled = true,
+            .timer_source = true,
+            .scheduler_tick_isr_safe = true,
+            .delivery = delivery,
+            .completion = completion,
+        };
+
+        const auto yield_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
+            .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+            .arg0 = 0x00000001u,
+            .arg1 = 0x00000001u,
+            .arg2 = 0x00000000u,
+            .arg3 = 0x00000000u,
+            .arguments_sampled = true,
+        };
+        const auto sleep_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7008u),
+            .immediate = kArmv7aRuntimeBridgeSleepServiceId,
+            .arg0 = 0x00000005u,
+            .arg1 = 0x00000000u,
+            .arg2 = 0x00000002u,
+            .arg3 = 0x00000005u,
+            .arguments_sampled = true,
+        };
+        const auto unknown_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x700Cu),
+            .immediate = 0x45u,
+            .arg0 = 0xDEADBEEFu,
+            .arg1 = 0xCAFEBABEu,
+            .arg2 = 0x00000000u,
+            .arg3 = 0x00000000u,
+            .arguments_sampled = true,
+        };
+
+        const auto yield = armv7a_decode_runtime_bridge_trap(yield_observation);
+        const auto sleep = armv7a_decode_runtime_bridge_trap(sleep_observation);
+        const auto unknown = armv7a_decode_runtime_bridge_trap(unknown_observation);
+
+        const auto dispatch = Armv7aSchedulerDispatchObservation{
+            .task_path = Armv7aSchedulerDispatchPath::svc_trap,
+            .isr_path = Armv7aSchedulerDispatchPath::timer_tick,
+            .context_switch_ready = true,
+            .context_round_trip = true,
+            .task = yield_observation,
+            .isr = tick,
+        };
+
+        const Armv7aRuntimeBridgeObservation ready{
+            .tick = tick,
+            .yield = yield,
+            .sleep = sleep,
+            .dispatch = dispatch,
+        };
+
+        auto missing_isr_safe = ready;
+        missing_isr_safe.tick.scheduler_tick_isr_safe = false;
+
+        auto missing_yield_arguments = ready;
+        missing_yield_arguments.yield.arguments_ready = false;
+
+        auto missing_sleep_arguments = ready;
+        missing_sleep_arguments.sleep.arguments_ready = false;
+
+        auto missing_dispatch = ready;
+        missing_dispatch.dispatch.context_round_trip = false;
+
+        return yield.kind == Armv7aRuntimeBridgeTrapKind::yield_current &&
+               yield.service_id == kArmv7aRuntimeBridgeYieldServiceId &&
+               yield.event_id == 0x00000001u &&
+               yield.event_payload == 0x00000001u &&
+               yield.service_ready &&
+               yield.arguments_ready &&
+               sleep.kind == Armv7aRuntimeBridgeTrapKind::sleep_current_until &&
+               sleep.service_id == kArmv7aRuntimeBridgeSleepServiceId &&
+               sleep.due == 0x0000000000000005ull &&
+               sleep.event_id == 0x00000002u &&
+               sleep.event_payload == 0x00000005u &&
+               sleep.service_ready &&
+               sleep.arguments_ready &&
+               unknown.kind == Armv7aRuntimeBridgeTrapKind::none &&
+               unknown.service_id == 0x45u &&
+               !unknown.service_ready &&
+               unknown.arguments_ready &&
+               armv7a_runtime_bridge_yield_request_ready(yield) &&
+               armv7a_runtime_bridge_sleep_request_ready(sleep) &&
+               armv7a_runtime_bridge_tick_ready(ready) &&
+               armv7a_runtime_bridge_isr_defer_ready(ready) &&
+               armv7a_runtime_bridge_dispatch_ready(ready) &&
+               armv7a_runtime_bridge_ready(ready) &&
+               !armv7a_runtime_bridge_isr_defer_ready(missing_isr_safe) &&
+               !armv7a_runtime_bridge_ready(missing_isr_safe) &&
+               !armv7a_runtime_bridge_yield_request_ready(
+                   missing_yield_arguments.yield) &&
+               !armv7a_runtime_bridge_ready(missing_yield_arguments) &&
+               !armv7a_runtime_bridge_sleep_request_ready(
+                   missing_sleep_arguments.sleep) &&
+               !armv7a_runtime_bridge_ready(missing_sleep_arguments) &&
+               !armv7a_runtime_bridge_dispatch_ready(missing_dispatch) &&
+               !armv7a_runtime_bridge_ready(missing_dispatch);
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -2259,6 +2402,8 @@ int main() {
         verify_armv7a_scheduler_dispatch_contract();
     const bool armv7_runtime_trap_contract_ok =
         verify_armv7a_runtime_trap_contract();
+    const bool armv7_runtime_bridge_contract_ok =
+        verify_armv7a_runtime_bridge_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -2322,10 +2467,11 @@ int main() {
                      armv7_interrupt_timeout_contract_ok &&
                      armv7_special_interrupt_contract_ok &&
                      armv7_kernel_port_contract_ok &&
-                     armv7_thread_context_contract_ok &&
-                     armv7_scheduler_tick_contract_ok &&
-                     armv7_scheduler_dispatch_contract_ok &&
-                     armv7_runtime_trap_contract_ok;
+                    armv7_thread_context_contract_ok &&
+                    armv7_scheduler_tick_contract_ok &&
+                    armv7_scheduler_dispatch_contract_ok &&
+                     armv7_runtime_trap_contract_ok &&
+                     armv7_runtime_bridge_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -2411,6 +2557,8 @@ int main() {
                 armv7_scheduler_dispatch_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_runtime_trap_contract=%d\n",
                 armv7_runtime_trap_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_bridge_contract=%d\n",
+                armv7_runtime_bridge_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

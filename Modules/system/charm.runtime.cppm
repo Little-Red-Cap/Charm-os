@@ -1,6 +1,8 @@
 export module charm.runtime;
 
-// Backward-compatible facade used by older examples.
+// Legacy compatibility facade retained for examples and migration.
+// New Modules/* code should prefer subsystem entries such as
+// charm.system / charm.io / charm.net.
 export import charm.io;
 export import charm.net;
 export import charm.system;

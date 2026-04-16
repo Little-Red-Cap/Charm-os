@@ -50,7 +50,6 @@ export import service_pool;
 export import service_qr_bitmap;
 export import service_ring_buffer;
 export import service_stream;
-export import service_fifo;
 
 export import alg_circle;
 export import alg_compress;

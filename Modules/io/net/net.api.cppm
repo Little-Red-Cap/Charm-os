@@ -47,6 +47,19 @@ export namespace net {
             return {};
         }
 
+        [[nodiscard]] static Result<TcpClient> connected(const Stack& stack,
+                                                         const Endpoint& remote) noexcept {
+            TcpClient client{};
+            auto ok = client.connect(stack, remote);
+            if (!ok) return util::unexpected(ok.error());
+            return Result<TcpClient>{std::in_place, std::move(client)};
+        }
+
+        [[nodiscard]] static Result<TcpClient> connected_loopback(const Stack& stack,
+                                                                  util::u16 remote_port) noexcept {
+            return connected(stack, Endpoint::ipv4_loopback(remote_port));
+        }
+
         [[nodiscard]] Result<void> connect_loopback(const Stack& stack,
                                                     util::u16 remote_port) noexcept {
             return connect(stack, Endpoint::ipv4_loopback(remote_port));
@@ -56,8 +69,18 @@ export namespace net {
             return socket_.send(buf);
         }
 
+        template <util::usize Size>
+        [[nodiscard]] IoResult send(const util::u8 (&buf)[Size]) noexcept {
+            return send(ByteView{buf, Size});
+        }
+
         [[nodiscard]] IoResult recv(MutByteView buf) noexcept {
             return socket_.recv(buf);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] IoResult recv(util::u8 (&buf)[Size]) noexcept {
+            return recv(MutByteView{buf, Size});
         }
 
         [[nodiscard]] Result<EventMask> poll() const noexcept {
@@ -115,6 +138,27 @@ export namespace net {
                 return util::unexpected(listening.error());
             }
             return {};
+        }
+
+        [[nodiscard]] static Result<TcpListener> listening(const Stack& stack,
+                                                           const Endpoint& local,
+                                                           util::u16 backlog = 4) noexcept {
+            TcpListener listener{};
+            auto ok = listener.listen(stack, local, backlog);
+            if (!ok) return util::unexpected(ok.error());
+            return Result<TcpListener>{std::in_place, std::move(listener)};
+        }
+
+        [[nodiscard]] static Result<TcpListener> listening_any(const Stack& stack,
+                                                               util::u16 local_port,
+                                                               util::u16 backlog = 4) noexcept {
+            return listening(stack, Endpoint::ipv4_any(local_port), backlog);
+        }
+
+        [[nodiscard]] static Result<TcpListener> listening_loopback(const Stack& stack,
+                                                                    util::u16 local_port,
+                                                                    util::u16 backlog = 4) noexcept {
+            return listening(stack, Endpoint::ipv4_loopback(local_port), backlog);
         }
 
         [[nodiscard]] Result<void> listen_any(const Stack& stack,
@@ -185,6 +229,24 @@ export namespace net {
             return socket_.open(stack.provider(), SocketKind::udp);
         }
 
+        [[nodiscard]] static Result<UdpSocket> bound(const Stack& stack,
+                                                     const Endpoint& local) noexcept {
+            UdpSocket socket{};
+            auto ok = socket.bind(stack, local);
+            if (!ok) return util::unexpected(ok.error());
+            return Result<UdpSocket>{std::in_place, std::move(socket)};
+        }
+
+        [[nodiscard]] static Result<UdpSocket> bound_any(const Stack& stack,
+                                                         util::u16 local_port) noexcept {
+            return bound(stack, Endpoint::ipv4_any(local_port));
+        }
+
+        [[nodiscard]] static Result<UdpSocket> bound_loopback(const Stack& stack,
+                                                              util::u16 local_port) noexcept {
+            return bound(stack, Endpoint::ipv4_loopback(local_port));
+        }
+
         [[nodiscard]] Result<void> bind(const Stack& stack, const Endpoint& local) noexcept {
             if (!valid()) {
                 auto opened = open(stack);
@@ -210,6 +272,19 @@ export namespace net {
             return socket_.connect(remote);
         }
 
+        [[nodiscard]] static Result<UdpSocket> connected(const Stack& stack,
+                                                         const Endpoint& remote) noexcept {
+            UdpSocket socket{};
+            auto ok = socket.connect(stack, remote);
+            if (!ok) return util::unexpected(ok.error());
+            return Result<UdpSocket>{std::in_place, std::move(socket)};
+        }
+
+        [[nodiscard]] static Result<UdpSocket> connected_loopback(const Stack& stack,
+                                                                  util::u16 remote_port) noexcept {
+            return connected(stack, Endpoint::ipv4_loopback(remote_port));
+        }
+
         [[nodiscard]] Result<void> connect_loopback(const Stack& stack,
                                                     util::u16 remote_port) noexcept {
             return connect(stack, Endpoint::ipv4_loopback(remote_port));
@@ -219,16 +294,36 @@ export namespace net {
             return socket_.send(buf);
         }
 
+        template <util::usize Size>
+        [[nodiscard]] IoResult send(const util::u8 (&buf)[Size]) noexcept {
+            return send(ByteView{buf, Size});
+        }
+
         [[nodiscard]] IoResult recv(MutByteView buf) noexcept {
             return socket_.recv(buf);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] IoResult recv(util::u8 (&buf)[Size]) noexcept {
+            return recv(MutByteView{buf, Size});
         }
 
         [[nodiscard]] IoResult send_to(const Endpoint& peer, ByteView buf) noexcept {
             return socket_.send_to(peer, buf);
         }
 
+        template <util::usize Size>
+        [[nodiscard]] IoResult send_to(const Endpoint& peer, const util::u8 (&buf)[Size]) noexcept {
+            return send_to(peer, ByteView{buf, Size});
+        }
+
         [[nodiscard]] IoResult recv_from(MutByteView buf, Endpoint& peer) noexcept {
             return socket_.recv_from(&peer, buf);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] IoResult recv_from(util::u8 (&buf)[Size], Endpoint& peer) noexcept {
+            return recv_from(MutByteView{buf, Size}, peer);
         }
 
         [[nodiscard]] Result<EventMask> poll() const noexcept {
@@ -313,56 +408,56 @@ namespace net {
     inline bool net_api_self_check() noexcept {
         detail::ApiDummyProvider provider{};
         Stack stack{provider};
-        TcpListener listener{};
-        TcpClient client{};
-        TcpListener listener_any{};
-        TcpClient client_any{};
-        UdpSocket udp{};
-        UdpSocket udp_connected{};
-        UdpSocket udp_loopback{};
-        UdpSocket udp_connected_loopback{};
         Endpoint peer{};
         util::u8 rx[4]{};
         util::u8 tx[3]{1, 2, 3};
 
         if (!stack.valid()) return false;
-        if (!listener.listen_loopback(stack, 1883, 2)) return false;
-        if (!client.connect_loopback(stack, 1883)) return false;
-        auto accepted_loopback = listener.accept(peer);
+        auto listener = TcpListener::listening_loopback(stack, 1883, 2);
+        if (!listener) return false;
+        auto client = TcpClient::connected_loopback(stack, 1883);
+        if (!client) return false;
+        auto accepted_loopback = listener->accept(peer);
         if (!accepted_loopback) return false;
         if (!accepted_loopback->valid()) return false;
         if (peer.port != 5001) return false;
-        if (!client.send(ByteView{tx, 3})) return false;
-        if (!accepted_loopback->recv(MutByteView{rx, 4})) return false;
+        if (!client->send(tx)) return false;
+        if (!accepted_loopback->recv(rx)) return false;
         if (rx[0] != 0x7E) return false;
-        if (!client.close()) return false;
+        if (!client->close()) return false;
         if (!accepted_loopback->close()) return false;
-        if (!listener.close()) return false;
+        if (!listener->close()) return false;
 
-        if (!listener_any.listen_any(stack, 1884, 2)) return false;
-        if (!client_any.connect_loopback(stack, 1884)) return false;
-        auto accepted_any = listener_any.accept();
+        auto listener_any = TcpListener::listening_any(stack, 1884, 2);
+        if (!listener_any) return false;
+        auto client_any = TcpClient::connected_loopback(stack, 1884);
+        if (!client_any) return false;
+        auto accepted_any = listener_any->accept();
         if (!accepted_any) return false;
         if (!accepted_any->valid()) return false;
-        if (!client_any.close()) return false;
+        if (!client_any->close()) return false;
         if (!accepted_any->close()) return false;
-        if (!listener_any.close()) return false;
+        if (!listener_any->close()) return false;
 
-        if (!udp.bind_any(stack, 5000)) return false;
-        if (!udp_connected.connect_loopback(stack, 5000)) return false;
-        if (!udp_connected.send(ByteView{tx, 3})) return false;
-        if (!udp.recv(MutByteView{rx, 4})) return false;
+        auto udp = UdpSocket::bound_any(stack, 5000);
+        if (!udp) return false;
+        auto udp_connected = UdpSocket::connected_loopback(stack, 5000);
+        if (!udp_connected) return false;
+        if (!udp_connected->send(tx)) return false;
+        if (!udp->recv(rx)) return false;
         if (rx[0] != 0x7E) return false;
-        if (!udp.close()) return false;
-        if (!udp_connected.close()) return false;
+        if (!udp->close()) return false;
+        if (!udp_connected->close()) return false;
 
-        if (!udp_loopback.bind_loopback(stack, 5001)) return false;
-        if (!udp_connected_loopback.connect_loopback(stack, 5001)) return false;
-        if (!udp_connected_loopback.send(ByteView{tx, 3})) return false;
-        if (!udp_loopback.recv(MutByteView{rx, 4})) return false;
+        auto udp_loopback = UdpSocket::bound_loopback(stack, 5001);
+        if (!udp_loopback) return false;
+        auto udp_connected_loopback = UdpSocket::connected_loopback(stack, 5001);
+        if (!udp_connected_loopback) return false;
+        if (!udp_connected_loopback->send(tx)) return false;
+        if (!udp_loopback->recv(rx)) return false;
         if (rx[0] != 0x7E) return false;
-        if (!udp_loopback.close()) return false;
-        if (!udp_connected_loopback.close()) return false;
+        if (!udp_loopback->close()) return false;
+        if (!udp_connected_loopback->close()) return false;
         return true;
     }
 }

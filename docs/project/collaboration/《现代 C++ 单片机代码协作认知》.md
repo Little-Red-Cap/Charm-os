@@ -424,7 +424,7 @@ void legacy_wrapper() {
 
 1. **自审**：完成 9.3 审查清单
 2. **代码注释**：添加 `ESCAPE_HATCH` 标记和理由
-3. **文档记录**：在 `docs/escape_hatches.md` 中记录
+3. **文档记录**：在 `docs/project/escape_hatches.md` 中记录
 4. **定期复审**：每季度评估是否仍然必要
 
 ---

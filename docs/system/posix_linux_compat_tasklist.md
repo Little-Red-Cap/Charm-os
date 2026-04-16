@@ -1,278 +1,220 @@
-# Linux 生态兼容任务清单（MCU 目标）
+# Linux 生态兼容任务清单（维护态）
 
-本清单以“单片机可运行 Linux 用户态软件”为目标，按依赖与收益排序。
-原则：先跑 BusyBox Phase 2/3，再扩展到更完整的 POSIX 语义。
+这份清单不再用于驱动一条“持续铺开 POSIX 能力面”的主线工程。
 
-## 目标分级
-- 档 1：源码级移植（可改代码）
-- 档 2：接口级兼容（不改逻辑，POSIX 层可编译）
-- 档 3：用户态环境接近 Linux（BusyBox/sh + 常用工具链可跑）
+从当前仓库状态看，`POSIX v0` 已经收口，当前更合适的工作方式是：
 
-## 里程碑与验收
+- 把已有主干稳定下来；
+- 只在真实程序或真实阻塞点出现时做增量补齐；
+- 每次增量都绑定最小契约、最小 smoke 与同步文档更新。
 
-### 里程碑 A：最小闭环（Phase 2 基础）
-- 进程：`spawn` + `waitpid`（无 fork）
-- FD：`fd_table`、`dup/dup2/close`
-- 管道：`pipe` EOF/EPIPE
-- 文件：`open/read/write/stat/fstat`
-- 终端：`stdin/stdout/stderr` 绑定、`isatty`
-- 错误：`errno` 映射与 thread_local
+关联文档：
 
-验收：
-- BusyBox Phase 2 核心命令集
-- QEMU smoke：stdout 可观测、失败可定位
+- 收口判定：`docs/system/posix_v0_closure_checklist.md`
+- 阶段总结：`docs/system/posix_stage_summary.md`
+- 总览：`docs/system/posix_support_overview.md`
+- 维护期协作：`docs/system/posix_maintenance_mode_collaboration.md`
+- BusyBox 阶段验收：`docs/system/posix_busybox_phase_checklist.md`
 
-### 里程碑 B：用户态可用性提升（Phase 3）
-- `kill` 最小子集（SIGTERM/SIGKILL/SIGINT）
-- `sleep/usleep/nanosleep`
-- `getpid`、最小 `ps`
-- `PATH` 搜索、`envp` 传递
+---
 
-验收：
-- BusyBox Phase 3 命令集
-- 关键 applet 通过
+## 当前状态
 
-### 里程碑 C：生态扩展
-- `/dev/null`、`/dev/console`、`/tmp`
-- `/proc` 最小子集（`/proc/self`、`/proc/<pid>`）
-- `stat/lstat` 字段补齐、权限/只读语义
-- 设备与伪终端（后续）
+当前可视为已经成立的基线：
 
-验收：
-- toybox 小集
-- 选定 Linux 程序样本可跑
+- BusyBox Phase 1 / 2 主干链路已稳定；
+- Phase 3 minimum 已闭环；
+- 公共 C surface 与 newlib bridge 已进入可维护状态；
+- QEMU 主线 smoke 已恢复；
+- 专项 newlib stdio smoke 已恢复。
 
-## 程序驱动矩阵（最小样本）
+因此，后续 POSIX 工作不再按“Phase 4 / Phase 5”线性展开，而是进入维护态 backlog。
 
-| 程序 | 最小验收命令/期望 | 依赖能力 | 阻塞点 | 架构风险 | 优先级 | 负责人 | 状态 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| hello | `hello`；stdout 固定字符串，exit=0 | spawn/映像加载/argv/envp/stdio | 映像加载、入口 ABI | spawn 被做成 task launcher | P0 | TBD | TODO |
-| argv_dump | `argv_dump a b`；打印 argv[0..2] | argv/envp 传递/stdio | argv/envp 内存布局 | 入口 ABI 与内部函数混用 | P0 | TBD | TODO |
-| stderr_demo | `stderr_demo`；stdout/stderr 分流可观测 | stdio 绑定/dup2/isatty | 0/1/2 独立绑定、分流、dup2 覆盖 | console 旁路残留 | P0 | TBD | TODO |
-| exit_code | `exit_code 7`；wait 得到 7 | waitpid/exit status | WaitStatus 结构化语义 | 退出码被简化成 task completion | P0 | TBD | TODO |
-| fd_probe | elf:/fd_probe.elf /cat.txt | file-ELF | stdout=fd summary, exit=0 | open/read/fstat/isatty | DONE | fd semantics probe |
-| echo > out.txt | `echo hi > out.txt`；`cat out.txt` 输出 hi | open/write/dup2/close/stat | fd_table 统一路径、close 可见性 | 文件写入路径分叉 | P1 | TBD | TODO |
-| cat < out.txt | `cat < out.txt`；输出 hi | open/read/close | EOF 语义 | 读取路径非 fd_table | P1 | TBD | TODO |
-| echo hi \| cat | `echo hi | cat`；输出 hi | pipe/dup2/spawn/wait | EOF/EPIPE、继承与关闭策略 | pipe 变 demo buffer | P1 | TBD | TODO |
-| echo hi \| cat \| cat | `echo hi | cat | cat`；输出 hi | 多段 pipe/多子进程 | 多 pipe 生命周期管理 | parent/child close 失衡 | P2 | TBD | TODO |
-| busybox sh -c 'echo hi' | `busybox sh -c 'echo hi'`；输出 hi | PATH/argv0/spawn/wait | PATH 搜索、spawn-only shell 策略 | core 被 POSIX 包袱污染 | P2 | TBD | IN PROGRESS |
+---
 
-## ELF 样本套件（P0-next）
+## 已收口的主干能力
 
-当前已具备一套可在 QEMU 上重复回归的真实 ELF 样本，用于持续验证 Charm 的程序加载链，而不是只验证 POSIX 名字表面。
+以下能力已经不再是默认主线任务，而是已收口基线：
 
-| 样本 | 当前命令 | 当前输入方式 | 期望输出/状态 | 最小依赖面 | 当前状态 | 下一步 |
-| --- | --- | --- | --- | --- | --- | --- |
-| hello | `elfmem:hello` | `.elf.inc` + `register_elf_mem` | stdout=`hello\n`, exit=0 | `spawn/load_image/start_image`, `write`, stdio fd | DONE | 增加文件/VFS 输入 |
-| argv_dump | `elfmem:argv_dump a b` | `.elf.inc` + `register_elf_mem` | 打印 argv[0..2] | 入口 ABI, `write`, stdout | DONE | 保持 argv 纯断言 |
-| env_dump | `elfmem:env_dump` | `.elf.inc` + `register_elf_mem` | 打印 envp[0..n] | envp 入口 ABI, `write`, stdout | DONE | 后续可加空 env / 长 env 边界 |
-| stderr_demo | `elfmem:stderr_demo` | `.elf.inc` + `register_elf_mem` | stdout/stderr 分流 | `write`, 0/1/2 fd, dup2 | DONE | 增加 `2>&1`/文件重定向 |
-| exit_code | `elfmem:exit_code 7` | `.elf.inc` + `register_elf_mem` | wait code=7 | `exit`, waitpid, argv | DONE | 增加 shell 状态传递 |
+- `spawn` / `spawnp` / `waitpid`
+- 最小 `kill` / `sleep` / `getpid` / `ps`
+- `fd_table` / `dup` / `dup2` / `fcntl` 最小闭环
+- `pipe` 最小可用语义
+- `open/read/write/close/stat/fstat/lseek`
+- `opendir/readdir/closedir`
+- `stdin/stdout/stderr`、`isatty`、`/dev/null`、`/dev/tty`、`/dev/console`
+- PATH / argv / envp / errno 最小契约
+- real-ELF 装载与 `_exit(code)` 收束
+- BusyBox / shell / newlib / public C header 的最小一致性
 
-配套验收：
-- 文档：`Examples/posix/elf_samples/README.md`
-- 样本生成：`Examples/posix/elf_samples/build_elf_samples.ps1`
+这些能力的后续工作原则是：
+
+- 除非出现真实阻塞点，否则不主动扩面；
+- 只修契约漂移、真实回归、或真实用户态样例卡点；
+- 不为了“看起来更像 Linux”而主动扩大复杂度。
+
+---
+
+## 维护态 backlog 分组
+
+下面这些 backlog 不是默认连续推进项，而是“按触发条件取用”的增量池。
+
+### A. 契约加固类
+
+触发条件：
+
+- 现有 smoke 暴露回归；
+- 公共头文件、runtime bridge、QEMU 行为之间出现漂移；
+- 同一语义在 API / shell / BusyBox / newlib 表面不一致。
+
+典型项：
+
+- 补齐已承诺接口的边界行为；
+- 修正 `errno`、返回值、EOF/EPIPE/EBADF/EINVAL 等最小契约；
+- 收紧 `fd` / path / cwd / dirent / redirect 的成功侧与失败侧一致性；
+- 修正文档与实现不一致的地方。
+
+验收要求：
+
+- 至少一条最小回归；
+- 必要时补一条 QEMU smoke；
+- 更新对应文档。
+
+### B. 真实程序阻塞类
+
+触发条件：
+
+- BusyBox 某个当前关注 applet 被真实卡住；
+- real-ELF 样例暴露新的运行时缺口；
+- 真实 C/newlib 用户态程序无法运行，且问题落在 POSIX 责任面。
+
+典型项：
+
+- 新增一个最小样例来复现阻塞；
+- 只补齐该样例所需的最小运行时语义；
+- 在样例打通后，把该能力沉淀为最小契约，而不是继续外溢扩张。
+
+验收要求：
+
+- 一条程序级用例；
+- 一条最小 smoke；
+- 一段同步文档更新。
+
+### C. 环境扩展类
+
+触发条件：
+
+- 某类真实程序明确依赖一个环境能力，且不能被现有最小模型替代；
+- 该能力对多个样例都有明显复用价值。
+
+候选项：
+
+- `/proc` 最小只读视图
+- 更多 `devfs` 节点
+- 更宽的 `stat` 字段矩阵
+- 更细的路径/权限只读语义
+- `termios` / `socket` / `select/poll` 等更高层表面
+
+注意：
+
+- 这些能力默认都不属于 v0 收口后的必做项；
+- 只有真实样例或明确上层需求驱动时才进入开发。
+
+### D. 工具链/构建协同类
+
+触发条件：
+
+- 当前模块化构建、`-fmodules-ts`、交叉编译链、QEMU 路径变化影响 POSIX 开发效率；
+- 问题虽不在 POSIX 语义本身，但直接阻塞 POSIX 验证。
+
+典型项：
+
+- 记录工具链踩坑；
+- 调整 smoke 构建入口；
+- 维护 QEMU 验证脚本；
+- 适配上游 CMake 组织调整。
+
+注意：
+
+- 这类工作通常是“协同修复”，不是 POSIX 能力扩张；
+- 应记录边界，避免把非 POSIX 问题误记到 POSIX backlog。
+
+---
+
+## 当前建议关注的 backlog
+
+如果需要从维护态中挑下一刀，优先级建议如下：
+
+### P1. 文档与任务面一致性
+
+- 持续保持 tasklist / roadmap / stage summary / closure checklist 口径一致；
+- 避免旧文档继续呈现“POSIX 仍在主线铺功能”的错觉。
+
+### P2. 真实样例驱动的小缺口
+
+- 仅当 BusyBox、real-ELF、新的 C 用户态样例出现明确阻塞时介入；
+- 先做最小复现，再做最小修复；
+- 不跳过“样例 -> 契约 -> smoke -> 文档”这条链。
+
+### P3. 上游协同适配
+
+- 在构建系统、模块组织、工具链约束发生变化时，保证 POSIX 验证路径继续可用；
+- 保持 `cmake-build-*` 目录约定与 QEMU 验证脚本可持续工作。
+
+---
+
+## 明确不作为默认推进项的内容
+
+以下内容继续保留在“非默认推进”区：
+
+- 完整 Linux syscall 兼容
+- `fork`
+- 完整 signal model
+- process group / session / job control
+- 动态链接
+- 完整 `/proc`
+- 完整权限模型 / 用户模型
+- “BusyBox 所有 applet 都能跑”
+- 仅为了“接口看起来更全”而补齐冷门 flag / 冷门 errno / 冷门路径矩阵
+
+如果未来要做这些内容，必须先回答：
+
+- 是哪个真实程序在阻塞？
+- 现有最小模型为什么不够？
+- 这次补齐的最小契约是什么？
+- 对应最小验证路径是什么？
+
+---
+
+## 增量工作模板
+
+后续每个 POSIX 增量项，建议统一按下面的模板记录：
+
+### 条目模板
+
+- **阻塞样例**：哪个程序 / applet / smoke 被卡住
+- **最小缺口**：缺的具体语义是什么
+- **改动边界**：落在哪个模块，不改哪些边界
+- **契约**：对外可见行为怎么定义
+- **验证**：最小 smoke / QEMU / 样例用例
+- **文档**：需要同步哪些文档
+
+只要一个候选改动无法填清这 6 项，就不应直接进入实现。
+
+---
+
+## 当前验证入口
+
+- QEMU 主线：`Examples/kernel/posix/qemu/run_qemu_ci.ps1`
+- ELF 样例：`Examples/posix/elf_samples/README.md`
 - 程序级 smoke：`Examples/posix/tests/posix.programs.tests.cppm`
-- QEMU 回归：`Examples/kernel/posix/qemu/run_qemu_ci.ps1`
+- 阶段总结：`docs/system/posix_stage_summary.md`
+- BusyBox 阶段清单：`docs/system/posix_busybox_phase_checklist.md`
 
-下一批重点：
-- 给上述 4 个样本补一条“非 `.elf.inc` 文件输入”验收路径
-- 在保持样本稳定的前提下，把依赖面从 `write/exit` 扩到 `read/open/close/fstat/isatty`
+---
 
-## 模块清单（按依赖顺序）
+## 一句话结论
 
-| 模块 | 关键能力 | 依赖 |
-| --- | --- | --- |
-| posix.fd_table | fd 生命周期与继承 | 无 |
-| posix.pipe | 管道语义 | fd_table |
-| posix.proc | spawn/waitpid | fd_table |
-| posix.term | stdio/isatty | fd_table |
-| posix.file | open/read/write/stat | VFS |
-| posix.env | PATH/envp | 无 |
-| posix.errno | errno 映射 | util::Errc |
-| posix.api | POSIX wrapper | 上述全部 |
+这份清单现在的职责，不再是“列出还没做完的 POSIX 宇宙”，而是：
 
-## 闭环任务拆分（程序驱动）
-
-### P0-A 单程序启动闭环
-- 验收：`hello`、`argv_dump`、`exit_code`
-- 子任务：最小映像加载、用户入口 ABI、argv/envp 布局、stdio 0/1/2 attach、exit/wait status
-
-### P0-B stdio 分流闭环
-- 验收：`stderr_demo`
-- 子任务：0/1/2 独立 fd、`isatty(term)=1`、stdout/stderr 分流、`dup2(...,2)` 覆盖
-
-### P1-A 文件重定向闭环
-- 验收：`echo > out.txt`、`cat < out.txt`
-- 子任务：file-backed fd entry、open/read/write/close、`dup2` 重定向、EOF、基础 `stat/fstat`
-
-### P1-B 单管道闭环
-- 验收：`echo hi | cat`
-- 子任务：pipe endpoints、EOF/EPIPE、fd 继承、close 策略、waitpid
-
-## 详细执行清单（模块/接口/测试）
-
-### A1. posix.fd_table
-- 目标能力：attach/get/close/dup2/clone
-- 关键语义：继承、dup2 覆盖、EMFILE/ENFILE 区分
-- 产出：`FdEntry`/`FdOps`/`FdTable`
-- 验收：单测 + QEMU smoke
-
-### A2. posix.pipe
-- 目标能力：pipe_create/read/write
-- 关键语义：EOF/EPIPE
-- 产出：`PipeService` + pipe 端点 FD
-- 验收：单测 + QEMU smoke
-
-### A3. posix.proc
-- 目标能力：spawn/waitpid + 子 fd 表隔离
-- 关键语义：父表不变、file_actions 生效顺序
-- 产出：`SpawnConfig`/`WaitStatus`
-- 验收：单测 + QEMU smoke
-
-### A4. posix.term
-- 目标能力：stdio 绑定、isatty
-- 关键语义：term 与 file/pipe 区分
-- 产出：`posix.term` + stdio init
-- 验收：QEMU smoke
-
-### A5. posix.file
-- 目标能力：open/read/write/stat
-- 关键语义：/dev/null、基础 flags
-- 产出：`FileService` + VFS 对接
-- 验收：QEMU smoke + BusyBox Phase 2
-
-### A6. posix.errno
-- 目标能力：to_errno 为主、from_errno 有限回转
-- 关键语义：线程局部 errno
-- 产出：errno 映射表
-- 验收：单测
-
-### A7. posix.env
-- 目标能力：PATH 搜索、envp 解析
-- 关键语义：统一入口，避免 shell/posix 双逻辑
-- 产出：`envp_get/for_each_path_candidate`
-- 验收：spawn PATH 用例
-
-### A8. posix.api
-- 目标能力：POSIX wrapper（open/close/read/write/dup2/pipe/spawn/waitpid）
-- 关键语义：errno 统一设置；可绑定当前进程 fd 表
-- 产出：`posix::Api`
-- 验收：QEMU smoke + BusyBox Phase 2
-
-## 执行表（默认优先级顺序）
-
-| 优先级 | 模块 | 任务 | 负责人 | 状态 | 验收 | 备注 |
-| --- | --- | --- | --- | --- | --- | --- |
-| P0 | posix.fd_table | attach/get/close/dup2/clone 语义收敛 | TBD | TODO | QEMU smoke | EMFILE/ENFILE 语义明确 |
-| P0 | posix.pipe | EOF/EPIPE 语义完善 | TBD | TODO | QEMU smoke | 阻塞/非阻塞先不做 |
-| P0 | posix.proc | spawn/waitpid + 子 fd 表隔离 | TBD | TODO | QEMU smoke | file_actions 顺序固定 | / child fd close on exit
-| P0 | posix.term | stdio 绑定 + isatty | TBD | TODO | QEMU smoke | term vs file/pipe |
-| P0 | posix.file | open/read/write/stat 基础 | TBD | TODO | BusyBox Phase 2 | /dev/null 已有 |
-| P0 | posix.errno | to_errno 主路径 | TBD | TODO | 单测 | from_errno 有限回转 |
-| P1 | posix.env | PATH 搜索/统一入口 | TBD | IN PROGRESS | spawn PATH 用例 | 先不做 shell 双逻辑 |
-| P1 | posix.api | wrapper + errno 设置 | TBD | TODO | QEMU smoke | 支持 bind child fd table |
-| P2 | phase2 smoke | BusyBox 最小集固化 | TBD | TODO | run_qemu_ci | 可观测输出 |
-
-当前建议：先补 P0 全部，P1 先做 posix.env。
-
-## P0 细化拆分（建议落地顺序）
-
-### P0.1 posix.fd_table
-- 接口：attach/get/close/dup2/clone_to
-- 语义：EMFILE/ENFILE 区分、dup2 覆盖、继承标志
-- 验收：`posix.fd_table.tests` + QEMU smoke
-
-### P0.2 posix.pipe
-- 接口：pipe_create/read/write
-- 语义：读端 EOF、写端 EPIPE
-- 验收：`posix.pipe.tests` + QEMU smoke
-
-### P0.3 posix.proc
-- 接口：spawn/waitpid + 子 fd 表隔离
-- 语义：file_actions 顺序、父表不变 / child fd close on exit
-- 验收：`posix.proc.tests` + QEMU smoke
-
-### P0.4 posix.term
-- 接口：stdio 绑定、isatty
-- 语义：term/file/pipe 区分
-- 验收：`posix.api.tests` + QEMU smoke
-
-### P0.5 posix.file
-- 接口：open/read/write/stat
-- 语义：/dev/null、基础 flags
-- 验收：`posix.api.tests` + BusyBox Phase 2
-
-### P0.6 posix.errno
-- 接口：to_errno/from_errno（有限回转）
-- 语义：thread_local errno
-- 验收：`posix.errno.tests`
-## P0 落地 TODO（缺口 -> 动作）
-
-### P0.1 posix.fd_table
-- 缺口：EMFILE/ENFILE 语义未完全约束
-- 动作：补齐错误码返回规则；在 `posix.fd_table.tests` 加回归项
-- 验收：QEMU smoke 通过
-
-### P0.2 posix.pipe
-- 缺口：高压/非阻塞暂不处理（保持最小）
-- 动作：只保 EOF/EPIPE 行为固定；补充 pipe 关闭传播用例
-- 验收：QEMU smoke 通过
-
-### P0.3 posix.proc
-- 进展：`resolve_name`/PATH 语义已恢复基础用例，`search_path` 不再在 PATH miss 时偷偷回退到裸 `argv0`
-- 进展：真实 ELF 的 `envp` 断言已改成独立 `env_dump` 样本，避免与 argv / pipe 语义耦合
-- 进展：program smoke 已覆盖 BusyBox 两种最小入口形态：`argv[0]` applet 与 `busybox <applet> ...` 分派
-- 剩余：继续把这套语义接到更真实的 shell/用户态路径
-- 验收：`posix.proc.tests` 全绿
-
-### P0.4 posix.term
-- 缺口：term/file/pipe 判断边界需固定
-- 动作：新增 `isatty` 对 pipe/file 的 negative case
-- 验收：`posix.api.tests` 全绿
-
-### P0.5 posix.file
-- 缺口：路径 normalize 与 VFS 规则需对齐
-- 动作：补 `stat/fstat` 基础字段一致性；固化 /dev/null 行为
-- 验收：BusyBox Phase 2 通过
-
-### P0.6 posix.errno
-- 缺口：from_errno 有限回转规则需文档化
-- 动作：补测试覆盖（未知 errno/非对称回转）
-- 验收：`posix.errno.tests` 全绿
-## 验收脚本
-- QEMU 一键验收：`Examples/kernel/posix/qemu/run_qemu_ci.ps1`
-  - `./run_qemu_ci.ps1 -ElfPath ./cmake-build-debug/posix-qemu-demo.elf -TimeoutSec 8`
-  - `./run_qemu_ci.ps1 -ElfPath ./cmake-build-debug/posix-qemu-demo.elf -ReportPath ./qemu-smoke.report`
-  - `./run_qemu_ci.ps1 -ElfPath ./cmake-build-debug/posix-qemu-demo.elf -KeepLogs $true`
-
-## BusyBox 验收最小集（Phase 2）
-- `echo hello`
-- `echo hello > out.txt`
-- `cat < out.txt`
-- `echo hello | cat`
-- `echo hello | cat | cat`
-- `sh -c 'echo hi > a.txt'`
-- `sh -c 'echo hi 1> a.txt 2> b.txt'`
-- `sh -c 'echo hi | cat'`
-
-## 兼容性验证工具链
-- BusyBox / toybox 交叉编译
-- Linux 上 `strace` 对照 syscall
-- POSIX/LTP 子集（补语义）
-
-## 风险与约束（默认策略）
-- 暂不实现 `fork`，以 `spawn` 为主
-- 默认 fd 可继承，靠 `FileActions::add_close` 裁剪
-- `from_errno` 保持“有限回转”，避免伪精确
-
-## 相关文档
-- `docs/system/posix_compat_roadmap.md`
-- `docs/system/posix_busybox_phase_checklist.md`
-- `docs/system/posix_spawn_minimal_design.md`
-- `docs/system/posix_fd_table_minimal_design.md`
-- `docs/system/posix_error_semantics.md`
-
-
-
-
+> 帮助我们在 POSIX v0 已收口的前提下，只对真实问题做小而稳的增量推进。

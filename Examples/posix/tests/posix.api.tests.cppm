@@ -4,6 +4,7 @@
 
 module;
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <span>
@@ -59,8 +60,13 @@ namespace {
     }
     template <class T>
     inline long long to_ll(const T& v) noexcept {
-        if constexpr (std::is_enum_v<T>) {
-            return static_cast<long long>(static_cast<std::underlying_type_t<T>>(v));
+        using Value = std::remove_cvref_t<T>;
+        if constexpr (std::is_same_v<Value, std::nullptr_t>) {
+            return 0;
+        } else if constexpr (std::is_pointer_v<Value>) {
+            return static_cast<long long>(reinterpret_cast<std::uintptr_t>(v));
+        } else if constexpr (std::is_enum_v<Value>) {
+            return static_cast<long long>(static_cast<std::underlying_type_t<Value>>(v));
         } else {
             return static_cast<long long>(v);
         }

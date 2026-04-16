@@ -59,11 +59,12 @@ Charm 使用三层结构组织系统能力：
 ## 自动生成结果
 
 本文是 **人工维护的开发者索引**。
-与之对应，代码扫描生成的结构化结果位于：
+与之对应，代码扫描生成的结构化结果默认输出到 `docs/generated/`，说明见：
 
-- `docs/generated/capability_map.generated.md`
-- `docs/generated/capability_graph.generated.mmd`
-- `docs/generated/capability_data.generated.json`
+- `docs/generated/README.md`
+- `capability_map.generated.md`
+- `capability_graph.generated.mmd`
+- `capability_data.generated.json`
 
 建议理解为：
 
@@ -195,5 +196,5 @@ Charm 使用三层结构组织系统能力：
 
 - 需要快速找文档：`docs/README.md`
 - 需要理解系统骨架与依赖红线：`docs/architecture_overview.md`
-- 需要查看代码扫描生成结果：`docs/generated/capability_map.generated.md`
-- 需要查看能力依赖图：`docs/generated/capability_graph.generated.mmd`
+- 需要查看代码扫描生成结果：`docs/generated/README.md`
+- 需要查看能力依赖图：`docs/generated/README.md`

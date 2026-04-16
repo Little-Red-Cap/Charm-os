@@ -100,6 +100,7 @@ POSIX 兼容执行面主要位于 `Modules/io/posix/*`，但职责横跨运行�
 - 三层执行模型：`docs/system/posix_three_layer_contract.md`
 - 用户态运行时：`docs/system/posix_user_runtime_minimal_design.md`
 - 路线图：`docs/system/posix_compat_roadmap.md`
+- 维护期协作：`docs/system/posix_maintenance_mode_collaboration.md`
 - 阶段进度：`docs/system/posix_stage_summary.md`
 - 收口判定：`docs/system/posix_v0_closure_checklist.md`
 - 任务清单：`docs/system/posix_linux_compat_tasklist.md`

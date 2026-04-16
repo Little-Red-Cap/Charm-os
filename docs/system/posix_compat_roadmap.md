@@ -11,6 +11,7 @@ Related documents:
 - `docs/system/posix_v0_closure_checklist.md`
 - `docs/system/posix_stage_summary.md`
 - `docs/system/posix_support_overview.md`
+- `docs/system/posix_maintenance_mode_collaboration.md`
 - `docs/system/posix_busybox_phase_checklist.md`
 
 ## Current Position

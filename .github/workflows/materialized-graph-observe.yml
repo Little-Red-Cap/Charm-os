@@ -12,6 +12,7 @@ on:
       - 'Modules/io/**'
       - 'Modules/usb/**'
       - 'Examples/init/**'
+      - 'Examples/usb/usb_host_runtime_multi_smoke/**'
       - 'Examples/usb/usb_msc_block_demo/**'
       - 'scripts/*materialized_graph*.ps1'
       - 'scripts/*artifact_report*.ps1'
@@ -90,13 +91,84 @@ jobs:
             -AllCases `
             -OutputRoot ../out/materialized-graph-ci
 
+      - name: Run runtime plane smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_runtime_plane_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-runtime-plane-smoke
+
+      - name: Run resource contract smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_resource_contract_smoke.ps1 `
+            -ArtifactRoot ../out/materialized-graph-ci/artifact-report `
+            -Case bringup-minimal-observe-demo `
+            -OutputRoot ../out/materialized-graph-resource-contract-smoke
+
+      - name: Run resource contract matrix smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_resource_contract_matrix_smoke.ps1 `
+            -ArtifactRoot ../out/materialized-graph-ci/artifact-report `
+            -OutputRoot ../out/materialized-graph-resource-contract-matrix-smoke
+
+      - name: Run bringup evidence matrix smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_bringup_evidence_matrix_smoke.ps1 `
+            -ArtifactRoot ../out/materialized-graph-ci/artifact-report `
+            -OutputRoot ../out/materialized-graph-bringup-evidence-matrix-smoke
+
+      - name: Run resource contract compare smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_resource_contract_compare_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-resource-contract-compare-smoke
+
+      - name: Run bringup evidence compare smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_bringup_evidence_compare_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-bringup-evidence-compare-smoke
+
+      - name: Run resource contract compare root smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_resource_contract_compare_root_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-resource-contract-compare-root-smoke
+
+      - name: Run bringup evidence compare root smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-bringup-evidence-compare-root-smoke
+
       - name: Validate materialized graph artifacts
         shell: pwsh
         working-directory: candidate
         run: |
           python ./scripts/validate_materialized_graph_artifacts.py `
             --bundle-root ../out/materialized-graph-baseline `
-            --ci-output-root ../out/materialized-graph-ci
+            --ci-output-root ../out/materialized-graph-ci `
+            ../out/materialized-graph-runtime-plane-smoke/runtime_plane_diff.json `
+            ../out/materialized-graph-runtime-plane-smoke/report/materialized_graph_bundle_diff_report.manifest.json `
+            ../out/materialized-graph-resource-contract-compare-smoke/artifact-report/bringup-minimal-observe-demo.artifact_report.json `
+            ../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare.diff.json `
+            ../out/materialized-graph-bringup-evidence-compare-smoke/artifact-report/bringup-minimal-observe-demo.artifact_report.json `
+            ../out/materialized-graph-bringup-evidence-compare-smoke/bringup_evidence_compare.diff.json
 
       - name: Publish workflow summary
         shell: pwsh
@@ -104,6 +176,14 @@ jobs:
         run: |
           $summary = Get-Content -LiteralPath ../out/materialized-graph-ci/summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $diff = $summary.diff
+          $runtimePlane = Get-Content -LiteralPath ../out/materialized-graph-runtime-plane-smoke/runtime_plane_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $resourceContract = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-smoke/resource_contract_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $resourceContractMatrix = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-matrix-smoke/resource_contract_matrix_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $bringupEvidenceMatrix = Get-Content -LiteralPath ../out/materialized-graph-bringup-evidence-matrix-smoke/bringup_evidence_matrix_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $resourceContractCompare = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $bringupEvidenceCompare = Get-Content -LiteralPath ../out/materialized-graph-bringup-evidence-compare-smoke/bringup_evidence_compare_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $resourceContractCompareRoot = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-compare-root-smoke/resource_contract_compare_root_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $bringupEvidenceCompareRoot = Get-Content -LiteralPath ../out/materialized-graph-bringup-evidence-compare-root-smoke/bringup_evidence_compare_root_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           @(
             '## Materialized Graph Observe'
             ''
@@ -121,6 +201,40 @@ jobs:
             "- HTML report: `$($summary.report.html)`"
             "- Artifact report root: `$($summary.artifact_report.output_root)`"
             "- Artifact report count: `$($summary.artifact_report.count)`"
+            "- Runtime plane smoke case: `$($runtimePlane.runtime_case)`"
+            "- Runtime plane smoke donor: `$($runtimePlane.graph_donor_case)`"
+            "- Runtime plane smoke summary: `../out/materialized-graph-runtime-plane-smoke/runtime_plane_smoke.summary.json`"
+            "- Runtime plane smoke diff: `$($runtimePlane.diff_json)`"
+            "- Resource contract smoke case: `$($resourceContract.case)`"
+            "- Resource contract smoke contract: `$($resourceContract.expected_contract)`"
+            "- Resource contract smoke report: `$($resourceContract.report_path)`"
+            "- Resource contract smoke summary: `../out/materialized-graph-resource-contract-smoke/resource_contract_smoke.summary.json`"
+            "- Resource contract matrix smoke cases: `$($resourceContractMatrix.case_count)`"
+            "- Resource contract matrix smoke contract: `$($resourceContractMatrix.expected_contract)`"
+            "- Resource contract matrix smoke fact: `$($resourceContractMatrix.expected_fact)`"
+            "- Resource contract matrix smoke summary: `../out/materialized-graph-resource-contract-matrix-smoke/resource_contract_matrix_smoke.summary.json`"
+            "- Bringup evidence matrix smoke cases: `$($bringupEvidenceMatrix.case_count)`"
+            "- Bringup evidence matrix smoke common capability: `$($bringupEvidenceMatrix.expected_common_capability)`"
+            "- Bringup evidence matrix smoke block capability: `$($bringupEvidenceMatrix.expected_block_capability)`"
+            "- Bringup evidence matrix smoke summary: `../out/materialized-graph-bringup-evidence-matrix-smoke/bringup_evidence_matrix_smoke.summary.json`"
+            "- Resource contract compare smoke case: `$($resourceContractCompare.case)`"
+            "- Resource contract compare smoke added contract: `$($resourceContractCompare.added_contract)`"
+            "- Resource contract compare smoke artifact report: `$($resourceContractCompare.artifact_report)`"
+            "- Resource contract compare smoke diff: `$($resourceContractCompare.diff_json)`"
+            "- Resource contract compare smoke summary: `../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare_smoke.summary.json`"
+            "- Bringup evidence compare smoke case: `$($bringupEvidenceCompare.case)`"
+            "- Bringup evidence compare smoke published capability: `$($bringupEvidenceCompare.published_capability)`"
+            "- Bringup evidence compare smoke artifact report: `$($bringupEvidenceCompare.artifact_report)`"
+            "- Bringup evidence compare smoke diff: `$($bringupEvidenceCompare.diff_json)`"
+            "- Bringup evidence compare smoke summary: `../out/materialized-graph-bringup-evidence-compare-smoke/bringup_evidence_compare_smoke.summary.json`"
+            "- Resource contract compare root smoke changed case: `$($resourceContractCompareRoot.changed_case)`"
+            "- Resource contract compare root smoke unchanged case: `$($resourceContractCompareRoot.unchanged_case)`"
+            "- Resource contract compare root smoke artifact report root: `$($resourceContractCompareRoot.artifact_report_root)`"
+            "- Resource contract compare root smoke summary: `../out/materialized-graph-resource-contract-compare-root-smoke/resource_contract_compare_root_smoke.summary.json`"
+            "- Bringup evidence compare root smoke changed case: `$($bringupEvidenceCompareRoot.changed_case)`"
+            "- Bringup evidence compare root smoke unchanged case: `$($bringupEvidenceCompareRoot.unchanged_case)`"
+            "- Bringup evidence compare root smoke artifact report root: `$($bringupEvidenceCompareRoot.artifact_report_root)`"
+            "- Bringup evidence compare root smoke summary: `../out/materialized-graph-bringup-evidence-compare-root-smoke/bringup_evidence_compare_root_smoke.summary.json`"
           ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Upload materialized graph artifacts
@@ -132,3 +246,11 @@ jobs:
           path: |
             out/materialized-graph-baseline
             out/materialized-graph-ci
+            out/materialized-graph-runtime-plane-smoke
+            out/materialized-graph-resource-contract-smoke
+            out/materialized-graph-resource-contract-matrix-smoke
+            out/materialized-graph-bringup-evidence-matrix-smoke
+            out/materialized-graph-resource-contract-compare-smoke
+            out/materialized-graph-bringup-evidence-compare-smoke
+            out/materialized-graph-resource-contract-compare-root-smoke
+            out/materialized-graph-bringup-evidence-compare-root-smoke

@@ -248,6 +248,43 @@ v0 阶段最重要的不是先争论它的最终细化粒度，
 这组词的目的不是制造概念层次，  
 而是避免 v0 阶段把“未建模”“未审计”“明确违法”混成一团。
 
+### 6.4 当前 v0 输入形状
+
+当前真实导出链里，最小资源法律文本已经先落在：
+
+- `scripts/materialized_graph.export_case_manifest.v1.json`
+
+它当前按 per-case 承载 `declared_contracts`，最小形状为：
+
+```json
+{
+  "contract": "needs_monotonic_clock",
+  "requires": ["system.clock"]
+}
+```
+
+当前这组字段刻意保持很小：
+
+- `contract`
+  - 当前固定在 `may_block / needs_heap / needs_reactor / needs_monotonic_clock / irq_safe`
+- `requires`
+  - 当前按 all-of 语义解释
+  - 当 `requires` 为空时，当前报告链会把该条合同归入 `unknown`
+
+这意味着 v0 目前不是在做复杂推理，
+而是在做一件更克制、也更稳定的事：
+
+> **先把资源法律写成机器可携带的最小条款。**
+
+当前 artifact report 的最小审计来源也已经收敛为三类事实：
+
+- 输入侧 `declared_facts`
+- `subject` 派生事实，例如 `board.* / profile.* / facet.*`
+- 图里实际提供的 capability / fact 名
+
+也就是说，v0 不是“凭空判案”，
+而是先把法律文本与当前系统已知事实做最小比对。
+
 ## 7. 当前仓库胚胎映射
 
 Charm 这条线同样不是从零起步。  
@@ -322,6 +359,7 @@ SSU 已经证明了另一件事：
 - contract metadata inventory
 - provided facts 列表
 - satisfied / violated / unknown 摘要
+- declared contract entries
 - `may_block` / `irq_safe` 热点清单
 - `needs_heap` / `needs_reactor` / `needs_monotonic_clock` 缺口清单
 
@@ -343,6 +381,96 @@ SSU 已经证明了另一件事：
 - 哪些要求被满足
 - 哪些要求被违反
 - 哪些地方还无法得出确定结论
+
+当前真实 `artifact report` 已经至少会把这些结果压成：
+
+- `declared_contract_entries`
+- `provided_facts`
+- `satisfied_contracts`
+- `violations`
+- `unknown_contracts`
+- `resource_hotspots`
+
+而当前最小 explain 消费面也已经有了一个直接入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -ResourceSummary`
+
+它当前会把：
+
+- 输入侧 `declared_contract_entries`
+- `declared_facts`
+- `subject` 派生事实
+- 图里实际提供的 fact
+- 审计阶段命中的 `provided_facts`
+
+一起压成一页稳定的 `resource summary` 查询结果，
+让人和工具都可以继续追问：
+
+- 哪条合同当前是 `satisfied`
+- 哪条是 `violated`
+- 哪条仍然 `unknown`
+- 对应证据究竟来自哪里
+
+为了把这张解释面真正守成回归，仓库现在还提供了一个最小 smoke：
+
+- `scripts/materialized_graph_resource_contract_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_matrix_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+
+它当前直接消费已有 `artifact-report` 输出，并复用
+`inspect_system_compiler_artifact_report.ps1 -ResourceSummary` 的真实查询结果，
+重点守住下面几类最小断言：
+
+- 至少存在一条已声明资源契约
+- `needs_monotonic_clock` 能稳定命中 `system.clock`
+- `board.win_stub` 这类板级事实能同时出现在 `declared_facts / subject_facts`
+- 资源事实来源里仍能明确指出 `audit_provided_facts`
+- metadata-only diff 不会吞掉资源契约漂移
+- compare 模式下的 `comparison.resource_contract` 能明确给出 `left / right / contract_changes`
+- `-ResourceSummary -AsJson` 能继续把 compare 资源面暴露给 explain surface
+
+也就是说，当前这条 smoke 守的不是“另写一套资源语义”，
+而是：
+
+> **确保 explain surface 对资源契约的说法，和正式 artifact report 保持同一事实来源。**
+
+对 compare 场景来说，这条纪律还要再往前一步：
+
+> **即使 case 级结构 diff 仍然是 `unchanged`，资源契约漂移也必须以正式 compare 负载被保留下来。**
+
+与此同时，`inspect_system_compiler_artifact_report.ps1 -ArtifactRoot ... -ResourceSummary`
+现在也已经支持直接返回 `artifact_root` 级聚合结果。
+它会把多份 report 收束成：
+
+- per-case 资源摘要
+- contract matrix
+- provided fact matrix
+- resource hotspot matrix
+
+这样资源契约不再只能按单 case 追问，
+还可以直接横向查看：
+
+- 哪条合同在哪些 case 中声明
+- 哪些 case 满足 / 违反 / 仍未知
+- 某个资源事实究竟覆盖了哪些 case
+- 热点是否在多案例之间重复出现
+
+如果这些 report 来自 compare 模式，
+artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
+`query.comparison.resource_contract`，至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `contract_change_matrix`
+
+这意味着资源契约 explain 现在已经不只会回答“单 case 相对 baseline 漂移了什么”，
+还可以横向回答：
+
+- 哪些 case 真正发生 compare drift
+- 哪些 summary change 在多 case 之间重复出现
+- 某条合同的 compare 变化究竟覆盖了哪些 case
 
 ## 10. v0 的工程边界
 

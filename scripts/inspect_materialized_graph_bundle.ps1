@@ -184,6 +184,88 @@ function New-CaseSubjectJsonView {
     }
 }
 
+function Get-CaseDeclaredFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['declared_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.declared_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Get-CaseDeclaredContracts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['declared_contracts']) {
+        return @()
+    }
+
+    $contracts = @()
+    foreach ($entry in @($CaseEntry.declared_contracts)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $contractName = [string]$entry.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $requires = @()
+        if ($null -ne $entry.PSObject.Properties['requires']) {
+            $requires = @(
+                @($entry.requires) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ } |
+                    Sort-Object -Unique
+            )
+        }
+
+        $contracts += [ordered]@{
+            contract = $contractName
+            requires = @($requires)
+        }
+    }
+
+    return @($contracts)
+}
+
+function Format-DeclaredContracts {
+    param(
+        $Contracts
+    )
+
+    $parts = @()
+    foreach ($contract in @($Contracts)) {
+        if ($null -eq $contract) {
+            continue
+        }
+
+        $contractName = [string]$contract.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $requires = @()
+        if ($null -ne $contract.PSObject.Properties['requires']) {
+            $requires = @($contract.requires)
+        }
+        $parts += "$contractName requires [$((@($requires) -join ', '))]"
+    }
+
+    return ($parts -join '; ')
+}
+
 function Resolve-CaseArtifactPath {
     param(
         [string]$BundleRootPath,
@@ -201,13 +283,147 @@ function Resolve-CaseArtifactPath {
     return Resolve-FullPath (Join-Path $BundleRootPath $RelativeOrAbsolutePath)
 }
 
+function Get-CaseStringProperty {
+    param(
+        $CaseEntry,
+        [string]$PropertyName
+    )
+
+    if ($null -eq $CaseEntry -or [string]::IsNullOrWhiteSpace($PropertyName)) {
+        return $null
+    }
+
+    $property = $CaseEntry.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    $value = [string]$property.Value
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+
+    return $value
+}
+
+function Get-CaseKind {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry) {
+        return 'absent'
+    }
+
+    $caseKind = Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'case_kind'
+    if (-not [string]::IsNullOrWhiteSpace($caseKind)) {
+        return $caseKind
+    }
+
+    if ($null -ne (Get-CaseGraphSummary -CaseEntry $CaseEntry)) {
+        return 'materialized_graph'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'runtime_observe'))) {
+        return 'runtime_only'
+    }
+
+    return 'materialized_graph'
+}
+
+function Get-CaseGraphSummary {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['graph']) {
+        return $null
+    }
+
+    return $CaseEntry.graph
+}
+
+function Get-CaseNodeCount {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return 0
+    }
+
+    return [int]$graphSummary.node_count
+}
+
+function Get-CaseEdgeCount {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return 0
+    }
+
+    return [int]$graphSummary.edge_count
+}
+
+function Get-CaseEffectivePhase {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return $null
+    }
+
+    return [string]$graphSummary.effective_max_phase
+}
+
+function Get-CaseEffectiveRunlevel {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return $null
+    }
+
+    return [string]$graphSummary.effective_runlevel_text
+}
+
+function Get-CaseNodeKindsText {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return ''
+    }
+
+    return Format-NodeKinds $graphSummary.node_kinds
+}
+
 function Load-CaseGraph {
     param(
         [string]$BundleRootPath,
         $CaseEntry
     )
 
-    $jsonPath = Resolve-CaseArtifactPath -BundleRootPath $BundleRootPath -RelativeOrAbsolutePath ([string]$CaseEntry.json)
+    $jsonReference = Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'json'
+    if ([string]::IsNullOrWhiteSpace($jsonReference)) {
+        if ((Get-CaseKind -CaseEntry $CaseEntry) -eq 'materialized_graph') {
+            throw "case json missing for materialized_graph case: $([string]$CaseEntry.name)"
+        }
+
+        return $null
+    }
+
+    $jsonPath = Resolve-CaseArtifactPath -BundleRootPath $BundleRootPath -RelativeOrAbsolutePath $jsonReference
     if (-not (Test-Path $jsonPath)) {
         throw "case json not found: $jsonPath"
     }
@@ -251,14 +467,17 @@ function New-CaseSummaryRow {
     $subject = Get-CaseSubjectInfo -CaseEntry $CaseEntry
     return [pscustomobject]@{
         Case = [string]$CaseEntry.name
+        CaseKind = Get-CaseKind -CaseEntry $CaseEntry
         Profile = $subject.Profile
         Board = $subject.Board
         Facets = Format-ActiveFacets $subject.ActiveFacets
-        Nodes = [int]$CaseEntry.graph.node_count
-        Edges = [int]$CaseEntry.graph.edge_count
-        Phase = [string]$CaseEntry.graph.effective_max_phase
-        Runlevel = [string]$CaseEntry.graph.effective_runlevel_text
-        Kinds = Format-NodeKinds $CaseEntry.graph.node_kinds
+        DeclaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
+        DeclaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
+        Nodes = Get-CaseNodeCount -CaseEntry $CaseEntry
+        Edges = Get-CaseEdgeCount -CaseEntry $CaseEntry
+        Phase = Get-CaseEffectivePhase -CaseEntry $CaseEntry
+        Runlevel = Get-CaseEffectiveRunlevel -CaseEntry $CaseEntry
+        Kinds = Get-CaseNodeKindsText -CaseEntry $CaseEntry
     }
 }
 
@@ -345,15 +564,23 @@ if ($selectedCases.Count -ne 1) {
         if ($null -ne $inputManifest) {
             Write-Host "[MANIFEST] $($inputManifest.path) ($($inputManifest.schema))"
         }
-        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
+        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, CaseKind, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
     }
     exit 0
 }
 
 $selectedCase = $selectedCases[0]
 $caseGraph = Load-CaseGraph -BundleRootPath $bundle.BundleRoot -CaseEntry $selectedCase
-$nodeRows = @(New-NodeRows -Graph $caseGraph.Data)
-$edgeRows = @(New-EdgeRows -Graph $caseGraph.Data)
+if ($ShowEdges -and $null -eq $caseGraph) {
+    throw "selected case has no static graph; -ShowEdges is unavailable for runtime_only cases"
+}
+
+$nodeRows = @()
+$edgeRows = @()
+if ($null -ne $caseGraph) {
+    $nodeRows = @(New-NodeRows -Graph $caseGraph.Data)
+    $edgeRows = @(New-EdgeRows -Graph $caseGraph.Data)
+}
 
 if ($AsJson) {
     $payload = [ordered]@{
@@ -364,10 +591,14 @@ if ($AsJson) {
             source = [string]$selectedCase.source
             build_dir = [string]$selectedCase.build_dir
             build_target = [string]$selectedCase.build_target
-            export_target = [string]$selectedCase.export_target
-            dot = Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.dot)
-            json = $caseGraph.Path
-            graph = $selectedCase.graph
+            case_kind = Get-CaseKind -CaseEntry $selectedCase
+            export_target = Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'export_target'
+            dot = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'dot'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.dot) }
+            json = if ($null -ne $caseGraph) { $caseGraph.Path } else { $null }
+            runtime_observe = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'runtime_observe'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.runtime_observe) }
+            declared_facts = @(Get-CaseDeclaredFacts -CaseEntry $selectedCase)
+            declared_contracts = @(Get-CaseDeclaredContracts -CaseEntry $selectedCase)
+            graph = Get-CaseGraphSummary -CaseEntry $selectedCase
         }
         nodes = $nodeRows
     }
@@ -391,13 +622,37 @@ if ($null -ne $inputManifest) {
     Write-Host "[MANIFEST] $($inputManifest.path) ($($inputManifest.schema))"
 }
 Write-Host "[CASE] $($selectedCase.name)"
-Write-Host "[DOT]  $(Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.dot))"
-Write-Host "[JSON] $($caseGraph.Path)"
+Write-Host "[CASE KIND] $(Get-CaseKind -CaseEntry $selectedCase)"
+$dotPath = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'dot'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.dot) }
+$runtimeObservePath = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'runtime_observe'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.runtime_observe) }
+if ($null -ne $dotPath) {
+    Write-Host "[DOT]  $dotPath"
+}
+if ($null -ne $caseGraph) {
+    Write-Host "[JSON] $($caseGraph.Path)"
+} else {
+    Write-Host "[GRAPH] no static graph"
+}
+if ($null -ne $runtimeObservePath) {
+    Write-Host "[RUNTIME OBSERVE] $runtimeObservePath"
+}
+$declaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $selectedCase)
+if ($declaredFacts.Count -gt 0) {
+    Write-Host "[DECLARED FACTS] $($declaredFacts -join ', ')"
+}
+$declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $selectedCase)
+if ($declaredContracts.Count -gt 0) {
+    Write-Host "[DECLARED CONTRACTS] $(Format-DeclaredContracts -Contracts $declaredContracts)"
+}
 Write-Host ''
 
-$summaryRows | Format-List Case, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
-Write-Host '[NODES]'
-$nodeRows | Format-Table -AutoSize Index, Kind, Phase, Name, Provides, Requires | Out-Host
+$summaryRows | Format-List Case, CaseKind, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
+if ($null -ne $caseGraph) {
+    Write-Host '[NODES]'
+    $nodeRows | Format-Table -AutoSize Index, Kind, Phase, Name, Provides, Requires | Out-Host
+} else {
+    Write-Host '[NODES] no static graph'
+}
 
 if ($ShowEdges) {
     Write-Host ''

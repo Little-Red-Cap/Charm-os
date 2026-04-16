@@ -107,13 +107,135 @@ function Resolve-ArtifactPath {
     return Resolve-FullPath (Join-Path $BundleRoot $Path)
 }
 
+function Get-CaseStringProperty {
+    param(
+        $CaseEntry,
+        [string]$PropertyName
+    )
+
+    if ($null -eq $CaseEntry -or [string]::IsNullOrWhiteSpace($PropertyName)) {
+        return $null
+    }
+
+    $property = $CaseEntry.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    $value = [string]$property.Value
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+
+    return $value
+}
+
+function Get-CaseKind {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry) {
+        return 'absent'
+    }
+
+    $caseKind = Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'case_kind'
+    if (-not [string]::IsNullOrWhiteSpace($caseKind)) {
+        return $caseKind
+    }
+
+    if ($null -ne (Get-CaseGraphSummary -CaseEntry $CaseEntry)) {
+        return 'materialized_graph'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'runtime_observe'))) {
+        return 'runtime_only'
+    }
+
+    return 'materialized_graph'
+}
+
+function Get-CaseGraphSummary {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['graph']) {
+        return $null
+    }
+
+    return $CaseEntry.graph
+}
+
+function Get-CaseNodeCount {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return 0
+    }
+
+    return [int]$graphSummary.node_count
+}
+
+function Get-CaseEdgeCount {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return 0
+    }
+
+    return [int]$graphSummary.edge_count
+}
+
+function Get-GraphAvailabilityLabel {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -ne (Get-CaseGraphSummary -CaseEntry $CaseEntry)) {
+        return 'available'
+    }
+
+    return 'unavailable'
+}
+
+function Resolve-CaseArtifactOrNull {
+    param(
+        $Bundle,
+        $CaseEntry,
+        [string]$FieldName
+    )
+
+    $pathValue = Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName $FieldName
+    if ([string]::IsNullOrWhiteSpace($pathValue)) {
+        return $null
+    }
+
+    return Resolve-ArtifactPath -BundleRoot $Bundle.BundleRoot -Path $pathValue
+}
+
 function Load-CaseGraph {
     param(
         $Bundle,
         $CaseEntry
     )
 
-    $jsonPath = Resolve-ArtifactPath -BundleRoot $Bundle.BundleRoot -Path ([string]$CaseEntry.json)
+    $jsonReference = Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'json'
+    if ([string]::IsNullOrWhiteSpace($jsonReference)) {
+        if ((Get-CaseKind -CaseEntry $CaseEntry) -eq 'materialized_graph') {
+            throw "$($Bundle.Side) case json missing for materialized_graph case: $([string]$CaseEntry.name)"
+        }
+
+        return $null
+    }
+
+    $jsonPath = Resolve-ArtifactPath -BundleRoot $Bundle.BundleRoot -Path $jsonReference
     if (-not (Test-Path $jsonPath)) {
         throw "$($Bundle.Side) case json not found: $jsonPath"
     }
@@ -252,6 +374,99 @@ function Get-CaseSubjectInfo {
     }
 }
 
+function Get-CaseDeclaredFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['declared_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.declared_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Get-CaseDeclaredContracts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['declared_contracts']) {
+        return @()
+    }
+
+    $contracts = @()
+    foreach ($entry in @($CaseEntry.declared_contracts)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $contractName = [string]$entry.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $requires = @()
+        if ($null -ne $entry.PSObject.Properties['requires']) {
+            $requires = @(
+                @($entry.requires) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ } |
+                    Sort-Object -Unique
+            )
+        }
+
+        $contracts += [ordered]@{
+            contract = $contractName
+            requires = @($requires)
+        }
+    }
+
+    return @($contracts)
+}
+
+function Format-DeclaredContract {
+    param(
+        $ContractEntry
+    )
+
+    if ($null -eq $ContractEntry) {
+        return ''
+    }
+
+    $contractName = [string]$ContractEntry.contract
+    if ([string]::IsNullOrWhiteSpace($contractName)) {
+        return ''
+    }
+
+    $requiresSource = if ($ContractEntry -is [System.Collections.IDictionary]) {
+        $ContractEntry['requires']
+    } else {
+        $ContractEntry.requires
+    }
+    $requires = @($requiresSource)
+
+    return "$contractName requires [$((@($requires) -join ', '))]"
+}
+
+function Get-DeclaredContractTexts {
+    param(
+        $CaseEntry
+    )
+
+    return @(
+        @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) |
+            ForEach-Object { Format-DeclaredContract -ContractEntry $_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+}
+
 function New-CaseSubjectJsonView {
     param(
         $CaseEntry
@@ -267,6 +482,47 @@ function New-CaseSubjectJsonView {
         board = $subject.Board
         active_facets = @($subject.ActiveFacets)
     }
+}
+
+function Get-DerivedDeclaredFactsDefaults {
+    param(
+        [object[]]$CaseEntries
+    )
+
+    if (@($CaseEntries).Count -eq 0) {
+        return $null
+    }
+
+    $firstFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntries[0])
+    foreach ($caseEntry in @($CaseEntries | Select-Object -Skip 1)) {
+        $nextFacts = @(Get-CaseDeclaredFacts -CaseEntry $caseEntry)
+        if (-not (Compare-StringArrays -Left $firstFacts -Right $nextFacts)) {
+            return $null
+        }
+    }
+
+    return ,@($firstFacts)
+}
+
+function Get-DerivedDeclaredContractsDefaults {
+    param(
+        [object[]]$CaseEntries
+    )
+
+    if (@($CaseEntries).Count -eq 0) {
+        return $null
+    }
+
+    $firstContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntries[0])
+    $firstTexts = @(Get-DeclaredContractTexts -CaseEntry $CaseEntries[0])
+    foreach ($caseEntry in @($CaseEntries | Select-Object -Skip 1)) {
+        $nextTexts = @(Get-DeclaredContractTexts -CaseEntry $caseEntry)
+        if (-not (Compare-StringArrays -Left $firstTexts -Right $nextTexts)) {
+            return $null
+        }
+    }
+
+    return ,@($firstContracts)
 }
 
 function Get-NodeKey {
@@ -460,36 +716,58 @@ function Compare-CaseSummary {
     )
 
     $changes = @()
-    if ([string]$LeftCase.graph.schema -ne [string]$RightCase.graph.schema) {
-        $changes += "schema:$([string]$LeftCase.graph.schema)->$([string]$RightCase.graph.schema)"
-    }
-    if ([int]$LeftCase.graph.node_count -ne [int]$RightCase.graph.node_count) {
-        $changes += "node_count:$([int]$LeftCase.graph.node_count)->$([int]$RightCase.graph.node_count)"
-    }
-    if ([int]$LeftCase.graph.edge_count -ne [int]$RightCase.graph.edge_count) {
-        $changes += "edge_count:$([int]$LeftCase.graph.edge_count)->$([int]$RightCase.graph.edge_count)"
-    }
-    if ([string]$LeftCase.graph.effective_max_phase -ne [string]$RightCase.graph.effective_max_phase) {
-        $changes += "phase:$([string]$LeftCase.graph.effective_max_phase)->$([string]$RightCase.graph.effective_max_phase)"
-    }
-    if ([string]$LeftCase.graph.effective_runlevel_text -ne [string]$RightCase.graph.effective_runlevel_text) {
-        $changes += "runlevel:$([string]$LeftCase.graph.effective_runlevel_text)->$([string]$RightCase.graph.effective_runlevel_text)"
+    $leftCaseKind = Get-CaseKind -CaseEntry $LeftCase
+    $rightCaseKind = Get-CaseKind -CaseEntry $RightCase
+    if ($leftCaseKind -ne $rightCaseKind) {
+        $changes += "case_kind:$leftCaseKind->$rightCaseKind"
     }
 
-    $leftKinds = @()
-    $rightKinds = @()
-    if ($null -ne $LeftCase.graph.node_kinds) {
-        foreach ($property in $LeftCase.graph.node_kinds.PSObject.Properties) {
-            $leftKinds += "$($property.Name)=$($property.Value)"
+    $leftGraph = Get-CaseGraphSummary -CaseEntry $LeftCase
+    $rightGraph = Get-CaseGraphSummary -CaseEntry $RightCase
+    $leftGraphAvailability = Get-GraphAvailabilityLabel -CaseEntry $LeftCase
+    $rightGraphAvailability = Get-GraphAvailabilityLabel -CaseEntry $RightCase
+    if ($leftGraphAvailability -ne $rightGraphAvailability) {
+        $changes += "graph:$leftGraphAvailability->$rightGraphAvailability"
+    }
+
+    if ($null -ne $leftGraph -and $null -ne $rightGraph) {
+        if ([string]$leftGraph.schema -ne [string]$rightGraph.schema) {
+            $changes += "schema:$([string]$leftGraph.schema)->$([string]$rightGraph.schema)"
+        }
+        if ([int]$leftGraph.node_count -ne [int]$rightGraph.node_count) {
+            $changes += "node_count:$([int]$leftGraph.node_count)->$([int]$rightGraph.node_count)"
+        }
+        if ([int]$leftGraph.edge_count -ne [int]$rightGraph.edge_count) {
+            $changes += "edge_count:$([int]$leftGraph.edge_count)->$([int]$rightGraph.edge_count)"
+        }
+        if ([string]$leftGraph.effective_max_phase -ne [string]$rightGraph.effective_max_phase) {
+            $changes += "phase:$([string]$leftGraph.effective_max_phase)->$([string]$rightGraph.effective_max_phase)"
+        }
+        if ([string]$leftGraph.effective_runlevel_text -ne [string]$rightGraph.effective_runlevel_text) {
+            $changes += "runlevel:$([string]$leftGraph.effective_runlevel_text)->$([string]$rightGraph.effective_runlevel_text)"
+        }
+
+        $leftKinds = @()
+        $rightKinds = @()
+        if ($null -ne $leftGraph.node_kinds) {
+            foreach ($property in $leftGraph.node_kinds.PSObject.Properties) {
+                $leftKinds += "$($property.Name)=$($property.Value)"
+            }
+        }
+        if ($null -ne $rightGraph.node_kinds) {
+            foreach ($property in $rightGraph.node_kinds.PSObject.Properties) {
+                $rightKinds += "$($property.Name)=$($property.Value)"
+            }
+        }
+        if (-not (Compare-StringArrays -Left $leftKinds -Right $rightKinds)) {
+            $changes += "node_kinds:[$(Join-Names $leftKinds)]->[$(Join-Names $rightKinds)]"
         }
     }
-    if ($null -ne $RightCase.graph.node_kinds) {
-        foreach ($property in $RightCase.graph.node_kinds.PSObject.Properties) {
-            $rightKinds += "$($property.Name)=$($property.Value)"
-        }
-    }
-    if (-not (Compare-StringArrays -Left $leftKinds -Right $rightKinds)) {
-        $changes += "node_kinds:[$(Join-Names $leftKinds)]->[$(Join-Names $rightKinds)]"
+
+    $leftRuntimeObserve = Get-CaseStringProperty -CaseEntry $LeftCase -PropertyName 'runtime_observe'
+    $rightRuntimeObserve = Get-CaseStringProperty -CaseEntry $RightCase -PropertyName 'runtime_observe'
+    if ($leftRuntimeObserve -ne $rightRuntimeObserve) {
+        $changes += "runtime_observe:$(Format-NullableValue $leftRuntimeObserve)->$(Format-NullableValue $rightRuntimeObserve)"
     }
 
     $leftSubject = Get-CaseSubjectInfo -CaseEntry $LeftCase
@@ -507,6 +785,42 @@ function Compare-CaseSummary {
     return $changes
 }
 
+function Compare-CaseMetadata {
+    param(
+        $LeftCase,
+        $RightCase
+    )
+
+    $changes = @()
+    $leftDeclaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $LeftCase)
+    $rightDeclaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $RightCase)
+    if (-not (Compare-StringArrays -Left $leftDeclaredFacts -Right $rightDeclaredFacts)) {
+        $changes += "declared_facts:[$(Join-Names $leftDeclaredFacts)]->[$(Join-Names $rightDeclaredFacts)]"
+    }
+    $leftDeclaredContracts = @(Get-DeclaredContractTexts -CaseEntry $LeftCase)
+    $rightDeclaredContracts = @(Get-DeclaredContractTexts -CaseEntry $RightCase)
+    if (-not (Compare-StringArrays -Left $leftDeclaredContracts -Right $rightDeclaredContracts)) {
+        $changes += "declared_contracts:[$(Join-Names $leftDeclaredContracts)]->[$(Join-Names $rightDeclaredContracts)]"
+    }
+
+    return @($changes)
+}
+
+function New-EmptyNodeChanges {
+    return [pscustomobject]@{
+        Added = @()
+        Removed = @()
+        Changed = @()
+    }
+}
+
+function New-EmptyEdgeChanges {
+    return [pscustomobject]@{
+        Added = @()
+        Removed = @()
+    }
+}
+
 function Compare-Case {
     param(
         [string]$CaseName,
@@ -522,12 +836,17 @@ function Compare-Case {
 
     if ($null -eq $LeftCase) {
         $rightGraph = Load-CaseGraph -Bundle $RightBundle -CaseEntry $RightCase
-        $addedNodes = @((Get-NodeDescriptors -Graph $rightGraph.Data).Values)
-        $addedEdges = @((Get-EdgeDescriptors -Graph $rightGraph.Data).Values)
+        $addedNodes = @()
+        $addedEdges = @()
+        if ($null -ne $rightGraph) {
+            $addedNodes = @((Get-NodeDescriptors -Graph $rightGraph.Data).Values)
+            $addedEdges = @((Get-EdgeDescriptors -Graph $rightGraph.Data).Values)
+        }
         return [pscustomobject]@{
             Case = $CaseName
             Status = 'added'
             SummaryChanges = @('case added')
+            MetadataChanges = @()
             NodeChanges = [pscustomobject]@{ Added = $addedNodes; Removed = @(); Changed = @() }
             EdgeChanges = [pscustomobject]@{ Added = $addedEdges; Removed = @() }
             Left = $null
@@ -537,12 +856,17 @@ function Compare-Case {
 
     if ($null -eq $RightCase) {
         $leftGraph = Load-CaseGraph -Bundle $LeftBundle -CaseEntry $LeftCase
-        $removedNodes = @((Get-NodeDescriptors -Graph $leftGraph.Data).Values)
-        $removedEdges = @((Get-EdgeDescriptors -Graph $leftGraph.Data).Values)
+        $removedNodes = @()
+        $removedEdges = @()
+        if ($null -ne $leftGraph) {
+            $removedNodes = @((Get-NodeDescriptors -Graph $leftGraph.Data).Values)
+            $removedEdges = @((Get-EdgeDescriptors -Graph $leftGraph.Data).Values)
+        }
         return [pscustomobject]@{
             Case = $CaseName
             Status = 'removed'
             SummaryChanges = @('case removed')
+            MetadataChanges = @()
             NodeChanges = [pscustomobject]@{ Added = @(); Removed = $removedNodes; Changed = @() }
             EdgeChanges = [pscustomobject]@{ Added = @(); Removed = $removedEdges }
             Left = $LeftCase
@@ -551,10 +875,15 @@ function Compare-Case {
     }
 
     $summaryChanges = @(Compare-CaseSummary -LeftCase $LeftCase -RightCase $RightCase)
+    $metadataChanges = @(Compare-CaseMetadata -LeftCase $LeftCase -RightCase $RightCase)
     $leftGraph = Load-CaseGraph -Bundle $LeftBundle -CaseEntry $LeftCase
     $rightGraph = Load-CaseGraph -Bundle $RightBundle -CaseEntry $RightCase
-    $nodeChanges = Compare-Nodes -LeftGraph $leftGraph.Data -RightGraph $rightGraph.Data
-    $edgeChanges = Compare-Edges -LeftGraph $leftGraph.Data -RightGraph $rightGraph.Data
+    $nodeChanges = New-EmptyNodeChanges
+    $edgeChanges = New-EmptyEdgeChanges
+    if ($null -ne $leftGraph -and $null -ne $rightGraph) {
+        $nodeChanges = Compare-Nodes -LeftGraph $leftGraph.Data -RightGraph $rightGraph.Data
+        $edgeChanges = Compare-Edges -LeftGraph $leftGraph.Data -RightGraph $rightGraph.Data
+    }
 
     $status = 'unchanged'
     if ($summaryChanges.Count -gt 0 -or $nodeChanges.Added.Count -gt 0 -or $nodeChanges.Removed.Count -gt 0 -or $nodeChanges.Changed.Count -gt 0 -or $edgeChanges.Added.Count -gt 0 -or $edgeChanges.Removed.Count -gt 0) {
@@ -565,6 +894,7 @@ function Compare-Case {
         Case = $CaseName
         Status = $status
         SummaryChanges = $summaryChanges
+        MetadataChanges = $metadataChanges
         NodeChanges = $nodeChanges
         EdgeChanges = $edgeChanges
         Left = $LeftCase
@@ -577,19 +907,21 @@ function New-CaseSummaryRow {
         $CaseDiff
     )
 
-    $leftNodes = if ($null -ne $CaseDiff.Left) { [int]$CaseDiff.Left.graph.node_count } else { 0 }
-    $rightNodes = if ($null -ne $CaseDiff.Right) { [int]$CaseDiff.Right.graph.node_count } else { 0 }
-    $leftEdges = if ($null -ne $CaseDiff.Left) { [int]$CaseDiff.Left.graph.edge_count } else { 0 }
-    $rightEdges = if ($null -ne $CaseDiff.Right) { [int]$CaseDiff.Right.graph.edge_count } else { 0 }
+    $leftNodes = Get-CaseNodeCount -CaseEntry $CaseDiff.Left
+    $rightNodes = Get-CaseNodeCount -CaseEntry $CaseDiff.Right
+    $leftEdges = Get-CaseEdgeCount -CaseEntry $CaseDiff.Left
+    $rightEdges = Get-CaseEdgeCount -CaseEntry $CaseDiff.Right
 
     return [pscustomobject]@{
         Case = $CaseDiff.Case
         Status = $CaseDiff.Status
+        Kind = "$(Get-CaseKind -CaseEntry $CaseDiff.Left)->$(Get-CaseKind -CaseEntry $CaseDiff.Right)"
         Nodes = "$leftNodes->$rightNodes"
         Edges = "$leftEdges->$rightEdges"
         NodeDelta = "+$($CaseDiff.NodeChanges.Added.Count) -$($CaseDiff.NodeChanges.Removed.Count) ~$($CaseDiff.NodeChanges.Changed.Count)"
         EdgeDelta = "+$($CaseDiff.EdgeChanges.Added.Count) -$($CaseDiff.EdgeChanges.Removed.Count)"
         Summary = ($CaseDiff.SummaryChanges -join '; ')
+        Metadata = ($CaseDiff.MetadataChanges -join '; ')
     }
 }
 
@@ -637,10 +969,14 @@ function New-CaseJsonView {
         source = [string]$CaseEntry.source
         build_dir = [string]$CaseEntry.build_dir
         build_target = [string]$CaseEntry.build_target
-        export_target = [string]$CaseEntry.export_target
-        dot = Resolve-ArtifactPath -BundleRoot $Bundle.BundleRoot -Path ([string]$CaseEntry.dot)
-        json = Resolve-ArtifactPath -BundleRoot $Bundle.BundleRoot -Path ([string]$CaseEntry.json)
-        graph = $CaseEntry.graph
+        case_kind = Get-CaseKind -CaseEntry $CaseEntry
+        export_target = Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'export_target'
+        dot = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'dot'
+        json = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'json'
+        runtime_observe = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'runtime_observe'
+        declared_facts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
+        declared_contracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
+        graph = Get-CaseGraphSummary -CaseEntry $CaseEntry
     }
 
     $subjectJson = New-CaseSubjectJsonView -CaseEntry $CaseEntry
@@ -657,8 +993,26 @@ function Write-CaseDetails {
     )
 
     Write-Host "[CASE] $($CaseDiff.Case) status=$($CaseDiff.Status)"
+    Write-Host "[KIND] $(Get-CaseKind -CaseEntry $CaseDiff.Left) -> $(Get-CaseKind -CaseEntry $CaseDiff.Right)"
     if ($CaseDiff.SummaryChanges.Count -gt 0) {
         Write-Host "[SUMMARY] $($CaseDiff.SummaryChanges -join '; ')"
+    }
+    if ($CaseDiff.MetadataChanges.Count -gt 0) {
+        Write-Host "[METADATA] $($CaseDiff.MetadataChanges -join '; ')"
+    }
+    $leftContracts = @()
+    if ($null -ne $CaseDiff.Left) {
+        $leftContracts = @(Get-DeclaredContractTexts -CaseEntry $CaseDiff.Left)
+    }
+    if ($leftContracts.Count -gt 0) {
+        Write-Host "[LEFT DECLARED CONTRACTS] $($leftContracts -join '; ')"
+    }
+    $rightContracts = @()
+    if ($null -ne $CaseDiff.Right) {
+        $rightContracts = @(Get-DeclaredContractTexts -CaseEntry $CaseDiff.Right)
+    }
+    if ($rightContracts.Count -gt 0) {
+        Write-Host "[RIGHT DECLARED CONTRACTS] $($rightContracts -join '; ')"
     }
 
     if ($CaseDiff.NodeChanges.Added.Count -gt 0) {
@@ -698,8 +1052,20 @@ foreach ($caseName in $selectedCaseNames) {
 }
 
 if (-not $IncludeUnchanged) {
-    $caseDiffs = @($caseDiffs | Where-Object { $_.Status -ne 'unchanged' })
+    $caseDiffs = @(
+        $caseDiffs |
+            Where-Object {
+                $_.Status -ne 'unchanged' -or @($_.MetadataChanges).Count -gt 0
+            }
+    )
 }
+
+$selectedLeftCases = @($selectedCaseNames | Where-Object { $leftMap.ContainsKey($_) } | ForEach-Object { $leftMap[$_] })
+$selectedRightCases = @($selectedCaseNames | Where-Object { $rightMap.ContainsKey($_) } | ForEach-Object { $rightMap[$_] })
+$leftDeclaredFactsDefaults = Get-DerivedDeclaredFactsDefaults -CaseEntries $selectedLeftCases
+$rightDeclaredFactsDefaults = Get-DerivedDeclaredFactsDefaults -CaseEntries $selectedRightCases
+$leftDeclaredContractsDefaults = Get-DerivedDeclaredContractsDefaults -CaseEntries $selectedLeftCases
+$rightDeclaredContractsDefaults = Get-DerivedDeclaredContractsDefaults -CaseEntries $selectedRightCases
 
 if ($AsJson) {
     $payload = [ordered]@{
@@ -710,11 +1076,15 @@ if ($AsJson) {
             index = $leftBundle.IndexPath
             bundle_root = $leftBundle.BundleRoot
             input_manifest = $leftBundle.InputManifest
+            declared_facts_defaults = if ($null -eq $leftDeclaredFactsDefaults) { $null } else { ,@($leftDeclaredFactsDefaults) }
+            declared_contracts_defaults = if ($null -eq $leftDeclaredContractsDefaults) { $null } else { ,@($leftDeclaredContractsDefaults) }
         }
         right = [ordered]@{
             index = $rightBundle.IndexPath
             bundle_root = $rightBundle.BundleRoot
             input_manifest = $rightBundle.InputManifest
+            declared_facts_defaults = if ($null -eq $rightDeclaredFactsDefaults) { $null } else { ,@($rightDeclaredFactsDefaults) }
+            declared_contracts_defaults = if ($null -eq $rightDeclaredContractsDefaults) { $null } else { ,@($rightDeclaredContractsDefaults) }
         }
         status_counts = [ordered]@{
             changed = Get-CaseStatusCount -CaseDiffs $caseDiffs -Status 'changed'
@@ -730,6 +1100,7 @@ if ($AsJson) {
                 left_case = New-CaseJsonView -Bundle $leftBundle -CaseEntry $_.Left
                 right_case = New-CaseJsonView -Bundle $rightBundle -CaseEntry $_.Right
                 summary_changes = $_.SummaryChanges
+                metadata_changes = $_.MetadataChanges
                 node_changes = [ordered]@{
                     added = @($_.NodeChanges.Added | ForEach-Object { New-NodeJsonView -NodeDescriptor $_ })
                     removed = @($_.NodeChanges.Removed | ForEach-Object { New-NodeJsonView -NodeDescriptor $_ })
@@ -758,9 +1129,21 @@ Write-Host "[LEFT]  $($leftBundle.IndexPath)"
 if ($null -ne $leftBundle.InputManifest) {
     Write-Host "[LEFT MANIFEST]  $($leftBundle.InputManifest.path) ($($leftBundle.InputManifest.schema))"
 }
+if ($null -ne $leftDeclaredFactsDefaults) {
+    Write-Host "[LEFT DECLARED FACTS DEFAULTS]  $($leftDeclaredFactsDefaults -join ', ')"
+}
+if ($null -ne $leftDeclaredContractsDefaults) {
+    Write-Host "[LEFT DECLARED CONTRACTS DEFAULTS]  $((@($leftDeclaredContractsDefaults | ForEach-Object { Format-DeclaredContract -ContractEntry $_ }) -join '; '))"
+}
 Write-Host "[RIGHT] $($rightBundle.IndexPath)"
 if ($null -ne $rightBundle.InputManifest) {
     Write-Host "[RIGHT MANIFEST] $($rightBundle.InputManifest.path) ($($rightBundle.InputManifest.schema))"
+}
+if ($null -ne $rightDeclaredFactsDefaults) {
+    Write-Host "[RIGHT DECLARED FACTS DEFAULTS] $($rightDeclaredFactsDefaults -join ', ')"
+}
+if ($null -ne $rightDeclaredContractsDefaults) {
+    Write-Host "[RIGHT DECLARED CONTRACTS DEFAULTS] $((@($rightDeclaredContractsDefaults | ForEach-Object { Format-DeclaredContract -ContractEntry $_ }) -join '; '))"
 }
 Write-Host ''
 
@@ -770,7 +1153,7 @@ if ($caseDiffs.Count -eq 0) {
 }
 
 $summaryRows = @($caseDiffs | ForEach-Object { New-CaseSummaryRow -CaseDiff $_ })
-$summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Status, Nodes, Edges, NodeDelta, EdgeDelta, Summary | Out-Host
+$summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Status, Kind, Nodes, Edges, NodeDelta, EdgeDelta, Summary, Metadata | Out-Host
 
 if ($ShowDetails -or $caseDiffs.Count -eq 1) {
     foreach ($caseDiff in @($caseDiffs | Sort-Object Case)) {

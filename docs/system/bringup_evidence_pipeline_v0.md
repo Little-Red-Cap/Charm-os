@@ -289,6 +289,56 @@ Charm 这条线不是从零开始。
 这两层输出物可以先分开实现，  
 但它们最终应共享同一种报告语言。
 
+当前仓库里，这条 explain 面已经有了两个正式入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -Case <name> -BringupEvidence`
+  面向单 report，展开 capability 级证据矩阵
+- `scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot <path> -BringupEvidence`
+  面向 artifact root，收敛出跨 case 的 capability matrix 与 reason matrix
+
+后者当前至少会回答：
+
+- 每个 case 的 `declared / materialized / published / observed / blocked / failed` 摘要
+- 每个 capability 在哪些 case 中 `declared / materialized / observed / published`
+- capability 级 `publish_state / export_state`
+- case-qualified `provider_nodes / consumer_nodes`
+- `blocked_reason_matrix / failed_reason_matrix`
+
+也就是说，bringup 证据不再只能按单 case 追问，
+还可以横向查看：
+
+- 某个 capability 是否只在部分 bringup case 中成立
+- 板级事实是否持续停留在 declared-only 状态
+- 哪些阻塞或失败原因在多 case 间重复出现
+
+如果当前 report 来自 compare 模式，
+`scripts/inspect_system_compiler_artifact_report.ps1 -Case <name> -BringupEvidence -AsJson`
+当前还会额外暴露 `query.comparison.bringup_evidence`，
+至少带出：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `published_capability_changes`
+- `capability_changes`
+
+这意味着 bringup 证据当前已经不只会回答“当前 case 长什么样”，
+还可以回答“相对 baseline，哪些 published / attached 语义发生了漂移”，
+而不必把这类 sidecar-only 变化硬塞回结构 diff。
+
+如果选择的是整组 compare report，
+`scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot <path> -BringupEvidence -AsJson`
+现在也会继续暴露 `query.comparison.bringup_evidence`，
+至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `capability_change_matrix`
+
+这意味着 bringup 证据现在已经能从“单 case compare explain”
+继续抬升到“artifact_root 横向 compare explain”。
+
 ## 8. 当前最贴仓库现实的三条示例链路
 
 ### 8.1 `materialize_observe_demo`
@@ -396,6 +446,36 @@ Charm 这条线不是从零开始。
 v0 更合理的判断标准是：
 
 > **当系统 bringup 出现问题时，我们能否比“再打一串 log 看看”更快地说清楚：问题卡在哪一层。**
+
+为了把这条 explain 面守成回归，仓库当前还提供了最小 smoke：
+
+- `scripts/materialized_graph_bringup_evidence_matrix_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
+
+其中 matrix smoke 直接复用
+`inspect_system_compiler_artifact_report.ps1 -ArtifactRoot ... -BringupEvidence -AsJson`
+的真实输出，重点守住：
+
+- 预期 bringup case 仍能进入 artifact_root 级矩阵
+- `board.win_stub` 这类板级事实仍保持 declared-only
+- `system.clock` 这类公共 capability 仍能跨 case materialized / observed
+- `block.sd0` 这类 case-specific capability 不会误扩散到其它 bringup case
+- `blocked_reason_matrix / failed_reason_matrix` 在当前 happy-path 示例里保持为空
+
+而 compare smoke 则通过“左右 bundle 共用同一路径 sidecar、但内容不同”的合成场景，
+重点守住：
+
+- `bundle diff` 在 sidecar-only 漂移下仍可保持 `status = unchanged`
+- `artifact report.comparison.bringup_evidence` 仍能捕获 `published_count` 与 capability 级状态漂移
+- `inspect_system_compiler_artifact_report.ps1 -Case <name> -BringupEvidence -AsJson`
+  会稳定暴露 `query.comparison.bringup_evidence`
+
+而 compare root smoke 则继续往前守住：
+
+- compare report 进入 `artifact_root` 聚合后不会丢失 compare 负载
+- `query.comparison.bringup_evidence.changed_cases` 能稳定指出真正漂移的 case
+- `capability_change_matrix` 能继续把 capability 级 compare 变化收束成横向矩阵
 
 ## 11. 当前结论
 

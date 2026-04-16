@@ -437,6 +437,378 @@
         }
       }
     },
+    "stringArrayChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupEvidenceComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_count",
+        "materialized_count",
+        "published_count",
+        "observed_count",
+        "blocked_count",
+        "failed_count",
+        "published_capabilities",
+        "blocked_reasons",
+        "failed_reasons"
+      ],
+      "properties": {
+        "declared_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "materialized_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "failed_reasons": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupEvidenceComparisonCapabilityChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "change_kind",
+        "left_declared",
+        "right_declared",
+        "left_materialized",
+        "right_materialized",
+        "left_published",
+        "right_published",
+        "left_observed",
+        "right_observed",
+        "left_blocked",
+        "right_blocked",
+        "left_failed",
+        "right_failed",
+        "left_publish_state",
+        "right_publish_state",
+        "left_export_state",
+        "right_export_state",
+        "left_provider_nodes",
+        "right_provider_nodes",
+        "left_consumer_nodes",
+        "right_consumer_nodes",
+        "left_blocked_reasons",
+        "right_blocked_reasons",
+        "left_failed_reasons",
+        "right_failed_reasons"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_declared": {
+          "type": "boolean"
+        },
+        "right_declared": {
+          "type": "boolean"
+        },
+        "left_materialized": {
+          "type": "boolean"
+        },
+        "right_materialized": {
+          "type": "boolean"
+        },
+        "left_published": {
+          "type": "boolean"
+        },
+        "right_published": {
+          "type": "boolean"
+        },
+        "left_observed": {
+          "type": "boolean"
+        },
+        "right_observed": {
+          "type": "boolean"
+        },
+        "left_blocked": {
+          "type": "boolean"
+        },
+        "right_blocked": {
+          "type": "boolean"
+        },
+        "left_failed": {
+          "type": "boolean"
+        },
+        "right_failed": {
+          "type": "boolean"
+        },
+        "left_publish_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_publish_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_export_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_export_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_failed_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_failed_reasons": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupEvidenceComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "capability_changes",
+        "published_capability_changes",
+        "blocked_reason_changes",
+        "failed_reason_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/bringupEvidenceComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/bringupEvidenceComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "capability_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bringupEvidenceComparisonCapabilityChange"
+          }
+        },
+        "published_capability_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "blocked_reason_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "failed_reason_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "resourceContractComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_contracts",
+        "audited_count",
+        "satisfied_count",
+        "violated_count",
+        "unknown_count",
+        "provided_facts",
+        "resource_hotspots"
+      ],
+      "properties": {
+        "declared_contracts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "audited_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "satisfied_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provided_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "resource_hotspots": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "resourceContractComparisonContractChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_requires",
+        "right_requires",
+        "left_status_text",
+        "right_status_text"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "declared",
+            "satisfied",
+            "violated",
+            "unknown"
+          ]
+        },
+        "right_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "declared",
+            "satisfied",
+            "violated",
+            "unknown"
+          ]
+        },
+        "left_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_status_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_status_text": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "resourceContractComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "contract_changes",
+        "provided_fact_changes",
+        "hotspot_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/resourceContractComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/resourceContractComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "contract_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractComparisonContractChange"
+          }
+        },
+        "provided_fact_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "hotspot_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
     "comparisonSummary": {
       "type": "object",
       "additionalProperties": false,
@@ -468,6 +840,12 @@
         },
         "edge_changes": {
           "$ref": "#/$defs/changeCounts"
+        },
+        "bringup_evidence": {
+          "$ref": "#/$defs/bringupEvidenceComparison"
+        },
+        "resource_contract": {
+          "$ref": "#/$defs/resourceContractComparison"
         }
       }
     },

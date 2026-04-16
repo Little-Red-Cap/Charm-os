@@ -49,6 +49,32 @@
         }
       }
     },
+    "resourceContractClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "caseEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -57,13 +83,15 @@
         "source",
         "build_dir",
         "build_target",
+        "case_kind",
         "export_target",
         "dot_cache",
         "json_cache",
         "default_dot",
         "default_json",
         "extra_cache",
-        "subject"
+        "subject",
+        "declared_contracts"
       ],
       "properties": {
         "name": {
@@ -77,6 +105,13 @@
         },
         "build_target": {
           "type": "string"
+        },
+        "case_kind": {
+          "type": "string",
+          "enum": [
+            "materialized_graph",
+            "runtime_only"
+          ]
         },
         "export_target": {
           "type": [
@@ -97,16 +132,58 @@
           ]
         },
         "default_dot": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "default_json": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime_observe_target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime_observe_cache": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default_runtime_observe": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "declared_facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "declared_contracts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractClause"
+          }
         },
         "extra_cache": {
           "type": "array",
           "items": {
             "type": "string"
           }
+        },
+        "runtime_observe": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "subject": {
           "$ref": "#/$defs/subjectSummary"

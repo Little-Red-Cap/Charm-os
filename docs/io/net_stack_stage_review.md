@@ -99,6 +99,34 @@
 
 这说明我们不是只写了一套“设计上看起来优雅”的层次，而是已经让这些层次有了可执行、可观察、可回归的验证面。
 
+### 6. façade 收敛已经从“方向对”进入“示例层默认写法”
+
+如果说前一阶段更多是在证明 `TcpClient / TcpListener / UdpSocket` 这条 façade 路线“值得做”，
+那么到当前这个检查点（2026-04-17），我们已经更接近在证明它“正在成为默认写法”：
+
+- `Examples/io/net` 里的主流用户路径已经大面积切到 `connected / listening / bound` 及其 `*_loopback / *_any` 便捷入口
+- 一批 `WinProvider` 侧的 listener / request / service / typed service 示例也已经跟着收敛，不再只是 stub 路径先变干净
+- 旧式 `listener.listen(...loopback...)`、`client.connect(...loopback...)`、`SocketChannelBinding{client.raw()}` 这类更偏“底层味道”的写法，已经基本退出示例层主视野
+
+这件事的意义不只是“代码更顺眼”，而是说明网络对外表面已经开始从设计意图，变成真实的用户调用默认面。
+
+### 7. 关单回归已经开始从“口头计划”变成“已跑证据”
+
+到当前这个检查点（2026-04-17），网络底座的关单工作也不再只是“我们应该找时间跑一组回归”，而是已经有了第一轮明确证据：
+
+- `net-api-facade-smoke`
+- `net-posix-socket-bridge-smoke`
+- `net-pump-smoke`
+- `net-reactor-request-close-smoke`
+- `net-reactor-close-drain-win-smoke`
+- `net-reactor-write-reset-close-smoke`
+- `net-reactor-service-close-win-smoke`
+- `net-reactor-service-typed-request-error-win-smoke`
+
+同时也补做了 armv7a / QEMU 方向的最小构建检查，确认最近一轮网络与 POSIX 收口没有把跨目标构建卫生重新打坏。
+
+这说明网络底座当前已经越来越像一个“可以关单的工程阶段”，而不是一个只能靠主观印象判断是否健康的长期实验区。
+
 ---
 
 ## 为什么这阶段是健康的
@@ -183,15 +211,22 @@
 
 换句话说，`posix.api` 现在已经开始提醒我们“应该继续做组织层面的减压”。
 
-### 3. 对外 API 体验方向已明确，但名字和收口程度还没完全锁死
+而且这轮关单回归还顺手暴露了一个很有代表性的细节：
 
-目前方向已经清楚，但这还不等于：
+- Windows CRT 宏会污染 `S_IF*` 与 `SEEK_*` 这类 POSIX 常量名
+
+它本身不是网络语义错误，但它提醒我们：  
+网络底座一旦继续沿着 POSIX 主线收口，host 工具链卫生就会持续成为真实工程问题，而不是边角料。
+
+### 3. 对外 API 体验方向已明确，但仍应克制冻结表面
+
+目前方向已经清楚，而且示例层已经大面积收敛；但这还不等于：
 
 - 用户调用面已经最终定型
 - facade 命名已经完全冻结
 - raw socket 与 typed facade 的边界已经被完整 smoke 锁住
 
-所以现在还适合继续在内部收敛，不适合太早把外部承诺做重。
+所以现在更适合把它当成“关单前的收尾管理问题”，而不是重新发散 API 设计；同时也不适合太早把外部承诺做重。
 
 ### 4. 当前强项是 host 验证，弱项是跨目标一致性
 
@@ -218,6 +253,9 @@
 - POSIX fd bridge 语义继续锁定
 - reactor / channel / service 承载面更清晰
 - 对外 facade 开始从“方向正确”收敛到“调用简单”
+
+从 2026-04-17 这个检查点看，最后这一条已经基本进入尾声：  
+当前更需要的是把关单证据整理好，而不是继续反复摇摆 façade 形状。
 
 原因很简单：
 

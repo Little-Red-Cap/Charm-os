@@ -16,6 +16,7 @@ import usb.common;
 import usb.device_driver;
 import usb.driver;
 import player.stm32h7.usb_glue_core;
+import player.stm32h7.usb_msc_glue;
 
 extern "C" {
     extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
@@ -95,22 +96,11 @@ namespace {
     namespace usb_core = player::stm32h7::usb_glue_core;
 
     usb_core::Core g_usb_core{};
+    player::stm32h7::usb_msc_glue::State g_msc{};
     auto& g_usb_adapter = g_usb_core.adapter;
     auto& g_usb_dcd_ops = g_usb_core.dcd_ops;
-    auto& g_msc_bot = g_usb_core.msc_bot;
-    auto& g_msc_cfg = g_usb_core.msc_cfg;
-    auto& g_msc_in_busy = g_usb_core.msc_in_busy;
-    bool g_msc_eps_opened = false;
-    auto& g_usb_out_cbs = g_usb_core.out_cbs;
-    auto& g_usb_in_cbs = g_usb_core.in_cbs;
-    auto& g_usb_out_ctx = g_usb_core.out_ctxs;
-    auto& g_usb_in_ctx = g_usb_core.in_ctxs;
-    auto& g_usb_out_bufs = g_usb_core.out_bufs;
     auto& g_usb_out_mps = g_usb_core.out_mps;
     bool g_usb_hooks_enabled = false;
-    auto& g_usb_ep0_prepared = g_usb_core.ep0_prepared;
-    auto& g_ep0_expect_status_out = g_usb_core.ep0_expect_status_out;
-    auto& g_ep0_in_zlp_pending = g_usb_core.ep0_in_zlp_pending;
     std::uint32_t g_setup_calls = 0;
     std::uint32_t g_out0_calls = 0;
     std::uint32_t g_in0_calls = 0;
@@ -167,7 +157,7 @@ namespace {
 
     void usb_set_ready(void*, usb::class_driver::MscBot* bot,
                        const usb::class_driver::MscConfig* cfg) noexcept {
-        usb_core::set_ready(g_usb_core, bot, cfg);
+        player::stm32h7::usb_msc_glue::set_ready(g_msc, bot, cfg);
     }
 
     bool usb_ep_open(void* ctx, const usb::driver::EpConfig& cfg,
@@ -231,7 +221,6 @@ namespace {
         g_set_cfg_open_out_ok = 0;
         g_set_cfg_open_in_ok = 0;
         g_set_cfg_arm_out_ok = 0;
-        g_msc_eps_opened = configured;
         const auto ok = core && usb_core::set_configured(*core, pcd, configured);
         g_set_cfg_last_ok = ok ? 1u : 0u;
         return ok;
@@ -301,26 +290,12 @@ export namespace player::stm32h7::board {
     }
 
     void usb_poll_msc(PCD_HandleTypeDef* pcd) noexcept {
-        if (!g_usb_hooks_enabled || !g_msc_bot || !g_msc_cfg || !pcd) return;
-        if (g_msc_bot->take_out_rearm()) {
-            const auto ep = static_cast<std::uint8_t>(g_msc_cfg->ep_out & 0x0F);
-            g_usb_out_mps[ep] = g_msc_cfg->ep_mps;
-            (void)HAL_PCD_EP_Receive(pcd, g_msc_cfg->ep_out,
-                g_usb_out_bufs[ep].data(), g_usb_out_mps[ep]);
-        }
-        if (g_msc_bot->take_stall_in()) {
-            (void)HAL_PCD_EP_SetStall(pcd, g_msc_cfg->ep_in);
-            return;
-        }
-        if (g_msc_bot->take_stall_out()) {
-            (void)HAL_PCD_EP_SetStall(pcd, g_msc_cfg->ep_out);
-            return;
-        }
-        if (g_msc_in_busy) {
-            return;
-        }
-        (void)usb::device::examples::send_msc_in_packet(
-            g_usb_dcd_ops, pcd, *g_msc_bot, *g_msc_cfg);
+        if (!g_usb_hooks_enabled || !pcd) return;
+        (void)player::stm32h7::usb_msc_glue::poll(
+            g_usb_core,
+            g_msc,
+            g_usb_dcd_ops,
+            pcd);
     }
 
     void usb_enable_hooks(bool enable) noexcept {
@@ -497,8 +472,8 @@ extern "C" int charm_usb_data_out_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     const auto event = usb_core::inspect_data_out(hpcd, epnum);
     record_data_out_diag(event);
     const auto handled = usb_core::handle_data_out(*core, hpcd, event);
-    if (handled && g_msc_cfg &&
-            epnum == static_cast<uint8_t>(g_msc_cfg->ep_out & 0x0F) &&
+    if (handled && g_msc.cfg &&
+            epnum == static_cast<uint8_t>(g_msc.cfg->ep_out & 0x0F) &&
             event.len > 0u) {
         player::stm32h7::board::usb_poll_msc(hpcd);
     }
@@ -512,7 +487,7 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     const auto event = usb_core::inspect_data_in(hpcd, epnum);
     record_data_in_diag(event);
     const auto handled = usb_core::handle_data_in(*core, hpcd, event);
-    if (handled && g_msc_cfg && epnum == static_cast<uint8_t>(g_msc_cfg->ep_in & 0x0F)) {
+    if (handled && g_msc.cfg && epnum == static_cast<uint8_t>(g_msc.cfg->ep_in & 0x0F)) {
         player::stm32h7::board::usb_poll_msc(hpcd);
     }
     return handled;

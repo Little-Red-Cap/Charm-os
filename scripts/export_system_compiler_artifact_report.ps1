@@ -96,13 +96,61 @@ function Resolve-CaseArtifactPath {
     return Resolve-FullPath (Join-Path $BundleRootPath $RelativeOrAbsolutePath)
 }
 
+function Get-CaseKind {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or
+        $null -eq $CaseEntry.PSObject.Properties['case_kind'] -or
+        [string]::IsNullOrWhiteSpace([string]$CaseEntry.case_kind)) {
+        return 'materialized_graph'
+    }
+
+    $normalized = [string]$CaseEntry.case_kind
+    if ($normalized -notin @('materialized_graph', 'runtime_only')) {
+        throw "unsupported case kind '$normalized' in bundle case entry"
+    }
+
+    return $normalized
+}
+
+function New-EmptyRuntimeObserve {
+    return [ordered]@{
+        observed_capabilities = @()
+        publish_state_summary = [ordered]@{
+            missing = 0
+            published = 0
+        }
+        export_state_summary = [ordered]@{
+            missing = 0
+            detached = 0
+            attached = 0
+        }
+        recent_transitions = @()
+    }
+}
+
 function Load-CaseGraph {
     param(
         $Bundle,
         $CaseEntry
     )
 
-    $jsonPath = Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.json)
+    $caseKind = Get-CaseKind -CaseEntry $CaseEntry
+    $jsonValue = if ($null -ne $CaseEntry.PSObject.Properties['json']) {
+        [string]$CaseEntry.json
+    } else {
+        ''
+    }
+    if ([string]::IsNullOrWhiteSpace($jsonValue)) {
+        if ($caseKind -eq 'runtime_only') {
+            return $null
+        }
+        throw "case json missing for materialized_graph case: $([string]$CaseEntry.name)"
+    }
+
+    $jsonPath = Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath $jsonValue
     if (-not (Test-Path $jsonPath)) {
         throw "case json not found: $jsonPath"
     }
@@ -112,6 +160,34 @@ function Load-CaseGraph {
     return [pscustomobject]@{
         Path = $jsonPath
         Data = $graph
+    }
+}
+
+function Load-CaseRuntimeObserve {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or
+        $null -eq $CaseEntry.PSObject.Properties['runtime_observe'] -or
+        [string]::IsNullOrWhiteSpace([string]$CaseEntry.runtime_observe)) {
+        return $null
+    }
+
+    $runtimeObservePath = Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.runtime_observe)
+    if (-not (Test-Path $runtimeObservePath)) {
+        throw "case runtime observe artifact not found: $runtimeObservePath"
+    }
+
+    $runtimeObserve = Get-Content -LiteralPath $runtimeObservePath -Raw -Encoding utf8 | ConvertFrom-Json
+    if ([string]$runtimeObserve.schema -ne 'system_compiler.runtime_observe_snapshot/v0') {
+        throw "unsupported runtime observe schema: $([string]$runtimeObserve.schema)"
+    }
+
+    return [pscustomobject]@{
+        Path = $runtimeObservePath
+        Data = $runtimeObserve
     }
 }
 
@@ -240,6 +316,277 @@ function Get-UnresolvedBindings {
     return @($unresolved | Sort-Object -Unique)
 }
 
+function Get-RuntimeObserveSummary {
+    param(
+        $RuntimeObserveInfo
+    )
+
+    if ($null -eq $RuntimeObserveInfo) {
+        return New-EmptyRuntimeObserve
+    }
+
+    return [ordered]@{
+        observed_capabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $RuntimeObserveInfo)
+        publish_state_summary = [ordered]@{
+            missing = [int]$RuntimeObserveInfo.Data.publish_state_summary.missing
+            published = [int]$RuntimeObserveInfo.Data.publish_state_summary.published
+        }
+        export_state_summary = [ordered]@{
+            missing = [int]$RuntimeObserveInfo.Data.export_state_summary.missing
+            detached = [int]$RuntimeObserveInfo.Data.export_state_summary.detached
+            attached = [int]$RuntimeObserveInfo.Data.export_state_summary.attached
+        }
+        recent_transitions = @($RuntimeObserveInfo.Data.recent_transitions)
+    }
+}
+
+function Get-RuntimePublishedCapabilities {
+    param(
+        $RuntimeObserveInfo
+    )
+
+    if ($null -eq $RuntimeObserveInfo -or
+        $null -eq $RuntimeObserveInfo.Data.PSObject.Properties['published_capabilities']) {
+        return @()
+    }
+
+    return @(
+        @($RuntimeObserveInfo.Data.published_capabilities) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
+}
+
+function Get-RuntimeCapabilityNames {
+    param(
+        $RuntimeObserveInfo
+    )
+
+    if ($null -eq $RuntimeObserveInfo) {
+        return @()
+    }
+
+    $names = @()
+    if ($null -ne $RuntimeObserveInfo.Data.PSObject.Properties['observed_capabilities']) {
+        $names += @(
+            @($RuntimeObserveInfo.Data.observed_capabilities) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ }
+        )
+    }
+    if ($null -ne $RuntimeObserveInfo.Data.PSObject.Properties['published_capabilities']) {
+        $names += @(
+            @($RuntimeObserveInfo.Data.published_capabilities) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ }
+        )
+    }
+    if ($null -ne $RuntimeObserveInfo.Data.PSObject.Properties['recent_transitions']) {
+        $names += @(
+            @($RuntimeObserveInfo.Data.recent_transitions) |
+                ForEach-Object { [string]$_.capability } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        )
+    }
+
+    return @($names | Sort-Object -Unique)
+}
+
+function Get-RuntimeObservedCount {
+    param(
+        $RuntimeObserveInfo
+    )
+
+    if ($null -eq $RuntimeObserveInfo) {
+        return $null
+    }
+
+    if ($null -ne $RuntimeObserveInfo.Data.PSObject.Properties['observed_capabilities']) {
+        return @(
+            @($RuntimeObserveInfo.Data.observed_capabilities) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        ).Count
+    }
+
+    return ([int]$RuntimeObserveInfo.Data.export_state_summary.missing) +
+           ([int]$RuntimeObserveInfo.Data.export_state_summary.detached) +
+           ([int]$RuntimeObserveInfo.Data.export_state_summary.attached)
+}
+
+function Get-GraphCapabilityProjection {
+    param(
+        $Graph,
+        [string]$CapabilityName
+    )
+
+    $providers = @()
+    $consumers = @()
+    if ($null -ne $Graph) {
+        foreach ($node in @($Graph.nodes)) {
+            $provided = @(Get-CapabilityNames -Capabilities $node.provides)
+            $required = @(Get-CapabilityNames -Capabilities $node.requires)
+            if ($provided -contains $CapabilityName) {
+                $providers += [string]$node.name
+            }
+            if ($required -contains $CapabilityName) {
+                $consumers += [string]$node.name
+            }
+        }
+    }
+
+    $providerNodes = @($providers | Sort-Object -Unique)
+    $consumerNodes = @($consumers | Sort-Object -Unique)
+
+    return [ordered]@{
+        provider_nodes = $providerNodes
+        consumer_nodes = $consumerNodes
+        materialized = ($providerNodes.Count -gt 0) -or ($consumerNodes.Count -gt 0)
+    }
+}
+
+function Get-CapabilityScopedReasons {
+    param(
+        [string[]]$Reasons,
+        [string]$CapabilityName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CapabilityName)) {
+        return @()
+    }
+
+    $exactUnresolvedText = "unresolved binding: $CapabilityName"
+    return @(
+        @($Reasons) |
+            Where-Object {
+                $reasonText = [string]$_
+                (-not [string]::IsNullOrWhiteSpace($reasonText)) -and (
+                    ($reasonText -eq $exactUnresolvedText) -or
+                    ($reasonText -like "*$CapabilityName*")
+                )
+            } |
+            Sort-Object -Unique
+    )
+}
+
+function Get-RuntimeExportStateMap {
+    param(
+        $RuntimeObserveInfo
+    )
+
+    $states = @{}
+    if ($null -eq $RuntimeObserveInfo -or
+        $null -eq $RuntimeObserveInfo.Data.PSObject.Properties['recent_transitions']) {
+        return $states
+    }
+
+    foreach ($transition in @($RuntimeObserveInfo.Data.recent_transitions)) {
+        if ($null -eq $transition) {
+            continue
+        }
+
+        $capabilityName = [string]$transition.capability
+        if ([string]::IsNullOrWhiteSpace($capabilityName)) {
+            continue
+        }
+
+        $afterState = [string]$transition.after
+        if ([string]::IsNullOrWhiteSpace($afterState)) {
+            continue
+        }
+
+        $states[$capabilityName] = $afterState
+    }
+
+    return $states
+}
+
+function Get-UnifiedObservedCapabilities {
+    param(
+        $Graph,
+        [string[]]$RuntimeCapabilities
+    )
+
+    $names = @()
+    if ($null -ne $Graph) {
+        $names += @(Get-ProvidedFacts -Graph $Graph)
+        $names += @(Get-RequiredFacts -Graph $Graph)
+    }
+    $names += @($RuntimeCapabilities)
+
+    return @(
+        @($names) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+}
+
+function New-BringupEvidenceEntries {
+    param(
+        $Graph,
+        [string[]]$CapabilityNames,
+        [string[]]$ObservedCapabilities,
+        [string[]]$PublishedCapabilities,
+        [string[]]$BlockedReasons,
+        [string[]]$FailedReasons,
+        $RuntimeExportStates
+    )
+
+    $entries = @()
+    $hasGraph = $null -ne $Graph
+    foreach ($capabilityName in @($CapabilityNames)) {
+        if ([string]::IsNullOrWhiteSpace([string]$capabilityName)) {
+            continue
+        }
+
+        $graphProjection = Get-GraphCapabilityProjection -Graph $Graph -CapabilityName $capabilityName
+        $published = @($PublishedCapabilities) -contains $capabilityName
+        $observed = @($ObservedCapabilities) -contains $capabilityName
+        $blockedReasonsForCapability = @(Get-CapabilityScopedReasons -Reasons $BlockedReasons -CapabilityName $capabilityName)
+        $failedReasonsForCapability = @(Get-CapabilityScopedReasons -Reasons $FailedReasons -CapabilityName $capabilityName)
+        $blocked = @($blockedReasonsForCapability).Count -gt 0
+        $failed = @($failedReasonsForCapability).Count -gt 0
+        $materialized = if ($hasGraph) {
+            [bool]$graphProjection.materialized
+        } else {
+            $observed -or $published -or $RuntimeExportStates.ContainsKey($capabilityName)
+        }
+        $declared = $materialized -or $observed -or $published -or $blocked -or $failed
+        $publishState = if ($published) {
+            'published'
+        } elseif ($declared) {
+            'missing'
+        } else {
+            $null
+        }
+        $exportState = if ($RuntimeExportStates.ContainsKey($capabilityName)) {
+            [string]$RuntimeExportStates[$capabilityName]
+        } else {
+            $null
+        }
+
+        $entries += [ordered]@{
+            capability = [string]$capabilityName
+            declared = [bool]$declared
+            materialized = [bool]$materialized
+            published = [bool]$published
+            observed = [bool]$observed
+            blocked = [bool]$blocked
+            failed = [bool]$failed
+            publish_state = $publishState
+            export_state = $exportState
+            provider_nodes = @($graphProjection.provider_nodes)
+            consumer_nodes = @($graphProjection.consumer_nodes)
+            blocked_reasons = @($blockedReasonsForCapability)
+            failed_reasons = @($failedReasonsForCapability)
+        }
+    }
+
+    return @($entries | Sort-Object capability)
+}
+
 function Get-SubjectInfo {
     param(
         $SubjectLike
@@ -269,6 +616,193 @@ function Get-SubjectInfo {
         Profile = $profile
         Board = $board
         ActiveFacets = @($activeFacets)
+    }
+}
+
+function Get-CaseDeclaredFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['declared_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.declared_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Get-CaseDeclaredContracts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['declared_contracts']) {
+        return @()
+    }
+
+    $contracts = @()
+    foreach ($entry in @($CaseEntry.declared_contracts)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $contractName = [string]$entry.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $requires = @()
+        if ($null -ne $entry.PSObject.Properties['requires']) {
+            $requires = @(
+                @($entry.requires) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ } |
+                    Sort-Object -Unique
+            )
+        }
+
+        $contracts += [ordered]@{
+            contract = $contractName
+            requires = @($requires)
+        }
+    }
+
+    return @($contracts)
+}
+
+function Get-SubjectFacts {
+    param(
+        [string]$ProfileValue,
+        [string]$BoardValue,
+        [string[]]$ActiveFacets
+    )
+
+    $facts = @()
+    if (-not [string]::IsNullOrWhiteSpace($ProfileValue)) {
+        $facts += "profile.$ProfileValue"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($BoardValue)) {
+        $facts += "board.$BoardValue"
+    }
+    foreach ($facetName in @($ActiveFacets)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$facetName)) {
+            $facts += "facet.$([string]$facetName)"
+        }
+    }
+
+    return @($facts | Sort-Object -Unique)
+}
+
+function Format-DeclaredContractEntry {
+    param(
+        $ContractEntry
+    )
+
+    if ($null -eq $ContractEntry) {
+        return ''
+    }
+
+    $contractName = [string]$ContractEntry.contract
+    if ([string]::IsNullOrWhiteSpace($contractName)) {
+        return ''
+    }
+
+    $requiresSource = if ($ContractEntry -is [System.Collections.IDictionary]) {
+        $ContractEntry['requires']
+    } else {
+        $ContractEntry.requires
+    }
+    $requires = @($requiresSource)
+
+    return "$contractName requires [$((@($requires) -join ', '))]"
+}
+
+function Get-ResourceContractSummary {
+    param(
+        $DeclaredContracts,
+        [string[]]$AvailableFacts
+    )
+
+    $availableSet = @{}
+    foreach ($fact in @($AvailableFacts | Sort-Object -Unique)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$fact)) {
+            $availableSet[[string]$fact] = $true
+        }
+    }
+
+    $declaredEntries = @()
+    $satisfiedContracts = @()
+    $violations = @()
+    $unknownContracts = @()
+    $resourceHotspots = @()
+    $providedFacts = @()
+
+    foreach ($contractEntry in @($DeclaredContracts)) {
+        if ($null -eq $contractEntry) {
+            continue
+        }
+
+        $declaredEntries += [ordered]@{
+            contract = [string]$contractEntry.contract
+            requires = @($contractEntry.requires)
+        }
+
+        $contractName = [string]$contractEntry.contract
+        $requires = @(
+            @($contractEntry.requires) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        )
+
+        if ($requires.Count -eq 0) {
+            $unknownText = Format-DeclaredContractEntry -ContractEntry $contractEntry
+            if (-not [string]::IsNullOrWhiteSpace($unknownText)) {
+                $unknownContracts += $unknownText
+                $resourceHotspots += $unknownText
+            }
+            continue
+        }
+
+        $missingFacts = @()
+        foreach ($requiredFact in @($requires)) {
+            if ($availableSet.ContainsKey($requiredFact)) {
+                $providedFacts += $requiredFact
+            } else {
+                $missingFacts += $requiredFact
+            }
+        }
+
+        if ($missingFacts.Count -eq 0) {
+            $satisfiedText = Format-DeclaredContractEntry -ContractEntry $contractEntry
+            if (-not [string]::IsNullOrWhiteSpace($satisfiedText)) {
+                $satisfiedContracts += $satisfiedText
+            }
+            continue
+        }
+
+        $violationText = "$contractName missing [$((@($missingFacts) -join ', '))] requires [$((@($requires) -join ', '))]"
+        $violations += $violationText
+        $resourceHotspots += $violationText
+    }
+
+    return [ordered]@{
+        declared_contracts = @($declaredEntries).Count
+        declared_contract_entries = @($declaredEntries)
+        provided_facts = @($providedFacts | Sort-Object -Unique)
+        audited_count = @($declaredEntries).Count
+        satisfied_count = @($satisfiedContracts).Count
+        violated_count = @($violations).Count
+        unknown_count = @($unknownContracts).Count
+        satisfied_contracts = @($satisfiedContracts)
+        violations = @($violations)
+        unknown_contracts = @($unknownContracts)
+        resource_hotspots = @($resourceHotspots | Sort-Object -Unique)
     }
 }
 
@@ -416,12 +950,56 @@ function New-ArtifactReport {
         $ArtifactContext
     )
 
-    $graph = $CaseGraph.Data
-    $providedFacts = @(Get-ProvidedFacts -Graph $graph)
-    $requiredFacts = @(Get-RequiredFacts -Graph $graph)
-    $allCapabilities = @($providedFacts + $requiredFacts | Sort-Object -Unique)
-    $unresolvedBindings = @(Get-UnresolvedBindings -RequiredFacts $requiredFacts -ProvidedFacts $providedFacts)
+    $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
+    $runtimeObserveSummary = Get-RuntimeObserveSummary -RuntimeObserveInfo $runtimeObserveInfo
+    $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
+    $publishedCapabilities = @(Get-RuntimePublishedCapabilities -RuntimeObserveInfo $runtimeObserveInfo)
+
+    $graph = if ($null -ne $CaseGraph) { $CaseGraph.Data } else { $null }
+    $graphProvidedFacts = if ($null -ne $graph) {
+        @(Get-ProvidedFacts -Graph $graph)
+    } else {
+        @()
+    }
+    $requiredFacts = if ($null -ne $graph) {
+        @(Get-RequiredFacts -Graph $graph)
+    } else {
+        @()
+    }
+    $providedFacts = if ($null -ne $graph) {
+        @($graphProvidedFacts)
+    } else {
+        @($runtimeCapabilities)
+    }
+    $allCapabilities = @(
+        @($graphProvidedFacts) +
+        @($requiredFacts) +
+        @($runtimeCapabilities) |
+            Sort-Object -Unique
+    )
+    $unresolvedBindings = if ($null -ne $graph) {
+        @(Get-UnresolvedBindings -RequiredFacts $requiredFacts -ProvidedFacts $graphProvidedFacts)
+    } else {
+        @()
+    }
     $blockedReasons = @($unresolvedBindings | ForEach-Object { "unresolved binding: $_" })
+    $failedReasons = @()
+    $runtimeExportStates = Get-RuntimeExportStateMap -RuntimeObserveInfo $runtimeObserveInfo
+    $observedCapabilities = @(Get-UnifiedObservedCapabilities -Graph $graph -RuntimeCapabilities $runtimeCapabilities)
+    $bringupEvidenceEntries = @(New-BringupEvidenceEntries `
+        -Graph $graph `
+        -CapabilityNames $allCapabilities `
+        -ObservedCapabilities $observedCapabilities `
+        -PublishedCapabilities $publishedCapabilities `
+        -BlockedReasons $blockedReasons `
+        -FailedReasons $failedReasons `
+        -RuntimeExportStates $runtimeExportStates)
+    $declaredCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.declared }).Count
+    $materializedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.materialized }).Count
+    $publishedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.published }).Count
+    $observedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.observed }).Count
+    $blockedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.blocked }).Count
+    $failedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.failed }).Count
     $comparison = $null
     if ($ArtifactContext.Mode -eq 'compare' -and $null -ne $ArtifactContext.DiffData) {
         $caseName = [string]$CaseEntry.name
@@ -430,6 +1008,7 @@ function New-ArtifactReport {
             $comparison = [ordered]@{
                 status = [string]$caseDiff[0].status
                 summary_changes = @($caseDiff[0].summary_changes)
+                metadata_changes = @($caseDiff[0].metadata_changes)
                 node_changes = [ordered]@{
                     added = @($caseDiff[0].node_changes.added).Count
                     removed = @($caseDiff[0].node_changes.removed).Count
@@ -444,6 +1023,7 @@ function New-ArtifactReport {
             $comparison = [ordered]@{
                 status = 'unchanged'
                 summary_changes = @()
+                metadata_changes = @()
                 node_changes = [ordered]@{
                     added = 0
                     removed = 0
@@ -473,6 +1053,22 @@ function New-ArtifactReport {
     $resolvedProfile = Resolve-SubjectScalar -ExplicitValue $Profile -DefaultValue $defaultSubject.Profile -CaseValue $caseSubject.Profile
     $resolvedBoard = Resolve-SubjectScalar -ExplicitValue $Board -DefaultValue $defaultSubject.Board -CaseValue $caseSubject.Board
     $resolvedFacets = Resolve-SubjectFacets -ExplicitFacets $Facet -DefaultFacets $defaultSubject.ActiveFacets -CaseFacets $caseSubject.ActiveFacets
+    $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
+    $resourceAvailableFacts = @(
+        @($providedFacts) +
+        @($runtimeCapabilities) +
+        @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+        @(Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedFacets)
+    ) | Sort-Object -Unique
+    $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts $declaredContracts -AvailableFacts $resourceAvailableFacts
+    $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
+    $dotArtifactPath = if ($null -ne $CaseEntry.PSObject.Properties['dot'] -and
+        -not [string]::IsNullOrWhiteSpace([string]$CaseEntry.dot)) {
+        Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.dot)
+    } else {
+        $null
+    }
+    $sampleJsonPath = if ($null -ne $CaseGraph) { $CaseGraph.Path } else { $null }
 
     $report = [ordered]@{
         schema = 'system_compiler.artifact_report/v0'
@@ -488,51 +1084,45 @@ function New-ArtifactReport {
         }
         structure = [ordered]@{
             capability_count = $allCapabilities.Count
-            node_count = [int]$graph.node_count
-            edge_count = [int]$graph.edge_count
-            materialized_order = @(Get-MaterializedOrder -Graph $graph)
-            required_facts = $requiredFacts
-            unresolved_bindings = $unresolvedBindings
+            node_count = if ($null -ne $graph) { [int]$graph.node_count } else { 0 }
+            edge_count = if ($null -ne $graph) { [int]$graph.edge_count } else { 0 }
+            materialized_order = @($materializedOrder)
+            declared_facts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
+            required_facts = @($requiredFacts)
+            unresolved_bindings = @($unresolvedBindings)
         }
         bringup_evidence = [ordered]@{
-            declared_count = $allCapabilities.Count
-            materialized_count = $allCapabilities.Count
-            published_count = 0
-            observed_count = $allCapabilities.Count
-            blocked_count = $unresolvedBindings.Count
-            failed_count = 0
-            published_capabilities = @()
-            blocked_reasons = $blockedReasons
-            failed_reasons = @()
+            declared_count = $declaredCount
+            materialized_count = $materializedCount
+            published_count = $publishedCount
+            observed_count = $observedCount
+            blocked_count = $blockedCount
+            failed_count = $failedCount
+            published_capabilities = @($publishedCapabilities)
+            blocked_reasons = @($blockedReasons)
+            failed_reasons = @($failedReasons)
+            evidence_entries = @($bringupEvidenceEntries)
         }
         resource_contract = [ordered]@{
-            declared_contracts = 0
-            provided_facts = @()
-            audited_count = 0
-            satisfied_count = 0
-            violated_count = 0
-            unknown_count = 0
-            violations = @()
-            unknown_contracts = @()
-            resource_hotspots = @()
+            declared_contracts = [int]$resourceContractSummary.declared_contracts
+            declared_contract_entries = @($resourceContractSummary.declared_contract_entries)
+            provided_facts = @($resourceContractSummary.provided_facts)
+            audited_count = [int]$resourceContractSummary.audited_count
+            satisfied_count = [int]$resourceContractSummary.satisfied_count
+            violated_count = [int]$resourceContractSummary.violated_count
+            unknown_count = [int]$resourceContractSummary.unknown_count
+            satisfied_contracts = @($resourceContractSummary.satisfied_contracts)
+            violations = @($resourceContractSummary.violations)
+            unknown_contracts = @($resourceContractSummary.unknown_contracts)
+            resource_hotspots = @($resourceContractSummary.resource_hotspots)
         }
-        runtime_observe = [ordered]@{
-            publish_state_summary = [ordered]@{
-                missing = 0
-                published = 0
-            }
-            export_state_summary = [ordered]@{
-                missing = 0
-                detached = 0
-                attached = 0
-            }
-            recent_transitions = @()
-        }
+        runtime_observe = $runtimeObserveSummary
         artifacts = [ordered]@{
             bundle = $Bundle.IndexPath
             input_manifest = $Bundle.InputManifestPath
-            dot = Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.dot)
-            sample_json = $CaseGraph.Path
+            dot = $dotArtifactPath
+            sample_json = $sampleJsonPath
+            runtime_observe = if ($null -ne $runtimeObserveInfo) { $runtimeObserveInfo.Path } else { $null }
             diff = $ArtifactContext.Diff
             ci_summary = $ArtifactContext.CiSummary
             report_manifest = $ArtifactContext.ReportManifest

@@ -248,6 +248,43 @@ v0 阶段最重要的不是先争论它的最终细化粒度，
 这组词的目的不是制造概念层次，  
 而是避免 v0 阶段把“未建模”“未审计”“明确违法”混成一团。
 
+### 6.4 当前 v0 输入形状
+
+当前真实导出链里，最小资源法律文本已经先落在：
+
+- `scripts/materialized_graph.export_case_manifest.v1.json`
+
+它当前按 per-case 承载 `declared_contracts`，最小形状为：
+
+```json
+{
+  "contract": "needs_monotonic_clock",
+  "requires": ["system.clock"]
+}
+```
+
+当前这组字段刻意保持很小：
+
+- `contract`
+  - 当前固定在 `may_block / needs_heap / needs_reactor / needs_monotonic_clock / irq_safe`
+- `requires`
+  - 当前按 all-of 语义解释
+  - 当 `requires` 为空时，当前报告链会把该条合同归入 `unknown`
+
+这意味着 v0 目前不是在做复杂推理，
+而是在做一件更克制、也更稳定的事：
+
+> **先把资源法律写成机器可携带的最小条款。**
+
+当前 artifact report 的最小审计来源也已经收敛为三类事实：
+
+- 输入侧 `declared_facts`
+- `subject` 派生事实，例如 `board.* / profile.* / facet.*`
+- 图里实际提供的 capability / fact 名
+
+也就是说，v0 不是“凭空判案”，
+而是先把法律文本与当前系统已知事实做最小比对。
+
 ## 7. 当前仓库胚胎映射
 
 Charm 这条线同样不是从零起步。  
@@ -322,6 +359,7 @@ SSU 已经证明了另一件事：
 - contract metadata inventory
 - provided facts 列表
 - satisfied / violated / unknown 摘要
+- declared contract entries
 - `may_block` / `irq_safe` 热点清单
 - `needs_heap` / `needs_reactor` / `needs_monotonic_clock` 缺口清单
 
@@ -343,6 +381,35 @@ SSU 已经证明了另一件事：
 - 哪些要求被满足
 - 哪些要求被违反
 - 哪些地方还无法得出确定结论
+
+当前真实 `artifact report` 已经至少会把这些结果压成：
+
+- `declared_contract_entries`
+- `provided_facts`
+- `satisfied_contracts`
+- `violations`
+- `unknown_contracts`
+- `resource_hotspots`
+
+而当前最小 explain 消费面也已经有了一个直接入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -ResourceSummary`
+
+它当前会把：
+
+- 输入侧 `declared_contract_entries`
+- `declared_facts`
+- `subject` 派生事实
+- 图里实际提供的 fact
+- 审计阶段命中的 `provided_facts`
+
+一起压成一页稳定的 `resource summary` 查询结果，
+让人和工具都可以继续追问：
+
+- 哪条合同当前是 `satisfied`
+- 哪条是 `violated`
+- 哪条仍然 `unknown`
+- 对应证据究竟来自哪里
 
 ## 10. v0 的工程边界
 

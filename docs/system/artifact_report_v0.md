@@ -156,10 +156,18 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `metadata_changed_case_count`
 - `bringup_changed_case_count`
 - `resource_changed_case_count`
+- `capability_summary.compared_capability_count`
+- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `capability_summary.compared_capabilities`
 
 这意味着默认总览已经能直接回答：
 
 > **这一组 compare report 里，到底有多少 case 真正在 compare 维度上发生了漂移。**
+
+它现在还会继续给出一份最小 capability 热点入口，
+用来先回答：
+
+> **这些漂移主要集中在哪些 capability 上。**
 
 而 `graph path` 当前则明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：

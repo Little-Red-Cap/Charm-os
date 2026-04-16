@@ -2023,10 +2023,9 @@ function New-CapListReportView {
     }
 }
 
-function New-CapListArtifactRootView {
+function New-CapListArtifactRootAggregationResult {
     param(
-        [object[]]$LoadedReports,
-        [string]$ArtifactRootPath
+        [object[]]$LoadedReports
     )
 
     $capabilityMap = @{}
@@ -2070,16 +2069,31 @@ function New-CapListArtifactRootView {
             ForEach-Object { Normalize-AggregatedCapListEntry -Entry $_ } |
             Sort-Object capability
     )
-    $comparison = New-CapListComparisonSummaryResult -Capabilities $capabilities
+
+    return [ordered]@{
+        case_count = @($caseNames | Sort-Object -Unique).Count
+        cases = @($caseNames | Sort-Object -Unique)
+        capabilities = $capabilities
+    }
+}
+
+function New-CapListArtifactRootView {
+    param(
+        [object[]]$LoadedReports,
+        [string]$ArtifactRootPath
+    )
+
+    $aggregation = New-CapListArtifactRootAggregationResult -LoadedReports $LoadedReports
+    $comparison = New-CapListComparisonSummaryResult -Capabilities @($aggregation.capabilities)
 
     return [ordered]@{
         artifact_root = $ArtifactRootPath
         query = [ordered]@{
             kind = 'cap_list'
             scope = 'artifact_root'
-            case_count = @($caseNames | Sort-Object -Unique).Count
-            cases = @($caseNames | Sort-Object -Unique)
-            capabilities = $capabilities
+            case_count = [int]$aggregation.case_count
+            cases = @($aggregation.cases)
+            capabilities = @($aggregation.capabilities)
             comparison = $comparison
         }
     }
@@ -2639,7 +2653,8 @@ function New-ComparisonOverviewCaseSummary {
 
 function New-ArtifactRootComparisonOverviewResult {
     param(
-        [object[]]$LoadedReports
+        [object[]]$LoadedReports,
+        $CapabilityComparisonSummary
     )
 
     $caseSummaries = @(
@@ -2672,7 +2687,7 @@ function New-ArtifactRootComparisonOverviewResult {
         }
     }
 
-    return [ordered]@{
+    $result = [ordered]@{
         compared_case_count = @($comparedCases).Count
         status_counts = $statusCounts
         metadata_changed_case_count = @($comparedCases | Where-Object { [int]$_.metadata_change_count -gt 0 }).Count
@@ -2695,6 +2710,12 @@ function New-ArtifactRootComparisonOverviewResult {
                 ForEach-Object { [string]$_.case }
         )
     }
+
+    if ($null -ne $CapabilityComparisonSummary) {
+        $result.capability_summary = $CapabilityComparisonSummary
+    }
+
+    return $result
 }
 
 function New-CaseSummaryRow {
@@ -2878,7 +2899,18 @@ if ($CapList) {
 }
 
 if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEvidence) {
-    $comparisonOverview = New-ArtifactRootComparisonOverviewResult -LoadedReports $selectedReports
+    $comparisonCapabilitySummary = $null
+    $hasComparisonReports = @(
+        @($selectedReports) |
+            Where-Object { $null -ne $_.Data.PSObject.Properties['comparison'] -and $null -ne $_.Data.comparison }
+    ).Count -gt 0
+    if ($hasComparisonReports) {
+        $comparisonCapabilitySummary = New-CapListComparisonSummaryResult -Capabilities @(
+            (New-CapListArtifactRootAggregationResult -LoadedReports $selectedReports).capabilities
+        )
+    }
+
+    $comparisonOverview = New-ArtifactRootComparisonOverviewResult -LoadedReports $selectedReports -CapabilityComparisonSummary $comparisonCapabilitySummary
     if ($AsJson) {
         $payload = [ordered]@{
             artifact_root = $artifactRootPath
@@ -2899,6 +2931,14 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             Write-Host "resource_changed_cases  = $([int]$comparisonOverview.resource_changed_case_count)"
             if (@($comparisonOverview.compared_cases).Count -gt 0) {
                 Write-Host "compared_cases          = $((@($comparisonOverview.compared_cases) -join ', '))"
+            }
+            if ($null -ne $comparisonOverview.capability_summary) {
+                Write-Host "compare_capabilities    = $([int]$comparisonOverview.capability_summary.compared_capability_count)"
+                Write-Host "bringup_compare_caps    = $([int]$comparisonOverview.capability_summary.bringup_compare_capability_count)"
+                Write-Host "resource_compare_caps   = $([int]$comparisonOverview.capability_summary.resource_compare_capability_count)"
+                if (@($comparisonOverview.capability_summary.compared_capabilities).Count -gt 0) {
+                    Write-Host "compared_capabilities   = $((@($comparisonOverview.capability_summary.compared_capabilities) -join ', '))"
+                }
             }
             Write-Host ''
         }

@@ -306,6 +306,9 @@ $rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJs
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.compared_case_count -eq 2) 'artifact_root summary compared_case_count must be 2'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.bringup_changed_case_count -eq 1) 'artifact_root summary bringup_changed_case_count must be 1'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.bringup_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing bringup changed case'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.capability_summary) 'artifact_root summary must expose capability summary'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.capability_summary.bringup_compare_capability_count -eq 1) 'artifact_root summary bringup compare capability count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.capability_summary.bringup_compare_capabilities) -contains $PublishedCapability)) 'artifact_root summary capability summary missing published capability'
 
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
@@ -325,6 +328,7 @@ $summary = [ordered]@{
         capability_change_matrix_detected = $true
         cap_list_compare_detected = $true
         root_summary_compare_detected = $true
+        root_summary_capability_compare_detected = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

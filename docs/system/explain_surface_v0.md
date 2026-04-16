@@ -311,6 +311,20 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - 这些热点更偏 bringup 漂移还是资源法律漂移
 - 某个 capability 的 compare 漂移究竟覆盖了哪些 case
 
+与此同时，
+如果调用方直接读取 artifact_root 默认总览，
+当前 `comparison` 摘要也会继续附带一个最小 `capability_summary`，
+至少包括：
+
+- `capability_summary.compared_capability_count`
+- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `capability_summary.compared_capabilities`
+
+这意味着默认 explain 面现在已经可以先回答两层问题：
+
+- 有多少 case 发生了 compare drift
+- compare drift 主要集中在哪些 capability 上
+
 围绕同一批 capability，
 当前仓库里还新增了一个更直接的单 report 入口：
 

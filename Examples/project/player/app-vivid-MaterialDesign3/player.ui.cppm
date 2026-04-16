@@ -167,10 +167,13 @@ export namespace player::ui {
     inline constexpr rgba kUiHomeDailyMixBottom = {172, 102, 202, 255};
     inline constexpr rgba kUiLibraryChipIdle = {24, 32, 50, 224};
     inline constexpr rgba kUiLibraryChipBorder = {82, 96, 134, 144};
-    inline constexpr rgba kUiLibraryChipActive = {104, 134, 196, 238};
+    inline constexpr rgba kUiLibraryChipActive = {104, 92, 156, 236};
     inline constexpr rgba kUiLibraryChipTextMuted = {194, 202, 226, 220};
     inline constexpr rgba kUiLibraryChipText = {226, 232, 246, 244};
     inline constexpr rgba kUiLibraryChipTextActive = {248, 250, 255, 255};
+    inline constexpr rgba kUiLibraryTabActive = {190, 206, 255, 248};
+    inline constexpr rgba kUiLibraryTabBorderActive = {226, 234, 255, 255};
+    inline constexpr rgba kUiLibraryTabTextActive = {20, 42, 92, 255};
     inline constexpr rgba kUiLibraryListAccent = {120, 150, 214, 212};
     inline constexpr rgba kUiLibraryListOnAccent = {248, 250, 255, 255};
     inline constexpr rgba kUiLibraryPathIdle = {24, 34, 52, 214};
@@ -650,6 +653,70 @@ export namespace player::ui {
         detail::reset_exact_font_cache(detail::freetype_state());
     }
 
+    namespace detail {
+        std::string make_exact_font_path(std::string_view base_path,
+                                         int px,
+                                         FontWeight weight,
+                                         std::string_view variation_tokens = {}) {
+            std::string out{};
+            out.assign(base_path.begin(), base_path.end());
+            out += "#px";
+            out += std::to_string(px);
+            switch (weight) {
+            case FontWeight::Bold:
+                out += "_bold";
+                break;
+            case FontWeight::Medium:
+                out += "_medium";
+                break;
+            case FontWeight::Regular:
+            default:
+                break;
+            }
+            if (!variation_tokens.empty()) {
+                out += "_";
+                out.append(variation_tokens.begin(), variation_tokens.end());
+            }
+            return out;
+        }
+
+        const Font& load_player_exact_font(std::string_view resolved_path,
+                                           int px,
+                                           FontWeight weight) noexcept {
+            auto& state = freetype_state();
+            for (auto& slot : state.exact_fonts) {
+                if (slot.loaded && slot.path == resolved_path) {
+                    return slot.font;
+                }
+            }
+            auto* free_slot = &state.exact_fonts[0];
+            for (auto& slot : state.exact_fonts) {
+                if (!slot.loaded) {
+                    free_slot = &slot;
+                    break;
+                }
+            }
+            free_slot->path.assign(resolved_path.begin(), resolved_path.end());
+            free_slot->px = px;
+            free_slot->weight = weight;
+            free_slot->loaded = false;
+            free_slot->font = Font{};
+            const auto api = state.loader.vfs_api();
+            if (api.load && api.load(&state.loader, free_slot->path, free_slot->font)) {
+                free_slot->loaded = true;
+                return free_slot->font;
+            }
+            if (api.reset) {
+                api.reset(&state.loader, free_slot->font);
+            }
+            free_slot->path.clear();
+            free_slot->px = 0;
+            free_slot->weight = FontWeight::Regular;
+            const auto& fallback = fallback_font_for_px(px, weight);
+            return fallback;
+        }
+    }
+
     void bind_font_package(const charm::font::FontPackageConfig& config,
                            const charm::font::VfsFontLoaderApi& loader,
                            void* ctx) noexcept {
@@ -717,49 +784,19 @@ export namespace player::ui {
             const auto& fallback = detail::fallback_font_for_px(px, weight);
             return fallback;
         }
-        for (auto& slot : state.exact_fonts) {
-            if (slot.loaded && slot.px == px && slot.weight == weight) {
-                return slot.font;
-            }
+        const auto path = detail::make_exact_font_path(state.ttf_path, px, weight);
+        return detail::load_player_exact_font(path, px, weight);
+    }
+
+    const Font& get_player_font_px_variant(int px,
+                                           FontWeight weight,
+                                           std::string_view variation_tokens) noexcept {
+        auto& state = detail::freetype_state();
+        if (!state.ready || state.ttf_path.empty()) {
+            return get_player_font_px(px, weight);
         }
-        auto* free_slot = &state.exact_fonts[0];
-        for (auto& slot : state.exact_fonts) {
-            if (!slot.loaded) {
-                free_slot = &slot;
-                break;
-            }
-        }
-        free_slot->path = state.ttf_path;
-        free_slot->path += "#px";
-        free_slot->path += std::to_string(px);
-        switch (weight) {
-        case FontWeight::Bold:
-            free_slot->path += "_bold";
-            break;
-        case FontWeight::Medium:
-            free_slot->path += "_medium";
-            break;
-        case FontWeight::Regular:
-        default:
-            break;
-        }
-        free_slot->px = px;
-        free_slot->weight = weight;
-        free_slot->loaded = false;
-        free_slot->font = Font{};
-        const auto api = state.loader.vfs_api();
-        if (api.load && api.load(&state.loader, free_slot->path, free_slot->font)) {
-            free_slot->loaded = true;
-            return free_slot->font;
-        }
-        if (api.reset) {
-            api.reset(&state.loader, free_slot->font);
-        }
-        free_slot->path.clear();
-        free_slot->px = 0;
-        free_slot->weight = FontWeight::Regular;
-        const auto& fallback = detail::fallback_font_for_px(px, weight);
-        return fallback;
+        const auto path = detail::make_exact_font_path(state.ttf_path, px, weight, variation_tokens);
+        return detail::load_player_exact_font(path, px, weight);
     }
 
     inline void apply_player_theme() {

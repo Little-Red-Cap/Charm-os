@@ -855,6 +855,35 @@
             }
         }
 
+        void apply_library_tab_style(WidgetHandle handle, bool active, int radius) {
+            if (!access.valid() || !handle) return;
+            ::ui::scene::PillSurfaceSpec spec{};
+            spec.bg_color = active ? kUiLibraryTabActive : kUiLibraryChipIdle;
+            spec.border_color = active ? kUiLibraryTabBorderActive : kUiLibraryChipBorder;
+            spec.corner_radius = radius;
+            if (active) {
+                spec.shadow.enabled = true;
+                spec.shadow.color = with_alpha(kUiCardShadow, 72);
+                spec.shadow.offset_x = 0;
+                spec.shadow.offset_y = 3;
+                spec.shadow.spread = 1;
+                spec.shadow.radius = 12;
+                spec.inner_stroke_enabled = true;
+                spec.inner_stroke_color = with_alpha(kUiLibraryTabBorderActive, 120);
+                spec.inner_stroke_width = 1;
+            }
+            StylePatch patch = ::ui::scene::make_pill_surface_patch(spec);
+            patch.has_font = true;
+            patch.font = active
+                ? &get_player_font_px(20, FontWeight::Bold)
+                : &get_player_font_px(19, FontWeight::Medium);
+            patch.has_font_color = true;
+            patch.font_color = active ? kUiLibraryTabTextActive : kUiLibraryChipTextMuted;
+            patch.has_border_focus = true;
+            patch.border_focus = kUiLibraryTabBorderActive;
+            access.set_style_override(handle, patch);
+        }
+
         void apply_library_chip_style(WidgetHandle handle, bool active, int radius,
                                       bool elevated = false) {
             if (!access.valid() || !handle) return;
@@ -894,6 +923,10 @@
             patch.font_color = active
                 ? kUiLibraryChipTextActive
                 : (elevated ? kUiLibraryChipText : kUiLibraryChipTextMuted);
+            patch.has_font = true;
+            patch.font = active
+                ? &get_player_font_px(elevated ? 18 : 17, FontWeight::Medium)
+                : &get_player_font_px(elevated ? 18 : 17, FontWeight::Regular);
             patch.has_border_focus = true;
             patch.border_focus = kUiLibraryPathBorderActive;
             access.set_style_override(handle, patch);
@@ -904,11 +937,26 @@
             const bool path_active = has_context
                 || (library_tab != LibraryTab::Songs)
                 || list_shuffle_enabled;
-            apply_library_chip_style(handles.list_tab_songs, library_tab == LibraryTab::Songs, kLibraryTabRadius);
-            apply_library_chip_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
-            apply_library_chip_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
+            apply_library_tab_style(handles.list_tab_songs, library_tab == LibraryTab::Songs, kLibraryTabRadius);
+            apply_library_tab_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
+            apply_library_tab_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
             apply_library_chip_style(handles.list_shuffle, list_shuffle_enabled, kLibraryTabRadius, true);
             apply_library_chip_style(handles.list_sort, list_sort == ListSort::NameDesc, kLibrarySortRadius, true);
+            if (handles.list_tab_indicator) {
+                WidgetHandle active_tab = handles.list_tab_songs;
+                if (library_tab == LibraryTab::Albums) {
+                    active_tab = handles.list_tab_albums;
+                } else if (library_tab == LibraryTab::Artists) {
+                    active_tab = handles.list_tab_artist;
+                }
+                const Rect active_rect = access.world_rect(active_tab);
+                const int indicator_w = std::max(48, active_rect.w / 3);
+                access.set_rect(handles.list_tab_indicator,
+                    {active_rect.x + (active_rect.w - indicator_w) / 2,
+                     active_rect.y + active_rect.h + 6,
+                     indicator_w,
+                     6});
+            }
             if (handles.list_title) {
                 StylePatch patch{};
                 patch.has_font_color = true;

@@ -585,6 +585,50 @@ function New-CapabilityComparisonResult {
     }
 }
 
+function New-WhyCapabilityComparisonResult {
+    param(
+        $ReportData,
+        [string]$CapabilityName
+    )
+
+    $summary = New-CapabilityComparisonResult -ReportData $ReportData -CapabilityName $CapabilityName
+    $bringupChange = Get-BringupComparisonCapabilityChange -ReportData $ReportData -CapabilityName $CapabilityName
+    $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $ReportData
+    $resourceContractChanges = @(Get-ResourceComparisonContractChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
+
+    $resourceFactAdded = $false
+    $resourceFactRemoved = $false
+    if ($null -ne $resourceComparison) {
+        $resourceFactAdded = @($resourceComparison.provided_fact_changes.added) -contains $CapabilityName
+        $resourceFactRemoved = @($resourceComparison.provided_fact_changes.removed) -contains $CapabilityName
+    }
+
+    $bringupEvidence = $null
+    if ($null -ne $bringupChange -and @($bringupChange.PSObject.Properties).Count -gt 0) {
+        $bringupEvidence = $bringupChange
+    }
+
+    $changed = [bool]$summary.bringup_changed -or [bool]$summary.resource_changed
+    if (-not $changed) {
+        return $null
+    }
+
+    return [ordered]@{
+        changed = $changed
+        bringup_changed = [bool]$summary.bringup_changed
+        bringup_change_kinds = @($summary.bringup_change_kinds)
+        resource_changed = [bool]$summary.resource_changed
+        resource_change_kinds = @($summary.resource_change_kinds)
+        resource_contracts = @($summary.resource_contracts)
+        bringup_evidence = $bringupEvidence
+        resource_contract = [ordered]@{
+            provided_fact_added = $resourceFactAdded
+            provided_fact_removed = $resourceFactRemoved
+            contract_changes = @($resourceContractChanges)
+        }
+    }
+}
+
 function Get-ResourceContractMentions {
     param(
         $ReportData,
@@ -1672,6 +1716,7 @@ function New-WhyCapabilityResult {
     )
 
     $evidence = Get-CapabilityEvidence -ReportData $ReportData -GraphInfo $GraphInfo -CapabilityName $CapabilityName
+    $comparison = New-WhyCapabilityComparisonResult -ReportData $ReportData -CapabilityName $CapabilityName
     $state = 'unknown'
     $reasons = @()
 
@@ -1747,11 +1792,46 @@ function New-WhyCapabilityResult {
         )
     }
 
+    if ($null -ne $comparison) {
+        if ([bool]$comparison.bringup_changed) {
+            $reasons += "compare bringup changed: $((@($comparison.bringup_change_kinds) -join ', '))"
+            if ($null -ne $comparison.bringup_evidence) {
+                $leftPublishState = Format-OptionalState -Value ([string]$comparison.bringup_evidence.left_publish_state)
+                $rightPublishState = Format-OptionalState -Value ([string]$comparison.bringup_evidence.right_publish_state)
+                $reasons += "compare publish_state = $leftPublishState -> $rightPublishState"
+
+                $leftExportState = Format-OptionalState -Value ([string]$comparison.bringup_evidence.left_export_state)
+                $rightExportState = Format-OptionalState -Value ([string]$comparison.bringup_evidence.right_export_state)
+                if ($leftExportState -ne '-' -or $rightExportState -ne '-') {
+                    $reasons += "compare export_state = $leftExportState -> $rightExportState"
+                }
+            }
+        }
+
+        if ([bool]$comparison.resource_changed) {
+            $reasons += "compare resource changed: $((@($comparison.resource_change_kinds) -join ', '))"
+            if ([bool]$comparison.resource_contract.provided_fact_added) {
+                $reasons += 'compare provided_fact added in candidate'
+            }
+            if ([bool]$comparison.resource_contract.provided_fact_removed) {
+                $reasons += 'compare provided_fact removed from candidate'
+            }
+            foreach ($contractChange in @($comparison.resource_contract.contract_changes)) {
+                $contractName = [string]$contractChange.contract
+                $changeKind = [string]$contractChange.change_kind
+                $leftState = Format-OptionalState -Value ([string]$contractChange.left_state)
+                $rightState = Format-OptionalState -Value ([string]$contractChange.right_state)
+                $reasons += "compare contract $contractName changed: $changeKind ($leftState -> $rightState)"
+            }
+        }
+    }
+
     return [ordered]@{
         capability = $CapabilityName
         state = $state
         reasons = @($reasons)
         evidence = $evidence
+        comparison = $comparison
     }
 }
 
@@ -3625,6 +3705,22 @@ if (-not [string]::IsNullOrWhiteSpace($WhyCapability)) {
     }
     if (@($whyResult.evidence.resource_contract.hotspots).Count -gt 0) {
         Write-Host "resource_hotspots = $((@($whyResult.evidence.resource_contract.hotspots) -join '; '))"
+    }
+    if ($null -ne $whyResult.comparison) {
+        Write-Host ''
+        Write-Host '[COMPARE]'
+        Write-Host "changed = $([bool]$whyResult.comparison.changed)"
+        Write-Host "bringup_changed = $([bool]$whyResult.comparison.bringup_changed)"
+        Write-Host "resource_changed = $([bool]$whyResult.comparison.resource_changed)"
+        if (@($whyResult.comparison.bringup_change_kinds).Count -gt 0) {
+            Write-Host "bringup_change_kinds = $((@($whyResult.comparison.bringup_change_kinds) -join ', '))"
+        }
+        if (@($whyResult.comparison.resource_change_kinds).Count -gt 0) {
+            Write-Host "resource_change_kinds = $((@($whyResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($whyResult.comparison.resource_contracts).Count -gt 0) {
+            Write-Host "resource_contracts = $((@($whyResult.comparison.resource_contracts) -join ', '))"
+        }
     }
     exit 0
 }

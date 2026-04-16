@@ -113,6 +113,7 @@ $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.inspect.json'
 $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.summary.inspect.json'
+$whyInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.why.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -233,6 +234,18 @@ Assert-Condition ($null -ne $summaryInspectResult.comparison.capability_summary)
 Assert-Condition ([int]$summaryInspectResult.comparison.capability_summary.resource_compare_capability_count -eq 1) 'inspect default summary resource compare capability count must be 1'
 Assert-Condition ((@($summaryInspectResult.comparison.capability_summary.resource_compare_capabilities) -contains $AddedRequiredFact)) 'inspect default summary capability summary missing required fact'
 
+$whyInspectResult = Invoke-CommandJson -OutputPath $whyInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -WhyCapability $AddedRequiredFact -AsJson
+}
+Assert-Condition ($null -ne $whyInspectResult.query.comparison) 'inspect why must expose comparison payload'
+Assert-Condition ([bool]$whyInspectResult.query.comparison.resource_changed) 'inspect why comparison must mark resource changed'
+Assert-Condition ((@($whyInspectResult.query.comparison.resource_change_kinds) -contains 'contract_added')) 'inspect why comparison missing contract_added kind'
+Assert-Condition ((@($whyInspectResult.query.comparison.resource_contracts) -contains $AddedContract)) 'inspect why comparison missing changed contract'
+Assert-Condition (@(
+    @($whyInspectResult.query.comparison.resource_contract.contract_changes) |
+        Where-Object { [string]$_.contract -eq $AddedContract }
+).Count -eq 1) 'inspect why comparison missing target contract change entry'
+
 $summary = [ordered]@{
     left_bundle_root = $resolvedBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -243,12 +256,14 @@ $summary = [ordered]@{
     artifact_report = $artifactReportPath
     inspect_json = $inspectJsonPath
     summary_inspect_json = $summaryInspectJsonPath
+    why_inspect_json = $whyInspectJsonPath
     assertions = [ordered]@{
         metadata_only_diff_preserved = $true
         comparison_resource_contract_present = $true
         violated_contract_change_detected = $true
         inspect_resource_summary_exposes_compare = $true
         inspect_default_summary_exposes_capability_compare = $true
+        inspect_why_exposes_compare = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

@@ -158,6 +158,7 @@ $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.inspect.json'
 $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.summary.inspect.json'
+$whyInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.why.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -289,6 +290,15 @@ Assert-Condition ($null -ne $summaryInspectResult.comparison.capability_summary)
 Assert-Condition ([int]$summaryInspectResult.comparison.capability_summary.bringup_compare_capability_count -eq 1) 'inspect default summary bringup compare capability count must be 1'
 Assert-Condition ((@($summaryInspectResult.comparison.capability_summary.bringup_compare_capabilities) -contains $PublishedCapability)) 'inspect default summary capability summary missing published capability'
 
+$whyInspectResult = Invoke-CommandJson -OutputPath $whyInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -WhyCapability $PublishedCapability -AsJson
+}
+Assert-Condition ($null -ne $whyInspectResult.query.comparison) 'inspect why must expose comparison payload'
+Assert-Condition ([bool]$whyInspectResult.query.comparison.bringup_changed) 'inspect why comparison must mark bringup changed'
+Assert-Condition ([int]@($whyInspectResult.query.comparison.bringup_change_kinds).Count -gt 0) 'inspect why comparison must expose bringup change kinds'
+Assert-Condition ((@($whyInspectResult.query.comparison.bringup_change_kinds) -contains 'changed')) 'inspect why comparison missing changed kind'
+Assert-Condition ([string]$whyInspectResult.query.comparison.bringup_evidence.right_publish_state -eq 'published') 'inspect why comparison right_publish_state must become published'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -298,12 +308,14 @@ $summary = [ordered]@{
     artifact_report = $artifactReportPath
     inspect_json = $inspectJsonPath
     summary_inspect_json = $summaryInspectJsonPath
+    why_inspect_json = $whyInspectJsonPath
     assertions = [ordered]@{
         sidecar_only_diff_preserved = $true
         comparison_bringup_evidence_present = $true
         published_capability_change_detected = $true
         inspect_bringup_evidence_exposes_compare = $true
         inspect_default_summary_exposes_capability_compare = $true
+        inspect_why_exposes_compare = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

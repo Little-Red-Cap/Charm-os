@@ -441,6 +441,25 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 
 > **这个名字为什么现在没有站到可用面上。**
 
+如果当前 report 来自 compare 模式，
+`-WhyCapability -AsJson` 现在也会继续为目标 capability 带出最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+这意味着调用方现在不只可以追问：
+
+- 它为什么当前不可用
+
+还可以继续追问：
+
+- 它相对 baseline 为什么漂了
+- 漂移更偏 bringup 证据还是资源法律
+- 漂移具体落到了哪条 contract change 或 publish/export state 切换上
+
 ### 6.3 `graph path`
 
 它回答：

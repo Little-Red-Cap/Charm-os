@@ -190,11 +190,11 @@ export namespace driver::usart {
             : adapter(uart, &r),
               registry(&reg),
               reactor(&r),
-              hal_cap_name(hal_cap_name),
               desc{endpoint_name,
                    io::cap_id(endpoint_name),
                    io::EndpointKind::channel,
-                   io::EndpointCaps::duplex} {
+                   io::EndpointCaps::duplex},
+              hal_cap_name(hal_cap_name) {
             provides[0] = init::cap_id(endpoint_name);
             requires_caps[0] = init::cap_id("io.registry");
             requires_caps[1] = init::cap_id("io.reactor");

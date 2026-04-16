@@ -120,7 +120,7 @@ std::string_view capability_name(init::CapId id) const noexcept;
 - `maybe(optional_item)` 包裹的单节点 binding
 - `plan()` 内部组合出来的 binding 节点
 
-当前仓库里，`init + system bringup` 主路径上常见的 legacy binding 已经逐步补齐这类 hook，例如：
+当前仓库里，`init + system bringup` 主路径上常见的 binding 已经逐步补齐这类 hook，例如：
 
 - `system.clock`
 - `io.registry` / `block.registry`

@@ -90,11 +90,11 @@ export namespace io {
             : registry(&reg),
               reactor(&reactor_in),
               target_cap(target_cap_name),
-              registry_cap_name(registry_cap),
               desc{alias_name,
                    io::cap_id(alias_name),
                    EndpointKind::channel,
-                   EndpointCaps::duplex} {
+                   EndpointCaps::duplex},
+              registry_cap_name(registry_cap) {
             provides[0] = init::cap_id(alias_name);
             requires_caps[0] = init::cap_id(registry_cap);
             requires_caps[1] = init::cap_id(target_cap_name);

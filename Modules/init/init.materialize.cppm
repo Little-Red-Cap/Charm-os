@@ -205,7 +205,7 @@ export namespace init {
         unknown,
         recipe,
         barrier,
-        legacy,
+        binding,
     };
 
     template <util::usize MaxNodes, util::usize MaxCaps>
@@ -354,7 +354,7 @@ namespace init::detail {
         }
         const auto row = out.count++;
         out.nodes[row] = base;
-        out.node_kinds[row] = materialized_node_kind::legacy;
+        out.node_kinds[row] = materialized_node_kind::binding;
         if (static_cast<util::u8>(out.nodes[row].phase) > static_cast<util::u8>(constraints.max_phase)) {
             return util::unexpected(util::Errc::bad_state);
         }
@@ -785,7 +785,7 @@ export namespace init {
         if (!binding_holder || binding_holder->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
-        if (binding_holder->node_kinds[0] != materialized_node_kind::legacy) {
+        if (binding_holder->node_kinds[0] != materialized_node_kind::binding) {
             return util::unexpected(util::Errc::bad_state);
         }
 
@@ -794,7 +794,7 @@ export namespace init {
         if (!maybe_optional || maybe_optional->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
-        if (maybe_optional->node_kinds[0] != materialized_node_kind::legacy) {
+        if (maybe_optional->node_kinds[0] != materialized_node_kind::binding) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

@@ -60,8 +60,8 @@ export namespace block {
             : handle(h),
               config(cfg),
               registry(&reg),
-              hal_cap_name(hal_cap_name),
-              desc{cap_name, cap_id(cap_name)} {
+              desc{cap_name, cap_id(cap_name)},
+              hal_cap_name(hal_cap_name) {
             provides[0] = init::cap_id(cap_name);
             requires_caps[0] = init::cap_id("block.registry");
             requires_count = 1;

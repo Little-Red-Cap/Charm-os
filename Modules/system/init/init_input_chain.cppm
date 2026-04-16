@@ -3,8 +3,6 @@ module;
 export module charm.system.init_input;
 
 import init.node;
-import init.graph;
-import init.materialize;
 import init.plan;
 import input.service;
 import input.service.node;
@@ -15,7 +13,6 @@ import hal_input;
 import charm.system.clock;
 import kernel.eda;
 import util.core;
-import util.error;
 
 export namespace charm::system {
     struct InputInitCfg {
@@ -88,13 +85,5 @@ export namespace charm::system {
 
         input::Router& router_ref() noexcept { return router; }
 
-        template <util::usize MaxNodes, util::usize MaxCaps>
-        util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
-                                 util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
-                                 init::Phase max_phase = init::Phase::app) noexcept {
-            return init::build_graph(
-                graph,
-                plan().runlevel(runlevel_mask).phase_limit(max_phase));
-        }
     };
 }

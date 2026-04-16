@@ -266,7 +266,7 @@ namespace init::detail {
         switch (kind) {
             case materialized_node_kind::recipe: return "box";
             case materialized_node_kind::barrier: return "diamond";
-            case materialized_node_kind::legacy: return "ellipse";
+            case materialized_node_kind::binding: return "ellipse";
             case materialized_node_kind::unknown: return "box";
         }
         return "box";
@@ -290,7 +290,7 @@ export namespace init {
             case materialized_node_kind::unknown: return "unknown";
             case materialized_node_kind::recipe: return "recipe";
             case materialized_node_kind::barrier: return "barrier";
-            case materialized_node_kind::legacy: return "legacy";
+            case materialized_node_kind::binding: return "binding";
         }
         return "unknown";
     }

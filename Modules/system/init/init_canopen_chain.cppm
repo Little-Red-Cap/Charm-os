@@ -3,8 +3,6 @@ module;
 export module charm.system.init_canopen;
 
 import init.node;
-import init.graph;
-import init.materialize;
 import init.plan;
 import canopen.transport_channel.node;
 import canopen.sdo;
@@ -17,7 +15,6 @@ import canopen.pump;
 import charm.system.clock;
 import kernel.eda;
 import util.core;
-import util.error;
 
 export namespace charm::system {
     struct CanopenInitCaps {
@@ -89,13 +86,5 @@ export namespace charm::system {
                 init::as_plan(pump_binding));
         }
 
-        template <util::usize MaxNodes, util::usize MaxCaps>
-        util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
-                                 util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
-                                 init::Phase max_phase = init::Phase::app) noexcept {
-            return init::build_graph(
-                graph,
-                plan().runlevel(runlevel_mask).phase_limit(max_phase));
-        }
     };
 }

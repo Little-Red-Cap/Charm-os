@@ -113,6 +113,7 @@ $diffJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_root.di
 $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_root.inspect.json'
+$rootSummaryInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_root.summary.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_root_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -227,6 +228,13 @@ $contractCase = @(
 Assert-Condition ($null -ne $contractCase) "resource compare root contract entry missing target case: $ChangedCase"
 Assert-Condition ([string]$contractCase.right_state -eq 'violated') 'resource compare root contract right_state must become violated'
 
+$rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
+}
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.compared_case_count -eq 2) 'artifact_root summary compared_case_count must be 2'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.resource_changed_case_count -eq 1) 'artifact_root summary resource_changed_case_count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.resource_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing resource changed case'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -237,11 +245,13 @@ $summary = [ordered]@{
     diff_json = $diffJsonPath
     artifact_report_root = $artifactReportOutputRoot
     inspect_json = $inspectJsonPath
+    root_summary_inspect_json = $rootSummaryInspectJsonPath
     assertions = [ordered]@{
         artifact_root_compare_present = $true
         changed_case_detected = $true
         unchanged_case_detected = $true
         contract_change_matrix_detected = $true
+        root_summary_compare_detected = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

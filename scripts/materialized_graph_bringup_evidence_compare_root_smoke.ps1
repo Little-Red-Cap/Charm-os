@@ -158,6 +158,8 @@ $diffJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root.dif
 $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root.inspect.json'
+$capListInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root.cap_list.inspect.json'
+$rootSummaryInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root.summary.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -282,6 +284,29 @@ $capabilityCase = @(
 Assert-Condition ($null -ne $capabilityCase) "bringup compare root capability entry missing target case: $ChangedCase"
 Assert-Condition ([string]$capabilityCase.right_export_state -eq 'attached') 'bringup compare root capability right_export_state must become attached'
 
+$capListInspectResult = Invoke-CommandJson -OutputPath $capListInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -CapList -AsJson
+}
+Assert-Condition ([string]$capListInspectResult.query.kind -eq 'cap_list') 'inspect cap list query kind mismatch'
+Assert-Condition ([string]$capListInspectResult.query.scope -eq 'artifact_root') 'inspect cap list scope mismatch'
+Assert-Condition ($null -ne $capListInspectResult.query.comparison) 'artifact_root cap list must expose comparison payload'
+Assert-Condition ([int]$capListInspectResult.query.comparison.bringup_compare_capability_count -eq 1) 'artifact_root cap list bringup compare capability count must be 1'
+Assert-Condition ((@($capListInspectResult.query.comparison.bringup_compare_capabilities) -contains $PublishedCapability)) 'artifact_root cap list comparison missing published capability'
+$capListCapabilityEntry = @(
+    @($capListInspectResult.query.capabilities) |
+        Where-Object { [string]$_.capability -eq $PublishedCapability } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $capListCapabilityEntry) "artifact_root cap list missing capability entry: $PublishedCapability"
+Assert-Condition ((@($capListCapabilityEntry.bringup_compare_cases) -contains $ChangedCase)) 'artifact_root cap list capability entry missing changed case'
+
+$rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
+}
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.compared_case_count -eq 2) 'artifact_root summary compared_case_count must be 2'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.bringup_changed_case_count -eq 1) 'artifact_root summary bringup_changed_case_count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.bringup_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing bringup changed case'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -291,11 +316,15 @@ $summary = [ordered]@{
     diff_json = $diffJsonPath
     artifact_report_root = $artifactReportOutputRoot
     inspect_json = $inspectJsonPath
+    cap_list_inspect_json = $capListInspectJsonPath
+    root_summary_inspect_json = $rootSummaryInspectJsonPath
     assertions = [ordered]@{
         artifact_root_compare_present = $true
         changed_case_detected = $true
         unchanged_case_detected = $true
         capability_change_matrix_detected = $true
+        cap_list_compare_detected = $true
+        root_summary_compare_detected = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

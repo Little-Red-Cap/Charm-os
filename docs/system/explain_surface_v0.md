@@ -260,6 +260,14 @@ v0 阶段建议至少覆盖：
 - `declared_fact / resource_fact / unresolved_binding`
 - `provider_nodes / consumer_nodes`
 
+如果当前 report 来自 compare 模式，
+单 report 级 `-CapList -AsJson` 现在也会把 capability 级 compare 摘要一起带出来，
+至少覆盖：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
 当前实现支持两种读取作用域：
 
 - 单 report 查询
@@ -287,6 +295,21 @@ v0 阶段建议至少覆盖：
 当前 `-AsJson` 会返回上述最小字段，
 而 root 汇总模式还会额外带出 `cases` 与 `*_cases` 数组，
 用于表达 capability 在不同 case 中的出现分布。
+
+如果选择的是整组 compare report，
+artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
+
+- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases`
+- capability 级 `bringup_change_kinds / resource_change_kinds`
+- query 级 `comparison.compared_capability_count`
+- query 级 `comparison.bringup_compare_capability_count / resource_compare_capability_count`
+
+这意味着 `cap list` 现在已经不只会回答“这个 capability 出现在哪些 case 里”，
+还可以直接回答：
+
+- 哪些 capability 本身已经进入 compare drift 热点
+- 这些热点更偏 bringup 漂移还是资源法律漂移
+- 某个 capability 的 compare 漂移究竟覆盖了哪些 case
 
 围绕同一批 capability，
 当前仓库里还新增了一个更直接的单 report 入口：

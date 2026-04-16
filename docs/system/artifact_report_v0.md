@@ -109,6 +109,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
 - compare 模式下的 `summary_changes / metadata_changes / comparison.bringup_evidence / comparison.resource_contract`
+- artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
 
@@ -124,9 +125,41 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `declared_fact / resource_fact / unresolved_binding`
 - `provider_nodes / consumer_nodes`
 
+如果当前 report 来自 compare 模式，
+单 report 级 `cap list` 现在还会继续为每个 capability 带出最小 compare 摘要，
+至少包括：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+如果选择的是整组 compare report，
+artifact_root 级 `cap list` 现在也会继续带出：
+
+- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases`
+- capability 级 `bringup_change_kinds / resource_change_kinds`
+- query 级 compare 摘要计数
+
+这意味着当前 inspector 已经可以把“capability 分布”与“compare drift 分布”放进同一张表面。
+
 当调用方显式选择多个 case 子集时，
 当前 inspector 不支持直接对这类“部分 root”做 `cap list` 汇总，
 以避免把单 case 证据和跨 case 聚合语义混在一起。
+
+与此同时，
+如果调用方直接读取 artifact_root 默认总览，
+而所选报告又来自 compare 模式，
+当前 JSON 总览也会额外带出一份最小 `comparison` 摘要，
+至少回答：
+
+- `compared_case_count`
+- `metadata_changed_case_count`
+- `bringup_changed_case_count`
+- `resource_changed_case_count`
+
+这意味着默认总览已经能直接回答：
+
+> **这一组 compare report 里，到底有多少 case 真正在 compare 维度上发生了漂移。**
 
 而 `graph path` 当前则明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：

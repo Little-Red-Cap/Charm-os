@@ -295,7 +295,14 @@ export namespace net::backend {
 
             EventMask mask = 0;
             if (FD_ISSET(slot->sock, &exceptfds)) {
-                mask |= event_mask(NetEvent::error);
+                const auto err = socket_pending_error(slot->sock);
+                if (err == errc::closed || err == errc::end_of_stream) {
+                    mask |= event_mask(NetEvent::closed);
+                } else if (err == errc::ok) {
+                    mask |= event_mask(NetEvent::error);
+                } else if (err != errc::would_block) {
+                    mask |= event_mask(NetEvent::error);
+                }
             }
             if (FD_ISSET(slot->sock, &writefds)) {
                 mask |= event_mask(NetEvent::writable);
@@ -313,6 +320,8 @@ export namespace net::backend {
                         const auto err = map_wsa_error(::WSAGetLastError());
                         if (err == errc::would_block) {
                             // no-op
+                        } else if (err == errc::closed || err == errc::end_of_stream) {
+                            mask |= event_mask(NetEvent::closed);
                         } else {
                             mask |= event_mask(NetEvent::error);
                         }
@@ -412,6 +421,19 @@ export namespace net::backend {
         [[nodiscard]] static bool set_nonblocking(SOCKET sock) noexcept {
             u_long mode = 1;
             return ::ioctlsocket(sock, FIONBIO, &mode) == 0;
+        }
+
+        [[nodiscard]] static errc socket_pending_error(SOCKET sock) noexcept {
+            int so_error = 0;
+            int len = static_cast<int>(sizeof(so_error));
+            if (::getsockopt(sock,
+                             SOL_SOCKET,
+                             SO_ERROR,
+                             reinterpret_cast<char*>(&so_error),
+                             &len) == socket_error) {
+                return map_wsa_error(::WSAGetLastError());
+            }
+            return map_wsa_error(so_error);
         }
 
         [[nodiscard]] static Result<void> endpoint_to_sockaddr(const Endpoint& ep,

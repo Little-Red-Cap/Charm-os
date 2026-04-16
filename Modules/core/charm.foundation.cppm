@@ -1,4 +1,5 @@
 export module charm.foundation;
 
-// Backward-compatible facade used by existing examples.
+// Legacy compatibility facade retained for examples and migration.
+// New Modules/* code should prefer subsystem entries such as charm.core.
 export import charm.core;

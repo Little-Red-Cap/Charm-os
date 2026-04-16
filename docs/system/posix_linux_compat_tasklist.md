@@ -13,6 +13,7 @@
 - 收口判定：`docs/system/posix_v0_closure_checklist.md`
 - 阶段总结：`docs/system/posix_stage_summary.md`
 - 总览：`docs/system/posix_support_overview.md`
+- 维护期协作：`docs/system/posix_maintenance_mode_collaboration.md`
 - BusyBox 阶段验收：`docs/system/posix_busybox_phase_checklist.md`
 
 ---

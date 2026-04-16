@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <utility>
 
 import charm.net;
 import net.backend.stub;
@@ -72,18 +73,22 @@ int main() {
             return 1;
         }
 
-        if (!listener.listen(stack, net::Endpoint::ipv4_loopback(30205), 2)) {
+        auto listening = net::TcpListener::listening_loopback(stack, 30205, 2);
+        if (!listening) {
             std::fputs("reactor listener close listen failed\n", stderr);
             return 2;
         }
+        listener = std::move(listening.value());
         if (!listener_driver.start(all_events())) {
             std::fputs("reactor listener close driver start failed\n", stderr);
             return 3;
         }
-        if (!client.connect(stack, net::Endpoint::ipv4_loopback(30205))) {
+        auto connected = net::TcpClient::connected_loopback(stack, 30205);
+        if (!connected) {
             std::fputs("reactor listener close client connect failed\n", stderr);
             return 4;
         }
+        client = std::move(connected.value());
 
         bool done = false;
         for (int i = 0; i < 8; ++i) {
@@ -126,10 +131,12 @@ int main() {
         net::TcpSingleAcceptDriver<net::SocketWatchDriver<4>, 4> listener_driver{
             reactor, poller, listener, accepted, accepted_driver};
 
-        if (!listener.listen(stack, net::Endpoint::ipv4_loopback(30206), 2)) {
+        auto listening = net::TcpListener::listening_loopback(stack, 30206, 2);
+        if (!listening) {
             std::fputs("reactor listener close listen failed\n", stderr);
             return 6;
         }
+        listener = std::move(listening.value());
         if (!listener_driver.start()) {
             std::fputs("reactor listener close driver start failed\n", stderr);
             return 7;

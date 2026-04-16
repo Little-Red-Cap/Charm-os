@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.runtime_observe_snapshot.v0.schema.json",
+  "title": "system_compiler.runtime_observe_snapshot/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "generator",
+    "publish_state_summary",
+    "export_state_summary",
+    "recent_transitions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.runtime_observe_snapshot/v0"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "published_capabilities": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "observed_capabilities": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "publish_state_summary": {
+      "$ref": "#/$defs/stringCountMap"
+    },
+    "export_state_summary": {
+      "$ref": "#/$defs/exportStateCountMap"
+    },
+    "recent_transitions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/transitionSummary"
+      }
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stringCountMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missing",
+        "published"
+      ],
+      "properties": {
+        "missing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "exportStateCountMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missing",
+        "detached",
+        "attached"
+      ],
+      "properties": {
+        "missing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "detached": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attached": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "transitionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "action",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "before": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

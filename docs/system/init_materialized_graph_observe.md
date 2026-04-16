@@ -55,6 +55,7 @@
 - `recipe`
 - `barrier`
 - `legacy`
+- `binding`
 
 ### `materialized_edge_view`
 
@@ -148,6 +149,7 @@ std::string_view capability_name(init::CapId id) const noexcept;
 
 - `recipe` -> `box`
 - `legacy` -> `ellipse`
+- `binding` -> `ellipse`
 - `barrier` -> `diamond`
 
 这层输出的目标不是审美，而是尽快验证：
@@ -261,11 +263,13 @@ auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
 
 - `recipe` 节点
 - `legacy` 节点
+- `binding` 节点
 - `ready_as<Cap>()` 产生的 `barrier` 节点
 
-并且示范了 legacy 节点通过 `capability_name(...)` 恢复 capability 可读名称。
+并且示范了 legacy 节点通过 `capability_name(...)` 恢复 capability 可读名称，
+以及单节点 binding 如何在导出层保留为独立节点种类。
 
-便于直接观察三类节点在导出中的表现。
+便于直接观察四类节点在导出中的表现。
 
 其中 `bringup_block_observe_demo` 走的是更贴近真实 bringup 的组合：
 
@@ -399,11 +403,13 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - case 名称
 - 对应 `source / build target / export target`
 - case 自带的 `subject` 元数据，例如 `profile / board / active_facets`
+- case 自带的 `declared_facts`
+- case 自带的 `declared_contracts`
 - bundle 内相对路径形式的 `dot / json`
 - 从 `JSON sample` 提取出的轻量摘要，例如 `node_count / edge_count / phase / runlevel / node_kinds`
 
-这些 `subject` 字段当前不是最终 DSL，
-但它们已经可以作为 per-case 的声明式默认事实，
+这些 `subject` 字段、`declared_facts` 与 `declared_contracts` 当前都不是最终 DSL，
+但它们已经可以作为 per-case 的声明式输入事实，
 继续被 `artifact report` 与 CI 摘要链自动继承。
 更准确地说，
 当前 `export case manifest` 负责声明输入侧的 case 事实，
@@ -423,6 +429,8 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 - 从 `index.json` 汇总所有 case 的 `nodes / edges / phase / runlevel / node_kinds`
 - 显示 bundle 顶层记录的输入 `manifest` provenance（如果 index 提供）
+- 在单 case 视图里继续带出该 case 的 `declared_facts`
+- 在单 case 视图里继续带出该 case 的 `declared_contracts`
 - 读取单个 case 的 `JSON sample` 并展开节点表
 - 按需展开依赖边表，验证 provider / consumer / capability
 - 用 `-AsJson` 把汇总结果重新转成更适合脚本继续消费的结构
@@ -448,7 +456,21 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - `generated_at_utc`
 - `include_unchanged`
 - 左右 bundle 的输入 `manifest` provenance（如果对应 index 提供）
+- 左右 bundle 的 `declared_facts_defaults`（当所选 case 共享同一组声明事实时）
+- 左右 bundle 的 `declared_contracts_defaults`（当所选 case 共享同一组资源合同条款时）
+- case 左右两侧的 `declared_facts`
+- case 左右两侧的 `declared_contracts`
+- `metadata_changes`，用于承载不应改变结构 diff 主状态的输入事实变化
 - `status_counts`
+
+这里当前刻意保持一条边界：
+
+- `summary_changes`
+  仍只表达结构摘要变化
+- `metadata_changes`
+  只表达输入事实侧变化，例如 `declared_facts / declared_contracts`
+- `status`
+  仍只由结构差异决定，不因 `metadata_changes` 自动升级为 `changed`
 
 对应机器可读协议见：
 
@@ -473,6 +495,9 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - 左右 bundle 元信息与 case 统计
 - case 摘要表
 - 每个 case 的 summary changes
+- 每个 case 的 metadata changes
+- 左右 case 的 `declared_facts`
+- 左右 case 的 `declared_contracts`
 - 可点击的 `dot / json` 工件链接
 - 节点新增 / 删除 / 字段变化表
 - 依赖边新增 / 删除表
@@ -481,9 +506,11 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 - 左右 bundle 引用
 - 左右 bundle 的输入 `manifest` provenance（如果 diff 已带出）
+- 左右 bundle 的 `declared_facts_defaults`（如果 diff 已带出）
+- 左右 bundle 的 `declared_contracts_defaults`（如果 diff 已带出）
 - diff 协议名与 case / status 计数
 - Markdown / HTML / manifest 自身路径
-- 报告中包含的 case 名单与状态
+- 报告中包含的 case 名单、状态与 `metadata_changes`
 
 如果要把这条链收成一个更适合 CI 的单入口，还可以直接用：
 
@@ -505,14 +532,69 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - 当前运行模式：`export_only / compare`
 - candidate / baseline 索引路径
 - candidate / baseline bundle 的输入 `manifest` provenance（如果对应 bundle index 提供）
+- candidate / baseline bundle 的 `declared_facts_defaults`
+- candidate / baseline bundle 的 `declared_contracts_defaults`
 - 是否发现可见差异
 - 各类状态计数：`changed / added / removed / unchanged`
 - 按状态分组的 case 名单
+- `metadata_changed_cases`
 - 报告与 diff 产物路径
 
 其中 `report` 字段现在也会额外带：
 
 - `manifest`
+
+如果要专门守住 `runtime_only` 与静态 graph 平面之间的边界，
+仓库根目录现在还提供了一个轻量 smoke：
+
+```powershell
+./scripts/materialized_graph_runtime_plane_smoke.ps1 -BundleRoot out/materialized-graph-bundle
+```
+
+它当前会基于已有 bundle 做一条最小 synthetic 回归：
+
+- 复制一份 bundle，并把一个 `runtime_only` case 临时合成为 `materialized_graph` case
+- 断言 diff 只报告 `case_kind` 与 `graph` availability 变化
+- 断言这类跨平面变化不会伪造 node / edge 结构 diff
+- 断言 inspect 对原始 `runtime_only` case 仍返回 `graph = null`
+- 断言 `-ShowEdges` 会给出明确的 “no static graph” 错误
+- 断言 Markdown 报告仍能稳定带出 `runtime_observe` 链接与 `Kind` 变化
+
+默认它会用当前仓库里的：
+
+- `usb-host-runtime-multi-smoke` 作为 `runtime_only` case
+- `usb-msc-block-demo` 作为 graph donor case
+
+如果后续 fixture 名称变化，也可以通过：
+
+- `-RuntimeOnlyCase`
+- `-GraphDonorCase`
+- `-OutputRoot`
+
+覆盖默认值。
+
+如果要把 `artifact report -> resource summary` 这条资源法律解释面也守成正式回归，
+仓库根目录现在还提供了：
+
+```powershell
+./scripts/materialized_graph_resource_contract_smoke.ps1 -ArtifactRoot out/materialized-graph-ci/artifact-report -Case bringup-minimal-observe-demo
+./scripts/materialized_graph_resource_contract_matrix_smoke.ps1 -ArtifactRoot out/materialized-graph-ci/artifact-report
+```
+
+它当前会直接复用 `inspect_system_compiler_artifact_report.ps1 -ResourceSummary`
+的真实查询结果，并断言：
+
+- 资源契约声明数大于零
+- `needs_monotonic_clock` 仍满足于 `system.clock`
+- `board.win_stub` 这类板级事实仍能同时出现在 `declared_facts / subject_facts`
+- `fact_sources["system.clock"]` 仍明确包含 `audit_provided_facts`
+
+其中第二条 `matrix smoke` 还会进一步守住 `artifact_root` 级聚合观察面，
+确保多 case 下：
+
+- `needs_monotonic_clock` 能在 `bringup-block-observe-demo / bringup-minimal-observe-demo` 上保持横向一致
+- `system.clock` 会稳定进入 `provided fact matrix`
+- 横向矩阵不会把单 case explain 语义漂移成另一套统计语言
 
 仓库现在还提供了一个对应的 GitHub Actions 工作流：
 
@@ -524,7 +606,16 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - 分别检出 candidate 与 baseline（PR 基线默认取 base sha，手动触发默认取 `main`）
 - 在 baseline 工作树导出一份 bundle
 - 在 candidate 工作树执行 `ci_materialized_graph_bundle.ps1` 生成 diff 与 Markdown / HTML 报告
-- 上传 `out/materialized-graph-baseline` 与 `out/materialized-graph-ci` 作为 workflow artifact
+- 在 candidate 工作树额外执行 `materialized_graph_runtime_plane_smoke.ps1`
+  守住 `runtime_only` 与静态 graph 平面的边界
+- 在 candidate 工作树额外执行 `materialized_graph_resource_contract_smoke.ps1`
+  守住 `artifact report -> resource summary` 的资源法律解释面
+- 在 candidate 工作树额外执行 `materialized_graph_resource_contract_matrix_smoke.ps1`
+  守住 `artifact_root` 级资源契约矩阵观察面
+- 上传 `out/materialized-graph-baseline`、`out/materialized-graph-ci`
+  与 `out/materialized-graph-runtime-plane-smoke`
+  和 `out/materialized-graph-resource-contract-smoke`
+  以及 `out/materialized-graph-resource-contract-matrix-smoke` 作为 workflow artifact
 - 把关键计数与报告路径写入 GitHub Step Summary，方便直接在 Actions 页面浏览
 
 ## 当前验收点

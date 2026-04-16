@@ -6,11 +6,14 @@
       "source": "Examples/init/materialize_observe_demo",
       "build_dir": "cmake-build-init-observe-demo-clang",
       "build_target": "init-materialize-observe-demo",
+      "case_kind": "materialized_graph",
       "export_target": "export_materialized_graph_demo",
       "dot_cache": "MATERIALIZE_OBSERVE_DOT_PATH",
       "json_cache": "MATERIALIZE_OBSERVE_JSON_PATH",
       "default_dot": "materialized_graph.dot",
       "default_json": "materialized_graph.sample.json",
+      "declared_facts": [],
+      "declared_contracts": [],
       "extra_cache": [],
       "subject": {
         "profile": null,
@@ -23,11 +26,23 @@
       "source": "Examples/init/bringup_block_observe_demo",
       "build_dir": "cmake-build-init-bringup-block-observe-clang",
       "build_target": "init-bringup-block-observe-demo",
+      "case_kind": "materialized_graph",
       "export_target": "export_bringup_block_materialized_graph",
       "dot_cache": "BRINGUP_BLOCK_OBSERVE_DOT_PATH",
       "json_cache": "BRINGUP_BLOCK_OBSERVE_JSON_PATH",
       "default_dot": "bringup_block_materialized_graph.dot",
       "default_json": "bringup_block_materialized_graph.sample.json",
+      "declared_facts": [
+        "board.win_stub"
+      ],
+      "declared_contracts": [
+        {
+          "contract": "needs_monotonic_clock",
+          "requires": [
+            "system.clock"
+          ]
+        }
+      ],
       "extra_cache": [],
       "subject": {
         "profile": null,
@@ -43,11 +58,23 @@
       "source": "Examples/init/bringup_minimal_observe_demo",
       "build_dir": "cmake-build-init-bringup-minimal-observe-clang",
       "build_target": "init-bringup-minimal-observe-demo",
+      "case_kind": "materialized_graph",
       "export_target": "export_bringup_minimal_materialized_graph",
       "dot_cache": "BRINGUP_MINIMAL_OBSERVE_DOT_PATH",
       "json_cache": "BRINGUP_MINIMAL_OBSERVE_JSON_PATH",
       "default_dot": "bringup_minimal_materialized_graph.dot",
       "default_json": "bringup_minimal_materialized_graph.sample.json",
+      "declared_facts": [
+        "board.win_stub"
+      ],
+      "declared_contracts": [
+        {
+          "contract": "needs_monotonic_clock",
+          "requires": [
+            "system.clock"
+          ]
+        }
+      ],
       "extra_cache": [],
       "subject": {
         "profile": null,
@@ -63,11 +90,17 @@
       "source": "Examples/usb/usb_msc_block_demo",
       "build_dir": "cmake-build-usb-msc-block-demo-clang",
       "build_target": "usb-msc-block-demo",
+      "case_kind": "materialized_graph",
       "export_target": "export_usb_msc_block_materialized_graph",
+      "runtime_observe_target": "export_usb_msc_block_runtime_observe",
       "dot_cache": "USB_MSC_BLOCK_EXPORT_DOT_PATH",
       "json_cache": "USB_MSC_BLOCK_EXPORT_JSON_PATH",
+      "runtime_observe_cache": "USB_MSC_BLOCK_RUNTIME_OBSERVE_PATH",
       "default_dot": "usb_msc_block_materialized_graph.dot",
       "default_json": "usb_msc_block_materialized_graph.sample.json",
+      "default_runtime_observe": "usb_msc_block.runtime_observe.json",
+      "declared_facts": [],
+      "declared_contracts": [],
       "extra_cache": [
         "USB_MSC_BLOCK_EXPORT_IMAGE_PATH=observe-usb-block.img"
       ],
@@ -77,6 +110,32 @@
         "active_facets": [
           "usb",
           "block"
+        ]
+      }
+    },
+    {
+      "name": "usb-host-runtime-multi-smoke",
+      "source": "Examples/usb/usb_host_runtime_multi_smoke",
+      "build_dir": "cmake-build-usb-host-runtime-multi-smoke-clang",
+      "build_target": "usb-host-runtime-multi-smoke",
+      "case_kind": "runtime_only",
+      "export_target": null,
+      "runtime_observe_target": "export_usb_host_runtime_multi_runtime_observe",
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": "USB_HOST_RUNTIME_MULTI_RUNTIME_OBSERVE_PATH",
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": "usb_host_runtime_multi.runtime_observe.json",
+      "declared_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": null,
+        "board": null,
+        "active_facets": [
+          "usb",
+          "runtime"
         ]
       }
     }

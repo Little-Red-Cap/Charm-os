@@ -78,6 +78,25 @@ function Get-OptionalStringProperty {
     return [string]$value
 }
 
+function Get-CaseKindProperty {
+    param(
+        $Object,
+        [string]$Context
+    )
+
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName 'case_kind'
+    if ([string]::IsNullOrWhiteSpace([string]$value)) {
+        return 'materialized_graph'
+    }
+
+    $normalized = [string]$value
+    if ($normalized -notin @('materialized_graph', 'runtime_only')) {
+        throw "unsupported case_kind '$normalized' in $Context"
+    }
+
+    return $normalized
+}
+
 function Get-OptionalStringArrayProperty {
     param(
         $Object,
@@ -96,6 +115,75 @@ function Get-OptionalStringArrayProperty {
     )
 }
 
+function Get-OptionalDeclaredContractsProperty {
+    param(
+        $Object,
+        [string]$PropertyName,
+        [string]$Context
+    )
+
+    $value = Get-ObjectPropertyValue -Object $Object -PropertyName $PropertyName
+    if ($null -eq $value) {
+        return @()
+    }
+
+    $contracts = @()
+    $entries = @($value)
+    for ($index = 0; $index -lt $entries.Count; ++$index) {
+        $entry = $entries[$index]
+        $entryContext = "$Context $PropertyName[$index]"
+        $contractName = Get-RequiredStringProperty -Object $entry -PropertyName 'contract' -Context $entryContext
+        $requires = Get-OptionalStringArrayProperty -Object $entry -PropertyName 'requires'
+        $contracts += [pscustomobject]@{
+            contract = $contractName
+            requires = @($requires | Sort-Object -Unique)
+        }
+    }
+
+    return @($contracts)
+}
+
+function Assert-ExportCaseEntrySemantics {
+    param(
+        $Entry,
+        [string]$Context
+    )
+
+    if ($Entry.CaseKind -eq 'materialized_graph') {
+        if ([string]::IsNullOrWhiteSpace($Entry.ExportTarget)) {
+            throw "materialized_graph case requires export_target in $Context"
+        }
+        if ([string]::IsNullOrWhiteSpace($Entry.DefaultDot)) {
+            throw "materialized_graph case requires default_dot in $Context"
+        }
+        if ([string]::IsNullOrWhiteSpace($Entry.DefaultJson)) {
+            throw "materialized_graph case requires default_json in $Context"
+        }
+        return
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Entry.ExportTarget)) {
+        throw "runtime_only case must not declare export_target in $Context"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Entry.DotCache)) {
+        throw "runtime_only case must not declare dot_cache in $Context"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Entry.JsonCache)) {
+        throw "runtime_only case must not declare json_cache in $Context"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Entry.DefaultDot)) {
+        throw "runtime_only case must not declare default_dot in $Context"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Entry.DefaultJson)) {
+        throw "runtime_only case must not declare default_json in $Context"
+    }
+    if ([string]::IsNullOrWhiteSpace($Entry.RuntimeObserveTarget) -and
+        [string]::IsNullOrWhiteSpace($Entry.RuntimeObserve) -and
+        [string]::IsNullOrWhiteSpace($Entry.DefaultRuntimeObserve)) {
+        throw "runtime_only case requires runtime observe output in $Context"
+    }
+}
+
 function Convert-ExportCaseEntry {
     param(
         $CaseEntry,
@@ -106,21 +194,31 @@ function Convert-ExportCaseEntry {
     $context = "$ManifestPath cases[$Index]"
     $subjectEntry = Get-ObjectPropertyValue -Object $CaseEntry -PropertyName 'subject'
 
-    return [pscustomobject]@{
+    $entry = [pscustomobject]@{
         Name = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'name' -Context $context
         Source = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'source' -Context $context
         BuildDir = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'build_dir' -Context $context
         BuildTarget = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'build_target' -Context $context
+        CaseKind = Get-CaseKindProperty -Object $CaseEntry -Context $context
         ExportTarget = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'export_target'
         DotCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'dot_cache'
         JsonCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'json_cache'
-        DefaultDot = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'default_dot' -Context $context
-        DefaultJson = Get-RequiredStringProperty -Object $CaseEntry -PropertyName 'default_json' -Context $context
+        DefaultDot = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'default_dot'
+        DefaultJson = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'default_json'
+        RuntimeObserveTarget = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'runtime_observe_target'
+        RuntimeObserveCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'runtime_observe_cache'
+        DefaultRuntimeObserve = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'default_runtime_observe'
         ExtraCache = Get-OptionalStringArrayProperty -Object $CaseEntry -PropertyName 'extra_cache'
+        RuntimeObserve = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'runtime_observe'
         Profile = Get-OptionalStringProperty -Object $subjectEntry -PropertyName 'profile'
         Board = Get-OptionalStringProperty -Object $subjectEntry -PropertyName 'board'
         ActiveFacets = Get-OptionalStringArrayProperty -Object $subjectEntry -PropertyName 'active_facets'
+        DeclaredFacts = Get-OptionalStringArrayProperty -Object $CaseEntry -PropertyName 'declared_facts'
+        DeclaredContracts = Get-OptionalDeclaredContractsProperty -Object $CaseEntry -PropertyName 'declared_contracts' -Context $context
     }
+
+    Assert-ExportCaseEntrySemantics -Entry $entry -Context $context
+    return $entry
 }
 
 function Get-ExportCases {
@@ -176,6 +274,51 @@ function Resolve-FullPath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
 }
 
+function Resolve-OptionalExistingPath {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+
+    $resolvedPath = Resolve-FullPath $Path
+    if (Test-Path $resolvedPath) {
+        return $resolvedPath
+    }
+
+    return $null
+}
+
+function Resolve-RuntimeObserveOutputPath {
+    param(
+        $Entry,
+        [string]$BuildDirPath,
+        [string]$OutputRootPath = ''
+    )
+
+    if ($null -eq $Entry) {
+        return ''
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($OutputRootPath) -and
+        -not [string]::IsNullOrWhiteSpace($Entry.DefaultRuntimeObserve)) {
+        $caseOutputDir = Join-Path (Resolve-FullPath $OutputRootPath) $Entry.Name
+        return Join-Path $caseOutputDir $Entry.DefaultRuntimeObserve
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Entry.RuntimeObserve)) {
+        return Resolve-FullPath $Entry.RuntimeObserve
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Entry.DefaultRuntimeObserve)) {
+        return Join-Path $BuildDirPath $Entry.DefaultRuntimeObserve
+    }
+
+    return ''
+}
+
 function Ensure-ParentDirectory {
     param(
         [string]$Path
@@ -206,6 +349,19 @@ function Get-RelativePath {
     $baseUri = New-Object System.Uri(($baseFull.TrimEnd($trimChars) + [System.IO.Path]::DirectorySeparatorChar))
     $targetUri = New-Object System.Uri($targetFull)
     return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($targetUri).ToString()).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+}
+
+function Get-OptionalRelativePath {
+    param(
+        [string]$BasePath,
+        [string]$TargetPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TargetPath)) {
+        return $null
+    }
+
+    return Get-RelativePath -BasePath $BasePath -TargetPath $TargetPath
 }
 
 function Get-GraphSummary {
@@ -279,6 +435,63 @@ function New-CaseSubjectMetadata {
     }
 }
 
+function New-CaseDeclaredFactsMetadata {
+    param(
+        $Entry
+    )
+
+    $declaredFacts = @()
+    if ($null -ne $Entry -and $null -ne $Entry.PSObject.Properties['DeclaredFacts']) {
+        $declaredFacts = @(
+            @($Entry.DeclaredFacts) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Select-Object -Unique
+        )
+    }
+
+    return @($declaredFacts)
+}
+
+function New-CaseDeclaredContractsMetadata {
+    param(
+        $Entry
+    )
+
+    if ($null -eq $Entry -or $null -eq $Entry.PSObject.Properties['DeclaredContracts']) {
+        return @()
+    }
+
+    $normalized = @()
+    foreach ($contract in @($Entry.DeclaredContracts)) {
+        if ($null -eq $contract) {
+            continue
+        }
+
+        $contractName = [string]$contract.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $requires = @()
+        if ($null -ne $contract.PSObject.Properties['requires']) {
+            $requires = @(
+                @($contract.requires) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ } |
+                    Sort-Object -Unique
+            )
+        }
+
+        $normalized += [ordered]@{
+            contract = $contractName
+            requires = @($requires)
+        }
+    }
+
+    return @($normalized)
+}
+
 function Write-ExportBundleIndex {
     param(
         [object[]]$Results,
@@ -293,7 +506,7 @@ function Write-ExportBundleIndex {
 
     $cases = @()
     foreach ($result in @($Results)) {
-        if ($null -eq $result -or $null -eq $result.PSObject.Properties['DotPath'] -or $null -eq $result.PSObject.Properties['JsonPath']) {
+        if ($null -eq $result) {
             continue
         }
 
@@ -302,13 +515,25 @@ function Write-ExportBundleIndex {
             source = $result.Source
             build_dir = $result.BuildDir
             build_target = $result.BuildTarget
+            case_kind = $result.CaseKind
             export_target = $result.ExportTarget
-            dot = Get-RelativePath -BasePath $bundleRoot -TargetPath $result.DotPath
-            json = Get-RelativePath -BasePath $bundleRoot -TargetPath $result.JsonPath
+            dot = Get-OptionalRelativePath -BasePath $bundleRoot -TargetPath $result.DotPath
+            json = Get-OptionalRelativePath -BasePath $bundleRoot -TargetPath $result.JsonPath
         }
 
         if ($null -ne $result.PSObject.Properties['Subject'] -and $null -ne $result.Subject) {
             $caseEntry.subject = $result.Subject
+        }
+        if ($null -ne $result.PSObject.Properties['DeclaredFacts']) {
+            $caseEntry.declared_facts = @($result.DeclaredFacts)
+        }
+        if ($null -ne $result.PSObject.Properties['DeclaredContracts']) {
+            $caseEntry.declared_contracts = @($result.DeclaredContracts)
+        }
+        if ($null -ne $result.PSObject.Properties['RuntimeObservePath'] -and -not [string]::IsNullOrWhiteSpace([string]$result.RuntimeObservePath)) {
+            $caseEntry.runtime_observe = Get-OptionalRelativePath -BasePath $bundleRoot -TargetPath $result.RuntimeObservePath
+        } elseif ($null -ne $result.PSObject.Properties['RuntimeObserve'] -and -not [string]::IsNullOrWhiteSpace([string]$result.RuntimeObserve)) {
+            Write-Warning "[INDEX][$($result.Name)] runtime observe artifact not found: $([string]$result.RuntimeObserve)"
         }
 
         $summary = Get-GraphSummary -JsonPath $result.JsonPath
@@ -412,6 +637,7 @@ function Invoke-ManifestCase {
 
     $sourceDir = Join-Path $repoRoot $Entry.Source
     $buildDir = Join-Path $repoRoot $Entry.BuildDir
+    $hasMaterializedGraph = $Entry.CaseKind -eq 'materialized_graph'
     if (-not (Test-Path $sourceDir)) {
         throw "source not found: $sourceDir"
     }
@@ -420,28 +646,36 @@ function Invoke-ManifestCase {
         Remove-Item -Recurse -Force $buildDir
     }
 
-    $dotPath = ''
-    $jsonPath = ''
-    if (-not [string]::IsNullOrWhiteSpace($OutputRootPath)) {
-        $caseOutputDir = Join-Path (Resolve-FullPath $OutputRootPath) $Entry.Name
-        New-Item -ItemType Directory -Path $caseOutputDir -Force | Out-Null
-        $dotPath = Join-Path $caseOutputDir $Entry.DefaultDot
-        $jsonPath = Join-Path $caseOutputDir $Entry.DefaultJson
-    } else {
-        $dotPath = if ([string]::IsNullOrWhiteSpace($DotOverride)) {
-            Join-Path $buildDir $Entry.DefaultDot
+    $dotPath = $null
+    $jsonPath = $null
+    if ($hasMaterializedGraph) {
+        if (-not [string]::IsNullOrWhiteSpace($OutputRootPath)) {
+            $caseOutputDir = Join-Path (Resolve-FullPath $OutputRootPath) $Entry.Name
+            New-Item -ItemType Directory -Path $caseOutputDir -Force | Out-Null
+            $dotPath = Join-Path $caseOutputDir $Entry.DefaultDot
+            $jsonPath = Join-Path $caseOutputDir $Entry.DefaultJson
         } else {
-            Resolve-FullPath $DotOverride
+            $dotPath = if ([string]::IsNullOrWhiteSpace($DotOverride)) {
+                Join-Path $buildDir $Entry.DefaultDot
+            } else {
+                Resolve-FullPath $DotOverride
+            }
+            $jsonPath = if ([string]::IsNullOrWhiteSpace($JsonOverride)) {
+                Join-Path $buildDir $Entry.DefaultJson
+            } else {
+                Resolve-FullPath $JsonOverride
+            }
         }
-        $jsonPath = if ([string]::IsNullOrWhiteSpace($JsonOverride)) {
-            Join-Path $buildDir $Entry.DefaultJson
-        } else {
-            Resolve-FullPath $JsonOverride
-        }
+
+        Ensure-ParentDirectory -Path $dotPath
+        Ensure-ParentDirectory -Path $jsonPath
     }
 
-    Ensure-ParentDirectory -Path $dotPath
-    Ensure-ParentDirectory -Path $jsonPath
+    $runtimeObservePath = Resolve-RuntimeObserveOutputPath -Entry $Entry -BuildDirPath $buildDir -OutputRootPath $OutputRootPath
+    if (-not [string]::IsNullOrWhiteSpace($Entry.RuntimeObserveTarget) -and
+        [string]::IsNullOrWhiteSpace($runtimeObservePath)) {
+        throw "runtime observe target requires a resolved runtime observe path: $($Entry.Name)"
+    }
 
     $configureArgs = @(
         '-S', $sourceDir,
@@ -455,6 +689,11 @@ function Invoke-ManifestCase {
     }
     if (-not [string]::IsNullOrWhiteSpace($Entry.JsonCache)) {
         $configureArgs += @('-D', "$($Entry.JsonCache)=$jsonPath")
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Entry.RuntimeObserveCache) -and
+        -not [string]::IsNullOrWhiteSpace($runtimeObservePath)) {
+        Ensure-ParentDirectory -Path $runtimeObservePath
+        $configureArgs += @('-D', "$($Entry.RuntimeObserveCache)=$runtimeObservePath")
     }
     foreach ($cacheArg in $Entry.ExtraCache) {
         $configureArgs += @('-D', $cacheArg)
@@ -473,10 +712,15 @@ function Invoke-ManifestCase {
             Source = $Entry.Source
             BuildDir = $Entry.BuildDir
             BuildTarget = $Entry.BuildTarget
+            CaseKind = $Entry.CaseKind
             ExportTarget = $Entry.ExportTarget
             DotPath = $dotPath
             JsonPath = $jsonPath
             Subject = New-CaseSubjectMetadata -Entry $Entry
+            DeclaredFacts = New-CaseDeclaredFactsMetadata -Entry $Entry
+            DeclaredContracts = New-CaseDeclaredContractsMetadata -Entry $Entry
+            RuntimeObserve = $Entry.RuntimeObserve
+            RuntimeObservePath = $runtimeObservePath
         }
     }
 
@@ -494,17 +738,39 @@ function Invoke-ManifestCase {
         }
     }
 
-    Write-Host "[DOT][$($Entry.Name)]  $dotPath"
-    Write-Host "[JSON][$($Entry.Name)] $jsonPath"
+    if (-not [string]::IsNullOrWhiteSpace($Entry.RuntimeObserveTarget)) {
+        Write-Host "[RUNTIME_OBSERVE][$($Entry.Name)] target=$($Entry.RuntimeObserveTarget)"
+        cmake --build $buildDir --target $Entry.RuntimeObserveTarget -j $Jobs | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "runtime observe target failed: $($Entry.Name)"
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($dotPath)) {
+        Write-Host "[DOT][$($Entry.Name)]  $dotPath"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($jsonPath)) {
+        Write-Host "[JSON][$($Entry.Name)] $jsonPath"
+    }
+    $runtimeObserveArtifactPath = Resolve-OptionalExistingPath -Path $runtimeObservePath
     return [pscustomobject]@{
         Name = $Entry.Name
         Source = $Entry.Source
         BuildDir = $Entry.BuildDir
         BuildTarget = $Entry.BuildTarget
+        CaseKind = $Entry.CaseKind
         ExportTarget = $Entry.ExportTarget
         DotPath = $dotPath
         JsonPath = $jsonPath
         Subject = New-CaseSubjectMetadata -Entry $Entry
+        DeclaredFacts = New-CaseDeclaredFactsMetadata -Entry $Entry
+        DeclaredContracts = New-CaseDeclaredContractsMetadata -Entry $Entry
+        RuntimeObserve = if (-not [string]::IsNullOrWhiteSpace($Entry.RuntimeObserve)) {
+            $Entry.RuntimeObserve
+        } else {
+            $runtimeObservePath
+        }
+        RuntimeObservePath = $runtimeObserveArtifactPath
     }
 }
 
@@ -525,6 +791,8 @@ if ($ListCases) {
     Write-Host "[MANIFEST] $($exportCaseManifest.Path)"
     foreach ($entry in $manifestCases) {
         $subject = New-CaseSubjectMetadata -Entry $entry
+        $declaredFacts = New-CaseDeclaredFactsMetadata -Entry $entry
+        $declaredContracts = New-CaseDeclaredContractsMetadata -Entry $entry
         $subjectParts = @()
         if (-not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
             $subjectParts += "profile=$([string]$subject.profile)"
@@ -536,9 +804,25 @@ if ($ListCases) {
             $subjectParts += "facets=$((@($subject.active_facets) -join ','))"
         }
 
-        $line = "$($entry.Name) -> source=$($entry.Source) target=$($entry.ExportTarget)"
+        $exportTargetText = if ([string]::IsNullOrWhiteSpace([string]$entry.ExportTarget)) { '<none>' } else { [string]$entry.ExportTarget }
+        $line = "$($entry.Name) -> kind=$($entry.CaseKind) source=$($entry.Source) target=$exportTargetText"
         if ($subjectParts.Count -gt 0) {
             $line += " subject={$($subjectParts -join '; ')}"
+        }
+        if (@($declaredFacts).Count -gt 0) {
+            $line += " declared_facts={$((@($declaredFacts) -join ', '))}"
+        }
+        if (@($declaredContracts).Count -gt 0) {
+            $contractText = @(
+                $declaredContracts |
+                    ForEach-Object {
+                        "$([string]$_.contract) requires [$((@($_.requires) -join ', '))]"
+                    }
+            ) -join '; '
+            $line += " declared_contracts={$contractText}"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$entry.RuntimeObserve)) {
+            $line += " runtime_observe={$([string]$entry.RuntimeObserve)}"
         }
 
         Write-Host $line

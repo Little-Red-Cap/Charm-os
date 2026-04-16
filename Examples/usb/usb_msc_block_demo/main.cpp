@@ -3,12 +3,14 @@
 #endif
 
 #include <array>
+#include <chrono>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <span>
 #include <string_view>
+#include <ctime>
 
 import block.registry;
 import charm.system.bringup.block;
@@ -34,6 +36,7 @@ import util.expected;
 
 namespace {
     constexpr const char* kDefaultExportImage = "observe-usb-block.img";
+    constexpr util::u64 kRuntimeObserveImageBlocks = 8;
 
     struct StdoutSink {
         out::result<std::size_t> write(out::bytes b) noexcept {
@@ -234,6 +237,91 @@ namespace {
         std::fclose(file);
         return written == bytes;
     }
+
+    bool format_utc_timestamp(char* out, std::size_t size) noexcept {
+        if (!out || size == 0) {
+            return false;
+        }
+
+        const auto now = std::chrono::system_clock::now();
+        const auto now_time = std::chrono::system_clock::to_time_t(now);
+        std::tm utc{};
+#if defined(_WIN32)
+        if (gmtime_s(&utc, &now_time) != 0) {
+            return false;
+        }
+#else
+        if (gmtime_r(&now_time, &utc) == nullptr) {
+            return false;
+        }
+#endif
+        return std::strftime(out, size, "%Y-%m-%dT%H:%M:%SZ", &utc) != 0;
+    }
+
+    bool ensure_block_image(const char* path,
+                            util::u64 block_size,
+                            util::u64 block_count) noexcept {
+        if (!path || path[0] == '\0' || block_size == 0 || block_count == 0) {
+            return false;
+        }
+
+        if (std::FILE* existing = std::fopen(path, "rb")) {
+            std::fclose(existing);
+            return true;
+        }
+
+        std::FILE* file = std::fopen(path, "wb");
+        if (!file) {
+            return false;
+        }
+
+        std::array<util::u8, 512> zeros{};
+        for (util::u64 i = 0; i < block_count; ++i) {
+            if (std::fwrite(zeros.data(), 1, static_cast<std::size_t>(block_size), file) != block_size) {
+                std::fclose(file);
+                return false;
+            }
+        }
+
+        return std::fclose(file) == 0;
+    }
+
+    bool write_runtime_observe_file(const char* path,
+                                    std::string_view capability,
+                                    block::PublishState publish_state) noexcept {
+        if (!path || path[0] == '\0' || capability.empty()) {
+            return true;
+        }
+
+        std::array<char, 32> generated_at_utc{};
+        if (!format_utc_timestamp(generated_at_utc.data(), generated_at_utc.size())) {
+            return false;
+        }
+
+        std::FILE* file = std::fopen(path, "wb");
+        if (!file) {
+            return false;
+        }
+
+        const bool published = publish_state == block::PublishState::published;
+        const auto written = std::fprintf(
+            file,
+            "{\"schema\":\"system_compiler.runtime_observe_snapshot/v0\","
+            "\"generated_at_utc\":\"%s\","
+            "\"generator\":\"examples.usb.usb_msc_block_demo\","
+            "\"published_capabilities\":%s,"
+            "\"observed_capabilities\":[\"%s\"],"
+            "\"publish_state_summary\":{\"missing\":%d,\"published\":%d},"
+            "\"export_state_summary\":{\"missing\":1,\"detached\":0,\"attached\":0},"
+            "\"recent_transitions\":[]}\n",
+            generated_at_utc.data(),
+            published ? "[\"block.sd0\"]" : "[]",
+            capability.data(),
+            published ? 0 : 1,
+            published ? 1 : 0);
+        const auto close_rc = std::fclose(file);
+        return written > 0 && close_rc == 0;
+    }
 }
 
 int main(int argc, char** argv) {
@@ -241,12 +329,13 @@ int main(int argc, char** argv) {
     const char* image_path = nullptr;
     const char* dot_path = nullptr;
     const char* json_path = nullptr;
+    const char* runtime_observe_path = nullptr;
     bool export_only = false;
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--dot") == 0) {
             if (i + 1 >= argc) {
-                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--image PATH] <disk.img|vhd>">(sink);
+                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--runtime-observe PATH] [--image PATH] <disk.img|vhd>">(sink);
                 return 1;
             }
             dot_path = argv[++i];
@@ -254,7 +343,7 @@ int main(int argc, char** argv) {
         }
         if (std::strcmp(argv[i], "--json") == 0) {
             if (i + 1 >= argc) {
-                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--image PATH] <disk.img|vhd>">(sink);
+                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--runtime-observe PATH] [--image PATH] <disk.img|vhd>">(sink);
                 return 1;
             }
             json_path = argv[++i];
@@ -262,10 +351,18 @@ int main(int argc, char** argv) {
         }
         if (std::strcmp(argv[i], "--image") == 0) {
             if (i + 1 >= argc) {
-                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--image PATH] <disk.img|vhd>">(sink);
+                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--runtime-observe PATH] [--image PATH] <disk.img|vhd>">(sink);
                 return 1;
             }
             image_path = argv[++i];
+            continue;
+        }
+        if (std::strcmp(argv[i], "--runtime-observe") == 0) {
+            if (i + 1 >= argc) {
+                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--runtime-observe PATH] [--image PATH] <disk.img|vhd>">(sink);
+                return 1;
+            }
+            runtime_observe_path = argv[++i];
             continue;
         }
         if (std::strcmp(argv[i], "--export-only") == 0) {
@@ -284,9 +381,16 @@ int main(int argc, char** argv) {
         image_path = kDefaultExportImage;
     }
     if (!image_path) {
-        (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--image PATH] <disk.img|vhd>">(sink);
+        (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--runtime-observe PATH] [--image PATH] <disk.img|vhd>">(sink);
         return 1;
     }
+
+    if (runtime_observe_path &&
+        !ensure_block_image(image_path, 512, kRuntimeObserveImageBlocks)) {
+        (void)out::println<"[ERR] prepare image failed: {}">(sink, image_path);
+        return 1;
+    }
+
     if (!export_only) {
         if (std::FILE* f = std::fopen(image_path, "rb"); !f) {
             const int err = errno;
@@ -370,7 +474,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (export_only) {
+    if (export_only && !runtime_observe_path) {
         return 0;
     }
 
@@ -395,6 +499,14 @@ int main(int argc, char** argv) {
     (void)out::println<"[OK] msc binding ready; block_size={} blocks={}">(sink,
         dev->block_size, dev->block_count);
     (void)out::println<"[WARN] DCD is stub; enumeration needs real device">(sink);
+
+    if (!write_runtime_observe_file(
+            runtime_observe_path,
+            "block.sd0",
+            bringup.block_registry().publish_state("block.sd0"))) {
+        (void)out::println<"[ERR] write runtime observe failed: {}">(sink, runtime_observe_path);
+        return 1;
+    }
 
     return 0;
 }

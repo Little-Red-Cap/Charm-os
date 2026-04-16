@@ -172,6 +172,52 @@
               "$ref": "#/$defs/inputManifest"
             }
           ]
+        },
+        "declared_facts_defaults": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/stringArray"
+            }
+          ]
+        },
+        "declared_contracts_defaults": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/resourceContractClause"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "resourceContractClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
         }
       }
     },
@@ -275,7 +321,8 @@
         "changed_cases",
         "added_cases",
         "removed_cases",
-        "unchanged_cases"
+        "unchanged_cases",
+        "metadata_changed_cases"
       ],
       "properties": {
         "json": {
@@ -301,6 +348,9 @@
           "$ref": "#/$defs/stringArray"
         },
         "unchanged_cases": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "metadata_changed_cases": {
           "$ref": "#/$defs/stringArray"
         }
       }

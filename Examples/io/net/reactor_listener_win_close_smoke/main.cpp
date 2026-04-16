@@ -1,6 +1,7 @@
 #include <chrono>
 #include <cstdio>
 #include <thread>
+#include <utility>
 
 import charm.net;
 import net.backend.win;
@@ -46,7 +47,9 @@ namespace {
                                        util::u16 end_port,
                                        util::u16& port_out) noexcept {
         for (util::u16 port = begin_port; port < end_port; ++port) {
-            if (listener.listen(stack, net::Endpoint::ipv4_loopback(port), 2)) {
+            auto listening = net::TcpListener::listening_loopback(stack, port, 2);
+            if (listening) {
+                listener = std::move(listening.value());
                 port_out = port;
                 return true;
             }
@@ -110,10 +113,12 @@ int main() {
             std::fputs("reactor listener win close driver start failed\n", stderr);
             return 3;
         }
-        if (!client.connect(stack, net::Endpoint::ipv4_loopback(port))) {
+        auto connected = net::TcpClient::connected_loopback(stack, port);
+        if (!connected) {
             std::fputs("reactor listener win close client connect failed\n", stderr);
             return 4;
         }
+        client = std::move(connected.value());
 
         const bool done = wait_until([&]() {
             (void)poller.poll();

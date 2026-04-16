@@ -8,6 +8,24 @@ module;
 #ifdef errno
 #undef errno
 #endif
+#ifdef S_IFMT
+#undef S_IFMT
+#endif
+#ifdef S_IFDIR
+#undef S_IFDIR
+#endif
+#ifdef S_IFCHR
+#undef S_IFCHR
+#endif
+#ifdef SEEK_SET
+#undef SEEK_SET
+#endif
+#ifdef SEEK_CUR
+#undef SEEK_CUR
+#endif
+#ifdef SEEK_END
+#undef SEEK_END
+#endif
 
 export module posix.api;
 

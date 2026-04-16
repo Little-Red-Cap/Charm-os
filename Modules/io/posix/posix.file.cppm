@@ -5,6 +5,25 @@ module;
 #include <span>
 #include <string_view>
 
+#ifdef S_IFDIR
+#undef S_IFDIR
+#endif
+#ifdef S_IFCHR
+#undef S_IFCHR
+#endif
+#ifdef S_IFREG
+#undef S_IFREG
+#endif
+#ifdef SEEK_SET
+#undef SEEK_SET
+#endif
+#ifdef SEEK_CUR
+#undef SEEK_CUR
+#endif
+#ifdef SEEK_END
+#undef SEEK_END
+#endif
+
 export module posix.file;
 
 import fs_core;

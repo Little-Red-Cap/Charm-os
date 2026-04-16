@@ -80,7 +80,59 @@
               "$ref": "#/$defs/inputManifest"
             }
           ]
+        },
+        "declared_facts_defaults": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/stringArray"
+            }
+          ]
+        },
+        "declared_contracts_defaults": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/resourceContractClause"
+              }
+            }
+          ]
         }
+      }
+    },
+    "resourceContractClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     },
     "inputManifest": {
@@ -183,7 +235,8 @@
       "required": [
         "name",
         "status",
-        "summary_changes"
+        "summary_changes",
+        "metadata_changes"
       ],
       "properties": {
         "name": {
@@ -199,10 +252,10 @@
           ]
         },
         "summary_changes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/stringArray"
+        },
+        "metadata_changes": {
+          "$ref": "#/$defs/stringArray"
         }
       }
     }

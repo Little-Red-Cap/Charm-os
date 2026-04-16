@@ -305,6 +305,22 @@ v0 阶段建议至少覆盖：
 已经开始共享同一批 capability 级证据来源，
 而不是各自再维护一套互相漂移的判断。
 
+与此同时，`-ArtifactRoot ... -BringupEvidence` 现在也已经支持直接返回 artifact_root 级聚合结果。
+它会把多份 report 收束成：
+
+- per-case bringup 摘要
+- capability matrix
+- blocked reason matrix
+- failed reason matrix
+
+这样 bringup 证据不再只能按单 case 追问，
+还可以直接横向查看：
+
+- 哪个 capability 在哪些 case 中只停留在 declared 态
+- 哪些 capability 已经跨 case materialized / observed
+- `publish_state / export_state` 在不同 case 之间如何分布
+- 哪些 blocked / failed reason 在多个 case 之间重复出现
+
 ### 6.2 `why unavailable`
 
 它回答：
@@ -539,8 +555,8 @@ v0 阶段建议至少覆盖：
 
 当前 v0 的实现同样保持很克制：
 
-- 只接受精确单 report
-- 不做跨 case 聚合
+- 单 report 查询仍是资源解释的主入口
+- `artifact_root` 聚合查询只负责矩阵与横向摘要
 - 不把资源 summary、capability explain、图路径查询揉成一个混合接口
 
 它当前最小稳定输出会围绕以下字段组织：
@@ -559,6 +575,20 @@ v0 阶段建议至少覆盖：
   则把每条输入侧合同压成一条稳定 explain 记录，
   至少带出：
   `contract / state / requires / present_facts / missing_facts / fact_sources`
+
+如果当前 report 来自 compare 模式，
+`-ResourceSummary -AsJson` 还会额外暴露 `query.comparison.resource_contract`，
+至少带出：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `contract_changes`
+- `provided_fact_changes`
+- `hotspot_changes`
+
+这让 explain surface 可以在不伪造结构变化的前提下，
+直接回答“资源契约相对 baseline 漂移了什么”。
 
 当前 `resource summary` 的最小解释方式是：
 

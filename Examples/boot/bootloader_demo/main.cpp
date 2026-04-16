@@ -7,6 +7,7 @@
 #include "armv7a_interrupt_lifecycle_contract.hpp"
 #include "armv7a_kernel_port_contract.hpp"
 #include "armv7a_runtime_bridge_contract.hpp"
+#include "armv7a_runtime_trap_mapping_contract.hpp"
 #include "armv7a_runtime_trap_ingress_contract.hpp"
 #include "armv7a_scheduler_dispatch_contract.hpp"
 #include "armv7a_scheduler_tick_contract.hpp"
@@ -1764,6 +1765,26 @@ namespace {
         };
     }
 
+    kernel::TrapFrameView make_kernel_trap_frame_view(
+        const Armv7aRuntimeTrapMappedFrame& mapped) noexcept
+    {
+        return kernel::TrapFrameView{
+            .service_id = mapped.service_id,
+            .arg0 = mapped.arg0,
+            .arg1 = mapped.arg1,
+            .arg2 = mapped.arg2,
+            .arg3 = mapped.arg3,
+            .return_pc = mapped.return_pc,
+            .stack_pointer = mapped.stack_pointer,
+            .status = mapped.status,
+            .origin = to_kernel_trap_origin(mapped.origin),
+            .task = kernel::TaskId{
+                .value = static_cast<std::size_t>(mapped.task),
+            },
+            .task_valid = mapped.task_valid,
+        };
+    }
+
     bool verify_armv7a_runtime_trap_ingress_contract() noexcept {
         const auto kernel_observation = Armv7aSvcObservation{
             .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
@@ -1917,6 +1938,221 @@ namespace {
                !unobserved_projection.origin_ready &&
                !armv7a_runtime_trap_frame_projection_ready(
                    unobserved_projection);
+    }
+
+    bool verify_armv7a_runtime_trap_mapping_contract() noexcept {
+        const auto policy = Armv7aRuntimeTrapMappingPolicy{
+            .yield_event_id = 0x00000007u,
+            .yield_event_payload = 0x00000001u,
+            .sleep_event_id = 0x00000001u,
+            .sleep_payload_matches_due_low32 = true,
+        };
+
+        const auto yield_observation = Armv7aRuntimeTrapObservation{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc = Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x1Fu, 0x13u, 0x8104u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x00000007u,
+                .arg1 = 0x00000001u,
+                .arguments_sampled = true,
+            },
+        };
+        const auto yield_mapped = armv7a_map_runtime_trap_frame(
+            yield_observation,
+            policy,
+            Armv7aRuntimeTrapIngressContext{
+                .stack_pointer = 0x00004050u,
+            });
+        const auto yield_frame = make_kernel_trap_frame_view(yield_mapped);
+
+        const auto sleep_observation = Armv7aRuntimeTrapObservation{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeSleepServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc = Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x10u, 0x13u, 0x8204u),
+                .immediate = kArmv7aRuntimeBridgeSleepServiceId,
+                .arg0 = 0x00000005u,
+                .arg1 = 0x00000000u,
+                .arg2 = 0x00000001u,
+                .arg3 = 0x00000005u,
+                .arguments_sampled = true,
+            },
+        };
+        const auto sleep_mapped = armv7a_map_runtime_trap_frame(
+            sleep_observation,
+            policy,
+            Armv7aRuntimeTrapIngressContext{
+                .stack_pointer = 0x00005050u,
+                .task = 9u,
+                .task_valid = true,
+            });
+        const auto sleep_frame = make_kernel_trap_frame_view(sleep_mapped);
+
+        const auto supervisor_mapped = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+                .service_id_sampled = true,
+                .arguments_sampled = true,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x13u, 0x13u, 0x8304u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000007u,
+                    .arg1 = 0x00000001u,
+                    .arguments_sampled = true,
+                },
+            },
+            policy);
+
+        const auto bad_policy = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+                .service_id_sampled = true,
+                .arguments_sampled = true,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x1Fu, 0x13u, 0x8404u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000007u,
+                    .arg1 = 0x00000002u,
+                    .arguments_sampled = true,
+                },
+            },
+            policy);
+
+        const auto invalid_origin = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+                .service_id_sampled = true,
+                .arguments_sampled = true,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x12u, 0x13u, 0x8504u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000007u,
+                    .arg1 = 0x00000001u,
+                    .arguments_sampled = true,
+                },
+            },
+            policy);
+
+        const auto unsupported_service = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = 0x45u,
+                .service_id_sampled = true,
+                .arguments_sampled = true,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x1Fu, 0x13u, 0x8604u),
+                    .immediate = 0x45u,
+                    .arg0 = 0x00000001u,
+                    .arg1 = 0x00000002u,
+                    .arguments_sampled = true,
+                },
+            },
+            policy);
+
+        const auto trap_not_ready = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+                .service_id_sampled = true,
+                .arguments_sampled = false,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x1Fu, 0x13u, 0x8704u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000007u,
+                    .arg1 = 0x00000001u,
+                    .arguments_sampled = false,
+                },
+            },
+            policy);
+
+        const bool mapping_ok =
+            std::string_view(armv7a_runtime_trap_mapped_service_name(
+                Armv7aRuntimeTrapMappedService::yield_current)) ==
+                "yield-current" &&
+            std::string_view(armv7a_runtime_trap_mapped_service_name(
+                Armv7aRuntimeTrapMappedService::sleep_until)) ==
+                "sleep-until" &&
+            yield_mapped.mapped_service ==
+                Armv7aRuntimeTrapMappedService::yield_current &&
+            yield_mapped.service_id == kArmv7aGenericTrapServiceYieldCurrent &&
+            yield_mapped.arg0 == 0x00000007u &&
+            yield_mapped.arg1 == 0x00000001u &&
+            yield_mapped.return_pc == 0x00008104u &&
+            yield_mapped.stack_pointer == 0x00004050u &&
+            yield_mapped.origin == Armv7aRuntimeTrapOrigin::kernel_thread &&
+            yield_mapped.trap_ready &&
+            yield_mapped.request_ready &&
+            yield_mapped.policy_ready &&
+            yield_mapped.origin_ready &&
+            armv7a_runtime_trap_mapping_ready(yield_mapped) &&
+            static_cast<kernel::TrapService>(yield_frame.service_id) ==
+                kernel::TrapService::yield_current &&
+            yield_frame.arg0 == 0x00000007u &&
+            yield_frame.arg1 == 0x00000001u &&
+            yield_frame.origin == kernel::TrapOrigin::kernel_thread &&
+            sleep_mapped.mapped_service ==
+                Armv7aRuntimeTrapMappedService::sleep_until &&
+            sleep_mapped.service_id == kArmv7aGenericTrapServiceSleepUntil &&
+            sleep_mapped.arg0 == 0x0000000000000005ull &&
+            sleep_mapped.arg1 == 0x00000001u &&
+            sleep_mapped.arg2 == 0x00000005u &&
+            sleep_mapped.return_pc == 0x00008204u &&
+            sleep_mapped.stack_pointer == 0x00005050u &&
+            sleep_mapped.origin == Armv7aRuntimeTrapOrigin::user_task &&
+            sleep_mapped.task == 9u &&
+            sleep_mapped.task_valid &&
+            sleep_mapped.trap_ready &&
+            sleep_mapped.request_ready &&
+            sleep_mapped.policy_ready &&
+            sleep_mapped.origin_ready &&
+            armv7a_runtime_trap_mapping_ready(sleep_mapped) &&
+            static_cast<kernel::TrapService>(sleep_frame.service_id) ==
+                kernel::TrapService::sleep_until &&
+            sleep_frame.arg0 == 0x0000000000000005ull &&
+            sleep_frame.arg1 == 0x00000001u &&
+            sleep_frame.arg2 == 0x00000005u &&
+            sleep_frame.origin == kernel::TrapOrigin::user_task &&
+            sleep_frame.task.value == 9u &&
+            sleep_frame.task_valid &&
+            supervisor_mapped.origin ==
+                Armv7aRuntimeTrapOrigin::supervisor &&
+            supervisor_mapped.origin_ready &&
+            armv7a_runtime_trap_mapping_ready(supervisor_mapped) &&
+            bad_policy.request_ready &&
+            !bad_policy.policy_ready &&
+            !armv7a_runtime_trap_mapping_ready(bad_policy) &&
+            invalid_origin.request_ready &&
+            !invalid_origin.origin_ready &&
+            !armv7a_runtime_trap_mapping_ready(invalid_origin) &&
+            unsupported_service.mapped_service ==
+                Armv7aRuntimeTrapMappedService::none &&
+            unsupported_service.trap_ready &&
+            !unsupported_service.request_ready &&
+            !unsupported_service.policy_ready &&
+            !armv7a_runtime_trap_mapping_ready(unsupported_service) &&
+            !trap_not_ready.trap_ready &&
+            !trap_not_ready.request_ready &&
+            !trap_not_ready.policy_ready &&
+            trap_not_ready.origin_ready &&
+            !armv7a_runtime_trap_mapping_ready(trap_not_ready);
+
+        return mapping_ok;
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -2602,6 +2838,8 @@ int main() {
         verify_armv7a_runtime_bridge_contract();
     const bool armv7_runtime_trap_ingress_contract_ok =
         verify_armv7a_runtime_trap_ingress_contract();
+    const bool armv7_runtime_trap_mapping_contract_ok =
+        verify_armv7a_runtime_trap_mapping_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -2670,7 +2908,8 @@ int main() {
                      armv7_scheduler_dispatch_contract_ok &&
                      armv7_runtime_trap_contract_ok &&
                      armv7_runtime_bridge_contract_ok &&
-                     armv7_runtime_trap_ingress_contract_ok;
+                     armv7_runtime_trap_ingress_contract_ok &&
+                     armv7_runtime_trap_mapping_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -2760,6 +2999,8 @@ int main() {
                 armv7_runtime_bridge_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_runtime_trap_ingress_contract=%d\n",
                 armv7_runtime_trap_ingress_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_mapping_contract=%d\n",
+                armv7_runtime_trap_mapping_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

@@ -455,7 +455,7 @@ v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagn
 `TcpClient/UdpSocket/TcpListener` 应尽量轻量。
 
 用户对象负责：
-- 对高频场景直接给出少量便捷动作，例如 `connected / listening / bound` 及其 `*_loopback / *_any` 变体，再配合 `accept()`；需要对端地址时也可直接 `accept(peer)`，避免普通用户反复手拼 `Endpoint`
+- 对高频场景直接给出少量便捷动作，例如 `connected / listening / bound` 及其 `*_loopback / *_any` 变体，再配合 `accept()`；`send/recv/send_to/recv_from` 也应支持直接传 `u8` 数组，避免普通用户反复手拼 `Endpoint` 或 `ByteView`
 
 - 表达意图
 - 持有句柄/状态

@@ -31,11 +31,11 @@ int main() {
         std::fputs("api facade tcp peer missing\n", stderr);
         return 4;
     }
-    if (!client->send(net::ByteView{tx, 4})) {
+    if (!client->send(tx)) {
         std::fputs("api facade tcp send failed\n", stderr);
         return 5;
     }
-    auto received = accepted->recv(net::MutByteView{rx, sizeof(rx)});
+    auto received = accepted->recv(rx);
     if (!received || received.value() != 4 || rx[0] != 1 || rx[3] != 4) {
         std::fputs("api facade tcp recv failed\n", stderr);
         return 6;
@@ -73,11 +73,11 @@ int main() {
         std::fputs("api facade udp connected_loopback failed\n", stderr);
         return 11;
     }
-    if (!udp_connected->send(net::ByteView{tx, 4})) {
+    if (!udp_connected->send(tx)) {
         std::fputs("api facade udp send failed\n", stderr);
         return 12;
     }
-    received = udp_any->recv(net::MutByteView{rx, sizeof(rx)});
+    received = udp_any->recv(rx);
     if (!received || received.value() != 4 || rx[0] != 1 || rx[3] != 4) {
         std::fputs("api facade udp recv_any failed\n", stderr);
         return 13;
@@ -95,11 +95,11 @@ int main() {
         std::fputs("api facade udp second connected_loopback failed\n", stderr);
         return 15;
     }
-    if (!udp_sender_loopback->send(net::ByteView{tx, 4})) {
+    if (!udp_sender_loopback->send(tx)) {
         std::fputs("api facade udp second send failed\n", stderr);
         return 16;
     }
-    received = udp_loopback->recv(net::MutByteView{rx, sizeof(rx)});
+    received = udp_loopback->recv(rx);
     if (!received || received.value() != 4 || rx[0] != 1 || rx[3] != 4) {
         std::fputs("api facade udp recv_loopback failed\n", stderr);
         return 17;

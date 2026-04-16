@@ -69,8 +69,18 @@ export namespace net {
             return socket_.send(buf);
         }
 
+        template <util::usize Size>
+        [[nodiscard]] IoResult send(const util::u8 (&buf)[Size]) noexcept {
+            return send(ByteView{buf, Size});
+        }
+
         [[nodiscard]] IoResult recv(MutByteView buf) noexcept {
             return socket_.recv(buf);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] IoResult recv(util::u8 (&buf)[Size]) noexcept {
+            return recv(MutByteView{buf, Size});
         }
 
         [[nodiscard]] Result<EventMask> poll() const noexcept {
@@ -284,16 +294,36 @@ export namespace net {
             return socket_.send(buf);
         }
 
+        template <util::usize Size>
+        [[nodiscard]] IoResult send(const util::u8 (&buf)[Size]) noexcept {
+            return send(ByteView{buf, Size});
+        }
+
         [[nodiscard]] IoResult recv(MutByteView buf) noexcept {
             return socket_.recv(buf);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] IoResult recv(util::u8 (&buf)[Size]) noexcept {
+            return recv(MutByteView{buf, Size});
         }
 
         [[nodiscard]] IoResult send_to(const Endpoint& peer, ByteView buf) noexcept {
             return socket_.send_to(peer, buf);
         }
 
+        template <util::usize Size>
+        [[nodiscard]] IoResult send_to(const Endpoint& peer, const util::u8 (&buf)[Size]) noexcept {
+            return send_to(peer, ByteView{buf, Size});
+        }
+
         [[nodiscard]] IoResult recv_from(MutByteView buf, Endpoint& peer) noexcept {
             return socket_.recv_from(&peer, buf);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] IoResult recv_from(util::u8 (&buf)[Size], Endpoint& peer) noexcept {
+            return recv_from(MutByteView{buf, Size}, peer);
         }
 
         [[nodiscard]] Result<EventMask> poll() const noexcept {
@@ -391,8 +421,8 @@ namespace net {
         if (!accepted_loopback) return false;
         if (!accepted_loopback->valid()) return false;
         if (peer.port != 5001) return false;
-        if (!client->send(ByteView{tx, 3})) return false;
-        if (!accepted_loopback->recv(MutByteView{rx, 4})) return false;
+        if (!client->send(tx)) return false;
+        if (!accepted_loopback->recv(rx)) return false;
         if (rx[0] != 0x7E) return false;
         if (!client->close()) return false;
         if (!accepted_loopback->close()) return false;
@@ -413,8 +443,8 @@ namespace net {
         if (!udp) return false;
         auto udp_connected = UdpSocket::connected_loopback(stack, 5000);
         if (!udp_connected) return false;
-        if (!udp_connected->send(ByteView{tx, 3})) return false;
-        if (!udp->recv(MutByteView{rx, 4})) return false;
+        if (!udp_connected->send(tx)) return false;
+        if (!udp->recv(rx)) return false;
         if (rx[0] != 0x7E) return false;
         if (!udp->close()) return false;
         if (!udp_connected->close()) return false;
@@ -423,8 +453,8 @@ namespace net {
         if (!udp_loopback) return false;
         auto udp_connected_loopback = UdpSocket::connected_loopback(stack, 5001);
         if (!udp_connected_loopback) return false;
-        if (!udp_connected_loopback->send(ByteView{tx, 3})) return false;
-        if (!udp_loopback->recv(MutByteView{rx, 4})) return false;
+        if (!udp_connected_loopback->send(tx)) return false;
+        if (!udp_loopback->recv(rx)) return false;
         if (rx[0] != 0x7E) return false;
         if (!udp_loopback->close()) return false;
         if (!udp_connected_loopback->close()) return false;

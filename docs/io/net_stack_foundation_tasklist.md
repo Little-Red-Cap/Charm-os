@@ -18,7 +18,7 @@
 
 - 网络双表面设计已明确：见 `docs/io/net_stack_dual_surface_design.md`
 - 统一网络入口已建立：`Modules/io/charm.net.cppm`
-- `api_facade_smoke` 已锁住 `TcpClient/TcpListener/UdpSocket` 的 `connected/listening/bound` 工厂式入口，并保持与 `*_loopback/*_any` 便捷入口兼容
+- `api_facade_smoke` 已锁住 `TcpClient/TcpListener/UdpSocket` 的 `connected/listening/bound` 工厂式入口，并保持与 `*_loopback/*_any` 便捷入口、`u8` 数组直传 `send/recv` 兼容
 - socket / stack / endpoint / event 等基础抽象已存在
 - reactor / session / codec / service 分层已落地
 - `net.posix` 已开始把 socket 投影到 POSIX fd 体系

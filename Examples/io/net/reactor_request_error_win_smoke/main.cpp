@@ -253,10 +253,12 @@ int main() {
     net::SocketPoller<4> poller{reactor};
 
     net::TcpClient client{};
-    if (!client.connect(stack, net::Endpoint::ipv4_loopback(port))) {
+    auto connected = net::TcpClient::connected_loopback(stack, port);
+    if (!connected) {
         std::fputs("reactor request error win charm client connect failed\n", stderr);
         return 6;
     }
+    client = std::move(connected.value());
 
     NativeSocket server{};
     int accept_error = 0;
@@ -282,7 +284,8 @@ int main() {
         return 7;
     }
 
-    net::SocketChannelBinding client_binding{client.raw()};
+    net::SocketChannelBinding client_binding{};
+    client_binding.bind(client.raw());
     using Session = net::RequestSession<64, 4>;
     using Driver = net::ReactorSocketDriver<Session, 4>;
 

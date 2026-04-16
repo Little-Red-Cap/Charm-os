@@ -108,6 +108,14 @@ jobs:
             -Case bringup-minimal-observe-demo `
             -OutputRoot ../out/materialized-graph-resource-contract-smoke
 
+      - name: Run resource contract matrix smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_resource_contract_matrix_smoke.ps1 `
+            -ArtifactRoot ../out/materialized-graph-ci/artifact-report `
+            -OutputRoot ../out/materialized-graph-resource-contract-matrix-smoke
+
       - name: Validate materialized graph artifacts
         shell: pwsh
         working-directory: candidate
@@ -126,6 +134,7 @@ jobs:
           $diff = $summary.diff
           $runtimePlane = Get-Content -LiteralPath ../out/materialized-graph-runtime-plane-smoke/runtime_plane_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $resourceContract = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-smoke/resource_contract_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $resourceContractMatrix = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-matrix-smoke/resource_contract_matrix_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           @(
             '## Materialized Graph Observe'
             ''
@@ -151,6 +160,10 @@ jobs:
             "- Resource contract smoke contract: `$($resourceContract.expected_contract)`"
             "- Resource contract smoke report: `$($resourceContract.report_path)`"
             "- Resource contract smoke summary: `../out/materialized-graph-resource-contract-smoke/resource_contract_smoke.summary.json`"
+            "- Resource contract matrix smoke cases: `$($resourceContractMatrix.case_count)`"
+            "- Resource contract matrix smoke contract: `$($resourceContractMatrix.expected_contract)`"
+            "- Resource contract matrix smoke fact: `$($resourceContractMatrix.expected_fact)`"
+            "- Resource contract matrix smoke summary: `../out/materialized-graph-resource-contract-matrix-smoke/resource_contract_matrix_smoke.summary.json`"
           ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Upload materialized graph artifacts
@@ -164,3 +177,4 @@ jobs:
             out/materialized-graph-ci
             out/materialized-graph-runtime-plane-smoke
             out/materialized-graph-resource-contract-smoke
+            out/materialized-graph-resource-contract-matrix-smoke

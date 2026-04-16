@@ -692,6 +692,208 @@ function New-ResourceSummaryResult {
     }
 }
 
+function New-ArtifactRootResourceCaseSummary {
+    param(
+        $LoadedReport
+    )
+
+    $report = $LoadedReport.Data
+    $graphInfo = Load-GraphFromArtifactReport -ReportData $report
+    $resourceSummary = New-ResourceSummaryResult -ReportData $report -GraphInfo $graphInfo
+
+    return [pscustomobject][ordered]@{
+        report_path = $LoadedReport.Path
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        active_facets = @($report.subject.active_facets)
+        declared_contracts = [int]$resourceSummary.declared_contracts
+        audited_count = [int]$resourceSummary.audited_count
+        satisfied_count = [int]$resourceSummary.satisfied_count
+        violated_count = [int]$resourceSummary.violated_count
+        unknown_count = [int]$resourceSummary.unknown_count
+        declared_facts = @($resourceSummary.fact_inventory.declared_facts)
+        subject_facts = @($resourceSummary.fact_inventory.subject_facts)
+        graph_provided_facts = @($resourceSummary.fact_inventory.graph_provided_facts)
+        audit_provided_facts = @($resourceSummary.fact_inventory.audit_provided_facts)
+        resource_hotspots = @($resourceSummary.resource_hotspots)
+        contracts = @($resourceSummary.contracts)
+    }
+}
+
+function New-ArtifactRootResourceContractMatrixEntry {
+    param(
+        [string]$ContractName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ContractName)) {
+        return $null
+    }
+
+    $contractCases = @()
+    $requires = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $matchingEntries = @(
+            @($caseSummary.contracts) |
+                Where-Object { [string]$_.contract -eq $ContractName }
+        )
+        if ($matchingEntries.Count -eq 0) {
+            continue
+        }
+
+        $entry = $matchingEntries[0]
+        $requires += @($entry.requires)
+        $contractCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            state = [string]$entry.state
+            present_facts = @($entry.present_facts)
+            missing_facts = @($entry.missing_facts)
+            status_text = [string]$entry.status_text
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        contract = $ContractName
+        requires = @($requires | Sort-Object -Unique)
+        cases_declared = @($contractCases).Count
+        cases_satisfied = @($contractCases | Where-Object { [string]$_.state -eq 'satisfied' }).Count
+        cases_violated = @($contractCases | Where-Object { [string]$_.state -eq 'violated' }).Count
+        cases_unknown = @($contractCases | Where-Object { [string]$_.state -eq 'unknown' }).Count
+        cases = @($contractCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootResourceProvidedFactEntry {
+    param(
+        [string]$FactName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($FactName)) {
+        return $null
+    }
+
+    $factCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        if (-not (@($caseSummary.audit_provided_facts) -contains $FactName)) {
+            continue
+        }
+
+        $factCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        fact = $FactName
+        case_count = @($factCases).Count
+        cases = @($factCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootResourceHotspotEntry {
+    param(
+        [string]$HotspotText,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($HotspotText)) {
+        return $null
+    }
+
+    $hotspotCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        if (-not (@($caseSummary.resource_hotspots) -contains $HotspotText)) {
+            continue
+        }
+
+        $hotspotCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        hotspot = $HotspotText
+        case_count = @($hotspotCases).Count
+        cases = @($hotspotCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootResourceSummaryResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $caseSummaries = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootResourceCaseSummary -LoadedReport $_ } |
+            Sort-Object case
+    )
+
+    $contractNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($contractSummary in @($caseSummary.contracts)) {
+                $contractName = [string]$contractSummary.contract
+                if (-not [string]::IsNullOrWhiteSpace($contractName)) {
+                    $contractName
+                }
+            }
+        }
+    ) | Sort-Object -Unique
+
+    $providedFacts = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.audit_provided_facts)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $resourceHotspots = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.resource_hotspots)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $contractMatrix = @(
+        foreach ($contractName in @($contractNames)) {
+            New-ArtifactRootResourceContractMatrixEntry -ContractName $contractName -CaseSummaries $caseSummaries
+        }
+    )
+
+    $providedFactMatrix = @(
+        foreach ($factName in @($providedFacts)) {
+            New-ArtifactRootResourceProvidedFactEntry -FactName $factName -CaseSummaries $caseSummaries
+        }
+    )
+
+    $resourceHotspotMatrix = @(
+        foreach ($hotspotText in @($resourceHotspots)) {
+            New-ArtifactRootResourceHotspotEntry -HotspotText $hotspotText -CaseSummaries $caseSummaries
+        }
+    )
+
+    return [ordered]@{
+        case_count = @($caseSummaries).Count
+        totals = [ordered]@{
+            declared_contracts = (@($caseSummaries | Measure-Object -Property declared_contracts -Sum).Sum)
+            audited_count = (@($caseSummaries | Measure-Object -Property audited_count -Sum).Sum)
+            satisfied_count = (@($caseSummaries | Measure-Object -Property satisfied_count -Sum).Sum)
+            violated_count = (@($caseSummaries | Measure-Object -Property violated_count -Sum).Sum)
+            unknown_count = (@($caseSummaries | Measure-Object -Property unknown_count -Sum).Sum)
+        }
+        cases = @($caseSummaries)
+        contract_matrix = @($contractMatrix | Sort-Object contract)
+        provided_fact_matrix = @($providedFactMatrix | Sort-Object fact)
+        resource_hotspot_matrix = @($resourceHotspotMatrix | Sort-Object hotspot)
+    }
+}
+
 function New-RecentTransitionEntry {
     param(
         [int]$Index,
@@ -1694,10 +1896,6 @@ if (-not [string]::IsNullOrWhiteSpace($GraphPath) -and $selectedReports.Count -n
     throw "-GraphPath requires exactly one selected artifact report"
 }
 
-if ($ResourceSummary -and $selectedReports.Count -ne 1) {
-    throw "-ResourceSummary requires exactly one selected artifact report"
-}
-
 if ($RecentTransitions -and $selectedReports.Count -ne 1) {
     throw "-RecentTransitions requires exactly one selected artifact report"
 }
@@ -1738,7 +1936,7 @@ if ($CapList) {
     exit 0
 }
 
-if ($selectedReports.Count -ne 1) {
+if ($selectedReports.Count -ne 1 -and -not $ResourceSummary) {
     if ($AsJson) {
         [ordered]@{
             artifact_root = $artifactRootPath
@@ -1854,6 +2052,89 @@ if ($RecentTransitions) {
 }
 
 if ($ResourceSummary) {
+    if ($selectedReports.Count -ne 1) {
+        $artifactRootResourceSummary = New-ArtifactRootResourceSummaryResult -LoadedReports $selectedReports
+
+        if ($AsJson) {
+            [ordered]@{
+                artifact_root = $artifactRootPath
+                query = [ordered]@{
+                    kind = 'resource_summary'
+                    scope = 'artifact_root'
+                    result = $artifactRootResourceSummary
+                }
+            } | ConvertTo-Json -Depth 12
+            exit 0
+        }
+
+        Write-Host "[ARTIFACT ROOT] $artifactRootPath"
+        Write-Host "[RESOURCE SUMMARY] scope=artifact_root cases=$([int]$artifactRootResourceSummary.case_count)"
+        Write-Host "declared_contracts = $([int]$artifactRootResourceSummary.totals.declared_contracts)"
+        Write-Host "audited_count      = $([int]$artifactRootResourceSummary.totals.audited_count)"
+        Write-Host "satisfied_count    = $([int]$artifactRootResourceSummary.totals.satisfied_count)"
+        Write-Host "violated_count     = $([int]$artifactRootResourceSummary.totals.violated_count)"
+        Write-Host "unknown_count      = $([int]$artifactRootResourceSummary.totals.unknown_count)"
+        Write-Host ''
+
+        if (@($artifactRootResourceSummary.cases).Count -gt 0) {
+            Write-Host '[CASES]'
+            @($artifactRootResourceSummary.cases) |
+                Select-Object `
+                    case,
+                    board,
+                    profile,
+                    @{ Name = 'facets'; Expression = { Format-StringArray @($_.active_facets) } },
+                    declared_contracts,
+                    satisfied_count,
+                    violated_count,
+                    unknown_count,
+                    @{ Name = 'provided_facts'; Expression = { @($_.audit_provided_facts).Count } },
+                    @{ Name = 'hotspots'; Expression = { @($_.resource_hotspots).Count } } |
+                Format-Table -Wrap -AutoSize |
+                Out-Host
+            Write-Host ''
+        }
+
+        if (@($artifactRootResourceSummary.contract_matrix).Count -gt 0) {
+            Write-Host '[CONTRACT MATRIX]'
+            foreach ($contractEntry in @($artifactRootResourceSummary.contract_matrix)) {
+                $caseStates = @(
+                    @($contractEntry.cases) |
+                        ForEach-Object { "$([string]$_.case):$([string]$_.state)" }
+                )
+                Write-Host "contract = $([string]$contractEntry.contract) requires=[$((@($contractEntry.requires) -join ', '))] declared=$([int]$contractEntry.cases_declared) satisfied=$([int]$contractEntry.cases_satisfied) violated=$([int]$contractEntry.cases_violated) unknown=$([int]$contractEntry.cases_unknown)"
+                if (@($caseStates).Count -gt 0) {
+                    Write-Host "cases = $((@($caseStates) -join ', '))"
+                }
+            }
+            Write-Host ''
+        }
+
+        if (@($artifactRootResourceSummary.provided_fact_matrix).Count -gt 0) {
+            Write-Host '[PROVIDED FACT MATRIX]'
+            foreach ($factEntry in @($artifactRootResourceSummary.provided_fact_matrix)) {
+                $caseNames = @(
+                    @($factEntry.cases) |
+                        ForEach-Object { [string]$_.case }
+                )
+                Write-Host "fact = $([string]$factEntry.fact) case_count=$([int]$factEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+            }
+            Write-Host ''
+        }
+
+        if (@($artifactRootResourceSummary.resource_hotspot_matrix).Count -gt 0) {
+            Write-Host '[RESOURCE HOTSPOTS]'
+            foreach ($hotspotEntry in @($artifactRootResourceSummary.resource_hotspot_matrix)) {
+                $caseNames = @(
+                    @($hotspotEntry.cases) |
+                        ForEach-Object { [string]$_.case }
+                )
+                Write-Host "hotspot = $([string]$hotspotEntry.hotspot) case_count=$([int]$hotspotEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+            }
+        }
+        exit 0
+    }
+
     $resourceSummaryResult = New-ResourceSummaryResult -ReportData $reportData -GraphInfo $graphInfo
 
     if ($AsJson) {

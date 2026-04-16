@@ -414,6 +414,7 @@ SSU 已经证明了另一件事：
 为了把这张解释面真正守成回归，仓库现在还提供了一个最小 smoke：
 
 - `scripts/materialized_graph_resource_contract_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_matrix_smoke.ps1`
 
 它当前直接消费已有 `artifact-report` 输出，并复用
 `inspect_system_compiler_artifact_report.ps1 -ResourceSummary` 的真实查询结果，
@@ -428,6 +429,23 @@ SSU 已经证明了另一件事：
 而是：
 
 > **确保 explain surface 对资源契约的说法，和正式 artifact report 保持同一事实来源。**
+
+与此同时，`inspect_system_compiler_artifact_report.ps1 -ArtifactRoot ... -ResourceSummary`
+现在也已经支持直接返回 `artifact_root` 级聚合结果。
+它会把多份 report 收束成：
+
+- per-case 资源摘要
+- contract matrix
+- provided fact matrix
+- resource hotspot matrix
+
+这样资源契约不再只能按单 case 追问，
+还可以直接横向查看：
+
+- 哪条合同在哪些 case 中声明
+- 哪些 case 满足 / 违反 / 仍未知
+- 某个资源事实究竟覆盖了哪些 case
+- 热点是否在多案例之间重复出现
 
 ## 10. v0 的工程边界
 

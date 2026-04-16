@@ -578,6 +578,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 ```powershell
 ./scripts/materialized_graph_resource_contract_smoke.ps1 -ArtifactRoot out/materialized-graph-ci/artifact-report -Case bringup-minimal-observe-demo
+./scripts/materialized_graph_resource_contract_matrix_smoke.ps1 -ArtifactRoot out/materialized-graph-ci/artifact-report
 ```
 
 它当前会直接复用 `inspect_system_compiler_artifact_report.ps1 -ResourceSummary`
@@ -587,6 +588,13 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - `needs_monotonic_clock` 仍满足于 `system.clock`
 - `board.win_stub` 这类板级事实仍能同时出现在 `declared_facts / subject_facts`
 - `fact_sources["system.clock"]` 仍明确包含 `audit_provided_facts`
+
+其中第二条 `matrix smoke` 还会进一步守住 `artifact_root` 级聚合观察面，
+确保多 case 下：
+
+- `needs_monotonic_clock` 能在 `bringup-block-observe-demo / bringup-minimal-observe-demo` 上保持横向一致
+- `system.clock` 会稳定进入 `provided fact matrix`
+- 横向矩阵不会把单 case explain 语义漂移成另一套统计语言
 
 仓库现在还提供了一个对应的 GitHub Actions 工作流：
 
@@ -602,9 +610,12 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
   守住 `runtime_only` 与静态 graph 平面的边界
 - 在 candidate 工作树额外执行 `materialized_graph_resource_contract_smoke.ps1`
   守住 `artifact report -> resource summary` 的资源法律解释面
+- 在 candidate 工作树额外执行 `materialized_graph_resource_contract_matrix_smoke.ps1`
+  守住 `artifact_root` 级资源契约矩阵观察面
 - 上传 `out/materialized-graph-baseline`、`out/materialized-graph-ci`
   与 `out/materialized-graph-runtime-plane-smoke`
-  和 `out/materialized-graph-resource-contract-smoke` 作为 workflow artifact
+  和 `out/materialized-graph-resource-contract-smoke`
+  以及 `out/materialized-graph-resource-contract-matrix-smoke` 作为 workflow artifact
 - 把关键计数与报告路径写入 GitHub Step Summary，方便直接在 Actions 页面浏览
 
 ## 当前验收点

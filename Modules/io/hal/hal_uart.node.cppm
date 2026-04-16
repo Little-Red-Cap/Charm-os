@@ -9,7 +9,7 @@ export module hal_uart.node;
 import hal_core;
 import hal_uart;
 import hal_core;
-import init.node;
+import init.binding;
 import util.core;
 import util.error;
 
@@ -45,28 +45,24 @@ export namespace hal {
                     init::Phase phase = init::Phase::core,
                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : handle(h), config(cfg), irq_cap_name(irq_cap_name) {
-            provides[0] = init::cap_id(cap_name);
-            requires_caps[0] = init::cap_id(irq_cap_name);
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &UartBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(cap_name);
+            requires_caps = init::capability_ids(irq_cap_name);
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           requires_caps,
+                                           &UartBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return node.name;
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{irq_cap_name ? irq_cap_name : ""};
-            }
-            return {};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(node.name),
+                                                requires_caps,
+                                                init::capability_names(irq_cap_name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

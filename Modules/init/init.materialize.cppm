@@ -9,11 +9,11 @@ module;
 
 export module init.materialize;
 
+import init.binding;
 import init.graph;
 import init.meta;
 import init.plan;
 import init.recipe;
-import init.node;
 import util.core;
 import util.error;
 
@@ -188,16 +188,6 @@ namespace init::detail {
         return static_cast<util::u8>(a) <= static_cast<util::u8>(b) ? a : b;
     }
 
-    template <typename Legacy>
-    constexpr std::string_view lookup_capability_name(const Legacy& value, CapId id) noexcept {
-        if constexpr (requires(const Legacy& candidate) {
-                          candidate.capability_name(id);
-                      }) {
-            return std::string_view{value.capability_name(id)};
-        } else {
-            return {};
-        }
-    }
 }
 
 export namespace init {
@@ -502,11 +492,11 @@ namespace init::detail {
                                                                         const materialize_constraints<MaxCaps>& constraints) noexcept {
         materialize_summary<MaxCaps> summary{};
         auto current = append_node_with_lookup(out,
-                                               value.node,
-                                               constraints,
-                                               [&](CapId id) noexcept {
-                                                   return lookup_capability_name(value, id);
-                                               });
+                                              value.node,
+                                              constraints,
+                                              [&](CapId id) noexcept {
+                                                  return init::lookup_capability_name(value, id);
+                                              });
         if (!current) {
             return util::unexpected(current.error());
         }

@@ -7,7 +7,7 @@ module;
 
 export module charm.system.clock;
 
-import init.node;
+import init.binding;
 import util.core;
 import util.error;
 
@@ -83,23 +83,20 @@ export namespace charm::system {
                               init::Phase phase = init::Phase::core,
                               util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : clock_ref(&clock_in) {
-            provides[0] = init::cap_id(cap_name);
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                {},
-                &ClockBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(cap_name);
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           &ClockBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            return id == provides[0]
-                ? node.name
-                : std::string_view{};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(node.name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

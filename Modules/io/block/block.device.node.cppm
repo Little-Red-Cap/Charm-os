@@ -8,7 +8,7 @@ export module block.device.node;
 
 import block.device;
 import block.registry;
-import init.node;
+import init.binding;
 import util.core;
 import util.error;
 
@@ -35,36 +35,30 @@ export namespace block {
               registry(&reg),
               hal_cap_name(hal_cap_name),
               desc{endpoint_name, cap_id(endpoint_name)} {
-            provides[0] = init::cap_id(endpoint_name);
-            requires_caps[0] = init::cap_id("block.registry");
+            provides = init::capability_ids(endpoint_name);
+            requires_caps = init::capability_ids(registry_cap_name, hal_cap_name);
             requires_count = 1;
             if (hal_cap_name) {
-                requires_caps[1] = init::cap_id(hal_cap_name);
                 requires_count = 2;
             }
-            node = init::Node{
-                endpoint_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_count),
-                &DeviceBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            node = init::make_binding_node(init::capability_name_view(endpoint_name),
+                                           phase,
+                                           runlevel_mask,
+                                           std::span<const init::CapId>(provides.data(), provides.size()),
+                                           std::span<const init::CapId>(requires_caps.data(), requires_count),
+                                           &DeviceBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return desc.name;
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{registry_cap_name};
-            }
-            if (requires_count > 1 && id == requires_caps[1]) {
-                return std::string_view{hal_cap_name ? hal_cap_name : ""};
-            }
-            return {};
+            const auto provide_names = init::capability_names(desc.name);
+            const auto require_names = init::capability_names(registry_cap_name, hal_cap_name);
+            return init::lookup_capability_name(id,
+                                                std::span<const init::CapId>(provides.data(), provides.size()),
+                                                std::span<const std::string_view>(provide_names.data(), provide_names.size()),
+                                                std::span<const init::CapId>(requires_caps.data(), requires_count),
+                                                std::span<const std::string_view>(require_names.data(), requires_count));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

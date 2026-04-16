@@ -6,7 +6,7 @@ module;
 
 export module io.channel.node;
 
-import init.node;
+import init.binding;
 import io.channel;
 import io.reactor;
 import io.registry;
@@ -33,28 +33,24 @@ export namespace io {
                        init::Phase phase = init::Phase::core,
                        util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : registry(&reg), channel(&ch), reactor(reactor_in), desc(desc_in), registry_cap_name(registry_cap) {
-            provides[0] = init::cap_id(desc.name);
-            requires_caps[0] = init::cap_id(registry_cap);
-            node = init::Node{
-                desc.name.data(),
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &ChannelBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(desc.name);
+            requires_caps = init::capability_ids(registry_cap);
+            node = init::make_binding_node(desc.name,
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           requires_caps,
+                                           &ChannelBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return desc.name;
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{registry_cap_name ? registry_cap_name : ""};
-            }
-            return {};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(desc.name),
+                                                requires_caps,
+                                                init::capability_names(registry_cap_name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {
@@ -95,32 +91,25 @@ export namespace io {
                    EndpointKind::channel,
                    EndpointCaps::duplex},
               registry_cap_name(registry_cap) {
-            provides[0] = init::cap_id(alias_name);
-            requires_caps[0] = init::cap_id(registry_cap);
-            requires_caps[1] = init::cap_id(target_cap_name);
-            node = init::Node{
-                alias_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &ChannelAliasBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(alias_name);
+            requires_caps = init::capability_ids(registry_cap, target_cap_name);
+            node = init::make_binding_node(init::capability_name_view(alias_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           requires_caps,
+                                           &ChannelAliasBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return desc.name;
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{registry_cap_name ? registry_cap_name : ""};
-            }
-            if (id == requires_caps[1]) {
-                return std::string_view{target_cap ? target_cap : ""};
-            }
-            return {};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(desc.name),
+                                                requires_caps,
+                                                init::capability_names(registry_cap_name,
+                                                                       target_cap));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

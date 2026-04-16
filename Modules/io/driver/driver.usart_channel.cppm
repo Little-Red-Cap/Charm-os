@@ -13,7 +13,7 @@ import hal_core;
 import io.channel;
 import io.reactor;
 import io.registry;
-import init.node;
+import init.binding;
 import service_ring_buffer;
 import util.core;
 import util.error;
@@ -195,36 +195,28 @@ export namespace driver::usart {
                    io::EndpointKind::channel,
                    io::EndpointCaps::duplex},
               hal_cap_name(hal_cap_name) {
-            provides[0] = init::cap_id(endpoint_name);
-            requires_caps[0] = init::cap_id("io.registry");
-            requires_caps[1] = init::cap_id("io.reactor");
-            requires_caps[2] = init::cap_id(hal_cap_name);
-            node = init::Node{
-                endpoint_name,
-                init::Phase::core,
-                static_cast<util::u32>(init::Runlevel::all),
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &ChannelBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(endpoint_name);
+            requires_caps = init::capability_ids(registry_cap_name,
+                                                 reactor_cap_name,
+                                                 hal_cap_name);
+            node = init::make_binding_node(init::capability_name_view(endpoint_name),
+                                           init::Phase::core,
+                                           static_cast<util::u32>(init::Runlevel::all),
+                                           provides,
+                                           requires_caps,
+                                           &ChannelBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return desc.name;
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{registry_cap_name};
-            }
-            if (id == requires_caps[1]) {
-                return std::string_view{reactor_cap_name};
-            }
-            if (id == requires_caps[2]) {
-                return std::string_view{hal_cap_name ? hal_cap_name : ""};
-            }
-            return {};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(desc.name),
+                                                requires_caps,
+                                                init::capability_names(registry_cap_name,
+                                                                       reactor_cap_name,
+                                                                       hal_cap_name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

@@ -7,7 +7,7 @@
 
 export module charm.system.reactor_pump;
 
-import init.node;
+import init.binding;
 import io.reactor;
 import kernel.eda;
 import kernel.evt;
@@ -158,32 +158,25 @@ export namespace charm::system {
               eda_cap_name(eda_cap_name),
               reactor_cap_name(reactor_cap_name),
               waker{&task} {
-            provides[0] = init::cap_id(cap_name);
-            requires_caps[0] = init::cap_id(eda_cap_name);
-            requires_caps[1] = init::cap_id(reactor_cap_name);
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
-                &ReactorPumpBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            provides = init::capability_ids(cap_name);
+            requires_caps = init::capability_ids(eda_cap_name, reactor_cap_name);
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           provides,
+                                           requires_caps,
+                                           &ReactorPumpBinding::init_trampoline,
+                                           nullptr,
+                                           this);
         }
 
         constexpr std::string_view capability_name(init::CapId id) const noexcept {
-            if (id == provides[0]) {
-                return node.name;
-            }
-            if (id == requires_caps[0]) {
-                return std::string_view{eda_cap_name ? eda_cap_name : ""};
-            }
-            if (id == requires_caps[1]) {
-                return std::string_view{reactor_cap_name ? reactor_cap_name : ""};
-            }
-            return {};
+            return init::lookup_capability_name(id,
+                                                provides,
+                                                init::capability_names(node.name),
+                                                requires_caps,
+                                                init::capability_names(eda_cap_name,
+                                                                       reactor_cap_name));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

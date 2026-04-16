@@ -3,11 +3,12 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 export module canopen.pump;
 
 import charm.system.clock;
-import init.node;
+import init.binding;
 import canopen.sdo_service;
 import canopen.nmt_service;
 import kernel.eda;
@@ -148,6 +149,10 @@ export namespace canopen {
         void* post_ctx{nullptr};
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{10};
+        const char* eda_cap_name{"kernel.eda"};
+        const char* sdo_cap_name{"canopen.sdo"};
+        const char* nmt_cap_name{"canopen.nmt"};
+        const char* clock_cap_name{"system.clock"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 4> requires_caps{};
         util::usize requires_count{0};
@@ -179,27 +184,48 @@ export namespace canopen {
               post_more(post_more_fn),
               post_ctx(post_ctx_in),
               self(task_id),
-              period_ms((period_ms_in == 0) ? 1 : period_ms_in) {
-            provides[0] = init::cap_id(cap_name);
-            requires_caps[0] = init::cap_id(eda_cap_name);
-            requires_caps[1] = init::cap_id(clock_cap_name);
+              period_ms((period_ms_in == 0) ? 1 : period_ms_in),
+              eda_cap_name(eda_cap_name),
+              sdo_cap_name(sdo_cap_name),
+              nmt_cap_name(nmt_cap_name),
+              clock_cap_name(clock_cap_name) {
+            provides = init::capability_ids(cap_name);
+            requires_caps[0] = init::cap_id_or_zero(init::capability_name_view(eda_cap_name));
+            requires_caps[1] = init::cap_id_or_zero(init::capability_name_view(clock_cap_name));
             requires_count = 2;
             if (sdo) {
-                requires_caps[requires_count++] = init::cap_id(sdo_cap_name);
+                requires_caps[requires_count++] = init::cap_id_or_zero(init::capability_name_view(sdo_cap_name));
             }
             if (nmt) {
-                requires_caps[requires_count++] = init::cap_id(nmt_cap_name);
+                requires_caps[requires_count++] = init::cap_id_or_zero(init::capability_name_view(nmt_cap_name));
             }
-            node = init::Node{
-                cap_name,
-                phase,
-                runlevel_mask,
-                std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires_caps.data(), requires_count),
-                &CanopenPumpBinding::init_trampoline,
-                nullptr,
-                this
-            };
+            node = init::make_binding_node(init::capability_name_view(cap_name),
+                                           phase,
+                                           runlevel_mask,
+                                           std::span<const init::CapId>(provides.data(), provides.size()),
+                                           std::span<const init::CapId>(requires_caps.data(), requires_count),
+                                           &CanopenPumpBinding::init_trampoline,
+                                           nullptr,
+                                           this);
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            const std::array<std::string_view, 1> provide_names{node.name};
+            std::array<std::string_view, 4> require_names{};
+            require_names[0] = init::capability_name_view(eda_cap_name);
+            require_names[1] = init::capability_name_view(clock_cap_name);
+            util::usize require_name_count = 2;
+            if (sdo) {
+                require_names[require_name_count++] = init::capability_name_view(sdo_cap_name);
+            }
+            if (nmt) {
+                require_names[require_name_count++] = init::capability_name_view(nmt_cap_name);
+            }
+            return init::lookup_capability_name(id,
+                                                std::span<const init::CapId>(provides.data(), provides.size()),
+                                                std::span<const std::string_view>(provide_names.data(), provide_names.size()),
+                                                std::span<const init::CapId>(requires_caps.data(), requires_count),
+                                                std::span<const std::string_view>(require_names.data(), require_name_count));
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "armv7a_interrupt_completion_contract.hpp"
 #include "armv7a_platform.hpp"
 
 struct Armv7aExceptionFrame;
@@ -23,6 +24,9 @@ void armv7a_interrupt_smoke_finish();
 bool armv7a_interrupt_smoke_seen();
 Armv7aInterruptObservation armv7a_interrupt_smoke_last_observation();
 Armv7aInterruptObservation armv7a_interrupt_smoke_observation(Armv7aInterruptSmokeKind kind);
+Armv7aInterruptCompletionObservation armv7a_interrupt_smoke_last_completion();
+Armv7aInterruptCompletionObservation armv7a_interrupt_smoke_completion(
+    Armv7aInterruptSmokeKind kind);
 
 void armv7a_handle_irq_synthetic(Armv7aExceptionFrame* frame);
 

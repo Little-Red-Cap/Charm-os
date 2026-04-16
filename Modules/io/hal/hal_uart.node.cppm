@@ -8,7 +8,6 @@ export module hal_uart.node;
 
 import hal_core;
 import hal_uart;
-import hal_core;
 import init.binding;
 import util.core;
 import util.error;

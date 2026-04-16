@@ -100,6 +100,12 @@ Charm 现在已经不是只在追求“结构比较整齐”的阶段。
 - 可审计
 - 可被脚本消费
 
+其中 runtime 观察这条线当前也应保持同样纪律：
+
+- 不把 `recent transitions` 绑死在某个示例内部日志上
+- 优先把它做成独立 sidecar 工件
+- 再由 `artifact report` 吸收为 explain surface 可查询的问题面
+
 而不是：
 
 - 新做一个庞大的交互式工具
@@ -201,6 +207,14 @@ v0 阶段建议至少覆盖：
 - 它覆盖哪些 case / profile / board / facet
 - 它的摘要结论是什么
 
+当前仓库里，这层最小只读消费面已经开始有了一个很具体的胚胎：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1`
+
+它当前不是完整 explain shell，
+但已经能把 `artifact report` 压成一页稳定可读摘要，
+并继续把结构、资源契约、compare 结论与底层工件引用一起带出来。
+
 ## 6. v0 的最小 `explain surface`
 
 当前建议先把问题面收敛为五类最小查询，而不是先发明很大的命令系统。
@@ -212,12 +226,84 @@ v0 阶段建议至少覆盖：
 - 当前系统有哪些 capability
 - 哪些是 materialized 结果
 - 哪些已经进入 published 表面
+- 哪些名字同时承担 `declared_fact / resource_fact / unresolved_binding` 语义
 
 它的输入可以来自：
 
 - materialized graph 导出
 - registry publish 状态
 - bringup evidence report
+
+当前仓库里，这个问题面已经有了一个最小真实入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -CapList`
+
+它当前优先消费：
+
+- `artifact report`
+
+更具体地说，当前真实的 runtime transition 数据优先应通过：
+
+- bundle case 级 `runtime_observe` sidecar
+- `artifact report.runtime_observe`
+- `scripts/inspect_system_compiler_artifact_report.ps1 -RecentTransitions`
+
+这条链逐层进入 explain surface。
+如果当前 case 没有接入 sidecar，
+`recent transitions` 仍保留稳定查询形状，但结果为空。
+- `artifacts.sample_json`
+
+并先把最小输出收敛为：
+
+- `capability`
+- `materialized / observed / published / required`
+- `declared_fact / resource_fact / unresolved_binding`
+- `provider_nodes / consumer_nodes`
+
+当前实现支持两种读取作用域：
+
+- 单 report 查询
+- 全 artifact root 汇总
+
+其中单 report 查询适合回答：
+
+- 这个 case 当前有哪些 capability
+- 谁提供它
+- 谁消费它
+
+而全 root 汇总适合回答：
+
+- 这个 capability 出现在哪些 case
+- 它在哪些 case 被 materialized / published / required
+
+为了避免把“单 case 证据”与“跨 case 聚合”混成一种半语义状态，
+当前实现不支持对任意多 case 子集直接执行 `cap list` 汇总。
+也就是说，`cap list` 当前只接受：
+
+- 精确单 report
+- 或整个 artifact root
+
+如果调用方需要稳定机器消费，
+当前 `-AsJson` 会返回上述最小字段，
+而 root 汇总模式还会额外带出 `cases` 与 `*_cases` 数组，
+用于表达 capability 在不同 case 中的出现分布。
+
+围绕同一批 capability，
+当前仓库里还新增了一个更直接的单 report 入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -BringupEvidence`
+
+它当前会把 `artifact report.bringup_evidence.evidence_entries` 展开成 capability 级证据矩阵，
+至少带出：
+
+- `declared / materialized / published / observed / blocked / failed`
+- `publish_state / export_state`
+- `provider_nodes / consumer_nodes`
+- capability 级 `blocked_reasons / failed_reasons`
+
+这意味着当前 `cap list`、`why unavailable` 与 `bringup evidence` 三个问题面，
+已经开始共享同一批 capability 级证据来源，
+而不是各自再维护一套互相漂移的判断。
 
 ### 6.2 `why unavailable`
 
@@ -241,6 +327,30 @@ v0 阶段建议至少覆盖：
 
 > **到底卡在哪一层。**
 
+当前仓库里，这个问题面已经有了一个很小但真实的入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -WhyCapability <name>`
+
+它当前优先消费：
+
+- `artifact report`
+- `artifacts.sample_json`
+
+并先覆盖几类最小结论：
+
+- `available`
+- `materialized_not_published`
+- `runtime_observed_not_published`
+- `runtime_observed_not_materialized`
+- `unresolved_binding`
+- `required_without_provider`
+- `undeclared`
+
+也就是说，v0 当前先不追求“解释整个运行时宇宙”，
+而是先让系统能基于稳定工件回答：
+
+> **这个名字为什么现在没有站到可用面上。**
+
 ### 6.3 `graph path`
 
 它回答：
@@ -254,6 +364,57 @@ v0 阶段建议至少覆盖：
 - `materialized_graph`
 - 依赖边导出
 - bringup evidence summary
+
+当前仓库里，这个问题面也已经有了一个最小真实入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -GraphPath <capability>`
+
+它当前优先消费：
+
+- `artifact report`
+- `artifacts.sample_json`
+
+如果当前 report 对应的是 `runtime_only` case，
+也就是 `artifacts.sample_json` 为空，
+当前查询会稳定返回 `graph_unavailable`，
+而不是假装替调用方拼出一张并不存在的静态图。
+
+当前 v0 的实现刻意收敛到“单 report + capability 维度”：
+
+- 只接受精确单 report
+- 不做跨 case 聚合
+- 不把节点名查询、任意图遍历和多 report 比较混进同一个接口
+
+它当前最小稳定输出会围绕以下字段组织：
+
+- `capability`
+- `state / availability_state`
+- `direct_edges`
+- `provider_paths`
+- `consumer_paths`
+
+其中：
+
+- `state`
+  当前优先表达图查询自身的语义状态，例如：
+  `edge_paths / provider_terminal / required_without_provider / undeclared`
+- `availability_state`
+  则继续复用 `why unavailable` 的状态语言，
+  让“图里怎么连”和“为什么不可用”保持可对齐
+
+当前 `graph path` 的最小解释方式是：
+
+- 如果该 capability 在图里存在 direct edge，
+  就给出 direct edge 以及经过这条 edge 的 consumer 路径
+- 如果它当前只是终端 provider，
+  就给出通向该 provider 节点的最小依赖路径
+- 如果它只出现在 consumer 需求里但没有 provider，
+  就给出通向 consumer 的依赖路径
+
+也就是说，v0 当前还不是“图查询语言”，
+而是一个面向 explain surface 的最小稳定问题面：
+
+> **围绕一个 capability，把它在当前 materialized graph 里到底接到了哪里、又是通过哪些依赖链接上的，稳定吐出来。**
 
 ### 6.4 `recent transitions`
 
@@ -271,6 +432,85 @@ v0 阶段建议至少覆盖：
 
 之上，而不急着追求全系统统一事件总线。
 
+当前仓库里，这个问题面现在也已经有了一个最小真实入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -RecentTransitions`
+
+它当前优先消费：
+
+- `artifact report`
+
+当前 v0 的实现同样保持很克制：
+
+- 只接受精确单 report
+- 不做跨 case 聚合
+- 不把 runtime transition 查询扩展成完整事件总线或 tracing 平台
+
+它当前最小稳定输出会围绕以下字段组织：
+
+- `observed_capabilities`
+- `publish_state_summary`
+- `export_state_summary`
+- `transition_count`
+- `transition_capabilities`
+- `action_counts`
+- `transitions`
+
+其中 `transitions` 当前至少保留：
+
+- `order`
+- `capability`
+- `action`
+- `before`
+- `after`
+
+这意味着 `recent transitions` 现在先回答的是：
+
+- 最近到底有没有状态切换发生
+- 切换集中在哪些 capability
+- 切换动作是 `attach`、`ensure_exported` 还是其它 runtime export 事件
+- 当前 publish/export 统计摘要是什么
+
+也就是说，v0 当前不是在承诺“完整运行时历史”，
+而是在把 runtime observe 面先压成一个最小稳定查询：
+
+> **围绕 artifact report 当前保留下来的最近切换，稳定回答“发生了什么、发生在谁身上、在 publish/export 语义里当前是什么样”。**
+
+当前仓库里已经有一条真实 runtime-only producer：
+
+- `Examples/usb/usb_host_runtime_multi_smoke`
+
+它现在已经作为正式 `runtime_only` case 接入
+`export_case_manifest -> export_bundle -> artifact_report`，
+并可以稳定导出非空 `recent_transitions` 的 `runtime_observe` sidecar。
+同时要注意，这个示例在场景末尾会主动执行 `remove / forget / unexport`，
+因此 sidecar 顶层摘要反映的是“最终已清理”的末态：
+
+- `published_capabilities` 为空
+- `publish_state_summary` 会落在 `missing`
+- `export_state_summary` 会落在 `missing`
+
+这不是导出失败，而是 explain surface 当前对 runtime 侧刻意保持的语义：
+
+> **摘要回答“现在是什么状态”，`recent_transitions` 回答“刚才发生了什么”。**
+
+另外，当前仓库里已经有第一条正式接入 bundle/report 链的 graph case：
+
+- `Examples/usb/usb_msc_block_demo`
+
+它会在 `export_case_manifest -> export_bundle -> artifact_report` 路径里
+产出同 case 的真实 `runtime_observe` sidecar。
+这条 sidecar 当前不强调 transition history，而强调 bringup 完成后的真实末态：
+
+- `published_capabilities = ["block.sd0"]`
+- `publish_state_summary.published = 1`
+- `recent_transitions = []`
+
+也就是说，当前 explain surface 已经开始同时覆盖两种真实来源：
+
+- transition-rich runtime-only producer
+- graph-integrated final-state producer
+
 ### 6.5 `resource summary`
 
 它回答：
@@ -287,6 +527,49 @@ v0 阶段建议至少覆盖：
 - `explain surface v0`
 
 之间最自然的连接点。
+
+当前仓库里，这个问题面现在也已经有了一个最小真实入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -ResourceSummary`
+
+它当前优先消费：
+
+- `artifact report`
+- `artifacts.sample_json`
+
+当前 v0 的实现同样保持很克制：
+
+- 只接受精确单 report
+- 不做跨 case 聚合
+- 不把资源 summary、capability explain、图路径查询揉成一个混合接口
+
+它当前最小稳定输出会围绕以下字段组织：
+
+- `declared_contracts / audited_count / satisfied_count / violated_count / unknown_count`
+- `fact_inventory`
+- `contracts`
+- `resource_hotspots`
+
+其中：
+
+- `fact_inventory`
+  当前至少区分：
+  `declared_facts / subject_facts / graph_provided_facts / audit_provided_facts / all_available_facts`
+- `contracts`
+  则把每条输入侧合同压成一条稳定 explain 记录，
+  至少带出：
+  `contract / state / requires / present_facts / missing_facts / fact_sources`
+
+当前 `resource summary` 的最小解释方式是：
+
+- 先把输入侧 `declared_contract_entries` 逐条展开
+- 再把 `declared_facts`、`subject` 派生事实、图里实际提供的 fact，以及审计阶段命中的 fact 收束成事实库存
+- 最后给出每条合同当前是 `satisfied / violated / unknown`，并带出对应热点
+
+也就是说，v0 当前不是在做“完整资源证明”，
+而是在做 explain surface 所需要的最小合法性面：
+
+> **围绕当前系统，稳定回答“哪些资源合同被声明了、它们为什么成立或不成立、证据又来自哪里”。**
 
 ## 7. 当前推荐的协议分层
 
@@ -349,6 +632,12 @@ v0 阶段建议至少覆盖：
 3. 先让静态导出与少量 runtime 观察可以互相引用
 4. 先服务报告、CI、脚本与审阅
 5. 再逐步增强实时查询能力
+
+这里说的“互相引用”，当前更推荐理解为：
+
+- `materialized_graph` 保持静态结构事实
+- runtime observe 通过 sidecar 保持动态观察事实
+- `artifact report` 在统一对象里把两者收束起来
 
 近期不建议：
 

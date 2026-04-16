@@ -11,7 +11,6 @@ module;
 
 export module player.stm32h7.usb_glue_core;
 
-import usb.class_msc;
 import usb.common;
 import usb.device_driver;
 import usb.driver;
@@ -25,16 +24,14 @@ export namespace player::stm32h7::usb_glue_core {
     struct Core {
         usb::driver::DcdDeviceAdapter adapter{};
         usb::driver::DcdOps dcd_ops{};
-        usb::class_driver::MscBot* msc_bot{nullptr};
-        const usb::class_driver::MscConfig* msc_cfg{nullptr};
         std::array<usb::driver::EpCallbacks, 16> out_cbs{};
         std::array<usb::driver::EpCallbacks, 16> in_cbs{};
         std::array<void*, 16> out_ctxs{};
         std::array<void*, 16> in_ctxs{};
         std::array<std::array<usb::u8, 64>, 16> out_bufs{};
         std::array<usb::u16, 16> out_mps{};
+        std::array<bool, 16> in_busy{};
         PCD_HandleTypeDef* pcd{nullptr};
-        bool msc_in_busy{false};
         bool ep0_prepared{false};
         bool ep0_expect_status_out{false};
         bool ep0_in_zlp_pending{false};
@@ -68,10 +65,17 @@ export namespace player::stm32h7::usb_glue_core {
         }
     }
 
+    inline void clear_in_busy(Core& core) noexcept {
+        for (auto& busy : core.in_busy) {
+            busy = false;
+        }
+    }
+
     inline void prepare_ep0(Core& core) noexcept {
         if (!core.pcd || core.ep0_prepared) return;
         constexpr std::uint8_t ep0_mps = 64;
         core.out_mps[0] = ep0_mps;
+        core.in_busy[0] = false;
         (void)HAL_PCD_EP_Open(core.pcd, 0x00, ep0_mps, EP_TYPE_CTRL);
         (void)HAL_PCD_EP_Open(core.pcd, 0x80, ep0_mps, EP_TYPE_CTRL);
         core.pcd->IN_ep[0].data_pid_start = 1;
@@ -80,18 +84,6 @@ export namespace player::stm32h7::usb_glue_core {
         core.ep0_expect_status_out = false;
         core.ep0_in_zlp_pending = false;
         core.ep0_prepared = true;
-    }
-
-    inline void set_ready(Core& core,
-                          usb::class_driver::MscBot* bot,
-                          const usb::class_driver::MscConfig* cfg) noexcept {
-        core.msc_bot = bot;
-        core.msc_cfg = cfg;
-        core.msc_in_busy = false;
-        if (bot && cfg) {
-            core.out_ctxs[cfg->ep_out & 0x0F] = bot;
-            core.in_ctxs[cfg->ep_in & 0x0F] = bot;
-        }
     }
 
     inline bool ep_open(Core& core,
@@ -120,9 +112,7 @@ export namespace player::stm32h7::usb_glue_core {
         } else {
             core.in_cbs[ep_num] = cb;
             core.in_ctxs[ep_num] = cb.ctx;
-            if (core.msc_cfg && cfg.address == core.msc_cfg->ep_in) {
-                core.msc_in_busy = false;
-            }
+            core.in_busy[ep_num] = false;
         }
         return true;
     }
@@ -134,9 +124,7 @@ export namespace player::stm32h7::usb_glue_core {
         if ((address & 0x80u) != 0u) {
             core.in_cbs[ep_num] = {};
             core.in_ctxs[ep_num] = nullptr;
-            if (core.msc_cfg && address == core.msc_cfg->ep_in) {
-                core.msc_in_busy = false;
-            }
+            core.in_busy[ep_num] = false;
         } else {
             core.out_cbs[ep_num] = {};
             core.out_ctxs[ep_num] = nullptr;
@@ -150,14 +138,15 @@ export namespace player::stm32h7::usb_glue_core {
                         std::span<const usb::u8> data,
                         bool zlp) noexcept {
         if (!pcd) return false;
+        const auto ep_num = static_cast<std::uint8_t>(address & 0x0F);
         auto* ptr = const_cast<usb::u8*>(data.data());
         const auto ok = HAL_PCD_EP_Transmit(pcd, address, ptr,
             static_cast<uint16_t>(data.size())) == HAL_OK;
         if (address == 0x80u) {
             core.ep0_in_zlp_pending = ok && zlp && !data.empty();
         }
-        if (ok && core.msc_cfg && address == core.msc_cfg->ep_in) {
-            core.msc_in_busy = true;
+        if (ok && (address & 0x80u) != 0u) {
+            core.in_busy[ep_num] = true;
         }
         return ok;
     }
@@ -175,8 +164,29 @@ export namespace player::stm32h7::usb_glue_core {
                                bool configured) noexcept {
         if (!pcd) return false;
         (void)configured;
-        core.msc_in_busy = false;
+        clear_in_busy(core);
         return true;
+    }
+
+    inline bool rearm_out(Core& core,
+                          PCD_HandleTypeDef* pcd,
+                          usb::u8 address) noexcept {
+        if (!pcd || (address & 0x80u) != 0u) return false;
+        const auto ep_num = static_cast<std::uint8_t>(address & 0x0F);
+        const auto mps = core.out_mps[ep_num];
+        if (mps == 0u) return false;
+        return HAL_PCD_EP_Receive(pcd, address,
+            core.out_bufs[ep_num].data(),
+            mps) == HAL_OK;
+    }
+
+    inline bool rearm_out(Core& core, usb::u8 address) noexcept {
+        return rearm_out(core, core.pcd, address);
+    }
+
+    inline bool endpoint_busy(const Core& core, usb::u8 address) noexcept {
+        if ((address & 0x80u) == 0u) return false;
+        return core.in_busy[static_cast<std::uint8_t>(address & 0x0F)];
     }
 
     inline bool connect(Core& core,
@@ -293,6 +303,7 @@ export namespace player::stm32h7::usb_glue_core {
                 (void)HAL_PCD_EP_Transmit(hpcd, 0x80, nullptr, 0);
                 return 1;
             }
+            core.in_busy[0] = false;
             if (core.ep0_expect_status_out) {
                 (void)HAL_PCD_EP_Receive(hpcd, 0x00, core.out_bufs[0].data(), 0);
             } else {
@@ -301,9 +312,7 @@ export namespace player::stm32h7::usb_glue_core {
             core.adapter.handle_in_complete(event.sent, event.sent_zlp);
             return 1;
         }
-        if (core.msc_cfg && event.epnum == static_cast<std::uint8_t>(core.msc_cfg->ep_in & 0x0F)) {
-            core.msc_in_busy = false;
-        }
+        core.in_busy[event.epnum] = false;
         auto& cb = core.in_cbs[event.epnum];
         if (cb.on_in_complete) {
             cb.on_in_complete(core.in_ctxs[event.epnum], event.sent, false);
@@ -314,7 +323,7 @@ export namespace player::stm32h7::usb_glue_core {
     inline int handle_reset(Core& core, PCD_HandleTypeDef* hpcd) noexcept {
         if (!hpcd) return 0;
         bind_pcd(core, hpcd);
-        core.msc_in_busy = false;
+        clear_in_busy(core);
         core.ep0_prepared = false;
         core.ep0_expect_status_out = false;
         core.ep0_in_zlp_pending = false;

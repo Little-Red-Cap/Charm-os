@@ -6,6 +6,7 @@ set(MODULE_GROUP_BASE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdmmc.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_usb.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_glue_core.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_msc_glue.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdram.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/st7305.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/st7305.panels.cppm"
@@ -29,6 +30,7 @@ set(MODULE_GROUP_HQZY_CM7_RUNTIME
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/runtime_bringup.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/sdmmc_glue.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_glue_core.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_msc_glue.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_glue.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_storage_bridge.cppm"
 )

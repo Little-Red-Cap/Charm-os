@@ -1,8 +1,14 @@
 #include "armv7a_exception_contract.hpp"
+#include "armv7a_interrupt_completion_contract.hpp"
 #include "armv7a_fault_observation_contract.hpp"
 #include "armv7a_fault_status_contract.hpp"
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
+#include "armv7a_interrupt_lifecycle_contract.hpp"
+#include "armv7a_kernel_port_contract.hpp"
+#include "armv7a_special_interrupt_contract.hpp"
+#include "armv7a_interrupt_timeout_contract.hpp"
+#include "armv7a_thread_context_contract.hpp"
 #include "armv7a_psr_contract.hpp"
 #include "armv7a_stack_observation_contract.hpp"
 #include "armv7a_translation_decode_contract.hpp"
@@ -457,6 +463,99 @@ namespace {
                    "group1";
     }
 
+    bool verify_armv7a_interrupt_completion_contract() noexcept {
+        const auto completion_idle = armv7a_make_unobserved_interrupt_completion(1023u);
+
+        Armv7aInterruptObservation delivery{};
+        delivery.intid = 1u;
+        delivery.raw_acknowledge = 0x00010001u;
+        delivery.line =
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = true,
+            };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion_retired = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = false,
+            });
+
+        const auto completion_controller_busy = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x00000001u,
+                .highest_pending_intid = 1u,
+                .highest_pending_special = false,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = false,
+            });
+
+        const auto completion_line_still_active = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = true,
+            });
+
+        auto special_delivery = delivery;
+        special_delivery.special = true;
+        const auto completion_special = armv7a_make_interrupt_completion_observation(
+            special_delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1023u,
+            });
+
+        return !armv7a_interrupt_completion_observed(completion_idle) &&
+               !armv7a_interrupt_completion_active_cleared(completion_idle) &&
+               !armv7a_interrupt_completion_controller_advanced(completion_idle) &&
+               !armv7a_interrupt_completion_retired(completion_idle) &&
+               armv7a_interrupt_completion_observed(completion_retired) &&
+               armv7a_interrupt_completion_active_cleared(completion_retired) &&
+               armv7a_interrupt_completion_controller_advanced(completion_retired) &&
+               armv7a_interrupt_completion_retired(completion_retired) &&
+               completion_retired.delivery.raw_acknowledge == 0x00010001u &&
+               completion_retired.line_after_eoi.intid == 1u &&
+               completion_retired.line_after_eoi.line_enabled &&
+               !completion_retired.line_after_eoi.line_active &&
+               armv7a_interrupt_completion_observed(completion_controller_busy) &&
+               armv7a_interrupt_completion_active_cleared(completion_controller_busy) &&
+               !armv7a_interrupt_completion_controller_advanced(completion_controller_busy) &&
+               !armv7a_interrupt_completion_retired(completion_controller_busy) &&
+               armv7a_interrupt_completion_observed(completion_line_still_active) &&
+               !armv7a_interrupt_completion_active_cleared(completion_line_still_active) &&
+               armv7a_interrupt_completion_controller_advanced(completion_line_still_active) &&
+               !armv7a_interrupt_completion_retired(completion_line_still_active) &&
+               !armv7a_interrupt_completion_observed(completion_special);
+    }
+
     bool verify_armv7a_exception_contract() noexcept {
         Armv7aExceptionFrame undefined_frame{
             .vector_id = kArmv7aExceptionUndefined,
@@ -779,6 +878,445 @@ namespace {
                exit_out_of_range.entry.return_pc == 0x4050000Cu &&
                !exit_out_of_range.stack.in_range &&
                exit_out_of_range.stack.used == 0u;
+    }
+
+    bool verify_armv7a_interrupt_lifecycle_contract() noexcept {
+        Armv7aInterruptObservation delivery{};
+        delivery.intid = 1u;
+        delivery.raw_acknowledge = 0x00010001u;
+        delivery.line =
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = true,
+            };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = false,
+            });
+
+        constexpr Armv7aStackRange handler_range{
+            .base = 0x40500000u,
+            .top = 0x40501000u,
+        };
+        const auto exit = armv7a_make_vector_exit_observation(
+            delivery.entry, delivery.entry.origin_psr, 0x40500FE0u, handler_range);
+        auto mismatch_entry = delivery.entry;
+        mismatch_entry.return_pc = 0x5004u;
+        const auto exit_mismatch = armv7a_make_vector_exit_observation(
+            mismatch_entry, mismatch_entry.origin_psr, 0x40500FE0u, handler_range);
+        const auto completion_unretired = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x00000001u,
+                .highest_pending_intid = 1u,
+                .highest_pending_special = false,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = false,
+            });
+        const auto exit_unrestored = armv7a_make_vector_exit_observation(
+            delivery.entry, 0x000000D2u, 0x40500FE0u, handler_range);
+        const auto lifecycle_closed =
+            armv7a_make_interrupt_lifecycle_observation(completion, exit);
+        const auto lifecycle_entry_mismatch =
+            armv7a_make_interrupt_lifecycle_observation(completion, exit_mismatch);
+        const auto lifecycle_unretired =
+            armv7a_make_interrupt_lifecycle_observation(completion_unretired, exit);
+        const auto lifecycle_unrestored =
+            armv7a_make_interrupt_lifecycle_observation(completion, exit_unrestored);
+        const auto lifecycle_idle = armv7a_make_unobserved_interrupt_lifecycle(1023u);
+
+        return armv7a_interrupt_lifecycle_observed(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_entry_consistent(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_retired(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_restored(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_closed(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_observed(lifecycle_entry_mismatch) &&
+               !armv7a_interrupt_lifecycle_entry_consistent(lifecycle_entry_mismatch) &&
+               !armv7a_interrupt_lifecycle_closed(lifecycle_entry_mismatch) &&
+               armv7a_interrupt_lifecycle_observed(lifecycle_unretired) &&
+               !armv7a_interrupt_lifecycle_retired(lifecycle_unretired) &&
+               !armv7a_interrupt_lifecycle_closed(lifecycle_unretired) &&
+               armv7a_interrupt_lifecycle_observed(lifecycle_unrestored) &&
+               !armv7a_interrupt_lifecycle_restored(lifecycle_unrestored) &&
+               !armv7a_interrupt_lifecycle_closed(lifecycle_unrestored) &&
+               !armv7a_interrupt_lifecycle_observed(lifecycle_idle) &&
+               !armv7a_interrupt_lifecycle_closed(lifecycle_idle);
+    }
+
+    bool verify_armv7a_interrupt_timeout_contract() noexcept {
+        const auto observation_idle = armv7a_make_unobserved_interrupt_observation(1023u);
+
+        Armv7aInterruptObservation observation_delivery{};
+        observation_delivery.intid = 1u;
+        observation_delivery.raw_acknowledge = 0x00010001u;
+        observation_delivery.line =
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = true,
+            };
+        observation_delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const Armv7aInterruptTimeoutContext irq_timeout_masked{
+            .pending_observed = true,
+            .current_cpsr = 0x000000DFu,
+            .controller =
+                Armv7aPlatformInterruptControllerState{
+                    .highest_pending = 0x00000001u,
+                    .highest_pending_intid = 1u,
+                    .highest_pending_special = false,
+                },
+        };
+        const Armv7aInterruptTimeoutContext irq_timeout_enabled{
+            .pending_observed = true,
+            .current_cpsr = 0x0000005Fu,
+            .controller =
+                Armv7aPlatformInterruptControllerState{
+                    .highest_pending = 0x00000001u,
+                    .highest_pending_intid = 1u,
+                    .highest_pending_special = false,
+                },
+        };
+        const Armv7aInterruptTimeoutContext fiq_timeout_masked{
+            .pending_observed = true,
+            .current_cpsr = 0x000000DFu,
+            .controller =
+                Armv7aPlatformInterruptControllerState{
+                    .highest_pending = 0x00000001u,
+                    .highest_pending_intid = 1u,
+                    .highest_pending_special = false,
+                },
+        };
+        const Armv7aInterruptTimeoutContext timeout_no_pending{
+            .pending_observed = false,
+            .current_cpsr = 0x000000DFu,
+            .controller =
+                Armv7aPlatformInterruptControllerState{
+                    .highest_pending = 0x000003FFu,
+                    .highest_pending_intid = 1023u,
+                    .highest_pending_special = true,
+                },
+        };
+
+        const Armv7aTimerTimeoutSnapshot timer_timeout{
+            .context = irq_timeout_masked,
+            .timer_ctrl = 0x00000001u,
+            .nonsecure_line =
+                Armv7aPlatformInterruptLineState{
+                    .intid = 30u,
+                    .line_group1 = true,
+                    .line_enabled = true,
+                    .line_pending = true,
+                },
+        };
+        const Armv7aTimerTimeoutSnapshot timer_timeout_idle{
+            .context = timeout_no_pending,
+        };
+
+        const Armv7aSgiTimeoutSnapshot sgi_irq_timeout{
+            .context = irq_timeout_masked,
+            .line =
+                Armv7aPlatformInterruptLineState{
+                    .intid = 1u,
+                    .line_group1 = true,
+                    .line_enabled = true,
+                    .line_pending = true,
+                },
+        };
+        const Armv7aSgiTimeoutSnapshot sgi_fiq_timeout{
+            .context = fiq_timeout_masked,
+            .line =
+                Armv7aPlatformInterruptLineState{
+                    .intid = 1u,
+                    .line_group1 = false,
+                    .line_enabled = true,
+                    .line_pending = true,
+                },
+        };
+        const Armv7aSgiTimeoutSnapshot sgi_route_mismatch{
+            .context = irq_timeout_masked,
+            .line =
+                Armv7aPlatformInterruptLineState{
+                    .intid = 1u,
+                    .line_group1 = false,
+                    .line_enabled = true,
+                    .line_pending = true,
+                },
+        };
+
+        return armv7a_interrupt_timeout_route_masked(
+                   Armv7aPlatformInterruptRoute::kIrq, irq_timeout_masked) &&
+               !armv7a_interrupt_timeout_route_masked(
+                   Armv7aPlatformInterruptRoute::kIrq, irq_timeout_enabled) &&
+               armv7a_interrupt_timeout_route_masked(
+                   Armv7aPlatformInterruptRoute::kFiq, fiq_timeout_masked) &&
+               armv7a_interrupt_timeout_delivery_blocked(
+                   Armv7aPlatformInterruptRoute::kIrq, irq_timeout_masked, observation_idle) &&
+               !armv7a_interrupt_timeout_delivery_blocked(Armv7aPlatformInterruptRoute::kIrq,
+                                                          irq_timeout_enabled,
+                                                          observation_idle) &&
+               !armv7a_interrupt_timeout_delivery_blocked(Armv7aPlatformInterruptRoute::kIrq,
+                                                          irq_timeout_masked,
+                                                          observation_delivery) &&
+               !armv7a_interrupt_timeout_delivery_blocked(
+                   Armv7aPlatformInterruptRoute::kIrq, timeout_no_pending, observation_idle) &&
+               armv7a_interrupt_line_route_consistent(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_irq_timeout.line) &&
+               armv7a_interrupt_line_route_consistent(
+                   Armv7aPlatformInterruptRoute::kFiq, sgi_fiq_timeout.line) &&
+               !armv7a_interrupt_line_route_consistent(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_fiq_timeout.line) &&
+               armv7a_timer_timeout_pending_visible(timer_timeout) &&
+               armv7a_timer_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, timer_timeout, observation_idle) &&
+               !armv7a_timer_timeout_pending_visible(timer_timeout_idle) &&
+               !armv7a_timer_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, timer_timeout_idle, observation_idle) &&
+               armv7a_sgi_timeout_pending_visible(sgi_irq_timeout) &&
+               armv7a_sgi_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_irq_timeout, observation_idle) &&
+               armv7a_sgi_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kFiq, sgi_fiq_timeout, observation_idle) &&
+               !armv7a_sgi_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_route_mismatch, observation_idle) &&
+               !armv7a_sgi_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_irq_timeout, observation_delivery);
+    }
+
+    bool verify_armv7a_special_interrupt_contract() noexcept {
+        Armv7aInterruptObservation special_ack{};
+        special_ack.special = true;
+        special_ack.synthetic = true;
+        special_ack.intid = 1023u;
+        special_ack.controller =
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            };
+        special_ack.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x1Fu, 0x40000000u);
+
+        auto nonspecial = special_ack;
+        nonspecial.special = false;
+
+        auto nonsynthetic = special_ack;
+        nonsynthetic.synthetic = false;
+
+        Armv7aInterruptObservation special_unseen{};
+        special_unseen.special = true;
+        special_unseen.intid = 1023u;
+
+        auto special_busy = special_ack;
+        special_busy.controller.highest_pending_special = false;
+        special_busy.controller.highest_pending_intid = 1u;
+
+        return armv7a_special_interrupt_observed(special_ack) &&
+               armv7a_special_interrupt_delivery_suppressed(special_ack) &&
+               armv7a_special_interrupt_controller_idle(special_ack) &&
+               armv7a_special_interrupt_synthetic(special_ack) &&
+               armv7a_special_interrupt_spurious(special_ack, 1023u) &&
+               !armv7a_special_interrupt_spurious(special_ack, 1022u) &&
+               !armv7a_special_interrupt_observed(special_unseen) &&
+               !armv7a_special_interrupt_observed(nonspecial) &&
+               !armv7a_special_interrupt_delivery_suppressed(nonspecial) &&
+               !armv7a_special_interrupt_controller_idle(special_busy) &&
+               !armv7a_special_interrupt_synthetic(nonsynthetic);
+    }
+
+    bool verify_armv7a_kernel_port_contract() noexcept {
+        const auto install_vectors = +[](void*, std::uintptr_t) noexcept {
+            return true;
+        };
+        const auto vectors_active = +[](void*, std::uintptr_t) noexcept {
+            return true;
+        };
+        const auto mask_local_irq = +[](void*) noexcept {
+            return true;
+        };
+        const auto unmask_local_irq = +[](void*) noexcept {
+            return true;
+        };
+        const auto enable_scheduler_route = +[](void*) noexcept {
+            return true;
+        };
+        const auto disable_scheduler_route = +[](void*) noexcept {
+            return true;
+        };
+        const auto acknowledge = +[](void*) noexcept {
+            return Armv7aPlatformInterruptAcknowledge{
+                .raw = 1u,
+                .intid = 1u,
+                .special = false,
+            };
+        };
+        const auto complete = +[](void*, std::uint32_t) noexcept {
+            return true;
+        };
+        const auto arm_tick = +[](void*, std::uint32_t) noexcept {
+            return true;
+        };
+        const auto stop_tick = +[](void*) noexcept {
+            return true;
+        };
+        const auto prepare_initial_frame =
+            +[](void*,
+                std::uintptr_t stack_top,
+                std::uintptr_t,
+                std::uintptr_t) noexcept {
+                return stack_top - 64u;
+            };
+        const auto switch_context =
+            +[](void*,
+                std::uintptr_t* outgoing_sp,
+                std::uintptr_t incoming_sp) noexcept {
+                if (outgoing_sp) {
+                    *outgoing_sp = incoming_sp;
+                }
+                return incoming_sp != 0u;
+            };
+
+        const Armv7aKernelPortContract empty{};
+        Armv7aKernelPortContract tick_ready{};
+        tick_ready.exception = Armv7aKernelExceptionPort{
+            .preferred_vector_base = 0x40200000u,
+            .install_vectors = install_vectors,
+            .vectors_active = vectors_active,
+        };
+        tick_ready.interrupt = Armv7aKernelInterruptPort{
+            .mask_local_irq = mask_local_irq,
+            .unmask_local_irq = unmask_local_irq,
+            .enable_scheduler_route = enable_scheduler_route,
+            .disable_scheduler_route = disable_scheduler_route,
+            .acknowledge = acknowledge,
+            .complete = complete,
+        };
+        tick_ready.timer = Armv7aKernelTimerPort{
+            .tick_mode = Armv7aKernelTickMode::one_shot,
+            .tick_route = Armv7aPlatformInterruptRoute::kIrq,
+            .frequency_hz = 62500000u,
+            .arm_tick = arm_tick,
+            .stop_tick = stop_tick,
+        };
+
+        auto thread_ready = tick_ready;
+        thread_ready.context = Armv7aKernelContextPort{
+            .switch_model = Armv7aKernelContextSwitchModel::exception_return,
+            .prepare_initial_frame = prepare_initial_frame,
+            .switch_context = switch_context,
+        };
+
+        auto timer_missing_frequency = thread_ready;
+        timer_missing_frequency.timer.frequency_hz = 0u;
+
+        auto context_missing_model = thread_ready;
+        context_missing_model.context.switch_model =
+            Armv7aKernelContextSwitchModel::none;
+
+        return !armv7a_kernel_exception_port_ready(empty.exception) &&
+               !armv7a_kernel_interrupt_port_ready(empty.interrupt) &&
+               !armv7a_kernel_timer_port_ready(empty.timer) &&
+               !armv7a_kernel_context_port_ready(empty.context) &&
+               !armv7a_kernel_tick_runtime_ready(empty) &&
+               !armv7a_kernel_thread_runtime_ready(empty) &&
+               armv7a_kernel_exception_port_ready(tick_ready.exception) &&
+               armv7a_kernel_interrupt_port_ready(tick_ready.interrupt) &&
+               armv7a_kernel_timer_port_ready(tick_ready.timer) &&
+               !armv7a_kernel_context_port_ready(tick_ready.context) &&
+               armv7a_kernel_tick_runtime_ready(tick_ready) &&
+               !armv7a_kernel_thread_runtime_ready(tick_ready) &&
+               armv7a_kernel_context_port_ready(thread_ready.context) &&
+               armv7a_kernel_thread_runtime_ready(thread_ready) &&
+               !armv7a_kernel_timer_port_ready(timer_missing_frequency.timer) &&
+               !armv7a_kernel_tick_runtime_ready(timer_missing_frequency) &&
+               !armv7a_kernel_context_port_ready(context_missing_model.context) &&
+               !armv7a_kernel_thread_runtime_ready(context_missing_model);
+    }
+
+    bool verify_armv7a_thread_context_contract() noexcept {
+        const Armv7aThreadContextFrameObservation ready{
+            .kind = Armv7aThreadContextFrameKind::cooperative_sys,
+            .stack_base = 0x40400000u,
+            .stack_top = 0x40400400u,
+            .prepared_sp = 0x404003D8u,
+            .resume_pc = 0x40202000u,
+            .return_pc = 0x40202020u,
+            .entry_pc = 0x40203000u,
+            .argument = 0x40401000u,
+        };
+
+        auto misaligned = ready;
+        misaligned.prepared_sp += 4u;
+
+        auto out_of_range = ready;
+        out_of_range.prepared_sp = ready.stack_base - 8u;
+
+        auto missing_entry = ready;
+        missing_entry.entry_pc = 0u;
+
+        auto wrong_kind = ready;
+        wrong_kind.kind = Armv7aThreadContextFrameKind::none;
+
+        const bool ready_kind =
+            armv7a_thread_context_frame_uses_cooperative_sys(ready);
+        const bool ready_aligned =
+            armv7a_thread_context_frame_aligned(ready);
+        const bool ready_in_range =
+            armv7a_thread_context_frame_in_range(ready);
+        const bool ready_launch =
+            armv7a_thread_context_frame_launch_ready(ready);
+        const bool ready_ready =
+            armv7a_thread_context_frame_ready(ready);
+        const bool misaligned_aligned =
+            armv7a_thread_context_frame_aligned(misaligned);
+        const bool misaligned_ready =
+            armv7a_thread_context_frame_ready(misaligned);
+        const bool out_of_range_in_range =
+            armv7a_thread_context_frame_in_range(out_of_range);
+        const bool out_of_range_ready =
+            armv7a_thread_context_frame_ready(out_of_range);
+        const bool missing_entry_launch =
+            armv7a_thread_context_frame_launch_ready(missing_entry);
+        const bool missing_entry_ready =
+            armv7a_thread_context_frame_ready(missing_entry);
+        const bool wrong_kind_kind =
+            armv7a_thread_context_frame_uses_cooperative_sys(wrong_kind);
+        const bool wrong_kind_launch =
+            armv7a_thread_context_frame_launch_ready(wrong_kind);
+        const bool wrong_kind_ready =
+            armv7a_thread_context_frame_ready(wrong_kind);
+
+        return ready_kind &&
+               ready_aligned &&
+               ready_in_range &&
+               ready_launch &&
+               ready_ready &&
+               !misaligned_aligned &&
+               !misaligned_ready &&
+               !out_of_range_in_range &&
+               !out_of_range_ready &&
+               !missing_entry_launch &&
+               !missing_entry_ready &&
+               !wrong_kind_kind &&
+               !wrong_kind_launch &&
+               !wrong_kind_ready;
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -1433,6 +1971,8 @@ int main() {
                          MockPrepareStep::entry
                      });
     const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
+    const bool armv7_interrupt_completion_contract_ok =
+        verify_armv7a_interrupt_completion_contract();
     const bool armv7_exception_contract_ok = verify_armv7a_exception_contract();
     const bool armv7_vector_entry_contract_ok = verify_armv7a_vector_entry_contract();
     const bool armv7_abort_decode_contract_ok = verify_armv7a_abort_decode_contract();
@@ -1442,6 +1982,16 @@ int main() {
         verify_armv7a_stack_observation_contract();
     const bool armv7_vector_exit_contract_ok =
         verify_armv7a_vector_exit_contract();
+    const bool armv7_interrupt_lifecycle_contract_ok =
+        verify_armv7a_interrupt_lifecycle_contract();
+    const bool armv7_interrupt_timeout_contract_ok =
+        verify_armv7a_interrupt_timeout_contract();
+    const bool armv7_special_interrupt_contract_ok =
+        verify_armv7a_special_interrupt_contract();
+    const bool armv7_kernel_port_contract_ok =
+        verify_armv7a_kernel_port_contract();
+    const bool armv7_thread_context_contract_ok =
+        verify_armv7a_thread_context_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1494,12 +2044,18 @@ int main() {
                     armv7_common_copy_ok &&
                     armv7_common_xip_ok &&
                     armv7_interrupt_contract_ok &&
+                    armv7_interrupt_completion_contract_ok &&
                     armv7_exception_contract_ok &&
                     armv7_vector_entry_contract_ok &&
                     armv7_abort_decode_contract_ok &&
                     armv7_fault_observation_contract_ok &&
                     armv7_stack_observation_contract_ok &&
-                    armv7_vector_exit_contract_ok;
+                    armv7_vector_exit_contract_ok &&
+                    armv7_interrupt_lifecycle_contract_ok &&
+                    armv7_interrupt_timeout_contract_ok &&
+                    armv7_special_interrupt_contract_ok &&
+                    armv7_kernel_port_contract_ok &&
+                    armv7_thread_context_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1555,6 +2111,8 @@ int main() {
                 armv7_common_xip_ok ? 1 : 0);
     std::printf("[boot] armv7_interrupt_contract=%d\n",
                 armv7_interrupt_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_interrupt_completion_contract=%d\n",
+                armv7_interrupt_completion_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_exception_contract=%d\n",
                 armv7_exception_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_vector_entry_contract=%d\n",
@@ -1567,6 +2125,16 @@ int main() {
                 armv7_stack_observation_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_vector_exit_contract=%d\n",
                 armv7_vector_exit_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_interrupt_lifecycle_contract=%d\n",
+                armv7_interrupt_lifecycle_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_interrupt_timeout_contract=%d\n",
+                armv7_interrupt_timeout_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_special_interrupt_contract=%d\n",
+                armv7_special_interrupt_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_kernel_port_contract=%d\n",
+                armv7_kernel_port_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_thread_context_contract=%d\n",
+                armv7_thread_context_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

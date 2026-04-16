@@ -119,6 +119,10 @@ $expected = @(
     "ARMv7-A phase complete, stage=sgi-irq-smoke",
     "ARMv7-A phase, stage=sgi-fiq-smoke",
     "ARMv7-A phase complete, stage=sgi-fiq-smoke",
+    "ARMv7-A phase, stage=kernel-ingress",
+    "ARMv7-A phase complete, stage=kernel-ingress",
+    "ARMv7-A phase, stage=context-switch-smoke",
+    "ARMv7-A phase complete, stage=context-switch-smoke",
     "ARMv7-A phase, stage=handoff-prepare",
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=idle",
@@ -239,11 +243,32 @@ if (($log -notmatch "ARMv7-A return evidence, vector=svc, origin-mode=sys, curre
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30), source=(secure|non-secure)-phys-ppi, ack=0x[0-9A-F]{8}, hppir-before-ack=0x[0-9A-F]{8}, line=group[01]/yes/(yes|no)/yes, origin-mode=sys, handler-mode=irq, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30, source=..., origin-mode=sys, handler-mode=irq, return-pc=0x..."
 }
+if (($log -notmatch "ARMv7-A timer IRQ complete, intid=(29|30), source=(secure|non-secure)-phys-ppi, eoi=0x[0-9A-F]{8}, hppir-after-eoi=0x[0-9A-F]{8}, line-after-eoi=group[01]/yes/(yes|no)/no, active-cleared=yes, controller-advanced=yes, retired=yes")) {
+    $missing += "ARMv7-A timer IRQ complete, intid=29|30, source=..."
+}
+if (($log -notmatch "ARMv7-A timer IRQ lifecycle, intid=(29|30), source=(secure|non-secure)-phys-ppi, entry-match=yes, retired=yes, restored=yes, closed=yes")) {
+    $missing += "ARMv7-A timer IRQ lifecycle, intid=29|30, source=..."
+}
 if (([regex]::Matches($log, "ARMv7-A return evidence, vector=irq, origin-mode=sys, current-mode=sys, origin-irq=enabled, current-irq=enabled, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")).Count -lt 2) {
     $missing += "ARMv7-A return evidence, vector=irq x2"
 }
 if (($log -notmatch "ARMv7-A SGI active, intid=1, source=self-sgi, ack=0x[0-9A-F]{8}, hppir-before-ack=0x[0-9A-F]{8}, line=group1/yes/(yes|no)/yes, origin-mode=sys, handler-mode=irq, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A SGI active, intid=1, source=self-sgi, handler-mode=irq"
+}
+if (($log -notmatch "ARMv7-A SGI complete, intid=1, source=self-sgi, eoi=0x[0-9A-F]{8}, hppir-after-eoi=0x[0-9A-F]{8}, line-after-eoi=group1/yes/(yes|no)/no, active-cleared=yes, controller-advanced=yes, retired=yes")) {
+    $missing += "ARMv7-A SGI complete, intid=1, source=self-sgi"
+}
+if (($log -notmatch "ARMv7-A SGI lifecycle, intid=1, source=self-sgi, entry-match=yes, retired=yes, restored=yes, closed=yes")) {
+    $missing += "ARMv7-A SGI lifecycle, intid=1, source=self-sgi"
+}
+if (($log -notmatch "ARMv7-A kernel ingress, vector-base=0x[0-9A-F]{8}, tick-mode=oneshot, tick-route=irq, timer-hz=[0-9]+, exception=yes, interrupt=yes, timer=yes, context-ready=yes, context-model=software-frame, tick-runtime=yes, thread-runtime=yes")) {
+    $missing += "ARMv7-A kernel ingress, vector-base=0x..."
+}
+if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0-9A-F]{8}, stack-top=0x[0-9A-F]{8}, prepared-sp=0x[0-9A-F]{8}, resume=0x[0-9A-F]{8}, return=0x[0-9A-F]{8}, entry=0x[0-9A-F]{8}, arg=0x[0-9A-F]{8}, aligned=yes, in-range=yes, ready=yes")) {
+    $missing += "ARMv7-A thread frame, kind=cooperative-sys..."
+}
+if (($log -notmatch "ARMv7-A context switch smoke, main-before=0x[0-9A-F]{8}, main-saved=0x[0-9A-F]{8}, thread-entry-sp=0x[0-9A-F]{8}, thread-saved=0x[0-9A-F]{8}, thread-resume-sp=0x[0-9A-F]{8}, entry=yes, resumed=yes, round-trip=yes")) {
+    $missing += "ARMv7-A context switch smoke, main-before=0x..."
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."
@@ -253,6 +278,12 @@ if (($log -notmatch "ARMv7-A handler stack, vector=irq, mode=irq, sp=0x[0-9A-F]{
 }
 if (($log -notmatch "ARMv7-A FIQ active, intid=1, source=self-sgi, ack=0x[0-9A-F]{8}, hppir-before-ack=0x[0-9A-F]{8}, line=group0/yes/(yes|no)/yes, origin-mode=sys, handler-mode=fiq, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A FIQ active, intid=1, source=self-sgi, handler-mode=fiq"
+}
+if (($log -notmatch "ARMv7-A FIQ complete, intid=1, source=self-sgi, eoi=0x[0-9A-F]{8}, hppir-after-eoi=0x[0-9A-F]{8}, line-after-eoi=group0/yes/(yes|no)/no, active-cleared=yes, controller-advanced=yes, retired=yes")) {
+    $missing += "ARMv7-A FIQ complete, intid=1, source=self-sgi"
+}
+if (($log -notmatch "ARMv7-A FIQ lifecycle, intid=1, source=self-sgi, entry-match=yes, retired=yes, restored=yes, closed=yes")) {
+    $missing += "ARMv7-A FIQ lifecycle, intid=1, source=self-sgi"
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=fiq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=fiq..."

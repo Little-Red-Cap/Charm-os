@@ -179,12 +179,12 @@ namespace player::app_test_hqzy::app_system {
         while (true) {
             (void)host.run_once();
             player::app_test_hqzy::usb_glue::poll_msc(sys.usb);
-            if (sys.usb.msc_bot && charm::system::time::bound()) {
+            if (sys.usb.msc.bot && charm::system::time::bound()) {
                 static util::u64 last_trace_ms = 0;
                 const auto now = charm::system::time::now_ms();
                 if ((now - last_trace_ms) >= 1000u) {
                     last_trace_ms = now;
-                    const auto& bot = *sys.usb.msc_bot;
+                    const auto& bot = *sys.usb.msc.bot;
                     boot_log::printf(
                         "msc: phase=%u scsi=0x%02X st=%u sense=%u/%u/%u csw=%u resid=%lu in=%u wait=%u clr=%lu clr_in=%u rearm=%u\n",
                         static_cast<unsigned>(bot.phase_code()),

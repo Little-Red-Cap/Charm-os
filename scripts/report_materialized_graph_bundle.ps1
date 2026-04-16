@@ -153,11 +153,15 @@ function New-ReportManifest {
             index = [string]$DiffData.left.index
             bundle_root = [string]$DiffData.left.bundle_root
             input_manifest = if ($null -ne $DiffData.left.PSObject.Properties['input_manifest']) { $DiffData.left.input_manifest } else { $null }
+            declared_facts_defaults = if ($null -ne $DiffData.left.PSObject.Properties['declared_facts_defaults'] -and $null -ne $DiffData.left.declared_facts_defaults) { ,@($DiffData.left.declared_facts_defaults) } else { $null }
+            declared_contracts_defaults = if ($null -ne $DiffData.left.PSObject.Properties['declared_contracts_defaults'] -and $null -ne $DiffData.left.declared_contracts_defaults) { ,@($DiffData.left.declared_contracts_defaults) } else { $null }
         }
         right = [ordered]@{
             index = [string]$DiffData.right.index
             bundle_root = [string]$DiffData.right.bundle_root
             input_manifest = if ($null -ne $DiffData.right.PSObject.Properties['input_manifest']) { $DiffData.right.input_manifest } else { $null }
+            declared_facts_defaults = if ($null -ne $DiffData.right.PSObject.Properties['declared_facts_defaults'] -and $null -ne $DiffData.right.declared_facts_defaults) { ,@($DiffData.right.declared_facts_defaults) } else { $null }
+            declared_contracts_defaults = if ($null -ne $DiffData.right.PSObject.Properties['declared_contracts_defaults'] -and $null -ne $DiffData.right.declared_contracts_defaults) { ,@($DiffData.right.declared_contracts_defaults) } else { $null }
         }
         diff = [ordered]@{
             schema = if ($null -ne $DiffData.PSObject.Properties['schema']) { [string]$DiffData.schema } else { $null }
@@ -179,6 +183,7 @@ function New-ReportManifest {
                 name = [string]$_.name
                 status = [string]$_.status
                 summary_changes = @($_.summary_changes)
+                metadata_changes = if ($null -ne $_.PSObject.Properties['metadata_changes']) { ,@($_.metadata_changes) } else { @() }
             }
         })
     }
@@ -216,6 +221,112 @@ function Join-Strings {
     )
 
     return (@($Items) -join $Separator)
+}
+
+function Format-DeclaredContracts {
+    param(
+        $Contracts
+    )
+
+    return @(
+        @($Contracts) |
+            ForEach-Object {
+                $contractName = [string]$_.contract
+                $requires = if ($null -ne $_ -and $null -ne $_.PSObject.Properties['requires']) { @($_.requires) } else { @() }
+                if ([string]::IsNullOrWhiteSpace($contractName)) {
+                    $null
+                } else {
+                    "$contractName requires [$((@($requires) -join ', '))]"
+                }
+            } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+    )
+}
+
+function Get-CaseStringProperty {
+    param(
+        $CaseEntry,
+        [string]$PropertyName
+    )
+
+    if ($null -eq $CaseEntry -or [string]::IsNullOrWhiteSpace($PropertyName)) {
+        return $null
+    }
+
+    $property = $CaseEntry.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    $value = [string]$property.Value
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+
+    return $value
+}
+
+function Get-CaseKind {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry) {
+        return 'absent'
+    }
+
+    $caseKind = Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'case_kind'
+    if (-not [string]::IsNullOrWhiteSpace($caseKind)) {
+        return $caseKind
+    }
+
+    if ($null -ne (Get-CaseGraphSummary -CaseEntry $CaseEntry)) {
+        return 'materialized_graph'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'runtime_observe'))) {
+        return 'runtime_only'
+    }
+
+    return 'materialized_graph'
+}
+
+function Get-CaseGraphSummary {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['graph']) {
+        return $null
+    }
+
+    return $CaseEntry.graph
+}
+
+function Get-CaseNodeCount {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return 0
+    }
+
+    return [int]$graphSummary.node_count
+}
+
+function Get-CaseEdgeCount {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return 0
+    }
+
+    return [int]$graphSummary.edge_count
 }
 
 function Get-ArtifactLinkMarkdown {
@@ -301,19 +412,21 @@ function Get-CaseSummaryRow {
         $CaseDiff
     )
 
-    $leftNodes = if ($null -ne $CaseDiff.left_case) { [int]$CaseDiff.left_case.graph.node_count } else { 0 }
-    $rightNodes = if ($null -ne $CaseDiff.right_case) { [int]$CaseDiff.right_case.graph.node_count } else { 0 }
-    $leftEdges = if ($null -ne $CaseDiff.left_case) { [int]$CaseDiff.left_case.graph.edge_count } else { 0 }
-    $rightEdges = if ($null -ne $CaseDiff.right_case) { [int]$CaseDiff.right_case.graph.edge_count } else { 0 }
+    $leftNodes = Get-CaseNodeCount -CaseEntry $CaseDiff.left_case
+    $rightNodes = Get-CaseNodeCount -CaseEntry $CaseDiff.right_case
+    $leftEdges = Get-CaseEdgeCount -CaseEntry $CaseDiff.left_case
+    $rightEdges = Get-CaseEdgeCount -CaseEntry $CaseDiff.right_case
 
     return @(
         [string]$CaseDiff.name,
         [string]$CaseDiff.status,
+        "$(Get-CaseKind -CaseEntry $CaseDiff.left_case)->$(Get-CaseKind -CaseEntry $CaseDiff.right_case)",
         "$leftNodes->$rightNodes",
         "$leftEdges->$rightEdges",
         "+$(@($CaseDiff.node_changes.added).Count) -$(@($CaseDiff.node_changes.removed).Count) ~$(@($CaseDiff.node_changes.changed).Count)",
         "+$(@($CaseDiff.edge_changes.added).Count) -$(@($CaseDiff.edge_changes.removed).Count)",
-        (Join-Strings -Items @($CaseDiff.summary_changes) -Separator '; ')
+        (Join-Strings -Items @($CaseDiff.summary_changes) -Separator '; '),
+        (Join-Strings -Items @($CaseDiff.metadata_changes) -Separator '; ')
     )
 }
 
@@ -484,9 +597,21 @@ function Build-MarkdownReport {
     if ($null -ne $DiffData.left.PSObject.Properties['input_manifest'] -and $null -ne $DiffData.left.input_manifest -and -not [string]::IsNullOrWhiteSpace([string]$DiffData.left.input_manifest.path)) {
         [void]$builder.AppendLine('- Left input manifest: `' + (Escape-MarkdownCell ([string]$DiffData.left.input_manifest.path)) + '`')
     }
+    if ($null -ne $DiffData.left.PSObject.Properties['declared_facts_defaults'] -and $null -ne $DiffData.left.declared_facts_defaults -and @($DiffData.left.declared_facts_defaults).Count -gt 0) {
+        [void]$builder.AppendLine('- Left declared facts defaults: `' + (Escape-MarkdownCell ((@($DiffData.left.declared_facts_defaults) -join ', '))) + '`')
+    }
+    if ($null -ne $DiffData.left.PSObject.Properties['declared_contracts_defaults'] -and $null -ne $DiffData.left.declared_contracts_defaults -and @($DiffData.left.declared_contracts_defaults).Count -gt 0) {
+        [void]$builder.AppendLine('- Left declared contracts defaults: `' + (Escape-MarkdownCell ((@(Format-DeclaredContracts -Contracts $DiffData.left.declared_contracts_defaults) -join '; '))) + '`')
+    }
     [void]$builder.AppendLine('- Right bundle: `' + (Escape-MarkdownCell ([string]$DiffData.right.index)) + '`')
     if ($null -ne $DiffData.right.PSObject.Properties['input_manifest'] -and $null -ne $DiffData.right.input_manifest -and -not [string]::IsNullOrWhiteSpace([string]$DiffData.right.input_manifest.path)) {
         [void]$builder.AppendLine('- Right input manifest: `' + (Escape-MarkdownCell ([string]$DiffData.right.input_manifest.path)) + '`')
+    }
+    if ($null -ne $DiffData.right.PSObject.Properties['declared_facts_defaults'] -and $null -ne $DiffData.right.declared_facts_defaults -and @($DiffData.right.declared_facts_defaults).Count -gt 0) {
+        [void]$builder.AppendLine('- Right declared facts defaults: `' + (Escape-MarkdownCell ((@($DiffData.right.declared_facts_defaults) -join ', '))) + '`')
+    }
+    if ($null -ne $DiffData.right.PSObject.Properties['declared_contracts_defaults'] -and $null -ne $DiffData.right.declared_contracts_defaults -and @($DiffData.right.declared_contracts_defaults).Count -gt 0) {
+        [void]$builder.AppendLine('- Right declared contracts defaults: `' + (Escape-MarkdownCell ((@(Format-DeclaredContracts -Contracts $DiffData.right.declared_contracts_defaults) -join '; '))) + '`')
     }
     [void]$builder.AppendLine('- Cases in report: `' + [string]$DiffData.case_count + '`')
     [void]$builder.AppendLine('- Changed: `' + (Get-CaseStatusCount -Cases $cases -Status 'changed') + '`, Added: `' + (Get-CaseStatusCount -Cases $cases -Status 'added') + '`, Removed: `' + (Get-CaseStatusCount -Cases $cases -Status 'removed') + '`, Unchanged: `' + (Get-CaseStatusCount -Cases $cases -Status 'unchanged') + '`')
@@ -499,35 +624,61 @@ function Build-MarkdownReport {
         $summaryRows += ,(Get-CaseSummaryRow -CaseDiff $caseDiff)
     }
     if ($summaryRows.Count -gt 0) {
-        Add-MarkdownTable -Builder $builder -Headers @('Case', 'Status', 'Nodes', 'Edges', 'Node Delta', 'Edge Delta', 'Summary') -Rows $summaryRows
+        Add-MarkdownTable -Builder $builder -Headers @('Case', 'Status', 'Kind', 'Nodes', 'Edges', 'Node Delta', 'Edge Delta', 'Summary', 'Metadata') -Rows $summaryRows
     } else {
         [void]$builder.AppendLine('No visible differences.')
         [void]$builder.AppendLine('')
     }
 
     foreach ($caseDiff in $cases) {
+        $leftKind = Get-CaseKind -CaseEntry $caseDiff.left_case
+        $rightKind = Get-CaseKind -CaseEntry $caseDiff.right_case
         [void]$builder.AppendLine('## Case: ' + [string]$caseDiff.name)
         [void]$builder.AppendLine('')
         [void]$builder.AppendLine('- Status: `' + [string]$caseDiff.status + '`')
+        [void]$builder.AppendLine('- Kind: `' + (Escape-MarkdownCell ($leftKind + ' -> ' + $rightKind)) + '`')
         if (@($caseDiff.summary_changes).Count -gt 0) {
             [void]$builder.AppendLine('- Summary changes: `' + (Escape-MarkdownCell (Join-Strings -Items @($caseDiff.summary_changes) -Separator '; ')) + '`')
+        }
+        if (@($caseDiff.metadata_changes).Count -gt 0) {
+            [void]$builder.AppendLine('- Metadata changes: `' + (Escape-MarkdownCell (Join-Strings -Items @($caseDiff.metadata_changes) -Separator '; ')) + '`')
+        }
+        if ($null -ne $caseDiff.left_case -and @($caseDiff.left_case.declared_facts).Count -gt 0) {
+            [void]$builder.AppendLine('- Left declared facts: `' + (Escape-MarkdownCell ((@($caseDiff.left_case.declared_facts) -join ', '))) + '`')
+        }
+        if ($null -ne $caseDiff.right_case -and @($caseDiff.right_case.declared_facts).Count -gt 0) {
+            [void]$builder.AppendLine('- Right declared facts: `' + (Escape-MarkdownCell ((@($caseDiff.right_case.declared_facts) -join ', '))) + '`')
+        }
+        if ($null -ne $caseDiff.left_case -and @($caseDiff.left_case.declared_contracts).Count -gt 0) {
+            [void]$builder.AppendLine('- Left declared contracts: `' + (Escape-MarkdownCell ((@(Format-DeclaredContracts -Contracts $caseDiff.left_case.declared_contracts) -join '; '))) + '`')
+        }
+        if ($null -ne $caseDiff.right_case -and @($caseDiff.right_case.declared_contracts).Count -gt 0) {
+            [void]$builder.AppendLine('- Right declared contracts: `' + (Escape-MarkdownCell ((@(Format-DeclaredContracts -Contracts $caseDiff.right_case.declared_contracts) -join '; '))) + '`')
         }
 
         $leftLinks = @()
         $rightLinks = @()
         $leftDotLink = Get-ArtifactLinkMarkdown -ReportPath $ReportPath -CaseEntry $caseDiff.left_case -FieldName 'dot' -Label 'dot'
         $leftJsonLink = Get-ArtifactLinkMarkdown -ReportPath $ReportPath -CaseEntry $caseDiff.left_case -FieldName 'json' -Label 'json'
+        $leftRuntimeObserveLink = Get-ArtifactLinkMarkdown -ReportPath $ReportPath -CaseEntry $caseDiff.left_case -FieldName 'runtime_observe' -Label 'runtime_observe'
         $rightDotLink = Get-ArtifactLinkMarkdown -ReportPath $ReportPath -CaseEntry $caseDiff.right_case -FieldName 'dot' -Label 'dot'
         $rightJsonLink = Get-ArtifactLinkMarkdown -ReportPath $ReportPath -CaseEntry $caseDiff.right_case -FieldName 'json' -Label 'json'
+        $rightRuntimeObserveLink = Get-ArtifactLinkMarkdown -ReportPath $ReportPath -CaseEntry $caseDiff.right_case -FieldName 'runtime_observe' -Label 'runtime_observe'
         if (-not [string]::IsNullOrWhiteSpace($leftDotLink)) { $leftLinks += $leftDotLink }
         if (-not [string]::IsNullOrWhiteSpace($leftJsonLink)) { $leftLinks += $leftJsonLink }
+        if (-not [string]::IsNullOrWhiteSpace($leftRuntimeObserveLink)) { $leftLinks += $leftRuntimeObserveLink }
         if (-not [string]::IsNullOrWhiteSpace($rightDotLink)) { $rightLinks += $rightDotLink }
         if (-not [string]::IsNullOrWhiteSpace($rightJsonLink)) { $rightLinks += $rightJsonLink }
+        if (-not [string]::IsNullOrWhiteSpace($rightRuntimeObserveLink)) { $rightLinks += $rightRuntimeObserveLink }
         if ($leftLinks.Count -gt 0) {
             [void]$builder.AppendLine("- Left artifacts: $(Join-Strings -Items $leftLinks)")
+        } elseif ($leftKind -ne 'absent' -and $null -eq (Get-CaseGraphSummary -CaseEntry $caseDiff.left_case)) {
+            [void]$builder.AppendLine('- Left artifacts: no static graph')
         }
         if ($rightLinks.Count -gt 0) {
             [void]$builder.AppendLine("- Right artifacts: $(Join-Strings -Items $rightLinks)")
+        } elseif ($rightKind -ne 'absent' -and $null -eq (Get-CaseGraphSummary -CaseEntry $caseDiff.right_case)) {
+            [void]$builder.AppendLine('- Right artifacts: no static graph')
         }
         [void]$builder.AppendLine('')
 
@@ -537,7 +688,7 @@ function Build-MarkdownReport {
         Add-MarkdownEdgeTable -Builder $builder -TitleText 'Edges Added' -Edges $caseDiff.edge_changes.added
         Add-MarkdownEdgeTable -Builder $builder -TitleText 'Edges Removed' -Edges $caseDiff.edge_changes.removed
 
-        if (@($caseDiff.node_changes.added).Count -eq 0 -and @($caseDiff.node_changes.removed).Count -eq 0 -and @($caseDiff.node_changes.changed).Count -eq 0 -and @($caseDiff.edge_changes.added).Count -eq 0 -and @($caseDiff.edge_changes.removed).Count -eq 0) {
+        if (@($caseDiff.node_changes.added).Count -eq 0 -and @($caseDiff.node_changes.removed).Count -eq 0 -and @($caseDiff.node_changes.changed).Count -eq 0 -and @($caseDiff.edge_changes.added).Count -eq 0 -and @($caseDiff.edge_changes.removed).Count -eq 0 -and @($caseDiff.metadata_changes).Count -eq 0) {
             [void]$builder.AppendLine('No detailed differences.')
             [void]$builder.AppendLine('')
         }
@@ -570,9 +721,21 @@ function Build-HtmlReport {
     if ($null -ne $DiffData.left.PSObject.Properties['input_manifest'] -and $null -ne $DiffData.left.input_manifest -and -not [string]::IsNullOrWhiteSpace([string]$DiffData.left.input_manifest.path)) {
         [void]$builder.AppendLine("<li>Left input manifest: <code>$(Escape-HtmlText ([string]$DiffData.left.input_manifest.path))</code></li>")
     }
+    if ($null -ne $DiffData.left.PSObject.Properties['declared_facts_defaults'] -and $null -ne $DiffData.left.declared_facts_defaults -and @($DiffData.left.declared_facts_defaults).Count -gt 0) {
+        [void]$builder.AppendLine("<li>Left declared facts defaults: <code>$(Escape-HtmlText ((@($DiffData.left.declared_facts_defaults) -join ', ')))</code></li>")
+    }
+    if ($null -ne $DiffData.left.PSObject.Properties['declared_contracts_defaults'] -and $null -ne $DiffData.left.declared_contracts_defaults -and @($DiffData.left.declared_contracts_defaults).Count -gt 0) {
+        [void]$builder.AppendLine("<li>Left declared contracts defaults: <code>$(Escape-HtmlText ((@(Format-DeclaredContracts -Contracts $DiffData.left.declared_contracts_defaults) -join '; ')))</code></li>")
+    }
     [void]$builder.AppendLine("<li>Right bundle: <code>$(Escape-HtmlText ([string]$DiffData.right.index))</code></li>")
     if ($null -ne $DiffData.right.PSObject.Properties['input_manifest'] -and $null -ne $DiffData.right.input_manifest -and -not [string]::IsNullOrWhiteSpace([string]$DiffData.right.input_manifest.path)) {
         [void]$builder.AppendLine("<li>Right input manifest: <code>$(Escape-HtmlText ([string]$DiffData.right.input_manifest.path))</code></li>")
+    }
+    if ($null -ne $DiffData.right.PSObject.Properties['declared_facts_defaults'] -and $null -ne $DiffData.right.declared_facts_defaults -and @($DiffData.right.declared_facts_defaults).Count -gt 0) {
+        [void]$builder.AppendLine("<li>Right declared facts defaults: <code>$(Escape-HtmlText ((@($DiffData.right.declared_facts_defaults) -join ', ')))</code></li>")
+    }
+    if ($null -ne $DiffData.right.PSObject.Properties['declared_contracts_defaults'] -and $null -ne $DiffData.right.declared_contracts_defaults -and @($DiffData.right.declared_contracts_defaults).Count -gt 0) {
+        [void]$builder.AppendLine("<li>Right declared contracts defaults: <code>$(Escape-HtmlText ((@(Format-DeclaredContracts -Contracts $DiffData.right.declared_contracts_defaults) -join '; ')))</code></li>")
     }
     [void]$builder.AppendLine("<li>Cases in report: <code>$($DiffData.case_count)</code></li>")
     [void]$builder.AppendLine("<li>Changed: <code>$(Get-CaseStatusCount -Cases $cases -Status 'changed')</code>, Added: <code>$(Get-CaseStatusCount -Cases $cases -Status 'added')</code>, Removed: <code>$(Get-CaseStatusCount -Cases $cases -Status 'removed')</code>, Unchanged: <code>$(Get-CaseStatusCount -Cases $cases -Status 'unchanged')</code></li>")
@@ -584,35 +747,61 @@ function Build-HtmlReport {
         $summaryRows += ,(Get-CaseSummaryRow -CaseDiff $caseDiff)
     }
     if ($summaryRows.Count -gt 0) {
-        Add-HtmlTable -Builder $builder -Headers @('Case', 'Status', 'Nodes', 'Edges', 'Node Delta', 'Edge Delta', 'Summary') -Rows $summaryRows
+        Add-HtmlTable -Builder $builder -Headers @('Case', 'Status', 'Kind', 'Nodes', 'Edges', 'Node Delta', 'Edge Delta', 'Summary', 'Metadata') -Rows $summaryRows
     } else {
         [void]$builder.AppendLine('<p>No visible differences.</p>')
     }
 
     foreach ($caseDiff in $cases) {
+        $leftKind = Get-CaseKind -CaseEntry $caseDiff.left_case
+        $rightKind = Get-CaseKind -CaseEntry $caseDiff.right_case
         $statusClass = 'status-' + [string]$caseDiff.status
         [void]$builder.AppendLine('<details open>')
         [void]$builder.AppendLine('<summary><span class=' + (Escape-HtmlText $statusClass) + '>' + (Escape-HtmlText ([string]$caseDiff.name)) + '</span> &mdash; ' + (Escape-HtmlText ([string]$caseDiff.status)) + '</summary>')
         [void]$builder.AppendLine('<div>')
+        [void]$builder.AppendLine("<p><strong>Kind:</strong> <code>$(Escape-HtmlText ($leftKind + ' -> ' + $rightKind))</code></p>")
         if (@($caseDiff.summary_changes).Count -gt 0) {
             [void]$builder.AppendLine("<p><strong>Summary changes:</strong> $(Escape-HtmlText (Join-Strings -Items @($caseDiff.summary_changes) -Separator '; '))</p>")
+        }
+        if (@($caseDiff.metadata_changes).Count -gt 0) {
+            [void]$builder.AppendLine("<p><strong>Metadata changes:</strong> $(Escape-HtmlText (Join-Strings -Items @($caseDiff.metadata_changes) -Separator '; '))</p>")
+        }
+        if ($null -ne $caseDiff.left_case -and @($caseDiff.left_case.declared_facts).Count -gt 0) {
+            [void]$builder.AppendLine("<p><strong>Left declared facts:</strong> <code>$(Escape-HtmlText ((@($caseDiff.left_case.declared_facts) -join ', ')))</code></p>")
+        }
+        if ($null -ne $caseDiff.right_case -and @($caseDiff.right_case.declared_facts).Count -gt 0) {
+            [void]$builder.AppendLine("<p><strong>Right declared facts:</strong> <code>$(Escape-HtmlText ((@($caseDiff.right_case.declared_facts) -join ', ')))</code></p>")
+        }
+        if ($null -ne $caseDiff.left_case -and @($caseDiff.left_case.declared_contracts).Count -gt 0) {
+            [void]$builder.AppendLine("<p><strong>Left declared contracts:</strong> <code>$(Escape-HtmlText ((@(Format-DeclaredContracts -Contracts $caseDiff.left_case.declared_contracts) -join '; ')))</code></p>")
+        }
+        if ($null -ne $caseDiff.right_case -and @($caseDiff.right_case.declared_contracts).Count -gt 0) {
+            [void]$builder.AppendLine("<p><strong>Right declared contracts:</strong> <code>$(Escape-HtmlText ((@(Format-DeclaredContracts -Contracts $caseDiff.right_case.declared_contracts) -join '; ')))</code></p>")
         }
 
         $leftLinks = @()
         $rightLinks = @()
         $leftDotLink = Get-ArtifactLinkHtml -ReportPath $ReportPath -CaseEntry $caseDiff.left_case -FieldName 'dot' -Label 'dot'
         $leftJsonLink = Get-ArtifactLinkHtml -ReportPath $ReportPath -CaseEntry $caseDiff.left_case -FieldName 'json' -Label 'json'
+        $leftRuntimeObserveLink = Get-ArtifactLinkHtml -ReportPath $ReportPath -CaseEntry $caseDiff.left_case -FieldName 'runtime_observe' -Label 'runtime_observe'
         $rightDotLink = Get-ArtifactLinkHtml -ReportPath $ReportPath -CaseEntry $caseDiff.right_case -FieldName 'dot' -Label 'dot'
         $rightJsonLink = Get-ArtifactLinkHtml -ReportPath $ReportPath -CaseEntry $caseDiff.right_case -FieldName 'json' -Label 'json'
+        $rightRuntimeObserveLink = Get-ArtifactLinkHtml -ReportPath $ReportPath -CaseEntry $caseDiff.right_case -FieldName 'runtime_observe' -Label 'runtime_observe'
         if (-not [string]::IsNullOrWhiteSpace($leftDotLink)) { $leftLinks += $leftDotLink }
         if (-not [string]::IsNullOrWhiteSpace($leftJsonLink)) { $leftLinks += $leftJsonLink }
+        if (-not [string]::IsNullOrWhiteSpace($leftRuntimeObserveLink)) { $leftLinks += $leftRuntimeObserveLink }
         if (-not [string]::IsNullOrWhiteSpace($rightDotLink)) { $rightLinks += $rightDotLink }
         if (-not [string]::IsNullOrWhiteSpace($rightJsonLink)) { $rightLinks += $rightJsonLink }
+        if (-not [string]::IsNullOrWhiteSpace($rightRuntimeObserveLink)) { $rightLinks += $rightRuntimeObserveLink }
         if ($leftLinks.Count -gt 0) {
             [void]$builder.AppendLine("<p><strong>Left artifacts:</strong> $(Join-Strings -Items $leftLinks)</p>")
+        } elseif ($leftKind -ne 'absent' -and $null -eq (Get-CaseGraphSummary -CaseEntry $caseDiff.left_case)) {
+            [void]$builder.AppendLine('<p><strong>Left artifacts:</strong> no static graph</p>')
         }
         if ($rightLinks.Count -gt 0) {
             [void]$builder.AppendLine("<p><strong>Right artifacts:</strong> $(Join-Strings -Items $rightLinks)</p>")
+        } elseif ($rightKind -ne 'absent' -and $null -eq (Get-CaseGraphSummary -CaseEntry $caseDiff.right_case)) {
+            [void]$builder.AppendLine('<p><strong>Right artifacts:</strong> no static graph</p>')
         }
 
         Add-HtmlNodeTable -Builder $builder -TitleText 'Nodes Added' -Nodes $caseDiff.node_changes.added
@@ -621,7 +810,7 @@ function Build-HtmlReport {
         Add-HtmlEdgeTable -Builder $builder -TitleText 'Edges Added' -Edges $caseDiff.edge_changes.added
         Add-HtmlEdgeTable -Builder $builder -TitleText 'Edges Removed' -Edges $caseDiff.edge_changes.removed
 
-        if (@($caseDiff.node_changes.added).Count -eq 0 -and @($caseDiff.node_changes.removed).Count -eq 0 -and @($caseDiff.node_changes.changed).Count -eq 0 -and @($caseDiff.edge_changes.added).Count -eq 0 -and @($caseDiff.edge_changes.removed).Count -eq 0) {
+        if (@($caseDiff.node_changes.added).Count -eq 0 -and @($caseDiff.node_changes.removed).Count -eq 0 -and @($caseDiff.node_changes.changed).Count -eq 0 -and @($caseDiff.edge_changes.added).Count -eq 0 -and @($caseDiff.edge_changes.removed).Count -eq 0 -and @($caseDiff.metadata_changes).Count -eq 0) {
             [void]$builder.AppendLine('<p>No detailed differences.</p>')
         }
 

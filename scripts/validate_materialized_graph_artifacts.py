@@ -12,6 +12,7 @@ SCHEMA_FILES = {
     "materialized_graph.ci_summary/v1": "schemas/materialized_graph.ci_summary.v1.schema.json",
     "materialized_graph.report_manifest/v1": "schemas/materialized_graph.report_manifest.v1.schema.json",
     "system_compiler.artifact_report/v0": "schemas/system_compiler.artifact_report.v0.schema.json",
+    "system_compiler.runtime_observe_snapshot/v0": "schemas/system_compiler.runtime_observe_snapshot.v0.schema.json",
 }
 
 
@@ -51,8 +52,22 @@ def validate_bundle_root(bundle_root: Path, repo_root: Path, visited: set[Path])
     index_path = (bundle_root / "index.json").resolve()
     index_data = validate_once(index_path, repo_root, visited)
     for case_entry in index_data.get("cases", []):
-        json_path = resolve_path(bundle_root.resolve(), case_entry["json"])
-        validate_once(json_path, repo_root, visited)
+        case_kind = case_entry.get("case_kind", "materialized_graph")
+        json_value = case_entry.get("json")
+        runtime_observe_value = case_entry.get("runtime_observe")
+
+        if isinstance(json_value, str) and json_value:
+            json_path = resolve_path(bundle_root.resolve(), json_value)
+            validate_once(json_path, repo_root, visited)
+        elif case_kind != "runtime_only":
+            raise RuntimeError(
+                f"bundle case '{case_entry.get('name', '<unknown>')}' is missing json for case_kind={case_kind}"
+            )
+
+        if case_kind == "runtime_only" and not (isinstance(runtime_observe_value, str) and runtime_observe_value):
+            raise RuntimeError(
+                f"runtime_only bundle case '{case_entry.get('name', '<unknown>')}' is missing runtime_observe"
+            )
 
 
 def validate_ci_output_root(ci_root: Path, repo_root: Path, visited: set[Path]):
@@ -93,6 +108,22 @@ def validate_once(path: Path, repo_root: Path, visited: set[Path]):
         return load_json(resolved)
     data = validate_file(resolved, repo_root)
     visited.add(resolved)
+    schema_name = data.get("schema")
+
+    if schema_name == "materialized_graph.export_bundle/v1":
+        bundle_root = resolved.parent
+        for case_entry in data.get("cases", []):
+            path_value = case_entry.get("runtime_observe")
+            if isinstance(path_value, str) and path_value:
+                validate_once(resolve_path(bundle_root, path_value), repo_root, visited)
+
+    if schema_name == "system_compiler.artifact_report/v0":
+        artifacts = data.get("artifacts")
+        if isinstance(artifacts, dict):
+            path_value = artifacts.get("runtime_observe")
+            if isinstance(path_value, str) and path_value:
+                validate_once(resolve_path(resolved.parent, path_value), repo_root, visited)
+
     return data
 
 

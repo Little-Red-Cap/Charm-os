@@ -68,6 +68,29 @@
               "$ref": "#/$defs/inputManifest"
             }
           ]
+        },
+        "declared_facts_defaults": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/capabilityNameArray"
+            }
+          ]
+        },
+        "declared_contracts_defaults": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/resourceContractClause"
+              }
+            }
+          ]
         }
       }
     },
@@ -189,6 +212,29 @@
         }
       }
     },
+    "resourceContractClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "requires": {
+          "$ref": "#/$defs/capabilityNameArray"
+        }
+      }
+    },
     "caseEntry": {
       "type": [
         "object",
@@ -200,9 +246,11 @@
         "source",
         "build_dir",
         "build_target",
+        "case_kind",
         "export_target",
         "dot",
         "json",
+        "runtime_observe",
         "graph"
       ],
       "properties": {
@@ -218,20 +266,58 @@
         "build_target": {
           "type": "string"
         },
+        "case_kind": {
+          "type": "string",
+          "enum": [
+            "materialized_graph",
+            "runtime_only"
+          ]
+        },
         "export_target": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "dot": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "json": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime_observe": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "declared_facts": {
+          "$ref": "#/$defs/capabilityNameArray"
+        },
+        "declared_contracts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractClause"
+          }
         },
         "subject": {
           "$ref": "#/$defs/subjectSummary"
         },
         "graph": {
-          "$ref": "#/$defs/graphSummary"
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/graphSummary"
+            }
+          ]
         }
       }
     },
@@ -395,6 +481,7 @@
         "left_case",
         "right_case",
         "summary_changes",
+        "metadata_changes",
         "node_changes",
         "edge_changes"
       ],
@@ -418,6 +505,9 @@
           "$ref": "#/$defs/caseEntry"
         },
         "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "metadata_changes": {
           "$ref": "#/$defs/stringArray"
         },
         "node_changes": {

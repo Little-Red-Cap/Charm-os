@@ -26,6 +26,12 @@ set(USB_MSC_BLOCK_EXPORT_DOT_PATH
 set(USB_MSC_BLOCK_EXPORT_JSON_PATH
     "${CMAKE_CURRENT_BINARY_DIR}/usb_msc_block_materialized_graph.sample.json"
     CACHE FILEPATH "JSON export path for usb_msc_block_demo")
+set(USB_MSC_BLOCK_RUNTIME_OBSERVE_PATH
+    "${CMAKE_CURRENT_BINARY_DIR}/usb_msc_block.runtime_observe.json"
+    CACHE FILEPATH "Runtime observe snapshot path for usb_msc_block_demo")
+set(USB_MSC_BLOCK_RUNTIME_IMAGE_PATH
+    "${CMAKE_CURRENT_BINARY_DIR}/observe-usb-block.runtime.img"
+    CACHE FILEPATH "Block image path used by usb_msc_block_demo runtime observe export")
 
 add_custom_target(export_usb_msc_block_materialized_graph
     COMMAND $<TARGET_FILE:${target_name}>
@@ -33,6 +39,14 @@ add_custom_target(export_usb_msc_block_materialized_graph
         --dot "${USB_MSC_BLOCK_EXPORT_DOT_PATH}"
         --json "${USB_MSC_BLOCK_EXPORT_JSON_PATH}"
         --image "${USB_MSC_BLOCK_EXPORT_IMAGE_PATH}"
+    DEPENDS ${target_name}
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    VERBATIM)
+
+add_custom_target(export_usb_msc_block_runtime_observe
+    COMMAND $<TARGET_FILE:${target_name}>
+        --runtime-observe "${USB_MSC_BLOCK_RUNTIME_OBSERVE_PATH}"
+        --image "${USB_MSC_BLOCK_RUNTIME_IMAGE_PATH}"
     DEPENDS ${target_name}
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     VERBATIM)

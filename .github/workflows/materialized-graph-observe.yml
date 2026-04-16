@@ -12,6 +12,7 @@ on:
       - 'Modules/io/**'
       - 'Modules/usb/**'
       - 'Examples/init/**'
+      - 'Examples/usb/usb_host_runtime_multi_smoke/**'
       - 'Examples/usb/usb_msc_block_demo/**'
       - 'scripts/*materialized_graph*.ps1'
       - 'scripts/*artifact_report*.ps1'
@@ -90,13 +91,23 @@ jobs:
             -AllCases `
             -OutputRoot ../out/materialized-graph-ci
 
+      - name: Run runtime plane smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_runtime_plane_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-runtime-plane-smoke
+
       - name: Validate materialized graph artifacts
         shell: pwsh
         working-directory: candidate
         run: |
           python ./scripts/validate_materialized_graph_artifacts.py `
             --bundle-root ../out/materialized-graph-baseline `
-            --ci-output-root ../out/materialized-graph-ci
+            --ci-output-root ../out/materialized-graph-ci `
+            ../out/materialized-graph-runtime-plane-smoke/runtime_plane_diff.json `
+            ../out/materialized-graph-runtime-plane-smoke/report/materialized_graph_bundle_diff_report.manifest.json
 
       - name: Publish workflow summary
         shell: pwsh
@@ -104,6 +115,7 @@ jobs:
         run: |
           $summary = Get-Content -LiteralPath ../out/materialized-graph-ci/summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $diff = $summary.diff
+          $runtimePlane = Get-Content -LiteralPath ../out/materialized-graph-runtime-plane-smoke/runtime_plane_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           @(
             '## Materialized Graph Observe'
             ''
@@ -121,6 +133,10 @@ jobs:
             "- HTML report: `$($summary.report.html)`"
             "- Artifact report root: `$($summary.artifact_report.output_root)`"
             "- Artifact report count: `$($summary.artifact_report.count)`"
+            "- Runtime plane smoke case: `$($runtimePlane.runtime_case)`"
+            "- Runtime plane smoke donor: `$($runtimePlane.graph_donor_case)`"
+            "- Runtime plane smoke summary: `../out/materialized-graph-runtime-plane-smoke/runtime_plane_smoke.summary.json`"
+            "- Runtime plane smoke diff: `$($runtimePlane.diff_json)`"
           ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Upload materialized graph artifacts
@@ -132,3 +148,4 @@ jobs:
           path: |
             out/materialized-graph-baseline
             out/materialized-graph-ci
+            out/materialized-graph-runtime-plane-smoke

@@ -171,6 +171,83 @@ function Get-CaseSubjectInfo {
     }
 }
 
+function Get-CaseDeclaredFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['declared_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.declared_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Get-CaseDeclaredContracts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['declared_contracts']) {
+        return @()
+    }
+
+    $contracts = @()
+    foreach ($entry in @($CaseEntry.declared_contracts)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $contractName = [string]$entry.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $requires = @()
+        if ($null -ne $entry.PSObject.Properties['requires']) {
+            $requires = @(
+                @($entry.requires) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ } |
+                    Sort-Object -Unique
+            )
+        }
+
+        $contracts += [ordered]@{
+            contract = $contractName
+            requires = @($requires)
+        }
+    }
+
+    return @($contracts)
+}
+
+function Get-DeclaredContractTexts {
+    param(
+        $CaseEntry
+    )
+
+    return @(
+        @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) |
+            ForEach-Object {
+                $contractName = [string]$_.contract
+                $requires = if ($null -ne $_ -and $null -ne $_.PSObject.Properties['requires']) { @($_.requires) } else { @() }
+                if ([string]::IsNullOrWhiteSpace($contractName)) {
+                    $null
+                } else {
+                    "$contractName requires [$((@($requires) -join ', '))]"
+                }
+            } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+}
+
 function Get-DerivedSubjectDefaults {
     param(
         [object[]]$CaseEntries
@@ -215,6 +292,47 @@ function Get-DerivedSubjectDefaults {
         board = $first.board
         active_facets = @($first.active_facets)
     }
+}
+
+function Get-DerivedDeclaredFactsDefaults {
+    param(
+        [object[]]$CaseEntries
+    )
+
+    if (@($CaseEntries).Count -eq 0) {
+        return $null
+    }
+
+    $firstFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntries[0])
+    foreach ($caseEntry in @($CaseEntries | Select-Object -Skip 1)) {
+        $nextFacts = @(Get-CaseDeclaredFacts -CaseEntry $caseEntry)
+        if (-not (Compare-StringArrays -Left $firstFacts -Right $nextFacts)) {
+            return $null
+        }
+    }
+
+    return ,@($firstFacts)
+}
+
+function Get-DerivedDeclaredContractsDefaults {
+    param(
+        [object[]]$CaseEntries
+    )
+
+    if (@($CaseEntries).Count -eq 0) {
+        return $null
+    }
+
+    $firstContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntries[0])
+    $firstTexts = @(Get-DeclaredContractTexts -CaseEntry $CaseEntries[0])
+    foreach ($caseEntry in @($CaseEntries | Select-Object -Skip 1)) {
+        $nextTexts = @(Get-DeclaredContractTexts -CaseEntry $caseEntry)
+        if (-not (Compare-StringArrays -Left $firstTexts -Right $nextTexts)) {
+            return $null
+        }
+    }
+
+    return ,@($firstContracts)
 }
 
 function Get-BundleInputManifestInfo {
@@ -331,6 +449,8 @@ $summary = [ordered]@{
         bundle_root = $resolvedCandidateBundleRoot
         index = $candidateIndexPath
         input_manifest = $null
+        declared_facts_defaults = $null
+        declared_contracts_defaults = $null
     }
     baseline = $null
     diff = $null
@@ -341,6 +461,10 @@ $summary = [ordered]@{
 $candidateIndex = Get-Content -LiteralPath $candidateIndexPath -Raw -Encoding utf8 | ConvertFrom-Json
 $selectedCaseNames = @($candidateIndex.cases | ForEach-Object { [string]$_.name })
 $summary.candidate.input_manifest = Get-BundleInputManifestInfo -IndexData $candidateIndex
+$candidateDeclaredFactsDefaults = Get-DerivedDeclaredFactsDefaults -CaseEntries @($candidateIndex.cases)
+$summary.candidate.declared_facts_defaults = if ($null -eq $candidateDeclaredFactsDefaults) { $null } else { ,@($candidateDeclaredFactsDefaults) }
+$candidateDeclaredContractsDefaults = Get-DerivedDeclaredContractsDefaults -CaseEntries @($candidateIndex.cases)
+$summary.candidate.declared_contracts_defaults = if ($null -eq $candidateDeclaredContractsDefaults) { $null } else { ,@($candidateDeclaredContractsDefaults) }
 $derivedSubjectDefaults = Get-DerivedSubjectDefaults -CaseEntries @($candidateIndex.cases)
 if ([string]::IsNullOrWhiteSpace($Profile)) {
     $summary.subject_defaults.profile = $derivedSubjectDefaults.profile
@@ -487,9 +611,15 @@ $summary.baseline = [ordered]@{
     bundle_root = if (-not [string]::IsNullOrWhiteSpace($resolvedBaselineBundleRoot)) { $resolvedBaselineBundleRoot } else { Split-Path -Parent ([string]$diffData.left.index) }
     index = [string]$diffData.left.index
     input_manifest = $null
+    declared_facts_defaults = $null
+    declared_contracts_defaults = $null
 }
 $baselineIndexData = Get-Content -LiteralPath ([string]$diffData.left.index) -Raw -Encoding utf8 | ConvertFrom-Json
 $summary.baseline.input_manifest = Get-BundleInputManifestInfo -IndexData $baselineIndexData
+$baselineDeclaredFactsDefaults = Get-DerivedDeclaredFactsDefaults -CaseEntries @($baselineIndexData.cases)
+$summary.baseline.declared_facts_defaults = if ($null -eq $baselineDeclaredFactsDefaults) { $null } else { ,@($baselineDeclaredFactsDefaults) }
+$baselineDeclaredContractsDefaults = Get-DerivedDeclaredContractsDefaults -CaseEntries @($baselineIndexData.cases)
+$summary.baseline.declared_contracts_defaults = if ($null -eq $baselineDeclaredContractsDefaults) { $null } else { ,@($baselineDeclaredContractsDefaults) }
 $summary.diff = [ordered]@{
     json = $diffJsonPath
     case_count = [int]$diffData.case_count
@@ -504,6 +634,12 @@ $summary.diff = [ordered]@{
     added_cases = $addedCases
     removed_cases = $removedCases
     unchanged_cases = $unchangedCases
+    metadata_changed_cases = @(
+        @($diffData.cases |
+            Where-Object { @($_.metadata_changes).Count -gt 0 } |
+            ForEach-Object { [string]$_.name }) |
+            Sort-Object -Unique
+    )
 }
 $summary.report = [ordered]@{
     output_root = $reportOutputRoot

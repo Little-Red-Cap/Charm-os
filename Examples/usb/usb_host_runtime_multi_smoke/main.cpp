@@ -1,7 +1,11 @@
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
+#include <ctime>
 #include <span>
+#include <string_view>
 
 import block.device;
 import block.device.slot_export;
@@ -14,6 +18,7 @@ import io.registry;
 import usb.host.runtime_block;
 import usb.host.runtime_channel;
 import usb.host.runtime_manager;
+import usb.host.runtime_observe;
 import util.core;
 
 #include "../support/usb_host_runtime_assert_support.hpp"
@@ -30,9 +35,170 @@ namespace {
     using examples::usb::support::MemoryDisk;
     using examples::usb::support::MscRuntimeHarness;
     using examples::usb::support::read_lba0;
+
+    struct Options {
+        const char* runtime_observe_path{nullptr};
+        bool show_help{false};
+    };
+
+    void print_usage(const char* program) noexcept {
+        std::printf("usage: %s [--runtime-observe PATH]\n", program ? program : "usb-host-runtime-multi-smoke");
+    }
+
+    bool parse_options(int argc, char** argv, Options& options) noexcept {
+        for (int i = 1; i < argc; ++i) {
+            const auto* arg = argv[i];
+            if (!arg) {
+                continue;
+            }
+            if (std::strcmp(arg, "--runtime-observe") == 0) {
+                if (i + 1 >= argc || argv[i + 1] == nullptr) {
+                    std::fprintf(stderr, "[ERR] --runtime-observe requires a path\n");
+                    return false;
+                }
+                options.runtime_observe_path = argv[++i];
+                continue;
+            }
+            if (std::strcmp(arg, "--help") == 0 || std::strcmp(arg, "-h") == 0) {
+                options.show_help = true;
+                return true;
+            }
+            std::fprintf(stderr, "[ERR] unknown argument: %s\n", arg);
+            return false;
+        }
+        return true;
+    }
+
+    bool format_utc_timestamp(char* out, std::size_t size) noexcept {
+        if (!out || size == 0) {
+            return false;
+        }
+        const auto now = std::chrono::system_clock::now();
+        const auto now_time = std::chrono::system_clock::to_time_t(now);
+        std::tm utc{};
+#if defined(_WIN32)
+        if (gmtime_s(&utc, &now_time) != 0) {
+            return false;
+        }
+#else
+        if (gmtime_r(&now_time, &utc) == nullptr) {
+            return false;
+        }
+#endif
+        return std::strftime(out, size, "%Y-%m-%dT%H:%M:%SZ", &utc) != 0;
+    }
+
+    template <typename TransitionT, std::size_t MaxEvents>
+    void record_fixed_transition(FixedTransitionLog<TransitionT, MaxEvents>& log,
+                                 const TransitionT& transition) noexcept {
+        if (log.count >= log.events.size()) {
+            return;
+        }
+        log.events[log.count++] = transition;
+    }
+
+    using ObserveCollector = usb::host::RuntimeObserveCollector<8, 16>;
+
+    template <std::size_t MaxEvents>
+    struct BlockObserverMux {
+        FixedTransitionLog<block::ExportTransition, MaxEvents>* log{nullptr};
+        ObserveCollector* collector{nullptr};
+        std::string_view capability{};
+
+        static void on_transition(void* ctx, const block::ExportTransition& transition) noexcept {
+            auto* self = static_cast<BlockObserverMux*>(ctx);
+            if (!self) {
+                return;
+            }
+            if (self->log) {
+                record_fixed_transition(*self->log, transition);
+            }
+            if (self->collector) {
+                self->collector->add_transition(self->capability, transition);
+            }
+        }
+    };
+
+    template <std::size_t MaxEvents>
+    struct ChannelObserverMux {
+        FixedTransitionLog<io::ExportTransition, MaxEvents>* log{nullptr};
+        ObserveCollector* collector{nullptr};
+        std::string_view capability{};
+
+        static void on_transition(void* ctx, const io::ExportTransition& transition) noexcept {
+            auto* self = static_cast<ChannelObserverMux*>(ctx);
+            if (!self) {
+                return;
+            }
+            if (self->log) {
+                record_fixed_transition(*self->log, transition);
+            }
+            if (self->collector) {
+                self->collector->add_transition(self->capability, transition);
+            }
+        }
+    };
+
+    bool write_runtime_observe_file(const char* path,
+                                    const ObserveCollector& collector) noexcept {
+        if (!path || path[0] == '\0') {
+            return true;
+        }
+
+        std::array<char, 32> generated_at_utc{};
+        if (!format_utc_timestamp(generated_at_utc.data(), generated_at_utc.size())) {
+            std::fprintf(stderr, "[ERR] failed to format runtime observe timestamp\n");
+            return false;
+        }
+
+        std::array<char, 8192> json{};
+        const auto used = collector.format_json(
+            std::string_view{generated_at_utc.data()},
+            "examples.usb.usb_host_runtime_multi_smoke",
+            json.data(),
+            json.size());
+        if (used == 0) {
+            std::fprintf(stderr, "[ERR] failed to format runtime observe snapshot\n");
+            return false;
+        }
+
+        std::FILE* file = nullptr;
+#if defined(_WIN32)
+        if (fopen_s(&file, path, "wb") != 0 || file == nullptr) {
+            std::fprintf(stderr, "[ERR] failed to open runtime observe output: %s\n", path);
+            return false;
+        }
+#else
+        file = std::fopen(path, "wb");
+        if (!file) {
+            std::fprintf(stderr, "[ERR] failed to open runtime observe output: %s\n", path);
+            return false;
+        }
+#endif
+
+        const auto written = std::fwrite(json.data(), 1, used, file);
+        const auto newline_written = std::fwrite("\n", 1, 1, file);
+        const auto close_rc = std::fclose(file);
+        if (written != used || newline_written != 1 || close_rc != 0) {
+            std::fprintf(stderr, "[ERR] failed to write runtime observe output: %s\n", path);
+            return false;
+        }
+
+        std::printf("[RUNTIME_OBSERVE] %s\n", path);
+        return true;
+    }
 }
 
-int main() {
+int main(int argc, char** argv) {
+    Options options{};
+    if (!parse_options(argc, argv, options)) {
+        return 1;
+    }
+    if (options.show_help) {
+        print_usage(argc > 0 ? argv[0] : nullptr);
+        return 0;
+    }
+
     block::Registry<4> block_registry{};
     io::Registry<4> io_registry{};
     block_registry.init();
@@ -52,10 +218,13 @@ int main() {
         0x1209,
         0x0011
     };
+    ObserveCollector runtime_observe{};
     FixedTransitionLog<block::ExportTransition, 8> msc_transitions{};
     FixedTransitionLog<io::ExportTransition, 8> cdc_transitions{};
-    msc.set_observer(&FixedTransitionLog<block::ExportTransition, 8>::on_event, &msc_transitions);
-    cdc.set_observer(&FixedTransitionLog<io::ExportTransition, 8>::on_event, &cdc_transitions);
+    BlockObserverMux<8> msc_observer{&msc_transitions, &runtime_observe, msc.cap_name};
+    ChannelObserverMux<8> cdc_observer{&cdc_transitions, &runtime_observe, cdc.cap_name};
+    msc.set_observer(&BlockObserverMux<8>::on_transition, &msc_observer);
+    cdc.set_observer(&ChannelObserverMux<8>::on_transition, &cdc_observer);
 
     usb::host::RuntimeManager<8, 8> runtime{"usb.host.multi"};
     if (!expect_ok(msc.add_to(runtime), "failed to add MSC exported binding")) {
@@ -224,6 +393,12 @@ int main() {
                        "forgotten block slot pointer should remain revoked")) return 1;
     if (!expect_error(stable_channel->read(read_buf), io::errc::noent,
                       "forgotten channel slot pointer should remain revoked")) return 1;
+
+    runtime_observe.add_binding_state(msc.cap_name, msc.state_in(runtime));
+    runtime_observe.add_binding_state(cdc.cap_name, cdc.state_in(runtime));
+    if (!write_runtime_observe_file(options.runtime_observe_path, runtime_observe)) {
+        return 1;
+    }
 
     std::puts("[OK] usb-host-runtime-multi-smoke passed");
     return 0;

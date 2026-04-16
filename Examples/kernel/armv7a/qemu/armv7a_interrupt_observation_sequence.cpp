@@ -14,7 +14,7 @@ void armv7a_run_interrupt_observation_sequence()
     const auto svc_observation = armv7a_svc_last_observation();
     if (armv7a_svc_observation_observed(svc_observation)) {
         armv7a_print_return_state_evidence(
-            "svc", svc_observation.origin_spsr, armv7a_read_cpsr());
+            "svc", svc_observation.entry.origin_psr, armv7a_read_cpsr());
     }
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kSvcSmoke);
 

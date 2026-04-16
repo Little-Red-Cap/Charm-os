@@ -6,6 +6,7 @@
 #include "armv7a_psr_contract.hpp"
 #include "armv7a_stack_observation_contract.hpp"
 #include "armv7a_translation_decode_contract.hpp"
+#include "armv7a_vector_entry_contract.hpp"
 
 #include <array>
 #include <cstdio>
@@ -420,18 +421,18 @@ namespace {
             armv7a_make_unobserved_interrupt_observation(1023u);
 
         Armv7aInterruptObservation observation_special{};
-        observation_special.seen = true;
+        observation_special.entry.seen = true;
         observation_special.special = true;
         observation_special.intid = 1023u;
 
         Armv7aInterruptObservation observation_irq{};
-        observation_irq.seen = true;
+        observation_irq.entry.seen = true;
         observation_irq.intid = 1u;
         observation_irq.line.line_group1 = true;
 
         Armv7aInterruptObservation observation_monitor{};
-        observation_monitor.seen = true;
-        observation_monitor.handler_cpsr = 0x16u;
+        observation_monitor.entry.seen = true;
+        observation_monitor.entry.handler_psr = 0x16u;
 
         return !armv7a_timer_pending_observed(timer_idle) &&
                armv7a_timer_pending_observed(timer_pending) &&
@@ -487,10 +488,7 @@ namespace {
 
         Armv7aSvcObservation svc_idle{};
         Armv7aSvcObservation svc_seen{
-            .seen = true,
-            .origin_spsr = 0x1Fu,
-            .handler_cpsr = 0x13u,
-            .return_pc = 0x7004u,
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
         };
 
         return armv7a_exception_kind(undefined_frame) == kArmv7aExceptionUndefined &&
@@ -522,9 +520,30 @@ namespace {
                armv7a_exception_return_pc(svc_frame) == 0x7004u &&
                !armv7a_svc_observation_observed(svc_idle) &&
                armv7a_svc_observation_observed(svc_seen) &&
-               svc_seen.origin_spsr == 0x1Fu &&
-               svc_seen.handler_cpsr == 0x13u &&
-               svc_seen.return_pc == 0x7004u;
+               svc_seen.entry.origin_psr == 0x1Fu &&
+               svc_seen.entry.handler_psr == 0x13u &&
+               svc_seen.entry.return_pc == 0x7004u;
+    }
+
+    bool verify_armv7a_vector_entry_contract() noexcept {
+        constexpr auto entry_idle = armv7a_make_unobserved_vector_entry();
+        constexpr auto entry_svc = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u);
+        constexpr auto entry_monitor_origin =
+            armv7a_make_vector_entry_observation(0x16u, 0x12u, 0x8000u);
+        constexpr auto entry_monitor_handler =
+            armv7a_make_vector_entry_observation(0x1Fu, 0x16u, 0x8004u);
+
+        return !armv7a_vector_entry_observed(entry_idle) &&
+               !armv7a_vector_entry_monitor_mode(entry_idle) &&
+               armv7a_vector_entry_observed(entry_svc) &&
+               !armv7a_vector_entry_monitor_mode(entry_svc) &&
+               entry_svc.origin_psr == 0x1Fu &&
+               entry_svc.handler_psr == 0x13u &&
+               entry_svc.return_pc == 0x7004u &&
+               armv7a_vector_entry_observed(entry_monitor_origin) &&
+               armv7a_vector_entry_monitor_mode(entry_monitor_origin) &&
+               armv7a_vector_entry_observed(entry_monitor_handler) &&
+               armv7a_vector_entry_monitor_mode(entry_monitor_handler);
     }
 
     bool verify_armv7a_abort_decode_contract() noexcept {
@@ -1390,6 +1409,7 @@ int main() {
                      });
     const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
     const bool armv7_exception_contract_ok = verify_armv7a_exception_contract();
+    const bool armv7_vector_entry_contract_ok = verify_armv7a_vector_entry_contract();
     const bool armv7_abort_decode_contract_ok = verify_armv7a_abort_decode_contract();
     const bool armv7_fault_observation_contract_ok =
         verify_armv7a_fault_observation_contract();
@@ -1448,6 +1468,7 @@ int main() {
                     armv7_common_xip_ok &&
                     armv7_interrupt_contract_ok &&
                     armv7_exception_contract_ok &&
+                    armv7_vector_entry_contract_ok &&
                     armv7_abort_decode_contract_ok &&
                     armv7_fault_observation_contract_ok &&
                     armv7_stack_observation_contract_ok;
@@ -1508,6 +1529,8 @@ int main() {
                 armv7_interrupt_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_exception_contract=%d\n",
                 armv7_exception_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_vector_entry_contract=%d\n",
+                armv7_vector_entry_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_abort_decode_contract=%d\n",
                 armv7_abort_decode_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_fault_observation_contract=%d\n",

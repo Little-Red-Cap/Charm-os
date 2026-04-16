@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "armv7a_vector_entry_contract.hpp"
+
 enum Armv7aExceptionKind : std::uint32_t {
     kArmv7aExceptionUndefined = 1,
     kArmv7aExceptionPrefetchAbort = 2,
@@ -27,10 +29,7 @@ static_assert(sizeof(Armv7aExceptionFrame) == 32u,
               "ARMv7-A exception frame size must stay in sync with vectors.S");
 
 struct Armv7aSvcObservation {
-    bool seen = false;
-    std::uint32_t origin_spsr = 0u;
-    std::uint32_t handler_cpsr = 0u;
-    std::uint32_t return_pc = 0u;
+    Armv7aVectorEntryObservation entry{};
 };
 
 constexpr Armv7aExceptionKind armv7a_exception_kind(const Armv7aExceptionFrame& frame) noexcept
@@ -98,5 +97,5 @@ constexpr std::uint32_t armv7a_exception_return_pc(
 
 constexpr bool armv7a_svc_observation_observed(const Armv7aSvcObservation& observation) noexcept
 {
-    return observation.seen;
+    return armv7a_vector_entry_observed(observation.entry);
 }

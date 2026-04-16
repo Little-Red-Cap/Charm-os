@@ -247,11 +247,11 @@ void armv7a_interrupt_print_active(const char* label, const Armv7aInterruptObser
     armv7a_platform_early_console_puts(", line=");
     print_interrupt_line_state(observation.line);
     armv7a_platform_early_console_puts(", origin-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_spsr));
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.entry.origin_psr));
     armv7a_platform_early_console_puts(", handler-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_cpsr));
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.entry.handler_psr));
     armv7a_platform_early_console_puts(", return-pc=0x");
-    armv7a_diag_put_hex(observation.return_pc);
+    armv7a_diag_put_hex(observation.entry.return_pc);
     armv7a_platform_early_console_puts("\r\n");
 }
 
@@ -272,11 +272,11 @@ void armv7a_interrupt_print_special_ack(const char* label,
     armv7a_platform_early_console_puts(", route=");
     armv7a_platform_early_console_puts(armv7a_interrupt_route_name(route));
     armv7a_platform_early_console_puts(", origin-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_spsr));
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.entry.origin_psr));
     armv7a_platform_early_console_puts(", current-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_cpsr));
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.entry.handler_psr));
     armv7a_platform_early_console_puts(", return-pc=0x");
-    armv7a_diag_put_hex(observation.return_pc);
+    armv7a_diag_put_hex(observation.entry.return_pc);
     armv7a_platform_early_console_puts(", synthetic=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(observation.synthetic));
     armv7a_platform_early_console_puts("\r\n");
@@ -296,7 +296,7 @@ void armv7a_interrupt_print_timeout_summary(const char* expected,
     armv7a_platform_early_console_puts(route_mask_name(route, context.current_cpsr));
     armv7a_platform_early_console_puts(", pending-observed=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(context.pending_observed));
-    if (!observation.seen) {
+    if (!armv7a_vector_entry_observed(observation.entry)) {
         armv7a_platform_early_console_puts(", last-observation=not-observed");
         armv7a_platform_early_console_puts("\r\n");
         return;
@@ -344,11 +344,11 @@ void armv7a_interrupt_print_unexpected(const char* label,
     armv7a_platform_early_console_puts(", line=");
     print_interrupt_line_state(observation.line);
     armv7a_platform_early_console_puts(", origin-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_spsr));
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.entry.origin_psr));
     armv7a_platform_early_console_puts(", handler-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_cpsr));
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.entry.handler_psr));
     armv7a_platform_early_console_puts(", return-pc=0x");
-    armv7a_diag_put_hex(observation.return_pc);
+    armv7a_diag_put_hex(observation.entry.return_pc);
     armv7a_platform_early_console_puts(", pc=0x");
     armv7a_diag_put_hex(armv7a_exception_pc(frame));
     armv7a_platform_early_console_puts(", lr=0x");
@@ -476,14 +476,14 @@ void armv7a_interrupt_print_security_side_evidence()
 
     armv7a_platform_early_console_puts(", irq-origin=");
     if (armv7a_interrupt_delivery_observed(irq_observation)) {
-        armv7a_platform_early_console_puts(armv7a_mode_name(irq_observation.handler_spsr));
+        armv7a_platform_early_console_puts(armv7a_mode_name(irq_observation.entry.origin_psr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", irq-handler=");
     if (armv7a_interrupt_delivery_observed(irq_observation)) {
-        armv7a_platform_early_console_puts(armv7a_mode_name(irq_observation.handler_cpsr));
+        armv7a_platform_early_console_puts(armv7a_mode_name(irq_observation.entry.handler_psr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
@@ -497,14 +497,14 @@ void armv7a_interrupt_print_security_side_evidence()
 
     armv7a_platform_early_console_puts(", fiq-origin=");
     if (armv7a_interrupt_delivery_observed(fiq_observation)) {
-        armv7a_platform_early_console_puts(armv7a_mode_name(fiq_observation.handler_spsr));
+        armv7a_platform_early_console_puts(armv7a_mode_name(fiq_observation.entry.origin_psr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", fiq-handler=");
     if (armv7a_interrupt_delivery_observed(fiq_observation)) {
-        armv7a_platform_early_console_puts(armv7a_mode_name(fiq_observation.handler_cpsr));
+        armv7a_platform_early_console_puts(armv7a_mode_name(fiq_observation.entry.handler_psr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }

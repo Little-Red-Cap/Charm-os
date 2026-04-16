@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "armv7a_vector_entry_contract.hpp"
+
 enum class Armv7aPlatformInterruptRoute : std::uint8_t {
     kIrq = 0,
     kFiq = 1,
@@ -66,16 +68,13 @@ struct Armv7aSgiTimeoutSnapshot {
 };
 
 struct Armv7aInterruptObservation {
-    bool seen = false;
     bool special = false;
     bool synthetic = false;
     unsigned int intid = 0u;
     std::uint32_t raw_acknowledge = 0u;
     Armv7aPlatformInterruptControllerState controller{};
     Armv7aPlatformInterruptLineState line{};
-    std::uint32_t handler_cpsr = 0u;
-    std::uint32_t handler_spsr = 0u;
-    std::uint32_t return_pc = 0u;
+    Armv7aVectorEntryObservation entry{};
 };
 
 constexpr const char* armv7a_platform_interrupt_line_group_name(
@@ -107,20 +106,14 @@ constexpr bool armv7a_sgi_pending_observed(
 constexpr bool armv7a_interrupt_delivery_observed(
     const Armv7aInterruptObservation& observation) noexcept
 {
-    return observation.seen && !observation.special;
-}
-
-constexpr bool armv7a_psr_is_monitor_mode(std::uint32_t psr) noexcept
-{
-    return (psr & 0x1fu) == 0x16u;
+    return armv7a_vector_entry_observed(observation.entry) && !observation.special;
 }
 
 constexpr bool armv7a_interrupt_observation_monitor_mode(
     const Armv7aInterruptObservation& observation) noexcept
 {
     return armv7a_interrupt_delivery_observed(observation) &&
-           (armv7a_psr_is_monitor_mode(observation.handler_cpsr) ||
-            armv7a_psr_is_monitor_mode(observation.handler_spsr));
+           armv7a_vector_entry_monitor_mode(observation.entry);
 }
 
 constexpr Armv7aInterruptObservation armv7a_make_unobserved_interrupt_observation(

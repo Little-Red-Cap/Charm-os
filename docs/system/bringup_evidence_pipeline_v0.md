@@ -252,11 +252,19 @@ Charm 这条线不是从零开始。
 建议最小输出物包括：
 
 - bringup evidence report
+- capability 级 evidence matrix
 - unresolved facts / unresolved bindings 列表
 - materialized order
 - published capability 列表
 - observed capability / transition 摘要
 - blocked / failed 原因摘要
+
+其中 capability 级 evidence matrix 当前至少应能围绕每个 capability 回答：
+
+- 是否已经 `declared / materialized / published / observed`
+- 是否已经进入 `blocked / failed`
+- `publish_state / export_state` 当前是什么
+- provider / consumer 证据节点是谁
 
 其中可以进一步区分两层：
 

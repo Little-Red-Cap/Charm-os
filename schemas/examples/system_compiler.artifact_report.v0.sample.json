@@ -24,6 +24,9 @@
       "hal.uart1",
       "io.uart1"
     ],
+    "declared_facts": [
+      "board.stm32_stub"
+    ],
     "required_facts": [
       "platform.irq",
       "system.clock"
@@ -34,7 +37,7 @@
     "declared_count": 12,
     "materialized_count": 12,
     "published_count": 3,
-    "observed_count": 3,
+    "observed_count": 12,
     "blocked_count": 0,
     "failed_count": 0,
     "published_capabilities": [
@@ -43,26 +46,168 @@
       "input.service"
     ],
     "blocked_reasons": [],
-    "failed_reasons": []
+    "failed_reasons": [],
+    "evidence_entries": [
+      {
+        "capability": "system.clock",
+        "declared": true,
+        "materialized": true,
+        "published": false,
+        "observed": true,
+        "blocked": false,
+        "failed": false,
+        "publish_state": "missing",
+        "export_state": null,
+        "provider_nodes": [
+          "system.clock"
+        ],
+        "consumer_nodes": [
+          "hal.uart1"
+        ],
+        "blocked_reasons": [],
+        "failed_reasons": []
+      },
+      {
+        "capability": "platform.irq",
+        "declared": true,
+        "materialized": true,
+        "published": false,
+        "observed": true,
+        "blocked": false,
+        "failed": false,
+        "publish_state": "missing",
+        "export_state": null,
+        "provider_nodes": [
+          "platform.irq"
+        ],
+        "consumer_nodes": [
+          "hal.uart1"
+        ],
+        "blocked_reasons": [],
+        "failed_reasons": []
+      },
+      {
+        "capability": "hal.uart1",
+        "declared": true,
+        "materialized": true,
+        "published": false,
+        "observed": true,
+        "blocked": false,
+        "failed": false,
+        "publish_state": "missing",
+        "export_state": null,
+        "provider_nodes": [
+          "hal.uart1"
+        ],
+        "consumer_nodes": [
+          "io.uart1"
+        ],
+        "blocked_reasons": [],
+        "failed_reasons": []
+      },
+      {
+        "capability": "io.uart1",
+        "declared": true,
+        "materialized": true,
+        "published": true,
+        "observed": true,
+        "blocked": false,
+        "failed": false,
+        "publish_state": "published",
+        "export_state": "attached",
+        "provider_nodes": [
+          "io.uart1"
+        ],
+        "consumer_nodes": [],
+        "blocked_reasons": [],
+        "failed_reasons": []
+      },
+      {
+        "capability": "io.console0",
+        "declared": true,
+        "materialized": false,
+        "published": true,
+        "observed": true,
+        "blocked": false,
+        "failed": false,
+        "publish_state": "published",
+        "export_state": null,
+        "provider_nodes": [],
+        "consumer_nodes": [],
+        "blocked_reasons": [],
+        "failed_reasons": []
+      },
+      {
+        "capability": "input.service",
+        "declared": true,
+        "materialized": false,
+        "published": true,
+        "observed": true,
+        "blocked": false,
+        "failed": false,
+        "publish_state": "published",
+        "export_state": null,
+        "provider_nodes": [],
+        "consumer_nodes": [],
+        "blocked_reasons": [],
+        "failed_reasons": []
+      }
+    ]
   },
   "resource_contract": {
     "declared_contracts": 4,
+    "declared_contract_entries": [
+      {
+        "contract": "needs_monotonic_clock",
+        "requires": [
+          "system.clock"
+        ]
+      },
+      {
+        "contract": "needs_reactor",
+        "requires": [
+          "io.reactor"
+        ]
+      },
+      {
+        "contract": "may_block",
+        "requires": [
+          "execution.may_block"
+        ]
+      },
+      {
+        "contract": "irq_safe",
+        "requires": []
+      }
+    ],
     "provided_facts": [
       "system.clock",
-      "reactor",
-      "task_context"
+      "io.reactor",
+      "execution.may_block"
     ],
     "audited_count": 4,
-    "satisfied_count": 4,
+    "satisfied_count": 3,
     "violated_count": 0,
-    "unknown_count": 0,
+    "unknown_count": 1,
+    "satisfied_contracts": [
+      "needs_monotonic_clock requires [system.clock]",
+      "needs_reactor requires [io.reactor]",
+      "may_block requires [execution.may_block]"
+    ],
     "violations": [],
-    "unknown_contracts": [],
+    "unknown_contracts": [
+      "irq_safe requires []"
+    ],
     "resource_hotspots": [
-      "needs_monotonic_clock"
+      "irq_safe requires []"
     ]
   },
   "runtime_observe": {
+    "observed_capabilities": [
+      "io.uart1",
+      "io.console0",
+      "input.service"
+    ],
     "publish_state_summary": {
       "missing": 0,
       "published": 3
@@ -92,6 +237,7 @@
     "input_manifest": "scripts/materialized_graph.export_case_manifest.v1.json",
     "dot": "out/materialized-graph-bundle/bringup-minimal-observe-demo/materialized_graph.dot",
     "sample_json": "out/materialized-graph-bundle/bringup-minimal-observe-demo/materialized_graph.sample.json",
+    "runtime_observe": "system_compiler.runtime_observe_snapshot.v0.sample.json",
     "diff": null,
     "ci_summary": null,
     "report_manifest": "out/report/materialized_graph_bundle_diff_report.manifest.json"

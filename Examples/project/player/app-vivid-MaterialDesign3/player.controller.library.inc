@@ -476,7 +476,7 @@
 
         bool library_shows_context_watermark() const noexcept {
             return library_has_context()
-                && list_order.size() >= 2
+                && list_order.size() >= 1
                 && list_order.size() <= 3;
         }
 
@@ -1524,6 +1524,17 @@
             path.assign("Library");
             path.append(" / ");
             path.append(library_tab_title(library_tab));
+            if (library_has_context()) {
+                char summary[64]{};
+                format_library_group_summary(library_context_key.view(),
+                                             library_context_is_current_group(),
+                                             summary,
+                                             sizeof(summary));
+                if (summary[0] != '\0') {
+                    path.append(" / ");
+                    path.append(summary);
+                }
+            }
             if (list_shuffle_enabled) {
                 path.append(" / Shuffled");
             }
@@ -1547,8 +1558,7 @@
             const int count = static_cast<int>(list_order.size());
             const bool show_empty = (count == 0);
             const bool show_group_hint = !show_empty && library_shows_group_rows();
-            const bool show_context_summary = !show_empty && library_has_context();
-            const bool show = show_empty || show_group_hint || show_context_summary;
+            const bool show = show_empty || show_group_hint;
             access.set_visible(handles.list_hint, show);
             if (!show) return;
             if (show_empty && !mount_status.empty()) {
@@ -1563,12 +1573,6 @@
                 hint = (library_tab == LibraryTab::Albums)
                     ? "Open an album row to view tracks"
                     : "Open an artist row to view tracks";
-            } else if (show_context_summary) {
-                format_library_group_summary(library_context_key.view(),
-                                             library_context_is_current_group(),
-                                             buf,
-                                             sizeof(buf));
-                hint = buf;
             } else {
                 hint = fs_ready ? "No items in current library view" : "FS not ready";
             }

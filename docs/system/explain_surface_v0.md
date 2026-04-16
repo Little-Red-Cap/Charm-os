@@ -313,6 +313,22 @@ v0 阶段建议至少覆盖：
 - blocked reason matrix
 - failed reason matrix
 
+如果这些 report 来自 compare 模式，
+artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
+`query.comparison.bringup_evidence`，至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `capability_change_matrix`
+
+这意味着 explain surface 已经不只会回答“哪个 capability 在哪些 case 中存在”，
+还可以横向回答：
+
+- 哪些 case 的 bringup 证据相对 baseline 发生漂移
+- 漂移集中在哪些 summary change
+- 某个 capability 的 compare 漂移究竟出现在多少 case 里
+
 这样 bringup 证据不再只能按单 case 追问，
 还可以直接横向查看：
 
@@ -603,6 +619,22 @@ v0 阶段建议至少覆盖：
 
 这让 explain surface 可以在不伪造结构变化的前提下，
 直接回答“资源契约相对 baseline 漂移了什么”。
+
+如果选择的是整组 compare report，
+artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
+`query.comparison.resource_contract`，至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `contract_change_matrix`
+
+这让资源解释面不只会横向看“哪些合同在哪些 case 中成立”，
+还可以横向看：
+
+- 哪些 case 的资源法律相对 baseline 发生漂移
+- 哪条合同在多少 case 中发生 compare change
+- summary drift 是否集中在少数几个 contract law 变化上
 
 当前 `resource summary` 的最小解释方式是：
 

@@ -444,6 +444,36 @@ function Get-MetadataChangeCount {
     return @($ReportData.comparison.metadata_changes).Count
 }
 
+function Get-BringupEvidenceComparisonFromReport {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['comparison'] -or
+        $null -eq $ReportData.comparison -or
+        $null -eq $ReportData.comparison.PSObject.Properties['bringup_evidence']) {
+        return $null
+    }
+
+    return $ReportData.comparison.bringup_evidence
+}
+
+function Get-ResourceContractComparisonFromReport {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['comparison'] -or
+        $null -eq $ReportData.comparison -or
+        $null -eq $ReportData.comparison.PSObject.Properties['resource_contract']) {
+        return $null
+    }
+
+    return $ReportData.comparison.resource_contract
+}
+
 function Get-ResourceContractMentions {
     param(
         $ReportData,
@@ -891,6 +921,181 @@ function New-ArtifactRootResourceSummaryResult {
         contract_matrix = @($contractMatrix | Sort-Object contract)
         provided_fact_matrix = @($providedFactMatrix | Sort-Object fact)
         resource_hotspot_matrix = @($resourceHotspotMatrix | Sort-Object hotspot)
+    }
+}
+
+function New-ArtifactRootResourceCompareCaseSummary {
+    param(
+        $LoadedReport
+    )
+
+    $report = $LoadedReport.Data
+    $comparison = Get-ResourceContractComparisonFromReport -ReportData $report
+    if ($null -eq $comparison) {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        active_facets = @($report.subject.active_facets)
+        changed = [bool]$comparison.changed
+        summary_changes = @($comparison.summary_changes)
+        contract_change_count = @($comparison.contract_changes).Count
+        contracts_changed = @(
+            @($comparison.contract_changes) |
+                ForEach-Object { [string]$_.contract } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        provided_facts_added = @($comparison.provided_fact_changes.added)
+        provided_facts_removed = @($comparison.provided_fact_changes.removed)
+        hotspots_added = @($comparison.hotspot_changes.added)
+        hotspots_removed = @($comparison.hotspot_changes.removed)
+        contract_changes = @($comparison.contract_changes)
+    }
+}
+
+function New-ArtifactRootResourceCompareSummaryChangeEntry {
+    param(
+        [string]$ChangeText,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ChangeText)) {
+        return $null
+    }
+
+    $changeCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        if (-not (@($caseSummary.summary_changes) -contains $ChangeText)) {
+            continue
+        }
+
+        $changeCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+        }
+    }
+
+    return [ordered]@{
+        change = $ChangeText
+        case_count = @($changeCases).Count
+        cases = @($changeCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootResourceCompareContractEntry {
+    param(
+        [string]$ContractName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ContractName)) {
+        return $null
+    }
+
+    $contractCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $contractChange = @(
+            @($caseSummary.contract_changes) |
+                Where-Object { [string]$_.contract -eq $ContractName } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+
+        if ($null -eq $contractChange) {
+            continue
+        }
+
+        $contractCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            change_kind = [string]$contractChange.change_kind
+            left_state = [string]$contractChange.left_state
+            right_state = [string]$contractChange.right_state
+            left_requires = @($contractChange.left_requires)
+            right_requires = @($contractChange.right_requires)
+            left_status_text = if ([string]::IsNullOrWhiteSpace([string]$contractChange.left_status_text)) { $null } else { [string]$contractChange.left_status_text }
+            right_status_text = if ([string]::IsNullOrWhiteSpace([string]$contractChange.right_status_text)) { $null } else { [string]$contractChange.right_status_text }
+        }
+    }
+
+    return [ordered]@{
+        contract = $ContractName
+        case_count = @($contractCases).Count
+        change_kinds = @(
+            @($contractCases) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        cases = @($contractCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootResourceContractComparisonResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $caseSummaries = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootResourceCompareCaseSummary -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object case
+    )
+
+    if (@($caseSummaries).Count -eq 0) {
+        return $null
+    }
+
+    $summaryChanges = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.summary_changes)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $contractNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.contracts_changed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $summaryChangeMatrix = @(
+        foreach ($changeText in @($summaryChanges)) {
+            New-ArtifactRootResourceCompareSummaryChangeEntry -ChangeText $changeText -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object change
+
+    $contractChangeMatrix = @(
+        foreach ($contractName in @($contractNames)) {
+            New-ArtifactRootResourceCompareContractEntry -ContractName $contractName -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object contract
+
+    return [ordered]@{
+        compared_case_count = @($caseSummaries).Count
+        changed_case_count = @($caseSummaries | Where-Object { [bool]$_.changed }).Count
+        unchanged_case_count = @($caseSummaries | Where-Object { -not [bool]$_.changed }).Count
+        changed_cases = @(
+            @($caseSummaries) |
+                Where-Object { [bool]$_.changed } |
+                ForEach-Object { [string]$_.case } |
+                Sort-Object
+        )
+        unchanged_cases = @(
+            @($caseSummaries) |
+                Where-Object { -not [bool]$_.changed } |
+                ForEach-Object { [string]$_.case } |
+                Sort-Object
+        )
+        contract_change_count = [int](@($caseSummaries | Measure-Object -Property contract_change_count -Sum).Sum)
+        cases = @($caseSummaries)
+        summary_change_matrix = @($summaryChangeMatrix)
+        contract_change_matrix = @($contractChangeMatrix)
     }
 }
 
@@ -2005,6 +2210,185 @@ function New-ArtifactRootBringupEvidenceResult {
     }
 }
 
+function New-ArtifactRootBringupCompareCaseSummary {
+    param(
+        $LoadedReport
+    )
+
+    $report = $LoadedReport.Data
+    $comparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
+    if ($null -eq $comparison) {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        active_facets = @($report.subject.active_facets)
+        changed = [bool]$comparison.changed
+        summary_changes = @($comparison.summary_changes)
+        capability_change_count = @($comparison.capability_changes).Count
+        capabilities_changed = @(
+            @($comparison.capability_changes) |
+                ForEach-Object { [string]$_.capability } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        published_capabilities_added = @($comparison.published_capability_changes.added)
+        published_capabilities_removed = @($comparison.published_capability_changes.removed)
+        blocked_reasons_added = @($comparison.blocked_reason_changes.added)
+        blocked_reasons_removed = @($comparison.blocked_reason_changes.removed)
+        failed_reasons_added = @($comparison.failed_reason_changes.added)
+        failed_reasons_removed = @($comparison.failed_reason_changes.removed)
+        capability_changes = @($comparison.capability_changes)
+    }
+}
+
+function New-ArtifactRootBringupCompareSummaryChangeEntry {
+    param(
+        [string]$ChangeText,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ChangeText)) {
+        return $null
+    }
+
+    $changeCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        if (-not (@($caseSummary.summary_changes) -contains $ChangeText)) {
+            continue
+        }
+
+        $changeCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+        }
+    }
+
+    return [ordered]@{
+        change = $ChangeText
+        case_count = @($changeCases).Count
+        cases = @($changeCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootBringupCompareCapabilityEntry {
+    param(
+        [string]$CapabilityName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CapabilityName)) {
+        return $null
+    }
+
+    $capabilityCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $capabilityChange = @(
+            @($caseSummary.capability_changes) |
+                Where-Object { [string]$_.capability -eq $CapabilityName } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+
+        if ($null -eq $capabilityChange) {
+            continue
+        }
+
+        $capabilityCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            change_kind = [string]$capabilityChange.change_kind
+            left_published = [bool]$capabilityChange.left_published
+            right_published = [bool]$capabilityChange.right_published
+            left_observed = [bool]$capabilityChange.left_observed
+            right_observed = [bool]$capabilityChange.right_observed
+            left_publish_state = if ([string]::IsNullOrWhiteSpace([string]$capabilityChange.left_publish_state)) { $null } else { [string]$capabilityChange.left_publish_state }
+            right_publish_state = if ([string]::IsNullOrWhiteSpace([string]$capabilityChange.right_publish_state)) { $null } else { [string]$capabilityChange.right_publish_state }
+            left_export_state = if ([string]::IsNullOrWhiteSpace([string]$capabilityChange.left_export_state)) { $null } else { [string]$capabilityChange.left_export_state }
+            right_export_state = if ([string]::IsNullOrWhiteSpace([string]$capabilityChange.right_export_state)) { $null } else { [string]$capabilityChange.right_export_state }
+        }
+    }
+
+    return [ordered]@{
+        capability = $CapabilityName
+        case_count = @($capabilityCases).Count
+        change_kinds = @(
+            @($capabilityCases) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        cases = @($capabilityCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootBringupEvidenceComparisonResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $caseSummaries = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootBringupCompareCaseSummary -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object case
+    )
+
+    if (@($caseSummaries).Count -eq 0) {
+        return $null
+    }
+
+    $summaryChanges = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.summary_changes)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $capabilityNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.capabilities_changed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $summaryChangeMatrix = @(
+        foreach ($changeText in @($summaryChanges)) {
+            New-ArtifactRootBringupCompareSummaryChangeEntry -ChangeText $changeText -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object change
+
+    $capabilityChangeMatrix = @(
+        foreach ($capabilityName in @($capabilityNames)) {
+            New-ArtifactRootBringupCompareCapabilityEntry -CapabilityName $capabilityName -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object capability
+
+    return [ordered]@{
+        compared_case_count = @($caseSummaries).Count
+        changed_case_count = @($caseSummaries | Where-Object { [bool]$_.changed }).Count
+        unchanged_case_count = @($caseSummaries | Where-Object { -not [bool]$_.changed }).Count
+        changed_cases = @(
+            @($caseSummaries) |
+                Where-Object { [bool]$_.changed } |
+                ForEach-Object { [string]$_.case } |
+                Sort-Object
+        )
+        unchanged_cases = @(
+            @($caseSummaries) |
+                Where-Object { -not [bool]$_.changed } |
+                ForEach-Object { [string]$_.case } |
+                Sort-Object
+        )
+        capability_change_count = [int](@($caseSummaries | Measure-Object -Property capability_change_count -Sum).Sum)
+        cases = @($caseSummaries)
+        summary_change_matrix = @($summaryChangeMatrix)
+        capability_change_matrix = @($capabilityChangeMatrix)
+    }
+}
+
 function Format-BringupEvidenceDisplayRow {
     param(
         $Entry
@@ -2216,15 +2600,23 @@ $graphInfo = Load-GraphFromArtifactReport -ReportData $reportData
 if ($BringupEvidence) {
     if ($selectedReports.Count -ne 1) {
         $artifactRootBringupEvidence = New-ArtifactRootBringupEvidenceResult -LoadedReports $selectedReports
+        $artifactRootBringupComparison = New-ArtifactRootBringupEvidenceComparisonResult -LoadedReports $selectedReports
 
         if ($AsJson) {
+            $queryPayload = [ordered]@{
+                kind = 'bringup_evidence'
+                scope = 'artifact_root'
+                result = $artifactRootBringupEvidence
+            }
+            if ($null -ne $artifactRootBringupComparison) {
+                $queryPayload.comparison = [ordered]@{
+                    bringup_evidence = $artifactRootBringupComparison
+                }
+            }
+
             [ordered]@{
                 artifact_root = $artifactRootPath
-                query = [ordered]@{
-                    kind = 'bringup_evidence'
-                    scope = 'artifact_root'
-                    result = $artifactRootBringupEvidence
-                }
+                query = $queryPayload
             } | ConvertTo-Json -Depth 14
             exit 0
         }
@@ -2307,16 +2699,64 @@ if ($BringupEvidence) {
                 Write-Host "reason = $([string]$reasonEntry.reason) case_count=$([int]$reasonEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
             }
         }
+
+        if ($null -ne $artifactRootBringupComparison) {
+            Write-Host ''
+            Write-Host "[BRINGUP EVIDENCE COMPARE] scope=artifact_root compared=$([int]$artifactRootBringupComparison.compared_case_count) changed=$([int]$artifactRootBringupComparison.changed_case_count) unchanged=$([int]$artifactRootBringupComparison.unchanged_case_count)"
+            if (@($artifactRootBringupComparison.changed_cases).Count -gt 0) {
+                Write-Host "changed_cases = $((@($artifactRootBringupComparison.changed_cases) -join ', '))"
+            }
+            if (@($artifactRootBringupComparison.unchanged_cases).Count -gt 0) {
+                Write-Host "unchanged_cases = $((@($artifactRootBringupComparison.unchanged_cases) -join ', '))"
+            }
+
+            if (@($artifactRootBringupComparison.cases).Count -gt 0) {
+                Write-Host ''
+                Write-Host '[COMPARE CASES]'
+                @($artifactRootBringupComparison.cases) |
+                    Select-Object `
+                        case,
+                        board,
+                        profile,
+                        @{ Name = 'changed'; Expression = { [bool]$_.changed } },
+                        @{ Name = 'capability_changes'; Expression = { [int]$_.capability_change_count } },
+                        @{ Name = 'summary_changes'; Expression = { @($_.summary_changes).Count } } |
+                    Format-Table -Wrap -AutoSize |
+                    Out-Host
+            }
+
+            if (@($artifactRootBringupComparison.summary_change_matrix).Count -gt 0) {
+                Write-Host ''
+                Write-Host '[COMPARE SUMMARY CHANGES]'
+                foreach ($changeEntry in @($artifactRootBringupComparison.summary_change_matrix)) {
+                    $caseNames = @(
+                        @($changeEntry.cases) |
+                            ForEach-Object { [string]$_.case }
+                    )
+                    Write-Host "change = $([string]$changeEntry.change) case_count=$([int]$changeEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+                }
+            }
+
+            if (@($artifactRootBringupComparison.capability_change_matrix).Count -gt 0) {
+                Write-Host ''
+                Write-Host '[COMPARE CAPABILITY MATRIX]'
+                foreach ($capabilityEntry in @($artifactRootBringupComparison.capability_change_matrix)) {
+                    $caseStates = @(
+                        @($capabilityEntry.cases) |
+                            ForEach-Object { "$([string]$_.case):$([string]$_.change_kind)" }
+                    )
+                    Write-Host "capability = $([string]$capabilityEntry.capability) case_count=$([int]$capabilityEntry.case_count) change_kinds=[$((@($capabilityEntry.change_kinds) -join ', '))]"
+                    if (@($caseStates).Count -gt 0) {
+                        Write-Host "cases = $((@($caseStates) -join ', '))"
+                    }
+                }
+            }
+        }
         exit 0
     }
 
     $bringupEvidenceResult = New-BringupEvidenceResult -ReportData $reportData -GraphInfo $graphInfo
-    $bringupEvidenceComparison = $null
-    if ($null -ne $reportData.PSObject.Properties['comparison'] -and
-        $null -ne $reportData.comparison -and
-        $null -ne $reportData.comparison.PSObject.Properties['bringup_evidence']) {
-        $bringupEvidenceComparison = $reportData.comparison.bringup_evidence
-    }
+    $bringupEvidenceComparison = Get-BringupEvidenceComparisonFromReport -ReportData $reportData
 
     if ($AsJson) {
         $queryPayload = [ordered]@{
@@ -2444,16 +2884,24 @@ if ($RecentTransitions) {
 if ($ResourceSummary) {
     if ($selectedReports.Count -ne 1) {
         $artifactRootResourceSummary = New-ArtifactRootResourceSummaryResult -LoadedReports $selectedReports
+        $artifactRootResourceComparison = New-ArtifactRootResourceContractComparisonResult -LoadedReports $selectedReports
 
         if ($AsJson) {
+            $queryPayload = [ordered]@{
+                kind = 'resource_summary'
+                scope = 'artifact_root'
+                result = $artifactRootResourceSummary
+            }
+            if ($null -ne $artifactRootResourceComparison) {
+                $queryPayload.comparison = [ordered]@{
+                    resource_contract = $artifactRootResourceComparison
+                }
+            }
+
             [ordered]@{
                 artifact_root = $artifactRootPath
-                query = [ordered]@{
-                    kind = 'resource_summary'
-                    scope = 'artifact_root'
-                    result = $artifactRootResourceSummary
-                }
-            } | ConvertTo-Json -Depth 12
+                query = $queryPayload
+            } | ConvertTo-Json -Depth 14
             exit 0
         }
 
@@ -2517,21 +2965,69 @@ if ($ResourceSummary) {
             foreach ($hotspotEntry in @($artifactRootResourceSummary.resource_hotspot_matrix)) {
                 $caseNames = @(
                     @($hotspotEntry.cases) |
-                        ForEach-Object { [string]$_.case }
+                    ForEach-Object { [string]$_.case }
                 )
                 Write-Host "hotspot = $([string]$hotspotEntry.hotspot) case_count=$([int]$hotspotEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+            }
+        }
+
+        if ($null -ne $artifactRootResourceComparison) {
+            Write-Host ''
+            Write-Host "[RESOURCE CONTRACT COMPARE] scope=artifact_root compared=$([int]$artifactRootResourceComparison.compared_case_count) changed=$([int]$artifactRootResourceComparison.changed_case_count) unchanged=$([int]$artifactRootResourceComparison.unchanged_case_count)"
+            if (@($artifactRootResourceComparison.changed_cases).Count -gt 0) {
+                Write-Host "changed_cases = $((@($artifactRootResourceComparison.changed_cases) -join ', '))"
+            }
+            if (@($artifactRootResourceComparison.unchanged_cases).Count -gt 0) {
+                Write-Host "unchanged_cases = $((@($artifactRootResourceComparison.unchanged_cases) -join ', '))"
+            }
+
+            if (@($artifactRootResourceComparison.cases).Count -gt 0) {
+                Write-Host ''
+                Write-Host '[COMPARE CASES]'
+                @($artifactRootResourceComparison.cases) |
+                    Select-Object `
+                        case,
+                        board,
+                        profile,
+                        @{ Name = 'changed'; Expression = { [bool]$_.changed } },
+                        @{ Name = 'contract_changes'; Expression = { [int]$_.contract_change_count } },
+                        @{ Name = 'summary_changes'; Expression = { @($_.summary_changes).Count } } |
+                    Format-Table -Wrap -AutoSize |
+                    Out-Host
+            }
+
+            if (@($artifactRootResourceComparison.summary_change_matrix).Count -gt 0) {
+                Write-Host ''
+                Write-Host '[COMPARE SUMMARY CHANGES]'
+                foreach ($changeEntry in @($artifactRootResourceComparison.summary_change_matrix)) {
+                    $caseNames = @(
+                        @($changeEntry.cases) |
+                            ForEach-Object { [string]$_.case }
+                    )
+                    Write-Host "change = $([string]$changeEntry.change) case_count=$([int]$changeEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+                }
+            }
+
+            if (@($artifactRootResourceComparison.contract_change_matrix).Count -gt 0) {
+                Write-Host ''
+                Write-Host '[COMPARE CONTRACT MATRIX]'
+                foreach ($contractEntry in @($artifactRootResourceComparison.contract_change_matrix)) {
+                    $caseStates = @(
+                        @($contractEntry.cases) |
+                            ForEach-Object { "$([string]$_.case):$([string]$_.change_kind)" }
+                    )
+                    Write-Host "contract = $([string]$contractEntry.contract) case_count=$([int]$contractEntry.case_count) change_kinds=[$((@($contractEntry.change_kinds) -join ', '))]"
+                    if (@($caseStates).Count -gt 0) {
+                        Write-Host "cases = $((@($caseStates) -join ', '))"
+                    }
+                }
             }
         }
         exit 0
     }
 
     $resourceSummaryResult = New-ResourceSummaryResult -ReportData $reportData -GraphInfo $graphInfo
-    $resourceContractComparison = $null
-    if ($null -ne $reportData.PSObject.Properties['comparison'] -and
-        $null -ne $reportData.comparison -and
-        $null -ne $reportData.comparison.PSObject.Properties['resource_contract']) {
-        $resourceContractComparison = $reportData.comparison.resource_contract
-    }
+    $resourceContractComparison = Get-ResourceContractComparisonFromReport -ReportData $reportData
 
     if ($AsJson) {
         $queryPayload = [ordered]@{

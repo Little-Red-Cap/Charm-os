@@ -326,6 +326,19 @@ Charm 这条线不是从零开始。
 还可以回答“相对 baseline，哪些 published / attached 语义发生了漂移”，
 而不必把这类 sidecar-only 变化硬塞回结构 diff。
 
+如果选择的是整组 compare report，
+`scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot <path> -BringupEvidence -AsJson`
+现在也会继续暴露 `query.comparison.bringup_evidence`，
+至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `capability_change_matrix`
+
+这意味着 bringup 证据现在已经能从“单 case compare explain”
+继续抬升到“artifact_root 横向 compare explain”。
+
 ## 8. 当前最贴仓库现实的三条示例链路
 
 ### 8.1 `materialize_observe_demo`
@@ -438,6 +451,7 @@ v0 更合理的判断标准是：
 
 - `scripts/materialized_graph_bringup_evidence_matrix_smoke.ps1`
 - `scripts/materialized_graph_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
 
 其中 matrix smoke 直接复用
 `inspect_system_compiler_artifact_report.ps1 -ArtifactRoot ... -BringupEvidence -AsJson`
@@ -456,6 +470,12 @@ v0 更合理的判断标准是：
 - `artifact report.comparison.bringup_evidence` 仍能捕获 `published_count` 与 capability 级状态漂移
 - `inspect_system_compiler_artifact_report.ps1 -Case <name> -BringupEvidence -AsJson`
   会稳定暴露 `query.comparison.bringup_evidence`
+
+而 compare root smoke 则继续往前守住：
+
+- compare report 进入 `artifact_root` 聚合后不会丢失 compare 负载
+- `query.comparison.bringup_evidence.changed_cases` 能稳定指出真正漂移的 case
+- `capability_change_matrix` 能继续把 capability 级 compare 变化收束成横向矩阵
 
 ## 11. 当前结论
 

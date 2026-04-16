@@ -59,9 +59,9 @@ constexpr Armv7aPlatformProbeLayout kQemuVirtProbeLayout{
 
 Armv7aPlatformResetState g_qemuVirtResetState{};
 
-Armv7aPlatformStackRange stack_range(char& base, char& top)
+Armv7aStackRange stack_range(char& base, char& top)
 {
-    return Armv7aPlatformStackRange{
+    return Armv7aStackRange{
         .base = reinterpret_cast<std::uintptr_t>(&base),
         .top = reinterpret_cast<std::uintptr_t>(&top),
     };
@@ -88,7 +88,7 @@ const Armv7aPlatformResetState& armv7a_platform_reset_state()
     return g_qemuVirtResetState;
 }
 
-Armv7aPlatformStackRange armv7a_platform_stack_range_for_mode(std::uint32_t psr)
+Armv7aStackRange armv7a_platform_stack_range_for_mode(std::uint32_t psr)
 {
     switch (psr & kPsrModeMask) {
     case kModeUnd:
@@ -104,7 +104,7 @@ Armv7aPlatformStackRange armv7a_platform_stack_range_for_mode(std::uint32_t psr)
     case kModeSys:
         return stack_range(__sys_stack_base, __sys_stack_top);
     default:
-        return Armv7aPlatformStackRange{};
+        return Armv7aStackRange{};
     }
 }
 

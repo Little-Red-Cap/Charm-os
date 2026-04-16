@@ -3,6 +3,8 @@
 #include "armv7a_fault_status_contract.hpp"
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
+#include "armv7a_psr_contract.hpp"
+#include "armv7a_stack_observation_contract.hpp"
 #include "armv7a_translation_decode_contract.hpp"
 
 #include <array>
@@ -685,6 +687,56 @@ namespace {
                prefetch_observation.context.ttbr0 == 0x40210000u;
     }
 
+    bool verify_armv7a_stack_observation_contract() noexcept {
+        constexpr Armv7aStackRange handler_range{
+            .base = 0x40500000u,
+            .top = 0x40501000u,
+        };
+        constexpr auto handler_observation = armv7a_make_handler_stack_observation(
+            0x00000012u, 0x40500FF0u, handler_range);
+        constexpr auto return_restored = armv7a_make_return_state_observation(
+            0x000000DFu, 0x000000DFu, 0x40500FE0u, handler_range);
+        constexpr auto return_irq_changed = armv7a_make_return_state_observation(
+            0x00000053u, 0x000000DFu, 0x40500FD0u, handler_range);
+        constexpr auto return_out_of_range = armv7a_make_return_state_observation(
+            0x000000D2u, 0x000000D2u, 0x40502000u, handler_range);
+        constexpr Armv7aStackRange empty_range{};
+
+        return armv7a_psr_mode(0x000000DFu) == 0x1Fu &&
+               armv7a_psr_mode(0x000000D2u) == 0x12u &&
+               armv7a_irq_masked(0x000000D2u) &&
+               !armv7a_irq_masked(0x00000052u) &&
+               armv7a_fiq_masked(0x000000DFu) &&
+               !armv7a_fiq_masked(0x0000009Fu) &&
+               std::string_view(armv7a_mode_name(0x000000DFu)) == "sys" &&
+               std::string_view(armv7a_mode_name(0x000000D2u)) == "irq" &&
+               std::string_view(armv7a_mode_name(0x00000013u)) == "svc" &&
+               armv7a_stack_range_has_bounds(handler_range) &&
+               !armv7a_stack_range_has_bounds(empty_range) &&
+               armv7a_stack_pointer_in_range(0x40500FF0u, handler_range) &&
+               !armv7a_stack_pointer_in_range(0x40502000u, handler_range) &&
+               armv7a_stack_used(0x40500FF0u, handler_range) == 0x10u &&
+               armv7a_stack_used(0x40502000u, handler_range) == 0u &&
+               handler_observation.current_psr == 0x00000012u &&
+               handler_observation.sp == 0x40500FF0u &&
+               handler_observation.used == 0x10u &&
+               handler_observation.in_range &&
+               return_restored.mode_restored &&
+               return_restored.irq_restored &&
+               return_restored.fiq_restored &&
+               return_restored.stack.in_range &&
+               return_restored.stack.used == 0x20u &&
+               !return_irq_changed.mode_restored &&
+               !return_irq_changed.irq_restored &&
+               return_irq_changed.fiq_restored &&
+               return_irq_changed.stack.in_range &&
+               return_out_of_range.mode_restored &&
+               return_out_of_range.irq_restored &&
+               return_out_of_range.fiq_restored &&
+               !return_out_of_range.stack.in_range &&
+               return_out_of_range.stack.used == 0u;
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -1341,6 +1393,8 @@ int main() {
     const bool armv7_abort_decode_contract_ok = verify_armv7a_abort_decode_contract();
     const bool armv7_fault_observation_contract_ok =
         verify_armv7a_fault_observation_contract();
+    const bool armv7_stack_observation_contract_ok =
+        verify_armv7a_stack_observation_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1395,7 +1449,8 @@ int main() {
                     armv7_interrupt_contract_ok &&
                     armv7_exception_contract_ok &&
                     armv7_abort_decode_contract_ok &&
-                    armv7_fault_observation_contract_ok;
+                    armv7_fault_observation_contract_ok &&
+                    armv7_stack_observation_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1457,6 +1512,8 @@ int main() {
                 armv7_abort_decode_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_fault_observation_contract=%d\n",
                 armv7_fault_observation_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_stack_observation_contract=%d\n",
+                armv7_stack_observation_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

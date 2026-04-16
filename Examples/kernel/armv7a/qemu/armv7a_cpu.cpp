@@ -1,9 +1,6 @@
 #include "armv7a_cpu.hpp"
 
 namespace {
-constexpr std::uint32_t kPsrModeMask = 0x1fu;
-constexpr std::uint32_t kPsrIrqMask = 1u << 7;
-constexpr std::uint32_t kPsrFiqMask = 1u << 6;
 constexpr std::uint32_t kSctlrAlignmentCheckMask = 1u << 1;
 constexpr std::uint32_t kIdMmfr0VmsaShift = 0u;
 constexpr std::uint32_t kIdMmfr0PmsaShift = 4u;
@@ -161,43 +158,7 @@ const char* armv7a_feature_presence_name(std::uint32_t field)
     return field == 0u ? "absent" : "present";
 }
 
-bool armv7a_irq_masked(std::uint32_t psr)
-{
-    return (psr & kPsrIrqMask) != 0u;
-}
-
-bool armv7a_fiq_masked(std::uint32_t psr)
-{
-    return (psr & kPsrFiqMask) != 0u;
-}
-
 bool armv7a_alignment_check_enabled(std::uint32_t sctlr)
 {
     return (sctlr & kSctlrAlignmentCheckMask) != 0u;
-}
-
-const char* armv7a_mode_name(std::uint32_t psr)
-{
-    switch (psr & kPsrModeMask) {
-    case 0x10u:
-        return "usr";
-    case 0x11u:
-        return "fiq";
-    case 0x12u:
-        return "irq";
-    case 0x13u:
-        return "svc";
-    case 0x16u:
-        return "mon";
-    case 0x17u:
-        return "abt";
-    case 0x1au:
-        return "hyp";
-    case 0x1bu:
-        return "und";
-    case 0x1fu:
-        return "sys";
-    default:
-        return "unknown";
-    }
 }

@@ -7,6 +7,7 @@
 #include "armv7a_interrupt_lifecycle_contract.hpp"
 #include "armv7a_kernel_port_contract.hpp"
 #include "armv7a_runtime_bridge_contract.hpp"
+#include "armv7a_runtime_trap_ingress_contract.hpp"
 #include "armv7a_scheduler_dispatch_contract.hpp"
 #include "armv7a_scheduler_tick_contract.hpp"
 #include "armv7a_runtime_trap_contract.hpp"
@@ -29,6 +30,8 @@
 
 import charm.foundation;
 import charm.runtime;
+import kernel.eda;
+import kernel.runtime_trap;
 import platform.board;
 import platform.board.armv7a_stub;
 
@@ -1723,6 +1726,199 @@ namespace {
                !armv7a_runtime_bridge_ready(missing_dispatch);
     }
 
+    kernel::TrapOrigin to_kernel_trap_origin(
+        Armv7aRuntimeTrapOrigin origin) noexcept
+    {
+        switch (origin) {
+        case Armv7aRuntimeTrapOrigin::kernel_thread:
+            return kernel::TrapOrigin::kernel_thread;
+        case Armv7aRuntimeTrapOrigin::user_task:
+            return kernel::TrapOrigin::user_task;
+        case Armv7aRuntimeTrapOrigin::supervisor:
+            return kernel::TrapOrigin::supervisor;
+        case Armv7aRuntimeTrapOrigin::isr:
+            return kernel::TrapOrigin::isr;
+        case Armv7aRuntimeTrapOrigin::unknown:
+        default:
+            return kernel::TrapOrigin::kernel_thread;
+        }
+    }
+
+    kernel::TrapFrameView make_kernel_trap_frame_view(
+        const Armv7aRuntimeTrapFrameProjection& projection) noexcept
+    {
+        return kernel::TrapFrameView{
+            .service_id = projection.service_id,
+            .arg0 = projection.arg0,
+            .arg1 = projection.arg1,
+            .arg2 = projection.arg2,
+            .arg3 = projection.arg3,
+            .return_pc = projection.return_pc,
+            .stack_pointer = projection.stack_pointer,
+            .status = projection.status,
+            .origin = to_kernel_trap_origin(projection.origin),
+            .task = kernel::TaskId{
+                .value = static_cast<std::size_t>(projection.task),
+            },
+            .task_valid = projection.task_valid,
+        };
+    }
+
+    bool verify_armv7a_runtime_trap_ingress_contract() noexcept {
+        const auto kernel_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
+            .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+            .arg0 = 0x00000001u,
+            .arg1 = 0x00000001u,
+            .arg2 = 0x00000000u,
+            .arg3 = 0x00000000u,
+            .arguments_sampled = true,
+        };
+        const auto kernel_projection = armv7a_project_runtime_trap_frame(
+            kernel_observation,
+            Armv7aRuntimeTrapIngressContext{
+                .stack_pointer = 0x00004050u,
+                .task = 7u,
+                .task_valid = true,
+            });
+        const auto kernel_frame =
+            make_kernel_trap_frame_view(kernel_projection);
+
+        const auto user_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x10u, 0x13u, 0x7104u),
+            .immediate = kArmv7aRuntimeBridgeSleepServiceId,
+            .arg0 = 0x00000005u,
+            .arg1 = 0x00000000u,
+            .arg2 = 0x00000002u,
+            .arg3 = 0x00000005u,
+            .arguments_sampled = true,
+        };
+        const auto user_projection = armv7a_project_runtime_trap_frame(
+            user_observation,
+            Armv7aRuntimeTrapIngressContext{
+                .stack_pointer = 0x00005050u,
+            });
+        const auto user_frame = make_kernel_trap_frame_view(user_projection);
+
+        const auto supervisor_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x13u, 0x13u, 0x7204u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x2u,
+                .arg1 = 0x3u,
+                .arguments_sampled = true,
+            });
+
+        const auto isr_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x12u, 0x13u, 0x7304u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x4u,
+                .arg1 = 0x5u,
+                .arguments_sampled = true,
+            });
+
+        const auto wide_service_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x1Fu, 0x13u, 0x7404u),
+                .immediate = 0x012345u,
+                .arg0 = 0x1u,
+                .arguments_sampled = true,
+            });
+
+        const auto missing_arguments_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x1Fu, 0x13u, 0x7504u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x1u,
+                .arguments_sampled = false,
+            });
+
+        const auto unknown_origin_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x00u, 0x13u, 0x7604u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x1u,
+                .arguments_sampled = true,
+            });
+
+        const auto unobserved_projection =
+            armv7a_project_runtime_trap_frame(Armv7aSvcObservation{});
+
+        return std::string_view(armv7a_runtime_trap_origin_name(
+                   Armv7aRuntimeTrapOrigin::kernel_thread)) == "kernel-thread" &&
+               std::string_view(armv7a_runtime_trap_origin_name(
+                   Armv7aRuntimeTrapOrigin::user_task)) == "user-task" &&
+               std::string_view(armv7a_runtime_trap_origin_name(
+                   Armv7aRuntimeTrapOrigin::supervisor)) == "supervisor" &&
+               std::string_view(armv7a_runtime_trap_origin_name(
+                   Armv7aRuntimeTrapOrigin::isr)) == "isr" &&
+               kernel_projection.service_ready &&
+               kernel_projection.arguments_ready &&
+               kernel_projection.origin_ready &&
+               armv7a_runtime_trap_frame_projection_ready(kernel_projection) &&
+               kernel_projection.service_id ==
+                   kArmv7aRuntimeBridgeYieldServiceId &&
+               kernel_projection.return_pc == 0x00007004u &&
+               kernel_projection.stack_pointer == 0x00004050u &&
+               kernel_projection.status == 0x1Fu &&
+               kernel_projection.origin ==
+                   Armv7aRuntimeTrapOrigin::kernel_thread &&
+               kernel_projection.task == 7u &&
+               kernel_projection.task_valid &&
+               kernel_frame.service_id ==
+                   kArmv7aRuntimeBridgeYieldServiceId &&
+               kernel_frame.arg0 == 0x00000001u &&
+               kernel_frame.arg1 == 0x00000001u &&
+               kernel_frame.return_pc == 0x00007004u &&
+               kernel_frame.stack_pointer == 0x00004050u &&
+               kernel_frame.status == 0x1Fu &&
+               kernel_frame.origin == kernel::TrapOrigin::kernel_thread &&
+               kernel_frame.task.value == 7u &&
+               kernel_frame.task_valid &&
+               user_projection.service_ready &&
+               user_projection.arguments_ready &&
+               user_projection.origin_ready &&
+               armv7a_runtime_trap_frame_projection_ready(user_projection) &&
+               user_projection.origin == Armv7aRuntimeTrapOrigin::user_task &&
+               user_projection.stack_pointer == 0x00005050u &&
+               !user_projection.task_valid &&
+               user_frame.service_id ==
+                   kArmv7aRuntimeBridgeSleepServiceId &&
+               user_frame.arg0 == 0x00000005u &&
+               user_frame.arg2 == 0x00000002u &&
+               user_frame.arg3 == 0x00000005u &&
+               user_frame.origin == kernel::TrapOrigin::user_task &&
+               !user_frame.task_valid &&
+               supervisor_projection.origin ==
+                   Armv7aRuntimeTrapOrigin::supervisor &&
+               supervisor_projection.origin_ready &&
+               armv7a_runtime_trap_frame_projection_ready(
+                   supervisor_projection) &&
+               isr_projection.origin == Armv7aRuntimeTrapOrigin::isr &&
+               isr_projection.origin_ready &&
+               armv7a_runtime_trap_frame_projection_ready(isr_projection) &&
+               !wide_service_projection.service_ready &&
+               !armv7a_runtime_trap_frame_projection_ready(
+                   wide_service_projection) &&
+               !missing_arguments_projection.arguments_ready &&
+               !armv7a_runtime_trap_frame_projection_ready(
+                   missing_arguments_projection) &&
+               !unknown_origin_projection.origin_ready &&
+               !armv7a_runtime_trap_frame_projection_ready(
+                   unknown_origin_projection) &&
+               !unobserved_projection.service_ready &&
+               !unobserved_projection.arguments_ready &&
+               !unobserved_projection.origin_ready &&
+               !armv7a_runtime_trap_frame_projection_ready(
+                   unobserved_projection);
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -2404,6 +2600,8 @@ int main() {
         verify_armv7a_runtime_trap_contract();
     const bool armv7_runtime_bridge_contract_ok =
         verify_armv7a_runtime_bridge_contract();
+    const bool armv7_runtime_trap_ingress_contract_ok =
+        verify_armv7a_runtime_trap_ingress_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -2468,10 +2666,11 @@ int main() {
                      armv7_special_interrupt_contract_ok &&
                      armv7_kernel_port_contract_ok &&
                     armv7_thread_context_contract_ok &&
-                    armv7_scheduler_tick_contract_ok &&
-                    armv7_scheduler_dispatch_contract_ok &&
+                     armv7_scheduler_tick_contract_ok &&
+                     armv7_scheduler_dispatch_contract_ok &&
                      armv7_runtime_trap_contract_ok &&
-                     armv7_runtime_bridge_contract_ok;
+                     armv7_runtime_bridge_contract_ok &&
+                     armv7_runtime_trap_ingress_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -2559,6 +2758,8 @@ int main() {
                 armv7_runtime_trap_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_runtime_bridge_contract=%d\n",
                 armv7_runtime_bridge_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_ingress_contract=%d\n",
+                armv7_runtime_trap_ingress_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

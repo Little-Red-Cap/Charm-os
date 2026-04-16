@@ -421,6 +421,11 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 
 - `scripts/inspect_system_compiler_artifact_report.ps1 -WhyCapability <name>`
 
+它当前支持两种读取作用域：
+
+- 单 report 查询
+- 全 artifact root 汇总
+
 它当前优先消费：
 
 - `artifact report`
@@ -450,6 +455,14 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
 
+如果选择的是整组 compare report，
+artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
+
+- `state_counts`
+- `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
+- `compared_cases / bringup_compare_cases / resource_compare_cases`
+- `resource_contracts`
+
 这意味着调用方现在不只可以追问：
 
 - 它为什么当前不可用
@@ -459,6 +472,7 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 - 它相对 baseline 为什么漂了
 - 漂移更偏 bringup 证据还是资源法律
 - 漂移具体落到了哪条 contract change 或 publish/export state 切换上
+- 这个 capability 在哪些 case 里共同卡在同一种状态
 
 ### 6.3 `graph path`
 

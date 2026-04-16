@@ -237,6 +237,8 @@ Assert-Condition ((@($summaryInspectResult.comparison.capability_summary.resourc
 $whyInspectResult = Invoke-CommandJson -OutputPath $whyInspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -WhyCapability $AddedRequiredFact -AsJson
 }
+Assert-Condition ([string]$whyInspectResult.query.kind -eq 'why_capability') 'inspect why query kind mismatch'
+Assert-Condition ([string]$whyInspectResult.query.scope -eq 'report') 'inspect why query scope mismatch'
 Assert-Condition ($null -ne $whyInspectResult.query.comparison) 'inspect why must expose comparison payload'
 Assert-Condition ([bool]$whyInspectResult.query.comparison.resource_changed) 'inspect why comparison must mark resource changed'
 Assert-Condition ((@($whyInspectResult.query.comparison.resource_change_kinds) -contains 'contract_added')) 'inspect why comparison missing contract_added kind'

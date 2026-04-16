@@ -177,15 +177,27 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 > **这些漂移主要集中在哪些 capability 上。**
 
-而 `why unavailable` 当前仍明确只支持单 report 查询。
+而 `why unavailable` 当前则支持两种读取作用域：
+
+- 单 report 查询
+- 全 artifact root 汇总
+
 如果当前 report 来自 compare 模式，
-该查询现在也会继续为目标 capability 带出最小 `comparison` 证据块，
+单 report 级该查询现在也会继续为目标 capability 带出最小 `comparison` 证据块，
 至少包括：
 
 - `comparison.changed`
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+
+如果选择的是整组 compare report，
+artifact_root 级该查询现在也会继续带出：
+
+- `state_counts`
+- `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
+- `compared_cases / bringup_compare_cases / resource_compare_cases`
+- `resource_contracts`
 
 而 `graph path` 当前则明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：

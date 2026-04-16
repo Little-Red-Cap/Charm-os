@@ -1827,11 +1827,112 @@ function New-WhyCapabilityResult {
     }
 
     return [ordered]@{
+        kind = 'why_capability'
+        scope = 'report'
         capability = $CapabilityName
         state = $state
         reasons = @($reasons)
         evidence = $evidence
         comparison = $comparison
+    }
+}
+
+function New-ArtifactRootWhyCapabilityCaseResult {
+    param(
+        $LoadedReport,
+        [string]$CapabilityName
+    )
+
+    $report = $LoadedReport.Data
+    $graphInfo = Load-GraphFromArtifactReport -ReportData $report
+    $whyResult = New-WhyCapabilityResult -ReportData $report -GraphInfo $graphInfo -CapabilityName $CapabilityName
+    $bringupChangeKinds = @()
+    $resourceChangeKinds = @()
+    $resourceContracts = @()
+    if ($null -ne $whyResult.comparison) {
+        $bringupChangeKinds = @($whyResult.comparison.bringup_change_kinds)
+        $resourceChangeKinds = @($whyResult.comparison.resource_change_kinds)
+        $resourceContracts = @($whyResult.comparison.resource_contracts)
+    }
+
+    return [pscustomobject][ordered]@{
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        state = [string]$whyResult.state
+        reasons = @($whyResult.reasons)
+        provider_nodes = @($whyResult.evidence.provider_nodes)
+        consumer_nodes = @($whyResult.evidence.consumer_nodes)
+        publish_state = if ([string]::IsNullOrWhiteSpace([string]$whyResult.evidence.publish_state)) { $null } else { [string]$whyResult.evidence.publish_state }
+        export_state = if ([string]::IsNullOrWhiteSpace([string]$whyResult.evidence.export_state)) { $null } else { [string]$whyResult.evidence.export_state }
+        compare_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.changed)
+        bringup_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.bringup_changed)
+        resource_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.resource_changed)
+        bringup_change_kinds = @($bringupChangeKinds)
+        resource_change_kinds = @($resourceChangeKinds)
+        resource_contracts = @($resourceContracts)
+    }
+}
+
+function New-ArtifactRootWhyCapabilityResult {
+    param(
+        [object[]]$LoadedReports,
+        [string]$CapabilityName
+    )
+
+    $caseResults = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootWhyCapabilityCaseResult -LoadedReport $_ -CapabilityName $CapabilityName } |
+            Sort-Object case
+    )
+
+    $stateCounts = [ordered]@{}
+    foreach ($caseResult in @($caseResults)) {
+        $stateName = [string]$caseResult.state
+        if ([string]::IsNullOrWhiteSpace($stateName)) {
+            $stateName = 'unknown'
+        }
+
+        if ($stateCounts.Contains($stateName)) {
+            $stateCounts[$stateName] += 1
+        } else {
+            $stateCounts[$stateName] = 1
+        }
+    }
+
+    $comparedCases = @(
+        @($caseResults) |
+            Where-Object { [bool]$_.compare_changed } |
+            ForEach-Object { [string]$_.case }
+    )
+    $bringupCompareCases = @(
+        @($caseResults) |
+            Where-Object { [bool]$_.bringup_changed } |
+            ForEach-Object { [string]$_.case }
+    )
+    $resourceCompareCases = @(
+        @($caseResults) |
+            Where-Object { [bool]$_.resource_changed } |
+            ForEach-Object { [string]$_.case }
+    )
+    $resourceContracts = @(
+        foreach ($caseResult in @($caseResults)) {
+            @($caseResult.resource_contracts)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    return [ordered]@{
+        capability = $CapabilityName
+        case_count = @($caseResults).Count
+        state_counts = $stateCounts
+        compared_case_count = @($comparedCases).Count
+        bringup_compare_case_count = @($bringupCompareCases).Count
+        resource_compare_case_count = @($resourceCompareCases).Count
+        compared_cases = @($comparedCases | Sort-Object -Unique)
+        bringup_compare_cases = @($bringupCompareCases | Sort-Object -Unique)
+        resource_compare_cases = @($resourceCompareCases | Sort-Object -Unique)
+        resource_contracts = @($resourceContracts)
+        cases = @($caseResults)
     }
 }
 
@@ -2022,6 +2123,26 @@ function Format-AggregatedCapListDisplayRow {
         ResCtr = Format-StringArray @($Entry.resource_contracts)
         Providers = Format-StringArray @($Entry.provider_nodes)
         Consumers = Format-StringArray @($Entry.consumer_nodes)
+    }
+}
+
+function Format-ArtifactRootWhyCapabilityDisplayRow {
+    param(
+        $Entry
+    )
+
+    return [pscustomobject]@{
+        Case = [string]$Entry.case
+        State = [string]$Entry.state
+        Compare = Format-BoolFlag -Value ([bool]$Entry.compare_changed)
+        BrCmp = Format-StringArrayOrDash -Values @($Entry.bringup_change_kinds)
+        ResCmp = Format-StringArrayOrDash -Values @($Entry.resource_change_kinds)
+        Contracts = Format-StringArrayOrDash -Values @($Entry.resource_contracts)
+        PubState = Format-OptionalState -Value ([string]$Entry.publish_state)
+        ExpState = Format-OptionalState -Value ([string]$Entry.export_state)
+        Providers = Format-StringArray @($Entry.provider_nodes)
+        Consumers = Format-StringArray @($Entry.consumer_nodes)
+        Reasons = (@($Entry.reasons) -join '; ')
     }
 }
 
@@ -2980,6 +3101,10 @@ if ($CapList -and $selectedReports.Count -gt 1 -and $Case.Count -gt 0) {
     throw "-CapList only supports a single selected report or full artifact root aggregation"
 }
 
+if (-not [string]::IsNullOrWhiteSpace($WhyCapability) -and $selectedReports.Count -gt 1 -and $Case.Count -gt 0) {
+    throw "-WhyCapability only supports a single selected report or full artifact root aggregation"
+}
+
 if ($ListCases) {
     if ($AsJson) {
         @($selectedReports | ForEach-Object { [string]$_.Data.subject.case }) | ConvertTo-Json -Depth 2
@@ -2991,10 +3116,6 @@ if ($ListCases) {
 }
 
 $summaryRows = @($selectedReports | ForEach-Object { New-CaseSummaryRow -LoadedReport $_ })
-
-if (-not [string]::IsNullOrWhiteSpace($WhyCapability) -and $selectedReports.Count -ne 1) {
-    throw "-WhyCapability requires exactly one selected artifact report"
-}
 
 if (-not [string]::IsNullOrWhiteSpace($GraphPath) -and $selectedReports.Count -ne 1) {
     throw "-GraphPath requires exactly one selected artifact report"
@@ -3043,6 +3164,40 @@ if ($CapList) {
 }
 
 if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEvidence) {
+    if (-not [string]::IsNullOrWhiteSpace($WhyCapability)) {
+        $artifactRootWhyResult = New-ArtifactRootWhyCapabilityResult -LoadedReports $selectedReports -CapabilityName $WhyCapability
+        if ($AsJson) {
+            [ordered]@{
+                artifact_root = $artifactRootPath
+                query = [ordered]@{
+                    kind = 'why_capability'
+                    scope = 'artifact_root'
+                    result = $artifactRootWhyResult
+                }
+            } | ConvertTo-Json -Depth 10
+        } else {
+            Write-Host "[ARTIFACT ROOT] $artifactRootPath"
+            Write-Host "[WHY CAPABILITY] $WhyCapability scope=artifact_root cases=$([int]$artifactRootWhyResult.case_count)"
+            if ($null -ne $artifactRootWhyResult.state_counts -and $artifactRootWhyResult.state_counts.Count -gt 0) {
+                $stateSummary = @(
+                    foreach ($stateName in @($artifactRootWhyResult.state_counts.Keys)) {
+                        ('{0}:{1}' -f $stateName, [int]$artifactRootWhyResult.state_counts[$stateName])
+                    }
+                ) -join ', '
+                Write-Host "state_counts = $stateSummary"
+            }
+            Write-Host "compare_cases = $([int]$artifactRootWhyResult.compared_case_count) bringup_compare = $([int]$artifactRootWhyResult.bringup_compare_case_count) resource_compare = $([int]$artifactRootWhyResult.resource_compare_case_count)"
+            if (@($artifactRootWhyResult.resource_contracts).Count -gt 0) {
+                Write-Host "resource_contracts = $((@($artifactRootWhyResult.resource_contracts) -join ', '))"
+            }
+            @($artifactRootWhyResult.cases) |
+                ForEach-Object { Format-ArtifactRootWhyCapabilityDisplayRow -Entry $_ } |
+                Format-List Case, State, Compare, BrCmp, ResCmp, Contracts, PubState, ExpState, Providers, Consumers, Reasons |
+                Out-Host
+        }
+        exit 0
+    }
+
     $comparisonCapabilitySummary = $null
     $hasComparisonReports = @(
         @($selectedReports) |

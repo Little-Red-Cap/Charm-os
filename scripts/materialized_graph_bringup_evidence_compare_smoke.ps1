@@ -293,6 +293,8 @@ Assert-Condition ((@($summaryInspectResult.comparison.capability_summary.bringup
 $whyInspectResult = Invoke-CommandJson -OutputPath $whyInspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -WhyCapability $PublishedCapability -AsJson
 }
+Assert-Condition ([string]$whyInspectResult.query.kind -eq 'why_capability') 'inspect why query kind mismatch'
+Assert-Condition ([string]$whyInspectResult.query.scope -eq 'report') 'inspect why query scope mismatch'
 Assert-Condition ($null -ne $whyInspectResult.query.comparison) 'inspect why must expose comparison payload'
 Assert-Condition ([bool]$whyInspectResult.query.comparison.bringup_changed) 'inspect why comparison must mark bringup changed'
 Assert-Condition ([int]@($whyInspectResult.query.comparison.bringup_change_kinds).Count -gt 0) 'inspect why comparison must expose bringup change kinds'

@@ -23,6 +23,11 @@ constexpr bool armv7a_fiq_masked(std::uint32_t psr) noexcept
     return (psr & armv7a::psr::kFiqMask) != 0u;
 }
 
+constexpr bool armv7a_psr_is_monitor_mode(std::uint32_t psr) noexcept
+{
+    return armv7a_psr_mode(psr) == 0x16u;
+}
+
 constexpr bool armv7a_psr_mode_restored(std::uint32_t origin_psr,
                                         std::uint32_t current_psr) noexcept
 {

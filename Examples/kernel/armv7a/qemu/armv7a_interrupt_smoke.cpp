@@ -12,7 +12,7 @@ namespace {
 constexpr std::size_t kObservationSlotCount = 8u;
 
 struct Armv7aInterruptStoredObservation {
-    bool seen = false;
+    bool entry_seen = false;
     bool special = false;
     bool synthetic = false;
     unsigned int intid = 0u;
@@ -32,9 +32,9 @@ struct Armv7aInterruptStoredObservation {
     bool line_enabled = false;
     bool line_pending = false;
     bool line_active = false;
-    std::uint32_t handler_cpsr = 0u;
-    std::uint32_t handler_spsr = 0u;
-    std::uint32_t return_pc = 0u;
+    std::uint32_t entry_handler_psr = 0u;
+    std::uint32_t entry_origin_psr = 0u;
+    std::uint32_t entry_return_pc = 0u;
 };
 
 volatile unsigned int g_interrupt_count = 0;
@@ -49,7 +49,7 @@ std::size_t observation_index(Armv7aInterruptSmokeKind kind)
 
 void clear_stored_observation(volatile Armv7aInterruptStoredObservation& observation)
 {
-    observation.seen = false;
+    observation.entry_seen = false;
     observation.special = false;
     observation.synthetic = false;
     observation.intid = armv7a_platform_spurious_interrupt_id();
@@ -69,16 +69,15 @@ void clear_stored_observation(volatile Armv7aInterruptStoredObservation& observa
     observation.line_enabled = false;
     observation.line_pending = false;
     observation.line_active = false;
-    observation.handler_cpsr = 0u;
-    observation.handler_spsr = 0u;
-    observation.return_pc = 0u;
+    observation.entry_handler_psr = 0u;
+    observation.entry_origin_psr = 0u;
+    observation.entry_return_pc = 0u;
 }
 
 Armv7aInterruptObservation load_observation(
     const volatile Armv7aInterruptStoredObservation& observation)
 {
     return Armv7aInterruptObservation{
-        .seen = observation.seen,
         .special = observation.special,
         .synthetic = observation.synthetic,
         .intid = observation.intid,
@@ -105,9 +104,12 @@ Armv7aInterruptObservation load_observation(
                 .line_pending = observation.line_pending,
                 .line_active = observation.line_active,
             },
-        .handler_cpsr = observation.handler_cpsr,
-        .handler_spsr = observation.handler_spsr,
-        .return_pc = observation.return_pc,
+        .entry =
+            observation.entry_seen
+                ? armv7a_make_vector_entry_observation(observation.entry_origin_psr,
+                                                       observation.entry_handler_psr,
+                                                       observation.entry_return_pc)
+                : armv7a_make_unobserved_vector_entry(),
     };
 }
 
@@ -128,7 +130,7 @@ void store_observation(volatile Armv7aInterruptStoredObservation& observation,
                        const Armv7aExceptionFrame& frame,
                        bool synthetic)
 {
-    observation.seen = true;
+    observation.entry_seen = true;
     observation.special = acknowledge.special;
     observation.synthetic = synthetic;
     observation.intid = acknowledge.intid;
@@ -148,9 +150,9 @@ void store_observation(volatile Armv7aInterruptStoredObservation& observation,
     observation.line_enabled = line.line_enabled;
     observation.line_pending = line.line_pending;
     observation.line_active = line.line_active;
-    observation.handler_cpsr = armv7a_read_cpsr();
-    observation.handler_spsr = frame.spsr;
-    observation.return_pc = armv7a_exception_return_pc(frame);
+    observation.entry_handler_psr = armv7a_read_cpsr();
+    observation.entry_origin_psr = frame.spsr;
+    observation.entry_return_pc = armv7a_exception_return_pc(frame);
 }
 
 void record_interrupt(const Armv7aPlatformInterruptAcknowledge& acknowledge,

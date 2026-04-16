@@ -49,14 +49,13 @@ extern "C" void armv7a_irq_smoke_test()
 
     const auto interrupt_seen = armv7a_interrupt_smoke_seen();
     const auto observation = armv7a_interrupt_smoke_last_observation();
-    if (observation.seen && !observation.special) {
+    if (armv7a_interrupt_delivery_observed(observation)) {
         if (!armv7a_platform_is_timer_interrupt(observation.intid)) {
             armv7a_interrupt_print_observed_intid(
                 "ARMv7-A timer IRQ test observed intid=", observation.intid);
         } else {
             armv7a_interrupt_print_active("ARMv7-A timer IRQ active", observation);
-            armv7a_print_return_state_evidence(
-                "irq", observation.handler_spsr, armv7a_read_cpsr());
+            armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }
 
@@ -112,13 +111,12 @@ extern "C" void armv7a_sgi_smoke_test()
 
     const auto interrupt_seen = armv7a_interrupt_smoke_seen();
     const auto observation = armv7a_interrupt_smoke_last_observation();
-    if (observation.seen && !observation.special) {
+    if (armv7a_interrupt_delivery_observed(observation)) {
         if (!armv7a_platform_is_self_sgi_interrupt(observation.intid)) {
             armv7a_interrupt_print_observed_intid("ARMv7-A SGI test observed intid=", observation.intid);
         } else {
             armv7a_interrupt_print_active("ARMv7-A SGI active", observation);
-            armv7a_print_return_state_evidence(
-                "irq", observation.handler_spsr, armv7a_read_cpsr());
+            armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }
 
@@ -174,13 +172,12 @@ extern "C" void armv7a_fiq_smoke_test()
 
     const auto interrupt_seen = armv7a_interrupt_smoke_seen();
     const auto observation = armv7a_interrupt_smoke_last_observation();
-    if (observation.seen && !observation.special) {
+    if (armv7a_interrupt_delivery_observed(observation)) {
         if (!armv7a_platform_is_self_sgi_interrupt(observation.intid)) {
             armv7a_interrupt_print_observed_intid("ARMv7-A FIQ test observed intid=", observation.intid);
         } else {
             armv7a_interrupt_print_active("ARMv7-A FIQ active", observation);
-            armv7a_print_return_state_evidence(
-                "fiq", observation.handler_spsr, armv7a_read_cpsr());
+            armv7a_print_return_state_evidence("fiq", observation.entry, armv7a_read_cpsr());
         }
     }
 
@@ -308,13 +305,12 @@ extern "C" void armv7a_unexpected_irq_smoke_test()
 
     const auto interrupt_seen = armv7a_interrupt_smoke_seen();
     const auto observation = armv7a_interrupt_smoke_last_observation();
-    if (observation.seen && !observation.special) {
+    if (armv7a_interrupt_delivery_observed(observation)) {
         if (observation.intid != kArmv7aUnexpectedSgiIntId) {
             armv7a_interrupt_print_observed_intid(
                 "ARMv7-A unexpected IRQ smoke observed intid=", observation.intid);
         } else {
-            armv7a_print_return_state_evidence(
-                "irq", observation.handler_spsr, armv7a_read_cpsr());
+            armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }
 

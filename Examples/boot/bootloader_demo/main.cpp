@@ -6,6 +6,8 @@
 #include "armv7a_psr_contract.hpp"
 #include "armv7a_stack_observation_contract.hpp"
 #include "armv7a_translation_decode_contract.hpp"
+#include "armv7a_vector_entry_contract.hpp"
+#include "armv7a_vector_exit_contract.hpp"
 
 #include <array>
 #include <cstdio>
@@ -420,18 +422,18 @@ namespace {
             armv7a_make_unobserved_interrupt_observation(1023u);
 
         Armv7aInterruptObservation observation_special{};
-        observation_special.seen = true;
+        observation_special.entry.seen = true;
         observation_special.special = true;
         observation_special.intid = 1023u;
 
         Armv7aInterruptObservation observation_irq{};
-        observation_irq.seen = true;
+        observation_irq.entry.seen = true;
         observation_irq.intid = 1u;
         observation_irq.line.line_group1 = true;
 
         Armv7aInterruptObservation observation_monitor{};
-        observation_monitor.seen = true;
-        observation_monitor.handler_cpsr = 0x16u;
+        observation_monitor.entry.seen = true;
+        observation_monitor.entry.handler_psr = 0x16u;
 
         return !armv7a_timer_pending_observed(timer_idle) &&
                armv7a_timer_pending_observed(timer_pending) &&
@@ -487,10 +489,7 @@ namespace {
 
         Armv7aSvcObservation svc_idle{};
         Armv7aSvcObservation svc_seen{
-            .seen = true,
-            .origin_spsr = 0x1Fu,
-            .handler_cpsr = 0x13u,
-            .return_pc = 0x7004u,
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
         };
 
         return armv7a_exception_kind(undefined_frame) == kArmv7aExceptionUndefined &&
@@ -522,9 +521,30 @@ namespace {
                armv7a_exception_return_pc(svc_frame) == 0x7004u &&
                !armv7a_svc_observation_observed(svc_idle) &&
                armv7a_svc_observation_observed(svc_seen) &&
-               svc_seen.origin_spsr == 0x1Fu &&
-               svc_seen.handler_cpsr == 0x13u &&
-               svc_seen.return_pc == 0x7004u;
+               svc_seen.entry.origin_psr == 0x1Fu &&
+               svc_seen.entry.handler_psr == 0x13u &&
+               svc_seen.entry.return_pc == 0x7004u;
+    }
+
+    bool verify_armv7a_vector_entry_contract() noexcept {
+        constexpr auto entry_idle = armv7a_make_unobserved_vector_entry();
+        constexpr auto entry_svc = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u);
+        constexpr auto entry_monitor_origin =
+            armv7a_make_vector_entry_observation(0x16u, 0x12u, 0x8000u);
+        constexpr auto entry_monitor_handler =
+            armv7a_make_vector_entry_observation(0x1Fu, 0x16u, 0x8004u);
+
+        return !armv7a_vector_entry_observed(entry_idle) &&
+               !armv7a_vector_entry_monitor_mode(entry_idle) &&
+               armv7a_vector_entry_observed(entry_svc) &&
+               !armv7a_vector_entry_monitor_mode(entry_svc) &&
+               entry_svc.origin_psr == 0x1Fu &&
+               entry_svc.handler_psr == 0x13u &&
+               entry_svc.return_pc == 0x7004u &&
+               armv7a_vector_entry_observed(entry_monitor_origin) &&
+               armv7a_vector_entry_monitor_mode(entry_monitor_origin) &&
+               armv7a_vector_entry_observed(entry_monitor_handler) &&
+               armv7a_vector_entry_monitor_mode(entry_monitor_handler);
     }
 
     bool verify_armv7a_abort_decode_contract() noexcept {
@@ -694,12 +714,6 @@ namespace {
         };
         constexpr auto handler_observation = armv7a_make_handler_stack_observation(
             0x00000012u, 0x40500FF0u, handler_range);
-        constexpr auto return_restored = armv7a_make_return_state_observation(
-            0x000000DFu, 0x000000DFu, 0x40500FE0u, handler_range);
-        constexpr auto return_irq_changed = armv7a_make_return_state_observation(
-            0x00000053u, 0x000000DFu, 0x40500FD0u, handler_range);
-        constexpr auto return_out_of_range = armv7a_make_return_state_observation(
-            0x000000D2u, 0x000000D2u, 0x40502000u, handler_range);
         constexpr Armv7aStackRange empty_range{};
 
         return armv7a_psr_mode(0x000000DFu) == 0x1Fu &&
@@ -720,21 +734,51 @@ namespace {
                handler_observation.current_psr == 0x00000012u &&
                handler_observation.sp == 0x40500FF0u &&
                handler_observation.used == 0x10u &&
-               handler_observation.in_range &&
-               return_restored.mode_restored &&
-               return_restored.irq_restored &&
-               return_restored.fiq_restored &&
-               return_restored.stack.in_range &&
-               return_restored.stack.used == 0x20u &&
-               !return_irq_changed.mode_restored &&
-               !return_irq_changed.irq_restored &&
-               return_irq_changed.fiq_restored &&
-               return_irq_changed.stack.in_range &&
-               return_out_of_range.mode_restored &&
-               return_out_of_range.irq_restored &&
-               return_out_of_range.fiq_restored &&
-               !return_out_of_range.stack.in_range &&
-               return_out_of_range.stack.used == 0u;
+               handler_observation.in_range;
+    }
+
+    bool verify_armv7a_vector_exit_contract() noexcept {
+        constexpr Armv7aStackRange handler_range{
+            .base = 0x40500000u,
+            .top = 0x40501000u,
+        };
+        constexpr auto entry_idle = armv7a_make_unobserved_vector_entry();
+        constexpr auto entry_restored =
+            armv7a_make_vector_entry_observation(0x000000DFu, 0x000000D2u, 0x40500004u);
+        constexpr auto entry_irq_changed =
+            armv7a_make_vector_entry_observation(0x00000053u, 0x000000D2u, 0x40500008u);
+        constexpr auto entry_out_of_range =
+            armv7a_make_vector_entry_observation(0x000000D2u, 0x000000D2u, 0x4050000Cu);
+        constexpr auto exit_idle = armv7a_make_vector_exit_observation(
+            entry_idle, 0x000000DFu, 0x40500FE0u, handler_range);
+        constexpr auto exit_restored = armv7a_make_vector_exit_observation(
+            entry_restored, 0x000000DFu, 0x40500FE0u, handler_range);
+        constexpr auto exit_irq_changed = armv7a_make_vector_exit_observation(
+            entry_irq_changed, 0x000000DFu, 0x40500FD0u, handler_range);
+        constexpr auto exit_out_of_range = armv7a_make_vector_exit_observation(
+            entry_out_of_range, 0x000000D2u, 0x40502000u, handler_range);
+
+        return !armv7a_vector_exit_observed(exit_idle) &&
+               !armv7a_vector_exit_fully_restored(exit_idle) &&
+               armv7a_vector_exit_observed(exit_restored) &&
+               armv7a_vector_exit_fully_restored(exit_restored) &&
+               exit_restored.entry.return_pc == 0x40500004u &&
+               exit_restored.current_psr == 0x000000DFu &&
+               exit_restored.stack.in_range &&
+               exit_restored.stack.used == 0x20u &&
+               armv7a_vector_exit_observed(exit_irq_changed) &&
+               !exit_irq_changed.mode_restored &&
+               !exit_irq_changed.irq_restored &&
+               exit_irq_changed.fiq_restored &&
+               !armv7a_vector_exit_fully_restored(exit_irq_changed) &&
+               exit_irq_changed.stack.in_range &&
+               armv7a_vector_exit_observed(exit_out_of_range) &&
+               exit_out_of_range.mode_restored &&
+               exit_out_of_range.irq_restored &&
+               exit_out_of_range.fiq_restored &&
+               exit_out_of_range.entry.return_pc == 0x4050000Cu &&
+               !exit_out_of_range.stack.in_range &&
+               exit_out_of_range.stack.used == 0u;
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -1390,11 +1434,14 @@ int main() {
                      });
     const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
     const bool armv7_exception_contract_ok = verify_armv7a_exception_contract();
+    const bool armv7_vector_entry_contract_ok = verify_armv7a_vector_entry_contract();
     const bool armv7_abort_decode_contract_ok = verify_armv7a_abort_decode_contract();
     const bool armv7_fault_observation_contract_ok =
         verify_armv7a_fault_observation_contract();
     const bool armv7_stack_observation_contract_ok =
         verify_armv7a_stack_observation_contract();
+    const bool armv7_vector_exit_contract_ok =
+        verify_armv7a_vector_exit_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1448,9 +1495,11 @@ int main() {
                     armv7_common_xip_ok &&
                     armv7_interrupt_contract_ok &&
                     armv7_exception_contract_ok &&
+                    armv7_vector_entry_contract_ok &&
                     armv7_abort_decode_contract_ok &&
                     armv7_fault_observation_contract_ok &&
-                    armv7_stack_observation_contract_ok;
+                    armv7_stack_observation_contract_ok &&
+                    armv7_vector_exit_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1508,12 +1557,16 @@ int main() {
                 armv7_interrupt_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_exception_contract=%d\n",
                 armv7_exception_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_vector_entry_contract=%d\n",
+                armv7_vector_entry_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_abort_decode_contract=%d\n",
                 armv7_abort_decode_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_fault_observation_contract=%d\n",
                 armv7_fault_observation_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_stack_observation_contract=%d\n",
                 armv7_stack_observation_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_vector_exit_contract=%d\n",
+                armv7_vector_exit_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

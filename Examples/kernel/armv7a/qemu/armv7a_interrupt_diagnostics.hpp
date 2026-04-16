@@ -2,6 +2,7 @@
 
 #include "armv7a_interrupt_completion_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
+#include "armv7a_interrupt_lifecycle_contract.hpp"
 
 #include <cstdint>
 
@@ -27,6 +28,9 @@ void armv7a_interrupt_print_active(const char* label,
 void armv7a_interrupt_print_completion(
     const char* label,
     const Armv7aInterruptCompletionObservation& observation);
+void armv7a_interrupt_print_lifecycle(
+    const char* label,
+    const Armv7aInterruptLifecycleObservation& observation);
 void armv7a_interrupt_print_special_ack(const char* label,
                                         Armv7aPlatformInterruptRoute route,
                                         const Armv7aInterruptObservation& observation);

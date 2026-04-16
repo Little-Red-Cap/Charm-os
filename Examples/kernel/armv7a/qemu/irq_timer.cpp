@@ -6,9 +6,21 @@
 #include "armv7a_interrupt_diagnostics.hpp"
 #include "armv7a_interrupt_smoke.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_vector_exit_contract.hpp"
 
 namespace {
 constexpr unsigned int kArmv7aUnexpectedSgiIntId = 2u;
+
+Armv7aVectorExitObservation capture_vector_exit(
+    const Armv7aVectorEntryObservation& entry)
+{
+    const auto current_cpsr = armv7a_read_cpsr();
+    return armv7a_make_vector_exit_observation(
+        entry,
+        current_cpsr,
+        armv7a_read_sp(),
+        armv7a_platform_stack_range_for_mode(current_cpsr));
+}
 }
 
 extern "C" void armv7a_irq_smoke_test()
@@ -59,6 +71,10 @@ extern "C" void armv7a_irq_smoke_test()
             if (armv7a_interrupt_completion_observed(completion)) {
                 armv7a_interrupt_print_completion("ARMv7-A timer IRQ complete", completion);
             }
+            armv7a_interrupt_print_lifecycle(
+                "ARMv7-A timer IRQ lifecycle",
+                armv7a_make_interrupt_lifecycle_observation(
+                    completion, capture_vector_exit(observation.entry)));
             armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }
@@ -124,6 +140,10 @@ extern "C" void armv7a_sgi_smoke_test()
             if (armv7a_interrupt_completion_observed(completion)) {
                 armv7a_interrupt_print_completion("ARMv7-A SGI complete", completion);
             }
+            armv7a_interrupt_print_lifecycle(
+                "ARMv7-A SGI lifecycle",
+                armv7a_make_interrupt_lifecycle_observation(
+                    completion, capture_vector_exit(observation.entry)));
             armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }
@@ -189,6 +209,10 @@ extern "C" void armv7a_fiq_smoke_test()
             if (armv7a_interrupt_completion_observed(completion)) {
                 armv7a_interrupt_print_completion("ARMv7-A FIQ complete", completion);
             }
+            armv7a_interrupt_print_lifecycle(
+                "ARMv7-A FIQ lifecycle",
+                armv7a_make_interrupt_lifecycle_observation(
+                    completion, capture_vector_exit(observation.entry)));
             armv7a_print_return_state_evidence("fiq", observation.entry, armv7a_read_cpsr());
         }
     }
@@ -326,6 +350,10 @@ extern "C" void armv7a_unexpected_irq_smoke_test()
             if (armv7a_interrupt_completion_observed(completion)) {
                 armv7a_interrupt_print_completion("ARMv7-A unexpected IRQ complete", completion);
             }
+            armv7a_interrupt_print_lifecycle(
+                "ARMv7-A unexpected IRQ lifecycle",
+                armv7a_make_interrupt_lifecycle_observation(
+                    completion, capture_vector_exit(observation.entry)));
             armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }

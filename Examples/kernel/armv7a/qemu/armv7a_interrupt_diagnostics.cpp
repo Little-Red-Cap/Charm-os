@@ -283,6 +283,31 @@ void armv7a_interrupt_print_completion(
     armv7a_platform_early_console_puts("\r\n");
 }
 
+void armv7a_interrupt_print_lifecycle(
+    const char* label,
+    const Armv7aInterruptLifecycleObservation& observation)
+{
+    armv7a_platform_early_console_puts(label);
+    armv7a_platform_early_console_puts(", intid=");
+    armv7a_diag_put_dec(observation.completion.delivery.intid);
+    armv7a_platform_early_console_puts(", source=");
+    armv7a_platform_early_console_puts(
+        armv7a_platform_interrupt_source_name(observation.completion.delivery.intid));
+    armv7a_platform_early_console_puts(", entry-match=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(armv7a_interrupt_lifecycle_entry_consistent(observation)));
+    armv7a_platform_early_console_puts(", retired=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(armv7a_interrupt_lifecycle_retired(observation)));
+    armv7a_platform_early_console_puts(", restored=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(armv7a_interrupt_lifecycle_restored(observation)));
+    armv7a_platform_early_console_puts(", closed=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(armv7a_interrupt_lifecycle_closed(observation)));
+    armv7a_platform_early_console_puts("\r\n");
+}
+
 void armv7a_interrupt_print_special_ack(const char* label,
                                         Armv7aPlatformInterruptRoute route,
                                         const Armv7aInterruptObservation& observation)

@@ -4,6 +4,7 @@
 #include "armv7a_fault_status_contract.hpp"
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
+#include "armv7a_interrupt_lifecycle_contract.hpp"
 #include "armv7a_psr_contract.hpp"
 #include "armv7a_stack_observation_contract.hpp"
 #include "armv7a_translation_decode_contract.hpp"
@@ -875,6 +876,86 @@ namespace {
                exit_out_of_range.stack.used == 0u;
     }
 
+    bool verify_armv7a_interrupt_lifecycle_contract() noexcept {
+        Armv7aInterruptObservation delivery{};
+        delivery.intid = 1u;
+        delivery.raw_acknowledge = 0x00010001u;
+        delivery.line =
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = true,
+            };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = false,
+            });
+
+        constexpr Armv7aStackRange handler_range{
+            .base = 0x40500000u,
+            .top = 0x40501000u,
+        };
+        const auto exit = armv7a_make_vector_exit_observation(
+            delivery.entry, delivery.entry.origin_psr, 0x40500FE0u, handler_range);
+        auto mismatch_entry = delivery.entry;
+        mismatch_entry.return_pc = 0x5004u;
+        const auto exit_mismatch = armv7a_make_vector_exit_observation(
+            mismatch_entry, mismatch_entry.origin_psr, 0x40500FE0u, handler_range);
+        const auto completion_unretired = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x00000001u,
+                .highest_pending_intid = 1u,
+                .highest_pending_special = false,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = false,
+            });
+        const auto exit_unrestored = armv7a_make_vector_exit_observation(
+            delivery.entry, 0x000000D2u, 0x40500FE0u, handler_range);
+        const auto lifecycle_closed =
+            armv7a_make_interrupt_lifecycle_observation(completion, exit);
+        const auto lifecycle_entry_mismatch =
+            armv7a_make_interrupt_lifecycle_observation(completion, exit_mismatch);
+        const auto lifecycle_unretired =
+            armv7a_make_interrupt_lifecycle_observation(completion_unretired, exit);
+        const auto lifecycle_unrestored =
+            armv7a_make_interrupt_lifecycle_observation(completion, exit_unrestored);
+        const auto lifecycle_idle = armv7a_make_unobserved_interrupt_lifecycle(1023u);
+
+        return armv7a_interrupt_lifecycle_observed(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_entry_consistent(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_retired(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_restored(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_closed(lifecycle_closed) &&
+               armv7a_interrupt_lifecycle_observed(lifecycle_entry_mismatch) &&
+               !armv7a_interrupt_lifecycle_entry_consistent(lifecycle_entry_mismatch) &&
+               !armv7a_interrupt_lifecycle_closed(lifecycle_entry_mismatch) &&
+               armv7a_interrupt_lifecycle_observed(lifecycle_unretired) &&
+               !armv7a_interrupt_lifecycle_retired(lifecycle_unretired) &&
+               !armv7a_interrupt_lifecycle_closed(lifecycle_unretired) &&
+               armv7a_interrupt_lifecycle_observed(lifecycle_unrestored) &&
+               !armv7a_interrupt_lifecycle_restored(lifecycle_unrestored) &&
+               !armv7a_interrupt_lifecycle_closed(lifecycle_unrestored) &&
+               !armv7a_interrupt_lifecycle_observed(lifecycle_idle) &&
+               !armv7a_interrupt_lifecycle_closed(lifecycle_idle);
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -1538,6 +1619,8 @@ int main() {
         verify_armv7a_stack_observation_contract();
     const bool armv7_vector_exit_contract_ok =
         verify_armv7a_vector_exit_contract();
+    const bool armv7_interrupt_lifecycle_contract_ok =
+        verify_armv7a_interrupt_lifecycle_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1596,7 +1679,8 @@ int main() {
                     armv7_abort_decode_contract_ok &&
                     armv7_fault_observation_contract_ok &&
                     armv7_stack_observation_contract_ok &&
-                    armv7_vector_exit_contract_ok;
+                    armv7_vector_exit_contract_ok &&
+                    armv7_interrupt_lifecycle_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1666,6 +1750,8 @@ int main() {
                 armv7_stack_observation_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_vector_exit_contract=%d\n",
                 armv7_vector_exit_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_interrupt_lifecycle_contract=%d\n",
+                armv7_interrupt_lifecycle_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

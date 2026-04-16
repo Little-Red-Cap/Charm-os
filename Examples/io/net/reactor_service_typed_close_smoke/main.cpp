@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <utility>
 
 import charm.net;
 import net.backend.stub;
@@ -76,14 +77,19 @@ int main() {
     net::TcpClient client{};
     net::TcpClient server{};
 
-    if (!listener.listen(stack, net::Endpoint::ipv4_loopback(30202), 2)) {
+    auto listening = net::TcpListener::listening_loopback(stack, 30202, 2);
+    if (!listening) {
         std::fputs("reactor service typed close listen failed\n", stderr);
         return 1;
     }
-    if (!client.connect(stack, net::Endpoint::ipv4_loopback(30202))) {
+    listener = std::move(listening.value());
+
+    auto connected = net::TcpClient::connected_loopback(stack, 30202);
+    if (!connected) {
         std::fputs("reactor service typed close connect failed\n", stderr);
         return 2;
     }
+    client = std::move(connected.value());
     if (!listener.accept(server, nullptr)) {
         std::fputs("reactor service typed close accept failed\n", stderr);
         return 3;

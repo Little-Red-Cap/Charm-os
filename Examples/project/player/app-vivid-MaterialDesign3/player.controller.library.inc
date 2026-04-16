@@ -915,15 +915,10 @@
                 patch.font_color = has_context
                     ? rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 255}
                     : kUiTitle;
-                if (has_context) {
-                    patch.has_font = true;
-                    patch.font = &get_player_font_px(26, FontWeight::Bold);
-                } else {
-                    patch.has_font_role = true;
-                    patch.font_role = FontId::Normal;
-                    patch.has_font_weight = true;
-                    patch.font_weight = FontWeight::Bold;
-                }
+                patch.has_font = true;
+                patch.font = has_context
+                    ? &get_player_font_px(24, FontWeight::Bold)
+                    : &get_player_font_px(22, FontWeight::Medium);
                 access.set_style_override(handles.list_title, patch);
             }
 
@@ -955,6 +950,10 @@
                     : path_active
                     ? kUiLibraryPathTextActive
                     : kUiLibraryPathText;
+                patch.has_font_role = true;
+                patch.font_role = FontId::Small;
+                patch.has_font_weight = true;
+                patch.font_weight = has_context ? FontWeight::Medium : FontWeight::Regular;
                 access.set_style_override(handles.list_path, patch);
             }
         }

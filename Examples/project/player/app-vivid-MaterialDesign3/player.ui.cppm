@@ -999,6 +999,7 @@ export namespace player::ui {
         preset.list_view.colors.accent_color = kUiLibraryListAccent;
         preset.list_view.colors.on_accent = kUiLibraryListOnAccent;
         preset.list_view.colors.border_focus = kUiLibraryPathBorderActive;
+        preset.list_view.font_weight = FontWeight::Medium;
         preset.list_view.metrics.corner_radius = 18;
         preset.list_view.metrics.padding = 14;
         preset.list_view.colors.font_color = kUiListFont;

@@ -1432,8 +1432,8 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const bool row_selected = (i == selected);
         const bool row_active = (i == active);
         Rect row_surface = row;
-        const int row_inset_x = (row_h >= 44) ? 4 : 2;
-        const int row_inset_y = (row_h >= 44) ? 3 : 1;
+        const int row_inset_x = (row_h >= 44) ? 5 : 2;
+        const int row_inset_y = (row_h >= 44) ? 4 : 1;
         row_surface.x += row_inset_x;
         row_surface.y += row_inset_y;
         row_surface.w -= row_inset_x * 2;
@@ -1454,11 +1454,11 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             } else if (row_selected) {
                 out.fill_round_rect(row_surface, row_radius, colors.accent);
             } else if (row_active) {
-                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.accent, 40));
-                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.accent, 220));
+                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.accent, 54));
+                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.accent, 228));
             } else if (row_h >= 44) {
-                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.bg, 120));
-                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.border, 52));
+                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.bg, 156));
+                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.border, 70));
             }
         }
         const rgba font = row_selected ? colors.on_accent
@@ -1497,6 +1497,7 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const bool has_tail_action_icon = ui::draw_cmd::image_id_valid(tail_action_icon);
         Rect tail_rect{};
         Rect tail_icon_rect{};
+        Rect tail_action_chip_rect{};
         Rect tail_action_icon_rect{};
         int main_text_w = text_w;
         bool draw_tail = false;
@@ -1513,10 +1514,19 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             if (tail_action_icon_size < 12) tail_action_icon_size = 12;
             if (tail_action_icon_size < text_w) {
                 right_x -= tail_action_icon_size;
-                tail_action_icon_rect = Rect{right_x,
+                tail_action_chip_rect = Rect{right_x,
                                              row.y + (row_h - tail_action_icon_size) / 2,
                                              tail_action_icon_size,
                                              tail_action_icon_size};
+                const int tail_action_icon_gap = (tail_action_icon_size >= 24) ? 5 : 4;
+                tail_action_icon_rect = tail_action_chip_rect;
+                tail_action_icon_rect.x += tail_action_icon_gap;
+                tail_action_icon_rect.y += tail_action_icon_gap;
+                tail_action_icon_rect.w -= tail_action_icon_gap * 2;
+                tail_action_icon_rect.h -= tail_action_icon_gap * 2;
+                if (tail_action_icon_rect.w < 12 || tail_action_icon_rect.h < 12) {
+                    tail_action_icon_rect = tail_action_chip_rect;
+                }
                 draw_tail_action_icon = true;
                 if (right_x - pad > text_x) {
                     right_x -= pad;
@@ -1588,6 +1598,15 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             out.draw_icon(tail_icon_rect, tail_icon);
         }
         if (draw_tail_action_icon) {
+            const int chip_radius = tail_action_chip_rect.h / 2;
+            const auto chip_bg = row_selected ? with_alpha(colors.on_accent, 52)
+                                              : (row_active ? with_alpha(colors.accent, 44)
+                                                            : with_alpha(colors.border, 44));
+            const auto chip_border = row_selected ? with_alpha(colors.on_accent, 96)
+                                                  : (row_active ? with_alpha(colors.accent, 118)
+                                                                : with_alpha(colors.border, 84));
+            out.fill_round_rect(tail_action_chip_rect, chip_radius, chip_bg);
+            out.stroke_round_rect(tail_action_chip_rect, chip_radius, chip_border);
             out.draw_icon(tail_action_icon_rect, tail_action_icon);
         }
         y += row_h;

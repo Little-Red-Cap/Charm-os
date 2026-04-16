@@ -999,8 +999,8 @@ export namespace player::ui {
         preset.list_view.colors.accent_color = kUiLibraryListAccent;
         preset.list_view.colors.on_accent = kUiLibraryListOnAccent;
         preset.list_view.colors.border_focus = kUiLibraryPathBorderActive;
-        preset.list_view.metrics.corner_radius = 14;
-        preset.list_view.metrics.padding = 12;
+        preset.list_view.metrics.corner_radius = 18;
+        preset.list_view.metrics.padding = 14;
         preset.list_view.colors.font_color = kUiListFont;
         preset.has_progress = true;
         preset.progress = theme.get<Progress>();

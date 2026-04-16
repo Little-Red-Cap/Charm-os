@@ -1351,9 +1351,9 @@
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
             access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 20);
-            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 20);
+            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 26);
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 48);
-            access.set_list_view_icon_corner_radius(handles.list, 14);
+            access.set_list_view_icon_corner_radius(handles.list, 16);
             access.set_list_row_height(handles.list, kLibraryListRowHeight);
             access.set_scroll_step(handles.list, kLibraryListRowHeight);
             if (count > 0) {

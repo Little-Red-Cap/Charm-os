@@ -118,16 +118,16 @@
 ```cpp
 import charm.net;
 
-net::TcpClient client{};
-
-auto st = client.connect(stack, net::Endpoint::ipv4(192, 168, 1, 10, 1883));
-if (!st) {
+auto client = net::TcpClient::connected(
+    stack,
+    net::Endpoint::ipv4(192, 168, 1, 10, 1883));
+if (!client) {
     return;
 }
 
-client.send(as_bytes("ping"));
-client.recv(buffer);
-client.close();
+client->send(as_bytes("ping"));
+client->recv(buffer);
+client->close();
 ```
 
 UDP 也应足够直接：
@@ -135,10 +135,12 @@ UDP 也应足够直接：
 ```cpp
 import charm.net;
 
-net::UdpSocket udp{};
-udp.bind(stack, net::Endpoint::ipv4_any(5000));
-udp.recv_from(buffer, peer);
-udp.send_to(peer, payload);
+auto udp = net::UdpSocket::bound(stack, net::Endpoint::ipv4_any(5000));
+if (!udp) {
+    return;
+}
+udp->recv_from(buffer, peer);
+udp->send_to(peer, payload);
 ```
 
 重点不是 API 名字，而是用户侧体验：
@@ -453,7 +455,7 @@ v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagn
 `TcpClient/UdpSocket/TcpListener` 应尽量轻量。
 
 用户对象负责：
-- 对高频场景直接给出少量便捷动作，例如 `listen_loopback / listen_any / connect_loopback / bind_any / accept()`；需要对端地址时也可直接 `accept(peer)`，避免普通用户反复手拼 `Endpoint`
+- 对高频场景直接给出少量便捷动作，例如 `connected / listening / bound` 及其 `*_loopback / *_any` 变体，再配合 `accept()`；`send/recv/send_to/recv_from` 也应支持直接传 `u8` 数组，避免普通用户反复手拼 `Endpoint` 或 `ByteView`
 
 - 表达意图
 - 持有句柄/状态
@@ -498,6 +500,7 @@ v0 推荐做法是把 socket readiness 投影到 `io.reactor`：
 - 如果同一次采样里同时观察到 `readable + closed`，driver 应先把剩余可读 payload 交给 session，再上报 transport closed，避免把“最后一帧数据”误伤成 error
 - 如果已经采样到 `writable`，但真正 flush 时写端发现对端已关闭，driver 也应收口为 transport closed，而不是把“迟到的写失败”继续上抛成 transport error
 - `RequestSession / ServiceSession / TypedServiceSession` 在 transport close 时应清空本地 pending / deferred 状态，并统一向 error handler 上抛 `errc::closed`，不要把断链拖成 timeout
+- `WinProvider` 在 `select + SO_ERROR / MSG_PEEK` 路径上，如果 WinSock 已经把 `WSAECONNRESET / WSAECONNABORTED / WSAENETRESET / WSAESHUTDOWN / WSAENOTCONN` 映射成 `closed`，poll 阶段也应继续上报 `closed`，不要在 backend 采样时把真实断链反弹成 `error`
 - 对 `ServiceSession / TypedServiceSession` 而言，transport close 之后旧的 deferred reply token 也应立即失效，后续 `send_deferred_response()` 应返回 `noent`，避免业务层把断链后的迟到回复误判成还能发送
 - 协议驱动层可继续复用 `set_sender / feed / notify_writable` 这类 session 契约，把复杂状态机压在协议层内部，而不是散落在业务代码里
 - 文本协议可先落 `LineSession`；二进制协议优先落固定长度前缀的 `FrameSession`，先把最常见的 request/response 主路径钉稳

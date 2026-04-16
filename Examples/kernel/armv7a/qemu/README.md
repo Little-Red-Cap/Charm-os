@@ -3,6 +3,18 @@
 This is the first Cortex-A oriented leaf target for Charm.
 It keeps startup, linker, and early UART code inside the example target
 instead of pushing ARMv7-A specifics into shared `Modules/`.
+The shared ARMv7-A handoff prepare contract now lives in
+`targets/armv7a/common/`, carries explicit load/payload/entry metadata,
+and lets this QEMU leaf keep the hook implementation and runtime evidence
+local. Shared ARMv7-A exception and interrupt contracts also live there, so
+frame math, pending/timeout state, observation semantics, and abort-decode
+helpers can be validated on the host side before a real board leaf joins the
+same path. Fault register/map/context snapshots are now also shaped as a
+shared observation contract, while the QEMU leaf still owns the actual CP15
+reads and translation-table sampling. PSR decoding plus handler-stack/return
+evidence shaping now also live in common contracts, so later Cortex-A boards
+can reuse the same observation semantics even when their stack layout hooks
+differ.
 
 ## Build
 
@@ -58,6 +70,9 @@ cmake --build out\build\debug-interrupt-sgi-timeout --verbose
 
 cmake --preset debug-interrupt-unexpected-irq
 cmake --build out\build\debug-interrupt-unexpected-irq --verbose
+
+cmake --preset debug-interrupt-sgi-fiq-timeout
+cmake --build out\build\debug-interrupt-sgi-fiq-timeout --verbose
 ```
 
 ## Run
@@ -131,6 +146,12 @@ ARMv7-A FIQ active, intid=1, origin-mode=sys, handler-mode=fiq, return-pc=0x4020
 ARMv7-A handler stack, vector=fiq, mode=fiq, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A return evidence, vector=fiq, origin-mode=sys, current-mode=sys, origin-irq=masked, current-irq=masked, origin-fiq=enabled, current-fiq=enabled, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-ppi, irq-origin=sys, irq-handler=irq, fiq-origin=sys, fiq-handler=fiq, monitor-mode=not-observed
+ARMv7-A handoff context, vector-base=0x40200000, translation-table=0x4021...., image-base=0x40200000
+ARMv7-A handoff request, kind=copy, payload-base=0x40200000, entry=0x40200000, storage-payload=0x00000000, storage-entry=0x00000000, entry-offset=0x00000000, payload-size=0x00000000, image-size=0x00000000, flags=0x00000000
+ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
+ARMv7-A handoff quiesced, cntp_ctl=0x00000002, secure-line=group0/no/no/no, nonsecure-line=group1/no/no/no, sgi-line=group0/yes/no/no, gicd=0x00000000, gicc=0x00000000, hppir=0x000003FF, spurious=yes
+ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, tlb=yes, vectors=yes, sync=yes
+ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00000000, dacr=0x00000001, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked
 ```
 
 ## CI smoke
@@ -141,7 +162,9 @@ ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-pp
 
 `run_qemu_ci.ps1` now configures and rebuilds the default `debug` preset
 before launching QEMU, so the smoke log stays aligned with the current source
-instead of whatever ELF happened to be left in `out\build\debug`.
+instead of whatever ELF happened to be left in `out\build\debug`. The default
+build leg now also uses `--parallel 1`, which keeps the ARM bare-metal GCC
+modules output stable during CI smoke runs.
 
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:
@@ -180,6 +203,10 @@ success-path CI stays stable while we harden the failure-path evidence:
 
 ```powershell
 .\run_qemu_interrupt_unexpected_ci.ps1
+```
+
+```powershell
+.\run_qemu_interrupt_sgi_fiq_timeout_ci.ps1
 ```
 
 ## Special IRQ acknowledge smoke
@@ -238,6 +265,26 @@ ARMv7-A diagnostic context, subsystem=interrupt, stage=unexpected-irq-smoke, las
 ARMv7-A unexpected IRQ, intid=0x00000002, source=unexpected-intid, ack=0x00000002, hppir-before-ack=0x00000002, line=group1/yes/(yes|no)/yes, origin-mode=sys, handler-mode=irq, return-pc=0x........, pc=0x........, lr=0x........, spsr=0x........
 ARMv7-A return evidence, vector=irq, origin-mode=sys, current-mode=sys, origin-irq=enabled, current-irq=enabled, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x........, base=0x........, top=0x........, used=0x........, in-range=yes
 ARMv7-A phase complete, stage=unexpected-irq-smoke
+```
+
+## SGI FIQ timeout smoke
+
+Use the dedicated preset and pass its ELF to `run_qemu.ps1`:
+
+```powershell
+.\run_qemu.ps1 -ElfPath out\build\debug-interrupt-sgi-fiq-timeout\charm-armv7a-qemu
+```
+
+Expected output includes the normal bringup banner, one Group0 SGI pending
+snapshot, then a timeout summary captured while CPU FIQ is still masked:
+
+```text
+ARMv7-A phase, stage=sgi-fiq-timeout-smoke
+ARMv7-A SGI pending evidence, route=fiq, line=group0/yes/yes/no, gicd=0x00000003, gicc=0x0000000F, hppir=0x00000001, spurious=no
+ARMv7-A diagnostic context, subsystem=interrupt, stage=sgi-fiq-timeout-smoke, last-complete=sgi-fiq-smoke, cpsr=0x........
+ARMv7-A interrupt timeout, expected=sgi-fiq, route=fiq, route-mask=masked, pending-observed=yes, last-observation=not-observed
+ARMv7-A FIQ timeout, cpsr=0x........, ctlr=0x0000000F, igroupr0=0x00000000, isenabler0=0x00000002, hppir=0x00000001
+ARMv7-A phase complete, stage=sgi-fiq-timeout-smoke
 ```
 
 ## Undefined exception smoke
@@ -474,6 +521,10 @@ continue
   self-targeted `SGI intid=2` through the normal IRQ path, so the
   `unexpected-intid` handler contract is exercised by a real GIC-delivered
   interrupt instead of only existing as a defensive log branch.
+- A fourth optional `sgi-fiq-timeout-smoke` preset now keeps CPU FIQ masked
+  on purpose after a Group0 self-targeted SGI is already pending in the GIC,
+  so the Group0 + FIQ route has the same dedicated timeout evidence that the
+  IRQ route already has.
 - The same returning paths now also print one `return evidence` line after the
   handler returns to ordinary execution, comparing the pre-exception `SPSR`
   against the live post-return `CPSR`. That gives us direct evidence for

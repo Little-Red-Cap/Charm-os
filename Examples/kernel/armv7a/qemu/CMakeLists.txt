@@ -6,8 +6,8 @@ set(CHARM_ARMV7A_ABORT_SMOKE "off" CACHE STRING "Optional abort smoke kind: off,
 set_property(CACHE CHARM_ARMV7A_ABORT_SMOKE PROPERTY STRINGS off data data_align prefetch prefetch_xn prefetch_page prefetch_page_xn prefetch_page_xn_runtime data_perm data_page data_page_perm data_page_perm_runtime)
 set(CHARM_ARMV7A_EXCEPTION_SMOKE "off" CACHE STRING "Optional exception smoke kind: off, undefined")
 set_property(CACHE CHARM_ARMV7A_EXCEPTION_SMOKE PROPERTY STRINGS off undefined)
-set(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE "off" CACHE STRING "Optional interrupt edge smoke kind: off, special_irq, sgi_irq_timeout, unexpected_irq")
-set_property(CACHE CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE PROPERTY STRINGS off special_irq sgi_irq_timeout unexpected_irq)
+set(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE "off" CACHE STRING "Optional interrupt edge smoke kind: off, special_irq, sgi_irq_timeout, unexpected_irq, sgi_fiq_timeout")
+set_property(CACHE CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE PROPERTY STRINGS off special_irq sgi_irq_timeout unexpected_irq sgi_fiq_timeout)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -52,9 +52,10 @@ endif()
 if (NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "special_irq"
     AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_irq_timeout"
-    AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "unexpected_irq")
+    AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "unexpected_irq"
+    AND NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_fiq_timeout")
     message(FATAL_ERROR
-        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE must be one of: off, special_irq, sgi_irq_timeout, unexpected_irq")
+        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE must be one of: off, special_irq, sgi_irq_timeout, unexpected_irq, sgi_fiq_timeout")
 endif()
 if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "off")
@@ -83,6 +84,7 @@ set(charm_armv7a_qemu_module_files
 add_executable(${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME} PRIVATE
+    "${CHARM_ROOT}/targets/armv7a/common/armv7a_handoff_contract.cpp"
     vectors.S
     startup.S
     main.cpp
@@ -92,6 +94,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_diag_console.cpp
     armv7a_diag_context.cpp
     armv7a_handler_stack.cpp
+    armv7a_handoff_prepare.cpp
     armv7a_interrupt_smoke.cpp
     armv7a_interrupt_diagnostics.cpp
     armv7a_interrupt_observation_sequence.cpp
@@ -107,7 +110,6 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_page_table_probe.cpp
     armv7a_section_split_probe.cpp
     armv7a_boot_page_table.cpp
-    armv7a_fault_status.cpp
     armv7a_translation_walk.cpp
     armv7a_abort_smoke.cpp
     armv7a_exception_smoke.cpp
@@ -129,7 +131,8 @@ target_sources(${PROJECT_NAME}
         ${charm_armv7a_qemu_module_files})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}")
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CHARM_ROOT}/targets/armv7a/common")
 
 target_compile_options(${PROJECT_NAME} PRIVATE
     -mcpu=${CHARM_ARMV7A_CPU}
@@ -189,4 +192,7 @@ elseif (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_irq_timeout")
 elseif (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "unexpected_irq")
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_UNEXPECTED_IRQ=1)
+elseif (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_fiq_timeout")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_SGI_FIQ_TIMEOUT=1)
 endif()

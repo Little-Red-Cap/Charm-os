@@ -153,6 +153,15 @@
       "cacheVariables": {
         "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "unexpected_irq"
       }
+    },
+    {
+      "name": "debug-interrupt-sgi-fiq-timeout",
+      "displayName": "ARMv7-A QEMU Debug (SGI FIQ Timeout Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-interrupt-sgi-fiq-timeout",
+      "cacheVariables": {
+        "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "sgi_fiq_timeout"
+      }
     }
   ],
   "buildPresets": [
@@ -219,6 +228,10 @@
     {
       "name": "debug-interrupt-unexpected-irq",
       "configurePreset": "debug-interrupt-unexpected-irq"
+    },
+    {
+      "name": "debug-interrupt-sgi-fiq-timeout",
+      "configurePreset": "debug-interrupt-sgi-fiq-timeout"
     }
   ]
 }

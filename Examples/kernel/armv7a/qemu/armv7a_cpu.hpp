@@ -1,5 +1,7 @@
 #pragma once
 
+#include "armv7a_psr_contract.hpp"
+
 #include <cstdint>
 
 extern "C" void armv7a_data_sync_barrier();
@@ -29,7 +31,4 @@ std::uint32_t armv7a_id_pfr1_security_field(std::uint32_t value);
 std::uint32_t armv7a_id_pfr1_virtualization_field(std::uint32_t value);
 std::uint32_t armv7a_id_pfr1_gentimer_field(std::uint32_t value);
 const char* armv7a_feature_presence_name(std::uint32_t field);
-bool armv7a_irq_masked(std::uint32_t psr);
-bool armv7a_fiq_masked(std::uint32_t psr);
 bool armv7a_alignment_check_enabled(std::uint32_t sctlr);
-const char* armv7a_mode_name(std::uint32_t psr);

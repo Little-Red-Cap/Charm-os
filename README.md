@@ -140,7 +140,7 @@ Charm 提供一组可组合的系统能力。
 ## 设计关键词
 - **能力图装配**：所有底层能力通过 `init.graph` 注册与启动
 - **非阻塞 IO**：`Channel + Reactor + Registry` 三件套统一入口
-- **单入口模块**：`charm.foundation / charm.runtime / charm.domain` 约束依赖边界
+- **兼容入口 + 子系统入口**：保留 `charm.foundation / charm.runtime` 兼容面；新代码优先使用 `charm.system / charm.io / charm.media / charm.ui.*`
 - **零动态内存**：默认固定容量与零分配策略
 - **可观测**：统一 trace/诊断入口
 
@@ -178,21 +178,25 @@ Registry
 
 ---
 
-### 单入口模块
+### 兼容入口模块
 
-系统依赖被限制为三层：
+历史上仓库曾使用三层入口来表达依赖方向；当前保留的兼容入口只有：
 
 ```
 
 charm.foundation
 ↓
 charm.runtime
-↓
-charm.domain
 
-````
+```
 
-禁止跨层依赖。
+其中：
+
+- `charm.foundation`：兼容 facade，对应 `charm.core`
+- `charm.runtime`：兼容 facade，对应 `charm.system + charm.io + charm.net`
+- Domain 层不再提供单独的 `charm.domain` 入口；请直接使用 `charm.media`、`charm.ui.ink`、`charm.ui.vivid`
+
+`Modules/*` 新代码禁止继续依赖这些兼容入口，应优先使用更窄的子系统入口。
 
 ---
 

@@ -64,18 +64,70 @@
             return (prev == std::string_view::npos) ? parent : parent.substr(prev + 1);
         }
 
+        static std::string_view library_trim_space(std::string_view value) noexcept {
+            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
+                value.remove_prefix(1);
+            }
+            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+                value.remove_suffix(1);
+            }
+            return value;
+        }
+
+        static bool library_split_track_stem(std::string_view stem,
+                                             std::string_view& title_out,
+                                             std::string_view& artist_out) noexcept {
+            title_out = {};
+            artist_out = {};
+            const auto assign_split = [&](std::string_view title,
+                                          std::string_view artist) noexcept -> bool {
+                title = library_trim_space(title);
+                artist = library_trim_space(artist);
+                if (title.empty() || artist.empty()) return false;
+                title_out = title;
+                artist_out = artist;
+                return true;
+            };
+
+            const auto spaced_sep = stem.find(" - ");
+            if (spaced_sep != std::string_view::npos) {
+                if (assign_split(stem.substr(spaced_sep + 3), stem.substr(0, spaced_sep))) {
+                    return true;
+                }
+            }
+
+            const auto compact_sep = stem.find_last_of('-');
+            if (compact_sep != std::string_view::npos && compact_sep > 0 && compact_sep + 1 < stem.size()) {
+                if (assign_split(stem.substr(0, compact_sep), stem.substr(compact_sep + 1))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        static bool library_looks_like_format(std::string_view value) noexcept {
+            if (value.empty()) return true;
+            if (value == "UNKNOWN") return true;
+            if (is_audio_extension(value)) return true;
+            if (value.size() > 5) return false;
+            for (char ch : value) {
+                if (!std::isalnum(static_cast<unsigned char>(ch))) return false;
+            }
+            return true;
+        }
+
         static std::string_view library_artist_from_stem(std::string_view stem) noexcept {
-            const auto sep = stem.find(" - ");
-            if (sep == std::string_view::npos || sep == 0) return {};
-            return stem.substr(0, sep);
+            std::string_view title{};
+            std::string_view artist{};
+            if (!library_split_track_stem(stem, title, artist)) return {};
+            return artist;
         }
 
         static std::string_view library_title_from_stem(std::string_view stem) noexcept {
-            const auto sep = stem.find(" - ");
-            if (sep == std::string_view::npos) return stem;
-            const auto title_start = sep + 3;
-            if (title_start >= stem.size()) return stem;
-            return stem.substr(title_start);
+            std::string_view title{};
+            std::string_view artist{};
+            if (!library_split_track_stem(stem, title, artist)) return stem;
+            return title;
         }
 
         static std::uint32_t library_shuffle_key(int track_index, std::uint32_t seed) noexcept {
@@ -185,7 +237,8 @@
                 out.detail_primary = out.model->title.view();
                 out.detail_secondary = out.model->subtitle.view();
             }
-            out.show_tail_action = out.selected_row;
+            const bool row_has_action = (out.model != nullptr) || (out.track_index >= 0);
+            out.show_tail_action = row_has_action && (out.selected_row || !out.current_row);
             out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
             out.tail_icon = out.current_row
                 ? (is_paused() ? icons.pause : icons.play)
@@ -423,12 +476,12 @@
 
         bool library_shows_context_watermark() const noexcept {
             return library_has_context()
-                && !list_order.empty()
+                && list_order.size() >= 1
                 && list_order.size() <= 3;
         }
 
         void format_library_group_summary(std::string_view key,
-                                          bool current_group,
+                                          bool /*current_group*/,
                                           char* buf,
                                           std::size_t buf_size) const noexcept {
             if (!buf || buf_size == 0) return;
@@ -436,22 +489,15 @@
             if (key.empty()) return;
 
             const int track_count = library_group_track_count(key);
+            const char* track_label = (track_count == 1) ? "track" : "tracks";
             bool duration_complete = false;
             const int total_sec = library_group_total_duration(key, &duration_complete);
             if (duration_complete && total_sec > 0) {
                 char duration_buf[16]{};
                 format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
-                if (current_group) {
-                    std::snprintf(buf, buf_size, "%s | %d tracks | %s",
-                                  library_current_group_state_text(), track_count, duration_buf);
-                } else {
-                    std::snprintf(buf, buf_size, "%d tracks | %s", track_count, duration_buf);
-                }
-            } else if (current_group) {
-                std::snprintf(buf, buf_size, "%s | %d tracks",
-                              library_current_group_state_text(), track_count);
+                std::snprintf(buf, buf_size, "%d %s | %s", track_count, track_label, duration_buf);
             } else {
-                std::snprintf(buf, buf_size, "%d tracks", track_count);
+                std::snprintf(buf, buf_size, "%d %s", track_count, track_label);
             }
         }
 
@@ -816,14 +862,27 @@
             spec.bg_color = active ? kUiLibraryChipActive : kUiLibraryChipIdle;
             spec.border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder;
             spec.corner_radius = radius;
-            if (active || elevated) {
+            if (active && elevated) {
                 spec.shadow.enabled = true;
-                spec.shadow.color = active ? with_alpha(kUiCardShadow, 96)
-                                           : with_alpha(kUiCardShadow, 72);
+                spec.shadow.color = with_alpha(kUiCardShadow, 76);
                 spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = active ? 3 : 4;
-                spec.shadow.spread = active ? 1 : 3;
-                spec.shadow.radius = active ? 12 : 16;
+                spec.shadow.offset_y = 2;
+                spec.shadow.spread = 0;
+                spec.shadow.radius = 10;
+            } else if (active) {
+                spec.shadow.enabled = true;
+                spec.shadow.color = with_alpha(kUiCardShadow, 96);
+                spec.shadow.offset_x = 0;
+                spec.shadow.offset_y = 3;
+                spec.shadow.spread = 1;
+                spec.shadow.radius = 12;
+            } else if (elevated) {
+                spec.shadow.enabled = true;
+                spec.shadow.color = with_alpha(kUiCardShadow, 40);
+                spec.shadow.offset_x = 0;
+                spec.shadow.offset_y = 1;
+                spec.shadow.spread = 0;
+                spec.shadow.radius = 7;
             }
             if (active) {
                 spec.inner_stroke_enabled = true;
@@ -841,22 +900,39 @@
         }
 
         void update_library_state_visuals() {
+            const bool has_context = library_has_context();
+            const bool path_active = has_context
+                || (library_tab != LibraryTab::Songs)
+                || list_shuffle_enabled;
             apply_library_chip_style(handles.list_tab_songs, library_tab == LibraryTab::Songs, kLibraryTabRadius);
             apply_library_chip_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
             apply_library_chip_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
             apply_library_chip_style(handles.list_shuffle, list_shuffle_enabled, kLibraryTabRadius, true);
             apply_library_chip_style(handles.list_sort, list_sort == ListSort::NameDesc, kLibrarySortRadius, true);
+            if (handles.list_title) {
+                StylePatch patch{};
+                patch.has_font_color = true;
+                patch.font_color = has_context
+                    ? rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 255}
+                    : kUiTitle;
+                patch.has_font = true;
+                patch.font = has_context
+                    ? &get_player_font_px(24, FontWeight::Bold)
+                    : &get_player_font_px(22, FontWeight::Medium);
+                access.set_style_override(handles.list_title, patch);
+            }
 
             if (handles.list_path_bg) {
-                const bool active = library_has_context()
-                    || (library_tab != LibraryTab::Songs)
-                    || list_shuffle_enabled;
                 const auto patch = ::ui::scene::make_pill_surface_patch({
-                    .bg_color = active ? kUiLibraryPathActive : kUiLibraryPathIdle,
-                    .border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder,
+                    .bg_color = has_context
+                        ? with_alpha(kUiLibraryPathIdle, 180)
+                        : (path_active ? kUiLibraryPathActive : kUiLibraryPathIdle),
+                    .border_color = has_context
+                        ? with_alpha(kUiLibraryPathBorderActive, 88)
+                        : (path_active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder),
                     .corner_radius = kLibraryPathRadius,
                     .shadow = {
-                        .enabled = active,
+                        .enabled = path_active && !has_context,
                         .color = with_alpha(kUiCardShadow, 72),
                         .offset_x = 0,
                         .offset_y = 2,
@@ -869,11 +945,15 @@
             if (handles.list_path) {
                 StylePatch patch{};
                 patch.has_font_color = true;
-                patch.font_color = (library_has_context()
-                    || (library_tab != LibraryTab::Songs)
-                    || list_shuffle_enabled)
+                patch.font_color = has_context
+                    ? with_alpha(kUiLibraryPathTextActive, 176)
+                    : path_active
                     ? kUiLibraryPathTextActive
                     : kUiLibraryPathText;
+                patch.has_font_role = true;
+                patch.font_role = FontId::Small;
+                patch.has_font_weight = true;
+                patch.font_weight = has_context ? FontWeight::Medium : FontWeight::Regular;
                 access.set_style_override(handles.list_path, patch);
             }
         }
@@ -936,8 +1016,6 @@
                 const std::string_view artist = library_artist_from_stem(stem);
                 const std::string_view title = library_title_from_stem(stem);
                 const std::string_view album = library_parent_folder(path);
-                const std::string_view format = format_from_path(path);
-
                 std::string_view display_title{};
                 std::string_view display_subtitle{};
                 if (library_shows_group_rows()) {
@@ -960,30 +1038,24 @@
                         display_subtitle = artist;
                     } else if (!album.empty()) {
                         display_subtitle = album;
-                    } else {
-                        display_subtitle = format.empty() ? std::string_view{"Track"} : format;
                     }
                     break;
                 case LibraryTab::Albums:
                     display_title = title.empty() ? (stem.empty() ? std::string_view{"Track"} : stem) : title;
                     if (!artist.empty()) {
                         display_subtitle = artist;
-                    } else {
-                        display_subtitle = format.empty() ? std::string_view{"Track"} : format;
                     }
                     break;
                 case LibraryTab::Artists:
                     display_title = title.empty() ? (stem.empty() ? std::string_view{"Track"} : stem) : title;
                     if (!album.empty()) {
                         display_subtitle = album;
-                    } else {
-                        display_subtitle = format.empty() ? std::string_view{"Track"} : format;
                     }
                     break;
                 }
 
                 if (display_title.empty()) display_title = "Unknown Track";
-                if (display_subtitle.empty()) display_subtitle = "Track";
+                if (library_looks_like_format(display_subtitle)) display_subtitle = {};
                 row.title.assign(display_title);
                 row.subtitle.assign(display_subtitle);
                 player::font_cache::ensure_text(row.title.view());
@@ -1050,6 +1122,7 @@
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
             if (row.current_row) {
+                if (row.group_row) return "";
                 return self->library_current_group_state_text();
             }
             if (row.model) {
@@ -1277,9 +1350,9 @@
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
             access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 20);
-            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 20);
+            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 26);
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 48);
-            access.set_list_view_icon_corner_radius(handles.list, 14);
+            access.set_list_view_icon_corner_radius(handles.list, 16);
             access.set_list_row_height(handles.list, kLibraryListRowHeight);
             access.set_scroll_step(handles.list, kLibraryListRowHeight);
             if (count > 0) {
@@ -1450,6 +1523,17 @@
             path.assign("Library");
             path.append(" / ");
             path.append(library_tab_title(library_tab));
+            if (library_has_context()) {
+                char summary[64]{};
+                format_library_group_summary(library_context_key.view(),
+                                             library_context_is_current_group(),
+                                             summary,
+                                             sizeof(summary));
+                if (summary[0] != '\0') {
+                    path.append(" / ");
+                    path.append(summary);
+                }
+            }
             if (list_shuffle_enabled) {
                 path.append(" / Shuffled");
             }
@@ -1458,20 +1542,13 @@
 
         void update_list_sort_label() {
             if (!access.valid() || !handles.list_sort) return;
-            const char* label = (list_sort == ListSort::NameAsc) ? "Sort A-Z" : "Sort Z-A";
+            const char* label = (list_sort == ListSort::NameAsc) ? "A-Z" : "Z-A";
             set_label_slot(handles.list_sort, text_slots.list_sort, label);
         }
 
         void update_list_shuffle_label() {
             if (!access.valid() || !handles.list_shuffle) return;
-            const char* label = "Shuffle All";
-            if (list_shuffle_enabled) {
-                label = "Shuffled";
-            } else if (library_has_context()) {
-                label = (library_tab == LibraryTab::Albums)
-                    ? "Shuffle Album"
-                    : "Shuffle Artist";
-            }
+            const char* label = list_shuffle_enabled ? "Shuffled" : "Shuffle";
             set_label_slot(handles.list_shuffle, text_slots.list_shuffle, label);
         }
 
@@ -1480,8 +1557,7 @@
             const int count = static_cast<int>(list_order.size());
             const bool show_empty = (count == 0);
             const bool show_group_hint = !show_empty && library_shows_group_rows();
-            const bool show_context_summary = !show_empty && library_has_context();
-            const bool show = show_empty || show_group_hint || show_context_summary;
+            const bool show = show_empty || show_group_hint;
             access.set_visible(handles.list_hint, show);
             if (!show) return;
             if (show_empty && !mount_status.empty()) {
@@ -1496,12 +1572,6 @@
                 hint = (library_tab == LibraryTab::Albums)
                     ? "Open an album row to view tracks"
                     : "Open an artist row to view tracks";
-            } else if (show_context_summary) {
-                format_library_group_summary(library_context_key.view(),
-                                             library_context_is_current_group(),
-                                             buf,
-                                             sizeof(buf));
-                hint = buf;
             } else {
                 hint = fs_ready ? "No items in current library view" : "FS not ready";
             }

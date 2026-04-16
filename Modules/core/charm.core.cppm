@@ -50,14 +50,9 @@ export import service_pool;
 export import service_qr_bitmap;
 export import service_ring_buffer;
 export import service_stream;
-export import service_fifo;
 
-export import alg_arc;
 export import alg_circle;
-export import alg_color;
 export import alg_compress;
-export import alg_fft;
-export import alg_filters;
 export import alg_heatshrink;
 export import alg_layout_assistant;
 export import alg_line;
@@ -73,7 +68,6 @@ export import alg_text_layout;
 export import alg_text_parse;
 #endif
 export import alg_layout_box;
-export import alg_round_rect;
 export import alg_scroll;
 export import alg_tile;
 export import alg_lz4;
@@ -81,3 +75,11 @@ export import alg_packbits;
 export import alg.qr_encode;
 export import alg_rle;
 export import alg_stats;
+
+#if CHARM_TARGET_HAS_CXX_MATH
+export import alg_arc;
+export import alg_color;
+export import alg_fft;
+export import alg_filters;
+export import alg_round_rect;
+#endif

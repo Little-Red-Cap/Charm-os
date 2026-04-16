@@ -2,6 +2,7 @@ param(
     [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
     [string]$ElfPath = "out\\build\\debug\\charm-armv7a-qemu",
+    [int]$BuildJobs = 1,
     [int]$TimeoutSec = 10,
     [int]$TailLines = 40
 )
@@ -57,7 +58,7 @@ try {
         throw "cmake configure failed for preset: debug"
     }
 
-    & $cmake --build --preset debug
+    & $cmake --build --preset debug --parallel $BuildJobs
     if ($LASTEXITCODE -ne 0) {
         throw "cmake build failed for preset: debug"
     }
@@ -118,6 +119,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=sgi-irq-smoke",
     "ARMv7-A phase, stage=sgi-fiq-smoke",
     "ARMv7-A phase complete, stage=sgi-fiq-smoke",
+    "ARMv7-A phase, stage=handoff-prepare",
+    "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=idle",
     "ARMv7-A SVC vector active, imm=0x000043"
 )
@@ -262,6 +265,24 @@ if (($log -notmatch "ARMv7-A return evidence, vector=fiq, origin-mode=sys, curre
 }
 if (($log -notmatch "ARMv7-A security side evidence, scr-read=skipped, timer-source=(secure|non-secure)-phys-ppi/group[01], irq-source=self-sgi/group1, irq-origin=[a-z]+, irq-handler=irq, fiq-source=self-sgi/group0, fiq-origin=[a-z]+, fiq-handler=fiq, monitor-mode=(observed|not-observed)")) {
     $missing += "ARMv7-A security side evidence, scr-read=skipped..."
+}
+if (($log -notmatch "ARMv7-A handoff context, vector-base=0x[0-9A-F]{8}, translation-table=0x[0-9A-F]{8}, image-base=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A handoff context, vector-base=0x..."
+}
+if (($log -notmatch "ARMv7-A handoff request, kind=(copy|xip), payload-base=0x[0-9A-F]{8}, entry=0x[0-9A-F]{8}, storage-payload=0x[0-9A-F]{8}, storage-entry=0x[0-9A-F]{8}, entry-offset=0x[0-9A-F]{8}, payload-size=0x[0-9A-F]{8}, image-size=0x[0-9A-F]{8}, flags=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A handoff request, kind=..."
+}
+if (($log -notmatch "ARMv7-A handoff masked, cpsr=0x[0-9A-F]{8}, irq=masked, fiq=masked")) {
+    $missing += "ARMv7-A handoff masked, cpsr=0x..."
+}
+if (($log -notmatch "ARMv7-A handoff quiesced, cntp_ctl=0x00000002, secure-line=group0/no/no/no, nonsecure-line=group1/no/no/no, sgi-line=group0/yes/no/no, gicd=0x00000000, gicc=0x00000000, hppir=0x000003FF, spurious=yes")) {
+    $missing += "ARMv7-A handoff quiesced, cntp_ctl=0x00000002..."
+}
+if (($log -notmatch "ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, tlb=yes, vectors=yes, sync=yes")) {
+    $missing += "ARMv7-A handoff steps, mask=yes..."
+}
+if (($log -notmatch "ARMv7-A handoff ready, result=yes, vbar=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked")) {
+    $missing += "ARMv7-A handoff ready, result=yes..."
 }
 if ($missing.Count -gt 0) {
     Write-Output "[armv7a-qemu] log tail:"

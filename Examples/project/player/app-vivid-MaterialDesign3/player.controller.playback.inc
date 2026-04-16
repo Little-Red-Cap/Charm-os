@@ -92,16 +92,11 @@
             subtitle_text.assign((*storage.track_subtitles)[idx].view());
             strip_audio_extension(title_text);
             const std::string_view raw = title_text.view();
-            const auto sep = raw.find(" - ");
-            if (sep != std::string_view::npos) {
-                const std::string_view left = raw.substr(0, sep);
-                const std::string_view right = raw.substr(sep + 3);
-                if (!right.empty()) {
-                    title_text.assign(right);
-                    if (!left.empty()) {
-                        subtitle_text.assign(left);
-                    }
-                }
+            std::string_view parsed_title{};
+            std::string_view parsed_artist{};
+            if (library_split_track_stem(raw, parsed_title, parsed_artist)) {
+                title_text.assign(parsed_title);
+                subtitle_text.assign(parsed_artist);
             }
             strip_audio_extension(title_text);
             const auto looks_like_format = [&](std::string_view v) noexcept -> bool {

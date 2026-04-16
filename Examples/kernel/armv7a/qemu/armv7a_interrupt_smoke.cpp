@@ -9,7 +9,7 @@
 #include "armv7a_platform.hpp"
 
 namespace {
-constexpr std::size_t kObservationSlotCount = 7u;
+constexpr std::size_t kObservationSlotCount = 8u;
 
 struct Armv7aInterruptStoredObservation {
     bool seen = false;
@@ -185,6 +185,7 @@ bool interrupt_matches_expected(unsigned int intid, bool fiq_route)
         return !fiq_route && armv7a_platform_is_special_interrupt(intid);
     case Armv7aInterruptSmokeKind::kSgiIrqTimeout:
     case Armv7aInterruptSmokeKind::kUnexpectedIrq:
+    case Armv7aInterruptSmokeKind::kSgiFiqTimeout:
     case Armv7aInterruptSmokeKind::kNone:
     default:
         return false;
@@ -258,25 +259,8 @@ Armv7aInterruptObservation armv7a_interrupt_smoke_observation(Armv7aInterruptSmo
 {
     const auto index = observation_index(kind);
     if (index >= kObservationSlotCount) {
-        return Armv7aInterruptObservation{
-            .seen = false,
-            .special = false,
-            .synthetic = false,
-            .intid = armv7a_platform_spurious_interrupt_id(),
-            .raw_acknowledge = 0u,
-            .controller =
-                Armv7aPlatformInterruptControllerState{
-                    .highest_pending_intid = armv7a_platform_spurious_interrupt_id(),
-                    .highest_pending_special = true,
-                },
-            .line =
-                Armv7aPlatformInterruptLineState{
-                    .intid = armv7a_platform_spurious_interrupt_id(),
-                },
-            .handler_cpsr = 0u,
-            .handler_spsr = 0u,
-            .return_pc = 0u,
-        };
+        return armv7a_make_unobserved_interrupt_observation(
+            armv7a_platform_spurious_interrupt_id());
     }
 
     return load_observation(g_observations[index]);

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "armv7a_interrupt_contract.hpp"
+#include "armv7a_stack_observation_contract.hpp"
+
 #include <cstdint>
 
 struct Armv7aPlatformAddressSpace {
@@ -33,48 +36,10 @@ struct Armv7aPlatformProbeLayout {
     std::uintptr_t abort_prefetch_page_xn_runtime_alias_base = 0u;
 };
 
-enum class Armv7aPlatformInterruptRoute : std::uint8_t {
-    kIrq = 0,
-    kFiq = 1,
-};
-
-struct Armv7aPlatformInterruptLineState {
-    unsigned int intid = 0u;
-    std::uint32_t group = 0u;
-    std::uint32_t enabled = 0u;
-    std::uint32_t pending = 0u;
-    std::uint32_t active = 0u;
-    bool line_group1 = false;
-    bool line_enabled = false;
-    bool line_pending = false;
-    bool line_active = false;
-};
-
-struct Armv7aPlatformInterruptControllerState {
-    std::uint32_t distributor_control = 0u;
-    std::uint32_t cpu_control = 0u;
-    std::uint32_t priority_mask = 0u;
-    std::uint32_t binary_point = 0u;
-    std::uint32_t highest_pending = 0u;
-    unsigned int highest_pending_intid = 0u;
-    bool highest_pending_special = false;
-};
-
-struct Armv7aPlatformInterruptAcknowledge {
-    std::uint32_t raw = 0u;
-    unsigned int intid = 0u;
-    bool special = false;
-};
-
 struct Armv7aPlatformResetState {
     std::uint32_t initial_sctlr = 0u;
     std::uint32_t initial_vbar = 0u;
     bool forced_low_vectors = false;
-};
-
-struct Armv7aPlatformStackRange {
-    std::uintptr_t base = 0u;
-    std::uintptr_t top = 0u;
 };
 
 extern "C" void armv7a_platform_early_console_init();
@@ -89,7 +54,7 @@ const Armv7aPlatformAddressSpace& armv7a_platform_address_space();
 const Armv7aPlatformMmioLayout& armv7a_platform_mmio_layout();
 const Armv7aPlatformProbeLayout& armv7a_platform_probe_layout();
 const Armv7aPlatformResetState& armv7a_platform_reset_state();
-Armv7aPlatformStackRange armv7a_platform_stack_range_for_mode(std::uint32_t psr);
+Armv7aStackRange armv7a_platform_stack_range_for_mode(std::uint32_t psr);
 
 std::uint32_t armv7a_platform_timer_frequency_hz();
 std::uint64_t armv7a_platform_timer_counter();
@@ -120,9 +85,3 @@ bool armv7a_platform_is_timer_interrupt(unsigned int intid);
 bool armv7a_platform_is_self_sgi_interrupt(unsigned int intid);
 const char* armv7a_platform_interrupt_source_name(unsigned int intid);
 const char* armv7a_platform_timer_interrupt_route_name(unsigned int intid);
-
-inline const char* armv7a_platform_interrupt_line_group_name(
-    const Armv7aPlatformInterruptLineState& state)
-{
-    return state.line_group1 ? "group1" : "group0";
-}

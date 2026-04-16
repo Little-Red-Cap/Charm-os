@@ -81,7 +81,9 @@ int main() {
 
     util::u16 port = 0;
     for (util::u16 candidate = 30000; candidate < 30100; ++candidate) {
-        if (!listener.listen(stack, net::Endpoint::ipv4_loopback(candidate), 2)) continue;
+        auto listening = net::TcpListener::listening_loopback(stack, candidate, 2);
+        if (!listening) continue;
+        listener = std::move(listening.value());
         port = candidate;
         break;
     }
@@ -90,7 +92,7 @@ int main() {
         return 1;
     }
 
-    net::SocketChannelBinding client_binding{client.raw()};
+    net::SocketChannelBinding client_binding{};
     net::SocketChannelBinding server_binding{server_side.raw()};
 
     net::LineSession<64> client_session{};
@@ -118,10 +120,13 @@ int main() {
         return 2;
     }
 
-    if (!client.connect(stack, net::Endpoint::ipv4_loopback(port))) {
+    auto connected = net::TcpClient::connected_loopback(stack, port);
+    if (!connected) {
         std::fputs("reactor line client connect failed\n", stderr);
         return 3;
     }
+    client = std::move(connected.value());
+    client_binding.bind(client.raw());
 
     auto client_started = client_driver.start();
     if (!client_started) {

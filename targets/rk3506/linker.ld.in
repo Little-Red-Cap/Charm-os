@@ -1,0 +1,57 @@
+ENTRY(_start)
+
+MEMORY
+{
+    RK3506_IMAGE_RAM (rwx) : ORIGIN = @CHARM_RK3506_IMAGE_TEXT_BASE@, LENGTH = @CHARM_RK3506_IMAGE_RAM_LENGTH@
+}
+
+PHDRS
+{
+    text PT_LOAD FLAGS(5);
+    data PT_LOAD FLAGS(6);
+}
+
+SECTIONS
+{
+    . = ORIGIN(RK3506_IMAGE_RAM);
+    __image_start = .;
+
+    .text : ALIGN(32)
+    {
+        __vector_table_start = .;
+        KEEP(*(.text.vectors))
+        __vector_table_end = .;
+        KEEP(*(.text.boot))
+        KEEP(*(.text.entry))
+        *(.text .text.*)
+        *(.rodata .rodata.*)
+    } > RK3506_IMAGE_RAM :text
+
+    .data : ALIGN(16)
+    {
+        __data_start = .;
+        *(.data .data.*)
+        __data_end = .;
+    } > RK3506_IMAGE_RAM :data
+
+    .bss (NOLOAD) : ALIGN(16)
+    {
+        __bss_start = .;
+        *(.bss .bss.*)
+        *(COMMON)
+        __bss_end = .;
+    } > RK3506_IMAGE_RAM :data
+
+    . = ALIGN(16);
+    __image_end = .;
+    __stack_top = @CHARM_RK3506_IMAGE_STACK_TOP@;
+
+    /DISCARD/ :
+    {
+        *(.comment)
+        *(.note*)
+        *(.eh_frame*)
+        *(.ARM.exidx*)
+        *(.ARM.extab*)
+    }
+}

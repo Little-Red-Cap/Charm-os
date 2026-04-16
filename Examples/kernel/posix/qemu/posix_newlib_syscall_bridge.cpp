@@ -395,13 +395,32 @@ extern "C" int _stat(const char* path, struct stat* st) {
 }
 
 extern "C" int _isatty(int fd) {
-    ErrnoScope guard{};
+    auto* runtime_errno = posix::user::errno_location();
+    const int saved_c_errno = errno;
+    const int saved_runtime_errno = runtime_errno ? *runtime_errno : 0;
+    posix::set_errno(0);
+    if (runtime_errno) {
+        *runtime_errno = 0;
+    }
     const int r = posix::user::isatty(fd);
-    if (r == 0 && *posix::user::errno_location() != 0) {
-        errno = translate_runtime_errno_to_c(*posix::user::errno_location());
+    const int current_runtime_errno = runtime_errno ? *runtime_errno : posix::get_errno();
+    if (r == 0) {
+        if (current_runtime_errno == 0) {
+            errno = saved_c_errno;
+            posix::set_errno(saved_runtime_errno);
+            if (runtime_errno) {
+                *runtime_errno = saved_runtime_errno;
+            }
+            return 0;
+        }
+        errno = translate_runtime_errno_to_c(current_runtime_errno);
         return 0;
     }
-    guard.restore();
+    errno = saved_c_errno;
+    posix::set_errno(saved_runtime_errno);
+    if (runtime_errno) {
+        *runtime_errno = saved_runtime_errno;
+    }
     return r;
 }
 

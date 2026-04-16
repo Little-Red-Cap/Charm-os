@@ -57,14 +57,32 @@ Charm（统一架构）
 └─ UI/Vivid（富 UI）
 ```
 
-## 1.0 统一入口模块（强约束入口）
+## 1.0 兼容入口模块与推荐入口
 
-将“分层”落到编译期入口，所有上层代码优先使用这些入口模块：
+历史上，Charm 用顶层入口来表达 `Foundation -> Runtime -> Domains` 的依赖方向。
+当前这套入口已经进入“兼容保留 + 子系统入口优先”的状态：
 
-- Foundation：`charm.foundation`（对外只暴露 util/trace/service/alg）
-- System：`charm.system`（system/init/bringup 汇总入口）
-- Runtime：`charm.runtime`（system + io）
-- Domains：`charm.domain`（media + ui）
+- Foundation 兼容入口：`charm.foundation`（compat facade -> `charm.core`）
+- Runtime 兼容入口：`charm.runtime`（compat facade -> `charm.system + charm.io + charm.net`）
+- Domains 不再提供单独的 `charm.domain` 入口；Domain 层请直接使用：
+  - `charm.media`
+  - `charm.ui.ink`
+  - `charm.ui.vivid`
+
+推荐的新代码入口：
+
+- `charm.core`
+- `charm.system`
+- `charm.io`
+- `charm.net`
+- `charm.media`
+- `charm.ui.ink`
+- `charm.ui.vivid`
+
+补充约束：
+
+- `Modules/*` 新代码不应新增对 `charm.foundation / charm.runtime / charm.domain` 的依赖。
+- `Examples/*` 与历史样例可继续使用兼容入口，作为迁移过渡面。
 
 UI/Vivid 公开入口：
 - 正式 public：`charm.ui.vivid`
@@ -109,9 +127,11 @@ Modules/
   media/       # audio
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
-  charm.foundation.cppm  # 分层入口：Foundation
-  charm.runtime.cppm     # 分层入口：Runtime
-  charm.domain.cppm      # 分层入口：Domains
+  core/charm.foundation.cppm    # 兼容入口：Foundation
+  system/charm.runtime.cppm     # 兼容入口：Runtime
+  media/charm.media.cppm        # Domain 入口：Media
+  ui/ink/charm.ui.ink.cppm      # Domain 入口：UI/Ink
+  ui/vivid/charm.ui.vivid.cppm  # Domain 入口：UI/Vivid
   thirdparty/  # dr_libs/etl 等第三方源码
   platform/    # win/... 及后续 MCU 平台
 
@@ -197,6 +217,12 @@ POSIX 兼容执行面当前归在 Runtime/IO 侧，代码主目录为 `Modules/i
 
 ```
 Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
+
+其中：
+
+- `Charm.Foundation` 的兼容入口是 `charm.foundation`
+- `Charm.Runtime` 的兼容入口是 `charm.runtime`
+- `Charm.Domains` 是概念层，不再对应单独的 `charm.domain` 模块入口
 ```
 
 ### 初始化顺序（统一约束）

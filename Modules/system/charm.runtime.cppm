@@ -1,6 +1,8 @@
 export module charm.runtime;
 
-// Backward-compatible facade used by older examples.
+// Legacy compatibility facade retained for examples and migration.
+// New Modules/* code should prefer subsystem entries such as
+// charm.system / charm.io / charm.net.
 export import charm.io;
 export import charm.net;
 export import charm.system;
@@ -41,7 +43,9 @@ export import hal_spi;
 export import hal_stm32_stub;
 export import hal_timer;
 export import hal_uart;
+#if CHARM_TARGET_HAS_WIN32
 export import hal_win;
+#endif
 
 export import out.ansi;
 export import out.api;

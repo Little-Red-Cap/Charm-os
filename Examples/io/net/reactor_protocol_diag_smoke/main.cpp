@@ -230,7 +230,9 @@ int main() {
 
     util::u16 port = 0;
     for (util::u16 candidate = 32400; candidate < 32500; ++candidate) {
-        if (!listener.listen_loopback(stack, candidate, 2)) continue;
+        auto listening = net::TcpListener::listening_loopback(stack, candidate, 2);
+        if (!listening) continue;
+        listener = std::move(listening.value());
         port = candidate;
         break;
     }
@@ -239,7 +241,7 @@ int main() {
         return 1;
     }
 
-    net::SocketChannelBinding client_binding{client.raw()};
+    net::SocketChannelBinding client_binding{};
     net::SocketChannelBinding server_binding{server_side.raw()};
 
     ProtocolClient client_proto{};
@@ -270,10 +272,13 @@ int main() {
         return 3;
     }
 
-    if (!client.connect_loopback(stack, port)) {
+    auto connected = net::TcpClient::connected_loopback(stack, port);
+    if (!connected) {
         std::fputs("reactor protocol diag client connect failed\n", stderr);
         return 4;
     }
+    client = std::move(connected.value());
+    client_binding.bind(client.raw());
 
     auto client_started = client_driver.start();
     if (!client_started) {

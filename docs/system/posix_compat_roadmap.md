@@ -1,113 +1,148 @@
-# POSIX Compatibility Roadmap (BusyBox as Acceptance Sample)
+# POSIX Compatibility Roadmap (Maintenance Mode)
 
-This document defines a pragmatic POSIX-compatibility roadmap for Charm.
-BusyBox is treated as an acceptance sample for real-world userland behavior,
-not as the POSIX specification itself.
+This document now serves as a maintenance-mode roadmap for Charm POSIX.
 
-## Positioning
+`POSIX v0` is considered closed. That means the subsystem is no longer on an
+open-ended feature-expansion track. Future work should be driven by real
+blockers, real userland samples, and explicit contract gaps.
+
+Related documents:
+
+- `docs/system/posix_v0_closure_checklist.md`
+- `docs/system/posix_stage_summary.md`
+- `docs/system/posix_support_overview.md`
+- `docs/system/posix_maintenance_mode_collaboration.md`
+- `docs/system/posix_busybox_phase_checklist.md`
+
+## Current Position
 
 - POSIX defines interface boundaries and minimum semantics.
-- musl libc defines practical libc expectations.
-- BusyBox validates real-world behavior and integration gaps.
-- The goal is "usable compatibility", not full Linux parity.
+- musl/newlib define practical libc-facing expectations.
+- BusyBox remains an acceptance sample for real-world userland behavior.
+- The goal stays "usable compatibility", not full Linux parity.
 
-## Architectural Fit
+## What Is Already Closed
+
+The following baseline is now treated as established:
+
+- file/dir/fd/stdio minimum userland spine
+- shell redirect / pipe minimum behavior
+- same-address-space spawn/wait execution model
+- minimal process-control slice: `getpid`, `sleep`, `kill`, `waitpid`, `ps`
+- public C surface + newlib bridge minimum stability
+- QEMU mainline smoke and dedicated newlib stdio smoke
+
+This means the previous phase-oriented roadmap has effectively reached:
+
+- Phase 0: closed
+- Phase 1: closed
+- Phase 2: closed
+- Phase 3 minimum: closed
+
+The detailed historical acceptance slices still live in
+`docs/system/posix_busybox_phase_checklist.md` and
+`docs/system/posix_stage_summary.md`.
+
+## Architecture Still Holds
 
 - The POSIX shim lives in Runtime/IO, not in Domain.
-- All IO must go through `io.channel`/`io.reactor` and `fs.vfs`.
-- Initialization must be via `init.graph` nodes and capabilities.
-- Errors use `util::Errc` and `util::Result<T>`.
+- All IO should still flow through runtime abstractions such as VFS, fd tables,
+  channels, and the runtime execution model.
+- Initialization should remain capability-driven.
+- Errors should continue to translate through `util::Errc` and the POSIX bridge.
 
-## Capability Map (Proposed)
+The closure of `v0` does not relax these boundaries; it makes them more
+important, because future work must stay incremental and disciplined.
 
-- `posix.fd_table` -> manages file descriptors and stdio
-  - depends on `fs.vfs`, `io.registry`, `system.clock`
-- `posix.vfs_adapter` -> VFS path and stat translation
-  - depends on `fs.vfs`, `fs.path`, `fs.errno`
-- `posix.pipe` -> pipe/dup/redirect support
-  - depends on `io.channel`, `io.reactor`
-- `posix.proc` -> spawn/exec/wait (non-fork baseline)
-  - depends on `kernel.eda`, `system.clock`
-- `posix.signal` -> minimal signal model for shell/wait
-  - depends on `kernel.eda`
-- `posix.devfs` -> `/dev/null`, `/dev/console`, `/tmp`
-  - depends on `fs.vfs`, `io.registry`
+## Post-v0 Working Model
 
-## Phased Acceptance Plan
+Future work should follow this loop:
 
-### Phase 0: Core Glue (No BusyBox yet)
+1. Identify a real blocker.
+2. Reduce it to the smallest missing runtime/ABI contract.
+3. Patch only the owning module boundary.
+4. Add the smallest validating smoke/sample.
+5. Sync the contract into docs.
 
-Minimum API set:
-- `open/close/read/write/lseek`
-- `stat/fstat`, `opendir/readdir`, `errno`
-- `stdin/stdout/stderr` mapping to `io.console0`
+If a proposed change cannot point to a real blocker, it should normally not be
+on the active roadmap.
 
-Acceptance:
-- VFS demos run without POSIX shim regressions.
-- `errno` values match `util::Errc` mapping.
+## Active Roadmap Categories
 
-### Phase 1: FS Applets (BusyBox subset)
+### 1. Regression Defense
 
-Targets:
-- `echo`, `cat`, `ls`, `mkdir`, `rm`, `cp`, `mv`
+Use this when:
 
-Needs:
-- Path rules, permissions stubs, `stat` behavior
-- Basic glob handling (if BusyBox expects it)
+- an existing smoke fails
+- a build/toolchain change breaks POSIX validation
+- the public headers, runtime bridge, and actual behavior drift apart
 
-Acceptance:
-- Applets run with expected exit codes.
-- Directory listing and file operations behave consistently.
+Typical work:
 
-### Phase 2: Shell + Redirect/Pipe
+- contract fixes
+- errno/return-value alignment
+- smoke maintenance
+- documentation sync
 
-Targets:
-- `sh`, `test`, `[`
-- pipes and redirects: `|`, `>`, `<`, `>>`
+### 2. Real Sample Unblocking
 
-Needs:
-- `pipe`, `dup/dup2`, `close-on-exec` semantics
-- simple spawn/exec (no fork, no MMU requirement)
+Use this when:
 
-Acceptance:
-- Shell scripts with pipelines and redirects run.
-- Basic command chaining returns correct status.
+- a BusyBox applet is genuinely blocked
+- a real ELF sample exposes a missing capability
+- a minimal C/newlib userland sample cannot run because of a POSIX-side gap
 
-### Phase 3: Process Control
+Typical work:
 
-Targets:
-- `ps`, `kill`, `sleep`, `xargs`, `find`
+- add a focused reproducer
+- implement the smallest missing contract
+- promote the result into a stable minimal regression
 
-Needs:
-- `wait/waitpid`, minimal signals, task status
-- `/proc` or stubbed `ps` data model
+### 3. Environment Extensions
 
-Acceptance:
-- Sleep/kill/wait flows behave correctly.
-- `ps` returns stable, useful output.
+Use this only when a real sample requires it and the value is reusable.
+
+Candidates include:
+
+- more `devfs` nodes
+- minimal `/proc` views
+- wider `stat` field coverage
+- `select/poll`
+- `termios`
+- broader socket-facing compatibility
+
+These are not default expansion items anymore.
 
 ## BusyBox Usage Model
 
-- Use BusyBox as an acceptance suite.
-- Keep a minimal applet list per phase.
-- Validate behavior using strace on Linux as a reference.
+- Keep using BusyBox as an acceptance suite.
+- Prefer a minimal applet set tied to real blockers.
 - Do not treat BusyBox as the semantic source of truth.
+- Do not widen the applet list just to make the matrix look larger.
 
 ## Non-Goals
 
 - Full Linux syscall compatibility.
 - True `fork` semantics without MMU.
 - Full signal model parity.
+- Open-ended "cover more API because it exists on Linux" work.
 
-## Risks and Mitigations
+## Review Filter For Future POSIX Work
 
-- fork/exec gap: provide spawn-only path and document constraints.
-- signal complexity: scope to shell and wait semantics first.
-- `/dev` expectations: implement `/dev/null` and `/dev/console` early.
+Before new POSIX work becomes active, it should answer:
+
+- Which real program/sample is blocked?
+- Which exact contract is missing or drifting?
+- Which module owns the fix?
+- What is the smallest validation path?
+- Which document needs to move with the change?
+
+If these answers are weak, the work probably belongs in the parking lot, not on
+the active roadmap.
 
 ## Suggested Validation Artifacts
 
-- A per-phase checklist of applets and expected outputs.
-- A trace report comparing Linux strace vs Charm shim calls.
-- A small regression suite for fd/pipe/dup and exit codes.
-
+- a minimal reproducer per newly-unblocked capability
+- a focused smoke for the owned contract
+- QEMU coverage when the behavior is user-visible at runtime
+- a matching doc update in the POSIX subsystem docs

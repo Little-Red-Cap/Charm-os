@@ -9,9 +9,10 @@
 #include <tuple>
 #include <type_traits>
 #include <bit>  // std::bit_cast for NaN/Inf checks without <cmath>.
-#ifdef OUT_ENABLE_FLOAT
+#if defined(OUT_ENABLE_FLOAT) && CHARM_TARGET_HAS_HOSTED_CXX
 #include <charconv>
 #endif
+#include "out_digits_compat.h"
 export module out.format;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink
@@ -462,25 +463,27 @@ export namespace out {
   template <class UInt>
   inline result<std::size_t> write_uint_base(auto& sink, UInt v, unsigned base, const fmt_spec& spec) noexcept {
     char buf[80]; // enough for 64-bit in binary? 64 + maybe. binary needs 64, so enlarge if you enable b.
-    std::string_view text{};
-    errc view_err = errc::invalid_format;
+    char* first = buf;
+    char* last = nullptr;
 
     if (base == 10) {
-      view_err = format_uint_view(text, buf, sizeof(buf), v, 10);
+      last = out::detail::append_unsigned_decimal(first, buf + sizeof(buf), v);
     } else if (base == 16) {
-      view_err = format_uint_view(text, buf, sizeof(buf), v, 16, spec.upper);
+      last = out::detail::append_unsigned_base(first, buf + sizeof(buf), v, 16u, spec.upper);
     } else if (base == 2) {
 #ifndef OUT_ENABLE_BINARY
       (void)v; (void)spec;
       return util::unexpected(errc::invalid_format);
 #else
-      view_err = format_uint_view(text, buf, sizeof(buf), v, 2);
+      last = out::detail::append_unsigned_base(first, buf + sizeof(buf), v, 2u, false);
 #endif
     } else {
       return util::unexpected(errc::invalid_format);
     }
 
-    if (view_err != errc::ok) return util::unexpected(view_err);
+    if (!last) return util::unexpected(errc::buffer_overflow);
+
+    const std::string_view text{first, static_cast<std::size_t>(last - first)};
     std::size_t len = text.size();
     std::size_t total = 0;
 
@@ -508,6 +511,7 @@ export namespace out {
 #ifdef OUT_ENABLE_FLOAT
   template <class F>
   inline result<std::size_t> write_float(auto& sink, F v, const fmt_spec& spec) noexcept {
+#if CHARM_TARGET_HAS_HOSTED_CXX
     char buf[128];
     char* first = buf;
     char* last  = buf + sizeof(buf);
@@ -555,6 +559,9 @@ export namespace out {
     if (!r1) return util::unexpected(r1.error());
     total += *r1;
     return ok(total);
+#else
+    return detail::write_float_fixed_mcu(sink, static_cast<float>(v), spec);
+#endif
   }
 #endif
 

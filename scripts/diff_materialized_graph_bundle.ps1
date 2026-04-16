@@ -63,10 +63,29 @@ function Load-Bundle {
         throw "$SideName bundle schema not supported: $($indexData.schema)"
     }
 
+    $inputManifest = $null
+    if ($null -ne $indexData.PSObject.Properties['input_manifest'] -and $null -ne $indexData.input_manifest) {
+        $manifestPath = $null
+        $manifestSchema = $null
+        if ($null -ne $indexData.input_manifest.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace([string]$indexData.input_manifest.path)) {
+            $manifestPath = Resolve-FullPath ([string]$indexData.input_manifest.path)
+        }
+        if ($null -ne $indexData.input_manifest.PSObject.Properties['schema'] -and -not [string]::IsNullOrWhiteSpace([string]$indexData.input_manifest.schema)) {
+            $manifestSchema = [string]$indexData.input_manifest.schema
+        }
+        if (-not [string]::IsNullOrWhiteSpace($manifestPath) -or -not [string]::IsNullOrWhiteSpace($manifestSchema)) {
+            $inputManifest = [ordered]@{
+                path = $manifestPath
+                schema = $manifestSchema
+            }
+        }
+    }
+
     return [pscustomobject]@{
         Side = $SideName
         IndexPath = $resolvedIndexPath
         BundleRoot = Split-Path -Parent $resolvedIndexPath
+        InputManifest = $inputManifest
         Cases = @($indexData.cases)
     }
 }
@@ -690,10 +709,12 @@ if ($AsJson) {
         left = [ordered]@{
             index = $leftBundle.IndexPath
             bundle_root = $leftBundle.BundleRoot
+            input_manifest = $leftBundle.InputManifest
         }
         right = [ordered]@{
             index = $rightBundle.IndexPath
             bundle_root = $rightBundle.BundleRoot
+            input_manifest = $rightBundle.InputManifest
         }
         status_counts = [ordered]@{
             changed = Get-CaseStatusCount -CaseDiffs $caseDiffs -Status 'changed'
@@ -734,7 +755,13 @@ if ($AsJson) {
 }
 
 Write-Host "[LEFT]  $($leftBundle.IndexPath)"
+if ($null -ne $leftBundle.InputManifest) {
+    Write-Host "[LEFT MANIFEST]  $($leftBundle.InputManifest.path) ($($leftBundle.InputManifest.schema))"
+}
 Write-Host "[RIGHT] $($rightBundle.IndexPath)"
+if ($null -ne $rightBundle.InputManifest) {
+    Write-Host "[RIGHT MANIFEST] $($rightBundle.InputManifest.path) ($($rightBundle.InputManifest.schema))"
+}
 Write-Host ''
 
 if ($caseDiffs.Count -eq 0) {

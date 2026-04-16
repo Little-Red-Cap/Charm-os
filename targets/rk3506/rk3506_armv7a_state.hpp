@@ -3,6 +3,11 @@
 #include <cstdint>
 
 namespace rk3506::armv7a {
+    struct GenericTimerCount {
+        std::uint32_t lo = 0u;
+        std::uint32_t hi = 0u;
+    };
+
     inline constexpr std::uint32_t kCpsrModeMask = 0x1fu;
     inline constexpr std::uint32_t kCpsrThumbState = 1u << 5;
     inline constexpr std::uint32_t kCpsrFiqMasked = 1u << 6;
@@ -26,8 +31,15 @@ namespace rk3506::armv7a {
     inline constexpr std::uint32_t kSctlrBranchPredictionEnabled = 1u << 11;
     inline constexpr std::uint32_t kSctlrIcacheEnabled = 1u << 12;
     inline constexpr std::uint32_t kSctlrHighVectors = 1u << 13;
+    inline constexpr std::uint32_t kIdPfr1GenericTimerShift = 16u;
+    inline constexpr std::uint32_t kIdFieldMask = 0xfu;
 
     inline constexpr std::uintptr_t kHighVectorBase = 0xffff0000u;
+
+    inline void compiler_barrier() noexcept
+    {
+        asm volatile("" ::: "memory");
+    }
 
     inline std::uint32_t read_cpsr() noexcept
     {
@@ -53,6 +65,55 @@ namespace rk3506::armv7a {
         std::uint32_t value = 0u;
         asm volatile("mrc p15, 0, %0, c0, c0, 1" : "=r"(value));
         return value;
+    }
+
+    inline std::uint32_t read_mpidr() noexcept
+    {
+        std::uint32_t value = 0u;
+        asm volatile("mrc p15, 0, %0, c0, c0, 5" : "=r"(value));
+        return value;
+    }
+
+    inline std::uint32_t read_id_pfr1() noexcept
+    {
+        std::uint32_t value = 0u;
+        asm volatile("mrc p15, 0, %0, c0, c1, 1" : "=r"(value));
+        return value;
+    }
+
+    inline std::uint32_t read_cntfrq() noexcept
+    {
+        std::uint32_t value = 0u;
+        asm volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(value));
+        return value;
+    }
+
+    inline GenericTimerCount read_cntpct() noexcept
+    {
+        GenericTimerCount value{};
+        asm volatile("isb" ::: "memory");
+        asm volatile(
+            "mrrc p15, 0, %0, %1, c14" : "=r"(value.lo), "=r"(value.hi));
+        return value;
+    }
+
+    inline std::uint32_t read_cntp_ctl() noexcept
+    {
+        std::uint32_t value = 0u;
+        asm volatile("mrc p15, 0, %0, c14, c2, 1" : "=r"(value));
+        return value;
+    }
+
+    inline void write_cntp_ctl(std::uint32_t value) noexcept
+    {
+        asm volatile("mcr p15, 0, %0, c14, c2, 1" : : "r"(value) : "memory");
+        asm volatile("isb" ::: "memory");
+    }
+
+    inline void write_cntp_tval(std::uint32_t value) noexcept
+    {
+        asm volatile("mcr p15, 0, %0, c14, c2, 0" : : "r"(value) : "memory");
+        asm volatile("isb" ::: "memory");
     }
 
     inline std::uint32_t read_ttbr0() noexcept
@@ -97,6 +158,16 @@ namespace rk3506::armv7a {
     inline void instruction_sync_barrier() noexcept
     {
         asm volatile("isb" ::: "memory");
+    }
+
+    inline void enable_irq() noexcept
+    {
+        asm volatile("cpsie i" ::: "memory");
+    }
+
+    inline void disable_irq() noexcept
+    {
+        asm volatile("cpsid i" ::: "memory");
     }
 
     inline constexpr std::uint32_t decode_ctr_line_size(std::uint32_t encoded_words) noexcept
@@ -168,6 +239,41 @@ namespace rk3506::armv7a {
                                                 std::uintptr_t vbar) noexcept
     {
         return high_vectors(sctlr) ? kHighVectorBase : vbar;
+    }
+
+    inline constexpr std::uint32_t generic_timer_field(
+        std::uint32_t id_pfr1) noexcept
+    {
+        return (id_pfr1 >> kIdPfr1GenericTimerShift) & kIdFieldMask;
+    }
+
+    inline constexpr bool generic_timer_present(std::uint32_t id_pfr1) noexcept
+    {
+        return generic_timer_field(id_pfr1) != 0u;
+    }
+
+    inline constexpr bool count_advanced(GenericTimerCount first,
+                                         GenericTimerCount second) noexcept
+    {
+        return second.hi > first.hi ||
+            (second.hi == first.hi && second.lo > first.lo);
+    }
+
+    inline constexpr GenericTimerCount add_ticks(GenericTimerCount value,
+                                                 std::uint32_t ticks) noexcept
+    {
+        const auto next_lo = static_cast<std::uint32_t>(value.lo + ticks);
+        return GenericTimerCount{
+            next_lo,
+            static_cast<std::uint32_t>(value.hi + (next_lo < value.lo ? 1u : 0u)),
+        };
+    }
+
+    inline constexpr bool count_at_or_after(GenericTimerCount current,
+                                            GenericTimerCount limit) noexcept
+    {
+        return current.hi > limit.hi ||
+            (current.hi == limit.hi && current.lo >= limit.lo);
     }
 
     inline const char* mode_name(std::uint32_t mode) noexcept

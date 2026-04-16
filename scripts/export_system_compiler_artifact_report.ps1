@@ -847,6 +847,21 @@ function New-EmptyResourceContractSummary {
     }
 }
 
+function New-EmptyBringupEvidenceSummary {
+    return [ordered]@{
+        declared_count = 0
+        materialized_count = 0
+        published_count = 0
+        observed_count = 0
+        blocked_count = 0
+        failed_count = 0
+        published_capabilities = @()
+        blocked_reasons = @()
+        failed_reasons = @()
+        evidence_entries = @()
+    }
+}
+
 function Join-Names {
     param(
         [string[]]$Names
@@ -886,6 +901,79 @@ function New-ResolvedCaseSubject {
     }
 }
 
+function Get-BringupEvidenceSummary {
+    param(
+        $Graph,
+        $RuntimeObserveInfo
+    )
+
+    $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $RuntimeObserveInfo)
+    $publishedCapabilities = @(Get-RuntimePublishedCapabilities -RuntimeObserveInfo $RuntimeObserveInfo)
+    $graphProvidedFacts = if ($null -ne $Graph) {
+        @(Get-ProvidedFacts -Graph $Graph)
+    } else {
+        @()
+    }
+    $requiredFacts = if ($null -ne $Graph) {
+        @(Get-RequiredFacts -Graph $Graph)
+    } else {
+        @()
+    }
+    $allCapabilities = @(
+        @($graphProvidedFacts) +
+        @($requiredFacts) +
+        @($runtimeCapabilities) |
+            Sort-Object -Unique
+    )
+    $unresolvedBindings = if ($null -ne $Graph) {
+        @(Get-UnresolvedBindings -RequiredFacts $requiredFacts -ProvidedFacts $graphProvidedFacts)
+    } else {
+        @()
+    }
+    $blockedReasons = @($unresolvedBindings | ForEach-Object { "unresolved binding: $_" })
+    $failedReasons = @()
+    $runtimeExportStates = Get-RuntimeExportStateMap -RuntimeObserveInfo $RuntimeObserveInfo
+    $observedCapabilities = @(Get-UnifiedObservedCapabilities -Graph $Graph -RuntimeCapabilities $runtimeCapabilities)
+    $bringupEvidenceEntries = @(New-BringupEvidenceEntries `
+        -Graph $Graph `
+        -CapabilityNames $allCapabilities `
+        -ObservedCapabilities $observedCapabilities `
+        -PublishedCapabilities $publishedCapabilities `
+        -BlockedReasons $blockedReasons `
+        -FailedReasons $failedReasons `
+        -RuntimeExportStates $runtimeExportStates)
+
+    return [ordered]@{
+        declared_count = @($bringupEvidenceEntries | Where-Object { [bool]$_.declared }).Count
+        materialized_count = @($bringupEvidenceEntries | Where-Object { [bool]$_.materialized }).Count
+        published_count = @($bringupEvidenceEntries | Where-Object { [bool]$_.published }).Count
+        observed_count = @($bringupEvidenceEntries | Where-Object { [bool]$_.observed }).Count
+        blocked_count = @($bringupEvidenceEntries | Where-Object { [bool]$_.blocked }).Count
+        failed_count = @($bringupEvidenceEntries | Where-Object { [bool]$_.failed }).Count
+        published_capabilities = @($publishedCapabilities)
+        blocked_reasons = @($blockedReasons)
+        failed_reasons = @($failedReasons)
+        evidence_entries = @($bringupEvidenceEntries)
+    }
+}
+
+function New-CaseBringupEvidenceSummary {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry) {
+        return New-EmptyBringupEvidenceSummary
+    }
+
+    $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
+    $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
+    $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
+
+    return Get-BringupEvidenceSummary -Graph $graph -RuntimeObserveInfo $runtimeObserveInfo
+}
+
 function New-CaseResourceContractSummary {
     param(
         $Bundle,
@@ -916,6 +1004,250 @@ function New-CaseResourceContractSummary {
     )
 
     return Get-ResourceContractSummary -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) -AvailableFacts $availableFacts
+}
+
+function New-BringupEvidenceStateMap {
+    param(
+        $BringupEvidenceSummary
+    )
+
+    $stateMap = @{}
+    if ($null -eq $BringupEvidenceSummary) {
+        return $stateMap
+    }
+
+    foreach ($entry in @($BringupEvidenceSummary.evidence_entries)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $capabilityName = [string]$entry.capability
+        if ([string]::IsNullOrWhiteSpace($capabilityName)) {
+            continue
+        }
+
+        $stateMap[$capabilityName] = [ordered]@{
+            capability = $capabilityName
+            declared = [bool]$entry.declared
+            materialized = [bool]$entry.materialized
+            published = [bool]$entry.published
+            observed = [bool]$entry.observed
+            blocked = [bool]$entry.blocked
+            failed = [bool]$entry.failed
+            publish_state = if ([string]::IsNullOrWhiteSpace([string]$entry.publish_state)) { $null } else { [string]$entry.publish_state }
+            export_state = if ([string]::IsNullOrWhiteSpace([string]$entry.export_state)) { $null } else { [string]$entry.export_state }
+            provider_nodes = @($entry.provider_nodes)
+            consumer_nodes = @($entry.consumer_nodes)
+            blocked_reasons = @($entry.blocked_reasons)
+            failed_reasons = @($entry.failed_reasons)
+        }
+    }
+
+    return $stateMap
+}
+
+function New-BringupEvidenceComparisonSide {
+    param(
+        $BringupEvidenceSummary
+    )
+
+    if ($null -eq $BringupEvidenceSummary) {
+        $BringupEvidenceSummary = New-EmptyBringupEvidenceSummary
+    }
+
+    return [ordered]@{
+        declared_count = [int]$BringupEvidenceSummary.declared_count
+        materialized_count = [int]$BringupEvidenceSummary.materialized_count
+        published_count = [int]$BringupEvidenceSummary.published_count
+        observed_count = [int]$BringupEvidenceSummary.observed_count
+        blocked_count = [int]$BringupEvidenceSummary.blocked_count
+        failed_count = [int]$BringupEvidenceSummary.failed_count
+        published_capabilities = @($BringupEvidenceSummary.published_capabilities)
+        blocked_reasons = @($BringupEvidenceSummary.blocked_reasons)
+        failed_reasons = @($BringupEvidenceSummary.failed_reasons)
+    }
+}
+
+function New-BringupEvidenceComparison {
+    param(
+        $LeftSummary,
+        $RightSummary
+    )
+
+    $leftSummaryValue = if ($null -eq $LeftSummary) { New-EmptyBringupEvidenceSummary } else { $LeftSummary }
+    $rightSummaryValue = if ($null -eq $RightSummary) { New-EmptyBringupEvidenceSummary } else { $RightSummary }
+    $leftSide = New-BringupEvidenceComparisonSide -BringupEvidenceSummary $leftSummaryValue
+    $rightSide = New-BringupEvidenceComparisonSide -BringupEvidenceSummary $rightSummaryValue
+    $leftStateMap = New-BringupEvidenceStateMap -BringupEvidenceSummary $leftSummaryValue
+    $rightStateMap = New-BringupEvidenceStateMap -BringupEvidenceSummary $rightSummaryValue
+
+    $capabilityNames = @(
+        @($leftStateMap.Keys) +
+        @($rightStateMap.Keys) |
+            Sort-Object -Unique
+    )
+
+    $capabilityChanges = @()
+    foreach ($capabilityName in @($capabilityNames)) {
+        $leftEntry = if ($leftStateMap.ContainsKey($capabilityName)) { $leftStateMap[$capabilityName] } else { $null }
+        $rightEntry = if ($rightStateMap.ContainsKey($capabilityName)) { $rightStateMap[$capabilityName] } else { $null }
+
+        $leftDeclared = if ($null -eq $leftEntry) { $false } else { [bool]$leftEntry.declared }
+        $rightDeclared = if ($null -eq $rightEntry) { $false } else { [bool]$rightEntry.declared }
+        $leftMaterialized = if ($null -eq $leftEntry) { $false } else { [bool]$leftEntry.materialized }
+        $rightMaterialized = if ($null -eq $rightEntry) { $false } else { [bool]$rightEntry.materialized }
+        $leftPublished = if ($null -eq $leftEntry) { $false } else { [bool]$leftEntry.published }
+        $rightPublished = if ($null -eq $rightEntry) { $false } else { [bool]$rightEntry.published }
+        $leftObserved = if ($null -eq $leftEntry) { $false } else { [bool]$leftEntry.observed }
+        $rightObserved = if ($null -eq $rightEntry) { $false } else { [bool]$rightEntry.observed }
+        $leftBlocked = if ($null -eq $leftEntry) { $false } else { [bool]$leftEntry.blocked }
+        $rightBlocked = if ($null -eq $rightEntry) { $false } else { [bool]$rightEntry.blocked }
+        $leftFailed = if ($null -eq $leftEntry) { $false } else { [bool]$leftEntry.failed }
+        $rightFailed = if ($null -eq $rightEntry) { $false } else { [bool]$rightEntry.failed }
+        $leftPublishState = if ($null -eq $leftEntry) { $null } else { $leftEntry.publish_state }
+        $rightPublishState = if ($null -eq $rightEntry) { $null } else { $rightEntry.publish_state }
+        $leftExportState = if ($null -eq $leftEntry) { $null } else { $leftEntry.export_state }
+        $rightExportState = if ($null -eq $rightEntry) { $null } else { $rightEntry.export_state }
+        $leftProviderNodes = if ($null -eq $leftEntry) { @() } else { @($leftEntry.provider_nodes) }
+        $rightProviderNodes = if ($null -eq $rightEntry) { @() } else { @($rightEntry.provider_nodes) }
+        $leftConsumerNodes = if ($null -eq $leftEntry) { @() } else { @($leftEntry.consumer_nodes) }
+        $rightConsumerNodes = if ($null -eq $rightEntry) { @() } else { @($rightEntry.consumer_nodes) }
+        $leftBlockedReasons = if ($null -eq $leftEntry) { @() } else { @($leftEntry.blocked_reasons) }
+        $rightBlockedReasons = if ($null -eq $rightEntry) { @() } else { @($rightEntry.blocked_reasons) }
+        $leftFailedReasons = if ($null -eq $leftEntry) { @() } else { @($leftEntry.failed_reasons) }
+        $rightFailedReasons = if ($null -eq $rightEntry) { @() } else { @($rightEntry.failed_reasons) }
+
+        $changeKind = 'unchanged'
+        if ($null -eq $leftEntry -and $null -ne $rightEntry) {
+            $changeKind = 'added'
+        } elseif ($null -ne $leftEntry -and $null -eq $rightEntry) {
+            $changeKind = 'removed'
+        } elseif (
+            $leftDeclared -ne $rightDeclared -or
+            $leftMaterialized -ne $rightMaterialized -or
+            $leftPublished -ne $rightPublished -or
+            $leftObserved -ne $rightObserved -or
+            $leftBlocked -ne $rightBlocked -or
+            $leftFailed -ne $rightFailed -or
+            [string]$leftPublishState -ne [string]$rightPublishState -or
+            [string]$leftExportState -ne [string]$rightExportState -or
+            -not (Compare-StringArrays -Left $leftProviderNodes -Right $rightProviderNodes) -or
+            -not (Compare-StringArrays -Left $leftConsumerNodes -Right $rightConsumerNodes) -or
+            -not (Compare-StringArrays -Left $leftBlockedReasons -Right $rightBlockedReasons) -or
+            -not (Compare-StringArrays -Left $leftFailedReasons -Right $rightFailedReasons)
+        ) {
+            $changeKind = 'changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $capabilityChanges += [ordered]@{
+            capability = $capabilityName
+            change_kind = $changeKind
+            left_declared = $leftDeclared
+            right_declared = $rightDeclared
+            left_materialized = $leftMaterialized
+            right_materialized = $rightMaterialized
+            left_published = $leftPublished
+            right_published = $rightPublished
+            left_observed = $leftObserved
+            right_observed = $rightObserved
+            left_blocked = $leftBlocked
+            right_blocked = $rightBlocked
+            left_failed = $leftFailed
+            right_failed = $rightFailed
+            left_publish_state = $leftPublishState
+            right_publish_state = $rightPublishState
+            left_export_state = $leftExportState
+            right_export_state = $rightExportState
+            left_provider_nodes = @($leftProviderNodes)
+            right_provider_nodes = @($rightProviderNodes)
+            left_consumer_nodes = @($leftConsumerNodes)
+            right_consumer_nodes = @($rightConsumerNodes)
+            left_blocked_reasons = @($leftBlockedReasons)
+            right_blocked_reasons = @($rightBlockedReasons)
+            left_failed_reasons = @($leftFailedReasons)
+            right_failed_reasons = @($rightFailedReasons)
+        }
+    }
+
+    $publishedCapabilitiesAdded = @(
+        @($rightSide.published_capabilities) |
+            Where-Object { @($leftSide.published_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $publishedCapabilitiesRemoved = @(
+        @($leftSide.published_capabilities) |
+            Where-Object { @($rightSide.published_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $blockedReasonsAdded = @(
+        @($rightSide.blocked_reasons) |
+            Where-Object { @($leftSide.blocked_reasons) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $blockedReasonsRemoved = @(
+        @($leftSide.blocked_reasons) |
+            Where-Object { @($rightSide.blocked_reasons) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $failedReasonsAdded = @(
+        @($rightSide.failed_reasons) |
+            Where-Object { @($leftSide.failed_reasons) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $failedReasonsRemoved = @(
+        @($leftSide.failed_reasons) |
+            Where-Object { @($rightSide.failed_reasons) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $summaryChanges = @()
+    foreach ($countField in @('declared_count', 'materialized_count', 'published_count', 'observed_count', 'blocked_count', 'failed_count')) {
+        if ([int]$leftSide.$countField -ne [int]$rightSide.$countField) {
+            $summaryChanges += "${countField}:$([int]$leftSide.$countField)->$([int]$rightSide.$countField)"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.published_capabilities) -Right @($rightSide.published_capabilities))) {
+        $summaryChanges += "published_capabilities:[$(Join-Names @($leftSide.published_capabilities))]->[$(Join-Names @($rightSide.published_capabilities))]"
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.blocked_reasons) -Right @($rightSide.blocked_reasons))) {
+        $summaryChanges += "blocked_reasons:[$(Join-Names @($leftSide.blocked_reasons))]->[$(Join-Names @($rightSide.blocked_reasons))]"
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.failed_reasons) -Right @($rightSide.failed_reasons))) {
+        $summaryChanges += "failed_reasons:[$(Join-Names @($leftSide.failed_reasons))]->[$(Join-Names @($rightSide.failed_reasons))]"
+    }
+
+    return [ordered]@{
+        changed = (
+            @($summaryChanges).Count -gt 0 -or
+            @($capabilityChanges).Count -gt 0 -or
+            @($publishedCapabilitiesAdded).Count -gt 0 -or
+            @($publishedCapabilitiesRemoved).Count -gt 0 -or
+            @($blockedReasonsAdded).Count -gt 0 -or
+            @($blockedReasonsRemoved).Count -gt 0 -or
+            @($failedReasonsAdded).Count -gt 0 -or
+            @($failedReasonsRemoved).Count -gt 0
+        )
+        left = $leftSide
+        right = $rightSide
+        summary_changes = @($summaryChanges)
+        capability_changes = @($capabilityChanges | Sort-Object capability)
+        published_capability_changes = [ordered]@{
+            added = @($publishedCapabilitiesAdded)
+            removed = @($publishedCapabilitiesRemoved)
+        }
+        blocked_reason_changes = [ordered]@{
+            added = @($blockedReasonsAdded)
+            removed = @($blockedReasonsRemoved)
+        }
+        failed_reason_changes = [ordered]@{
+            added = @($failedReasonsAdded)
+            removed = @($failedReasonsRemoved)
+        }
+    }
 }
 
 function New-ResourceContractStateMap {
@@ -1262,7 +1594,6 @@ function New-ArtifactReport {
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveSummary = Get-RuntimeObserveSummary -RuntimeObserveInfo $runtimeObserveInfo
     $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
-    $publishedCapabilities = @(Get-RuntimePublishedCapabilities -RuntimeObserveInfo $runtimeObserveInfo)
 
     $graph = if ($null -ne $CaseGraph) { $CaseGraph.Data } else { $null }
     $graphProvidedFacts = if ($null -ne $graph) {
@@ -1280,35 +1611,18 @@ function New-ArtifactReport {
     } else {
         @($runtimeCapabilities)
     }
-    $allCapabilities = @(
-        @($graphProvidedFacts) +
-        @($requiredFacts) +
-        @($runtimeCapabilities) |
-            Sort-Object -Unique
-    )
     $unresolvedBindings = if ($null -ne $graph) {
         @(Get-UnresolvedBindings -RequiredFacts $requiredFacts -ProvidedFacts $graphProvidedFacts)
     } else {
         @()
     }
-    $blockedReasons = @($unresolvedBindings | ForEach-Object { "unresolved binding: $_" })
-    $failedReasons = @()
-    $runtimeExportStates = Get-RuntimeExportStateMap -RuntimeObserveInfo $runtimeObserveInfo
-    $observedCapabilities = @(Get-UnifiedObservedCapabilities -Graph $graph -RuntimeCapabilities $runtimeCapabilities)
-    $bringupEvidenceEntries = @(New-BringupEvidenceEntries `
-        -Graph $graph `
-        -CapabilityNames $allCapabilities `
-        -ObservedCapabilities $observedCapabilities `
-        -PublishedCapabilities $publishedCapabilities `
-        -BlockedReasons $blockedReasons `
-        -FailedReasons $failedReasons `
-        -RuntimeExportStates $runtimeExportStates)
-    $declaredCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.declared }).Count
-    $materializedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.materialized }).Count
-    $publishedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.published }).Count
-    $observedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.observed }).Count
-    $blockedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.blocked }).Count
-    $failedCount = @($bringupEvidenceEntries | Where-Object { [bool]$_.failed }).Count
+    $bringupEvidenceSummary = Get-BringupEvidenceSummary -Graph $graph -RuntimeObserveInfo $runtimeObserveInfo
+    $allCapabilities = @(
+        @($bringupEvidenceSummary.evidence_entries) |
+            ForEach-Object { [string]$_.capability } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
     $comparison = $null
     if ($ArtifactContext.Mode -eq 'compare' -and $null -ne $ArtifactContext.DiffData) {
         $caseName = [string]$CaseEntry.name
@@ -1371,7 +1685,9 @@ function New-ArtifactReport {
     $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts $declaredContracts -AvailableFacts $resourceAvailableFacts
     if ($null -ne $comparison) {
         $baselineCaseEntry = Get-CaseEntryByName -Bundle $ArtifactContext.LeftBundle -CaseName ([string]$CaseEntry.name)
+        $baselineBringupEvidenceSummary = New-CaseBringupEvidenceSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineResourceContractSummary = New-CaseResourceContractSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
+        $comparison.bringup_evidence = New-BringupEvidenceComparison -LeftSummary $baselineBringupEvidenceSummary -RightSummary $bringupEvidenceSummary
         $comparison.resource_contract = New-ResourceContractComparison -LeftSummary $baselineResourceContractSummary -RightSummary $resourceContractSummary
     }
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
@@ -1405,16 +1721,16 @@ function New-ArtifactReport {
             unresolved_bindings = @($unresolvedBindings)
         }
         bringup_evidence = [ordered]@{
-            declared_count = $declaredCount
-            materialized_count = $materializedCount
-            published_count = $publishedCount
-            observed_count = $observedCount
-            blocked_count = $blockedCount
-            failed_count = $failedCount
-            published_capabilities = @($publishedCapabilities)
-            blocked_reasons = @($blockedReasons)
-            failed_reasons = @($failedReasons)
-            evidence_entries = @($bringupEvidenceEntries)
+            declared_count = [int]$bringupEvidenceSummary.declared_count
+            materialized_count = [int]$bringupEvidenceSummary.materialized_count
+            published_count = [int]$bringupEvidenceSummary.published_count
+            observed_count = [int]$bringupEvidenceSummary.observed_count
+            blocked_count = [int]$bringupEvidenceSummary.blocked_count
+            failed_count = [int]$bringupEvidenceSummary.failed_count
+            published_capabilities = @($bringupEvidenceSummary.published_capabilities)
+            blocked_reasons = @($bringupEvidenceSummary.blocked_reasons)
+            failed_reasons = @($bringupEvidenceSummary.failed_reasons)
+            evidence_entries = @($bringupEvidenceSummary.evidence_entries)
         }
         resource_contract = [ordered]@{
             declared_contracts = [int]$resourceContractSummary.declared_contracts

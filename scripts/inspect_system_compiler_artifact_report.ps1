@@ -2311,16 +2311,29 @@ if ($BringupEvidence) {
     }
 
     $bringupEvidenceResult = New-BringupEvidenceResult -ReportData $reportData -GraphInfo $graphInfo
+    $bringupEvidenceComparison = $null
+    if ($null -ne $reportData.PSObject.Properties['comparison'] -and
+        $null -ne $reportData.comparison -and
+        $null -ne $reportData.comparison.PSObject.Properties['bringup_evidence']) {
+        $bringupEvidenceComparison = $reportData.comparison.bringup_evidence
+    }
 
     if ($AsJson) {
+        $queryPayload = [ordered]@{
+            kind = 'bringup_evidence'
+            scope = 'report'
+            result = $bringupEvidenceResult
+        }
+        if ($null -ne $bringupEvidenceComparison) {
+            $queryPayload.comparison = [ordered]@{
+                bringup_evidence = $bringupEvidenceComparison
+            }
+        }
+
         [ordered]@{
             report_path = $loadedReport.Path
             subject = $reportData.subject
-            query = [ordered]@{
-                kind = 'bringup_evidence'
-                scope = 'report'
-                result = $bringupEvidenceResult
-            }
+            query = $queryPayload
         } | ConvertTo-Json -Depth 10
         exit 0
     }
@@ -2350,6 +2363,28 @@ if ($BringupEvidence) {
         }
         if (@($entry.failed_reasons).Count -gt 0) {
             Write-Host "  failed  = $((@($entry.failed_reasons) -join '; '))"
+        }
+    }
+
+    if ($null -ne $bringupEvidenceComparison) {
+        Write-Host ''
+        Write-Host '[BRINGUP EVIDENCE COMPARE]'
+        Write-Host "left  = declared:$([int]$bringupEvidenceComparison.left.declared_count), materialized:$([int]$bringupEvidenceComparison.left.materialized_count), published:$([int]$bringupEvidenceComparison.left.published_count), observed:$([int]$bringupEvidenceComparison.left.observed_count), blocked:$([int]$bringupEvidenceComparison.left.blocked_count), failed:$([int]$bringupEvidenceComparison.left.failed_count)"
+        Write-Host "right = declared:$([int]$bringupEvidenceComparison.right.declared_count), materialized:$([int]$bringupEvidenceComparison.right.materialized_count), published:$([int]$bringupEvidenceComparison.right.published_count), observed:$([int]$bringupEvidenceComparison.right.observed_count), blocked:$([int]$bringupEvidenceComparison.right.blocked_count), failed:$([int]$bringupEvidenceComparison.right.failed_count)"
+        if (@($bringupEvidenceComparison.summary_changes).Count -gt 0) {
+            Write-Host "summary_changes = $((@($bringupEvidenceComparison.summary_changes) -join '; '))"
+        }
+        if (@($bringupEvidenceComparison.published_capability_changes.added).Count -gt 0 -or @($bringupEvidenceComparison.published_capability_changes.removed).Count -gt 0) {
+            Write-Host "published_capability_changes = +[$((@($bringupEvidenceComparison.published_capability_changes.added) -join ', '))] -[$((@($bringupEvidenceComparison.published_capability_changes.removed) -join ', '))]"
+        }
+        if (@($bringupEvidenceComparison.blocked_reason_changes.added).Count -gt 0 -or @($bringupEvidenceComparison.blocked_reason_changes.removed).Count -gt 0) {
+            Write-Host "blocked_reason_changes = +[$((@($bringupEvidenceComparison.blocked_reason_changes.added) -join '; '))] -[$((@($bringupEvidenceComparison.blocked_reason_changes.removed) -join '; '))]"
+        }
+        if (@($bringupEvidenceComparison.failed_reason_changes.added).Count -gt 0 -or @($bringupEvidenceComparison.failed_reason_changes.removed).Count -gt 0) {
+            Write-Host "failed_reason_changes = +[$((@($bringupEvidenceComparison.failed_reason_changes.added) -join '; '))] -[$((@($bringupEvidenceComparison.failed_reason_changes.removed) -join '; '))]"
+        }
+        foreach ($capabilityChange in @($bringupEvidenceComparison.capability_changes)) {
+            Write-Host "capability[$([string]$capabilityChange.capability)] kind=$([string]$capabilityChange.change_kind) published:$([bool]$capabilityChange.left_published)->$([bool]$capabilityChange.right_published) observed:$([bool]$capabilityChange.left_observed)->$([bool]$capabilityChange.right_observed) export:$([string]$capabilityChange.left_export_state)->$([string]$capabilityChange.right_export_state)"
         }
     }
     exit 0
@@ -2739,6 +2774,16 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
     }
     if (@($reportData.comparison.metadata_changes).Count -gt 0) {
         Write-Host "metadata_changes = $((@($reportData.comparison.metadata_changes) -join '; '))"
+    }
+    if ($null -ne $reportData.comparison.PSObject.Properties['bringup_evidence'] -and $null -ne $reportData.comparison.bringup_evidence) {
+        $bringupEvidenceComparison = $reportData.comparison.bringup_evidence
+        Write-Host "bringup_evidence = changed:$([bool]$bringupEvidenceComparison.changed)"
+        if (@($bringupEvidenceComparison.summary_changes).Count -gt 0) {
+            Write-Host "bringup_evidence.summary_changes = $((@($bringupEvidenceComparison.summary_changes) -join '; '))"
+        }
+        if (@($bringupEvidenceComparison.capability_changes).Count -gt 0) {
+            Write-Host "bringup_evidence.capability_changes = $([int]@($bringupEvidenceComparison.capability_changes).Count)"
+        }
     }
     if ($null -ne $reportData.comparison.PSObject.Properties['resource_contract'] -and $null -ne $reportData.comparison.resource_contract) {
         $resourceContractComparison = $reportData.comparison.resource_contract

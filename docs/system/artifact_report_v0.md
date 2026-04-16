@@ -108,7 +108,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `recent transitions` 查询结果
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
-- compare 模式下的 `summary_changes / metadata_changes`
+- compare 模式下的 `summary_changes / metadata_changes / comparison.bringup_evidence / comparison.resource_contract`
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
 
@@ -527,12 +527,28 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `metadata_changes`
 - `node_changes`
 - `edge_changes`
+- `bringup_evidence`
 - `resource_contract`
 
 这组字段不应取代底层 `bundle_diff`，
 但它应该把 case 级最重要的比较结论直接拉到报告顶层。
 对于 metadata-only diff，当前 `status` 仍可保持 `unchanged`，
 但 `metadata_changes` 不应被吞掉。
+而 `comparison.bringup_evidence` 则用于承载“结构未变但 bringup 证据发生漂移”的比较面，
+避免把 sidecar / published 状态变化误塞回结构 diff 语义。
+
+`comparison.bringup_evidence` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `capability_changes`
+- `published_capability_changes`
+
+这意味着 compare 模式下即使顶层 `status = unchanged`，
+报告仍然可以明确回答 baseline/candidate 的 bringup 证据是否发生漂移，
+尤其是哪些 capability 在 `missing / published` 与 `missing / detached / attached` 之间发生切换。
+
 而 `comparison.resource_contract` 则用于承载“结构未变但资源法律发生漂移”的比较面，
 避免把资源契约变更误塞回结构 diff 语义。
 
@@ -668,6 +684,58 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
     ],
     "node_changes": {"added": 0, "removed": 0, "changed": 0},
     "edge_changes": {"added": 0, "removed": 0},
+    "bringup_evidence": {
+      "changed": true,
+      "left": {
+        "declared_count": 12,
+        "materialized_count": 12,
+        "published_count": 0,
+        "observed_count": 12,
+        "blocked_count": 0,
+        "failed_count": 0,
+        "published_capabilities": [],
+        "observed_capabilities": []
+      },
+      "right": {
+        "declared_count": 12,
+        "materialized_count": 12,
+        "published_count": 1,
+        "observed_count": 12,
+        "blocked_count": 0,
+        "failed_count": 0,
+        "published_capabilities": ["io.uart1"],
+        "observed_capabilities": ["io.uart1"]
+      },
+      "summary_changes": [
+        "published_count:0->1"
+      ],
+      "published_capability_changes": {
+        "added": ["io.uart1"],
+        "removed": []
+      },
+      "capability_changes": [
+        {
+          "capability": "io.uart1",
+          "change_kind": "changed",
+          "left_declared": true,
+          "right_declared": true,
+          "left_materialized": true,
+          "right_materialized": true,
+          "left_observed": true,
+          "right_observed": true,
+          "left_published": false,
+          "right_published": true,
+          "left_blocked": false,
+          "right_blocked": false,
+          "left_failed": false,
+          "right_failed": false,
+          "left_publish_state": "missing",
+          "right_publish_state": "published",
+          "left_export_state": null,
+          "right_export_state": "attached"
+        }
+      ]
+    },
     "resource_contract": {
       "changed": true,
       "left": {

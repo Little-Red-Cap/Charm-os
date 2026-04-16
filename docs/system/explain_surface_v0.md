@@ -321,6 +321,20 @@ v0 阶段建议至少覆盖：
 - `publish_state / export_state` 在不同 case 之间如何分布
 - 哪些 blocked / failed reason 在多个 case 之间重复出现
 
+如果当前 report 来自 compare 模式，
+`-BringupEvidence -AsJson` 还会额外暴露 `query.comparison.bringup_evidence`，
+至少带出：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `published_capability_changes`
+- `capability_changes`
+
+这让 explain surface 可以在结构 diff 仍保持 `unchanged` 时，
+继续回答“bringup 证据相对 baseline 漂移了什么”，
+尤其是哪些 capability 的 `publish_state / export_state` 已经发生切换。
+
 ### 6.2 `why unavailable`
 
 它回答：

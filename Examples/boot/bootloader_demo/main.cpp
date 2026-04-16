@@ -1,4 +1,5 @@
 #include "armv7a_exception_contract.hpp"
+#include "armv7a_interrupt_completion_contract.hpp"
 #include "armv7a_fault_observation_contract.hpp"
 #include "armv7a_fault_status_contract.hpp"
 #include "armv7a_handoff_contract.hpp"
@@ -455,6 +456,99 @@ namespace {
                observation_unseen.line.intid == 1023u &&
                std::string_view(armv7a_platform_interrupt_line_group_name(sgi_active.line)) ==
                    "group1";
+    }
+
+    bool verify_armv7a_interrupt_completion_contract() noexcept {
+        const auto completion_idle = armv7a_make_unobserved_interrupt_completion(1023u);
+
+        Armv7aInterruptObservation delivery{};
+        delivery.intid = 1u;
+        delivery.raw_acknowledge = 0x00010001u;
+        delivery.line =
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = true,
+            };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion_retired = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = false,
+            });
+
+        const auto completion_controller_busy = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x00000001u,
+                .highest_pending_intid = 1u,
+                .highest_pending_special = false,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = false,
+            });
+
+        const auto completion_line_still_active = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_active = true,
+            });
+
+        auto special_delivery = delivery;
+        special_delivery.special = true;
+        const auto completion_special = armv7a_make_interrupt_completion_observation(
+            special_delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 1023u,
+            });
+
+        return !armv7a_interrupt_completion_observed(completion_idle) &&
+               !armv7a_interrupt_completion_active_cleared(completion_idle) &&
+               !armv7a_interrupt_completion_controller_advanced(completion_idle) &&
+               !armv7a_interrupt_completion_retired(completion_idle) &&
+               armv7a_interrupt_completion_observed(completion_retired) &&
+               armv7a_interrupt_completion_active_cleared(completion_retired) &&
+               armv7a_interrupt_completion_controller_advanced(completion_retired) &&
+               armv7a_interrupt_completion_retired(completion_retired) &&
+               completion_retired.delivery.raw_acknowledge == 0x00010001u &&
+               completion_retired.line_after_eoi.intid == 1u &&
+               completion_retired.line_after_eoi.line_enabled &&
+               !completion_retired.line_after_eoi.line_active &&
+               armv7a_interrupt_completion_observed(completion_controller_busy) &&
+               armv7a_interrupt_completion_active_cleared(completion_controller_busy) &&
+               !armv7a_interrupt_completion_controller_advanced(completion_controller_busy) &&
+               !armv7a_interrupt_completion_retired(completion_controller_busy) &&
+               armv7a_interrupt_completion_observed(completion_line_still_active) &&
+               !armv7a_interrupt_completion_active_cleared(completion_line_still_active) &&
+               armv7a_interrupt_completion_controller_advanced(completion_line_still_active) &&
+               !armv7a_interrupt_completion_retired(completion_line_still_active) &&
+               !armv7a_interrupt_completion_observed(completion_special);
     }
 
     bool verify_armv7a_exception_contract() noexcept {
@@ -1433,6 +1527,8 @@ int main() {
                          MockPrepareStep::entry
                      });
     const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
+    const bool armv7_interrupt_completion_contract_ok =
+        verify_armv7a_interrupt_completion_contract();
     const bool armv7_exception_contract_ok = verify_armv7a_exception_contract();
     const bool armv7_vector_entry_contract_ok = verify_armv7a_vector_entry_contract();
     const bool armv7_abort_decode_contract_ok = verify_armv7a_abort_decode_contract();
@@ -1494,6 +1590,7 @@ int main() {
                     armv7_common_copy_ok &&
                     armv7_common_xip_ok &&
                     armv7_interrupt_contract_ok &&
+                    armv7_interrupt_completion_contract_ok &&
                     armv7_exception_contract_ok &&
                     armv7_vector_entry_contract_ok &&
                     armv7_abort_decode_contract_ok &&
@@ -1555,6 +1652,8 @@ int main() {
                 armv7_common_xip_ok ? 1 : 0);
     std::printf("[boot] armv7_interrupt_contract=%d\n",
                 armv7_interrupt_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_interrupt_completion_contract=%d\n",
+                armv7_interrupt_completion_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_exception_contract=%d\n",
                 armv7_exception_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_vector_entry_contract=%d\n",

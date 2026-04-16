@@ -239,11 +239,17 @@ if (($log -notmatch "ARMv7-A return evidence, vector=svc, origin-mode=sys, curre
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30), source=(secure|non-secure)-phys-ppi, ack=0x[0-9A-F]{8}, hppir-before-ack=0x[0-9A-F]{8}, line=group[01]/yes/(yes|no)/yes, origin-mode=sys, handler-mode=irq, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30, source=..., origin-mode=sys, handler-mode=irq, return-pc=0x..."
 }
+if (($log -notmatch "ARMv7-A timer IRQ complete, intid=(29|30), source=(secure|non-secure)-phys-ppi, eoi=0x[0-9A-F]{8}, hppir-after-eoi=0x[0-9A-F]{8}, line-after-eoi=group[01]/yes/(yes|no)/no, active-cleared=yes, controller-advanced=yes, retired=yes")) {
+    $missing += "ARMv7-A timer IRQ complete, intid=29|30, source=..."
+}
 if (([regex]::Matches($log, "ARMv7-A return evidence, vector=irq, origin-mode=sys, current-mode=sys, origin-irq=enabled, current-irq=enabled, origin-fiq=masked, current-fiq=masked, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")).Count -lt 2) {
     $missing += "ARMv7-A return evidence, vector=irq x2"
 }
 if (($log -notmatch "ARMv7-A SGI active, intid=1, source=self-sgi, ack=0x[0-9A-F]{8}, hppir-before-ack=0x[0-9A-F]{8}, line=group1/yes/(yes|no)/yes, origin-mode=sys, handler-mode=irq, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A SGI active, intid=1, source=self-sgi, handler-mode=irq"
+}
+if (($log -notmatch "ARMv7-A SGI complete, intid=1, source=self-sgi, eoi=0x[0-9A-F]{8}, hppir-after-eoi=0x[0-9A-F]{8}, line-after-eoi=group1/yes/(yes|no)/no, active-cleared=yes, controller-advanced=yes, retired=yes")) {
+    $missing += "ARMv7-A SGI complete, intid=1, source=self-sgi"
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."
@@ -253,6 +259,9 @@ if (($log -notmatch "ARMv7-A handler stack, vector=irq, mode=irq, sp=0x[0-9A-F]{
 }
 if (($log -notmatch "ARMv7-A FIQ active, intid=1, source=self-sgi, ack=0x[0-9A-F]{8}, hppir-before-ack=0x[0-9A-F]{8}, line=group0/yes/(yes|no)/yes, origin-mode=sys, handler-mode=fiq, return-pc=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A FIQ active, intid=1, source=self-sgi, handler-mode=fiq"
+}
+if (($log -notmatch "ARMv7-A FIQ complete, intid=1, source=self-sgi, eoi=0x[0-9A-F]{8}, hppir-after-eoi=0x[0-9A-F]{8}, line-after-eoi=group0/yes/(yes|no)/no, active-cleared=yes, controller-advanced=yes, retired=yes")) {
+    $missing += "ARMv7-A FIQ complete, intid=1, source=self-sgi"
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=fiq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=fiq..."

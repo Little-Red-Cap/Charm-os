@@ -11,6 +11,7 @@ export module player.runtime.hqzy_cm7.usb_glue;
 
 import charm.system.time;
 import player.stm32h7.usb_glue_core;
+import player.stm32h7.usb_msc_glue;
 import usb.class_msc;
 import usb.common;
 import usb.device_driver;
@@ -19,6 +20,7 @@ import util.core;
 
 export namespace player::app_test_hqzy::usb_glue {
     struct UsbGlue : player::stm32h7::usb_glue_core::Core {
+        player::stm32h7::usb_msc_glue::State msc{};
         util::u64 last_msc_ms{0};
     };
 
@@ -90,20 +92,20 @@ export namespace player::app_test_hqzy::usb_glue {
                          const usb::class_driver::MscConfig* cfg) noexcept {
         auto* glue = static_cast<UsbGlue*>(ctx);
         if (!glue) return;
-        player::stm32h7::usb_glue_core::set_ready(*glue, bot, cfg);
+        player::stm32h7::usb_msc_glue::set_ready(glue->msc, bot, cfg);
     }
 
     inline void poll_msc(UsbGlue& glue) noexcept {
-        if (!glue.msc_bot || !glue.msc_cfg || glue.msc_in_busy) return;
+        if (!glue.msc.bot || !glue.msc.cfg) return;
         if (!charm::system::time::bound()) return;
         const auto now = charm::system::time::now_ms();
         if ((now - glue.last_msc_ms) < 1u) return;
         glue.last_msc_ms = now;
-        (void)usb::device::examples::send_msc_in_packet(
+        (void)player::stm32h7::usb_msc_glue::poll(
+            glue,
+            glue.msc,
             glue.dcd_ops,
-            &glue,
-            *glue.msc_bot,
-            *glue.msc_cfg);
+            &glue);
     }
 } // namespace player::app_test_hqzy::usb_glue
 

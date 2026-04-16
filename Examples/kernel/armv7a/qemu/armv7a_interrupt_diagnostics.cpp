@@ -8,16 +8,9 @@
 #include "armv7a_platform.hpp"
 
 namespace {
-constexpr std::uint32_t kPsrModeMask = 0x1fu;
-constexpr std::uint32_t kPsrModeMonitor = 0x16u;
 constexpr std::uint32_t kArmv7aTimerCtrlEnable = 1u << 0;
 constexpr std::uint32_t kArmv7aTimerCtrlImask = 1u << 1;
 constexpr std::uint32_t kArmv7aTimerCtrlIstatus = 1u << 2;
-
-const char* route_name(Armv7aPlatformInterruptRoute route)
-{
-    return route == Armv7aPlatformInterruptRoute::kFiq ? "fiq" : "irq";
-}
 
 const char* route_mask_name(Armv7aPlatformInterruptRoute route, std::uint32_t cpsr)
 {
@@ -45,11 +38,6 @@ void print_interrupt_line_state(const Armv7aPlatformInterruptLineState& state)
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(state.line_active));
 }
 
-bool is_monitor_mode(std::uint32_t psr)
-{
-    return (psr & kPsrModeMask) == kPsrModeMonitor;
-}
-
 bool monitor_mode_observed()
 {
     constexpr Armv7aInterruptSmokeKind kKinds[] = {
@@ -60,12 +48,7 @@ bool monitor_mode_observed()
 
     for (const auto kind : kKinds) {
         const auto observation = armv7a_interrupt_smoke_observation(kind);
-        if (!observation.seen || observation.special) {
-            continue;
-        }
-
-        if (is_monitor_mode(observation.handler_cpsr) ||
-            is_monitor_mode(observation.handler_spsr)) {
+        if (armv7a_interrupt_observation_monitor_mode(observation)) {
             return true;
         }
     }
@@ -142,19 +125,6 @@ Armv7aSgiTimeoutSnapshot armv7a_capture_sgi_timeout_snapshot(unsigned int intid,
     };
 }
 
-bool armv7a_timer_pending_observed(const Armv7aTimerPendingSnapshot& snapshot)
-{
-    return snapshot.secure_line.line_pending || snapshot.secure_line.line_active ||
-           snapshot.nonsecure_line.line_pending || snapshot.nonsecure_line.line_active ||
-           !snapshot.controller.highest_pending_special;
-}
-
-bool armv7a_sgi_pending_observed(const Armv7aSgiPendingSnapshot& snapshot)
-{
-    return snapshot.line.line_pending || snapshot.line.line_active ||
-           !snapshot.controller.highest_pending_special;
-}
-
 void armv7a_interrupt_print_reset_state()
 {
     const auto interrupt_state = armv7a_platform_interrupt_controller_state();
@@ -224,7 +194,7 @@ void armv7a_interrupt_print_sgi_pending_evidence(const Armv7aSgiPendingSnapshot&
                                                  Armv7aPlatformInterruptRoute route)
 {
     armv7a_platform_early_console_puts("ARMv7-A SGI pending evidence, route=");
-    armv7a_platform_early_console_puts(route_name(route));
+    armv7a_platform_early_console_puts(armv7a_interrupt_route_name(route));
     armv7a_platform_early_console_puts(", line=");
     print_interrupt_line_state(snapshot.line);
     armv7a_platform_early_console_puts(", gicd=0x");
@@ -248,7 +218,7 @@ void armv7a_interrupt_print_unexpected_pending_evidence(const Armv7aSgiPendingSn
     armv7a_platform_early_console_puts(
         armv7a_platform_interrupt_source_name(snapshot.line.intid));
     armv7a_platform_early_console_puts(", route=");
-    armv7a_platform_early_console_puts(route_name(route));
+    armv7a_platform_early_console_puts(armv7a_interrupt_route_name(route));
     armv7a_platform_early_console_puts(", line=");
     print_interrupt_line_state(snapshot.line);
     armv7a_platform_early_console_puts(", gicd=0x");
@@ -300,7 +270,7 @@ void armv7a_interrupt_print_special_ack(const char* label,
     armv7a_platform_early_console_puts(", hppir-before-ack=0x");
     armv7a_diag_put_hex(observation.controller.highest_pending);
     armv7a_platform_early_console_puts(", route=");
-    armv7a_platform_early_console_puts(route_name(route));
+    armv7a_platform_early_console_puts(armv7a_interrupt_route_name(route));
     armv7a_platform_early_console_puts(", origin-mode=");
     armv7a_platform_early_console_puts(armv7a_mode_name(observation.handler_spsr));
     armv7a_platform_early_console_puts(", current-mode=");
@@ -321,7 +291,7 @@ void armv7a_interrupt_print_timeout_summary(const char* expected,
     armv7a_platform_early_console_puts("ARMv7-A interrupt timeout, expected=");
     armv7a_platform_early_console_puts(expected);
     armv7a_platform_early_console_puts(", route=");
-    armv7a_platform_early_console_puts(route_name(route));
+    armv7a_platform_early_console_puts(armv7a_interrupt_route_name(route));
     armv7a_platform_early_console_puts(", route-mask=");
     armv7a_platform_early_console_puts(route_mask_name(route, context.current_cpsr));
     armv7a_platform_early_console_puts(", pending-observed=");
@@ -491,49 +461,49 @@ void armv7a_interrupt_print_security_side_evidence()
         armv7a_interrupt_smoke_observation(Armv7aInterruptSmokeKind::kSgiFiq);
 
     armv7a_platform_early_console_puts("ARMv7-A security side evidence, scr-read=skipped, timer-source=");
-    if (timer_observation.seen && !timer_observation.special) {
+    if (armv7a_interrupt_delivery_observed(timer_observation)) {
         print_source_summary(timer_observation);
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", irq-source=");
-    if (irq_observation.seen && !irq_observation.special) {
+    if (armv7a_interrupt_delivery_observed(irq_observation)) {
         print_source_summary(irq_observation);
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", irq-origin=");
-    if (irq_observation.seen && !irq_observation.special) {
+    if (armv7a_interrupt_delivery_observed(irq_observation)) {
         armv7a_platform_early_console_puts(armv7a_mode_name(irq_observation.handler_spsr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", irq-handler=");
-    if (irq_observation.seen && !irq_observation.special) {
+    if (armv7a_interrupt_delivery_observed(irq_observation)) {
         armv7a_platform_early_console_puts(armv7a_mode_name(irq_observation.handler_cpsr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", fiq-source=");
-    if (fiq_observation.seen && !fiq_observation.special) {
+    if (armv7a_interrupt_delivery_observed(fiq_observation)) {
         print_source_summary(fiq_observation);
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", fiq-origin=");
-    if (fiq_observation.seen && !fiq_observation.special) {
+    if (armv7a_interrupt_delivery_observed(fiq_observation)) {
         armv7a_platform_early_console_puts(armv7a_mode_name(fiq_observation.handler_spsr));
     } else {
         armv7a_platform_early_console_puts("not-observed");
     }
 
     armv7a_platform_early_console_puts(", fiq-handler=");
-    if (fiq_observation.seen && !fiq_observation.special) {
+    if (armv7a_interrupt_delivery_observed(fiq_observation)) {
         armv7a_platform_early_console_puts(armv7a_mode_name(fiq_observation.handler_cpsr));
     } else {
         armv7a_platform_early_console_puts("not-observed");

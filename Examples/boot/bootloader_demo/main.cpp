@@ -1,4 +1,5 @@
 #include "armv7a_handoff_contract.hpp"
+#include "armv7a_interrupt_contract.hpp"
 
 #include <array>
 #include <cstdio>
@@ -385,6 +386,67 @@ namespace {
             .translation_table_base = translation_table_base,
             .image_load_base = image_load_base
         };
+    }
+
+    bool verify_armv7a_interrupt_contract() noexcept {
+        Armv7aTimerPendingSnapshot timer_idle{};
+        timer_idle.controller.highest_pending_special = true;
+
+        Armv7aTimerPendingSnapshot timer_pending{};
+        timer_pending.controller.highest_pending_special = true;
+        timer_pending.nonsecure_line.line_pending = true;
+
+        Armv7aTimerPendingSnapshot timer_hppir{};
+        timer_hppir.controller.highest_pending_special = false;
+
+        Armv7aSgiPendingSnapshot sgi_idle{};
+        sgi_idle.controller.highest_pending_special = true;
+
+        Armv7aSgiPendingSnapshot sgi_active{};
+        sgi_active.controller.highest_pending_special = true;
+        sgi_active.line.line_active = true;
+        sgi_active.line.line_group1 = true;
+
+        Armv7aSgiPendingSnapshot sgi_hppir{};
+        sgi_hppir.controller.highest_pending_special = false;
+
+        Armv7aInterruptObservation observation_unseen =
+            armv7a_make_unobserved_interrupt_observation(1023u);
+
+        Armv7aInterruptObservation observation_special{};
+        observation_special.seen = true;
+        observation_special.special = true;
+        observation_special.intid = 1023u;
+
+        Armv7aInterruptObservation observation_irq{};
+        observation_irq.seen = true;
+        observation_irq.intid = 1u;
+        observation_irq.line.line_group1 = true;
+
+        Armv7aInterruptObservation observation_monitor{};
+        observation_monitor.seen = true;
+        observation_monitor.handler_cpsr = 0x16u;
+
+        return !armv7a_timer_pending_observed(timer_idle) &&
+               armv7a_timer_pending_observed(timer_pending) &&
+               armv7a_timer_pending_observed(timer_hppir) &&
+               !armv7a_sgi_pending_observed(sgi_idle) &&
+               armv7a_sgi_pending_observed(sgi_active) &&
+               armv7a_sgi_pending_observed(sgi_hppir) &&
+               !armv7a_interrupt_delivery_observed(observation_unseen) &&
+               !armv7a_interrupt_delivery_observed(observation_special) &&
+               armv7a_interrupt_delivery_observed(observation_irq) &&
+               !armv7a_interrupt_observation_monitor_mode(observation_irq) &&
+               armv7a_interrupt_observation_monitor_mode(observation_monitor) &&
+               std::string_view(armv7a_interrupt_route_name(
+                                    Armv7aPlatformInterruptRoute::kIrq)) == "irq" &&
+               std::string_view(armv7a_interrupt_route_name(
+                                    Armv7aPlatformInterruptRoute::kFiq)) == "fiq" &&
+               observation_unseen.controller.highest_pending_special &&
+               observation_unseen.controller.highest_pending_intid == 1023u &&
+               observation_unseen.line.intid == 1023u &&
+               std::string_view(armv7a_platform_interrupt_line_group_name(sgi_active.line)) ==
+                   "group1";
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -1038,6 +1100,7 @@ int main() {
                          MockPrepareStep::jump,
                          MockPrepareStep::entry
                      });
+    const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1088,7 +1151,8 @@ int main() {
                     armv7_copy_ok &&
                     armv7_xip_ok &&
                     armv7_common_copy_ok &&
-                    armv7_common_xip_ok;
+                    armv7_common_xip_ok &&
+                    armv7_interrupt_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1142,6 +1206,8 @@ int main() {
     std::printf("[boot] armv7_common_copy=%d armv7_common_xip=%d\n",
                 armv7_common_copy_ok ? 1 : 0,
                 armv7_common_xip_ok ? 1 : 0);
+    std::printf("[boot] armv7_interrupt_contract=%d\n",
+                armv7_interrupt_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

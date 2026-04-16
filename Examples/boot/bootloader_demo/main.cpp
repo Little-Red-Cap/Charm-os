@@ -6,6 +6,7 @@
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
 #include "armv7a_kernel_port_contract.hpp"
+#include "armv7a_runtime_trap_adapter_contract.hpp"
 #include "armv7a_runtime_bridge_contract.hpp"
 #include "armv7a_runtime_trap_mapping_contract.hpp"
 #include "armv7a_runtime_trap_ingress_contract.hpp"
@@ -2155,6 +2156,102 @@ namespace {
         return mapping_ok;
     }
 
+    bool verify_armv7a_runtime_trap_adapter_contract() noexcept {
+        const auto policy = Armv7aRuntimeTrapMappingPolicy{
+            .yield_event_id = 0x00000001u,
+            .yield_event_payload = 0x00000001u,
+            .sleep_event_id = 0x00000002u,
+            .sleep_payload_matches_due_low32 = true,
+        };
+
+        const auto yield_observation = Armv7aRuntimeTrapObservation{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc = Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x1Fu, 0x13u, 0x9104u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x00000001u,
+                .arg1 = 0x00000001u,
+                .arguments_sampled = true,
+            },
+        };
+        const auto yield_adapter = armv7a_observe_runtime_trap_adapter(
+            yield_observation,
+            armv7a_map_runtime_trap_frame(yield_observation, policy),
+            0x00000001u);
+
+        const auto sleep_observation = Armv7aRuntimeTrapObservation{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeSleepServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc = Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x10u, 0x13u, 0x9204u),
+                .immediate = kArmv7aRuntimeBridgeSleepServiceId,
+                .arg0 = 0x00000005u,
+                .arg1 = 0x00000000u,
+                .arg2 = 0x00000002u,
+                .arg3 = 0x00000005u,
+                .arguments_sampled = true,
+            },
+        };
+        const auto sleep_adapter = armv7a_observe_runtime_trap_adapter(
+            sleep_observation,
+            armv7a_map_runtime_trap_frame(
+                sleep_observation,
+                policy,
+                Armv7aRuntimeTrapIngressContext{
+                    .stack_pointer = 0x00005050u,
+                }),
+            0x0000000000000005ull);
+
+        const auto direct_frame_before =
+            armv7a_make_runtime_trap_svc_frame(yield_observation.svc);
+        auto direct_frame = direct_frame_before;
+        const bool direct_writeback =
+            armv7a_runtime_trap_svc_frame_matches(
+                direct_frame_before, yield_observation.svc) &&
+            armv7a_apply_runtime_trap_result_to_frame(
+                direct_frame, 0x12345678u) &&
+            direct_frame.r0 == 0x12345678u &&
+            direct_frame.lr == direct_frame_before.lr &&
+            direct_frame.spsr == direct_frame_before.spsr;
+
+        const auto overflow_adapter = armv7a_observe_runtime_trap_adapter(
+            yield_observation,
+            armv7a_map_runtime_trap_frame(yield_observation, policy),
+            0x0000000100000000ull);
+
+        return std::string_view(armv7a_runtime_trap_adapter_path_name(
+                   yield_adapter.path)) == "svc-r0" &&
+               std::string_view(armv7a_runtime_trap_adapter_path_name(
+                   sleep_adapter.path)) == "svc-r0" &&
+               armv7a_runtime_trap_adapter_ready(yield_adapter) &&
+               yield_adapter.result_register_before == 0x00000001u &&
+               yield_adapter.result_register_after == 0x00000001u &&
+               yield_adapter.return_pc_before == 0x00009104u &&
+               yield_adapter.return_pc_after == 0x00009104u &&
+               yield_adapter.return_pc_preserved &&
+               yield_adapter.status_preserved &&
+               armv7a_runtime_trap_adapter_ready(sleep_adapter) &&
+               sleep_adapter.result_register_before == 0x00000005u &&
+               sleep_adapter.result_register_after == 0x00000005u &&
+               sleep_adapter.return_pc_before == 0x00009204u &&
+               sleep_adapter.return_pc_after == 0x00009204u &&
+               sleep_adapter.return_pc_preserved &&
+               sleep_adapter.status_preserved &&
+               direct_writeback &&
+               !armv7a_runtime_trap_adapter_ready(overflow_adapter) &&
+               !overflow_adapter.value_fits_result_register &&
+               !overflow_adapter.result_written &&
+               overflow_adapter.return_pc_preserved &&
+               overflow_adapter.status_preserved;
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -2840,6 +2937,8 @@ int main() {
         verify_armv7a_runtime_trap_ingress_contract();
     const bool armv7_runtime_trap_mapping_contract_ok =
         verify_armv7a_runtime_trap_mapping_contract();
+    const bool armv7_runtime_trap_adapter_contract_ok =
+        verify_armv7a_runtime_trap_adapter_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -2909,7 +3008,8 @@ int main() {
                      armv7_runtime_trap_contract_ok &&
                      armv7_runtime_bridge_contract_ok &&
                      armv7_runtime_trap_ingress_contract_ok &&
-                     armv7_runtime_trap_mapping_contract_ok;
+                     armv7_runtime_trap_mapping_contract_ok &&
+                     armv7_runtime_trap_adapter_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -3001,6 +3101,8 @@ int main() {
                 armv7_runtime_trap_ingress_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_runtime_trap_mapping_contract=%d\n",
                 armv7_runtime_trap_mapping_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_adapter_contract=%d\n",
+                armv7_runtime_trap_adapter_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

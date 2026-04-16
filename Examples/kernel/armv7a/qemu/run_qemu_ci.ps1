@@ -42,7 +42,7 @@ function Read-LogSafe {
     }
 
     try {
-        return Get-Content $Path -Raw
+        return [string](Get-Content $Path -Raw)
     } catch {
         return ""
     }
@@ -75,13 +75,14 @@ Remove-Item $outFile, $errFile -Force -ErrorAction SilentlyContinue
 $args = @(
     "-machine", "virt",
     "-cpu", "cortex-a7",
-    "-nographic",
+    "-display", "none",
+    "-serial", "file:$outFile",
     "-monitor", "none",
     "-device", "loader,file=$elf,cpu-num=0"
 )
 
 $proc = Start-Process -FilePath $qemu -ArgumentList $args `
-    -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru
+    -RedirectStandardError $errFile -PassThru
 
 $expected = @(
     "Charm ARMv7-A QEMU skeleton",
@@ -127,6 +128,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-trap-ingress",
     "ARMv7-A phase, stage=runtime-trap-mapping",
     "ARMv7-A phase complete, stage=runtime-trap-mapping",
+    "ARMv7-A phase, stage=runtime-trap-adapter",
+    "ARMv7-A phase complete, stage=runtime-trap-adapter",
     "ARMv7-A phase, stage=context-switch-smoke",
     "ARMv7-A phase complete, stage=context-switch-smoke",
     "ARMv7-A phase, stage=scheduler-dispatch",
@@ -147,7 +150,7 @@ if (-not $proc.HasExited) {
     Wait-Process -Id $proc.Id -Timeout 2 -ErrorAction SilentlyContinue
 }
 
-$log = (Read-LogSafe -Path $outFile) + (Read-LogSafe -Path $errFile)
+$log = [string](Read-LogSafe -Path $outFile) + [string](Read-LogSafe -Path $errFile)
 $missing = $expected | Where-Object { -not $log.Contains($_) }
 if (($log -notmatch "ARMv7-A boot state, cpsr=0x[0-9A-F]{8}, mode=[a-z]+, irq=(masked|enabled)")) {
     $missing += "ARMv7-A boot state, cpsr=0x..."
@@ -286,6 +289,9 @@ if (($log -notmatch "ARMv7-A runtime trap ingress, source=svc, service=0x000043,
 }
 if (($log -notmatch "ARMv7-A runtime trap mapping, yield=yield-current, yield-generic=0x0001, yield-origin=kernel-thread, yield-return-pc=0x[0-9A-F]{8}, yield-ready=yes, sleep=sleep-until, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-due=0x0000000000000005, sleep-ready=yes, mapping=yes")) {
     $missing += "ARMv7-A runtime trap mapping, yield=yield-current..."
+}
+if (($log -notmatch "ARMv7-A runtime trap adapter, yield-path=svc-r0, yield-r0=0x00000001, yield-preserve=yes, yield-ready=yes, sleep-path=svc-r0, sleep-r0=0x00000005, sleep-preserve=yes, sleep-ready=yes, adapter=yes")) {
+    $missing += "ARMv7-A runtime trap adapter, yield-path=svc-r0..."
 }
 if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0-9A-F]{8}, stack-top=0x[0-9A-F]{8}, prepared-sp=0x[0-9A-F]{8}, resume=0x[0-9A-F]{8}, return=0x[0-9A-F]{8}, entry=0x[0-9A-F]{8}, arg=0x[0-9A-F]{8}, aligned=yes, in-range=yes, ready=yes")) {
     $missing += "ARMv7-A thread frame, kind=cooperative-sys..."

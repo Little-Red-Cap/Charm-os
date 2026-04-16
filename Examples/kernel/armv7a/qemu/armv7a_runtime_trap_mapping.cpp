@@ -5,15 +5,6 @@
 #include "armv7a_runtime_bridge_contract.hpp"
 #include "armv7a_runtime_trap.hpp"
 
-namespace {
-constexpr Armv7aRuntimeTrapMappingPolicy kArmv7aQemuTrapMappingPolicy{
-    .yield_event_id = 0x00000001u,
-    .yield_event_payload = 0x00000001u,
-    .sleep_event_id = 0x00000002u,
-    .sleep_payload_matches_due_low32 = true,
-};
-} // namespace
-
 Armv7aRuntimeTrapMappingObservation
 armv7a_capture_runtime_trap_mapping_observation() noexcept
 {
@@ -21,11 +12,11 @@ armv7a_capture_runtime_trap_mapping_observation() noexcept
         .yield = armv7a_map_runtime_trap_frame(
             armv7a_capture_runtime_trap_ingress_for_service(
                 kArmv7aRuntimeBridgeYieldServiceId),
-            kArmv7aQemuTrapMappingPolicy),
+            armv7a_qemu_runtime_trap_mapping_policy()),
         .sleep = armv7a_map_runtime_trap_frame(
             armv7a_capture_runtime_trap_ingress_for_service(
                 kArmv7aRuntimeBridgeSleepServiceId),
-            kArmv7aQemuTrapMappingPolicy),
+            armv7a_qemu_runtime_trap_mapping_policy()),
     };
 }
 

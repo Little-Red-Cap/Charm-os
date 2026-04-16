@@ -8,6 +8,7 @@
 #include "armv7a_platform.hpp"
 #include "armv7a_runtime_bridge.hpp"
 #include "armv7a_runtime_trap.hpp"
+#include "armv7a_runtime_trap_adapter.hpp"
 #include "armv7a_runtime_trap_mapping.hpp"
 #include "armv7a_scheduler_dispatch.hpp"
 #include "armv7a_scheduler_tick.hpp"
@@ -41,6 +42,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapMapping);
     armv7a_print_runtime_trap_mapping_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapMapping);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapAdapter);
+    armv7a_print_runtime_trap_adapter_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapAdapter);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
     armv7a_run_context_switch_smoke();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);

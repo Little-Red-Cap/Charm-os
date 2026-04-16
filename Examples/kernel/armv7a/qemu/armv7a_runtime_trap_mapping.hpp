@@ -2,6 +2,17 @@
 
 #include "armv7a_runtime_trap_mapping_contract.hpp"
 
+constexpr Armv7aRuntimeTrapMappingPolicy
+armv7a_qemu_runtime_trap_mapping_policy() noexcept
+{
+    return Armv7aRuntimeTrapMappingPolicy{
+        .yield_event_id = 0x00000001u,
+        .yield_event_payload = 0x00000001u,
+        .sleep_event_id = 0x00000002u,
+        .sleep_payload_matches_due_low32 = true,
+    };
+}
+
 struct Armv7aRuntimeTrapMappingObservation {
     Armv7aRuntimeTrapMappedFrame yield{};
     Armv7aRuntimeTrapMappedFrame sleep{};

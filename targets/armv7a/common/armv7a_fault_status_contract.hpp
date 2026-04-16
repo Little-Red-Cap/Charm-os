@@ -1,6 +1,16 @@
-#include "armv7a_fault_status.hpp"
+#pragma once
 
-namespace {
+#include <cstdint>
+
+struct Armv7aFaultStatusDecode {
+    std::uint32_t status_code;
+    std::uint32_t domain;
+    bool write;
+    bool cache_maintenance;
+    const char* description;
+};
+
+namespace armv7a::fault_status {
 constexpr std::uint32_t kFsrStatusLowMask = 0x0Fu;
 constexpr std::uint32_t kFsrStatusHighBit = 1u << 10;
 constexpr std::uint32_t kFsrDomainShift = 4u;
@@ -78,32 +88,35 @@ constexpr const char* kPrefetchFaultDescriptions[32] = {
     "unknown 31",
 };
 
-std::uint32_t armv7a_fault_status_code(std::uint32_t fsr)
+constexpr std::uint32_t status_code(std::uint32_t fsr) noexcept
 {
     return (fsr & kFsrStatusLowMask) | ((fsr & kFsrStatusHighBit) >> 6);
 }
 
-Armv7aFaultStatusDecode decode_fault_status(std::uint32_t fsr,
-                                            const char* const (&descriptions)[32],
-                                            bool has_write_bits)
+constexpr Armv7aFaultStatusDecode decode(std::uint32_t fsr,
+                                         const char* const (&descriptions)[32],
+                                         bool has_write_bits) noexcept
 {
-    const auto status_code = armv7a_fault_status_code(fsr);
+    const auto code = status_code(fsr);
     return Armv7aFaultStatusDecode{
-        .status_code = status_code,
+        .status_code = code,
         .domain = (fsr >> kFsrDomainShift) & kFsrDomainMask,
         .write = has_write_bits && ((fsr & kFsrWrite) != 0u),
         .cache_maintenance = has_write_bits && ((fsr & kFsrCacheMaintenance) != 0u),
-        .description = descriptions[status_code],
+        .description = descriptions[code],
     };
 }
-} // namespace
+} // namespace armv7a::fault_status
 
-Armv7aFaultStatusDecode armv7a_decode_data_fault_status(std::uint32_t dfsr)
+constexpr Armv7aFaultStatusDecode armv7a_decode_data_fault_status(std::uint32_t dfsr) noexcept
 {
-    return decode_fault_status(dfsr, kDataFaultDescriptions, true);
+    return armv7a::fault_status::decode(
+        dfsr, armv7a::fault_status::kDataFaultDescriptions, true);
 }
 
-Armv7aFaultStatusDecode armv7a_decode_prefetch_fault_status(std::uint32_t ifsr)
+constexpr Armv7aFaultStatusDecode armv7a_decode_prefetch_fault_status(
+    std::uint32_t ifsr) noexcept
 {
-    return decode_fault_status(ifsr, kPrefetchFaultDescriptions, false);
+    return armv7a::fault_status::decode(
+        ifsr, armv7a::fault_status::kPrefetchFaultDescriptions, false);
 }

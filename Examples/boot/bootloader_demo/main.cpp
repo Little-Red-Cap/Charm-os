@@ -1,6 +1,8 @@
 #include "armv7a_exception_contract.hpp"
+#include "armv7a_fault_status_contract.hpp"
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
+#include "armv7a_translation_decode_contract.hpp"
 
 #include <array>
 #include <cstdio>
@@ -520,6 +522,64 @@ namespace {
                svc_seen.origin_spsr == 0x1Fu &&
                svc_seen.handler_cpsr == 0x13u &&
                svc_seen.return_pc == 0x7004u;
+    }
+
+    bool verify_armv7a_abort_decode_contract() noexcept {
+        constexpr auto data_fault = armv7a_decode_data_fault_status(0x0000081Du);
+        constexpr auto prefetch_fault = armv7a_decode_prefetch_fault_status(0x0000001Fu);
+
+        constexpr auto l1_section = armv7a_decode_l1_descriptor(0x40301234u, 0x40311C0Eu);
+        constexpr auto l1_page_table =
+            armv7a_decode_l1_descriptor(0x52567000u, 0x4021FC21u);
+        constexpr auto l2_small_page =
+            armv7a_decode_l2_descriptor(0x52545000u, 0x4056747Eu);
+        constexpr auto l2_fault = armv7a_decode_l2_descriptor(0x53000040u, 0x00000000u);
+
+        return data_fault.status_code == 0x0Du &&
+               data_fault.domain == 0x1u &&
+               data_fault.write &&
+               !data_fault.cache_maintenance &&
+               std::string_view(data_fault.description) == "section permission fault" &&
+               prefetch_fault.status_code == 0x0Fu &&
+               prefetch_fault.domain == 0x1u &&
+               !prefetch_fault.write &&
+               !prefetch_fault.cache_maintenance &&
+               std::string_view(prefetch_fault.description) == "page permission fault" &&
+               l1_section.index == 0x403u &&
+               l1_section.kind == Armv7aL1DescriptorKind::kSection &&
+               l1_section.table_base == 0x40311C00u &&
+               l1_section.domain == 0x0u &&
+               l1_section.tex == 0x1u &&
+               l1_section.access_permission == 0x3u &&
+               l1_section.memory_type == Armv7aMemoryType::kNormalCached &&
+               !l1_section.execute_never &&
+               l1_section.shareable &&
+               l1_section.cacheable &&
+               l1_section.bufferable &&
+               l1_page_table.index == 0x525u &&
+               l1_page_table.kind == Armv7aL1DescriptorKind::kPageTable &&
+               l1_page_table.table_base == 0x4021FC00u &&
+               l1_page_table.domain == 0x1u &&
+               l2_small_page.index == 0x45u &&
+               l2_small_page.kind == Armv7aL2DescriptorKind::kSmallPage &&
+               l2_small_page.physical_base == 0x40567000u &&
+               l2_small_page.tex == 0x1u &&
+               l2_small_page.access_permission == 0x3u &&
+               l2_small_page.memory_type == Armv7aMemoryType::kNormalCached &&
+               !l2_small_page.execute_never &&
+               l2_small_page.shareable &&
+               l2_small_page.cacheable &&
+               l2_small_page.bufferable &&
+               l2_fault.index == 0x0u &&
+               l2_fault.kind == Armv7aL2DescriptorKind::kFault &&
+               std::string_view(
+                   armv7a_l1_descriptor_kind_name(Armv7aL1DescriptorKind::kSection)) ==
+                   "section" &&
+               std::string_view(
+                   armv7a_l2_descriptor_kind_name(Armv7aL2DescriptorKind::kSmallPage)) ==
+                   "small page" &&
+               std::string_view(armv7a_memory_type_name(Armv7aMemoryType::kDevice)) ==
+                   "device";
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -1175,6 +1235,7 @@ int main() {
                      });
     const bool armv7_interrupt_contract_ok = verify_armv7a_interrupt_contract();
     const bool armv7_exception_contract_ok = verify_armv7a_exception_contract();
+    const bool armv7_abort_decode_contract_ok = verify_armv7a_abort_decode_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1227,7 +1288,8 @@ int main() {
                     armv7_common_copy_ok &&
                     armv7_common_xip_ok &&
                     armv7_interrupt_contract_ok &&
-                    armv7_exception_contract_ok;
+                    armv7_exception_contract_ok &&
+                    armv7_abort_decode_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1285,6 +1347,8 @@ int main() {
                 armv7_interrupt_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_exception_contract=%d\n",
                 armv7_exception_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_abort_decode_contract=%d\n",
+                armv7_abort_decode_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

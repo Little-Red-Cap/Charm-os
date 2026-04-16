@@ -110,7 +110,6 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_page_table_probe.cpp
     armv7a_section_split_probe.cpp
     armv7a_boot_page_table.cpp
-    armv7a_fault_status.cpp
     armv7a_translation_walk.cpp
     armv7a_abort_smoke.cpp
     armv7a_exception_smoke.cpp

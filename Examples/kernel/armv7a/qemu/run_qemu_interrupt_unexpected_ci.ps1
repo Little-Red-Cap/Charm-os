@@ -132,6 +132,12 @@ if (($log -notmatch "ARMv7-A diagnostic context, subsystem=interrupt, stage=unex
 if (($log -notmatch "ARMv7-A unexpected IRQ, intid=0x00000002, source=unexpected-intid, ack=0x[0-9A-F]{8}, hppir-before-ack=0x[0-9A-F]{8}, line=group1/yes/(yes|no)/yes, origin-mode=sys, handler-mode=irq, return-pc=0x[0-9A-F]{8}, pc=0x[0-9A-F]{8}, lr=0x[0-9A-F]{8}, spsr=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A unexpected IRQ, intid=0x00000002..."
 }
+if (($phaseLog -notmatch "ARMv7-A unexpected IRQ complete, intid=2, source=unexpected-intid, eoi=0x[0-9A-F]{8}, hppir-after-eoi=0x[0-9A-F]{8}, line-after-eoi=group1/yes/(yes|no)/no, active-cleared=yes, controller-advanced=yes, retired=yes")) {
+    $missing += "ARMv7-A unexpected IRQ complete, intid=2..."
+}
+if (($phaseLog -notmatch "ARMv7-A unexpected IRQ lifecycle, intid=2, source=unexpected-intid, entry-match=yes, retired=yes, restored=yes, closed=yes")) {
+    $missing += "ARMv7-A unexpected IRQ lifecycle, intid=2..."
+}
 if (($phaseLog -notmatch "ARMv7-A handler stack, vector=irq, mode=irq, sp=0x[0-9A-F]{8}, base=0x[0-9A-F]{8}, top=0x[0-9A-F]{8}, used=0x[0-9A-F]{8}, in-range=yes")) {
     $missing += "ARMv7-A handler stack, vector=irq..."
 }

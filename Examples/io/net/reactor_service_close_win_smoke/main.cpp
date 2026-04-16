@@ -170,7 +170,9 @@ int main() {
 
     util::u16 port = 0;
     for (util::u16 candidate = 33420; candidate < 33520; ++candidate) {
-        if (listener.listen(stack, net::Endpoint::ipv4_loopback(candidate), 2)) {
+        auto listening = net::TcpListener::listening_loopback(stack, candidate, 2);
+        if (listening) {
+            listener = std::move(listening.value());
             port = candidate;
             break;
         }

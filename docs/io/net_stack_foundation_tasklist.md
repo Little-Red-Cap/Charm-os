@@ -61,7 +61,9 @@
 - `M1`：已完成最小收口；host 与 ARM/QEMU 路径都已能稳定构建，跨模块标准库视图边界已做过一轮压实
 - `M2`：已完成 v0 契约锁定；`stub / win` backend、`Socket` 状态机与 contract smoke 已对齐
 - `M3`：已完成第一阶段收口；socket fd 的 `dup / close / fstat / EOF / spawn` 最小语义已经落地并有 smoke 支撑
-- `M4 ~ M6`：仍是下一阶段主任务；reactor 承载面、typed service 骨架与对外 facade 体验还需要继续收敛
+- `M4`：主体能力已基本落地；reactor / channel / driver 的 close / reset / error / accepted 语义在 `stub / win` 两条路径上都已有 contract smoke，当前更偏向回归矩阵补齐、示例收口与文档归档
+- `M5`：主体能力已基本落地；`request_session / service_session / typed service / deferred reply / schema codec` 已形成可复用骨架，当前更偏向边界钉牢、回归矩阵补齐与协议层复用入口收口
+- `M6`：已进入收尾阶段；`TcpClient / TcpListener / UdpSocket` 的工厂式 façade 已建立，若干面向用户的示例已切到新风格，当前主要工作是继续扫尾旧示例、统一文档口径，并决定何时把“网络底座 v0”正式关单
 
 ---
 
@@ -236,6 +238,78 @@
 - netif / route / packet pool 的用户面暴露
 - 重量级协议直接上车
 - 为了追求“接口优雅”而引入不受控复杂性
+
+---
+
+## 阶段关单清单（网络底座 v0）
+
+这份清单的目的不是增加流程，而是给当前网络阶段一个明确出口：
+
+- 避免“示例还差一点、smoke 还差一点、文档还差一点”长期悬空
+- 避免底座阶段和下一阶段的“自研数据面推进”彼此打断
+- 让后续讨论“现在该继续收口，还是该开下一章”时有统一口径
+
+### 关单口径
+
+当下面四类条件大体满足时，可以认为“网络底座 v0”告一段落：
+
+#### 1. 对外 façade 收口完成
+
+- `TcpClient / TcpListener / UdpSocket` 的常见路径统一收口到少量高频动作
+- `connected / listening / bound` 及其 `*_loopback / *_any` 便捷入口成为推荐写法
+- 常见 `send / recv / send_to / recv_from` 已支持更顺手的 `u8` 数组直传
+- 普通用户路径不再被迫接触 backend / driver / provider 等内部概念
+
+#### 2. 回归矩阵足够稳定
+
+- host / stub 路径上的基础 smoke 持续通过
+- `WinProvider` 路径上的真实语义 smoke 持续通过
+- ARM / QEMU 路径继续保持可构建、可解释
+- `posix_socket_bridge_smoke` 继续保持通过
+- `net_pump_smoke` 继续保持最小 `ARP / IPv4 / UDP` 闭环回归能力
+
+#### 3. 承载面契约已钉牢
+
+- reactor 对 `readable / writable / accepted / closed / error` 的观察语义不再反复变化
+- `request / service / typed service / deferred reply` 的 `close / reset / error / timeout` 语义不再漂移
+- `schema_codec / service_codec` 能继续充当 typed payload contract 的快速回归面
+- 现有网络示例已经能说明“网络是 Charm 主线中的公共 I/O 能力”，而不是零散 demo
+
+#### 4. 文档与边界已同步
+
+- 本任务单中的阶段判断与现实进度一致
+- `docs/io/net_stack_dual_surface_design.md` 与实际对外 façade 方向一致
+- 当前明确暂缓项仍保持清楚，不把 `IPv6 / DHCP / DNS / TLS / 完整 Linux socket 兼容面` 混进底座关单条件
+
+### 明确“不必等到”的事情
+
+网络底座 v0 的关单，不需要等到下面这些工作完成：
+
+- 完整自研 TCP/IP 协议栈
+- 完整 Linux/POSIX socket 兼容面
+- IPv6 / DHCP / DNS / TLS
+- route / netif / packet pool 的用户面开放
+- 重量级上层协议全面铺开
+
+### 关单后的下一阶段
+
+当网络底座 v0 关单后，下一阶段建议明确切到：
+
+> **自研数据面的最小闭环推进。**
+
+建议优先顺序：
+
+- 把 `packet / driver / netif / stack` 的内部边界继续压实
+- 继续完善 `ARP` 的缓存、请求、应答与生命周期
+- 把 `IPv4` 的最小主路径继续打通
+- 在 `UDP` 之上跑一个更贴近真实用途的最小诊断/回显协议
+- 只在上述路径站稳后，再讨论更重的协议与更大的用户面
+
+### 一句话关单标准
+
+如果当前网络能力已经足够说明下面这句话成立，就可以认为底座阶段可以告一段落：
+
+> **Charm 已经拥有一套稳定、可回归、可承载上层协议、对用户调用足够简单的网络公共 I/O 底座。**
 
 ---
 

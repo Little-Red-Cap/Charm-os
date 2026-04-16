@@ -89,8 +89,12 @@ target_sources(${PROJECT_NAME} PRIVATE
     startup.S
     main.cpp
     armv7a_bringup_phase.cpp
+    armv7a_context_smoke.cpp
+    armv7a_context_switch.cpp
+    armv7a_context_switch.S
     armv7a_cpu.cpp
     armv7a_gic.cpp
+    armv7a_kernel_port.cpp
     armv7a_diag_console.cpp
     armv7a_diag_context.cpp
     armv7a_handler_stack.cpp

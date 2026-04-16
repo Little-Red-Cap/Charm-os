@@ -157,6 +157,7 @@ $diffJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.diff.jso
 $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.inspect.json'
+$summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.summary.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -280,6 +281,14 @@ Assert-Condition ($null -ne $inspectResult.query.comparison) 'inspect bringup ev
 Assert-Condition ($null -ne $inspectResult.query.comparison.bringup_evidence) 'inspect bringup evidence missing comparison.bringup_evidence'
 Assert-Condition ([bool]$inspectResult.query.comparison.bringup_evidence.changed) 'inspect bringup evidence comparison must be changed'
 
+$summaryInspectResult = Invoke-CommandJson -OutputPath $summaryInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -AsJson
+}
+Assert-Condition ($null -ne $summaryInspectResult.comparison) 'inspect default summary must expose comparison payload'
+Assert-Condition ($null -ne $summaryInspectResult.comparison.capability_summary) 'inspect default summary must expose capability summary'
+Assert-Condition ([int]$summaryInspectResult.comparison.capability_summary.bringup_compare_capability_count -eq 1) 'inspect default summary bringup compare capability count must be 1'
+Assert-Condition ((@($summaryInspectResult.comparison.capability_summary.bringup_compare_capabilities) -contains $PublishedCapability)) 'inspect default summary capability summary missing published capability'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -288,11 +297,13 @@ $summary = [ordered]@{
     diff_json = $diffJsonPath
     artifact_report = $artifactReportPath
     inspect_json = $inspectJsonPath
+    summary_inspect_json = $summaryInspectJsonPath
     assertions = [ordered]@{
         sidecar_only_diff_preserved = $true
         comparison_bringup_evidence_present = $true
         published_capability_change_detected = $true
         inspect_bringup_evidence_exposes_compare = $true
+        inspect_default_summary_exposes_capability_compare = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

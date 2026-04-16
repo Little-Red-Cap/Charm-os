@@ -268,6 +268,13 @@ v0 阶段建议至少覆盖：
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
 
+与此同时，
+单 report 默认总览里的 `comparison` 现在也会继续附带：
+
+- `comparison.capability_summary.compared_capability_count`
+- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `comparison.capability_summary.compared_capabilities`
+
 当前实现支持两种读取作用域：
 
 - 单 report 查询

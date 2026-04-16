@@ -112,6 +112,7 @@ $diffJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.diff.js
 $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.inspect.json'
+$summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.summary.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -224,6 +225,14 @@ Assert-Condition ($null -ne $inspectResult.query.comparison) 'inspect resource s
 Assert-Condition ($null -ne $inspectResult.query.comparison.resource_contract) 'inspect resource summary missing comparison.resource_contract'
 Assert-Condition ([bool]$inspectResult.query.comparison.resource_contract.changed) 'inspect resource summary comparison.resource_contract must be changed'
 
+$summaryInspectResult = Invoke-CommandJson -OutputPath $summaryInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -AsJson
+}
+Assert-Condition ($null -ne $summaryInspectResult.comparison) 'inspect default summary must expose comparison payload'
+Assert-Condition ($null -ne $summaryInspectResult.comparison.capability_summary) 'inspect default summary must expose capability summary'
+Assert-Condition ([int]$summaryInspectResult.comparison.capability_summary.resource_compare_capability_count -eq 1) 'inspect default summary resource compare capability count must be 1'
+Assert-Condition ((@($summaryInspectResult.comparison.capability_summary.resource_compare_capabilities) -contains $AddedRequiredFact)) 'inspect default summary capability summary missing required fact'
+
 $summary = [ordered]@{
     left_bundle_root = $resolvedBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -233,11 +242,13 @@ $summary = [ordered]@{
     diff_json = $diffJsonPath
     artifact_report = $artifactReportPath
     inspect_json = $inspectJsonPath
+    summary_inspect_json = $summaryInspectJsonPath
     assertions = [ordered]@{
         metadata_only_diff_preserved = $true
         comparison_resource_contract_present = $true
         violated_contract_change_detected = $true
         inspect_resource_summary_exposes_compare = $true
+        inspect_default_summary_exposes_capability_compare = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

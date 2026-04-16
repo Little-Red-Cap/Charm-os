@@ -133,6 +133,14 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
 
+与此同时，
+单 report 默认总览里的 `comparison` 现在也会继续带出一份最小 `capability_summary`，
+至少包括：
+
+- `comparison.capability_summary.compared_capability_count`
+- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `comparison.capability_summary.compared_capabilities`
+
 如果选择的是整组 compare report，
 artifact_root 级 `cap list` 现在也会继续带出：
 

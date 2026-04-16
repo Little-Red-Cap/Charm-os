@@ -1945,6 +1945,31 @@ function Format-AggregatedCapListDisplayRow {
     }
 }
 
+function Get-OptionalMemberValue {
+    param(
+        $Object,
+        [string]$Name
+    )
+
+    if ($null -eq $Object -or [string]::IsNullOrWhiteSpace($Name)) {
+        return $null
+    }
+
+    if ($Object -is [System.Collections.IDictionary]) {
+        if ($Object.Contains($Name)) {
+            return $Object[$Name]
+        }
+
+        return $null
+    }
+
+    if ($null -ne $Object.PSObject.Properties[$Name]) {
+        return $Object.$Name
+    }
+
+    return $null
+}
+
 function New-CapListComparisonSummaryResult {
     param(
         [object[]]$Capabilities
@@ -1953,11 +1978,18 @@ function New-CapListComparisonSummaryResult {
     $comparedCapabilities = @(
         @($Capabilities) |
             Where-Object {
-                if ($null -ne $_.PSObject.Properties['comparison'] -and $null -ne $_.comparison) {
-                    return ([bool]$_.comparison.bringup_changed -or [bool]$_.comparison.resource_changed)
+                $comparison = Get-OptionalMemberValue -Object $_ -Name 'comparison'
+                if ($null -ne $comparison) {
+                    return (
+                        [bool](Get-OptionalMemberValue -Object $comparison -Name 'bringup_changed') -or
+                        [bool](Get-OptionalMemberValue -Object $comparison -Name 'resource_changed')
+                    )
                 }
 
-                return ([bool]$_.bringup_compare -or [bool]$_.resource_compare)
+                return (
+                    [bool](Get-OptionalMemberValue -Object $_ -Name 'bringup_compare') -or
+                    [bool](Get-OptionalMemberValue -Object $_ -Name 'resource_compare')
+                )
             } |
             ForEach-Object { [string]$_.capability } |
             Sort-Object -Unique
@@ -1965,11 +1997,12 @@ function New-CapListComparisonSummaryResult {
     $bringupComparedCapabilities = @(
         @($Capabilities) |
             Where-Object {
-                if ($null -ne $_.PSObject.Properties['comparison'] -and $null -ne $_.comparison) {
-                    return [bool]$_.comparison.bringup_changed
+                $comparison = Get-OptionalMemberValue -Object $_ -Name 'comparison'
+                if ($null -ne $comparison) {
+                    return [bool](Get-OptionalMemberValue -Object $comparison -Name 'bringup_changed')
                 }
 
-                return [bool]$_.bringup_compare
+                return [bool](Get-OptionalMemberValue -Object $_ -Name 'bringup_compare')
             } |
             ForEach-Object { [string]$_.capability } |
             Sort-Object -Unique
@@ -1977,11 +2010,12 @@ function New-CapListComparisonSummaryResult {
     $resourceComparedCapabilities = @(
         @($Capabilities) |
             Where-Object {
-                if ($null -ne $_.PSObject.Properties['comparison'] -and $null -ne $_.comparison) {
-                    return [bool]$_.comparison.resource_changed
+                $comparison = Get-OptionalMemberValue -Object $_ -Name 'comparison'
+                if ($null -ne $comparison) {
+                    return [bool](Get-OptionalMemberValue -Object $comparison -Name 'resource_changed')
                 }
 
-                return [bool]$_.resource_compare
+                return [bool](Get-OptionalMemberValue -Object $_ -Name 'resource_compare')
             } |
             ForEach-Object { [string]$_.capability } |
             Sort-Object -Unique
@@ -2752,6 +2786,7 @@ function New-ArtifactJsonView {
     )
 
     $report = $LoadedReport.Data
+    $comparison = New-ReportComparisonOverviewResult -LoadedReport $LoadedReport
     return [ordered]@{
         report_path = $LoadedReport.Path
         summary = New-CaseSummaryRow -LoadedReport $LoadedReport
@@ -2760,9 +2795,38 @@ function New-ArtifactJsonView {
         bringup_evidence = $report.bringup_evidence
         resource_contract = $report.resource_contract
         runtime_observe = $report.runtime_observe
-        comparison = if ($null -ne $report.PSObject.Properties['comparison']) { $report.comparison } else { $null }
+        comparison = $comparison
         artifacts = $report.artifacts
     }
+}
+
+function New-ReportComparisonOverviewResult {
+    param(
+        $LoadedReport
+    )
+
+    if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
+        return $null
+    }
+
+    $report = $LoadedReport.Data
+    if ($null -eq $report.PSObject.Properties['comparison'] -or $null -eq $report.comparison) {
+        return $null
+    }
+
+    $comparisonOverview = [ordered]@{}
+    foreach ($property in @($report.comparison.PSObject.Properties)) {
+        $comparisonOverview[$property.Name] = $property.Value
+    }
+
+    $graphInfo = Load-GraphFromArtifactReport -ReportData $report
+    $capabilities = @(Get-CapListEntries -ReportData $report -GraphInfo $graphInfo)
+    $capabilitySummary = New-CapListComparisonSummaryResult -Capabilities $capabilities
+    if ($null -ne $capabilitySummary) {
+        $comparisonOverview.capability_summary = $capabilitySummary
+    }
+
+    return $comparisonOverview
 }
 
 $selectedReports = @(Get-SelectedReports -ArtifactRootPath $ArtifactRoot)
@@ -3617,16 +3681,25 @@ if (@($reportData.resource_contract.resource_hotspots).Count -gt 0) {
 Write-Host ''
 
 if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $reportData.comparison) {
+    $comparisonOverview = New-ReportComparisonOverviewResult -LoadedReport $loadedReport
     Write-Host '[COMPARISON]'
-    Write-Host "status = $([string]($reportData.comparison.status))"
-    if (@($reportData.comparison.summary_changes).Count -gt 0) {
-        Write-Host "summary_changes  = $((@($reportData.comparison.summary_changes) -join '; '))"
+    Write-Host "status = $([string]($comparisonOverview.status))"
+    if (@($comparisonOverview.summary_changes).Count -gt 0) {
+        Write-Host "summary_changes  = $((@($comparisonOverview.summary_changes) -join '; '))"
     }
-    if (@($reportData.comparison.metadata_changes).Count -gt 0) {
-        Write-Host "metadata_changes = $((@($reportData.comparison.metadata_changes) -join '; '))"
+    if (@($comparisonOverview.metadata_changes).Count -gt 0) {
+        Write-Host "metadata_changes = $((@($comparisonOverview.metadata_changes) -join '; '))"
     }
-    if ($null -ne $reportData.comparison.PSObject.Properties['bringup_evidence'] -and $null -ne $reportData.comparison.bringup_evidence) {
-        $bringupEvidenceComparison = $reportData.comparison.bringup_evidence
+    if ($null -ne $comparisonOverview.capability_summary) {
+        Write-Host "compare_capabilities = $([int]$comparisonOverview.capability_summary.compared_capability_count)"
+        Write-Host "bringup_compare_caps = $([int]$comparisonOverview.capability_summary.bringup_compare_capability_count)"
+        Write-Host "resource_compare_caps = $([int]$comparisonOverview.capability_summary.resource_compare_capability_count)"
+        if (@($comparisonOverview.capability_summary.compared_capabilities).Count -gt 0) {
+            Write-Host "compared_capabilities = $((@($comparisonOverview.capability_summary.compared_capabilities) -join ', '))"
+        }
+    }
+    if ($null -ne $comparisonOverview.PSObject.Properties['bringup_evidence'] -and $null -ne $comparisonOverview.bringup_evidence) {
+        $bringupEvidenceComparison = $comparisonOverview.bringup_evidence
         Write-Host "bringup_evidence = changed:$([bool]$bringupEvidenceComparison.changed)"
         if (@($bringupEvidenceComparison.summary_changes).Count -gt 0) {
             Write-Host "bringup_evidence.summary_changes = $((@($bringupEvidenceComparison.summary_changes) -join '; '))"
@@ -3635,8 +3708,8 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
             Write-Host "bringup_evidence.capability_changes = $([int]@($bringupEvidenceComparison.capability_changes).Count)"
         }
     }
-    if ($null -ne $reportData.comparison.PSObject.Properties['resource_contract'] -and $null -ne $reportData.comparison.resource_contract) {
-        $resourceContractComparison = $reportData.comparison.resource_contract
+    if ($null -ne $comparisonOverview.PSObject.Properties['resource_contract'] -and $null -ne $comparisonOverview.resource_contract) {
+        $resourceContractComparison = $comparisonOverview.resource_contract
         Write-Host "resource_contract = changed:$([bool]$resourceContractComparison.changed)"
         if (@($resourceContractComparison.summary_changes).Count -gt 0) {
             Write-Host "resource_contract.summary_changes = $((@($resourceContractComparison.summary_changes) -join '; '))"

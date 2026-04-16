@@ -24,13 +24,14 @@ int main() {
     net::Stack stack{provider};
 
     net::TcpListener listener{};
-    net::TcpClient client{};
     net::TcpClient server_side{};
     net::Endpoint peer{};
 
     util::u16 tcp_port = 0;
     for (util::u16 port = 25000; port < 25100; ++port) {
-        if (listener.listen(stack, net::Endpoint::ipv4_loopback(port), 2)) {
+        auto candidate = net::TcpListener::listening_loopback(stack, port, 2);
+        if (candidate) {
+            listener = std::move(candidate.value());
             tcp_port = port;
             break;
         }
@@ -40,8 +41,8 @@ int main() {
         return 1;
     }
 
-    auto connect_ok = client.connect(stack, net::Endpoint::ipv4_loopback(tcp_port));
-    if (!connect_ok) {
+    auto client = net::TcpClient::connected_loopback(stack, tcp_port);
+    if (!client) {
         std::fputs("tcp connect failed\n", stderr);
         return 2;
     }
@@ -57,7 +58,7 @@ int main() {
     util::u8 tx[4]{'p', 'i', 'n', 'g'};
     util::u8 rx[8]{};
     if (!wait_until([&]() {
-        auto sent = client.send(net::ByteView{tx, 4});
+        auto sent = client->send(tx);
         return static_cast<bool>(sent) || sent.error() != net::errc::would_block;
     })) {
         std::fputs("tcp send timeout\n", stderr);
@@ -66,7 +67,7 @@ int main() {
 
     bool tcp_recv_ok = false;
     if (!wait_until([&]() {
-        auto received = server_side.recv(net::MutByteView{rx, 8});
+        auto received = server_side.recv(rx);
         if (received) {
             tcp_recv_ok = received.value() == 4
                 && rx[0] == 'p'
@@ -91,7 +92,9 @@ int main() {
     util::u16 udp_b_port = 0;
 
     for (util::u16 port = 26000; port < 26100; ++port) {
-        if (!udp_a.bind(stack, net::Endpoint::ipv4_loopback(port))) continue;
+        auto candidate = net::UdpSocket::bound_loopback(stack, port);
+        if (!candidate) continue;
+        udp_a = std::move(candidate.value());
         udp_a_port = port;
         break;
     }
@@ -101,7 +104,9 @@ int main() {
     }
 
     for (util::u16 port = static_cast<util::u16>(udp_a_port + 1); port < 26150; ++port) {
-        if (!udp_b.bind(stack, net::Endpoint::ipv4_loopback(port))) continue;
+        auto candidate = net::UdpSocket::bound_loopback(stack, port);
+        if (!candidate) continue;
+        udp_b = std::move(candidate.value());
         udp_b_port = port;
         break;
     }
@@ -110,7 +115,7 @@ int main() {
         return 8;
     }
 
-    auto udp_sent = udp_a.send_to(net::Endpoint::ipv4_loopback(udp_b_port), net::ByteView{tx, 4});
+    auto udp_sent = udp_a.send_to(net::Endpoint::ipv4_loopback(udp_b_port), tx);
     if (!udp_sent) {
         std::fputs("udp send_to failed\n", stderr);
         return 9;
@@ -119,7 +124,7 @@ int main() {
     bool udp_recv_ok = false;
     net::Endpoint udp_peer{};
     if (!wait_until([&]() {
-        auto received = udp_b.recv_from(net::MutByteView{rx, 8}, udp_peer);
+        auto received = udp_b.recv_from(rx, udp_peer);
         if (received) {
             udp_recv_ok = received.value() == 4
                 && udp_peer.port == udp_a_port
@@ -139,7 +144,7 @@ int main() {
         return 11;
     }
 
-    (void)client.close();
+    (void)client->close();
     (void)server_side.close();
     (void)listener.close();
     (void)udp_a.close();

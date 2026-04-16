@@ -110,6 +110,23 @@
 
 这件事的意义不只是“代码更顺眼”，而是说明网络对外表面已经开始从设计意图，变成真实的用户调用默认面。
 
+### 7. 关单回归已经开始从“口头计划”变成“已跑证据”
+
+到当前这个检查点（2026-04-17），网络底座的关单工作也不再只是“我们应该找时间跑一组回归”，而是已经有了第一轮明确证据：
+
+- `net-api-facade-smoke`
+- `net-posix-socket-bridge-smoke`
+- `net-pump-smoke`
+- `net-reactor-request-close-smoke`
+- `net-reactor-close-drain-win-smoke`
+- `net-reactor-write-reset-close-smoke`
+- `net-reactor-service-close-win-smoke`
+- `net-reactor-service-typed-request-error-win-smoke`
+
+同时也补做了 armv7a / QEMU 方向的最小构建检查，确认最近一轮网络与 POSIX 收口没有把跨目标构建卫生重新打坏。
+
+这说明网络底座当前已经越来越像一个“可以关单的工程阶段”，而不是一个只能靠主观印象判断是否健康的长期实验区。
+
 ---
 
 ## 为什么这阶段是健康的
@@ -193,6 +210,13 @@
 - 如果后面继续把更多跨域逻辑直接压进这里，协作冲突和维护成本会继续上涨
 
 换句话说，`posix.api` 现在已经开始提醒我们“应该继续做组织层面的减压”。
+
+而且这轮关单回归还顺手暴露了一个很有代表性的细节：
+
+- Windows CRT 宏会污染 `S_IF*` 与 `SEEK_*` 这类 POSIX 常量名
+
+它本身不是网络语义错误，但它提醒我们：  
+网络底座一旦继续沿着 POSIX 主线收口，host 工具链卫生就会持续成为真实工程问题，而不是边角料。
 
 ### 3. 对外 API 体验方向已明确，但仍应克制冻结表面
 

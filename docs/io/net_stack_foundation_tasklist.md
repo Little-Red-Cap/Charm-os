@@ -311,16 +311,65 @@
 如果按上面的四类关单口径来判断，当前状态更接近“关单准备”而不是“继续发散设计”：
 
 - **对外 façade 收口**：这条已经非常接近满足；`Examples/io/net` 里的主流用户路径已经基本切到 `connected / listening / bound` 及其 `*_loopback / *_any` 便捷入口，旧式 loopback `listen/connect` 与直接花括号构造 `SocketChannelBinding` 的写法已基本退出示例层
-- **回归矩阵稳定性**：host / stub / WinProvider 路径当前已经有较强的 contract smoke 支撑；如果要更稳地关单，剩下更像是一轮“有节制的关单回归批次”，而不是新的 API 设计工作
+- **回归矩阵稳定性**：host / stub / WinProvider 路径当前已经有较强的 contract smoke 支撑，而且首轮“小而硬”的关单回归批次已经实际跑通；如果还要更稳地关单，剩下更像是按同一口径补跑，而不是新的 API 设计工作
 - **承载面契约**：`reactor / request / service / typed service / deferred reply` 的 close / reset / error 语义已经被一批真实 smoke 压实；只要后续不再出现新的 contract 漂移，就不需要继续把主要精力花在底座承载面重写上
 - **文档与阶段边界**：当任务单、阶段复盘和对外示例口径同步后，网络底座 v0 是否关单，主要就变成项目节奏判断，而不再是技术方向不清
+
+### 已完成的关单回归批次（截至 2026-04-17）
+
+这轮回归的目的，不是“把所有网络示例再跑一遍”，而是先固定一组足以说明底座已基本站稳的最小证据面。
+
+#### 1. 用户入口与系统桥接
+
+- `net-api-facade-smoke`
+- `net-posix-socket-bridge-smoke`
+- `net-pump-smoke`
+
+这组三个目标分别覆盖：
+
+- 对外 façade 的最小用户入口
+- socket 并入 POSIX fd 体系后的关键桥接语义
+- `ARP / IPv4 / UDP` 数据面的最小推进闭环
+
+#### 2. close / reset / error / request / service / typed 代表面
+
+- `net-reactor-request-close-smoke`
+- `net-reactor-close-drain-win-smoke`
+- `net-reactor-write-reset-close-smoke`
+- `net-reactor-service-close-win-smoke`
+- `net-reactor-service-typed-request-error-win-smoke`
+
+这组目标用于证明我们不是只把“快乐路径”跑通，而是已经覆盖：
+
+- request 侧的 `close`
+- transport / driver 侧的 `close drain`
+- transport 侧的 `reset -> closed`
+- service / deferred reply 侧的 `close`
+- typed request / client 侧的 `error`
+
+#### 3. 跨目标构建检查
+
+- 已补做一轮 armv7a / QEMU 方向的最小构建检查：root 配置成功，`Charm-runtime` 成功构建
+
+这条证据的价值不在于“ARM 路径已经做了大量运行时网络回归”，而在于：
+
+- 最近一轮网络收口没有把跨目标构建卫生重新弄脏
+- `net.*` 与 `posix.*` 当前仍能继续参与非 host 路径回归
+
+#### 4. 回归中顺手清掉的真实阻塞点
+
+这轮回归过程中，还顺手暴露并修掉了一处真实构建阻塞：
+
+- Windows CRT 宏污染导致 `posix.fd_table` / `posix.api` / `posix.file` / `posix.term` 中的 `S_IF*` 与 `SEEK_*` 常量名发生冲突
+
+这说明当前回归批次不仅能证明“东西还能跑”，也确实能继续帮助我们发现底座级卫生问题。
 
 ### 关单前建议最后三刀
 
 如果我们想把“网络底座 v0”收得更利索，建议最后动作压缩成三件事：
 
-- 跑一组小而硬的关单回归批次，优先覆盖 `api_facade_smoke`、`posix_socket_bridge_smoke`、`net_pump_smoke`，以及一组能代表 `close / reset / error / request / service / typed service` 的 stub/Win smoke
-- 在合适时机补一个 ARM / QEMU 网络相关构建检查点，确保跨目标解释面没有在最近一轮收口后回潮
+- 把当前这组已跑通的关单回归批次固定成后续收尾时的标准证据面；如果后面再补跑，也尽量围绕这组最小集合做增量，而不是无限扩表
+- 在正式关单前视节奏再补一次 ARM / QEMU 网络相关构建检查点，确保跨目标解释面没有在后续改动后回潮
 - 明确宣布“网络底座 v0 关单”与“下一阶段切到自研数据面最小闭环推进”，避免底座扫尾和下一阶段工作长期互相抢焦点
 
 ### 一句话关单标准

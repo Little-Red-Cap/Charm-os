@@ -4,6 +4,10 @@ module;
 #include <span>
 #include <string_view>
 
+#ifdef S_IFCHR
+#undef S_IFCHR
+#endif
+
 export module posix.term;
 
 import io.channel;

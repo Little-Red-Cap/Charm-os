@@ -125,6 +125,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=scheduler-tick-ingress",
     "ARMv7-A phase, stage=runtime-trap-ingress",
     "ARMv7-A phase complete, stage=runtime-trap-ingress",
+    "ARMv7-A phase, stage=runtime-trap-mapping",
+    "ARMv7-A phase complete, stage=runtime-trap-mapping",
     "ARMv7-A phase, stage=context-switch-smoke",
     "ARMv7-A phase complete, stage=context-switch-smoke",
     "ARMv7-A phase, stage=scheduler-dispatch",
@@ -281,6 +283,9 @@ if (($log -notmatch "ARMv7-A scheduler tick ingress, source=timer-irq, route=irq
 }
 if (($log -notmatch "ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x00000001, arg1=0x00000001, arg2=0x00000000, arg3=0x00000000, service-ready=yes, args-ready=yes, trap=yes")) {
     $missing += "ARMv7-A runtime trap ingress, source=svc..."
+}
+if (($log -notmatch "ARMv7-A runtime trap mapping, yield=yield-current, yield-generic=0x0001, yield-origin=kernel-thread, yield-return-pc=0x[0-9A-F]{8}, yield-ready=yes, sleep=sleep-until, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-due=0x0000000000000005, sleep-ready=yes, mapping=yes")) {
+    $missing += "ARMv7-A runtime trap mapping, yield=yield-current..."
 }
 if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0-9A-F]{8}, stack-top=0x[0-9A-F]{8}, prepared-sp=0x[0-9A-F]{8}, resume=0x[0-9A-F]{8}, return=0x[0-9A-F]{8}, entry=0x[0-9A-F]{8}, arg=0x[0-9A-F]{8}, aligned=yes, in-range=yes, ready=yes")) {
     $missing += "ARMv7-A thread frame, kind=cooperative-sys..."

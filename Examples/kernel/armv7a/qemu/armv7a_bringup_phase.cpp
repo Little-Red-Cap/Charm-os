@@ -58,6 +58,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "scheduler-tick-ingress";
     case Armv7aBringupPhase::kRuntimeTrapIngress:
         return "runtime-trap-ingress";
+    case Armv7aBringupPhase::kRuntimeTrapMapping:
+        return "runtime-trap-mapping";
     case Armv7aBringupPhase::kContextSwitchSmoke:
         return "context-switch-smoke";
     case Armv7aBringupPhase::kSchedulerDispatch:

@@ -10,6 +10,7 @@
 ## 当前文档
 
 - `docs/board/rk3506/README.md`：RK3506 上板前期资料收口
+- `docs/board/rk3506/post_ddr_handoff_contract.md`：RK3506 前级到裸机镜像的 post-DDR handoff 契约
 - `docs/system/armv7a_platform_contract.md`：ARMv7-A 平台层与 Boot handoff 的边界契约
 
 ## 维护约定

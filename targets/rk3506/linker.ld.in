@@ -42,9 +42,40 @@ SECTIONS
         __bss_end = .;
     } > RK3506_IMAGE_RAM :data
 
+    .stacks (NOLOAD) : ALIGN(16)
+    {
+        __stack_region_start = .;
+
+        __und_stack_base = .;
+        . += @CHARM_RK3506_STACK_UND_SIZE@;
+        __und_stack_top = .;
+
+        __abt_stack_base = .;
+        . += @CHARM_RK3506_STACK_ABT_SIZE@;
+        __abt_stack_top = .;
+
+        __irq_stack_base = .;
+        . += @CHARM_RK3506_STACK_IRQ_SIZE@;
+        __irq_stack_top = .;
+
+        __fiq_stack_base = .;
+        . += @CHARM_RK3506_STACK_FIQ_SIZE@;
+        __fiq_stack_top = .;
+
+        __svc_stack_base = .;
+        . += @CHARM_RK3506_STACK_SVC_SIZE@;
+        __svc_stack_top = .;
+
+        __sys_stack_base = .;
+        . += @CHARM_RK3506_STACK_SYS_SIZE@;
+        __sys_stack_top = .;
+
+        __stack_top = __sys_stack_top;
+        __stack_region_end = .;
+    } > RK3506_IMAGE_RAM :data
+
     . = ALIGN(16);
     __image_end = .;
-    __stack_top = @CHARM_RK3506_IMAGE_STACK_TOP@;
 
     /DISCARD/ :
     {

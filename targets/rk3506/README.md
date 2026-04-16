@@ -19,7 +19,9 @@
   - 维护 RK3506 显式 source list
   - 把 linker script 生成、编译宏和板级源文件绑定在一起
 - `startup.S`
-  - 负责清 BSS、调用平台早期 reset hook、安装异常向量，然后进入主入口
+  - 负责 very-early 屏蔽 `async abort / IRQ / FIQ`
+  - 初始化 `UND/ABT/IRQ/FIQ/SVC/SYS` 模式栈
+  - 清 BSS、调用平台早期 reset hook、安装异常向量，然后以 `SYS` 模式进入主入口
 - `vectors.S`
   - 提供最小 ARM 向量表
 - `rk3506_platform.hpp/.cpp`
@@ -47,18 +49,34 @@
 
 之前那批 stage1/stage2 草案里有价值的部分，比如环境快照、向量切换、cache/TLB 维护意识，并没有被否定；只是它们后续应该回到平台叶子的实现细节里，而不是继续作为当前对外模型。
 
+前级如果要把板子交给这个叶子 target，请按 `docs/board/rk3506/post_ddr_handoff_contract.md` 提供最小 post-DDR handoff 状态。
+
 ## 当前假设
 
+- `system SRAM @ 0xfff80000`, `size = 0x0000c000`
 - `UART0 @ 0xff0a0000`
+- `UART4 @ 0xff0e0000`
+- `EARLY_UART_BASE` 默认跟随 `UART0`，但允许按板级连线覆盖
 - `reg-shift = 2`
 - `GICD @ 0xff581000`
 - `GICC @ 0xff582000`
+- `GRF @ 0xff288000`
+- `GRF_PMU @ 0xff910000`
+- `GPIO0_IOC @ 0xff950000`
+- `CRU @ 0xff9a0000`
+- `SCRU @ 0xff9a8000`
 - generic timer 频率暂按 `24 MHz`
-- 当前最小串口输出仍假设 BootROM 或更早阶段已经把 UART0 时钟带起来
+- 当 `EARLY_UART_BASE = UART0` 时，叶子 target 现在会本地打开 `UART0` 时钟、切 `GPIO0_C6/C7 func1`，并按 `115200 8N1` 初始化串口
+- 默认 `UART0` 路径现在还会记录本地 bring-up 后的 `divisor`、`CRU_CLKSEL_CON29`、`CRU_GATE_CON11` 与 `GPIO0C` 相关 readback，方便真板串口不稳定时对照实际写入状态
+- 当 `EARLY_UART_BASE` 覆盖成其他串口时，当前仍依赖前级完成对应 clock / pinmux / UART 初始化
+- Rockchip vendor AP HAL demo 默认走 `UART4`，这是板级 demo 选择，不替代 SoC 级早期 `UART0` 假设
+- 引导日志现在还会做一轮只读型 `generic timer + GIC` smoke，记录 `CNTFRQ/CNTPCT` 与 `GICD/GICC` 关键寄存器，但暂时不打开真实 IRQ 路径
 
 ## 下一步
 
-- 接入真实的 CRU/GRF/UART 早期初始化，而不是继续假设串口已经可用
-- 做 RK3506 单核 GIC + generic timer 烟测
+- 把当前只覆盖 `UART0` 的本地 early init 扩到更多 early UART / 板级路径
+- 让 `EARLY_UART_BASE` 之外的 pinmux / clock / reset 也进入板级平台契约，而不是散落在调用方
+- 继续增强入口对 MMU/cache/branch predictor 状态的主动归一化，而不是只做观测
+- 把当前只读型 `GIC + generic timer` smoke 推进到真实 timer IRQ 路由
 - 把 QEMU 上已经验证过的异常/向量/平台契约逐步映射到 RK3506
 - 再推进 MMU 属性切换、cache/TLB 维护和真实板级内存布局

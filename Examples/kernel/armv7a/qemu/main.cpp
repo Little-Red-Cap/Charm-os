@@ -2,6 +2,7 @@
 #include "armv7a_boot_diagnostics.hpp"
 #include "armv7a_handoff_prepare.hpp"
 #include "armv7a_interrupt_observation_sequence.hpp"
+#include "armv7a_kernel_port.hpp"
 #include "armv7a_memory_probe_sequence.hpp"
 #include "armv7a_platform.hpp"
 
@@ -22,6 +23,9 @@ int main()
     armv7a_run_pre_dcache_probe_sequence();
     armv7a_run_post_dcache_probe_sequence();
     armv7a_run_interrupt_observation_sequence();
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kKernelIngress);
+    armv7a_print_kernel_port_status();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kKernelIngress);
     armv7a_run_handoff_prepare_dry_run();
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);
     armv7a_platform_idle_forever();

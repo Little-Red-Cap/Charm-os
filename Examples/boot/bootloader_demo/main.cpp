@@ -5,6 +5,7 @@
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
+#include "armv7a_kernel_port_contract.hpp"
 #include "armv7a_special_interrupt_contract.hpp"
 #include "armv7a_interrupt_timeout_contract.hpp"
 #include "armv7a_psr_contract.hpp"
@@ -1139,6 +1140,115 @@ namespace {
                !armv7a_special_interrupt_synthetic(nonsynthetic);
     }
 
+    bool verify_armv7a_kernel_port_contract() noexcept {
+        const auto install_vectors = +[](void*, std::uintptr_t) noexcept {
+            return true;
+        };
+        const auto vectors_active = +[](void*, std::uintptr_t) noexcept {
+            return true;
+        };
+        const auto mask_local_irq = +[](void*) noexcept {
+            return true;
+        };
+        const auto unmask_local_irq = +[](void*) noexcept {
+            return true;
+        };
+        const auto enable_scheduler_route = +[](void*) noexcept {
+            return true;
+        };
+        const auto disable_scheduler_route = +[](void*) noexcept {
+            return true;
+        };
+        const auto acknowledge = +[](void*) noexcept {
+            return Armv7aPlatformInterruptAcknowledge{
+                .raw = 1u,
+                .intid = 1u,
+                .special = false,
+            };
+        };
+        const auto complete = +[](void*, std::uint32_t) noexcept {
+            return true;
+        };
+        const auto arm_tick = +[](void*, std::uint32_t) noexcept {
+            return true;
+        };
+        const auto stop_tick = +[](void*) noexcept {
+            return true;
+        };
+        const auto prepare_initial_frame =
+            +[](void*,
+                std::uintptr_t stack_top,
+                std::uintptr_t,
+                std::uintptr_t) noexcept {
+                return stack_top - 64u;
+            };
+        const auto switch_context =
+            +[](void*,
+                std::uintptr_t* outgoing_sp,
+                std::uintptr_t incoming_sp) noexcept {
+                if (outgoing_sp) {
+                    *outgoing_sp = incoming_sp;
+                }
+                return incoming_sp != 0u;
+            };
+
+        const Armv7aKernelPortContract empty{};
+        Armv7aKernelPortContract tick_ready{};
+        tick_ready.exception = Armv7aKernelExceptionPort{
+            .preferred_vector_base = 0x40200000u,
+            .install_vectors = install_vectors,
+            .vectors_active = vectors_active,
+        };
+        tick_ready.interrupt = Armv7aKernelInterruptPort{
+            .mask_local_irq = mask_local_irq,
+            .unmask_local_irq = unmask_local_irq,
+            .enable_scheduler_route = enable_scheduler_route,
+            .disable_scheduler_route = disable_scheduler_route,
+            .acknowledge = acknowledge,
+            .complete = complete,
+        };
+        tick_ready.timer = Armv7aKernelTimerPort{
+            .tick_mode = Armv7aKernelTickMode::one_shot,
+            .tick_route = Armv7aPlatformInterruptRoute::kIrq,
+            .frequency_hz = 62500000u,
+            .arm_tick = arm_tick,
+            .stop_tick = stop_tick,
+        };
+
+        auto thread_ready = tick_ready;
+        thread_ready.context = Armv7aKernelContextPort{
+            .switch_model = Armv7aKernelContextSwitchModel::exception_return,
+            .prepare_initial_frame = prepare_initial_frame,
+            .switch_context = switch_context,
+        };
+
+        auto timer_missing_frequency = thread_ready;
+        timer_missing_frequency.timer.frequency_hz = 0u;
+
+        auto context_missing_model = thread_ready;
+        context_missing_model.context.switch_model =
+            Armv7aKernelContextSwitchModel::none;
+
+        return !armv7a_kernel_exception_port_ready(empty.exception) &&
+               !armv7a_kernel_interrupt_port_ready(empty.interrupt) &&
+               !armv7a_kernel_timer_port_ready(empty.timer) &&
+               !armv7a_kernel_context_port_ready(empty.context) &&
+               !armv7a_kernel_tick_runtime_ready(empty) &&
+               !armv7a_kernel_thread_runtime_ready(empty) &&
+               armv7a_kernel_exception_port_ready(tick_ready.exception) &&
+               armv7a_kernel_interrupt_port_ready(tick_ready.interrupt) &&
+               armv7a_kernel_timer_port_ready(tick_ready.timer) &&
+               !armv7a_kernel_context_port_ready(tick_ready.context) &&
+               armv7a_kernel_tick_runtime_ready(tick_ready) &&
+               !armv7a_kernel_thread_runtime_ready(tick_ready) &&
+               armv7a_kernel_context_port_ready(thread_ready.context) &&
+               armv7a_kernel_thread_runtime_ready(thread_ready) &&
+               !armv7a_kernel_timer_port_ready(timer_missing_frequency.timer) &&
+               !armv7a_kernel_tick_runtime_ready(timer_missing_frequency) &&
+               !armv7a_kernel_context_port_ready(context_missing_model.context) &&
+               !armv7a_kernel_thread_runtime_ready(context_missing_model);
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -1808,6 +1918,8 @@ int main() {
         verify_armv7a_interrupt_timeout_contract();
     const bool armv7_special_interrupt_contract_ok =
         verify_armv7a_special_interrupt_contract();
+    const bool armv7_kernel_port_contract_ok =
+        verify_armv7a_kernel_port_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1869,7 +1981,8 @@ int main() {
                     armv7_vector_exit_contract_ok &&
                     armv7_interrupt_lifecycle_contract_ok &&
                     armv7_interrupt_timeout_contract_ok &&
-                    armv7_special_interrupt_contract_ok;
+                    armv7_special_interrupt_contract_ok &&
+                    armv7_kernel_port_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1945,6 +2058,8 @@ int main() {
                 armv7_interrupt_timeout_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_special_interrupt_contract=%d\n",
                 armv7_special_interrupt_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_kernel_port_contract=%d\n",
+                armv7_kernel_port_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

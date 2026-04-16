@@ -119,6 +119,10 @@ $expected = @(
     "ARMv7-A phase complete, stage=sgi-irq-smoke",
     "ARMv7-A phase, stage=sgi-fiq-smoke",
     "ARMv7-A phase complete, stage=sgi-fiq-smoke",
+    "ARMv7-A phase, stage=kernel-ingress",
+    "ARMv7-A phase complete, stage=kernel-ingress",
+    "ARMv7-A phase, stage=context-switch-smoke",
+    "ARMv7-A phase complete, stage=context-switch-smoke",
     "ARMv7-A phase, stage=handoff-prepare",
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=idle",
@@ -256,6 +260,15 @@ if (($log -notmatch "ARMv7-A SGI complete, intid=1, source=self-sgi, eoi=0x[0-9A
 }
 if (($log -notmatch "ARMv7-A SGI lifecycle, intid=1, source=self-sgi, entry-match=yes, retired=yes, restored=yes, closed=yes")) {
     $missing += "ARMv7-A SGI lifecycle, intid=1, source=self-sgi"
+}
+if (($log -notmatch "ARMv7-A kernel ingress, vector-base=0x[0-9A-F]{8}, tick-mode=oneshot, tick-route=irq, timer-hz=[0-9]+, exception=yes, interrupt=yes, timer=yes, context-ready=yes, context-model=software-frame, tick-runtime=yes, thread-runtime=yes")) {
+    $missing += "ARMv7-A kernel ingress, vector-base=0x..."
+}
+if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0-9A-F]{8}, stack-top=0x[0-9A-F]{8}, prepared-sp=0x[0-9A-F]{8}, resume=0x[0-9A-F]{8}, return=0x[0-9A-F]{8}, entry=0x[0-9A-F]{8}, arg=0x[0-9A-F]{8}, aligned=yes, in-range=yes, ready=yes")) {
+    $missing += "ARMv7-A thread frame, kind=cooperative-sys..."
+}
+if (($log -notmatch "ARMv7-A context switch smoke, main-before=0x[0-9A-F]{8}, main-saved=0x[0-9A-F]{8}, thread-entry-sp=0x[0-9A-F]{8}, thread-saved=0x[0-9A-F]{8}, thread-resume-sp=0x[0-9A-F]{8}, entry=yes, resumed=yes, round-trip=yes")) {
+    $missing += "ARMv7-A context switch smoke, main-before=0x..."
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."

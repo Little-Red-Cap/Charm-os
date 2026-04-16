@@ -8,6 +8,7 @@
 #include "armv7a_kernel_port_contract.hpp"
 #include "armv7a_special_interrupt_contract.hpp"
 #include "armv7a_interrupt_timeout_contract.hpp"
+#include "armv7a_thread_context_contract.hpp"
 #include "armv7a_psr_contract.hpp"
 #include "armv7a_stack_observation_contract.hpp"
 #include "armv7a_translation_decode_contract.hpp"
@@ -1249,6 +1250,75 @@ namespace {
                !armv7a_kernel_thread_runtime_ready(context_missing_model);
     }
 
+    bool verify_armv7a_thread_context_contract() noexcept {
+        const Armv7aThreadContextFrameObservation ready{
+            .kind = Armv7aThreadContextFrameKind::cooperative_sys,
+            .stack_base = 0x40400000u,
+            .stack_top = 0x40400400u,
+            .prepared_sp = 0x404003D8u,
+            .resume_pc = 0x40202000u,
+            .return_pc = 0x40202020u,
+            .entry_pc = 0x40203000u,
+            .argument = 0x40401000u,
+        };
+
+        auto misaligned = ready;
+        misaligned.prepared_sp += 4u;
+
+        auto out_of_range = ready;
+        out_of_range.prepared_sp = ready.stack_base - 8u;
+
+        auto missing_entry = ready;
+        missing_entry.entry_pc = 0u;
+
+        auto wrong_kind = ready;
+        wrong_kind.kind = Armv7aThreadContextFrameKind::none;
+
+        const bool ready_kind =
+            armv7a_thread_context_frame_uses_cooperative_sys(ready);
+        const bool ready_aligned =
+            armv7a_thread_context_frame_aligned(ready);
+        const bool ready_in_range =
+            armv7a_thread_context_frame_in_range(ready);
+        const bool ready_launch =
+            armv7a_thread_context_frame_launch_ready(ready);
+        const bool ready_ready =
+            armv7a_thread_context_frame_ready(ready);
+        const bool misaligned_aligned =
+            armv7a_thread_context_frame_aligned(misaligned);
+        const bool misaligned_ready =
+            armv7a_thread_context_frame_ready(misaligned);
+        const bool out_of_range_in_range =
+            armv7a_thread_context_frame_in_range(out_of_range);
+        const bool out_of_range_ready =
+            armv7a_thread_context_frame_ready(out_of_range);
+        const bool missing_entry_launch =
+            armv7a_thread_context_frame_launch_ready(missing_entry);
+        const bool missing_entry_ready =
+            armv7a_thread_context_frame_ready(missing_entry);
+        const bool wrong_kind_kind =
+            armv7a_thread_context_frame_uses_cooperative_sys(wrong_kind);
+        const bool wrong_kind_launch =
+            armv7a_thread_context_frame_launch_ready(wrong_kind);
+        const bool wrong_kind_ready =
+            armv7a_thread_context_frame_ready(wrong_kind);
+
+        return ready_kind &&
+               ready_aligned &&
+               ready_in_range &&
+               ready_launch &&
+               ready_ready &&
+               !misaligned_aligned &&
+               !misaligned_ready &&
+               !out_of_range_in_range &&
+               !out_of_range_ready &&
+               !missing_entry_launch &&
+               !missing_entry_ready &&
+               !wrong_kind_kind &&
+               !wrong_kind_launch &&
+               !wrong_kind_ready;
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -1920,6 +1990,8 @@ int main() {
         verify_armv7a_special_interrupt_contract();
     const bool armv7_kernel_port_contract_ok =
         verify_armv7a_kernel_port_contract();
+    const bool armv7_thread_context_contract_ok =
+        verify_armv7a_thread_context_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1982,7 +2054,8 @@ int main() {
                     armv7_interrupt_lifecycle_contract_ok &&
                     armv7_interrupt_timeout_contract_ok &&
                     armv7_special_interrupt_contract_ok &&
-                    armv7_kernel_port_contract_ok;
+                    armv7_kernel_port_contract_ok &&
+                    armv7_thread_context_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -2060,6 +2133,8 @@ int main() {
                 armv7_special_interrupt_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_kernel_port_contract=%d\n",
                 armv7_kernel_port_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_thread_context_contract=%d\n",
+                armv7_thread_context_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

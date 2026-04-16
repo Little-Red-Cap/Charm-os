@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "armv7a_interrupt_contract.hpp"
+#include "armv7a_thread_context_contract.hpp"
 
 // This contract captures the minimum ARMv7-A ingress seams that a leaf target
 // must eventually provide before the generic kernel scheduler/thread/timer

@@ -1,5 +1,6 @@
 #include "armv7a_bringup_phase.hpp"
 #include "armv7a_boot_diagnostics.hpp"
+#include "armv7a_context_smoke.hpp"
 #include "armv7a_handoff_prepare.hpp"
 #include "armv7a_interrupt_observation_sequence.hpp"
 #include "armv7a_kernel_port.hpp"
@@ -26,6 +27,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kKernelIngress);
     armv7a_print_kernel_port_status();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kKernelIngress);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
+    armv7a_run_context_switch_smoke();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
     armv7a_run_handoff_prepare_dry_run();
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);
     armv7a_platform_idle_forever();

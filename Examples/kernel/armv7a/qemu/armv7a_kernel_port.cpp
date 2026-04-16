@@ -1,3 +1,4 @@
+#include "armv7a_context_switch.hpp"
 #include "armv7a_kernel_port.hpp"
 
 #include "armv7a_cpu.hpp"
@@ -79,6 +80,26 @@ bool armv7a_kernel_stop_tick(void*) noexcept
     return (armv7a_platform_timer_control() & kTimerCtrlEnable) == 0u;
 }
 
+std::uintptr_t armv7a_kernel_prepare_initial_frame(void*,
+                                                   std::uintptr_t stack_top,
+                                                   std::uintptr_t entry_addr,
+                                                   std::uintptr_t argument) noexcept
+{
+    return armv7a_prepare_cooperative_thread_context(
+        stack_top, entry_addr, argument);
+}
+
+bool armv7a_kernel_switch_context(void*,
+                                  std::uintptr_t* outgoing_sp,
+                                  std::uintptr_t incoming_sp) noexcept
+{
+    if (outgoing_sp == nullptr || incoming_sp == 0u) {
+        return false;
+    }
+
+    return armv7a_context_switch(outgoing_sp, incoming_sp);
+}
+
 const char* armv7a_kernel_tick_mode_name(Armv7aKernelTickMode mode) noexcept
 {
     switch (mode) {
@@ -138,7 +159,9 @@ Armv7aKernelPortContract armv7a_make_qemu_kernel_port_contract() noexcept
             },
         .context =
             Armv7aKernelContextPort{
-                .switch_model = Armv7aKernelContextSwitchModel::none,
+                .switch_model = Armv7aKernelContextSwitchModel::software_frame,
+                .prepare_initial_frame = &armv7a_kernel_prepare_initial_frame,
+                .switch_context = &armv7a_kernel_switch_context,
             },
     };
 }

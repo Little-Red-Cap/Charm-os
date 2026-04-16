@@ -305,6 +305,22 @@ v0 阶段建议至少覆盖：
 已经开始共享同一批 capability 级证据来源，
 而不是各自再维护一套互相漂移的判断。
 
+与此同时，`-ArtifactRoot ... -BringupEvidence` 现在也已经支持直接返回 artifact_root 级聚合结果。
+它会把多份 report 收束成：
+
+- per-case bringup 摘要
+- capability matrix
+- blocked reason matrix
+- failed reason matrix
+
+这样 bringup 证据不再只能按单 case 追问，
+还可以直接横向查看：
+
+- 哪个 capability 在哪些 case 中只停留在 declared 态
+- 哪些 capability 已经跨 case materialized / observed
+- `publish_state / export_state` 在不同 case 之间如何分布
+- 哪些 blocked / failed reason 在多个 case 之间重复出现
+
 ### 6.2 `why unavailable`
 
 它回答：

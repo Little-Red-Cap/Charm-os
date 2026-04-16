@@ -1742,6 +1742,269 @@ function New-BringupEvidenceResult {
     }
 }
 
+function New-ArtifactRootBringupCaseSummary {
+    param(
+        $LoadedReport
+    )
+
+    $graphInfo = Load-GraphFromArtifactReport -ReportData $LoadedReport.Data
+    $bringupEvidence = New-BringupEvidenceResult -ReportData $LoadedReport.Data -GraphInfo $graphInfo
+
+    return [pscustomobject][ordered]@{
+        case = [string]$LoadedReport.Data.subject.case
+        profile = [string]$LoadedReport.Data.subject.profile
+        board = [string]$LoadedReport.Data.subject.board
+        active_facets = @($LoadedReport.Data.subject.active_facets)
+        declared_count = [int]$bringupEvidence.declared_count
+        materialized_count = [int]$bringupEvidence.materialized_count
+        published_count = [int]$bringupEvidence.published_count
+        observed_count = [int]$bringupEvidence.observed_count
+        blocked_count = [int]$bringupEvidence.blocked_count
+        failed_count = [int]$bringupEvidence.failed_count
+        published_capabilities = @($bringupEvidence.published_capabilities)
+        blocked_reasons = @($bringupEvidence.blocked_reasons)
+        failed_reasons = @($bringupEvidence.failed_reasons)
+        evidence_entries = @($bringupEvidence.evidence_entries)
+    }
+}
+
+function New-AggregatedBringupCapabilityEntry {
+    param(
+        [string]$CapabilityName
+    )
+
+    return [pscustomobject]@{
+        capability = $CapabilityName
+        cases = @()
+        declared_cases = @()
+        materialized_cases = @()
+        published_cases = @()
+        observed_cases = @()
+        blocked_cases = @()
+        failed_cases = @()
+        publish_states = @()
+        export_states = @()
+        provider_nodes = @()
+        consumer_nodes = @()
+        blocked_reasons = @()
+        failed_reasons = @()
+    }
+}
+
+function Normalize-AggregatedBringupCapabilityEntry {
+    param(
+        $Entry
+    )
+
+    $cases = @($Entry.cases | Sort-Object case)
+    $declaredCases = @($Entry.declared_cases | Sort-Object -Unique)
+    $materializedCases = @($Entry.materialized_cases | Sort-Object -Unique)
+    $publishedCases = @($Entry.published_cases | Sort-Object -Unique)
+    $observedCases = @($Entry.observed_cases | Sort-Object -Unique)
+    $blockedCases = @($Entry.blocked_cases | Sort-Object -Unique)
+    $failedCases = @($Entry.failed_cases | Sort-Object -Unique)
+
+    return [ordered]@{
+        capability = [string]$Entry.capability
+        case_count = @($cases).Count
+        cases = $cases
+        declared = ($declaredCases.Count -gt 0)
+        materialized = ($materializedCases.Count -gt 0)
+        published = ($publishedCases.Count -gt 0)
+        observed = ($observedCases.Count -gt 0)
+        blocked = ($blockedCases.Count -gt 0)
+        failed = ($failedCases.Count -gt 0)
+        declared_cases = $declaredCases
+        materialized_cases = $materializedCases
+        published_cases = $publishedCases
+        observed_cases = $observedCases
+        blocked_cases = $blockedCases
+        failed_cases = $failedCases
+        publish_states = @(
+            @($Entry.publish_states) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        export_states = @(
+            @($Entry.export_states) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        provider_nodes = @($Entry.provider_nodes | Sort-Object -Unique)
+        consumer_nodes = @($Entry.consumer_nodes | Sort-Object -Unique)
+        blocked_reasons = @(
+            @($Entry.blocked_reasons) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        failed_reasons = @(
+            @($Entry.failed_reasons) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+    }
+}
+
+function New-ArtifactRootBringupReasonEntry {
+    param(
+        [string]$ReasonText,
+        [object[]]$CaseSummaries,
+        [string]$PropertyName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ReasonText)) {
+        return $null
+    }
+
+    $reasonCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        if (-not (@($caseSummary.$PropertyName) -contains $ReasonText)) {
+            continue
+        }
+
+        $reasonCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+        }
+    }
+
+    return [ordered]@{
+        reason = $ReasonText
+        case_count = @($reasonCases).Count
+        cases = @($reasonCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootBringupEvidenceResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $caseSummaries = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootBringupCaseSummary -LoadedReport $_ } |
+            Sort-Object case
+    )
+
+    $capabilityMap = @{}
+    foreach ($caseSummary in @($caseSummaries)) {
+        $caseName = [string]$caseSummary.case
+        foreach ($entry in @($caseSummary.evidence_entries)) {
+            $capabilityName = [string]$entry.capability
+            if ([string]::IsNullOrWhiteSpace($capabilityName)) {
+                continue
+            }
+
+            if (-not $capabilityMap.ContainsKey($capabilityName)) {
+                $capabilityMap[$capabilityName] = New-AggregatedBringupCapabilityEntry -CapabilityName $capabilityName
+            }
+
+            $aggregate = $capabilityMap[$capabilityName]
+            $aggregate.cases = @(
+                @($aggregate.cases) + [pscustomobject][ordered]@{
+                    case = $caseName
+                    profile = [string]$caseSummary.profile
+                    board = [string]$caseSummary.board
+                    declared = [bool]$entry.declared
+                    materialized = [bool]$entry.materialized
+                    published = [bool]$entry.published
+                    observed = [bool]$entry.observed
+                    blocked = [bool]$entry.blocked
+                    failed = [bool]$entry.failed
+                    publish_state = if ([string]::IsNullOrWhiteSpace([string]$entry.publish_state)) { $null } else { [string]$entry.publish_state }
+                    export_state = if ([string]::IsNullOrWhiteSpace([string]$entry.export_state)) { $null } else { [string]$entry.export_state }
+                }
+            )
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.declared) -CaseName $caseName -PropertyName 'declared_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.materialized) -CaseName $caseName -PropertyName 'materialized_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.published) -CaseName $caseName -PropertyName 'published_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.observed) -CaseName $caseName -PropertyName 'observed_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.blocked) -CaseName $caseName -PropertyName 'blocked_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.failed) -CaseName $caseName -PropertyName 'failed_cases'
+
+            if (-not [string]::IsNullOrWhiteSpace([string]$entry.publish_state)) {
+                $aggregate.publish_states = @($aggregate.publish_states + [string]$entry.publish_state)
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$entry.export_state)) {
+                $aggregate.export_states = @($aggregate.export_states + [string]$entry.export_state)
+            }
+
+            $aggregate.provider_nodes = @(
+                @($aggregate.provider_nodes) +
+                @(Get-CaseQualifiedNodeNames -CaseName $caseName -NodeNames @($entry.provider_nodes))
+            )
+            $aggregate.consumer_nodes = @(
+                @($aggregate.consumer_nodes) +
+                @(Get-CaseQualifiedNodeNames -CaseName $caseName -NodeNames @($entry.consumer_nodes))
+            )
+            $aggregate.blocked_reasons = @($aggregate.blocked_reasons + @($entry.blocked_reasons))
+            $aggregate.failed_reasons = @($aggregate.failed_reasons + @($entry.failed_reasons))
+        }
+    }
+
+    $blockedReasons = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.blocked_reasons)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $failedReasons = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.failed_reasons)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $blockedReasonMatrix = @(
+        foreach ($reasonText in @($blockedReasons)) {
+            New-ArtifactRootBringupReasonEntry -ReasonText $reasonText -CaseSummaries $caseSummaries -PropertyName 'blocked_reasons'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object reason
+
+    $failedReasonMatrix = @(
+        foreach ($reasonText in @($failedReasons)) {
+            New-ArtifactRootBringupReasonEntry -ReasonText $reasonText -CaseSummaries $caseSummaries -PropertyName 'failed_reasons'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object reason
+
+    return [ordered]@{
+        case_count = @($caseSummaries).Count
+        totals = [ordered]@{
+            declared_count = [int](@($caseSummaries | Measure-Object -Property declared_count -Sum).Sum)
+            materialized_count = [int](@($caseSummaries | Measure-Object -Property materialized_count -Sum).Sum)
+            published_count = [int](@($caseSummaries | Measure-Object -Property published_count -Sum).Sum)
+            observed_count = [int](@($caseSummaries | Measure-Object -Property observed_count -Sum).Sum)
+            blocked_count = [int](@($caseSummaries | Measure-Object -Property blocked_count -Sum).Sum)
+            failed_count = [int](@($caseSummaries | Measure-Object -Property failed_count -Sum).Sum)
+        }
+        cases = @(
+            @($caseSummaries) |
+                Select-Object `
+                    case,
+                    board,
+                    profile,
+                    active_facets,
+                    declared_count,
+                    materialized_count,
+                    published_count,
+                    observed_count,
+                    blocked_count,
+                    failed_count,
+                    published_capabilities,
+                    blocked_reasons,
+                    failed_reasons |
+                Sort-Object case
+        )
+        capability_matrix = @(
+            $capabilityMap.Values |
+                ForEach-Object { Normalize-AggregatedBringupCapabilityEntry -Entry $_ } |
+                Sort-Object capability
+        )
+        blocked_reason_matrix = @($blockedReasonMatrix)
+        failed_reason_matrix = @($failedReasonMatrix)
+    }
+}
+
 function Format-BringupEvidenceDisplayRow {
     param(
         $Entry
@@ -1900,10 +2163,6 @@ if ($RecentTransitions -and $selectedReports.Count -ne 1) {
     throw "-RecentTransitions requires exactly one selected artifact report"
 }
 
-if ($BringupEvidence -and $selectedReports.Count -ne 1) {
-    throw "-BringupEvidence requires exactly one selected artifact report"
-}
-
 if ($CapList) {
     if ($selectedReports.Count -eq 1) {
         $capListView = New-CapListReportView -LoadedReport $selectedReports[0]
@@ -1936,7 +2195,7 @@ if ($CapList) {
     exit 0
 }
 
-if ($selectedReports.Count -ne 1 -and -not $ResourceSummary) {
+if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEvidence) {
     if ($AsJson) {
         [ordered]@{
             artifact_root = $artifactRootPath
@@ -1955,6 +2214,102 @@ $reportData = $loadedReport.Data
 $graphInfo = Load-GraphFromArtifactReport -ReportData $reportData
 
 if ($BringupEvidence) {
+    if ($selectedReports.Count -ne 1) {
+        $artifactRootBringupEvidence = New-ArtifactRootBringupEvidenceResult -LoadedReports $selectedReports
+
+        if ($AsJson) {
+            [ordered]@{
+                artifact_root = $artifactRootPath
+                query = [ordered]@{
+                    kind = 'bringup_evidence'
+                    scope = 'artifact_root'
+                    result = $artifactRootBringupEvidence
+                }
+            } | ConvertTo-Json -Depth 14
+            exit 0
+        }
+
+        Write-Host "[ARTIFACT ROOT] $artifactRootPath"
+        Write-Host "[BRINGUP EVIDENCE] scope=artifact_root cases=$([int]$artifactRootBringupEvidence.case_count)"
+        Write-Host "declared_count     = $([int]$artifactRootBringupEvidence.totals.declared_count)"
+        Write-Host "materialized_count = $([int]$artifactRootBringupEvidence.totals.materialized_count)"
+        Write-Host "published_count    = $([int]$artifactRootBringupEvidence.totals.published_count)"
+        Write-Host "observed_count     = $([int]$artifactRootBringupEvidence.totals.observed_count)"
+        Write-Host "blocked_count      = $([int]$artifactRootBringupEvidence.totals.blocked_count)"
+        Write-Host "failed_count       = $([int]$artifactRootBringupEvidence.totals.failed_count)"
+        Write-Host ''
+
+        if (@($artifactRootBringupEvidence.cases).Count -gt 0) {
+            Write-Host '[CASES]'
+            @($artifactRootBringupEvidence.cases) |
+                Select-Object `
+                    case,
+                    board,
+                    profile,
+                    @{ Name = 'facets'; Expression = { Format-StringArray @($_.active_facets) } },
+                    declared_count,
+                    materialized_count,
+                    published_count,
+                    observed_count,
+                    blocked_count,
+                    failed_count,
+                    @{ Name = 'published_capabilities'; Expression = { @($_.published_capabilities).Count } } |
+                Format-Table -Wrap -AutoSize |
+                Out-Host
+            Write-Host ''
+        }
+
+        if (@($artifactRootBringupEvidence.capability_matrix).Count -gt 0) {
+            Write-Host '[CAPABILITY MATRIX]'
+            foreach ($capabilityEntry in @($artifactRootBringupEvidence.capability_matrix)) {
+                Write-Host "capability = $([string]$capabilityEntry.capability) declared=[$((@($capabilityEntry.declared_cases) -join ', '))] materialized=[$((@($capabilityEntry.materialized_cases) -join ', '))] observed=[$((@($capabilityEntry.observed_cases) -join ', '))] published=[$((@($capabilityEntry.published_cases) -join ', '))] blocked=[$((@($capabilityEntry.blocked_cases) -join ', '))] failed=[$((@($capabilityEntry.failed_cases) -join ', '))]"
+                if (@($capabilityEntry.publish_states).Count -gt 0) {
+                    Write-Host "publish_states = $((@($capabilityEntry.publish_states) -join ', '))"
+                }
+                if (@($capabilityEntry.export_states).Count -gt 0) {
+                    Write-Host "export_states  = $((@($capabilityEntry.export_states) -join ', '))"
+                }
+                if (@($capabilityEntry.provider_nodes).Count -gt 0) {
+                    Write-Host "provider_nodes = $((@($capabilityEntry.provider_nodes) -join ', '))"
+                }
+                if (@($capabilityEntry.consumer_nodes).Count -gt 0) {
+                    Write-Host "consumer_nodes = $((@($capabilityEntry.consumer_nodes) -join ', '))"
+                }
+                if (@($capabilityEntry.blocked_reasons).Count -gt 0) {
+                    Write-Host "blocked_reasons = $((@($capabilityEntry.blocked_reasons) -join '; '))"
+                }
+                if (@($capabilityEntry.failed_reasons).Count -gt 0) {
+                    Write-Host "failed_reasons = $((@($capabilityEntry.failed_reasons) -join '; '))"
+                }
+            }
+            Write-Host ''
+        }
+
+        if (@($artifactRootBringupEvidence.blocked_reason_matrix).Count -gt 0) {
+            Write-Host '[BLOCKED REASONS]'
+            foreach ($reasonEntry in @($artifactRootBringupEvidence.blocked_reason_matrix)) {
+                $caseNames = @(
+                    @($reasonEntry.cases) |
+                        ForEach-Object { [string]$_.case }
+                )
+                Write-Host "reason = $([string]$reasonEntry.reason) case_count=$([int]$reasonEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+            }
+            Write-Host ''
+        }
+
+        if (@($artifactRootBringupEvidence.failed_reason_matrix).Count -gt 0) {
+            Write-Host '[FAILED REASONS]'
+            foreach ($reasonEntry in @($artifactRootBringupEvidence.failed_reason_matrix)) {
+                $caseNames = @(
+                    @($reasonEntry.cases) |
+                        ForEach-Object { [string]$_.case }
+                )
+                Write-Host "reason = $([string]$reasonEntry.reason) case_count=$([int]$reasonEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+            }
+        }
+        exit 0
+    }
+
     $bringupEvidenceResult = New-BringupEvidenceResult -ReportData $reportData -GraphInfo $graphInfo
 
     if ($AsJson) {

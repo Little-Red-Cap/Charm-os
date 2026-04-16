@@ -289,6 +289,28 @@ Charm 这条线不是从零开始。
 这两层输出物可以先分开实现，  
 但它们最终应共享同一种报告语言。
 
+当前仓库里，这条 explain 面已经有了两个正式入口：
+
+- `scripts/inspect_system_compiler_artifact_report.ps1 -Case <name> -BringupEvidence`
+  面向单 report，展开 capability 级证据矩阵
+- `scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot <path> -BringupEvidence`
+  面向 artifact root，收敛出跨 case 的 capability matrix 与 reason matrix
+
+后者当前至少会回答：
+
+- 每个 case 的 `declared / materialized / published / observed / blocked / failed` 摘要
+- 每个 capability 在哪些 case 中 `declared / materialized / observed / published`
+- capability 级 `publish_state / export_state`
+- case-qualified `provider_nodes / consumer_nodes`
+- `blocked_reason_matrix / failed_reason_matrix`
+
+也就是说，bringup 证据不再只能按单 case 追问，
+还可以横向查看：
+
+- 某个 capability 是否只在部分 bringup case 中成立
+- 板级事实是否持续停留在 declared-only 状态
+- 哪些阻塞或失败原因在多 case 间重复出现
+
 ## 8. 当前最贴仓库现实的三条示例链路
 
 ### 8.1 `materialize_observe_demo`
@@ -396,6 +418,19 @@ Charm 这条线不是从零开始。
 v0 更合理的判断标准是：
 
 > **当系统 bringup 出现问题时，我们能否比“再打一串 log 看看”更快地说清楚：问题卡在哪一层。**
+
+为了把这条 explain 面守成回归，仓库当前还提供了最小 smoke：
+
+- `scripts/materialized_graph_bringup_evidence_matrix_smoke.ps1`
+
+它直接复用 `inspect_system_compiler_artifact_report.ps1 -ArtifactRoot ... -BringupEvidence -AsJson` 的真实输出，
+重点守住：
+
+- 预期 bringup case 仍能进入 artifact_root 级矩阵
+- `board.win_stub` 这类板级事实仍保持 declared-only
+- `system.clock` 这类公共 capability 仍能跨 case materialized / observed
+- `block.sd0` 这类 case-specific capability 不会误扩散到其它 bringup case
+- `blocked_reason_matrix / failed_reason_matrix` 在当前 happy-path 示例里保持为空
 
 ## 11. 当前结论
 

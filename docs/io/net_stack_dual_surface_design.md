@@ -118,16 +118,16 @@
 ```cpp
 import charm.net;
 
-net::TcpClient client{};
-
-auto st = client.connect(stack, net::Endpoint::ipv4(192, 168, 1, 10, 1883));
-if (!st) {
+auto client = net::TcpClient::connected(
+    stack,
+    net::Endpoint::ipv4(192, 168, 1, 10, 1883));
+if (!client) {
     return;
 }
 
-client.send(as_bytes("ping"));
-client.recv(buffer);
-client.close();
+client->send(as_bytes("ping"));
+client->recv(buffer);
+client->close();
 ```
 
 UDP 也应足够直接：
@@ -135,10 +135,12 @@ UDP 也应足够直接：
 ```cpp
 import charm.net;
 
-net::UdpSocket udp{};
-udp.bind(stack, net::Endpoint::ipv4_any(5000));
-udp.recv_from(buffer, peer);
-udp.send_to(peer, payload);
+auto udp = net::UdpSocket::bound(stack, net::Endpoint::ipv4_any(5000));
+if (!udp) {
+    return;
+}
+udp->recv_from(buffer, peer);
+udp->send_to(peer, payload);
 ```
 
 重点不是 API 名字，而是用户侧体验：
@@ -453,7 +455,7 @@ v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagn
 `TcpClient/UdpSocket/TcpListener` 应尽量轻量。
 
 用户对象负责：
-- 对高频场景直接给出少量便捷动作，例如 `listen_loopback / listen_any / connect_loopback / bind_any / accept()`；需要对端地址时也可直接 `accept(peer)`，避免普通用户反复手拼 `Endpoint`
+- 对高频场景直接给出少量便捷动作，例如 `connected / listening / bound` 及其 `*_loopback / *_any` 变体，再配合 `accept()`；`send/recv/send_to/recv_from` 也应支持直接传 `u8` 数组，避免普通用户反复手拼 `Endpoint` 或 `ByteView`
 
 - 表达意图
 - 持有句柄/状态

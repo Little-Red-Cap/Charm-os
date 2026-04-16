@@ -18,6 +18,7 @@
 
 - 网络双表面设计已明确：见 `docs/io/net_stack_dual_surface_design.md`
 - 统一网络入口已建立：`Modules/io/charm.net.cppm`
+- `api_facade_smoke` 已锁住 `TcpClient/TcpListener/UdpSocket` 的 `connected/listening/bound` 工厂式入口，并保持与 `*_loopback/*_any` 便捷入口、`u8` 数组直传 `send/recv` 兼容
 - socket / stack / endpoint / event 等基础抽象已存在
 - reactor / session / codec / service 分层已落地
 - `net.posix` 已开始把 socket 投影到 POSIX fd 体系
@@ -32,6 +33,8 @@
 - `reactor_request_close_smoke` 已锁住 closed transport 不再接受新的 request
 - `reactor_request_close_win_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer 在收到 request 后正常断开时，pending 会被清理，late request 会被拒绝，session/driver 会统一收口为 `closed`
 - `reactor_request_reset_close_smoke` 已锁住 WinProvider 在 peer abortive close / reset 下仍把 transport 收口为 `closed`，而不是误报成 `error`
+- `reactor_request_error_smoke` 已锁住 error transport 不再接受新的 request，且 pending 状态会被清理
+- `reactor_request_error_win_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer 触发异常带外事件后，pending 会被清理，late request 会被拒绝，session/driver 会统一收口为 `error`
 - `reactor_service_close_smoke` 已锁住 closed transport 后 deferred reply 会被拒绝，且 deferred 状态会被清理
 - `reactor_service_close_win_smoke` 已把这条语义扩展到真实 WinProvider server 侧：peer 在送达 request 后正常断开时，deferred token 会失效，late reply 会被拒绝，session/driver 会统一收口为 `closed`
 - `reactor_service_typed_close_win_smoke` 已把这条语义扩展到真实 WinProvider server 侧：peer 在送达 typed request 后正常断开时，typed deferred token 会失效，late typed reply 会被拒绝，session/driver 会统一收口为 `closed`
@@ -42,10 +45,13 @@
 - `reactor_service_request_close_win_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer 在收到 service request 后正常断开时，pending 会被清理，late request 会被拒绝，session/driver 会统一收口为 `closed`
 - `reactor_service_request_reset_close_smoke`、`reactor_service_typed_request_reset_close_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer abortive close / reset 后 pending 会被清理，late request 会被拒绝，session/driver 统一收口为 `closed`
 - `reactor_service_request_error_smoke` 已锁住 error transport 不再接受新的 service request，且 pending 状态不会泄漏
+- `reactor_service_request_error_win_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer 触发异常带外事件后，pending 会被清理，late request 会被拒绝，session/driver 会统一收口为 `error`
 - `reactor_service_typed_error_smoke` 已锁住 error transport 后 typed deferred reply 会被拒绝，且 typed deferred 状态会被清理
+- `reactor_service_typed_error_win_smoke` 已把这条语义扩展到真实 WinProvider server 侧：peer 触发异常带外事件后，typed deferred token 会失效，late typed reply 会被拒绝，session/driver 会统一收口为 `error`
 - `reactor_service_typed_request_close_smoke` 已锁住 closed transport 不再接受新的 typed request，且 typed pending 状态不会泄漏
 - `reactor_service_typed_request_close_win_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer 在收到 typed request 后正常断开时，typed pending 会被清理，late typed request 会被拒绝，session/driver 会统一收口为 `closed`
 - `reactor_service_typed_request_error_smoke` 已锁住 error transport 不再接受新的 typed request，且 typed pending 状态不会泄漏
+- `reactor_service_typed_request_error_win_smoke` 已把这条语义扩展到真实 WinProvider client 侧：peer 触发异常带外事件后，typed pending 会被清理，late typed request 会被拒绝，session/driver 会统一收口为 `error`
 - ARM / QEMU 路径当前已恢复稳定构建，之前围绕 `std::span` / module 边界的阻塞已在 `net.common`、`net.posix`、`net.stack` 这一层收住
 
 ---
@@ -157,8 +163,8 @@
 
 #### 验收
 
-- `reactor_request_echo_smoke`、`reactor_request_close_smoke`、`reactor_request_close_win_smoke`、`reactor_request_reset_close_smoke` 稳定通过
-- `reactor_service_echo_smoke`、`reactor_service_deferred_smoke`、`reactor_service_close_smoke`、`reactor_service_close_win_smoke`、`reactor_service_reset_close_smoke`、`reactor_service_error_smoke`、`reactor_service_error_win_smoke`、`reactor_service_request_close_smoke`、`reactor_service_request_close_win_smoke`、`reactor_service_request_reset_close_smoke`、`reactor_service_request_error_smoke`、`reactor_service_typed_smoke`、`reactor_service_typed_close_smoke`、`reactor_service_typed_close_win_smoke`、`reactor_service_typed_reset_close_smoke`、`reactor_service_typed_error_smoke`、`reactor_service_typed_request_close_smoke`、`reactor_service_typed_request_close_win_smoke`、`reactor_service_typed_request_reset_close_smoke`、`reactor_service_typed_request_error_smoke` 稳定通过
+- `reactor_request_echo_smoke`、`reactor_request_close_smoke`、`reactor_request_close_win_smoke`、`reactor_request_reset_close_smoke`、`reactor_request_error_smoke`、`reactor_request_error_win_smoke` 稳定通过
+- `reactor_service_echo_smoke`、`reactor_service_deferred_smoke`、`reactor_service_close_smoke`、`reactor_service_close_win_smoke`、`reactor_service_reset_close_smoke`、`reactor_service_error_smoke`、`reactor_service_error_win_smoke`、`reactor_service_request_close_smoke`、`reactor_service_request_close_win_smoke`、`reactor_service_request_reset_close_smoke`、`reactor_service_request_error_smoke`、`reactor_service_request_error_win_smoke`、`reactor_service_typed_smoke`、`reactor_service_typed_close_smoke`、`reactor_service_typed_close_win_smoke`、`reactor_service_typed_reset_close_smoke`、`reactor_service_typed_error_smoke`、`reactor_service_typed_error_win_smoke`、`reactor_service_typed_request_close_smoke`、`reactor_service_typed_request_close_win_smoke`、`reactor_service_typed_request_reset_close_smoke`、`reactor_service_typed_request_error_smoke`、`reactor_service_typed_request_error_win_smoke` 稳定通过
 - `schema_codec_smoke` 能继续充当 typed payload contract 的快速回归面
 
 ### M6. 对外 facade 收敛

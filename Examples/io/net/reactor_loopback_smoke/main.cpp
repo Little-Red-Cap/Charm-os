@@ -178,12 +178,14 @@ int main() {
     net::TcpClient client{};
     net::TcpClient server_side{};
 
-    net::SocketChannelBinding client_binding{client.raw()};
+    net::SocketChannelBinding client_binding{};
     net::SocketChannelBinding server_binding{server_side.raw()};
 
     util::u16 port = 0;
     for (util::u16 candidate = 29000; candidate < 29100; ++candidate) {
-        if (!listener.listen(stack, net::Endpoint::ipv4_loopback(candidate), 2)) continue;
+        auto listening = net::TcpListener::listening_loopback(stack, candidate, 2);
+        if (!listening) continue;
+        listener = std::move(listening.value());
         port = candidate;
         break;
     }
@@ -211,8 +213,7 @@ int main() {
         reactor, socket_poller, listener, server_side, server_accept_driver};
 
     auto server_sub = reactor.subscribe(server_binding.channel(), all_events, &ServerCtx::on_event, &server_ctx);
-    auto client_sub = reactor.subscribe(client_binding.channel(), all_events, &ClientCtx::on_event, &client_ctx);
-    if (!server_sub || !client_sub) {
+    if (!server_sub) {
         std::fputs("reactor subscribe failed\n", stderr);
         return 2;
     }
@@ -223,9 +224,18 @@ int main() {
         return 3;
     }
 
-    if (!client.connect(stack, net::Endpoint::ipv4_loopback(port))) {
+    auto connected = net::TcpClient::connected_loopback(stack, port);
+    if (!connected) {
         std::fputs("reactor client connect failed\n", stderr);
         return 4;
+    }
+    client = std::move(connected.value());
+    client_binding.bind(client.raw());
+
+    auto client_sub = reactor.subscribe(client_binding.channel(), all_events, &ClientCtx::on_event, &client_ctx);
+    if (!client_sub) {
+        std::fputs("reactor subscribe failed\n", stderr);
+        return 2;
     }
 
     auto client_watch = socket_poller.watch(client.raw(), client_binding.channel());

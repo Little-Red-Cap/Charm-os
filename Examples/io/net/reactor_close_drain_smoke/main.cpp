@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <utility>
 
 import charm.net;
 import net.backend.stub;
@@ -62,14 +63,19 @@ int main() {
     net::TcpClient client{};
     net::TcpClient server{};
 
-    if (!listener.listen(stack, net::Endpoint::ipv4_loopback(30200), 2)) {
+    auto listening = net::TcpListener::listening_loopback(stack, 30200, 2);
+    if (!listening) {
         std::fputs("reactor close drain listen failed\n", stderr);
         return 1;
     }
-    if (!client.connect(stack, net::Endpoint::ipv4_loopback(30200))) {
+    listener = std::move(listening.value());
+
+    auto connected = net::TcpClient::connected_loopback(stack, 30200);
+    if (!connected) {
         std::fputs("reactor close drain connect failed\n", stderr);
         return 2;
     }
+    client = std::move(connected.value());
     if (!listener.accept(server, nullptr)) {
         std::fputs("reactor close drain accept failed\n", stderr);
         return 3;
@@ -85,7 +91,7 @@ int main() {
     }
 
     const util::u8 ping[4]{'p', 'i', 'n', 'g'};
-    auto sent = client.send(net::ByteView{ping, 4});
+    auto sent = client.send(ping);
     if (!sent || sent.value() != 4) {
         std::fputs("reactor close drain client send failed\n", stderr);
         return 5;

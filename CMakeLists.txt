@@ -218,6 +218,9 @@ endfunction()
 charm_collect_core_sources(CHARM_CORE_MODULES CHARM_CORE_BASE_DIRS)
 charm_collect_io_sources(CHARM_IO_MODULES CHARM_IO_BASE_DIRS)
 charm_collect_platform_sources(CHARM_PLATFORM_MODULES CHARM_PLATFORM_BASE_DIRS)
+charm_collect_platform_support_sources(
+    CHARM_PLATFORM_SUPPORT_SOURCES
+    CHARM_PLATFORM_INCLUDE_DIRS)
 charm_collect_system_sources(CHARM_SYSTEM_MODULES CHARM_SYSTEM_BASE_DIRS)
 
 set(CHARM_RUNTIME_MODULES
@@ -236,6 +239,8 @@ list(REMOVE_DUPLICATES CHARM_RUNTIME_MODULES)
 list(REMOVE_DUPLICATES CHARM_RUNTIME_BASE_DIRS)
 
 charm_add_component_target(Charm-runtime)
+target_sources(Charm-runtime PRIVATE ${CHARM_PLATFORM_SUPPORT_SOURCES})
+target_include_directories(Charm-runtime PRIVATE ${CHARM_PLATFORM_INCLUDE_DIRS})
 charm_attach_module_sources(Charm-runtime
     BASE_DIRS ${CHARM_RUNTIME_BASE_DIRS}
     FILES ${CHARM_RUNTIME_MODULES})

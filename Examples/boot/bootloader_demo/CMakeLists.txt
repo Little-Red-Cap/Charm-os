@@ -7,7 +7,6 @@ set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 
 add_executable(${target_name}
     main.cpp
-    "${CHARM_ROOT}/targets/armv7a/common/armv7a_handoff_contract.cpp"
 )
 
 set(CHARM_ENABLE_MEDIA OFF CACHE BOOL "" FORCE)

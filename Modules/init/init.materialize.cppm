@@ -19,11 +19,75 @@ import util.error;
 
 namespace init::detail {
     template <typename T>
-    inline constexpr bool unsupported_legacy_v = false;
+    inline constexpr bool unsupported_materialize_item_v = false;
 
     inline util::Result<void> noop_init(void*) noexcept {
         return {};
     }
+
+    template <typename T>
+    inline constexpr bool is_bound_recipe_v = false;
+
+    template <typename Recipe>
+    inline constexpr bool is_bound_recipe_v<bound_recipe<Recipe>> = true;
+
+    template <typename T>
+    inline constexpr bool is_single_node_ref_v = false;
+
+    template <typename Item>
+    inline constexpr bool is_single_node_ref_v<single_node_ref<Item>> = true;
+
+    template <typename T>
+    inline constexpr bool is_maybe_ref_v = false;
+
+    template <typename Item>
+    inline constexpr bool is_maybe_ref_v<maybe_ref<Item>> = true;
+
+    template <typename T>
+    inline constexpr bool is_plan_v = false;
+
+    template <typename... Items>
+    inline constexpr bool is_plan_v<plan<Items...>> = true;
+
+    template <typename T>
+    inline constexpr bool is_after_plan_v = false;
+
+    template <typename Inner, typename Requires>
+    inline constexpr bool is_after_plan_v<after_plan<Inner, Requires>> = true;
+
+    template <typename T>
+    inline constexpr bool is_phase_limit_plan_v = false;
+
+    template <typename Inner>
+    inline constexpr bool is_phase_limit_plan_v<phase_limit_plan<Inner>> = true;
+
+    template <typename T>
+    inline constexpr bool is_runlevel_plan_v = false;
+
+    template <typename Inner>
+    inline constexpr bool is_runlevel_plan_v<runlevel_plan<Inner>> = true;
+
+    template <typename T>
+    inline constexpr bool is_export_plan_v = false;
+
+    template <typename Inner, typename Cap>
+    inline constexpr bool is_export_plan_v<export_plan<Inner, Cap>> = true;
+
+    template <typename T>
+    struct after_plan_traits;
+
+    template <typename Inner, typename Requires>
+    struct after_plan_traits<after_plan<Inner, Requires>> {
+        using requires_type = Requires;
+    };
+
+    template <typename T>
+    struct export_plan_traits;
+
+    template <typename Inner, typename Cap>
+    struct export_plan_traits<export_plan<Inner, Cap>> {
+        using cap_type = Cap;
+    };
 
     template <util::usize MaxCaps>
     struct cap_set {
@@ -122,16 +186,6 @@ namespace init::detail {
 
     constexpr Phase phase_min(Phase a, Phase b) noexcept {
         return static_cast<util::u8>(a) <= static_cast<util::u8>(b) ? a : b;
-    }
-
-    constexpr std::string_view lookup_capability_name(std::span<const cap_name_entry> entries,
-                                                      CapId id) noexcept {
-        for (util::usize i = 0; i < entries.size(); ++i) {
-            if (entries[i].id == id) {
-                return entries[i].name;
-            }
-        }
-        return {};
     }
 
     template <typename Legacy>
@@ -442,86 +496,25 @@ namespace init::detail {
                                                                 const Item& item,
                                                                 const materialize_constraints<MaxCaps>& constraints) noexcept;
 
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Legacy>
-    util::Result<materialize_summary<MaxCaps>> append_legacy_value(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                   const Legacy& value,
-                                                                   const materialize_constraints<MaxCaps>& constraints) noexcept {
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Item>
+    util::Result<materialize_summary<MaxCaps>> append_single_node_value(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                        const Item& value,
+                                                                        const materialize_constraints<MaxCaps>& constraints) noexcept {
         materialize_summary<MaxCaps> summary{};
-        if constexpr (requires(const Legacy& candidate) {
-                          candidate.plan();
-                      }) {
-            return materialize_item(out, value.plan(), constraints);
-        } else if constexpr (requires(const Legacy& candidate) {
-                                 candidate.for_each_legacy_node([](const Node&) noexcept {});
-                             }) {
-            util::Errc error = util::Errc::ok;
-            value.for_each_legacy_node([&](const Node& node) noexcept {
-                if (!util::ok(error)) {
-                    return;
-                }
-                auto current = append_node_with_lookup(out,
-                                                       node,
-                                                       constraints,
-                                                       [&](CapId id) noexcept {
-                                                           return lookup_capability_name(value, id);
-                                                       });
-                if (!current) {
-                    error = current.error();
-                    return;
-                }
-                auto merge = absorb_summary(summary, *current);
-                if (!merge) {
-                    error = merge.error();
-                }
-            });
-            if (!util::ok(error)) {
-                return util::unexpected(error);
-            }
-            return summary;
-        } else if constexpr (requires(const Legacy& candidate) {
-                          candidate.node_span();
-                      }) {
-            const auto span = value.node_span();
-            for (util::usize i = 0; i < span.size(); ++i) {
-                if (!span[i]) {
-                    continue;
-                }
-                auto current = append_node_with_lookup(out,
-                                                       *span[i],
-                                                       constraints,
-                                                       [&](CapId id) noexcept {
-                                                           return lookup_capability_name(value, id);
-                                                       });
-                if (!current) {
-                    return util::unexpected(current.error());
-                }
-                auto merge = absorb_summary(summary, *current);
-                if (!merge) {
-                    return util::unexpected(merge.error());
-                }
-            }
-            return summary;
-        } else if constexpr (requires(const Legacy& candidate) {
-                                 candidate.node;
-                             }) {
-            auto current = append_node_with_lookup(out,
-                                                   value.node,
-                                                   constraints,
-                                                   [&](CapId id) noexcept {
-                                                       return lookup_capability_name(value, id);
-                                                   });
-            if (!current) {
-                return util::unexpected(current.error());
-            }
-            auto merge = absorb_summary(summary, *current);
-            if (!merge) {
-                return util::unexpected(merge.error());
-            }
-            return summary;
-        } else {
-            static_assert(unsupported_legacy_v<Legacy>,
-                          "init::legacy(...) requires plan(), for_each_legacy_node(...), node_span(), or a node member");
+        auto current = append_node_with_lookup(out,
+                                               value.node,
+                                               constraints,
+                                               [&](CapId id) noexcept {
+                                                   return lookup_capability_name(value, id);
+                                               });
+        if (!current) {
+            return util::unexpected(current.error());
         }
+        auto merge = absorb_summary(summary, *current);
+        if (!merge) {
+            return util::unexpected(merge.error());
+        }
+        return summary;
     }
 
     template <std::size_t Index, util::usize MaxNodes, util::usize MaxCaps, typename... Items>
@@ -544,207 +537,113 @@ namespace init::detail {
         }
     }
 
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Recipe>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const bound_recipe<Recipe>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        return append_recipe(out, item, constraints);
-    }
-
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Chain>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const legacy_ref<Chain>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        if (!item.chain) {
-            return util::unexpected(util::Errc::invalid_arg);
-        }
-        return append_legacy_value(out, *item.chain, constraints);
-    }
-
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Chain>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const legacy_optional_ref<Chain>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        if (!item.chain || !item.chain->has_value()) {
-            return materialize_summary<MaxCaps>{};
-        }
-        return append_legacy_value(out, item.chain->value(), constraints);
-    }
-
     template <util::usize MaxNodes, util::usize MaxCaps, typename Item>
     util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const single_node_ref<Item>& item,
+                                                                const Item& item,
                                                                 const materialize_constraints<MaxCaps>& constraints) noexcept {
-        if (!item.value) {
-            return util::unexpected(util::Errc::invalid_arg);
-        }
-
-        materialize_summary<MaxCaps> summary{};
-        auto current = append_node_with_lookup(out,
-                                               item.value->node,
-                                               constraints,
-                                               [&](CapId id) noexcept {
-                                                   return lookup_capability_name(*item.value, id);
-                                               });
-        if (!current) {
-            return util::unexpected(current.error());
-        }
-        auto merge = absorb_summary(summary, *current);
-        if (!merge) {
-            return util::unexpected(merge.error());
-        }
-        return summary;
-    }
-
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Item>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const maybe_ref<Item>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        if (!item.value || !item.value->has_value()) {
-            return materialize_summary<MaxCaps>{};
-        }
-
-        if constexpr (requires(const Item& candidate) {
-                          candidate.plan();
-                      } || requires(const Item& candidate) {
-                          candidate.for_each_legacy_node([](const Node&) noexcept {});
-                      } || requires(const Item& candidate) {
-                          candidate.node_span();
-                      } || requires(const Item& candidate) {
-                          candidate.node;
-                      }) {
-            return append_legacy_value(out, item.value->value(), constraints);
-        } else {
+        if constexpr (is_bound_recipe_v<Item>) {
+            return append_recipe(out, item, constraints);
+        } else if constexpr (is_single_node_ref_v<Item>) {
+            if (!item.value) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            return append_single_node_value(out, *item.value, constraints);
+        } else if constexpr (is_maybe_ref_v<Item>) {
+            if (!item.value || !item.value->has_value()) {
+                return materialize_summary<MaxCaps>{};
+            }
             return materialize_item(out, item.value->value(), constraints);
-        }
-    }
+        } else if constexpr (is_plan_v<Item>) {
+            return materialize_tuple<0, MaxNodes, MaxCaps>(out, item.items, constraints);
+        } else if constexpr (is_after_plan_v<Item>) {
+            using requires_type = typename after_plan_traits<Item>::requires_type;
+            auto merged = constraints;
+            auto r = append_type_caps<requires_type>(merged.required_caps);
+            if (!r) {
+                return util::unexpected(r.error());
+            }
+            return materialize_item(out, item.inner, merged);
+        } else if constexpr (is_phase_limit_plan_v<Item>) {
+            auto merged = constraints;
+            merged.max_phase = phase_min(merged.max_phase, item.value);
+            return materialize_item(out, item.inner, merged);
+        } else if constexpr (is_runlevel_plan_v<Item>) {
+            auto merged = constraints;
+            merged.runlevel_mask &= item.mask;
+            return materialize_item(out, item.inner, merged);
+        } else if constexpr (is_export_plan_v<Item>) {
+            using cap_type = typename export_plan_traits<Item>::cap_type;
+            auto summary = materialize_item(out, item.inner, constraints);
+            if (!summary) {
+                return util::unexpected(summary.error());
+            }
+            if (!summary->has_nodes || summary->provides.count == 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (summary->leaf_count == 0 || summary->leaves_with_provides != summary->leaf_count) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (summary->common_runlevel_mask == 0) {
+                return util::unexpected(util::Errc::bad_state);
+            }
 
-    template <util::usize MaxNodes, util::usize MaxCaps>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const legacy_nodes_ref& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        materialize_summary<MaxCaps> summary{};
-        for (util::usize i = 0; i < item.nodes.size(); ++i) {
-            if (!item.nodes[i]) {
-                continue;
+            Node barrier{};
+            barrier.name = cap_type::view();
+            barrier.phase = summary->max_phase;
+            barrier.runlevel_mask = summary->common_runlevel_mask;
+            barrier.init = &noop_init;
+            barrier.deinit = nullptr;
+            barrier.ctx = nullptr;
+
+            if (out.count >= MaxNodes) {
+                return util::unexpected(util::Errc::buffer_overflow);
             }
-            auto current = append_node_with_lookup(out,
-                                                   *item.nodes[i],
-                                                   constraints,
-                                                   [&](CapId id) noexcept {
-                                                       return lookup_capability_name(item.capability_names, id);
-                                                   });
-            if (!current) {
-                return util::unexpected(current.error());
+            const auto row = out.count++;
+            out.nodes[row] = barrier;
+            out.node_kinds[row] = materialized_node_kind::barrier;
+            out.provides_count[row] = 0;
+            out.requires_count[row] = 0;
+
+            auto seen = append_provided(out, cap_type::id);
+            if (!seen) {
+                return util::unexpected(seen.error());
             }
-            auto merge = absorb_summary(summary, *current);
+            auto provide_result = append_cap_to_row(out, row, true, cap_type::id, cap_type::view());
+            if (!provide_result) {
+                return util::unexpected(provide_result.error());
+            }
+            for (util::usize i = 0; i < summary->provides.count; ++i) {
+                auto require_result = append_cap_to_row(out,
+                                                        row,
+                                                        false,
+                                                        summary->provides.ids[i],
+                                                        summary->provides.names[i]);
+                if (!require_result) {
+                    return util::unexpected(require_result.error());
+                }
+            }
+            auto barrier_summary = finalize_node(out, row);
+            if (!barrier_summary) {
+                return util::unexpected(barrier_summary.error());
+            }
+
+            auto merge = absorb_summary(*summary, *barrier_summary);
             if (!merge) {
                 return util::unexpected(merge.error());
             }
+            return *summary;
+        } else if constexpr (requires(const Item& candidate) {
+                                 candidate.plan();
+                             }) {
+            return materialize_item(out, item.plan(), constraints);
+        } else if constexpr (requires(const Item& candidate) {
+                                 candidate.node;
+                             }) {
+            return append_single_node_value(out, item, constraints);
+        } else {
+            static_assert(unsupported_materialize_item_v<Item>,
+                          "init::materialize(...) expects recipe bindings, composed plans, optional plans, or single-node bindings");
         }
-        return summary;
-    }
-
-    template <util::usize MaxNodes, util::usize MaxCaps, typename... Items>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const plan<Items...>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        return materialize_tuple<0, MaxNodes, MaxCaps>(out, item.items, constraints);
-    }
-
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Inner, typename Requires>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const after_plan<Inner, Requires>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        auto merged = constraints;
-        auto r = append_type_caps<Requires>(merged.required_caps);
-        if (!r) {
-            return util::unexpected(r.error());
-        }
-        return materialize_item(out, item.inner, merged);
-    }
-
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Inner>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const phase_limit_plan<Inner>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        auto merged = constraints;
-        merged.max_phase = phase_min(merged.max_phase, item.value);
-        return materialize_item(out, item.inner, merged);
-    }
-
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Inner>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const runlevel_plan<Inner>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        auto merged = constraints;
-        merged.runlevel_mask &= item.mask;
-        return materialize_item(out, item.inner, merged);
-    }
-
-    template <util::usize MaxNodes, util::usize MaxCaps, typename Inner, typename Cap>
-    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
-                                                                const export_plan<Inner, Cap>& item,
-                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
-        auto summary = materialize_item(out, item.inner, constraints);
-        if (!summary) {
-            return util::unexpected(summary.error());
-        }
-        if (!summary->has_nodes || summary->provides.count == 0) {
-            return util::unexpected(util::Errc::invalid_arg);
-        }
-        if (summary->leaf_count == 0 || summary->leaves_with_provides != summary->leaf_count) {
-            return util::unexpected(util::Errc::invalid_arg);
-        }
-        if (summary->common_runlevel_mask == 0) {
-            return util::unexpected(util::Errc::bad_state);
-        }
-
-        Node barrier{};
-        barrier.name = Cap::view();
-        barrier.phase = summary->max_phase;
-        barrier.runlevel_mask = summary->common_runlevel_mask;
-        barrier.init = &noop_init;
-        barrier.deinit = nullptr;
-        barrier.ctx = nullptr;
-
-        if (out.count >= MaxNodes) {
-            return util::unexpected(util::Errc::buffer_overflow);
-        }
-        const auto row = out.count++;
-        out.nodes[row] = barrier;
-        out.node_kinds[row] = materialized_node_kind::barrier;
-        out.provides_count[row] = 0;
-        out.requires_count[row] = 0;
-
-        auto seen = append_provided(out, Cap::id);
-        if (!seen) {
-            return util::unexpected(seen.error());
-        }
-        auto provide_result = append_cap_to_row(out, row, true, Cap::id, Cap::view());
-        if (!provide_result) {
-            return util::unexpected(provide_result.error());
-        }
-        for (util::usize i = 0; i < summary->provides.count; ++i) {
-            auto require_result = append_cap_to_row(out,
-                                                    row,
-                                                    false,
-                                                    summary->provides.ids[i],
-                                                    summary->provides.names[i]);
-            if (!require_result) {
-                return util::unexpected(require_result.error());
-            }
-        }
-        auto barrier_summary = finalize_node(out, row);
-        if (!barrier_summary) {
-            return util::unexpected(barrier_summary.error());
-        }
-
-        auto merge = absorb_summary(*summary, *barrier_summary);
-        if (!merge) {
-            return util::unexpected(merge.error());
-        }
-        return *summary;
     }
 }
 
@@ -890,41 +789,12 @@ export namespace init {
             return util::unexpected(util::Errc::bad_state);
         }
 
-        struct LegacyChainHolder {
-            std::array<const Node*, 1> nodes{};
-
-            constexpr std::span<const Node* const> node_span() const noexcept {
-                return std::span<const Node* const>{nodes.data(), nodes.size()};
-            }
-        };
-
-        LegacyChainHolder legacy_chain{{&holder.node}};
-        constexpr std::array<cap_name_entry, 1> legacy_cap_names{{cap_name_entry{CapA::id, CapA::view()}}};
-        auto legacy_holder = materialize<2, 4>(compose(compat_nodes(legacy_chain.node_span(), legacy_cap_names)));
-        if (!legacy_holder || legacy_holder->size() != 1) {
-            return util::unexpected(util::Errc::bad_state);
-        }
-        if (legacy_holder->node_kinds[0] != materialized_node_kind::legacy) {
-            return util::unexpected(util::Errc::bad_state);
-        }
-        if (legacy_holder->provides_name_storage[0][0] != CapA::view()) {
-            return util::unexpected(util::Errc::bad_state);
-        }
-
         std::optional<LegacyNodeHolder> optional_holder{LegacyNodeHolder{}};
         auto maybe_optional = materialize<2, 4>(compose(maybe(optional_holder)));
         if (!maybe_optional || maybe_optional->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
         if (maybe_optional->node_kinds[0] != materialized_node_kind::legacy) {
-            return util::unexpected(util::Errc::bad_state);
-        }
-
-        auto legacy_optional = materialize<2, 4>(compose(legacy_optional_ref<LegacyNodeHolder>{&optional_holder}));
-        if (!legacy_optional || legacy_optional->size() != 1) {
-            return util::unexpected(util::Errc::bad_state);
-        }
-        if (legacy_optional->node_kinds[0] != materialized_node_kind::legacy) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

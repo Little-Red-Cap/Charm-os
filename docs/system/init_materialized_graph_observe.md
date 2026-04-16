@@ -102,11 +102,11 @@
 
 ### legacy 名称恢复
 
-当前 compat 路径已经支持两种最小命名恢复方式。
+当前主路径只保留对象级命名恢复。
 
-#### 1. 对象级 hook
+#### 对象级 hook
 
-如果通过 `as_plan(...)`、`legacy(...)`、`maybe(...)` 等路径接入的 legacy 对象实现：
+如果通过 `as_plan(...)`、`maybe(...)`，或 `plan()` 内部组合出来的单节点 binding 实现：
 
 ```cpp
 std::string_view capability_name(init::CapId id) const noexcept;
@@ -116,9 +116,9 @@ std::string_view capability_name(init::CapId id) const noexcept;
 
 这适合：
 
-- 单节点 legacy binding
-- 暴露 `for_each_legacy_node(...)` 的旧 chain
-- 暴露 `node_span()` 的旧 chain
+- 单节点 binding
+- `maybe(optional_item)` 包裹的单节点 binding
+- `plan()` 内部组合出来的 binding 节点
 
 当前仓库里，`init + system bringup` 主路径上常见的 legacy binding 已经逐步补齐这类 hook，例如：
 
@@ -131,30 +131,7 @@ std::string_view capability_name(init::CapId id) const noexcept;
 
 因此像 `bringup_block_observe_demo`、`bringup_minimal_observe_demo` 这类更贴近真实 bringup 的导出结果，已经可以直接显示可读 capability 名称，而不只是十六进制 `CapId`。
 
-#### 2. raw span 名称表
-
-如果调用方只有裸 `Node*` span，可以使用：
-
-```cpp
-init::compat_nodes(nodes, capability_names)
-```
-
-其中 `capability_names` 是 `std::span<const init::cap_name_entry>`。
-
-`cap_name_entry` 当前形态为：
-
-```cpp
-struct cap_name_entry {
-    CapId id;
-    std::string_view name;
-};
-```
-
-这适合：
-
-- bringup 兼容入口临时带名字表
-- 历史 `node_span()` 世界做最小观察增强
-- 不想改 legacy `Node` IR 本体时的过渡接入
+原先面向 raw `Node*` span 的 `compat_nodes(...) + cap_name_entry` 入口已经移除；观察导出现在只跟随新的 `Plan` 主路径。
 
 ## DOT 导出
 

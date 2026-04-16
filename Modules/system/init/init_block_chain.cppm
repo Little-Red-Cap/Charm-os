@@ -33,11 +33,6 @@ export namespace charm::system {
             return init::as_plan(binding);
         }
 
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(binding.node);
-        }
-
         template <util::usize MaxNodes, util::usize MaxCaps>
         util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
                                  util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
@@ -65,11 +60,6 @@ export namespace charm::system {
         constexpr auto plan() const noexcept {
             return init::as_plan(binding);
         }
-
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(binding.node);
-        }
     };
 #endif
 
@@ -89,11 +79,6 @@ export namespace charm::system {
 
         constexpr auto plan() const noexcept {
             return init::as_plan(binding);
-        }
-
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(binding.node);
         }
 
         template <util::usize MaxNodes, util::usize MaxCaps>
@@ -122,11 +107,6 @@ export namespace charm::system {
 
         constexpr auto plan() const noexcept {
             return init::as_plan(binding);
-        }
-
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(binding.node);
         }
 
         template <util::usize MaxNodes, util::usize MaxCaps>

@@ -89,14 +89,6 @@ export namespace charm::system {
                 init::as_plan(pump_binding));
         }
 
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(transport_binding.node);
-            fn(sdo_binding.node);
-            fn(nmt_binding.node);
-            fn(pump_binding.node);
-        }
-
         template <util::usize MaxNodes, util::usize MaxCaps>
         util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
                                  util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),

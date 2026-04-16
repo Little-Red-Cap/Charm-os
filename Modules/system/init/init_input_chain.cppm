@@ -86,13 +86,6 @@ export namespace charm::system {
                 init::as_plan(pump_binding));
         }
 
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(service_binding.node);
-            fn(router_binding.node);
-            fn(pump_binding.node);
-        }
-
         input::Router& router_ref() noexcept { return router; }
 
         template <util::usize MaxNodes, util::usize MaxCaps>

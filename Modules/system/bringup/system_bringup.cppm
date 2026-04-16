@@ -1,7 +1,6 @@
 ﻿module;
 
 #include <optional>
-#include <span>
 #include <string_view>
 
 export module charm.system.bringup;
@@ -310,13 +309,6 @@ export namespace charm::system {
         constexpr auto plan(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                             init::Phase max_phase = init::Phase::app) const noexcept {
             return plan(init::compose(), runlevel_mask, max_phase);
-        }
-
-        [[deprecated("use start_plan(...) instead of passing extra Node spans")]]
-        util::Result<void> start(util::u32 runlevel_mask,
-                                 init::Phase max_phase,
-                                 std::span<const init::Node* const> extra_nodes) noexcept {
-            return start_plan(init::compat_nodes(extra_nodes), runlevel_mask, max_phase);
         }
 
         template <typename ExtraPlan>

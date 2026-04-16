@@ -26,11 +26,6 @@ export namespace charm::system {
             return init::as_plan(spi_binding);
         }
 
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(spi_binding.node);
-        }
-
         template <util::usize MaxNodes, util::usize MaxCaps>
         util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
                                  util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),

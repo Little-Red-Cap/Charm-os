@@ -23,10 +23,5 @@ export namespace charm::system {
         constexpr auto plan() const noexcept {
             return init::as_plan(binding);
         }
-
-        template <typename Fn>
-        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            fn(binding.node);
-        }
     };
 }

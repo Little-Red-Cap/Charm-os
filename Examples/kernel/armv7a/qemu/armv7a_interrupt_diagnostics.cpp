@@ -304,6 +304,8 @@ void armv7a_interrupt_print_special_ack(const char* label,
                                         Armv7aPlatformInterruptRoute route,
                                         const Armv7aInterruptObservation& observation)
 {
+    const auto synthetic = armv7a_special_interrupt_synthetic(observation);
+
     armv7a_diag_print_context("interrupt");
     armv7a_platform_early_console_puts(label);
     armv7a_platform_early_console_puts(", intid=");
@@ -323,7 +325,7 @@ void armv7a_interrupt_print_special_ack(const char* label,
     armv7a_platform_early_console_puts(", return-pc=0x");
     armv7a_diag_put_hex(observation.entry.return_pc);
     armv7a_platform_early_console_puts(", synthetic=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(observation.synthetic));
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(synthetic));
     armv7a_platform_early_console_puts("\r\n");
 }
 

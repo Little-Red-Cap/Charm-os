@@ -5,6 +5,7 @@
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
+#include "armv7a_special_interrupt_contract.hpp"
 #include "armv7a_interrupt_timeout_contract.hpp"
 #include "armv7a_psr_contract.hpp"
 #include "armv7a_stack_observation_contract.hpp"
@@ -1098,6 +1099,46 @@ namespace {
                    Armv7aPlatformInterruptRoute::kIrq, sgi_irq_timeout, observation_delivery);
     }
 
+    bool verify_armv7a_special_interrupt_contract() noexcept {
+        Armv7aInterruptObservation special_ack{};
+        special_ack.special = true;
+        special_ack.synthetic = true;
+        special_ack.intid = 1023u;
+        special_ack.controller =
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 0x000003FFu,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            };
+        special_ack.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x1Fu, 0x40000000u);
+
+        auto nonspecial = special_ack;
+        nonspecial.special = false;
+
+        auto nonsynthetic = special_ack;
+        nonsynthetic.synthetic = false;
+
+        Armv7aInterruptObservation special_unseen{};
+        special_unseen.special = true;
+        special_unseen.intid = 1023u;
+
+        auto special_busy = special_ack;
+        special_busy.controller.highest_pending_special = false;
+        special_busy.controller.highest_pending_intid = 1u;
+
+        return armv7a_special_interrupt_observed(special_ack) &&
+               armv7a_special_interrupt_delivery_suppressed(special_ack) &&
+               armv7a_special_interrupt_controller_idle(special_ack) &&
+               armv7a_special_interrupt_synthetic(special_ack) &&
+               armv7a_special_interrupt_spurious(special_ack, 1023u) &&
+               !armv7a_special_interrupt_spurious(special_ack, 1022u) &&
+               !armv7a_special_interrupt_observed(special_unseen) &&
+               !armv7a_special_interrupt_observed(nonspecial) &&
+               !armv7a_special_interrupt_delivery_suppressed(nonspecial) &&
+               !armv7a_special_interrupt_controller_idle(special_busy) &&
+               !armv7a_special_interrupt_synthetic(nonsynthetic);
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -1765,6 +1806,8 @@ int main() {
         verify_armv7a_interrupt_lifecycle_contract();
     const bool armv7_interrupt_timeout_contract_ok =
         verify_armv7a_interrupt_timeout_contract();
+    const bool armv7_special_interrupt_contract_ok =
+        verify_armv7a_special_interrupt_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1825,7 +1868,8 @@ int main() {
                     armv7_stack_observation_contract_ok &&
                     armv7_vector_exit_contract_ok &&
                     armv7_interrupt_lifecycle_contract_ok &&
-                    armv7_interrupt_timeout_contract_ok;
+                    armv7_interrupt_timeout_contract_ok &&
+                    armv7_special_interrupt_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1899,6 +1943,8 @@ int main() {
                 armv7_interrupt_lifecycle_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_interrupt_timeout_contract=%d\n",
                 armv7_interrupt_timeout_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_special_interrupt_contract=%d\n",
+                armv7_special_interrupt_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

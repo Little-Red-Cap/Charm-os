@@ -411,6 +411,24 @@ SSU 已经证明了另一件事：
 - 哪条仍然 `unknown`
 - 对应证据究竟来自哪里
 
+为了把这张解释面真正守成回归，仓库现在还提供了一个最小 smoke：
+
+- `scripts/materialized_graph_resource_contract_smoke.ps1`
+
+它当前直接消费已有 `artifact-report` 输出，并复用
+`inspect_system_compiler_artifact_report.ps1 -ResourceSummary` 的真实查询结果，
+重点守住下面几类最小断言：
+
+- 至少存在一条已声明资源契约
+- `needs_monotonic_clock` 能稳定命中 `system.clock`
+- `board.win_stub` 这类板级事实能同时出现在 `declared_facts / subject_facts`
+- 资源事实来源里仍能明确指出 `audit_provided_facts`
+
+也就是说，当前这条 smoke 守的不是“另写一套资源语义”，
+而是：
+
+> **确保 explain surface 对资源契约的说法，和正式 artifact report 保持同一事实来源。**
+
 ## 10. v0 的工程边界
 
 当前最健康的推进方式是：

@@ -573,6 +573,21 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 覆盖默认值。
 
+如果要把 `artifact report -> resource summary` 这条资源法律解释面也守成正式回归，
+仓库根目录现在还提供了：
+
+```powershell
+./scripts/materialized_graph_resource_contract_smoke.ps1 -ArtifactRoot out/materialized-graph-ci/artifact-report -Case bringup-minimal-observe-demo
+```
+
+它当前会直接复用 `inspect_system_compiler_artifact_report.ps1 -ResourceSummary`
+的真实查询结果，并断言：
+
+- 资源契约声明数大于零
+- `needs_monotonic_clock` 仍满足于 `system.clock`
+- `board.win_stub` 这类板级事实仍能同时出现在 `declared_facts / subject_facts`
+- `fact_sources["system.clock"]` 仍明确包含 `audit_provided_facts`
+
 仓库现在还提供了一个对应的 GitHub Actions 工作流：
 
 - `.github/workflows/materialized-graph-observe.yml`
@@ -585,8 +600,11 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - 在 candidate 工作树执行 `ci_materialized_graph_bundle.ps1` 生成 diff 与 Markdown / HTML 报告
 - 在 candidate 工作树额外执行 `materialized_graph_runtime_plane_smoke.ps1`
   守住 `runtime_only` 与静态 graph 平面的边界
+- 在 candidate 工作树额外执行 `materialized_graph_resource_contract_smoke.ps1`
+  守住 `artifact report -> resource summary` 的资源法律解释面
 - 上传 `out/materialized-graph-baseline`、`out/materialized-graph-ci`
-  与 `out/materialized-graph-runtime-plane-smoke` 作为 workflow artifact
+  与 `out/materialized-graph-runtime-plane-smoke`
+  和 `out/materialized-graph-resource-contract-smoke` 作为 workflow artifact
 - 把关键计数与报告路径写入 GitHub Step Summary，方便直接在 Actions 页面浏览
 
 ## 当前验收点

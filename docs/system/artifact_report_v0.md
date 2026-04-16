@@ -527,11 +527,27 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `metadata_changes`
 - `node_changes`
 - `edge_changes`
+- `resource_contract`
 
 这组字段不应取代底层 `bundle_diff`，
 但它应该把 case 级最重要的比较结论直接拉到报告顶层。
 对于 metadata-only diff，当前 `status` 仍可保持 `unchanged`，
 但 `metadata_changes` 不应被吞掉。
+而 `comparison.resource_contract` 则用于承载“结构未变但资源法律发生漂移”的比较面，
+避免把资源契约变更误塞回结构 diff 语义。
+
+`comparison.resource_contract` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `contract_changes`
+- `provided_fact_changes`
+- `hotspot_changes`
+
+这意味着 compare 模式下即使顶层 `status = unchanged`，
+报告仍然可以明确回答 baseline/candidate 的资源契约是否发生漂移，
+以及是哪条合同从 `absent / satisfied / violated / unknown` 之间切换了状态。
 
 ### 5.8 支持工件引用
 
@@ -571,7 +587,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
   "generated_at_utc": "2026-04-15T10:30:00Z",
   "generator": "charm.system_compiler",
   "report_kind": "system_compiler.artifact_report",
-  "mode": "export_only",
+  "mode": "compare",
   "subject": {
     "case": "bringup-minimal-observe-demo",
     "profile": "MCU_MIN",
@@ -645,11 +661,55 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
     ]
   },
   "comparison": {
-    "status": "changed",
-    "summary_changes": ["node_count:9->10"],
-    "metadata_changes": [],
-    "node_changes": {"added": 1, "removed": 0, "changed": 0},
-    "edge_changes": {"added": 1, "removed": 0}
+    "status": "unchanged",
+    "summary_changes": [],
+    "metadata_changes": [
+      "declared_contracts:[needs_monotonic_clock requires [system.clock]]->[needs_heap requires [system.heap], needs_monotonic_clock requires [system.clock]]"
+    ],
+    "node_changes": {"added": 0, "removed": 0, "changed": 0},
+    "edge_changes": {"added": 0, "removed": 0},
+    "resource_contract": {
+      "changed": true,
+      "left": {
+        "declared_contracts": 1,
+        "audited_count": 1,
+        "satisfied_count": 1,
+        "violated_count": 0,
+        "unknown_count": 0,
+        "provided_facts": ["system.clock"],
+        "resource_hotspots": []
+      },
+      "right": {
+        "declared_contracts": 2,
+        "audited_count": 2,
+        "satisfied_count": 1,
+        "violated_count": 1,
+        "unknown_count": 0,
+        "provided_facts": ["system.clock"],
+        "resource_hotspots": ["needs_heap missing [system.heap] requires [system.heap]"]
+      },
+      "summary_changes": [
+        "declared_contracts:1->2",
+        "violated_count:0->1"
+      ],
+      "contract_changes": [
+        {
+          "contract": "needs_heap",
+          "change_kind": "added",
+          "left_state": "absent",
+          "right_state": "violated",
+          "left_requires": [],
+          "right_requires": ["system.heap"],
+          "left_status_text": null,
+          "right_status_text": "needs_heap missing [system.heap] requires [system.heap]"
+        }
+      ],
+      "provided_fact_changes": {"added": [], "removed": []},
+      "hotspot_changes": {
+        "added": ["needs_heap missing [system.heap] requires [system.heap]"],
+        "removed": []
+      }
+    }
   },
   "artifacts": {
     "bundle": "out/materialized-graph-bundle/index.json",
@@ -657,7 +717,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
     "dot": "out/materialized-graph-bundle/case/materialized_graph.dot",
     "sample_json": "out/materialized-graph-bundle/case/materialized_graph.sample.json",
     "runtime_observe": "out/materialized-graph-bundle/case/runtime_observe.snapshot.json",
-    "diff": null,
+    "diff": "out/report/materialized_graph_bundle.diff.json",
     "ci_summary": null,
     "report_manifest": "out/report/materialized_graph_bundle_diff_report.manifest.json",
     "report_markdown": "out/report/materialized_graph_bundle_diff_report.md",

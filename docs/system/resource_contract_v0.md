@@ -415,6 +415,7 @@ SSU 已经证明了另一件事：
 
 - `scripts/materialized_graph_resource_contract_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_matrix_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
 
 它当前直接消费已有 `artifact-report` 输出，并复用
 `inspect_system_compiler_artifact_report.ps1 -ResourceSummary` 的真实查询结果，
@@ -424,11 +425,18 @@ SSU 已经证明了另一件事：
 - `needs_monotonic_clock` 能稳定命中 `system.clock`
 - `board.win_stub` 这类板级事实能同时出现在 `declared_facts / subject_facts`
 - 资源事实来源里仍能明确指出 `audit_provided_facts`
+- metadata-only diff 不会吞掉资源契约漂移
+- compare 模式下的 `comparison.resource_contract` 能明确给出 `left / right / contract_changes`
+- `-ResourceSummary -AsJson` 能继续把 compare 资源面暴露给 explain surface
 
 也就是说，当前这条 smoke 守的不是“另写一套资源语义”，
 而是：
 
 > **确保 explain surface 对资源契约的说法，和正式 artifact report 保持同一事实来源。**
+
+对 compare 场景来说，这条纪律还要再往前一步：
+
+> **即使 case 级结构 diff 仍然是 `unchanged`，资源契约漂移也必须以正式 compare 负载被保留下来。**
 
 与此同时，`inspect_system_compiler_artifact_report.ps1 -ArtifactRoot ... -ResourceSummary`
 现在也已经支持直接返回 `artifact_root` 级聚合结果。

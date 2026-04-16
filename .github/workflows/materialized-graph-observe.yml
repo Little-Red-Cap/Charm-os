@@ -116,6 +116,14 @@ jobs:
             -ArtifactRoot ../out/materialized-graph-ci/artifact-report `
             -OutputRoot ../out/materialized-graph-resource-contract-matrix-smoke
 
+      - name: Run resource contract compare smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_resource_contract_compare_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-resource-contract-compare-smoke
+
       - name: Validate materialized graph artifacts
         shell: pwsh
         working-directory: candidate
@@ -124,7 +132,9 @@ jobs:
             --bundle-root ../out/materialized-graph-baseline `
             --ci-output-root ../out/materialized-graph-ci `
             ../out/materialized-graph-runtime-plane-smoke/runtime_plane_diff.json `
-            ../out/materialized-graph-runtime-plane-smoke/report/materialized_graph_bundle_diff_report.manifest.json
+            ../out/materialized-graph-runtime-plane-smoke/report/materialized_graph_bundle_diff_report.manifest.json `
+            ../out/materialized-graph-resource-contract-compare-smoke/artifact-report/bringup-minimal-observe-demo.artifact_report.json `
+            ../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare.diff.json
 
       - name: Publish workflow summary
         shell: pwsh
@@ -135,6 +145,7 @@ jobs:
           $runtimePlane = Get-Content -LiteralPath ../out/materialized-graph-runtime-plane-smoke/runtime_plane_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $resourceContract = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-smoke/resource_contract_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $resourceContractMatrix = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-matrix-smoke/resource_contract_matrix_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $resourceContractCompare = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           @(
             '## Materialized Graph Observe'
             ''
@@ -164,6 +175,11 @@ jobs:
             "- Resource contract matrix smoke contract: `$($resourceContractMatrix.expected_contract)`"
             "- Resource contract matrix smoke fact: `$($resourceContractMatrix.expected_fact)`"
             "- Resource contract matrix smoke summary: `../out/materialized-graph-resource-contract-matrix-smoke/resource_contract_matrix_smoke.summary.json`"
+            "- Resource contract compare smoke case: `$($resourceContractCompare.case)`"
+            "- Resource contract compare smoke added contract: `$($resourceContractCompare.added_contract)`"
+            "- Resource contract compare smoke artifact report: `$($resourceContractCompare.artifact_report)`"
+            "- Resource contract compare smoke diff: `$($resourceContractCompare.diff_json)`"
+            "- Resource contract compare smoke summary: `../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare_smoke.summary.json`"
           ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Upload materialized graph artifacts
@@ -178,3 +194,4 @@ jobs:
             out/materialized-graph-runtime-plane-smoke
             out/materialized-graph-resource-contract-smoke
             out/materialized-graph-resource-contract-matrix-smoke
+            out/materialized-graph-resource-contract-compare-smoke

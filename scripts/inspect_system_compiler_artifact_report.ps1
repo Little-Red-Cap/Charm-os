@@ -2136,16 +2136,29 @@ if ($ResourceSummary) {
     }
 
     $resourceSummaryResult = New-ResourceSummaryResult -ReportData $reportData -GraphInfo $graphInfo
+    $resourceContractComparison = $null
+    if ($null -ne $reportData.PSObject.Properties['comparison'] -and
+        $null -ne $reportData.comparison -and
+        $null -ne $reportData.comparison.PSObject.Properties['resource_contract']) {
+        $resourceContractComparison = $reportData.comparison.resource_contract
+    }
 
     if ($AsJson) {
+        $queryPayload = [ordered]@{
+            kind = 'resource_summary'
+            scope = 'report'
+            result = $resourceSummaryResult
+        }
+        if ($null -ne $resourceContractComparison) {
+            $queryPayload.comparison = [ordered]@{
+                resource_contract = $resourceContractComparison
+            }
+        }
+
         [ordered]@{
             report_path = $loadedReport.Path
             subject = $reportData.subject
-            query = [ordered]@{
-                kind = 'resource_summary'
-                scope = 'report'
-                result = $resourceSummaryResult
-            }
+            query = $queryPayload
         } | ConvertTo-Json -Depth 10
         exit 0
     }
@@ -2192,6 +2205,31 @@ if ($ResourceSummary) {
         Write-Host '[RESOURCE HOTSPOTS]'
         foreach ($hotspot in @($resourceSummaryResult.resource_hotspots)) {
             Write-Host "hotspot = $([string]$hotspot)"
+        }
+    }
+
+    if ($null -ne $resourceContractComparison) {
+        Write-Host ''
+        Write-Host '[RESOURCE CONTRACT COMPARE]'
+        Write-Host "left  = declared:$([int]$resourceContractComparison.left.declared_contracts), satisfied:$([int]$resourceContractComparison.left.satisfied_count), violated:$([int]$resourceContractComparison.left.violated_count), unknown:$([int]$resourceContractComparison.left.unknown_count)"
+        Write-Host "right = declared:$([int]$resourceContractComparison.right.declared_contracts), satisfied:$([int]$resourceContractComparison.right.satisfied_count), violated:$([int]$resourceContractComparison.right.violated_count), unknown:$([int]$resourceContractComparison.right.unknown_count)"
+        if (@($resourceContractComparison.summary_changes).Count -gt 0) {
+            Write-Host "summary_changes = $((@($resourceContractComparison.summary_changes) -join '; '))"
+        }
+        if (@($resourceContractComparison.provided_fact_changes.added).Count -gt 0 -or @($resourceContractComparison.provided_fact_changes.removed).Count -gt 0) {
+            Write-Host "provided_fact_changes = +[$((@($resourceContractComparison.provided_fact_changes.added) -join ', '))] -[$((@($resourceContractComparison.provided_fact_changes.removed) -join ', '))]"
+        }
+        if (@($resourceContractComparison.hotspot_changes.added).Count -gt 0 -or @($resourceContractComparison.hotspot_changes.removed).Count -gt 0) {
+            Write-Host "hotspot_changes = +[$((@($resourceContractComparison.hotspot_changes.added) -join '; '))] -[$((@($resourceContractComparison.hotspot_changes.removed) -join '; '))]"
+        }
+        foreach ($contractChange in @($resourceContractComparison.contract_changes)) {
+            Write-Host "contract = $([string]$contractChange.contract) change=$([string]$contractChange.change_kind) $([string]$contractChange.left_state)->$([string]$contractChange.right_state)"
+            if (@($contractChange.left_requires).Count -gt 0 -or @($contractChange.right_requires).Count -gt 0) {
+                Write-Host "requires = left[$((@($contractChange.left_requires) -join ', '))] right[$((@($contractChange.right_requires) -join ', '))]"
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$contractChange.left_status_text) -or -not [string]::IsNullOrWhiteSpace([string]$contractChange.right_status_text)) {
+                Write-Host "status_text = left{$([string]$contractChange.left_status_text)} right{$([string]$contractChange.right_status_text)}"
+            }
         }
     }
     exit 0
@@ -2346,6 +2384,16 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
     }
     if (@($reportData.comparison.metadata_changes).Count -gt 0) {
         Write-Host "metadata_changes = $((@($reportData.comparison.metadata_changes) -join '; '))"
+    }
+    if ($null -ne $reportData.comparison.PSObject.Properties['resource_contract'] -and $null -ne $reportData.comparison.resource_contract) {
+        $resourceContractComparison = $reportData.comparison.resource_contract
+        Write-Host "resource_contract = changed:$([bool]$resourceContractComparison.changed)"
+        if (@($resourceContractComparison.summary_changes).Count -gt 0) {
+            Write-Host "resource_contract.summary_changes = $((@($resourceContractComparison.summary_changes) -join '; '))"
+        }
+        if (@($resourceContractComparison.contract_changes).Count -gt 0) {
+            Write-Host "resource_contract.contract_changes = $([int]@($resourceContractComparison.contract_changes).Count)"
+        }
     }
     Write-Host ''
 }

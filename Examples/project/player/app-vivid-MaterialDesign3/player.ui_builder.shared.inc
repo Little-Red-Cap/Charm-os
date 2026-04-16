@@ -399,7 +399,7 @@
             .list_path_text_right_gap = 46,
             .list_sort_radius = 16,
             .list_path_icon_radius = 12,
-            .list_body_top_gap = 24,
+            .list_body_top_gap = 10,
             .list_body_bottom_gap = 20,
             .list_body_side_gap = 16,
             .list_scroll_w = 10,

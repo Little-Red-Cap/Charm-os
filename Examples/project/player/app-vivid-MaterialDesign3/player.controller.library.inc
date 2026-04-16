@@ -237,7 +237,8 @@
                 out.detail_primary = out.model->title.view();
                 out.detail_secondary = out.model->subtitle.view();
             }
-            out.show_tail_action = out.selected_row;
+            const bool row_has_action = (out.model != nullptr) || (out.track_index >= 0);
+            out.show_tail_action = row_has_action && (out.selected_row || !out.current_row);
             out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
             out.tail_icon = out.current_row
                 ? (is_paused() ? icons.pause : icons.play)

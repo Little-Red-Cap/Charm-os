@@ -177,6 +177,13 @@
         const Rect list_card_rect{kUiPadding, layout.list_card_y,
                                   screen_width - kUiPadding * 2, layout.list_card_h};
         const Rect list_card_local_rect{0, 0, list_card_rect.w, list_card_rect.h};
+        const int list_body_top =
+            lib_layout.list_title_top_gap
+            + lib_layout.list_title_h
+            + lib_layout.list_path_top_gap
+            + lib_layout.list_path_h
+            + lib_layout.list_path_bg_h_extra
+            + lib_layout.list_body_top_gap;
         const ::ui::scene::ListCardHeaderLayout list_header_layout =
             ::ui::scene::make_list_card_header_layout(
                 list_card_local_rect,
@@ -193,7 +200,7 @@
                     .path_side_gap = lib_layout.list_path_side_gap,
                     .path_h = lib_layout.list_path_h,
                     .path_bg_h_extra = lib_layout.list_path_bg_h_extra,
-                    .body_top_gap = lib_layout.list_header_h,
+                    .body_top_gap = list_body_top,
                     .body_side_gap = lib_layout.list_body_side_gap,
                     .body_bottom_gap = lib_layout.list_body_bottom_gap,
                     .scroll_w = lib_layout.list_scroll_w,
@@ -231,7 +238,7 @@
             builder.set_style_override(list_header_plate, patch);
             builder.set_hit_testable(list_header_plate, false);
         }
-        const int list_body_plate_y = list_header_layout.body_rect.y - 8;
+        const int list_body_plate_y = list_header_layout.body_rect.y - 2;
         const WidgetHandle list_body_plate = builder.create_container();
         anchor_rect(builder, list_body_plate,
                     {lib_layout.list_body_side_gap - 4, list_body_plate_y,

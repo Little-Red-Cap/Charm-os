@@ -4,8 +4,9 @@ This is the first Cortex-A oriented leaf target for Charm.
 It keeps startup, linker, and early UART code inside the example target
 instead of pushing ARMv7-A specifics into shared `Modules/`.
 The shared ARMv7-A handoff prepare contract now lives in
-`targets/armv7a/common/`, while this QEMU leaf keeps the hook
-implementation and runtime evidence local.
+`targets/armv7a/common/`, carries explicit load/payload/entry metadata,
+and lets this QEMU leaf keep the hook implementation and runtime evidence
+local.
 
 ## Build
 
@@ -138,6 +139,7 @@ ARMv7-A handler stack, vector=fiq, mode=fiq, sp=0x4050...., base=0x4050...., top
 ARMv7-A return evidence, vector=fiq, origin-mode=sys, current-mode=sys, origin-irq=masked, current-irq=masked, origin-fiq=enabled, current-fiq=enabled, mode-restored=yes, irq-restored=yes, fiq-restored=yes, sp=0x4050...., base=0x4050...., top=0x4050...., used=0x000000.., in-range=yes
 ARMv7-A security side evidence, scr-read=skipped, timer-route=non-secure-phys-ppi, irq-origin=sys, irq-handler=irq, fiq-origin=sys, fiq-handler=fiq, monitor-mode=not-observed
 ARMv7-A handoff context, vector-base=0x40200000, translation-table=0x4021...., image-base=0x40200000
+ARMv7-A handoff request, kind=copy, payload-base=0x40200000, entry=0x40200000, storage-payload=0x00000000, storage-entry=0x00000000, entry-offset=0x00000000, payload-size=0x00000000, image-size=0x00000000, flags=0x00000000
 ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
 ARMv7-A handoff quiesced, cntp_ctl=0x00000002, secure-line=group0/no/no/no, nonsecure-line=group1/no/no/no, sgi-line=group0/yes/no/no, gicd=0x00000000, gicc=0x00000000, hppir=0x000003FF, spurious=yes
 ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, tlb=yes, vectors=yes, sync=yes
@@ -152,7 +154,9 @@ ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00
 
 `run_qemu_ci.ps1` now configures and rebuilds the default `debug` preset
 before launching QEMU, so the smoke log stays aligned with the current source
-instead of whatever ELF happened to be left in `out\build\debug`.
+instead of whatever ELF happened to be left in `out\build\debug`. The default
+build leg now also uses `--parallel 1`, which keeps the ARM bare-metal GCC
+modules output stable during CI smoke runs.
 
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:

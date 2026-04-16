@@ -2,6 +2,7 @@ param(
     [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
     [string]$ElfPath = "out\\build\\debug\\charm-armv7a-qemu",
+    [int]$BuildJobs = 1,
     [int]$TimeoutSec = 10,
     [int]$TailLines = 40
 )
@@ -57,7 +58,7 @@ try {
         throw "cmake configure failed for preset: debug"
     }
 
-    & $cmake --build --preset debug
+    & $cmake --build --preset debug --parallel $BuildJobs
     if ($LASTEXITCODE -ne 0) {
         throw "cmake build failed for preset: debug"
     }
@@ -267,6 +268,9 @@ if (($log -notmatch "ARMv7-A security side evidence, scr-read=skipped, timer-sou
 }
 if (($log -notmatch "ARMv7-A handoff context, vector-base=0x[0-9A-F]{8}, translation-table=0x[0-9A-F]{8}, image-base=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A handoff context, vector-base=0x..."
+}
+if (($log -notmatch "ARMv7-A handoff request, kind=(copy|xip), payload-base=0x[0-9A-F]{8}, entry=0x[0-9A-F]{8}, storage-payload=0x[0-9A-F]{8}, storage-entry=0x[0-9A-F]{8}, entry-offset=0x[0-9A-F]{8}, payload-size=0x[0-9A-F]{8}, image-size=0x[0-9A-F]{8}, flags=0x[0-9A-F]{8}")) {
+    $missing += "ARMv7-A handoff request, kind=..."
 }
 if (($log -notmatch "ARMv7-A handoff masked, cpsr=0x[0-9A-F]{8}, irq=masked, fiq=masked")) {
     $missing += "ARMv7-A handoff masked, cpsr=0x..."

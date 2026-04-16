@@ -14,6 +14,18 @@ extern "C" void armv7a_vector_table();
 namespace {
 constexpr std::uint32_t kArmv7aL1TableSizeBytes = 16u * 1024u;
 
+const char* handoff_load_kind_name(Armv7aHandoffLoadKind kind)
+{
+    switch (kind) {
+    case Armv7aHandoffLoadKind::copy_to_ram:
+        return "copy";
+    case Armv7aHandoffLoadKind::xip:
+        return "xip";
+    default:
+        return "unknown";
+    }
+}
+
 void print_interrupt_line_state(const Armv7aPlatformInterruptLineState& state)
 {
     armv7a_platform_early_console_puts(armv7a_platform_interrupt_line_group_name(state));
@@ -33,6 +45,29 @@ void print_handoff_context(const Armv7aHandoffPrepareContext& context)
     armv7a_diag_put_hex(context.translation_table_base);
     armv7a_platform_early_console_puts(", image-base=0x");
     armv7a_diag_put_hex(context.image_load_base);
+    armv7a_platform_early_console_puts("\r\n");
+}
+
+void print_handoff_request(const Armv7aHandoffPrepareContext& context)
+{
+    armv7a_platform_early_console_puts("ARMv7-A handoff request, kind=");
+    armv7a_platform_early_console_puts(handoff_load_kind_name(context.exec.kind));
+    armv7a_platform_early_console_puts(", payload-base=0x");
+    armv7a_diag_put_hex(context.exec.payload_base);
+    armv7a_platform_early_console_puts(", entry=0x");
+    armv7a_diag_put_hex(context.exec.entry_addr);
+    armv7a_platform_early_console_puts(", storage-payload=0x");
+    armv7a_diag_put_hex(context.exec.storage_payload_offset);
+    armv7a_platform_early_console_puts(", storage-entry=0x");
+    armv7a_diag_put_hex(context.exec.storage_entry_offset);
+    armv7a_platform_early_console_puts(", entry-offset=0x");
+    armv7a_diag_put_hex(context.exec.entry_offset);
+    armv7a_platform_early_console_puts(", payload-size=0x");
+    armv7a_diag_put_hex(context.exec.payload_size);
+    armv7a_platform_early_console_puts(", image-size=0x");
+    armv7a_diag_put_hex(context.exec.image_size);
+    armv7a_platform_early_console_puts(", flags=0x");
+    armv7a_diag_put_hex(context.exec.image_flags);
     armv7a_platform_early_console_puts("\r\n");
 }
 
@@ -132,6 +167,12 @@ Armv7aHandoffPrepareContext armv7a_current_handoff_prepare_context()
 {
     const auto& address_space = armv7a_platform_address_space();
     return Armv7aHandoffPrepareContext{
+        .exec =
+            Armv7aHandoffExecRequest{
+                .kind = Armv7aHandoffLoadKind::copy_to_ram,
+                .payload_base = address_space.image_load_base,
+                .entry_addr = reinterpret_cast<std::uintptr_t>(&armv7a_vector_table),
+            },
         .vector_base = reinterpret_cast<std::uintptr_t>(&armv7a_vector_table),
         .translation_table_base = armv7a_boot_l1_table_base(),
         .image_load_base = address_space.image_load_base,
@@ -258,6 +299,7 @@ void armv7a_run_handoff_prepare_dry_run()
     const auto context = armv7a_current_handoff_prepare_context();
     const auto contract = armv7a_make_qemu_handoff_prepare_contract();
     print_handoff_context(context);
+    print_handoff_request(context);
 
     const auto report = armv7a_run_handoff_prepare(context, contract);
     print_handoff_masked_state();

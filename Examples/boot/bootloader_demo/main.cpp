@@ -1,3 +1,5 @@
+#include "armv7a_handoff_contract.hpp"
+
 #include <array>
 #include <cstdio>
 #include <cstring>
@@ -124,6 +126,38 @@ namespace {
         }
     }
 
+    Armv7aHandoffLoadKind to_armv7a_handoff_load_kind(
+        platform::board::BootLoadKind kind) noexcept {
+        switch (kind) {
+        case platform::board::BootLoadKind::xip:
+            return Armv7aHandoffLoadKind::xip;
+        case platform::board::BootLoadKind::copy_to_ram:
+        default:
+            return Armv7aHandoffLoadKind::copy_to_ram;
+        }
+    }
+
+    Armv7aHandoffLoadKind to_armv7a_handoff_load_kind(boot::BootLoadKind kind) noexcept {
+        switch (kind) {
+        case boot::BootLoadKind::xip:
+            return Armv7aHandoffLoadKind::xip;
+        case boot::BootLoadKind::copy_to_ram:
+        default:
+            return Armv7aHandoffLoadKind::copy_to_ram;
+        }
+    }
+
+    platform::board::BootLoadKind to_board_boot_load_kind(
+        Armv7aHandoffLoadKind kind) noexcept {
+        switch (kind) {
+        case Armv7aHandoffLoadKind::xip:
+            return platform::board::BootLoadKind::xip;
+        case Armv7aHandoffLoadKind::copy_to_ram:
+        default:
+            return platform::board::BootLoadKind::copy_to_ram;
+        }
+    }
+
     enum class MockPrepareStep : util::u8 {
         mask_cpu_exceptions = 0,
         quiesce_interrupt_controller,
@@ -143,6 +177,7 @@ namespace {
         util::u32 expected_storage_entry_offset{0};
         util::usize expected_vector_base{0};
         util::usize expected_translation_table_base{0};
+        util::usize expected_image_load_base{0};
         platform::board::BootLoadKind expected_load_kind{
             platform::board::BootLoadKind::copy_to_ram};
         bool resolve_called{false};
@@ -326,6 +361,141 @@ namespace {
         return push_trace(*launch, MockPrepareStep::sync_context) &&
                prepare &&
                prepare.exec().payload_base != 0;
+    }
+
+    Armv7aHandoffPrepareContext make_armv7a_common_prepare_context(
+        const boot::BootExecution& execution,
+        util::usize vector_base,
+        util::usize translation_table_base,
+        util::usize image_load_base) noexcept {
+        return Armv7aHandoffPrepareContext{
+            .exec =
+                Armv7aHandoffExecRequest{
+                    .kind = to_armv7a_handoff_load_kind(execution.image.load.kind),
+                    .payload_base = execution.payload_base,
+                    .entry_addr = execution.entry_addr,
+                    .storage_payload_offset = execution.image.load.storage_payload_offset,
+                    .storage_entry_offset = execution.image.load.storage_entry_offset,
+                    .entry_offset = execution.image.load.entry_offset,
+                    .payload_size = execution.image.load.target.header.payload_size,
+                    .image_size = execution.image.load.target.header.image_size,
+                    .image_flags = execution.image.load.target.header.flags
+                },
+            .vector_base = vector_base,
+            .translation_table_base = translation_table_base,
+            .image_load_base = image_load_base
+        };
+    }
+
+    platform::board::BootExecRequest make_common_boot_exec_request(
+        const Armv7aHandoffPrepareContext& prepare) noexcept {
+        return platform::board::BootExecRequest{
+            .kind = to_board_boot_load_kind(prepare.exec.kind),
+            .payload_base = prepare.exec.payload_base,
+            .entry_addr = prepare.exec.entry_addr,
+            .storage_payload_offset = prepare.exec.storage_payload_offset,
+            .storage_entry_offset = prepare.exec.storage_entry_offset,
+            .entry_offset = prepare.exec.entry_offset,
+            .payload_size = prepare.exec.payload_size,
+            .image_size = prepare.exec.image_size,
+            .image_flags = prepare.exec.image_flags
+        };
+    }
+
+    bool matches_common_handoff_layout(const MockLaunchContext& launch,
+                                       const Armv7aHandoffPrepareContext& prepare) noexcept {
+        return prepare.vector_base == launch.expected_vector_base &&
+               prepare.translation_table_base == launch.expected_translation_table_base &&
+               (launch.expected_image_load_base == 0 ||
+                prepare.image_load_base == launch.expected_image_load_base);
+    }
+
+    bool matches_common_handoff_request(const MockLaunchContext& launch,
+                                        const Armv7aHandoffPrepareContext& prepare) noexcept {
+        return prepare.exec.kind == to_armv7a_handoff_load_kind(launch.expected_load_kind) &&
+               prepare.exec.storage_payload_offset == launch.expected_payload_offset &&
+               prepare.exec.storage_entry_offset == launch.expected_storage_entry_offset;
+    }
+
+    bool mask_common_cpu_exceptions(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::mask_cpu_exceptions) &&
+               prepare.exec.entry_addr != 0;
+    }
+
+    bool quiesce_common_interrupt_controller(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::quiesce_interrupt_controller) &&
+               prepare.exec.entry_addr != 0;
+    }
+
+    bool activate_common_payload_mapping(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::activate_payload_mapping) &&
+               matches_common_handoff_request(*launch, prepare) &&
+               matches_common_handoff_layout(*launch, prepare) &&
+               prepare.image_load_base != 0;
+    }
+
+    bool clean_common_data_cache(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::clean_data_cache) &&
+               prepare.exec.payload_size != 0;
+    }
+
+    bool invalidate_common_instruction_cache(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::invalidate_instruction_cache) &&
+               prepare.exec.image_size >= prepare.exec.payload_size &&
+               prepare.exec.image_flags != 0;
+    }
+
+    bool invalidate_common_tlb(void* ctx,
+                               const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::invalidate_tlb) &&
+               prepare.exec.entry_offset + prepare.exec.payload_base ==
+                   prepare.exec.entry_addr;
+    }
+
+    bool switch_common_exception_vectors(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::switch_exception_vectors) &&
+               matches_common_handoff_layout(*launch, prepare);
+    }
+
+    bool sync_common_context(
+        void* ctx, const Armv7aHandoffPrepareContext& prepare) noexcept {
+        auto* launch = static_cast<MockLaunchContext*>(ctx);
+        return push_trace(*launch, MockPrepareStep::sync_context) &&
+               prepare.exec.payload_base != 0;
+    }
+
+    Armv7aHandoffPrepareContract make_armv7a_mock_handoff_contract(
+        MockLaunchContext& launch) noexcept {
+        return Armv7aHandoffPrepareContract{
+            .hooks =
+                Armv7aHandoffPrepareHooks{
+                    .ctx = &launch,
+                    .mask_cpu_exceptions = mask_common_cpu_exceptions,
+                    .quiesce_interrupt_controller =
+                        quiesce_common_interrupt_controller,
+                    .activate_payload_mapping = activate_common_payload_mapping,
+                    .clean_data_cache = clean_common_data_cache,
+                    .invalidate_instruction_cache =
+                        invalidate_common_instruction_cache,
+                    .invalidate_tlb = invalidate_common_tlb,
+                    .switch_exception_vectors = switch_common_exception_vectors,
+                    .sync_context = sync_common_context
+                },
+            .policy = Armv7aHandoffPreparePolicy{}
+        };
     }
 
     std::vector<util::u8> make_header_frame(std::string_view file_name, util::u32 file_size) {
@@ -691,6 +861,54 @@ int main() {
                          MockPrepareStep::entry
                      });
 
+    MockLaunchContext armv7_common_copy_ctx{
+        .expected_payload_offset = load.storage_payload_offset,
+        .expected_storage_entry_offset = load.storage_entry_offset,
+        .expected_vector_base = 0xA000u,
+        .expected_translation_table_base = 0x6000u,
+        .expected_image_load_base = armv7_copy_execution.payload_base
+    };
+    const auto armv7_common_copy_prepare = make_armv7a_common_prepare_context(
+        armv7_copy_execution,
+        armv7_common_copy_ctx.expected_vector_base,
+        armv7_common_copy_ctx.expected_translation_table_base,
+        armv7_common_copy_ctx.expected_image_load_base);
+    const auto armv7_common_copy_contract =
+        make_armv7a_mock_handoff_contract(armv7_common_copy_ctx);
+    const auto armv7_common_copy_report =
+        armv7a_run_handoff_prepare(
+            armv7_common_copy_prepare,
+            armv7_common_copy_contract);
+    const auto armv7_common_copy_request =
+        make_common_boot_exec_request(armv7_common_copy_prepare);
+    const bool armv7_common_copy_prepared =
+        static_cast<bool>(armv7_common_copy_report) &&
+        prepare_mock_execution(&armv7_common_copy_ctx, armv7_common_copy_request);
+    const bool armv7_common_copy_executed =
+        armv7_common_copy_prepared &&
+        jump_mock_execution(&armv7_common_copy_ctx, armv7_common_copy_request);
+    const bool armv7_common_copy_ok =
+        static_cast<bool>(armv7_common_copy_report) &&
+        armv7_common_copy_prepared &&
+        armv7_common_copy_executed &&
+        armv7_common_copy_ctx.prepare_called &&
+        armv7_common_copy_ctx.jump_called &&
+        armv7_common_copy_ctx.entry_called &&
+        expect_trace(armv7_common_copy_ctx,
+                     {
+                         MockPrepareStep::mask_cpu_exceptions,
+                         MockPrepareStep::quiesce_interrupt_controller,
+                         MockPrepareStep::activate_payload_mapping,
+                         MockPrepareStep::clean_data_cache,
+                         MockPrepareStep::invalidate_instruction_cache,
+                         MockPrepareStep::invalidate_tlb,
+                         MockPrepareStep::switch_exception_vectors,
+                         MockPrepareStep::sync_context,
+                         MockPrepareStep::prepare_jump,
+                         MockPrepareStep::jump,
+                         MockPrepareStep::entry
+                     });
+
     MockLaunchContext armv7_xip_ctx{
         .expected_payload_offset = xip_load.storage_payload_offset,
         .expected_storage_entry_offset = xip_load.storage_entry_offset,
@@ -772,6 +990,55 @@ int main() {
                          MockPrepareStep::entry
                      });
 
+    MockLaunchContext armv7_common_xip_ctx{
+        .expected_payload_offset = xip_load.storage_payload_offset,
+        .expected_storage_entry_offset = xip_load.storage_entry_offset,
+        .expected_vector_base = 0xB000u,
+        .expected_translation_table_base = 0x7000u,
+        .expected_image_load_base = armv7_xip_execution.payload_base,
+        .expected_load_kind = platform::board::BootLoadKind::xip
+    };
+    const auto armv7_common_xip_prepare = make_armv7a_common_prepare_context(
+        armv7_xip_execution,
+        armv7_common_xip_ctx.expected_vector_base,
+        armv7_common_xip_ctx.expected_translation_table_base,
+        armv7_common_xip_ctx.expected_image_load_base);
+    const auto armv7_common_xip_contract =
+        make_armv7a_mock_handoff_contract(armv7_common_xip_ctx);
+    const auto armv7_common_xip_report =
+        armv7a_run_handoff_prepare(
+            armv7_common_xip_prepare,
+            armv7_common_xip_contract);
+    const auto armv7_common_xip_request =
+        make_common_boot_exec_request(armv7_common_xip_prepare);
+    const bool armv7_common_xip_prepared =
+        static_cast<bool>(armv7_common_xip_report) &&
+        prepare_mock_execution(&armv7_common_xip_ctx, armv7_common_xip_request);
+    const bool armv7_common_xip_executed =
+        armv7_common_xip_prepared &&
+        jump_mock_execution(&armv7_common_xip_ctx, armv7_common_xip_request);
+    const bool armv7_common_xip_ok =
+        static_cast<bool>(armv7_common_xip_report) &&
+        armv7_common_xip_prepared &&
+        armv7_common_xip_executed &&
+        armv7_common_xip_ctx.prepare_called &&
+        armv7_common_xip_ctx.jump_called &&
+        armv7_common_xip_ctx.entry_called &&
+        expect_trace(armv7_common_xip_ctx,
+                     {
+                         MockPrepareStep::mask_cpu_exceptions,
+                         MockPrepareStep::quiesce_interrupt_controller,
+                         MockPrepareStep::activate_payload_mapping,
+                         MockPrepareStep::clean_data_cache,
+                         MockPrepareStep::invalidate_instruction_cache,
+                         MockPrepareStep::invalidate_tlb,
+                         MockPrepareStep::switch_exception_vectors,
+                         MockPrepareStep::sync_context,
+                         MockPrepareStep::prepare_jump,
+                         MockPrepareStep::jump,
+                         MockPrepareStep::entry
+                     });
+
     const bool ok = slot_a_written &&
                     transfer_ok &&
                     static_cast<bool>(download) &&
@@ -819,7 +1086,9 @@ int main() {
                     bad_entry_rejected &&
                     xip_ok &&
                     armv7_copy_ok &&
-                    armv7_xip_ok;
+                    armv7_xip_ok &&
+                    armv7_common_copy_ok &&
+                    armv7_common_xip_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -870,6 +1139,9 @@ int main() {
     std::printf("[boot] armv7_copy=%d armv7_xip=%d\n",
                 armv7_copy_ok ? 1 : 0,
                 armv7_xip_ok ? 1 : 0);
+    std::printf("[boot] armv7_common_copy=%d armv7_common_xip=%d\n",
+                armv7_common_copy_ok ? 1 : 0,
+                armv7_common_xip_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

@@ -2,10 +2,29 @@
 
 #include <cstdint>
 
-// ARMv7-A leaf targets can share this prepare-stage contract without pulling
-// in boot/session modules. QEMU consumes it today; future Cortex-A targets can
-// plug in their own hook tables and reuse the same execution order.
+// ARMv7-A leaf targets can share this prepare-stage contract and the execution
+// request metadata it needs without pulling in boot/session modules. QEMU
+// consumes it today; future Cortex-A targets can plug in their own hook tables
+// and reuse the same execution order.
+enum class Armv7aHandoffLoadKind : std::uint8_t {
+    copy_to_ram = 0,
+    xip,
+};
+
+struct Armv7aHandoffExecRequest {
+    Armv7aHandoffLoadKind kind = Armv7aHandoffLoadKind::copy_to_ram;
+    std::uintptr_t payload_base = 0u;
+    std::uintptr_t entry_addr = 0u;
+    std::uint32_t storage_payload_offset = 0u;
+    std::uint32_t storage_entry_offset = 0u;
+    std::uint32_t entry_offset = 0u;
+    std::uint32_t payload_size = 0u;
+    std::uint32_t image_size = 0u;
+    std::uint16_t image_flags = 0u;
+};
+
 struct Armv7aHandoffPrepareContext {
+    Armv7aHandoffExecRequest exec{};
     std::uintptr_t vector_base = 0u;
     std::uintptr_t translation_table_base = 0u;
     std::uintptr_t image_load_base = 0u;

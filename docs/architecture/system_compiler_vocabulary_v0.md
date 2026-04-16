@@ -63,7 +63,7 @@ v0 阶段的使用规则如下：
 当前仓库里的主要载体是分散的：
 
 - 示例或应用目标的 CMake 组合
-- `scripts/materialized_graph.export_case_manifest.v1.json` 这类当前导出链输入清单
+- `scripts/materialized_graph.export_case_manifest.v1.json` 这类当前导出链输入清单与 per-case `declared_facts / declared_contracts`
 - `init.graph` 的装配链与 case 选择
 - 系统设计文档里的目标描述
 - `materialized_graph` / `artifact report` 里的 `subject.case` 作为临时投影
@@ -302,6 +302,8 @@ report / system 侧的现实载体包括：
 
 当前对应载体包括：
 
+- `export case manifest` 里的 per-case `declared_facts`
+- `export case manifest` 里的 per-case `declared_contracts.requires`
 - `required_facts`
 - `provided_facts`
 - board 已知资源与环境条件
@@ -390,7 +392,7 @@ report / system 侧的现实载体包括：
 | `Facet` | facet target、`active_facets`、语义面文档 | 词已出现，命名仍在收敛 | profile / target / component |
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
-| `Fact` | `required_facts` / `provided_facts` | 已在报告链出现 | 单纯等于 capability 名字 |
+| `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
 
 ## 6. 一个最小 worked example

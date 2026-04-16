@@ -437,6 +437,168 @@
         }
       }
     },
+    "stringArrayChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "resourceContractComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_contracts",
+        "audited_count",
+        "satisfied_count",
+        "violated_count",
+        "unknown_count",
+        "provided_facts",
+        "resource_hotspots"
+      ],
+      "properties": {
+        "declared_contracts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "audited_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "satisfied_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provided_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "resource_hotspots": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "resourceContractComparisonContractChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_requires",
+        "right_requires",
+        "left_status_text",
+        "right_status_text"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "declared",
+            "satisfied",
+            "violated",
+            "unknown"
+          ]
+        },
+        "right_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "declared",
+            "satisfied",
+            "violated",
+            "unknown"
+          ]
+        },
+        "left_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_status_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_status_text": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "resourceContractComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "contract_changes",
+        "provided_fact_changes",
+        "hotspot_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/resourceContractComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/resourceContractComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "contract_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractComparisonContractChange"
+          }
+        },
+        "provided_fact_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "hotspot_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
     "comparisonSummary": {
       "type": "object",
       "additionalProperties": false,
@@ -468,6 +630,9 @@
         },
         "edge_changes": {
           "$ref": "#/$defs/changeCounts"
+        },
+        "resource_contract": {
+          "$ref": "#/$defs/resourceContractComparison"
         }
       }
     },

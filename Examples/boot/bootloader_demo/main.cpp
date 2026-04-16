@@ -7,6 +7,7 @@
 #include "armv7a_stack_observation_contract.hpp"
 #include "armv7a_translation_decode_contract.hpp"
 #include "armv7a_vector_entry_contract.hpp"
+#include "armv7a_vector_exit_contract.hpp"
 
 #include <array>
 #include <cstdio>
@@ -713,12 +714,6 @@ namespace {
         };
         constexpr auto handler_observation = armv7a_make_handler_stack_observation(
             0x00000012u, 0x40500FF0u, handler_range);
-        constexpr auto return_restored = armv7a_make_return_state_observation(
-            0x000000DFu, 0x000000DFu, 0x40500FE0u, handler_range);
-        constexpr auto return_irq_changed = armv7a_make_return_state_observation(
-            0x00000053u, 0x000000DFu, 0x40500FD0u, handler_range);
-        constexpr auto return_out_of_range = armv7a_make_return_state_observation(
-            0x000000D2u, 0x000000D2u, 0x40502000u, handler_range);
         constexpr Armv7aStackRange empty_range{};
 
         return armv7a_psr_mode(0x000000DFu) == 0x1Fu &&
@@ -739,21 +734,51 @@ namespace {
                handler_observation.current_psr == 0x00000012u &&
                handler_observation.sp == 0x40500FF0u &&
                handler_observation.used == 0x10u &&
-               handler_observation.in_range &&
-               return_restored.mode_restored &&
-               return_restored.irq_restored &&
-               return_restored.fiq_restored &&
-               return_restored.stack.in_range &&
-               return_restored.stack.used == 0x20u &&
-               !return_irq_changed.mode_restored &&
-               !return_irq_changed.irq_restored &&
-               return_irq_changed.fiq_restored &&
-               return_irq_changed.stack.in_range &&
-               return_out_of_range.mode_restored &&
-               return_out_of_range.irq_restored &&
-               return_out_of_range.fiq_restored &&
-               !return_out_of_range.stack.in_range &&
-               return_out_of_range.stack.used == 0u;
+               handler_observation.in_range;
+    }
+
+    bool verify_armv7a_vector_exit_contract() noexcept {
+        constexpr Armv7aStackRange handler_range{
+            .base = 0x40500000u,
+            .top = 0x40501000u,
+        };
+        constexpr auto entry_idle = armv7a_make_unobserved_vector_entry();
+        constexpr auto entry_restored =
+            armv7a_make_vector_entry_observation(0x000000DFu, 0x000000D2u, 0x40500004u);
+        constexpr auto entry_irq_changed =
+            armv7a_make_vector_entry_observation(0x00000053u, 0x000000D2u, 0x40500008u);
+        constexpr auto entry_out_of_range =
+            armv7a_make_vector_entry_observation(0x000000D2u, 0x000000D2u, 0x4050000Cu);
+        constexpr auto exit_idle = armv7a_make_vector_exit_observation(
+            entry_idle, 0x000000DFu, 0x40500FE0u, handler_range);
+        constexpr auto exit_restored = armv7a_make_vector_exit_observation(
+            entry_restored, 0x000000DFu, 0x40500FE0u, handler_range);
+        constexpr auto exit_irq_changed = armv7a_make_vector_exit_observation(
+            entry_irq_changed, 0x000000DFu, 0x40500FD0u, handler_range);
+        constexpr auto exit_out_of_range = armv7a_make_vector_exit_observation(
+            entry_out_of_range, 0x000000D2u, 0x40502000u, handler_range);
+
+        return !armv7a_vector_exit_observed(exit_idle) &&
+               !armv7a_vector_exit_fully_restored(exit_idle) &&
+               armv7a_vector_exit_observed(exit_restored) &&
+               armv7a_vector_exit_fully_restored(exit_restored) &&
+               exit_restored.entry.return_pc == 0x40500004u &&
+               exit_restored.current_psr == 0x000000DFu &&
+               exit_restored.stack.in_range &&
+               exit_restored.stack.used == 0x20u &&
+               armv7a_vector_exit_observed(exit_irq_changed) &&
+               !exit_irq_changed.mode_restored &&
+               !exit_irq_changed.irq_restored &&
+               exit_irq_changed.fiq_restored &&
+               !armv7a_vector_exit_fully_restored(exit_irq_changed) &&
+               exit_irq_changed.stack.in_range &&
+               armv7a_vector_exit_observed(exit_out_of_range) &&
+               exit_out_of_range.mode_restored &&
+               exit_out_of_range.irq_restored &&
+               exit_out_of_range.fiq_restored &&
+               exit_out_of_range.entry.return_pc == 0x4050000Cu &&
+               !exit_out_of_range.stack.in_range &&
+               exit_out_of_range.stack.used == 0u;
     }
 
     platform::board::BootExecRequest make_common_boot_exec_request(
@@ -1415,6 +1440,8 @@ int main() {
         verify_armv7a_fault_observation_contract();
     const bool armv7_stack_observation_contract_ok =
         verify_armv7a_stack_observation_contract();
+    const bool armv7_vector_exit_contract_ok =
+        verify_armv7a_vector_exit_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1471,7 +1498,8 @@ int main() {
                     armv7_vector_entry_contract_ok &&
                     armv7_abort_decode_contract_ok &&
                     armv7_fault_observation_contract_ok &&
-                    armv7_stack_observation_contract_ok;
+                    armv7_stack_observation_contract_ok &&
+                    armv7_vector_exit_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1537,6 +1565,8 @@ int main() {
                 armv7_fault_observation_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_stack_observation_contract=%d\n",
                 armv7_stack_observation_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_vector_exit_contract=%d\n",
+                armv7_vector_exit_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

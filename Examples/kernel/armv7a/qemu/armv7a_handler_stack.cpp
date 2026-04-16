@@ -3,6 +3,7 @@
 #include "armv7a_cpu.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_vector_exit_contract.hpp"
 
 namespace {
 void print_stack_fields(const Armv7aHandlerStackObservation& observation)
@@ -35,29 +36,28 @@ void armv7a_print_handler_stack_evidence(const char* vector_tag, std::uint32_t c
 }
 
 void armv7a_print_return_state_evidence(const char* vector_tag,
-                                        std::uint32_t origin_psr,
+                                        const Armv7aVectorEntryObservation& entry,
                                         std::uint32_t current_cpsr)
 {
     const auto sp = armv7a_read_sp();
     const auto range = armv7a_platform_stack_range_for_mode(current_cpsr);
-    const auto observation =
-        armv7a_make_return_state_observation(origin_psr, current_cpsr, sp, range);
+    const auto observation = armv7a_make_vector_exit_observation(entry, current_cpsr, sp, range);
 
     armv7a_platform_early_console_puts("ARMv7-A return evidence, vector=");
     armv7a_platform_early_console_puts(vector_tag);
     armv7a_platform_early_console_puts(", origin-mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(observation.origin_psr));
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.entry.origin_psr));
     armv7a_platform_early_console_puts(", current-mode=");
     armv7a_platform_early_console_puts(armv7a_mode_name(observation.current_psr));
     armv7a_platform_early_console_puts(", origin-irq=");
     armv7a_platform_early_console_puts(
-        armv7a_irq_masked(observation.origin_psr) ? "masked" : "enabled");
+        armv7a_irq_masked(observation.entry.origin_psr) ? "masked" : "enabled");
     armv7a_platform_early_console_puts(", current-irq=");
     armv7a_platform_early_console_puts(
         armv7a_irq_masked(observation.current_psr) ? "masked" : "enabled");
     armv7a_platform_early_console_puts(", origin-fiq=");
     armv7a_platform_early_console_puts(
-        armv7a_fiq_masked(observation.origin_psr) ? "masked" : "enabled");
+        armv7a_fiq_masked(observation.entry.origin_psr) ? "masked" : "enabled");
     armv7a_platform_early_console_puts(", current-fiq=");
     armv7a_platform_early_console_puts(
         armv7a_fiq_masked(observation.current_psr) ? "masked" : "enabled");

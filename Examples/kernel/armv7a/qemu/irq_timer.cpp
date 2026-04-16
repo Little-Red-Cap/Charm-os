@@ -55,8 +55,7 @@ extern "C" void armv7a_irq_smoke_test()
                 "ARMv7-A timer IRQ test observed intid=", observation.intid);
         } else {
             armv7a_interrupt_print_active("ARMv7-A timer IRQ active", observation);
-            armv7a_print_return_state_evidence(
-                "irq", observation.entry.origin_psr, armv7a_read_cpsr());
+            armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }
 
@@ -117,8 +116,7 @@ extern "C" void armv7a_sgi_smoke_test()
             armv7a_interrupt_print_observed_intid("ARMv7-A SGI test observed intid=", observation.intid);
         } else {
             armv7a_interrupt_print_active("ARMv7-A SGI active", observation);
-            armv7a_print_return_state_evidence(
-                "irq", observation.entry.origin_psr, armv7a_read_cpsr());
+            armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }
 
@@ -179,8 +177,7 @@ extern "C" void armv7a_fiq_smoke_test()
             armv7a_interrupt_print_observed_intid("ARMv7-A FIQ test observed intid=", observation.intid);
         } else {
             armv7a_interrupt_print_active("ARMv7-A FIQ active", observation);
-            armv7a_print_return_state_evidence(
-                "fiq", observation.entry.origin_psr, armv7a_read_cpsr());
+            armv7a_print_return_state_evidence("fiq", observation.entry, armv7a_read_cpsr());
         }
     }
 
@@ -313,8 +310,7 @@ extern "C" void armv7a_unexpected_irq_smoke_test()
             armv7a_interrupt_print_observed_intid(
                 "ARMv7-A unexpected IRQ smoke observed intid=", observation.intid);
         } else {
-            armv7a_print_return_state_evidence(
-                "irq", observation.entry.origin_psr, armv7a_read_cpsr());
+            armv7a_print_return_state_evidence("irq", observation.entry, armv7a_read_cpsr());
         }
     }
 

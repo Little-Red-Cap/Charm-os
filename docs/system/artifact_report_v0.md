@@ -7,25 +7,71 @@
 
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `schemas/examples/system_compiler.artifact_report.v0.sample.json`
+- `schemas/system_compiler.runtime_observe_snapshot.v0.schema.json`
+- `schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json`
 
 当前可以直接这样校验样例：
 
 ```powershell
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json
 ```
 
 当前最小真实生成链脚本为：
 
 - `scripts/export_system_compiler_artifact_report.ps1`
+- `scripts/inspect_system_compiler_artifact_report.ps1`
 
-它当前会基于现有 `materialized_graph` bundle/index/sample，为每个 case 生成一份最小 `artifact report` JSON。
+它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample` 与可选 `runtime_observe` sidecar，
+为每个 case 生成一份最小 `artifact report` JSON。
+而 `inspect_system_compiler_artifact_report.ps1` 则提供了当前最小只读消费面，
+用于把 case 级 `artifact report` 直接展开成人类可读摘要或机器继续消费的 JSON 视图。
+
+当前这条链已经不再要求每个 case 都必须先落成静态 graph。
+`export_bundle/v1` 现在可以同时承载两类 case：
+
+- `materialized_graph`
+  同时带出 `dot/json` 与可选 `runtime_observe` sidecar
+- `runtime_only`
+  只带出 `runtime_observe` sidecar，不强行伪造 graph 工件
 
 如果调用方显式传入 `-Profile`、`-Board`、`-Facet`，
 当前生成链也会把这些 subject 元数据写入报告对象。
 如果 bundle 的 case entry 自带 `subject` 元数据，
 当前导出脚本也会在没有显式 override 时自动继承它。
+如果 bundle 的 case entry 自带 `declared_facts`，
+当前导出脚本也会把它们写入 `structure.declared_facts`，
+并与图推导出的 `required_facts` / `provided_facts` 保持分离。
+如果 bundle 的 case entry 自带 `declared_contracts`，
+当前导出脚本也会把这些输入合同写入 `resource_contract.declared_contract_entries`，
+并基于 `declared_facts`、`subject` 派生事实与图提供能力产出最小 `provided / satisfied / violated / unknown` 摘要。
 如果 bundle 顶层已经保留了输入 `manifest` provenance，
 当前 `artifact report` 也会把它继续写入 `artifacts.input_manifest`。
+如果某个 case 还额外声明了 `runtime_observe` sidecar，
+当前导出脚本也会把它吸收到 `runtime_observe` 摘要里，
+并继续把来源写入 `artifacts.runtime_observe`。
+当前这个摘要至少会继续保留：
+
+- `observed_capabilities`
+- `publish_state_summary`
+- `export_state_summary`
+- `recent_transitions`
+
+这条线当前刻意保持两层分离：
+
+- `materialized_graph.sample`
+  继续承载静态结构事实
+- `runtime_observe` sidecar
+  承载独立的动态观察事实
+
+如果当前 case 还没有接入 sidecar，
+`artifact report` 仍会保留稳定的 `runtime_observe` 形状，
+但内容会诚实地保持为空摘要。
+
+如果当前 case 属于 `runtime_only`，
+`artifact report.artifacts.sample_json` 与 `artifact report.artifacts.dot` 会保持为空，
+`structure.node_count / edge_count / materialized_order` 也会回落到零值或空数组；
+但 `capability_count`、`bringup_evidence` 与 `runtime_observe` 仍会继续从 sidecar 收敛最小结论对象。
 
 当前最小真实链路可以这样跑：
 
@@ -33,7 +79,136 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 ./scripts/export_materialized_graph.ps1 -Case materialize-observe-demo -OutputRoot out/artifact-report-demo-bundle
 ./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/artifact-report-demo-bundle -Case materialize-observe-demo -OutputRoot out/system-compiler-artifact-report-demo
 python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-artifact-report-demo/materialize-observe-demo.artifact_report.json
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -CapList
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -CapList -AsJson
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -GraphPath io.uart1
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -RecentTransitions
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ResourceSummary
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -BringupEvidence
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ShowArtifacts
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -WhyCapability io.uart1
 ```
+
+当前 runtime-only case 也已经可以走同一条正式链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case usb-host-runtime-multi-smoke -OutputRoot out/runtime-only-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/runtime-only-bundle -Case usb-host-runtime-multi-smoke -OutputRoot out/runtime-only-artifact-report
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/runtime-only-artifact-report -Case usb-host-runtime-multi-smoke -RecentTransitions
+```
+
+当前 inspector 至少会直接带出：
+
+- case / mode / profile / board / facets
+- `node_count / edge_count / unresolved_bindings`
+- `declared_contract_entries / provided_facts / satisfied / violated / unknown`
+- 最小 `cap list` 查询结果
+- 最小 `graph path` 查询结果
+- 最小 `recent transitions` 查询结果
+- 最小 `resource summary` 查询结果
+- 最小 `bringup evidence` 查询结果
+- compare 模式下的 `summary_changes / metadata_changes`
+- 最小 `why unavailable` 查询结果
+- 按需显示底层工件引用
+
+其中 `cap list` 当前已经能在两种作用域上工作：
+
+- 单 report 查询
+- 全 artifact root 汇总
+
+它当前最小稳定输出会围绕以下字段组织：
+
+- `capability`
+- `materialized / observed / published / required`
+- `declared_fact / resource_fact / unresolved_binding`
+- `provider_nodes / consumer_nodes`
+
+当调用方显式选择多个 case 子集时，
+当前 inspector 不支持直接对这类“部分 root”做 `cap list` 汇总，
+以避免把单 case 证据和跨 case 聚合语义混在一起。
+
+而 `graph path` 当前则明确只支持单 report 查询。
+它当前最小稳定输出会围绕以下字段组织：
+
+- `capability`
+- `state / availability_state`
+- `direct_edges`
+- `provider_paths`
+- `consumer_paths`
+
+其中：
+
+- `state`
+  当前优先表达图查询自身的语义状态，例如 `edge_paths / provider_terminal / required_without_provider / undeclared`
+- `availability_state`
+  则继续保留来自 `why unavailable` 的可用性判断，
+  方便 explain 面与可用性面保持同一套语言
+
+而 `resource summary` 当前同样明确只支持单 report 查询。
+它当前最小稳定输出会围绕以下字段组织：
+
+- `declared_contracts / audited_count / satisfied_count / violated_count / unknown_count`
+- `fact_inventory`
+- `contracts`
+- `resource_hotspots`
+
+其中：
+
+- `fact_inventory`
+  当前至少区分 `declared_facts / subject_facts / graph_provided_facts / audit_provided_facts`
+- `contracts`
+  则把每条输入侧合同压成稳定查询结果，
+  至少带出 `state / requires / present_facts / missing_facts / fact_sources`
+
+而 `recent transitions` 当前也明确只支持单 report 查询。
+它当前最小稳定输出会围绕以下字段组织：
+
+- `observed_capabilities`
+- `publish_state_summary`
+- `export_state_summary`
+- `transition_count`
+- `transition_capabilities`
+- `action_counts`
+- `transitions`
+
+如果当前 case 已接入 `runtime_observe` sidecar，
+这里会返回真实的 runtime export 观察摘要；
+如果尚未接入 sidecar，
+则继续返回稳定形状，但结果为空。
+
+当前仓库里，`Examples/usb/usb_host_runtime_multi_smoke` 已经作为第一条正式
+`runtime_only` case 接入 `export_case_manifest -> export_bundle -> artifact_report`，
+并稳定产出一份真实 `system_compiler.runtime_observe_snapshot/v0` sidecar。
+这个示例会在场景末尾执行 `remove + forget + unexport`，
+因此导出结果里的 `published_capabilities` 为空、
+`publish_state_summary` 与 `export_state_summary` 都会收敛到 `missing` 末态。
+这里要把它理解为“终态摘要 + 最近历史”：
+
+- `publish_state_summary / export_state_summary`
+  反映导出时刻的最终状态
+- `recent_transitions`
+  保留场景中最近的真实 attach/detach/unexport 历史
+
+另外，`Examples/usb/usb_msc_block_demo` 现在已经成为第一条正式接入
+`export_case_manifest -> export_bundle -> artifact_report` 的 graph case。
+它导出的 sidecar 反映的是 bringup 完成后的真实末态：
+
+- `published_capabilities = ["block.sd0"]`
+- `publish_state_summary.published = 1`
+- `recent_transitions = []`
+
+这意味着当前仓库里已经同时存在两类真实 producer：
+
+- `usb_host_runtime_multi_smoke`
+  更适合演示 transition-rich `runtime_only` case
+- `usb_msc_block_demo`
+  更适合演示 graph case + runtime sidecar 一起进入 bundle / artifact report 的真实末态摘要
+
+也就是说，它当前回答的不是“完整运行时事件历史”，
+而是：
+
+> **当前 artifact report 已经稳定保留了哪些最近状态切换，以及这些切换在 publish/export 语义里呈现成什么摘要。**
 
 当前 `scripts/ci_materialized_graph_bundle.ps1` 也已经能在生成 `summary.json` 时同步产出 candidate 侧的 `artifact report`，并把这些报告路径写回 CI 摘要。
 当 CI 调用方提供 `-Profile`、`-Board`、`-Facet` 时，
@@ -220,6 +395,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `node_count`
 - `edge_count`
 - `materialized_order`
+- `declared_facts`
 - `required_facts`
 - `unresolved_bindings`
 
@@ -227,8 +403,11 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 
 - `materialized_order`
   可先只放节点顺序摘要或引用外部工件
+- `declared_facts`
+  应保留来自输入 `manifest` 的显式声明事实，
+  不与图推导得到的 `required_facts` / `provided_facts` 混写
 - `required_facts`
-  应是 system compiler 主线里的第一类核心输入事实
+  应是从当前 `materialized_graph` 结构推导出的需求事实
 - `unresolved_bindings`
   则是最关键的未完成结构结论之一
 
@@ -252,11 +431,32 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `published_capabilities`
 - `blocked_reasons`
 - `failed_reasons`
+- `evidence_entries`
 
 这里不要求 v0 就把所有节点细节内嵌进报告，  
 但应让顶层摘要一眼能看出：
 
 > 当前 bringup 问题到底是“没成立”、还是“成立了但没发布”、还是“已经失败”。 
+
+当 `evidence_entries` 存在时，
+它应至少能稳定回答每个 capability 当前是否已经：
+
+- `declared`
+- `materialized`
+- `published`
+- `observed`
+- `blocked`
+- `failed`
+
+并保留：
+
+- `publish_state / export_state`
+- `provider_nodes / consumer_nodes`
+- capability 级 `blocked_reasons / failed_reasons`
+
+这里要特别注意，`observed_count` 当前表达的是 capability 级证据矩阵里的 `observed` 结论数，
+而不只是 `runtime_observe.observed_capabilities` 的条目数。
+对于 graph case，它现在允许把 `materialized_graph` 的稳定观察结果一并算入 `observed`。
 
 ### 5.5 资源契约摘要
 
@@ -267,6 +467,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 建议至少包含：
 
 - `declared_contracts`
+- `declared_contract_entries`
 - `provided_facts`
 - `audited_count`
 - `satisfied_count`
@@ -275,6 +476,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 
 以及按需包含：
 
+- `satisfied_contracts`
 - `violations`
 - `unknown_contracts`
 - `resource_hotspots`
@@ -286,6 +488,9 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `needs_reactor`
 - `needs_monotonic_clock`
 - `irq_safe`
+
+当前 v0 里，`declared_contract_entries` 更适合作为输入侧法律文本的直接投影，
+而 `provided_facts / satisfied / violated / unknown` 则是最小审计层。
 
 ### 5.6 运行时观察摘要
 
@@ -319,11 +524,14 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 
 - `status`
 - `summary_changes`
+- `metadata_changes`
 - `node_changes`
 - `edge_changes`
 
 这组字段不应取代底层 `bundle_diff`，
 但它应该把 case 级最重要的比较结论直接拉到报告顶层。
+对于 metadata-only diff，当前 `status` 仍可保持 `unchanged`，
+但 `metadata_changes` 不应被吞掉。
 
 ### 5.8 支持工件引用
 
@@ -337,6 +545,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `input_manifest`
 - `dot`
 - `sample_json`
+- `runtime_observe`
 - `diff`
 - `ci_summary`
 - `report_manifest`
@@ -373,6 +582,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
     "capability_count": 12,
     "node_count": 9,
     "edge_count": 8,
+    "declared_facts": ["board.stm32_stub"],
     "required_facts": ["platform.irq", "system.clock"],
     "unresolved_bindings": []
   },
@@ -380,17 +590,47 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
     "declared_count": 12,
     "materialized_count": 12,
     "published_count": 3,
-    "observed_count": 3,
+    "observed_count": 12,
     "blocked_count": 0,
-    "failed_count": 0
+    "failed_count": 0,
+    "evidence_entries": [
+      {
+        "capability": "io.uart1",
+        "declared": true,
+        "materialized": true,
+        "published": true,
+        "observed": true,
+        "blocked": false,
+        "failed": false,
+        "publish_state": "published",
+        "export_state": "attached",
+        "provider_nodes": ["io.uart1"],
+        "consumer_nodes": [],
+        "blocked_reasons": [],
+        "failed_reasons": []
+      }
+    ]
   },
   "resource_contract": {
     "declared_contracts": 4,
-    "provided_facts": ["system.clock", "reactor", "task_context"],
+    "declared_contract_entries": [
+      {"contract": "needs_monotonic_clock", "requires": ["system.clock"]},
+      {"contract": "needs_reactor", "requires": ["io.reactor"]},
+      {"contract": "may_block", "requires": ["execution.may_block"]},
+      {"contract": "irq_safe", "requires": []}
+    ],
+    "provided_facts": ["system.clock", "io.reactor", "execution.may_block"],
     "audited_count": 4,
-    "satisfied_count": 4,
+    "satisfied_count": 3,
     "violated_count": 0,
-    "unknown_count": 0
+    "unknown_count": 1,
+    "satisfied_contracts": [
+      "needs_monotonic_clock requires [system.clock]",
+      "needs_reactor requires [io.reactor]",
+      "may_block requires [execution.may_block]"
+    ],
+    "unknown_contracts": ["irq_safe requires []"],
+    "resource_hotspots": ["irq_safe requires []"]
   },
   "runtime_observe": {
     "publish_state_summary": {"published": 3, "missing": 0},
@@ -407,6 +647,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
   "comparison": {
     "status": "changed",
     "summary_changes": ["node_count:9->10"],
+    "metadata_changes": [],
     "node_changes": {"added": 1, "removed": 0, "changed": 0},
     "edge_changes": {"added": 1, "removed": 0}
   },
@@ -415,6 +656,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
     "input_manifest": "scripts/materialized_graph.export_case_manifest.v1.json",
     "dot": "out/materialized-graph-bundle/case/materialized_graph.dot",
     "sample_json": "out/materialized-graph-bundle/case/materialized_graph.sample.json",
+    "runtime_observe": "out/materialized-graph-bundle/case/runtime_observe.snapshot.json",
     "diff": null,
     "ci_summary": null,
     "report_manifest": "out/report/materialized_graph_bundle_diff_report.manifest.json",

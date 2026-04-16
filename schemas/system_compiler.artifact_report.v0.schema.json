@@ -113,6 +113,29 @@
         }
       }
     },
+    "resourceContractClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
     "subject": {
       "type": "object",
       "additionalProperties": false,
@@ -144,6 +167,7 @@
         "capability_count",
         "node_count",
         "edge_count",
+        "declared_facts",
         "required_facts",
         "unresolved_bindings"
       ],
@@ -163,10 +187,71 @@
         "materialized_order": {
           "$ref": "#/$defs/stringArray"
         },
+        "declared_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
         "required_facts": {
           "$ref": "#/$defs/stringArray"
         },
         "unresolved_bindings": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupEvidenceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "declared",
+        "materialized",
+        "published",
+        "observed",
+        "blocked",
+        "failed",
+        "provider_nodes",
+        "consumer_nodes",
+        "blocked_reasons",
+        "failed_reasons"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "declared": {
+          "type": "boolean"
+        },
+        "materialized": {
+          "type": "boolean"
+        },
+        "published": {
+          "type": "boolean"
+        },
+        "observed": {
+          "type": "boolean"
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "failed": {
+          "type": "boolean"
+        },
+        "publish_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "export_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "failed_reasons": {
           "$ref": "#/$defs/stringArray"
         }
       }
@@ -215,6 +300,12 @@
         },
         "failed_reasons": {
           "$ref": "#/$defs/stringArray"
+        },
+        "evidence_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bringupEvidenceEntry"
+          }
         }
       }
     },
@@ -223,16 +314,24 @@
       "additionalProperties": false,
       "required": [
         "declared_contracts",
+        "declared_contract_entries",
         "provided_facts",
         "audited_count",
         "satisfied_count",
         "violated_count",
-        "unknown_count"
+        "unknown_count",
+        "satisfied_contracts"
       ],
       "properties": {
         "declared_contracts": {
           "type": "integer",
           "minimum": 0
+        },
+        "declared_contract_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractClause"
+          }
         },
         "provided_facts": {
           "$ref": "#/$defs/stringArray"
@@ -252,6 +351,9 @@
         "unknown_count": {
           "type": "integer",
           "minimum": 0
+        },
+        "satisfied_contracts": {
+          "$ref": "#/$defs/stringArray"
         },
         "violations": {
           "$ref": "#/$defs/stringArray"
@@ -296,6 +398,9 @@
         "export_state_summary"
       ],
       "properties": {
+        "observed_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
         "publish_state_summary": {
           "$ref": "#/$defs/stringCountMap"
         },
@@ -338,6 +443,7 @@
       "required": [
         "status",
         "summary_changes",
+        "metadata_changes",
         "node_changes",
         "edge_changes"
       ],
@@ -352,6 +458,9 @@
           ]
         },
         "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "metadata_changes": {
           "$ref": "#/$defs/stringArray"
         },
         "node_changes": {
@@ -385,6 +494,9 @@
           "$ref": "#/$defs/nullableString"
         },
         "sample_json": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "runtime_observe": {
           "$ref": "#/$defs/nullableString"
         },
         "diff": {

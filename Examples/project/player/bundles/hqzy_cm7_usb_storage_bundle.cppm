@@ -1,6 +1,8 @@
 module;
 
+#include <array>
 #include <optional>
+#include <span>
 
 export module player.bundle.hqzy_cm7_usb_storage;
 

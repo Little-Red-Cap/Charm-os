@@ -56,7 +56,12 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
+    ../stn32h747_HQZY/CM7/USB_DEVICE/App
+    ../stn32h747_HQZY/CM7/USB_DEVICE/Target
+    ../stn32h747_HQZY/CM7/USB_DEVICE/Class
+    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc
+    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc
+    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc
 )
 
 # Add sources to executable
@@ -68,6 +73,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS
     "${CMAKE_CURRENT_SOURCE_DIR}/../stn32h747_HQZY/CM7/app/*.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../bsp/*.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../bundles/*.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../profiles/*.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../runtime/*.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cppm"

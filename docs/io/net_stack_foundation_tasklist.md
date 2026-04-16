@@ -19,6 +19,7 @@
 - 网络双表面设计已明确：见 `docs/io/net_stack_dual_surface_design.md`
 - 统一网络入口已建立：`Modules/io/charm.net.cppm`
 - `api_facade_smoke` 已锁住 `TcpClient/TcpListener/UdpSocket` 的 `connected/listening/bound` 工厂式入口，并保持与 `*_loopback/*_any` 便捷入口、`u8` 数组直传 `send/recv` 兼容
+- `Examples/io/net` 中面向用户的 reactor / request / service / typed service / Win smoke 已大面积收敛到 `TcpClient::connected_loopback`、`TcpListener::listening_loopback` 与默认构造后 `bind()` 的 `SocketChannelBinding` 用法；旧式 `listener.listen(...loopback...)`、`client.connect(...loopback...)`、`SocketChannelBinding{client.raw()}` 已基本从示例层退出
 - socket / stack / endpoint / event 等基础抽象已存在
 - reactor / session / codec / service 分层已落地
 - `net.posix` 已开始把 socket 投影到 POSIX fd 体系
@@ -63,7 +64,7 @@
 - `M3`：已完成第一阶段收口；socket fd 的 `dup / close / fstat / EOF / spawn` 最小语义已经落地并有 smoke 支撑
 - `M4`：主体能力已基本落地；reactor / channel / driver 的 close / reset / error / accepted 语义在 `stub / win` 两条路径上都已有 contract smoke，当前更偏向回归矩阵补齐、示例收口与文档归档
 - `M5`：主体能力已基本落地；`request_session / service_session / typed service / deferred reply / schema codec` 已形成可复用骨架，当前更偏向边界钉牢、回归矩阵补齐与协议层复用入口收口
-- `M6`：已进入收尾阶段；`TcpClient / TcpListener / UdpSocket` 的工厂式 façade 已建立，若干面向用户的示例已切到新风格，当前主要工作是继续扫尾旧示例、统一文档口径，并决定何时把“网络底座 v0”正式关单
+- `M6`：已进入关单准备阶段；`TcpClient / TcpListener / UdpSocket` 的工厂式 façade 已建立，`Examples/io/net` 中主要用户面示例已基本完成新风格收敛，当前主要工作从“继续改调用形状”转为“整理关单证据、统一文档口径、决定何时把网络底座 v0 正式关单”
 
 ---
 
@@ -304,6 +305,23 @@
 - 把 `IPv4` 的最小主路径继续打通
 - 在 `UDP` 之上跑一个更贴近真实用途的最小诊断/回显协议
 - 只在上述路径站稳后，再讨论更重的协议与更大的用户面
+
+### 当前判断（截至 2026-04-17）
+
+如果按上面的四类关单口径来判断，当前状态更接近“关单准备”而不是“继续发散设计”：
+
+- **对外 façade 收口**：这条已经非常接近满足；`Examples/io/net` 里的主流用户路径已经基本切到 `connected / listening / bound` 及其 `*_loopback / *_any` 便捷入口，旧式 loopback `listen/connect` 与直接花括号构造 `SocketChannelBinding` 的写法已基本退出示例层
+- **回归矩阵稳定性**：host / stub / WinProvider 路径当前已经有较强的 contract smoke 支撑；如果要更稳地关单，剩下更像是一轮“有节制的关单回归批次”，而不是新的 API 设计工作
+- **承载面契约**：`reactor / request / service / typed service / deferred reply` 的 close / reset / error 语义已经被一批真实 smoke 压实；只要后续不再出现新的 contract 漂移，就不需要继续把主要精力花在底座承载面重写上
+- **文档与阶段边界**：当任务单、阶段复盘和对外示例口径同步后，网络底座 v0 是否关单，主要就变成项目节奏判断，而不再是技术方向不清
+
+### 关单前建议最后三刀
+
+如果我们想把“网络底座 v0”收得更利索，建议最后动作压缩成三件事：
+
+- 跑一组小而硬的关单回归批次，优先覆盖 `api_facade_smoke`、`posix_socket_bridge_smoke`、`net_pump_smoke`，以及一组能代表 `close / reset / error / request / service / typed service` 的 stub/Win smoke
+- 在合适时机补一个 ARM / QEMU 网络相关构建检查点，确保跨目标解释面没有在最近一轮收口后回潮
+- 明确宣布“网络底座 v0 关单”与“下一阶段切到自研数据面最小闭环推进”，避免底座扫尾和下一阶段工作长期互相抢焦点
 
 ### 一句话关单标准
 

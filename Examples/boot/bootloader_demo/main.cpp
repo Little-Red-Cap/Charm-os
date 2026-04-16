@@ -5,6 +5,7 @@
 #include "armv7a_handoff_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
+#include "armv7a_interrupt_timeout_contract.hpp"
 #include "armv7a_psr_contract.hpp"
 #include "armv7a_stack_observation_contract.hpp"
 #include "armv7a_translation_decode_contract.hpp"
@@ -956,6 +957,147 @@ namespace {
                !armv7a_interrupt_lifecycle_closed(lifecycle_idle);
     }
 
+    bool verify_armv7a_interrupt_timeout_contract() noexcept {
+        const auto observation_idle = armv7a_make_unobserved_interrupt_observation(1023u);
+
+        Armv7aInterruptObservation observation_delivery{};
+        observation_delivery.intid = 1u;
+        observation_delivery.raw_acknowledge = 0x00010001u;
+        observation_delivery.line =
+            Armv7aPlatformInterruptLineState{
+                .intid = 1u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = true,
+            };
+        observation_delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const Armv7aInterruptTimeoutContext irq_timeout_masked{
+            .pending_observed = true,
+            .current_cpsr = 0x000000DFu,
+            .controller =
+                Armv7aPlatformInterruptControllerState{
+                    .highest_pending = 0x00000001u,
+                    .highest_pending_intid = 1u,
+                    .highest_pending_special = false,
+                },
+        };
+        const Armv7aInterruptTimeoutContext irq_timeout_enabled{
+            .pending_observed = true,
+            .current_cpsr = 0x0000005Fu,
+            .controller =
+                Armv7aPlatformInterruptControllerState{
+                    .highest_pending = 0x00000001u,
+                    .highest_pending_intid = 1u,
+                    .highest_pending_special = false,
+                },
+        };
+        const Armv7aInterruptTimeoutContext fiq_timeout_masked{
+            .pending_observed = true,
+            .current_cpsr = 0x000000DFu,
+            .controller =
+                Armv7aPlatformInterruptControllerState{
+                    .highest_pending = 0x00000001u,
+                    .highest_pending_intid = 1u,
+                    .highest_pending_special = false,
+                },
+        };
+        const Armv7aInterruptTimeoutContext timeout_no_pending{
+            .pending_observed = false,
+            .current_cpsr = 0x000000DFu,
+            .controller =
+                Armv7aPlatformInterruptControllerState{
+                    .highest_pending = 0x000003FFu,
+                    .highest_pending_intid = 1023u,
+                    .highest_pending_special = true,
+                },
+        };
+
+        const Armv7aTimerTimeoutSnapshot timer_timeout{
+            .context = irq_timeout_masked,
+            .timer_ctrl = 0x00000001u,
+            .nonsecure_line =
+                Armv7aPlatformInterruptLineState{
+                    .intid = 30u,
+                    .line_group1 = true,
+                    .line_enabled = true,
+                    .line_pending = true,
+                },
+        };
+        const Armv7aTimerTimeoutSnapshot timer_timeout_idle{
+            .context = timeout_no_pending,
+        };
+
+        const Armv7aSgiTimeoutSnapshot sgi_irq_timeout{
+            .context = irq_timeout_masked,
+            .line =
+                Armv7aPlatformInterruptLineState{
+                    .intid = 1u,
+                    .line_group1 = true,
+                    .line_enabled = true,
+                    .line_pending = true,
+                },
+        };
+        const Armv7aSgiTimeoutSnapshot sgi_fiq_timeout{
+            .context = fiq_timeout_masked,
+            .line =
+                Armv7aPlatformInterruptLineState{
+                    .intid = 1u,
+                    .line_group1 = false,
+                    .line_enabled = true,
+                    .line_pending = true,
+                },
+        };
+        const Armv7aSgiTimeoutSnapshot sgi_route_mismatch{
+            .context = irq_timeout_masked,
+            .line =
+                Armv7aPlatformInterruptLineState{
+                    .intid = 1u,
+                    .line_group1 = false,
+                    .line_enabled = true,
+                    .line_pending = true,
+                },
+        };
+
+        return armv7a_interrupt_timeout_route_masked(
+                   Armv7aPlatformInterruptRoute::kIrq, irq_timeout_masked) &&
+               !armv7a_interrupt_timeout_route_masked(
+                   Armv7aPlatformInterruptRoute::kIrq, irq_timeout_enabled) &&
+               armv7a_interrupt_timeout_route_masked(
+                   Armv7aPlatformInterruptRoute::kFiq, fiq_timeout_masked) &&
+               armv7a_interrupt_timeout_delivery_blocked(
+                   Armv7aPlatformInterruptRoute::kIrq, irq_timeout_masked, observation_idle) &&
+               !armv7a_interrupt_timeout_delivery_blocked(Armv7aPlatformInterruptRoute::kIrq,
+                                                          irq_timeout_enabled,
+                                                          observation_idle) &&
+               !armv7a_interrupt_timeout_delivery_blocked(Armv7aPlatformInterruptRoute::kIrq,
+                                                          irq_timeout_masked,
+                                                          observation_delivery) &&
+               !armv7a_interrupt_timeout_delivery_blocked(
+                   Armv7aPlatformInterruptRoute::kIrq, timeout_no_pending, observation_idle) &&
+               armv7a_interrupt_line_route_consistent(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_irq_timeout.line) &&
+               armv7a_interrupt_line_route_consistent(
+                   Armv7aPlatformInterruptRoute::kFiq, sgi_fiq_timeout.line) &&
+               !armv7a_interrupt_line_route_consistent(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_fiq_timeout.line) &&
+               armv7a_timer_timeout_pending_visible(timer_timeout) &&
+               armv7a_timer_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, timer_timeout, observation_idle) &&
+               !armv7a_timer_timeout_pending_visible(timer_timeout_idle) &&
+               !armv7a_timer_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, timer_timeout_idle, observation_idle) &&
+               armv7a_sgi_timeout_pending_visible(sgi_irq_timeout) &&
+               armv7a_sgi_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_irq_timeout, observation_idle) &&
+               armv7a_sgi_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kFiq, sgi_fiq_timeout, observation_idle) &&
+               !armv7a_sgi_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_route_mismatch, observation_idle) &&
+               !armv7a_sgi_timeout_explained(
+                   Armv7aPlatformInterruptRoute::kIrq, sgi_irq_timeout, observation_delivery);
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -1621,6 +1763,8 @@ int main() {
         verify_armv7a_vector_exit_contract();
     const bool armv7_interrupt_lifecycle_contract_ok =
         verify_armv7a_interrupt_lifecycle_contract();
+    const bool armv7_interrupt_timeout_contract_ok =
+        verify_armv7a_interrupt_timeout_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -1680,7 +1824,8 @@ int main() {
                     armv7_fault_observation_contract_ok &&
                     armv7_stack_observation_contract_ok &&
                     armv7_vector_exit_contract_ok &&
-                    armv7_interrupt_lifecycle_contract_ok;
+                    armv7_interrupt_lifecycle_contract_ok &&
+                    armv7_interrupt_timeout_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -1752,6 +1897,8 @@ int main() {
                 armv7_vector_exit_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_interrupt_lifecycle_contract=%d\n",
                 armv7_interrupt_lifecycle_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_interrupt_timeout_contract=%d\n",
+                armv7_interrupt_timeout_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

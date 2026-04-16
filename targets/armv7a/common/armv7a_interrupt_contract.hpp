@@ -49,24 +49,6 @@ struct Armv7aSgiPendingSnapshot {
     Armv7aPlatformInterruptControllerState controller{};
 };
 
-struct Armv7aInterruptTimeoutContext {
-    bool pending_observed = false;
-    std::uint32_t current_cpsr = 0u;
-    Armv7aPlatformInterruptControllerState controller{};
-};
-
-struct Armv7aTimerTimeoutSnapshot {
-    Armv7aInterruptTimeoutContext context{};
-    std::uint32_t timer_ctrl = 0u;
-    Armv7aPlatformInterruptLineState secure_line{};
-    Armv7aPlatformInterruptLineState nonsecure_line{};
-};
-
-struct Armv7aSgiTimeoutSnapshot {
-    Armv7aInterruptTimeoutContext context{};
-    Armv7aPlatformInterruptLineState line{};
-};
-
 struct Armv7aInterruptObservation {
     bool special = false;
     bool synthetic = false;

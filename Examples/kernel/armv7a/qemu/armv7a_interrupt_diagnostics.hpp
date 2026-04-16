@@ -3,6 +3,7 @@
 #include "armv7a_interrupt_completion_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
+#include "armv7a_interrupt_timeout_contract.hpp"
 
 #include <cstdint>
 

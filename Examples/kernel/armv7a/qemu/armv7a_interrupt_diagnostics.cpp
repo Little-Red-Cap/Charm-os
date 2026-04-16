@@ -12,14 +12,6 @@ constexpr std::uint32_t kArmv7aTimerCtrlEnable = 1u << 0;
 constexpr std::uint32_t kArmv7aTimerCtrlImask = 1u << 1;
 constexpr std::uint32_t kArmv7aTimerCtrlIstatus = 1u << 2;
 
-const char* route_mask_name(Armv7aPlatformInterruptRoute route, std::uint32_t cpsr)
-{
-    const auto masked = route == Armv7aPlatformInterruptRoute::kFiq
-                            ? armv7a_fiq_masked(cpsr)
-                            : armv7a_irq_masked(cpsr);
-    return masked ? "masked" : "enabled";
-}
-
 void print_source_summary(const Armv7aInterruptObservation& observation)
 {
     armv7a_platform_early_console_puts(armv7a_platform_interrupt_source_name(observation.intid));
@@ -340,13 +332,15 @@ void armv7a_interrupt_print_timeout_summary(const char* expected,
                                             const Armv7aInterruptTimeoutContext& context,
                                             const Armv7aInterruptObservation& observation)
 {
+    const auto route_masked = armv7a_interrupt_timeout_route_masked(route, context);
+
     armv7a_diag_print_context("interrupt");
     armv7a_platform_early_console_puts("ARMv7-A interrupt timeout, expected=");
     armv7a_platform_early_console_puts(expected);
     armv7a_platform_early_console_puts(", route=");
     armv7a_platform_early_console_puts(armv7a_interrupt_route_name(route));
     armv7a_platform_early_console_puts(", route-mask=");
-    armv7a_platform_early_console_puts(route_mask_name(route, context.current_cpsr));
+    armv7a_platform_early_console_puts(route_masked ? "masked" : "enabled");
     armv7a_platform_early_console_puts(", pending-observed=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(context.pending_observed));
     if (!armv7a_vector_entry_observed(observation.entry)) {

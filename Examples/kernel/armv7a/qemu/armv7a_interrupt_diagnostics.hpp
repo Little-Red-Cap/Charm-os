@@ -1,6 +1,10 @@
 #pragma once
 
+#include "armv7a_interrupt_completion_contract.hpp"
 #include "armv7a_interrupt_contract.hpp"
+#include "armv7a_interrupt_lifecycle_contract.hpp"
+#include "armv7a_special_interrupt_contract.hpp"
+#include "armv7a_interrupt_timeout_contract.hpp"
 
 #include <cstdint>
 
@@ -23,6 +27,12 @@ void armv7a_interrupt_print_unexpected_pending_evidence(const Armv7aSgiPendingSn
                                                         Armv7aPlatformInterruptRoute route);
 void armv7a_interrupt_print_active(const char* label,
                                    const Armv7aInterruptObservation& observation);
+void armv7a_interrupt_print_completion(
+    const char* label,
+    const Armv7aInterruptCompletionObservation& observation);
+void armv7a_interrupt_print_lifecycle(
+    const char* label,
+    const Armv7aInterruptLifecycleObservation& observation);
 void armv7a_interrupt_print_special_ack(const char* label,
                                         Armv7aPlatformInterruptRoute route,
                                         const Armv7aInterruptObservation& observation);

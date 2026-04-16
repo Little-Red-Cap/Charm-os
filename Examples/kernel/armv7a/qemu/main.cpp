@@ -6,6 +6,7 @@
 #include "armv7a_kernel_port.hpp"
 #include "armv7a_memory_probe_sequence.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_scheduler_dispatch.hpp"
 #include "armv7a_scheduler_tick.hpp"
 
 int main()
@@ -34,6 +35,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
     armv7a_run_context_switch_smoke();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kSchedulerDispatch);
+    armv7a_print_scheduler_dispatch_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kSchedulerDispatch);
     armv7a_run_handoff_prepare_dry_run();
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);
     armv7a_platform_idle_forever();

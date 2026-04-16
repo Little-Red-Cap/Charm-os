@@ -150,6 +150,7 @@ ARMv7-A kernel ingress, vector-base=0x40200000, tick-mode=oneshot, tick-route=ir
 ARMv7-A scheduler tick ingress, source=timer-irq, route=irq, mode=oneshot, intid=30, hz=62500000, now=0x00000000........, source-match=yes, counter=yes, isr-safe=yes, retired=yes, handoff=yes, rearm=yes
 ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x40...., stack-top=0x40...., prepared-sp=0x40...., resume=0x40...., return=0x40...., entry=0x40...., arg=0x40...., aligned=yes, in-range=yes, ready=yes
 ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-entry-sp=0x40...., thread-saved=0x40...., thread-resume-sp=0x40...., entry=yes, resumed=yes, round-trip=yes
+ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, dispatch=yes
 ARMv7-A handoff context, vector-base=0x40200000, translation-table=0x4021...., image-base=0x40200000
 ARMv7-A handoff request, kind=copy, payload-base=0x40200000, entry=0x40200000, storage-payload=0x00000000, storage-entry=0x00000000, entry-offset=0x00000000, payload-size=0x00000000, image-size=0x00000000, flags=0x00000000
 ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
@@ -512,6 +513,10 @@ continue
   ingress` line, so later runtime glue can point to a concrete proof that
   `timer IRQ -> retired interrupt -> ISR-safe Scheduler::tick(now)` is already
   available before we wire the generic scheduler core into this leaf target.
+- The same evidence chain now also closes into one `scheduler dispatch` line,
+  which says the task-side `svc-trap` path, the ISR-side `timer-tick` path,
+  and the cooperative context round-trip can all meet at one future scheduler
+  dispatch seam without the generic kernel core knowing anything QEMU-specific.
 - Those returning SVC/IRQ/FIQ smoke lines now also print the pre-exception
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from

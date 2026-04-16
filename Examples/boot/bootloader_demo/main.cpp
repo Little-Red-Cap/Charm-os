@@ -6,6 +6,7 @@
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
 #include "armv7a_kernel_port_contract.hpp"
+#include "armv7a_scheduler_dispatch_contract.hpp"
 #include "armv7a_scheduler_tick_contract.hpp"
 #include "armv7a_special_interrupt_contract.hpp"
 #include "armv7a_interrupt_timeout_contract.hpp"
@@ -1422,6 +1423,96 @@ namespace {
                !armv7a_scheduler_tick_handoff_ready(no_tick_mode);
     }
 
+    bool verify_armv7a_scheduler_dispatch_contract() noexcept {
+        const auto task = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
+        };
+
+        auto delivery = armv7a_make_unobserved_interrupt_observation(1023u);
+        delivery.intid = 30u;
+        delivery.line = Armv7aPlatformInterruptLineState{
+            .intid = 30u,
+            .group = 0u,
+            .enabled = 0u,
+            .pending = 0u,
+            .active = 0u,
+            .line_group1 = true,
+            .line_enabled = true,
+            .line_pending = true,
+            .line_active = true,
+        };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 1023u,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 30u,
+                .group = 0u,
+                .enabled = 0u,
+                .pending = 0u,
+                .active = 0u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = false,
+                .line_active = false,
+            });
+
+        const Armv7aSchedulerDispatchObservation ready{
+            .task_path = Armv7aSchedulerDispatchPath::svc_trap,
+            .isr_path = Armv7aSchedulerDispatchPath::timer_tick,
+            .context_switch_ready = true,
+            .context_round_trip = true,
+            .task = task,
+            .isr =
+                Armv7aSchedulerTickIngressObservation{
+                    .tick_mode = Armv7aKernelTickMode::one_shot,
+                    .route = Armv7aPlatformInterruptRoute::kIrq,
+                    .frequency_hz = 62500000u,
+                    .now = 0x12345678u,
+                    .now_sampled = true,
+                    .timer_source = true,
+                    .scheduler_tick_isr_safe = true,
+                    .delivery = delivery,
+                    .completion = completion,
+                },
+        };
+
+        auto missing_task = ready;
+        missing_task.task_path = Armv7aSchedulerDispatchPath::none;
+
+        auto missing_isr = ready;
+        missing_isr.isr_path = Armv7aSchedulerDispatchPath::none;
+
+        auto missing_context = ready;
+        missing_context.context_switch_ready = false;
+
+        auto missing_round_trip = ready;
+        missing_round_trip.context_round_trip = false;
+
+        auto bad_tick = ready;
+        bad_tick.isr.timer_source = false;
+
+        return armv7a_scheduler_task_path_ready(ready) &&
+               armv7a_scheduler_isr_path_ready(ready) &&
+               armv7a_scheduler_dispatch_context_ready(ready) &&
+               armv7a_scheduler_dispatch_ready(ready) &&
+               !armv7a_scheduler_task_path_ready(missing_task) &&
+               !armv7a_scheduler_dispatch_ready(missing_task) &&
+               !armv7a_scheduler_isr_path_ready(missing_isr) &&
+               !armv7a_scheduler_dispatch_ready(missing_isr) &&
+               !armv7a_scheduler_dispatch_context_ready(missing_context) &&
+               !armv7a_scheduler_dispatch_ready(missing_context) &&
+               !armv7a_scheduler_dispatch_context_ready(missing_round_trip) &&
+               !armv7a_scheduler_dispatch_ready(missing_round_trip) &&
+               !armv7a_scheduler_isr_path_ready(bad_tick) &&
+               !armv7a_scheduler_dispatch_ready(bad_tick);
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -2097,6 +2188,8 @@ int main() {
         verify_armv7a_thread_context_contract();
     const bool armv7_scheduler_tick_contract_ok =
         verify_armv7a_scheduler_tick_contract();
+    const bool armv7_scheduler_dispatch_contract_ok =
+        verify_armv7a_scheduler_dispatch_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -2161,7 +2254,8 @@ int main() {
                      armv7_special_interrupt_contract_ok &&
                      armv7_kernel_port_contract_ok &&
                      armv7_thread_context_contract_ok &&
-                     armv7_scheduler_tick_contract_ok;
+                     armv7_scheduler_tick_contract_ok &&
+                     armv7_scheduler_dispatch_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -2243,6 +2337,8 @@ int main() {
                 armv7_thread_context_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_scheduler_tick_contract=%d\n",
                 armv7_scheduler_tick_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_scheduler_dispatch_contract=%d\n",
+                armv7_scheduler_dispatch_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

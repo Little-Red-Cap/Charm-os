@@ -273,6 +273,9 @@ if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0
 if (($log -notmatch "ARMv7-A context switch smoke, main-before=0x[0-9A-F]{8}, main-saved=0x[0-9A-F]{8}, thread-entry-sp=0x[0-9A-F]{8}, thread-saved=0x[0-9A-F]{8}, thread-resume-sp=0x[0-9A-F]{8}, entry=yes, resumed=yes, round-trip=yes")) {
     $missing += "ARMv7-A context switch smoke, main-before=0x..."
 }
+if (($log -notmatch "ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, dispatch=yes")) {
+    $missing += "ARMv7-A scheduler dispatch, task=svc-trap..."
+}
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."
 }

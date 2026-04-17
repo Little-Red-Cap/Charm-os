@@ -503,6 +503,36 @@ function Get-BringupEvidenceComparisonFromReport {
     return $ReportData.comparison.bringup_evidence
 }
 
+function Get-BindingResultComparisonFromReport {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['comparison'] -or
+        $null -eq $ReportData.comparison -or
+        $null -eq $ReportData.comparison.PSObject.Properties['binding_result']) {
+        return $null
+    }
+
+    return $ReportData.comparison.binding_result
+}
+
+function Get-BringupOrderComparisonFromReport {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['comparison'] -or
+        $null -eq $ReportData.comparison -or
+        $null -eq $ReportData.comparison.PSObject.Properties['bringup_order']) {
+        return $null
+    }
+
+    return $ReportData.comparison.bringup_order
+}
+
 function Get-ResourceContractComparisonFromReport {
     param(
         $ReportData
@@ -3009,6 +3039,8 @@ function New-ComparisonOverviewCaseSummary {
 
     $report = $LoadedReport.Data
     $hasComparison = ($null -ne $report.PSObject.Properties['comparison'] -and $null -ne $report.comparison)
+    $bindingResultComparison = Get-BindingResultComparisonFromReport -ReportData $report
+    $bringupOrderComparison = Get-BringupOrderComparisonFromReport -ReportData $report
     $bringupComparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $report
 
@@ -3019,6 +3051,10 @@ function New-ComparisonOverviewCaseSummary {
         compared = $hasComparison
         compare_status = Get-ComparisonStatus -ReportData $report
         metadata_change_count = [int](Get-MetadataChangeCount -ReportData $report)
+        binding_result_changed = ($null -ne $bindingResultComparison -and [bool]$bindingResultComparison.changed)
+        binding_result_change_count = if ($null -ne $bindingResultComparison) { [int]@($bindingResultComparison.binding_changes).Count } else { 0 }
+        bringup_order_changed = ($null -ne $bringupOrderComparison -and [bool]$bringupOrderComparison.changed)
+        bringup_order_change_count = if ($null -ne $bringupOrderComparison) { [int]@($bringupOrderComparison.entry_changes).Count } else { 0 }
         bringup_changed = ($null -ne $bringupComparison -and [bool]$bringupComparison.changed)
         bringup_change_count = if ($null -ne $bringupComparison) { [int]@($bringupComparison.capability_changes).Count } else { 0 }
         resource_changed = ($null -ne $resourceComparison -and [bool]$resourceComparison.changed)
@@ -3066,12 +3102,24 @@ function New-ArtifactRootComparisonOverviewResult {
         compared_case_count = @($comparedCases).Count
         status_counts = $statusCounts
         metadata_changed_case_count = @($comparedCases | Where-Object { [int]$_.metadata_change_count -gt 0 }).Count
+        binding_result_changed_case_count = @($comparedCases | Where-Object { [bool]$_.binding_result_changed }).Count
+        bringup_order_changed_case_count = @($comparedCases | Where-Object { [bool]$_.bringup_order_changed }).Count
         bringup_changed_case_count = @($comparedCases | Where-Object { [bool]$_.bringup_changed }).Count
         resource_changed_case_count = @($comparedCases | Where-Object { [bool]$_.resource_changed }).Count
         compared_cases = @($comparedCases | ForEach-Object { [string]$_.case })
         metadata_changed_cases = @(
             @($comparedCases) |
                 Where-Object { [int]$_.metadata_change_count -gt 0 } |
+                ForEach-Object { [string]$_.case }
+        )
+        binding_result_changed_cases = @(
+            @($comparedCases) |
+                Where-Object { [bool]$_.binding_result_changed } |
+                ForEach-Object { [string]$_.case }
+        )
+        bringup_order_changed_cases = @(
+            @($comparedCases) |
+                Where-Object { [bool]$_.bringup_order_changed } |
                 ForEach-Object { [string]$_.case }
         )
         bringup_changed_cases = @(
@@ -3099,6 +3147,8 @@ function New-CaseSummaryRow {
     )
 
     $report = $LoadedReport.Data
+    $bindingResultComparison = Get-BindingResultComparisonFromReport -ReportData $report
+    $bringupOrderComparison = Get-BringupOrderComparisonFromReport -ReportData $report
     $bringupComparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $report
     return [pscustomobject]@{
@@ -3116,6 +3166,8 @@ function New-CaseSummaryRow {
         Unknown = [int]$report.resource_contract.unknown_count
         Compare = Get-ComparisonStatus -ReportData $report
         Metadata = Get-MetadataChangeCount -ReportData $report
+        BindCmp = if ($null -ne $bindingResultComparison -and [bool]$bindingResultComparison.changed) { [int]@($bindingResultComparison.binding_changes).Count } else { 0 }
+        OrdCmp = if ($null -ne $bringupOrderComparison -and [bool]$bringupOrderComparison.changed) { [int]@($bringupOrderComparison.entry_changes).Count } else { 0 }
         BrCmp = if ($null -ne $bringupComparison -and [bool]$bringupComparison.changed) { [int]@($bringupComparison.capability_changes).Count } else { 0 }
         ResCmp = if ($null -ne $resourceComparison -and [bool]$resourceComparison.changed) { [int]@($resourceComparison.contract_changes).Count } else { 0 }
     }
@@ -3365,14 +3417,16 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
     } else {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
         if ($null -ne $comparisonOverview) {
-            Write-Host '[COMPARISON]'
-            Write-Host "compared_case_count      = $([int]$comparisonOverview.compared_case_count)"
-            Write-Host "metadata_changed_cases  = $([int]$comparisonOverview.metadata_changed_case_count)"
-            Write-Host "bringup_changed_cases   = $([int]$comparisonOverview.bringup_changed_case_count)"
-            Write-Host "resource_changed_cases  = $([int]$comparisonOverview.resource_changed_case_count)"
-            if (@($comparisonOverview.compared_cases).Count -gt 0) {
-                Write-Host "compared_cases          = $((@($comparisonOverview.compared_cases) -join ', '))"
-            }
+        Write-Host '[COMPARISON]'
+        Write-Host "compared_case_count      = $([int]$comparisonOverview.compared_case_count)"
+        Write-Host "metadata_changed_cases  = $([int]$comparisonOverview.metadata_changed_case_count)"
+        Write-Host "binding_result_changed = $([int]$comparisonOverview.binding_result_changed_case_count)"
+        Write-Host "bringup_order_changed  = $([int]$comparisonOverview.bringup_order_changed_case_count)"
+        Write-Host "bringup_changed_cases   = $([int]$comparisonOverview.bringup_changed_case_count)"
+        Write-Host "resource_changed_cases  = $([int]$comparisonOverview.resource_changed_case_count)"
+        if (@($comparisonOverview.compared_cases).Count -gt 0) {
+            Write-Host "compared_cases          = $((@($comparisonOverview.compared_cases) -join ', '))"
+        }
             if ($null -ne $comparisonOverview.capability_summary) {
                 Write-Host "compare_capabilities    = $([int]$comparisonOverview.capability_summary.compared_capability_count)"
                 Write-Host "bringup_compare_caps    = $([int]$comparisonOverview.capability_summary.bringup_compare_capability_count)"
@@ -3383,7 +3437,7 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             }
             Write-Host ''
         }
-        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Compare, Metadata, BrCmp, ResCmp | Out-Host
+        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Compare, Metadata, BindCmp, OrdCmp, BrCmp, ResCmp | Out-Host
     }
     exit 0
 }
@@ -4157,6 +4211,26 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
         Write-Host "resource_compare_caps = $([int]$comparisonOverview.capability_summary.resource_compare_capability_count)"
         if (@($comparisonOverview.capability_summary.compared_capabilities).Count -gt 0) {
             Write-Host "compared_capabilities = $((@($comparisonOverview.capability_summary.compared_capabilities) -join ', '))"
+        }
+    }
+    if ($null -ne $comparisonOverview.PSObject.Properties['binding_result'] -and $null -ne $comparisonOverview.binding_result) {
+        $bindingResultComparison = $comparisonOverview.binding_result
+        Write-Host "binding_result = changed:$([bool]$bindingResultComparison.changed)"
+        if (@($bindingResultComparison.summary_changes).Count -gt 0) {
+            Write-Host "binding_result.summary_changes = $((@($bindingResultComparison.summary_changes) -join '; '))"
+        }
+        if (@($bindingResultComparison.binding_changes).Count -gt 0) {
+            Write-Host "binding_result.binding_changes = $([int]@($bindingResultComparison.binding_changes).Count)"
+        }
+    }
+    if ($null -ne $comparisonOverview.PSObject.Properties['bringup_order'] -and $null -ne $comparisonOverview.bringup_order) {
+        $bringupOrderComparison = $comparisonOverview.bringup_order
+        Write-Host "bringup_order = changed:$([bool]$bringupOrderComparison.changed)"
+        if (@($bringupOrderComparison.summary_changes).Count -gt 0) {
+            Write-Host "bringup_order.summary_changes = $((@($bringupOrderComparison.summary_changes) -join '; '))"
+        }
+        if (@($bringupOrderComparison.entry_changes).Count -gt 0) {
+            Write-Host "bringup_order.entry_changes = $([int]@($bringupOrderComparison.entry_changes).Count)"
         }
     }
     if ($null -ne $comparisonOverview.PSObject.Properties['bringup_evidence'] -and $null -ne $comparisonOverview.bringup_evidence) {

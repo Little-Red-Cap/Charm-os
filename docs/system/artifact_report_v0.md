@@ -110,7 +110,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `recent transitions` 查询结果
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
-- compare 模式下的 `summary_changes / metadata_changes / comparison.bringup_evidence / comparison.resource_contract`
+- compare 模式下的 `summary_changes / metadata_changes / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
@@ -124,6 +124,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+- `scripts/materialized_graph_system_formation_compare_smoke.ps1`
 
 一起冻结成 v0 契约。
 
@@ -197,6 +198,8 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 - `compared_case_count`
 - `metadata_changed_case_count`
+- `binding_result_changed_case_count`
+- `bringup_order_changed_case_count`
 - `bringup_changed_case_count`
 - `resource_changed_case_count`
 - `capability_summary.compared_capability_count`
@@ -757,6 +760,8 @@ artifact_root 级该查询现在也会继续带出：
 - `metadata_changes`
 - `node_changes`
 - `edge_changes`
+- `binding_result`
+- `bringup_order`
 - `bringup_evidence`
 - `resource_contract`
 
@@ -764,6 +769,39 @@ artifact_root 级该查询现在也会继续带出：
 但它应该把 case 级最重要的比较结论直接拉到报告顶层。
 对于 metadata-only diff，当前 `status` 仍可保持 `unchanged`，
 但 `metadata_changes` 不应被吞掉。
+而 `comparison.binding_result` 则用于承载“同一份结构相对 baseline 的 binding 成立情况发生了什么变化”，
+把 `resolved / unresolved` 与 capability 级 binding 切换正式拉进结果物。
+
+`comparison.binding_result` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `binding_changes`
+- `resolved_capability_changes`
+- `unresolved_capability_changes`
+
+这意味着 compare 模式下报告已经能直接回答：
+
+- 哪些 required capability 从 `resolved` 漂移到 `unresolved`
+- 哪些 binding 只是 provider / consumer / reason 发生变化
+
+而 `comparison.bringup_order` 则用于承载“系统 bringup 次序与阻塞面相对 baseline 发生了什么变化”，
+把 `ready / blocked` 与 blocked node 漂移也收口进正式 compare 结果物。
+
+`comparison.bringup_order` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `entry_changes`
+- `blocked_node_changes`
+
+这意味着 compare 模式下报告已经能继续回答：
+
+- 哪些 node 的 bringup 状态发生了漂移
+- 哪些 blocked node 是新出现的
+
 而 `comparison.bringup_evidence` 则用于承载“结构未变但 bringup 证据发生漂移”的比较面，
 避免把 sidecar / published 状态变化误塞回结构 diff 语义。
 

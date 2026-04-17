@@ -230,6 +230,7 @@ v0 阶段建议至少覆盖：
 - `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+- `scripts/materialized_graph_system_formation_compare_smoke.ps1`
 
 一起收口成 v0 契约。
 
@@ -362,9 +363,17 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
 - `capability_summary.compared_capabilities`
 
+默认总览本身现在还会继续直接给出：
+
+- `comparison.binding_result_changed_case_count`
+- `comparison.bringup_order_changed_case_count`
+- `cases[*].BindCmp`
+- `cases[*].OrdCmp`
+
 这意味着默认 explain 面现在已经可以先回答两层问题：
 
 - 有多少 case 发生了 compare drift
+- 这些 drift 里有多少已经进入 system formation 结果面
 - compare drift 主要集中在哪些 capability 上
 
 围绕同一批 capability，

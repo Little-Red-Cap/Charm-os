@@ -212,6 +212,7 @@ $bringupCompareSmokeScript = Join-Path $PSScriptRoot 'materialized_graph_bringup
 $bringupCompareRootSmokeScript = Join-Path $PSScriptRoot 'materialized_graph_bringup_evidence_compare_root_smoke.ps1'
 $resourceCompareSmokeScript = Join-Path $PSScriptRoot 'materialized_graph_resource_contract_compare_smoke.ps1'
 $resourceCompareRootSmokeScript = Join-Path $PSScriptRoot 'materialized_graph_resource_contract_compare_root_smoke.ps1'
+$systemFormationCompareSmokeScript = Join-Path $PSScriptRoot 'materialized_graph_system_formation_compare_smoke.ps1'
 
 foreach ($requiredPath in @(
     $exportScript,
@@ -220,7 +221,8 @@ foreach ($requiredPath in @(
     $bringupCompareSmokeScript,
     $bringupCompareRootSmokeScript,
     $resourceCompareSmokeScript,
-    $resourceCompareRootSmokeScript
+    $resourceCompareRootSmokeScript,
+    $systemFormationCompareSmokeScript
 )) {
     if (-not (Test-Path $requiredPath)) {
         throw "required path not found: $requiredPath"
@@ -421,6 +423,7 @@ if (-not $SkipCompareSmokes) {
     $compareSummaries['bringup_root'] = Invoke-SmokeSubtest -Name 'bringup_root' -ScriptPath $bringupCompareRootSmokeScript -BundleRootPath $rootCompareBundleRoot -SubOutputRoot (Join-Path $compareRoot 'bringup-root')
     $compareSummaries['resource_report'] = Invoke-SmokeSubtest -Name 'resource_report' -ScriptPath $resourceCompareSmokeScript -BundleRootPath $bundleRoot -SubOutputRoot (Join-Path $compareRoot 'resource-report')
     $compareSummaries['resource_root'] = Invoke-SmokeSubtest -Name 'resource_root' -ScriptPath $resourceCompareRootSmokeScript -BundleRootPath $rootCompareBundleRoot -SubOutputRoot (Join-Path $compareRoot 'resource-root')
+    $compareSummaries['system_formation'] = Invoke-SmokeSubtest -Name 'system_formation' -ScriptPath $systemFormationCompareSmokeScript -BundleRootPath $rootCompareBundleRoot -SubOutputRoot (Join-Path $compareRoot 'system-formation')
 }
 
 $summary = [ordered]@{

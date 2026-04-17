@@ -80,6 +80,12 @@
 
 这层更适合被下半层持有，因为它已经把“当前这条运行时实例是谁、idle 是谁、trace 放哪里”这几个问题收住了。
 
+当前专门验证这条 ISR deferral seam 的 host 证据是：
+
+- `Examples/kernel/runtime_isr_defer_host`
+
+它直接覆盖 `defer_from_isr(task, event) -> scheduler.post_demand(...)` 的正反路径，以及 worker wait/idle/deferred resume 的最小闭环。
+
 ### 3) `RuntimeThreadPort<Tick>`
 
 位置：同 `kernel.runtime_bridge`
@@ -225,6 +231,7 @@
 当前证据 example：
 
 - `Examples/kernel/runtime_minimal_host`
+- `Examples/kernel/runtime_isr_defer_host`
 - `Examples/kernel/runtime_thread_port_host`
 - `scripts/minimal_kernel_runtime_host_smoke.ps1`
 

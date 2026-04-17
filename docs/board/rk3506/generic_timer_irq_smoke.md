@@ -8,15 +8,15 @@
 
 ## 当前这一步做了什么
 
-- 在 [`targets/rk3506/rk3506_platform.cpp`](/G:/Project/Codex/Charm-os-bl/targets/rk3506/rk3506_platform.cpp) 里补了最小 GIC 路径：
+- 在 [`targets/rk3506/rk3506_platform.cpp`](../../../targets/rk3506/rk3506_platform.cpp) 里补了最小 GIC 路径：
   - 准备 generic timer 相关 PPI
   - 打开 distributor / CPU interface
   - 在 IRQ handler 里做 `IAR` / `EOIR`
-- 在 [`targets/rk3506/rk3506_armv7a_state.hpp`](/G:/Project/Codex/Charm-os-bl/targets/rk3506/rk3506_armv7a_state.hpp) 里补了最小 CP15 helper：
+- 在 [`targets/rk3506/rk3506_armv7a_state.hpp`](../../../targets/rk3506/rk3506_armv7a_state.hpp) 里补了最小 CP15 helper：
   - `CNTP_CTL`
   - `CNTP_TVAL`
   - `cpsie i / cpsid i`
-- 在 [`targets/rk3506/rk3506_exceptions.cpp`](/G:/Project/Codex/Charm-os-bl/targets/rk3506/rk3506_exceptions.cpp) 里让 IRQ 路径具备“smoke 窗口内可返回”的能力：
+- 在 [`targets/rk3506/rk3506_exceptions.cpp`](../../../targets/rk3506/rk3506_exceptions.cpp) 里让 IRQ 路径具备“smoke 窗口内可返回”的能力：
   - 如果当前正在执行 timer IRQ smoke，就记录现场并返回主流程
   - 如果不在 smoke 窗口内，IRQ 仍按 fatal 异常处理
 
@@ -24,7 +24,7 @@
 
 - 当前公开 handoff 模型是 `post-DDR normal-world PL1 payload`
 - 在这个契约下，默认期望 generic timer 走的是 `non-secure physical timer`
-- 因此 [`targets/rk3506/CharmTargetConfig.cmake`](/G:/Project/Codex/Charm-os-bl/targets/rk3506/CharmTargetConfig.cmake) 现在把 `CHARM_RK3506_GENERIC_TIMER_EXPECTED_INTID` 默认设为 `30`
+- 因此 [`targets/rk3506/CharmTargetConfig.cmake`](../../../targets/rk3506/CharmTargetConfig.cmake) 现在把 `CHARM_RK3506_GENERIC_TIMER_EXPECTED_INTID` 默认设为 `30`
 
 也就是说，当前日志里的“expected intid”表达的是平台契约，而不是“唯一允许的第一块板子行为”。
 
@@ -61,7 +61,7 @@
    - return PC
    - GIC controller snapshot
    - observed line snapshot
-6. `EOIR` 后返回 [`rk3506_boot_main()`](/G:/Project/Codex/Charm-os-bl/targets/rk3506/rk3506_bootstrap.cpp)
+6. `EOIR` 后返回 [`rk3506_boot_main()`](../../../targets/rk3506/rk3506_bootstrap.cpp)
 7. 由启动日志统一输出 smoke 结果
 
 ## 当前还没有做的事

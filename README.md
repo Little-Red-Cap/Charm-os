@@ -32,6 +32,35 @@
 
 ---
 
+## 从零进入这个仓库
+
+如果你是第一次接触 Charm，建议不要直接在 `docs/` 里漫游，而是先按下面这条最短路径建立整体认知：
+
+1. [`docs/overview.md`](docs/overview.md)：10 分钟入门，先知道项目在解决什么问题
+2. [`docs/architecture_overview.md`](docs/architecture_overview.md)：看全局分层、依赖红线和公开入口
+3. [`docs/README.md`](docs/README.md)：按任务和专题继续往下钻
+4. [`docs/board/README.md`](docs/board/README.md) / [`targets/rk3506/README.md`](targets/rk3506/README.md)：如果你当前在做板级 bring-up
+5. [`docs/system/posix_support_overview.md`](docs/system/posix_support_overview.md)：如果你当前关心 Linux 用户态兼容
+
+## 当前最重要的几个入口
+
+- `Modules/`：主代码目录，按 `core / system / io / media / ui / platform` 分层
+- `targets/`：板级叶子 target 与启动相关实现，当前 RK3506 路径最活跃
+- `docs/`：现行入口、契约、专题设计与推进材料
+- `schemas/`：Artifact / Explain Surface 等结构化输出相关材料
+- `CMakePresets.json`：当前权威构建入口，优先通过 preset 配置和构建
+
+## 构建入口
+
+当前建议优先使用 CMake Presets，而不是手写本地构建目录。
+
+- 主机调试：`cmake --preset host-debug`
+- 主机构建：`cmake --build --preset host-debug`
+- RK3506 最小镜像：`cmake --preset rk3506-baremetal-image-uart0-minimal-debug`
+- RK3506 最小镜像构建：`cmake --build --preset rk3506-baremetal-image-uart0-minimal-debug`
+
+如果你需要继续维护文档本身，请先看 [`docs/documentation_maintenance.md`](docs/documentation_maintenance.md)。
+
 ## 宣言
 Charm 的目标，不是成为一个嵌入式框架，而是通过一套编译期可验证、运行期开销极低的系统协作模型，为嵌入式领域提供一种可被生态吸纳的软件结构标准。
 

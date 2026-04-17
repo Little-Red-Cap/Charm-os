@@ -3,6 +3,7 @@ module;
 export module charm.widgets.progress_flowing;
 
 import charm.core.object;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
@@ -15,6 +16,10 @@ using namespace ui::render;
 export
 class ProgressFlowing : public WidgetBase<ProgressFlowing> {
 public:
+    using value_state_type = service::state<int, 4>;
+    using value_slot_type = typename value_state_type::slot_type;
+    using value_connection = typename value_state_type::connection;
+
     ProgressFlowing() {
         set_size(180, 16);
     }
@@ -27,16 +32,18 @@ public:
         }
         min_ = min_v;
         max_ = max_v;
-        set_value(value_);
+        set_value(value());
     }
 
     void set_value(int v) noexcept {
-        value_ = alg::arc::clamp_to_range(v, min_, max_);
+        (void)value_.set(alg::arc::clamp_to_range(v, min_, max_));
         indeterminate_ = false;
     }
 
+    [[nodiscard]] int value() const noexcept { return value_.get(); }
+
     void set_indeterminate(bool on) noexcept { indeterminate_ = on; }
-    bool is_indeterminate() const noexcept { return indeterminate_; }
+    [[nodiscard]] bool is_indeterminate() const noexcept { return indeterminate_; }
 
     void set_animation_enabled(bool on) noexcept { set_flow_enabled(on); }
     void set_animation_speed(float px) noexcept { set_flow_speed(static_cast<int>(px)); }
@@ -44,6 +51,15 @@ public:
     void set_flow_enabled(bool on) noexcept { flow_enabled_ = on; }
     void set_flow_speed(int px) noexcept { flow_speed_ = (px > 0) ? px : 1; }
     void set_flow_span(int px) noexcept { flow_span_ = (px > 2) ? px : 2; }
+
+    // observe_value() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
+        return value_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
+        return value_.disconnect(c);
+    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -68,7 +84,7 @@ public:
         if (!indeterminate_) {
             const int range = max_ - min_;
             if (range > 0) {
-                const int clamped = alg::arc::clamp_to_range(value_, min_, max_);
+                const int clamped = alg::arc::clamp_to_range(value(), min_, max_);
                 const std::int64_t num = static_cast<std::int64_t>(inner_w) * (clamped - min_);
                 filled_w = static_cast<int>(num / range);
             } else {
@@ -110,7 +126,7 @@ public:
 private:
     int min_{0};
     int max_{100};
-    int value_{0};
+    value_state_type value_{0};
     bool indeterminate_{false};
     bool flow_enabled_{true};
     int flow_speed_{2};

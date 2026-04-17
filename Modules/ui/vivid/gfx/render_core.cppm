@@ -408,6 +408,21 @@ inline rgba decode_pixel(const ImageView& img, int sx, int sy) noexcept {
     return src;
 }
 
+inline int scaled_sample_index(int dst_coord,
+                               int dst_origin,
+                               int dst_extent,
+                               int src_extent) noexcept {
+    if (src_extent <= 1 || dst_extent <= 1) return 0;
+    const int local = dst_coord - dst_origin;
+    const std::int64_t numerator =
+        static_cast<std::int64_t>(local * 2 + 1) * static_cast<std::int64_t>(src_extent);
+    const std::int64_t denominator = static_cast<std::int64_t>(dst_extent) * 2;
+    int sample = static_cast<int>(numerator / denominator);
+    if (sample < 0) return 0;
+    if (sample >= src_extent) return src_extent - 1;
+    return sample;
+}
+
 template<PixelFormat PF, std::size_t W, std::size_t H>
 inline void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y, const rgba& src, bool premultiplied) noexcept {
     if (src.a == 255) {
@@ -598,18 +613,16 @@ void draw_image_scaled(Canvas<PF, W, H>& cvs,
     int y1 = dst_y + dst_h;
     if (x1 <= 0 || y1 <= 0 || x0 >= static_cast<int>(W) || y0 >= static_cast<int>(H)) return;
 
-    int sx0 = 0;
-    int sy0 = 0;
-    if (x0 < 0) { sx0 = (-x0 * img.w) / dst_w; x0 = 0; }
-    if (y0 < 0) { sy0 = (-y0 * img.h) / dst_h; y0 = 0; }
+    if (x0 < 0) { x0 = 0; }
+    if (y0 < 0) { y0 = 0; }
     if (x1 > static_cast<int>(W)) x1 = static_cast<int>(W);
     if (y1 > static_cast<int>(H)) y1 = static_cast<int>(H);
 
     for (int y = y0; y < y1; ++y) {
-        const int sy = sy0 + (y - y0) * img.h / dst_h;
+        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h);
         for (int x = x0; x < x1; ++x) {
             if (!cvs.in_clip(x, y)) continue;
-            const int sx = sx0 + (x - x0) * img.w / dst_w;
+            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w);
             const rgba src = detail::decode_pixel(img, sx, sy);
             detail::blend_pixel(cvs, x, y, src, img.premultiplied_alpha);
         }
@@ -628,16 +641,14 @@ export inline void draw_image_scaled(CanvasBase& cvs,
     int y1 = dst_y + dst_h;
     if (x1 <= 0 || y1 <= 0) return;
 
-    int sx0 = 0;
-    int sy0 = 0;
-    if (x0 < 0) { sx0 = (-x0 * img.w) / dst_w; x0 = 0; }
-    if (y0 < 0) { sy0 = (-y0 * img.h) / dst_h; y0 = 0; }
+    if (x0 < 0) { x0 = 0; }
+    if (y0 < 0) { y0 = 0; }
 
     for (int y = y0; y < y1; ++y) {
-        const int sy = sy0 + (y - y0) * img.h / dst_h;
+        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h);
         for (int x = x0; x < x1; ++x) {
             if (!cvs.in_clip(x, y)) continue;
-            const int sx = sx0 + (x - x0) * img.w / dst_w;
+            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w);
             const rgba src = detail::decode_pixel(img, sx, sy);
             detail::blend_pixel(cvs, x, y, src, img.premultiplied_alpha);
         }
@@ -658,17 +669,15 @@ export inline void draw_image_scaled_round_rect(CanvasBase& cvs,
     int x1 = rect.x + rect.w;
     int y1 = rect.y + rect.h;
     if (x1 <= 0 || y1 <= 0) return;
-    int sx0 = 0;
-    int sy0 = 0;
-    if (x0 < 0) { sx0 = (-x0 * img.w) / dst_w; x0 = 0; }
-    if (y0 < 0) { sy0 = (-y0 * img.h) / dst_h; y0 = 0; }
+    if (x0 < 0) { x0 = 0; }
+    if (y0 < 0) { y0 = 0; }
     for (int y = y0; y < y1; ++y) {
-        const int sy = sy0 + (y - y0) * img.h / dst_h;
+        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h);
         for (int x = x0; x < x1; ++x) {
             if (!cvs.in_clip(x, y)) continue;
             const std::uint8_t mask = detail::round_rect_alpha(x, y, rect, eff_radius);
             if (mask == 0) continue;
-            const int sx = sx0 + (x - x0) * img.w / dst_w;
+            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w);
             const rgba src = detail::decode_pixel(img, sx, sy);
             rgba out = src;
             out.a = static_cast<std::uint8_t>((static_cast<int>(out.a) * mask) / 255);

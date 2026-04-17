@@ -1,5 +1,5 @@
 module;
-#include <functional>
+#include <type_traits>
 export module charm.widgets.tabview;
 
 import charm.core.object;
@@ -17,6 +17,48 @@ using namespace ui::render;
 export
 class TabView : public WidgetBase<TabView> {
 public:
+    struct ResolverCallback {
+        using stub_t = ObjectBase*(*)(void*, WidgetHandle) noexcept;
+
+        void* ctx{};
+        stub_t stub{};
+
+        [[nodiscard]] constexpr ObjectBase* operator()(WidgetHandle handle) const noexcept {
+            return stub ? stub(ctx, handle) : nullptr;
+        }
+
+        constexpr explicit operator bool() const noexcept {
+            return stub != nullptr;
+        }
+
+        template <auto Method, class T>
+        [[nodiscard]] static constexpr ResolverCallback bind(T& obj) noexcept
+            requires(std::is_member_function_pointer_v<decltype(Method)> &&
+                     std::is_nothrow_invocable_r_v<ObjectBase*, decltype(Method), T&, WidgetHandle>)
+        {
+            return ResolverCallback{
+                &obj,
+                [](void* self, WidgetHandle handle) noexcept -> ObjectBase* {
+                    return (static_cast<T*>(self)->*Method)(handle);
+                },
+            };
+        }
+
+        template <auto Fn>
+        [[nodiscard]] static constexpr ResolverCallback bind() noexcept
+            requires(std::is_pointer_v<decltype(Fn)> &&
+                     std::is_function_v<std::remove_pointer_t<decltype(Fn)>> &&
+                     std::is_nothrow_invocable_r_v<ObjectBase*, decltype(Fn), WidgetHandle>)
+        {
+            return ResolverCallback{
+                nullptr,
+                [](void*, WidgetHandle handle) noexcept -> ObjectBase* {
+                    return Fn(handle);
+                },
+            };
+        }
+    };
+
     TabView() {
         set_size(260, 180);
         set_focusable(false);
@@ -115,9 +157,18 @@ public:
         return false;
     }
 
-    template<typename Resolver>
-    void set_resolver(Resolver&& r) noexcept {
-        resolver_ = r;
+    void set_resolver(ResolverCallback resolver) noexcept {
+        resolver_ = resolver;
+    }
+
+    template <auto Method, class T>
+    void set_resolver(T& obj) noexcept {
+        resolver_ = ResolverCallback::bind<Method>(obj);
+    }
+
+    template <auto Fn>
+    void set_resolver() noexcept {
+        resolver_ = ResolverCallback::bind<Fn>();
     }
 
 private:
@@ -126,8 +177,8 @@ private:
     WidgetHandle pages_[max_tabs]{};
     int tab_count_{0};
     int active_{0};
-    // resolves WidgetHandle to ObjectBase*
-    std::function<ObjectBase*(WidgetHandle)> resolver_ = [](WidgetHandle) -> ObjectBase* { return nullptr; };
+    // Same-domain handle resolver with no dynamic allocation.
+    ResolverCallback resolver_{};
 };
 
 

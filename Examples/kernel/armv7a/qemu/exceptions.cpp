@@ -26,6 +26,8 @@ struct Armv7aSvcFrameSampleSlot {
 Armv7aSvcFrameSampleSlot g_svc_frame_sample_last{};
 Armv7aSvcFrameSampleSlot g_svc_frame_sample_yield{};
 Armv7aSvcFrameSampleSlot g_svc_frame_sample_sleep{};
+Armv7aSvcFrameSampleSlot g_svc_frame_sample_debug{};
+Armv7aSvcFrameSampleSlot g_svc_frame_sample_capability{};
 
 constexpr Armv7aRuntimeTrapFrameSample
 armv7a_make_unobserved_svc_frame_sample() noexcept
@@ -93,6 +95,13 @@ extern "C" void armv7a_handle_svc(Armv7aExceptionFrame* frame)
         armv7a_store_svc_frame_sample(g_svc_frame_sample_yield, sample);
     } else if (observation.immediate == kArmv7aRuntimeBridgeSleepServiceId) {
         armv7a_store_svc_frame_sample(g_svc_frame_sample_sleep, sample);
+    } else if (
+        observation.immediate == kArmv7aRuntimeBridgeDebugWriteServiceId) {
+        armv7a_store_svc_frame_sample(g_svc_frame_sample_debug, sample);
+    } else if (
+        observation.immediate ==
+        kArmv7aRuntimeBridgeCapabilityCallServiceId) {
+        armv7a_store_svc_frame_sample(g_svc_frame_sample_capability, sample);
     }
     auto live = armv7a_make_runtime_trap_live_frame(
         *frame, current_cpsr, instruction_word);
@@ -114,6 +123,14 @@ Armv7aRuntimeTrapFrameSample armv7a_svc_frame_sample_for_immediate(
 
     if (immediate == kArmv7aRuntimeBridgeSleepServiceId) {
         return armv7a_load_svc_frame_sample(g_svc_frame_sample_sleep);
+    }
+
+    if (immediate == kArmv7aRuntimeBridgeDebugWriteServiceId) {
+        return armv7a_load_svc_frame_sample(g_svc_frame_sample_debug);
+    }
+
+    if (immediate == kArmv7aRuntimeBridgeCapabilityCallServiceId) {
+        return armv7a_load_svc_frame_sample(g_svc_frame_sample_capability);
     }
 
     const auto last = armv7a_load_svc_frame_sample(g_svc_frame_sample_last);

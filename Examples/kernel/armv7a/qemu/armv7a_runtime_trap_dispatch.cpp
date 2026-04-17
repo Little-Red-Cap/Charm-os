@@ -31,6 +31,8 @@ struct Armv7aRuntimeTrapDispatchSlot {
 Armv7aRuntimeTrapDispatchPort g_runtime_trap_dispatch_port{};
 Armv7aRuntimeTrapDispatchSlot g_runtime_trap_dispatch_yield{};
 Armv7aRuntimeTrapDispatchSlot g_runtime_trap_dispatch_sleep{};
+Armv7aRuntimeTrapDispatchSlot g_runtime_trap_dispatch_debug{};
+Armv7aRuntimeTrapDispatchSlot g_runtime_trap_dispatch_capability{};
 
 Armv7aRuntimeTrapIngressResult armv7a_qemu_runtime_trap_dispatch_stub(
     void*,
@@ -86,6 +88,10 @@ Armv7aRuntimeTrapDispatchSlot* armv7a_runtime_trap_dispatch_slot_for_immediate(
         return &g_runtime_trap_dispatch_yield;
     case kArmv7aRuntimeBridgeSleepServiceId:
         return &g_runtime_trap_dispatch_sleep;
+    case kArmv7aRuntimeBridgeDebugWriteServiceId:
+        return &g_runtime_trap_dispatch_debug;
+    case kArmv7aRuntimeBridgeCapabilityCallServiceId:
+        return &g_runtime_trap_dispatch_capability;
     default:
         return nullptr;
     }
@@ -324,11 +330,18 @@ Armv7aRuntimeTrapDispatchPairObservation
 armv7a_capture_runtime_trap_dispatch_observation() noexcept
 {
     return Armv7aRuntimeTrapDispatchPairObservation{
-        .yield = armv7a_observe_runtime_trap_dispatch_for_immediate(
+        .yield = armv7a_capture_runtime_trap_dispatch_for_immediate(
             kArmv7aRuntimeBridgeYieldServiceId),
-        .sleep = armv7a_observe_runtime_trap_dispatch_for_immediate(
+        .sleep = armv7a_capture_runtime_trap_dispatch_for_immediate(
             kArmv7aRuntimeBridgeSleepServiceId),
     };
+}
+
+Armv7aRuntimeTrapDispatchObservation
+armv7a_capture_runtime_trap_dispatch_for_immediate(
+    std::uint32_t immediate) noexcept
+{
+    return armv7a_observe_runtime_trap_dispatch_for_immediate(immediate);
 }
 
 void armv7a_print_runtime_trap_dispatch_observation()

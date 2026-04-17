@@ -92,6 +92,8 @@ void armv7a_unbind_runtime_trap_dispatch_port() noexcept;
 Armv7aRuntimeTrapIngressResult armv7a_dispatch_runtime_trap_live_frame(
     Armv7aRuntimeTrapLiveFrame& live,
     Armv7aRuntimeTrapSeamFrameView* frame_view = nullptr) noexcept;
+Armv7aRuntimeTrapDispatchObservation armv7a_capture_runtime_trap_dispatch_for_immediate(
+    std::uint32_t immediate) noexcept;
 Armv7aRuntimeTrapDispatchPairObservation
 armv7a_capture_runtime_trap_dispatch_observation() noexcept;
 void armv7a_print_runtime_trap_dispatch_observation();

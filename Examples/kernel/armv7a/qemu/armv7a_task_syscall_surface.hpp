@@ -24,17 +24,10 @@ constexpr const char* armv7a_task_syscall_surface_path_name(
 }
 
 struct Armv7aTaskSyscallSurfaceProbeObservation {
-    Armv7aRuntimeTrapObservation trap{};
-    Armv7aRuntimeTrapMappedFrame mapped{};
-    Armv7aRuntimeTrapSeamFrameView frame_view{};
-    Armv7aRuntimeTrapIngressResult result{};
-    Armv7aRuntimeCurrentContext current{};
+    Armv7aRuntimeTrapDispatchObservation dispatch{};
     Armv7aTaskSyscallSurfacePath path =
         Armv7aTaskSyscallSurfacePath::none;
     std::uint32_t return_value = 0u;
-    bool current_seen = false;
-    bool mapping_matches_dispatch = false;
-    bool current_matches_dispatch = false;
     bool result_matches_return = false;
     bool result_matches_expected = false;
 };
@@ -42,13 +35,8 @@ struct Armv7aTaskSyscallSurfaceProbeObservation {
 constexpr bool armv7a_task_syscall_surface_probe_ready(
     const Armv7aTaskSyscallSurfaceProbeObservation& observation) noexcept
 {
-    return armv7a_runtime_trap_ready(observation.trap) &&
-           armv7a_runtime_trap_mapping_ready(observation.mapped) &&
+    return armv7a_runtime_trap_dispatch_ready(observation.dispatch) &&
            observation.path == Armv7aTaskSyscallSurfacePath::live_svc_dispatch &&
-           observation.result.ok() &&
-           observation.current_seen &&
-           observation.mapping_matches_dispatch &&
-           observation.current_matches_dispatch &&
            observation.result_matches_return &&
            observation.result_matches_expected;
 }

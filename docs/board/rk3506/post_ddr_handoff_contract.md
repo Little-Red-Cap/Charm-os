@@ -58,7 +58,7 @@
 - 没有明显未清的活跃中断源
 - 定时器、看门狗、mailbox 等不会在我们安装本地向量前突然打进来
 
-当前 [`targets/rk3506/startup.S`](/G:/Project/Codex/Charm-os-bl/targets/rk3506/startup.S) 会在 very-early 阶段重新屏蔽 `A/I/F`，然后再清 BSS、建 per-mode stack、安装本地向量。
+当前 [`targets/rk3506/startup.S`](../../../targets/rk3506/startup.S) 会在 very-early 阶段重新屏蔽 `A/I/F`，然后再清 BSS、建 per-mode stack、安装本地向量。
 
 这意味着：
 

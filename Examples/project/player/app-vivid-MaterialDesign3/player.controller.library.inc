@@ -238,12 +238,19 @@
                 out.detail_secondary = out.model->subtitle.view();
             }
             const bool row_has_action = (out.model != nullptr) || (out.track_index >= 0);
-            out.show_tail_action = row_has_action && (out.group_row ? out.selected_row
-                                                                    : (out.selected_row || !out.current_row));
-            out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
-            out.tail_icon = out.current_row
-                ? (is_paused() ? icons.pause : icons.play)
-                : ::ui::scene::invalid_image_id();
+            if (out.group_row) {
+                out.show_tail_action = false;
+                out.tail_action_icon = ::ui::scene::invalid_image_id();
+                out.tail_icon = out.current_row
+                    ? (is_paused() ? icons.pause : icons.play)
+                    : icons.chevron_right;
+            } else {
+                out.show_tail_action = row_has_action && (out.selected_row || !out.current_row);
+                out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
+                out.tail_icon = out.current_row
+                    ? (is_paused() ? icons.pause : icons.play)
+                    : ::ui::scene::invalid_image_id();
+            }
 
             const auto* tracks = storage.tracks;
             if (!tracks || out.track_index < 0 || out.track_index >= static_cast<int>(tracks->size())) {
@@ -493,11 +500,84 @@
             if (!buf || buf_size == 0) return;
             buf[0] = '\0';
             if (key.empty()) return;
+            const auto* tracks = storage.tracks;
+            if (!tracks) return;
 
-            const int track_count = library_group_track_count(key);
+            int track_count = 0;
+            int total_sec = 0;
+            bool duration_complete = true;
+            int album_count = 0;
+            std::string primary_artist{};
+            bool multiple_artists = false;
+            std::vector<std::string> unique_albums{};
+
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                if (compare_ci(library_group_title_for_track(static_cast<int>(i)), key) != 0) {
+                    continue;
+                }
+
+                ++track_count;
+                const auto path = (*tracks)[i].view();
+                const int duration_sec = cached_track_duration(static_cast<int>(i));
+                if (duration_sec == kTrackDurationUnknown) {
+                    duration_complete = false;
+                } else if (duration_sec > 0) {
+                    total_sec += duration_sec;
+                }
+
+                if (library_tab == LibraryTab::Albums) {
+                    const auto stem = library_track_stem(path);
+                    const auto artist = library_artist_label(library_artist_from_stem(stem));
+                    if (primary_artist.empty()) {
+                        primary_artist.assign(artist.begin(), artist.end());
+                    } else if (compare_ci(primary_artist, artist) != 0) {
+                        multiple_artists = true;
+                    }
+                } else if (library_tab == LibraryTab::Artists) {
+                    const auto album = library_album_label(library_parent_folder(path));
+                    bool exists = false;
+                    for (const auto& existing : unique_albums) {
+                        if (compare_ci(existing, album) == 0) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        unique_albums.emplace_back(album.begin(), album.end());
+                    }
+                }
+            }
+
+            album_count = static_cast<int>(unique_albums.size());
             const char* track_label = (track_count == 1) ? "track" : "tracks";
-            bool duration_complete = false;
-            const int total_sec = library_group_total_duration(key, &duration_complete);
+            if (library_tab == LibraryTab::Albums && !primary_artist.empty()) {
+                const char* artist_label = multiple_artists ? "Various Artists" : primary_artist.c_str();
+                if (duration_complete && total_sec > 0) {
+                    char duration_buf[16]{};
+                    format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
+                    std::snprintf(buf, buf_size, "%s | %d %s | %s",
+                                  artist_label, track_count, track_label, duration_buf);
+                } else {
+                    std::snprintf(buf, buf_size, "%s | %d %s",
+                                  artist_label, track_count, track_label);
+                }
+                return;
+            }
+
+            if (library_tab == LibraryTab::Artists && album_count > 0) {
+                const char* album_label = (album_count == 1) ? "album" : "albums";
+                if (duration_complete && total_sec > 0) {
+                    char duration_buf[16]{};
+                    format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
+                    std::snprintf(buf, buf_size, "%d %s | %d %s | %s",
+                                  album_count, album_label, track_count, track_label, duration_buf);
+                } else {
+                    std::snprintf(buf, buf_size, "%d %s | %d %s",
+                                  album_count, album_label, track_count, track_label);
+                }
+                return;
+            }
+
             if (duration_complete && total_sec > 0) {
                 char duration_buf[16]{};
                 format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
@@ -565,6 +645,28 @@
             }
         }
 
+        void show_library_context_status() {
+            if (!library_has_context()) return;
+            char summary[160]{};
+            format_library_group_summary(library_context_key.view(),
+                                         library_context_is_current_group(),
+                                         summary,
+                                         sizeof(summary));
+
+            char buf[256]{};
+            if (summary[0] != '\0') {
+                std::snprintf(buf, sizeof(buf), "%s | %.*s | %s",
+                              library_group_status_label(),
+                              static_cast<int>(library_context_key.size()), library_context_key.view().data(),
+                              summary);
+            } else {
+                std::snprintf(buf, sizeof(buf), "%s | %.*s",
+                              library_group_status_label(),
+                              static_cast<int>(library_context_key.size()), library_context_key.view().data());
+            }
+            set_status(buf);
+        }
+
         ::ui::scene::AnchoredMenuHandles list_action_menu_handles() const noexcept {
             ::ui::scene::AnchoredMenuHandles out{};
             out.scrim = handles.list_action_scrim;
@@ -610,21 +712,58 @@
             return {};
         }
 
+        const char* library_group_primary_action_label() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return "Open album";
+            case LibraryTab::Artists:
+                return "Open artist";
+            case LibraryTab::Songs:
+            default:
+                return "Open group";
+            }
+        }
+
+        const char* library_group_secondary_action_label() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return "Show album summary";
+            case LibraryTab::Artists:
+                return "Show artist summary";
+            case LibraryTab::Songs:
+            default:
+                return "Show summary";
+            }
+        }
+
+        const char* library_group_status_label() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return "Album";
+            case LibraryTab::Artists:
+                return "Artist";
+            case LibraryTab::Songs:
+            default:
+                return "Group";
+            }
+        }
+
         std::size_t build_list_action_menu_items(int list_index,
                                                  ::ui::scene::AnchoredMenuItemSpec (&items)[3]) const noexcept {
             for (auto& item : items) item = {};
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return 0;
 
+            const auto row = make_library_row_recipe(list_index);
             items[0] = {
-                .text = library_shows_group_rows() ? "Open group" : "Play now",
+                .text = row.group_row ? library_group_primary_action_label() : "Play now",
                 .visible = true,
             };
             items[1] = {
-                .text = library_shows_group_rows() ? "Show summary" : "Show path",
+                .text = row.group_row ? library_group_secondary_action_label() : "Show path",
                 .visible = true,
             };
 
-            if (library_shows_group_rows()) return 2;
+            if (row.group_row) return 2;
 
             const int track_idx = list_index_to_track(list_index);
             const auto tertiary_label = list_action_tertiary_label_for_track(track_idx);
@@ -707,6 +846,9 @@
                 }
                 return true;
             }
+            case UiKey::Left:
+                close_list_action_menu();
+                return true;
             default:
                 return false;
             }
@@ -770,8 +912,33 @@
             close_list_action_menu();
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
 
-            char buf[192]{};
+            char buf[224]{};
             const auto row = make_library_row_recipe(list_index);
+            if (row.group_row) {
+                const auto primary = row.detail_primary;
+                const auto secondary = row.detail_secondary;
+                if (primary.empty()) return;
+                if (secondary.empty()) {
+                    std::snprintf(buf, sizeof(buf), "%s | %.*s",
+                                  library_group_status_label(),
+                                  static_cast<int>(primary.size()), primary.data());
+                } else {
+                    std::snprintf(buf, sizeof(buf), "%s | %.*s | %.*s",
+                                  library_group_status_label(),
+                                  static_cast<int>(primary.size()), primary.data(),
+                                  static_cast<int>(secondary.size()), secondary.data());
+                }
+                if (row.current_row) {
+                    const char* state = library_current_group_state_text();
+                    const std::size_t used = std::char_traits<char>::length(buf);
+                    if (used + 3 < sizeof(buf)) {
+                        std::snprintf(buf + used, sizeof(buf) - used, " | %s", state);
+                    }
+                }
+                set_status(buf);
+                return;
+            }
+
             const auto primary = row.detail_primary;
             const auto secondary = row.detail_secondary;
             if (primary.empty()) return;
@@ -827,6 +994,7 @@
             library_tab = target_tab;
             library_context_key.assign(key);
             refresh_list_view();
+            show_library_context_status();
         }
 
         void invoke_list_action_item(int item_index) {
@@ -852,6 +1020,7 @@
                 if (row.model) {
                     library_context_key.assign(row.title());
                     refresh_list_view();
+                    show_library_context_status();
                 }
                 return;
             }
@@ -861,28 +1030,49 @@
             }
         }
 
+        void invalidate_library_visual_state() noexcept {
+            library_visual_state.valid = false;
+            ++library_visual_generation;
+            if (library_visual_generation == 0) {
+                library_visual_generation = 1;
+            }
+        }
+
+        WidgetHandle active_library_tab_handle() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return handles.list_tab_albums;
+            case LibraryTab::Artists:
+                return handles.list_tab_artist;
+            case LibraryTab::Songs:
+            default:
+                return handles.list_tab_songs;
+            }
+        }
+
+        bool library_can_step_back() const noexcept {
+            return library_has_context()
+                || list_shuffle_enabled
+                || library_tab != LibraryTab::Songs;
+        }
+
         void apply_library_tab_style(WidgetHandle handle, bool active, int radius) {
             if (!access.valid() || !handle) return;
             ::ui::scene::PillSurfaceSpec spec{};
             spec.bg_color = active ? kUiLibraryTabActive : kUiLibraryChipIdle;
-            spec.border_color = active ? kUiLibraryTabBorderActive : kUiLibraryChipBorder;
+            spec.border_color = {0, 0, 0, 0};
             spec.corner_radius = radius;
-            if (active) {
-                spec.shadow.enabled = true;
-                spec.shadow.color = with_alpha(kUiCardShadow, 72);
-                spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = 3;
-                spec.shadow.spread = 1;
-                spec.shadow.radius = 12;
-                spec.inner_stroke_enabled = true;
-                spec.inner_stroke_color = with_alpha(kUiLibraryTabBorderActive, 120);
-                spec.inner_stroke_width = 1;
-            }
             StylePatch patch = ::ui::scene::make_pill_surface_patch(spec);
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+            patch.has_inner_stroke_enabled = true;
+            patch.inner_stroke_enabled = false;
             patch.has_font = true;
             patch.font = active
-                ? &get_player_font_px(20, FontWeight::Bold)
-                : &get_player_font_px(19, FontWeight::Medium);
+                ? &get_player_font_px(19, FontWeight::Bold)
+                : &get_player_font_px(18, FontWeight::Medium);
             patch.has_font_color = true;
             patch.font_color = active ? kUiLibraryTabTextActive : kUiLibraryChipTextMuted;
             patch.has_border_focus = true;
@@ -895,40 +1085,15 @@
             if (!access.valid() || !handle) return;
             ::ui::scene::PillSurfaceSpec spec{};
             spec.bg_color = active ? kUiLibraryChipActive : kUiLibraryChipIdle;
-            spec.border_color = active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder;
+            spec.border_color = {0, 0, 0, 0};
             spec.corner_radius = radius;
-            if (active && elevated) {
-                spec.shadow.enabled = true;
-                spec.shadow.color = with_alpha(kUiCardShadow, 62);
-                spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = 2;
-                spec.shadow.spread = 0;
-                spec.shadow.radius = 9;
-            } else if (active) {
-                spec.shadow.enabled = true;
-                spec.shadow.color = with_alpha(kUiCardShadow, 82);
-                spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = 2;
-                spec.shadow.spread = 0;
-                spec.shadow.radius = 10;
-            } else if (elevated) {
-                spec.shadow.enabled = true;
-                spec.shadow.color = with_alpha(kUiCardShadow, 28);
-                spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = 1;
-                spec.shadow.spread = 0;
-                spec.shadow.radius = 6;
-            }
-            if (active) {
-                spec.inner_stroke_enabled = true;
-                spec.inner_stroke_color = with_alpha(kUiLibraryListOnAccent, 52);
-                spec.inner_stroke_width = 1;
-            } else if (elevated) {
-                spec.inner_stroke_enabled = true;
-                spec.inner_stroke_color = with_alpha(kUiLibraryPathTextActive, 16);
-                spec.inner_stroke_width = 1;
-            }
             StylePatch patch = ::ui::scene::make_pill_surface_patch(spec);
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+            patch.has_inner_stroke_enabled = true;
+            patch.inner_stroke_enabled = false;
             patch.has_font_color = true;
             patch.font_color = active
                 ? kUiLibraryChipTextActive
@@ -943,29 +1108,61 @@
         }
 
         void update_library_state_visuals() {
+            if (!access.valid()) return;
             const bool has_context = library_has_context();
-            const bool path_active = has_context
-                || (library_tab != LibraryTab::Songs)
-                || list_shuffle_enabled;
+            const bool path_active = library_can_step_back();
+            const bool sort_desc = list_sort == ListSort::NameDesc;
+            const bool sort_active = list_shuffle_enabled || sort_desc;
+            const WidgetHandle active_tab = active_library_tab_handle();
+            const Rect active_rect = active_tab ? access.world_rect(active_tab) : Rect{};
+            if (library_visual_state.valid
+                && library_visual_state.generation == library_visual_generation
+                && library_visual_state.tab == library_tab
+                && library_visual_state.has_context == has_context
+                && library_visual_state.path_active == path_active
+                && library_visual_state.shuffle_enabled == list_shuffle_enabled
+                && library_visual_state.sort_desc == sort_desc
+                && library_visual_state.active_tab_rect.x == active_rect.x
+                && library_visual_state.active_tab_rect.y == active_rect.y
+                && library_visual_state.active_tab_rect.w == active_rect.w
+                && library_visual_state.active_tab_rect.h == active_rect.h) {
+                return;
+            }
+            if (handles.library_hero_title) {
+                StylePatch patch{};
+                patch.has_font = true;
+                patch.font = &get_player_font_px(60, FontWeight::Bold);
+                patch.has_font_color = true;
+                patch.font_color = kUiOk;
+                patch.has_font_color_disabled = true;
+                patch.font_color_disabled = kUiOk;
+                patch.has_bg_color = true;
+                patch.bg_color = {0, 0, 0, 0};
+                patch.has_border_color = true;
+                patch.border_color = {0, 0, 0, 0};
+                patch.has_border_width = true;
+                patch.border_width = 0;
+                patch.has_padding = true;
+                patch.padding = 0;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 0;
+                access.set_style_override(handles.library_hero_title, patch);
+            }
             apply_library_tab_style(handles.list_tab_songs, library_tab == LibraryTab::Songs, kLibraryTabRadius);
             apply_library_tab_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
             apply_library_tab_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
             apply_library_chip_style(handles.list_shuffle, list_shuffle_enabled, kLibraryTabRadius, true);
-            apply_library_chip_style(handles.list_sort, list_sort == ListSort::NameDesc, kLibrarySortRadius, true);
+            apply_library_chip_style(handles.list_sort, sort_active, kLibrarySortRadius, true);
+            if (handles.list_sort) {
+                access.set_button_icon(handles.list_sort, list_shuffle_enabled ? icons.shuffle : icons.down);
+            }
             if (handles.list_tab_indicator) {
-                WidgetHandle active_tab = handles.list_tab_songs;
-                if (library_tab == LibraryTab::Albums) {
-                    active_tab = handles.list_tab_albums;
-                } else if (library_tab == LibraryTab::Artists) {
-                    active_tab = handles.list_tab_artist;
-                }
-                const Rect active_rect = access.world_rect(active_tab);
-                const int indicator_w = std::max(48, active_rect.w / 3);
+                const int indicator_w = std::max(36, active_rect.w / 4);
                 access.set_rect(handles.list_tab_indicator,
                     {active_rect.x + (active_rect.w - indicator_w) / 2,
-                     active_rect.y + active_rect.h + 6,
+                     active_rect.y + active_rect.h + 5,
                      indicator_w,
-                     6});
+                     4});
             }
             if (handles.list_title) {
                 StylePatch patch{};
@@ -981,22 +1178,15 @@
             }
 
             if (handles.list_path_bg) {
-                const auto patch = ::ui::scene::make_pill_surface_patch({
+                auto patch = ::ui::scene::make_clean_surface_patch({
+                    .apply_bg_color = true,
+                    .apply_border_color = true,
+                    .apply_corner_radius = true,
                     .bg_color = has_context
                         ? with_alpha(kUiLibraryPathIdle, 180)
                         : (path_active ? kUiLibraryPathActive : kUiLibraryPathIdle),
-                    .border_color = has_context
-                        ? with_alpha(kUiLibraryPathBorderActive, 88)
-                        : (path_active ? kUiLibraryPathBorderActive : kUiLibraryChipBorder),
+                    .border_color = {0, 0, 0, 0},
                     .corner_radius = kLibraryPathRadius,
-                    .shadow = {
-                        .enabled = path_active && !has_context,
-                        .color = with_alpha(kUiCardShadow, 72),
-                        .offset_x = 0,
-                        .offset_y = 2,
-                        .spread = 1,
-                        .radius = 12,
-                    },
                 });
                 access.set_style_override(handles.list_path_bg, patch);
             }
@@ -1004,16 +1194,27 @@
                 StylePatch patch{};
                 patch.has_font_color = true;
                 patch.font_color = has_context
-                    ? with_alpha(kUiLibraryPathTextActive, 176)
+                    ? with_alpha(kUiLibraryPathTextActive, 184)
                     : path_active
                     ? kUiLibraryPathTextActive
-                    : kUiLibraryPathText;
+                    : with_alpha(kUiLibraryPathText, 236);
                 patch.has_font_role = true;
                 patch.font_role = FontId::Small;
                 patch.has_font_weight = true;
-                patch.font_weight = has_context ? FontWeight::Medium : FontWeight::Regular;
+                patch.font_weight = path_active ? FontWeight::Bold : FontWeight::Medium;
                 access.set_style_override(handles.list_path, patch);
             }
+            if (handles.list_path_hit) {
+                access.set_visible(handles.list_path_hit, path_active);
+            }
+            library_visual_state.tab = library_tab;
+            library_visual_state.has_context = has_context;
+            library_visual_state.path_active = path_active;
+            library_visual_state.shuffle_enabled = list_shuffle_enabled;
+            library_visual_state.sort_desc = sort_desc;
+            library_visual_state.active_tab_rect = active_rect;
+            library_visual_state.generation = library_visual_generation;
+            library_visual_state.valid = true;
         }
 
         LibrarySortKey make_library_sort_key(int track_index) const noexcept {
@@ -1448,6 +1649,12 @@
         }
 
         void invoke_list_action(int list_index) {
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
+            const auto row = make_library_row_recipe(list_index);
+            if (row.group_row) {
+                activate_list_index(list_index);
+                return;
+            }
             open_list_action_menu(list_index);
         }
 
@@ -1576,10 +1783,18 @@
                 ? library_context_key.view()
                 : std::string_view{};
             const char* base = library_tab_title(library_tab);
-            char buf[64]{};
+            char buf[96]{};
             if (!context.empty()) {
-                if (last_list_title_text.view() == context) return;
-                last_list_title_text.assign(context);
+                if (count > 0) {
+                    std::snprintf(buf, sizeof(buf), "%.*s (%d)",
+                                  static_cast<int>(context.size()), context.data(),
+                                  count);
+                    if (last_list_title_text.view() == buf) return;
+                    last_list_title_text.assign(buf);
+                } else {
+                    if (last_list_title_text.view() == context) return;
+                    last_list_title_text.assign(context);
+                }
                 set_label_slot(handles.list_title, text_slots.list_title, last_list_title_text.c_str());
             } else if (count > 0) {
                 std::snprintf(buf, sizeof(buf), "%s (%d)", base, count);
@@ -1596,20 +1811,29 @@
 
         void update_list_path() {
             if (!access.valid() || !handles.list_path) return;
+            const int count = static_cast<int>(list_order.size());
             FixedString<192> path;
-            path.assign("Library");
+            path.assign(library_can_step_back() ? "< Library" : "Library");
             path.append(" / ");
             path.append(library_tab_title(library_tab));
             if (library_has_context()) {
-                char summary[64]{};
-                format_library_group_summary(library_context_key.view(),
-                                             library_context_is_current_group(),
-                                             summary,
-                                             sizeof(summary));
-                if (summary[0] != '\0') {
+                path.append(" / ");
+                path.append(library_context_key.view());
+                if (count > 0) {
+                    char count_buf[24]{};
+                    std::snprintf(count_buf, sizeof(count_buf), "%d %s",
+                                  count, (count == 1) ? "track" : "tracks");
                     path.append(" / ");
-                    path.append(summary);
+                    path.append(count_buf);
                 }
+            } else if (library_shows_group_rows() && count > 0) {
+                char count_buf[24]{};
+                const char* label = (library_tab == LibraryTab::Albums)
+                    ? ((count == 1) ? "album" : "albums")
+                    : ((count == 1) ? "artist" : "artists");
+                std::snprintf(count_buf, sizeof(count_buf), "%d %s", count, label);
+                path.append(" / ");
+                path.append(count_buf);
             }
             if (list_shuffle_enabled) {
                 path.append(" / Shuffled");
@@ -1619,13 +1843,15 @@
 
         void update_list_sort_label() {
             if (!access.valid() || !handles.list_sort) return;
-            const char* label = (list_sort == ListSort::NameAsc) ? "A-Z" : "Z-A";
+            const char* label = list_shuffle_enabled
+                ? "Rand"
+                : ((list_sort == ListSort::NameAsc) ? "A-Z" : "Z-A");
             set_label_slot(handles.list_sort, text_slots.list_sort, label);
         }
 
         void update_list_shuffle_label() {
             if (!access.valid() || !handles.list_shuffle) return;
-            const char* label = list_shuffle_enabled ? "Shuffled" : "Shuffle";
+            const char* label = list_shuffle_enabled ? "Shuffle On" : "Shuffle";
             set_label_slot(handles.list_shuffle, text_slots.list_shuffle, label);
         }
 
@@ -1646,9 +1872,12 @@
             const char* hint = "";
             char buf[96]{};
             if (show_group_hint) {
-                hint = (library_tab == LibraryTab::Albums)
-                    ? "Open an album row to view tracks"
-                    : "Open an artist row to view tracks";
+                const char* label = (library_tab == LibraryTab::Albums)
+                    ? ((count == 1) ? "album" : "albums")
+                    : ((count == 1) ? "artist" : "artists");
+                std::snprintf(buf, sizeof(buf), "%d %s available | open one to browse tracks",
+                              count, label);
+                hint = buf;
             } else {
                 hint = fs_ready ? "No items in current library view" : "FS not ready";
             }

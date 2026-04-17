@@ -116,6 +116,8 @@
             set_label_slot(handles.subtitle, text_slots.subtitle, subtitle_text.c_str());
             set_label_slot(handles.bottom_title, text_slots.bottom_title, title_text.c_str());
             set_label_slot(handles.bottom_subtitle, text_slots.bottom_subtitle, subtitle_text.c_str());
+            set_label(handles.transition_title, title_text.c_str());
+            set_label(handles.transition_subtitle, subtitle_text.c_str());
         }
         bool load_track_index(int idx) {
             if (!fs_ready) {

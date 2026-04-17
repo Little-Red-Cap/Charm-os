@@ -35,18 +35,17 @@
         }
         const Rect cover = scene.world_rect(ctx.handles.cover);
         const int cover_radius = 20;
-        const auto cover_image = ctx.cover_image.image_id;
-        if (!ui::gfx::image_id_valid(cover_image)) {
-            out.fill_round_rect(cover, cover_radius, kUiCover);
+        const bool has_cover = ui::gfx::image_id_valid(ctx.cover_image.image_id);
+        if (has_cover) {
+            rgba cover_ring = kUiOk;
+            if (ctx.is_playing()) {
+                const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);
+                cover_ring.a = static_cast<std::uint8_t>(80 + pulse * 120.0f);
+            } else {
+                cover_ring.a = 70;
+            }
+            out.stroke_round_rect(cover, cover_radius, cover_ring);
         }
-        rgba cover_ring = kUiOk;
-        if (ctx.is_playing()) {
-            const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);
-            cover_ring.a = static_cast<std::uint8_t>(80 + pulse * 120.0f);
-        } else {
-            cover_ring.a = 70;
-        }
-        out.stroke_round_rect(cover, cover_radius, cover_ring);
         (void)scene;
 
         const Rect spec = scene.world_rect(ctx.handles.spectrum);

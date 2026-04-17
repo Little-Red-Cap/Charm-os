@@ -424,6 +424,7 @@ int main(int argc, char** argv) {
     std::string library_context_override{};
     bool library_open_first_group = false;
     int library_select_index = -1;
+    int track_index_override = 0;
     bool ui_ci = false;
     std::string font_ttf_path{};
     std::string font_fallback_ttf_path{};
@@ -483,6 +484,8 @@ int main(int argc, char** argv) {
             library_open_first_group = true;
         } else if (arg.rfind("--library-select-index=", 0) == 0) {
             library_select_index = std::atoi(std::string(arg.substr(23)).c_str());
+        } else if (arg.rfind("--track-index=", 0) == 0) {
+            track_index_override = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
         } else if (arg == "--screenshot-verbose") {
             screenshot_verbose = true;
         } else if (arg == "--screenshot-exit") {
@@ -574,7 +577,7 @@ int main(int argc, char** argv) {
     });
     g_ctx.set_page(start_page);
 
-    const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
+    const bool has_track = g_app->bootstrap_player(g_ctx, track_index_override, false);
     if (library_tab_override.has_value()) {
         g_ctx.set_library_tab(*library_tab_override);
     }

@@ -1,20 +1,56 @@
 # Examples 总览
 
-此目录收录可复现的示例工程，均可独立配置与编译（不运行）�?
+此目录收录可复现的示例工程，主要用于验证某条能力主线、某个子系统入口或某段运行时路径。
 
-## 目录结构
+它们默认回答的是：
 
-- `kernel/windows`：内�?M0/M3 主线
-- `boot/bootloader_demo`：Bootloader 示例
-- `audio/sdl3_wav_demo`：SDL3 音频示例
-- `project/player`：播放器项目化示例（win 子目录）
-- `fs/`：VFS/BlockFS/FatFs 示例
-- `shell/`：Shell/ModuleX 组合示例
-- `service/`：Service 核心/DS 示例
-- `hal/hal_demo`：HAL 接口示例
-- `alg/alg_demo`：算法与压缩示例
+- 某条能力现在最小能不能跑起来
+- 某个子系统当前推荐从哪条示例进入
+- 某条回归链路应该如何独立配置与构建
 
-## 快速构建（Windows + Ninja�?
+如果你是第一次进入仓库，建议先看根目录 [`README.md`](../README.md) 与 [`docs/README.md`](../docs/README.md)，
+再回到这里按主题找示例。
+
+## 按主题进入
+
+- `kernel/`
+  内核、RTOS、ARMv7-A、POSIX/QEMU 等运行时路径示例。
+- `init/`
+  bring-up / materialize / observe 相关验证示例。
+- `fs/`
+  VFS、BlockFS、FatFs 等存储链路示例。
+- `io/`
+  输入、pump、通道等 IO 相关示例。
+- `service/`
+  Service 核心能力与信号/状态链路示例。
+- `usb/`
+  USB device / host runtime 相关示例。
+- `project/`
+  项目化示例，当前重点是 `player/`。
+- `audio/`
+  SDL3 音频与主机验证路径。
+- `boot/`、`hal/`、`alg/`、`system/`、`ui/`、`ink/`
+  对应子系统的专项示例。
+
+## 推荐阅读路径
+
+- 看项目化示例：
+  [`project/player/README.md`](project/player/README.md)
+
+- 看 ARMv7-A / QEMU bare-metal：
+  [`kernel/armv7a/qemu/README.md`](kernel/armv7a/qemu/README.md)
+
+- 看 POSIX / QEMU：
+  [`kernel/posix/qemu/README.md`](kernel/posix/qemu/README.md)
+
+- 看 USB 示例集合：
+  [`usb/README.md`](usb/README.md)
+
+- 看 FatFs / VFS 示例：
+  先回到 [`../docs/storage/fs_fatfs_demo.md`](../docs/storage/fs_fatfs_demo.md)，
+  再进入对应示例目录。
+
+## 快速构建（Windows + Ninja）
 
 ```bash
 # Kernel M0/M3
@@ -62,31 +98,34 @@ cmake --build Examples/alg/alg_demo/build
 
 ## 说明
 
-- 示例默认关闭 UI/Media/SDL3 依赖（仅在对应示例中启用）�?
-- 运行方式与输出说明请参考根目录 `README.md`�?
+- 示例默认关闭 UI / Media / SDL3 等额外依赖，只有对应示例会显式开启。
+- 不同示例的维护活跃度并不完全一致；优先参考子目录内带 `README.md` 的示例。
+- 运行方式与输出说明，优先查看各示例目录自己的 `README.md`。
 
 ## SDL3 安装与配置（PC 验证用）
 
-优先使用系统安装�?SDL3（CMake `find_package(SDL3 CONFIG)`）�?
+优先使用系统安装的 SDL3（CMake `find_package(SDL3 CONFIG)`）。
 
-### 方式 A：本机安装（推荐�?
+### 方式 A：本机安装（推荐）
 
-1. �?SDL3 源码编译并安装：
+1. 从 SDL3 源码编译并安装：
+
    ```bash
    cmake -S <SDL3_SOURCE> -B <SDL3_BUILD> -G Ninja -DCMAKE_INSTALL_PREFIX=<SDL3_PREFIX>
    cmake --build <SDL3_BUILD>
    cmake --install <SDL3_BUILD>
    ```
-2. 设置环境变量（或 CMake cache）：
+
+2. 设置环境变量或 CMake cache：
+
    - `SDL3_DIR=<SDL3_PREFIX>/lib/cmake/SDL3`
 
 ### 方式 B：项目内源码
 
-�?SDL3 源码放到�?
+把 SDL3 源码放到：
 
-```
+```text
 Examples/ThirdParty/SDL3
 ```
 
-示例会优先使�?`find_package`，找不到时回退到本地源码目录�?
-
+示例会优先使用 `find_package`，找不到时回退到本地源码目录。

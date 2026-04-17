@@ -4,6 +4,7 @@ export import io.channel;
 export import io.reactor;
 
 export import net.common;
+export import net.icmp;
 export import net.socket;
 export import net.stack;
 export import net.api;

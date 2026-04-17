@@ -1,5 +1,6 @@
 #include "armv7a_runtime_trap_dispatch.hpp"
 
+#include "armv7a_runtime_trap_context.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_exception_observation.hpp"
 #include "armv7a_platform.hpp"
@@ -157,7 +158,7 @@ Armv7aRuntimeTrapDispatchReference armv7a_observe_runtime_trap_dispatch_referenc
         working_sample.instruction_sampled);
     Armv7aRuntimeTrapFrameAdapterContext adapter_context{
         .policy = armv7a_qemu_runtime_trap_mapping_policy(),
-        .ingress = {},
+        .ingress = armv7a_capture_runtime_trap_ingress_context(),
     };
     auto adapter = armv7a_make_runtime_trap_frame_adapter(adapter_context);
     Armv7aRuntimeTrapSeamFrameView frame_view{};
@@ -269,7 +270,7 @@ Armv7aRuntimeTrapIngressResult armv7a_dispatch_runtime_trap_live_frame(
 {
     Armv7aRuntimeTrapFrameAdapterContext adapter_context{
         .policy = armv7a_qemu_runtime_trap_mapping_policy(),
-        .ingress = {},
+        .ingress = armv7a_capture_runtime_trap_ingress_context(),
     };
     const auto adapter =
         armv7a_make_runtime_trap_frame_adapter(adapter_context);

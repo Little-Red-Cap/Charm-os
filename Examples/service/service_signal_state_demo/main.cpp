@@ -27,6 +27,8 @@ namespace {
         std::printf("[free] tick=%d hits=%d\n", value, g_free_hits);
     }
 
+    void on_tick_probe(int) noexcept {}
+
     struct Controller {
         int direct_sum{0};
         int state_change_count{0};
@@ -123,12 +125,31 @@ namespace {
 int main() {
     Controller controller{};
 
+    service::signal<void(int), 1> empty_tick{};
+    if (!expect(empty_tick.empty(), "empty signal starts empty")) return 1;
+    if (!expect(empty_tick.size() == 0, "empty signal size starts at zero")) return 1;
+    if (!expect(decltype(empty_tick)::capacity() == 1, "empty signal keeps fixed capacity")) return 1;
+    if (!expect(empty_tick.emit(1) == 0, "empty signal emits to zero slots")) return 1;
+    const auto invalid_conn = empty_tick.connect(decltype(empty_tick)::slot_type{});
+    if (!expect(!invalid_conn && invalid_conn.error() == util::Errc::invalid_arg, "signal rejects empty delegate")) {
+        return 1;
+    }
+
     service::signal<void(int), 2> tick{};
+    if (!expect(tick.empty(), "tick starts empty")) return 1;
+    if (!expect(decltype(tick)::capacity() == 2, "tick keeps fixed capacity")) return 1;
     const auto free_conn = tick.connect(util::delegate<int>::bind<&on_tick_free>());
     const auto member_conn = tick.connect(util::delegate<int>::bind<&Controller::on_tick_member>(controller));
 
     if (!expect(static_cast<bool>(free_conn), "connect free slot")) return 1;
     if (!expect(static_cast<bool>(member_conn), "connect member slot")) return 1;
+    if (!expect(tick.size() == 2, "signal size tracks connected slots")) return 1;
+    if (!expect(!tick.empty(), "signal reports non-empty after connect")) return 1;
+    const auto overflow_conn = tick.connect(util::delegate<int>::bind<&on_tick_probe>());
+    if (!expect(!overflow_conn && overflow_conn.error() == util::Errc::buffer_overflow,
+                "signal stays bounded at configured capacity")) {
+        return 1;
+    }
 
     const auto emitted_first = tick.emit(3);
     if (!expect(emitted_first == 2, "first emit fanout")) return 1;
@@ -139,6 +160,7 @@ int main() {
     const auto free_conn_rebound = tick.connect(util::delegate<int>::bind<&on_tick_free>());
     if (!expect(static_cast<bool>(free_conn_rebound), "reconnect free slot")) return 1;
     if (!expect(!tick.disconnect(free_conn.value()), "stale connection token rejected")) return 1;
+    if (!expect(tick.size() == 2, "rebind keeps bounded slot count")) return 1;
 
     const auto emitted_second = tick.emit(2);
     if (!expect(emitted_second == 2, "second emit fanout")) return 1;
@@ -146,11 +168,14 @@ int main() {
     if (!expect(controller.direct_sum == 5, "member slot accumulated")) return 1;
 
     service::state<int, 2> level{10};
+    if (!expect(level.get() == 10, "state exposes initial truth")) return 1;
     const auto state_conn =
         level.connect(util::delegate<const int&, const int&>::bind<&Controller::on_level_changed>(controller));
     if (!expect(static_cast<bool>(state_conn), "connect state observer")) return 1;
     if (!expect(!level.set(10), "state suppresses unchanged set")) return 1;
+    if (!expect(level.get() == 10, "unchanged set keeps state truth")) return 1;
     if (!expect(level.set(12), "state accepts changed set")) return 1;
+    if (!expect(level.get() == 12, "changed set updates state truth")) return 1;
     if (!expect(controller.state_change_count == 1, "state changed once")) return 1;
     if (!expect(controller.last_old == 10 && controller.last_new == 12, "state reports old and new")) return 1;
 
@@ -170,6 +195,7 @@ int main() {
     if (!expect(deferred.post(DeferredEvent{3}), "post deferred event 3")) return 1;
     if (!expect(deferred.post(DeferredEvent{4}), "post deferred event 4 again")) return 1;
     if (!expect(!deferred.post(DeferredEvent{5}), "deferred post stays bounded")) return 1;
+    if (!expect(controller.deferred_sum == 10, "bounded deferred overflow still stays deferred")) return 1;
 
     const auto drained_second =
         poster.drain(util::delegate<const DeferredEvent&>::bind<&Controller::on_deferred>(controller));

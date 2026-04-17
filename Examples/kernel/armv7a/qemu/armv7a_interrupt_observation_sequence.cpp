@@ -6,10 +6,16 @@
 #include "armv7a_handler_stack.hpp"
 #include "armv7a_interrupt_diagnostics.hpp"
 #include "armv7a_interrupt_smoke.hpp"
+#include "armv7a_runtime_current.hpp"
+
+namespace {
+constexpr std::uint64_t kArmv7aSvcSmokeRuntimeTask = 0x0000000056430001ull;
+}
 
 void armv7a_run_interrupt_observation_sequence()
 {
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSvcSmoke);
+    armv7a_publish_runtime_current_here(kArmv7aSvcSmokeRuntimeTask);
     armv7a_svc_smoke_test();
     armv7a_svc_sleep_smoke_test();
     const auto svc_observation = armv7a_svc_last_observation();

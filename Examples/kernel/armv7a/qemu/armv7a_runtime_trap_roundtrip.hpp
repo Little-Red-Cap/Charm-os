@@ -12,7 +12,7 @@ struct Armv7aRuntimeTrapRoundtripProbeObservation {
 constexpr bool armv7a_runtime_trap_roundtrip_probe_ready(
     const Armv7aRuntimeTrapRoundtripProbeObservation& observation) noexcept
 {
-    return armv7a_runtime_trap_dispatch_ready(observation.dispatch) &&
+    return armv7a_runtime_trap_dispatch_core_ready(observation.dispatch) &&
            armv7a_runtime_trap_roundtrip_ready(observation.roundtrip) &&
            observation.dispatch_matches_return;
 }

@@ -326,7 +326,7 @@ if (($log -notmatch "ARMv7-A runtime trap ingress-adapter, yield-path=live-frame
 if (($log -notmatch "ARMv7-A runtime trap caller, yield-path=svc-call-frame, yield-svc=0x000043, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-call-frame, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-r0=0x00000005, sleep-ready=yes, caller=yes")) {
     $missing += "ARMv7-A runtime trap caller, yield-path=svc-call-frame..."
 }
-if (($log -notmatch "ARMv7-A runtime trap dispatch, yield-path=dispatch-port, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=dispatch-port, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, dispatch=yes")) {
+if (($log -notmatch "ARMv7-A runtime trap dispatch, yield-path=dispatch-port, yield-generic=0x0001, yield-r0=0x00000001, yield-task=0x0000000056430001, yield-sp=0x[0-9A-F]{16}, yield-ready=yes, sleep-path=dispatch-port, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-task=0x0000000056430001, sleep-sp=0x[0-9A-F]{16}, sleep-ready=yes, dispatch=yes")) {
     $missing += "ARMv7-A runtime trap dispatch, yield-path=dispatch-port..."
 }
 if (($log -notmatch "ARMv7-A runtime current, path=current-slot, task=0x0000000013572468, sp=0x0000000052001000, task-valid=yes, current=yes")) {

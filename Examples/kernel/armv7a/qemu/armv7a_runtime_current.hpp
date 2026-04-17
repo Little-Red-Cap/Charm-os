@@ -47,6 +47,7 @@ void armv7a_bind_runtime_current_context_port(
 void armv7a_unbind_runtime_current_context_port() noexcept;
 void armv7a_publish_runtime_current_context(
     Armv7aRuntimeCurrentContext current) noexcept;
+void armv7a_publish_runtime_current_here(std::uint64_t task) noexcept;
 void armv7a_clear_runtime_current_context() noexcept;
 Armv7aRuntimeCurrentContext armv7a_capture_runtime_current_context() noexcept;
 Armv7aRuntimeCurrentObservation

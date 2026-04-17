@@ -1,5 +1,6 @@
 #include "armv7a_runtime_current.hpp"
 
+#include "armv7a_cpu.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_platform.hpp"
 
@@ -63,6 +64,15 @@ void armv7a_publish_runtime_current_context(
         .seen = true,
         .current = current,
     };
+}
+
+void armv7a_publish_runtime_current_here(std::uint64_t task) noexcept
+{
+    armv7a_publish_runtime_current_context(Armv7aRuntimeCurrentContext{
+        .stack_pointer = armv7a_read_sp(),
+        .task = task,
+        .task_valid = true,
+    });
 }
 
 void armv7a_clear_runtime_current_context() noexcept

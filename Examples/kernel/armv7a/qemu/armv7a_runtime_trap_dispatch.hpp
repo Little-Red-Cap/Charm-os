@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "armv7a_runtime_current_contract.hpp"
 #include "armv7a_runtime_trap_dispatch_contract.hpp"
 #include "armv7a_runtime_trap_live_adapter.hpp"
 
@@ -24,14 +25,18 @@ constexpr const char* armv7a_runtime_trap_dispatch_path_name(
 
 struct Armv7aRuntimeTrapDispatchObservation {
     Armv7aRuntimeTrapLiveAdapterObservation reference{};
+    Armv7aRuntimeCurrentContext current{};
     Armv7aRuntimeTrapSeamFrameView frame_view{};
     Armv7aRuntimeTrapIngressResult result{};
     Armv7aRuntimeTrapDispatchPath path =
         Armv7aRuntimeTrapDispatchPath::none;
     std::uint32_t result_register_after = 0u;
+    bool current_seen = false;
     bool live_seen = false;
     bool port_ready = false;
     bool result_ok = false;
+    bool current_task_matches = false;
+    bool current_stack_matches = false;
     bool frame_view_matches_reference = false;
     bool result_matches_reference = false;
     bool result_register_ready = false;
@@ -39,7 +44,7 @@ struct Armv7aRuntimeTrapDispatchObservation {
     bool status_preserved = false;
 };
 
-constexpr bool armv7a_runtime_trap_dispatch_ready(
+constexpr bool armv7a_runtime_trap_dispatch_core_ready(
     const Armv7aRuntimeTrapDispatchObservation& observation) noexcept
 {
     return armv7a_runtime_trap_live_adapter_ready(observation.reference) &&
@@ -51,6 +56,21 @@ constexpr bool armv7a_runtime_trap_dispatch_ready(
            observation.result_register_ready &&
            observation.return_pc_preserved &&
            observation.status_preserved;
+}
+
+constexpr bool armv7a_runtime_trap_dispatch_current_ready(
+    const Armv7aRuntimeTrapDispatchObservation& observation) noexcept
+{
+    return observation.current_seen &&
+           observation.current_task_matches &&
+           observation.current_stack_matches;
+}
+
+constexpr bool armv7a_runtime_trap_dispatch_ready(
+    const Armv7aRuntimeTrapDispatchObservation& observation) noexcept
+{
+    return armv7a_runtime_trap_dispatch_core_ready(observation) &&
+           armv7a_runtime_trap_dispatch_current_ready(observation);
 }
 
 struct Armv7aRuntimeTrapDispatchPairObservation {

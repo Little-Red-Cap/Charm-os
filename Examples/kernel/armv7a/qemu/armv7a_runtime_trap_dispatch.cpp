@@ -1,5 +1,6 @@
 #include "armv7a_runtime_trap_dispatch.hpp"
 
+#include "armv7a_runtime_current.hpp"
 #include "armv7a_runtime_trap_context.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_exception_observation.hpp"
@@ -200,6 +201,9 @@ Armv7aRuntimeTrapDispatchObservation armv7a_observe_runtime_trap_dispatch_for_im
         armv7a_runtime_trap_dispatch_slot_for_immediate(immediate);
     const auto reference =
         armv7a_observe_runtime_trap_dispatch_reference(sample);
+    Armv7aRuntimeCurrentContext current{};
+    const auto current_seen = armv7a_runtime_current_context_port_capture(
+        armv7a_runtime_current_context_port(), current);
     const auto live_seen = slot != nullptr && slot->seen;
     const auto frame_view = live_seen
         ? armv7a_load_runtime_trap_dispatch_frame_view(*slot)
@@ -212,15 +216,23 @@ Armv7aRuntimeTrapDispatchObservation armv7a_observe_runtime_trap_dispatch_for_im
 
     return Armv7aRuntimeTrapDispatchObservation{
         .reference = reference.live,
+        .current = current,
         .frame_view = frame_view,
         .result = result,
         .path = live_seen && reference.port_ready
             ? Armv7aRuntimeTrapDispatchPath::dispatch_port
             : Armv7aRuntimeTrapDispatchPath::none,
         .result_register_after = result_register_after,
+        .current_seen = current_seen,
         .live_seen = live_seen,
         .port_ready = reference.port_ready,
         .result_ok = result.ok(),
+        .current_task_matches =
+            current_seen && frame_view.task_valid &&
+            frame_view.task == current.task &&
+            frame_view.task_valid == current.task_valid,
+        .current_stack_matches =
+            current_seen && frame_view.stack_pointer == current.stack_pointer,
         .frame_view_matches_reference =
             live_seen &&
             armv7a_runtime_trap_dispatch_frame_view_matches(
@@ -318,6 +330,10 @@ void armv7a_print_runtime_trap_dispatch_observation()
     armv7a_diag_put_hex(observation.yield.frame_view.service_id, 4);
     armv7a_platform_early_console_puts(", yield-r0=0x");
     armv7a_diag_put_hex(observation.yield.result_register_after);
+    armv7a_platform_early_console_puts(", yield-task=0x");
+    armv7a_diag_put_hex64(observation.yield.frame_view.task, 16);
+    armv7a_platform_early_console_puts(", yield-sp=0x");
+    armv7a_diag_put_hex64(observation.yield.frame_view.stack_pointer, 16);
     armv7a_platform_early_console_puts(", yield-ready=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_trap_dispatch_ready(observation.yield)));
@@ -328,6 +344,10 @@ void armv7a_print_runtime_trap_dispatch_observation()
     armv7a_diag_put_hex(observation.sleep.frame_view.service_id, 4);
     armv7a_platform_early_console_puts(", sleep-r0=0x");
     armv7a_diag_put_hex(observation.sleep.result_register_after);
+    armv7a_platform_early_console_puts(", sleep-task=0x");
+    armv7a_diag_put_hex64(observation.sleep.frame_view.task, 16);
+    armv7a_platform_early_console_puts(", sleep-sp=0x");
+    armv7a_diag_put_hex64(observation.sleep.frame_view.stack_pointer, 16);
     armv7a_platform_early_console_puts(", sleep-ready=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_trap_dispatch_ready(observation.sleep)));

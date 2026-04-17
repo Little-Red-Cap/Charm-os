@@ -13,6 +13,60 @@
       "input"
     ]
   },
+  "system_input": {
+    "system_spec": {
+      "case_name": "bringup-minimal-observe-demo",
+      "case_kind": "materialized_graph",
+      "source": "Examples/init/bringup_minimal_observe_demo",
+      "build_dir": "cmake-build-init-bringup-minimal-observe-clang",
+      "build_target": "init-bringup-minimal-observe-demo",
+      "export_target": "export_bringup_minimal_materialized_graph"
+    },
+    "declared_input": {
+      "subject": {
+        "profile": null,
+        "board": "stm32_stub",
+        "active_facets": [
+          "runtime",
+          "input"
+        ]
+      },
+      "declared_facts": [
+        "board.stm32_stub"
+      ],
+      "declared_contract_entries": [
+        {
+          "contract": "needs_monotonic_clock",
+          "requires": [
+            "system.clock"
+          ]
+        }
+      ]
+    },
+    "resolved_input": {
+      "profile": {
+        "value": "MCU_MIN",
+        "source": "explicit_argument"
+      },
+      "board": {
+        "value": "stm32_stub",
+        "source": "case_subject"
+      },
+      "active_facets": {
+        "values": [
+          "runtime",
+          "input"
+        ],
+        "source": "case_subject"
+      },
+      "subject_facts": [
+        "board.stm32_stub",
+        "facet.input",
+        "facet.runtime",
+        "profile.MCU_MIN"
+      ]
+    }
+  },
   "structure": {
     "capability_count": 12,
     "node_count": 9,
@@ -32,6 +86,160 @@
       "system.clock"
     ],
     "unresolved_bindings": []
+  },
+  "binding_result": {
+    "required_binding_count": 2,
+    "resolved_binding_count": 2,
+    "unresolved_binding_count": 0,
+    "resolved_capabilities": [
+      "platform.irq",
+      "system.clock"
+    ],
+    "unresolved_capabilities": [],
+    "binding_entries": [
+      {
+        "capability": "platform.irq",
+        "state": "resolved",
+        "provider_nodes": [
+          "platform.irq"
+        ],
+        "consumer_nodes": [
+          "hal.uart1"
+        ],
+        "reason": "required capability is provided by at least one materialized node"
+      },
+      {
+        "capability": "system.clock",
+        "state": "resolved",
+        "provider_nodes": [
+          "system.clock"
+        ],
+        "consumer_nodes": [
+          "hal.uart1"
+        ],
+        "reason": "required capability is provided by at least one materialized node"
+      }
+    ]
+  },
+  "bringup_order": {
+    "ordered_node_count": 5,
+    "blocked_node_count": 0,
+    "phase_counts": {
+      "core": 3,
+      "service": 2
+    },
+    "entries": [
+      {
+        "order": 0,
+        "node": "system.clock",
+        "kind": "binding",
+        "phase": "core",
+        "runlevel_text": "core",
+        "provides": [
+          "system.clock"
+        ],
+        "requires": [],
+        "dependency_nodes": [],
+        "resolved_requires": [],
+        "missing_requires": [],
+        "state": "ready"
+      },
+      {
+        "order": 1,
+        "node": "io.registry",
+        "kind": "binding",
+        "phase": "core",
+        "runlevel_text": "core",
+        "provides": [],
+        "requires": [],
+        "dependency_nodes": [],
+        "resolved_requires": [],
+        "missing_requires": [],
+        "state": "ready"
+      },
+      {
+        "order": 2,
+        "node": "platform.irq",
+        "kind": "binding",
+        "phase": "core",
+        "runlevel_text": "core",
+        "provides": [
+          "platform.irq"
+        ],
+        "requires": [],
+        "dependency_nodes": [],
+        "resolved_requires": [],
+        "missing_requires": [],
+        "state": "ready"
+      },
+      {
+        "order": 3,
+        "node": "hal.uart1",
+        "kind": "binding",
+        "phase": "service",
+        "runlevel_text": "service",
+        "provides": [
+          "hal.uart1"
+        ],
+        "requires": [
+          "platform.irq",
+          "system.clock"
+        ],
+        "dependency_nodes": [
+          "platform.irq",
+          "system.clock"
+        ],
+        "resolved_requires": [
+          "platform.irq",
+          "system.clock"
+        ],
+        "missing_requires": [],
+        "state": "ready"
+      },
+      {
+        "order": 4,
+        "node": "io.uart1",
+        "kind": "binding",
+        "phase": "service",
+        "runlevel_text": "service",
+        "provides": [
+          "io.uart1"
+        ],
+        "requires": [
+          "hal.uart1"
+        ],
+        "dependency_nodes": [
+          "hal.uart1"
+        ],
+        "resolved_requires": [
+          "hal.uart1"
+        ],
+        "missing_requires": [],
+        "state": "ready"
+      }
+    ]
+  },
+  "system_formation": {
+    "status": "formed",
+    "formation_basis": {
+      "case_kind": "materialized_graph",
+      "declared_fact_count": 1,
+      "declared_contract_count": 1,
+      "subject_fact_count": 4
+    },
+    "binding_summary": {
+      "required_binding_count": 2,
+      "resolved_binding_count": 2,
+      "unresolved_binding_count": 0,
+      "unresolved_capabilities": []
+    },
+    "bringup_summary": {
+      "ordered_node_count": 5,
+      "blocked_node_count": 0,
+      "blocked_nodes": []
+    },
+    "blocker_count": 0,
+    "blockers": []
   },
   "bringup_evidence": {
     "declared_count": 12,

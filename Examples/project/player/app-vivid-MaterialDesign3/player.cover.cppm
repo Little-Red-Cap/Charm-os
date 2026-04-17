@@ -44,6 +44,7 @@ export namespace player {
             if (img.width < 3 || img.height < 3 || img.argb.empty()) return;
             constexpr int kOpaqueThreshold = 250;
             constexpr int kCleanupRings = 2;
+            constexpr int kInsetCropRings = 1;
             const auto src = img.argb;
             auto index_of = [&](int x, int y) noexcept -> std::size_t {
                 return static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width)
@@ -52,17 +53,38 @@ export namespace player {
             auto pixel_at = [&](int x, int y) noexcept -> std::uint32_t {
                 return src[index_of(x, y)];
             };
-            auto set_from = [&](int dst_x, int dst_y, int src_x, int src_y) noexcept {
+            auto set_from = [&](int dst_x, int dst_y, int src_x, int src_y, bool force) noexcept {
                 const auto dst_pixel = pixel_at(dst_x, dst_y);
-                if (alpha_of(dst_pixel) >= kOpaqueThreshold) return;
+                if (!force && alpha_of(dst_pixel) >= kOpaqueThreshold) return;
                 auto sample = pixel_at(src_x, src_y);
-                if (alpha_of(sample) < kOpaqueThreshold) {
-                    sample = with_alpha(sample, 255);
-                } else {
-                    sample = with_alpha(sample, 255);
-                }
+                sample = with_alpha(sample, 255);
                 img.argb[index_of(dst_x, dst_y)] = sample;
             };
+
+            // Some album covers carry a faint 1px frame that becomes obvious on our clean surfaces.
+            // We softly crop the outer ring inward before the transparent-edge cleanup.
+            for (int ring = 0; ring < kInsetCropRings; ++ring) {
+                const int top_y = ring;
+                const int bottom_y = img.height - 1 - ring;
+                const int left_x = ring;
+                const int right_x = img.width - 1 - ring;
+                if (top_y >= bottom_y || left_x >= right_x) break;
+                const int sample_top_y = std::min(img.height - 1, top_y + 1);
+                const int sample_bottom_y = std::max(0, bottom_y - 1);
+                const int sample_left_x = std::min(img.width - 1, left_x + 1);
+                const int sample_right_x = std::max(0, right_x - 1);
+
+                for (int x = left_x; x <= right_x; ++x) {
+                    const int sample_x = std::clamp(x, sample_left_x, sample_right_x);
+                    set_from(x, top_y, sample_x, sample_top_y, true);
+                    set_from(x, bottom_y, sample_x, sample_bottom_y, true);
+                }
+                for (int y = top_y + 1; y < bottom_y; ++y) {
+                    const int sample_y = std::clamp(y, sample_top_y, sample_bottom_y);
+                    set_from(left_x, y, sample_left_x, sample_y, true);
+                    set_from(right_x, y, sample_right_x, sample_y, true);
+                }
+            }
 
             for (int ring = 0; ring < kCleanupRings; ++ring) {
                 const int top_y = ring;
@@ -77,14 +99,14 @@ export namespace player {
                         ++top_src_y;
                     }
                     if (top_src_y >= img.height) top_src_y = top_y + 1;
-                    set_from(x, top_y, x, top_src_y);
+                    set_from(x, top_y, x, top_src_y, false);
 
                     int bottom_src_y = bottom_y - 1;
                     while (bottom_src_y >= 0 && alpha_of(pixel_at(x, bottom_src_y)) < kOpaqueThreshold) {
                         --bottom_src_y;
                     }
                     if (bottom_src_y < 0) bottom_src_y = bottom_y - 1;
-                    set_from(x, bottom_y, x, bottom_src_y);
+                    set_from(x, bottom_y, x, bottom_src_y, false);
                 }
 
                 for (int y = top_y + 1; y < bottom_y; ++y) {
@@ -93,14 +115,14 @@ export namespace player {
                         ++left_src_x;
                     }
                     if (left_src_x >= img.width) left_src_x = left_x + 1;
-                    set_from(left_x, y, left_src_x, y);
+                    set_from(left_x, y, left_src_x, y, false);
 
                     int right_src_x = right_x - 1;
                     while (right_src_x >= 0 && alpha_of(pixel_at(right_src_x, y)) < kOpaqueThreshold) {
                         --right_src_x;
                     }
                     if (right_src_x < 0) right_src_x = right_x - 1;
-                    set_from(right_x, y, right_src_x, y);
+                    set_from(right_x, y, right_src_x, y, false);
                 }
             }
         }

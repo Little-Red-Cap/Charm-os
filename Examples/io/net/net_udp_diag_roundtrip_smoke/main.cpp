@@ -169,9 +169,11 @@ namespace {
     struct ClientState {
         util::u16 ping_request_id{0};
         util::u16 count_request_id{0};
+        util::u16 slow_request_id{0};
         util::u16 meta_request_id{0};
         bool got_ping{false};
         bool got_count{false};
+        bool got_slow_count{false};
         bool got_meta_unsupported{false};
         bool failed{false};
         util::usize error_calls{0};
@@ -214,6 +216,23 @@ namespace {
             }
         }
 
+        static void on_slow_count(void* ctx,
+                                  util::u16 request_id,
+                                  net::diag::udp::Status status,
+                                  const net::diag::CounterValue& response) noexcept {
+            auto* self = static_cast<ClientState*>(ctx);
+            if (!self) {
+                return;
+            }
+
+            self->got_slow_count = request_id == self->slow_request_id
+                && status == net::diag::udp::Status::ok
+                && response.value == 42u;
+            if (!self->got_slow_count) {
+                self->failed = true;
+            }
+        }
+
         static void on_meta(void* ctx,
                             util::u16 request_id,
                             net::diag::udp::Status status,
@@ -249,6 +268,7 @@ namespace {
     struct ServerState {
         bool saw_ping{false};
         bool saw_count{false};
+        bool saw_slow_count{false};
         util::usize error_calls{0};
         net::errc last_error{net::errc::ok};
 
@@ -285,6 +305,23 @@ namespace {
 
             self->saw_count = true;
             response.value = 7u;
+            return net::diag::udp::Status::ok;
+        }
+
+        static net::diag::udp::Status on_slow_count(void* ctx,
+                                                    const net::diag::CounterValue& request,
+                                                    net::diag::CounterValue& response) noexcept {
+            auto* self = static_cast<ServerState*>(ctx);
+            if (!self) {
+                return net::diag::udp::Status::internal_error;
+            }
+
+            self->saw_slow_count = request.value == 41u;
+            if (!self->saw_slow_count) {
+                return net::diag::udp::Status::bad_request;
+            }
+
+            response.value = static_cast<util::u16>(request.value + 1u);
             return net::diag::udp::Status::ok;
         }
 
@@ -388,10 +425,12 @@ int main() {
     auto bound_server = server_node.pump.bind_udp(server_local.port, net::make_udp_datagram_sink_ref(server));
     auto registered_ping = server.on_ping(&ServerState::on_ping, &server_state);
     auto registered_count = server.on_count(&ServerState::on_count, &server_state);
+    auto registered_slow_count = server.on_slow_count(&ServerState::on_slow_count, &server_state);
     if (!bound_client
         || !bound_server
         || !registered_ping
         || !registered_count
+        || !registered_slow_count
         || client_node.pump.udp_binding_count() != 1
         || server_node.pump.udp_binding_count() != 1) {
         return fail("udp diag roundtrip smoke bind failed\n", 3);
@@ -470,6 +509,40 @@ int main() {
         return fail("udp diag roundtrip smoke count exchange failed\n", 9);
     }
 
+    auto slow = client.query_slow_count(
+        client_local,
+        server_peer,
+        net::diag::CounterValue{41},
+        15,
+        50,
+        &ClientState::on_slow_count,
+        nullptr,
+        &client_state);
+    if (!slow
+        || client.pending_count() != 1
+        || client.request_count() != 3
+        || client.queued_count() != 1) {
+        return fail("udp diag roundtrip smoke slow send failed\n", 10);
+    }
+    client_state.slow_request_id = slow.value();
+
+    if (!drive_until_idle(client, client_node, server_node)) {
+        return fail("udp diag roundtrip smoke slow exchange stalled\n", 11);
+    }
+
+    if (!client_state.got_slow_count
+        || !server_state.saw_slow_count
+        || client.pending_count() != 0
+        || client.response_count() != 3
+        || server.request_count() != 3
+        || server.reply_count() != 3
+        || server.error_reply_count() != 0
+        || client_state.failed
+        || client_state.error_calls != 0
+        || server_state.error_calls != 0) {
+        return fail("udp diag roundtrip smoke slow exchange failed\n", 12);
+    }
+
     auto meta = client.query_meta(
         client_local,
         server_peer,
@@ -485,63 +558,63 @@ int main() {
         &client_state);
     if (!meta
         || client.pending_count() != 1
-        || client.request_count() != 3
+        || client.request_count() != 4
         || client.queued_count() != 1) {
-        return fail("udp diag roundtrip smoke meta send failed\n", 10);
+        return fail("udp diag roundtrip smoke meta send failed\n", 13);
     }
     client_state.meta_request_id = meta.value();
 
     if (!drive_until_idle(client, client_node, server_node)) {
-        return fail("udp diag roundtrip smoke meta exchange stalled\n", 11);
+        return fail("udp diag roundtrip smoke meta exchange stalled\n", 14);
     }
 
     if (!client_state.got_meta_unsupported) {
-        return fail("udp diag roundtrip smoke meta unsupported callback mismatch\n", 12);
+        return fail("udp diag roundtrip smoke meta unsupported callback mismatch\n", 15);
     }
     if (client.pending_count() != 0) {
-        return fail("udp diag roundtrip smoke meta left client pending\n", 13);
+        return fail("udp diag roundtrip smoke meta left client pending\n", 16);
     }
-    if (client.response_count() != 3) {
-        return fail("udp diag roundtrip smoke meta client response count mismatch\n", 14);
+    if (client.response_count() != 4) {
+        return fail("udp diag roundtrip smoke meta client response count mismatch\n", 17);
     }
     if (client.last_error() != net::errc::ok) {
-        return fail("udp diag roundtrip smoke meta client last_error mismatch\n", 15);
+        return fail("udp diag roundtrip smoke meta client last_error mismatch\n", 18);
     }
-    if (server.request_count() != 3) {
-        return fail("udp diag roundtrip smoke meta server request count mismatch\n", 16);
+    if (server.request_count() != 4) {
+        return fail("udp diag roundtrip smoke meta server request count mismatch\n", 19);
     }
-    if (server.reply_count() != 3) {
-        return fail("udp diag roundtrip smoke meta server reply count mismatch\n", 17);
+    if (server.reply_count() != 4) {
+        return fail("udp diag roundtrip smoke meta server reply count mismatch\n", 20);
     }
     if (server.error_reply_count() != 1) {
-        return fail("udp diag roundtrip smoke meta server error reply count mismatch\n", 18);
+        return fail("udp diag roundtrip smoke meta server error reply count mismatch\n", 21);
     }
     if (server.queued_reply_count() != 0) {
-        return fail("udp diag roundtrip smoke meta server queued reply count mismatch\n", 19);
+        return fail("udp diag roundtrip smoke meta server queued reply count mismatch\n", 22);
     }
     if (server.last_error() != net::errc::ok) {
-        return fail("udp diag roundtrip smoke meta server last_error mismatch\n", 20);
+        return fail("udp diag roundtrip smoke meta server last_error mismatch\n", 23);
     }
     if (client_node.pump.pending_count() != 0 || server_node.pump.pending_count() != 0) {
-        return fail("udp diag roundtrip smoke meta left egress pending\n", 21);
+        return fail("udp diag roundtrip smoke meta left egress pending\n", 24);
     }
     if (client_node.link.has_rx() || server_node.link.has_rx()) {
-        return fail("udp diag roundtrip smoke meta left wire packets queued\n", 22);
+        return fail("udp diag roundtrip smoke meta left wire packets queued\n", 25);
     }
-    if (client_node.link.tx_calls < 4 || client_node.link.tx_calls > 5) {
-        return fail("udp diag roundtrip smoke meta client tx count out of range\n", 23);
+    if (client_node.link.tx_calls < 5 || client_node.link.tx_calls > 6) {
+        return fail("udp diag roundtrip smoke meta client tx count out of range\n", 26);
     }
-    if (server_node.link.tx_calls < 4 || server_node.link.tx_calls > 5) {
-        return fail("udp diag roundtrip smoke meta server tx count out of range\n", 24);
+    if (server_node.link.tx_calls < 5 || server_node.link.tx_calls > 6) {
+        return fail("udp diag roundtrip smoke meta server tx count out of range\n", 27);
     }
     if (client_state.failed) {
-        return fail("udp diag roundtrip smoke meta client callback flagged failure\n", 25);
+        return fail("udp diag roundtrip smoke meta client callback flagged failure\n", 28);
     }
     if (client_state.error_calls != 0) {
-        return fail("udp diag roundtrip smoke meta client error handler called\n", 26);
+        return fail("udp diag roundtrip smoke meta client error handler called\n", 29);
     }
     if (server_state.error_calls != 0) {
-        return fail("udp diag roundtrip smoke meta server error handler called\n", 27);
+        return fail("udp diag roundtrip smoke meta server error handler called\n", 30);
     }
 
     std::puts("net udp diag roundtrip smoke: ok");

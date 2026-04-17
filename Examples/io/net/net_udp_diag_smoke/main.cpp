@@ -131,6 +131,7 @@ namespace {
     struct ServerState {
         bool saw_ping{false};
         bool saw_count{false};
+        bool saw_slow_count{false};
         bool saw_meta{false};
 
         static net::diag::udp::Status on_ping(void* ctx,
@@ -183,6 +184,23 @@ namespace {
             response.status = 0xA5u;
             response.reflected_code = static_cast<util::u16>(request.code + 1u);
             response.tag = request.tag;
+            return net::diag::udp::Status::ok;
+        }
+
+        static net::diag::udp::Status on_slow_count(void* ctx,
+                                                    const net::diag::CounterValue& request,
+                                                    net::diag::CounterValue& response) noexcept {
+            auto* self = static_cast<ServerState*>(ctx);
+            if (!self) {
+                return net::diag::udp::Status::internal_error;
+            }
+
+            if (request.value != 41u) {
+                return net::diag::udp::Status::bad_request;
+            }
+
+            self->saw_slow_count = true;
+            response.value = static_cast<util::u16>(request.value + 1u);
             return net::diag::udp::Status::ok;
         }
     };
@@ -266,8 +284,14 @@ int main() {
     auto ping_route = server.on_ping(&ServerState::on_ping, &server_state);
     auto count_route = server.on_count(&ServerState::on_count, &server_state);
     auto meta_route = server.on_meta(&ServerState::on_meta, &server_state);
+    auto slow_count_route = server.on_slow_count(&ServerState::on_slow_count, &server_state);
     auto bound = pump.bind_udp(local_endpoint.port, net::make_udp_datagram_sink_ref(server));
-    if (!ping_route || !count_route || !meta_route || !bound || pump.udp_binding_count() != 1) {
+    if (!ping_route
+        || !count_route
+        || !meta_route
+        || !slow_count_route
+        || !bound
+        || pump.udp_binding_count() != 1) {
         std::fputs("udp diag smoke server bind failed\n", stderr);
         return 5;
     }
@@ -610,17 +634,98 @@ int main() {
         return 32;
     }
 
+    net::PacketBuffer<64> slow_request{};
+    auto wrote_slow_request = net::diag::udp::write_request_datagram<net::diag::SlowCountOp>(
+        slow_request,
+        0x1004u,
+        net::diag::CounterValue{41});
+    if (!wrote_slow_request) {
+        std::fputs("udp diag smoke slow request encode failed\n", stderr);
+        return 33;
+    }
+
+    net::PacketBuffer<128> slow_udp{};
+    auto wrote_slow_udp = net::write_udp_ipv4_datagram(
+        slow_udp,
+        peer_endpoint,
+        local_endpoint,
+        slow_request.view().payload);
+    if (!wrote_slow_udp) {
+        std::fputs("udp diag smoke slow udp encode failed\n", stderr);
+        return 34;
+    }
+
+    net::PacketBuffer<160> slow_ipv4{};
+    auto wrote_slow_ipv4 = net::write_ipv4_packet(
+        slow_ipv4,
+        net::Ipv4PacketSpec{
+            .identification = 0x2104u,
+            .flags_fragment = net::ipv4_do_not_fragment_flag(),
+            .ttl = 48,
+            .protocol = net::Ipv4Protocol::udp,
+            .source = peer_ip,
+            .destination = local_ip,
+        },
+        slow_udp.view().payload);
+    if (!wrote_slow_ipv4) {
+        std::fputs("udp diag smoke slow ipv4 encode failed\n", stderr);
+        return 35;
+    }
+
+    net::PacketBuffer<192> slow_frame{};
+    auto wrote_slow_frame = write_ether_frame(
+        slow_frame,
+        net::MacAddress::broadcast(),
+        peer_mac,
+        net::EtherType::ipv4,
+        slow_ipv4.view().payload);
+    if (!wrote_slow_frame) {
+        std::fputs("udp diag smoke slow ether encode failed\n", stderr);
+        return 36;
+    }
+
+    link.queue_rx(slow_frame.view().payload);
+    auto slow_progress = pump.service(0);
+    if (!slow_progress
+        || slow_progress.value().ipv4_delivered != 1
+        || slow_progress.value().udp_delivered != 1
+        || link.tx_calls != 5
+        || server.request_count() != 4
+        || server.reply_count() != 4
+        || !server_state.saw_slow_count) {
+        std::fputs("udp diag smoke slow service failed\n", stderr);
+        return 37;
+    }
+
+    auto slow_reply_frame = net::parse_ether_frame(net::PacketView{
+        net::ByteView{link.tx_bytes.data(), link.tx_size},
+        0,
+        0
+    });
+    auto slow_reply_ipv4 = net::parse_ipv4_packet(slow_reply_frame.value().payload);
+    auto slow_reply_udp = net::parse_udp_datagram(slow_reply_ipv4.value().payload);
+    auto slow_reply_diag = net::diag::udp::parse_datagram(slow_reply_udp.value().payload);
+    auto slow_reply = net::diag::udp::decode_response<net::diag::SlowCountOp>(slow_reply_diag.value());
+    if (!slow_reply_diag
+        || slow_reply_diag.value().header.request_id != 0x1004u
+        || slow_reply_diag.value().header.status != net::diag::udp::Status::ok
+        || !slow_reply
+        || slow_reply.value().value != 42u) {
+        std::fputs("udp diag smoke slow reply mismatch\n", stderr);
+        return 38;
+    }
+
     net::PacketBuffer<64> unsupported_request{};
     auto wrote_unsupported_request = net::diag::udp::write_raw_datagram(
         unsupported_request,
         net::diag::udp::Kind::request,
         0x7Fu,
-        0x1004u,
+        0x1005u,
         net::diag::udp::Status::ok,
         {});
     if (!wrote_unsupported_request) {
         std::fputs("udp diag smoke unsupported request encode failed\n", stderr);
-        return 33;
+        return 39;
     }
 
     net::PacketBuffer<128> unsupported_udp{};
@@ -631,16 +736,16 @@ int main() {
         unsupported_request.view().payload);
     if (!wrote_unsupported_udp) {
         std::fputs("udp diag smoke unsupported udp encode failed\n", stderr);
-        return 34;
+        return 40;
     }
 
     net::PacketBuffer<160> unsupported_ipv4{};
     auto wrote_unsupported_ipv4 = net::write_ipv4_packet(
         unsupported_ipv4,
         net::Ipv4PacketSpec{
-            .identification = 0x2104u,
+            .identification = 0x2105u,
             .flags_fragment = net::ipv4_do_not_fragment_flag(),
-            .ttl = 48,
+            .ttl = 47,
             .protocol = net::Ipv4Protocol::udp,
             .source = peer_ip,
             .destination = local_ip,
@@ -648,7 +753,7 @@ int main() {
         unsupported_udp.view().payload);
     if (!wrote_unsupported_ipv4) {
         std::fputs("udp diag smoke unsupported ipv4 encode failed\n", stderr);
-        return 35;
+        return 41;
     }
 
     net::PacketBuffer<192> unsupported_frame{};
@@ -660,7 +765,7 @@ int main() {
         unsupported_ipv4.view().payload);
     if (!wrote_unsupported_frame) {
         std::fputs("udp diag smoke unsupported ether encode failed\n", stderr);
-        return 36;
+        return 42;
     }
 
     link.queue_rx(unsupported_frame.view().payload);
@@ -668,12 +773,12 @@ int main() {
     if (!unsupported_progress
         || unsupported_progress.value().ipv4_delivered != 1
         || unsupported_progress.value().udp_delivered != 1
-        || link.tx_calls != 5
-        || server.request_count() != 4
-        || server.reply_count() != 4
+        || link.tx_calls != 6
+        || server.request_count() != 5
+        || server.reply_count() != 5
         || server.error_reply_count() != 1) {
         std::fputs("udp diag smoke unsupported service failed\n", stderr);
-        return 37;
+        return 43;
     }
 
     auto unsupported_reply_frame = net::parse_ether_frame(net::PacketView{
@@ -686,11 +791,11 @@ int main() {
     auto unsupported_reply_diag = net::diag::udp::parse_datagram(unsupported_reply_udp.value().payload);
     if (!unsupported_reply_diag
         || unsupported_reply_diag.value().header.opcode != 0x7Fu
-        || unsupported_reply_diag.value().header.request_id != 0x1004u
+        || unsupported_reply_diag.value().header.request_id != 0x1005u
         || unsupported_reply_diag.value().header.status != net::diag::udp::Status::unsupported
         || !unsupported_reply_diag.value().payload.empty()) {
         std::fputs("udp diag smoke unsupported reply mismatch\n", stderr);
-        return 38;
+        return 44;
     }
 
     static constexpr util::u8 malformed_payload[]{'b', 'a', 'd'};
@@ -699,12 +804,12 @@ int main() {
         malformed_request,
         net::diag::udp::Kind::request,
         net::diag::PingOp::opcode,
-        0x1005u,
+        0x1006u,
         net::diag::udp::Status::ok,
         net::ByteView{malformed_payload, sizeof(malformed_payload)});
     if (!wrote_malformed_request) {
         std::fputs("udp diag smoke malformed request encode failed\n", stderr);
-        return 39;
+        return 45;
     }
 
     net::PacketBuffer<128> malformed_udp{};
@@ -715,16 +820,16 @@ int main() {
         malformed_request.view().payload);
     if (!wrote_malformed_udp) {
         std::fputs("udp diag smoke malformed udp encode failed\n", stderr);
-        return 40;
+        return 46;
     }
 
     net::PacketBuffer<160> malformed_ipv4{};
     auto wrote_malformed_ipv4 = net::write_ipv4_packet(
         malformed_ipv4,
         net::Ipv4PacketSpec{
-            .identification = 0x2105u,
+            .identification = 0x2106u,
             .flags_fragment = net::ipv4_do_not_fragment_flag(),
-            .ttl = 47,
+            .ttl = 46,
             .protocol = net::Ipv4Protocol::udp,
             .source = peer_ip,
             .destination = local_ip,
@@ -732,7 +837,7 @@ int main() {
         malformed_udp.view().payload);
     if (!wrote_malformed_ipv4) {
         std::fputs("udp diag smoke malformed ipv4 encode failed\n", stderr);
-        return 41;
+        return 47;
     }
 
     net::PacketBuffer<192> malformed_frame{};
@@ -744,7 +849,7 @@ int main() {
         malformed_ipv4.view().payload);
     if (!wrote_malformed_frame) {
         std::fputs("udp diag smoke malformed ether encode failed\n", stderr);
-        return 42;
+        return 48;
     }
 
     link.queue_rx(malformed_frame.view().payload);
@@ -752,14 +857,14 @@ int main() {
     if (!malformed_progress
         || malformed_progress.value().ipv4_delivered != 1
         || malformed_progress.value().udp_delivered != 1
-        || link.tx_calls != 6
-        || server.request_count() != 5
-        || server.reply_count() != 5
+        || link.tx_calls != 7
+        || server.request_count() != 6
+        || server.reply_count() != 6
         || server.error_reply_count() != 2
         || server.drop_count() != 0
         || server.last_error() != net::errc::ok) {
         std::fputs("udp diag smoke malformed service failed\n", stderr);
-        return 43;
+        return 49;
     }
 
     auto malformed_reply_frame = net::parse_ether_frame(net::PacketView{
@@ -772,11 +877,11 @@ int main() {
     auto malformed_reply_diag = net::diag::udp::parse_datagram(malformed_reply_udp.value().payload);
     if (!malformed_reply_diag
         || malformed_reply_diag.value().header.opcode != net::diag::PingOp::opcode
-        || malformed_reply_diag.value().header.request_id != 0x1005u
+        || malformed_reply_diag.value().header.request_id != 0x1006u
         || malformed_reply_diag.value().header.status != net::diag::udp::Status::bad_request
         || !malformed_reply_diag.value().payload.empty()) {
         std::fputs("udp diag smoke malformed reply mismatch\n", stderr);
-        return 44;
+        return 50;
     }
 
     std::puts("net udp diag smoke: ok");

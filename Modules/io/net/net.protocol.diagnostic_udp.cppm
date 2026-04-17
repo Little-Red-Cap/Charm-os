@@ -733,11 +733,16 @@ export namespace net::diag::udp {
         using MetaHandler = Status (*)(void* ctx,
                                        const MetaRequest& request,
                                        MetaReply& response) noexcept;
+        using SlowCountHandler = Status (*)(void* ctx,
+                                            const CounterValue& request,
+                                            CounterValue& response) noexcept;
 
         static_assert(PingOp::RequestCodec::max_size() <= MaxPayload);
         static_assert(PingOp::ResponseCodec::max_size() <= MaxPayload);
         static_assert(CountOp::RequestCodec::max_size() <= MaxPayload);
         static_assert(CountOp::ResponseCodec::max_size() <= MaxPayload);
+        static_assert(SlowCountOp::RequestCodec::max_size() <= MaxPayload);
+        static_assert(SlowCountOp::ResponseCodec::max_size() <= MaxPayload);
         static_assert(MetaOp::RequestCodec::max_size() <= MaxPayload);
         static_assert(MetaOp::ResponseCodec::max_size() <= MaxPayload);
 
@@ -814,6 +819,16 @@ export namespace net::diag::udp {
             return {};
         }
 
+        [[nodiscard]] Result<void> on_slow_count(SlowCountHandler fn,
+                                                 void* ctx = nullptr) noexcept {
+            if (!fn) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            slow_count_handler_ = fn;
+            slow_count_ctx_ = ctx;
+            return {};
+        }
+
         [[nodiscard]] bool has_ping() const noexcept {
             return ping_handler_ != nullptr;
         }
@@ -824,6 +839,10 @@ export namespace net::diag::udp {
 
         [[nodiscard]] bool has_meta() const noexcept {
             return meta_handler_ != nullptr;
+        }
+
+        [[nodiscard]] bool has_slow_count() const noexcept {
+            return slow_count_handler_ != nullptr;
         }
 
         [[nodiscard]] Result<void> consume(const UdpDatagramInfo& info,
@@ -930,6 +949,36 @@ export namespace net::diag::udp {
                         response);
                 }
 
+                case SlowCountOp::opcode: {
+                    const auto request = decode_request<SlowCountOp>(parsed.value());
+                    if (!request) {
+                        return send_error_reply(info,
+                                                SlowCountOp::opcode,
+                                                parsed.value().header.request_id,
+                                                Status::bad_request);
+                    }
+                    if (!slow_count_handler_) {
+                        return send_error_reply(info,
+                                                SlowCountOp::opcode,
+                                                parsed.value().header.request_id,
+                                                Status::unsupported);
+                    }
+
+                    CounterValue response{};
+                    const auto status = slow_count_handler_(slow_count_ctx_, request.value(), response);
+                    if (status != Status::ok) {
+                        return send_error_reply(
+                            info,
+                            SlowCountOp::opcode,
+                            parsed.value().header.request_id,
+                            status);
+                    }
+                    return send_typed_reply<SlowCountOp>(
+                        info,
+                        parsed.value().header.request_id,
+                        response);
+                }
+
                 default:
                     return send_error_reply(info,
                                             parsed.value().header.opcode,
@@ -1012,6 +1061,8 @@ export namespace net::diag::udp {
         void* count_ctx_{nullptr};
         MetaHandler meta_handler_{nullptr};
         void* meta_ctx_{nullptr};
+        SlowCountHandler slow_count_handler_{nullptr};
+        void* slow_count_ctx_{nullptr};
         util::usize request_count_{0};
         util::usize reply_count_{0};
         util::usize error_reply_count_{0};

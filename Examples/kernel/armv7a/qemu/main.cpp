@@ -11,6 +11,7 @@
 #include "armv7a_runtime_trap.hpp"
 #include "armv7a_runtime_trap_adapter.hpp"
 #include "armv7a_runtime_trap_caller.hpp"
+#include "armv7a_runtime_current.hpp"
 #include "armv7a_runtime_trap_context.hpp"
 #include "armv7a_runtime_trap_dispatch.hpp"
 #include "armv7a_runtime_trap_ingress_adapter.hpp"
@@ -71,6 +72,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapDispatch);
     armv7a_print_runtime_trap_dispatch_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapDispatch);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeCurrent);
+    armv7a_print_runtime_current_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeCurrent);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapContext);
     armv7a_print_runtime_trap_context_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapContext);

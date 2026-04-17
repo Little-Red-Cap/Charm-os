@@ -3,25 +3,27 @@
 #include "armv7a_cpu.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_runtime_current.hpp"
 #include "armv7a_runtime_bridge_contract.hpp"
 
 namespace {
-constexpr std::uint64_t kArmv7aRuntimeTrapContextTask = 0x0000000013572468ull;
-constexpr std::uint64_t kArmv7aRuntimeTrapContextStack = 0x0000000052001000ull;
 constexpr std::uint64_t kArmv7aRuntimeTrapContextYieldValue = 1u;
 constexpr std::uint64_t kArmv7aRuntimeTrapContextSleepValue = 5u;
 
 Armv7aRuntimeTrapContextPort g_runtime_trap_context_port{};
 
-bool armv7a_qemu_runtime_trap_context_stub(
+bool armv7a_capture_runtime_trap_context_from_current(
     void*,
     Armv7aRuntimeTrapIngressContext& out) noexcept
 {
-    out = Armv7aRuntimeTrapIngressContext{
-        .stack_pointer = kArmv7aRuntimeTrapContextStack,
-        .task = kArmv7aRuntimeTrapContextTask,
-        .task_valid = true,
-    };
+    Armv7aRuntimeCurrentContext current{};
+    if (!armv7a_runtime_current_context_port_capture(
+            armv7a_runtime_current_context_port(), current)) {
+        out = {};
+        return false;
+    }
+
+    out = armv7a_make_runtime_trap_ingress_context(current);
     return true;
 }
 
@@ -29,7 +31,7 @@ Armv7aRuntimeTrapContextPort armv7a_default_runtime_trap_context_port() noexcept
 {
     return Armv7aRuntimeTrapContextPort{
         .ctx = nullptr,
-        .capture = nullptr,
+        .capture = armv7a_capture_runtime_trap_context_from_current,
     };
 }
 
@@ -111,11 +113,12 @@ Armv7aRuntimeTrapIngressContext armv7a_capture_runtime_trap_ingress_context()
 Armv7aRuntimeTrapContextPairObservation
 armv7a_capture_runtime_trap_context_observation() noexcept
 {
-    const auto context_port = Armv7aRuntimeTrapContextPort{
-        .ctx = nullptr,
-        .capture = armv7a_qemu_runtime_trap_context_stub,
+    const auto current = Armv7aRuntimeCurrentContext{
+        .stack_pointer = 0x0000000052001000ull,
+        .task = 0x0000000013572468ull,
+        .task_valid = true,
     };
-    armv7a_bind_runtime_trap_context_port(context_port);
+    armv7a_publish_runtime_current_context(current);
 
     const auto expected = armv7a_capture_runtime_trap_ingress_context();
     const auto yield_return = armv7a_svc_smoke_test_result();
@@ -145,7 +148,7 @@ armv7a_capture_runtime_trap_context_observation() noexcept
             port_ready),
     };
 
-    armv7a_unbind_runtime_trap_context_port();
+    armv7a_clear_runtime_current_context();
     return observation;
 }
 

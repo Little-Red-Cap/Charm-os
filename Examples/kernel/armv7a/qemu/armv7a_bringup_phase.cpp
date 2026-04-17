@@ -74,6 +74,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-trap-caller";
     case Armv7aBringupPhase::kRuntimeTrapDispatch:
         return "runtime-trap-dispatch";
+    case Armv7aBringupPhase::kRuntimeCurrent:
+        return "runtime-current";
     case Armv7aBringupPhase::kRuntimeTrapContext:
         return "runtime-trap-context";
     case Armv7aBringupPhase::kRuntimeTrapRoundtrip:

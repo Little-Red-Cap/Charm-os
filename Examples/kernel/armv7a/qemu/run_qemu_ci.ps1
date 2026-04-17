@@ -142,6 +142,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-trap-caller",
     "ARMv7-A phase, stage=runtime-trap-dispatch",
     "ARMv7-A phase complete, stage=runtime-trap-dispatch",
+    "ARMv7-A phase, stage=runtime-current",
+    "ARMv7-A phase complete, stage=runtime-current",
     "ARMv7-A phase, stage=runtime-trap-context",
     "ARMv7-A phase complete, stage=runtime-trap-context",
     "ARMv7-A phase, stage=runtime-trap-roundtrip",
@@ -326,6 +328,9 @@ if (($log -notmatch "ARMv7-A runtime trap caller, yield-path=svc-call-frame, yie
 }
 if (($log -notmatch "ARMv7-A runtime trap dispatch, yield-path=dispatch-port, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=dispatch-port, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, dispatch=yes")) {
     $missing += "ARMv7-A runtime trap dispatch, yield-path=dispatch-port..."
+}
+if (($log -notmatch "ARMv7-A runtime current, path=current-slot, task=0x0000000013572468, sp=0x0000000052001000, task-valid=yes, current=yes")) {
+    $missing += "ARMv7-A runtime current, path=current-slot..."
 }
 if (($log -notmatch "ARMv7-A runtime trap context, yield-path=context-port, yield-task=0x0000000013572468, yield-sp=0x0000000052001000, yield-ready=yes, sleep-path=context-port, sleep-task=0x0000000013572468, sleep-sp=0x0000000052001000, sleep-ready=yes, context=yes")) {
     $missing += "ARMv7-A runtime trap context, yield-path=context-port..."

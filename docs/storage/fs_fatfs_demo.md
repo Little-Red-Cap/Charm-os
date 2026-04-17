@@ -1,56 +1,56 @@
-# FatFs ÎÄ¼þ¾µÏñÊ¾Àý£¨PC ¶ËÑéÖ¤£©
+# FatFs æ–‡ä»¶é•œåƒç¤ºä¾‹ï¼ˆPC ç«¯éªŒè¯ï¼‰
 
-Ä¿±ê£ºÓÃ **file-backed block device + FatFs** ´òÍ¨¡°¿éÉè±¸ ¡ú FAT32 ¡ú VFS ¡ú ÉÏ²ã¡±Á´Â·¡£
+ç›®æ ‡ï¼šç”¨ **file-backed block device + FatFs** æ‰“é€šâ€œå—è®¾å¤‡ â†’ FAT32 â†’ VFS â†’ ä¸Šå±‚â€é“¾è·¯ã€‚
 
-## Ç°ÖÃÌõ¼þ
+## å‰ç½®æ¡ä»¶
 
-- FatFs Ô´Âë·ÅÔÚ `Modules/thirdparty/fatfs/`
-  - ±Øº¬£º`ff.c`¡¢`ff.h`¡¢`diskio.h`¡¢`ffconf.h`¡¢`integer.h`
-- CMake ¿ª¹Ø£º`-DCHARM_ENABLE_FATFS=ON`
-- ¾µÏñÎÄ¼þ£¨ÀýÈç `dev.vhd` »ò `.img`£©£¬ÒÑ³õÊ¼»¯Îª MBR + FAT32
+- FatFs æºç æ”¾åœ¨ `Modules/thirdparty/fatfs/`
+  - å¿…å«ï¼š`ff.c`ã€`ff.h`ã€`diskio.h`ã€`ffconf.h`ã€`integer.h`
+- CMake å¼€å…³ï¼š`-DCHARM_ENABLE_FATFS=ON`
+- é•œåƒæ–‡ä»¶ï¼ˆä¾‹å¦‚ `dev.vhd` æˆ– `.img`ï¼‰ï¼Œå·²åˆå§‹åŒ–ä¸º MBR + FAT32
 
-½¨ÒéÅäÖÃ£¨`ffconf.h`£©£º
-- `FF_USE_LFN = 2` »ò `3`£¨ÆôÓÃ LFN£©
-- `FF_MAX_LFN` °´ÐèÉèÖÃ
+å»ºè®®é…ç½®ï¼ˆ`ffconf.h`ï¼‰ï¼š
+- `FF_USE_LFN = 2` æˆ– `3`ï¼ˆå¯ç”¨ LFNï¼‰
+- `FF_MAX_LFN` æŒ‰éœ€è®¾ç½®
 
-¿ÉÑ¡¹¤³Ì¿ª¹Ø£¨¹¹½¨Ê±£©£º
-- `CHARM_FATFS_MAX_FILES`£¨×î´ó´ò¿ªÎÄ¼þÊý£¬Ä¬ÈÏ 8£©
-- `CHARM_FATFS_MAX_PATH`£¨Â·¾¶³¤¶ÈÉÏÏÞ£¬Ä¬ÈÏ 256£©
-- `CHARM_FATFS_MAX_PDRV`£¨¶àÅÌÉÏÏÞ£¬Ä¬ÈÏ 4£©
+å¯é€‰å·¥ç¨‹å¼€å…³ï¼ˆæž„å»ºæ—¶ï¼‰ï¼š
+- `CHARM_FATFS_MAX_FILES`ï¼ˆæœ€å¤§æ‰“å¼€æ–‡ä»¶æ•°ï¼Œé»˜è®¤ 8ï¼‰
+- `CHARM_FATFS_MAX_PATH`ï¼ˆè·¯å¾„é•¿åº¦ä¸Šé™ï¼Œé»˜è®¤ 256ï¼‰
+- `CHARM_FATFS_MAX_PDRV`ï¼ˆå¤šç›˜ä¸Šé™ï¼Œé»˜è®¤ 4ï¼‰
 
-## Ê¾Àý¹¤³Ì
+## ç¤ºä¾‹å·¥ç¨‹
 
-Â·¾¶£º`Examples/fs/fs_fatfs_demo`
+è·¯å¾„ï¼š`Examples/fs/fs_fatfs_demo`
 
-ÐÐÎª£º
-- ¶ÁÈ¡¾µÏñ `LBA0`£¬½âÎö MBR ·ÖÇø±í£¬¶¨Î» FAT32 ·ÖÇø
-- ¹ÒÔØ FatFs µ½ `/`
-- ÁÐ³ö¸ùÄ¿Â¼²¢¶ÁÈ¡ `/hello.txt`
+è¡Œä¸ºï¼š
+- è¯»å–é•œåƒ `LBA0`ï¼Œè§£æž MBR åˆ†åŒºè¡¨ï¼Œå®šä½ FAT32 åˆ†åŒº
+- æŒ‚è½½ FatFs åˆ° `/`
+- åˆ—å‡ºæ ¹ç›®å½•å¹¶è¯»å– `/hello.txt`
 
-## Ê¹ÓÃ·½Ê½£¨Ê¾Àý£©
+## ä½¿ç”¨æ–¹å¼ï¼ˆç¤ºä¾‹ï¼‰
 
 ```bash
-# ÅäÖÃ
+# é…ç½®
 cmake -S . -B cmake-build-debug -DCHARM_ENABLE_FATFS=ON
 
-# ¹¹½¨
+# æž„å»º
 cmake --build cmake-build-debug -j 12
 
-# ÔËÐÐ£¨´«Èë¾µÏñÂ·¾¶£©
+# è¿è¡Œï¼ˆä¼ å…¥é•œåƒè·¯å¾„ï¼‰
 Examples/fs/fs_fatfs_demo/<build>/fs-fatfs-demo G:\Project\dev.vhd
 ```
 
-## ËµÃ÷Óë×¢ÒâÊÂÏî
+## è¯´æ˜Žä¸Žæ³¨æ„äº‹é¡¹
 
-- Ä¬ÈÏ block size Îª 512¡£
-- `vfs_open(path)` Ä¬ÈÏÖ»¶Á£»´´½¨/½Ø¶ÏÐèÊ¹ÓÃ `OpenFlags`£¨Ð´È¨ÏÞ£©¡£
-- LFN Ðè `FF_USE_LFN` ¿ªÆôÇÒ `FILINFO.lfname/lfsize` ÒÑ´«Èë¡£
-- `BlockFile` Ê¹ÓÃ 64-bit seek£¬Ö§³Ö 2GB ÒÔÉÏ¾µÏñ¡£
-- `vfs_close` ½öÊÍ·Å×ÊÔ´£¬²»±£Ö¤ÂäÅÌ£»ÐèÒªÊ±ÏÔÊ½ `vfs_flush(file)` »ò `vfs_flush(prefix)`¡£
+- é»˜è®¤ block size ä¸º 512ã€‚
+- `vfs_open(path)` é»˜è®¤åªè¯»ï¼›åˆ›å»º/æˆªæ–­éœ€ä½¿ç”¨ `OpenFlags`ï¼ˆå†™æƒé™ï¼‰ã€‚
+- LFN éœ€ `FF_USE_LFN` å¼€å¯ä¸” `FILINFO.lfname/lfsize` å·²ä¼ å…¥ã€‚
+- `BlockFile` ä½¿ç”¨ 64-bit seekï¼Œæ”¯æŒ 2GB ä»¥ä¸Šé•œåƒã€‚
+- `vfs_close` ä»…é‡Šæ”¾èµ„æºï¼Œä¸ä¿è¯è½ç›˜ï¼›éœ€è¦æ—¶æ˜¾å¼ `vfs_flush(file)` æˆ– `vfs_flush(prefix)`ã€‚
 
-## ¿ÉÑ¡ÓÅ»¯Èë¿Ú
+## å¯é€‰ä¼˜åŒ–å…¥å£
 
-- Íâ²¿»º´æ£º`FatFsMount::mount(dev, cache, ..., pdrv)`
-- ×Ô¶¨ÒåÎÄ¼þ²Û£º`FatFsMount::set_file_slots(span<FatFsFileSlot>)`
-- ×Ô¶¨ÒåÂ·¾¶»º³å£º`FatFsMount::set_path_buffers(span<TCHAR> buf0, span<TCHAR> buf1)`
+- å¤–éƒ¨ç¼“å­˜ï¼š`FatFsMount::mount(dev, cache, ..., pdrv)`
+- è‡ªå®šä¹‰æ–‡ä»¶æ§½ï¼š`FatFsMount::set_file_slots(span<FatFsFileSlot>)`
+- è‡ªå®šä¹‰è·¯å¾„ç¼“å†²ï¼š`FatFsMount::set_path_buffers(span<TCHAR> buf0, span<TCHAR> buf1)`
 

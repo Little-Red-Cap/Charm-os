@@ -1357,6 +1357,441 @@ function New-ArtifactRootResourceSummaryResult {
     return New-ArtifactRootFactResolutionSummaryResult -LoadedReports $LoadedReports
 }
 
+function Get-BindingResultFromReport {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['binding_result'] -or
+        $null -eq $ReportData.binding_result) {
+        return [ordered]@{
+            required_binding_count = 0
+            resolved_binding_count = 0
+            unresolved_binding_count = 0
+            resolved_capabilities = @()
+            unresolved_capabilities = @()
+            binding_entries = @()
+        }
+    }
+
+    return $ReportData.binding_result
+}
+
+function Get-BringupOrderFromReport {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['bringup_order'] -or
+        $null -eq $ReportData.bringup_order) {
+        return [ordered]@{
+            ordered_node_count = 0
+            blocked_node_count = 0
+            phase_counts = [ordered]@{}
+            entries = @()
+        }
+    }
+
+    return $ReportData.bringup_order
+}
+
+function Add-AggregatedCountMapEntry {
+    param(
+        [hashtable]$Counts,
+        [string]$Name,
+        [int]$Amount = 1
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return
+    }
+
+    if ($Counts.ContainsKey($Name)) {
+        $Counts[$Name] = [int]$Counts[$Name] + [int]$Amount
+    } else {
+        $Counts[$Name] = [int]$Amount
+    }
+}
+
+function ConvertTo-AggregatedOrderedCountMap {
+    param(
+        [hashtable]$Counts
+    )
+
+    $result = [ordered]@{}
+    if ($null -eq $Counts) {
+        return $result
+    }
+
+    foreach ($entry in @($Counts.GetEnumerator() | Sort-Object Key)) {
+        $result[[string]$entry.Key] = [int]$entry.Value
+    }
+
+    return $result
+}
+
+function New-ArtifactRootBindingResultCaseSummary {
+    param(
+        $LoadedReport
+    )
+
+    if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
+        return $null
+    }
+
+    $report = $LoadedReport.Data
+    $bindingResult = Get-BindingResultFromReport -ReportData $report
+
+    return [pscustomobject][ordered]@{
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        active_facets = @($report.subject.active_facets)
+        required_binding_count = [int]$bindingResult.required_binding_count
+        resolved_binding_count = [int]$bindingResult.resolved_binding_count
+        unresolved_binding_count = [int]$bindingResult.unresolved_binding_count
+        resolved_capabilities = @($bindingResult.resolved_capabilities)
+        unresolved_capabilities = @($bindingResult.unresolved_capabilities)
+        binding_entries = @($bindingResult.binding_entries)
+    }
+}
+
+function New-ArtifactRootBindingCapabilityMatrixEntry {
+    param(
+        [string]$CapabilityName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CapabilityName)) {
+        return $null
+    }
+
+    $capabilityCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $bindingEntry = @(
+            @($caseSummary.binding_entries) |
+                Where-Object { [string]$_.capability -eq $CapabilityName } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+
+        if ($null -eq $bindingEntry) {
+            continue
+        }
+
+        $capabilityCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            state = [string]$bindingEntry.state
+            provider_nodes = @($bindingEntry.provider_nodes)
+            consumer_nodes = @($bindingEntry.consumer_nodes)
+            reason = if ([string]::IsNullOrWhiteSpace([string]$bindingEntry.reason)) { $null } else { [string]$bindingEntry.reason }
+        }
+    }
+
+    if (@($capabilityCases).Count -eq 0) {
+        return $null
+    }
+
+    return [ordered]@{
+        capability = $CapabilityName
+        case_count = @($capabilityCases).Count
+        resolved_case_count = @($capabilityCases | Where-Object { [string]$_.state -eq 'resolved' }).Count
+        unresolved_case_count = @($capabilityCases | Where-Object { [string]$_.state -eq 'unresolved' }).Count
+        states = @(
+            @($capabilityCases) |
+                ForEach-Object { [string]$_.state } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        reasons = @(
+            @($capabilityCases) |
+                ForEach-Object { [string]$_.reason } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        provider_nodes = @(
+            foreach ($capabilityCase in @($capabilityCases)) {
+                @(Get-CaseQualifiedNodeNames -CaseName ([string]$capabilityCase.case) -NodeNames @($capabilityCase.provider_nodes))
+            }
+        ) | Sort-Object -Unique
+        consumer_nodes = @(
+            foreach ($capabilityCase in @($capabilityCases)) {
+                @(Get-CaseQualifiedNodeNames -CaseName ([string]$capabilityCase.case) -NodeNames @($capabilityCase.consumer_nodes))
+            }
+        ) | Sort-Object -Unique
+        cases = @($capabilityCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootBindingResultSummaryResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $caseSummaries = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootBindingResultCaseSummary -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object case
+    )
+
+    if (@($caseSummaries).Count -eq 0) {
+        return $null
+    }
+
+    $capabilityNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($bindingEntry in @($caseSummary.binding_entries)) {
+                $capabilityName = [string]$bindingEntry.capability
+                if (-not [string]::IsNullOrWhiteSpace($capabilityName)) {
+                    $capabilityName
+                }
+            }
+        }
+    ) | Sort-Object -Unique
+
+    $capabilityMatrix = @(
+        foreach ($capabilityName in @($capabilityNames)) {
+            New-ArtifactRootBindingCapabilityMatrixEntry -CapabilityName $capabilityName -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object capability
+
+    return [ordered]@{
+        case_count = @($caseSummaries).Count
+        totals = [ordered]@{
+            required_binding_count = [int](@($caseSummaries | Measure-Object -Property required_binding_count -Sum).Sum)
+            resolved_binding_count = [int](@($caseSummaries | Measure-Object -Property resolved_binding_count -Sum).Sum)
+            unresolved_binding_count = [int](@($caseSummaries | Measure-Object -Property unresolved_binding_count -Sum).Sum)
+        }
+        cases = @(
+            @($caseSummaries) |
+                Select-Object `
+                    case,
+                    board,
+                    profile,
+                    active_facets,
+                    required_binding_count,
+                    resolved_binding_count,
+                    unresolved_binding_count,
+                    resolved_capabilities,
+                    unresolved_capabilities |
+                Sort-Object case
+        )
+        capability_matrix = @($capabilityMatrix)
+        resolved_capability_matrix = @(
+            @($capabilityMatrix) |
+                Where-Object { [int]$_.resolved_case_count -gt 0 } |
+                Sort-Object capability
+        )
+        unresolved_capability_matrix = @(
+            @($capabilityMatrix) |
+                Where-Object { [int]$_.unresolved_case_count -gt 0 } |
+                Sort-Object capability
+        )
+    }
+}
+
+function New-ArtifactRootBringupOrderCaseSummary {
+    param(
+        $LoadedReport
+    )
+
+    if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
+        return $null
+    }
+
+    $report = $LoadedReport.Data
+    $bringupOrder = Get-BringupOrderFromReport -ReportData $report
+
+    return [pscustomobject][ordered]@{
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        active_facets = @($report.subject.active_facets)
+        ordered_node_count = [int]$bringupOrder.ordered_node_count
+        blocked_node_count = [int]$bringupOrder.blocked_node_count
+        phase_counts = $bringupOrder.phase_counts
+        blocked_nodes = @(
+            @($bringupOrder.entries) |
+                Where-Object { [string]$_.state -eq 'blocked' } |
+                ForEach-Object { [string]$_.node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        entries = @($bringupOrder.entries)
+    }
+}
+
+function New-ArtifactRootBringupOrderNodeMatrixEntry {
+    param(
+        [string]$NodeName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NodeName)) {
+        return $null
+    }
+
+    $nodeCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $bringupEntry = @(
+            @($caseSummary.entries) |
+                Where-Object { [string]$_.node -eq $NodeName } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+
+        if ($null -eq $bringupEntry) {
+            continue
+        }
+
+        $nodeCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            order = [int]$bringupEntry.order
+            kind = if ([string]::IsNullOrWhiteSpace([string]$bringupEntry.kind)) { $null } else { [string]$bringupEntry.kind }
+            phase = if ([string]::IsNullOrWhiteSpace([string]$bringupEntry.phase)) { $null } else { [string]$bringupEntry.phase }
+            runlevel_text = if ([string]::IsNullOrWhiteSpace([string]$bringupEntry.runlevel_text)) { $null } else { [string]$bringupEntry.runlevel_text }
+            state = [string]$bringupEntry.state
+            provides = @($bringupEntry.provides)
+            requires = @($bringupEntry.requires)
+            dependency_nodes = @($bringupEntry.dependency_nodes)
+            missing_requires = @($bringupEntry.missing_requires)
+        }
+    }
+
+    if (@($nodeCases).Count -eq 0) {
+        return $null
+    }
+
+    return [ordered]@{
+        node = $NodeName
+        case_count = @($nodeCases).Count
+        ready_case_count = @($nodeCases | Where-Object { [string]$_.state -eq 'ready' }).Count
+        blocked_case_count = @($nodeCases | Where-Object { [string]$_.state -eq 'blocked' }).Count
+        orders = @(
+            @($nodeCases) |
+                ForEach-Object { [int]$_.order } |
+                Sort-Object -Unique
+        )
+        kinds = @(
+            @($nodeCases) |
+                ForEach-Object { [string]$_.kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        phases = @(
+            @($nodeCases) |
+                ForEach-Object { [string]$_.phase } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        runlevels = @(
+            @($nodeCases) |
+                ForEach-Object { [string]$_.runlevel_text } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        provides = @(
+            foreach ($nodeCase in @($nodeCases)) {
+                @($nodeCase.provides)
+            }
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+        requires = @(
+            foreach ($nodeCase in @($nodeCases)) {
+                @($nodeCase.requires)
+            }
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+        dependency_nodes = @(
+            foreach ($nodeCase in @($nodeCases)) {
+                @(Get-CaseQualifiedNodeNames -CaseName ([string]$nodeCase.case) -NodeNames @($nodeCase.dependency_nodes))
+            }
+        ) | Sort-Object -Unique
+        missing_requires = @(
+            foreach ($nodeCase in @($nodeCases)) {
+                @($nodeCase.missing_requires)
+            }
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+        cases = @($nodeCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootBringupOrderSummaryResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $caseSummaries = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootBringupOrderCaseSummary -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object case
+    )
+
+    if (@($caseSummaries).Count -eq 0) {
+        return $null
+    }
+
+    $phaseCounts = @{}
+    foreach ($caseSummary in @($caseSummaries)) {
+        if ($null -eq $caseSummary.phase_counts) {
+            continue
+        }
+
+        foreach ($phaseEntry in @($caseSummary.phase_counts.PSObject.Properties)) {
+            Add-AggregatedCountMapEntry -Counts $phaseCounts -Name ([string]$phaseEntry.Name) -Amount ([int]$phaseEntry.Value)
+        }
+    }
+
+    $nodeNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($bringupEntry in @($caseSummary.entries)) {
+                $nodeName = [string]$bringupEntry.node
+                if (-not [string]::IsNullOrWhiteSpace($nodeName)) {
+                    $nodeName
+                }
+            }
+        }
+    ) | Sort-Object -Unique
+
+    $nodeMatrix = @(
+        foreach ($nodeName in @($nodeNames)) {
+            New-ArtifactRootBringupOrderNodeMatrixEntry -NodeName $nodeName -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object node
+
+    return [ordered]@{
+        case_count = @($caseSummaries).Count
+        totals = [ordered]@{
+            ordered_node_count = [int](@($caseSummaries | Measure-Object -Property ordered_node_count -Sum).Sum)
+            blocked_node_count = [int](@($caseSummaries | Measure-Object -Property blocked_node_count -Sum).Sum)
+        }
+        phase_counts = ConvertTo-AggregatedOrderedCountMap -Counts $phaseCounts
+        cases = @(
+            @($caseSummaries) |
+                Select-Object `
+                    case,
+                    board,
+                    profile,
+                    active_facets,
+                    ordered_node_count,
+                    blocked_node_count,
+                    blocked_nodes,
+                    phase_counts |
+                Sort-Object case
+        )
+        node_matrix = @($nodeMatrix)
+        blocked_node_matrix = @(
+            @($nodeMatrix) |
+                Where-Object { [int]$_.blocked_case_count -gt 0 } |
+                Sort-Object node
+        )
+    }
+}
+
 function New-ArtifactRootResourceCompareCaseSummary {
     param(
         $LoadedReport
@@ -3991,6 +4426,402 @@ function New-ArtifactRootBringupEvidenceComparisonResult {
     }
 }
 
+function New-ArtifactRootBindingResultCompareCaseSummary {
+    param(
+        $LoadedReport
+    )
+
+    if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
+        return $null
+    }
+
+    $report = $LoadedReport.Data
+    $comparison = Get-BindingResultComparisonFromReport -ReportData $report
+    if ($null -eq $comparison) {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        active_facets = @($report.subject.active_facets)
+        changed = [bool]$comparison.changed
+        summary_changes = @($comparison.summary_changes)
+        binding_change_count = @($comparison.binding_changes).Count
+        capabilities_changed = @(
+            @($comparison.binding_changes) |
+                ForEach-Object { [string]$_.capability } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        resolved_capability_changes = [ordered]@{
+            added = @($comparison.resolved_capability_changes.added)
+            removed = @($comparison.resolved_capability_changes.removed)
+        }
+        unresolved_capability_changes = [ordered]@{
+            added = @($comparison.unresolved_capability_changes.added)
+            removed = @($comparison.unresolved_capability_changes.removed)
+        }
+        binding_changes = @($comparison.binding_changes)
+    }
+}
+
+function New-ArtifactRootBindingResultCompareCapabilityEntry {
+    param(
+        [string]$CapabilityName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CapabilityName)) {
+        return $null
+    }
+
+    $capabilityCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $bindingChange = @(
+            @($caseSummary.binding_changes) |
+                Where-Object { [string]$_.capability -eq $CapabilityName } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+
+        if ($null -eq $bindingChange) {
+            continue
+        }
+
+        $capabilityCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            change_kind = [string]$bindingChange.change_kind
+            left_state = if ([string]::IsNullOrWhiteSpace([string]$bindingChange.left_state)) { $null } else { [string]$bindingChange.left_state }
+            right_state = if ([string]::IsNullOrWhiteSpace([string]$bindingChange.right_state)) { $null } else { [string]$bindingChange.right_state }
+            left_provider_nodes = @($bindingChange.left_provider_nodes)
+            right_provider_nodes = @($bindingChange.right_provider_nodes)
+            left_consumer_nodes = @($bindingChange.left_consumer_nodes)
+            right_consumer_nodes = @($bindingChange.right_consumer_nodes)
+            left_reason = if ([string]::IsNullOrWhiteSpace([string]$bindingChange.left_reason)) { $null } else { [string]$bindingChange.left_reason }
+            right_reason = if ([string]::IsNullOrWhiteSpace([string]$bindingChange.right_reason)) { $null } else { [string]$bindingChange.right_reason }
+        }
+    }
+
+    if (@($capabilityCases).Count -eq 0) {
+        return $null
+    }
+
+    return [ordered]@{
+        capability = $CapabilityName
+        case_count = @($capabilityCases).Count
+        change_kinds = @(
+            @($capabilityCases) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        states = @(
+            @($capabilityCases) |
+                ForEach-Object { @([string]$_.left_state, [string]$_.right_state) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        reasons = @(
+            @($capabilityCases) |
+                ForEach-Object { @([string]$_.left_reason, [string]$_.right_reason) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        cases = @($capabilityCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootBindingResultComparisonResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $caseSummaries = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootBindingResultCompareCaseSummary -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object case
+    )
+
+    if (@($caseSummaries).Count -eq 0) {
+        return $null
+    }
+
+    $summaryChanges = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.summary_changes)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $capabilityNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.capabilities_changed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $resolvedCapabilityNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.resolved_capability_changes.added)
+            @($caseSummary.resolved_capability_changes.removed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $unresolvedCapabilityNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.unresolved_capability_changes.added)
+            @($caseSummary.unresolved_capability_changes.removed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $summaryChangeMatrix = @(
+        foreach ($changeText in @($summaryChanges)) {
+            New-ArtifactRootResourceCompareSummaryChangeEntry -ChangeText $changeText -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object change
+
+    $capabilityChangeMatrix = @(
+        foreach ($capabilityName in @($capabilityNames)) {
+            New-ArtifactRootBindingResultCompareCapabilityEntry -CapabilityName $capabilityName -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object capability
+
+    $resolvedCapabilityChangeMatrix = @(
+        foreach ($capabilityName in @($resolvedCapabilityNames)) {
+            New-ArtifactRootSystemFormationCompareNamedChangeEntry -Name $capabilityName -CaseSummaries $caseSummaries -FieldName 'capability' -CollectionName 'resolved_capability_changes'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object capability
+
+    $unresolvedCapabilityChangeMatrix = @(
+        foreach ($capabilityName in @($unresolvedCapabilityNames)) {
+            New-ArtifactRootSystemFormationCompareNamedChangeEntry -Name $capabilityName -CaseSummaries $caseSummaries -FieldName 'capability' -CollectionName 'unresolved_capability_changes'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object capability
+
+    return [ordered]@{
+        compared_case_count = @($caseSummaries).Count
+        changed_case_count = @($caseSummaries | Where-Object { [bool]$_.changed }).Count
+        unchanged_case_count = @($caseSummaries | Where-Object { -not [bool]$_.changed }).Count
+        changed_cases = @(
+            @($caseSummaries) |
+                Where-Object { [bool]$_.changed } |
+                ForEach-Object { [string]$_.case } |
+                Sort-Object
+        )
+        unchanged_cases = @(
+            @($caseSummaries) |
+                Where-Object { -not [bool]$_.changed } |
+                ForEach-Object { [string]$_.case } |
+                Sort-Object
+        )
+        binding_change_count = [int](@($caseSummaries | Measure-Object -Property binding_change_count -Sum).Sum)
+        cases = @($caseSummaries)
+        summary_change_matrix = @($summaryChangeMatrix)
+        capability_change_matrix = @($capabilityChangeMatrix)
+        resolved_capability_change_matrix = @($resolvedCapabilityChangeMatrix)
+        unresolved_capability_change_matrix = @($unresolvedCapabilityChangeMatrix)
+    }
+}
+
+function New-ArtifactRootBringupOrderCompareCaseSummary {
+    param(
+        $LoadedReport
+    )
+
+    if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
+        return $null
+    }
+
+    $report = $LoadedReport.Data
+    $comparison = Get-BringupOrderComparisonFromReport -ReportData $report
+    if ($null -eq $comparison) {
+        return $null
+    }
+
+    return [pscustomobject][ordered]@{
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        active_facets = @($report.subject.active_facets)
+        changed = [bool]$comparison.changed
+        summary_changes = @($comparison.summary_changes)
+        entry_change_count = @($comparison.entry_changes).Count
+        nodes_changed = @(
+            @($comparison.entry_changes) |
+                ForEach-Object { [string]$_.node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        blocked_node_changes = [ordered]@{
+            added = @($comparison.blocked_node_changes.added)
+            removed = @($comparison.blocked_node_changes.removed)
+        }
+        entry_changes = @($comparison.entry_changes)
+    }
+}
+
+function New-ArtifactRootBringupOrderCompareEntryChangeEntry {
+    param(
+        [string]$NodeName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NodeName)) {
+        return $null
+    }
+
+    $nodeCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $entryChange = @(
+            @($caseSummary.entry_changes) |
+                Where-Object { [string]$_.node -eq $NodeName } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+
+        if ($null -eq $entryChange) {
+            continue
+        }
+
+        $nodeCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            change_kind = [string]$entryChange.change_kind
+            left_order = $entryChange.left_order
+            right_order = $entryChange.right_order
+            left_kind = if ([string]::IsNullOrWhiteSpace([string]$entryChange.left_kind)) { $null } else { [string]$entryChange.left_kind }
+            right_kind = if ([string]::IsNullOrWhiteSpace([string]$entryChange.right_kind)) { $null } else { [string]$entryChange.right_kind }
+            left_phase = if ([string]::IsNullOrWhiteSpace([string]$entryChange.left_phase)) { $null } else { [string]$entryChange.left_phase }
+            right_phase = if ([string]::IsNullOrWhiteSpace([string]$entryChange.right_phase)) { $null } else { [string]$entryChange.right_phase }
+            left_runlevel_text = if ([string]::IsNullOrWhiteSpace([string]$entryChange.left_runlevel_text)) { $null } else { [string]$entryChange.left_runlevel_text }
+            right_runlevel_text = if ([string]::IsNullOrWhiteSpace([string]$entryChange.right_runlevel_text)) { $null } else { [string]$entryChange.right_runlevel_text }
+            left_state = if ([string]::IsNullOrWhiteSpace([string]$entryChange.left_state)) { $null } else { [string]$entryChange.left_state }
+            right_state = if ([string]::IsNullOrWhiteSpace([string]$entryChange.right_state)) { $null } else { [string]$entryChange.right_state }
+            left_provides = @($entryChange.left_provides)
+            right_provides = @($entryChange.right_provides)
+            left_requires = @($entryChange.left_requires)
+            right_requires = @($entryChange.right_requires)
+            left_dependency_nodes = @($entryChange.left_dependency_nodes)
+            right_dependency_nodes = @($entryChange.right_dependency_nodes)
+            left_missing_requires = @($entryChange.left_missing_requires)
+            right_missing_requires = @($entryChange.right_missing_requires)
+        }
+    }
+
+    if (@($nodeCases).Count -eq 0) {
+        return $null
+    }
+
+    return [ordered]@{
+        node = $NodeName
+        case_count = @($nodeCases).Count
+        change_kinds = @(
+            @($nodeCases) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        states = @(
+            @($nodeCases) |
+                ForEach-Object { @([string]$_.left_state, [string]$_.right_state) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        phases = @(
+            @($nodeCases) |
+                ForEach-Object { @([string]$_.left_phase, [string]$_.right_phase) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        missing_requires = @(
+            @($nodeCases) |
+                ForEach-Object { @($_.left_missing_requires) + @($_.right_missing_requires) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        cases = @($nodeCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootBringupOrderComparisonResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $caseSummaries = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootBringupOrderCompareCaseSummary -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object case
+    )
+
+    if (@($caseSummaries).Count -eq 0) {
+        return $null
+    }
+
+    $summaryChanges = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.summary_changes)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $nodeNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.nodes_changed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $blockedNodeNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.blocked_node_changes.added)
+            @($caseSummary.blocked_node_changes.removed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $summaryChangeMatrix = @(
+        foreach ($changeText in @($summaryChanges)) {
+            New-ArtifactRootResourceCompareSummaryChangeEntry -ChangeText $changeText -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object change
+
+    $entryChangeMatrix = @(
+        foreach ($nodeName in @($nodeNames)) {
+            New-ArtifactRootBringupOrderCompareEntryChangeEntry -NodeName $nodeName -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object node
+
+    $blockedNodeChangeMatrix = @(
+        foreach ($nodeName in @($blockedNodeNames)) {
+            New-ArtifactRootSystemFormationCompareNamedChangeEntry -Name $nodeName -CaseSummaries $caseSummaries -FieldName 'node' -CollectionName 'blocked_node_changes'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object node
+
+    return [ordered]@{
+        compared_case_count = @($caseSummaries).Count
+        changed_case_count = @($caseSummaries | Where-Object { [bool]$_.changed }).Count
+        unchanged_case_count = @($caseSummaries | Where-Object { -not [bool]$_.changed }).Count
+        changed_cases = @(
+            @($caseSummaries) |
+                Where-Object { [bool]$_.changed } |
+                ForEach-Object { [string]$_.case } |
+                Sort-Object
+        )
+        unchanged_cases = @(
+            @($caseSummaries) |
+                Where-Object { -not [bool]$_.changed } |
+                ForEach-Object { [string]$_.case } |
+                Sort-Object
+        )
+        entry_change_count = [int](@($caseSummaries | Measure-Object -Property entry_change_count -Sum).Sum)
+        cases = @($caseSummaries)
+        summary_change_matrix = @($summaryChangeMatrix)
+        entry_change_matrix = @($entryChangeMatrix)
+        blocked_node_change_matrix = @($blockedNodeChangeMatrix)
+    }
+}
+
 function Format-BringupEvidenceDisplayRow {
     param(
         $Entry
@@ -4054,6 +4885,8 @@ function New-ArtifactRootComparisonOverviewResult {
     param(
         [object[]]$LoadedReports,
         $CapabilityComparisonSummary,
+        $BindingResultComparisonSummary,
+        $BringupOrderComparisonSummary,
         $SystemFormationComparisonSummary,
         $FactResolutionComparisonSummary
     )
@@ -4148,6 +4981,14 @@ function New-ArtifactRootComparisonOverviewResult {
 
     if ($null -ne $SystemFormationComparisonSummary) {
         $result.system_formation_summary = $SystemFormationComparisonSummary
+    }
+
+    if ($null -ne $BindingResultComparisonSummary) {
+        $result.binding_result_summary = $BindingResultComparisonSummary
+    }
+
+    if ($null -ne $BringupOrderComparisonSummary) {
+        $result.bringup_order_summary = $BringupOrderComparisonSummary
     }
 
     if ($null -ne $FactResolutionComparisonSummary) {
@@ -4427,13 +5268,19 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         )
     }
 
+    $bindingResultSummary = New-ArtifactRootBindingResultSummaryResult -LoadedReports $selectedReports
+    $bringupOrderSummary = New-ArtifactRootBringupOrderSummaryResult -LoadedReports $selectedReports
     $systemFormationSummary = New-ArtifactRootSystemFormationSummaryResult -LoadedReports $selectedReports
     $factResolutionSummary = New-ArtifactRootFactResolutionSummaryResult -LoadedReports $selectedReports
+    $bindingResultComparisonSummary = New-ArtifactRootBindingResultComparisonResult -LoadedReports $selectedReports
+    $bringupOrderComparisonSummary = New-ArtifactRootBringupOrderComparisonResult -LoadedReports $selectedReports
     $systemFormationComparisonSummary = New-ArtifactRootSystemFormationComparisonResult -LoadedReports $selectedReports
     $factResolutionComparisonSummary = New-ArtifactRootFactResolutionComparisonResult -LoadedReports $selectedReports
     $comparisonOverview = New-ArtifactRootComparisonOverviewResult `
         -LoadedReports $selectedReports `
         -CapabilityComparisonSummary $comparisonCapabilitySummary `
+        -BindingResultComparisonSummary $bindingResultComparisonSummary `
+        -BringupOrderComparisonSummary $bringupOrderComparisonSummary `
         -SystemFormationComparisonSummary $systemFormationComparisonSummary `
         -FactResolutionComparisonSummary $factResolutionComparisonSummary
     if ($AsJson) {
@@ -4441,6 +5288,12 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             artifact_root = $artifactRootPath
             case_count = $summaryRows.Count
             cases = $summaryRows
+        }
+        if ($null -ne $bindingResultSummary) {
+            $payload.binding_result_summary = $bindingResultSummary
+        }
+        if ($null -ne $bringupOrderSummary) {
+            $payload.bringup_order_summary = $bringupOrderSummary
         }
         if ($null -ne $systemFormationSummary) {
             $payload.system_formation_summary = $systemFormationSummary
@@ -4454,6 +5307,37 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         $payload | ConvertTo-Json -Depth 14
     } else {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
+        if ($null -ne $bindingResultSummary) {
+            Write-Host '[BINDING RESULT SUMMARY]'
+            Write-Host "case_count              = $([int]$bindingResultSummary.case_count)"
+            Write-Host "required_binding_count  = $([int]$bindingResultSummary.totals.required_binding_count)"
+            Write-Host "resolved_binding_count  = $([int]$bindingResultSummary.totals.resolved_binding_count)"
+            Write-Host "unresolved_binding_count = $([int]$bindingResultSummary.totals.unresolved_binding_count)"
+            if (@($bindingResultSummary.resolved_capability_matrix).Count -gt 0) {
+                Write-Host "resolved_capabilities   = $((@($bindingResultSummary.resolved_capability_matrix | ForEach-Object { [string]$_.capability }) -join ', '))"
+            }
+            if (@($bindingResultSummary.unresolved_capability_matrix).Count -gt 0) {
+                Write-Host "unresolved_capabilities = $((@($bindingResultSummary.unresolved_capability_matrix | ForEach-Object { [string]$_.capability }) -join ', '))"
+            }
+            Write-Host ''
+        }
+        if ($null -ne $bringupOrderSummary) {
+            Write-Host '[BRINGUP ORDER SUMMARY]'
+            Write-Host "case_count              = $([int]$bringupOrderSummary.case_count)"
+            Write-Host "ordered_node_count      = $([int]$bringupOrderSummary.totals.ordered_node_count)"
+            Write-Host "blocked_node_count      = $([int]$bringupOrderSummary.totals.blocked_node_count)"
+            if ($null -ne $bringupOrderSummary.phase_counts -and @($bringupOrderSummary.phase_counts.PSObject.Properties).Count -gt 0) {
+                $phaseParts = @()
+                foreach ($phaseEntry in @($bringupOrderSummary.phase_counts.PSObject.Properties)) {
+                    $phaseParts += "$([string]$phaseEntry.Name):$([int]$phaseEntry.Value)"
+                }
+                Write-Host "phase_counts            = $((@($phaseParts) -join ', '))"
+            }
+            if (@($bringupOrderSummary.blocked_node_matrix).Count -gt 0) {
+                Write-Host "blocked_nodes           = $((@($bringupOrderSummary.blocked_node_matrix | ForEach-Object { [string]$_.node }) -join ', '))"
+            }
+            Write-Host ''
+        }
         if ($null -ne $systemFormationSummary) {
             Write-Host '[SYSTEM FORMATION SUMMARY]'
             Write-Host "case_count              = $([int]$systemFormationSummary.case_count)"
@@ -4530,6 +5414,18 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
                 Write-Host "formation_changed_cases  = $([int]$comparisonOverview.system_formation_summary.changed_case_count)"
                 if (@($comparisonOverview.system_formation_summary.changed_cases).Count -gt 0) {
                     Write-Host "formation_changed_list   = $((@($comparisonOverview.system_formation_summary.changed_cases) -join ', '))"
+                }
+            }
+            if ($null -ne $comparisonOverview.binding_result_summary) {
+                Write-Host "binding_result_cmp      = $([int]$comparisonOverview.binding_result_summary.changed_case_count)"
+                if (@($comparisonOverview.binding_result_summary.changed_cases).Count -gt 0) {
+                    Write-Host "binding_result_list     = $((@($comparisonOverview.binding_result_summary.changed_cases) -join ', '))"
+                }
+            }
+            if ($null -ne $comparisonOverview.bringup_order_summary) {
+                Write-Host "bringup_order_cmp       = $([int]$comparisonOverview.bringup_order_summary.changed_case_count)"
+                if (@($comparisonOverview.bringup_order_summary.changed_cases).Count -gt 0) {
+                    Write-Host "bringup_order_list      = $((@($comparisonOverview.bringup_order_summary.changed_cases) -join ', '))"
                 }
             }
             if ($null -ne $comparisonOverview.fact_resolution_summary) {

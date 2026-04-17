@@ -114,8 +114,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
 - compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.system_formation / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract / comparison.fact_resolution`
-- artifact_root 默认总览里的 `system_formation_summary / fact_resolution_summary`
-- artifact_root 默认总览里的 `comparison.system_formation_summary / comparison.fact_resolution_summary`
+- artifact_root 默认总览里的 `binding_result_summary / bringup_order_summary / system_formation_summary / fact_resolution_summary`
+- artifact_root 默认总览里的 `comparison.binding_result_summary / comparison.bringup_order_summary / comparison.system_formation_summary / comparison.fact_resolution_summary`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
@@ -213,6 +213,10 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `capability_summary.compared_capability_count`
 - `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
 - `capability_summary.compared_capabilities`
+- `binding_result_summary.changed_case_count / unchanged_case_count`
+- `binding_result_summary.capability_change_matrix / unresolved_capability_change_matrix`
+- `bringup_order_summary.changed_case_count / unchanged_case_count`
+- `bringup_order_summary.entry_change_matrix / blocked_node_change_matrix`
 - `system_formation_summary.changed_case_count / unchanged_case_count`
 - `system_formation_summary.status_change_matrix`
 - `system_formation_summary.blocker_change_matrix`
@@ -229,6 +233,22 @@ artifact_root 级 `cap list` 现在也会继续带出：
 > **这些漂移主要集中在哪些 capability 上。**
 
 与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
+`binding_result_summary`，至少包括：
+
+- `case_count`
+- `totals.required_binding_count / totals.resolved_binding_count / totals.unresolved_binding_count`
+- `capability_matrix`
+- `resolved_capability_matrix / unresolved_capability_matrix`
+
+并显式带出一份 `bringup_order_summary`，
+至少包括：
+
+- `case_count`
+- `totals.ordered_node_count / totals.blocked_node_count`
+- `phase_counts`
+- `node_matrix / blocked_node_matrix`
+
+并继续显式带出一份
 `system_formation_summary`，至少包括：
 
 - `case_count / formed_case_count / blocked_case_count`

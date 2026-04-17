@@ -379,10 +379,18 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.binding_result_changed_case_count`
 - `comparison.bringup_order_changed_case_count`
 - `comparison.fact_resolution_changed_case_count`
+- `binding_result_summary.case_count`
+- `binding_result_summary.unresolved_capability_matrix`
+- `bringup_order_summary.case_count`
+- `bringup_order_summary.blocked_node_matrix`
 - `system_formation_summary.case_count / formed_case_count / blocked_case_count`
 - `system_formation_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `fact_resolution_summary.case_count`
 - `fact_resolution_summary.required_fact_matrix / provided_fact_matrix`
+- `comparison.binding_result_summary.changed_case_count`
+- `comparison.binding_result_summary.unresolved_capability_change_matrix`
+- `comparison.bringup_order_summary.changed_case_count`
+- `comparison.bringup_order_summary.blocked_node_change_matrix`
 - `comparison.system_formation_summary.changed_case_count`
 - `comparison.system_formation_summary.status_change_matrix / blocker_change_matrix`
 - `comparison.fact_resolution_summary.changed_case_count`
@@ -398,9 +406,12 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 还会继续直接带出：
 
 - 这一组 case 当前整体有多少已经 `formed`、多少已经 `blocked`
+- binding result 在多 case 之间是如何收口的，哪些 capability 仍然 unresolved
+- bringup order 在多 case 之间是如何展开的，哪些节点已经进入 blocked
 - unresolved capability / blocked node / blocker 在多 case 之间如何聚集
 - required fact / audit provided fact 在多 case 之间如何聚集
 - compare 模式下哪些 `formed -> blocked` 或 `blocked -> formed` 转换真的发生了
+- compare 模式下哪些 binding_result / bringup_order 变化已经进入正式结果物摘要
 - compare 模式下哪些 fact inventory / contract state 已经进入正式 fact resolution 漂移面
 
 这意味着默认 explain 面现在已经可以先回答两层问题：

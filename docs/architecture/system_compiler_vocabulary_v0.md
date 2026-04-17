@@ -345,6 +345,8 @@ report / system 侧的现实载体包括：
 当前对应载体包括：
 
 - `artifact report` 中的 `binding_result`
+- artifact_root 默认总览中的 `binding_result_summary`
+- artifact_root 默认总览中的 `comparison.binding_result_summary`
 - `required_facts / unresolved_bindings`
 - capability provider / consumer 的最小汇总结论
 
@@ -353,6 +355,7 @@ report / system 侧的现实载体包括：
 - 哪些 binding 已经 resolved
 - 哪些 binding 还 unresolved
 - 某个 required capability 由谁提供、被谁消费
+- compare 模式下哪些 capability 的 binding state 已经发生漂移
 
 ### 4.4 `FactResolution`
 
@@ -388,6 +391,8 @@ report / system 侧的现实载体包括：
 
 - `materialized_graph.sample/v2` 里的节点顺序、phase、requires/provides
 - `artifact report` 中的 `bringup_order`
+- artifact_root 默认总览中的 `bringup_order_summary`
+- artifact_root 默认总览中的 `comparison.bringup_order_summary`
 
 它和 `Materialized Graph` 的区别是：
 
@@ -402,6 +407,7 @@ report / system 侧的现实载体包括：
 - 某个节点依赖谁
 - 哪些 require 已满足
 - 哪些 require 仍缺失，因此当前只能标成 blocked
+- compare 模式下哪些节点的 bringup order / blocked 状态已经发生漂移
 
 ### 4.6 `SystemFormation`
 
@@ -498,9 +504,9 @@ report / system 侧的现实载体包括：
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
-| `BindingResult` | `artifact report.binding_result`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
+| `BindingResult` | `artifact report.binding_result`、`binding_result_summary`、`comparison.binding_result_summary`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
 | `FactResolution` | `artifact report.fact_resolution`、`comparison.fact_resolution`、`fact_resolution_summary`、`resource summary` | 已有正式结果物载体 | 只等于 `resource_contract` 审计层 |
-| `BringupOrder` | `artifact report.bringup_order`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |
+| `BringupOrder` | `artifact report.bringup_order`、`bringup_order_summary`、`comparison.bringup_order_summary`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |
 | `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、默认总览 `Formation / FormCmp` | 已有正式结果物载体 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
 

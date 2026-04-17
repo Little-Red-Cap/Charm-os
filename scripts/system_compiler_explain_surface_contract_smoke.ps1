@@ -310,8 +310,14 @@ $rootSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.
 }
 Assert-Condition ([int]$rootSummary.case_count -eq @($ExportCases).Count) 'default artifact_root summary case_count mismatch'
 Assert-Condition (@($rootSummary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary cases length mismatch'
+Assert-Condition ($null -ne $rootSummary.binding_result_summary) 'default artifact_root summary must expose binding_result_summary'
+Assert-Condition ($null -ne $rootSummary.bringup_order_summary) 'default artifact_root summary must expose bringup_order_summary'
 Assert-Condition ($null -ne $rootSummary.system_formation_summary) 'default artifact_root summary must expose system_formation_summary'
 Assert-Condition ($null -ne $rootSummary.fact_resolution_summary) 'default artifact_root summary must expose fact_resolution_summary'
+Assert-Condition ([int]$rootSummary.binding_result_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary binding_result_summary.case_count mismatch'
+Assert-Condition ([int]$rootSummary.bringup_order_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary bringup_order_summary.case_count mismatch'
+Assert-Condition (@($rootSummary.binding_result_summary.capability_matrix).Count -gt 0) 'default artifact_root summary must expose binding_result capability_matrix'
+Assert-Condition (@($rootSummary.bringup_order_summary.node_matrix).Count -gt 0) 'default artifact_root summary must expose bringup_order node_matrix'
 Assert-Condition ([int]$rootSummary.system_formation_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_formation_summary.formed_case_count -eq @($ExportCases).Count) 'default artifact_root summary formed_case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_formation_summary.blocked_case_count -eq 0) 'default artifact_root summary blocked_case_count must stay zero in export_only mode'
@@ -339,8 +345,12 @@ $subsetSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summar
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $SubsetCases -AsJson
 }
 Assert-Condition ([int]$subsetSummary.case_count -eq @($SubsetCases).Count) 'subset artifact_root summary case_count mismatch'
+Assert-Condition ($null -ne $subsetSummary.binding_result_summary) 'subset artifact_root summary must expose binding_result_summary'
+Assert-Condition ($null -ne $subsetSummary.bringup_order_summary) 'subset artifact_root summary must expose bringup_order_summary'
 Assert-Condition ($null -ne $subsetSummary.system_formation_summary) 'subset artifact_root summary must expose system_formation_summary'
 Assert-Condition ($null -ne $subsetSummary.fact_resolution_summary) 'subset artifact_root summary must expose fact_resolution_summary'
+Assert-Condition ([int]$subsetSummary.binding_result_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root binding_result_summary.case_count mismatch'
+Assert-Condition ([int]$subsetSummary.bringup_order_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root bringup_order_summary.case_count mismatch'
 Assert-Condition ([int]$subsetSummary.system_formation_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root system_formation_summary.case_count mismatch'
 Assert-Condition ([int]$subsetSummary.fact_resolution_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root fact_resolution_summary.case_count mismatch'
 

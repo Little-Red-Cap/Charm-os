@@ -391,13 +391,25 @@ int main() {
     server.set_request_handler(&ServerState::on_request, &server_state);
     server.set_error_handler(&ServerState::on_error, &server_state);
 
-    auto bound_client = net::bind_icmp_protocol(client_node.pump, client);
-    auto bound_server = net::bind_icmp_protocol(server_node.pump, server);
+    auto bound_client = client.bind(client_node.pump);
+    auto bound_server = server.bind(server_node.pump);
     if (!bound_client
         || !bound_server
         || !client_node.pump.has_echo_sink()
         || !server_node.pump.has_echo_sink()) {
         return fail("icmp protocol smoke bind failed\n", 4);
+    }
+
+    net::icmp::echo::Client rebound_client{};
+    auto rebound = rebound_client.bind(client_node.pump, net::IpAddress::ipv4_any(), server_ip);
+    if (!rebound
+        || !rebound_client.configured()
+        || !same_ipv4(rebound_client.peer_address(), server_ip)) {
+        return fail("icmp protocol smoke rebound client bind failed\n", 5);
+    }
+    auto rebound_restore = client.bind(client_node.pump);
+    if (!rebound_restore || !client_node.pump.has_echo_sink()) {
+        return fail("icmp protocol smoke rebound restore failed\n", 6);
     }
 
     auto sent = client.ping(0x1357u, 0x0009u, net::ByteView{payload, sizeof(payload)});
@@ -411,11 +423,11 @@ int main() {
         || client_node.link.tx_calls != 1
         || client_node.pump.pending_count() != 1
         || client_node.pump.arp().request_count() != 1) {
-        return fail("icmp protocol smoke initial send failed\n", 5);
+        return fail("icmp protocol smoke initial send failed\n", 7);
     }
 
     if (!drive_until_idle(client_node, server_node)) {
-        return fail("icmp protocol smoke exchange stalled\n", 6);
+        return fail("icmp protocol smoke exchange stalled\n", 8);
     }
 
     auto client_peer_mac = client_node.pump.arp().table().lookup(server_ip);
@@ -424,7 +436,7 @@ int main() {
         || !server_peer_mac
         || !same_mac(client_peer_mac.value(), server_mac)
         || !same_mac(server_peer_mac.value(), client_mac)) {
-        return fail("icmp protocol smoke arp resolve mismatch\n", 7);
+        return fail("icmp protocol smoke arp resolve mismatch\n", 9);
     }
 
     if (!client_state.got_reply
@@ -441,7 +453,7 @@ int main() {
         || client_state.info.identifier != 0x1357u
         || client_state.info.sequence != 0x0009u
         || !bytes_eq(payload, client_state.payload, client_state.payload_size)) {
-        return fail("icmp protocol smoke client reply mismatch\n", 8);
+        return fail("icmp protocol smoke client reply mismatch\n", 10);
     }
 
     auto tracked = client.ping(net::ByteView{payload, sizeof(payload)}, 40, 20);
@@ -476,7 +488,7 @@ int main() {
         || server.transmitted_count() != 2
         || server_state.info.identifier != tracked.value().info.identifier
         || server_state.info.sequence != tracked.value().info.sequence) {
-        return fail("icmp protocol smoke tracked reply mismatch\n", 11);
+        return fail("icmp protocol smoke tracked reply mismatch\n", 13);
     }
 
     auto scoped_ping = client.ping(
@@ -514,7 +526,7 @@ int main() {
         || server.transmitted_count() != 3
         || server_state.info.identifier != scoped_ping.value().info.identifier
         || server_state.info.sequence != scoped_ping.value().info.sequence) {
-        return fail("icmp protocol smoke scoped reply mismatch\n", 14);
+        return fail("icmp protocol smoke scoped reply mismatch\n", 16);
     }
 
     server_node.link.peer = nullptr;
@@ -684,7 +696,7 @@ int main() {
         || client_node.link.has_rx()
         || server_node.link.has_rx()
         || client_node.link.tx_calls != 7
-        || server_node.link.tx_calls != 6) {
+        || server_node.link.tx_calls != 7) {
         return fail("icmp protocol smoke wire state mismatch\n", 26);
     }
 

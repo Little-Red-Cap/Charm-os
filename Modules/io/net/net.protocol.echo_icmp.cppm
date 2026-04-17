@@ -159,6 +159,22 @@ export namespace net::icmp::echo {
             return count;
         }
 
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return net::bind_icmp_protocol(pump, *this);
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump,
+                                        IpAddress local,
+                                        IpAddress peer) noexcept {
+            configure(local, peer);
+            return bind(pump);
+        }
+
         [[nodiscard]] bool cancel(util::u16 identifier, util::u16 sequence) noexcept {
             IcmpEchoInfo info{
                 .type = IcmpType::echo_request,
@@ -577,6 +593,11 @@ export namespace net::icmp::echo {
         void set_sender(SendFn fn, void* ctx) noexcept {
             sender_ = fn;
             sender_ctx_ = ctx;
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump) noexcept {
+            return net::bind_icmp_protocol(pump, *this);
         }
 
         void set_request_handler(RequestFn fn, void* ctx = nullptr) noexcept {

@@ -219,6 +219,7 @@
 当前证据 example：
 
 - `Examples/kernel/runtime_minimal_host`
+- `scripts/minimal_kernel_runtime_host_smoke.ps1`
 
 它验证的就是这条最小闭环：
 
@@ -231,6 +232,8 @@
 - 一条可观察 runtime trace
 
 当前这条 example 已接入 `ctest`，可以作为“上半层运行时语义仍然闭环”的基础证据。
+
+如果需要把当前这批上半层 `runtime_*_host` verifier 一次性做 configure/build/run 回归，可以直接跑 `scripts/minimal_kernel_runtime_host_smoke.ps1`。
 
 ## 对 ARMv7-A ingress 的意义
 

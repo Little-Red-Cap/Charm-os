@@ -364,6 +364,7 @@ Modules/
 当前这条 trap ingress 映射证据，已经可以先落在独立 host verifier：
 
 - `Examples/kernel/runtime_trap_armv7a_host/`
+- `scripts/minimal_kernel_runtime_host_smoke.ps1`
 
 它的作用不是替代 QEMU，而是先验证：
 
@@ -376,6 +377,8 @@ Modules/
 - host 证明“语义定义是自洽的”
 - QEMU 证明“真实执行路径符合语义”
 - CI 证明“这不是一次性的偶然成功”
+
+其中 `scripts/minimal_kernel_runtime_host_smoke.ps1` 当前会批量回归上半层 `runtime_*_host` verifier，默认不把 lower-half 认领的 `runtime_task_syscall_frame_armv7a_host` 纳入同一批次，避免两条并行线重新耦合。
 
 如果以后线程、调度器、syscall、页表操作都能保持这个节奏，我们会比很多“先把功能糊上去”的内核项目更稳。
 

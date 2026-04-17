@@ -1,5 +1,7 @@
 #include "armv7a_cpu.hpp"
 
+#include "armv7a_runtime_bridge_contract.hpp"
+
 namespace {
 constexpr std::uint32_t kSctlrAlignmentCheckMask = 1u << 1;
 constexpr std::uint32_t kIdMmfr0VmsaShift = 0u;
@@ -9,6 +11,14 @@ constexpr std::uint32_t kIdPfr1SecurityShift = 4u;
 constexpr std::uint32_t kIdPfr1VirtualizationShift = 12u;
 constexpr std::uint32_t kIdPfr1GentimerShift = 16u;
 constexpr std::uint32_t kIdPfr1FieldMask = 0xfu;
+constexpr std::uint32_t kArmv7aSvcYieldArg0 = 0x00000001u;
+constexpr std::uint32_t kArmv7aSvcYieldArg1 = 0x00000001u;
+constexpr std::uint32_t kArmv7aSvcYieldArg2 = 0x00000000u;
+constexpr std::uint32_t kArmv7aSvcYieldArg3 = 0x00000000u;
+constexpr std::uint32_t kArmv7aSvcSleepArg0 = 0x00000005u;
+constexpr std::uint32_t kArmv7aSvcSleepArg1 = 0x00000000u;
+constexpr std::uint32_t kArmv7aSvcSleepArg2 = 0x00000002u;
+constexpr std::uint32_t kArmv7aSvcSleepArg3 = 0x00000005u;
 } // namespace
 
 extern "C" void armv7a_data_sync_barrier()
@@ -125,7 +135,34 @@ extern "C" void armv7a_undefined_instruction()
 
 extern "C" void armv7a_svc_smoke_test()
 {
-    asm volatile("svc #0x43" ::: "memory");
+    asm volatile(
+        "mov r0, %0\n"
+        "mov r1, %1\n"
+        "mov r2, %2\n"
+        "mov r3, %3\n"
+        "svc #0x43"
+        :
+        : "r"(kArmv7aSvcYieldArg0),
+          "r"(kArmv7aSvcYieldArg1),
+          "r"(kArmv7aSvcYieldArg2),
+          "r"(kArmv7aSvcYieldArg3)
+        : "r0", "r1", "r2", "r3", "memory");
+}
+
+extern "C" void armv7a_svc_sleep_smoke_test()
+{
+    asm volatile(
+        "mov r0, %0\n"
+        "mov r1, %1\n"
+        "mov r2, %2\n"
+        "mov r3, %3\n"
+        "svc #0x44"
+        :
+        : "r"(kArmv7aSvcSleepArg0),
+          "r"(kArmv7aSvcSleepArg1),
+          "r"(kArmv7aSvcSleepArg2),
+          "r"(kArmv7aSvcSleepArg3)
+        : "r0", "r1", "r2", "r3", "memory");
 }
 
 std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value)

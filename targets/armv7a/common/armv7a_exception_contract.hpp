@@ -30,6 +30,12 @@ static_assert(sizeof(Armv7aExceptionFrame) == 32u,
 
 struct Armv7aSvcObservation {
     Armv7aVectorEntryObservation entry{};
+    std::uint32_t immediate = 0u;
+    std::uint32_t arg0 = 0u;
+    std::uint32_t arg1 = 0u;
+    std::uint32_t arg2 = 0u;
+    std::uint32_t arg3 = 0u;
+    bool arguments_sampled = false;
 };
 
 constexpr Armv7aExceptionKind armv7a_exception_kind(const Armv7aExceptionFrame& frame) noexcept
@@ -98,4 +104,32 @@ constexpr std::uint32_t armv7a_exception_return_pc(
 constexpr bool armv7a_svc_observation_observed(const Armv7aSvcObservation& observation) noexcept
 {
     return armv7a_vector_entry_observed(observation.entry);
+}
+
+constexpr bool armv7a_svc_service_sampled(
+    const Armv7aSvcObservation& observation) noexcept
+{
+    return armv7a_svc_observation_observed(observation);
+}
+
+constexpr bool armv7a_svc_arguments_ready(
+    const Armv7aSvcObservation& observation) noexcept
+{
+    return armv7a_svc_observation_observed(observation) &&
+           observation.arguments_sampled;
+}
+
+constexpr bool armv7a_svc_service_matches(
+    const Armv7aSvcObservation& observation,
+    std::uint32_t immediate) noexcept
+{
+    return armv7a_svc_service_sampled(observation) &&
+           observation.immediate == immediate;
+}
+
+constexpr std::uint64_t armv7a_svc_args01_u64(
+    const Armv7aSvcObservation& observation) noexcept
+{
+    return (static_cast<std::uint64_t>(observation.arg1) << 32u) |
+           static_cast<std::uint64_t>(observation.arg0);
 }

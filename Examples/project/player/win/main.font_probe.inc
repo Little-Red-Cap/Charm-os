@@ -176,5 +176,14 @@
                          scene.world_rect(ctx.handles.home_title_bottom), platform);
             log_font_box("home.hero_subtitle", "Today's Mix for you", subtitle_font,
                          scene.world_rect(ctx.handles.home_subtitle), platform);
+        } else if (ctx.current_page == player::PlayerPage::Library) {
+            log_font_box("library.hero_title", "Library", hero_font,
+                         scene.world_rect(ctx.handles.library_hero_title), platform);
+            const char* list_title = scene.text(ctx.handles.list_title);
+            if (!list_title || list_title[0] == '\0') {
+                list_title = "Library";
+            }
+            log_font_box("library.list_title", list_title, page_title_font,
+                         scene.world_rect(ctx.handles.list_title), platform);
         }
     }

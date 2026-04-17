@@ -1431,8 +1431,11 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         Rect row{clip_rect.x, y, clip_rect.w, row_h};
         const bool row_selected = (i == selected);
         const bool row_active = (i == active);
+        const std::uint8_t row_flags = kernel.list_view_item_row_flags(h, static_cast<std::uint16_t>(i));
+        const bool row_group = (row_flags & soa_detail::kListViewRowFlagGroup) != 0;
         Rect row_surface = row;
-        const int row_inset_x = (row_h >= 44) ? 5 : 2;
+        const int row_inset_x = row_group ? ((row_h >= 44) ? 3 : 2)
+                                          : ((row_h >= 44) ? 5 : 2);
         const int row_inset_y = (row_h >= 44) ? 4 : 1;
         row_surface.x += row_inset_x;
         row_surface.y += row_inset_y;
@@ -1441,6 +1444,7 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const int row_radius = [&]() noexcept {
             if (row_surface.h <= 0) return 0;
             int radius = metrics.corner_radius;
+            if (row_group) radius += 4;
             if (radius <= 0) radius = row_surface.h / 4;
             if (radius < 6 && row_surface.h >= 18) radius = 6;
             const int max_radius = row_surface.h / 2;
@@ -1450,12 +1454,19 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         if (row_surface.w > 0 && row_surface.h > 0) {
             if (row_selected && row_active) {
                 out.fill_round_rect(row_surface, row_radius, colors.accent);
-                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.on_accent, 172));
+                out.stroke_round_rect(row_surface, row_radius,
+                                      with_alpha(colors.on_accent, row_group ? 192 : 172));
             } else if (row_selected) {
                 out.fill_round_rect(row_surface, row_radius, colors.accent);
+                if (row_group) {
+                    out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.on_accent, 128));
+                }
             } else if (row_active) {
-                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.accent, 54));
-                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.accent, 228));
+                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.accent, row_group ? 60 : 54));
+                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.accent, row_group ? 214 : 228));
+            } else if (row_group) {
+                out.fill_round_rect(row_surface, row_radius, with_alpha(colors.accent, 28));
+                out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.accent, 110));
             } else if (row_h >= 44) {
                 out.fill_round_rect(row_surface, row_radius, with_alpha(colors.bg, 156));
                 out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.border, 70));
@@ -1577,7 +1588,7 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             const Rect subtitle_rect{text_x, top + title_h + line_gap, main_text_w, subtitle_h};
             const auto subtitle_color = row_selected ? colors.on_accent
                                                      : (row_active ? colors.accent
-                                                                   : with_alpha(colors.font, 156));
+                                                                   : with_alpha(colors.font, row_group ? 200 : 156));
             out.draw_text_box(title_rect, title ? title : "", font, title_font,
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             out.draw_text_box(subtitle_rect, subtitle, subtitle_color, subtitle_font,
@@ -1590,7 +1601,7 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             const Font& tail_font = get_font(FontId::Small);
             const auto tail_color = row_selected ? colors.on_accent
                                                  : (row_active ? colors.accent
-                                                               : with_alpha(colors.font, 172));
+                                                               : with_alpha(colors.font, row_group ? 214 : 172));
             out.draw_text_box(tail_rect, tail, tail_color, tail_font,
                               TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         }

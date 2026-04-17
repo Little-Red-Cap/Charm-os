@@ -10,7 +10,21 @@
 #include "armv7a_runtime_trap_frame.hpp"
 #include "armv7a_runtime_trap.hpp"
 #include "armv7a_runtime_trap_adapter.hpp"
+#include "armv7a_runtime_trap_caller.hpp"
+#include "armv7a_runtime_current.hpp"
+#include "armv7a_runtime_trap_context.hpp"
+#include "armv7a_runtime_trap_dispatch.hpp"
+#include "armv7a_runtime_trap_ingress_adapter.hpp"
+#include "armv7a_runtime_trap_live_adapter.hpp"
+#include "armv7a_runtime_trap_roundtrip.hpp"
+#include "armv7a_runtime_trap_seam.hpp"
 #include "armv7a_runtime_trap_mapping.hpp"
+#include "armv7a_task_syscall_frame.hpp"
+#include "armv7a_task_syscall_dispatch.hpp"
+#include "armv7a_task_syscall_surface.hpp"
+#include "armv7a_task_syscall_ingress_adapter.hpp"
+#include "armv7a_task_syscall_caller.hpp"
+#include "armv7a_task_syscall_roundtrip.hpp"
 #include "armv7a_scheduler_dispatch.hpp"
 #include "armv7a_scheduler_tick.hpp"
 
@@ -49,6 +63,30 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapAdapter);
     armv7a_print_runtime_trap_adapter_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapAdapter);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapSeam);
+    armv7a_print_runtime_trap_seam_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapSeam);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapLiveAdapter);
+    armv7a_print_runtime_trap_live_adapter_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapLiveAdapter);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapIngressAdapter);
+    armv7a_print_runtime_trap_ingress_adapter_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapIngressAdapter);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapCaller);
+    armv7a_print_runtime_trap_caller_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapCaller);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapDispatch);
+    armv7a_print_runtime_trap_dispatch_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapDispatch);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeCurrent);
+    armv7a_print_runtime_current_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeCurrent);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapContext);
+    armv7a_print_runtime_trap_context_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapContext);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapRoundtrip);
+    armv7a_print_runtime_trap_roundtrip_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapRoundtrip);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
     armv7a_run_context_switch_smoke();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
@@ -58,6 +96,26 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeBridge);
     armv7a_print_runtime_bridge_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeBridge);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallFrame);
+    armv7a_print_task_syscall_frame_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallFrame);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallDispatch);
+    armv7a_print_task_syscall_dispatch_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallDispatch);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallSurface);
+    armv7a_print_task_syscall_surface_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallSurface);
+    armv7a_enter_bringup_phase(
+        Armv7aBringupPhase::kTaskSyscallIngressAdapter);
+    armv7a_print_task_syscall_ingress_adapter_observation();
+    armv7a_complete_bringup_phase(
+        Armv7aBringupPhase::kTaskSyscallIngressAdapter);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallCaller);
+    armv7a_print_task_syscall_caller_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallCaller);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallRoundtrip);
+    armv7a_print_task_syscall_roundtrip_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallRoundtrip);
     armv7a_run_handoff_prepare_dry_run();
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);
     armv7a_platform_idle_forever();

@@ -173,6 +173,12 @@ Modules/
       scheduler.cppm
       thread.cppm
       thread_api.cppm
+      task_runtime_api.cppm
+      task_syscall_api.cppm
+      task_syscall_catalog.cppm
+      task_syscall_dispatch.cppm
+      task_syscall_table.cppm
+      task_syscall_frame.cppm
       timer.cppm
       sync*.cppm
       task_*.cppm
@@ -297,6 +303,19 @@ Modules/
 
 这一层不是为了马上变成 Linux，而是为了让“异常入口”和“内核服务入口”不再混用。
 
+当前已经有一版对应的上半层草图：
+
+- `docs/system/minimal_kernel_runtime_service_contract.md`
+- `docs/system/minimal_kernel_task_runtime_api_contract.md`
+- `docs/system/minimal_kernel_task_syscall_api_contract.md`
+- `docs/system/minimal_kernel_task_syscall_catalog_contract.md`
+- `docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
+- `docs/system/minimal_kernel_task_syscall_table_contract.md`
+- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
+- `docs/system/minimal_kernel_trap_syscall_contract.md`
+- `docs/system/minimal_kernel_trap_ingress_contract.md`
+- `docs/system/armv7a_runtime_trap_mapping_contract.md`
+
 建议先做最小 syscall 面：
 
 - `yield`
@@ -308,6 +327,10 @@ Modules/
 
 - 什么算 trap frame
 - 参数如何进内核
+- 最小 syscall 编号如何映射到 trap service / view
+- 最小 syscall request 如何稳定地分派到 transport / handler
+- 最小 syscall 号如何组织成静态 handler table
+- 最小 numbered syscall frame 如何 decode / writeback
 - 返回值和错误码怎样表达
 - 失败时如何留下可观测证据
 
@@ -337,6 +360,16 @@ Modules/
 - host 语义验证
 - QEMU 运行证据
 - CI 可回归脚本
+
+当前这条 trap ingress 映射证据，已经可以先落在独立 host verifier：
+
+- `Examples/kernel/runtime_trap_armv7a_host/`
+
+它的作用不是替代 QEMU，而是先验证：
+
+- `Armv7aSvcObservation -> TrapFrameView`
+- `TrapFrameView -> RuntimeTrapIngress`
+- `TrapResult -> host-local writeback`
 
 可以把它理解成统一方法论：
 

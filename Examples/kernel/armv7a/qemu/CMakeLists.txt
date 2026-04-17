@@ -101,7 +101,21 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_runtime_trap.cpp
     armv7a_runtime_trap_mapping.cpp
     armv7a_runtime_trap_adapter.cpp
+    armv7a_runtime_trap_seam.cpp
+    armv7a_runtime_trap_live_adapter.cpp
+    armv7a_runtime_trap_ingress_adapter.cpp
+    armv7a_runtime_trap_caller.cpp
+    armv7a_runtime_trap_dispatch.cpp
+    armv7a_runtime_current.cpp
+    armv7a_runtime_trap_context.cpp
+    armv7a_runtime_trap_roundtrip.cpp
     armv7a_runtime_bridge.cpp
+    armv7a_task_syscall_frame.cpp
+    armv7a_task_syscall_dispatch.cpp
+    armv7a_task_syscall_surface.cpp
+    armv7a_task_syscall_ingress_adapter.cpp
+    armv7a_task_syscall_caller.cpp
+    armv7a_task_syscall_roundtrip.cpp
     armv7a_diag_console.cpp
     armv7a_diag_context.cpp
     armv7a_handler_stack.cpp

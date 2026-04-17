@@ -41,6 +41,14 @@ struct Rk3506PlatformResetState {
     bool forced_low_vectors = false;
 };
 
+struct Rk3506PlatformBringupState {
+    std::uint32_t configured_level = 0u;
+    std::uint32_t startup_breadcrumb = 0u;
+    std::uint32_t vector_breadcrumb = 0u;
+    bool read_only_smoke_enabled = false;
+    bool irq_timer_smoke_enabled = false;
+};
+
 struct Rk3506PlatformEarlyConsoleState {
     std::uintptr_t configured_uart_base = 0u;
     std::uint32_t configured_clock_hz = 0u;
@@ -158,9 +166,13 @@ const Rk3506PlatformAddressSpace& rk3506_platform_address_space();
 const Rk3506PlatformMmioLayout& rk3506_platform_mmio_layout();
 const Rk3506PlatformTiming& rk3506_platform_timing();
 const Rk3506PlatformResetState& rk3506_platform_reset_state();
+const Rk3506PlatformBringupState& rk3506_platform_bringup_state();
 const Rk3506PlatformEarlyConsoleState& rk3506_platform_early_console_state();
 const Rk3506PlatformGenericTimerSmokeState&
 rk3506_platform_generic_timer_smoke_state();
 const Rk3506PlatformGicSmokeState& rk3506_platform_gic_smoke_state();
 const Rk3506PlatformIrqTimerSmokeState& rk3506_platform_irq_timer_smoke_state();
+const char* rk3506_platform_bringup_level_name(unsigned int level);
+const char* rk3506_platform_startup_breadcrumb_name(std::uint32_t value);
+const char* rk3506_platform_vector_breadcrumb_name(std::uint32_t value);
 const char* rk3506_platform_interrupt_source_name(unsigned int intid);

@@ -103,6 +103,7 @@ int main() {
     constexpr auto auto_peer_ip = net::IpAddress::ipv4(10, 0, 0, 39);
     constexpr auto auto_drop_peer_ip = net::IpAddress::ipv4(10, 0, 0, 49);
     constexpr auto local = net::Endpoint{net::IpAddress::ipv4_any(), 5000};
+    constexpr auto broadcast_peer = net::Endpoint::ipv4_broadcast(7500);
     constexpr auto peer = net::Endpoint{peer_ip, 7000};
     constexpr auto queued_peer = net::Endpoint{queued_peer_ip, 7100};
     constexpr auto expired_peer = net::Endpoint{expired_peer_ip, 7200};
@@ -113,6 +114,7 @@ int main() {
     static constexpr util::u8 expired_payload[]{'d', 'r', 'o', 'p'};
     static constexpr util::u8 auto_payload[]{'a', 'u', 't', 'o'};
     static constexpr util::u8 auto_drop_payload[]{'l', 'o', 's', 's'};
+    static constexpr util::u8 broadcast_payload[]{'b', 'c', 'a', 's', 't'};
 
     net::NetIf netif{};
     auto configured = netif.configure(net::NetIfConfig{
@@ -676,6 +678,67 @@ int main() {
         || egress_queue.pending_count() != 0) {
         std::fputs("udp egress smoke auto drop timeout failed\n", stderr);
         return 51;
+    }
+
+    auto broadcast_sent = net::send_udp_ipv4<128>(
+        netif,
+        arp,
+        local,
+        broadcast_peer,
+        net::ByteView{broadcast_payload, sizeof(broadcast_payload)},
+        21,
+        0x5A5Au,
+        0x66u);
+    if (!broadcast_sent
+        || link.tx_calls != 13
+        || arp.request_count() != 9
+        || arp.pending_count() != 0) {
+        std::fputs("udp egress smoke broadcast send failed\n", stderr);
+        return 52;
+    }
+
+    auto broadcast_frame = net::parse_ether_frame(net::PacketView{
+        net::ByteView{link.tx_bytes.data(), link.tx_size},
+        0,
+        0
+    });
+    if (!broadcast_frame || broadcast_frame.value().type != net::EtherType::ipv4) {
+        std::fputs("udp egress smoke broadcast ether parse failed\n", stderr);
+        return 53;
+    }
+    if (!same_mac(broadcast_frame.value().destination, net::MacAddress::broadcast())
+        || !same_mac(broadcast_frame.value().source, local_mac)) {
+        std::fputs("udp egress smoke broadcast ether mismatch\n", stderr);
+        return 54;
+    }
+
+    auto broadcast_ipv4 = net::parse_ipv4_packet(broadcast_frame.value().payload);
+    if (!broadcast_ipv4
+        || broadcast_ipv4.value().protocol != net::Ipv4Protocol::udp
+        || broadcast_ipv4.value().ttl != 21
+        || broadcast_ipv4.value().identification != 0x5A5Au
+        || broadcast_ipv4.value().dscp_ecn != 0x66u
+        || !same_ipv4(broadcast_ipv4.value().source, local_ip)
+        || !same_ipv4(broadcast_ipv4.value().destination, broadcast_peer.address)) {
+        std::fputs("udp egress smoke broadcast ipv4 mismatch\n", stderr);
+        return 55;
+    }
+
+    auto broadcast_udp = net::parse_udp_datagram(broadcast_ipv4.value().payload);
+    if (!broadcast_udp
+        || broadcast_udp.value().source_port != 5000
+        || broadcast_udp.value().destination_port != 7500
+        || broadcast_udp.value().length != net::udp_header_size() + sizeof(broadcast_payload)
+        || broadcast_udp.value().checksum == 0u) {
+        std::fputs("udp egress smoke broadcast udp mismatch\n", stderr);
+        return 56;
+    }
+
+    for (util::usize i = 0; i < sizeof(broadcast_payload); ++i) {
+        if (broadcast_udp.value().payload[i] != broadcast_payload[i]) {
+            std::fputs("udp egress smoke broadcast payload mismatch\n", stderr);
+            return 57;
+        }
     }
 
     std::puts("net udp egress smoke: ok");

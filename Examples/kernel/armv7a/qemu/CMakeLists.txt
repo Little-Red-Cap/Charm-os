@@ -105,6 +105,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_runtime_trap_live_adapter.cpp
     armv7a_runtime_trap_ingress_adapter.cpp
     armv7a_runtime_trap_caller.cpp
+    armv7a_runtime_trap_dispatch.cpp
     armv7a_runtime_bridge.cpp
     armv7a_diag_console.cpp
     armv7a_diag_context.cpp

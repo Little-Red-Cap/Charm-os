@@ -72,6 +72,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-trap-ingress-adapter";
     case Armv7aBringupPhase::kRuntimeTrapCaller:
         return "runtime-trap-caller";
+    case Armv7aBringupPhase::kRuntimeTrapDispatch:
+        return "runtime-trap-dispatch";
     case Armv7aBringupPhase::kContextSwitchSmoke:
         return "context-switch-smoke";
     case Armv7aBringupPhase::kSchedulerDispatch:

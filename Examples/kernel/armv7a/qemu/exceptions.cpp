@@ -5,6 +5,7 @@
 #include "armv7a_exception_frame.hpp"
 #include "armv7a_exception_observation.hpp"
 #include "armv7a_runtime_bridge_contract.hpp"
+#include "armv7a_runtime_trap_dispatch.hpp"
 
 namespace {
 struct Armv7aSvcFrameSampleSlot {
@@ -93,6 +94,9 @@ extern "C" void armv7a_handle_svc(Armv7aExceptionFrame* frame)
     } else if (observation.immediate == kArmv7aRuntimeBridgeSleepServiceId) {
         armv7a_store_svc_frame_sample(g_svc_frame_sample_sleep, sample);
     }
+    auto live = armv7a_make_runtime_trap_live_frame(
+        *frame, current_cpsr, instruction_word);
+    (void)armv7a_dispatch_runtime_trap_live_frame(live);
     armv7a_exception_print_svc_active(*frame, current_cpsr);
 }
 

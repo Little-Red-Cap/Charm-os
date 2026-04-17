@@ -4,34 +4,10 @@
 #include "armv7a_exception_observation.hpp"
 #include "armv7a_platform.hpp"
 #include "armv7a_runtime_bridge_contract.hpp"
+#include "armv7a_runtime_trap_dispatch.hpp"
 #include "armv7a_runtime_trap_mapping.hpp"
 
 namespace {
-Armv7aRuntimeTrapIngressResult armv7a_qemu_dispatch_runtime_trap_frame(
-    const Armv7aRuntimeTrapSeamFrameView& frame_view) noexcept
-{
-    switch (frame_view.service_id) {
-    case kArmv7aGenericTrapServiceYieldCurrent:
-        return Armv7aRuntimeTrapIngressResult{
-            .disposition = Armv7aRuntimeTrapIngressDisposition::handled,
-            .error = Armv7aRuntimeTrapIngressError::none,
-            .value = 1u,
-        };
-    case kArmv7aGenericTrapServiceSleepUntil:
-        return Armv7aRuntimeTrapIngressResult{
-            .disposition = Armv7aRuntimeTrapIngressDisposition::handled,
-            .error = Armv7aRuntimeTrapIngressError::none,
-            .value = frame_view.arg0,
-        };
-    default:
-        return Armv7aRuntimeTrapIngressResult{
-            .disposition = Armv7aRuntimeTrapIngressDisposition::unsupported,
-            .error = Armv7aRuntimeTrapIngressError::unsupported_service,
-            .value = 0u,
-        };
-    }
-}
-
 Armv7aRuntimeTrapIngressAdapterObservation
 armv7a_observe_runtime_trap_ingress_adapter_for_sample(
     const Armv7aRuntimeTrapFrameSample& sample,
@@ -65,7 +41,8 @@ armv7a_observe_runtime_trap_ingress_adapter_for_sample(
     const auto capture_ok =
         adapter_ready && adapter.capture(adapter.ctx, live, frame_view);
     const auto result = capture_ok
-        ? armv7a_qemu_dispatch_runtime_trap_frame(frame_view)
+        ? armv7a_runtime_trap_dispatch_port_dispatch(
+              armv7a_runtime_trap_dispatch_port(), frame_view)
         : Armv7aRuntimeTrapIngressResult{
               .disposition = Armv7aRuntimeTrapIngressDisposition::rejected,
               .error = Armv7aRuntimeTrapIngressError::decode_failed,

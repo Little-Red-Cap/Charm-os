@@ -36,6 +36,34 @@ export namespace net::icmp::echo {
         errc error{errc::ok};
         IcmpEchoInfo info{};
         ByteView payload{};
+
+        [[nodiscard]] constexpr bool idle() const noexcept {
+            return state == ProbeState::idle;
+        }
+
+        [[nodiscard]] constexpr bool pending() const noexcept {
+            return state == ProbeState::pending;
+        }
+
+        [[nodiscard]] constexpr bool ready() const noexcept {
+            return state != ProbeState::idle && state != ProbeState::pending;
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept {
+            return state == ProbeState::replied;
+        }
+
+        [[nodiscard]] constexpr bool timed_out() const noexcept {
+            return state == ProbeState::timed_out;
+        }
+
+        [[nodiscard]] constexpr bool cancelled() const noexcept {
+            return state == ProbeState::cancelled;
+        }
+
+        [[nodiscard]] constexpr bool failed() const noexcept {
+            return state == ProbeState::error;
+        }
     };
 
     namespace detail {
@@ -722,6 +750,10 @@ export namespace net::icmp::echo {
                 .info = current_info_,
                 .payload = state_ == ProbeState::replied ? last_reply_payload() : ByteView{},
             };
+        }
+
+        [[nodiscard]] ProbeSnapshot result() const noexcept {
+            return snapshot();
         }
 
         template <class Pump>

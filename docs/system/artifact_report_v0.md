@@ -114,6 +114,39 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
 
+为了避免 inspector 继续在“支持哪些查询 / 哪些 scope / 哪些边界”上漂移，
+当前也需要把它压成一张更具体的支持矩阵。
+这张矩阵现在已经由：
+
+- `scripts/system_compiler_explain_surface_contract_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+
+一起冻结成 v0 契约。
+
+| inspector 入口 | 单 report / export_only | 单 report / compare | artifact_root / export_only | artifact_root / compare | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| 默认总览 | 支持 | 支持 | 支持 | 支持 | `-Case` 为空时读取整 root；显式多 case 子集也继续返回 artifact_root 聚合摘要 |
+| `-CapList` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集直接拒绝 |
+| `-WhyCapability <cap>` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集直接拒绝 |
+| `-GraphPath <cap>` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `-RecentTransitions` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `-BringupEvidence` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+| `-ResourceSummary` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+
+对应地，当前也把两个附录型 flag 的边界说明写死：
+
+- `-ShowTransitions`
+  不是独立 query kind。
+  它只在单 report 默认总览里把 `recent transitions` 投影成附录；
+  compare 模式会先给最小 `TRANSITION COMPARE` 摘要，
+  export_only 模式则保持无 compare 头部的纯附录展示。
+- `-ShowArtifacts`
+  同样不是独立 query kind。
+  它只是把当前 report 已经持有的 bundle / sample / runtime observe / diff / report manifest 等引用追加展示出来。
+
 其中 `cap list` 当前已经能在两种作用域上工作：
 
 - 单 report 查询

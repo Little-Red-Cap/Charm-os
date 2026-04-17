@@ -219,6 +219,39 @@ v0 阶段建议至少覆盖：
 
 当前建议先把问题面收敛为五类最小查询，而不是先发明很大的命令系统。
 
+在继续细拆每个问题面之前，
+当前更适合先把 `inspect_system_compiler_artifact_report.ps1` 的支持边界压成一张矩阵。
+这张矩阵现在已经由：
+
+- `scripts/system_compiler_explain_surface_contract_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+
+一起收口成 v0 契约。
+
+| 问题面 | 单 report / export_only | 单 report / compare | artifact_root / export_only | artifact_root / compare | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| 默认总览 | 支持 | 支持 | 支持 | 支持 | `-Case` 为空时读取整 root；显式多 case 子集也继续按 artifact_root 聚合 |
+| `cap list` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集会拒绝 |
+| `why capability` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集会拒绝 |
+| `graph path` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `recent transitions` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `bringup evidence` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+| `resource summary` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+
+这里还需要再明确两个容易混淆的点：
+
+- `-ShowTransitions`
+  不是独立问题面，而是单 report 默认总览里的一个附录投影。
+  它复用 `recent transitions` 的行展示语言；
+  compare 模式下会先给最小 `TRANSITION COMPARE` 摘要，
+  export_only 模式则不会凭空长出 compare 头部。
+- `-ShowArtifacts`
+  也不是独立问题面；
+  它只是把当前 report 持有的 supporting artifacts 引用展开成人类可读附录。
+
 ### 6.1 `cap list`
 
 它回答：

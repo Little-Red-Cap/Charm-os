@@ -103,7 +103,8 @@
             "recipe",
             "barrier",
             "legacy",
-            "binding"
+            "binding",
+            "connection"
           ]
         },
         "phase": {
@@ -127,6 +128,33 @@
           "items": {
             "$ref": "#/$defs/capability"
           }
+        },
+        "connection": {
+          "$ref": "#/$defs/connection"
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "sink",
+        "mode"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "sink": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "deferred"
+          ]
         }
       }
     },

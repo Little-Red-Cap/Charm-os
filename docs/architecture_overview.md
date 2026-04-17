@@ -161,6 +161,7 @@ Draft/        # 计划/草案（可变动）
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
 - Kernel 事件队列后端：`Modules/system/kernel/docs/event_queue_backends.md`
+- Kernel poster 适配：`Modules/system/kernel/poster.cppm`
 - IO 分层总览：`docs/io/io_layering_overview.md`
 - 输入分层决策：`docs/input/input_layering_decision.md`
 - 输入协议映射：`docs/input/input_protocol_map.md`
@@ -173,6 +174,7 @@ Draft/        # 计划/草案（可变动）
 - USB String/Lang 装配：`docs/usb/usb_strings_overview.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 设备发现模型草案：`docs/architecture/device_model_overview.md`
+- Signal / State v0：`docs/architecture/signal_state_v0.md`
 - 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
 - System Compiler 词汇表 v0：`docs/architecture/system_compiler_vocabulary_v0.md`
 - Artifact Report v0：`docs/system/artifact_report_v0.md`
@@ -356,6 +358,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### Service
 - ring_buffer/fifo/heap/pool/json/trace/distbus
+- signal/state（同域同步广播 + 真相状态单元）
 - stream + buffer
 
 ### Shell

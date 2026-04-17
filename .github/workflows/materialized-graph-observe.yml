@@ -174,6 +174,23 @@ jobs:
         shell: pwsh
         working-directory: candidate
         run: |
+          function Format-CountMap($map) {
+            if ($null -eq $map) {
+              return '<none>'
+            }
+
+            $parts = @()
+            foreach ($property in $map.PSObject.Properties) {
+              $parts += "$($property.Name)=$($property.Value)"
+            }
+
+            if ($parts.Count -eq 0) {
+              return '<none>'
+            }
+
+            return ($parts -join ', ')
+          }
+
           $summary = Get-Content -LiteralPath ../out/materialized-graph-ci/summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $diff = $summary.diff
           $runtimePlane = Get-Content -LiteralPath ../out/materialized-graph-runtime-plane-smoke/runtime_plane_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
@@ -184,6 +201,8 @@ jobs:
           $bringupEvidenceCompare = Get-Content -LiteralPath ../out/materialized-graph-bringup-evidence-compare-smoke/bringup_evidence_compare_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $resourceContractCompareRoot = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-compare-root-smoke/resource_contract_compare_root_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $bringupEvidenceCompareRoot = Get-Content -LiteralPath ../out/materialized-graph-bringup-evidence-compare-root-smoke/bringup_evidence_compare_root_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $candidateGraph = $summary.candidate.graph_aggregate
+          $baselineGraph = if ($summary.baseline) { $summary.baseline.graph_aggregate } else { $null }
           @(
             '## Materialized Graph Observe'
             ''
@@ -191,6 +210,12 @@ jobs:
             "- Candidate: `$($summary.candidate.index)`"
             "- Status: `$($summary.status)`"
             "- Has diff: `$($summary.has_diff)`"
+            "- Candidate graph: `$('cases={0}, nodes={1}, edges={2}, connection cases={3}' -f $candidateGraph.case_count, $candidateGraph.node_count, $candidateGraph.edge_count, $candidateGraph.connection_case_count)`"
+            "- Candidate node kinds: `$(Format-CountMap $candidateGraph.node_kinds)`"
+            "- Candidate connection modes: `$(Format-CountMap $candidateGraph.connection_modes)`"
+            "- Baseline graph: `$('cases={0}, nodes={1}, edges={2}, connection cases={3}' -f $baselineGraph.case_count, $baselineGraph.node_count, $baselineGraph.edge_count, $baselineGraph.connection_case_count)`"
+            "- Baseline node kinds: `$(Format-CountMap $baselineGraph.node_kinds)`"
+            "- Baseline connection modes: `$(Format-CountMap $baselineGraph.connection_modes)`"
             "- Changed cases: `$($diff.status_counts.changed)`"
             "- Added cases: `$($diff.status_counts.added)`"
             "- Removed cases: `$($diff.status_counts.removed)`"

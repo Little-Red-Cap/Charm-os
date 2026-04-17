@@ -13,6 +13,7 @@ import canopen.sdo_service;
 import canopen.nmt_service;
 import kernel.eda;
 import kernel.evt;
+import kernel.poster;
 import kernel.ssu;
 import util.core;
 import util.error;
@@ -22,7 +23,7 @@ export namespace canopen {
                                 kernel::TaskId task,
                                 kernel::Event evt,
                                 charm::system::ClockTick due) noexcept;
-    using PostFn = bool (*)(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept;
+    using PostFn = kernel::PostFn;
 
     struct CanopenPumpTask {
         static constexpr kernel::Priority priority{0};
@@ -127,15 +128,6 @@ export namespace canopen {
             return false;
         }
         return scheduler->schedule_at(due, task, evt);
-    }
-
-    template <typename Scheduler>
-    inline bool scheduler_post_demand(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept {
-        auto* scheduler = static_cast<Scheduler*>(ctx);
-        if (!scheduler) {
-            return false;
-        }
-        return scheduler->post_demand(task, evt);
     }
 
     struct CanopenPumpBinding {

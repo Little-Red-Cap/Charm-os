@@ -2,6 +2,7 @@ export module charm.core;
 
 export import util.contract;
 export import util.core;
+export import util.delegate;
 export import util.error;
 export import util.expected;
 export import util.optional;
@@ -16,6 +17,7 @@ export import init.meta;
 export import init.recipe;
 export import init.plan;
 export import init.barrier;
+export import init.connection;
 export import init.materialize;
 export import init.observe;
 
@@ -36,9 +38,11 @@ export import service.object_pool;
 export import service.queue;
 export import service.rb_tree;
 export import service.ring_queue;
+export import service.signal;
 export import service.slab;
 export import service.slot_pool;
 export import service.small_vector;
+export import service.state;
 export import service.static_pool;
 export import service_trace;
 export import service_trace_bus;

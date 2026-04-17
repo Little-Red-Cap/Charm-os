@@ -1168,6 +1168,23 @@ import alg_list_scroll;
         mark_paint_dirty();
     }
 
+    void SoaKernel::set_list_view_row_flags_source(WidgetHandle h,
+                                                   const void* ctx,
+                                                   soa_detail::ListViewRowFlagsFn fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        payload->row_flags_ctx = ctx;
+        payload->row_flags_fn = fn;
+        mark_paint_dirty();
+    }
+
     void SoaKernel::set_list_view_tail_icon_source(WidgetHandle h,
                                                    const void* ctx,
                                                    soa_detail::ListViewIconFn fn,
@@ -1390,6 +1407,21 @@ import alg_list_scroll;
         if (!payload->tail_fn) return "";
         const char* text = payload->tail_fn(payload->tail_ctx, index);
         return text ? text : "";
+    }
+
+    std::uint8_t SoaKernel::list_view_item_row_flags(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return 0;
+        if (index >= payload->count) return 0;
+        if (!payload->row_flags_fn) return 0;
+        return payload->row_flags_fn(payload->row_flags_ctx, index);
     }
 
     soa_detail::ImageId SoaKernel::list_view_item_tail_icon(WidgetHandle h, std::uint16_t index) const noexcept {

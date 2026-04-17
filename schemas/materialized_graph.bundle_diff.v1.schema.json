@@ -180,6 +180,16 @@
             "type": "integer",
             "minimum": 0
           }
+        },
+        "connection_modes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       }
     },
@@ -327,6 +337,30 @@
         "type": "string"
       }
     },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "sink",
+        "mode"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "sink": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "deferred"
+          ]
+        }
+      }
+    },
     "nodeView": {
       "type": "object",
       "additionalProperties": false,
@@ -360,6 +394,9 @@
         },
         "requires": {
           "$ref": "#/$defs/capabilityNameArray"
+        },
+        "connection": {
+          "$ref": "#/$defs/connection"
         }
       }
     },

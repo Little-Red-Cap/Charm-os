@@ -154,7 +154,8 @@
       "additionalProperties": false,
       "required": [
         "bundle_root",
-        "index"
+        "index",
+        "graph_aggregate"
       ],
       "properties": {
         "bundle_root": {
@@ -195,6 +196,9 @@
               }
             }
           ]
+        },
+        "graph_aggregate": {
+          "$ref": "#/$defs/graphAggregate"
         }
       }
     },
@@ -218,6 +222,50 @@
         },
         "requires": {
           "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "countMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "graphAggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_count",
+        "node_count",
+        "edge_count",
+        "connection_case_count"
+      ],
+      "properties": {
+        "case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edge_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "connection_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "node_kinds": {
+          "$ref": "#/$defs/countMap"
+        },
+        "connection_modes": {
+          "$ref": "#/$defs/countMap"
         }
       }
     },

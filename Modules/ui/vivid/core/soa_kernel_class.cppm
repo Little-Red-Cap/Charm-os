@@ -731,6 +731,7 @@ public:
     const char* list_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept ;
     const char* list_view_item_subtitle(WidgetHandle h, std::uint16_t index) const noexcept ;
     const char* list_view_item_tail(WidgetHandle h, std::uint16_t index) const noexcept ;
+    std::uint8_t list_view_item_row_flags(WidgetHandle h, std::uint16_t index) const noexcept ;
     soa_detail::ImageId list_view_item_tail_icon(WidgetHandle h, std::uint16_t index) const noexcept ;
     soa_detail::ImageId list_view_item_tail_action_icon(WidgetHandle h, std::uint16_t index) const noexcept ;
     soa_detail::ImageId list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept ;
@@ -745,6 +746,8 @@ public:
         soa_detail::ListViewSubtitleFn subtitle_fn) noexcept ;
     void set_list_view_tail_source(WidgetHandle h, const void* ctx,
         soa_detail::ListViewTailFn tail_fn) noexcept ;
+    void set_list_view_row_flags_source(WidgetHandle h, const void* ctx,
+        soa_detail::ListViewRowFlagsFn row_flags_fn) noexcept ;
     void set_list_view_tail_icon_source(WidgetHandle h, const void* ctx,
         soa_detail::ListViewIconFn icon_fn, std::uint8_t size) noexcept ;
     void set_list_view_tail_action_icon_source(WidgetHandle h, const void* ctx,

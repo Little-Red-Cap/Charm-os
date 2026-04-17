@@ -1445,6 +1445,8 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const bool row_active = (i == active);
         const std::uint8_t row_flags = kernel.list_view_item_row_flags(h, static_cast<std::uint16_t>(i));
         const bool row_group = (row_flags & soa_detail::kListViewRowFlagGroup) != 0;
+        const bool row_focus_emphasis = row_group && row_selected && state.focused;
+        const bool row_press_emphasis = row_group && row_selected && state.pressed;
         Rect row_surface = row;
         const int row_inset_x = row_group ? ((row_h >= 44) ? 3 : 2)
                                           : ((row_h >= 44) ? 5 : 2);
@@ -1468,12 +1470,15 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
                 out.fill_round_rect(row_surface, row_radius, colors.accent);
                 out.stroke_round_rect(row_surface, row_radius,
                                       row_group
-                                          ? with_alpha(colors.on_accent, 136)
+                                          ? with_alpha(colors.on_accent, row_press_emphasis ? 192
+                                                                                           : (row_focus_emphasis ? 168 : 136))
                                           : with_alpha(colors.border, 108));
             } else if (row_selected) {
                 out.fill_round_rect(row_surface, row_radius, colors.accent);
                 if (row_group) {
-                    out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.on_accent, 110));
+                    out.stroke_round_rect(row_surface, row_radius,
+                                          with_alpha(colors.on_accent, row_press_emphasis ? 188
+                                                                                          : (row_focus_emphasis ? 156 : 110)));
                 }
             } else if (row_active) {
                 out.fill_round_rect(row_surface, row_radius, with_alpha(colors.accent, row_group ? 60 : 54));
@@ -1484,6 +1489,9 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             } else if (row_h >= 44) {
                 out.fill_round_rect(row_surface, row_radius, lift_row_surface(colors.bg));
                 out.stroke_round_rect(row_surface, row_radius, with_alpha(colors.border, 70));
+            }
+            if (row_focus_emphasis) {
+                out.focus_ring(row_surface, with_alpha(colors.border_focus, 228), row_radius, 0, -1);
             }
         }
         const rgba font = row_selected ? colors.on_accent
@@ -1651,10 +1659,12 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         if (draw_tail_icon) {
             if (draw_tail_icon_chip) {
                 const int chip_radius = tail_icon_chip_rect.h / 2;
-                const auto chip_bg = row_selected ? with_alpha(colors.on_accent, 52)
+                const auto chip_bg = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 76
+                                                                                            : (row_focus_emphasis ? 64 : 52))
                                                   : (row_active ? with_alpha(colors.accent, 44)
                                                                 : with_alpha(colors.accent, 32));
-                const auto chip_border = row_selected ? with_alpha(colors.on_accent, 98)
+                const auto chip_border = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 156
+                                                                                                : (row_focus_emphasis ? 124 : 98))
                                                       : (row_active ? with_alpha(colors.accent, 126)
                                                                     : with_alpha(colors.accent, 92));
                 out.fill_round_rect(tail_icon_chip_rect, chip_radius, chip_bg);
@@ -1664,10 +1674,12 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         }
         if (draw_tail_action_icon) {
             const int chip_radius = tail_action_chip_rect.h / 2;
-            const auto chip_bg = row_selected ? with_alpha(colors.on_accent, 52)
+            const auto chip_bg = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 72
+                                                                                        : (row_focus_emphasis ? 60 : 52))
                                               : (row_active ? with_alpha(colors.accent, 44)
                                                             : with_alpha(colors.border, 44));
-            const auto chip_border = row_selected ? with_alpha(colors.on_accent, 96)
+            const auto chip_border = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 150
+                                                                                            : (row_focus_emphasis ? 120 : 96))
                                                   : (row_active ? with_alpha(colors.accent, 118)
                                                                 : with_alpha(colors.border, 84));
             out.fill_round_rect(tail_action_chip_rect, chip_radius, chip_bg);

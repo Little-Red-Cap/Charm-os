@@ -103,6 +103,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 
 - case / mode / profile / board / facets
 - `node_count / edge_count / unresolved_bindings`
+- `binding_result / bringup_order`
 - `declared_contract_entries / provided_facts / satisfied / violated / unknown`
 - 最小 `cap list` 查询结果
 - 最小 `graph path` 查询结果
@@ -565,7 +566,82 @@ artifact_root 级该查询现在也会继续带出：
 - `unresolved_bindings`
   则是最关键的未完成结构结论之一
 
-### 5.4 bringup 证据摘要
+### 5.4 binding 结果摘要
+
+这一组回答：
+
+> “当前 required binding 到底成立了多少，还有哪些没成立。”
+
+建议至少包含：
+
+- `required_binding_count`
+- `resolved_binding_count`
+- `unresolved_binding_count`
+- `resolved_capabilities`
+- `unresolved_capabilities`
+- `binding_entries`
+
+其中 `binding_entries` 当前建议至少稳定保留：
+
+- `capability`
+- `state`
+- `provider_nodes`
+- `consumer_nodes`
+- `reason`
+
+这组字段的意义在于把原先散落在：
+
+- `required_facts`
+- `unresolved_bindings`
+- capability provider / consumer 关系
+
+里的成立性结论，正式压成一个结果物。
+
+也就是说，`binding_result` 当前不只是“哪些 capability 缺了”，
+还要能回答：
+
+- 这个 required capability 由谁提供
+- 谁在消费它
+- 为什么当前被判成 `resolved` 或 `unresolved`
+
+### 5.5 bringup 顺序摘要
+
+这一组回答：
+
+> “系统当前按什么顺序被 bring up，以及每个节点依赖谁。”
+
+建议至少包含：
+
+- `ordered_node_count`
+- `blocked_node_count`
+- `phase_counts`
+- `entries`
+
+其中 `entries` 当前建议至少稳定保留：
+
+- `order`
+- `node`
+- `kind`
+- `phase`
+- `runlevel_text`
+- `provides`
+- `requires`
+- `dependency_nodes`
+- `resolved_requires`
+- `missing_requires`
+- `state`
+
+这组字段的价值不在于重复 DOT，
+而在于把“系统如何成立”的过程性结果正式写进报告对象。
+
+也就是说，它应该开始稳定回答：
+
+- 谁先被 bring up
+- 谁依赖谁
+- 哪些 require 已满足
+- 哪些 require 仍缺失，因此当前只能标成 `blocked`
+
+### 5.6 bringup 证据摘要
 
 这一组回答：
 
@@ -612,7 +688,7 @@ artifact_root 级该查询现在也会继续带出：
 而不只是 `runtime_observe.observed_capabilities` 的条目数。
 对于 graph case，它现在允许把 `materialized_graph` 的稳定观察结果一并算入 `observed`。
 
-### 5.5 资源契约摘要
+### 5.7 资源契约摘要
 
 这一组回答：
 
@@ -646,7 +722,7 @@ artifact_root 级该查询现在也会继续带出：
 当前 v0 里，`declared_contract_entries` 更适合作为输入侧法律文本的直接投影，
 而 `provided_facts / satisfied / violated / unknown` 则是最小审计层。
 
-### 5.6 运行时观察摘要
+### 5.8 运行时观察摘要
 
 这一组回答：
 
@@ -668,7 +744,7 @@ artifact_root 级该查询现在也会继续带出：
 
 这些已经存在的观察语言。
 
-### 5.7 比较摘要（compare 模式可选）
+### 5.9 比较摘要（compare 模式可选）
 
 这一组回答：
 
@@ -719,7 +795,7 @@ artifact_root 级该查询现在也会继续带出：
 报告仍然可以明确回答 baseline/candidate 的资源契约是否发生漂移，
 以及是哪条合同从 `absent / satisfied / violated / unknown` 之间切换了状态。
 
-### 5.8 支持工件引用
+### 5.10 支持工件引用
 
 这一组回答：
 
@@ -771,6 +847,39 @@ artifact_root 级该查询现在也会继续带出：
     "declared_facts": ["board.stm32_stub"],
     "required_facts": ["platform.irq", "system.clock"],
     "unresolved_bindings": []
+  },
+  "binding_result": {
+    "required_binding_count": 2,
+    "resolved_binding_count": 2,
+    "unresolved_binding_count": 0,
+    "binding_entries": [
+      {
+        "capability": "platform.irq",
+        "state": "resolved",
+        "provider_nodes": ["platform.irq"],
+        "consumer_nodes": ["hal.uart1"],
+        "reason": "required capability is provided by at least one materialized node"
+      }
+    ]
+  },
+  "bringup_order": {
+    "ordered_node_count": 5,
+    "blocked_node_count": 0,
+    "phase_counts": {
+      "core": 3,
+      "service": 2
+    },
+    "entries": [
+      {
+        "order": 3,
+        "node": "hal.uart1",
+        "phase": "service",
+        "requires": ["platform.irq", "system.clock"],
+        "dependency_nodes": ["platform.irq", "system.clock"],
+        "missing_requires": [],
+        "state": "ready"
+      }
+    ]
   },
   "bringup_evidence": {
     "declared_count": 12,

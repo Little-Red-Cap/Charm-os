@@ -341,6 +341,94 @@ function Get-UnresolvedBindings {
     return @($unresolved | Sort-Object -Unique)
 }
 
+function Get-BindingEntries {
+    param(
+        $Graph
+    )
+
+    if ($null -eq $Graph) {
+        return @()
+    }
+
+    $providerMap = @{}
+    $consumerMap = @{}
+    foreach ($node in @($Graph.nodes)) {
+        $nodeName = [string]$node.name
+        if ([string]::IsNullOrWhiteSpace($nodeName)) {
+            continue
+        }
+
+        foreach ($capabilityName in @(Get-CapabilityNames -Capabilities $node.provides)) {
+            if (-not $providerMap.ContainsKey($capabilityName)) {
+                $providerMap[$capabilityName] = @()
+            }
+            $providerMap[$capabilityName] = @($providerMap[$capabilityName] + $nodeName | Sort-Object -Unique)
+        }
+
+        foreach ($capabilityName in @(Get-CapabilityNames -Capabilities $node.requires)) {
+            if (-not $consumerMap.ContainsKey($capabilityName)) {
+                $consumerMap[$capabilityName] = @()
+            }
+            $consumerMap[$capabilityName] = @($consumerMap[$capabilityName] + $nodeName | Sort-Object -Unique)
+        }
+    }
+
+    $entries = @()
+    foreach ($capabilityName in @($consumerMap.Keys | Sort-Object)) {
+        $providerNodes = if ($providerMap.ContainsKey($capabilityName)) {
+            @($providerMap[$capabilityName] | Sort-Object -Unique)
+        } else {
+            @()
+        }
+        $consumerNodes = @($consumerMap[$capabilityName] | Sort-Object -Unique)
+        $state = if (@($providerNodes).Count -gt 0) { 'resolved' } else { 'unresolved' }
+        $reason = if ($state -eq 'resolved') {
+            'required capability is provided by at least one materialized node'
+        } else {
+            'required capability was not provided by any materialized node'
+        }
+
+        $entries += [ordered]@{
+            capability = $capabilityName
+            state = $state
+            provider_nodes = @($providerNodes)
+            consumer_nodes = @($consumerNodes)
+            reason = $reason
+        }
+    }
+
+    return @($entries)
+}
+
+function Get-BindingResultSummary {
+    param(
+        $Graph
+    )
+
+    $bindingEntries = @(Get-BindingEntries -Graph $Graph)
+    $resolvedCapabilities = @(
+        @($bindingEntries) |
+            Where-Object { [string]$_.state -eq 'resolved' } |
+            ForEach-Object { [string]$_.capability } |
+            Sort-Object -Unique
+    )
+    $unresolvedCapabilities = @(
+        @($bindingEntries) |
+            Where-Object { [string]$_.state -eq 'unresolved' } |
+            ForEach-Object { [string]$_.capability } |
+            Sort-Object -Unique
+    )
+
+    return [ordered]@{
+        required_binding_count = @($bindingEntries).Count
+        resolved_binding_count = @($resolvedCapabilities).Count
+        unresolved_binding_count = @($unresolvedCapabilities).Count
+        resolved_capabilities = @($resolvedCapabilities)
+        unresolved_capabilities = @($unresolvedCapabilities)
+        binding_entries = @($bindingEntries)
+    }
+}
+
 function Add-CountMapEntry {
     param(
         [hashtable]$Counts,
@@ -434,6 +522,118 @@ function Get-GraphConnectionSummary {
         connection_node_count = @($connections).Count
         connection_modes = ConvertTo-OrderedCountMap -Counts $connectionModes
         connections = @($connections)
+    }
+}
+
+function Get-BringupOrderSummary {
+    param(
+        $Graph
+    )
+
+    if ($null -eq $Graph) {
+        return [ordered]@{
+            ordered_node_count = 0
+            blocked_node_count = 0
+            phase_counts = [ordered]@{}
+            entries = @()
+        }
+    }
+
+    $nodeByIndex = @{}
+    foreach ($node in @($Graph.nodes)) {
+        $nodeByIndex[[int]$node.index] = $node
+    }
+
+    $dependencyMap = @{}
+    foreach ($edge in @($Graph.edges)) {
+        if ($null -eq $edge) {
+            continue
+        }
+
+        $consumerIndex = [int]$edge.consumer_index
+        $providerIndex = [int]$edge.provider_index
+        if (-not $dependencyMap.ContainsKey($consumerIndex)) {
+            $dependencyMap[$consumerIndex] = @()
+        }
+
+        $providerNode = if ($nodeByIndex.ContainsKey($providerIndex)) { $nodeByIndex[$providerIndex] } else { $null }
+        $providerName = if ($null -ne $providerNode) { [string]$providerNode.name } else { '' }
+        $capabilityName = $null
+        if ($null -ne $edge.PSObject.Properties['capability'] -and $null -ne $edge.capability) {
+            $capabilityName = [string]$edge.capability.name
+            if ([string]::IsNullOrWhiteSpace($capabilityName)) {
+                $capabilityName = [string]$edge.capability.id
+            }
+        }
+
+        $dependencyMap[$consumerIndex] += [ordered]@{
+            provider_node = $providerName
+            capability = $capabilityName
+        }
+    }
+
+    $phaseCounts = @{}
+    $entries = @()
+    foreach ($node in @($Graph.nodes | Sort-Object index)) {
+        if ($null -eq $node) {
+            continue
+        }
+
+        $phaseName = [string]$node.phase
+        Add-CountMapEntry -Counts $phaseCounts -Name $phaseName
+
+        $requires = @(Get-CapabilityNames -Capabilities $node.requires)
+        $provides = @(Get-CapabilityNames -Capabilities $node.provides)
+        $dependencyEntries = if ($dependencyMap.ContainsKey([int]$node.index)) {
+            @(
+                @($dependencyMap[[int]$node.index]) |
+                    Sort-Object capability, provider_node
+            )
+        } else {
+            @()
+        }
+        $resolvedRequires = @(
+            @($dependencyEntries) |
+                ForEach-Object { [string]$_.capability } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $dependencyNodes = @(
+            @($dependencyEntries) |
+                ForEach-Object { [string]$_.provider_node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $missingRequires = @(
+            @($requires) |
+                Where-Object { @($resolvedRequires) -notcontains [string]$_ } |
+                Sort-Object -Unique
+        )
+        $state = if (@($missingRequires).Count -gt 0) { 'blocked' } else { 'ready' }
+
+        $entries += [ordered]@{
+            order = [int]$node.index
+            node = [string]$node.name
+            kind = [string]$node.kind
+            phase = $phaseName
+            runlevel_text = [string]$node.runlevel_text
+            provides = @($provides)
+            requires = @($requires)
+            dependency_nodes = @($dependencyNodes)
+            resolved_requires = @($resolvedRequires)
+            missing_requires = @($missingRequires)
+            state = $state
+        }
+    }
+
+    return [ordered]@{
+        ordered_node_count = @($entries).Count
+        blocked_node_count = @(
+            @($entries) |
+                Where-Object { [string]$_.state -eq 'blocked' }
+        ).Count
+        phase_counts = ConvertTo-OrderedCountMap -Counts $phaseCounts
+        entries = @($entries)
     }
 }
 
@@ -1806,6 +2006,8 @@ function New-ArtifactReport {
         $comparison.resource_contract = New-ResourceContractComparison -LeftSummary $baselineResourceContractSummary -RightSummary $resourceContractSummary
     }
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
+    $bindingResultSummary = Get-BindingResultSummary -Graph $graph
+    $bringupOrderSummary = Get-BringupOrderSummary -Graph $graph
     $connectionSummary = Get-GraphConnectionSummary -Graph $graph
     $dotArtifactPath = if ($null -ne $CaseEntry.PSObject.Properties['dot'] -and
         -not [string]::IsNullOrWhiteSpace([string]$CaseEntry.dot)) {
@@ -1836,6 +2038,8 @@ function New-ArtifactReport {
             required_facts = @($requiredFacts)
             unresolved_bindings = @($unresolvedBindings)
         }
+        binding_result = $bindingResultSummary
+        bringup_order = $bringupOrderSummary
         connection_summary = $connectionSummary
         bringup_evidence = [ordered]@{
             declared_count = [int]$bringupEvidenceSummary.declared_count

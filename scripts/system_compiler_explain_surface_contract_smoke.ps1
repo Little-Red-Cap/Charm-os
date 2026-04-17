@@ -264,6 +264,21 @@ $reportSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summar
 Assert-Condition ([string]$reportSummary.summary.Case -eq $ReportCase) 'default report summary case mismatch'
 Assert-Condition ([string]$reportSummary.summary.Mode -eq 'export_only') 'default report summary mode must stay export_only'
 Assert-Condition ($null -eq $reportSummary.comparison) 'default report summary comparison must stay null in export_only mode'
+Assert-Condition ($null -ne $reportSummary.binding_result) 'default report summary must expose binding_result'
+Assert-Condition ($null -ne $reportSummary.bringup_order) 'default report summary must expose bringup_order'
+Assert-Condition ([int]$reportSummary.binding_result.required_binding_count -gt 0) 'materialized report binding_result must expose required bindings'
+Assert-Condition ([int]$reportSummary.binding_result.unresolved_binding_count -eq @($reportSummary.structure.unresolved_bindings).Count) 'binding_result unresolved count must match structure.unresolved_bindings'
+Assert-Condition ([int]$reportSummary.bringup_order.ordered_node_count -eq [int]$reportSummary.structure.node_count) 'bringup_order ordered_node_count must match structure.node_count'
+Assert-Condition (@($reportSummary.bringup_order.entries).Count -eq [int]$reportSummary.bringup_order.ordered_node_count) 'bringup_order entries length mismatch'
+
+$runtimeSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.runtime_report.json') -Command {
+    & $inspectScript -ArtifactRoot $artifactReportRoot -Case $RuntimeCase -AsJson
+}
+Assert-Condition ([string]$runtimeSummary.summary.Case -eq $RuntimeCase) 'runtime report summary case mismatch'
+Assert-Condition ($null -ne $runtimeSummary.binding_result) 'runtime report summary must expose binding_result'
+Assert-Condition ($null -ne $runtimeSummary.bringup_order) 'runtime report summary must expose bringup_order'
+Assert-Condition ([int]$runtimeSummary.binding_result.required_binding_count -eq 0) 'runtime_only report binding_result must stay empty'
+Assert-Condition ([int]$runtimeSummary.bringup_order.ordered_node_count -eq 0) 'runtime_only report bringup_order must stay empty'
 
 $rootSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.root.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -AsJson
@@ -420,6 +435,7 @@ $summary = [ordered]@{
     aggregated_capability = $AggregatedCapability
     captures = [ordered]@{
         summary_report = Join-Path $capturesRoot 'summary.report.json'
+        summary_runtime_report = Join-Path $capturesRoot 'summary.runtime_report.json'
         summary_root = Join-Path $capturesRoot 'summary.root.json'
         summary_root_subset = Join-Path $capturesRoot 'summary.root_subset.json'
         cap_list_report = Join-Path $capturesRoot 'cap_list.report.json'
@@ -443,6 +459,10 @@ $summary = [ordered]@{
     compare_smokes = $compareSummaries
     assertions = [ordered]@{
         default_summary_report_supported = $true
+        default_summary_report_exposes_binding_result = $true
+        default_summary_report_exposes_bringup_order = $true
+        runtime_only_summary_exposes_empty_binding_result = $true
+        runtime_only_summary_exposes_empty_bringup_order = $true
         default_summary_artifact_root_supported = $true
         default_summary_subset_supported = $true
         cap_list_report_supported = $true

@@ -320,7 +320,53 @@ report / system 侧的现实载体包括：
 
 两者差异不在名字，而在语义位置。
 
-### 4.3 `Materialized Graph`
+### 4.3 `BindingResult`
+
+它回答的是：
+
+> **当前这组 required binding 里，哪些已经成立，哪些还没成立。**
+
+它当前更偏“成立性结果物”，
+而不是图本身或 explain query 本身。
+
+当前对应载体包括：
+
+- `artifact report` 中的 `binding_result`
+- `required_facts / unresolved_bindings`
+- capability provider / consumer 的最小汇总结论
+
+它最适合回答这类问题：
+
+- 哪些 binding 已经 resolved
+- 哪些 binding 还 unresolved
+- 某个 required capability 由谁提供、被谁消费
+
+### 4.4 `BringupOrder`
+
+它回答的是：
+
+> **当前系统实际按什么顺序被物化/bring up，以及每个节点依赖谁。**
+
+当前对应载体包括：
+
+- `materialized_graph.sample/v2` 里的节点顺序、phase、requires/provides
+- `artifact report` 中的 `bringup_order`
+
+它和 `Materialized Graph` 的区别是：
+
+- `Materialized Graph`
+  更偏结构事实
+- `BringupOrder`
+  更偏“成立过程的结果语言”
+
+它最适合回答这类问题：
+
+- 谁先被 bring up
+- 某个节点依赖谁
+- 哪些 require 已满足
+- 哪些 require 仍缺失，因此当前只能标成 blocked
+
+### 4.5 `Materialized Graph`
 
 它回答的是：
 
@@ -335,7 +381,7 @@ report / system 侧的现实载体包括：
 
 它是当前 system compiler 最成熟的结果物之一。
 
-### 4.4 `Bringup Evidence`
+### 4.6 `Bringup Evidence`
 
 它回答的是：
 
@@ -346,7 +392,7 @@ report / system 侧的现实载体包括：
 - `docs/system/bringup_evidence_pipeline_v0.md`
 - `artifact report` 中的 `bringup_evidence` 摘要
 
-### 4.5 `Resource Contract`
+### 4.7 `Resource Contract`
 
 它回答的是：
 
@@ -357,7 +403,7 @@ report / system 侧的现实载体包括：
 - `docs/system/resource_contract_v0.md`
 - `artifact report` 中的 `resource_contract` 摘要
 
-### 4.6 `Artifact Report`
+### 4.8 `Artifact Report`
 
 它回答的是：
 
@@ -369,7 +415,7 @@ report / system 侧的现实载体包括：
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `scripts/export_system_compiler_artifact_report.ps1`
 
-### 4.7 `Explain Surface`
+### 4.9 `Explain Surface`
 
 它回答的是：
 
@@ -393,6 +439,8 @@ report / system 侧的现实载体包括：
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
+| `BindingResult` | `artifact report.binding_result`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
+| `BringupOrder` | `artifact report.bringup_order`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
 
 ## 6. 一个最小 worked example

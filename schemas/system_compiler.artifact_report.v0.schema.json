@@ -12,6 +12,8 @@
     "mode",
     "subject",
     "structure",
+    "binding_result",
+    "bringup_order",
     "bringup_evidence",
     "resource_contract",
     "runtime_observe",
@@ -42,6 +44,12 @@
     },
     "structure": {
       "$ref": "#/$defs/structure"
+    },
+    "binding_result": {
+      "$ref": "#/$defs/bindingResult"
+    },
+    "bringup_order": {
+      "$ref": "#/$defs/bringupOrder"
     },
     "connection_summary": {
       "$ref": "#/$defs/connectionSummary"
@@ -208,6 +216,162 @@
         },
         "unresolved_bindings": {
           "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bindingEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "state",
+        "provider_nodes",
+        "consumer_nodes",
+        "reason"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "resolved",
+            "unresolved"
+          ]
+        },
+        "provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "bindingResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_binding_count",
+        "resolved_binding_count",
+        "unresolved_binding_count",
+        "resolved_capabilities",
+        "unresolved_capabilities",
+        "binding_entries"
+      ],
+      "properties": {
+        "required_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unresolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "binding_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bindingEntry"
+          }
+        }
+      }
+    },
+    "bringupOrderEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "node",
+        "kind",
+        "phase",
+        "runlevel_text",
+        "provides",
+        "requires",
+        "dependency_nodes",
+        "resolved_requires",
+        "missing_requires",
+        "state"
+      ],
+      "properties": {
+        "order": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "node": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "runlevel_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "provides": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "resolved_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "blocked"
+          ]
+        }
+      }
+    },
+    "bringupOrder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordered_node_count",
+        "blocked_node_count",
+        "phase_counts",
+        "entries"
+      ],
+      "properties": {
+        "ordered_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phase_counts": {
+          "$ref": "#/$defs/countMap"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bringupOrderEntry"
+          }
         }
       }
     },

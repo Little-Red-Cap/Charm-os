@@ -177,6 +177,38 @@ function Format-StringArrayOrDash {
     return Format-StringArray -Values $Values
 }
 
+function Format-BindingResultDisplayRow {
+    param(
+        $Entry
+    )
+
+    return [pscustomobject]@{
+        Capability = [string]$Entry.capability
+        State = [string]$Entry.state
+        Providers = Format-StringArrayOrDash -Values @($Entry.provider_nodes)
+        Consumers = Format-StringArrayOrDash -Values @($Entry.consumer_nodes)
+        Reason = [string]$Entry.reason
+    }
+}
+
+function Format-BringupOrderDisplayRow {
+    param(
+        $Entry
+    )
+
+    return [pscustomobject]@{
+        Order = [int]$Entry.order
+        Node = [string]$Entry.node
+        Kind = [string]$Entry.kind
+        Phase = [string]$Entry.phase
+        State = [string]$Entry.state
+        Needs = Format-StringArrayOrDash -Values @($Entry.requires)
+        Missing = Format-StringArrayOrDash -Values @($Entry.missing_requires)
+        DependsOn = Format-StringArrayOrDash -Values @($Entry.dependency_nodes)
+        Provides = Format-StringArrayOrDash -Values @($Entry.provides)
+    }
+}
+
 function Get-CapabilityNames {
     param(
         $Capabilities
@@ -3101,6 +3133,8 @@ function New-ArtifactJsonView {
         summary = New-CaseSummaryRow -LoadedReport $LoadedReport
         subject = $report.subject
         structure = $report.structure
+        binding_result = $report.binding_result
+        bringup_order = $report.bringup_order
         bringup_evidence = $report.bringup_evidence
         resource_contract = $report.resource_contract
         runtime_observe = $report.runtime_observe
@@ -4044,6 +4078,41 @@ if (@($reportData.structure.required_facts).Count -gt 0) {
 }
 if (@($reportData.structure.unresolved_bindings).Count -gt 0) {
     Write-Host "unresolved        = $((@($reportData.structure.unresolved_bindings) -join ', '))"
+}
+Write-Host ''
+
+Write-Host '[BINDING RESULT]'
+Write-Host "required_bindings   = $([int]$reportData.binding_result.required_binding_count)"
+Write-Host "resolved_bindings   = $([int]$reportData.binding_result.resolved_binding_count)"
+Write-Host "unresolved_bindings = $([int]$reportData.binding_result.unresolved_binding_count)"
+if (@($reportData.binding_result.unresolved_capabilities).Count -gt 0) {
+    Write-Host "unresolved_caps     = $((@($reportData.binding_result.unresolved_capabilities) -join ', '))"
+}
+if (@($reportData.binding_result.binding_entries).Count -gt 0) {
+    @($reportData.binding_result.binding_entries) |
+        ForEach-Object { Format-BindingResultDisplayRow -Entry $_ } |
+        Format-Table -Wrap -AutoSize Capability, State, Providers, Consumers, Reason |
+        Out-Host
+}
+Write-Host ''
+
+Write-Host '[BRINGUP ORDER]'
+Write-Host "ordered_nodes = $([int]$reportData.bringup_order.ordered_node_count)"
+Write-Host "blocked_nodes = $([int]$reportData.bringup_order.blocked_node_count)"
+if ($null -ne $reportData.bringup_order.PSObject.Properties['phase_counts'] -and
+    $null -ne $reportData.bringup_order.phase_counts -and
+    @($reportData.bringup_order.phase_counts.PSObject.Properties).Count -gt 0) {
+    $phaseParts = @()
+    foreach ($phaseEntry in @($reportData.bringup_order.phase_counts.PSObject.Properties)) {
+        $phaseParts += "$([string]$phaseEntry.Name):$([int]$phaseEntry.Value)"
+    }
+    Write-Host "phase_counts  = $((@($phaseParts) -join ', '))"
+}
+if (@($reportData.bringup_order.entries).Count -gt 0) {
+    @($reportData.bringup_order.entries) |
+        ForEach-Object { Format-BringupOrderDisplayRow -Entry $_ } |
+        Format-Table -Wrap -AutoSize Order, Node, Kind, Phase, State, Needs, Missing, DependsOn, Provides |
+        Out-Host
 }
 Write-Host ''
 

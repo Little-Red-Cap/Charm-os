@@ -189,6 +189,8 @@ v0 阶段建议至少覆盖：
 
 - capabilities
 - materialized order
+- binding result
+- bringup order
 - required facts
 - unresolved bindings
 - active facets
@@ -213,7 +215,7 @@ v0 阶段建议至少覆盖：
 
 它当前不是完整 explain shell，
 但已经能把 `artifact report` 压成一页稳定可读摘要，
-并继续把结构、资源契约、compare 结论与底层工件引用一起带出来。
+并继续把结构、binding result、bringup order、资源契约、compare 结论与底层工件引用一起带出来。
 
 ## 6. v0 的最小 `explain surface`
 

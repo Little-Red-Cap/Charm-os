@@ -97,6 +97,12 @@
 
 从 `RuntimeBridge` 派生出来。
 
+当前专门验证这条 thread-side seam 的 host 证据是：
+
+- `Examples/kernel/runtime_thread_port_host`
+
+它直接覆盖 `RuntimeBridge -> RuntimeThreadPort -> scheduler/timer`，不经过 trap/syscall transport。
+
 ### 4) `kernel.runtime_trap`
 
 位置：`Modules/system/kernel/runtime_trap.cppm`
@@ -219,6 +225,7 @@
 当前证据 example：
 
 - `Examples/kernel/runtime_minimal_host`
+- `Examples/kernel/runtime_thread_port_host`
 - `scripts/minimal_kernel_runtime_host_smoke.ps1`
 
 它验证的就是这条最小闭环：

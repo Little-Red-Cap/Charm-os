@@ -4,6 +4,7 @@ param(
     [switch]$KeepBuildDirs,
     [string[]]$Examples = @(
         "runtime_minimal_host",
+        "runtime_thread_port_host",
         "runtime_service_host",
         "runtime_task_api_host",
         "runtime_task_syscall_catalog_host",

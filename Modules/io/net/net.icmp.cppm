@@ -45,6 +45,18 @@ export namespace net {
         util::u16 sequence{0};
     };
 
+    enum class IcmpSendDisposition : util::u8 {
+        transmitted,
+        queued,
+    };
+
+    struct IcmpEgressProgress {
+        util::usize arp_retried{0};
+        util::usize arp_timed_out{0};
+        util::usize flushed{0};
+        util::usize dropped{0};
+    };
+
     template <typename T>
     concept IcmpEchoSink = requires(T& t, const IcmpEchoInfo& info, OwnedPacket packet) {
         { t.consume(info, static_cast<OwnedPacket&&>(packet)) } noexcept -> std::same_as<Result<void>>;
@@ -531,6 +543,269 @@ export namespace net {
             ipv4_identification,
             dscp_ecn);
     }
+
+    template <util::usize PendingCapacity, util::usize PayloadCapacity>
+    class IcmpEgressQueue {
+    public:
+        [[nodiscard]] util::usize pending_count() const noexcept {
+            util::usize count = 0;
+            for (const auto& entry : entries_) {
+                if (entry.used) {
+                    ++count;
+                }
+            }
+            return count;
+        }
+
+        [[nodiscard]] util::usize queued_count() const noexcept {
+            return queued_count_;
+        }
+
+        [[nodiscard]] util::usize flushed_count() const noexcept {
+            return flushed_count_;
+        }
+
+        [[nodiscard]] util::usize dropped_count() const noexcept {
+            return dropped_count_;
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<IcmpSendDisposition> send(NetIf& netif,
+                                                       ArpService<ArpCapacity, ArpTxCapacity>& arp,
+                                                       IpAddress local,
+                                                       IpAddress peer,
+                                                       IcmpType type,
+                                                       util::u16 identifier,
+                                                       util::u16 sequence,
+                                                       ByteView payload,
+                                                       util::u8 ttl = 64,
+                                                       util::u16 ipv4_identification = 0,
+                                                       util::u8 dscp_ecn = 0) noexcept {
+            auto sent = send_icmp_echo_ipv4<TxCapacity>(
+                netif,
+                arp,
+                local,
+                peer,
+                type,
+                identifier,
+                sequence,
+                payload,
+                ttl,
+                ipv4_identification,
+                dscp_ecn);
+            if (sent) {
+                return Result<IcmpSendDisposition>{std::in_place, IcmpSendDisposition::transmitted};
+            }
+            if (sent.error() != errc::again) {
+                return util::unexpected(sent.error());
+            }
+
+            auto* entry = allocate_entry();
+            if (entry == nullptr) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+
+            auto stored = store_entry(
+                *entry,
+                local,
+                peer,
+                type,
+                identifier,
+                sequence,
+                payload,
+                ttl,
+                ipv4_identification,
+                dscp_ecn);
+            if (!stored) {
+                *entry = {};
+                return util::unexpected(stored.error());
+            }
+
+            ++queued_count_;
+            return Result<IcmpSendDisposition>{std::in_place, IcmpSendDisposition::queued};
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<IcmpSendDisposition> send_request(
+            NetIf& netif,
+            ArpService<ArpCapacity, ArpTxCapacity>& arp,
+            IpAddress local,
+            IpAddress peer,
+            util::u16 identifier,
+            util::u16 sequence,
+            ByteView payload,
+            util::u8 ttl = 64,
+            util::u16 ipv4_identification = 0,
+            util::u8 dscp_ecn = 0) noexcept {
+            return send<TxCapacity>(
+                netif,
+                arp,
+                local,
+                peer,
+                IcmpType::echo_request,
+                identifier,
+                sequence,
+                payload,
+                ttl,
+                ipv4_identification,
+                dscp_ecn);
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<IcmpSendDisposition> send_reply(
+            NetIf& netif,
+            ArpService<ArpCapacity, ArpTxCapacity>& arp,
+            IpAddress local,
+            IpAddress peer,
+            util::u16 identifier,
+            util::u16 sequence,
+            ByteView payload,
+            util::u8 ttl = 64,
+            util::u16 ipv4_identification = 0,
+            util::u8 dscp_ecn = 0) noexcept {
+            return send<TxCapacity>(
+                netif,
+                arp,
+                local,
+                peer,
+                IcmpType::echo_reply,
+                identifier,
+                sequence,
+                payload,
+                ttl,
+                ipv4_identification,
+                dscp_ecn);
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<util::usize> flush(NetIf& netif,
+                                                ArpService<ArpCapacity, ArpTxCapacity>& arp) noexcept {
+            util::usize flushed = 0;
+            for (auto& entry : entries_) {
+                if (!entry.used) {
+                    continue;
+                }
+
+                auto sent = send_icmp_echo_ipv4<TxCapacity>(
+                    netif,
+                    arp,
+                    entry.local,
+                    entry.peer,
+                    entry.type,
+                    entry.identifier,
+                    entry.sequence,
+                    ByteView{entry.payload.data(), entry.payload_size},
+                    entry.ttl,
+                    entry.ipv4_identification,
+                    entry.dscp_ecn);
+                if (sent) {
+                    entry = {};
+                    ++flushed;
+                    ++flushed_count_;
+                    continue;
+                }
+                if (sent.error() == errc::again) {
+                    continue;
+                }
+                if (sent.error() == errc::timeout) {
+                    entry = {};
+                    ++dropped_count_;
+                    continue;
+                }
+                return util::unexpected(sent.error());
+            }
+            return Result<util::usize>{std::in_place, flushed};
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<IcmpEgressProgress> service(
+            NetIf& netif,
+            ArpService<ArpCapacity, ArpTxCapacity>& arp,
+            util::usize elapsed_ticks = 1,
+            util::usize retry_interval_ticks = 1,
+            util::usize max_attempts = static_cast<util::usize>(-1)) noexcept {
+            arp.advance_ticks(elapsed_ticks);
+
+            auto arp_progress = arp.service_pending(retry_interval_ticks, max_attempts);
+            if (!arp_progress) {
+                return util::unexpected(arp_progress.error());
+            }
+
+            const auto dropped_before = dropped_count_;
+            auto flushed = flush<TxCapacity>(netif, arp);
+            if (!flushed) {
+                return util::unexpected(flushed.error());
+            }
+
+            return Result<IcmpEgressProgress>{std::in_place, IcmpEgressProgress{
+                .arp_retried = arp_progress.value().retried,
+                .arp_timed_out = arp_progress.value().timed_out,
+                .flushed = flushed.value(),
+                .dropped = dropped_count_ - dropped_before,
+            }};
+        }
+
+    private:
+        struct PendingEntry {
+            bool used{false};
+            IpAddress local{};
+            IpAddress peer{};
+            IcmpType type{IcmpType::echo_request};
+            util::u16 identifier{0};
+            util::u16 sequence{0};
+            util::u8 ttl{64};
+            util::u16 ipv4_identification{0};
+            util::u8 dscp_ecn{0};
+            util::usize payload_size{0};
+            std::array<util::u8, PayloadCapacity> payload{};
+        };
+
+        [[nodiscard]] PendingEntry* allocate_entry() noexcept {
+            for (auto& entry : entries_) {
+                if (entry.used) {
+                    continue;
+                }
+                entry = {};
+                entry.used = true;
+                return &entry;
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] Result<void> store_entry(PendingEntry& entry,
+                                               IpAddress local,
+                                               IpAddress peer,
+                                               IcmpType type,
+                                               util::u16 identifier,
+                                               util::u16 sequence,
+                                               ByteView payload,
+                                               util::u8 ttl,
+                                               util::u16 ipv4_identification,
+                                               util::u8 dscp_ecn) noexcept {
+            if (payload.size() > PayloadCapacity) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+
+            entry.local = local;
+            entry.peer = peer;
+            entry.type = type;
+            entry.identifier = identifier;
+            entry.sequence = sequence;
+            entry.ttl = ttl;
+            entry.ipv4_identification = ipv4_identification;
+            entry.dscp_ecn = dscp_ecn;
+            entry.payload_size = payload.size();
+            for (util::usize i = 0; i < payload.size(); ++i) {
+                entry.payload[i] = payload[i];
+            }
+            return {};
+        }
+
+        std::array<PendingEntry, PendingCapacity> entries_{};
+        util::usize queued_count_{0};
+        util::usize flushed_count_{0};
+        util::usize dropped_count_{0};
+    };
 
     class IcmpEchoService {
     public:

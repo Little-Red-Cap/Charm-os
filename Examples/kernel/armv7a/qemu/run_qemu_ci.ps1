@@ -168,6 +168,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=task-syscall-roundtrip",
     "ARMv7-A phase, stage=task-syscall-glue",
     "ARMv7-A phase complete, stage=task-syscall-glue",
+    "ARMv7-A phase, stage=task-syscall-failure",
+    "ARMv7-A phase complete, stage=task-syscall-failure",
     "ARMv7-A phase, stage=handoff-prepare",
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=idle",
@@ -384,6 +386,9 @@ if (($log -notmatch "ARMv7-A task syscall roundtrip, debug-path=svc-return, debu
 }
 if (($log -notmatch "ARMv7-A task syscall glue, task=0x0000000059534001, stack=0x0000000052008000, yield=0x00000001, sleep=0x00000037, debug=0x000000CD, capability=0x0000002A, generic=yes, ingress=yes, bridge=yes, caller=yes, glue=yes")) {
     $missing += "ARMv7-A task syscall glue, task=0x0000000059534001..."
+}
+if (($log -notmatch "ARMv7-A task syscall failure, decode=decode-failed, unsupported=unsupported-service, bridge=unbound-bridge, caller=unbound-adapter, writeback=writeback-failed, failure=yes")) {
+    $missing += "ARMv7-A task syscall failure, decode=decode-failed..."
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."

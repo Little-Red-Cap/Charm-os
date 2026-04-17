@@ -173,6 +173,7 @@ ARMv7-A task syscall ingress-adapter, debug-path=live-frame-adapter, debug-gener
 ARMv7-A task syscall caller, debug-path=svc-call-frame, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=svc-call-frame, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, caller=yes
 ARMv7-A task syscall roundtrip, debug-path=svc-return, debug-svc=0x000045, debug-value=0x00000044, debug-ready=yes, capability-path=svc-return, capability-svc=0x000046, capability-value=0x0000002A, capability-ready=yes, roundtrip=yes
 ARMv7-A task syscall glue, task=0x0000000059534001, stack=0x0000000052008000, yield=0x00000001, sleep=0x00000037, debug=0x000000CD, capability=0x0000002A, generic=yes, ingress=yes, bridge=yes, caller=yes, glue=yes
+ARMv7-A task syscall failure, decode=decode-failed, unsupported=unsupported-service, bridge=unbound-bridge, caller=unbound-adapter, writeback=writeback-failed, failure=yes
 ARMv7-A handoff context, vector-base=0x40200000, translation-table=0x4021...., image-base=0x40200000
 ARMv7-A handoff request, kind=copy, payload-base=0x40200000, entry=0x40200000, storage-payload=0x00000000, storage-entry=0x00000000, entry-offset=0x00000000, payload-size=0x00000000, image-size=0x00000000, flags=0x00000000
 ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
@@ -610,6 +611,11 @@ continue
   bare-metal image too: generic trap capture, task-syscall ingress,
   task-syscall frame bridge, and caller-side frame synthesis now close in one
   place without linking the full shared runtime target.
+- The same leaf now also prints one `task syscall failure` line that turns the
+  most important negative paths into first-class evidence too, so
+  `decode-failed`, `unsupported-service`, `unbound-bridge`,
+  `unbound-adapter`, and `writeback-failed` can be distinguished on the real
+  bare-metal leaf before they show up during later scheduler/runtime bringup.
 - Those returning SVC/IRQ/FIQ smoke lines now also print the pre-exception
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from

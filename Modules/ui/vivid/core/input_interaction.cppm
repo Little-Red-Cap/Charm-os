@@ -5,6 +5,7 @@ module;
 export module charm.core.input_interaction;
 
 export import charm.core.event;
+export import util.delegate;
 
 export
 template<typename T>
@@ -86,10 +87,19 @@ export
 class DoubleTapRestoreStrategy {
 public:
     using Callback = void(*)(void*);
+    // Prefer util::delegate for same-domain UI binding; keep fn+ctx for legacy call sites.
+    using callback_delegate = util::delegate<>;
+
+    void set_callback(callback_delegate callback) noexcept {
+        callback_ = callback;
+        legacy_callback_ = nullptr;
+        legacy_ctx_ = nullptr;
+    }
 
     void set_callback(Callback fn, void* ctx) noexcept {
-        callback_ = fn;
-        ctx_ = ctx;
+        callback_ = {};
+        legacy_callback_ = fn;
+        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -105,7 +115,11 @@ public:
         if (!enabled_) return false;
         if (e.type != Event::Type::Click) return false;
         if (!is_double_tap(e.x, e.y, e.ms)) return false;
-        if (callback_) callback_(ctx_);
+        if (callback_) {
+            callback_();
+        } else if (legacy_callback_) {
+            legacy_callback_(legacy_ctx_);
+        }
         return true;
     }
 
@@ -128,8 +142,9 @@ private:
         return is_double;
     }
 
-    Callback callback_{nullptr};
-    void* ctx_{nullptr};
+    callback_delegate callback_{};
+    Callback legacy_callback_{nullptr};
+    void* legacy_ctx_{nullptr};
     bool enabled_{true};
     int double_tap_ms_{300};
     int double_tap_dist_sq_{144};
@@ -144,12 +159,30 @@ public:
     using BeginFn = void(*)(void*);
     using UpdateFn = void(*)(void*, int);
     using EndFn = void(*)(void*);
+    using begin_delegate = util::delegate<>;
+    using update_delegate = util::delegate<int>;
+    using end_delegate = util::delegate<>;
+
+    void set_callbacks(begin_delegate begin_cb,
+                       update_delegate update_cb,
+                       end_delegate end_cb) noexcept {
+        begin_ = begin_cb;
+        update_ = update_cb;
+        end_ = end_cb;
+        legacy_begin_ = nullptr;
+        legacy_update_ = nullptr;
+        legacy_end_ = nullptr;
+        legacy_ctx_ = nullptr;
+    }
 
     void set_callbacks(BeginFn begin_fn, UpdateFn update_fn, EndFn end_fn, void* ctx) noexcept {
-        begin_ = begin_fn;
-        update_ = update_fn;
-        end_ = end_fn;
-        ctx_ = ctx;
+        begin_ = {};
+        update_ = {};
+        end_ = {};
+        legacy_begin_ = begin_fn;
+        legacy_update_ = update_fn;
+        legacy_end_ = end_fn;
+        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -158,20 +191,35 @@ public:
         if (!enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
         if (e.gesture_phase == Event::GesturePhase::Begin) {
-            if (begin_) begin_(ctx_);
+            if (begin_) {
+                begin_();
+            } else if (legacy_begin_) {
+                legacy_begin_(legacy_ctx_);
+            }
         } else if (e.gesture_phase == Event::GesturePhase::Update) {
-            if (update_) update_(ctx_, e.dy);
+            if (update_) {
+                update_(e.dy);
+            } else if (legacy_update_) {
+                legacy_update_(legacy_ctx_, e.dy);
+            }
         } else if (e.gesture_phase == Event::GesturePhase::End) {
-            if (end_) end_(ctx_);
+            if (end_) {
+                end_();
+            } else if (legacy_end_) {
+                legacy_end_(legacy_ctx_);
+            }
         }
         return true;
     }
 
 private:
-    BeginFn begin_{nullptr};
-    UpdateFn update_{nullptr};
-    EndFn end_{nullptr};
-    void* ctx_{nullptr};
+    begin_delegate begin_{};
+    update_delegate update_{};
+    end_delegate end_{};
+    BeginFn legacy_begin_{nullptr};
+    UpdateFn legacy_update_{nullptr};
+    EndFn legacy_end_{nullptr};
+    void* legacy_ctx_{nullptr};
     bool enabled_{true};
 };
 
@@ -181,12 +229,30 @@ public:
     using BeginFn = void(*)(void*, int, int);
     using UpdateFn = void(*)(void*, int, int, int, int);
     using EndFn = void(*)(void*, int, int);
+    using begin_delegate = util::delegate<int, int>;
+    using update_delegate = util::delegate<int, int, int, int>;
+    using end_delegate = util::delegate<int, int>;
+
+    void set_callbacks(begin_delegate begin_cb,
+                       update_delegate update_cb,
+                       end_delegate end_cb) noexcept {
+        begin_ = begin_cb;
+        update_ = update_cb;
+        end_ = end_cb;
+        legacy_begin_ = nullptr;
+        legacy_update_ = nullptr;
+        legacy_end_ = nullptr;
+        legacy_ctx_ = nullptr;
+    }
 
     void set_callbacks(BeginFn begin_fn, UpdateFn update_fn, EndFn end_fn, void* ctx) noexcept {
-        begin_ = begin_fn;
-        update_ = update_fn;
-        end_ = end_fn;
-        ctx_ = ctx;
+        begin_ = {};
+        update_ = {};
+        end_ = {};
+        legacy_begin_ = begin_fn;
+        legacy_update_ = update_fn;
+        legacy_end_ = end_fn;
+        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -194,25 +260,40 @@ public:
     bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type == Event::Type::DragStart) {
-            if (begin_) begin_(ctx_, e.x, e.y);
+            if (begin_) {
+                begin_(e.x, e.y);
+            } else if (legacy_begin_) {
+                legacy_begin_(legacy_ctx_, e.x, e.y);
+            }
             return true;
         }
         if (e.type == Event::Type::DragMove) {
-            if (update_) update_(ctx_, e.x, e.y, e.dx, e.dy);
+            if (update_) {
+                update_(e.x, e.y, e.dx, e.dy);
+            } else if (legacy_update_) {
+                legacy_update_(legacy_ctx_, e.x, e.y, e.dx, e.dy);
+            }
             return true;
         }
         if (e.type == Event::Type::DragEnd) {
-            if (end_) end_(ctx_, e.x, e.y);
+            if (end_) {
+                end_(e.x, e.y);
+            } else if (legacy_end_) {
+                legacy_end_(legacy_ctx_, e.x, e.y);
+            }
             return true;
         }
         return false;
     }
 
 private:
-    BeginFn begin_{nullptr};
-    UpdateFn update_{nullptr};
-    EndFn end_{nullptr};
-    void* ctx_{nullptr};
+    begin_delegate begin_{};
+    update_delegate update_{};
+    end_delegate end_{};
+    BeginFn legacy_begin_{nullptr};
+    UpdateFn legacy_update_{nullptr};
+    EndFn legacy_end_{nullptr};
+    void* legacy_ctx_{nullptr};
     bool enabled_{true};
 };
 
@@ -220,10 +301,18 @@ export
 class LongPressStrategy {
 public:
     using Callback = void(*)(void*);
+    using callback_delegate = util::delegate<>;
+
+    void set_callback(callback_delegate callback) noexcept {
+        callback_ = callback;
+        legacy_callback_ = nullptr;
+        legacy_ctx_ = nullptr;
+    }
 
     void set_callback(Callback fn, void* ctx) noexcept {
-        callback_ = fn;
-        ctx_ = ctx;
+        callback_ = {};
+        legacy_callback_ = fn;
+        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -267,9 +356,15 @@ public:
                 elapsed >= static_cast<std::uint32_t>(threshold_ms_);
             pressed_ = false;
             canceled_ = false;
-            if (fire && callback_) {
-                callback_(ctx_);
-                return true;
+            if (fire) {
+                if (callback_) {
+                    callback_();
+                    return true;
+                }
+                if (legacy_callback_) {
+                    legacy_callback_(legacy_ctx_);
+                    return true;
+                }
             }
             return false;
         }
@@ -277,8 +372,9 @@ public:
     }
 
 private:
-    Callback callback_{nullptr};
-    void* ctx_{nullptr};
+    callback_delegate callback_{};
+    Callback legacy_callback_{nullptr};
+    void* legacy_ctx_{nullptr};
     bool enabled_{true};
     bool pressed_{false};
     bool canceled_{false};

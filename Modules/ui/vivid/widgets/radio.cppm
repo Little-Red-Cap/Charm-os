@@ -7,6 +7,7 @@ import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.event;
+import service.state;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.widgets.label;
@@ -16,6 +17,10 @@ using namespace ui::render;
 export
 class Radio : public WidgetBase<Radio> {
 public:
+    using checked_state_type = service::state<bool, 4>;
+    using checked_slot_type = typename checked_state_type::slot_type;
+    using checked_connection = typename checked_state_type::connection;
+
     explicit Radio(const char* text = "") : label_(text) {
         const Style& st = Theme::instance().get<Radio>();
         label_.set_font(resolve_font(st));
@@ -32,12 +37,21 @@ public:
     std::uint16_t group() const noexcept { return group_id_; }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
-    bool checked() const noexcept { return checked_; }
+    [[nodiscard]] bool checked() const noexcept { return checked_.get(); }
 
     void set_checked(bool on) noexcept {
-        if (checked_ == on) return;
-        checked_ = on;
-        if (on_change_) on_change_();
+        if (checked_.set(on) && on_change_) {
+            on_change_();
+        }
+    }
+
+    // observe_checked() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_checked(checked_slot_type slot) noexcept {
+        return checked_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_checked(checked_connection c) noexcept {
+        return checked_.disconnect(c);
     }
 
     void draw(CanvasBase& cvs) {
@@ -57,7 +71,7 @@ public:
         const int cx = r.x + radius + st.metrics.padding;
         const int cy = r.y + r.h / 2;
         draw_circle(cvs, cx, cy, radius, border, false);
-        if (checked_) {
+        if (checked()) {
             draw_circle(cvs, cx, cy, radius - 3, accent, true);
         }
 
@@ -105,7 +119,7 @@ private:
     Label label_;
     Callback on_change_{};
     std::uint16_t group_id_{0};
-    bool checked_{false};
+    checked_state_type checked_{false};
 };
 
 

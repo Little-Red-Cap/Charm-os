@@ -317,7 +317,9 @@ export namespace net {
 
             if (netif_ != nullptr
                 && netif_->address().is_ipv4()
-                && !detail::same_ipv4_address(datagram.destination, netif_->address())) {
+                && !detail::same_ipv4_address(datagram.destination, netif_->address())
+                && !(netif_->supports(NetIfCapability::broadcast)
+                     && datagram.destination.is_ipv4_limited_broadcast())) {
                 ++drop_count_;
                 return {};
             }

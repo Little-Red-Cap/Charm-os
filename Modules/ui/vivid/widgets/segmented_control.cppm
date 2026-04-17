@@ -4,6 +4,7 @@ export module charm.widgets.segmented_control;
 
 import charm.core.object;
 import charm.core.event;
+import service.state;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.style;
@@ -15,6 +16,10 @@ using namespace ui::render;
 export
 class SegmentedControl : public WidgetBase<SegmentedControl> {
 public:
+    using selected_state_type = service::state<int, 4>;
+    using selected_slot_type = typename selected_state_type::slot_type;
+    using selected_connection = typename selected_state_type::connection;
+
     SegmentedControl() {
         set_focusable(true);
         set_size(220, 28);
@@ -24,7 +29,9 @@ public:
         count_ = (count > kMax) ? kMax : (count < 0 ? 0 : count);
         for (int i = 0; i < count_; ++i) labels_[i] = items[i];
         for (int i = count_; i < kMax; ++i) labels_[i] = nullptr;
-        if (selected_ >= count_) selected_ = (count_ > 0) ? (count_ - 1) : 0;
+        if (selected() >= count_) {
+            apply_selected((count_ > 0) ? (count_ - 1) : 0, false);
+        }
     }
 
     void set_item(int index, const char* label) noexcept {
@@ -35,14 +42,21 @@ public:
 
     void set_selected(int index) noexcept {
         if (index < 0 || index >= count_) return;
-        if (selected_ == index) return;
-        selected_ = index;
-        if (on_change_) on_change_();
+        apply_selected(index, true);
     }
 
-    int selected() const noexcept { return selected_; }
+    [[nodiscard]] int selected() const noexcept { return selected_.get(); }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
+
+    // observe_selected() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_selected(selected_slot_type slot) noexcept {
+        return selected_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_selected(selected_connection c) noexcept {
+        return selected_.disconnect(c);
+    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -70,7 +84,7 @@ public:
                 seg.w = r.x + r.w - seg.x;
             }
 
-            if (i == selected_) {
+            if (i == selected()) {
                 const int radius = (i == 0 || i == count_ - 1) ? st.metrics.corner_radius : 0;
                 if (radius > 0) {
                     draw_round_rect(cvs, seg.x, seg.y, seg.w, seg.h, radius, accent, true);
@@ -99,12 +113,12 @@ public:
             set_selected(idx);
             return true;
         } else if (e.type == Event::Type::KeyDown) {
-            if (e.key_code == Event::Key::Left && selected_ > 0) {
-                set_selected(selected_ - 1);
+            if (e.key_code == Event::Key::Left && selected() > 0) {
+                set_selected(selected() - 1);
                 return true;
             }
-            if (e.key_code == Event::Key::Right && selected_ + 1 < count_) {
-                set_selected(selected_ + 1);
+            if (e.key_code == Event::Key::Right && selected() + 1 < count_) {
+                set_selected(selected() + 1);
                 return true;
             }
         }
@@ -112,10 +126,16 @@ public:
     }
 
 private:
+    void apply_selected(int index, bool notify_callback) noexcept {
+        if (selected_.set(index) && notify_callback && on_change_) {
+            on_change_();
+        }
+    }
+
     static constexpr int kMax = 8;
     const char* labels_[kMax]{};
     int count_{0};
-    int selected_{0};
+    selected_state_type selected_{0};
     Callback on_change_{};
 };
 

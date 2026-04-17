@@ -103,6 +103,8 @@ namespace {
         util::usize connection_count = 0;
         util::usize direct_count = 0;
         util::usize deferred_count = 0;
+        bool saw_volume_direct = false;
+        bool saw_status_deferred = false;
         for (util::usize i = 0; i < view.node_count; ++i) {
             const auto& node = view.nodes[i];
             if (node.kind != init::materialized_node_kind::connection) {
@@ -114,15 +116,26 @@ namespace {
             } else if (node.connection_mode == std::string_view{"deferred"}) {
                 ++deferred_count;
             }
+            if (node.name == std::string_view{"demo.connection.volume_direct"}) {
+                saw_volume_direct = node.connection_source == CapEncoderRotate::view()
+                                    && node.connection_sink == CapVolumeAdjust::view()
+                                    && node.connection_mode == std::string_view{"direct"};
+            } else if (node.name == std::string_view{"demo.connection.status_deferred"}) {
+                saw_status_deferred = node.connection_source == CapEncoderRotate::view()
+                                      && node.connection_sink == CapStatusRefresh::view()
+                                      && node.connection_mode == std::string_view{"deferred"};
+            }
         }
         if (view.node_count != 5 || view.edge_count != 4 || connection_count != 2
-            || direct_count != 1 || deferred_count != 1) {
-            std::printf("[connection-observe-demo] unexpected graph nodes=%llu edges=%llu connections=%llu direct=%llu deferred=%llu\n",
+            || direct_count != 1 || deferred_count != 1 || !saw_volume_direct || !saw_status_deferred) {
+            std::printf("[connection-observe-demo] unexpected graph nodes=%llu edges=%llu connections=%llu direct=%llu deferred=%llu volume_direct=%d status_deferred=%d\n",
                         static_cast<unsigned long long>(view.node_count),
                         static_cast<unsigned long long>(view.edge_count),
                         static_cast<unsigned long long>(connection_count),
                         static_cast<unsigned long long>(direct_count),
-                        static_cast<unsigned long long>(deferred_count));
+                        static_cast<unsigned long long>(deferred_count),
+                        saw_volume_direct ? 1 : 0,
+                        saw_status_deferred ? 1 : 0);
             return 1;
         }
 
@@ -136,13 +149,17 @@ namespace {
         }
         if (std::strstr(dot.data(), "shape=hexagon") == nullptr
             || std::strstr(dot.data(), "mode=direct") == nullptr
-            || std::strstr(dot.data(), "mode=deferred") == nullptr) {
+            || std::strstr(dot.data(), "mode=deferred") == nullptr
+            || std::strstr(dot.data(), "demo.connection.volume_direct") == nullptr
+            || std::strstr(dot.data(), "demo.connection.status_deferred") == nullptr) {
             std::printf("[connection-observe-demo] dot export missing connection markers\n");
             return 1;
         }
         if (std::strstr(json.data(), "\"kind\":\"connection\"") == nullptr
             || std::strstr(json.data(), "\"mode\":\"direct\"") == nullptr
-            || std::strstr(json.data(), "\"mode\":\"deferred\"") == nullptr) {
+            || std::strstr(json.data(), "\"mode\":\"deferred\"") == nullptr
+            || std::strstr(json.data(), "\"name\":\"demo.connection.volume_direct\"") == nullptr
+            || std::strstr(json.data(), "\"name\":\"demo.connection.status_deferred\"") == nullptr) {
             std::printf("[connection-observe-demo] json export missing connection markers\n");
             return 1;
         }

@@ -4,6 +4,7 @@ export module charm.widgets.checkbox;
 import charm.core.object;
 import charm.gfx.color;
 import charm.core.event;
+import service.state;
 import charm.widgets.label;
 import charm.gfx.render_style;
 import charm.core.style;
@@ -14,6 +15,10 @@ using namespace ui::render;
 export
 class Checkbox final : public WidgetBase<Checkbox> {
 public:
+    using checked_state_type = service::state<bool, 4>;
+    using checked_slot_type = typename checked_state_type::slot_type;
+    using checked_connection = typename checked_state_type::connection;
+
     explicit Checkbox(const char* txt = "") : label_(txt) {
         constexpr int box_size = 16;
         const Style& st = Theme::instance().get<Checkbox>();
@@ -23,9 +28,19 @@ public:
         set_focusable(true);
     }
 
-    void set_checked(bool c) noexcept { checked_ = c; }
-    [[nodiscard]] bool is_checked() const noexcept { return checked_; }
+    void set_checked(bool c) noexcept { apply_checked(c, false); }
+
+    [[nodiscard]] bool is_checked() const noexcept { return checked_.get(); }
     void set_on_change(Callback cb) noexcept { callback_ = cb; }
+
+    // observe_checked() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_checked(checked_slot_type slot) noexcept {
+        return checked_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_checked(checked_connection c) noexcept {
+        return checked_.disconnect(c);
+    }
 
     void draw(CanvasBase& cvs) {
         const auto r = get_rect();
@@ -42,10 +57,9 @@ public:
         const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, box_size, box_size, border, false);
-        if (checked_) {
+        if (is_checked()) {
             draw_rect(cvs, r.x + 2, r.y + 2, box_size - 4, box_size - 4, accent, true);
         }
-        const auto lr = label_.get_rect();
         const int lx = r.x + box_size + 4;
         const int baseline_y = r.y + (r.h - label_.line_height()) / 2 + label_.baseline();
         label_.set_color(font);
@@ -60,8 +74,7 @@ public:
             const auto r = get_rect();
             const bool hit_box = (e.x >= r.x && e.x < r.x + r.h && e.y >= r.y && e.y < r.y + r.h);
             if (hit_box || has_state(State::Focused)) {
-                checked_ = !checked_;
-                if (callback_) callback_();
+                apply_checked(!is_checked(), true);
                 return true;
             }
         }
@@ -69,7 +82,13 @@ public:
     }
 
 private:
-    bool checked_{false};
+    void apply_checked(bool c, bool notify_callback) noexcept {
+        if (checked_.set(c) && notify_callback && callback_) {
+            callback_();
+        }
+    }
+
+    checked_state_type checked_{false};
     Label label_;
     Callback callback_{};
 };

@@ -6,6 +6,8 @@ export namespace service {
     template <class Event, class Poster>
     class deferred_signal {
     public:
+        // deferred_signal is a post-only semantic wrapper.
+        // It does not perform direct callback dispatch.
         explicit constexpr deferred_signal(Poster& poster) noexcept
             : poster_(&poster) {}
 

@@ -14,6 +14,8 @@ export namespace service {
     template <class T, util::usize MaxSlots>
     class state {
     public:
+        // state<T> is a truth cell plus same-domain change notification.
+        // set() inherits the same execution-domain rules as signal::emit().
         static_assert(std::is_copy_constructible_v<T>);
         static_assert(std::is_copy_assignable_v<T>);
         static_assert(std::equality_comparable<T>);

@@ -18,6 +18,7 @@
 - `../../rules/collaboration.md`
 - `../../rules/embedded-modern-cpp.md`
 - `../../rules/charm-architecture.md`
+- 涉及事件连接时额外参考 `../../../architecture/signal_state_contract_v0.md`
 
 相关文件：
 - `../code-review/checklist.md`
@@ -99,6 +100,8 @@
 - 不绕过 `io.registry`
 - 不引入 busy-spin/阻塞等待
 - 不引入非统一错误模型与时间源
+- 需要跨上下文时显式使用 `post()`，不要把异步塞进 `signal.emit()`
+- 长期 wiring 应能被 `init.connection` / `materialize` 看见
 
 ---
 

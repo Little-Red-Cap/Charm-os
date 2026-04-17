@@ -174,6 +174,7 @@ Draft/        # 计划/草案（可变动）
 - USB String/Lang 装配：`docs/usb/usb_strings_overview.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 设备发现模型草案：`docs/architecture/device_model_overview.md`
+- Signal / State contract v0：`docs/architecture/signal_state_contract_v0.md`
 - Signal / State v0：`docs/architecture/signal_state_v0.md`
 - 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
 - System Compiler 词汇表 v0：`docs/architecture/system_compiler_vocabulary_v0.md`
@@ -358,6 +359,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### Service
 - ring_buffer/fifo/heap/pool/json/trace/distbus
+- signal/state contract（执行域 / ISR / 生命周期法律）
 - signal/state（同域同步广播 + 真相状态单元）
 - stream + buffer
 

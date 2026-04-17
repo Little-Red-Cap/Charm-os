@@ -588,6 +588,228 @@ export namespace net::icmp::echo {
         errc last_error_{errc::ok};
     };
 
+    template <util::usize MaxPayload = 64>
+    class Probe {
+    public:
+        Probe() noexcept {
+            install_handlers();
+        }
+
+        Probe(const Probe&) = delete;
+        Probe& operator=(const Probe&) = delete;
+        Probe(Probe&&) = delete;
+        Probe& operator=(Probe&&) = delete;
+
+        explicit Probe(IpAddress local, IpAddress peer) noexcept
+            : client_(local, peer) {
+            install_handlers();
+        }
+
+        void configure(IpAddress local, IpAddress peer) noexcept {
+            client_.configure(local, peer);
+        }
+
+        void reset() noexcept {
+            client_.reset();
+            clear_observation();
+            error_count_ = 0;
+        }
+
+        [[nodiscard]] bool configured() const noexcept {
+            return client_.configured();
+        }
+
+        [[nodiscard]] IpAddress local_address() const noexcept {
+            return client_.local_address();
+        }
+
+        [[nodiscard]] IpAddress peer_address() const noexcept {
+            return client_.peer_address();
+        }
+
+        [[nodiscard]] util::usize request_count() const noexcept {
+            return client_.request_count();
+        }
+
+        [[nodiscard]] util::usize reply_count() const noexcept {
+            return client_.reply_count();
+        }
+
+        [[nodiscard]] util::usize drop_count() const noexcept {
+            return client_.drop_count();
+        }
+
+        [[nodiscard]] util::usize timeout_count() const noexcept {
+            return client_.timeout_count();
+        }
+
+        [[nodiscard]] util::usize transmitted_count() const noexcept {
+            return client_.transmitted_count();
+        }
+
+        [[nodiscard]] util::usize queued_count() const noexcept {
+            return client_.queued_count();
+        }
+
+        [[nodiscard]] util::usize pending_count() const noexcept {
+            return client_.pending_count();
+        }
+
+        [[nodiscard]] bool has_pending() const noexcept {
+            return client_.has_pending();
+        }
+
+        [[nodiscard]] errc last_error() const noexcept {
+            return client_.last_error();
+        }
+
+        [[nodiscard]] errc observed_error() const noexcept {
+            return observed_error_;
+        }
+
+        [[nodiscard]] util::usize error_count() const noexcept {
+            return error_count_;
+        }
+
+        [[nodiscard]] bool has_reply() const noexcept {
+            return has_reply_;
+        }
+
+        [[nodiscard]] bool has_timeout() const noexcept {
+            return has_timeout_;
+        }
+
+        [[nodiscard]] const IcmpEchoInfo& last_reply_info() const noexcept {
+            return reply_info_;
+        }
+
+        [[nodiscard]] const IcmpEchoInfo& last_timeout_info() const noexcept {
+            return timeout_info_;
+        }
+
+        [[nodiscard]] ByteView last_reply_payload() const noexcept {
+            return ByteView{reply_payload_.data(), reply_payload_size_};
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump) noexcept {
+            return client_.bind(pump);
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump,
+                                        IpAddress local,
+                                        IpAddress peer) noexcept {
+            configure(local, peer);
+            return bind(pump);
+        }
+
+        [[nodiscard]] Result<PingTicket> ping(ByteView payload,
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms) noexcept {
+            clear_observation();
+            return client_.ping(payload, now_ms, timeout_ms);
+        }
+
+        [[nodiscard]] Result<PingTicket> ping(util::u32 now_ms,
+                                              util::u32 timeout_ms) noexcept {
+            return ping(ByteView{}, now_ms, timeout_ms);
+        }
+
+        [[nodiscard]] bool cancel(const PingTicket& ticket) noexcept {
+            return client_.cancel(ticket);
+        }
+
+        void cancel_all() noexcept {
+            client_.cancel_all();
+        }
+
+        void tick(util::u32 now_ms) noexcept {
+            client_.tick(now_ms);
+        }
+
+    private:
+        void install_handlers() noexcept {
+            client_.set_reply_handler(&Probe::on_reply_trampoline, this);
+            client_.set_timeout_handler(&Probe::on_timeout_trampoline, this);
+            client_.set_error_handler(&Probe::on_error_trampoline, this);
+        }
+
+        static Result<void> on_reply_trampoline(void* ctx,
+                                                const IcmpEchoInfo& info,
+                                                PacketView packet) noexcept {
+            auto* self = static_cast<Probe*>(ctx);
+            if (!self) {
+                return util::unexpected(errc::bad_state);
+            }
+            return self->on_reply(info, packet);
+        }
+
+        static void on_timeout_trampoline(void* ctx,
+                                          const IcmpEchoInfo& info) noexcept {
+            auto* self = static_cast<Probe*>(ctx);
+            if (self) {
+                self->on_timeout(info);
+            }
+        }
+
+        static void on_error_trampoline(void* ctx, errc error) noexcept {
+            auto* self = static_cast<Probe*>(ctx);
+            if (self) {
+                self->on_error(error);
+            }
+        }
+
+        [[nodiscard]] Result<void> on_reply(const IcmpEchoInfo& info,
+                                            PacketView packet) noexcept {
+            if (packet.size() > MaxPayload) {
+                observed_error_ = errc::buffer_overflow;
+                ++error_count_;
+                return util::unexpected(observed_error_);
+            }
+
+            for (util::usize index = 0; index < packet.size(); ++index) {
+                reply_payload_[index] = packet[index];
+            }
+            reply_payload_size_ = packet.size();
+            reply_info_ = info;
+            has_reply_ = true;
+            has_timeout_ = false;
+            observed_error_ = errc::ok;
+            return {};
+        }
+
+        void on_timeout(const IcmpEchoInfo& info) noexcept {
+            timeout_info_ = info;
+            has_timeout_ = true;
+            has_reply_ = false;
+        }
+
+        void on_error(errc error) noexcept {
+            observed_error_ = error;
+            ++error_count_;
+        }
+
+        void clear_observation() noexcept {
+            has_reply_ = false;
+            has_timeout_ = false;
+            reply_info_ = {};
+            timeout_info_ = {};
+            reply_payload_size_ = 0;
+            observed_error_ = errc::ok;
+        }
+
+        Client client_{};
+        std::array<util::u8, MaxPayload> reply_payload_{};
+        IcmpEchoInfo reply_info_{};
+        IcmpEchoInfo timeout_info_{};
+        util::usize reply_payload_size_{0};
+        util::usize error_count_{0};
+        errc observed_error_{errc::ok};
+        bool has_reply_{false};
+        bool has_timeout_{false};
+    };
+
     class AutoReplyServer {
     public:
         void set_sender(SendFn fn, void* ctx) noexcept {

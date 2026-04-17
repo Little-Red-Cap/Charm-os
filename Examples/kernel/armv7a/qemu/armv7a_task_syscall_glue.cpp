@@ -14,6 +14,7 @@
 #include "targets/armv7a/common/armv7a_runtime_trap_frame_adapter_contract.hpp"
 
 import kernel.task_syscall_frame;
+import kernel.task_runtime_api;
 import target.armv7a.kernel_runtime_trap_frame_adapter;
 import target.armv7a.kernel_task_syscall_call_frame_adapter;
 
@@ -29,6 +30,12 @@ constexpr std::uint64_t kCapabilityId = 0x00000007ull;
 constexpr std::uint64_t kCapabilityOperation = 0x00000002ull;
 constexpr std::uint64_t kCapabilityPayload = 0x00000021ull;
 constexpr std::uint64_t kCapabilityResult = 0x0000002Aull;
+constexpr std::uint64_t kRuntimeApiSleepDue = 63u;
+constexpr std::uint64_t kRuntimeApiDebugValue = 0x000000CDull;
+constexpr std::uint64_t kRuntimeApiCapabilityId = 0x00000008ull;
+constexpr std::uint64_t kRuntimeApiCapabilityOperation = 0x00000003ull;
+constexpr std::uint64_t kRuntimeApiCapabilityPayload = 0x00000020ull;
+constexpr std::uint64_t kRuntimeApiCapabilityResult = 0x0000002Bull;
 
 struct DebugState {
     std::uint32_t calls{0};
@@ -153,7 +160,7 @@ struct CapabilityHandler {
 };
 
 using TableTrace = kernel::TaskSyscallTableTraceBuffer<8>;
-using FrameTrace = kernel::TaskSyscallFrameTraceBuffer<16>;
+using FrameTrace = kernel::TaskSyscallFrameTraceBuffer<32>;
 using BridgeTable = kernel::TaskSyscallTable<2, TableTrace>;
 using FullTable = kernel::TaskSyscallTable<4, TableTrace>;
 
@@ -321,6 +328,51 @@ bool call_frame_result_ready(void* ctx,
     return state->last_writeback_seen &&
            result.error == kernel::TrapError::none;
 }
+
+struct TaskRuntimeTransport {
+    using tick_type = std::uint64_t;
+    using caller_type =
+        kernel::TaskSyscallFrameCaller<Armv7aRuntimeTrapLiveFrame, tick_type>;
+
+    caller_type* caller{nullptr};
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return caller != nullptr && caller->valid();
+    }
+
+    [[nodiscard]] kernel::TrapResult yield_current(
+        kernel::TrapYieldCurrentView yield) const noexcept
+    {
+        return caller != nullptr
+            ? caller->yield(yield)
+            : rejected(kernel::TrapError::unbound_bridge);
+    }
+
+    [[nodiscard]] kernel::TrapResult sleep_current_until(
+        kernel::TrapSleepUntilView<tick_type> sleep) const noexcept
+    {
+        return caller != nullptr
+            ? caller->sleep_until(sleep)
+            : rejected(kernel::TrapError::unbound_bridge);
+    }
+
+    [[nodiscard]] kernel::TrapResult debug_write(
+        kernel::TrapDebugWriteView write) const noexcept
+    {
+        return caller != nullptr
+            ? caller->debug_write(write)
+            : rejected(kernel::TrapError::unbound_bridge);
+    }
+
+    [[nodiscard]] kernel::TrapResult capability_call(
+        kernel::TrapCapabilityCallView capability) const noexcept
+    {
+        return caller != nullptr
+            ? caller->capability_call(capability)
+            : rejected(kernel::TrapError::unbound_bridge);
+    }
+};
 
 [[nodiscard]] auto make_bridge_table(DebugHandler& debug_handler,
                                      CapabilityHandler& capability_handler,
@@ -570,7 +622,8 @@ struct CallerSummary {
     std::uint64_t sleep_result{0u};
     std::uint64_t debug_result{0u};
     std::uint64_t capability_result{0u};
-    bool ready{false};
+    bool caller_ready{false};
+    bool runtime_api_ready{false};
 };
 
 [[nodiscard]] CallerSummary probe_caller() noexcept
@@ -651,57 +704,129 @@ struct CallerSummary {
     const auto* table_first = table_trace.at(0u);
     const auto* table_fourth = table_trace.at(3u);
 
+    const bool caller_ready =
+        frame_bridge.valid() && port.valid() && caller.valid() &&
+        result_matches(yielded,
+                       kernel::TrapDisposition::handled,
+                       kernel::TrapError::none,
+                       1u) &&
+        result_matches(slept,
+                       kernel::TrapDisposition::handled,
+                       kernel::TrapError::none,
+                       kSleepDue) &&
+        result_matches(debugged,
+                       kernel::TrapDisposition::handled,
+                       kernel::TrapError::none,
+                       kDebugValue + 1u) &&
+        result_matches(called,
+                       kernel::TrapDisposition::handled,
+                       kernel::TrapError::none,
+                       kCapabilityResult) &&
+        builder_state.yield_builds == 1u &&
+        builder_state.sleep_builds == 1u &&
+        builder_state.debug_builds == 1u &&
+        builder_state.capability_builds == 1u &&
+        builder_state.ready_calls == 4u &&
+        builder_state.last_due == kSleepDue &&
+        builder_state.last_debug_value == kDebugValue &&
+        builder_state.last_id == kCapabilityId &&
+        builder_state.last_operation == kCapabilityOperation &&
+        builder_state.last_payload == kCapabilityPayload &&
+        builder_state.last_result == kCapabilityResult &&
+        builder_state.last_error == kernel::TrapError::none &&
+        builder_state.last_writeback_seen && yield_state.calls == 1u &&
+        sleep_state.calls == 1u && sleep_state.last_due == kSleepDue &&
+        debug_state.calls == 1u && debug_state.last_value == kDebugValue &&
+        capability_state.calls == 1u &&
+        capability_state.last_id == kCapabilityId &&
+        capability_state.last_operation == kCapabilityOperation &&
+        capability_state.last_payload == kCapabilityPayload &&
+        first != nullptr && fourth != nullptr && seventh != nullptr &&
+        tenth != nullptr && table_first != nullptr &&
+        table_fourth != nullptr &&
+        first->syscall == kernel::TaskSyscallId::yield &&
+        fourth->syscall == kernel::TaskSyscallId::sleep_until &&
+        seventh->syscall == kernel::TaskSyscallId::debug_write &&
+        tenth->syscall == kernel::TaskSyscallId::capability_call &&
+        table_first->syscall == kernel::TaskSyscallId::yield &&
+        table_fourth->syscall == kernel::TaskSyscallId::capability_call;
+
+    const auto runtime_services = kernel::make_runtime_trap_service_facade(
+        TaskRuntimeTransport{
+            .caller = &caller,
+        });
+    const auto runtime_api = kernel::make_task_runtime_api(runtime_services);
+    const auto api_yield = runtime_api.yield();
+    const auto api_sleep = runtime_api.sleep_until(kRuntimeApiSleepDue);
+    const auto api_debug = runtime_api.debug_write(kRuntimeApiDebugValue);
+    const auto api_capability = runtime_api.capability_call(
+        kRuntimeApiCapabilityId,
+        kRuntimeApiCapabilityOperation,
+        kRuntimeApiCapabilityPayload);
+
+    const auto* thirteenth = frame_trace.at(12u);
+    const auto* sixteenth = frame_trace.at(15u);
+    const auto* nineteenth = frame_trace.at(18u);
+    const auto* twenty_second = frame_trace.at(21u);
+    const auto* table_fifth = table_trace.at(4u);
+    const auto* table_eighth = table_trace.at(7u);
+
     return CallerSummary{
         .yield_result = yielded.value,
         .sleep_result = slept.value,
         .debug_result = debugged.value,
         .capability_result = called.value,
-        .ready =
-            frame_bridge.valid() && port.valid() && caller.valid() &&
-            result_matches(yielded,
+        .caller_ready = caller_ready,
+        .runtime_api_ready =
+            caller_ready && runtime_services.valid() && runtime_api.valid() &&
+            result_matches(api_yield,
                            kernel::TrapDisposition::handled,
                            kernel::TrapError::none,
                            1u) &&
-            result_matches(slept,
+            result_matches(api_sleep,
                            kernel::TrapDisposition::handled,
                            kernel::TrapError::none,
-                           kSleepDue) &&
-            result_matches(debugged,
+                           kRuntimeApiSleepDue) &&
+            result_matches(api_debug,
                            kernel::TrapDisposition::handled,
                            kernel::TrapError::none,
-                           kDebugValue + 1u) &&
-            result_matches(called,
+                           kRuntimeApiDebugValue + 1u) &&
+            result_matches(api_capability,
                            kernel::TrapDisposition::handled,
                            kernel::TrapError::none,
-                           kCapabilityResult) &&
-            builder_state.yield_builds == 1u &&
-            builder_state.sleep_builds == 1u &&
-            builder_state.debug_builds == 1u &&
-            builder_state.capability_builds == 1u &&
-            builder_state.ready_calls == 4u &&
-            builder_state.last_due == kSleepDue &&
-            builder_state.last_debug_value == kDebugValue &&
-            builder_state.last_id == kCapabilityId &&
-            builder_state.last_operation == kCapabilityOperation &&
-            builder_state.last_payload == kCapabilityPayload &&
-            builder_state.last_result == kCapabilityResult &&
+                           kRuntimeApiCapabilityResult) &&
+            builder_state.yield_builds == 2u &&
+            builder_state.sleep_builds == 2u &&
+            builder_state.debug_builds == 2u &&
+            builder_state.capability_builds == 2u &&
+            builder_state.ready_calls == 8u &&
+            builder_state.last_due == kRuntimeApiSleepDue &&
+            builder_state.last_debug_value == kRuntimeApiDebugValue &&
+            builder_state.last_id == kRuntimeApiCapabilityId &&
+            builder_state.last_operation == kRuntimeApiCapabilityOperation &&
+            builder_state.last_payload == kRuntimeApiCapabilityPayload &&
+            builder_state.last_result == kRuntimeApiCapabilityResult &&
             builder_state.last_error == kernel::TrapError::none &&
-            builder_state.last_writeback_seen && yield_state.calls == 1u &&
-            sleep_state.calls == 1u && sleep_state.last_due == kSleepDue &&
-            debug_state.calls == 1u && debug_state.last_value == kDebugValue &&
-            capability_state.calls == 1u &&
-            capability_state.last_id == kCapabilityId &&
-            capability_state.last_operation == kCapabilityOperation &&
-            capability_state.last_payload == kCapabilityPayload &&
-            first != nullptr && fourth != nullptr && seventh != nullptr &&
-            tenth != nullptr && table_first != nullptr &&
-            table_fourth != nullptr &&
-            first->syscall == kernel::TaskSyscallId::yield &&
-            fourth->syscall == kernel::TaskSyscallId::sleep_until &&
-            seventh->syscall == kernel::TaskSyscallId::debug_write &&
-            tenth->syscall == kernel::TaskSyscallId::capability_call &&
-            table_first->syscall == kernel::TaskSyscallId::yield &&
-            table_fourth->syscall == kernel::TaskSyscallId::capability_call,
+            builder_state.last_writeback_seen && yield_state.calls == 2u &&
+            sleep_state.calls == 2u &&
+            sleep_state.last_due == kRuntimeApiSleepDue &&
+            debug_state.calls == 2u &&
+            debug_state.last_value == kRuntimeApiDebugValue &&
+            capability_state.calls == 2u &&
+            capability_state.last_id == kRuntimeApiCapabilityId &&
+            capability_state.last_operation ==
+                kRuntimeApiCapabilityOperation &&
+            capability_state.last_payload == kRuntimeApiCapabilityPayload &&
+            thirteenth != nullptr && sixteenth != nullptr &&
+            nineteenth != nullptr && twenty_second != nullptr &&
+            table_fifth != nullptr && table_eighth != nullptr &&
+            thirteenth->syscall == kernel::TaskSyscallId::yield &&
+            sixteenth->syscall == kernel::TaskSyscallId::sleep_until &&
+            nineteenth->syscall == kernel::TaskSyscallId::debug_write &&
+            twenty_second->syscall == kernel::TaskSyscallId::capability_call &&
+            table_fifth->syscall == kernel::TaskSyscallId::yield &&
+            table_eighth->syscall ==
+                kernel::TaskSyscallId::capability_call,
     };
 }
 } // namespace
@@ -721,7 +846,8 @@ armv7a_capture_task_syscall_glue_observation() noexcept
         .generic_ready = probe_generic_capture(),
         .ingress_ready = probe_ingress_adapter(),
         .bridge_ready = probe_bridge(),
-        .caller_ready = caller.ready,
+        .caller_ready = caller.caller_ready,
+        .runtime_api_ready = caller.runtime_api_ready,
     };
 }
 
@@ -754,6 +880,9 @@ void armv7a_print_task_syscall_glue_observation()
     armv7a_platform_early_console_puts(", caller=");
     armv7a_platform_early_console_puts(
         armv7a_diag_yes_no(observation.caller_ready));
+    armv7a_platform_early_console_puts(", api=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(observation.runtime_api_ready));
     armv7a_platform_early_console_puts(", glue=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_task_syscall_glue_ready(observation)));

@@ -13,13 +13,15 @@ struct Armv7aTaskSyscallGlueObservation {
     bool ingress_ready = false;
     bool bridge_ready = false;
     bool caller_ready = false;
+    bool runtime_api_ready = false;
 };
 
 constexpr bool armv7a_task_syscall_glue_ready(
     const Armv7aTaskSyscallGlueObservation& observation) noexcept
 {
     return observation.generic_ready && observation.ingress_ready &&
-           observation.bridge_ready && observation.caller_ready;
+           observation.bridge_ready && observation.caller_ready &&
+           observation.runtime_api_ready;
 }
 
 Armv7aTaskSyscallGlueObservation

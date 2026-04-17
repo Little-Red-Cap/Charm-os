@@ -394,7 +394,7 @@ if (($log -notmatch "ARMv7-A task syscall caller, debug-path=svc-call-frame, deb
 if (($log -notmatch "ARMv7-A task syscall roundtrip, debug-path=svc-return, debug-svc=0x000045, debug-value=0x00000044, debug-ready=yes, capability-path=svc-return, capability-svc=0x000046, capability-value=0x0000002A, capability-ready=yes, roundtrip=yes")) {
     $missing += "ARMv7-A task syscall roundtrip, debug-path=svc-return..."
 }
-if (($log -notmatch "ARMv7-A task syscall glue, task=0x0000000059534001, stack=0x0000000052008000, yield=0x00000001, sleep=0x00000037, debug=0x000000CD, capability=0x0000002A, generic=yes, ingress=yes, bridge=yes, caller=yes, glue=yes")) {
+if (($log -notmatch "ARMv7-A task syscall glue, task=0x0000000059534001, stack=0x0000000052008000, yield=0x00000001, sleep=0x00000037, debug=0x000000CD, capability=0x0000002A, generic=yes, ingress=yes, bridge=yes, caller=yes, api=yes, glue=yes")) {
     $missing += "ARMv7-A task syscall glue, task=0x0000000059534001..."
 }
 if (($log -notmatch "ARMv7-A task syscall failure, decode=decode-failed, unsupported=unsupported-service, bridge=unbound-bridge, caller=unbound-adapter, writeback=writeback-failed, failure=yes")) {

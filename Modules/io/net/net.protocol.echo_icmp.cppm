@@ -747,12 +747,52 @@ export namespace net::icmp::echo {
             return state_ == ProbeState::timed_out;
         }
 
-        [[nodiscard]] bool has_result() const noexcept {
+        [[nodiscard]] bool idle() const noexcept {
+            return state_ == ProbeState::idle;
+        }
+
+        [[nodiscard]] bool pending() const noexcept {
+            return state_ == ProbeState::pending;
+        }
+
+        [[nodiscard]] bool ready() const noexcept {
             return state_ != ProbeState::idle && state_ != ProbeState::pending;
+        }
+
+        [[nodiscard]] bool ok() const noexcept {
+            return state_ == ProbeState::replied;
+        }
+
+        [[nodiscard]] bool timed_out() const noexcept {
+            return state_ == ProbeState::timed_out;
+        }
+
+        [[nodiscard]] bool cancelled() const noexcept {
+            return state_ == ProbeState::cancelled;
+        }
+
+        [[nodiscard]] bool failed() const noexcept {
+            return state_ == ProbeState::error;
+        }
+
+        [[nodiscard]] bool has_value() const noexcept {
+            return ok();
+        }
+
+        [[nodiscard]] bool has_result() const noexcept {
+            return ready();
         }
 
         [[nodiscard]] ProbeState state() const noexcept {
             return state_;
+        }
+
+        [[nodiscard]] util::u16 identifier() const noexcept {
+            return current_info_.identifier;
+        }
+
+        [[nodiscard]] util::u16 sequence() const noexcept {
+            return current_info_.sequence;
         }
 
         [[nodiscard]] const IcmpEchoInfo& last_reply_info() const noexcept {
@@ -765,6 +805,18 @@ export namespace net::icmp::echo {
 
         [[nodiscard]] ByteView last_reply_payload() const noexcept {
             return ByteView{reply_payload_.data(), reply_payload_size_};
+        }
+
+        [[nodiscard]] util::usize payload_size() const noexcept {
+            return has_value() ? reply_payload_size_ : 0u;
+        }
+
+        [[nodiscard]] bool has_payload() const noexcept {
+            return payload_size() != 0u;
+        }
+
+        [[nodiscard]] ByteView value_payload() const noexcept {
+            return has_value() ? last_reply_payload() : ByteView{};
         }
 
         [[nodiscard]] ProbeSnapshot snapshot() const noexcept {

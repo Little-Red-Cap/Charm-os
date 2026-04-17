@@ -910,6 +910,166 @@ int main() {
         return fail("icmp protocol smoke probe late reply mismatch\n", 46);
     }
 
+    auto probe_cancel = probe.ping(net::ByteView{payload, sizeof(payload)}, 60, 10);
+    if (!probe_cancel
+        || probe_cancel.value().disposition != net::IcmpSendDisposition::transmitted
+        || !probe.has_pending()
+        || !probe.pending()
+        || probe.ready()
+        || probe.ok()
+        || probe.cancelled()
+        || probe.failed()
+        || probe.has_value()
+        || probe.identifier() != probe_cancel.value().info.identifier
+        || probe.sequence() != probe_cancel.value().info.sequence
+        || probe.payload_size() != 0
+        || probe.has_payload()
+        || probe.value_payload().size() != 0
+        || probe.pending_count() != 1
+        || probe.request_count() != 3
+        || probe.transmitted_count() != 2
+        || probe.error_count() != 0
+        || !probe.cancel(probe_cancel.value())
+        || probe.has_pending()
+        || probe.pending()
+        || !probe.ready()
+        || probe.ok()
+        || probe.timed_out()
+        || !probe.cancelled()
+        || probe.failed()
+        || probe.has_value()
+        || probe.identifier() != probe_cancel.value().info.identifier
+        || probe.sequence() != probe_cancel.value().info.sequence
+        || probe.payload_size() != 0
+        || probe.has_payload()
+        || probe.value_payload().size() != 0
+        || !probe.has_result()
+        || probe.pending_count() != 0
+        || probe.error_count() != 0) {
+        return fail("icmp protocol smoke probe cancel mismatch\n", 47);
+    }
+
+    if (!drive_until_idle(probe_client_node, probe_server_node, 4)) {
+        return fail("icmp protocol smoke probe cancel late reply stalled\n", 48);
+    }
+
+    const auto probe_cancel_result = probe.result();
+    if (probe.drop_count() != 2
+        || !probe_cancel_result.ready()
+        || !probe_cancel_result.cancelled()
+        || probe_cancel_result.ok()
+        || probe_cancel_result.timed_out()
+        || probe_cancel_result.failed()
+        || probe_cancel_result.has_value()
+        || probe_cancel_result.error != net::errc::ok
+        || probe_cancel_result.identifier() != probe_cancel.value().info.identifier
+        || probe_cancel_result.sequence() != probe_cancel.value().info.sequence
+        || probe_cancel_result.payload_size() != 0
+        || probe_cancel_result.has_payload()
+        || probe_cancel_result.value_payload().size() != 0
+        || !probe.ready()
+        || !probe.cancelled()
+        || probe.failed()
+        || probe.has_value()
+        || probe.identifier() != probe_cancel.value().info.identifier
+        || probe.sequence() != probe_cancel.value().info.sequence
+        || probe.payload_size() != 0
+        || probe.has_payload()
+        || probe.value_payload().size() != 0
+        || probe_server.request_count() != 3
+        || probe_server.reply_count() != 3
+        || probe_server.transmitted_count() != 3
+        || probe.error_count() != 0) {
+        return fail("icmp protocol smoke probe cancel late reply mismatch\n", 49);
+    }
+
+    net::icmp::echo::Probe<2> overflow_probe{net::IpAddress::ipv4_any(), server_ip};
+    auto overflow_bound = overflow_probe.bind(probe_client_node.pump);
+    if (!overflow_bound || !probe_client_node.pump.has_echo_sink()) {
+        return fail("icmp protocol smoke overflow probe bind failed\n", 50);
+    }
+
+    auto overflow_ping = overflow_probe.ping(net::ByteView{payload, sizeof(payload)}, 80, 20);
+    if (!overflow_ping
+        || overflow_ping.value().disposition != net::IcmpSendDisposition::transmitted
+        || !overflow_probe.has_pending()
+        || !overflow_probe.pending()
+        || overflow_probe.ready()
+        || overflow_probe.ok()
+        || overflow_probe.timed_out()
+        || overflow_probe.cancelled()
+        || overflow_probe.failed()
+        || overflow_probe.has_value()
+        || overflow_probe.identifier() != overflow_ping.value().info.identifier
+        || overflow_probe.sequence() != overflow_ping.value().info.sequence
+        || overflow_probe.payload_size() != 0
+        || overflow_probe.has_payload()
+        || overflow_probe.value_payload().size() != 0
+        || overflow_probe.pending_count() != 1
+        || overflow_probe.request_count() != 1
+        || overflow_probe.transmitted_count() != 1
+        || overflow_probe.error_count() != 0) {
+        return fail("icmp protocol smoke overflow probe send failed\n", 51);
+    }
+
+    bool saw_overflow = false;
+    for (util::usize step = 0; step < 8; ++step) {
+        auto client_progress = probe_client_node.pump.service(1);
+        if (!client_progress) {
+            if (client_progress.error() != net::errc::buffer_overflow) {
+                return fail("icmp protocol smoke overflow probe wrong error\n", 52);
+            }
+            saw_overflow = true;
+            break;
+        }
+
+        auto server_progress = probe_server_node.pump.service(1);
+        if (!server_progress) {
+            return fail("icmp protocol smoke overflow probe server stalled\n", 53);
+        }
+    }
+
+    const auto overflow_result = overflow_probe.result();
+    if (!saw_overflow
+        || overflow_probe.has_pending()
+        || overflow_probe.pending()
+        || !overflow_probe.ready()
+        || overflow_probe.ok()
+        || overflow_probe.timed_out()
+        || overflow_probe.cancelled()
+        || !overflow_probe.failed()
+        || overflow_probe.has_value()
+        || overflow_probe.observed_error() != net::errc::buffer_overflow
+        || overflow_probe.identifier() != overflow_ping.value().info.identifier
+        || overflow_probe.sequence() != overflow_ping.value().info.sequence
+        || overflow_probe.payload_size() != 0
+        || overflow_probe.has_payload()
+        || overflow_probe.value_payload().size() != 0
+        || !overflow_probe.has_result()
+        || overflow_probe.pending_count() != 0
+        || overflow_probe.reply_count() != 1
+        || overflow_probe.timeout_count() != 0
+        || overflow_probe.drop_count() != 0
+        || overflow_probe.error_count() != 1
+        || !overflow_result.ready()
+        || !overflow_result.failed()
+        || overflow_result.ok()
+        || overflow_result.timed_out()
+        || overflow_result.cancelled()
+        || overflow_result.has_value()
+        || overflow_result.error != net::errc::buffer_overflow
+        || overflow_result.identifier() != overflow_ping.value().info.identifier
+        || overflow_result.sequence() != overflow_ping.value().info.sequence
+        || overflow_result.payload_size() != 0
+        || overflow_result.has_payload()
+        || overflow_result.value_payload().size() != 0
+        || probe_server.request_count() != 4
+        || probe_server.reply_count() != 4
+        || probe_server.transmitted_count() != 4
+        || probe_server.drop_count() != 0) {
+        return fail("icmp protocol smoke overflow probe mismatch\n", 54);
+    }
+
     std::puts("net icmp protocol smoke: ok");
     return 0;
 }

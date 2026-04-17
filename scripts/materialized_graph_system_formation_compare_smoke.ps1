@@ -260,6 +260,26 @@ $artifactReport = Get-Content -LiteralPath $artifactReportPath -Raw -Encoding ut
 Assert-Condition ([string]$artifactReport.mode -eq 'compare') 'artifact report mode must be compare'
 Assert-Condition ($null -ne $artifactReport.comparison) 'artifact report comparison is missing'
 Assert-Condition ([string]$artifactReport.comparison.status -eq 'changed') 'artifact report comparison.status must be changed for system formation drift'
+Assert-Condition ($null -ne $artifactReport.system_formation) 'artifact report system_formation is missing'
+Assert-Condition ([string]$artifactReport.system_formation.status -eq 'blocked') 'artifact report system_formation.status must become blocked after capability removal'
+Assert-Condition ((@($artifactReport.system_formation.binding_summary.unresolved_capabilities) -contains $RemovedCapability)) 'artifact report system_formation.binding_summary must expose removed capability as unresolved'
+Assert-Condition ((@($artifactReport.system_formation.bringup_summary.blocked_nodes) -contains $BlockedNode)) 'artifact report system_formation.bringup_summary must expose blocked node'
+$bindingBlocker = @(
+    @($artifactReport.system_formation.blockers) |
+        Where-Object { [string]$_.kind -eq 'binding' -and [string]$_.name -eq $RemovedCapability } |
+        Select-Object -First 1
+) | Select-Object -First 1
+$nodeBlocker = @(
+    @($artifactReport.system_formation.blockers) |
+        Where-Object { [string]$_.kind -eq 'node' -and [string]$_.name -eq $BlockedNode } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $bindingBlocker) "artifact report system_formation missing binding blocker: $RemovedCapability"
+Assert-Condition ($null -ne $nodeBlocker) "artifact report system_formation missing node blocker: $BlockedNode"
+Assert-Condition ($null -ne $artifactReport.comparison.system_formation) 'artifact report comparison.system_formation is missing'
+Assert-Condition ([bool]$artifactReport.comparison.system_formation.changed) 'artifact report comparison.system_formation must be marked changed'
+Assert-Condition ((@($artifactReport.comparison.system_formation.unresolved_capability_changes.added) -contains $RemovedCapability)) 'comparison.system_formation unresolved capability changes must include removed capability'
+Assert-Condition ((@($artifactReport.comparison.system_formation.blocked_node_changes.added) -contains $BlockedNode)) 'comparison.system_formation blocked node changes must include blocked node'
 Assert-Condition ($null -ne $artifactReport.comparison.binding_result) 'artifact report comparison.binding_result is missing'
 Assert-Condition ($null -ne $artifactReport.comparison.bringup_order) 'artifact report comparison.bringup_order is missing'
 
@@ -295,6 +315,10 @@ $reportInspectResult = Invoke-CommandJson -OutputPath $reportInspectJsonPath -Co
 }
 Assert-Condition ([string]$reportInspectResult.summary.Case -eq $ChangedCase) 'report inspect summary case mismatch'
 Assert-Condition ($null -ne $reportInspectResult.comparison) 'default report summary must expose comparison payload'
+Assert-Condition ($null -ne $reportInspectResult.system_formation) 'default report summary must expose system_formation payload'
+Assert-Condition ([string]$reportInspectResult.summary.Formation -eq 'blocked') 'default report summary Formation must become blocked'
+Assert-Condition ([bool]$reportInspectResult.comparison.system_formation.changed) 'default report summary comparison.system_formation must be changed'
+Assert-Condition ([int]$reportInspectResult.summary.FormCmp -gt 0) 'default report summary FormCmp must be nonzero for system formation drift'
 Assert-Condition ([bool]$reportInspectResult.comparison.binding_result.changed) 'default report summary comparison.binding_result must be changed'
 Assert-Condition ([bool]$reportInspectResult.comparison.bringup_order.changed) 'default report summary comparison.bringup_order must be changed'
 Assert-Condition ([int]$reportInspectResult.summary.BindCmp -gt 0) 'default report summary BindCmp must be nonzero for system formation drift'
@@ -304,10 +328,13 @@ $rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJs
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
 }
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.compared_case_count -ge 2) 'artifact_root summary compared_case_count must be at least 2'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_formation_changed_case_count -eq 1) 'artifact_root summary system_formation_changed_case_count must be 1'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.binding_result_changed_case_count -eq 1) 'artifact_root summary binding_result_changed_case_count must be 1'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.bringup_order_changed_case_count -eq 1) 'artifact_root summary bringup_order_changed_case_count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_formation_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing system_formation changed case'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.binding_result_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing binding_result changed case'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.bringup_order_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing bringup_order changed case'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_formation_changed_cases) -notcontains $ExpectedUnchangedCase)) 'artifact_root summary incorrectly marks unchanged case as system_formation changed'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.binding_result_changed_cases) -notcontains $ExpectedUnchangedCase)) 'artifact_root summary incorrectly marks unchanged case as binding_result changed'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.bringup_order_changed_cases) -notcontains $ExpectedUnchangedCase)) 'artifact_root summary incorrectly marks unchanged case as bringup_order changed'
 
@@ -315,8 +342,12 @@ $changedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases
 $unchangedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ExpectedUnchangedCase
 Assert-Condition ($null -ne $changedCaseSummary) "artifact_root summary missing case row: $ChangedCase"
 Assert-Condition ($null -ne $unchangedCaseSummary) "artifact_root summary missing case row: $ExpectedUnchangedCase"
+Assert-Condition ([string]$changedCaseSummary.Formation -eq 'blocked') 'artifact_root summary changed case Formation must become blocked'
+Assert-Condition ([int]$changedCaseSummary.FormCmp -gt 0) 'artifact_root summary changed case FormCmp must be nonzero'
 Assert-Condition ([int]$changedCaseSummary.BindCmp -gt 0) 'artifact_root summary changed case BindCmp must be nonzero'
 Assert-Condition ([int]$changedCaseSummary.OrdCmp -gt 0) 'artifact_root summary changed case OrdCmp must be nonzero'
+Assert-Condition ([string]$unchangedCaseSummary.Formation -eq 'formed') 'artifact_root summary unchanged case Formation must stay formed'
+Assert-Condition ([int]$unchangedCaseSummary.FormCmp -eq 0) 'artifact_root summary unchanged case FormCmp must stay zero'
 Assert-Condition ([int]$unchangedCaseSummary.BindCmp -eq 0) 'artifact_root summary unchanged case BindCmp must stay zero'
 Assert-Condition ([int]$unchangedCaseSummary.OrdCmp -eq 0) 'artifact_root summary unchanged case OrdCmp must stay zero'
 
@@ -335,6 +366,7 @@ $summary = [ordered]@{
     }
     assertions = [ordered]@{
         diff_marks_system_formation_as_changed = $true
+        artifact_report_exposes_system_formation = $true
         binding_result_compare_supported = $true
         bringup_order_compare_supported = $true
         default_report_summary_exposes_system_formation_counts = $true

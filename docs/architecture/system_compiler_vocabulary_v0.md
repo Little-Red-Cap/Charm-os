@@ -378,7 +378,25 @@ report / system 侧的现实载体包括：
 - 哪些 require 已满足
 - 哪些 require 仍缺失，因此当前只能标成 blocked
 
-### 4.5 `Materialized Graph`
+### 4.5 `SystemFormation`
+
+它回答的是：
+
+> **当前这组 binding 与 bringup 结果最终是否已经形成一个可成立的系统，以及阻塞点是什么。**
+
+当前对应载体包括：
+
+- `artifact report` 中的 `system_formation`
+- `artifact report.comparison.system_formation`
+- 默认总览里的 `Formation / FormCmp`
+
+它最适合回答这类问题：
+
+- 当前系统整体是 `formed` 还是 `blocked`
+- unresolved capability 与 blocked node 是否已经收敛成正式 blocker 列表
+- compare 漂移有没有已经进入成立性结果面
+
+### 4.6 `Materialized Graph`
 
 它回答的是：
 
@@ -393,7 +411,7 @@ report / system 侧的现实载体包括：
 
 它是当前 system compiler 最成熟的结果物之一。
 
-### 4.6 `Bringup Evidence`
+### 4.7 `Bringup Evidence`
 
 它回答的是：
 
@@ -404,7 +422,7 @@ report / system 侧的现实载体包括：
 - `docs/system/bringup_evidence_pipeline_v0.md`
 - `artifact report` 中的 `bringup_evidence` 摘要
 
-### 4.7 `Resource Contract`
+### 4.8 `Resource Contract`
 
 它回答的是：
 
@@ -415,7 +433,7 @@ report / system 侧的现实载体包括：
 - `docs/system/resource_contract_v0.md`
 - `artifact report` 中的 `resource_contract` 摘要
 
-### 4.8 `Artifact Report`
+### 4.9 `Artifact Report`
 
 它回答的是：
 
@@ -427,7 +445,7 @@ report / system 侧的现实载体包括：
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `scripts/export_system_compiler_artifact_report.ps1`
 
-### 4.9 `Explain Surface`
+### 4.10 `Explain Surface`
 
 它回答的是：
 
@@ -453,6 +471,7 @@ report / system 侧的现实载体包括：
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
 | `BindingResult` | `artifact report.binding_result`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
 | `BringupOrder` | `artifact report.bringup_order`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |
+| `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、默认总览 `Formation / FormCmp` | 已有正式结果物载体 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
 
 ## 6. 一个最小 worked example

@@ -274,10 +274,15 @@ Assert-Condition ([string]$reportSummary.system_input.system_spec.case_kind -eq 
 Assert-Condition ([string]$reportSummary.system_input.resolved_input.board.source -eq 'case_subject') 'default report summary resolved board source must stay case_subject'
 Assert-Condition ($null -ne $reportSummary.binding_result) 'default report summary must expose binding_result'
 Assert-Condition ($null -ne $reportSummary.bringup_order) 'default report summary must expose bringup_order'
+Assert-Condition ($null -ne $reportSummary.system_formation) 'default report summary must expose system_formation'
 Assert-Condition ([int]$reportSummary.binding_result.required_binding_count -gt 0) 'materialized report binding_result must expose required bindings'
 Assert-Condition ([int]$reportSummary.binding_result.unresolved_binding_count -eq @($reportSummary.structure.unresolved_bindings).Count) 'binding_result unresolved count must match structure.unresolved_bindings'
 Assert-Condition ([int]$reportSummary.bringup_order.ordered_node_count -eq [int]$reportSummary.structure.node_count) 'bringup_order ordered_node_count must match structure.node_count'
 Assert-Condition (@($reportSummary.bringup_order.entries).Count -eq [int]$reportSummary.bringup_order.ordered_node_count) 'bringup_order entries length mismatch'
+Assert-Condition ([string]$reportSummary.system_formation.status -eq 'formed') 'materialized report system_formation must stay formed'
+Assert-Condition ([int]$reportSummary.system_formation.blocker_count -eq 0) 'materialized report system_formation must not expose blockers'
+Assert-Condition ([string]$reportSummary.summary.Formation -eq 'formed') 'default report summary Formation must stay formed'
+Assert-Condition ([int]$reportSummary.summary.FormCmp -eq 0) 'default report summary FormCmp must stay zero in export_only mode'
 
 $runtimeSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.runtime_report.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $RuntimeCase -AsJson
@@ -286,15 +291,38 @@ Assert-Condition ([string]$runtimeSummary.summary.Case -eq $RuntimeCase) 'runtim
 Assert-Condition ($null -ne $runtimeSummary.system_input) 'runtime report summary must expose system_input'
 Assert-Condition ($null -ne $runtimeSummary.binding_result) 'runtime report summary must expose binding_result'
 Assert-Condition ($null -ne $runtimeSummary.bringup_order) 'runtime report summary must expose bringup_order'
+Assert-Condition ($null -ne $runtimeSummary.system_formation) 'runtime report summary must expose system_formation'
 Assert-Condition ([string]$runtimeSummary.system_input.system_spec.case_kind -eq 'runtime_only') 'runtime report summary case_kind must stay runtime_only'
 Assert-Condition ([int]$runtimeSummary.binding_result.required_binding_count -eq 0) 'runtime_only report binding_result must stay empty'
 Assert-Condition ([int]$runtimeSummary.bringup_order.ordered_node_count -eq 0) 'runtime_only report bringup_order must stay empty'
+Assert-Condition ([string]$runtimeSummary.system_formation.status -eq 'formed') 'runtime_only report system_formation must stay formed'
+Assert-Condition ([int]$runtimeSummary.system_formation.binding_summary.required_binding_count -eq 0) 'runtime_only report system_formation must expose empty binding summary'
+Assert-Condition ([int]$runtimeSummary.system_formation.bringup_summary.ordered_node_count -eq 0) 'runtime_only report system_formation must expose empty bringup summary'
+Assert-Condition ([int]$runtimeSummary.system_formation.blocker_count -eq 0) 'runtime_only report system_formation must stay blocker-free'
+Assert-Condition ([string]$runtimeSummary.summary.Formation -eq 'formed') 'runtime report summary Formation must stay formed'
+Assert-Condition ([int]$runtimeSummary.summary.FormCmp -eq 0) 'runtime report summary FormCmp must stay zero in export_only mode'
 
 $rootSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.root.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -AsJson
 }
 Assert-Condition ([int]$rootSummary.case_count -eq @($ExportCases).Count) 'default artifact_root summary case_count mismatch'
 Assert-Condition (@($rootSummary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary cases length mismatch'
+$rootReportSummary = @(
+    @($rootSummary.cases) |
+        Where-Object { [string]$_.Case -eq $ReportCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
+$rootRuntimeSummary = @(
+    @($rootSummary.cases) |
+        Where-Object { [string]$_.Case -eq $RuntimeCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $rootReportSummary) "default artifact_root summary missing case row: $ReportCase"
+Assert-Condition ($null -ne $rootRuntimeSummary) "default artifact_root summary missing case row: $RuntimeCase"
+Assert-Condition ([string]$rootReportSummary.Formation -eq 'formed') 'default artifact_root summary report case Formation must stay formed'
+Assert-Condition ([int]$rootReportSummary.FormCmp -eq 0) 'default artifact_root summary report case FormCmp must stay zero'
+Assert-Condition ([string]$rootRuntimeSummary.Formation -eq 'formed') 'default artifact_root summary runtime case Formation must stay formed'
+Assert-Condition ([int]$rootRuntimeSummary.FormCmp -eq 0) 'default artifact_root summary runtime case FormCmp must stay zero'
 
 $subsetSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.root_subset.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $SubsetCases -AsJson
@@ -474,8 +502,10 @@ $summary = [ordered]@{
         default_summary_report_exposes_system_input = $true
         default_summary_report_exposes_binding_result = $true
         default_summary_report_exposes_bringup_order = $true
+        default_summary_report_exposes_system_formation = $true
         runtime_only_summary_exposes_empty_binding_result = $true
         runtime_only_summary_exposes_empty_bringup_order = $true
+        runtime_only_summary_exposes_formed_system_formation = $true
         default_summary_artifact_root_supported = $true
         default_summary_subset_supported = $true
         cap_list_report_supported = $true

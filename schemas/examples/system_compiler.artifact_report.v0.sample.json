@@ -219,6 +219,28 @@
       }
     ]
   },
+  "system_formation": {
+    "status": "formed",
+    "formation_basis": {
+      "case_kind": "materialized_graph",
+      "declared_fact_count": 1,
+      "declared_contract_count": 1,
+      "subject_fact_count": 4
+    },
+    "binding_summary": {
+      "required_binding_count": 2,
+      "resolved_binding_count": 2,
+      "unresolved_binding_count": 0,
+      "unresolved_capabilities": []
+    },
+    "bringup_summary": {
+      "ordered_node_count": 5,
+      "blocked_node_count": 0,
+      "blocked_nodes": []
+    },
+    "blocker_count": 0,
+    "blockers": []
+  },
   "bringup_evidence": {
     "declared_count": 12,
     "materialized_count": 12,

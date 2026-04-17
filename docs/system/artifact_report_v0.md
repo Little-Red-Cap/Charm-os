@@ -103,6 +103,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 
 - case / mode / profile / board / facets
 - `system_input`
+- `system_formation`
 - `node_count / edge_count / unresolved_bindings`
 - `binding_result / bringup_order`
 - `declared_contract_entries / provided_facts / satisfied / violated / unknown`
@@ -111,7 +112,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `recent transitions` 查询结果
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
-- compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract`
+- compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.system_formation / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
@@ -200,6 +201,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 - `compared_case_count`
 - `metadata_changed_case_count`
+- `system_formation_changed_case_count`
 - `binding_result_changed_case_count`
 - `bringup_order_changed_case_count`
 - `bringup_changed_case_count`
@@ -501,7 +503,7 @@ artifact_root 级该查询现在也会继续带出：
 
 ## 5. v0 建议字段分组
 
-当前建议把 `artifact report` 分成八组字段。
+当前建议把 `artifact report` 分成十一组字段。
 
 ### 5.1 报告身份
 
@@ -688,6 +690,24 @@ artifact_root 级该查询现在也会继续带出：
 - 哪些 require 已满足
 - 哪些 require 仍缺失，因此当前只能标成 `blocked`
 
+与此同时，v0 当前还把 `binding_result + bringup_order` 的合成成立性结论压成一组顶层 `system_formation` 摘要，
+用来正式回答：
+
+- 当前系统整体是 `formed` 还是 `blocked`
+- 这份成立性判断基于哪类 case、多少 declared fact / declared contract / subject fact
+- unresolved capability 与 blocked node 最终如何收敛成 blocker 列表
+
+`system_formation` 当前建议至少包含：
+
+- `status`
+- `formation_basis`
+- `binding_summary`
+- `bringup_summary`
+- `blocker_count / blockers`
+
+它不取代 `binding_result` 或 `bringup_order`，
+而是把“系统是否成立、为什么没成立”正式压成一个顶层结果物。
+
 ### 5.7 bringup 证据摘要
 
 这一组回答：
@@ -830,6 +850,24 @@ artifact_root 级该查询现在也会继续带出：
 - 当前输入侧到底有没有漂移
 - 漂移发生在 `SystemSpec`、声明输入还是解析后的输入
 - 哪个 declared fact / declared contract / subject fact 让“系统如何成立”出现了变化
+
+而 `comparison.system_formation` 则用于承载“系统整体是否成立、阻塞点为何物”相对 baseline 发生了什么变化，
+把 formation status、summary drift 与 blocker drift 正式收进 compare 结果物。
+
+`comparison.system_formation` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `blocker_changes`
+- `unresolved_capability_changes`
+- `blocked_node_changes`
+
+这意味着 compare 模式下报告已经能继续回答：
+
+- 当前 candidate 是否已经从 `formed` 退化为 `blocked`
+- 哪些 blocker 是新增、删除或发生了状态变化
+- 哪些 unresolved capability / blocked node 已经进入正式 formation 结果面
 
 而 `comparison.binding_result` 则用于承载“同一份结构相对 baseline 的 binding 成立情况发生了什么变化”，
 把 `resolved / unresolved` 与 capability 级 binding 切换正式拉进结果物。

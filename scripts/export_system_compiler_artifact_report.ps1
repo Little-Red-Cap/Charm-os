@@ -1636,6 +1636,348 @@ function New-SystemInputComparison {
     }
 }
 
+function Get-SystemFormationBlockers {
+    param(
+        $BindingResultSummary,
+        $BringupOrderSummary
+    )
+
+    $bindingResultValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
+    $bringupOrderValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
+
+    $blockers = @()
+    foreach ($bindingEntry in @($bindingResultValue.binding_entries)) {
+        if ($null -eq $bindingEntry -or [string]$bindingEntry.state -ne 'unresolved') {
+            continue
+        }
+
+        $capabilityName = [string]$bindingEntry.capability
+        if ([string]::IsNullOrWhiteSpace($capabilityName)) {
+            continue
+        }
+
+        $reasonText = if ([string]::IsNullOrWhiteSpace([string]$bindingEntry.reason)) {
+            "unresolved binding: $capabilityName"
+        } else {
+            [string]$bindingEntry.reason
+        }
+
+        $blockers += [ordered]@{
+            kind = 'binding'
+            name = $capabilityName
+            state = 'unresolved'
+            reason = $reasonText
+            missing_requires = @()
+            dependency_nodes = @($bindingEntry.consumer_nodes)
+        }
+    }
+
+    foreach ($bringupEntry in @($bringupOrderValue.entries)) {
+        if ($null -eq $bringupEntry -or [string]$bringupEntry.state -ne 'blocked') {
+            continue
+        }
+
+        $nodeName = [string]$bringupEntry.node
+        if ([string]::IsNullOrWhiteSpace($nodeName)) {
+            continue
+        }
+
+        $missingRequires = @($bringupEntry.missing_requires)
+        $reasonText = if (@($missingRequires).Count -gt 0) {
+            "missing requires [$((@($missingRequires) -join ', '))]"
+        } else {
+            "blocked node: $nodeName"
+        }
+
+        $blockers += [ordered]@{
+            kind = 'node'
+            name = $nodeName
+            state = 'blocked'
+            reason = $reasonText
+            missing_requires = @($missingRequires)
+            dependency_nodes = @($bringupEntry.dependency_nodes)
+        }
+    }
+
+    return @(
+        @($blockers) |
+            Sort-Object kind, name
+    )
+}
+
+function New-SystemFormationSummary {
+    param(
+        $SystemInputSummary,
+        $BindingResultSummary,
+        $BringupOrderSummary
+    )
+
+    $bindingResultValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
+    $bringupOrderValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
+    $systemInputValue = if ($null -eq $SystemInputSummary) { New-EmptySystemInputComparisonSide } else { $SystemInputSummary }
+
+    $blockers = @(Get-SystemFormationBlockers -BindingResultSummary $bindingResultValue -BringupOrderSummary $bringupOrderValue)
+    $status = if (@($blockers).Count -gt 0) { 'blocked' } else { 'formed' }
+
+    return [ordered]@{
+        status = $status
+        formation_basis = [ordered]@{
+            case_kind = [string]$systemInputValue.system_spec.case_kind
+            declared_fact_count = [int]@($systemInputValue.declared_input.declared_facts).Count
+            declared_contract_count = [int]@($systemInputValue.declared_input.declared_contract_entries).Count
+            subject_fact_count = [int]@($systemInputValue.resolved_input.subject_facts).Count
+        }
+        binding_summary = [ordered]@{
+            required_binding_count = [int]$bindingResultValue.required_binding_count
+            resolved_binding_count = [int]$bindingResultValue.resolved_binding_count
+            unresolved_binding_count = [int]$bindingResultValue.unresolved_binding_count
+            unresolved_capabilities = @($bindingResultValue.unresolved_capabilities)
+        }
+        bringup_summary = [ordered]@{
+            ordered_node_count = [int]$bringupOrderValue.ordered_node_count
+            blocked_node_count = [int]$bringupOrderValue.blocked_node_count
+            blocked_nodes = @(Get-BlockedBringupNodes -BringupOrderSummary $bringupOrderValue)
+        }
+        blocker_count = [int]@($blockers).Count
+        blockers = @($blockers)
+    }
+}
+
+function New-EmptySystemFormationComparisonSide {
+    return [ordered]@{
+        status = 'missing'
+        formation_basis = [ordered]@{
+            case_kind = $null
+            declared_fact_count = 0
+            declared_contract_count = 0
+            subject_fact_count = 0
+        }
+        binding_summary = [ordered]@{
+            required_binding_count = 0
+            resolved_binding_count = 0
+            unresolved_binding_count = 0
+            unresolved_capabilities = @()
+        }
+        bringup_summary = [ordered]@{
+            ordered_node_count = 0
+            blocked_node_count = 0
+            blocked_nodes = @()
+        }
+        blocker_count = 0
+        blockers = @()
+    }
+}
+
+function New-SystemFormationComparisonSide {
+    param(
+        $SystemFormationSummary
+    )
+
+    if ($null -eq $SystemFormationSummary) {
+        return New-EmptySystemFormationComparisonSide
+    }
+
+    return [ordered]@{
+        status = [string]$SystemFormationSummary.status
+        formation_basis = [ordered]@{
+            case_kind = $SystemFormationSummary.formation_basis.case_kind
+            declared_fact_count = [int]$SystemFormationSummary.formation_basis.declared_fact_count
+            declared_contract_count = [int]$SystemFormationSummary.formation_basis.declared_contract_count
+            subject_fact_count = [int]$SystemFormationSummary.formation_basis.subject_fact_count
+        }
+        binding_summary = [ordered]@{
+            required_binding_count = [int]$SystemFormationSummary.binding_summary.required_binding_count
+            resolved_binding_count = [int]$SystemFormationSummary.binding_summary.resolved_binding_count
+            unresolved_binding_count = [int]$SystemFormationSummary.binding_summary.unresolved_binding_count
+            unresolved_capabilities = @($SystemFormationSummary.binding_summary.unresolved_capabilities)
+        }
+        bringup_summary = [ordered]@{
+            ordered_node_count = [int]$SystemFormationSummary.bringup_summary.ordered_node_count
+            blocked_node_count = [int]$SystemFormationSummary.bringup_summary.blocked_node_count
+            blocked_nodes = @($SystemFormationSummary.bringup_summary.blocked_nodes)
+        }
+        blocker_count = [int]$SystemFormationSummary.blocker_count
+        blockers = @($SystemFormationSummary.blockers)
+    }
+}
+
+function New-SystemFormationBlockerStateMap {
+    param(
+        [object[]]$Blockers
+    )
+
+    $stateMap = @{}
+    foreach ($blocker in @($Blockers)) {
+        if ($null -eq $blocker) {
+            continue
+        }
+
+        $kind = [string]$blocker.kind
+        $name = [string]$blocker.name
+        if ([string]::IsNullOrWhiteSpace($kind) -or [string]::IsNullOrWhiteSpace($name)) {
+            continue
+        }
+
+        $stateMap["${kind}:$name"] = [ordered]@{
+            kind = $kind
+            name = $name
+            state = [string]$blocker.state
+            reason = if ([string]::IsNullOrWhiteSpace([string]$blocker.reason)) { $null } else { [string]$blocker.reason }
+            missing_requires = @($blocker.missing_requires)
+            dependency_nodes = @($blocker.dependency_nodes)
+        }
+    }
+
+    return $stateMap
+}
+
+function New-SystemFormationComparison {
+    param(
+        $LeftSummary,
+        $RightSummary
+    )
+
+    $leftSide = New-SystemFormationComparisonSide -SystemFormationSummary $LeftSummary
+    $rightSide = New-SystemFormationComparisonSide -SystemFormationSummary $RightSummary
+    $leftBlockerStateMap = New-SystemFormationBlockerStateMap -Blockers @($leftSide.blockers)
+    $rightBlockerStateMap = New-SystemFormationBlockerStateMap -Blockers @($rightSide.blockers)
+
+    $blockerKeys = @(
+        @($leftBlockerStateMap.Keys) +
+        @($rightBlockerStateMap.Keys) |
+            Sort-Object -Unique
+    )
+    $blockerChanges = @()
+    foreach ($blockerKey in @($blockerKeys)) {
+        $leftEntry = if ($leftBlockerStateMap.ContainsKey($blockerKey)) { $leftBlockerStateMap[$blockerKey] } else { $null }
+        $rightEntry = if ($rightBlockerStateMap.ContainsKey($blockerKey)) { $rightBlockerStateMap[$blockerKey] } else { $null }
+
+        $kind = if ($null -ne $rightEntry) { [string]$rightEntry.kind } elseif ($null -ne $leftEntry) { [string]$leftEntry.kind } else { 'binding' }
+        $name = if ($null -ne $rightEntry) { [string]$rightEntry.name } elseif ($null -ne $leftEntry) { [string]$leftEntry.name } else { '' }
+        $leftState = if ($null -eq $leftEntry) { 'absent' } else { [string]$leftEntry.state }
+        $rightState = if ($null -eq $rightEntry) { 'absent' } else { [string]$rightEntry.state }
+        $leftReason = if ($null -eq $leftEntry) { $null } else { $leftEntry.reason }
+        $rightReason = if ($null -eq $rightEntry) { $null } else { $rightEntry.reason }
+        $leftMissingRequires = if ($null -eq $leftEntry) { @() } else { @($leftEntry.missing_requires) }
+        $rightMissingRequires = if ($null -eq $rightEntry) { @() } else { @($rightEntry.missing_requires) }
+        $leftDependencyNodes = if ($null -eq $leftEntry) { @() } else { @($leftEntry.dependency_nodes) }
+        $rightDependencyNodes = if ($null -eq $rightEntry) { @() } else { @($rightEntry.dependency_nodes) }
+
+        $changeKind = 'unchanged'
+        if ($leftState -eq 'absent' -and $rightState -ne 'absent') {
+            $changeKind = 'added'
+        } elseif ($leftState -ne 'absent' -and $rightState -eq 'absent') {
+            $changeKind = 'removed'
+        } elseif ($leftState -ne $rightState -or
+            [string]$leftReason -ne [string]$rightReason -or
+            -not (Compare-StringArrays -Left $leftMissingRequires -Right $rightMissingRequires) -or
+            -not (Compare-StringArrays -Left $leftDependencyNodes -Right $rightDependencyNodes)) {
+            $changeKind = 'changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $blockerChanges += [ordered]@{
+            kind = $kind
+            name = $name
+            change_kind = $changeKind
+            left_state = $leftState
+            right_state = $rightState
+            left_reason = $leftReason
+            right_reason = $rightReason
+            left_missing_requires = @($leftMissingRequires)
+            right_missing_requires = @($rightMissingRequires)
+            left_dependency_nodes = @($leftDependencyNodes)
+            right_dependency_nodes = @($rightDependencyNodes)
+        }
+    }
+
+    $unresolvedCapabilitiesAdded = @(
+        @($rightSide.binding_summary.unresolved_capabilities) |
+            Where-Object { @($leftSide.binding_summary.unresolved_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $unresolvedCapabilitiesRemoved = @(
+        @($leftSide.binding_summary.unresolved_capabilities) |
+            Where-Object { @($rightSide.binding_summary.unresolved_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $blockedNodesAdded = @(
+        @($rightSide.bringup_summary.blocked_nodes) |
+            Where-Object { @($leftSide.bringup_summary.blocked_nodes) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $blockedNodesRemoved = @(
+        @($leftSide.bringup_summary.blocked_nodes) |
+            Where-Object { @($rightSide.bringup_summary.blocked_nodes) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $summaryChanges = @()
+    if ([string]$leftSide.status -ne [string]$rightSide.status) {
+        $summaryChanges += "status:$([string]$leftSide.status)->$([string]$rightSide.status)"
+    }
+
+    foreach ($fieldName in @('case_kind', 'declared_fact_count', 'declared_contract_count', 'subject_fact_count')) {
+        $leftValue = $leftSide.formation_basis.$fieldName
+        $rightValue = $rightSide.formation_basis.$fieldName
+        if ([string]$leftValue -ne [string]$rightValue) {
+            $summaryChanges += "formation_basis.${fieldName}:$(Format-ComparisonScalarText $leftValue)->$(Format-ComparisonScalarText $rightValue)"
+        }
+    }
+
+    foreach ($fieldName in @('required_binding_count', 'resolved_binding_count', 'unresolved_binding_count')) {
+        $leftValue = [int]$leftSide.binding_summary.$fieldName
+        $rightValue = [int]$rightSide.binding_summary.$fieldName
+        if ($leftValue -ne $rightValue) {
+            $summaryChanges += "binding_summary.${fieldName}:$leftValue->$rightValue"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.binding_summary.unresolved_capabilities) -Right @($rightSide.binding_summary.unresolved_capabilities))) {
+        $summaryChanges += "binding_summary.unresolved_capabilities:[$(Join-Names @($leftSide.binding_summary.unresolved_capabilities))]->[$(Join-Names @($rightSide.binding_summary.unresolved_capabilities))]"
+    }
+
+    foreach ($fieldName in @('ordered_node_count', 'blocked_node_count')) {
+        $leftValue = [int]$leftSide.bringup_summary.$fieldName
+        $rightValue = [int]$rightSide.bringup_summary.$fieldName
+        if ($leftValue -ne $rightValue) {
+            $summaryChanges += "bringup_summary.${fieldName}:$leftValue->$rightValue"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.bringup_summary.blocked_nodes) -Right @($rightSide.bringup_summary.blocked_nodes))) {
+        $summaryChanges += "bringup_summary.blocked_nodes:[$(Join-Names @($leftSide.bringup_summary.blocked_nodes))]->[$(Join-Names @($rightSide.bringup_summary.blocked_nodes))]"
+    }
+
+    if ([int]$leftSide.blocker_count -ne [int]$rightSide.blocker_count) {
+        $summaryChanges += "blocker_count:$([int]$leftSide.blocker_count)->$([int]$rightSide.blocker_count)"
+    }
+
+    return [ordered]@{
+        changed = (
+            @($summaryChanges).Count -gt 0 -or
+            @($blockerChanges).Count -gt 0 -or
+            @($unresolvedCapabilitiesAdded).Count -gt 0 -or
+            @($unresolvedCapabilitiesRemoved).Count -gt 0 -or
+            @($blockedNodesAdded).Count -gt 0 -or
+            @($blockedNodesRemoved).Count -gt 0
+        )
+        left = $leftSide
+        right = $rightSide
+        summary_changes = @($summaryChanges)
+        blocker_changes = @($blockerChanges | Sort-Object kind, name)
+        unresolved_capability_changes = [ordered]@{
+            added = @($unresolvedCapabilitiesAdded)
+            removed = @($unresolvedCapabilitiesRemoved)
+        }
+        blocked_node_changes = [ordered]@{
+            added = @($blockedNodesAdded)
+            removed = @($blockedNodesRemoved)
+        }
+    }
+}
+
 function Get-BringupEvidenceSummary {
     param(
         $Graph,
@@ -2896,6 +3238,7 @@ function New-ArtifactReport {
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
     $bindingResultSummary = Get-BindingResultSummary -Graph $graph
     $bringupOrderSummary = Get-BringupOrderSummary -Graph $graph
+    $systemFormationSummary = New-SystemFormationSummary -SystemInputSummary $systemInputSummary -BindingResultSummary $bindingResultSummary -BringupOrderSummary $bringupOrderSummary
     $connectionSummary = Get-GraphConnectionSummary -Graph $graph
     if ($null -ne $comparison) {
         $baselineCaseEntry = Get-CaseEntryByName -Bundle $ArtifactContext.LeftBundle -CaseName ([string]$CaseEntry.name)
@@ -2905,7 +3248,9 @@ function New-ArtifactReport {
         $baselineBringupOrderSummary = New-CaseBringupOrderSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupEvidenceSummary = New-CaseBringupEvidenceSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineResourceContractSummary = New-CaseResourceContractSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
+        $baselineSystemFormationSummary = New-SystemFormationSummary -SystemInputSummary $baselineSystemInputSummary -BindingResultSummary $baselineBindingResultSummary -BringupOrderSummary $baselineBringupOrderSummary
         $comparison.system_input = New-SystemInputComparison -LeftSummary $baselineSystemInputSummary -RightSummary $systemInputSummary
+        $comparison.system_formation = New-SystemFormationComparison -LeftSummary $baselineSystemFormationSummary -RightSummary $systemFormationSummary
         $comparison.binding_result = New-BindingResultComparison -LeftSummary $baselineBindingResultSummary -RightSummary $bindingResultSummary
         $comparison.bringup_order = New-BringupOrderComparison -LeftSummary $baselineBringupOrderSummary -RightSummary $bringupOrderSummary
         $comparison.bringup_evidence = New-BringupEvidenceComparison -LeftSummary $baselineBringupEvidenceSummary -RightSummary $bringupEvidenceSummary
@@ -2943,6 +3288,7 @@ function New-ArtifactReport {
         }
         binding_result = $bindingResultSummary
         bringup_order = $bringupOrderSummary
+        system_formation = $systemFormationSummary
         connection_summary = $connectionSummary
         bringup_evidence = [ordered]@{
             declared_count = [int]$bringupEvidenceSummary.declared_count

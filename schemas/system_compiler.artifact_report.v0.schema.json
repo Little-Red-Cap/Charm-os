@@ -15,6 +15,7 @@
     "structure",
     "binding_result",
     "bringup_order",
+    "system_formation",
     "bringup_evidence",
     "resource_contract",
     "runtime_observe",
@@ -54,6 +55,9 @@
     },
     "bringup_order": {
       "$ref": "#/$defs/bringupOrder"
+    },
+    "system_formation": {
+      "$ref": "#/$defs/systemFormation"
     },
     "connection_summary": {
       "$ref": "#/$defs/connectionSummary"
@@ -612,6 +616,173 @@
         }
       }
     },
+    "systemFormationStatus": {
+      "type": "string",
+      "enum": [
+        "formed",
+        "blocked"
+      ]
+    },
+    "systemFormationComparisonStatus": {
+      "type": "string",
+      "enum": [
+        "missing",
+        "formed",
+        "blocked"
+      ]
+    },
+    "systemFormationBasis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_kind",
+        "declared_fact_count",
+        "declared_contract_count",
+        "subject_fact_count"
+      ],
+      "properties": {
+        "case_kind": {
+          "$ref": "#/$defs/nullableCaseKind"
+        },
+        "declared_fact_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declared_contract_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "subject_fact_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "systemFormationBindingSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_binding_count",
+        "resolved_binding_count",
+        "unresolved_binding_count",
+        "unresolved_capabilities"
+      ],
+      "properties": {
+        "required_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemFormationBringupSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordered_node_count",
+        "blocked_node_count",
+        "blocked_nodes"
+      ],
+      "properties": {
+        "ordered_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemFormationBlocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "state",
+        "reason",
+        "missing_requires",
+        "dependency_nodes"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "binding",
+            "node"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "unresolved",
+            "blocked"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemFormation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "formation_basis",
+        "binding_summary",
+        "bringup_summary",
+        "blocker_count",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/systemFormationStatus"
+        },
+        "formation_basis": {
+          "$ref": "#/$defs/systemFormationBasis"
+        },
+        "binding_summary": {
+          "$ref": "#/$defs/systemFormationBindingSummary"
+        },
+        "bringup_summary": {
+          "$ref": "#/$defs/systemFormationBringupSummary"
+        },
+        "blocker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/systemFormationBlocker"
+          }
+        }
+      }
+    },
     "connectionSummaryEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -1010,6 +1181,152 @@
           "$ref": "#/$defs/stringArray"
         },
         "subject_fact_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "systemFormationComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "formation_basis",
+        "binding_summary",
+        "bringup_summary",
+        "blocker_count",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/systemFormationComparisonStatus"
+        },
+        "formation_basis": {
+          "$ref": "#/$defs/systemFormationBasis"
+        },
+        "binding_summary": {
+          "$ref": "#/$defs/systemFormationBindingSummary"
+        },
+        "bringup_summary": {
+          "$ref": "#/$defs/systemFormationBringupSummary"
+        },
+        "blocker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/systemFormationBlocker"
+          }
+        }
+      }
+    },
+    "systemFormationComparisonBlockerChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_reason",
+        "right_reason",
+        "left_missing_requires",
+        "right_missing_requires",
+        "left_dependency_nodes",
+        "right_dependency_nodes"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "binding",
+            "node"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "unresolved",
+            "blocked"
+          ]
+        },
+        "right_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "unresolved",
+            "blocked"
+          ]
+        },
+        "left_reason": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_reason": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemFormationComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "blocker_changes",
+        "unresolved_capability_changes",
+        "blocked_node_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/systemFormationComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/systemFormationComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocker_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/systemFormationComparisonBlockerChange"
+          }
+        },
+        "unresolved_capability_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "blocked_node_changes": {
           "$ref": "#/$defs/stringArrayChanges"
         }
       }
@@ -1701,6 +2018,9 @@
         },
         "system_input": {
           "$ref": "#/$defs/systemInputComparison"
+        },
+        "system_formation": {
+          "$ref": "#/$defs/systemFormationComparison"
         },
         "binding_result": {
           "$ref": "#/$defs/bindingResultComparison"

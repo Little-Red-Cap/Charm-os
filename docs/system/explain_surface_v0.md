@@ -195,6 +195,7 @@ v0 阶段建议至少覆盖：
 - required facts
 - unresolved bindings
 - active facets
+- system formation summary
 - bringup evidence summary
 - resource contract summary
 - supporting artifacts 引用
@@ -374,9 +375,12 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 默认总览本身现在还会继续直接给出：
 
 - `comparison.input_changed_case_count`
+- `comparison.system_formation_changed_case_count`
 - `comparison.binding_result_changed_case_count`
 - `comparison.bringup_order_changed_case_count`
+- `cases[*].Formation`
 - `cases[*].InpCmp`
+- `cases[*].FormCmp`
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
 

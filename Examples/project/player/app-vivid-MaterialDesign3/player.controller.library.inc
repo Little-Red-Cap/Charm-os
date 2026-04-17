@@ -1624,10 +1624,18 @@
                 ? library_context_key.view()
                 : std::string_view{};
             const char* base = library_tab_title(library_tab);
-            char buf[64]{};
+            char buf[96]{};
             if (!context.empty()) {
-                if (last_list_title_text.view() == context) return;
-                last_list_title_text.assign(context);
+                if (count > 0) {
+                    std::snprintf(buf, sizeof(buf), "%.*s (%d)",
+                                  static_cast<int>(context.size()), context.data(),
+                                  count);
+                    if (last_list_title_text.view() == buf) return;
+                    last_list_title_text.assign(buf);
+                } else {
+                    if (last_list_title_text.view() == context) return;
+                    last_list_title_text.assign(context);
+                }
                 set_label_slot(handles.list_title, text_slots.list_title, last_list_title_text.c_str());
             } else if (count > 0) {
                 std::snprintf(buf, sizeof(buf), "%s (%d)", base, count);

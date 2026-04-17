@@ -645,6 +645,28 @@
             }
         }
 
+        void show_library_context_status() {
+            if (!library_has_context()) return;
+            char summary[160]{};
+            format_library_group_summary(library_context_key.view(),
+                                         library_context_is_current_group(),
+                                         summary,
+                                         sizeof(summary));
+
+            char buf[256]{};
+            if (summary[0] != '\0') {
+                std::snprintf(buf, sizeof(buf), "%s | %.*s | %s",
+                              library_group_status_label(),
+                              static_cast<int>(library_context_key.size()), library_context_key.view().data(),
+                              summary);
+            } else {
+                std::snprintf(buf, sizeof(buf), "%s | %.*s",
+                              library_group_status_label(),
+                              static_cast<int>(library_context_key.size()), library_context_key.view().data());
+            }
+            set_status(buf);
+        }
+
         ::ui::scene::AnchoredMenuHandles list_action_menu_handles() const noexcept {
             ::ui::scene::AnchoredMenuHandles out{};
             out.scrim = handles.list_action_scrim;
@@ -972,6 +994,7 @@
             library_tab = target_tab;
             library_context_key.assign(key);
             refresh_list_view();
+            show_library_context_status();
         }
 
         void invoke_list_action_item(int item_index) {
@@ -997,6 +1020,7 @@
                 if (row.model) {
                     library_context_key.assign(row.title());
                     refresh_list_view();
+                    show_library_context_status();
                 }
                 return;
             }

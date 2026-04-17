@@ -617,21 +617,58 @@
             return {};
         }
 
+        const char* library_group_primary_action_label() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return "Open album";
+            case LibraryTab::Artists:
+                return "Open artist";
+            case LibraryTab::Songs:
+            default:
+                return "Open group";
+            }
+        }
+
+        const char* library_group_secondary_action_label() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return "Show album summary";
+            case LibraryTab::Artists:
+                return "Show artist summary";
+            case LibraryTab::Songs:
+            default:
+                return "Show summary";
+            }
+        }
+
+        const char* library_group_status_label() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return "Album";
+            case LibraryTab::Artists:
+                return "Artist";
+            case LibraryTab::Songs:
+            default:
+                return "Group";
+            }
+        }
+
         std::size_t build_list_action_menu_items(int list_index,
                                                  ::ui::scene::AnchoredMenuItemSpec (&items)[3]) const noexcept {
             for (auto& item : items) item = {};
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return 0;
 
+            const auto row = make_library_row_recipe(list_index);
             items[0] = {
-                .text = library_shows_group_rows() ? "Open group" : "Play now",
+                .text = row.group_row ? library_group_primary_action_label() : "Play now",
                 .visible = true,
             };
             items[1] = {
-                .text = library_shows_group_rows() ? "Show summary" : "Show path",
+                .text = row.group_row ? library_group_secondary_action_label() : "Show path",
                 .visible = true,
             };
 
-            if (library_shows_group_rows()) return 2;
+            if (row.group_row) return 2;
 
             const int track_idx = list_index_to_track(list_index);
             const auto tertiary_label = list_action_tertiary_label_for_track(track_idx);
@@ -780,8 +817,33 @@
             close_list_action_menu();
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
 
-            char buf[192]{};
+            char buf[224]{};
             const auto row = make_library_row_recipe(list_index);
+            if (row.group_row) {
+                const auto primary = row.detail_primary;
+                const auto secondary = row.detail_secondary;
+                if (primary.empty()) return;
+                if (secondary.empty()) {
+                    std::snprintf(buf, sizeof(buf), "%s | %.*s",
+                                  library_group_status_label(),
+                                  static_cast<int>(primary.size()), primary.data());
+                } else {
+                    std::snprintf(buf, sizeof(buf), "%s | %.*s | %.*s",
+                                  library_group_status_label(),
+                                  static_cast<int>(primary.size()), primary.data(),
+                                  static_cast<int>(secondary.size()), secondary.data());
+                }
+                if (row.current_row) {
+                    const char* state = library_current_group_state_text();
+                    const std::size_t used = std::char_traits<char>::length(buf);
+                    if (used + 3 < sizeof(buf)) {
+                        std::snprintf(buf + used, sizeof(buf) - used, " | %s", state);
+                    }
+                }
+                set_status(buf);
+                return;
+            }
+
             const auto primary = row.detail_primary;
             const auto secondary = row.detail_secondary;
             if (primary.empty()) return;

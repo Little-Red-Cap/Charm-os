@@ -148,6 +148,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-trap-context",
     "ARMv7-A phase, stage=runtime-trap-roundtrip",
     "ARMv7-A phase complete, stage=runtime-trap-roundtrip",
+    "ARMv7-A phase, stage=runtime-trap-failure",
+    "ARMv7-A phase complete, stage=runtime-trap-failure",
     "ARMv7-A phase, stage=context-switch-smoke",
     "ARMv7-A phase complete, stage=context-switch-smoke",
     "ARMv7-A phase, stage=scheduler-dispatch",
@@ -368,6 +370,9 @@ if (($log -notmatch "ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=
 }
 if (($log -notmatch "ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes")) {
     $missing += "ARMv7-A task syscall frame, debug-path=svc-frame..."
+}
+if (($log -notmatch "ARMv7-A runtime trap failure, unsupported=unsupported-service, decode=decode-failed, writeback=writeback-failed, adapter=unbound-adapter, dispatch=unbound-adapter, failure=yes")) {
+    $missing += "ARMv7-A runtime trap failure, unsupported=unsupported-service..."
 }
 if (($log -notmatch "ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes")) {
     $missing += "ARMv7-A task syscall dispatch, debug-path=dispatch-port..."

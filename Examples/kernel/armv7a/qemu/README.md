@@ -162,6 +162,7 @@ ARMv7-A runtime trap seam, yield-path=svc-frame-r0, yield-generic=0x0001, yield-
 ARMv7-A runtime trap live-adapter, yield-path=svc-live-frame, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-live-frame, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, live-adapter=yes
 ARMv7-A runtime trap ingress-adapter, yield-path=live-frame-adapter, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=live-frame-adapter, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, ingress-adapter=yes
 ARMv7-A runtime trap caller, yield-path=svc-call-frame, yield-svc=0x000043, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-call-frame, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-r0=0x00000005, sleep-ready=yes, caller=yes
+ARMv7-A runtime trap failure, unsupported=unsupported-service, decode=decode-failed, writeback=writeback-failed, adapter=unbound-adapter, dispatch=unbound-adapter, failure=yes
 ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x40...., stack-top=0x40...., prepared-sp=0x40...., resume=0x40...., return=0x40...., entry=0x40...., arg=0x40...., aligned=yes, in-range=yes, ready=yes
 ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-entry-sp=0x40...., thread-saved=0x40...., thread-resume-sp=0x40...., entry=yes, resumed=yes, round-trip=yes
 ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes
@@ -579,6 +580,11 @@ continue
   into an ARMv7-A SVC call frame, round-trip through the same seam, and satisfy
   the future upper `RuntimeTrapIngressCaller` / `RuntimeTrapCallFrameAdapter`
   expectations for `make_*_frame` and `result_ready`.
+- The same leaf now also prints one `runtime trap failure` line that turns the
+  most important lower-half negative paths into direct evidence too, so
+  `unsupported-service`, `decode-failed`, `writeback-failed`, and the two
+  `unbound-adapter` entry points can be distinguished on the real QEMU leaf
+  instead of only existing in host-side verifier output.
 - The same QEMU leaf now also closes `timer IRQ -> tick handoff`, `SVC #0x43
   -> yield_current`, `SVC #0x44 -> sleep_current_until`, and dispatch
   readiness into one `runtime bridge` line, so the lower half can align with

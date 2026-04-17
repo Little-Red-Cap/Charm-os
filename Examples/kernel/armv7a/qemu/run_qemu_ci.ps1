@@ -134,6 +134,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-trap-adapter",
     "ARMv7-A phase, stage=runtime-trap-seam",
     "ARMv7-A phase complete, stage=runtime-trap-seam",
+    "ARMv7-A phase, stage=runtime-trap-live-adapter",
+    "ARMv7-A phase complete, stage=runtime-trap-live-adapter",
     "ARMv7-A phase, stage=runtime-trap-caller",
     "ARMv7-A phase complete, stage=runtime-trap-caller",
     "ARMv7-A phase, stage=context-switch-smoke",
@@ -304,6 +306,9 @@ if (($log -notmatch "ARMv7-A runtime trap adapter, yield-path=svc-r0, yield-r0=0
 }
 if (($log -notmatch "ARMv7-A runtime trap seam, yield-path=svc-frame-r0, yield-generic=0x0001, yield-origin=kernel-thread, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-frame-r0, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-r0=0x00000005, sleep-ready=yes, seam=yes")) {
     $missing += "ARMv7-A runtime trap seam, yield-path=svc-frame-r0..."
+}
+if (($log -notmatch "ARMv7-A runtime trap live-adapter, yield-path=svc-live-frame, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-live-frame, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, live-adapter=yes")) {
+    $missing += "ARMv7-A runtime trap live-adapter, yield-path=svc-live-frame..."
 }
 if (($log -notmatch "ARMv7-A runtime trap caller, yield-path=svc-call-frame, yield-svc=0x000043, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-call-frame, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-r0=0x00000005, sleep-ready=yes, caller=yes")) {
     $missing += "ARMv7-A runtime trap caller, yield-path=svc-call-frame..."

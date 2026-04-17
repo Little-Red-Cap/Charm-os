@@ -155,6 +155,7 @@ ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x00000001, arg
 ARMv7-A runtime trap mapping, yield=yield-current, yield-generic=0x0001, yield-origin=kernel-thread, yield-return-pc=0x4020...., yield-ready=yes, sleep=sleep-until, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-due=0x0000000000000005, sleep-ready=yes, mapping=yes
 ARMv7-A runtime trap adapter, yield-path=svc-r0, yield-r0=0x00000001, yield-preserve=yes, yield-ready=yes, sleep-path=svc-r0, sleep-r0=0x00000005, sleep-preserve=yes, sleep-ready=yes, adapter=yes
 ARMv7-A runtime trap seam, yield-path=svc-frame-r0, yield-generic=0x0001, yield-origin=kernel-thread, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-frame-r0, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-r0=0x00000005, sleep-ready=yes, seam=yes
+ARMv7-A runtime trap live-adapter, yield-path=svc-live-frame, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-live-frame, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, live-adapter=yes
 ARMv7-A runtime trap caller, yield-path=svc-call-frame, yield-svc=0x000043, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-call-frame, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-r0=0x00000005, sleep-ready=yes, caller=yes
 ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x40...., stack-top=0x40...., prepared-sp=0x40...., resume=0x40...., return=0x40...., entry=0x40...., arg=0x40...., aligned=yes, in-range=yes, ready=yes
 ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-entry-sp=0x40...., thread-saved=0x40...., thread-resume-sp=0x40...., entry=yes, resumed=yes, round-trip=yes
@@ -548,6 +549,12 @@ continue
   lower-half contract, so a later upper `RuntimeTrapFrameAdapter` can bind to
   a proven `capture/apply_result` shape instead of inventing that boundary in
   the dark.
+- The same leaf now also prints one `runtime trap live-adapter` line that
+  pushes that boundary one step closer to the real exception ingress: the proof
+  now goes through an actual `Armv7aExceptionFrame*`-shaped live frame adapter,
+  so the later upper `RuntimeTrapFrameAdapter<Frame>` hook no longer needs to
+  guess whether the ARMv7-A lower half can capture from and write back to the
+  real trap frame shape.
 - The same leaf now also prints one `runtime trap caller` line that proves the
   reverse direction too: generic `yield/sleep` intent can already be encoded
   into an ARMv7-A SVC call frame, round-trip through the same seam, and satisfy

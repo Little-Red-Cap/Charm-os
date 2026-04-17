@@ -11,6 +11,7 @@
 #include "armv7a_runtime_trap.hpp"
 #include "armv7a_runtime_trap_adapter.hpp"
 #include "armv7a_runtime_trap_caller.hpp"
+#include "armv7a_runtime_trap_live_adapter.hpp"
 #include "armv7a_runtime_trap_seam.hpp"
 #include "armv7a_runtime_trap_mapping.hpp"
 #include "armv7a_scheduler_dispatch.hpp"
@@ -54,6 +55,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapSeam);
     armv7a_print_runtime_trap_seam_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapSeam);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapLiveAdapter);
+    armv7a_print_runtime_trap_live_adapter_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapLiveAdapter);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapCaller);
     armv7a_print_runtime_trap_caller_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapCaller);

@@ -506,6 +506,37 @@ int main() {
         return fail("icmp protocol smoke late reply stalled\n", 18);
     }
 
+    client_node.link.peer = nullptr;
+    auto cancelled_ping = client.ping(net::ByteView{payload, sizeof(payload)}, 120, 30);
+    if (!cancelled_ping
+        || cancelled_ping.value().disposition != net::IcmpSendDisposition::transmitted
+        || client.pending_count() != 1
+        || client.request_count() != 4
+        || client.transmitted_count() != 3
+        || !client.cancel(cancelled_ping.value())
+        || client.pending_count() != 0
+        || client.cancel(cancelled_ping.value())) {
+        return fail("icmp protocol smoke cancel send failed\n", 19);
+    }
+
+    server_node.link.peer = &client_node.link;
+    auto cancelled_reply = server_node.pump.send(
+        server_ip,
+        client_ip,
+        net::IcmpType::echo_reply,
+        cancelled_ping.value().info.identifier,
+        cancelled_ping.value().info.sequence,
+        net::ByteView{payload, sizeof(payload)});
+    if (!cancelled_reply
+        || cancelled_reply.value() != net::IcmpSendDisposition::transmitted
+        || !client_node.link.has_rx()) {
+        return fail("icmp protocol smoke cancel late reply send failed\n", 20);
+    }
+
+    if (!drive_until_idle(client_node, server_node, 4)) {
+        return fail("icmp protocol smoke cancel late reply stalled\n", 21);
+    }
+
     if (!server_state.saw_request
         || server_state.error_calls != 0
         || server_state.last_error != net::errc::ok
@@ -519,11 +550,11 @@ int main() {
         || server_state.info.identifier != timeout_ping.value().info.identifier
         || server_state.info.sequence != timeout_ping.value().info.sequence
         || !bytes_eq(payload, server_state.payload, server_state.payload_size)) {
-        return fail("icmp protocol smoke server request mismatch\n", 19);
+        return fail("icmp protocol smoke server request mismatch\n", 22);
     }
 
     if (client.reply_count() != 2
-        || client.drop_count() != 1
+        || client.drop_count() != 2
         || client.pending_count() != 0
         || client.timeout_count() != 1
         || client_state.reply_calls != 2
@@ -536,9 +567,9 @@ int main() {
         || server_node.pump.pending_count() != 0
         || client_node.link.has_rx()
         || server_node.link.has_rx()
-        || client_node.link.tx_calls != 4
-        || server_node.link.tx_calls != 5) {
-        return fail("icmp protocol smoke wire state mismatch\n", 20);
+        || client_node.link.tx_calls != 5
+        || server_node.link.tx_calls != 6) {
+        return fail("icmp protocol smoke wire state mismatch\n", 23);
     }
 
     std::puts("net icmp protocol smoke: ok");

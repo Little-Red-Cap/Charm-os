@@ -159,6 +159,46 @@ export namespace net::icmp::echo {
             return count;
         }
 
+        [[nodiscard]] bool cancel(util::u16 identifier, util::u16 sequence) noexcept {
+            IcmpEchoInfo info{
+                .type = IcmpType::echo_request,
+                .local = local_,
+                .peer = peer_,
+                .identifier = identifier,
+                .sequence = sequence,
+            };
+            return cancel(info);
+        }
+
+        [[nodiscard]] bool cancel(const PingTicket& ticket) noexcept {
+            return cancel(ticket.info);
+        }
+
+        [[nodiscard]] bool cancel(const IcmpEchoInfo& info) noexcept {
+            for (auto& pending : pending_) {
+                if (!pending.used) {
+                    continue;
+                }
+                if (!detail::same_echo_key(pending.info, info)) {
+                    continue;
+                }
+                remember_ignored(pending.info);
+                pending = {};
+                return true;
+            }
+            return false;
+        }
+
+        void cancel_all() noexcept {
+            for (auto& pending : pending_) {
+                if (!pending.used) {
+                    continue;
+                }
+                remember_ignored(pending.info);
+                pending = {};
+            }
+        }
+
         [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
                                                        util::u16 sequence,
                                                        ByteView payload) noexcept {

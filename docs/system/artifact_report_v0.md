@@ -107,12 +107,13 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `node_count / edge_count / unresolved_bindings`
 - `binding_result / bringup_order`
 - `declared_contract_entries / provided_facts / satisfied / violated / unknown`
+- `fact_resolution`
 - 最小 `cap list` 查询结果
 - 最小 `graph path` 查询结果
 - 最小 `recent transitions` 查询结果
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
-- compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.system_formation / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract`
+- compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.system_formation / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract / comparison.fact_resolution`
 - artifact_root 默认总览里的 `system_formation_summary / comparison.system_formation_summary`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
@@ -300,10 +301,14 @@ artifact_root 级该查询现在也会继续带出：
 其中：
 
 - `fact_inventory`
-  当前至少区分 `declared_facts / subject_facts / graph_provided_facts / audit_provided_facts`
+  当前至少区分 `declared_facts / subject_facts / required_facts / graph_provided_facts / audit_provided_facts`
 - `contracts`
   则把每条输入侧合同压成稳定查询结果，
   至少带出 `state / requires / present_facts / missing_facts / fact_sources`
+
+如果当前 report 已经带出顶层 `fact_resolution`，
+这里也优先直接投影这份正式结果物，
+避免 explain 面与 artifact report 结果物重新漂移出两套形状。
 
 而 `recent transitions` 当前也明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：
@@ -810,6 +815,34 @@ artifact_root 级该查询现在也会继续带出：
 当前 v0 里，`declared_contract_entries` 更适合作为输入侧法律文本的直接投影，
 而 `provided_facts / satisfied / violated / unknown` 则是最小审计层。
 
+在这层最小审计之上，
+artifact report 现在也把“事实从哪里来、合同为什么成立或不成立”扶正成了
+`fact_resolution` 顶层结果物。
+
+`fact_resolution` 当前建议至少包含：
+
+- `declared_contracts / audited_count / satisfied_count / violated_count / unknown_count`
+- `fact_inventory`
+- `contracts`
+- `resource_hotspots`
+
+其中：
+
+- `fact_inventory`
+  当前至少区分
+  `declared_facts / subject_facts / required_facts / graph_provided_facts / audit_provided_facts / all_available_facts`
+- `contracts`
+  则把每条声明输入里的资源法律压成稳定结果项，
+  至少带出
+  `contract / state / requires / present_facts / missing_facts / fact_sources / status_text`
+
+也就是说：
+
+- `resource_contract`
+  继续保留输入侧法律文本与最小审计层
+- `fact_resolution`
+  则负责把输入事实、图事实与合同成立性收束成正式结果语言
+
 ### 5.9 运行时观察摘要
 
 这一组回答：
@@ -849,6 +882,7 @@ artifact_root 级该查询现在也会继续带出：
 - `bringup_order`
 - `bringup_evidence`
 - `resource_contract`
+- `fact_resolution`
 
 这组字段不应取代底层 `bundle_diff`，
 但它应该把 case 级最重要的比较结论直接拉到报告顶层。
@@ -953,6 +987,25 @@ artifact_root 级该查询现在也会继续带出：
 这意味着 compare 模式下即使顶层 `status = unchanged`，
 报告仍然可以明确回答 baseline/candidate 的资源契约是否发生漂移，
 以及是哪条合同从 `absent / satisfied / violated / unknown` 之间切换了状态。
+
+而 `comparison.fact_resolution` 则用于承载“事实库存与合同成立性结果面相对 baseline 发生了什么漂移”，
+把输入事实、图事实与合同状态变化正式收进 compare 结果物。
+
+`comparison.fact_resolution` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `fact_inventory_changes`
+- `contract_changes`
+- `hotspot_changes`
+
+这意味着 compare 模式下即使顶层 `status = unchanged`，
+报告也已经可以继续回答：
+
+- 哪组 `declared / subject / required / graph_provided / audit_provided` facts 发生了变化
+- 哪条资源法律虽然仍存在，但其成立性结果已经漂移
+- 当前 drift 到底停留在最小审计层，还是已经进入正式 fact resolution 结果面
 
 ### 5.11 支持工件引用
 

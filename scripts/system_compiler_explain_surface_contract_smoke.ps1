@@ -275,12 +275,15 @@ Assert-Condition ([string]$reportSummary.system_input.resolved_input.board.sourc
 Assert-Condition ($null -ne $reportSummary.binding_result) 'default report summary must expose binding_result'
 Assert-Condition ($null -ne $reportSummary.bringup_order) 'default report summary must expose bringup_order'
 Assert-Condition ($null -ne $reportSummary.system_formation) 'default report summary must expose system_formation'
+Assert-Condition ($null -ne $reportSummary.fact_resolution) 'default report summary must expose fact_resolution'
 Assert-Condition ([int]$reportSummary.binding_result.required_binding_count -gt 0) 'materialized report binding_result must expose required bindings'
 Assert-Condition ([int]$reportSummary.binding_result.unresolved_binding_count -eq @($reportSummary.structure.unresolved_bindings).Count) 'binding_result unresolved count must match structure.unresolved_bindings'
 Assert-Condition ([int]$reportSummary.bringup_order.ordered_node_count -eq [int]$reportSummary.structure.node_count) 'bringup_order ordered_node_count must match structure.node_count'
 Assert-Condition (@($reportSummary.bringup_order.entries).Count -eq [int]$reportSummary.bringup_order.ordered_node_count) 'bringup_order entries length mismatch'
 Assert-Condition ([string]$reportSummary.system_formation.status -eq 'formed') 'materialized report system_formation must stay formed'
 Assert-Condition ([int]$reportSummary.system_formation.blocker_count -eq 0) 'materialized report system_formation must not expose blockers'
+Assert-Condition (@($reportSummary.fact_resolution.fact_inventory.required_facts).Count -gt 0) 'fact_resolution must expose required_facts inventory'
+Assert-Condition ((@($reportSummary.fact_resolution.fact_inventory.required_facts) -contains 'system.clock')) 'fact_resolution required_facts must include system.clock'
 Assert-Condition ([string]$reportSummary.summary.Formation -eq 'formed') 'default report summary Formation must stay formed'
 Assert-Condition ([int]$reportSummary.summary.FormCmp -eq 0) 'default report summary FormCmp must stay zero in export_only mode'
 
@@ -437,6 +440,7 @@ $resourceSummaryReport = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot
 Assert-Condition ([string]$resourceSummaryReport.query.kind -eq 'resource_summary') 'resource_summary report query kind mismatch'
 Assert-Condition ([string]$resourceSummaryReport.query.scope -eq 'report') 'resource_summary report scope mismatch'
 Assert-Condition ([int]$resourceSummaryReport.query.result.declared_contracts -ge 1) 'resource_summary report must expose declared contracts'
+Assert-Condition (@($resourceSummaryReport.query.result.fact_inventory.required_facts).Count -gt 0) 'resource_summary report must expose required_facts inventory'
 Assert-Condition ($null -eq (Get-ObjectPropertyValue -Object $resourceSummaryReport.query -PropertyName 'comparison')) 'resource_summary report comparison must stay null in export_only mode'
 
 $resourceSummaryRoot = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'resource_summary.root.json') -Command {
@@ -510,6 +514,7 @@ $summary = [ordered]@{
         default_summary_report_exposes_binding_result = $true
         default_summary_report_exposes_bringup_order = $true
         default_summary_report_exposes_system_formation = $true
+        default_summary_report_exposes_fact_resolution = $true
         runtime_only_summary_exposes_empty_binding_result = $true
         runtime_only_summary_exposes_empty_bringup_order = $true
         runtime_only_summary_exposes_formed_system_formation = $true
@@ -529,6 +534,7 @@ $summary = [ordered]@{
         bringup_evidence_artifact_root_supported = $true
         bringup_evidence_subset_supported = $true
         resource_summary_report_supported = $true
+        resource_summary_report_exposes_required_facts = $true
         resource_summary_artifact_root_supported = $true
         resource_summary_subset_supported = $true
         show_transitions_appendix_reuses_report_language = $true

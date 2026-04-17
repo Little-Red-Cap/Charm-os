@@ -693,6 +693,21 @@ function Get-ResourceContractComparisonFromReport {
     return $ReportData.comparison.resource_contract
 }
 
+function Get-FactResolutionComparisonFromReport {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['comparison'] -or
+        $null -eq $ReportData.comparison -or
+        $null -eq $ReportData.comparison.PSObject.Properties['fact_resolution']) {
+        return $null
+    }
+
+    return $ReportData.comparison.fact_resolution
+}
+
 function Get-BringupComparisonCapabilityChange {
     param(
         $ReportData,
@@ -932,6 +947,12 @@ function New-ResourceFactInventory {
             Sort-Object -Unique
     )
     $subjectFacts = @(Get-ReportSubjectFacts -ReportData $ReportData)
+    $requiredFacts = @(
+        @($ReportData.structure.required_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
     $graphProvidedFacts = @(Get-GraphProvidedFacts -GraphInfo $GraphInfo)
     $auditProvidedFacts = @(
         @($ReportData.resource_contract.provided_facts) |
@@ -950,6 +971,7 @@ function New-ResourceFactInventory {
     return [ordered]@{
         declared_facts = @($declaredFacts)
         subject_facts = @($subjectFacts)
+        required_facts = @($requiredFacts)
         graph_provided_facts = @($graphProvidedFacts)
         audit_provided_facts = @($auditProvidedFacts)
         all_available_facts = @($allAvailableFacts)
@@ -1058,6 +1080,12 @@ function New-ResourceSummaryResult {
         $ReportData,
         $GraphInfo
     )
+
+    if ($null -ne $ReportData -and
+        $null -ne $ReportData.PSObject.Properties['fact_resolution'] -and
+        $null -ne $ReportData.fact_resolution) {
+        return $ReportData.fact_resolution
+    }
 
     $factInventory = New-ResourceFactInventory -ReportData $ReportData -GraphInfo $GraphInfo
     $factSourceMap = Get-ResourceFactSourceMap -FactInventory $factInventory
@@ -3967,6 +3995,7 @@ function New-ArtifactJsonView {
         system_formation = $report.system_formation
         bringup_evidence = $report.bringup_evidence
         resource_contract = $report.resource_contract
+        fact_resolution = New-ResourceSummaryResult -ReportData $report -GraphInfo $graphInfo
         runtime_observe = $report.runtime_observe
         comparison = $comparison
         artifacts = $report.artifacts
@@ -4720,6 +4749,7 @@ if ($ResourceSummary) {
 
     $resourceSummaryResult = New-ResourceSummaryResult -ReportData $reportData -GraphInfo $graphInfo
     $resourceContractComparison = Get-ResourceContractComparisonFromReport -ReportData $reportData
+    $factResolutionComparison = Get-FactResolutionComparisonFromReport -ReportData $reportData
 
     if ($AsJson) {
         $queryPayload = [ordered]@{
@@ -4727,9 +4757,13 @@ if ($ResourceSummary) {
             scope = 'report'
             result = $resourceSummaryResult
         }
-        if ($null -ne $resourceContractComparison) {
-            $queryPayload.comparison = [ordered]@{
-                resource_contract = $resourceContractComparison
+        if ($null -ne $resourceContractComparison -or $null -ne $factResolutionComparison) {
+            $queryPayload.comparison = [ordered]@{}
+            if ($null -ne $resourceContractComparison) {
+                $queryPayload.comparison.resource_contract = $resourceContractComparison
+            }
+            if ($null -ne $factResolutionComparison) {
+                $queryPayload.comparison.fact_resolution = $factResolutionComparison
             }
         }
 

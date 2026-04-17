@@ -18,6 +18,7 @@
     "system_formation",
     "bringup_evidence",
     "resource_contract",
+    "fact_resolution",
     "runtime_observe",
     "artifacts"
   ],
@@ -67,6 +68,9 @@
     },
     "resource_contract": {
       "$ref": "#/$defs/resourceContract"
+    },
+    "fact_resolution": {
+      "$ref": "#/$defs/factResolution"
     },
     "runtime_observe": {
       "$ref": "#/$defs/runtimeObserve"
@@ -996,6 +1000,155 @@
         "unknown_count": {
           "type": "integer",
           "minimum": 0
+        },
+        "satisfied_contracts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "violations": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unknown_contracts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "resource_hotspots": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "factSourceMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/stringArray"
+      }
+    },
+    "factInventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_facts",
+        "subject_facts",
+        "required_facts",
+        "graph_provided_facts",
+        "audit_provided_facts",
+        "all_available_facts"
+      ],
+      "properties": {
+        "declared_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "subject_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "required_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "graph_provided_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "audit_provided_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "all_available_facts": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "factResolutionContractEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "state",
+        "requires",
+        "present_facts",
+        "missing_facts",
+        "fact_sources",
+        "status_text"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "satisfied",
+            "violated",
+            "unknown"
+          ]
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "present_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "missing_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "fact_sources": {
+          "$ref": "#/$defs/factSourceMap"
+        },
+        "status_text": {
+          "type": "string"
+        }
+      }
+    },
+    "factResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_contracts",
+        "audited_count",
+        "satisfied_count",
+        "violated_count",
+        "unknown_count",
+        "fact_inventory",
+        "contracts",
+        "satisfied_contracts",
+        "violations",
+        "unknown_contracts",
+        "resource_hotspots"
+      ],
+      "properties": {
+        "declared_contracts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "audited_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "satisfied_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fact_inventory": {
+          "$ref": "#/$defs/factInventory"
+        },
+        "contracts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/factResolutionContractEntry"
+          }
         },
         "satisfied_contracts": {
           "$ref": "#/$defs/stringArray"
@@ -1984,6 +2137,77 @@
         }
       }
     },
+    "factInventoryChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_facts",
+        "subject_facts",
+        "required_facts",
+        "graph_provided_facts",
+        "audit_provided_facts",
+        "all_available_facts"
+      ],
+      "properties": {
+        "declared_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "subject_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "required_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "graph_provided_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "audit_provided_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "all_available_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "factResolutionComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "fact_inventory_changes",
+        "contract_changes",
+        "hotspot_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/factResolution"
+        },
+        "right": {
+          "$ref": "#/$defs/factResolution"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "fact_inventory_changes": {
+          "$ref": "#/$defs/factInventoryChanges"
+        },
+        "contract_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractComparisonContractChange"
+          }
+        },
+        "hotspot_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
     "comparisonSummary": {
       "type": "object",
       "additionalProperties": false,
@@ -2033,6 +2257,9 @@
         },
         "resource_contract": {
           "$ref": "#/$defs/resourceContractComparison"
+        },
+        "fact_resolution": {
+          "$ref": "#/$defs/factResolutionComparison"
         }
       }
     },

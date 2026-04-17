@@ -318,6 +318,7 @@ report / system 侧的现实载体包括：
 - `export case manifest` 里的 per-case `declared_contracts.requires`
 - `required_facts`
 - `provided_facts`
+- `artifact report.fact_resolution.fact_inventory`
 - board 已知资源与环境条件
 
 这里需要特别注意：
@@ -353,7 +354,29 @@ report / system 侧的现实载体包括：
 - 哪些 binding 还 unresolved
 - 某个 required capability 由谁提供、被谁消费
 
-### 4.4 `BringupOrder`
+### 4.4 `FactResolution`
+
+它回答的是：
+
+> **当前有哪些 facts 已经进入可用库存，哪些只是被要求存在，以及每条输入侧资源法律为什么成立或不成立。**
+
+它当前更偏“输入与成立结果之间的事实收口语言”，
+而不是 explain query 本身。
+
+当前对应载体包括：
+
+- `artifact report` 中的 `fact_resolution`
+- `artifact report.comparison.fact_resolution`
+- report 级 `resource summary` explain 结果
+
+它最适合回答这类问题：
+
+- 当前有哪些 `declared / subject / required / graph_provided / audit_provided` facts
+- 哪条合同当前是 `satisfied / violated / unknown`
+- 某条合同成立时，证据来自 declared、subject 还是 graph/audit fact
+- compare 模式下哪些 facts 或合同成立性已经发生漂移
+
+### 4.5 `BringupOrder`
 
 它回答的是：
 
@@ -378,7 +401,7 @@ report / system 侧的现实载体包括：
 - 哪些 require 已满足
 - 哪些 require 仍缺失，因此当前只能标成 blocked
 
-### 4.5 `SystemFormation`
+### 4.6 `SystemFormation`
 
 它回答的是：
 
@@ -474,6 +497,7 @@ report / system 侧的现实载体包括：
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
 | `BindingResult` | `artifact report.binding_result`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
+| `FactResolution` | `artifact report.fact_resolution`、`comparison.fact_resolution`、`resource summary` | 已有正式结果物载体 | 只等于 `resource_contract` 审计层 |
 | `BringupOrder` | `artifact report.bringup_order`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |
 | `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、默认总览 `Formation / FormCmp` | 已有正式结果物载体 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |

@@ -1166,6 +1166,203 @@ function Get-ResourceContractSummary {
     }
 }
 
+function New-FactResolutionFactInventory {
+    param(
+        $SystemInputSummary,
+        [string[]]$RequiredFacts,
+        [string[]]$GraphProvidedFacts,
+        $ResourceContractSummary
+    )
+
+    $declaredFacts = if ($null -ne $SystemInputSummary) {
+        @(
+            @($SystemInputSummary.declared_input.declared_facts) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        )
+    } else {
+        @()
+    }
+    $subjectFacts = if ($null -ne $SystemInputSummary) {
+        @(
+            @($SystemInputSummary.resolved_input.subject_facts) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        )
+    } else {
+        @()
+    }
+    $requiredFactsValue = @(
+        @($RequiredFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
+    $graphProvidedFactsValue = @(
+        @($GraphProvidedFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
+    $auditProvidedFacts = if ($null -ne $ResourceContractSummary) {
+        @(
+            @($ResourceContractSummary.provided_facts) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        )
+    } else {
+        @()
+    }
+    $allAvailableFacts = @(
+        @($declaredFacts) +
+        @($subjectFacts) +
+        @($graphProvidedFactsValue) +
+        @($auditProvidedFacts) |
+            Sort-Object -Unique
+    )
+
+    return [ordered]@{
+        declared_facts = @($declaredFacts)
+        subject_facts = @($subjectFacts)
+        required_facts = @($requiredFactsValue)
+        graph_provided_facts = @($graphProvidedFactsValue)
+        audit_provided_facts = @($auditProvidedFacts)
+        all_available_facts = @($allAvailableFacts)
+    }
+}
+
+function Get-FactResolutionFactSourceMap {
+    param(
+        $FactInventory
+    )
+
+    $factSourceMap = @{}
+    foreach ($sourceName in @('declared_facts', 'subject_facts', 'graph_provided_facts', 'audit_provided_facts')) {
+        foreach ($factName in @($FactInventory.$sourceName)) {
+            $factKey = [string]$factName
+            if ([string]::IsNullOrWhiteSpace($factKey)) {
+                continue
+            }
+
+            if (-not $factSourceMap.ContainsKey($factKey)) {
+                $factSourceMap[$factKey] = @()
+            }
+
+            $factSourceMap[$factKey] = @($factSourceMap[$factKey] + $sourceName)
+        }
+    }
+
+    foreach ($factKey in @($factSourceMap.Keys)) {
+        $factSourceMap[$factKey] = @($factSourceMap[$factKey] | Sort-Object -Unique)
+    }
+
+    return $factSourceMap
+}
+
+function New-FactResolutionContractEntrySummary {
+    param(
+        $ContractEntry,
+        $FactSourceMap
+    )
+
+    if ($null -eq $ContractEntry) {
+        return $null
+    }
+
+    $contractName = [string]$ContractEntry.contract
+    if ([string]::IsNullOrWhiteSpace($contractName)) {
+        return $null
+    }
+
+    $requires = @(
+        @($ContractEntry.requires) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $presentFacts = @()
+    $missingFacts = @()
+    $factSources = [ordered]@{}
+    foreach ($requiredFact in @($requires)) {
+        if ($FactSourceMap.ContainsKey($requiredFact)) {
+            $presentFacts += $requiredFact
+            $factSources[$requiredFact] = @($FactSourceMap[$requiredFact])
+        } else {
+            $missingFacts += $requiredFact
+        }
+    }
+
+    $state = 'unknown'
+    $statusText = Format-DeclaredContractEntry -ContractEntry ([ordered]@{
+            contract = $contractName
+            requires = @($requires)
+        })
+    if ($requires.Count -eq 0) {
+        $state = 'unknown'
+    } elseif ($missingFacts.Count -eq 0) {
+        $state = 'satisfied'
+    } else {
+        $state = 'violated'
+        $statusText = "$contractName missing [$((@($missingFacts) -join ', '))] requires [$((@($requires) -join ', '))]"
+    }
+
+    return [ordered]@{
+        contract = $contractName
+        state = $state
+        requires = @($requires)
+        present_facts = @($presentFacts)
+        missing_facts = @($missingFacts)
+        fact_sources = $factSources
+        status_text = $statusText
+    }
+}
+
+function New-FactResolutionSummary {
+    param(
+        $SystemInputSummary,
+        [string[]]$RequiredFacts,
+        [string[]]$GraphProvidedFacts,
+        $ResourceContractSummary
+    )
+
+    $resourceSummaryValue = if ($null -eq $ResourceContractSummary) {
+        New-EmptyResourceContractSummary
+    } else {
+        $ResourceContractSummary
+    }
+    $factInventory = New-FactResolutionFactInventory `
+        -SystemInputSummary $SystemInputSummary `
+        -RequiredFacts $RequiredFacts `
+        -GraphProvidedFacts $GraphProvidedFacts `
+        -ResourceContractSummary $resourceSummaryValue
+    $factSourceMap = Get-FactResolutionFactSourceMap -FactInventory $factInventory
+    $contracts = @()
+    foreach ($contractEntry in @($resourceSummaryValue.declared_contract_entries)) {
+        $entrySummary = New-FactResolutionContractEntrySummary -ContractEntry $contractEntry -FactSourceMap $factSourceMap
+        if ($null -ne $entrySummary) {
+            $contracts += $entrySummary
+        }
+    }
+
+    return [ordered]@{
+        declared_contracts = [int]$resourceSummaryValue.declared_contracts
+        audited_count = [int]$resourceSummaryValue.audited_count
+        satisfied_count = [int]$resourceSummaryValue.satisfied_count
+        violated_count = [int]$resourceSummaryValue.violated_count
+        unknown_count = [int]$resourceSummaryValue.unknown_count
+        fact_inventory = $factInventory
+        contracts = @($contracts | Sort-Object contract)
+        satisfied_contracts = @($resourceSummaryValue.satisfied_contracts)
+        violations = @($resourceSummaryValue.violations)
+        unknown_contracts = @($resourceSummaryValue.unknown_contracts)
+        resource_hotspots = @($resourceSummaryValue.resource_hotspots)
+    }
+}
+
 function New-EmptyResourceContractSummary {
     return [ordered]@{
         declared_contracts = 0
@@ -1175,6 +1372,29 @@ function New-EmptyResourceContractSummary {
         satisfied_count = 0
         violated_count = 0
         unknown_count = 0
+        satisfied_contracts = @()
+        violations = @()
+        unknown_contracts = @()
+        resource_hotspots = @()
+    }
+}
+
+function New-EmptyFactResolutionSummary {
+    return [ordered]@{
+        declared_contracts = 0
+        audited_count = 0
+        satisfied_count = 0
+        violated_count = 0
+        unknown_count = 0
+        fact_inventory = [ordered]@{
+            declared_facts = @()
+            subject_facts = @()
+            required_facts = @()
+            graph_provided_facts = @()
+            audit_provided_facts = @()
+            all_available_facts = @()
+        }
+        contracts = @()
         satisfied_contracts = @()
         violations = @()
         unknown_contracts = @()
@@ -2115,6 +2335,49 @@ function New-CaseResourceContractSummary {
     return Get-ResourceContractSummary -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) -AvailableFacts $availableFacts
 }
 
+function New-CaseFactResolutionSummary {
+    param(
+        $Bundle,
+        $CaseEntry,
+        $ArtifactContext
+    )
+
+    if ($null -eq $CaseEntry) {
+        return New-EmptyFactResolutionSummary
+    }
+
+    $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
+    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
+    $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
+    $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
+    $graphProvidedFacts = if ($null -ne $graph) {
+        @(Get-ProvidedFacts -Graph $graph)
+    } else {
+        @()
+    }
+    $requiredFacts = if ($null -ne $graph) {
+        @(Get-RequiredFacts -Graph $graph)
+    } else {
+        @()
+    }
+    $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
+    $availableFacts = @(
+        @($graphProvidedFacts) +
+        @($runtimeCapabilities) +
+        @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+        @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
+            Sort-Object -Unique
+    )
+    $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) -AvailableFacts $availableFacts
+
+    return New-FactResolutionSummary `
+        -SystemInputSummary $systemInputSummary `
+        -RequiredFacts $requiredFacts `
+        -GraphProvidedFacts $graphProvidedFacts `
+        -ResourceContractSummary $resourceContractSummary
+}
+
 function New-BringupEvidenceStateMap {
     param(
         $BringupEvidenceSummary
@@ -2924,6 +3187,189 @@ function New-ResourceContractComparison {
     }
 }
 
+function New-FactResolutionComparisonSide {
+    param(
+        $FactResolutionSummary
+    )
+
+    $summaryValue = if ($null -eq $FactResolutionSummary) {
+        New-EmptyFactResolutionSummary
+    } else {
+        $FactResolutionSummary
+    }
+
+    return [ordered]@{
+        declared_contracts = [int]$summaryValue.declared_contracts
+        audited_count = [int]$summaryValue.audited_count
+        satisfied_count = [int]$summaryValue.satisfied_count
+        violated_count = [int]$summaryValue.violated_count
+        unknown_count = [int]$summaryValue.unknown_count
+        fact_inventory = [ordered]@{
+            declared_facts = @($summaryValue.fact_inventory.declared_facts)
+            subject_facts = @($summaryValue.fact_inventory.subject_facts)
+            required_facts = @($summaryValue.fact_inventory.required_facts)
+            graph_provided_facts = @($summaryValue.fact_inventory.graph_provided_facts)
+            audit_provided_facts = @($summaryValue.fact_inventory.audit_provided_facts)
+            all_available_facts = @($summaryValue.fact_inventory.all_available_facts)
+        }
+        contracts = @($summaryValue.contracts)
+        satisfied_contracts = @($summaryValue.satisfied_contracts)
+        violations = @($summaryValue.violations)
+        unknown_contracts = @($summaryValue.unknown_contracts)
+        resource_hotspots = @($summaryValue.resource_hotspots)
+    }
+}
+
+function New-FactResolutionContractStateMap {
+    param(
+        $FactResolutionSummary
+    )
+
+    $stateMap = @{}
+    if ($null -eq $FactResolutionSummary) {
+        return $stateMap
+    }
+
+    foreach ($contractEntry in @($FactResolutionSummary.contracts)) {
+        if ($null -eq $contractEntry) {
+            continue
+        }
+
+        $contractName = [string]$contractEntry.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $stateMap[$contractName] = [ordered]@{
+            contract = $contractName
+            requires = @($contractEntry.requires)
+            state = [string]$contractEntry.state
+            status_text = [string]$contractEntry.status_text
+        }
+    }
+
+    return $stateMap
+}
+
+function New-FactResolutionComparison {
+    param(
+        $LeftSummary,
+        $RightSummary
+    )
+
+    $leftSide = New-FactResolutionComparisonSide -FactResolutionSummary $LeftSummary
+    $rightSide = New-FactResolutionComparisonSide -FactResolutionSummary $RightSummary
+    $leftStateMap = New-FactResolutionContractStateMap -FactResolutionSummary $leftSide
+    $rightStateMap = New-FactResolutionContractStateMap -FactResolutionSummary $rightSide
+
+    $summaryChanges = @()
+    foreach ($countField in @('declared_contracts', 'audited_count', 'satisfied_count', 'violated_count', 'unknown_count')) {
+        if ([int]$leftSide.$countField -ne [int]$rightSide.$countField) {
+            $summaryChanges += "${countField}:$([int]$leftSide.$countField)->$([int]$rightSide.$countField)"
+        }
+    }
+
+    $factInventoryChanges = [ordered]@{}
+    foreach ($factGroup in @('declared_facts', 'subject_facts', 'required_facts', 'graph_provided_facts', 'audit_provided_facts', 'all_available_facts')) {
+        $addedFacts = @(
+            @($rightSide.fact_inventory.$factGroup) |
+                Where-Object { @($leftSide.fact_inventory.$factGroup) -notcontains [string]$_ } |
+                Sort-Object -Unique
+        )
+        $removedFacts = @(
+            @($leftSide.fact_inventory.$factGroup) |
+                Where-Object { @($rightSide.fact_inventory.$factGroup) -notcontains [string]$_ } |
+                Sort-Object -Unique
+        )
+
+        $factInventoryChanges[$factGroup] = [ordered]@{
+            added = @($addedFacts)
+            removed = @($removedFacts)
+        }
+
+        if (-not (Compare-StringArrays -Left @($leftSide.fact_inventory.$factGroup) -Right @($rightSide.fact_inventory.$factGroup))) {
+            $summaryChanges += "fact_inventory.${factGroup}:[$(Join-Names @($leftSide.fact_inventory.$factGroup))]->[$(Join-Names @($rightSide.fact_inventory.$factGroup))]"
+        }
+    }
+
+    $contractNames = @(
+        @($leftStateMap.Keys) +
+        @($rightStateMap.Keys) |
+            Sort-Object -Unique
+    )
+
+    $contractChanges = @()
+    foreach ($contractName in @($contractNames)) {
+        $leftEntry = if ($leftStateMap.ContainsKey($contractName)) { $leftStateMap[$contractName] } else { $null }
+        $rightEntry = if ($rightStateMap.ContainsKey($contractName)) { $rightStateMap[$contractName] } else { $null }
+
+        $leftState = if ($null -eq $leftEntry) { 'absent' } else { [string]$leftEntry.state }
+        $rightState = if ($null -eq $rightEntry) { 'absent' } else { [string]$rightEntry.state }
+        $leftRequires = if ($null -eq $leftEntry) { @() } else { @($leftEntry.requires) }
+        $rightRequires = if ($null -eq $rightEntry) { @() } else { @($rightEntry.requires) }
+        $leftStatusText = if ($null -eq $leftEntry) { $null } else { [string]$leftEntry.status_text }
+        $rightStatusText = if ($null -eq $rightEntry) { $null } else { [string]$rightEntry.status_text }
+
+        $changeKind = 'unchanged'
+        if ($leftState -eq 'absent' -and $rightState -ne 'absent') {
+            $changeKind = 'added'
+        } elseif ($leftState -ne 'absent' -and $rightState -eq 'absent') {
+            $changeKind = 'removed'
+        } elseif ($leftState -ne $rightState -or
+            -not (Compare-StringArrays -Left $leftRequires -Right $rightRequires) -or
+            [string]$leftStatusText -ne [string]$rightStatusText) {
+            $changeKind = 'changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $contractChanges += [ordered]@{
+            contract = $contractName
+            change_kind = $changeKind
+            left_state = $leftState
+            right_state = $rightState
+            left_requires = @($leftRequires)
+            right_requires = @($rightRequires)
+            left_status_text = $leftStatusText
+            right_status_text = $rightStatusText
+        }
+    }
+
+    $hotspotsAdded = @(
+        @($rightSide.resource_hotspots) |
+            Where-Object { @($leftSide.resource_hotspots) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $hotspotsRemoved = @(
+        @($leftSide.resource_hotspots) |
+            Where-Object { @($rightSide.resource_hotspots) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    if (-not (Compare-StringArrays -Left @($leftSide.resource_hotspots) -Right @($rightSide.resource_hotspots))) {
+        $summaryChanges += "resource_hotspots:[$(Join-Names @($leftSide.resource_hotspots))]->[$(Join-Names @($rightSide.resource_hotspots))]"
+    }
+
+    return [ordered]@{
+        changed = (
+            @($summaryChanges).Count -gt 0 -or
+            @($contractChanges).Count -gt 0 -or
+            @($hotspotsAdded).Count -gt 0 -or
+            @($hotspotsRemoved).Count -gt 0
+        )
+        left = $leftSide
+        right = $rightSide
+        summary_changes = @($summaryChanges)
+        fact_inventory_changes = $factInventoryChanges
+        contract_changes = @($contractChanges | Sort-Object contract)
+        hotspot_changes = [ordered]@{
+            added = @($hotspotsAdded)
+            removed = @($hotspotsRemoved)
+        }
+    }
+}
+
 function Resolve-SubjectScalar {
     param(
         [string]$ExplicitValue,
@@ -3235,6 +3681,11 @@ function New-ArtifactReport {
         @(Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedFacets)
     ) | Sort-Object -Unique
     $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts $declaredContracts -AvailableFacts $resourceAvailableFacts
+    $factResolutionSummary = New-FactResolutionSummary `
+        -SystemInputSummary $systemInputSummary `
+        -RequiredFacts $requiredFacts `
+        -GraphProvidedFacts $graphProvidedFacts `
+        -ResourceContractSummary $resourceContractSummary
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
     $bindingResultSummary = Get-BindingResultSummary -Graph $graph
     $bringupOrderSummary = Get-BringupOrderSummary -Graph $graph
@@ -3248,6 +3699,7 @@ function New-ArtifactReport {
         $baselineBringupOrderSummary = New-CaseBringupOrderSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupEvidenceSummary = New-CaseBringupEvidenceSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineResourceContractSummary = New-CaseResourceContractSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
+        $baselineFactResolutionSummary = New-CaseFactResolutionSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
         $baselineSystemFormationSummary = New-SystemFormationSummary -SystemInputSummary $baselineSystemInputSummary -BindingResultSummary $baselineBindingResultSummary -BringupOrderSummary $baselineBringupOrderSummary
         $comparison.system_input = New-SystemInputComparison -LeftSummary $baselineSystemInputSummary -RightSummary $systemInputSummary
         $comparison.system_formation = New-SystemFormationComparison -LeftSummary $baselineSystemFormationSummary -RightSummary $systemFormationSummary
@@ -3255,6 +3707,7 @@ function New-ArtifactReport {
         $comparison.bringup_order = New-BringupOrderComparison -LeftSummary $baselineBringupOrderSummary -RightSummary $bringupOrderSummary
         $comparison.bringup_evidence = New-BringupEvidenceComparison -LeftSummary $baselineBringupEvidenceSummary -RightSummary $bringupEvidenceSummary
         $comparison.resource_contract = New-ResourceContractComparison -LeftSummary $baselineResourceContractSummary -RightSummary $resourceContractSummary
+        $comparison.fact_resolution = New-FactResolutionComparison -LeftSummary $baselineFactResolutionSummary -RightSummary $factResolutionSummary
     }
     $dotArtifactPath = if ($null -ne $CaseEntry.PSObject.Properties['dot'] -and
         -not [string]::IsNullOrWhiteSpace([string]$CaseEntry.dot)) {
@@ -3315,6 +3768,7 @@ function New-ArtifactReport {
             unknown_contracts = @($resourceContractSummary.unknown_contracts)
             resource_hotspots = @($resourceContractSummary.resource_hotspots)
         }
+        fact_resolution = $factResolutionSummary
         runtime_observe = $runtimeObserveSummary
         artifacts = [ordered]@{
             bundle = $Bundle.IndexPath

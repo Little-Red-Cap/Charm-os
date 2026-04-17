@@ -796,15 +796,24 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 
 - `fact_inventory`
   当前至少区分：
-  `declared_facts / subject_facts / graph_provided_facts / audit_provided_facts / all_available_facts`
+  `declared_facts / subject_facts / required_facts / graph_provided_facts / audit_provided_facts / all_available_facts`
 - `contracts`
   则把每条输入侧合同压成一条稳定 explain 记录，
   至少带出：
   `contract / state / requires / present_facts / missing_facts / fact_sources`
 
+当前如果 artifact report 自身已经带出顶层 `fact_resolution`，
+`-ResourceSummary -AsJson` 会优先直接投影这份正式结果物；
+只有在旧 report 尚未带出该结果物时，
+才回退到 inspector 侧的兼容重建逻辑。
+
 如果当前 report 来自 compare 模式，
-`-ResourceSummary -AsJson` 还会额外暴露 `query.comparison.resource_contract`，
-至少带出：
+`-ResourceSummary -AsJson` 还会额外暴露：
+
+- `query.comparison.resource_contract`
+- `query.comparison.fact_resolution`
+
+其中 `query.comparison.resource_contract` 至少带出：
 
 - `changed`
 - `left / right`
@@ -813,8 +822,20 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - `provided_fact_changes`
 - `hotspot_changes`
 
+而 `query.comparison.fact_resolution` 至少带出：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `fact_inventory_changes`
+- `contract_changes`
+- `hotspot_changes`
+
 这让 explain surface 可以在不伪造结构变化的前提下，
-直接回答“资源契约相对 baseline 漂移了什么”。
+同时直接回答：
+
+- 资源契约相对 baseline 漂移了什么
+- 哪组 facts 与哪条合同成立性已经进入正式 fact resolution compare 结果面
 
 如果选择的是整组 compare report，
 artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
@@ -835,7 +856,7 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 当前 `resource summary` 的最小解释方式是：
 
 - 先把输入侧 `declared_contract_entries` 逐条展开
-- 再把 `declared_facts`、`subject` 派生事实、图里实际提供的 fact，以及审计阶段命中的 fact 收束成事实库存
+- 再把 `declared_facts`、`subject` 派生事实、`required_facts`、图里实际提供的 fact，以及审计阶段命中的 fact 收束成事实库存
 - 最后给出每条合同当前是 `satisfied / violated / unknown`，并带出对应热点
 
 也就是说，v0 当前不是在做“完整资源证明”，

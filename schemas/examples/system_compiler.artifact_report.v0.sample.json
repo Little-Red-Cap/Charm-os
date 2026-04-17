@@ -410,6 +410,126 @@
       "irq_safe requires []"
     ]
   },
+  "fact_resolution": {
+    "declared_contracts": 4,
+    "audited_count": 4,
+    "satisfied_count": 3,
+    "violated_count": 0,
+    "unknown_count": 1,
+    "fact_inventory": {
+      "declared_facts": [
+        "board.stm32_stub"
+      ],
+      "subject_facts": [
+        "board.stm32_stub",
+        "facet.input",
+        "facet.runtime",
+        "profile.MCU_MIN"
+      ],
+      "required_facts": [
+        "platform.irq",
+        "system.clock"
+      ],
+      "graph_provided_facts": [
+        "hal.uart1",
+        "io.uart1",
+        "platform.irq",
+        "system.clock"
+      ],
+      "audit_provided_facts": [
+        "execution.may_block",
+        "io.reactor",
+        "system.clock"
+      ],
+      "all_available_facts": [
+        "board.stm32_stub",
+        "execution.may_block",
+        "facet.input",
+        "facet.runtime",
+        "hal.uart1",
+        "io.reactor",
+        "io.uart1",
+        "platform.irq",
+        "profile.MCU_MIN",
+        "system.clock"
+      ]
+    },
+    "contracts": [
+      {
+        "contract": "irq_safe",
+        "state": "unknown",
+        "requires": [],
+        "present_facts": [],
+        "missing_facts": [],
+        "fact_sources": {},
+        "status_text": "irq_safe requires []"
+      },
+      {
+        "contract": "may_block",
+        "state": "satisfied",
+        "requires": [
+          "execution.may_block"
+        ],
+        "present_facts": [
+          "execution.may_block"
+        ],
+        "missing_facts": [],
+        "fact_sources": {
+          "execution.may_block": [
+            "audit_provided_facts"
+          ]
+        },
+        "status_text": "may_block requires [execution.may_block]"
+      },
+      {
+        "contract": "needs_monotonic_clock",
+        "state": "satisfied",
+        "requires": [
+          "system.clock"
+        ],
+        "present_facts": [
+          "system.clock"
+        ],
+        "missing_facts": [],
+        "fact_sources": {
+          "system.clock": [
+            "audit_provided_facts",
+            "graph_provided_facts"
+          ]
+        },
+        "status_text": "needs_monotonic_clock requires [system.clock]"
+      },
+      {
+        "contract": "needs_reactor",
+        "state": "satisfied",
+        "requires": [
+          "io.reactor"
+        ],
+        "present_facts": [
+          "io.reactor"
+        ],
+        "missing_facts": [],
+        "fact_sources": {
+          "io.reactor": [
+            "audit_provided_facts"
+          ]
+        },
+        "status_text": "needs_reactor requires [io.reactor]"
+      }
+    ],
+    "satisfied_contracts": [
+      "needs_monotonic_clock requires [system.clock]",
+      "needs_reactor requires [io.reactor]",
+      "may_block requires [execution.may_block]"
+    ],
+    "violations": [],
+    "unknown_contracts": [
+      "irq_safe requires []"
+    ],
+    "resource_hotspots": [
+      "irq_safe requires []"
+    ]
+  },
   "runtime_observe": {
     "observed_capabilities": [
       "io.uart1",

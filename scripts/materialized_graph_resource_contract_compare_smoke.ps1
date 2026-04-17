@@ -195,8 +195,12 @@ Assert-Condition ([string]$artifactReport.comparison.status -eq 'unchanged') 'ar
 Assert-Condition ((@($artifactReport.comparison.metadata_changes) | Where-Object { [string]$_ -like 'declared_contracts:*' }).Count -gt 0) 'artifact report comparison must preserve declared_contracts metadata change'
 Assert-Condition ($null -ne $artifactReport.comparison.resource_contract) 'artifact report comparison.resource_contract is missing'
 Assert-Condition ([bool]$artifactReport.comparison.resource_contract.changed) 'resource contract comparison must be marked changed'
+Assert-Condition ($null -ne $artifactReport.fact_resolution) 'artifact report fact_resolution is missing'
+Assert-Condition ($null -ne $artifactReport.comparison.fact_resolution) 'artifact report comparison.fact_resolution is missing'
+Assert-Condition ([bool]$artifactReport.comparison.fact_resolution.changed) 'fact resolution comparison must be marked changed'
 
 $resourceContractComparison = $artifactReport.comparison.resource_contract
+$factResolutionComparison = $artifactReport.comparison.fact_resolution
 $expectedViolationText = "$AddedContract missing [$AddedRequiredFact] requires [$AddedRequiredFact]"
 
 Assert-Condition ([int]$resourceContractComparison.left.declared_contracts -eq 1) 'left declared_contracts must stay at 1 for baseline fixture'
@@ -206,6 +210,10 @@ Assert-Condition ([int]$resourceContractComparison.right.violated_count -eq 1) '
 Assert-Condition ((@($resourceContractComparison.summary_changes) -contains 'declared_contracts:1->2')) 'resource contract summary_changes missing declared_contracts change'
 Assert-Condition ((@($resourceContractComparison.summary_changes) -contains 'violated_count:0->1')) 'resource contract summary_changes missing violated_count change'
 Assert-Condition ((@($resourceContractComparison.hotspot_changes.added) -contains $expectedViolationText)) 'resource contract hotspot_changes.added missing expected violation text'
+Assert-Condition ([int]$factResolutionComparison.left.declared_contracts -eq 1) 'fact resolution baseline declared_contracts must stay at 1'
+Assert-Condition ([int]$factResolutionComparison.right.declared_contracts -eq 2) 'fact resolution candidate declared_contracts must become 2'
+Assert-Condition ((@($factResolutionComparison.summary_changes) -contains 'declared_contracts:1->2')) 'fact resolution summary_changes missing declared_contracts change'
+Assert-Condition ((@($factResolutionComparison.summary_changes) -contains 'violated_count:0->1')) 'fact resolution summary_changes missing violated_count change'
 
 $contractChange = @(
     @($resourceContractComparison.contract_changes) |
@@ -219,6 +227,15 @@ Assert-Condition ([string]$contractChange.right_state -eq 'violated') 'right_sta
 Assert-Condition ((@($contractChange.right_requires) -contains $AddedRequiredFact)) 'right_requires missing synthetic required fact'
 Assert-Condition ([string]$contractChange.right_status_text -eq $expectedViolationText) 'right_status_text mismatch for synthetic violated contract'
 
+$factResolutionContractChange = @(
+    @($factResolutionComparison.contract_changes) |
+        Where-Object { [string]$_.contract -eq $AddedContract } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $factResolutionContractChange) "fact resolution comparison missing contract change: $AddedContract"
+Assert-Condition ([string]$factResolutionContractChange.change_kind -eq 'added') 'fact resolution compare must mark synthetic contract as added'
+Assert-Condition ([string]$factResolutionContractChange.right_state -eq 'violated') 'fact resolution compare right_state must be violated for synthetic added contract'
+
 $inspectResult = Invoke-CommandJson -OutputPath $inspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -ResourceSummary -AsJson
 }
@@ -226,7 +243,9 @@ Assert-Condition ([string]$inspectResult.query.kind -eq 'resource_summary') 'ins
 Assert-Condition ([string]$inspectResult.query.scope -eq 'report') 'inspect resource summary scope mismatch'
 Assert-Condition ($null -ne $inspectResult.query.comparison) 'inspect resource summary must expose comparison payload'
 Assert-Condition ($null -ne $inspectResult.query.comparison.resource_contract) 'inspect resource summary missing comparison.resource_contract'
+Assert-Condition ($null -ne $inspectResult.query.comparison.fact_resolution) 'inspect resource summary missing comparison.fact_resolution'
 Assert-Condition ([bool]$inspectResult.query.comparison.resource_contract.changed) 'inspect resource summary comparison.resource_contract must be changed'
+Assert-Condition ([bool]$inspectResult.query.comparison.fact_resolution.changed) 'inspect resource summary comparison.fact_resolution must be changed'
 
 $summaryInspectResult = Invoke-CommandJson -OutputPath $summaryInspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -AsJson
@@ -293,6 +312,7 @@ $summary = [ordered]@{
     assertions = [ordered]@{
         metadata_only_diff_preserved = $true
         comparison_resource_contract_present = $true
+        comparison_fact_resolution_present = $true
         violated_contract_change_detected = $true
         inspect_resource_summary_exposes_compare = $true
         inspect_default_summary_exposes_capability_compare = $true

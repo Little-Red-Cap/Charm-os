@@ -156,6 +156,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-bridge",
     "ARMv7-A phase, stage=task-syscall-frame",
     "ARMv7-A phase complete, stage=task-syscall-frame",
+    "ARMv7-A phase, stage=task-syscall-dispatch",
+    "ARMv7-A phase complete, stage=task-syscall-dispatch",
     "ARMv7-A phase, stage=task-syscall-surface",
     "ARMv7-A phase complete, stage=task-syscall-surface",
     "ARMv7-A phase, stage=task-syscall-ingress-adapter",
@@ -362,6 +364,9 @@ if (($log -notmatch "ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=
 }
 if (($log -notmatch "ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes")) {
     $missing += "ARMv7-A task syscall frame, debug-path=svc-frame..."
+}
+if (($log -notmatch "ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes")) {
+    $missing += "ARMv7-A task syscall dispatch, debug-path=dispatch-port..."
 }
 if (($log -notmatch "ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes")) {
     $missing += "ARMv7-A task syscall surface, debug-path=live-svc-dispatch..."

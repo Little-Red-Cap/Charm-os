@@ -111,6 +111,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_runtime_trap_roundtrip.cpp
     armv7a_runtime_bridge.cpp
     armv7a_task_syscall_frame.cpp
+    armv7a_task_syscall_dispatch.cpp
     armv7a_task_syscall_surface.cpp
     armv7a_task_syscall_ingress_adapter.cpp
     armv7a_task_syscall_caller.cpp

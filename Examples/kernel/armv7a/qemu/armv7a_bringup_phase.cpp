@@ -88,6 +88,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-bridge";
     case Armv7aBringupPhase::kTaskSyscallFrame:
         return "task-syscall-frame";
+    case Armv7aBringupPhase::kTaskSyscallDispatch:
+        return "task-syscall-dispatch";
     case Armv7aBringupPhase::kTaskSyscallSurface:
         return "task-syscall-surface";
     case Armv7aBringupPhase::kTaskSyscallIngressAdapter:

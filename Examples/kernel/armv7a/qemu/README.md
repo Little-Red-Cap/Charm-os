@@ -163,6 +163,7 @@ ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-
 ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes
 ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000002, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes
 ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes
+ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes
 ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes
 ARMv7-A task syscall ingress-adapter, debug-path=live-frame-adapter, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-frame-adapter, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, ingress-adapter=yes
 ARMv7-A task syscall caller, debug-path=svc-call-frame, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=svc-call-frame, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, caller=yes
@@ -582,6 +583,10 @@ continue
   boundary: raw service id, mapped generic service, and current task/stack
   context now meet in one place before any future upper
   `TaskSyscallFrameAdapter<Frame>` starts binding to it.
+- The same leaf now also prints one `task syscall dispatch` line that proves
+  those same `SVC #0x45/#0x46` requests already reach a stable lower dispatch
+  seam with mapped generic service ids, propagated task/stack context, and the
+  expected result value written back to `r0`.
 - The same leaf now also prints one `task syscall ingress-adapter` line that
   proves the real live `SVC #0x45/#0x46` frame can already be captured through
   the same `live frame adapter` shape, with current task/stack context folded

@@ -187,6 +187,7 @@ system compiler 正在长出多张可被解释的面。
 
 v0 阶段建议至少覆盖：
 
+- normalized system input
 - capabilities
 - materialized order
 - binding result
@@ -215,7 +216,14 @@ v0 阶段建议至少覆盖：
 
 它当前不是完整 explain shell，
 但已经能把 `artifact report` 压成一页稳定可读摘要，
-并继续把结构、binding result、bringup order、资源契约、compare 结论与底层工件引用一起带出来。
+并继续把规范化输入、结构、binding result、bringup order、资源契约、compare 结论与底层工件引用一起带出来。
+
+当前默认总览还开始显式打印一个最小 `[INPUT]` 区块，
+用来回答：
+
+- 这个 case 当前属于哪种 system spec 投影
+- declared facts / declared contracts 是什么
+- profile / board / facets 是从显式参数、默认值还是 case subject 解析出来的
 
 ## 6. v0 的最小 `explain surface`
 

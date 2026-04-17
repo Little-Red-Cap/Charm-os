@@ -102,6 +102,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 当前 inspector 至少会直接带出：
 
 - case / mode / profile / board / facets
+- `system_input`
 - `node_count / edge_count / unresolved_bindings`
 - `binding_result / bringup_order`
 - `declared_contract_entries / provided_facts / satisfied / violated / unknown`
@@ -541,7 +542,49 @@ artifact_root 级该查询现在也会继续带出：
 这里不要求所有字段立即 100% 完备，  
 但 v0 应先把这些对象正式列为报告语言的一部分。
 
-### 5.3 静态结构摘要
+### 5.3 规范化输入摘要
+
+这一组回答：
+
+> “这个系统实例是按什么输入成立的，profile / board / facets 又是从哪里解析出来的。”
+
+当前建议至少包含：
+
+- `system_spec`
+- `declared_input`
+- `resolved_input`
+
+其中：
+
+- `system_spec`
+  当前先把 `case_name / case_kind / source / build_dir / build_target / export_target` 收成最小输入投影
+- `declared_input`
+  当前先保留来自 case entry 的 `subject / declared_facts / declared_contract_entries`
+- `resolved_input`
+  当前先保留：
+  - `profile.value / profile.source`
+  - `board.value / board.source`
+  - `active_facets.values / active_facets.source`
+  - `subject_facts`
+
+这组字段的意义，不是发明最终 DSL，  
+而是先把当前散落在：
+
+- case manifest
+- export bundle case entry
+- CLI override
+- CI subject defaults
+
+里的输入载体，压成一份正式结果物里的规范化输入摘要。
+
+也就是说，`artifact report` 现在不仅能回答“系统长成了什么样”，
+也开始能回答：
+
+- 这个 case 当前属于哪类 `SystemSpec` 投影
+- profile / board / facets 是从显式参数、默认值还是 case subject 来的
+- 哪些事实和合同是 case 自己显式声明的
+
+### 5.4 静态结构摘要
 
 这一组回答：
 
@@ -569,7 +612,7 @@ artifact_root 级该查询现在也会继续带出：
 - `unresolved_bindings`
   则是最关键的未完成结构结论之一
 
-### 5.4 binding 结果摘要
+### 5.5 binding 结果摘要
 
 这一组回答：
 
@@ -607,7 +650,7 @@ artifact_root 级该查询现在也会继续带出：
 - 谁在消费它
 - 为什么当前被判成 `resolved` 或 `unresolved`
 
-### 5.5 bringup 顺序摘要
+### 5.6 bringup 顺序摘要
 
 这一组回答：
 
@@ -644,7 +687,7 @@ artifact_root 级该查询现在也会继续带出：
 - 哪些 require 已满足
 - 哪些 require 仍缺失，因此当前只能标成 `blocked`
 
-### 5.6 bringup 证据摘要
+### 5.7 bringup 证据摘要
 
 这一组回答：
 
@@ -691,7 +734,7 @@ artifact_root 级该查询现在也会继续带出：
 而不只是 `runtime_observe.observed_capabilities` 的条目数。
 对于 graph case，它现在允许把 `materialized_graph` 的稳定观察结果一并算入 `observed`。
 
-### 5.7 资源契约摘要
+### 5.8 资源契约摘要
 
 这一组回答：
 
@@ -725,7 +768,7 @@ artifact_root 级该查询现在也会继续带出：
 当前 v0 里，`declared_contract_entries` 更适合作为输入侧法律文本的直接投影，
 而 `provided_facts / satisfied / violated / unknown` 则是最小审计层。
 
-### 5.8 运行时观察摘要
+### 5.9 运行时观察摘要
 
 这一组回答：
 
@@ -747,7 +790,7 @@ artifact_root 级该查询现在也会继续带出：
 
 这些已经存在的观察语言。
 
-### 5.9 比较摘要（compare 模式可选）
+### 5.10 比较摘要（compare 模式可选）
 
 这一组回答：
 
@@ -833,7 +876,7 @@ artifact_root 级该查询现在也会继续带出：
 报告仍然可以明确回答 baseline/candidate 的资源契约是否发生漂移，
 以及是哪条合同从 `absent / satisfied / violated / unknown` 之间切换了状态。
 
-### 5.10 支持工件引用
+### 5.11 支持工件引用
 
 这一组回答：
 
@@ -877,6 +920,38 @@ artifact_root 级该查询现在也会继续带出：
     "profile": "MCU_MIN",
     "board": "stm32_stub",
     "active_facets": ["runtime", "input"]
+  },
+  "system_input": {
+    "system_spec": {
+      "case_name": "bringup-minimal-observe-demo",
+      "case_kind": "materialized_graph",
+      "source": "Examples/init/bringup_minimal_observe_demo",
+      "build_dir": "cmake-build-init-bringup-minimal-observe-clang",
+      "build_target": "init-bringup-minimal-observe-demo",
+      "export_target": "export_bringup_minimal_materialized_graph"
+    },
+    "declared_input": {
+      "subject": {
+        "profile": null,
+        "board": "stm32_stub",
+        "active_facets": ["runtime", "input"]
+      },
+      "declared_facts": ["board.stm32_stub"],
+      "declared_contract_entries": [
+        { "contract": "needs_monotonic_clock", "requires": ["system.clock"] }
+      ]
+    },
+    "resolved_input": {
+      "profile": { "value": "MCU_MIN", "source": "explicit_argument" },
+      "board": { "value": "stm32_stub", "source": "case_subject" },
+      "active_facets": { "values": ["runtime", "input"], "source": "case_subject" },
+      "subject_facts": [
+        "profile.MCU_MIN",
+        "board.stm32_stub",
+        "facet.runtime",
+        "facet.input"
+      ]
+    }
   },
   "structure": {
     "capability_count": 12,

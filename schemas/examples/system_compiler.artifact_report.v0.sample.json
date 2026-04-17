@@ -13,6 +13,60 @@
       "input"
     ]
   },
+  "system_input": {
+    "system_spec": {
+      "case_name": "bringup-minimal-observe-demo",
+      "case_kind": "materialized_graph",
+      "source": "Examples/init/bringup_minimal_observe_demo",
+      "build_dir": "cmake-build-init-bringup-minimal-observe-clang",
+      "build_target": "init-bringup-minimal-observe-demo",
+      "export_target": "export_bringup_minimal_materialized_graph"
+    },
+    "declared_input": {
+      "subject": {
+        "profile": null,
+        "board": "stm32_stub",
+        "active_facets": [
+          "runtime",
+          "input"
+        ]
+      },
+      "declared_facts": [
+        "board.stm32_stub"
+      ],
+      "declared_contract_entries": [
+        {
+          "contract": "needs_monotonic_clock",
+          "requires": [
+            "system.clock"
+          ]
+        }
+      ]
+    },
+    "resolved_input": {
+      "profile": {
+        "value": "MCU_MIN",
+        "source": "explicit_argument"
+      },
+      "board": {
+        "value": "stm32_stub",
+        "source": "case_subject"
+      },
+      "active_facets": {
+        "values": [
+          "runtime",
+          "input"
+        ],
+        "source": "case_subject"
+      },
+      "subject_facts": [
+        "board.stm32_stub",
+        "facet.input",
+        "facet.runtime",
+        "profile.MCU_MIN"
+      ]
+    }
+  },
   "structure": {
     "capability_count": 12,
     "node_count": 9,

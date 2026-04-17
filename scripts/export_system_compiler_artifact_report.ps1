@@ -957,6 +957,28 @@ function Get-SubjectInfo {
     }
 }
 
+function Get-OptionalCaseEntryString {
+    param(
+        $CaseEntry,
+        [string]$PropertyName
+    )
+
+    if ($null -eq $CaseEntry -or [string]::IsNullOrWhiteSpace($PropertyName)) {
+        return $null
+    }
+
+    if ($null -eq $CaseEntry.PSObject.Properties[$PropertyName]) {
+        return $null
+    }
+
+    $value = [string]$CaseEntry.$PropertyName
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+
+    return $value
+}
+
 function Get-CaseDeclaredFacts {
     param(
         $CaseEntry
@@ -1265,11 +1287,68 @@ function New-ResolvedCaseSubject {
         Get-SubjectInfo -SubjectLike $null
     }
     $defaultSubject = $ArtifactContext.SubjectDefaults
+    $profileResolution = Resolve-SubjectScalarInfo -ExplicitValue $Profile -DefaultValue $defaultSubject.Profile -CaseValue $caseSubject.Profile
+    $boardResolution = Resolve-SubjectScalarInfo -ExplicitValue $Board -DefaultValue $defaultSubject.Board -CaseValue $caseSubject.Board
+    $facetResolution = Resolve-SubjectFacetsInfo -ExplicitFacets $Facet -DefaultFacets $defaultSubject.ActiveFacets -CaseFacets $caseSubject.ActiveFacets
 
     return [pscustomobject]@{
-        Profile = Resolve-SubjectScalar -ExplicitValue $Profile -DefaultValue $defaultSubject.Profile -CaseValue $caseSubject.Profile
-        Board = Resolve-SubjectScalar -ExplicitValue $Board -DefaultValue $defaultSubject.Board -CaseValue $caseSubject.Board
-        ActiveFacets = @(Resolve-SubjectFacets -ExplicitFacets $Facet -DefaultFacets $defaultSubject.ActiveFacets -CaseFacets $caseSubject.ActiveFacets)
+        Profile = $profileResolution.value
+        Board = $boardResolution.value
+        ActiveFacets = @($facetResolution.values)
+        ProfileResolution = $profileResolution
+        BoardResolution = $boardResolution
+        ActiveFacetResolution = $facetResolution
+    }
+}
+
+function New-SystemInputSummary {
+    param(
+        $CaseEntry,
+        $ResolvedCaseSubject
+    )
+
+    $declaredSubject = if ($null -ne $CaseEntry -and $null -ne $CaseEntry.PSObject.Properties['subject']) {
+        Get-SubjectInfo -SubjectLike $CaseEntry.subject
+    } else {
+        Get-SubjectInfo -SubjectLike $null
+    }
+    $declaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
+    $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
+    $subjectFacts = @(Get-SubjectFacts -ProfileValue $ResolvedCaseSubject.Profile -BoardValue $ResolvedCaseSubject.Board -ActiveFacets $ResolvedCaseSubject.ActiveFacets)
+
+    return [ordered]@{
+        system_spec = [ordered]@{
+            case_name = [string]$CaseEntry.name
+            case_kind = Get-CaseKind -CaseEntry $CaseEntry
+            source = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'source'
+            build_dir = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'build_dir'
+            build_target = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'build_target'
+            export_target = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'export_target'
+        }
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = $declaredSubject.Profile
+                board = $declaredSubject.Board
+                active_facets = @($declaredSubject.ActiveFacets)
+            }
+            declared_facts = @($declaredFacts)
+            declared_contract_entries = @($declaredContracts)
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = $ResolvedCaseSubject.Profile
+                source = [string]$ResolvedCaseSubject.ProfileResolution.source
+            }
+            board = [ordered]@{
+                value = $ResolvedCaseSubject.Board
+                source = [string]$ResolvedCaseSubject.BoardResolution.source
+            }
+            active_facets = [ordered]@{
+                values = @($ResolvedCaseSubject.ActiveFacets)
+                source = [string]$ResolvedCaseSubject.ActiveFacetResolution.source
+            }
+            subject_facts = @($subjectFacts)
+        }
     }
 }
 
@@ -2226,17 +2305,39 @@ function Resolve-SubjectScalar {
         [string]$CaseValue
     )
 
+    return (Resolve-SubjectScalarInfo -ExplicitValue $ExplicitValue -DefaultValue $DefaultValue -CaseValue $CaseValue).value
+}
+
+function Resolve-SubjectScalarInfo {
+    param(
+        [string]$ExplicitValue,
+        [string]$DefaultValue,
+        [string]$CaseValue
+    )
+
     if (-not [string]::IsNullOrWhiteSpace($ExplicitValue)) {
-        return [string]$ExplicitValue
+        return [ordered]@{
+            value = [string]$ExplicitValue
+            source = 'explicit_argument'
+        }
     }
     if (-not [string]::IsNullOrWhiteSpace($DefaultValue)) {
-        return [string]$DefaultValue
+        return [ordered]@{
+            value = [string]$DefaultValue
+            source = 'subject_default'
+        }
     }
     if (-not [string]::IsNullOrWhiteSpace($CaseValue)) {
-        return [string]$CaseValue
+        return [ordered]@{
+            value = [string]$CaseValue
+            source = 'case_subject'
+        }
     }
 
-    return $null
+    return [ordered]@{
+        value = $null
+        source = 'missing'
+    }
 }
 
 function Resolve-SubjectFacets {
@@ -2246,18 +2347,59 @@ function Resolve-SubjectFacets {
         [string[]]$CaseFacets
     )
 
-    if (@($ExplicitFacets).Count -gt 0) {
-        return @(
-            @($ExplicitFacets) |
-                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
-                ForEach-Object { [string]$_ }
-        )
-    }
-    if (@($DefaultFacets).Count -gt 0) {
-        return @($DefaultFacets)
+    return @((Resolve-SubjectFacetsInfo -ExplicitFacets $ExplicitFacets -DefaultFacets $DefaultFacets -CaseFacets $CaseFacets).values)
+}
+
+function Resolve-SubjectFacetsInfo {
+    param(
+        [string[]]$ExplicitFacets,
+        [string[]]$DefaultFacets,
+        [string[]]$CaseFacets
+    )
+
+    $normalizedExplicit = @(
+        @($ExplicitFacets) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+    if (@($normalizedExplicit).Count -gt 0) {
+        return [ordered]@{
+            values = @($normalizedExplicit)
+            source = 'explicit_argument'
+        }
     }
 
-    return @($CaseFacets)
+    $normalizedDefault = @(
+        @($DefaultFacets) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+    if (@($normalizedDefault).Count -gt 0) {
+        return [ordered]@{
+            values = @($normalizedDefault)
+            source = 'subject_default'
+        }
+    }
+
+    $normalizedCase = @(
+        @($CaseFacets) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+    if (@($normalizedCase).Count -gt 0) {
+        return [ordered]@{
+            values = @($normalizedCase)
+            source = 'case_subject'
+        }
+    }
+
+    return [ordered]@{
+        values = @()
+        source = 'missing'
+    }
 }
 
 function Load-CiSummaryData {
@@ -2458,6 +2600,7 @@ function New-ArtifactReport {
     $resolvedProfile = $resolvedSubject.Profile
     $resolvedBoard = $resolvedSubject.Board
     $resolvedFacets = @($resolvedSubject.ActiveFacets)
+    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
     $resourceAvailableFacts = @(
         @($providedFacts) +
@@ -2501,6 +2644,7 @@ function New-ArtifactReport {
             board = $resolvedBoard
             active_facets = @($resolvedFacets)
         }
+        system_input = $systemInputSummary
         structure = [ordered]@{
             capability_count = $allCapabilities.Count
             node_count = if ($null -ne $graph) { [int]$graph.node_count } else { 0 }

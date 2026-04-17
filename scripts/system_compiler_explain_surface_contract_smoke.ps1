@@ -266,6 +266,10 @@ $reportSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summar
 Assert-Condition ([string]$reportSummary.summary.Case -eq $ReportCase) 'default report summary case mismatch'
 Assert-Condition ([string]$reportSummary.summary.Mode -eq 'export_only') 'default report summary mode must stay export_only'
 Assert-Condition ($null -eq $reportSummary.comparison) 'default report summary comparison must stay null in export_only mode'
+Assert-Condition ($null -ne $reportSummary.system_input) 'default report summary must expose system_input'
+Assert-Condition ([string]$reportSummary.system_input.system_spec.case_name -eq $ReportCase) 'default report summary system_input.system_spec.case_name mismatch'
+Assert-Condition ([string]$reportSummary.system_input.system_spec.case_kind -eq 'materialized_graph') 'default report summary system_input.system_spec.case_kind mismatch'
+Assert-Condition ([string]$reportSummary.system_input.resolved_input.board.source -eq 'case_subject') 'default report summary resolved board source must stay case_subject'
 Assert-Condition ($null -ne $reportSummary.binding_result) 'default report summary must expose binding_result'
 Assert-Condition ($null -ne $reportSummary.bringup_order) 'default report summary must expose bringup_order'
 Assert-Condition ([int]$reportSummary.binding_result.required_binding_count -gt 0) 'materialized report binding_result must expose required bindings'
@@ -277,8 +281,10 @@ $runtimeSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summa
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $RuntimeCase -AsJson
 }
 Assert-Condition ([string]$runtimeSummary.summary.Case -eq $RuntimeCase) 'runtime report summary case mismatch'
+Assert-Condition ($null -ne $runtimeSummary.system_input) 'runtime report summary must expose system_input'
 Assert-Condition ($null -ne $runtimeSummary.binding_result) 'runtime report summary must expose binding_result'
 Assert-Condition ($null -ne $runtimeSummary.bringup_order) 'runtime report summary must expose bringup_order'
+Assert-Condition ([string]$runtimeSummary.system_input.system_spec.case_kind -eq 'runtime_only') 'runtime report summary case_kind must stay runtime_only'
 Assert-Condition ([int]$runtimeSummary.binding_result.required_binding_count -eq 0) 'runtime_only report binding_result must stay empty'
 Assert-Condition ([int]$runtimeSummary.bringup_order.ordered_node_count -eq 0) 'runtime_only report bringup_order must stay empty'
 
@@ -462,6 +468,7 @@ $summary = [ordered]@{
     compare_smokes = $compareSummaries
     assertions = [ordered]@{
         default_summary_report_supported = $true
+        default_summary_report_exposes_system_input = $true
         default_summary_report_exposes_binding_result = $true
         default_summary_report_exposes_bringup_order = $true
         runtime_only_summary_exposes_empty_binding_result = $true

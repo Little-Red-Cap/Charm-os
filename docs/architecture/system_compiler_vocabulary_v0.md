@@ -78,6 +78,9 @@ v0 阶段的使用规则如下：
 
 - `SystemSpec` 已经是路线图正式词汇
 - 但还没有收敛成单一源码对象
+- `artifact report.system_input.system_spec`
+  已开始作为 v0 结果物里的规范化输入投影，
+  用来把当前 case 的 system spec 入口正式暴露给人和工具
 
 ### 3.2 `Profile`
 
@@ -111,6 +114,8 @@ v0 阶段的使用规则如下：
 
 - 词已经有现实载体
 - 但载体仍然分散，还没统一成单一 profile 语言
+- `artifact report.system_input.resolved_input.profile`
+  现在已经把“当前 profile 最终取值及来源”正式投影出来
 
 ### 3.3 `BoardPackage`
 
@@ -153,6 +158,8 @@ v0 阶段的使用规则如下：
 
 - `BoardCaps` 已经很稳定
 - `BoardPackage` 仍是更上位的汇总词
+- `artifact report.system_input.resolved_input.board`
+  现在已经把 board 取值及来源正式投影出来，但还不是完整 `BoardPackage`
 
 ### 3.4 `Binding`
 
@@ -252,6 +259,8 @@ report / system 侧的现实载体包括：
 
 - 词已经有现实入口
 - 但命名和粒度仍在收敛
+- `artifact report.system_input.resolved_input.active_facets`
+  现在已经把活动 facets 及其解析来源正式投影出来
 
 ### 3.6 `Case`
 
@@ -431,11 +440,11 @@ report / system 侧的现实载体包括：
 
 | 目标词汇 | 当前主要载体 | 当前状态 | 当前不要误写成 |
 | --- | --- | --- | --- |
-| `SystemSpec` | 应用/示例目标、export case manifest、init case、设计文档 | 词已确立，尚未单对象化 | 单个 case / 单个 CMakeLists |
-| `Profile` | target profile、局部 featureset、report profile 字段 | 已有碎片化载体 | Debug/Release、单个 UI 配置 |
-| `BoardPackage` | `BoardCaps` + 板级 target/config | 事实载体已存在，汇总词尚未收口 | 隐式 init / BSP 黑盒 |
+| `SystemSpec` | 应用/示例目标、export case manifest、init case、设计文档、`artifact report.system_input.system_spec` | 词已确立，开始进入结果物投影 | 单个 case / 单个 CMakeLists |
+| `Profile` | target profile、局部 featureset、report profile 字段、`system_input.resolved_input.profile` | 已有碎片化载体，开始显式投影解析来源 | Debug/Release、单个 UI 配置 |
+| `BoardPackage` | `BoardCaps` + 板级 target/config + `system_input.resolved_input.board` | 事实载体已存在，开始显式投影 board 取值来源 | 隐式 init / BSP 黑盒 |
 | `Binding` | `*Binding`、init chain、runtime driver/export | 双平面都已存在 | 只等于 `device::Driver` |
-| `Facet` | facet target、`active_facets`、语义面文档 | 词已出现，命名仍在收敛 | profile / target / component |
+| `Facet` | facet target、`active_facets`、语义面文档、`system_input.resolved_input.active_facets` | 词已出现，开始显式投影解析来源 | profile / target / component |
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |

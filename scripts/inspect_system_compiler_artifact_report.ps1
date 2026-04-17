@@ -177,6 +177,75 @@ function Format-StringArrayOrDash {
     return Format-StringArray -Values $Values
 }
 
+function Format-ResolvedScalarInputText {
+    param(
+        $ResolvedInput
+    )
+
+    if ($null -eq $ResolvedInput) {
+        return '- [missing]'
+    }
+
+    $value = if ($null -ne $ResolvedInput.PSObject.Properties['value'] -and -not [string]::IsNullOrWhiteSpace([string]$ResolvedInput.value)) {
+        [string]$ResolvedInput.value
+    } else {
+        '-'
+    }
+    $source = if ($null -ne $ResolvedInput.PSObject.Properties['source'] -and -not [string]::IsNullOrWhiteSpace([string]$ResolvedInput.source)) {
+        [string]$ResolvedInput.source
+    } else {
+        'missing'
+    }
+
+    return "$value [$source]"
+}
+
+function Format-ResolvedFacetInputText {
+    param(
+        $ResolvedInput
+    )
+
+    if ($null -eq $ResolvedInput) {
+        return '- [missing]'
+    }
+
+    $values = if ($null -ne $ResolvedInput.PSObject.Properties['values']) {
+        @($ResolvedInput.values)
+    } else {
+        @()
+    }
+    $source = if ($null -ne $ResolvedInput.PSObject.Properties['source'] -and -not [string]::IsNullOrWhiteSpace([string]$ResolvedInput.source)) {
+        [string]$ResolvedInput.source
+    } else {
+        'missing'
+    }
+
+    return "$(Format-StringArrayOrDash -Values $values) [$source]"
+}
+
+function Format-DeclaredContractText {
+    param(
+        $ContractEntry
+    )
+
+    if ($null -eq $ContractEntry) {
+        return ''
+    }
+
+    $contractName = [string]$ContractEntry.contract
+    if ([string]::IsNullOrWhiteSpace($contractName)) {
+        return ''
+    }
+
+    $requires = if ($null -ne $ContractEntry.PSObject.Properties['requires']) {
+        @($ContractEntry.requires)
+    } else {
+        @()
+    }
+
+    return "$contractName requires [$((@($requires) -join ', '))]"
+}
+
 function Format-BindingResultDisplayRow {
     param(
         $Entry
@@ -3184,6 +3253,7 @@ function New-ArtifactJsonView {
         report_path = $LoadedReport.Path
         summary = New-CaseSummaryRow -LoadedReport $LoadedReport
         subject = $report.subject
+        system_input = $report.system_input
         structure = $report.structure
         binding_result = $report.binding_result
         bringup_order = $report.bringup_order
@@ -4121,6 +4191,67 @@ Write-Host "[MODE] $([string]($reportData.mode))"
 Write-Host ''
 
 $summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Compare, Metadata | Out-Host
+
+if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $reportData.system_input) {
+    $systemInput = $reportData.system_input
+    Write-Host '[INPUT]'
+    if ($null -ne $systemInput.PSObject.Properties['system_spec'] -and $null -ne $systemInput.system_spec) {
+        Write-Host "case_kind       = $([string]$systemInput.system_spec.case_kind)"
+        if (-not [string]::IsNullOrWhiteSpace([string]$systemInput.system_spec.source)) {
+            Write-Host "source          = $([string]$systemInput.system_spec.source)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$systemInput.system_spec.build_dir)) {
+            Write-Host "build_dir       = $([string]$systemInput.system_spec.build_dir)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$systemInput.system_spec.build_target)) {
+            Write-Host "build_target    = $([string]$systemInput.system_spec.build_target)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$systemInput.system_spec.export_target)) {
+            Write-Host "export_target   = $([string]$systemInput.system_spec.export_target)"
+        }
+    }
+    if ($null -ne $systemInput.PSObject.Properties['declared_input'] -and $null -ne $systemInput.declared_input) {
+        $declaredInput = $systemInput.declared_input
+        if ($null -ne $declaredInput.PSObject.Properties['subject'] -and $null -ne $declaredInput.subject) {
+            $declaredSubjectParts = @()
+            if (-not [string]::IsNullOrWhiteSpace([string]$declaredInput.subject.profile)) {
+                $declaredSubjectParts += "profile=$([string]$declaredInput.subject.profile)"
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$declaredInput.subject.board)) {
+                $declaredSubjectParts += "board=$([string]$declaredInput.subject.board)"
+            }
+            if (@($declaredInput.subject.active_facets).Count -gt 0) {
+                $declaredSubjectParts += "facets=$((@($declaredInput.subject.active_facets) -join ', '))"
+            }
+            if (@($declaredSubjectParts).Count -gt 0) {
+                Write-Host "declared_subject = $((@($declaredSubjectParts) -join '; '))"
+            }
+        }
+        if (@($declaredInput.declared_facts).Count -gt 0) {
+            Write-Host "declared_facts  = $((@($declaredInput.declared_facts) -join ', '))"
+        }
+        if (@($declaredInput.declared_contract_entries).Count -gt 0) {
+            $contractTexts = @(
+                @($declaredInput.declared_contract_entries) |
+                    ForEach-Object { Format-DeclaredContractText -ContractEntry $_ } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+            )
+            if (@($contractTexts).Count -gt 0) {
+                Write-Host "declared_contracts = $((@($contractTexts) -join '; '))"
+            }
+        }
+    }
+    if ($null -ne $systemInput.PSObject.Properties['resolved_input'] -and $null -ne $systemInput.resolved_input) {
+        $resolvedInput = $systemInput.resolved_input
+        Write-Host "resolved_profile = $(Format-ResolvedScalarInputText -ResolvedInput $resolvedInput.profile)"
+        Write-Host "resolved_board   = $(Format-ResolvedScalarInputText -ResolvedInput $resolvedInput.board)"
+        Write-Host "resolved_facets  = $(Format-ResolvedFacetInputText -ResolvedInput $resolvedInput.active_facets)"
+        if (@($resolvedInput.subject_facts).Count -gt 0) {
+            Write-Host "subject_facts    = $((@($resolvedInput.subject_facts) -join ', '))"
+        }
+    }
+    Write-Host ''
+}
 
 Write-Host '[STRUCTURE]'
 Write-Host "materialized_order = $((@($reportData.structure.materialized_order) -join ', '))"

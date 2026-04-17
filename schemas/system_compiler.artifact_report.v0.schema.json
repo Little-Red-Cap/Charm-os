@@ -11,6 +11,7 @@
     "report_kind",
     "mode",
     "subject",
+    "system_input",
     "structure",
     "binding_result",
     "bringup_order",
@@ -41,6 +42,9 @@
     },
     "subject": {
       "$ref": "#/$defs/subject"
+    },
+    "system_input": {
+      "$ref": "#/$defs/systemInput"
     },
     "structure": {
       "$ref": "#/$defs/structure"
@@ -163,6 +167,26 @@
         }
       }
     },
+    "subjectSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "board": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "active_facets": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
     "subject": {
       "type": "object",
       "additionalProperties": false,
@@ -184,6 +208,150 @@
         },
         "active_facets": {
           "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "subjectResolutionSource": {
+      "type": "string",
+      "enum": [
+        "explicit_argument",
+        "subject_default",
+        "case_subject",
+        "missing"
+      ]
+    },
+    "resolvedScalarInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "source": {
+          "$ref": "#/$defs/subjectResolutionSource"
+        }
+      }
+    },
+    "resolvedFacetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "values",
+        "source"
+      ],
+      "properties": {
+        "values": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "source": {
+          "$ref": "#/$defs/subjectResolutionSource"
+        }
+      }
+    },
+    "systemSpecInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_name",
+        "case_kind",
+        "source",
+        "build_dir",
+        "build_target",
+        "export_target"
+      ],
+      "properties": {
+        "case_name": {
+          "type": "string"
+        },
+        "case_kind": {
+          "type": "string",
+          "enum": [
+            "materialized_graph",
+            "runtime_only"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "build_dir": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "build_target": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "export_target": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "declaredInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "declared_facts",
+        "declared_contract_entries"
+      ],
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/subjectSummary"
+        },
+        "declared_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "declared_contract_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractClause"
+          }
+        }
+      }
+    },
+    "resolvedInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets",
+        "subject_facts"
+      ],
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/resolvedScalarInput"
+        },
+        "board": {
+          "$ref": "#/$defs/resolvedScalarInput"
+        },
+        "active_facets": {
+          "$ref": "#/$defs/resolvedFacetInput"
+        },
+        "subject_facts": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system_spec",
+        "declared_input",
+        "resolved_input"
+      ],
+      "properties": {
+        "system_spec": {
+          "$ref": "#/$defs/systemSpecInput"
+        },
+        "declared_input": {
+          "$ref": "#/$defs/declaredInput"
+        },
+        "resolved_input": {
+          "$ref": "#/$defs/resolvedInput"
         }
       }
     },

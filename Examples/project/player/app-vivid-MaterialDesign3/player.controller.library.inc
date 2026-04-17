@@ -1714,6 +1714,7 @@
 
         void update_list_path() {
             if (!access.valid() || !handles.list_path) return;
+            const int count = static_cast<int>(list_order.size());
             FixedString<192> path;
             path.assign(library_can_step_back() ? "< Library" : "Library");
             path.append(" / ");
@@ -1721,6 +1722,21 @@
             if (library_has_context()) {
                 path.append(" / ");
                 path.append(library_context_key.view());
+                if (count > 0) {
+                    char count_buf[24]{};
+                    std::snprintf(count_buf, sizeof(count_buf), "%d %s",
+                                  count, (count == 1) ? "track" : "tracks");
+                    path.append(" / ");
+                    path.append(count_buf);
+                }
+            } else if (library_shows_group_rows() && count > 0) {
+                char count_buf[24]{};
+                const char* label = (library_tab == LibraryTab::Albums)
+                    ? ((count == 1) ? "album" : "albums")
+                    : ((count == 1) ? "artist" : "artists");
+                std::snprintf(count_buf, sizeof(count_buf), "%d %s", count, label);
+                path.append(" / ");
+                path.append(count_buf);
             }
             if (list_shuffle_enabled) {
                 path.append(" / Shuffled");
@@ -1759,9 +1775,12 @@
             const char* hint = "";
             char buf[96]{};
             if (show_group_hint) {
-                hint = (library_tab == LibraryTab::Albums)
-                    ? "Select an album to open tracks"
-                    : "Select an artist to open tracks";
+                const char* label = (library_tab == LibraryTab::Albums)
+                    ? ((count == 1) ? "album" : "albums")
+                    : ((count == 1) ? "artist" : "artists");
+                std::snprintf(buf, sizeof(buf), "%d %s available | open one to browse tracks",
+                              count, label);
+                hint = buf;
             } else {
                 hint = fs_ready ? "No items in current library view" : "FS not ready";
             }

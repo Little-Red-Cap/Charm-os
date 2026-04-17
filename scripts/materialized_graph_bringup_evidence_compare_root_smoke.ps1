@@ -160,6 +160,7 @@ $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root.inspect.json'
 $capListInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root.cap_list.inspect.json'
 $rootSummaryInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root.summary.inspect.json'
+$whyInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root.why.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_root_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -310,6 +311,15 @@ Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.capability_summ
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.capability_summary.bringup_compare_capability_count -eq 1) 'artifact_root summary bringup compare capability count must be 1'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.capability_summary.bringup_compare_capabilities) -contains $PublishedCapability)) 'artifact_root summary capability summary missing published capability'
 
+$whyInspectResult = Invoke-CommandJson -OutputPath $whyInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -WhyCapability $PublishedCapability -AsJson
+}
+Assert-Condition ([string]$whyInspectResult.query.kind -eq 'why_capability') 'artifact_root why query kind mismatch'
+Assert-Condition ([string]$whyInspectResult.query.scope -eq 'artifact_root') 'artifact_root why query scope mismatch'
+Assert-Condition ([string]$whyInspectResult.query.result.capability -eq $PublishedCapability) 'artifact_root why result capability mismatch'
+Assert-Condition ([int]$whyInspectResult.query.result.bringup_compare_case_count -eq 1) 'artifact_root why bringup compare case count must be 1'
+Assert-Condition ((@($whyInspectResult.query.result.bringup_compare_cases) -contains $ChangedCase)) 'artifact_root why missing changed case'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -321,6 +331,7 @@ $summary = [ordered]@{
     inspect_json = $inspectJsonPath
     cap_list_inspect_json = $capListInspectJsonPath
     root_summary_inspect_json = $rootSummaryInspectJsonPath
+    why_inspect_json = $whyInspectJsonPath
     assertions = [ordered]@{
         artifact_root_compare_present = $true
         changed_case_detected = $true
@@ -329,6 +340,7 @@ $summary = [ordered]@{
         cap_list_compare_detected = $true
         root_summary_compare_detected = $true
         root_summary_capability_compare_detected = $true
+        root_why_compare_detected = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

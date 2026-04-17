@@ -84,6 +84,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -CapList -AsJson
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -GraphPath io.uart1
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -RecentTransitions
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ShowTransitions
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ResourceSummary
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -BringupEvidence
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ShowArtifacts
@@ -112,6 +113,39 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
+
+为了避免 inspector 继续在“支持哪些查询 / 哪些 scope / 哪些边界”上漂移，
+当前也需要把它压成一张更具体的支持矩阵。
+这张矩阵现在已经由：
+
+- `scripts/system_compiler_explain_surface_contract_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+
+一起冻结成 v0 契约。
+
+| inspector 入口 | 单 report / export_only | 单 report / compare | artifact_root / export_only | artifact_root / compare | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| 默认总览 | 支持 | 支持 | 支持 | 支持 | `-Case` 为空时读取整 root；显式多 case 子集也继续返回 artifact_root 聚合摘要 |
+| `-CapList` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集直接拒绝 |
+| `-WhyCapability <cap>` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集直接拒绝 |
+| `-GraphPath <cap>` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `-RecentTransitions` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `-BringupEvidence` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+| `-ResourceSummary` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+
+对应地，当前也把两个附录型 flag 的边界说明写死：
+
+- `-ShowTransitions`
+  不是独立 query kind。
+  它只在单 report 默认总览里把 `recent transitions` 投影成附录；
+  compare 模式会先给最小 `TRANSITION COMPARE` 摘要，
+  export_only 模式则保持无 compare 头部的纯附录展示。
+- `-ShowArtifacts`
+  同样不是独立 query kind。
+  它只是把当前 report 已经持有的 bundle / sample / runtime observe / diff / report manifest 等引用追加展示出来。
 
 其中 `cap list` 当前已经能在两种作用域上工作：
 
@@ -177,14 +211,46 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 > **这些漂移主要集中在哪些 capability 上。**
 
+而 `why unavailable` 当前则支持两种读取作用域：
+
+- 单 report 查询
+- 全 artifact root 汇总
+
+如果当前 report 来自 compare 模式，
+单 report 级该查询现在也会继续为目标 capability 带出最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+如果选择的是整组 compare report，
+artifact_root 级该查询现在也会继续带出：
+
+- `state_counts`
+- `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
+- `compared_cases / bringup_compare_cases / resource_compare_cases`
+- `resource_contracts`
+
 而 `graph path` 当前则明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：
 
 - `capability`
 - `state / availability_state`
+- `comparison`
 - `direct_edges`
 - `provider_paths`
 - `consumer_paths`
+
+如果当前 report 来自 compare 模式，
+`graph path` 现在也会继续为目标 capability 带出最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
 
 其中：
 
@@ -225,6 +291,45 @@ artifact_root 级 `cap list` 现在也会继续带出：
 这里会返回真实的 runtime export 观察摘要；
 如果尚未接入 sidecar，
 则继续返回稳定形状，但结果为空。
+
+如果当前 report 来自 compare 模式，
+`recent transitions` 现在也会继续为“出现在 transition 列表里的 capability”
+带出最小 compare 摘要。
+
+其中 `query.result.comparison` 当前至少包括：
+
+- `compared_transition_count / bringup_compare_transition_count / resource_compare_transition_count`
+- `compared_capability_count / bringup_compare_capability_count / resource_compare_capability_count`
+- `compared_capabilities`
+- `bringup_change_kinds / resource_change_kinds`
+- `resource_contracts`
+
+与此同时，`query.result.transitions[*]` 当前至少继续带出：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+这意味着 compare 模式下，
+`recent transitions` 现在可以直接回答：
+
+> **最近这批 runtime export 切换里，哪些 capability 既发生了切换，也在 compare 维度上发生了漂移。**
+
+但它仍保持一个边界：
+
+- 不做 artifact_root 聚合
+- 不把未出现在 `recent_transitions` 里的 compare capability 强行混入 runtime 视图
+
+如果调用方当前只是在看单 report 默认总览，
+`-ShowTransitions` 现在也会继续复用同一套 transition 行展示语言，
+至少带出：
+
+- `order / capability / action / before / after`
+- 行级 `BrCmp / ResCmp`
+
+如果当前 report 来自 compare 模式，
+它还会在 `[TRANSITIONS]` 前先给出一行最小 `TRANSITION COMPARE` 摘要，
+用来快速说明这批附录里的 transition 有多少条同时落在 compare 漂移面上。
 
 当前仓库里，`Examples/usb/usb_host_runtime_multi_smoke` 已经作为第一条正式
 `runtime_only` case 接入 `export_case_manifest -> export_bundle -> artifact_report`，

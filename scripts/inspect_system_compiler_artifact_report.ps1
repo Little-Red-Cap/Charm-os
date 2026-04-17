@@ -585,6 +585,50 @@ function New-CapabilityComparisonResult {
     }
 }
 
+function New-WhyCapabilityComparisonResult {
+    param(
+        $ReportData,
+        [string]$CapabilityName
+    )
+
+    $summary = New-CapabilityComparisonResult -ReportData $ReportData -CapabilityName $CapabilityName
+    $bringupChange = Get-BringupComparisonCapabilityChange -ReportData $ReportData -CapabilityName $CapabilityName
+    $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $ReportData
+    $resourceContractChanges = @(Get-ResourceComparisonContractChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
+
+    $resourceFactAdded = $false
+    $resourceFactRemoved = $false
+    if ($null -ne $resourceComparison) {
+        $resourceFactAdded = @($resourceComparison.provided_fact_changes.added) -contains $CapabilityName
+        $resourceFactRemoved = @($resourceComparison.provided_fact_changes.removed) -contains $CapabilityName
+    }
+
+    $bringupEvidence = $null
+    if ($null -ne $bringupChange -and @($bringupChange.PSObject.Properties).Count -gt 0) {
+        $bringupEvidence = $bringupChange
+    }
+
+    $changed = [bool]$summary.bringup_changed -or [bool]$summary.resource_changed
+    if (-not $changed) {
+        return $null
+    }
+
+    return [ordered]@{
+        changed = $changed
+        bringup_changed = [bool]$summary.bringup_changed
+        bringup_change_kinds = @($summary.bringup_change_kinds)
+        resource_changed = [bool]$summary.resource_changed
+        resource_change_kinds = @($summary.resource_change_kinds)
+        resource_contracts = @($summary.resource_contracts)
+        bringup_evidence = $bringupEvidence
+        resource_contract = [ordered]@{
+            provided_fact_added = $resourceFactAdded
+            provided_fact_removed = $resourceFactRemoved
+            contract_changes = @($resourceContractChanges)
+        }
+    }
+}
+
 function Get-ResourceContractMentions {
     param(
         $ReportData,
@@ -1213,6 +1257,7 @@ function New-ArtifactRootResourceContractComparisonResult {
 function New-RecentTransitionEntry {
     param(
         [int]$Index,
+        $ReportData,
         $Transition
     )
 
@@ -1220,12 +1265,101 @@ function New-RecentTransitionEntry {
         return $null
     }
 
+    $capabilityName = [string]$Transition.capability
+    $comparison = New-CapabilityComparisonResult -ReportData $ReportData -CapabilityName $capabilityName
+
     return [pscustomobject][ordered]@{
         order = $Index
-        capability = [string]$Transition.capability
+        capability = $capabilityName
         action = [string]$Transition.action
         before = [string]$Transition.before
         after = [string]$Transition.after
+        comparison = $comparison
+    }
+}
+
+function New-RecentTransitionsComparisonResult {
+    param(
+        [object[]]$TransitionEntries
+    )
+
+    $comparedTransitions = @(
+        @($TransitionEntries) |
+            Where-Object {
+                $comparison = $_.comparison
+                ($null -ne $comparison) -and (
+                    [bool]$comparison.bringup_changed -or
+                    [bool]$comparison.resource_changed
+                )
+            }
+    )
+    $bringupComparedTransitions = @(
+        @($TransitionEntries) |
+            Where-Object {
+                $comparison = $_.comparison
+                ($null -ne $comparison) -and [bool]$comparison.bringup_changed
+            }
+    )
+    $resourceComparedTransitions = @(
+        @($TransitionEntries) |
+            Where-Object {
+                $comparison = $_.comparison
+                ($null -ne $comparison) -and [bool]$comparison.resource_changed
+            }
+    )
+
+    if (@($comparedTransitions).Count -eq 0) {
+        return $null
+    }
+
+    $comparedCapabilities = @(
+        @($comparedTransitions) |
+            ForEach-Object { [string]$_.capability } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $bringupComparedCapabilities = @(
+        @($bringupComparedTransitions) |
+            ForEach-Object { [string]$_.capability } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $resourceComparedCapabilities = @(
+        @($resourceComparedTransitions) |
+            ForEach-Object { [string]$_.capability } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+
+    $bringupChangeKinds = @(
+        foreach ($entry in @($comparedTransitions)) {
+            @($entry.comparison.bringup_change_kinds)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $resourceChangeKinds = @(
+        foreach ($entry in @($comparedTransitions)) {
+            @($entry.comparison.resource_change_kinds)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $resourceContracts = @(
+        foreach ($entry in @($comparedTransitions)) {
+            @($entry.comparison.resource_contracts)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    return [ordered]@{
+        compared_transition_count = @($comparedTransitions).Count
+        bringup_compare_transition_count = @($bringupComparedTransitions).Count
+        resource_compare_transition_count = @($resourceComparedTransitions).Count
+        compared_capability_count = @($comparedCapabilities).Count
+        bringup_compare_capability_count = @($bringupComparedCapabilities).Count
+        resource_compare_capability_count = @($resourceComparedCapabilities).Count
+        compared_capabilities = @($comparedCapabilities)
+        bringup_compare_capabilities = @($bringupComparedCapabilities)
+        resource_compare_capabilities = @($resourceComparedCapabilities)
+        bringup_change_kinds = @($bringupChangeKinds)
+        resource_change_kinds = @($resourceChangeKinds)
+        resource_contracts = @($resourceContracts)
     }
 }
 
@@ -1237,7 +1371,7 @@ function New-RecentTransitionsResult {
     $transitionEntries = @()
     $transitionIndex = 0
     foreach ($transition in @($ReportData.runtime_observe.recent_transitions)) {
-        $entry = New-RecentTransitionEntry -Index $transitionIndex -Transition $transition
+        $entry = New-RecentTransitionEntry -Index $transitionIndex -ReportData $ReportData -Transition $transition
         if ($null -ne $entry) {
             $transitionEntries += $entry
             $transitionIndex += 1
@@ -1270,7 +1404,24 @@ function New-RecentTransitionsResult {
                 Sort-Object -Unique
         )
         action_counts = $actionCounts
+        comparison = New-RecentTransitionsComparisonResult -TransitionEntries $transitionEntries
         transitions = @($transitionEntries)
+    }
+}
+
+function Format-RecentTransitionDisplayRow {
+    param(
+        $Entry
+    )
+
+    return [pscustomobject]@{
+        order = [int]$Entry.order
+        capability = [string]$Entry.capability
+        action = [string]$Entry.action
+        before = [string]$Entry.before
+        after = [string]$Entry.after
+        BrCmp = Format-StringArrayOrDash -Values @($Entry.comparison.bringup_change_kinds)
+        ResCmp = Format-StringArrayOrDash -Values @($Entry.comparison.resource_change_kinds)
     }
 }
 
@@ -1646,6 +1797,7 @@ function New-GraphPathResult {
         state = $graphState
         availability_state = [string]$whyResult.state
         reasons = @($whyResult.reasons)
+        comparison = $whyResult.comparison
         direct_edges = @(
             @($directEdges) |
                 ForEach-Object {
@@ -1672,6 +1824,7 @@ function New-WhyCapabilityResult {
     )
 
     $evidence = Get-CapabilityEvidence -ReportData $ReportData -GraphInfo $GraphInfo -CapabilityName $CapabilityName
+    $comparison = New-WhyCapabilityComparisonResult -ReportData $ReportData -CapabilityName $CapabilityName
     $state = 'unknown'
     $reasons = @()
 
@@ -1747,11 +1900,147 @@ function New-WhyCapabilityResult {
         )
     }
 
+    if ($null -ne $comparison) {
+        if ([bool]$comparison.bringup_changed) {
+            $reasons += "compare bringup changed: $((@($comparison.bringup_change_kinds) -join ', '))"
+            if ($null -ne $comparison.bringup_evidence) {
+                $leftPublishState = Format-OptionalState -Value ([string]$comparison.bringup_evidence.left_publish_state)
+                $rightPublishState = Format-OptionalState -Value ([string]$comparison.bringup_evidence.right_publish_state)
+                $reasons += "compare publish_state = $leftPublishState -> $rightPublishState"
+
+                $leftExportState = Format-OptionalState -Value ([string]$comparison.bringup_evidence.left_export_state)
+                $rightExportState = Format-OptionalState -Value ([string]$comparison.bringup_evidence.right_export_state)
+                if ($leftExportState -ne '-' -or $rightExportState -ne '-') {
+                    $reasons += "compare export_state = $leftExportState -> $rightExportState"
+                }
+            }
+        }
+
+        if ([bool]$comparison.resource_changed) {
+            $reasons += "compare resource changed: $((@($comparison.resource_change_kinds) -join ', '))"
+            if ([bool]$comparison.resource_contract.provided_fact_added) {
+                $reasons += 'compare provided_fact added in candidate'
+            }
+            if ([bool]$comparison.resource_contract.provided_fact_removed) {
+                $reasons += 'compare provided_fact removed from candidate'
+            }
+            foreach ($contractChange in @($comparison.resource_contract.contract_changes)) {
+                $contractName = [string]$contractChange.contract
+                $changeKind = [string]$contractChange.change_kind
+                $leftState = Format-OptionalState -Value ([string]$contractChange.left_state)
+                $rightState = Format-OptionalState -Value ([string]$contractChange.right_state)
+                $reasons += "compare contract $contractName changed: $changeKind ($leftState -> $rightState)"
+            }
+        }
+    }
+
     return [ordered]@{
+        kind = 'why_capability'
+        scope = 'report'
         capability = $CapabilityName
         state = $state
         reasons = @($reasons)
         evidence = $evidence
+        comparison = $comparison
+    }
+}
+
+function New-ArtifactRootWhyCapabilityCaseResult {
+    param(
+        $LoadedReport,
+        [string]$CapabilityName
+    )
+
+    $report = $LoadedReport.Data
+    $graphInfo = Load-GraphFromArtifactReport -ReportData $report
+    $whyResult = New-WhyCapabilityResult -ReportData $report -GraphInfo $graphInfo -CapabilityName $CapabilityName
+    $bringupChangeKinds = @()
+    $resourceChangeKinds = @()
+    $resourceContracts = @()
+    if ($null -ne $whyResult.comparison) {
+        $bringupChangeKinds = @($whyResult.comparison.bringup_change_kinds)
+        $resourceChangeKinds = @($whyResult.comparison.resource_change_kinds)
+        $resourceContracts = @($whyResult.comparison.resource_contracts)
+    }
+
+    return [pscustomobject][ordered]@{
+        case = [string]$report.subject.case
+        profile = [string]$report.subject.profile
+        board = [string]$report.subject.board
+        state = [string]$whyResult.state
+        reasons = @($whyResult.reasons)
+        provider_nodes = @($whyResult.evidence.provider_nodes)
+        consumer_nodes = @($whyResult.evidence.consumer_nodes)
+        publish_state = if ([string]::IsNullOrWhiteSpace([string]$whyResult.evidence.publish_state)) { $null } else { [string]$whyResult.evidence.publish_state }
+        export_state = if ([string]::IsNullOrWhiteSpace([string]$whyResult.evidence.export_state)) { $null } else { [string]$whyResult.evidence.export_state }
+        compare_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.changed)
+        bringup_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.bringup_changed)
+        resource_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.resource_changed)
+        bringup_change_kinds = @($bringupChangeKinds)
+        resource_change_kinds = @($resourceChangeKinds)
+        resource_contracts = @($resourceContracts)
+    }
+}
+
+function New-ArtifactRootWhyCapabilityResult {
+    param(
+        [object[]]$LoadedReports,
+        [string]$CapabilityName
+    )
+
+    $caseResults = @(
+        @($LoadedReports) |
+            ForEach-Object { New-ArtifactRootWhyCapabilityCaseResult -LoadedReport $_ -CapabilityName $CapabilityName } |
+            Sort-Object case
+    )
+
+    $stateCounts = [ordered]@{}
+    foreach ($caseResult in @($caseResults)) {
+        $stateName = [string]$caseResult.state
+        if ([string]::IsNullOrWhiteSpace($stateName)) {
+            $stateName = 'unknown'
+        }
+
+        if ($stateCounts.Contains($stateName)) {
+            $stateCounts[$stateName] += 1
+        } else {
+            $stateCounts[$stateName] = 1
+        }
+    }
+
+    $comparedCases = @(
+        @($caseResults) |
+            Where-Object { [bool]$_.compare_changed } |
+            ForEach-Object { [string]$_.case }
+    )
+    $bringupCompareCases = @(
+        @($caseResults) |
+            Where-Object { [bool]$_.bringup_changed } |
+            ForEach-Object { [string]$_.case }
+    )
+    $resourceCompareCases = @(
+        @($caseResults) |
+            Where-Object { [bool]$_.resource_changed } |
+            ForEach-Object { [string]$_.case }
+    )
+    $resourceContracts = @(
+        foreach ($caseResult in @($caseResults)) {
+            @($caseResult.resource_contracts)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    return [ordered]@{
+        capability = $CapabilityName
+        case_count = @($caseResults).Count
+        state_counts = $stateCounts
+        compared_case_count = @($comparedCases).Count
+        bringup_compare_case_count = @($bringupCompareCases).Count
+        resource_compare_case_count = @($resourceCompareCases).Count
+        compared_cases = @($comparedCases | Sort-Object -Unique)
+        bringup_compare_cases = @($bringupCompareCases | Sort-Object -Unique)
+        resource_compare_cases = @($resourceCompareCases | Sort-Object -Unique)
+        resource_contracts = @($resourceContracts)
+        cases = @($caseResults)
     }
 }
 
@@ -1942,6 +2231,26 @@ function Format-AggregatedCapListDisplayRow {
         ResCtr = Format-StringArray @($Entry.resource_contracts)
         Providers = Format-StringArray @($Entry.provider_nodes)
         Consumers = Format-StringArray @($Entry.consumer_nodes)
+    }
+}
+
+function Format-ArtifactRootWhyCapabilityDisplayRow {
+    param(
+        $Entry
+    )
+
+    return [pscustomobject]@{
+        Case = [string]$Entry.case
+        State = [string]$Entry.state
+        Compare = Format-BoolFlag -Value ([bool]$Entry.compare_changed)
+        BrCmp = Format-StringArrayOrDash -Values @($Entry.bringup_change_kinds)
+        ResCmp = Format-StringArrayOrDash -Values @($Entry.resource_change_kinds)
+        Contracts = Format-StringArrayOrDash -Values @($Entry.resource_contracts)
+        PubState = Format-OptionalState -Value ([string]$Entry.publish_state)
+        ExpState = Format-OptionalState -Value ([string]$Entry.export_state)
+        Providers = Format-StringArray @($Entry.provider_nodes)
+        Consumers = Format-StringArray @($Entry.consumer_nodes)
+        Reasons = (@($Entry.reasons) -join '; ')
     }
 }
 
@@ -2900,6 +3209,10 @@ if ($CapList -and $selectedReports.Count -gt 1 -and $Case.Count -gt 0) {
     throw "-CapList only supports a single selected report or full artifact root aggregation"
 }
 
+if (-not [string]::IsNullOrWhiteSpace($WhyCapability) -and $selectedReports.Count -gt 1 -and $Case.Count -gt 0) {
+    throw "-WhyCapability only supports a single selected report or full artifact root aggregation"
+}
+
 if ($ListCases) {
     if ($AsJson) {
         @($selectedReports | ForEach-Object { [string]$_.Data.subject.case }) | ConvertTo-Json -Depth 2
@@ -2911,10 +3224,6 @@ if ($ListCases) {
 }
 
 $summaryRows = @($selectedReports | ForEach-Object { New-CaseSummaryRow -LoadedReport $_ })
-
-if (-not [string]::IsNullOrWhiteSpace($WhyCapability) -and $selectedReports.Count -ne 1) {
-    throw "-WhyCapability requires exactly one selected artifact report"
-}
 
 if (-not [string]::IsNullOrWhiteSpace($GraphPath) -and $selectedReports.Count -ne 1) {
     throw "-GraphPath requires exactly one selected artifact report"
@@ -2963,6 +3272,40 @@ if ($CapList) {
 }
 
 if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEvidence) {
+    if (-not [string]::IsNullOrWhiteSpace($WhyCapability)) {
+        $artifactRootWhyResult = New-ArtifactRootWhyCapabilityResult -LoadedReports $selectedReports -CapabilityName $WhyCapability
+        if ($AsJson) {
+            [ordered]@{
+                artifact_root = $artifactRootPath
+                query = [ordered]@{
+                    kind = 'why_capability'
+                    scope = 'artifact_root'
+                    result = $artifactRootWhyResult
+                }
+            } | ConvertTo-Json -Depth 10
+        } else {
+            Write-Host "[ARTIFACT ROOT] $artifactRootPath"
+            Write-Host "[WHY CAPABILITY] $WhyCapability scope=artifact_root cases=$([int]$artifactRootWhyResult.case_count)"
+            if ($null -ne $artifactRootWhyResult.state_counts -and $artifactRootWhyResult.state_counts.Count -gt 0) {
+                $stateSummary = @(
+                    foreach ($stateName in @($artifactRootWhyResult.state_counts.Keys)) {
+                        ('{0}:{1}' -f $stateName, [int]$artifactRootWhyResult.state_counts[$stateName])
+                    }
+                ) -join ', '
+                Write-Host "state_counts = $stateSummary"
+            }
+            Write-Host "compare_cases = $([int]$artifactRootWhyResult.compared_case_count) bringup_compare = $([int]$artifactRootWhyResult.bringup_compare_case_count) resource_compare = $([int]$artifactRootWhyResult.resource_compare_case_count)"
+            if (@($artifactRootWhyResult.resource_contracts).Count -gt 0) {
+                Write-Host "resource_contracts = $((@($artifactRootWhyResult.resource_contracts) -join ', '))"
+            }
+            @($artifactRootWhyResult.cases) |
+                ForEach-Object { Format-ArtifactRootWhyCapabilityDisplayRow -Entry $_ } |
+                Format-List Case, State, Compare, BrCmp, ResCmp, Contracts, PubState, ExpState, Providers, Consumers, Reasons |
+                Out-Host
+        }
+        exit 0
+    }
+
     $comparisonCapabilitySummary = $null
     $hasComparisonReports = @(
         @($selectedReports) |
@@ -3288,11 +3631,29 @@ if ($RecentTransitions) {
         }
         Write-Host "action_counts = $((@($actionParts) -join ', '))"
     }
+    if ($null -ne $recentTransitionsResult.comparison) {
+        Write-Host ''
+        Write-Host '[COMPARE]'
+        Write-Host "compared_transitions = $([int]$recentTransitionsResult.comparison.compared_transition_count) bringup_compare = $([int]$recentTransitionsResult.comparison.bringup_compare_transition_count) resource_compare = $([int]$recentTransitionsResult.comparison.resource_compare_transition_count)"
+        Write-Host "compare_capabilities = $([int]$recentTransitionsResult.comparison.compared_capability_count) bringup_capabilities = $([int]$recentTransitionsResult.comparison.bringup_compare_capability_count) resource_capabilities = $([int]$recentTransitionsResult.comparison.resource_compare_capability_count)"
+        if (@($recentTransitionsResult.comparison.compared_capabilities).Count -gt 0) {
+            Write-Host "compared_capabilities = $((@($recentTransitionsResult.comparison.compared_capabilities) -join ', '))"
+        }
+        if (@($recentTransitionsResult.comparison.bringup_change_kinds).Count -gt 0) {
+            Write-Host "bringup_change_kinds = $((@($recentTransitionsResult.comparison.bringup_change_kinds) -join ', '))"
+        }
+        if (@($recentTransitionsResult.comparison.resource_change_kinds).Count -gt 0) {
+            Write-Host "resource_change_kinds = $((@($recentTransitionsResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($recentTransitionsResult.comparison.resource_contracts).Count -gt 0) {
+            Write-Host "resource_contracts = $((@($recentTransitionsResult.comparison.resource_contracts) -join ', '))"
+        }
+    }
     if (@($recentTransitionsResult.transitions).Count -gt 0) {
         Write-Host ''
         Write-Host '[TRANSITIONS]'
         @($recentTransitionsResult.transitions) |
-            Select-Object order, capability, action, before, after |
+            ForEach-Object { Format-RecentTransitionDisplayRow -Entry $_ } |
             Format-Table -AutoSize |
             Out-Host
     }
@@ -3564,6 +3925,21 @@ if (-not [string]::IsNullOrWhiteSpace($GraphPath)) {
     if (@($graphPathResult.reasons).Count -gt 0) {
         Write-Host "reasons = $((@($graphPathResult.reasons) -join '; '))"
     }
+    if ($null -ne $graphPathResult.comparison) {
+        Write-Host '[COMPARE]'
+        Write-Host "changed = $([bool]$graphPathResult.comparison.changed)"
+        Write-Host "bringup_changed = $([bool]$graphPathResult.comparison.bringup_changed)"
+        Write-Host "resource_changed = $([bool]$graphPathResult.comparison.resource_changed)"
+        if (@($graphPathResult.comparison.bringup_change_kinds).Count -gt 0) {
+            Write-Host "bringup_change_kinds = $((@($graphPathResult.comparison.bringup_change_kinds) -join ', '))"
+        }
+        if (@($graphPathResult.comparison.resource_change_kinds).Count -gt 0) {
+            Write-Host "resource_change_kinds = $((@($graphPathResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($graphPathResult.comparison.resource_contracts).Count -gt 0) {
+            Write-Host "resource_contracts = $((@($graphPathResult.comparison.resource_contracts) -join ', '))"
+        }
+    }
     if (@($graphPathResult.direct_edges).Count -gt 0) {
         Write-Host '[DIRECT EDGES]'
         foreach ($edgeRecord in @($graphPathResult.direct_edges)) {
@@ -3625,6 +4001,22 @@ if (-not [string]::IsNullOrWhiteSpace($WhyCapability)) {
     }
     if (@($whyResult.evidence.resource_contract.hotspots).Count -gt 0) {
         Write-Host "resource_hotspots = $((@($whyResult.evidence.resource_contract.hotspots) -join '; '))"
+    }
+    if ($null -ne $whyResult.comparison) {
+        Write-Host ''
+        Write-Host '[COMPARE]'
+        Write-Host "changed = $([bool]$whyResult.comparison.changed)"
+        Write-Host "bringup_changed = $([bool]$whyResult.comparison.bringup_changed)"
+        Write-Host "resource_changed = $([bool]$whyResult.comparison.resource_changed)"
+        if (@($whyResult.comparison.bringup_change_kinds).Count -gt 0) {
+            Write-Host "bringup_change_kinds = $((@($whyResult.comparison.bringup_change_kinds) -join ', '))"
+        }
+        if (@($whyResult.comparison.resource_change_kinds).Count -gt 0) {
+            Write-Host "resource_change_kinds = $((@($whyResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($whyResult.comparison.resource_contracts).Count -gt 0) {
+            Write-Host "resource_contracts = $((@($whyResult.comparison.resource_contracts) -join ', '))"
+        }
     }
     exit 0
 }
@@ -3722,9 +4114,16 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
 }
 
 if ($ShowTransitions -and @($reportData.runtime_observe.recent_transitions).Count -gt 0) {
+    $recentTransitionsResult = New-RecentTransitionsResult -ReportData $reportData
+    if ($null -ne $recentTransitionsResult.comparison) {
+        Write-Host "[TRANSITION COMPARE] compared=$([int]$recentTransitionsResult.comparison.compared_transition_count) bringup=$([int]$recentTransitionsResult.comparison.bringup_compare_transition_count) resource=$([int]$recentTransitionsResult.comparison.resource_compare_transition_count)"
+        if (@($recentTransitionsResult.comparison.compared_capabilities).Count -gt 0) {
+            Write-Host "compared_capabilities = $((@($recentTransitionsResult.comparison.compared_capabilities) -join ', '))"
+        }
+    }
     Write-Host '[TRANSITIONS]'
-    @($reportData.runtime_observe.recent_transitions) |
-        Select-Object capability, action, before, after |
+    @($recentTransitionsResult.transitions) |
+        ForEach-Object { Format-RecentTransitionDisplayRow -Entry $_ } |
         Format-Table -AutoSize |
         Out-Host
     Write-Host ''

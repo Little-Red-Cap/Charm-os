@@ -113,6 +113,9 @@ $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.inspect.json'
 $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.summary.inspect.json'
+$whyInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.why.inspect.json'
+$graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.graph_path.inspect.json'
+$recentTransitionsInspectJsonPath = Join-Path $resolvedOutputRoot 'resource_contract_compare.recent_transitions.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'resource_contract_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -233,6 +236,47 @@ Assert-Condition ($null -ne $summaryInspectResult.comparison.capability_summary)
 Assert-Condition ([int]$summaryInspectResult.comparison.capability_summary.resource_compare_capability_count -eq 1) 'inspect default summary resource compare capability count must be 1'
 Assert-Condition ((@($summaryInspectResult.comparison.capability_summary.resource_compare_capabilities) -contains $AddedRequiredFact)) 'inspect default summary capability summary missing required fact'
 
+$whyInspectResult = Invoke-CommandJson -OutputPath $whyInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -WhyCapability $AddedRequiredFact -AsJson
+}
+Assert-Condition ([string]$whyInspectResult.query.kind -eq 'why_capability') 'inspect why query kind mismatch'
+Assert-Condition ([string]$whyInspectResult.query.scope -eq 'report') 'inspect why query scope mismatch'
+Assert-Condition ($null -ne $whyInspectResult.query.comparison) 'inspect why must expose comparison payload'
+Assert-Condition ([bool]$whyInspectResult.query.comparison.resource_changed) 'inspect why comparison must mark resource changed'
+Assert-Condition ((@($whyInspectResult.query.comparison.resource_change_kinds) -contains 'contract_added')) 'inspect why comparison missing contract_added kind'
+Assert-Condition ((@($whyInspectResult.query.comparison.resource_contracts) -contains $AddedContract)) 'inspect why comparison missing changed contract'
+Assert-Condition (@(
+    @($whyInspectResult.query.comparison.resource_contract.contract_changes) |
+        Where-Object { [string]$_.contract -eq $AddedContract }
+).Count -eq 1) 'inspect why comparison missing target contract change entry'
+
+$graphPathInspectResult = Invoke-CommandJson -OutputPath $graphPathInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -GraphPath $AddedRequiredFact -AsJson
+}
+Assert-Condition ([string]$graphPathInspectResult.query.kind -eq 'graph_path') 'inspect graph path query kind mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.scope -eq 'report') 'inspect graph path query scope mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.result.capability -eq $AddedRequiredFact) 'inspect graph path capability mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.result.state -eq 'undeclared') 'inspect graph path state must stay undeclared for missing fact'
+Assert-Condition ($null -ne $graphPathInspectResult.query.result.comparison) 'inspect graph path must expose comparison payload'
+Assert-Condition ([bool]$graphPathInspectResult.query.result.comparison.resource_changed) 'inspect graph path comparison must mark resource changed'
+Assert-Condition ((@($graphPathInspectResult.query.result.comparison.resource_change_kinds) -contains 'contract_added')) 'inspect graph path comparison missing contract_added kind'
+Assert-Condition ((@($graphPathInspectResult.query.result.comparison.resource_contracts) -contains $AddedContract)) 'inspect graph path comparison missing changed contract'
+
+$recentTransitionsInspectResult = Invoke-CommandJson -OutputPath $recentTransitionsInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -RecentTransitions -AsJson
+}
+Assert-Condition ([string]$recentTransitionsInspectResult.query.kind -eq 'recent_transitions') 'inspect recent transitions query kind mismatch'
+Assert-Condition ([string]$recentTransitionsInspectResult.query.scope -eq 'report') 'inspect recent transitions query scope mismatch'
+Assert-Condition (@($recentTransitionsInspectResult.query.result.transitions).Count -eq [int]$recentTransitionsInspectResult.query.result.transition_count) 'inspect recent transitions transition_count must match transitions array size'
+Assert-Condition ($null -eq $recentTransitionsInspectResult.query.result.comparison) 'resource compare without matching transition capability must not surface query-level recent transition comparison'
+Assert-Condition (@(
+    @($recentTransitionsInspectResult.query.result.transitions) |
+        Where-Object {
+            [bool]$_.comparison.bringup_changed -or
+            [bool]$_.comparison.resource_changed
+        }
+).Count -eq 0) 'resource compare without matching transition capability must not surface transition-level compare drift'
+
 $summary = [ordered]@{
     left_bundle_root = $resolvedBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -243,12 +287,18 @@ $summary = [ordered]@{
     artifact_report = $artifactReportPath
     inspect_json = $inspectJsonPath
     summary_inspect_json = $summaryInspectJsonPath
+    why_inspect_json = $whyInspectJsonPath
+    graph_path_inspect_json = $graphPathInspectJsonPath
+    recent_transitions_inspect_json = $recentTransitionsInspectJsonPath
     assertions = [ordered]@{
         metadata_only_diff_preserved = $true
         comparison_resource_contract_present = $true
         violated_contract_change_detected = $true
         inspect_resource_summary_exposes_compare = $true
         inspect_default_summary_exposes_capability_compare = $true
+        inspect_why_exposes_compare = $true
+        inspect_graph_path_exposes_compare = $true
+        inspect_recent_transitions_keeps_compare_scope_narrow = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

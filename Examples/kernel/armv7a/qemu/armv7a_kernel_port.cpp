@@ -5,6 +5,7 @@
 #include "armv7a_diag_console.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_runtime_current.hpp"
 
 #include <cstdint>
 
@@ -163,6 +164,7 @@ Armv7aKernelPortContract armv7a_make_qemu_kernel_port_contract() noexcept
                 .prepare_initial_frame = &armv7a_kernel_prepare_initial_frame,
                 .switch_context = &armv7a_kernel_switch_context,
             },
+        .current = armv7a_runtime_current_context_port(),
     };
 }
 

@@ -68,6 +68,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-trap-seam";
     case Armv7aBringupPhase::kRuntimeTrapLiveAdapter:
         return "runtime-trap-live-adapter";
+    case Armv7aBringupPhase::kRuntimeTrapIngressAdapter:
+        return "runtime-trap-ingress-adapter";
     case Armv7aBringupPhase::kRuntimeTrapCaller:
         return "runtime-trap-caller";
     case Armv7aBringupPhase::kContextSwitchSmoke:

@@ -636,6 +636,18 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - 只接受精确单 report
 - 不把未出现在 `recent_transitions` 里的 capability compare 强行混进 runtime 视图
 
+与此同时，
+默认总览里的 `-ShowTransitions` 当前也会继续复用同一套 transition 展示语言。
+它不是新的 explain query，
+而是把 `recent transitions` 已经冻结下来的行级语义，
+作为默认总览的附录面再次投影出来。
+
+如果当前 report 来自 compare 模式，
+这个附录面现在也会继续带出：
+
+- 行级 `BrCmp / ResCmp`
+- 一行最小 `TRANSITION COMPARE` 摘要
+
 当前仓库里已经有一条真实 runtime-only producer：
 
 - `Examples/usb/usb_host_runtime_multi_smoke`

@@ -161,6 +161,7 @@ $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compar
 $whyInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.why.inspect.json'
 $graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.graph_path.inspect.json'
 $recentTransitionsInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.recent_transitions.inspect.json'
+$showTransitionsTextPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.show_transitions.txt'
 $summaryPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -337,6 +338,13 @@ Assert-Condition (@(
         }
 ).Count -eq 2) 'inspect recent transitions must expose bringup compare details on every synthetic transition'
 
+$showTransitionsText = (& $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -ShowTransitions 6>&1 | Out-String)
+$showTransitionsText | Set-Content -LiteralPath $showTransitionsTextPath -Encoding utf8
+Assert-Condition ($showTransitionsText.Contains('[TRANSITION COMPARE]')) 'inspect show transitions must print transition compare summary'
+Assert-Condition ($showTransitionsText.Contains('[TRANSITIONS]')) 'inspect show transitions must print transitions block'
+Assert-Condition ($showTransitionsText.Contains($PublishedCapability)) 'inspect show transitions output missing published capability'
+Assert-Condition ($showTransitionsText.Contains('changed')) 'inspect show transitions output missing compare changed marker'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -349,6 +357,7 @@ $summary = [ordered]@{
     why_inspect_json = $whyInspectJsonPath
     graph_path_inspect_json = $graphPathInspectJsonPath
     recent_transitions_inspect_json = $recentTransitionsInspectJsonPath
+    show_transitions_text = $showTransitionsTextPath
     assertions = [ordered]@{
         sidecar_only_diff_preserved = $true
         comparison_bringup_evidence_present = $true
@@ -358,6 +367,7 @@ $summary = [ordered]@{
         inspect_why_exposes_compare = $true
         inspect_graph_path_exposes_compare = $true
         inspect_recent_transitions_exposes_compare = $true
+        inspect_show_transitions_reuses_compare_display = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

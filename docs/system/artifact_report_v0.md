@@ -84,6 +84,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -CapList -AsJson
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -GraphPath io.uart1
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -RecentTransitions
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ShowTransitions
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ResourceSummary
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -BringupEvidence
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ShowArtifacts
@@ -285,6 +286,17 @@ artifact_root 级该查询现在也会继续带出：
 
 - 不做 artifact_root 聚合
 - 不把未出现在 `recent_transitions` 里的 compare capability 强行混入 runtime 视图
+
+如果调用方当前只是在看单 report 默认总览，
+`-ShowTransitions` 现在也会继续复用同一套 transition 行展示语言，
+至少带出：
+
+- `order / capability / action / before / after`
+- 行级 `BrCmp / ResCmp`
+
+如果当前 report 来自 compare 模式，
+它还会在 `[TRANSITIONS]` 前先给出一行最小 `TRANSITION COMPARE` 摘要，
+用来快速说明这批附录里的 transition 有多少条同时落在 compare 漂移面上。
 
 当前仓库里，`Examples/usb/usb_host_runtime_multi_smoke` 已经作为第一条正式
 `runtime_only` case 接入 `export_case_manifest -> export_bundle -> artifact_report`，

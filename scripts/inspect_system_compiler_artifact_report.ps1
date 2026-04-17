@@ -4114,9 +4114,16 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
 }
 
 if ($ShowTransitions -and @($reportData.runtime_observe.recent_transitions).Count -gt 0) {
+    $recentTransitionsResult = New-RecentTransitionsResult -ReportData $reportData
+    if ($null -ne $recentTransitionsResult.comparison) {
+        Write-Host "[TRANSITION COMPARE] compared=$([int]$recentTransitionsResult.comparison.compared_transition_count) bringup=$([int]$recentTransitionsResult.comparison.bringup_compare_transition_count) resource=$([int]$recentTransitionsResult.comparison.resource_compare_transition_count)"
+        if (@($recentTransitionsResult.comparison.compared_capabilities).Count -gt 0) {
+            Write-Host "compared_capabilities = $((@($recentTransitionsResult.comparison.compared_capabilities) -join ', '))"
+        }
+    }
     Write-Host '[TRANSITIONS]'
-    @($reportData.runtime_observe.recent_transitions) |
-        Select-Object capability, action, before, after |
+    @($recentTransitionsResult.transitions) |
+        ForEach-Object { Format-RecentTransitionDisplayRow -Entry $_ } |
         Format-Table -AutoSize |
         Out-Host
     Write-Host ''

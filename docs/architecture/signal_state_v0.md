@@ -122,6 +122,164 @@ Charm 更适合的模型是：
 
 局部 `signal` 可以动态 connect/disconnect，但默认是弱动态、强静态。
 
+## 执行域定义
+
+这里的“执行域”不是抽象线程模型，而是一个更实用的判断：
+
+- 当前回调能否在这里立即执行完
+- 执行期间是否不需要跨 scheduler / reactor / ISR 边界
+- 成本和时序是否仍然可由当前调用点承担
+
+在 Charm 里，下面这些通常应视为不同执行域：
+
+- ISR 和 task
+- 不同 task
+- driver ingress 和 reactor drain
+- background worker 和 UI / page controller
+- 两个需要显式 submit / wakeup 才能互相到达的执行面
+
+如果拿不准是否同域，默认按“不同执行域”处理，走 `post()`。
+
+## Slot 契约
+
+`signal` / `state.changed()` 的 slot 在 v0 默认遵守同一套硬约束：
+
+- 必须是 `noexcept`
+- 必须是有界、可预估的短路径
+- 不阻塞
+- 不睡眠
+- 不等待 IO / lock / condition
+- 不做隐藏堆分配
+- 不做大循环、大扫描、重计算
+
+更直白一点：
+
+- slot 适合做轻量状态同步、轻量派发、写入局部缓存
+- slot 不适合承担完整业务流程、设备访问、UI 重绘流水线、文件系统操作
+
+如果 slot 真的需要“做事”，推荐模式是：
+
+- 先在 slot 内提取最小事件
+- 再显式 `post()` 给对应执行面
+
+## ISR 与跨上下文规则
+
+v0 没有提供 irq-safe 的直接广播变体，因此默认规则是：
+
+- 把 ISR 中直接 `emit()` 视为禁止用法
+
+原因不是 `emit()` 本身神秘，而是 slot 集合通常无法证明：
+
+- 每个 slot 都 irq-safe
+- 不会触发阻塞路径
+- 不会触发 UI / scheduler / service 的错误上下文进入
+
+因此 ISR 中允许做的事情应收敛为：
+
+- 读取并确认硬件状态
+- 生成最小边沿事件或状态快照
+- 通过 irq-safe 的 `poster` / queue / reactor ingress 显式 `post()`
+
+ISR 中明确不应做：
+
+- 直接 `emit()` 到未知 slot 集合
+- 调用 `state::set()`，因为它会继续走 `changed().emit()`
+- `connect()` / `disconnect()`
+- 借由 `signal` 间接唤起 UI、service 或重逻辑
+
+一句更狠的判断可以写成：
+
+> ISR 里默认只有 `post()`，没有普通 `emit()`。
+
+## 拓扑与生命周期规则
+
+v0 允许动态 connect/disconnect，但不鼓励把它当作系统主拓扑机制。
+
+推荐的连接生命周期：
+
+- 初始化期 connect
+- 页面进入 / session 建立时 connect
+- 生命周期稳定后只 `emit()` / `set()` / `post()`
+- 页面退出 / session 结束时 disconnect
+
+不推荐的用法：
+
+- 在热路径里频繁 connect/disconnect
+- 一边 `emit()` 一边修改同一个 `signal` 的连接集合
+- 把运行时匿名 connect 网当成系统 wiring
+
+v0 还应默认遵守：
+
+- fanout 顺序不应成为语义契约
+- stale token 失效是正常保护，不应绕过
+- `signal` / `state` 默认不提供并发安全
+- 同一个 `signal` 的 connect / disconnect / emit 不应跨线程或跨 ISR 并发调用
+
+## 事件与状态的选型
+
+这层最容易混淆的不是 API 名称，而是“你手上拿着的到底是什么”。
+
+### 用 `signal`
+
+当你表达的是一次边沿事件：
+
+- button pressed
+- track changed
+- page entered
+- encoder rotated
+
+它关心的是“发生了一次”，而不是“当前真相是什么”。
+
+### 用 `state`
+
+当你表达的是一个当前真相：
+
+- current volume
+- current page
+- online / offline
+- battery percent
+
+它关心的是“现在是什么”，并且允许观察变化。
+
+### 用 `deferred_signal` / `poster`
+
+当你表达的是上下文跨越：
+
+- ISR -> task
+- driver ingress -> reactor drain
+- background -> UI
+- task A -> task B
+
+这时候重点不是“广播”，而是“安全跨域到达”。
+
+## 允许与禁止
+
+推荐用法：
+
+- 页面控制器内部的轻量观察，用 `signal`
+- 小型 service 内部的状态真相与变化通知，用 `state`
+- task-local deferred delivery，用 `deferred_signal`
+- scheduler submit 语义选择，用 `kernel.poster`
+- 系统固定 wiring，用 `init.connection`
+
+明确禁止或不推荐：
+
+- 把 `signal` 当跨域消息总线
+- 在 ISR 里直接 `emit()` 普通信号
+- 在 slot 里做阻塞、睡眠、重 IO、重计算
+- 用 `state` 组织自动传播图
+- 依赖 slot 顺序表达业务语义
+- 把系统 wiring 藏进运行时匿名 connect 关系
+
+## 选型速查
+
+最小判断表可以压成下面几句：
+
+- 同域、边沿、轻量广播：`signal`
+- 同域、当前真相、变化通知：`state`
+- 跨域、显式延迟投递：`deferred_signal` / `poster`
+- 系统级固定拓扑：`init.connection`
+
 ## 与现有系统的关系
 
 ### 与 `io.reactor`

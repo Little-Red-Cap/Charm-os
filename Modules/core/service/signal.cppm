@@ -16,6 +16,8 @@ export namespace service {
     template <class... Args, util::usize MaxSlots>
     class signal<void(Args...), MaxSlots> {
     public:
+        // Same-domain synchronous broadcast only.
+        // Cross-context delivery must use an explicit post() surface.
         static_assert(MaxSlots >= 1);
         static_assert(MaxSlots <= static_cast<util::usize>(0x10000u));
         static_assert((!std::is_rvalue_reference_v<Args> && ...),

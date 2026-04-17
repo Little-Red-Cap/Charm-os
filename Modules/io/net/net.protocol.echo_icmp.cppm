@@ -210,6 +210,24 @@ export namespace net::icmp::echo {
                                                        ByteView payload,
                                                        util::u32 now_ms,
                                                        util::u32 timeout_ms) noexcept {
+            return ping(identifier,
+                        sequence,
+                        payload,
+                        now_ms,
+                        timeout_ms,
+                        nullptr,
+                        nullptr,
+                        nullptr);
+        }
+
+        [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
+                                                       util::u16 sequence,
+                                                       ByteView payload,
+                                                       util::u32 now_ms,
+                                                       util::u32 timeout_ms,
+                                                       ReplyFn on_reply,
+                                                       TimeoutFn on_timeout = nullptr,
+                                                       void* user = nullptr) noexcept {
             if (timeout_ms == 0u) {
                 report_error(errc::invalid_arg);
                 return util::unexpected(errc::invalid_arg);
@@ -242,6 +260,9 @@ export namespace net::icmp::echo {
             pending->info = info;
             pending->start_ms = now_ms;
             pending->timeout_ms = timeout_ms;
+            pending->on_reply = on_reply;
+            pending->on_timeout = on_timeout;
+            pending->user = user;
             return sent;
         }
 
@@ -259,6 +280,15 @@ export namespace net::icmp::echo {
         [[nodiscard]] Result<PingTicket> ping(ByteView payload,
                                               util::u32 now_ms,
                                               util::u32 timeout_ms) noexcept {
+            return ping(payload, now_ms, timeout_ms, nullptr, nullptr, nullptr);
+        }
+
+        [[nodiscard]] Result<PingTicket> ping(ByteView payload,
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms,
+                                              ReplyFn on_reply,
+                                              TimeoutFn on_timeout = nullptr,
+                                              void* user = nullptr) noexcept {
             if (timeout_ms == 0u) {
                 report_error(errc::invalid_arg);
                 return util::unexpected(errc::invalid_arg);
@@ -269,7 +299,10 @@ export namespace net::icmp::echo {
                              ticket.info.sequence,
                              payload,
                              now_ms,
-                             timeout_ms);
+                             timeout_ms,
+                             on_reply,
+                             on_timeout,
+                             user);
             if (!sent) {
                 return util::unexpected(sent.error());
             }
@@ -289,9 +322,16 @@ export namespace net::icmp::echo {
                 }
 
                 const auto info = pending.info;
+                auto callback = pending.on_timeout;
+                void* user = pending.user;
                 pending = {};
                 remember_ignored(info);
                 ++timeout_count_;
+
+                if (callback != nullptr) {
+                    callback(user, info);
+                    continue;
+                }
 
                 if (timeout_fn_ != nullptr) {
                     timeout_fn_(timeout_ctx_, info);
@@ -317,16 +357,22 @@ export namespace net::icmp::echo {
             }
 
             auto* pending = find_pending(info);
+            auto callback = reply_fn_;
+            void* user = reply_ctx_;
             if (pending != nullptr) {
+                if (pending->on_reply != nullptr) {
+                    callback = pending->on_reply;
+                    user = pending->user;
+                }
                 *pending = {};
             }
 
             ++reply_count_;
             last_error_ = errc::ok;
-            if (reply_fn_ == nullptr) {
+            if (callback == nullptr) {
                 return {};
             }
-            return reply_fn_(reply_ctx_, info, packet.view());
+            return callback(user, info, packet.view());
         }
 
     private:
@@ -337,6 +383,9 @@ export namespace net::icmp::echo {
             IcmpEchoInfo info{};
             util::u32 start_ms{0};
             util::u32 timeout_ms{0};
+            ReplyFn on_reply{nullptr};
+            TimeoutFn on_timeout{nullptr};
+            void* user{nullptr};
         };
 
         struct IgnoredEcho {

@@ -157,14 +157,22 @@ namespace {
     struct ClientState {
         bool got_reply{false};
         bool got_timeout{false};
+        bool got_scoped_reply{false};
+        bool got_scoped_timeout{false};
         net::errc last_error{net::errc::ok};
         util::usize error_calls{0};
         util::usize reply_calls{0};
+        util::usize scoped_reply_calls{0};
         util::usize timeout_calls{0};
+        util::usize scoped_timeout_calls{0};
         net::IcmpEchoInfo info{};
         net::IcmpEchoInfo timeout_info{};
+        net::IcmpEchoInfo scoped_info{};
+        net::IcmpEchoInfo scoped_timeout_info{};
         std::array<util::u8, 16> payload{};
         util::usize payload_size{0};
+        std::array<util::u8, 16> scoped_payload{};
+        util::usize scoped_payload_size{0};
 
         [[nodiscard]] static net::Result<void> on_reply(void* ctx,
                                                         const net::IcmpEchoInfo& info,
@@ -188,6 +196,27 @@ namespace {
             return {};
         }
 
+        [[nodiscard]] static net::Result<void> on_scoped_reply(void* ctx,
+                                                               const net::IcmpEchoInfo& info,
+                                                               net::PacketView packet) noexcept {
+            auto* self = static_cast<ClientState*>(ctx);
+            if (!self) {
+                return util::unexpected(net::errc::bad_state);
+            }
+            if (packet.size() > self->scoped_payload.size()) {
+                self->last_error = net::errc::buffer_overflow;
+                return util::unexpected(self->last_error);
+            }
+            for (util::usize i = 0; i < packet.size(); ++i) {
+                self->scoped_payload[i] = packet[i];
+            }
+            self->scoped_payload_size = packet.size();
+            self->scoped_info = info;
+            self->got_scoped_reply = true;
+            ++self->scoped_reply_calls;
+            return {};
+        }
+
         static void on_timeout(void* ctx, const net::IcmpEchoInfo& info) noexcept {
             auto* self = static_cast<ClientState*>(ctx);
             if (!self) {
@@ -196,6 +225,16 @@ namespace {
             self->got_timeout = true;
             self->timeout_info = info;
             ++self->timeout_calls;
+        }
+
+        static void on_scoped_timeout(void* ctx, const net::IcmpEchoInfo& info) noexcept {
+            auto* self = static_cast<ClientState*>(ctx);
+            if (!self) {
+                return;
+            }
+            self->got_scoped_timeout = true;
+            self->scoped_timeout_info = info;
+            ++self->scoped_timeout_calls;
         }
 
         static void on_error(void* ctx, net::errc error) noexcept {
@@ -440,15 +479,53 @@ int main() {
         return fail("icmp protocol smoke tracked reply mismatch\n", 11);
     }
 
+    auto scoped_ping = client.ping(
+        net::ByteView{payload, sizeof(payload)},
+        60,
+        20,
+        &ClientState::on_scoped_reply,
+        nullptr,
+        &client_state);
+    if (!scoped_ping
+        || scoped_ping.value().disposition != net::IcmpSendDisposition::transmitted
+        || client.pending_count() != 1
+        || client.request_count() != 3
+        || client.transmitted_count() != 2
+        || client_state.reply_calls != 2
+        || client_state.scoped_reply_calls != 0
+        || client_node.link.tx_calls != 4) {
+        return fail("icmp protocol smoke scoped send failed\n", 12);
+    }
+
+    if (!drive_until_idle(client_node, server_node)) {
+        return fail("icmp protocol smoke scoped exchange stalled\n", 13);
+    }
+
+    if (client.pending_count() != 0
+        || client.reply_count() != 3
+        || client_state.reply_calls != 2
+        || !client_state.got_scoped_reply
+        || client_state.scoped_reply_calls != 1
+        || client_state.scoped_info.identifier != scoped_ping.value().info.identifier
+        || client_state.scoped_info.sequence != scoped_ping.value().info.sequence
+        || !bytes_eq(payload, client_state.scoped_payload, client_state.scoped_payload_size)
+        || server.request_count() != 3
+        || server.reply_count() != 3
+        || server.transmitted_count() != 3
+        || server_state.info.identifier != scoped_ping.value().info.identifier
+        || server_state.info.sequence != scoped_ping.value().info.sequence) {
+        return fail("icmp protocol smoke scoped reply mismatch\n", 14);
+    }
+
     server_node.link.peer = nullptr;
     auto timeout_ping = client.ping(net::ByteView{payload, sizeof(payload)}, 90, 10);
     if (!timeout_ping
         || timeout_ping.value().disposition != net::IcmpSendDisposition::transmitted
         || client.pending_count() != 1
-        || client.request_count() != 3
-        || client.transmitted_count() != 2
+        || client.request_count() != 4
+        || client.transmitted_count() != 3
         || client_state.timeout_calls != 0
-        || client_node.link.tx_calls != 4) {
+        || client_node.link.tx_calls != 5) {
         return fail("icmp protocol smoke timeout send failed\n", 12);
     }
 
@@ -460,9 +537,9 @@ int main() {
         || client.timeout_count() != 0
         || client_state.got_timeout
         || client_state.timeout_calls != 0
-        || server.request_count() != 3
-        || server.reply_count() != 3
-        || server.transmitted_count() != 3
+        || server.request_count() != 4
+        || server.reply_count() != 4
+        || server.transmitted_count() != 4
         || server_state.info.identifier != timeout_ping.value().info.identifier
         || server_state.info.sequence != timeout_ping.value().info.sequence) {
         return fail("icmp protocol smoke timeout precheck failed\n", 14);
@@ -507,16 +584,53 @@ int main() {
     }
 
     client_node.link.peer = nullptr;
-    auto cancelled_ping = client.ping(net::ByteView{payload, sizeof(payload)}, 120, 30);
+    auto scoped_timeout_ping = client.ping(
+        net::ByteView{payload, sizeof(payload)},
+        120,
+        10,
+        nullptr,
+        &ClientState::on_scoped_timeout,
+        &client_state);
+    if (!scoped_timeout_ping
+        || scoped_timeout_ping.value().disposition != net::IcmpSendDisposition::transmitted
+        || client.pending_count() != 1
+        || client.request_count() != 5
+        || client.transmitted_count() != 4
+        || client_state.scoped_timeout_calls != 0
+        || client_node.link.tx_calls != 6) {
+        return fail("icmp protocol smoke scoped timeout send failed\n", 19);
+    }
+
+    client.tick(129);
+    if (client.pending_count() != 1
+        || client.timeout_count() != 1
+        || client_state.got_scoped_timeout
+        || client_state.scoped_timeout_calls != 0) {
+        return fail("icmp protocol smoke scoped timeout early tick failed\n", 20);
+    }
+
+    client.tick(130);
+    if (client.pending_count() != 0
+        || client.timeout_count() != 2
+        || !client_state.got_scoped_timeout
+        || client_state.scoped_timeout_calls != 1
+        || client_state.timeout_calls != 1
+        || client_state.scoped_timeout_info.identifier != scoped_timeout_ping.value().info.identifier
+        || client_state.scoped_timeout_info.sequence != scoped_timeout_ping.value().info.sequence) {
+        return fail("icmp protocol smoke scoped timeout mismatch\n", 21);
+    }
+
+    auto cancelled_ping = client.ping(net::ByteView{payload, sizeof(payload)}, 150, 30);
     if (!cancelled_ping
         || cancelled_ping.value().disposition != net::IcmpSendDisposition::transmitted
         || client.pending_count() != 1
-        || client.request_count() != 4
-        || client.transmitted_count() != 3
+        || client.request_count() != 6
+        || client.transmitted_count() != 5
         || !client.cancel(cancelled_ping.value())
         || client.pending_count() != 0
-        || client.cancel(cancelled_ping.value())) {
-        return fail("icmp protocol smoke cancel send failed\n", 19);
+        || client.cancel(cancelled_ping.value())
+        || client_node.link.tx_calls != 7) {
+        return fail("icmp protocol smoke cancel send failed\n", 22);
     }
 
     server_node.link.peer = &client_node.link;
@@ -530,35 +644,37 @@ int main() {
     if (!cancelled_reply
         || cancelled_reply.value() != net::IcmpSendDisposition::transmitted
         || !client_node.link.has_rx()) {
-        return fail("icmp protocol smoke cancel late reply send failed\n", 20);
+        return fail("icmp protocol smoke cancel late reply send failed\n", 23);
     }
 
     if (!drive_until_idle(client_node, server_node, 4)) {
-        return fail("icmp protocol smoke cancel late reply stalled\n", 21);
+        return fail("icmp protocol smoke cancel late reply stalled\n", 24);
     }
 
     if (!server_state.saw_request
         || server_state.error_calls != 0
         || server_state.last_error != net::errc::ok
-        || server.request_count() != 3
-        || server.reply_count() != 3
+        || server.request_count() != 4
+        || server.reply_count() != 4
         || server.drop_count() != 0
-        || server.transmitted_count() != 3
+        || server.transmitted_count() != 4
         || server.queued_count() != 0
         || !same_ipv4(server_state.info.local, server_ip)
         || !same_ipv4(server_state.info.peer, client_ip)
         || server_state.info.identifier != timeout_ping.value().info.identifier
         || server_state.info.sequence != timeout_ping.value().info.sequence
         || !bytes_eq(payload, server_state.payload, server_state.payload_size)) {
-        return fail("icmp protocol smoke server request mismatch\n", 22);
+        return fail("icmp protocol smoke server request mismatch\n", 25);
     }
 
-    if (client.reply_count() != 2
+    if (client.reply_count() != 3
         || client.drop_count() != 2
         || client.pending_count() != 0
-        || client.timeout_count() != 1
+        || client.timeout_count() != 2
         || client_state.reply_calls != 2
+        || client_state.scoped_reply_calls != 1
         || client_state.timeout_calls != 1
+        || client_state.scoped_timeout_calls != 1
         || client_state.error_calls != 0
         || client.last_error() != net::errc::ok
         || client_state.info.identifier != tracked.value().info.identifier
@@ -567,9 +683,9 @@ int main() {
         || server_node.pump.pending_count() != 0
         || client_node.link.has_rx()
         || server_node.link.has_rx()
-        || client_node.link.tx_calls != 5
+        || client_node.link.tx_calls != 7
         || server_node.link.tx_calls != 6) {
-        return fail("icmp protocol smoke wire state mismatch\n", 23);
+        return fail("icmp protocol smoke wire state mismatch\n", 26);
     }
 
     std::puts("net icmp protocol smoke: ok");

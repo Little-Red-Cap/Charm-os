@@ -15,6 +15,7 @@ struct Armv7aRuntimeCurrentSlot {
 
 Armv7aRuntimeCurrentContextPort g_runtime_current_context_port{};
 Armv7aRuntimeCurrentSlot g_runtime_current_slot{};
+Armv7aRuntimeCurrentSlot g_runtime_current_sample{};
 
 bool armv7a_capture_runtime_current_from_slot(
     void*,
@@ -35,6 +36,15 @@ Armv7aRuntimeCurrentContextPort armv7a_default_runtime_current_context_port()
     return Armv7aRuntimeCurrentContextPort{
         .ctx = nullptr,
         .capture = armv7a_capture_runtime_current_from_slot,
+    };
+}
+
+void armv7a_record_runtime_current_sample(
+    Armv7aRuntimeCurrentContext current) noexcept
+{
+    g_runtime_current_sample = Armv7aRuntimeCurrentSlot{
+        .seen = true,
+        .current = current,
     };
 }
 } // namespace
@@ -68,11 +78,13 @@ void armv7a_publish_runtime_current_context(
 
 void armv7a_publish_runtime_current_here(std::uint64_t task) noexcept
 {
-    armv7a_publish_runtime_current_context(Armv7aRuntimeCurrentContext{
+    const auto current = Armv7aRuntimeCurrentContext{
         .stack_pointer = armv7a_read_sp(),
         .task = task,
         .task_valid = true,
-    });
+    };
+    armv7a_publish_runtime_current_context(current);
+    armv7a_record_runtime_current_sample(current);
 }
 
 void armv7a_clear_runtime_current_context() noexcept
@@ -86,6 +98,18 @@ Armv7aRuntimeCurrentContext armv7a_capture_runtime_current_context() noexcept
     (void)armv7a_runtime_current_context_port_capture(
         armv7a_runtime_current_context_port(), current);
     return current;
+}
+
+bool armv7a_capture_runtime_current_sample_context(
+    Armv7aRuntimeCurrentContext& out) noexcept
+{
+    if (!g_runtime_current_sample.seen) {
+        out = {};
+        return false;
+    }
+
+    out = g_runtime_current_sample.current;
+    return true;
 }
 
 Armv7aRuntimeCurrentObservation

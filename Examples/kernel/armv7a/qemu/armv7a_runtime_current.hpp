@@ -50,6 +50,8 @@ void armv7a_publish_runtime_current_context(
 void armv7a_publish_runtime_current_here(std::uint64_t task) noexcept;
 void armv7a_clear_runtime_current_context() noexcept;
 Armv7aRuntimeCurrentContext armv7a_capture_runtime_current_context() noexcept;
+bool armv7a_capture_runtime_current_sample_context(
+    Armv7aRuntimeCurrentContext& out) noexcept;
 Armv7aRuntimeCurrentObservation
 armv7a_capture_runtime_current_observation() noexcept;
 void armv7a_print_runtime_current_observation();

@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "armv7a_exception_contract.hpp"
+#include "armv7a_runtime_current_contract.hpp"
 #include "armv7a_scheduler_tick_contract.hpp"
 
 enum class Armv7aSchedulerDispatchPath : std::uint8_t {
@@ -14,8 +15,13 @@ enum class Armv7aSchedulerDispatchPath : std::uint8_t {
 struct Armv7aSchedulerDispatchObservation {
     Armv7aSchedulerDispatchPath task_path = Armv7aSchedulerDispatchPath::none;
     Armv7aSchedulerDispatchPath isr_path = Armv7aSchedulerDispatchPath::none;
+    Armv7aRuntimeCurrentContext current{};
     bool context_switch_ready = false;
     bool context_round_trip = false;
+    bool task_dispatch_ready = false;
+    bool current_seen = false;
+    bool current_task_matches = false;
+    bool current_stack_matches = false;
     Armv7aSvcObservation task{};
     Armv7aSchedulerTickIngressObservation isr{};
 };
@@ -40,10 +46,20 @@ constexpr bool armv7a_scheduler_dispatch_context_ready(
     return observation.context_switch_ready && observation.context_round_trip;
 }
 
+constexpr bool armv7a_scheduler_dispatch_current_ready(
+    const Armv7aSchedulerDispatchObservation& observation) noexcept
+{
+    return observation.task_dispatch_ready &&
+           observation.current_seen &&
+           observation.current_task_matches &&
+           observation.current_stack_matches;
+}
+
 constexpr bool armv7a_scheduler_dispatch_ready(
     const Armv7aSchedulerDispatchObservation& observation) noexcept
 {
     return armv7a_scheduler_task_path_ready(observation) &&
            armv7a_scheduler_isr_path_ready(observation) &&
-           armv7a_scheduler_dispatch_context_ready(observation);
+           armv7a_scheduler_dispatch_context_ready(observation) &&
+           armv7a_scheduler_dispatch_current_ready(observation);
 }

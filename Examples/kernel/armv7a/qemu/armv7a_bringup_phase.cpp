@@ -64,12 +64,48 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-trap-mapping";
     case Armv7aBringupPhase::kRuntimeTrapAdapter:
         return "runtime-trap-adapter";
+    case Armv7aBringupPhase::kRuntimeTrapSeam:
+        return "runtime-trap-seam";
+    case Armv7aBringupPhase::kRuntimeTrapLiveAdapter:
+        return "runtime-trap-live-adapter";
+    case Armv7aBringupPhase::kRuntimeTrapIngressAdapter:
+        return "runtime-trap-ingress-adapter";
+    case Armv7aBringupPhase::kRuntimeTrapCaller:
+        return "runtime-trap-caller";
+    case Armv7aBringupPhase::kRuntimeTrapDispatch:
+        return "runtime-trap-dispatch";
+    case Armv7aBringupPhase::kRuntimeCurrent:
+        return "runtime-current";
+    case Armv7aBringupPhase::kRuntimeTrapContext:
+        return "runtime-trap-context";
+    case Armv7aBringupPhase::kRuntimeTrapRoundtrip:
+        return "runtime-trap-roundtrip";
+    case Armv7aBringupPhase::kRuntimeTrapFailure:
+        return "runtime-trap-failure";
     case Armv7aBringupPhase::kContextSwitchSmoke:
         return "context-switch-smoke";
+    case Armv7aBringupPhase::kThreadRuntime:
+        return "thread-runtime";
     case Armv7aBringupPhase::kSchedulerDispatch:
         return "scheduler-dispatch";
     case Armv7aBringupPhase::kRuntimeBridge:
         return "runtime-bridge";
+    case Armv7aBringupPhase::kTaskSyscallFrame:
+        return "task-syscall-frame";
+    case Armv7aBringupPhase::kTaskSyscallDispatch:
+        return "task-syscall-dispatch";
+    case Armv7aBringupPhase::kTaskSyscallSurface:
+        return "task-syscall-surface";
+    case Armv7aBringupPhase::kTaskSyscallIngressAdapter:
+        return "task-syscall-ingress-adapter";
+    case Armv7aBringupPhase::kTaskSyscallCaller:
+        return "task-syscall-caller";
+    case Armv7aBringupPhase::kTaskSyscallRoundtrip:
+        return "task-syscall-roundtrip";
+    case Armv7aBringupPhase::kTaskSyscallGlue:
+        return "task-syscall-glue";
+    case Armv7aBringupPhase::kTaskSyscallFailure:
+        return "task-syscall-failure";
     case Armv7aBringupPhase::kHandoffPrepare:
         return "handoff-prepare";
     case Armv7aBringupPhase::kIdle:

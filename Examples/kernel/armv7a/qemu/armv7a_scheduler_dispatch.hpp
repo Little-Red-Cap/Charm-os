@@ -4,4 +4,5 @@
 
 Armv7aSchedulerDispatchObservation
 armv7a_capture_scheduler_dispatch_observation() noexcept;
+void armv7a_record_scheduler_dispatch_task_sample() noexcept;
 void armv7a_print_scheduler_dispatch_observation();

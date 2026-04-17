@@ -22,6 +22,74 @@ export namespace net::icmp::echo {
         IcmpSendDisposition disposition{IcmpSendDisposition::queued};
     };
 
+    enum class ProbeState : util::u8 {
+        idle = 0u,
+        pending = 1u,
+        replied = 2u,
+        timed_out = 3u,
+        cancelled = 4u,
+        error = 5u,
+    };
+
+    struct ProbeSnapshot {
+        ProbeState state{ProbeState::idle};
+        errc error{errc::ok};
+        IcmpEchoInfo info{};
+        ByteView payload{};
+
+        [[nodiscard]] constexpr bool idle() const noexcept {
+            return state == ProbeState::idle;
+        }
+
+        [[nodiscard]] constexpr bool pending() const noexcept {
+            return state == ProbeState::pending;
+        }
+
+        [[nodiscard]] constexpr bool ready() const noexcept {
+            return state != ProbeState::idle && state != ProbeState::pending;
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept {
+            return state == ProbeState::replied;
+        }
+
+        [[nodiscard]] constexpr bool timed_out() const noexcept {
+            return state == ProbeState::timed_out;
+        }
+
+        [[nodiscard]] constexpr bool cancelled() const noexcept {
+            return state == ProbeState::cancelled;
+        }
+
+        [[nodiscard]] constexpr bool failed() const noexcept {
+            return state == ProbeState::error;
+        }
+
+        [[nodiscard]] constexpr bool has_value() const noexcept {
+            return ok();
+        }
+
+        [[nodiscard]] constexpr util::u16 identifier() const noexcept {
+            return info.identifier;
+        }
+
+        [[nodiscard]] constexpr util::u16 sequence() const noexcept {
+            return info.sequence;
+        }
+
+        [[nodiscard]] constexpr util::usize payload_size() const noexcept {
+            return payload.size();
+        }
+
+        [[nodiscard]] constexpr bool has_payload() const noexcept {
+            return payload.size() != 0;
+        }
+
+        [[nodiscard]] ByteView value_payload() const noexcept {
+            return has_value() ? payload : ByteView{};
+        }
+    };
+
     namespace detail {
         [[nodiscard]] constexpr bool same_ipv4(const IpAddress& lhs, const IpAddress& rhs) noexcept {
             if (!lhs.is_ipv4() || !rhs.is_ipv4()) {
@@ -157,6 +225,22 @@ export namespace net::icmp::echo {
                 }
             }
             return count;
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return net::bind_icmp_protocol(pump, *this);
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump,
+                                        IpAddress local,
+                                        IpAddress peer) noexcept {
+            configure(local, peer);
+            return bind(pump);
         }
 
         [[nodiscard]] bool cancel(util::u16 identifier, util::u16 sequence) noexcept {
@@ -572,11 +656,341 @@ export namespace net::icmp::echo {
         errc last_error_{errc::ok};
     };
 
+    template <util::usize MaxPayload = 64>
+    class Probe {
+    public:
+        Probe() noexcept {
+            install_handlers();
+        }
+
+        Probe(const Probe&) = delete;
+        Probe& operator=(const Probe&) = delete;
+        Probe(Probe&&) = delete;
+        Probe& operator=(Probe&&) = delete;
+
+        explicit Probe(IpAddress local, IpAddress peer) noexcept
+            : client_(local, peer) {
+            install_handlers();
+        }
+
+        void configure(IpAddress local, IpAddress peer) noexcept {
+            client_.configure(local, peer);
+        }
+
+        void reset() noexcept {
+            client_.reset();
+            clear_observation();
+            error_count_ = 0;
+        }
+
+        [[nodiscard]] bool configured() const noexcept {
+            return client_.configured();
+        }
+
+        [[nodiscard]] IpAddress local_address() const noexcept {
+            return client_.local_address();
+        }
+
+        [[nodiscard]] IpAddress peer_address() const noexcept {
+            return client_.peer_address();
+        }
+
+        [[nodiscard]] util::usize request_count() const noexcept {
+            return client_.request_count();
+        }
+
+        [[nodiscard]] util::usize reply_count() const noexcept {
+            return client_.reply_count();
+        }
+
+        [[nodiscard]] util::usize drop_count() const noexcept {
+            return client_.drop_count();
+        }
+
+        [[nodiscard]] util::usize timeout_count() const noexcept {
+            return client_.timeout_count();
+        }
+
+        [[nodiscard]] util::usize transmitted_count() const noexcept {
+            return client_.transmitted_count();
+        }
+
+        [[nodiscard]] util::usize queued_count() const noexcept {
+            return client_.queued_count();
+        }
+
+        [[nodiscard]] util::usize pending_count() const noexcept {
+            return client_.pending_count();
+        }
+
+        [[nodiscard]] bool has_pending() const noexcept {
+            return client_.has_pending();
+        }
+
+        [[nodiscard]] errc last_error() const noexcept {
+            return client_.last_error();
+        }
+
+        [[nodiscard]] errc observed_error() const noexcept {
+            return observed_error_;
+        }
+
+        [[nodiscard]] util::usize error_count() const noexcept {
+            return error_count_;
+        }
+
+        [[nodiscard]] bool has_reply() const noexcept {
+            return state_ == ProbeState::replied;
+        }
+
+        [[nodiscard]] bool has_timeout() const noexcept {
+            return state_ == ProbeState::timed_out;
+        }
+
+        [[nodiscard]] bool idle() const noexcept {
+            return state_ == ProbeState::idle;
+        }
+
+        [[nodiscard]] bool pending() const noexcept {
+            return state_ == ProbeState::pending;
+        }
+
+        [[nodiscard]] bool ready() const noexcept {
+            return state_ != ProbeState::idle && state_ != ProbeState::pending;
+        }
+
+        [[nodiscard]] bool ok() const noexcept {
+            return state_ == ProbeState::replied;
+        }
+
+        [[nodiscard]] bool timed_out() const noexcept {
+            return state_ == ProbeState::timed_out;
+        }
+
+        [[nodiscard]] bool cancelled() const noexcept {
+            return state_ == ProbeState::cancelled;
+        }
+
+        [[nodiscard]] bool failed() const noexcept {
+            return state_ == ProbeState::error;
+        }
+
+        [[nodiscard]] bool has_value() const noexcept {
+            return ok();
+        }
+
+        [[nodiscard]] bool has_result() const noexcept {
+            return ready();
+        }
+
+        [[nodiscard]] ProbeState state() const noexcept {
+            return state_;
+        }
+
+        [[nodiscard]] util::u16 identifier() const noexcept {
+            return current_info_.identifier;
+        }
+
+        [[nodiscard]] util::u16 sequence() const noexcept {
+            return current_info_.sequence;
+        }
+
+        [[nodiscard]] const IcmpEchoInfo& last_reply_info() const noexcept {
+            return reply_info_;
+        }
+
+        [[nodiscard]] const IcmpEchoInfo& last_timeout_info() const noexcept {
+            return timeout_info_;
+        }
+
+        [[nodiscard]] ByteView last_reply_payload() const noexcept {
+            return ByteView{reply_payload_.data(), reply_payload_size_};
+        }
+
+        [[nodiscard]] util::usize payload_size() const noexcept {
+            return has_value() ? reply_payload_size_ : 0u;
+        }
+
+        [[nodiscard]] bool has_payload() const noexcept {
+            return payload_size() != 0u;
+        }
+
+        [[nodiscard]] ByteView value_payload() const noexcept {
+            return has_value() ? last_reply_payload() : ByteView{};
+        }
+
+        [[nodiscard]] ProbeSnapshot snapshot() const noexcept {
+            return ProbeSnapshot{
+                .state = state_,
+                .error = observed_error_,
+                .info = current_info_,
+                .payload = state_ == ProbeState::replied ? last_reply_payload() : ByteView{},
+            };
+        }
+
+        [[nodiscard]] ProbeSnapshot result() const noexcept {
+            return snapshot();
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump) noexcept {
+            return client_.bind(pump);
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump,
+                                        IpAddress local,
+                                        IpAddress peer) noexcept {
+            configure(local, peer);
+            return bind(pump);
+        }
+
+        [[nodiscard]] Result<PingTicket> ping(ByteView payload,
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms) noexcept {
+            if (client_.has_pending()) {
+                return util::unexpected(errc::busy);
+            }
+            clear_observation();
+            auto ping = client_.ping(payload, now_ms, timeout_ms);
+            if (!ping) {
+                return util::unexpected(ping.error());
+            }
+            current_info_ = ping.value().info;
+            state_ = ProbeState::pending;
+            return ping;
+        }
+
+        [[nodiscard]] Result<PingTicket> ping(util::u32 now_ms,
+                                              util::u32 timeout_ms) noexcept {
+            return ping(ByteView{}, now_ms, timeout_ms);
+        }
+
+        [[nodiscard]] bool cancel(const PingTicket& ticket) noexcept {
+            const auto cancelled = client_.cancel(ticket);
+            if (cancelled) {
+                clear_reply_payload();
+                current_info_ = ticket.info;
+                observed_error_ = errc::ok;
+                state_ = ProbeState::cancelled;
+            }
+            return cancelled;
+        }
+
+        void cancel_all() noexcept {
+            if (client_.has_pending()) {
+                clear_reply_payload();
+                observed_error_ = errc::ok;
+                state_ = ProbeState::cancelled;
+            }
+            client_.cancel_all();
+        }
+
+        void tick(util::u32 now_ms) noexcept {
+            client_.tick(now_ms);
+        }
+
+    private:
+        void install_handlers() noexcept {
+            client_.set_reply_handler(&Probe::on_reply_trampoline, this);
+            client_.set_timeout_handler(&Probe::on_timeout_trampoline, this);
+            client_.set_error_handler(&Probe::on_error_trampoline, this);
+        }
+
+        static Result<void> on_reply_trampoline(void* ctx,
+                                                const IcmpEchoInfo& info,
+                                                PacketView packet) noexcept {
+            auto* self = static_cast<Probe*>(ctx);
+            if (!self) {
+                return util::unexpected(errc::bad_state);
+            }
+            return self->on_reply(info, packet);
+        }
+
+        static void on_timeout_trampoline(void* ctx,
+                                          const IcmpEchoInfo& info) noexcept {
+            auto* self = static_cast<Probe*>(ctx);
+            if (self) {
+                self->on_timeout(info);
+            }
+        }
+
+        static void on_error_trampoline(void* ctx, errc error) noexcept {
+            auto* self = static_cast<Probe*>(ctx);
+            if (self) {
+                self->on_error(error);
+            }
+        }
+
+        [[nodiscard]] Result<void> on_reply(const IcmpEchoInfo& info,
+                                            PacketView packet) noexcept {
+            if (packet.size() > MaxPayload) {
+                observed_error_ = errc::buffer_overflow;
+                state_ = ProbeState::error;
+                ++error_count_;
+                return util::unexpected(observed_error_);
+            }
+
+            for (util::usize index = 0; index < packet.size(); ++index) {
+                reply_payload_[index] = packet[index];
+            }
+            reply_payload_size_ = packet.size();
+            current_info_ = info;
+            reply_info_ = info;
+            observed_error_ = errc::ok;
+            state_ = ProbeState::replied;
+            return {};
+        }
+
+        void on_timeout(const IcmpEchoInfo& info) noexcept {
+            clear_reply_payload();
+            current_info_ = info;
+            timeout_info_ = info;
+            observed_error_ = errc::ok;
+            state_ = ProbeState::timed_out;
+        }
+
+        void on_error(errc error) noexcept {
+            observed_error_ = error;
+            clear_reply_payload();
+            state_ = ProbeState::error;
+            ++error_count_;
+        }
+
+        void clear_observation() noexcept {
+            reply_info_ = {};
+            timeout_info_ = {};
+            current_info_ = {};
+            clear_reply_payload();
+            observed_error_ = errc::ok;
+            state_ = ProbeState::idle;
+        }
+
+        void clear_reply_payload() noexcept {
+            reply_payload_size_ = 0;
+        }
+
+        Client client_{};
+        std::array<util::u8, MaxPayload> reply_payload_{};
+        IcmpEchoInfo current_info_{};
+        IcmpEchoInfo reply_info_{};
+        IcmpEchoInfo timeout_info_{};
+        util::usize reply_payload_size_{0};
+        util::usize error_count_{0};
+        errc observed_error_{errc::ok};
+        ProbeState state_{ProbeState::idle};
+    };
+
     class AutoReplyServer {
     public:
         void set_sender(SendFn fn, void* ctx) noexcept {
             sender_ = fn;
             sender_ctx_ = ctx;
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump) noexcept {
+            return net::bind_icmp_protocol(pump, *this);
         }
 
         void set_request_handler(RequestFn fn, void* ctx = nullptr) noexcept {

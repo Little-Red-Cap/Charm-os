@@ -3,6 +3,10 @@
 This is the first Cortex-A oriented leaf target for Charm.
 It keeps startup, linker, and early UART code inside the example target
 instead of pushing ARMv7-A specifics into shared `Modules/`.
+The same leaf now also pulls in one explicit minimal kernel/task-syscall
+module slice plus the ARMv7-A target-side glue modules, so the lower-half
+adapter seam can be proven inside the real bare-metal image without linking
+the full `Charm-os`.
 The shared ARMv7-A handoff prepare contract now lives in
 `targets/armv7a/common/`, carries explicit load/payload/entry metadata,
 and lets this QEMU leaf keep the hook implementation and runtime evidence
@@ -154,10 +158,24 @@ ARMv7-A runtime trap frame, yield-path=svc-frame, yield-handler=svc, yield-retur
 ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x00000001, arg1=0x00000001, arg2=0x00000000, arg3=0x00000000, service-ready=yes, args-ready=yes, trap=yes
 ARMv7-A runtime trap mapping, yield=yield-current, yield-generic=0x0001, yield-origin=kernel-thread, yield-return-pc=0x4020...., yield-ready=yes, sleep=sleep-until, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-due=0x0000000000000005, sleep-ready=yes, mapping=yes
 ARMv7-A runtime trap adapter, yield-path=svc-r0, yield-r0=0x00000001, yield-preserve=yes, yield-ready=yes, sleep-path=svc-r0, sleep-r0=0x00000005, sleep-preserve=yes, sleep-ready=yes, adapter=yes
+ARMv7-A runtime trap seam, yield-path=svc-frame-r0, yield-generic=0x0001, yield-origin=kernel-thread, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-frame-r0, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-r0=0x00000005, sleep-ready=yes, seam=yes
+ARMv7-A runtime trap live-adapter, yield-path=svc-live-frame, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-live-frame, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, live-adapter=yes
+ARMv7-A runtime trap ingress-adapter, yield-path=live-frame-adapter, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=live-frame-adapter, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, ingress-adapter=yes
+ARMv7-A runtime trap caller, yield-path=svc-call-frame, yield-svc=0x000043, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-call-frame, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-r0=0x00000005, sleep-ready=yes, caller=yes
+ARMv7-A runtime trap failure, unsupported=unsupported-service, decode=decode-failed, writeback=writeback-failed, adapter=unbound-adapter, dispatch=unbound-adapter, failure=yes
 ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x40...., stack-top=0x40...., prepared-sp=0x40...., resume=0x40...., return=0x40...., entry=0x40...., arg=0x40...., aligned=yes, in-range=yes, ready=yes
 ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-entry-sp=0x40...., thread-saved=0x40...., thread-resume-sp=0x40...., entry=yes, resumed=yes, round-trip=yes
-ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, dispatch=yes
+ARMv7-A thread runtime, kind=cooperative-sys, task=0x0000000059537001, current-sp=0x000000005200B000, prepared-sp=0x40...., current=yes, prepare=yes, switch=yes, runtime=yes
+ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes
 ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000002, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes
+ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes
+ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes
+ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes
+ARMv7-A task syscall ingress-adapter, debug-path=live-frame-adapter, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-frame-adapter, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, ingress-adapter=yes
+ARMv7-A task syscall caller, debug-path=svc-call-frame, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=svc-call-frame, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, caller=yes
+ARMv7-A task syscall roundtrip, debug-path=svc-return, debug-svc=0x000045, debug-value=0x00000044, debug-ready=yes, capability-path=svc-return, capability-svc=0x000046, capability-value=0x0000002A, capability-ready=yes, roundtrip=yes
+ARMv7-A task syscall glue, task=0x0000000059534001, stack=0x0000000052008000, yield=0x00000001, sleep=0x00000037, debug=0x000000CD, capability=0x0000002A, generic=yes, ingress=yes, bridge=yes, caller=yes, api=yes, glue=yes
+ARMv7-A task syscall failure, decode=decode-failed, unsupported=unsupported-service, bridge=unbound-bridge, caller=unbound-adapter, writeback=writeback-failed, failure=yes
 ARMv7-A handoff context, vector-base=0x40200000, translation-table=0x4021...., image-base=0x40200000
 ARMv7-A handoff request, kind=copy, payload-base=0x40200000, entry=0x40200000, storage-payload=0x00000000, storage-entry=0x00000000, entry-offset=0x00000000, payload-size=0x00000000, image-size=0x00000000, flags=0x00000000
 ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
@@ -524,6 +542,10 @@ continue
   which says the task-side `svc-trap` path, the ISR-side `timer-tick` path,
   and the cooperative context round-trip can all meet at one future scheduler
   dispatch seam without the generic kernel core knowing anything QEMU-specific.
+- The same leaf now also prints one `thread runtime` line that proves the
+  lower-half `current` capture, cooperative frame preparation, and already
+  observed context-switch round-trip can meet at one reusable runtime seam
+  before the upper thread/runtime port starts binding to this leaf.
 - The returning SVC path now also records the 24-bit service tag and the
   trap-time `r0-r3` values into one explicit `runtime trap ingress` contract,
   so later `yield / sleep / syscall-like` runtime glue can bind to a proven
@@ -541,11 +563,71 @@ continue
   the current ARMv7-A SVC path can take that mapped trap shape, treat `r0` as
   the result register, and preserve `lr/spsr` while preparing a future
   `apply_result(frame, result)` ingress seam.
+- The same leaf now also prints one `runtime trap seam` line that closes the
+  live `svc frame -> mapped generic view -> r0 writeback` path into one
+  lower-half contract, so a later upper `RuntimeTrapFrameAdapter` can bind to
+  a proven `capture/apply_result` shape instead of inventing that boundary in
+  the dark.
+- The same leaf now also prints one `runtime trap live-adapter` line that
+  pushes that boundary one step closer to the real exception ingress: the proof
+  now goes through an actual `Armv7aExceptionFrame*`-shaped live frame adapter,
+  so the later upper `RuntimeTrapFrameAdapter<Frame>` hook no longer needs to
+  guess whether the ARMv7-A lower half can capture from and write back to the
+  real trap frame shape.
+- The same leaf now also prints one `runtime trap ingress-adapter` line that
+  turns that live-frame proof into a real bindable adapter shape: one
+  `ctx + capture + apply_result` bundle now already exists on the ARMv7-A side,
+  and the QEMU leaf proves it can survive a full `capture -> dispatch stub ->
+  apply_result` round-trip before the upper runtime starts calling into it for
+  real.
+- The same leaf now also prints one `runtime trap caller` line that proves the
+  reverse direction too: generic `yield/sleep` intent can already be encoded
+  into an ARMv7-A SVC call frame, round-trip through the same seam, and satisfy
+  the future upper `RuntimeTrapIngressCaller` / `RuntimeTrapCallFrameAdapter`
+  expectations for `make_*_frame` and `result_ready`.
+- The same leaf now also prints one `runtime trap failure` line that turns the
+  most important lower-half negative paths into direct evidence too, so
+  `unsupported-service`, `decode-failed`, `writeback-failed`, and the two
+  `unbound-adapter` entry points can be distinguished on the real QEMU leaf
+  instead of only existing in host-side verifier output.
 - The same QEMU leaf now also closes `timer IRQ -> tick handoff`, `SVC #0x43
   -> yield_current`, `SVC #0x44 -> sleep_current_until`, and dispatch
   readiness into one `runtime bridge` line, so the lower half can align with
   the upper `runtime_glue` seam without either side needing to know the
   other's QEMU-specific details.
+- The same leaf now also prints one `task syscall frame` line that proves the
+  real live `SVC #0x45/#0x46` frame already carries a stable capture-side
+  boundary: raw service id, mapped generic service, and current task/stack
+  context now meet in one place before any future upper
+  `TaskSyscallFrameAdapter<Frame>` starts binding to it.
+- The same leaf now also prints one `task syscall dispatch` line that proves
+  those same `SVC #0x45/#0x46` requests already reach a stable lower dispatch
+  seam with mapped generic service ids, propagated task/stack context, and the
+  expected result value written back to `r0`.
+- The same leaf now also prints one `task syscall ingress-adapter` line that
+  proves the real live `SVC #0x45/#0x46` frame can already be captured through
+  the same `live frame adapter` shape, with current task/stack context folded
+  into the mapped frame before the result is written back to `r0`.
+- The same QEMU leaf now also prints one `task syscall caller` line that proves
+  the caller-side `SVC #0x45/#0x46` shape can be synthesized from the lower
+  half too, so `debug_write` and `capability_call` now reuse the same
+  `svc call frame -> trap seam -> r0 result` evidence path instead of only
+  existing as live-dispatch observations.
+- The same leaf now also prints one `task syscall roundtrip` line that proves
+  the live `SVC #0x45/#0x46` return path closes too, so the value observed
+  by the caller after exception return matches both the lower dispatch result
+  and the expected syscall semantics for `debug_write` and `capability_call`.
+- The same leaf now also prints one `task syscall glue` line that proves the
+  new target-side adapter-of-adapter seam can survive inside the real QEMU
+  bare-metal image too: generic trap capture, task-syscall ingress,
+  task-syscall frame bridge, caller-side frame synthesis, and the generic
+  `TaskRuntimeApi` facade now close in one place without linking the full
+  shared runtime target.
+- The same leaf now also prints one `task syscall failure` line that turns the
+  most important negative paths into first-class evidence too, so
+  `decode-failed`, `unsupported-service`, `unbound-bridge`,
+  `unbound-adapter`, and `writeback-failed` can be distinguished on the real
+  bare-metal leaf before they show up during later scheduler/runtime bringup.
 - Those returning SVC/IRQ/FIQ smoke lines now also print the pre-exception
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from

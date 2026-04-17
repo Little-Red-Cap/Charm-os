@@ -35,6 +35,17 @@
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
 - ARMv7-A 平台契约：`docs/system/armv7a_platform_contract.md`
+- 最小内核运行时 bridge 契约：`docs/system/minimal_kernel_runtime_bridge_contract.md`
+- 最小内核 task-side runtime service 契约：`docs/system/minimal_kernel_runtime_service_contract.md`
+- 最小内核 task runtime API 契约：`docs/system/minimal_kernel_task_runtime_api_contract.md`
+- 最小内核 task syscall API 契约：`docs/system/minimal_kernel_task_syscall_api_contract.md`
+- 最小内核 task syscall catalog 契约：`docs/system/minimal_kernel_task_syscall_catalog_contract.md`
+- 最小内核 task syscall dispatch 契约：`docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
+- 最小内核 task syscall table 契约：`docs/system/minimal_kernel_task_syscall_table_contract.md`
+- 最小内核 task syscall frame 契约：`docs/system/minimal_kernel_task_syscall_frame_contract.md`
+- 最小内核 trap/syscall 契约：`docs/system/minimal_kernel_trap_syscall_contract.md`
+- 最小内核 trap ingress adapter 契约：`docs/system/minimal_kernel_trap_ingress_contract.md`
+- ARMv7-A SVC 到 trap frame 映射证据：`docs/system/armv7a_runtime_trap_mapping_contract.md`
 - 网络协议栈双表面设计：`docs/io/net_stack_dual_surface_design.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
 - POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
@@ -96,6 +107,17 @@ flowchart TD
 | 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
 | 上 RK3506 板 / 查早期寄存器 | `docs/board/rk3506/README.md` → `docs/board/rk3506/post_ddr_handoff_contract.md` → `docs/system/armv7a_platform_contract.md` |
 | 推进 ARMv7-A 平台 bring-up | `docs/system/armv7a_platform_contract.md` → `docs/boot/bootloader_overview.md` |
+| 推进最小内核运行时 glue / bridge | `docs/system/minimal_kernel_runtime_bridge_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
+| 推进 task-side runtime service / syscall facade | `docs/system/minimal_kernel_runtime_service_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` |
+| 推进 task runtime API / future current-task syscall facade | `docs/system/minimal_kernel_task_runtime_api_contract.md` → `docs/system/minimal_kernel_runtime_service_contract.md` |
+| 推进 task syscall API / future syscall surface naming | `docs/system/minimal_kernel_task_syscall_api_contract.md` → `docs/system/minimal_kernel_task_runtime_api_contract.md` |
+| 推进最小 syscall 编号 / catalog / trap 映射 | `docs/system/minimal_kernel_task_syscall_catalog_contract.md` → `docs/system/minimal_kernel_task_syscall_api_contract.md` |
+| 推进最小 syscall request / dispatch bridge | `docs/system/minimal_kernel_task_syscall_dispatch_contract.md` → `docs/system/minimal_kernel_task_syscall_catalog_contract.md` |
+| 推进最小静态 syscall handler table | `docs/system/minimal_kernel_task_syscall_table_contract.md` → `docs/system/minimal_kernel_task_syscall_dispatch_contract.md` |
+| 推进最小 numbered syscall frame bridge | `docs/system/minimal_kernel_task_syscall_frame_contract.md` → `docs/system/minimal_kernel_task_syscall_table_contract.md` |
+| 推进最小 trap / syscall 边界 | `docs/system/minimal_kernel_trap_syscall_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
+| 推进 trap frame / ingress adapter 边界 | `docs/system/minimal_kernel_trap_ingress_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` |
+| 推进 ARMv7-A SVC / trap frame 映射验证 | `docs/system/armv7a_runtime_trap_mapping_contract.md` → `docs/system/minimal_kernel_trap_ingress_contract.md` |
 | 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
 | 实现 USB 设备 | `docs/usb/usb_arch_plan.md` → `docs/usb/usb_dsl_overview.md` |
@@ -198,6 +220,17 @@ docs/
 - `docs/system/init_materialized_graph_observe.md`
 - `docs/system/init_materialized_graph_tooling_milestone.md`
 - `docs/system/armv7a_platform_contract.md`
+- `docs/system/minimal_kernel_runtime_bridge_contract.md`
+- `docs/system/minimal_kernel_runtime_service_contract.md`
+- `docs/system/minimal_kernel_task_runtime_api_contract.md`
+- `docs/system/minimal_kernel_task_syscall_api_contract.md`
+- `docs/system/minimal_kernel_task_syscall_catalog_contract.md`
+- `docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
+- `docs/system/minimal_kernel_task_syscall_table_contract.md`
+- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
+- `docs/system/minimal_kernel_trap_syscall_contract.md`
+- `docs/system/minimal_kernel_trap_ingress_contract.md`
+- `docs/system/armv7a_runtime_trap_mapping_contract.md`
 - `docs/system/service_component_init.md`
 - `docs/system/power_lowpower_overview.md`
 - `docs/system/at_system.md`

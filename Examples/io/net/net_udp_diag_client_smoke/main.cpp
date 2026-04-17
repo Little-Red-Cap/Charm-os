@@ -258,12 +258,12 @@ int main() {
         }
     };
 
-    net::diag::udp::Client<16, 4> client{};
+    net::diag::udp::EndpointClient<16, 4> client{local, peer};
     ClientState client_state{};
     client.set_error_handler(&ClientState::on_error, &client_state);
 
-    auto bound = net::bind_udp_protocol(pump, local, client);
-    if (!bound || !pump.has_udp_binding(local.port) || pump.udp_binding_count() != 1) {
+    auto bound = client.bind(pump);
+    if (!bound || !pump.has_udp_binding(client.local_endpoint().port) || pump.udp_binding_count() != 1) {
         std::fputs("udp diag client smoke bind failed\n", stderr);
         return 5;
     }
@@ -307,8 +307,6 @@ int main() {
     }
 
     auto ping = client.ping(
-        local,
-        peer,
         net::diag::PingRequest{{'p', 'i', 'n', 'g'}},
         10,
         50,
@@ -431,8 +429,6 @@ int main() {
     }
 
     auto count = client.query_count(
-        local,
-        peer,
         20,
         40,
         &ClientState::on_count,
@@ -512,8 +508,6 @@ int main() {
     }
 
     auto meta = client.query_meta(
-        local,
-        peer,
         net::diag::MetaRequest{
             .code = 0x1234u,
             .flags = 0x5Au,
@@ -549,8 +543,6 @@ int main() {
     }
 
     auto slow = client.query_slow_count(
-        local,
-        peer,
         net::diag::CounterValue{41},
         50,
         20,

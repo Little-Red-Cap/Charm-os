@@ -8,6 +8,7 @@ export import net.packet;
 export import net.protocol.diagnostic;
 export import net.udp;
 import net.udp_service_codec;
+import net.udp_protocol_binding;
 import util.core;
 import util.error;
 import util.expected;
@@ -520,5 +521,183 @@ export namespace net::diag::udp {
         [[nodiscard]] bool has_slow_count() const noexcept {
             return this->template has_route<SlowCountOp>();
         }
+    };
+
+    template <util::usize MaxPayload = 64, util::usize MaxPending = 4>
+    class EndpointClient : public Client<MaxPayload, MaxPending> {
+        using Base = Client<MaxPayload, MaxPending>;
+
+    public:
+        constexpr EndpointClient() noexcept = default;
+
+        constexpr EndpointClient(Endpoint local, Endpoint peer) noexcept
+            : local_(local),
+              peer_(peer),
+              configured_(true) {}
+
+        using Base::ping;
+        using Base::query_count;
+        using Base::query_meta;
+        using Base::query_slow_count;
+
+        void configure(Endpoint local, Endpoint peer) noexcept {
+            local_ = local;
+            peer_ = peer;
+            configured_ = true;
+        }
+
+        [[nodiscard]] bool configured() const noexcept {
+            return configured_;
+        }
+
+        [[nodiscard]] const Endpoint& local_endpoint() const noexcept {
+            return local_;
+        }
+
+        [[nodiscard]] const Endpoint& peer_endpoint() const noexcept {
+            return peer_;
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return net::bind_udp_protocol(pump, local_, static_cast<Base&>(*this));
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump, Endpoint local, Endpoint peer) noexcept {
+            configure(local, peer);
+            return bind(pump);
+        }
+
+        [[nodiscard]] Result<util::u16> ping(const PingRequest& request,
+                                             util::u32 now_ms,
+                                             util::u32 timeout_ms,
+                                             typename Base::template ResponseFn<PingOp> on_response = nullptr,
+                                             typename Base::template TimeoutFn<PingOp> on_timeout = nullptr,
+                                             void* user = nullptr) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return static_cast<Base&>(*this).ping(
+                local_,
+                peer_,
+                request,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
+
+        [[nodiscard]] Result<util::u16> query_count(util::u32 now_ms,
+                                                    util::u32 timeout_ms,
+                                                    typename Base::template ResponseFn<CountOp> on_response = nullptr,
+                                                    typename Base::template TimeoutFn<CountOp> on_timeout = nullptr,
+                                                    void* user = nullptr) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return static_cast<Base&>(*this).query_count(
+                local_,
+                peer_,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
+
+        [[nodiscard]] Result<util::u16> query_slow_count(
+            const CounterValue& request,
+            util::u32 now_ms,
+            util::u32 timeout_ms,
+            typename Base::template ResponseFn<SlowCountOp> on_response = nullptr,
+            typename Base::template TimeoutFn<SlowCountOp> on_timeout = nullptr,
+            void* user = nullptr) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return static_cast<Base&>(*this).query_slow_count(
+                local_,
+                peer_,
+                request,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
+
+        [[nodiscard]] Result<util::u16> query_meta(
+            const MetaRequest& request,
+            util::u32 now_ms,
+            util::u32 timeout_ms,
+            typename Base::template ResponseFn<MetaOp> on_response = nullptr,
+            typename Base::template TimeoutFn<MetaOp> on_timeout = nullptr,
+            void* user = nullptr) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return static_cast<Base&>(*this).query_meta(
+                local_,
+                peer_,
+                request,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
+
+    private:
+        Endpoint local_{};
+        Endpoint peer_{};
+        bool configured_{false};
+    };
+
+    template <util::usize MaxPayload = 64>
+    class EndpointServer : public Server<MaxPayload> {
+        using Base = Server<MaxPayload>;
+
+    public:
+        constexpr EndpointServer() noexcept = default;
+
+        constexpr explicit EndpointServer(Endpoint local) noexcept
+            : local_(local),
+              configured_(true) {}
+
+        void configure(Endpoint local) noexcept {
+            local_ = local;
+            configured_ = true;
+        }
+
+        [[nodiscard]] bool configured() const noexcept {
+            return configured_;
+        }
+
+        [[nodiscard]] const Endpoint& local_endpoint() const noexcept {
+            return local_;
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return net::bind_udp_protocol(pump, local_, static_cast<Base&>(*this));
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump, Endpoint local) noexcept {
+            configure(local);
+            return bind(pump);
+        }
+
+    private:
+        Endpoint local_{};
+        bool configured_{false};
     };
 }

@@ -261,20 +261,20 @@ int main() {
         }
     };
 
-    net::diag::udp::Server<16> server{};
+    net::diag::udp::EndpointServer<16> server{local_endpoint};
     ServerState server_state{};
 
     auto ping_route = server.on_ping(&ServerState::on_ping, &server_state);
     auto count_route = server.on_count(&ServerState::on_count, &server_state);
     auto meta_route = server.on_meta(&ServerState::on_meta, &server_state);
     auto slow_count_route = server.on_slow_count(&ServerState::on_slow_count, &server_state);
-    auto bound = net::bind_udp_protocol(pump, local_endpoint, server);
+    auto bound = server.bind(pump);
     if (!ping_route
         || !count_route
         || !meta_route
         || !slow_count_route
         || !bound
-        || !pump.has_udp_binding(local_endpoint.port)
+        || !pump.has_udp_binding(server.local_endpoint().port)
         || pump.udp_binding_count() != 1) {
         std::fputs("udp diag smoke server bind failed\n", stderr);
         return 5;

@@ -81,6 +81,9 @@ v0 阶段的使用规则如下：
 - `artifact report.system_input.system_spec`
   已开始作为 v0 结果物里的规范化输入投影，
   用来把当前 case 的 system spec 入口正式暴露给人和工具
+- compare 模式下的 `artifact report.comparison.system_input`
+  也已经开始把“系统如何成立的输入发生了什么漂移”正式拉进结果物，
+  让输入语言不只可导出，也可比较
 
 ### 3.2 `Profile`
 

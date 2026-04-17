@@ -1275,6 +1275,18 @@ function Format-CountMapText {
     return (@($parts) -join ', ')
 }
 
+function Format-ComparisonScalarText {
+    param(
+        $Value
+    )
+
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) {
+        return '<null>'
+    }
+
+    return [string]$Value
+}
+
 function New-ResolvedCaseSubject {
     param(
         $CaseEntry,
@@ -1348,6 +1360,278 @@ function New-SystemInputSummary {
                 source = [string]$ResolvedCaseSubject.ActiveFacetResolution.source
             }
             subject_facts = @($subjectFacts)
+        }
+    }
+}
+
+function New-EmptySystemInputComparisonSide {
+    return [ordered]@{
+        system_spec = [ordered]@{
+            case_name = $null
+            case_kind = $null
+            source = $null
+            build_dir = $null
+            build_target = $null
+            export_target = $null
+        }
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+            declared_facts = @()
+            declared_contract_entries = @()
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = $null
+                source = 'missing'
+            }
+            board = [ordered]@{
+                value = $null
+                source = 'missing'
+            }
+            active_facets = [ordered]@{
+                values = @()
+                source = 'missing'
+            }
+            subject_facts = @()
+        }
+    }
+}
+
+function New-SystemInputComparisonSide {
+    param(
+        $SystemInputSummary
+    )
+
+    if ($null -eq $SystemInputSummary) {
+        return New-EmptySystemInputComparisonSide
+    }
+
+    return [ordered]@{
+        system_spec = [ordered]@{
+            case_name = $SystemInputSummary.system_spec.case_name
+            case_kind = $SystemInputSummary.system_spec.case_kind
+            source = $SystemInputSummary.system_spec.source
+            build_dir = $SystemInputSummary.system_spec.build_dir
+            build_target = $SystemInputSummary.system_spec.build_target
+            export_target = $SystemInputSummary.system_spec.export_target
+        }
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = $SystemInputSummary.declared_input.subject.profile
+                board = $SystemInputSummary.declared_input.subject.board
+                active_facets = @($SystemInputSummary.declared_input.subject.active_facets)
+            }
+            declared_facts = @($SystemInputSummary.declared_input.declared_facts)
+            declared_contract_entries = @($SystemInputSummary.declared_input.declared_contract_entries)
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = $SystemInputSummary.resolved_input.profile.value
+                source = [string]$SystemInputSummary.resolved_input.profile.source
+            }
+            board = [ordered]@{
+                value = $SystemInputSummary.resolved_input.board.value
+                source = [string]$SystemInputSummary.resolved_input.board.source
+            }
+            active_facets = [ordered]@{
+                values = @($SystemInputSummary.resolved_input.active_facets.values)
+                source = [string]$SystemInputSummary.resolved_input.active_facets.source
+            }
+            subject_facts = @($SystemInputSummary.resolved_input.subject_facts)
+        }
+    }
+}
+
+function New-SystemInputContractStateMap {
+    param(
+        [object[]]$DeclaredContractEntries
+    )
+
+    $stateMap = @{}
+    foreach ($entry in @($DeclaredContractEntries)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $contractName = [string]$entry.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $requires = @()
+        if ($null -ne $entry.PSObject.Properties['requires']) {
+            $requires = @(
+                @($entry.requires) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ } |
+                    Sort-Object -Unique
+            )
+        }
+
+        $stateMap[$contractName] = [ordered]@{
+            contract = $contractName
+            requires = @($requires)
+        }
+    }
+
+    return $stateMap
+}
+
+function New-SystemInputComparison {
+    param(
+        $LeftSummary,
+        $RightSummary
+    )
+
+    $leftSide = New-SystemInputComparisonSide -SystemInputSummary $LeftSummary
+    $rightSide = New-SystemInputComparisonSide -SystemInputSummary $RightSummary
+    $leftContractStateMap = New-SystemInputContractStateMap -DeclaredContractEntries @($leftSide.declared_input.declared_contract_entries)
+    $rightContractStateMap = New-SystemInputContractStateMap -DeclaredContractEntries @($rightSide.declared_input.declared_contract_entries)
+
+    $systemSpecChanges = @()
+    foreach ($fieldName in @('case_name', 'case_kind', 'source', 'build_dir', 'build_target', 'export_target')) {
+        $leftValue = $leftSide.system_spec.$fieldName
+        $rightValue = $rightSide.system_spec.$fieldName
+        if ([string]$leftValue -ne [string]$rightValue) {
+            $systemSpecChanges += "${fieldName}:$(Format-ComparisonScalarText $leftValue)->$(Format-ComparisonScalarText $rightValue)"
+        }
+    }
+
+    $declaredSubjectChanges = @()
+    foreach ($fieldName in @('profile', 'board')) {
+        $leftValue = $leftSide.declared_input.subject.$fieldName
+        $rightValue = $rightSide.declared_input.subject.$fieldName
+        if ([string]$leftValue -ne [string]$rightValue) {
+            $declaredSubjectChanges += "${fieldName}:$(Format-ComparisonScalarText $leftValue)->$(Format-ComparisonScalarText $rightValue)"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.declared_input.subject.active_facets) -Right @($rightSide.declared_input.subject.active_facets))) {
+        $declaredSubjectChanges += "active_facets:[$(Join-Names @($leftSide.declared_input.subject.active_facets))]->[$(Join-Names @($rightSide.declared_input.subject.active_facets))]"
+    }
+
+    $resolvedInputChanges = @()
+    foreach ($resolvedFieldName in @('profile', 'board')) {
+        $leftValue = $leftSide.resolved_input.$resolvedFieldName.value
+        $rightValue = $rightSide.resolved_input.$resolvedFieldName.value
+        if ([string]$leftValue -ne [string]$rightValue) {
+            $resolvedInputChanges += "${resolvedFieldName}.value:$(Format-ComparisonScalarText $leftValue)->$(Format-ComparisonScalarText $rightValue)"
+        }
+
+        $leftSource = [string]$leftSide.resolved_input.$resolvedFieldName.source
+        $rightSource = [string]$rightSide.resolved_input.$resolvedFieldName.source
+        if ($leftSource -ne $rightSource) {
+            $resolvedInputChanges += "${resolvedFieldName}.source:$(Format-ComparisonScalarText $leftSource)->$(Format-ComparisonScalarText $rightSource)"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.resolved_input.active_facets.values) -Right @($rightSide.resolved_input.active_facets.values))) {
+        $resolvedInputChanges += "active_facets.values:[$(Join-Names @($leftSide.resolved_input.active_facets.values))]->[$(Join-Names @($rightSide.resolved_input.active_facets.values))]"
+    }
+    $leftFacetSource = [string]$leftSide.resolved_input.active_facets.source
+    $rightFacetSource = [string]$rightSide.resolved_input.active_facets.source
+    if ($leftFacetSource -ne $rightFacetSource) {
+        $resolvedInputChanges += "active_facets.source:$(Format-ComparisonScalarText $leftFacetSource)->$(Format-ComparisonScalarText $rightFacetSource)"
+    }
+
+    $declaredFactsAdded = @(
+        @($rightSide.declared_input.declared_facts) |
+            Where-Object { @($leftSide.declared_input.declared_facts) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $declaredFactsRemoved = @(
+        @($leftSide.declared_input.declared_facts) |
+            Where-Object { @($rightSide.declared_input.declared_facts) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $subjectFactsAdded = @(
+        @($rightSide.resolved_input.subject_facts) |
+            Where-Object { @($leftSide.resolved_input.subject_facts) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $subjectFactsRemoved = @(
+        @($leftSide.resolved_input.subject_facts) |
+            Where-Object { @($rightSide.resolved_input.subject_facts) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $contractNames = @(
+        @($leftContractStateMap.Keys) +
+        @($rightContractStateMap.Keys) |
+            Sort-Object -Unique
+    )
+    $declaredContractChanges = @()
+    foreach ($contractName in @($contractNames)) {
+        $leftEntry = if ($leftContractStateMap.ContainsKey($contractName)) { $leftContractStateMap[$contractName] } else { $null }
+        $rightEntry = if ($rightContractStateMap.ContainsKey($contractName)) { $rightContractStateMap[$contractName] } else { $null }
+        $leftRequires = if ($null -eq $leftEntry) { @() } else { @($leftEntry.requires) }
+        $rightRequires = if ($null -eq $rightEntry) { @() } else { @($rightEntry.requires) }
+
+        $changeKind = 'unchanged'
+        if ($null -eq $leftEntry -and $null -ne $rightEntry) {
+            $changeKind = 'added'
+        } elseif ($null -ne $leftEntry -and $null -eq $rightEntry) {
+            $changeKind = 'removed'
+        } elseif (-not (Compare-StringArrays -Left $leftRequires -Right $rightRequires)) {
+            $changeKind = 'changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $declaredContractChanges += [ordered]@{
+            contract = $contractName
+            change_kind = $changeKind
+            left_requires = @($leftRequires)
+            right_requires = @($rightRequires)
+        }
+    }
+
+    $summaryChanges = @()
+    $summaryChanges += @($systemSpecChanges | ForEach-Object { "system_spec.$_" })
+    $summaryChanges += @($declaredSubjectChanges | ForEach-Object { "declared_subject.$_" })
+    $summaryChanges += @($resolvedInputChanges | ForEach-Object { "resolved_input.$_" })
+    if (@($declaredFactsAdded).Count -gt 0 -or @($declaredFactsRemoved).Count -gt 0) {
+        $summaryChanges += "declared_facts:[$(Join-Names @($leftSide.declared_input.declared_facts))]->[$(Join-Names @($rightSide.declared_input.declared_facts))]"
+    }
+    foreach ($contractChange in @($declaredContractChanges | Sort-Object contract)) {
+        if ([string]$contractChange.change_kind -eq 'changed') {
+            $summaryChanges += "declared_contract_entries.$([string]$contractChange.contract):[$(Join-Names @($contractChange.left_requires))]->[$(Join-Names @($contractChange.right_requires))]"
+        } else {
+            $summaryChanges += "declared_contract_entries.$([string]$contractChange.contract):$([string]$contractChange.change_kind)"
+        }
+    }
+    if (@($subjectFactsAdded).Count -gt 0 -or @($subjectFactsRemoved).Count -gt 0) {
+        $summaryChanges += "subject_facts:[$(Join-Names @($leftSide.resolved_input.subject_facts))]->[$(Join-Names @($rightSide.resolved_input.subject_facts))]"
+    }
+
+    return [ordered]@{
+        changed = (
+            @($summaryChanges).Count -gt 0 -or
+            @($declaredFactsAdded).Count -gt 0 -or
+            @($declaredFactsRemoved).Count -gt 0 -or
+            @($declaredContractChanges).Count -gt 0 -or
+            @($subjectFactsAdded).Count -gt 0 -or
+            @($subjectFactsRemoved).Count -gt 0
+        )
+        left = $leftSide
+        right = $rightSide
+        summary_changes = @($summaryChanges)
+        system_spec_changes = @($systemSpecChanges)
+        declared_subject_changes = @($declaredSubjectChanges)
+        declared_fact_changes = [ordered]@{
+            added = @($declaredFactsAdded)
+            removed = @($declaredFactsRemoved)
+        }
+        declared_contract_changes = @($declaredContractChanges | Sort-Object contract)
+        resolved_input_changes = @($resolvedInputChanges)
+        subject_fact_changes = [ordered]@{
+            added = @($subjectFactsAdded)
+            removed = @($subjectFactsRemoved)
         }
     }
 }
@@ -2615,10 +2899,13 @@ function New-ArtifactReport {
     $connectionSummary = Get-GraphConnectionSummary -Graph $graph
     if ($null -ne $comparison) {
         $baselineCaseEntry = Get-CaseEntryByName -Bundle $ArtifactContext.LeftBundle -CaseName ([string]$CaseEntry.name)
+        $baselineResolvedSubject = New-ResolvedCaseSubject -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
+        $baselineSystemInputSummary = New-SystemInputSummary -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject
         $baselineBindingResultSummary = New-CaseBindingResultSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupOrderSummary = New-CaseBringupOrderSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupEvidenceSummary = New-CaseBringupEvidenceSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineResourceContractSummary = New-CaseResourceContractSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
+        $comparison.system_input = New-SystemInputComparison -LeftSummary $baselineSystemInputSummary -RightSummary $systemInputSummary
         $comparison.binding_result = New-BindingResultComparison -LeftSummary $baselineBindingResultSummary -RightSummary $bindingResultSummary
         $comparison.bringup_order = New-BringupOrderComparison -LeftSummary $baselineBringupOrderSummary -RightSummary $bringupOrderSummary
         $comparison.bringup_evidence = New-BringupEvidenceComparison -LeftSummary $baselineBringupEvidenceSummary -RightSummary $bringupEvidenceSummary

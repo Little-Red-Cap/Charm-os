@@ -220,6 +220,17 @@
         "missing"
       ]
     },
+    "nullableCaseKind": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "materialized_graph",
+        "runtime_only",
+        null
+      ]
+    },
     "resolvedScalarInput": {
       "type": "object",
       "additionalProperties": false,
@@ -346,6 +357,58 @@
       "properties": {
         "system_spec": {
           "$ref": "#/$defs/systemSpecInput"
+        },
+        "declared_input": {
+          "$ref": "#/$defs/declaredInput"
+        },
+        "resolved_input": {
+          "$ref": "#/$defs/resolvedInput"
+        }
+      }
+    },
+    "systemInputComparisonSystemSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_name",
+        "case_kind",
+        "source",
+        "build_dir",
+        "build_target",
+        "export_target"
+      ],
+      "properties": {
+        "case_name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "case_kind": {
+          "$ref": "#/$defs/nullableCaseKind"
+        },
+        "source": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "build_dir": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "build_target": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "export_target": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "systemInputComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system_spec",
+        "declared_input",
+        "resolved_input"
+      ],
+      "properties": {
+        "system_spec": {
+          "$ref": "#/$defs/systemInputComparisonSystemSpec"
         },
         "declared_input": {
           "$ref": "#/$defs/declaredInput"
@@ -861,6 +924,93 @@
         },
         "removed": {
           "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemInputComparisonContractChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "change_kind",
+        "left_requires",
+        "right_requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_requires": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemInputComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "system_spec_changes",
+        "declared_subject_changes",
+        "declared_fact_changes",
+        "declared_contract_changes",
+        "resolved_input_changes",
+        "subject_fact_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/systemInputComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/systemInputComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "system_spec_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "declared_subject_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "declared_fact_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "declared_contract_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/systemInputComparisonContractChange"
+          }
+        },
+        "resolved_input_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "subject_fact_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
         }
       }
     },
@@ -1548,6 +1698,9 @@
         },
         "edge_changes": {
           "$ref": "#/$defs/changeCounts"
+        },
+        "system_input": {
+          "$ref": "#/$defs/systemInputComparison"
         },
         "binding_result": {
           "$ref": "#/$defs/bindingResultComparison"

@@ -557,6 +557,33 @@ function Get-MetadataChangeCount {
     return @($ReportData.comparison.metadata_changes).Count
 }
 
+function Get-SystemInputComparisonFromReport {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['comparison'] -or
+        $null -eq $ReportData.comparison -or
+        $null -eq $ReportData.comparison.PSObject.Properties['system_input']) {
+        return $null
+    }
+
+    return $ReportData.comparison.system_input
+}
+
+function Get-SystemInputComparisonChangeCount {
+    param(
+        $SystemInputComparison
+    )
+
+    if ($null -eq $SystemInputComparison) {
+        return 0
+    }
+
+    return [int]@($SystemInputComparison.summary_changes).Count
+}
+
 function Get-BringupEvidenceComparisonFromReport {
     param(
         $ReportData
@@ -3108,6 +3135,7 @@ function New-ComparisonOverviewCaseSummary {
 
     $report = $LoadedReport.Data
     $hasComparison = ($null -ne $report.PSObject.Properties['comparison'] -and $null -ne $report.comparison)
+    $systemInputComparison = Get-SystemInputComparisonFromReport -ReportData $report
     $bindingResultComparison = Get-BindingResultComparisonFromReport -ReportData $report
     $bringupOrderComparison = Get-BringupOrderComparisonFromReport -ReportData $report
     $bringupComparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
@@ -3120,6 +3148,8 @@ function New-ComparisonOverviewCaseSummary {
         compared = $hasComparison
         compare_status = Get-ComparisonStatus -ReportData $report
         metadata_change_count = [int](Get-MetadataChangeCount -ReportData $report)
+        input_changed = ($null -ne $systemInputComparison -and [bool]$systemInputComparison.changed)
+        input_change_count = Get-SystemInputComparisonChangeCount -SystemInputComparison $systemInputComparison
         binding_result_changed = ($null -ne $bindingResultComparison -and [bool]$bindingResultComparison.changed)
         binding_result_change_count = if ($null -ne $bindingResultComparison) { [int]@($bindingResultComparison.binding_changes).Count } else { 0 }
         bringup_order_changed = ($null -ne $bringupOrderComparison -and [bool]$bringupOrderComparison.changed)
@@ -3171,6 +3201,7 @@ function New-ArtifactRootComparisonOverviewResult {
         compared_case_count = @($comparedCases).Count
         status_counts = $statusCounts
         metadata_changed_case_count = @($comparedCases | Where-Object { [int]$_.metadata_change_count -gt 0 }).Count
+        input_changed_case_count = @($comparedCases | Where-Object { [bool]$_.input_changed }).Count
         binding_result_changed_case_count = @($comparedCases | Where-Object { [bool]$_.binding_result_changed }).Count
         bringup_order_changed_case_count = @($comparedCases | Where-Object { [bool]$_.bringup_order_changed }).Count
         bringup_changed_case_count = @($comparedCases | Where-Object { [bool]$_.bringup_changed }).Count
@@ -3179,6 +3210,11 @@ function New-ArtifactRootComparisonOverviewResult {
         metadata_changed_cases = @(
             @($comparedCases) |
                 Where-Object { [int]$_.metadata_change_count -gt 0 } |
+                ForEach-Object { [string]$_.case }
+        )
+        input_changed_cases = @(
+            @($comparedCases) |
+                Where-Object { [bool]$_.input_changed } |
                 ForEach-Object { [string]$_.case }
         )
         binding_result_changed_cases = @(
@@ -3216,6 +3252,7 @@ function New-CaseSummaryRow {
     )
 
     $report = $LoadedReport.Data
+    $systemInputComparison = Get-SystemInputComparisonFromReport -ReportData $report
     $bindingResultComparison = Get-BindingResultComparisonFromReport -ReportData $report
     $bringupOrderComparison = Get-BringupOrderComparisonFromReport -ReportData $report
     $bringupComparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
@@ -3235,6 +3272,7 @@ function New-CaseSummaryRow {
         Unknown = [int]$report.resource_contract.unknown_count
         Compare = Get-ComparisonStatus -ReportData $report
         Metadata = Get-MetadataChangeCount -ReportData $report
+        InpCmp = Get-SystemInputComparisonChangeCount -SystemInputComparison $systemInputComparison
         BindCmp = if ($null -ne $bindingResultComparison -and [bool]$bindingResultComparison.changed) { [int]@($bindingResultComparison.binding_changes).Count } else { 0 }
         OrdCmp = if ($null -ne $bringupOrderComparison -and [bool]$bringupOrderComparison.changed) { [int]@($bringupOrderComparison.entry_changes).Count } else { 0 }
         BrCmp = if ($null -ne $bringupComparison -and [bool]$bringupComparison.changed) { [int]@($bringupComparison.capability_changes).Count } else { 0 }
@@ -3490,8 +3528,9 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         Write-Host '[COMPARISON]'
         Write-Host "compared_case_count      = $([int]$comparisonOverview.compared_case_count)"
         Write-Host "metadata_changed_cases  = $([int]$comparisonOverview.metadata_changed_case_count)"
-        Write-Host "binding_result_changed = $([int]$comparisonOverview.binding_result_changed_case_count)"
-        Write-Host "bringup_order_changed  = $([int]$comparisonOverview.bringup_order_changed_case_count)"
+        Write-Host "input_changed_cases     = $([int]$comparisonOverview.input_changed_case_count)"
+        Write-Host "binding_result_changed  = $([int]$comparisonOverview.binding_result_changed_case_count)"
+        Write-Host "bringup_order_changed   = $([int]$comparisonOverview.bringup_order_changed_case_count)"
         Write-Host "bringup_changed_cases   = $([int]$comparisonOverview.bringup_changed_case_count)"
         Write-Host "resource_changed_cases  = $([int]$comparisonOverview.resource_changed_case_count)"
         if (@($comparisonOverview.compared_cases).Count -gt 0) {
@@ -3507,7 +3546,7 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             }
             Write-Host ''
         }
-        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Compare, Metadata, BindCmp, OrdCmp, BrCmp, ResCmp | Out-Host
+        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Compare, Metadata, InpCmp, BindCmp, OrdCmp, BrCmp, ResCmp | Out-Host
     }
     exit 0
 }
@@ -4190,7 +4229,7 @@ Write-Host "[CASE] $([string]($reportData.subject.case))"
 Write-Host "[MODE] $([string]($reportData.mode))"
 Write-Host ''
 
-$summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Compare, Metadata | Out-Host
+$summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Compare, Metadata, InpCmp | Out-Host
 
 if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $reportData.system_input) {
     $systemInput = $reportData.system_input
@@ -4342,6 +4381,31 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
         Write-Host "resource_compare_caps = $([int]$comparisonOverview.capability_summary.resource_compare_capability_count)"
         if (@($comparisonOverview.capability_summary.compared_capabilities).Count -gt 0) {
             Write-Host "compared_capabilities = $((@($comparisonOverview.capability_summary.compared_capabilities) -join ', '))"
+        }
+    }
+    if ($null -ne $comparisonOverview.PSObject.Properties['system_input'] -and $null -ne $comparisonOverview.system_input) {
+        $systemInputComparison = $comparisonOverview.system_input
+        Write-Host "system_input = changed:$([bool]$systemInputComparison.changed)"
+        if (@($systemInputComparison.summary_changes).Count -gt 0) {
+            Write-Host "system_input.summary_changes = $((@($systemInputComparison.summary_changes) -join '; '))"
+        }
+        if (@($systemInputComparison.system_spec_changes).Count -gt 0) {
+            Write-Host "system_input.system_spec_changes = $([int]@($systemInputComparison.system_spec_changes).Count)"
+        }
+        if (@($systemInputComparison.declared_subject_changes).Count -gt 0) {
+            Write-Host "system_input.declared_subject_changes = $([int]@($systemInputComparison.declared_subject_changes).Count)"
+        }
+        if (@($systemInputComparison.declared_fact_changes.added).Count -gt 0 -or @($systemInputComparison.declared_fact_changes.removed).Count -gt 0) {
+            Write-Host "system_input.declared_fact_changes = +$([int]@($systemInputComparison.declared_fact_changes.added).Count) -$([int]@($systemInputComparison.declared_fact_changes.removed).Count)"
+        }
+        if (@($systemInputComparison.declared_contract_changes).Count -gt 0) {
+            Write-Host "system_input.declared_contract_changes = $([int]@($systemInputComparison.declared_contract_changes).Count)"
+        }
+        if (@($systemInputComparison.resolved_input_changes).Count -gt 0) {
+            Write-Host "system_input.resolved_input_changes = $([int]@($systemInputComparison.resolved_input_changes).Count)"
+        }
+        if (@($systemInputComparison.subject_fact_changes.added).Count -gt 0 -or @($systemInputComparison.subject_fact_changes.removed).Count -gt 0) {
+            Write-Host "system_input.subject_fact_changes = +$([int]@($systemInputComparison.subject_fact_changes.added).Count) -$([int]@($systemInputComparison.subject_fact_changes.removed).Count)"
         }
     }
     if ($null -ne $comparisonOverview.PSObject.Properties['binding_result'] -and $null -ne $comparisonOverview.binding_result) {

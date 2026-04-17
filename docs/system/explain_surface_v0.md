@@ -373,8 +373,10 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 
 默认总览本身现在还会继续直接给出：
 
+- `comparison.input_changed_case_count`
 - `comparison.binding_result_changed_case_count`
 - `comparison.bringup_order_changed_case_count`
+- `cases[*].InpCmp`
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
 

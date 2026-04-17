@@ -111,7 +111,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `recent transitions` 查询结果
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
-- compare 模式下的 `summary_changes / metadata_changes / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract`
+- compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
@@ -125,6 +125,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+- `scripts/materialized_graph_system_input_compare_smoke.ps1`
 - `scripts/materialized_graph_system_formation_compare_smoke.ps1`
 
 一起冻结成 v0 契约。
@@ -812,6 +813,24 @@ artifact_root 级该查询现在也会继续带出：
 但它应该把 case 级最重要的比较结论直接拉到报告顶层。
 对于 metadata-only diff，当前 `status` 仍可保持 `unchanged`，
 但 `metadata_changes` 不应被吞掉。
+而 `comparison.system_input` 则用于承载“系统如何成立”的输入投影相对 baseline 发生了什么漂移，
+把 `system_spec / declared_input / resolved_input` 正式收进 compare 结果物。
+
+`comparison.system_input` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `system_spec_changes / declared_subject_changes / resolved_input_changes`
+- `declared_fact_changes / declared_contract_changes / subject_fact_changes`
+
+这意味着 compare 模式下即使顶层 `status = unchanged`，
+报告也已经能继续回答：
+
+- 当前输入侧到底有没有漂移
+- 漂移发生在 `SystemSpec`、声明输入还是解析后的输入
+- 哪个 declared fact / declared contract / subject fact 让“系统如何成立”出现了变化
+
 而 `comparison.binding_result` 则用于承载“同一份结构相对 baseline 的 binding 成立情况发生了什么变化”，
 把 `resolved / unresolved` 与 capability 级 binding 切换正式拉进结果物。
 

@@ -143,6 +143,36 @@ armv7a_make_runtime_trap_sleep_call_frame(
         context);
 }
 
+constexpr Armv7aRuntimeTrapFrameSample
+armv7a_make_runtime_trap_debug_write_call_frame(
+    std::uint64_t value,
+    Armv7aRuntimeTrapCallContext context = {}) noexcept
+{
+    return armv7a_make_runtime_trap_call_frame(
+        kArmv7aRuntimeBridgeDebugWriteServiceId,
+        static_cast<std::uint32_t>(value & 0xffffffffull),
+        0u,
+        0u,
+        0u,
+        context);
+}
+
+constexpr Armv7aRuntimeTrapFrameSample
+armv7a_make_runtime_trap_capability_call_frame(
+    std::uint64_t capability_id,
+    std::uint64_t operation,
+    std::uint64_t payload,
+    Armv7aRuntimeTrapCallContext context = {}) noexcept
+{
+    return armv7a_make_runtime_trap_call_frame(
+        kArmv7aRuntimeBridgeCapabilityCallServiceId,
+        static_cast<std::uint32_t>(capability_id & 0xffffffffull),
+        static_cast<std::uint32_t>(operation & 0xffffffffull),
+        static_cast<std::uint32_t>(payload & 0xffffffffull),
+        0u,
+        context);
+}
+
 constexpr bool armv7a_apply_runtime_trap_call_result(
     Armv7aRuntimeTrapFrameSample& sample,
     Armv7aRuntimeTrapSeamResult result) noexcept
@@ -159,6 +189,10 @@ constexpr bool armv7a_runtime_trap_call_request_ready(
         return armv7a_runtime_bridge_yield_request_ready(request);
     case Armv7aRuntimeBridgeTrapKind::sleep_current_until:
         return armv7a_runtime_bridge_sleep_request_ready(request);
+    case Armv7aRuntimeBridgeTrapKind::debug_write:
+        return armv7a_runtime_bridge_debug_write_request_ready(request);
+    case Armv7aRuntimeBridgeTrapKind::capability_call:
+        return armv7a_runtime_bridge_capability_call_request_ready(request);
     case Armv7aRuntimeBridgeTrapKind::none:
     default:
         return false;
@@ -258,6 +292,39 @@ armv7a_observe_runtime_trap_sleep_caller(
         policy,
         context,
         Armv7aRuntimeBridgeTrapKind::sleep_current_until,
+        result);
+}
+
+constexpr Armv7aRuntimeTrapCallerObservation
+armv7a_observe_runtime_trap_debug_write_caller(
+    std::uint64_t value,
+    const Armv7aRuntimeTrapCallPolicy& policy,
+    Armv7aRuntimeTrapCallContext context,
+    Armv7aRuntimeTrapSeamResult result) noexcept
+{
+    return armv7a_observe_runtime_trap_caller(
+        armv7a_make_runtime_trap_debug_write_call_frame(value, context),
+        policy,
+        context,
+        Armv7aRuntimeBridgeTrapKind::debug_write,
+        result);
+}
+
+constexpr Armv7aRuntimeTrapCallerObservation
+armv7a_observe_runtime_trap_capability_call_caller(
+    std::uint64_t capability_id,
+    std::uint64_t operation,
+    std::uint64_t payload,
+    const Armv7aRuntimeTrapCallPolicy& policy,
+    Armv7aRuntimeTrapCallContext context,
+    Armv7aRuntimeTrapSeamResult result) noexcept
+{
+    return armv7a_observe_runtime_trap_caller(
+        armv7a_make_runtime_trap_capability_call_frame(
+            capability_id, operation, payload, context),
+        policy,
+        context,
+        Armv7aRuntimeBridgeTrapKind::capability_call,
         result);
 }
 

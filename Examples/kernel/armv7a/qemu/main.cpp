@@ -20,6 +20,7 @@
 #include "armv7a_runtime_trap_seam.hpp"
 #include "armv7a_runtime_trap_mapping.hpp"
 #include "armv7a_task_syscall_surface.hpp"
+#include "armv7a_task_syscall_caller.hpp"
 #include "armv7a_scheduler_dispatch.hpp"
 #include "armv7a_scheduler_tick.hpp"
 
@@ -94,6 +95,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallSurface);
     armv7a_print_task_syscall_surface_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallSurface);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallCaller);
+    armv7a_print_task_syscall_caller_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallCaller);
     armv7a_run_handoff_prepare_dry_run();
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);
     armv7a_platform_idle_forever();

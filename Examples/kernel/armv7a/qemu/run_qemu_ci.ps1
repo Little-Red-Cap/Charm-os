@@ -156,6 +156,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-bridge",
     "ARMv7-A phase, stage=task-syscall-surface",
     "ARMv7-A phase complete, stage=task-syscall-surface",
+    "ARMv7-A phase, stage=task-syscall-caller",
+    "ARMv7-A phase complete, stage=task-syscall-caller",
     "ARMv7-A phase, stage=handoff-prepare",
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=idle",
@@ -354,6 +356,9 @@ if (($log -notmatch "ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=
 }
 if (($log -notmatch "ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes")) {
     $missing += "ARMv7-A task syscall surface, debug-path=live-svc-dispatch..."
+}
+if (($log -notmatch "ARMv7-A task syscall caller, debug-path=svc-call-frame, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=svc-call-frame, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, caller=yes")) {
+    $missing += "ARMv7-A task syscall caller, debug-path=svc-call-frame..."
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."

@@ -563,6 +563,25 @@ export namespace net {
             return util::unexpected(errc::buffer_overflow);
         }
 
+        template <UdpDatagramSink T>
+        [[nodiscard]] Result<void> bind(util::u16 local_port, T& sink) noexcept {
+            return bind(local_port, make_udp_datagram_sink_ref(sink));
+        }
+
+        [[nodiscard]] bool has_binding(util::u16 local_port) const noexcept {
+            return find_binding(local_port) != invalid_index();
+        }
+
+        [[nodiscard]] bool unbind(util::u16 local_port) noexcept {
+            const auto binding_index = find_binding(local_port);
+            if (binding_index == invalid_index()) {
+                return false;
+            }
+
+            bindings_[binding_index] = {};
+            return true;
+        }
+
         [[nodiscard]] util::usize binding_count() const noexcept {
             util::usize count = 0;
             for (const auto& binding : bindings_) {

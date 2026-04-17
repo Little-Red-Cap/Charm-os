@@ -274,6 +274,19 @@ export namespace net {
             return udp_.bind(local_port, sink);
         }
 
+        template <UdpDatagramSink T>
+        [[nodiscard]] Result<void> bind_udp(util::u16 local_port, T& sink) noexcept {
+            return udp_.bind(local_port, sink);
+        }
+
+        [[nodiscard]] bool has_udp_binding(util::u16 local_port) const noexcept {
+            return udp_.has_binding(local_port);
+        }
+
+        [[nodiscard]] bool unbind_udp(util::u16 local_port) noexcept {
+            return udp_.unbind(local_port);
+        }
+
         [[nodiscard]] util::usize udp_binding_count() const noexcept {
             return udp_.binding_count();
         }

@@ -226,8 +226,8 @@ int main() {
             }
         }
     };
-    auto bound_port = pump.bind_udp(5000, net::make_udp_datagram_sink_ref(probe));
-    if (!bound_port || pump.udp_binding_count() != 1) {
+    auto bound_port = pump.bind_udp(5000, probe);
+    if (!bound_port || pump.udp_binding_count() != 1 || !pump.has_udp_binding(5000)) {
         std::fputs("net pump smoke bind udp failed\n", stderr);
         return 5;
     }
@@ -426,6 +426,29 @@ int main() {
         || pump.dropped_count() != 1) {
         std::fputs("net pump smoke timeout service failed\n", stderr);
         return 21;
+    }
+
+    if (!pump.unbind_udp(5000) || pump.has_udp_binding(5000) || pump.udp_binding_count() != 0) {
+        std::fputs("net pump smoke udp unbind failed\n", stderr);
+        return 22;
+    }
+    if (pump.unbind_udp(5000)) {
+        std::fputs("net pump smoke udp double unbind failed\n", stderr);
+        return 23;
+    }
+
+    link.queue_rx(inbound_frame.view().payload);
+    auto unbound = pump.service(0);
+    if (!unbound
+        || !unbound.value().polled_links
+        || unbound.value().ipv4_delivered != 1
+        || unbound.value().ipv4_dropped != 0
+        || unbound.value().udp_delivered != 0
+        || unbound.value().udp_dropped != 1
+        || probe.calls != 1
+        || link.rx_pool.in_use_count() != 0) {
+        std::fputs("net pump smoke udp unbound dispatch failed\n", stderr);
+        return 24;
     }
 
     std::puts("net pump smoke: ok");

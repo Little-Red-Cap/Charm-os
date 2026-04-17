@@ -3,6 +3,7 @@
 #include <string_view>
 
 import kernel.task_syscall_catalog;
+import kernel.eda;
 
 namespace demo {
     using namespace std::literals;

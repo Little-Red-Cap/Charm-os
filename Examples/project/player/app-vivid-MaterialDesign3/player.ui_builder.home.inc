@@ -20,13 +20,14 @@
 
         h.home_backdrop = home_layers.backdrop;
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiBackdropBase;
-            patch.has_border_color = true;
-            patch.border_color = {0, 0, 0, 0};
-            patch.has_corner_radius = true;
-            patch.corner_radius = 0;
+            StylePatch patch = ::ui::scene::make_clean_surface_patch({
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_corner_radius = true,
+                .bg_color = kUiBackdropBase,
+                .border_color = {0, 0, 0, 0},
+                .corner_radius = 0,
+            });
             builder.set_style_override(h.home_backdrop, patch);
         }
 
@@ -58,13 +59,14 @@
         builder.set_button_icon(h.home_play, icons.shuffle);
         builder.set_button_icon_size(h.home_play, home_layout.play_icon_px);
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiTabActive;
-            patch.has_border_color = true;
-            patch.border_color = kUiTabActive;
-            patch.has_corner_radius = true;
-            patch.corner_radius = home_layout.play_size / 2;
+            StylePatch patch = ::ui::scene::make_clean_surface_patch({
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_corner_radius = true,
+                .bg_color = kUiTabActive,
+                .border_color = kUiTabActive,
+                .corner_radius = home_layout.play_size / 2,
+            });
             builder.set_style_override(h.home_play, patch);
         }
 
@@ -74,36 +76,6 @@
                      home_layout.collage_y,
                      home_layout.collage_w,
                      home_layout.collage_h});
-
-        const auto add_collage_glow = [&](const Rect& rect,
-                                          rgba bg,
-                                          rgba shadow,
-                                          int radius,
-                                          int shadow_offset_y,
-                                          int shadow_spread,
-                                          int shadow_radius) {
-            const WidgetHandle glow = builder.create_container();
-            anchor_rect(builder, glow, rect);
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = bg;
-            patch.has_border_color = true;
-            patch.border_color = {0, 0, 0, 0};
-            patch.has_corner_radius = true;
-            patch.corner_radius = radius;
-            patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = shadow;
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = shadow_offset_y;
-            patch.has_shadow_spread = true;
-            patch.shadow_spread = shadow_spread;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = shadow_radius;
-            builder.set_style_override(glow, patch);
-            builder.link(collage_root, glow);
-        };
 
         const Rect big_cover_rect{
             (home_layout.collage_w - home_layout.collage_big) / 2,
@@ -145,21 +117,6 @@
         const auto expand_rect = [](const Rect& rect, int pad) noexcept -> Rect {
             return {rect.x - pad, rect.y - pad, rect.w + pad * 2, rect.h + pad * 2};
         };
-
-        add_collage_glow(expand_rect(big_cover_rect, 18),
-                         {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 18},
-                         {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 24},
-                         (big_cover_rect.w + 36) / 2,
-                         14,
-                         4,
-                         28);
-        add_collage_glow(expand_rect(center_cover_rect, 10),
-                         {kUiTitle.r, kUiTitle.g, kUiTitle.b, 8},
-                         {0, 0, 0, 22},
-                         (center_cover_rect.h + 20) / 2,
-                         6,
-                         0,
-                         16);
 
         const auto add_cover = [&](WidgetHandle& image_handle,
                                    const Rect& image_rect,
@@ -232,10 +189,12 @@
         anchor_rect(builder, home_toolbar, top_bar_rect);
         const WidgetHandle home_settings = create_top_icon_button(builder,
             home_top_layout.right_primary_rect,
-            icons.settings, home_layout.toolbar_icon_px);
+            icons.settings, home_layout.toolbar_icon_px + 2);
         const WidgetHandle home_more = create_top_icon_button(builder,
             home_top_layout.right_secondary_rect,
             icons.more, home_layout.toolbar_icon_px);
+        apply_home_action_button_style(builder, home_settings, home_layout.toolbar_button_size / 2);
+        apply_home_action_button_style(builder, home_more, home_layout.toolbar_button_size / 2);
 
         builder.link(home_layers.content, home_scroll);
         builder.link(home_scroll, home_content);

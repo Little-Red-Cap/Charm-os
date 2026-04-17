@@ -46,6 +46,9 @@
                 const bool show_nav = (page == PlayerPage::Home || page == PlayerPage::Library);
                 access.set_visible(handles.nav_bar, show_nav);
             }
+            if (handles.transition_root) {
+                access.set_visible(handles.transition_root, false);
+            }
             update_nav_page_indicator();
             if (page == PlayerPage::Library) {
                 refresh_library();
@@ -56,20 +59,42 @@
             }
         }
 
-        void update_nav_page_indicator() {
+        void update_nav_page_indicator_for(PlayerPage page) {
             if (!access.valid()) return;
-            auto set_indicator = [&](WidgetHandle h, bool active) {
+            auto set_indicator_hidden = [&](WidgetHandle h) {
+                if (!h) return;
+                access.set_visible(h, false);
+            };
+            auto set_nav_label = [&](WidgetHandle h, bool active) {
                 if (!h) return;
                 StylePatch patch{};
-                patch.has_bg_color = true;
-                patch.bg_color = active ? kUiOk : rgba{0, 0, 0, 0};
-                patch.has_border_color = true;
-                patch.border_color = active ? kUiOk : rgba{0, 0, 0, 0};
+                patch.has_font_color = true;
+                patch.font_color = active ? kUiOk : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 178};
                 access.set_style_override(h, patch);
             };
-            set_indicator(handles.nav_home_indicator, current_page == PlayerPage::Home);
-            set_indicator(handles.nav_search_indicator, false);
-            set_indicator(handles.nav_library_indicator, current_page == PlayerPage::Library);
+            auto set_nav_icon = [&](WidgetHandle h,
+                                    bool active,
+                                    ::ui::scene::ImageId inactive_icon,
+                                    ::ui::scene::ImageId active_icon) {
+                if (!h) return;
+                access.set_button_icon(h, active ? active_icon : inactive_icon);
+            };
+            set_indicator_hidden(handles.nav_home_indicator);
+            set_indicator_hidden(handles.nav_search_indicator);
+            set_indicator_hidden(handles.nav_library_indicator);
+
+            const bool home_active = page == PlayerPage::Home;
+            const bool library_active = page == PlayerPage::Library;
+            set_nav_label(handles.nav_home_label, home_active);
+            set_nav_label(handles.nav_search_label, false);
+            set_nav_label(handles.nav_library_label, library_active);
+            set_nav_icon(handles.nav_home_icon, home_active, icons.home, icons.home_active);
+            set_nav_icon(handles.nav_search_icon, false, icons.search, icons.search_active);
+            set_nav_icon(handles.nav_library_icon, library_active, icons.folder, icons.folder_active);
+        }
+
+        void update_nav_page_indicator() {
+            update_nav_page_indicator_for(current_page);
         }
 
         static void on_show_home(::ui::scene::SceneAccess& access,
@@ -131,9 +156,6 @@
                     .ctx = this,
                 });
                 page_library_layer.set_visible(access, false);
-            }
-            if (handles.btn_mode) {
-                access.set_visible(handles.btn_mode, false);
             }
             set_page(start_page);
         }

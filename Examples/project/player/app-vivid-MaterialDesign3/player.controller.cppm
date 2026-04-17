@@ -55,6 +55,7 @@ export namespace player {
     enum class UiKey {
         Up,
         Down,
+        Left,
         Enter,
         PlayToggle,
         Next,
@@ -125,6 +126,11 @@ export namespace player {
         WidgetHandle now_more{};
         WidgetHandle now_lyrics{};
         WidgetHandle now_backdrop{};
+        WidgetHandle now_top_bar{};
+        WidgetHandle now_cover_plate{};
+        WidgetHandle now_text_group{};
+        WidgetHandle now_progress_group{};
+        WidgetHandle now_aux_group{};
         WidgetHandle cover{};
         WidgetHandle cover_left{};
         WidgetHandle cover_right{};
@@ -152,6 +158,7 @@ export namespace player {
         WidgetHandle clip_slider{};
         WidgetHandle clip_value{};
         WidgetHandle list{};
+        WidgetHandle library_hero_title{};
         WidgetHandle list_tab_songs{};
         WidgetHandle list_tab_albums{};
         WidgetHandle list_tab_artist{};
@@ -183,6 +190,13 @@ export namespace player {
         WidgetHandle bottom_subtitle{};
         WidgetHandle bottom_play{};
         WidgetHandle bottom_next{};
+        WidgetHandle transition_root{};
+        WidgetHandle transition_shell{};
+        WidgetHandle transition_hit{};
+        WidgetHandle transition_cover{};
+        WidgetHandle transition_title{};
+        WidgetHandle transition_subtitle{};
+        WidgetHandle transition_play{};
         WidgetHandle nav_bar{};
         WidgetHandle nav_home_indicator{};
         WidgetHandle nav_search_indicator{};
@@ -190,6 +204,12 @@ export namespace player {
         WidgetHandle nav_home{};
         WidgetHandle nav_search{};
         WidgetHandle nav_library{};
+        WidgetHandle nav_home_icon{};
+        WidgetHandle nav_search_icon{};
+        WidgetHandle nav_library_icon{};
+        WidgetHandle nav_home_label{};
+        WidgetHandle nav_search_label{};
+        WidgetHandle nav_library_label{};
         WidgetHandle cover_debug{};
         WidgetHandle debug_text{};
     };
@@ -289,6 +309,17 @@ export namespace player {
         ListSort list_sort{ListSort::NameAsc};
         bool list_shuffle_enabled{false};
         std::uint32_t list_shuffle_seed{0};
+        struct LibraryVisualState {
+            LibraryTab tab{LibraryTab::Songs};
+            bool has_context{false};
+            bool path_active{false};
+            bool shuffle_enabled{false};
+            bool sort_desc{false};
+            Rect active_tab_rect{};
+            std::uint32_t generation{0};
+            bool valid{false};
+        } library_visual_state{};
+        std::uint32_t library_visual_generation{1};
         std::vector<int> list_order{};
         std::vector<LibraryRowModel> list_rows{};
         std::vector<int> track_duration_cache_sec{};
@@ -434,95 +465,6 @@ export namespace player {
 
         #include "player.controller.font.inc"
 
-        void apply_now_theme(const cover_theme::CoverTheme& theme) noexcept {
-            if (!access.valid() || !handles.now_backdrop) return;
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = theme.backdrop;
-            patch.has_border_color = true;
-            patch.border_color = {0, 0, 0, 0};
-            patch.has_border_width = true;
-            patch.border_width = 0;
-            patch.has_corner_radius = true;
-            patch.corner_radius = 0;
-            access.set_style_override(handles.now_backdrop, patch);
-
-            const rgba title = theme.on_backdrop;
-            const rgba subtitle = blend_on(theme.on_backdrop, theme.backdrop, 200);
-            const rgba time = blend_on(theme.on_backdrop, theme.backdrop, 170);
-
-            auto apply_label = [&](WidgetHandle h, const rgba& color) {
-                if (!h) return;
-                StylePatch p{};
-                p.has_font_color = true;
-                p.font_color = color;
-                access.set_style_override(h, p);
-            };
-            apply_label(handles.title, title);
-            apply_label(handles.subtitle, subtitle);
-            apply_label(handles.time_left, time);
-            apply_label(handles.time_right, time);
-
-            if (handles.bottom_bar) {
-                StylePatch bar{};
-                bar.has_bg_color = true;
-                bar.bg_color = theme.primary_container;
-                bar.has_border_color = true;
-                bar.border_color = with_alpha(theme.outline_variant, 90);
-                access.set_style_override(handles.bottom_bar, bar);
-            }
-
-            if (handles.info_tag) {
-                StylePatch tag{};
-                tag.has_bg_color = true;
-                tag.bg_color = theme.surface_high;
-                tag.has_border_color = true;
-                tag.border_color = with_alpha(theme.outline_variant, 90);
-                tag.has_font_color = true;
-                tag.font_color = blend_on(theme.on_backdrop, theme.surface_high, 200);
-                access.set_style_override(handles.info_tag, tag);
-            }
-
-            if (handles.progress_visual) {
-                StylePatch prog{};
-                prog.has_border_color = true;
-                prog.border_color = with_alpha(theme.on_backdrop, 70);
-                prog.has_accent_color = true;
-                prog.accent_color = theme.primary;
-                access.set_style_override(handles.progress_visual, prog);
-            }
-
-            auto apply_btn = [&](WidgetHandle h, const rgba& bg, const rgba& border, const rgba& font) {
-                if (!h) return;
-                StylePatch btn{};
-                btn.has_bg_color = true;
-                btn.bg_color = bg;
-                btn.has_border_color = true;
-                btn.border_color = border;
-                btn.has_font_color = true;
-                btn.font_color = font;
-                access.set_style_override(h, btn);
-            };
-            const rgba top_bg = blend_on(theme.surface_high, theme.backdrop, 140);
-            const rgba top_border = blend_on(theme.outline_variant, theme.backdrop, 120);
-            const rgba top_font = blend_on(theme.on_surface, theme.backdrop, 220);
-            apply_btn(handles.now_back, top_bg, top_border, top_font);
-            apply_btn(handles.now_more, top_bg, top_border, top_font);
-            apply_btn(handles.now_lyrics, top_bg, top_border, top_font);
-
-            const rgba control_bg = theme.secondary_container;
-            const rgba control_border = with_alpha(theme.secondary_container, 0);
-            const rgba control_font = theme.on_secondary_container;
-            apply_btn(handles.btn_prev, control_bg, control_border, control_font);
-            apply_btn(handles.btn_next, control_bg, control_border, control_font);
-            apply_btn(handles.btn_mode, control_bg, control_border, control_font);
-            apply_btn(handles.btn_pause, theme.primary, theme.primary, theme.on_primary);
-
-#if defined(CHARM_PLAYER_COVER_DEBUG)
-            update_cover_debug_label();
-#endif
-        }
-
         void cycle_cover_theme() noexcept {
             switch (cover_theme_mode) {
             case cover_theme::CoverThemeMode::primary_container:
@@ -578,6 +520,33 @@ export namespace player {
         ::ui::scene::PageLayer page_now_layer{};
         ::ui::scene::PageLayer page_library_layer{};
         ::ui::scene::PageLayer page_home_layer{};
+        static constexpr std::uint64_t kNowPlayingExpandDurationMs = 360;
+        enum class NowPlayingTransitionDirection : std::uint8_t {
+            Expand,
+            Collapse,
+        };
+        struct NowPlayingExpandTransition {
+            bool active{false};
+            bool reveal_started{false};
+            NowPlayingTransitionDirection direction{NowPlayingTransitionDirection::Expand};
+            PlayerPage source_page{PlayerPage::Home};
+            PlayerPage destination_page{PlayerPage::NowPlaying};
+            std::uint64_t start_ms{0};
+            Rect shell_from{};
+            Rect shell_to{};
+            Rect cover_from{};
+            Rect cover_to{};
+            Rect title_from{};
+            Rect title_to{};
+            Rect subtitle_from{};
+            Rect subtitle_to{};
+            Rect play_from{};
+            Rect play_to{};
+            Rect now_top_bar_rect{};
+            Rect now_progress_rect{};
+            Rect now_controls_rect{};
+            Rect now_aux_rect{};
+        } now_playing_transition{};
         audio::EqConfig eq_config{};
         std::array<int, kEqBands> eq_values{};
         std::array<int, kEqBands> last_eq_values{};
@@ -696,6 +665,105 @@ export namespace player {
             playback.set_player(p);
         }
 
+        static float clamp01(float value) noexcept {
+            return std::clamp(value, 0.0f, 1.0f);
+        }
+
+        static float ease_out_cubic(float t) noexcept {
+            const float x = 1.0f - clamp01(t);
+            return 1.0f - x * x * x;
+        }
+
+        static float smoothstep01(float t) noexcept {
+            const float x = clamp01(t);
+            return x * x * (3.0f - 2.0f * x);
+        }
+
+        static int lerp_int(int from, int to, float t) noexcept {
+            const float x = static_cast<float>(from)
+                + static_cast<float>(to - from) * clamp01(t);
+            return static_cast<int>(std::lround(x));
+        }
+
+        static std::uint8_t lerp_u8(std::uint8_t from, std::uint8_t to, float t) noexcept {
+            const int value = lerp_int(static_cast<int>(from), static_cast<int>(to), t);
+            return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+        }
+
+        static rgba lerp_color(const rgba& from, const rgba& to, float t) noexcept {
+            return {
+                lerp_u8(from.r, to.r, t),
+                lerp_u8(from.g, to.g, t),
+                lerp_u8(from.b, to.b, t),
+                lerp_u8(from.a, to.a, t),
+            };
+        }
+
+        static Rect lerp_rect(const Rect& from, const Rect& to, float t) noexcept {
+            return {
+                lerp_int(from.x, to.x, t),
+                lerp_int(from.y, to.y, t),
+                lerp_int(from.w, to.w, t),
+                lerp_int(from.h, to.h, t),
+            };
+        }
+
+        static Rect offset_rect(const Rect& rect, int dx, int dy) noexcept {
+            return {
+                rect.x + dx,
+                rect.y + dy,
+                rect.w,
+                rect.h,
+            };
+        }
+
+        void set_page_root_visible(PlayerPage page, bool visible) noexcept {
+            if (!access.valid()) return;
+            switch (page) {
+            case PlayerPage::Home:
+                if (page_home_layer.root()) page_home_layer.set_visible(access, visible);
+                else if (handles.page_home) access.set_visible(handles.page_home, visible);
+                break;
+            case PlayerPage::NowPlaying:
+                if (page_now_layer.root()) page_now_layer.set_visible(access, visible);
+                else if (handles.page_now_playing) access.set_visible(handles.page_now_playing, visible);
+                break;
+            case PlayerPage::Library:
+                if (page_library_layer.root()) page_library_layer.set_visible(access, visible);
+                else if (handles.page_library) access.set_visible(handles.page_library, visible);
+                break;
+            case PlayerPage::Probe:
+                if (page_probe_layer.root()) page_probe_layer.set_visible(access, visible);
+                else if (handles.page_probe) access.set_visible(handles.page_probe, visible);
+                break;
+            }
+        }
+
+        static bool is_mini_bar_page(PlayerPage page) noexcept {
+            return page == PlayerPage::Home || page == PlayerPage::Library;
+        }
+
+        void refresh_page_for_transition(PlayerPage page) {
+            switch (page) {
+            case PlayerPage::Home:
+                refresh_home();
+                update_nav_page_indicator_for(PlayerPage::Home);
+                break;
+            case PlayerPage::Library:
+                refresh_library();
+                update_nav_page_indicator_for(PlayerPage::Library);
+                break;
+            case PlayerPage::NowPlaying:
+                refresh_now_playing();
+                set_time_label(playback.current_sec());
+                break;
+            case PlayerPage::Probe:
+            default:
+                break;
+            }
+        }
+        #include "player.controller.now_playing.inc"
+
         #include "player.controller.pages.inc"
         #include "player.controller.home.inc"
 
@@ -796,6 +864,7 @@ export namespace player {
             clear_image(handles.cover_left);
             clear_image(handles.cover_right);
             clear_image(handles.bottom_cover);
+            clear_image(handles.transition_cover);
         }
 
         void update_cover_image() {
@@ -814,6 +883,7 @@ export namespace player {
                 clear_image(handles.cover_left);
                 clear_image(handles.cover_right);
                 clear_image(handles.bottom_cover);
+                clear_image(handles.transition_cover);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                 std::printf("[cover] no cover for track\n");
 #endif
@@ -831,6 +901,7 @@ export namespace player {
                     set_image(handles.cover_left);
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
+                    set_image(handles.transition_cover);
                     cover_path.assign(candidate);
                     if (cover_tint_path.view() != cover_image.path) {
                         cover_theme = derive_cover_theme(cover_image);
@@ -852,6 +923,7 @@ export namespace player {
                     set_image(handles.cover_left);
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
+                    set_image(handles.transition_cover);
                     cover_path.assign(candidate);
                     cover_theme = derive_cover_theme(cover_image);
                     cover_tint_path.assign(cover_image.path);
@@ -893,6 +965,7 @@ export namespace player {
             clear_image(handles.cover_left);
             clear_image(handles.cover_right);
             clear_image(handles.bottom_cover);
+            clear_image(handles.transition_cover);
             cover_tint_path.clear();
             cover_theme = derive_cover_theme(cover_image);
             apply_now_theme(cover_theme);
@@ -944,6 +1017,10 @@ export namespace player {
                 on_player_error(buf);
             }
             tick_weekly_listening_stats();
+            if (now_playing_transition.active) {
+                tick_now_playing_transition(charm::system::ClockCaps::TimeSource::now());
+                return;
+            }
             if (current_page == PlayerPage::Library) {
                 refresh_library();
             } else if (current_page == PlayerPage::Home) {
@@ -951,122 +1028,6 @@ export namespace player {
             } else {
                 refresh_now_playing();
             }
-        }
-
-        void set_play_button_text(bool playing_now) {
-            if (!access.valid()) return;
-            const int state = playing_now ? 1 : 0;
-            if (last_play_button_state == state) return;
-            last_play_button_state = state;
-            access.set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
-            set_label_slot(handles.btn_pause, text_slots.btn_pause, "");
-            if (handles.bottom_play) {
-                access.set_button_icon(handles.bottom_play, playing_now ? icons.pause : icons.play);
-            }
-        }
-
-        void set_time_label(int elapsed_sec) {
-            if (elapsed_sec == last_time_sec) return;
-            last_time_sec = elapsed_sec;
-            int total = 0;
-            if (track_preloaded) {
-                total = playback.duration_sec();
-                if (preloaded_duration_sec > 0) {
-                    total = std::max(total, preloaded_duration_sec);
-                }
-            }
-            const int cur_m = elapsed_sec / 60;
-            const int cur_s = elapsed_sec % 60;
-            const int total_m = total / 60;
-            const int total_s = total % 60;
-            char left[16]{};
-            char right[16]{};
-            std::snprintf(left, sizeof(left), "%d:%02d", cur_m, cur_s);
-            std::snprintf(right, sizeof(right), "%d:%02d", total_m, total_s);
-            set_label_slot(handles.time_left, text_slots.time_left, left);
-            set_label_slot(handles.time_right, text_slots.time_right, right);
-#if defined(CHARM_PLAYER_COVER_DEBUG)
-            if (elapsed_sec == 0) {
-                std::printf("[np] time_label left=%s right=%s total=%d\n", left, right, total);
-            }
-#endif
-        }
-
-        void update_info_label() {
-            if (!access.valid() || !handles.info_tag) return;
-            int total = playback.duration_sec();
-            if (preloaded_duration_sec > 0) {
-                total = std::max(total, preloaded_duration_sec);
-            }
-            if (total <= 0) return;
-            std::uint32_t rate = 0;
-            audio::PlayerSnapshot snap{};
-            if (playback.snapshot(snap)) {
-                rate = snap.input_fmt.rate;
-            }
-            if (rate == 0) rate = 48000;
-            std::uint64_t kbps = 0;
-            if (track_size_bytes > 0) {
-                kbps = (track_size_bytes * 8ull) / (static_cast<std::uint64_t>(total) * 1000ull);
-            }
-
-            char rate_buf[16]{};
-            const std::uint32_t khz_int = rate / 1000;
-            const std::uint32_t khz_dec = (rate % 1000) / 100;
-            if (khz_dec == 0) {
-                std::snprintf(rate_buf, sizeof(rate_buf), "%ukHz", static_cast<unsigned>(khz_int));
-            } else {
-                std::snprintf(rate_buf, sizeof(rate_buf), "%u.%ukHz",
-                              static_cast<unsigned>(khz_int),
-                              static_cast<unsigned>(khz_dec));
-            }
-
-            char kbps_buf[16]{};
-            if (kbps > 0) {
-                std::snprintf(kbps_buf, sizeof(kbps_buf), "%llukbps",
-                              static_cast<unsigned long long>(kbps));
-            } else {
-                std::snprintf(kbps_buf, sizeof(kbps_buf), "--kbps");
-            }
-
-            const char* fmt = track_format_text.empty() ? "--" : track_format_text.c_str();
-            char info[96]{};
-            std::snprintf(info, sizeof(info), "%s * %s * %s", rate_buf, kbps_buf, fmt);
-            set_info_label(info);
-        }
-
-        void reset_duration() {
-            playback.reset_duration();
-            last_time_sec = -1;
-        }
-
-        static const char* play_mode_text(int mode) noexcept {
-            switch (mode) {
-            case 1: return "Single";
-            case 2: return "Shuffle";
-            default: return "Order";
-            }
-        }
-
-        void update_play_mode_label() {
-            char buf[32]{};
-            std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(play_mode));
-            if (last_mode_text.view() == buf) return;
-            last_mode_text.assign(buf);
-            set_label_slot(handles.mode_hint, text_slots.mode_hint, buf);
-            if (!access.valid()) return;
-            auto icon = icons.loop;
-            if (play_mode == 1) icon = icons.single;
-            else if (play_mode == 2) icon = icons.shuffle;
-            access.set_button_icon(handles.btn_mode, icon);
-        }
-
-        void refresh_now_playing() {
-            update_duration_from_player();
-            update_progress();
-            update_play_mode_label();
-            apply_now_theme(cover_theme);
-            update_debug_overlay();
         }
 
         void refresh_home() {
@@ -1102,6 +1063,11 @@ export namespace player {
             case UiKey::Down:
                 focus_list();
                 nav_list(1);
+                break;
+            case UiKey::Left:
+                if (current_page == PlayerPage::Library) {
+                    reset_library_context();
+                }
                 break;
             case UiKey::Enter:
                 focus_list();

@@ -180,7 +180,7 @@
         const int top_bar_x = kUiPadding;
         const int top_bar_w = screen_width - kUiPadding * 2;
 
-        const int nav_h = 56;
+        const int nav_h = 72;
         const int nav_gap = 12;
         const int bottom_bar_h = 72;
         const int bottom_bar_gap = 12;
@@ -288,7 +288,7 @@
             .subtitle_y = title_y + 176,
             .subtitle_h = 28,
             .play_size = 74,
-            .play_icon_px = 26,
+            .play_icon_px = 30,
             .play_y = title_y + 84,
             .collage_x = (screen_width - collage_w) / 2,
             .collage_y = title_y + 220,
@@ -305,7 +305,7 @@
             .stat_card_gap = 18,
             .stat_probe_card_h = 256,
             .toolbar_button_size = 40,
-            .toolbar_icon_px = 14,
+            .toolbar_icon_px = 20,
             .toolbar_button_gap = 48,
         };
     }
@@ -342,14 +342,14 @@
             .control_side = 96,
             .control_play = 116,
             .control_gap = 14,
-            .control_side_icon = 24,
-            .control_play_icon = 30,
+            .control_side_icon = 30,
+            .control_play_icon = 38,
             .time_side_w = 52,
             .time_min_info_w = 170,
             .time_inner_gap = 16,
             .top_button_size = 40,
-            .top_back_icon = 20,
-            .top_more_icon = 14,
+            .top_back_icon = 22,
+            .top_more_icon = 18,
             .top_title_x = 48,
             .top_title_y = 8,
             .top_title_h = 24,
@@ -370,44 +370,44 @@
             .top_title_h = 24,
             .top_title_right_gap = 56,
             .top_button_size = 40,
-            .top_icon_px = 14,
+            .top_icon_px = 18,
             .top_button_right_gap = 46,
-            .shuffle_w = 132,
-            .shuffle_icon_px = 12,
+            .shuffle_w = 136,
+            .shuffle_icon_px = 14,
             .list_row_h = 74,
-            .list_header_h = 110,
-            .list_title_h = 32,
-            .list_path_h = 22,
-            .list_title_top_gap = 10,
-            .list_title_left_gap = 22,
-            .list_title_right_gap = 28,
-            .list_sort_w = 76,
-            .list_sort_h = 32,
-            .list_sort_top_offset = 1,
-            .list_sort_right_gap = 76,
-            .list_sort_icon_px = 10,
-            .list_path_top_gap = 12,
-            .list_path_side_gap = 22,
-            .list_path_bg_h_extra = 14,
-            .list_path_bg_radius = 17,
-            .list_path_icon_left_gap = 14,
-            .list_path_icon_top_gap = 5,
-            .list_path_icon_size = 24,
+            .list_header_h = 104,
+            .list_title_h = 30,
+            .list_path_h = 20,
+            .list_title_top_gap = 12,
+            .list_title_left_gap = 24,
+            .list_title_right_gap = 34,
+            .list_sort_w = 84,
+            .list_sort_h = 34,
+            .list_sort_top_offset = 0,
+            .list_sort_right_gap = 88,
+            .list_sort_icon_px = 12,
+            .list_path_top_gap = 10,
+            .list_path_side_gap = 20,
+            .list_path_bg_h_extra = 12,
+            .list_path_bg_radius = 16,
+            .list_path_icon_left_gap = 15,
+            .list_path_icon_top_gap = 4,
+            .list_path_icon_size = 22,
             .list_path_icon_px = 12,
-            .list_path_text_left = 40,
-            .list_path_text_top = 7,
-            .list_path_text_right_gap = 46,
-            .list_sort_radius = 16,
+            .list_path_text_left = 43,
+            .list_path_text_top = 4,
+            .list_path_text_right_gap = 34,
+            .list_sort_radius = 18,
             .list_path_icon_radius = 12,
-            .list_body_top_gap = 8,
-            .list_body_bottom_gap = 20,
-            .list_body_side_gap = 16,
+            .list_body_top_gap = 10,
+            .list_body_bottom_gap = 18,
+            .list_body_side_gap = 18,
             .list_scroll_w = 10,
-            .list_scroll_right_gap = 14,
-            .list_hint_left_gap = 24,
-            .list_hint_bottom_gap = 20,
-            .list_hint_h = 20,
-            .list_hint_right_gap = 36,
+            .list_scroll_right_gap = 16,
+            .list_hint_left_gap = 22,
+            .list_hint_bottom_gap = 18,
+            .list_hint_h = 18,
+            .list_hint_right_gap = 34,
         };
     }
 
@@ -473,6 +473,19 @@
         StylePatch patch = make_player_text_patch(PlayerTextRole::HeroTitle, color);
         patch.has_font = true;
         patch.font = &get_player_font_px(66, FontWeight::Bold);
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_library_hero_title_style(::ui::scene::SceneBuilder& builder,
+                                               WidgetHandle h,
+                                               const rgba& color) {
+        StylePatch patch = make_player_text_patch(PlayerTextRole::HeroTitle, color);
+        patch.has_font = true;
+        patch.font = &get_player_font_px(60, FontWeight::Bold);
+        patch.has_font_color = true;
+        patch.font_color = color;
+        patch.has_font_color_disabled = true;
+        patch.font_color_disabled = color;
         builder.set_style_override(h, patch);
     }
 
@@ -567,7 +580,10 @@
     static void apply_now_info_tag_style(::ui::scene::SceneBuilder& builder,
                                          WidgetHandle h,
                                          const NowPlayingLayout& layout) {
-        StylePatch patch = ::ui::scene::make_pill_surface_patch({
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_bg_color = true,
+            .apply_border_color = true,
+            .apply_corner_radius = true,
             .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 255},
             .border_color = {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 108},
             .corner_radius = layout.info_tag_radius,
@@ -579,6 +595,19 @@
         builder.set_style_override(h, patch);
     }
 
+    static void apply_clean_button_shell_style(::ui::scene::SceneBuilder& builder,
+                                               WidgetHandle h,
+                                               int padding,
+                                               int corner_radius) {
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_corner_radius = true,
+            .apply_padding = true,
+            .corner_radius = corner_radius,
+            .padding = padding,
+        });
+        builder.set_style_patch(h, patch);
+    }
+
     static void apply_home_cover_style(::ui::scene::SceneBuilder& builder,
                                        WidgetHandle h,
                                        int corner_radius) {
@@ -588,31 +617,33 @@
         builder.set_style_override(h, patch);
     }
 
+    static void apply_home_action_button_style(::ui::scene::SceneBuilder& builder,
+                                               WidgetHandle h,
+                                               int corner_radius = 12) {
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_bg_color = true,
+            .apply_border_color = true,
+            .apply_corner_radius = true,
+            .bg_color = rgba{kUiButtonBg.r, kUiButtonBg.g, kUiButtonBg.b, 158},
+            .border_color = {0, 0, 0, 0},
+            .corner_radius = corner_radius,
+        });
+        builder.set_style_override(h, patch);
+    }
+
     static void apply_home_cover_plate_style(::ui::scene::SceneBuilder& builder,
                                              WidgetHandle h,
                                              int corner_radius,
                                              bool emphasize = false) {
-        StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = emphasize ? rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 196}
-                                   : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 176};
-        patch.has_border_color = true;
-        patch.border_color = emphasize ? rgba{kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 24}
-                                       : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 10};
-        patch.has_border_width = true;
-        patch.border_width = 1;
-        patch.has_corner_radius = true;
-        patch.corner_radius = corner_radius;
-        patch.has_shadow_enabled = true;
-        patch.shadow_enabled = true;
-        patch.has_shadow_color = true;
-        patch.shadow_color = emphasize ? rgba{0, 0, 0, 38} : rgba{0, 0, 0, 28};
-        patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = emphasize ? 4 : 3;
-        patch.has_shadow_spread = true;
-        patch.shadow_spread = 0;
-        patch.has_shadow_radius = true;
-        patch.shadow_radius = emphasize ? 10 : 8;
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_bg_color = true,
+            .apply_border_color = true,
+            .apply_corner_radius = true,
+            .bg_color = emphasize ? rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 42}
+                                  : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 28},
+            .border_color = {0, 0, 0, 0},
+            .corner_radius = corner_radius,
+        });
         builder.set_style_override(h, patch);
     }
 
@@ -624,14 +655,20 @@
                                       int shadow_offset_y,
                                       int shadow_spread,
                                       int shadow_radius) {
-        StylePatch patch{};
-        patch.has_corner_radius = true;
-        patch.corner_radius = corner_radius;
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_corner_radius = true,
+            .corner_radius = corner_radius,
+        });
         if (with_shadow) {
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
             patch.shadow_color = {0, 0, 0, shadow_alpha};
+        } else {
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+        }
+        if (with_shadow) {
             patch.has_shadow_offset_x = true;
             patch.shadow_offset_x = 0;
             patch.has_shadow_offset_y = true;
@@ -728,24 +765,49 @@
         builder.set_hit_testable(h, false);
     }
 
+    static void apply_nav_caption_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
+        apply_text_label_style(builder, h, rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 222},
+                               get_player_font_px(12, FontWeight::Medium));
+        builder.set_hit_testable(h, false);
+    }
+
     static void apply_nav_bar_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, int radius) {
-        StylePatch patch{};
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_bg_color = true,
+            .apply_border_color = true,
+            .apply_corner_radius = true,
+            .bg_color = {0, 0, 0, 0},
+            .border_color = {0, 0, 0, 0},
+            .corner_radius = radius,
+        });
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_nav_hit_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, int padding) {
+        StylePatch patch = make_player_text_patch(PlayerTextRole::MetaText, kUiTitle);
         patch.has_bg_color = true;
         patch.bg_color = {0, 0, 0, 0};
         patch.has_border_color = true;
         patch.border_color = {0, 0, 0, 0};
         patch.has_border_width = true;
         patch.border_width = 0;
-        patch.has_corner_radius = true;
-        patch.corner_radius = radius;
-        builder.set_style_override(h, patch);
-    }
-
-    static void apply_nav_hit_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, int padding) {
-        StylePatch patch = make_player_text_patch(PlayerTextRole::MetaText, kUiTitle);
+        patch.has_shadow_enabled = true;
+        patch.shadow_enabled = false;
         patch.has_padding = true;
         patch.padding = padding;
         builder.set_style_override(h, patch);
+    }
+
+    static void apply_nav_icon_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_bg_color = true,
+            .apply_border_color = true,
+            .apply_corner_radius = false,
+            .bg_color = {0, 0, 0, 0},
+            .border_color = {0, 0, 0, 0},
+        });
+        builder.set_style_override(h, patch);
+        builder.set_hit_testable(h, false);
     }
 
     static void apply_nav_indicator_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
@@ -775,27 +837,16 @@
     static void apply_home_card_style(::ui::scene::SceneBuilder& builder,
                                       WidgetHandle h,
                                       int corner_radius) {
-        StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 238};
-        patch.has_border_color = true;
-        patch.border_color = rgba{kUiListBorder.r, kUiListBorder.g, kUiListBorder.b, 156};
-        patch.has_border_width = true;
-        patch.border_width = 1;
-        patch.has_corner_radius = true;
-        patch.corner_radius = corner_radius;
-        patch.has_shadow_enabled = true;
-        patch.shadow_enabled = true;
-        patch.has_shadow_color = true;
-        patch.shadow_color = rgba{0, 0, 0, 40};
-        patch.has_shadow_offset_x = true;
-        patch.shadow_offset_x = 0;
-        patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = 3;
-        patch.has_shadow_spread = true;
-        patch.shadow_spread = 1;
-        patch.has_shadow_radius = true;
-        patch.shadow_radius = 10;
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_bg_color = true,
+            .apply_border_color = true,
+            .apply_border_width = true,
+            .apply_corner_radius = true,
+            .bg_color = rgba{kUiListBg.r, kUiListBg.g, kUiListBg.b, 238},
+            .border_color = rgba{kUiListBorder.r, kUiListBorder.g, kUiListBorder.b, 92},
+            .border_width = 1,
+            .corner_radius = corner_radius,
+        });
         builder.set_style_override(h, patch);
     }
 
@@ -803,27 +854,15 @@
                                                     WidgetHandle h,
                                                     int corner_radius,
                                                     bool emphasize = false) {
-        StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = emphasize ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 214}
-                                   : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 192};
-        patch.has_border_color = true;
-        patch.border_color = emphasize ? rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 42}
-                                       : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 28};
-        patch.has_border_width = true;
-        patch.border_width = 1;
-        patch.has_corner_radius = true;
-        patch.corner_radius = corner_radius;
-        patch.has_shadow_enabled = true;
-        patch.shadow_enabled = true;
-        patch.has_shadow_color = true;
-        patch.shadow_color = rgba{0, 0, 0, static_cast<std::uint8_t>(emphasize ? 28 : 22)};
-        patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = 2;
-        patch.has_shadow_spread = true;
-        patch.shadow_spread = 0;
-        patch.has_shadow_radius = true;
-        patch.shadow_radius = 6;
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_bg_color = true,
+            .apply_border_color = true,
+            .apply_corner_radius = true,
+            .bg_color = emphasize ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 54}
+                                  : rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 38},
+            .border_color = {0, 0, 0, 0},
+            .corner_radius = corner_radius,
+        });
         builder.set_style_override(h, patch);
     }
 
@@ -880,7 +919,7 @@
                                      const Rect& image_rect,
                                      int corner_radius,
                                      bool emphasize = false) {
-            const int pad = 2;
+            const int pad = 1;
             const WidgetHandle plate = builder.create_container();
             anchor_rect(builder, plate,
                         {image_rect.x - pad, image_rect.y - pad, image_rect.w + pad * 2, image_rect.h + pad * 2});
@@ -939,8 +978,8 @@
         const WidgetHandle action_button = builder.create_button_static("");
         anchor_rect(builder, action_button, {rect.w - 64, 12, 44, 44});
         builder.set_button_icon(action_button, icons.next);
-        builder.set_button_icon_size(action_button, 14);
-        apply_top_bar_button_style(builder, action_button);
+        builder.set_button_icon_size(action_button, 20);
+        apply_home_action_button_style(builder, action_button);
         builder.set_hit_testable(action_button, false);
         builder.link(root, action_button);
 
@@ -961,7 +1000,7 @@
                                      const Rect& image_rect,
                                      int corner_radius,
                                      bool emphasize = false) {
-            const int pad = 2;
+            const int pad = 1;
             const WidgetHandle plate = builder.create_container();
             anchor_rect(builder, plate,
                         {image_rect.x - pad, image_rect.y - pad, image_rect.w + pad * 2, image_rect.h + pad * 2});
@@ -1075,8 +1114,8 @@
         const WidgetHandle action_button = builder.create_button_static("");
         anchor_rect(builder, action_button, {rect.w - 58, 9, 40, 40});
         builder.set_button_icon(action_button, icons.next);
-        builder.set_button_icon_size(action_button, 14);
-        apply_top_bar_button_style(builder, action_button);
+        builder.set_button_icon_size(action_button, 20);
+        apply_home_action_button_style(builder, action_button);
         builder.set_hit_testable(action_button, false);
         builder.link(root, action_button);
 
@@ -1214,14 +1253,14 @@
         h.bottom_play = builder.create_button_static("");
         bottom_row.add(h.bottom_play, play_size, play_size);
         builder.set_button_icon(h.bottom_play, icons.play);
-        builder.set_button_icon_size(h.bottom_play, 18);
-        apply_bottom_play_style(builder, h.bottom_play, play_size, 18);
+        builder.set_button_icon_size(h.bottom_play, 24);
+        apply_bottom_play_style(builder, h.bottom_play, play_size, 24);
 
         h.bottom_next = builder.create_button_static("");
         bottom_row.add(h.bottom_next, next_size, next_size);
         builder.set_button_icon(h.bottom_next, icons.next);
-        builder.set_button_icon_size(h.bottom_next, 16);
-        apply_bottom_button_style(builder, h.bottom_next, next_size, 16);
+        builder.set_button_icon_size(h.bottom_next, 24);
+        apply_bottom_button_style(builder, h.bottom_next, next_size, 24);
 
         const Rect nav_rect{kUiPadding, layout.nav_y,
                             screen_width - kUiPadding * 2, layout.nav_h};
@@ -1229,46 +1268,150 @@
         anchor_rect(builder, h.nav_bar, nav_rect);
         apply_nav_bar_style(builder, h.nav_bar, nav_rect.h / 2);
         const int nav_btn_w = (nav_rect.w - layout.nav_gap * 2) / 3;
-        const int nav_icon = 22;
-        const int nav_icon_pad = 12;
-        const int indicator_w = 36;
-        const int indicator_h = 4;
-        const int indicator_y = layout.nav_h - 8;
+        const int nav_home_icon = 24;
+        const int nav_search_icon = 26;
+        const int nav_library_icon = 24;
+        const int nav_icon_slot = 28;
+        const int nav_icon_y = 8;
+        const int nav_label_y = 40;
+        const int nav_label_h = 14;
+        const auto build_nav_button = [&](WidgetHandle& out_hit,
+                                          WidgetHandle& out_icon,
+                                          WidgetHandle& out_label,
+                                          const Rect& rect,
+                                          const char* text,
+                                          ::ui::gfx::ImageId icon,
+                                          int icon_px) {
+            out_hit = builder.create_button_static("");
+            anchor_rect(builder, out_hit, rect);
+            apply_nav_hit_style(builder, out_hit, 0);
 
-        h.nav_home = builder.create_button_static("Home");
-        h.nav_search = builder.create_button_static("Search");
-        h.nav_library = builder.create_button_static("Library");
-        h.nav_home_indicator = builder.create_container();
-        h.nav_search_indicator = builder.create_container();
-        h.nav_library_indicator = builder.create_container();
-        anchor_rect(builder, h.nav_home, {0, 0, nav_btn_w, layout.nav_h});
-        anchor_rect(builder, h.nav_search, {nav_btn_w + layout.nav_gap, 0, nav_btn_w, layout.nav_h});
-        anchor_rect(builder, h.nav_library, {(nav_btn_w + layout.nav_gap) * 2, 0, nav_btn_w, layout.nav_h});
-        anchor_rect(builder, h.nav_home_indicator, {(nav_btn_w - indicator_w) / 2, indicator_y, indicator_w, indicator_h});
-        anchor_rect(builder, h.nav_search_indicator, {nav_btn_w + layout.nav_gap + (nav_btn_w - indicator_w) / 2, indicator_y, indicator_w, indicator_h});
-        anchor_rect(builder, h.nav_library_indicator, {(nav_btn_w + layout.nav_gap) * 2 + (nav_btn_w - indicator_w) / 2, indicator_y, indicator_w, indicator_h});
-        apply_nav_hit_style(builder, h.nav_home, nav_icon_pad);
-        apply_nav_hit_style(builder, h.nav_search, nav_icon_pad);
-        apply_nav_hit_style(builder, h.nav_library, nav_icon_pad);
-        apply_nav_indicator_style(builder, h.nav_home_indicator);
-        apply_nav_indicator_style(builder, h.nav_search_indicator);
-        apply_nav_indicator_style(builder, h.nav_library_indicator);
+            out_icon = builder.create_button_static("");
+            anchor_rect(builder, out_icon,
+                        {(rect.w - nav_icon_slot) / 2, nav_icon_y, nav_icon_slot, nav_icon_slot});
+            builder.set_button_icon(out_icon, icon);
+            builder.set_button_icon_size(out_icon, icon_px);
+            apply_nav_icon_style(builder, out_icon);
+            builder.link(out_hit, out_icon);
 
-        builder.set_button_icon(h.nav_home, icons.home);
-        builder.set_button_icon_size(h.nav_home, nav_icon);
-        builder.set_button_icon(h.nav_search, icons.search);
-        builder.set_button_icon_size(h.nav_search, nav_icon);
-        builder.set_button_icon(h.nav_library, icons.folder);
-        builder.set_button_icon_size(h.nav_library, nav_icon);
+            out_label = builder.create_label_static(text);
+            anchor_rect(builder, out_label, {4, nav_label_y, rect.w - 8, nav_label_h});
+            apply_nav_caption_style(builder, out_label);
+            builder.set_label_align(out_label, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+            builder.link(out_hit, out_label);
+        };
+
+        build_nav_button(h.nav_home, h.nav_home_icon, h.nav_home_label,
+                         {0, 0, nav_btn_w, layout.nav_h}, "Home", icons.home, nav_home_icon);
+        build_nav_button(h.nav_search, h.nav_search_icon, h.nav_search_label,
+                         {nav_btn_w + layout.nav_gap, 0, nav_btn_w, layout.nav_h},
+                         "Search", icons.search, nav_search_icon);
+        build_nav_button(h.nav_library, h.nav_library_icon, h.nav_library_label,
+                         {(nav_btn_w + layout.nav_gap) * 2, 0, nav_btn_w, layout.nav_h},
+                         "Library", icons.folder, nav_library_icon);
 
         builder.link(h.nav_bar, h.nav_home);
         builder.link(h.nav_bar, h.nav_search);
         builder.link(h.nav_bar, h.nav_library);
-        builder.link(h.nav_bar, h.nav_home_indicator);
-        builder.link(h.nav_bar, h.nav_search_indicator);
-        builder.link(h.nav_bar, h.nav_library_indicator);
 
         builder.link(h.root, h.bottom_bar);
         builder.set_hit_testable(h.bottom_bar, true);
         builder.link(h.root, h.nav_bar);
+    }
+
+    static void build_now_playing_transition_overlay(::ui::scene::SceneBuilder& builder,
+                                                     UiHandles& h,
+                                                     const PlayerIconIds& icons) {
+        h.transition_root = builder.create_container();
+        anchor_rect(builder, h.transition_root, {0, 0, screen_width, screen_height});
+
+        h.transition_shell = builder.create_container();
+        anchor_rect(builder, h.transition_shell, {0, 0, 0, 0});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {0, 0, 0, 0};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 28;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+            builder.set_style_override(h.transition_shell, patch);
+            builder.set_hit_testable(h.transition_shell, false);
+        }
+
+        h.transition_cover = builder.create_image();
+        anchor_rect(builder, h.transition_cover, {0, 0, 0, 0});
+        apply_now_cover_style(builder, h.transition_cover, 18, false, 0, 0, 0, 0);
+        builder.set_hit_testable(h.transition_cover, false);
+
+        h.transition_title = builder.create_label_static("");
+        {
+            StylePatch patch = make_player_text_patch(PlayerTextRole::CardTitle, kUiTitle);
+            patch.has_font = true;
+            patch.font = &get_player_font_px(20, FontWeight::Medium);
+            builder.set_style_override(h.transition_title, patch);
+        }
+        builder.set_label_align(h.transition_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        builder.set_hit_testable(h.transition_title, false);
+        anchor_rect(builder, h.transition_title, {0, 0, 0, 0});
+
+        h.transition_subtitle = builder.create_label_static("");
+        {
+            StylePatch patch = make_player_text_patch(PlayerTextRole::PageSubtitle, kUiSubtitle);
+            patch.has_font = true;
+            patch.font = &get_player_font_px(14, FontWeight::Regular);
+            builder.set_style_override(h.transition_subtitle, patch);
+        }
+        builder.set_label_align(h.transition_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        builder.set_hit_testable(h.transition_subtitle, false);
+        anchor_rect(builder, h.transition_subtitle, {0, 0, 0, 0});
+
+        h.transition_play = builder.create_button_static("");
+        anchor_rect(builder, h.transition_play, {0, 0, 0, 0});
+        builder.set_button_icon(h.transition_play, icons.play);
+        builder.set_button_icon_size(h.transition_play, 32);
+        apply_bottom_play_style(builder, h.transition_play, 72, 32);
+        {
+            StylePatch patch{};
+            patch.has_padding = true;
+            patch.padding = 20;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 26;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_inner_stroke_enabled = true;
+            patch.inner_stroke_enabled = false;
+            patch.has_outline_enabled = true;
+            patch.outline_enabled = false;
+            builder.set_style_patch(h.transition_play, patch);
+            builder.set_hit_testable(h.transition_play, false);
+        }
+
+        h.transition_hit = builder.create_button_static("");
+        anchor_rect(builder, h.transition_hit, {0, 0, screen_width, screen_height});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {0, 0, 0, 0};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            builder.set_style_override(h.transition_hit, patch);
+            builder.set_hit_testable(h.transition_hit, true);
+        }
+
+        builder.link(h.transition_root, h.transition_shell);
+        builder.link(h.transition_root, h.transition_cover);
+        builder.link(h.transition_root, h.transition_title);
+        builder.link(h.transition_root, h.transition_subtitle);
+        builder.link(h.transition_root, h.transition_play);
+        builder.link(h.transition_root, h.transition_hit);
+        builder.link(h.root, h.transition_root);
     }

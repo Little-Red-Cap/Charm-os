@@ -54,6 +54,7 @@ export namespace player {
         }
         ui_builder_detail::build_now_playing(builder, h, layout, now_text, icons);
         ui_builder_detail::build_library(builder, h, layout, icons);
+        ui_builder_detail::build_now_playing_transition_overlay(builder, h, icons);
 #if CHARM_PLAYER_DEBUG_UI
         const int debug_h = 18;
         const int debug_y = layout.controls_y - debug_h - 6;

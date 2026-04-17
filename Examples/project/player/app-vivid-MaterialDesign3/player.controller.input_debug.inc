@@ -166,6 +166,7 @@
             if (selected < 0) selected = 0;
             if (selected >= count) selected = count - 1;
             access.set_list_view_selected(handles.list, selected);
+            last_list_selected = selected;
         }
 
         void nav_list_activate() {
@@ -255,6 +256,7 @@
 
         void process_input_events() {
             if (!access.valid()) return;
+            if (now_playing_transition.active) return;
             PendingActions actions{};
             const std::size_t count = access.input_event_count();
             for (std::size_t i = 0; i < count; ++i) {
@@ -290,7 +292,9 @@
                     }
                 if (type == Event::Type::MouseUp) {
                     if (target == handles.now_back) {
-                        set_page(return_page);
+                        if (!begin_now_playing_collapse_transition()) {
+                            set_page(return_page);
+                        }
                     } else if (target == handles.btn_prev) {
                         actions.prev = true;
                     } else if (target == handles.btn_next) {
@@ -323,7 +327,9 @@
                                    || target == handles.bottom_cover
                                    || target == handles.bottom_title || target == handles.bottom_subtitle) {
                             close_list_action_menu();
-                            set_page(PlayerPage::NowPlaying);
+                            if (!begin_now_playing_expand_transition()) {
+                                set_page(PlayerPage::NowPlaying);
+                            }
                         } else if (target == handles.nav_home) {
                             close_list_action_menu();
                             set_page(PlayerPage::Home);

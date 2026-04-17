@@ -112,6 +112,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_runtime_bridge.cpp
     armv7a_task_syscall_surface.cpp
     armv7a_task_syscall_caller.cpp
+    armv7a_task_syscall_roundtrip.cpp
     armv7a_diag_console.cpp
     armv7a_diag_context.cpp
     armv7a_handler_stack.cpp

@@ -5,10 +5,13 @@
 
 #include "targets/armv7a/common/armv7a_exception_contract.hpp"
 #include "targets/armv7a/common/armv7a_runtime_bridge_contract.hpp"
+#include "targets/armv7a/common/armv7a_runtime_trap_caller_contract.hpp"
 #include "targets/armv7a/common/armv7a_runtime_current_contract.hpp"
 #include "targets/armv7a/common/armv7a_runtime_trap_frame_adapter_contract.hpp"
 
 import kernel.task_syscall_frame;
+import target.armv7a.kernel_runtime_trap_frame_adapter;
+import target.armv7a.kernel_task_syscall_call_frame_adapter;
 
 namespace demo {
     inline constexpr std::uint32_t kUsrMode = 0x10u;
@@ -20,6 +23,15 @@ namespace demo {
     struct DebugHandlerState {
         std::uint32_t calls{0};
         std::uint64_t last_value{0};
+    };
+
+    struct YieldHandlerState {
+        std::uint32_t calls{0};
+    };
+
+    struct SleepHandlerState {
+        std::uint32_t calls{0};
+        std::uint64_t last_due{0};
     };
 
     struct CapabilityHandlerState {
@@ -46,6 +58,87 @@ namespace demo {
             ++state->calls;
             state->last_value = request.arg0;
             return handled(request.arg0 + 1u);
+        }
+
+    private:
+        [[nodiscard]] static constexpr kernel::TrapResult handled(
+            std::uint64_t value) noexcept
+        {
+            return kernel::TrapResult{
+                .disposition = kernel::TrapDisposition::handled,
+                .error = kernel::TrapError::none,
+                .value = value,
+            };
+        }
+
+        [[nodiscard]] static constexpr kernel::TrapResult rejected(
+            kernel::TrapError error) noexcept
+        {
+            return kernel::TrapResult{
+                .disposition = kernel::TrapDisposition::rejected,
+                .error = error,
+                .value = 0,
+            };
+        }
+    };
+
+    struct YieldHandler {
+        YieldHandlerState* state{nullptr};
+
+        [[nodiscard]] kernel::TrapResult dispatch(
+            kernel::TaskSyscallRequest request) const noexcept
+        {
+            if (state == nullptr) {
+                return rejected(kernel::TrapError::unbound_adapter);
+            }
+
+            if (request.syscall != kernel::TaskSyscallId::yield) {
+                return rejected(kernel::TrapError::invalid_argument);
+            }
+
+            ++state->calls;
+            return handled(1u);
+        }
+
+    private:
+        [[nodiscard]] static constexpr kernel::TrapResult handled(
+            std::uint64_t value) noexcept
+        {
+            return kernel::TrapResult{
+                .disposition = kernel::TrapDisposition::handled,
+                .error = kernel::TrapError::none,
+                .value = value,
+            };
+        }
+
+        [[nodiscard]] static constexpr kernel::TrapResult rejected(
+            kernel::TrapError error) noexcept
+        {
+            return kernel::TrapResult{
+                .disposition = kernel::TrapDisposition::rejected,
+                .error = error,
+                .value = 0,
+            };
+        }
+    };
+
+    struct SleepHandler {
+        SleepHandlerState* state{nullptr};
+
+        [[nodiscard]] kernel::TrapResult dispatch(
+            kernel::TaskSyscallRequest request) const noexcept
+        {
+            if (state == nullptr) {
+                return rejected(kernel::TrapError::unbound_adapter);
+            }
+
+            if (request.syscall != kernel::TaskSyscallId::sleep_until) {
+                return rejected(kernel::TrapError::invalid_argument);
+            }
+
+            ++state->calls;
+            state->last_due = request.arg0;
+            return handled(request.arg0);
         }
 
     private:
@@ -116,14 +209,30 @@ namespace demo {
     using TableTrace = kernel::TaskSyscallTableTraceBuffer<8>;
     using FrameTrace = kernel::TaskSyscallFrameTraceBuffer<16>;
     using StaticTable = kernel::TaskSyscallTable<2, TableTrace>;
-
-    struct Armv7aKernelTrapAdapterContext {
-        Armv7aRuntimeTrapFrameAdapter lower{};
-    };
+    using FullStaticTable = kernel::TaskSyscallTable<4, TableTrace>;
 
     struct SyntheticArmv7aLiveFrame {
         Armv7aExceptionFrame frame{};
         Armv7aRuntimeTrapLiveFrame live{};
+    };
+
+    struct Armv7aCallFrameBuilderState {
+        Armv7aRuntimeTrapCallPolicy policy{};
+        Armv7aRuntimeTrapCallContext context{};
+        SyntheticArmv7aLiveFrame scratch{};
+        std::uint32_t yield_builds{0};
+        std::uint32_t sleep_builds{0};
+        std::uint32_t debug_builds{0};
+        std::uint32_t capability_builds{0};
+        std::uint32_t ready_calls{0};
+        std::uint64_t last_due{0};
+        std::uint64_t last_debug_value{0};
+        std::uint64_t last_capability_id{0};
+        std::uint64_t last_capability_operation{0};
+        std::uint64_t last_capability_payload{0};
+        std::uint64_t last_result_value{0};
+        kernel::TrapError last_error{kernel::TrapError::none};
+        bool last_frame_writeback_seen{false};
     };
 
     [[nodiscard]] constexpr kernel::TrapResult handled_result(
@@ -144,66 +253,6 @@ namespace demo {
     {
         return result.disposition == disposition && result.error == error &&
                result.value == value;
-    }
-
-    [[nodiscard]] constexpr bool map_armv7a_origin(
-        Armv7aRuntimeTrapOrigin origin,
-        kernel::TrapOrigin& out) noexcept
-    {
-        switch (origin) {
-        case Armv7aRuntimeTrapOrigin::kernel_thread:
-            out = kernel::TrapOrigin::kernel_thread;
-            return true;
-        case Armv7aRuntimeTrapOrigin::user_task:
-            out = kernel::TrapOrigin::user_task;
-            return true;
-        case Armv7aRuntimeTrapOrigin::supervisor:
-            out = kernel::TrapOrigin::supervisor;
-            return true;
-        case Armv7aRuntimeTrapOrigin::isr:
-            out = kernel::TrapOrigin::isr;
-            return true;
-        case Armv7aRuntimeTrapOrigin::unknown:
-        default:
-            return false;
-        }
-    }
-
-    [[nodiscard]] constexpr Armv7aRuntimeTrapIngressDisposition
-    map_armv7a_ingress_disposition(kernel::TrapDisposition disposition) noexcept
-    {
-        switch (disposition) {
-        case kernel::TrapDisposition::handled:
-            return Armv7aRuntimeTrapIngressDisposition::handled;
-        case kernel::TrapDisposition::unsupported:
-            return Armv7aRuntimeTrapIngressDisposition::unsupported;
-        case kernel::TrapDisposition::rejected:
-        default:
-            return Armv7aRuntimeTrapIngressDisposition::rejected;
-        }
-    }
-
-    [[nodiscard]] constexpr Armv7aRuntimeTrapIngressError
-    map_armv7a_ingress_error(kernel::TrapError error) noexcept
-    {
-        switch (error) {
-        case kernel::TrapError::none:
-            return Armv7aRuntimeTrapIngressError::none;
-        case kernel::TrapError::decode_failed:
-            return Armv7aRuntimeTrapIngressError::decode_failed;
-        case kernel::TrapError::writeback_failed:
-            return Armv7aRuntimeTrapIngressError::writeback_failed;
-        case kernel::TrapError::unsupported_service:
-            return Armv7aRuntimeTrapIngressError::unsupported_service;
-        case kernel::TrapError::unbound_adapter:
-        case kernel::TrapError::unbound_bridge:
-            return Armv7aRuntimeTrapIngressError::unbound_adapter;
-        case kernel::TrapError::no_current_task:
-        case kernel::TrapError::invalid_origin:
-        case kernel::TrapError::invalid_argument:
-        default:
-            return Armv7aRuntimeTrapIngressError::unsupported_service;
-        }
     }
 
     [[nodiscard]] constexpr Armv7aRuntimeTrapFrameAdapterContext
@@ -241,74 +290,125 @@ namespace demo {
             0xef000000u | (service_id & 0x00ffffffu));
     }
 
-    bool capture_armv7a_kernel_trap_frame(
+    bool make_armv7a_yield_call_frame(
         void* ctx,
-        const Armv7aRuntimeTrapLiveFrame& frame,
-        kernel::TrapFrameView& out) noexcept
+        kernel::TrapYieldCurrentView,
+        Armv7aRuntimeTrapLiveFrame& out) noexcept
     {
-        auto* context = static_cast<Armv7aKernelTrapAdapterContext*>(ctx);
-        if (context == nullptr ||
-            !armv7a_runtime_trap_frame_adapter_ready(context->lower)) {
+        auto* state = static_cast<Armv7aCallFrameBuilderState*>(ctx);
+        if (state == nullptr) {
             return false;
         }
 
-        Armv7aRuntimeTrapSeamFrameView seam{};
-        if (!context->lower.capture(context->lower.ctx, frame, seam)) {
-            return false;
-        }
-
-        kernel::TrapOrigin origin{};
-        if (!map_armv7a_origin(seam.origin, origin)) {
-            return false;
-        }
-
-        out = kernel::TrapFrameView{
-            .service_id = seam.service_id,
-            .arg0 = seam.arg0,
-            .arg1 = seam.arg1,
-            .arg2 = seam.arg2,
-            .arg3 = seam.arg3,
-            .return_pc = seam.return_pc,
-            .stack_pointer = seam.stack_pointer,
-            .status = seam.status,
-            .origin = origin,
-            .task_valid = seam.task_valid,
-        };
-        out.task.value = static_cast<std::size_t>(seam.task);
+        ++state->yield_builds;
+        bind_svc_live_frame(state->scratch,
+                            kArmv7aRuntimeBridgeYieldServiceId,
+                            state->policy.yield_event_id,
+                            state->policy.yield_event_payload,
+                            0u,
+                            0u,
+                            state->context.origin_psr,
+                            state->context.return_pc);
+        out = state->scratch.live;
         return true;
     }
 
-    bool apply_armv7a_kernel_trap_result(
+    bool make_armv7a_sleep_call_frame(
         void* ctx,
-        Armv7aRuntimeTrapLiveFrame& frame,
-        const kernel::TrapResult& result) noexcept
+        kernel::TrapSleepUntilView<std::uint64_t> sleep,
+        Armv7aRuntimeTrapLiveFrame& out) noexcept
     {
-        auto* context = static_cast<Armv7aKernelTrapAdapterContext*>(ctx);
-        if (context == nullptr ||
-            !armv7a_runtime_trap_frame_adapter_ready(context->lower)) {
+        auto* state = static_cast<Armv7aCallFrameBuilderState*>(ctx);
+        if (state == nullptr) {
             return false;
         }
 
-        return context->lower.apply_result(
-            context->lower.ctx,
-            frame,
-            Armv7aRuntimeTrapIngressResult{
-                .disposition =
-                    map_armv7a_ingress_disposition(result.disposition),
-                .error = map_armv7a_ingress_error(result.error),
-                .value = result.value,
-            });
+        ++state->sleep_builds;
+        state->last_due = sleep.due;
+        bind_svc_live_frame(
+            state->scratch,
+            kArmv7aRuntimeBridgeSleepServiceId,
+            static_cast<std::uint32_t>(sleep.due & 0xFFFF'FFFFull),
+            static_cast<std::uint32_t>((sleep.due >> 32u) & 0xFFFF'FFFFull),
+            state->policy.sleep_event_id,
+            armv7a_runtime_trap_sleep_call_payload(state->policy, sleep.due),
+            state->context.origin_psr,
+            state->context.return_pc + 4u);
+        out = state->scratch.live;
+        return true;
     }
 
-    [[nodiscard]] auto make_kernel_runtime_trap_frame_adapter(
-        Armv7aKernelTrapAdapterContext& context) noexcept
-        -> kernel::RuntimeTrapFrameAdapter<Armv7aRuntimeTrapLiveFrame>
+    bool make_armv7a_debug_call_frame(
+        void* ctx,
+        kernel::TrapDebugWriteView write,
+        Armv7aRuntimeTrapLiveFrame& out) noexcept
     {
-        return kernel::RuntimeTrapFrameAdapter<Armv7aRuntimeTrapLiveFrame>{
-            .ctx = &context,
-            .capture = &capture_armv7a_kernel_trap_frame,
-            .apply_result = &apply_armv7a_kernel_trap_result,
-        };
+        auto* state = static_cast<Armv7aCallFrameBuilderState*>(ctx);
+        if (state == nullptr) {
+            return false;
+        }
+
+        ++state->debug_builds;
+        state->last_debug_value = write.value;
+        bind_svc_live_frame(state->scratch,
+                            kArmv7aRuntimeBridgeDebugWriteServiceId,
+                            static_cast<std::uint32_t>(write.value &
+                                                       0xFFFF'FFFFull),
+                            0u,
+                            0u,
+                            0u,
+                            state->context.origin_psr,
+                            state->context.return_pc + 8u);
+        out = state->scratch.live;
+        return true;
+    }
+
+    bool make_armv7a_capability_call_frame(
+        void* ctx,
+        kernel::TrapCapabilityCallView capability,
+        Armv7aRuntimeTrapLiveFrame& out) noexcept
+    {
+        auto* state = static_cast<Armv7aCallFrameBuilderState*>(ctx);
+        if (state == nullptr) {
+            return false;
+        }
+
+        ++state->capability_builds;
+        state->last_capability_id = capability.capability_id;
+        state->last_capability_operation = capability.operation;
+        state->last_capability_payload = capability.payload;
+        bind_svc_live_frame(state->scratch,
+                            kArmv7aRuntimeBridgeCapabilityCallServiceId,
+                            static_cast<std::uint32_t>(capability.capability_id &
+                                                       0xFFFF'FFFFull),
+                            static_cast<std::uint32_t>(capability.operation &
+                                                       0xFFFF'FFFFull),
+                            static_cast<std::uint32_t>(capability.payload &
+                                                       0xFFFF'FFFFull),
+                            0u,
+                            state->context.origin_psr,
+                            state->context.return_pc + 12u);
+        out = state->scratch.live;
+        return true;
+    }
+
+    bool armv7a_call_frame_result_ready(
+        void* ctx,
+        const Armv7aRuntimeTrapLiveFrame& frame,
+        const kernel::TrapResult& result) noexcept
+    {
+        auto* state = static_cast<Armv7aCallFrameBuilderState*>(ctx);
+        if (state == nullptr || frame.frame == nullptr) {
+            return false;
+        }
+
+        ++state->ready_calls;
+        state->last_result_value = result.value;
+        state->last_error = result.error;
+        state->last_frame_writeback_seen =
+            frame.frame->r0 == static_cast<std::uint32_t>(result.value);
+        return state->last_frame_writeback_seen &&
+               result.error == kernel::TrapError::none;
     }
 
     [[nodiscard]] auto make_task_syscall_table(
@@ -318,6 +418,31 @@ namespace demo {
     {
         return kernel::make_task_syscall_table(
             std::array<kernel::TaskSyscallHandlerEntry, 2>{
+                kernel::task_syscall_handler_entry(
+                    kernel::TaskSyscallId::debug_write,
+                    kernel::make_task_syscall_handler(debug_handler)),
+                kernel::task_syscall_handler_entry(
+                    kernel::TaskSyscallId::capability_call,
+                    kernel::make_task_syscall_handler(capability_handler)),
+            },
+            trace);
+    }
+
+    [[nodiscard]] auto make_full_task_syscall_table(
+        YieldHandler& yield_handler,
+        SleepHandler& sleep_handler,
+        DebugHandler& debug_handler,
+        CapabilityHandler& capability_handler,
+        TableTrace* trace) noexcept -> FullStaticTable
+    {
+        return kernel::make_task_syscall_table(
+            std::array<kernel::TaskSyscallHandlerEntry, 4>{
+                kernel::task_syscall_handler_entry(
+                    kernel::TaskSyscallId::yield,
+                    kernel::make_task_syscall_handler(yield_handler)),
+                kernel::task_syscall_handler_entry(
+                    kernel::TaskSyscallId::sleep_until,
+                    kernel::make_task_syscall_handler(sleep_handler)),
                 kernel::task_syscall_handler_entry(
                     kernel::TaskSyscallId::debug_write,
                     kernel::make_task_syscall_handler(debug_handler)),
@@ -338,10 +463,11 @@ namespace demo {
             });
         auto lower_adapter = armv7a_make_runtime_trap_frame_adapter(
             lower_context);
-        Armv7aKernelTrapAdapterContext wrapper{
+        Armv7aKernelRuntimeTrapFrameAdapterContext wrapper{
             .lower = lower_adapter,
         };
-        auto generic_adapter = make_kernel_runtime_trap_frame_adapter(wrapper);
+        auto generic_adapter =
+            armv7a_make_kernel_runtime_trap_frame_adapter(wrapper);
 
         SyntheticArmv7aLiveFrame debug_frame{};
         SyntheticArmv7aLiveFrame capability_frame{};
@@ -405,10 +531,11 @@ namespace demo {
             });
         auto lower_adapter = armv7a_make_runtime_trap_frame_adapter(
             lower_context);
-        Armv7aKernelTrapAdapterContext wrapper{
+        Armv7aKernelRuntimeTrapFrameAdapterContext wrapper{
             .lower = lower_adapter,
         };
-        auto generic_adapter = make_kernel_runtime_trap_frame_adapter(wrapper);
+        auto generic_adapter =
+            armv7a_make_kernel_runtime_trap_frame_adapter(wrapper);
         auto ingress_adapter =
             kernel::make_task_syscall_frame_ingress_adapter(generic_adapter);
         auto frame_adapter =
@@ -493,10 +620,11 @@ namespace demo {
             });
         auto lower_adapter = armv7a_make_runtime_trap_frame_adapter(
             lower_context);
-        Armv7aKernelTrapAdapterContext wrapper{
+        Armv7aKernelRuntimeTrapFrameAdapterContext wrapper{
             .lower = lower_adapter,
         };
-        auto generic_adapter = make_kernel_runtime_trap_frame_adapter(wrapper);
+        auto generic_adapter =
+            armv7a_make_kernel_runtime_trap_frame_adapter(wrapper);
 
         FrameTrace direct_trace{};
         auto direct_bridge = kernel::make_task_syscall_frame_bridge(
@@ -611,6 +739,156 @@ namespace demo {
                    kernel::TaskSyscallId::capability_call &&
                table_second->value == 15u && table_second->matched;
     }
+
+    [[nodiscard]] bool probe_task_syscall_caller_adapter() noexcept
+    {
+        YieldHandlerState yield_state{};
+        SleepHandlerState sleep_state{};
+        DebugHandlerState debug_state{};
+        CapabilityHandlerState capability_state{};
+        YieldHandler yield_handler{
+            .state = &yield_state,
+        };
+        SleepHandler sleep_handler{
+            .state = &sleep_state,
+        };
+        DebugHandler debug_handler{
+            .state = &debug_state,
+        };
+        CapabilityHandler capability_handler{
+            .state = &capability_state,
+        };
+        TableTrace table_trace{};
+        FrameTrace frame_trace{};
+        auto table = make_full_task_syscall_table(yield_handler,
+                                                  sleep_handler,
+                                                  debug_handler,
+                                                  capability_handler,
+                                                  &table_trace);
+
+        auto lower_context = make_lower_frame_adapter_context(
+            Armv7aRuntimeCurrentContext{
+                .stack_pointer = kStackPointer,
+                .task = kTaskValue,
+                .task_valid = true,
+            });
+        auto lower_adapter = armv7a_make_runtime_trap_frame_adapter(
+            lower_context);
+        Armv7aKernelRuntimeTrapFrameAdapterContext wrapper{
+            .lower = lower_adapter,
+        };
+        auto generic_adapter =
+            armv7a_make_kernel_runtime_trap_frame_adapter(wrapper);
+        auto frame_bridge = kernel::make_task_syscall_frame_bridge(
+            table, generic_adapter, &frame_trace);
+        auto port = kernel::make_task_syscall_frame_port(frame_bridge);
+
+        Armv7aCallFrameBuilderState builder_state{
+            .policy =
+                Armv7aRuntimeTrapCallPolicy{
+                    .yield_event_id = 0u,
+                    .yield_event_payload = 0u,
+                    .sleep_event_id = 0u,
+                    .sleep_event_payload = 0u,
+                    .sleep_payload_matches_due_low32 = true,
+                },
+            .context =
+                Armv7aRuntimeTrapCallContext{
+                    .origin_psr = kUsrMode,
+                    .handler_psr = kSvcMode,
+                    .return_pc = 0x8400u,
+                    .stack_pointer = kStackPointer,
+                    .task = kTaskValue,
+                    .task_valid = true,
+                },
+        };
+        auto runtime_call_adapter =
+            kernel::RuntimeTrapCallFrameAdapter<Armv7aRuntimeTrapLiveFrame,
+                                                std::uint64_t>{
+                .ctx = &builder_state,
+                .make_yield_frame = &make_armv7a_yield_call_frame,
+                .make_sleep_frame = &make_armv7a_sleep_call_frame,
+                .make_debug_write_frame = &make_armv7a_debug_call_frame,
+                .make_capability_call_frame =
+                    &make_armv7a_capability_call_frame,
+                .result_ready = &armv7a_call_frame_result_ready,
+            };
+        auto syscall_call_adapter =
+            armv7a_make_task_syscall_call_frame_adapter(runtime_call_adapter);
+        auto caller = kernel::make_task_syscall_frame_caller<
+            Armv7aRuntimeTrapLiveFrame,
+            std::uint64_t>(port, syscall_call_adapter);
+
+        const auto yielded = caller.yield();
+        const auto slept = caller.sleep_until(55u);
+        const auto debugged = caller.debug_write(0xCCu);
+        const auto called = caller.capability_call(7u, 2u, 33u);
+
+        const auto* first = frame_trace.at(0u);
+        const auto* fourth = frame_trace.at(3u);
+        const auto* seventh = frame_trace.at(6u);
+        const auto* tenth = frame_trace.at(9u);
+        const auto* table_first = table_trace.at(0u);
+        const auto* table_second = table_trace.at(1u);
+        const auto* table_third = table_trace.at(2u);
+        const auto* table_fourth = table_trace.at(3u);
+        if (first == nullptr || fourth == nullptr || seventh == nullptr ||
+            tenth == nullptr || table_first == nullptr ||
+            table_second == nullptr || table_third == nullptr ||
+            table_fourth == nullptr) {
+            return false;
+        }
+
+        return trap_result_matches(yielded,
+                                   kernel::TrapDisposition::handled,
+                                   kernel::TrapError::none,
+                                   1u) &&
+               trap_result_matches(slept,
+                                   kernel::TrapDisposition::handled,
+                                   kernel::TrapError::none,
+                                   55u) &&
+               trap_result_matches(debugged,
+                                   kernel::TrapDisposition::handled,
+                                   kernel::TrapError::none,
+                                   0xCDu) &&
+               trap_result_matches(called,
+                                   kernel::TrapDisposition::handled,
+                                   kernel::TrapError::none,
+                                   42u) &&
+               builder_state.yield_builds == 1u &&
+               builder_state.sleep_builds == 1u &&
+               builder_state.debug_builds == 1u &&
+               builder_state.capability_builds == 1u &&
+               builder_state.ready_calls == 4u &&
+               builder_state.last_due == 55u &&
+               builder_state.last_debug_value == 0xCCu &&
+               builder_state.last_capability_id == 7u &&
+               builder_state.last_capability_operation == 2u &&
+               builder_state.last_capability_payload == 33u &&
+               builder_state.last_result_value == 42u &&
+               builder_state.last_error == kernel::TrapError::none &&
+               builder_state.last_frame_writeback_seen &&
+               yield_state.calls == 1u && sleep_state.calls == 1u &&
+               sleep_state.last_due == 55u && debug_state.calls == 1u &&
+               debug_state.last_value == 0xCCu &&
+               capability_state.calls == 1u &&
+               capability_state.last_capability_id == 7u &&
+               capability_state.last_operation == 2u &&
+               capability_state.last_payload == 33u &&
+               first->syscall == kernel::TaskSyscallId::yield &&
+               fourth->syscall == kernel::TaskSyscallId::sleep_until &&
+               seventh->syscall == kernel::TaskSyscallId::debug_write &&
+               tenth->syscall == kernel::TaskSyscallId::capability_call &&
+               table_first->syscall == kernel::TaskSyscallId::yield &&
+               table_first->value == 1u &&
+               table_second->syscall == kernel::TaskSyscallId::sleep_until &&
+               table_second->value == 55u &&
+               table_third->syscall == kernel::TaskSyscallId::debug_write &&
+               table_third->value == 0xCDu &&
+               table_fourth->syscall ==
+                   kernel::TaskSyscallId::capability_call &&
+               table_fourth->value == 42u;
+    }
 } // namespace demo
 
 int main()
@@ -618,12 +896,14 @@ int main()
     const bool generic = demo::probe_generic_trap_adapter_capture();
     const bool ingress = demo::probe_task_syscall_ingress_adapter();
     const bool bridge = demo::probe_task_syscall_bridge();
-    const bool ok = generic && ingress && bridge;
+    const bool caller = demo::probe_task_syscall_caller_adapter();
+    const bool ok = generic && ingress && bridge && caller;
 
-    std::printf("ok=%d generic=%d ingress=%d bridge=%d\n",
+    std::printf("ok=%d generic=%d ingress=%d bridge=%d caller=%d\n",
                 ok ? 1 : 0,
                 generic ? 1 : 0,
                 ingress ? 1 : 0,
-                bridge ? 1 : 0);
+                bridge ? 1 : 0,
+                caller ? 1 : 0);
     return ok ? 0 : 1;
 }

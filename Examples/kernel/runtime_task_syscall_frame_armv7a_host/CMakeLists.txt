@@ -27,6 +27,8 @@ set(kernel_runtime_task_syscall_frame_modules
     "${CHARM_ROOT}/Modules/system/kernel/task_syscall_dispatch.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_syscall_table.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_syscall_frame.cppm"
+    "${CHARM_ROOT}/targets/armv7a/common/armv7a_kernel_runtime_trap_frame_adapter.cppm"
+    "${CHARM_ROOT}/targets/armv7a/common/armv7a_kernel_task_syscall_call_frame_adapter.cppm"
 )
 
 add_executable(${target_name}
@@ -38,6 +40,7 @@ target_sources(${target_name}
         FILE_SET modules TYPE CXX_MODULES
         BASE_DIRS
             "${CHARM_ROOT}/Modules"
+            "${CHARM_ROOT}/targets"
         FILES
             ${kernel_runtime_task_syscall_frame_modules}
 )

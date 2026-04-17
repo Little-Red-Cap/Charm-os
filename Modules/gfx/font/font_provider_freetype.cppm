@@ -370,6 +370,29 @@ export namespace charm::font {
             }
         }
 
+        bool should_log_font_load(std::string_view source,
+                                  std::string_view path,
+                                  int size_px,
+                                  FontWeight weight,
+                                  std::string_view host_path = {}) noexcept {
+            std::string key{};
+            key.reserve(source.size() + path.size() + host_path.size() + 32);
+            key.append(source.begin(), source.end());
+            key.push_back('|');
+            key.append(path.begin(), path.end());
+            key.push_back('|');
+            key.append(host_path.begin(), host_path.end());
+            key.push_back('|');
+            key.append(std::to_string(size_px));
+            key.push_back('|');
+            key.append(std::to_string(static_cast<unsigned>(weight)));
+            for (const auto& existing : logged_font_loads_) {
+                if (existing == key) return false;
+            }
+            logged_font_loads_.push_back(std::move(key));
+            return true;
+        }
+
         bool load_font(std::string_view path, Font& out) noexcept {
 #if !defined(CHARM_ENABLE_FREETYPE)
             (void)path;
@@ -409,13 +432,15 @@ export namespace charm::font {
                 }
                 const auto size_px = resolve_pixel_size(path);
                 const auto weight = resolve_weight(path);
-                std::fprintf(stdout,
-                             "[font] source=host path=%.*s host=%s px=%d weight=%u bytes=%zu\n",
-                             static_cast<int>(path.size()), path.data(),
-                             host_path.c_str(),
-                             size_px,
-                             static_cast<unsigned>(weight),
-                             data.size());
+                if (should_log_font_load("host", path, size_px, weight, host_path)) {
+                    std::fprintf(stdout,
+                                 "[font] source=host path=%.*s host=%s px=%d weight=%u bytes=%zu\n",
+                                 static_cast<int>(path.size()), path.data(),
+                                 host_path.c_str(),
+                                 size_px,
+                                 static_cast<unsigned>(weight),
+                                 data.size());
+                }
                 FaceSlot slot{};
                 slot.path.assign(path.begin(), path.end());
                 slot.pixel_size = size_px;
@@ -471,12 +496,14 @@ export namespace charm::font {
 
             const auto size_px = resolve_pixel_size(path);
             const auto weight = resolve_weight(path);
-            std::fprintf(stdout,
-                         "[font] source=vfs path=%.*s px=%d weight=%u bytes=%zu\n",
-                         static_cast<int>(path.size()), path.data(),
-                         size_px,
-                         static_cast<unsigned>(weight),
-                         data.size());
+            if (should_log_font_load("vfs", path, size_px, weight)) {
+                std::fprintf(stdout,
+                             "[font] source=vfs path=%.*s px=%d weight=%u bytes=%zu\n",
+                             static_cast<int>(path.size()), path.data(),
+                             size_px,
+                             static_cast<unsigned>(weight),
+                             data.size());
+            }
             FaceSlot slot{};
             slot.path.assign(path.begin(), path.end());
             slot.pixel_size = size_px;
@@ -692,6 +719,7 @@ export namespace charm::font {
 
         FreetypeFontLoaderConfig config_{};
         std::vector<FaceSlot> slots_{};
+        std::vector<std::string> logged_font_loads_{};
 #if defined(CHARM_ENABLE_FREETYPE)
         FT_Library library_{nullptr};
 #endif

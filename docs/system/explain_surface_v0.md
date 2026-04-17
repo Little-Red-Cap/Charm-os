@@ -219,6 +219,39 @@ v0 阶段建议至少覆盖：
 
 当前建议先把问题面收敛为五类最小查询，而不是先发明很大的命令系统。
 
+在继续细拆每个问题面之前，
+当前更适合先把 `inspect_system_compiler_artifact_report.ps1` 的支持边界压成一张矩阵。
+这张矩阵现在已经由：
+
+- `scripts/system_compiler_explain_surface_contract_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+
+一起收口成 v0 契约。
+
+| 问题面 | 单 report / export_only | 单 report / compare | artifact_root / export_only | artifact_root / compare | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| 默认总览 | 支持 | 支持 | 支持 | 支持 | `-Case` 为空时读取整 root；显式多 case 子集也继续按 artifact_root 聚合 |
+| `cap list` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集会拒绝 |
+| `why capability` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集会拒绝 |
+| `graph path` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `recent transitions` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `bringup evidence` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+| `resource summary` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+
+这里还需要再明确两个容易混淆的点：
+
+- `-ShowTransitions`
+  不是独立问题面，而是单 report 默认总览里的一个附录投影。
+  它复用 `recent transitions` 的行展示语言；
+  compare 模式下会先给最小 `TRANSITION COMPARE` 摘要，
+  export_only 模式则不会凭空长出 compare 头部。
+- `-ShowArtifacts`
+  也不是独立问题面；
+  它只是把当前 report 持有的 supporting artifacts 引用展开成人类可读附录。
+
 ### 6.1 `cap list`
 
 它回答：
@@ -421,6 +454,11 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 
 - `scripts/inspect_system_compiler_artifact_report.ps1 -WhyCapability <name>`
 
+它当前支持两种读取作用域：
+
+- 单 report 查询
+- 全 artifact root 汇总
+
 它当前优先消费：
 
 - `artifact report`
@@ -440,6 +478,34 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 而是先让系统能基于稳定工件回答：
 
 > **这个名字为什么现在没有站到可用面上。**
+
+如果当前 report 来自 compare 模式，
+`-WhyCapability -AsJson` 现在也会继续为目标 capability 带出最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+如果选择的是整组 compare report，
+artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
+
+- `state_counts`
+- `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
+- `compared_cases / bringup_compare_cases / resource_compare_cases`
+- `resource_contracts`
+
+这意味着调用方现在不只可以追问：
+
+- 它为什么当前不可用
+
+还可以继续追问：
+
+- 它相对 baseline 为什么漂了
+- 漂移更偏 bringup 证据还是资源法律
+- 漂移具体落到了哪条 contract change 或 publish/export state 切换上
+- 这个 capability 在哪些 case 里共同卡在同一种状态
 
 ### 6.3 `graph path`
 
@@ -479,6 +545,7 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 
 - `capability`
 - `state / availability_state`
+- `comparison`
 - `direct_edges`
 - `provider_paths`
 - `consumer_paths`
@@ -500,6 +567,15 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
   就给出通向该 provider 节点的最小依赖路径
 - 如果它只出现在 consumer 需求里但没有 provider，
   就给出通向 consumer 的依赖路径
+
+如果当前 report 来自 compare 模式，
+`-GraphPath -AsJson` 现在也会继续带出目标 capability 的最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
 
 也就是说，v0 当前还不是“图查询语言”，
 而是一个面向 explain surface 的最小稳定问题面：
@@ -554,17 +630,56 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 - `before`
 - `after`
 
+如果当前 report 来自 compare 模式，
+`recent transitions` 现在也会继续复用现有 capability compare 语言，
+但只覆盖真正出现在 transition 列表里的 capability。
+
+它会在 `query.result` 上额外带出一份最小 `comparison` 摘要，
+至少包括：
+
+- `compared_transition_count / bringup_compare_transition_count / resource_compare_transition_count`
+- `compared_capability_count / bringup_compare_capability_count / resource_compare_capability_count`
+- `compared_capabilities`
+- `bringup_change_kinds / resource_change_kinds`
+- `resource_contracts`
+
+与此同时，`transitions[*]` 现在也会继续带出 capability 级最小 compare 摘要，
+至少包括：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
 这意味着 `recent transitions` 现在先回答的是：
 
 - 最近到底有没有状态切换发生
 - 切换集中在哪些 capability
 - 切换动作是 `attach`、`ensure_exported` 还是其它 runtime export 事件
 - 当前 publish/export 统计摘要是什么
+- 这些最近切换里的哪些 capability，恰好也是 compare 维度上的漂移热点
+- 这些漂移更偏向 bringup 证据变化，还是资源契约变化
 
 也就是说，v0 当前不是在承诺“完整运行时历史”，
 而是在把 runtime observe 面先压成一个最小稳定查询：
 
 > **围绕 artifact report 当前保留下来的最近切换，稳定回答“发生了什么、发生在谁身上、在 publish/export 语义里当前是什么样”。**
+
+它当前仍然保持两个边界不变：
+
+- 只接受精确单 report
+- 不把未出现在 `recent_transitions` 里的 capability compare 强行混进 runtime 视图
+
+与此同时，
+默认总览里的 `-ShowTransitions` 当前也会继续复用同一套 transition 展示语言。
+它不是新的 explain query，
+而是把 `recent transitions` 已经冻结下来的行级语义，
+作为默认总览的附录面再次投影出来。
+
+如果当前 report 来自 compare 模式，
+这个附录面现在也会继续带出：
+
+- 行级 `BrCmp / ResCmp`
+- 一行最小 `TRANSITION COMPARE` 摘要
 
 当前仓库里已经有一条真实 runtime-only producer：
 

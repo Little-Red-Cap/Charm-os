@@ -158,6 +158,10 @@ $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.inspect.json'
 $summaryInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.summary.inspect.json'
+$whyInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.why.inspect.json'
+$graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.graph_path.inspect.json'
+$recentTransitionsInspectJsonPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.recent_transitions.inspect.json'
+$showTransitionsTextPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare.show_transitions.txt'
 $summaryPath = Join-Path $resolvedOutputRoot 'bringup_evidence_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -289,6 +293,58 @@ Assert-Condition ($null -ne $summaryInspectResult.comparison.capability_summary)
 Assert-Condition ([int]$summaryInspectResult.comparison.capability_summary.bringup_compare_capability_count -eq 1) 'inspect default summary bringup compare capability count must be 1'
 Assert-Condition ((@($summaryInspectResult.comparison.capability_summary.bringup_compare_capabilities) -contains $PublishedCapability)) 'inspect default summary capability summary missing published capability'
 
+$whyInspectResult = Invoke-CommandJson -OutputPath $whyInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -WhyCapability $PublishedCapability -AsJson
+}
+Assert-Condition ([string]$whyInspectResult.query.kind -eq 'why_capability') 'inspect why query kind mismatch'
+Assert-Condition ([string]$whyInspectResult.query.scope -eq 'report') 'inspect why query scope mismatch'
+Assert-Condition ($null -ne $whyInspectResult.query.comparison) 'inspect why must expose comparison payload'
+Assert-Condition ([bool]$whyInspectResult.query.comparison.bringup_changed) 'inspect why comparison must mark bringup changed'
+Assert-Condition ([int]@($whyInspectResult.query.comparison.bringup_change_kinds).Count -gt 0) 'inspect why comparison must expose bringup change kinds'
+Assert-Condition ((@($whyInspectResult.query.comparison.bringup_change_kinds) -contains 'changed')) 'inspect why comparison missing changed kind'
+Assert-Condition ([string]$whyInspectResult.query.comparison.bringup_evidence.right_publish_state -eq 'published') 'inspect why comparison right_publish_state must become published'
+
+$graphPathInspectResult = Invoke-CommandJson -OutputPath $graphPathInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -GraphPath $PublishedCapability -AsJson
+}
+Assert-Condition ([string]$graphPathInspectResult.query.kind -eq 'graph_path') 'inspect graph path query kind mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.scope -eq 'report') 'inspect graph path query scope mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.result.capability -eq $PublishedCapability) 'inspect graph path capability mismatch'
+Assert-Condition ($null -ne $graphPathInspectResult.query.result.comparison) 'inspect graph path must expose comparison payload'
+Assert-Condition ([bool]$graphPathInspectResult.query.result.comparison.bringup_changed) 'inspect graph path comparison must mark bringup changed'
+Assert-Condition ([string]$graphPathInspectResult.query.result.comparison.bringup_evidence.right_export_state -eq 'attached') 'inspect graph path comparison right_export_state must become attached'
+Assert-Condition (@($graphPathInspectResult.query.result.direct_edges).Count -gt 0) 'inspect graph path should expose direct edges for published capability'
+
+$recentTransitionsInspectResult = Invoke-CommandJson -OutputPath $recentTransitionsInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -RecentTransitions -AsJson
+}
+Assert-Condition ([string]$recentTransitionsInspectResult.query.kind -eq 'recent_transitions') 'inspect recent transitions query kind mismatch'
+Assert-Condition ([string]$recentTransitionsInspectResult.query.scope -eq 'report') 'inspect recent transitions query scope mismatch'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.transition_count -eq 2) 'inspect recent transitions transition_count must be 2'
+Assert-Condition ((@($recentTransitionsInspectResult.query.result.transition_capabilities) -contains $PublishedCapability)) 'inspect recent transitions missing published capability'
+Assert-Condition ($null -ne $recentTransitionsInspectResult.query.result.comparison) 'inspect recent transitions must expose comparison payload'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.comparison.compared_transition_count -eq 2) 'inspect recent transitions compared_transition_count must be 2'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.comparison.bringup_compare_transition_count -eq 2) 'inspect recent transitions bringup_compare_transition_count must be 2'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.comparison.resource_compare_transition_count -eq 0) 'inspect recent transitions resource_compare_transition_count must stay 0'
+Assert-Condition ([int]$recentTransitionsInspectResult.query.result.comparison.compared_capability_count -eq 1) 'inspect recent transitions compared_capability_count must be 1'
+Assert-Condition ((@($recentTransitionsInspectResult.query.result.comparison.compared_capabilities) -contains $PublishedCapability)) 'inspect recent transitions compared_capabilities missing published capability'
+Assert-Condition ((@($recentTransitionsInspectResult.query.result.comparison.bringup_change_kinds) -contains 'changed')) 'inspect recent transitions comparison missing changed kind'
+Assert-Condition (@(
+    @($recentTransitionsInspectResult.query.result.transitions) |
+        Where-Object {
+            [string]$_.capability -eq $PublishedCapability -and
+            [bool]$_.comparison.bringup_changed -and
+            (@($_.comparison.bringup_change_kinds) -contains 'changed')
+        }
+).Count -eq 2) 'inspect recent transitions must expose bringup compare details on every synthetic transition'
+
+$showTransitionsText = (& $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -ShowTransitions 6>&1 | Out-String)
+$showTransitionsText | Set-Content -LiteralPath $showTransitionsTextPath -Encoding utf8
+Assert-Condition ($showTransitionsText.Contains('[TRANSITION COMPARE]')) 'inspect show transitions must print transition compare summary'
+Assert-Condition ($showTransitionsText.Contains('[TRANSITIONS]')) 'inspect show transitions must print transitions block'
+Assert-Condition ($showTransitionsText.Contains($PublishedCapability)) 'inspect show transitions output missing published capability'
+Assert-Condition ($showTransitionsText.Contains('changed')) 'inspect show transitions output missing compare changed marker'
+
 $summary = [ordered]@{
     left_bundle_root = $leftBundleRoot
     right_bundle_root = $rightBundleRoot
@@ -298,12 +354,20 @@ $summary = [ordered]@{
     artifact_report = $artifactReportPath
     inspect_json = $inspectJsonPath
     summary_inspect_json = $summaryInspectJsonPath
+    why_inspect_json = $whyInspectJsonPath
+    graph_path_inspect_json = $graphPathInspectJsonPath
+    recent_transitions_inspect_json = $recentTransitionsInspectJsonPath
+    show_transitions_text = $showTransitionsTextPath
     assertions = [ordered]@{
         sidecar_only_diff_preserved = $true
         comparison_bringup_evidence_present = $true
         published_capability_change_detected = $true
         inspect_bringup_evidence_exposes_compare = $true
         inspect_default_summary_exposes_capability_compare = $true
+        inspect_why_exposes_compare = $true
+        inspect_graph_path_exposes_compare = $true
+        inspect_recent_transitions_exposes_compare = $true
+        inspect_show_transitions_reuses_compare_display = $true
     }
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $summaryPath -Encoding utf8

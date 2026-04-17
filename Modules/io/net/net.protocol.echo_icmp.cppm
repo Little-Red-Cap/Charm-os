@@ -22,6 +22,22 @@ export namespace net::icmp::echo {
         IcmpSendDisposition disposition{IcmpSendDisposition::queued};
     };
 
+    enum class ProbeState : util::u8 {
+        idle = 0u,
+        pending = 1u,
+        replied = 2u,
+        timed_out = 3u,
+        cancelled = 4u,
+        error = 5u,
+    };
+
+    struct ProbeSnapshot {
+        ProbeState state{ProbeState::idle};
+        errc error{errc::ok};
+        IcmpEchoInfo info{};
+        ByteView payload{};
+    };
+
     namespace detail {
         [[nodiscard]] constexpr bool same_ipv4(const IpAddress& lhs, const IpAddress& rhs) noexcept {
             if (!lhs.is_ipv4() || !rhs.is_ipv4()) {
@@ -672,11 +688,19 @@ export namespace net::icmp::echo {
         }
 
         [[nodiscard]] bool has_reply() const noexcept {
-            return has_reply_;
+            return state_ == ProbeState::replied;
         }
 
         [[nodiscard]] bool has_timeout() const noexcept {
-            return has_timeout_;
+            return state_ == ProbeState::timed_out;
+        }
+
+        [[nodiscard]] bool has_result() const noexcept {
+            return state_ != ProbeState::idle && state_ != ProbeState::pending;
+        }
+
+        [[nodiscard]] ProbeState state() const noexcept {
+            return state_;
         }
 
         [[nodiscard]] const IcmpEchoInfo& last_reply_info() const noexcept {
@@ -689,6 +713,15 @@ export namespace net::icmp::echo {
 
         [[nodiscard]] ByteView last_reply_payload() const noexcept {
             return ByteView{reply_payload_.data(), reply_payload_size_};
+        }
+
+        [[nodiscard]] ProbeSnapshot snapshot() const noexcept {
+            return ProbeSnapshot{
+                .state = state_,
+                .error = observed_error_,
+                .info = current_info_,
+                .payload = state_ == ProbeState::replied ? last_reply_payload() : ByteView{},
+            };
         }
 
         template <class Pump>
@@ -707,8 +740,17 @@ export namespace net::icmp::echo {
         [[nodiscard]] Result<PingTicket> ping(ByteView payload,
                                               util::u32 now_ms,
                                               util::u32 timeout_ms) noexcept {
+            if (client_.has_pending()) {
+                return util::unexpected(errc::busy);
+            }
             clear_observation();
-            return client_.ping(payload, now_ms, timeout_ms);
+            auto ping = client_.ping(payload, now_ms, timeout_ms);
+            if (!ping) {
+                return util::unexpected(ping.error());
+            }
+            current_info_ = ping.value().info;
+            state_ = ProbeState::pending;
+            return ping;
         }
 
         [[nodiscard]] Result<PingTicket> ping(util::u32 now_ms,
@@ -717,10 +759,22 @@ export namespace net::icmp::echo {
         }
 
         [[nodiscard]] bool cancel(const PingTicket& ticket) noexcept {
-            return client_.cancel(ticket);
+            const auto cancelled = client_.cancel(ticket);
+            if (cancelled) {
+                clear_reply_payload();
+                current_info_ = ticket.info;
+                observed_error_ = errc::ok;
+                state_ = ProbeState::cancelled;
+            }
+            return cancelled;
         }
 
         void cancel_all() noexcept {
+            if (client_.has_pending()) {
+                clear_reply_payload();
+                observed_error_ = errc::ok;
+                state_ = ProbeState::cancelled;
+            }
             client_.cancel_all();
         }
 
@@ -764,6 +818,7 @@ export namespace net::icmp::echo {
                                             PacketView packet) noexcept {
             if (packet.size() > MaxPayload) {
                 observed_error_ = errc::buffer_overflow;
+                state_ = ProbeState::error;
                 ++error_count_;
                 return util::unexpected(observed_error_);
             }
@@ -772,42 +827,50 @@ export namespace net::icmp::echo {
                 reply_payload_[index] = packet[index];
             }
             reply_payload_size_ = packet.size();
+            current_info_ = info;
             reply_info_ = info;
-            has_reply_ = true;
-            has_timeout_ = false;
             observed_error_ = errc::ok;
+            state_ = ProbeState::replied;
             return {};
         }
 
         void on_timeout(const IcmpEchoInfo& info) noexcept {
+            clear_reply_payload();
+            current_info_ = info;
             timeout_info_ = info;
-            has_timeout_ = true;
-            has_reply_ = false;
+            observed_error_ = errc::ok;
+            state_ = ProbeState::timed_out;
         }
 
         void on_error(errc error) noexcept {
             observed_error_ = error;
+            clear_reply_payload();
+            state_ = ProbeState::error;
             ++error_count_;
         }
 
         void clear_observation() noexcept {
-            has_reply_ = false;
-            has_timeout_ = false;
             reply_info_ = {};
             timeout_info_ = {};
-            reply_payload_size_ = 0;
+            current_info_ = {};
+            clear_reply_payload();
             observed_error_ = errc::ok;
+            state_ = ProbeState::idle;
+        }
+
+        void clear_reply_payload() noexcept {
+            reply_payload_size_ = 0;
         }
 
         Client client_{};
         std::array<util::u8, MaxPayload> reply_payload_{};
+        IcmpEchoInfo current_info_{};
         IcmpEchoInfo reply_info_{};
         IcmpEchoInfo timeout_info_{};
         util::usize reply_payload_size_{0};
         util::usize error_count_{0};
         errc observed_error_{errc::ok};
-        bool has_reply_{false};
-        bool has_timeout_{false};
+        ProbeState state_{ProbeState::idle};
     };
 
     class AutoReplyServer {

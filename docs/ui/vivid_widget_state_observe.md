@@ -131,6 +131,7 @@ object-level widget 里，旧回调和真相观察面已经被显式拆开。
 
 优先看：
 
+- `Examples/ui/vivid/scene_state_demo`
 - `charm.ui.scene`
 - `SceneBuilder`
 - `SceneAccess`
@@ -138,6 +139,7 @@ object-level widget 里，旧回调和真相观察面已经被显式拆开。
 
 这条线上应优先关注：
 
+- `dispatch_event -> input_event -> controller/app-state -> SceneAccess` 这条显式链
 - 句柄更新
 - 页面 wiring
 - 输入与布局边界

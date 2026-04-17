@@ -10,6 +10,7 @@
             patch.has_corner_radius = true;
             patch.corner_radius = 0;
             access.set_style_override(handles.now_backdrop, patch);
+            sync_now_cover_plate_surface();
 
             const rgba title = theme.on_backdrop;
             const rgba subtitle = blend_on(theme.on_backdrop, theme.backdrop, 200);
@@ -98,9 +99,11 @@
             if (!access.valid() || !handles.transition_root) return;
             set_label(handles.transition_title, title_text.c_str());
             set_label(handles.transition_subtitle, subtitle_text.c_str());
+            const bool has_cover = has_cover_image();
             if (handles.transition_cover && access.kind(handles.transition_cover) == WidgetKind::Image) {
+                access.set_visible(handles.transition_cover, has_cover);
                 access.set_image(handles.transition_cover,
-                                 ::ui::scene::image_id_valid(cover_image.image_id)
+                                 has_cover
                                      ? cover_image.image_id
                                      : ::ui::scene::invalid_image_id());
             }
@@ -115,14 +118,15 @@
                                               bool controls_visible,
                                               bool aux) noexcept {
             if (!access.valid()) return;
+            const bool cover_widgets_visible = cover && has_cover_image();
             const auto set_visible = [this](WidgetHandle handle, bool visible) {
                 if (handle) access.set_visible(handle, visible);
             };
             set_visible(handles.now_top_bar, top_bar);
             set_visible(handles.now_cover_plate, cover_plate);
-            set_visible(handles.cover, cover);
-            set_visible(handles.cover_left, cover);
-            set_visible(handles.cover_right, cover);
+            set_visible(handles.cover, cover_widgets_visible);
+            set_visible(handles.cover_left, cover_widgets_visible);
+            set_visible(handles.cover_right, cover_widgets_visible);
             set_visible(handles.now_text_group, text);
             set_visible(handles.now_progress_group, progress);
             set_visible(handles.controls, controls_visible);
@@ -138,10 +142,11 @@
                                                bool play,
                                                bool next) noexcept {
             if (!access.valid()) return;
+            const bool cover_widget_visible = cover && has_cover_image();
             const auto set_visible = [this](WidgetHandle handle, bool visible) {
                 if (handle) access.set_visible(handle, visible);
             };
-            set_visible(handles.bottom_cover, cover);
+            set_visible(handles.bottom_cover, cover_widget_visible);
             set_visible(handles.bottom_title, text);
             set_visible(handles.bottom_subtitle, text);
             set_visible(handles.bottom_play, play);

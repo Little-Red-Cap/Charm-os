@@ -847,6 +847,21 @@ export namespace player {
 
         bool is_playing() const noexcept { return playback.playing(); }
         bool is_paused() const noexcept { return playback.paused(); }
+        bool has_cover_image() const noexcept { return ::ui::scene::image_id_valid(cover_image.image_id); }
+        void sync_now_cover_plate_surface() noexcept {
+            if (!access.valid() || !handles.now_cover_plate) return;
+            const bool has_cover = has_cover_image();
+            StylePatch patch = ::ui::scene::make_clean_surface_patch({
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_corner_radius = true,
+                .bg_color = has_cover ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 0}
+                                      : cover_theme.backdrop,
+                .border_color = {0, 0, 0, 0},
+                .corner_radius = 42,
+            });
+            access.set_style_override(handles.now_cover_plate, patch);
+        }
 
         void reset_cover_image() noexcept {
             cover_ready = false;
@@ -884,6 +899,9 @@ export namespace player {
                 clear_image(handles.cover_right);
                 clear_image(handles.bottom_cover);
                 clear_image(handles.transition_cover);
+                restore_now_playing_group_visibility();
+                restore_bottom_bar_content_visibility();
+                sync_now_playing_transition_overlay();
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                 std::printf("[cover] no cover for track\n");
 #endif
@@ -903,6 +921,9 @@ export namespace player {
                     set_image(handles.bottom_cover);
                     set_image(handles.transition_cover);
                     cover_path.assign(candidate);
+                    restore_now_playing_group_visibility();
+                    restore_bottom_bar_content_visibility();
+                    sync_now_playing_transition_overlay();
                     if (cover_tint_path.view() != cover_image.path) {
                         cover_theme = derive_cover_theme(cover_image);
                         cover_tint_path.assign(cover_image.path);
@@ -925,6 +946,9 @@ export namespace player {
                     set_image(handles.bottom_cover);
                     set_image(handles.transition_cover);
                     cover_path.assign(candidate);
+                    restore_now_playing_group_visibility();
+                    restore_bottom_bar_content_visibility();
+                    sync_now_playing_transition_overlay();
                     cover_theme = derive_cover_theme(cover_image);
                     cover_tint_path.assign(cover_image.path);
                     apply_now_theme(cover_theme);
@@ -969,6 +993,9 @@ export namespace player {
             cover_tint_path.clear();
             cover_theme = derive_cover_theme(cover_image);
             apply_now_theme(cover_theme);
+            restore_now_playing_group_visibility();
+            restore_bottom_bar_content_visibility();
+            sync_now_playing_transition_overlay();
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] load failed: %s\n", cover_path.c_str());
 #endif

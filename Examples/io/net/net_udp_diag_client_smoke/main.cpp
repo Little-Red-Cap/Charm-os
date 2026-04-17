@@ -201,21 +201,6 @@ namespace {
         }
     };
 
-    template <typename Pump>
-    struct PumpSender {
-        Pump* pump{nullptr};
-
-        static net::Result<net::UdpSendDisposition> send(void* ctx,
-                                                         net::Endpoint local,
-                                                         const net::Endpoint& peer,
-                                                         net::ByteView payload) noexcept {
-            auto* self = static_cast<PumpSender*>(ctx);
-            if (!self || !self->pump) {
-                return util::unexpected(net::errc::bad_state);
-            }
-            return self->pump->send(local, peer, payload);
-        }
-    };
 }
 
 int main() {
@@ -273,14 +258,12 @@ int main() {
         }
     };
 
-    net::diag::udp::Client<16, 4> client{};
+    net::diag::udp::EndpointClient<16, 4> client{local, peer};
     ClientState client_state{};
-    PumpSender<decltype(pump)> sender{&pump};
-    client.set_sender(&PumpSender<decltype(pump)>::send, &sender);
     client.set_error_handler(&ClientState::on_error, &client_state);
 
-    auto bound = pump.bind_udp(local.port, net::make_udp_datagram_sink_ref(client));
-    if (!bound || pump.udp_binding_count() != 1) {
+    auto bound = client.bind(pump);
+    if (!bound || !pump.has_udp_binding(client.local_endpoint().port) || pump.udp_binding_count() != 1) {
         std::fputs("udp diag client smoke bind failed\n", stderr);
         return 5;
     }
@@ -324,8 +307,6 @@ int main() {
     }
 
     auto ping = client.ping(
-        local,
-        peer,
         net::diag::PingRequest{{'p', 'i', 'n', 'g'}},
         10,
         50,
@@ -448,8 +429,6 @@ int main() {
     }
 
     auto count = client.query_count(
-        local,
-        peer,
         20,
         40,
         &ClientState::on_count,
@@ -529,8 +508,6 @@ int main() {
     }
 
     auto meta = client.query_meta(
-        local,
-        peer,
         net::diag::MetaRequest{
             .code = 0x1234u,
             .flags = 0x5Au,
@@ -566,8 +543,6 @@ int main() {
     }
 
     auto slow = client.query_slow_count(
-        local,
-        peer,
         net::diag::CounterValue{41},
         50,
         20,

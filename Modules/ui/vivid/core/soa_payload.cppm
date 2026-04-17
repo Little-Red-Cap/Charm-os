@@ -273,12 +273,15 @@ export namespace soa_detail {
     using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewTailFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = ImageId (*)(const void*, std::uint16_t) noexcept;
+    using ListViewRowFlagsFn = std::uint8_t (*)(const void*, std::uint16_t) noexcept;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
     using TableViewHeaderFn = const char* (*)(const void*, std::uint8_t) noexcept;
     using TableViewColWidthFn = int (*)(const void*, std::uint8_t) noexcept;
     using TreeViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using TreeViewIndentFn = std::uint8_t (*)(const void*, std::uint16_t) noexcept;
     using RollerTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
+
+    constexpr std::uint8_t kListViewRowFlagGroup = 0x01;
 
     struct ListViewPayload {
         const void* text_ctx{nullptr};
@@ -293,6 +296,8 @@ export namespace soa_detail {
         ListViewIconFn tail_action_icon_fn{nullptr};
         const void* icon_ctx{nullptr};
         ListViewIconFn icon_fn{nullptr};
+        const void* row_flags_ctx{nullptr};
+        ListViewRowFlagsFn row_flags_fn{nullptr};
         std::uint16_t count{0};
         std::int16_t selected{-1};
         std::int16_t active{-1};

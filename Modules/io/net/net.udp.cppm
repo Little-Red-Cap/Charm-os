@@ -150,6 +150,11 @@ export namespace net {
             return true;
         }
 
+        [[nodiscard]] constexpr bool is_ipv4_limited_broadcast_endpoint(
+            const Endpoint& endpoint) noexcept {
+            return endpoint.address.is_ipv4_limited_broadcast() && endpoint.port != 0u;
+        }
+
         [[nodiscard]] Result<Endpoint> normalize_udp_ipv4_local(const NetIf& netif, Endpoint local) noexcept {
             if (local.port == 0u) {
                 return util::unexpected(errc::invalid_arg);
@@ -308,6 +313,21 @@ export namespace net {
             return util::unexpected(normalized_local.error());
         }
 
+        if (udp_detail::is_ipv4_limited_broadcast_endpoint(peer)) {
+            if (!netif.supports(NetIfCapability::broadcast)) {
+                return util::unexpected(errc::not_supported);
+            }
+            return send_udp_ipv4_resolved<TxCapacity>(
+                netif,
+                MacAddress::broadcast(),
+                normalized_local.value(),
+                peer,
+                payload,
+                ttl,
+                identification,
+                dscp_ecn);
+        }
+
         const auto resolved = arp.lookup(peer.address);
         if (!resolved) {
             return util::unexpected(resolved.error());
@@ -340,6 +360,21 @@ export namespace net {
         const auto normalized_local = udp_detail::normalize_udp_ipv4_local(netif, local);
         if (!normalized_local) {
             return util::unexpected(normalized_local.error());
+        }
+
+        if (udp_detail::is_ipv4_limited_broadcast_endpoint(peer)) {
+            if (!netif.supports(NetIfCapability::broadcast)) {
+                return util::unexpected(errc::not_supported);
+            }
+            return send_udp_ipv4_resolved<TxCapacity>(
+                netif,
+                MacAddress::broadcast(),
+                normalized_local.value(),
+                peer,
+                payload,
+                ttl,
+                identification,
+                dscp_ecn);
         }
 
         const auto resolved = arp.lookup_or_request(peer.address);
@@ -561,6 +596,25 @@ export namespace net {
                 return {};
             }
             return util::unexpected(errc::buffer_overflow);
+        }
+
+        template <UdpDatagramSink T>
+        [[nodiscard]] Result<void> bind(util::u16 local_port, T& sink) noexcept {
+            return bind(local_port, make_udp_datagram_sink_ref(sink));
+        }
+
+        [[nodiscard]] bool has_binding(util::u16 local_port) const noexcept {
+            return find_binding(local_port) != invalid_index();
+        }
+
+        [[nodiscard]] bool unbind(util::u16 local_port) noexcept {
+            const auto binding_index = find_binding(local_port);
+            if (binding_index == invalid_index()) {
+                return false;
+            }
+
+            bindings_[binding_index] = {};
+            return true;
         }
 
         [[nodiscard]] util::usize binding_count() const noexcept {

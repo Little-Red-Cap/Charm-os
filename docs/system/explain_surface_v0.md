@@ -187,11 +187,15 @@ system compiler 正在长出多张可被解释的面。
 
 v0 阶段建议至少覆盖：
 
+- normalized system input
 - capabilities
 - materialized order
+- binding result
+- bringup order
 - required facts
 - unresolved bindings
 - active facets
+- system formation summary
 - bringup evidence summary
 - resource contract summary
 - supporting artifacts 引用
@@ -213,7 +217,14 @@ v0 阶段建议至少覆盖：
 
 它当前不是完整 explain shell，
 但已经能把 `artifact report` 压成一页稳定可读摘要，
-并继续把结构、资源契约、compare 结论与底层工件引用一起带出来。
+并继续把规范化输入、结构、binding result、bringup order、资源契约、compare 结论与底层工件引用一起带出来。
+
+当前默认总览还开始显式打印一个最小 `[INPUT]` 区块，
+用来回答：
+
+- 这个 case 当前属于哪种 system spec 投影
+- declared facts / declared contracts 是什么
+- profile / board / facets 是从显式参数、默认值还是 case subject 解析出来的
 
 ## 6. v0 的最小 `explain surface`
 
@@ -228,6 +239,7 @@ v0 阶段建议至少覆盖：
 - `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+- `scripts/materialized_graph_system_formation_compare_smoke.ps1`
 
 一起收口成 v0 契约。
 
@@ -360,9 +372,34 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
 - `capability_summary.compared_capabilities`
 
+默认总览本身现在还会继续直接给出：
+
+- `comparison.input_changed_case_count`
+- `comparison.system_formation_changed_case_count`
+- `comparison.binding_result_changed_case_count`
+- `comparison.bringup_order_changed_case_count`
+- `system_formation_summary.case_count / formed_case_count / blocked_case_count`
+- `system_formation_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
+- `comparison.system_formation_summary.changed_case_count`
+- `comparison.system_formation_summary.status_change_matrix / blocker_change_matrix`
+- `cases[*].Formation`
+- `cases[*].InpCmp`
+- `cases[*].FormCmp`
+- `cases[*].BindCmp`
+- `cases[*].OrdCmp`
+
+也就是说，artifact_root 默认总览现在不只会说
+“有多少 case 发生了 system formation 漂移”，
+还会继续直接带出：
+
+- 这一组 case 当前整体有多少已经 `formed`、多少已经 `blocked`
+- unresolved capability / blocked node / blocker 在多 case 之间如何聚集
+- compare 模式下哪些 `formed -> blocked` 或 `blocked -> formed` 转换真的发生了
+
 这意味着默认 explain 面现在已经可以先回答两层问题：
 
 - 有多少 case 发生了 compare drift
+- 这些 drift 里有多少已经进入 system formation 结果面
 - compare drift 主要集中在哪些 capability 上
 
 围绕同一批 capability，

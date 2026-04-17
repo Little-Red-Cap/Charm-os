@@ -78,6 +78,12 @@ v0 阶段的使用规则如下：
 
 - `SystemSpec` 已经是路线图正式词汇
 - 但还没有收敛成单一源码对象
+- `artifact report.system_input.system_spec`
+  已开始作为 v0 结果物里的规范化输入投影，
+  用来把当前 case 的 system spec 入口正式暴露给人和工具
+- compare 模式下的 `artifact report.comparison.system_input`
+  也已经开始把“系统如何成立的输入发生了什么漂移”正式拉进结果物，
+  让输入语言不只可导出，也可比较
 
 ### 3.2 `Profile`
 
@@ -111,6 +117,8 @@ v0 阶段的使用规则如下：
 
 - 词已经有现实载体
 - 但载体仍然分散，还没统一成单一 profile 语言
+- `artifact report.system_input.resolved_input.profile`
+  现在已经把“当前 profile 最终取值及来源”正式投影出来
 
 ### 3.3 `BoardPackage`
 
@@ -153,6 +161,8 @@ v0 阶段的使用规则如下：
 
 - `BoardCaps` 已经很稳定
 - `BoardPackage` 仍是更上位的汇总词
+- `artifact report.system_input.resolved_input.board`
+  现在已经把 board 取值及来源正式投影出来，但还不是完整 `BoardPackage`
 
 ### 3.4 `Binding`
 
@@ -252,6 +262,8 @@ report / system 侧的现实载体包括：
 
 - 词已经有现实入口
 - 但命名和粒度仍在收敛
+- `artifact report.system_input.resolved_input.active_facets`
+  现在已经把活动 facets 及其解析来源正式投影出来
 
 ### 3.6 `Case`
 
@@ -320,7 +332,75 @@ report / system 侧的现实载体包括：
 
 两者差异不在名字，而在语义位置。
 
-### 4.3 `Materialized Graph`
+### 4.3 `BindingResult`
+
+它回答的是：
+
+> **当前这组 required binding 里，哪些已经成立，哪些还没成立。**
+
+它当前更偏“成立性结果物”，
+而不是图本身或 explain query 本身。
+
+当前对应载体包括：
+
+- `artifact report` 中的 `binding_result`
+- `required_facts / unresolved_bindings`
+- capability provider / consumer 的最小汇总结论
+
+它最适合回答这类问题：
+
+- 哪些 binding 已经 resolved
+- 哪些 binding 还 unresolved
+- 某个 required capability 由谁提供、被谁消费
+
+### 4.4 `BringupOrder`
+
+它回答的是：
+
+> **当前系统实际按什么顺序被物化/bring up，以及每个节点依赖谁。**
+
+当前对应载体包括：
+
+- `materialized_graph.sample/v2` 里的节点顺序、phase、requires/provides
+- `artifact report` 中的 `bringup_order`
+
+它和 `Materialized Graph` 的区别是：
+
+- `Materialized Graph`
+  更偏结构事实
+- `BringupOrder`
+  更偏“成立过程的结果语言”
+
+它最适合回答这类问题：
+
+- 谁先被 bring up
+- 某个节点依赖谁
+- 哪些 require 已满足
+- 哪些 require 仍缺失，因此当前只能标成 blocked
+
+### 4.5 `SystemFormation`
+
+它回答的是：
+
+> **当前这组 binding 与 bringup 结果最终是否已经形成一个可成立的系统，以及阻塞点是什么。**
+
+当前对应载体包括：
+
+- `artifact report` 中的 `system_formation`
+- `artifact report.comparison.system_formation`
+- artifact_root 默认总览中的 `system_formation_summary`
+- artifact_root 默认总览中的 `comparison.system_formation_summary`
+- 默认总览里的 `Formation / FormCmp`
+
+它最适合回答这类问题：
+
+- 当前系统整体是 `formed` 还是 `blocked`
+- unresolved capability 与 blocked node 是否已经收敛成正式 blocker 列表
+- 一组 case 整体有多少已经 `formed` / `blocked`
+- compare 模式下哪些 case 发生了 `formed -> blocked` 一类 formation 漂移
+- compare 漂移有没有已经进入成立性结果面
+
+### 4.6 `Materialized Graph`
 
 它回答的是：
 
@@ -335,7 +415,7 @@ report / system 侧的现实载体包括：
 
 它是当前 system compiler 最成熟的结果物之一。
 
-### 4.4 `Bringup Evidence`
+### 4.7 `Bringup Evidence`
 
 它回答的是：
 
@@ -346,7 +426,7 @@ report / system 侧的现实载体包括：
 - `docs/system/bringup_evidence_pipeline_v0.md`
 - `artifact report` 中的 `bringup_evidence` 摘要
 
-### 4.5 `Resource Contract`
+### 4.8 `Resource Contract`
 
 它回答的是：
 
@@ -357,7 +437,7 @@ report / system 侧的现实载体包括：
 - `docs/system/resource_contract_v0.md`
 - `artifact report` 中的 `resource_contract` 摘要
 
-### 4.6 `Artifact Report`
+### 4.9 `Artifact Report`
 
 它回答的是：
 
@@ -369,7 +449,7 @@ report / system 侧的现实载体包括：
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `scripts/export_system_compiler_artifact_report.ps1`
 
-### 4.7 `Explain Surface`
+### 4.10 `Explain Surface`
 
 它回答的是：
 
@@ -385,14 +465,17 @@ report / system 侧的现实载体包括：
 
 | 目标词汇 | 当前主要载体 | 当前状态 | 当前不要误写成 |
 | --- | --- | --- | --- |
-| `SystemSpec` | 应用/示例目标、export case manifest、init case、设计文档 | 词已确立，尚未单对象化 | 单个 case / 单个 CMakeLists |
-| `Profile` | target profile、局部 featureset、report profile 字段 | 已有碎片化载体 | Debug/Release、单个 UI 配置 |
-| `BoardPackage` | `BoardCaps` + 板级 target/config | 事实载体已存在，汇总词尚未收口 | 隐式 init / BSP 黑盒 |
+| `SystemSpec` | 应用/示例目标、export case manifest、init case、设计文档、`artifact report.system_input.system_spec` | 词已确立，开始进入结果物投影 | 单个 case / 单个 CMakeLists |
+| `Profile` | target profile、局部 featureset、report profile 字段、`system_input.resolved_input.profile` | 已有碎片化载体，开始显式投影解析来源 | Debug/Release、单个 UI 配置 |
+| `BoardPackage` | `BoardCaps` + 板级 target/config + `system_input.resolved_input.board` | 事实载体已存在，开始显式投影 board 取值来源 | 隐式 init / BSP 黑盒 |
 | `Binding` | `*Binding`、init chain、runtime driver/export | 双平面都已存在 | 只等于 `device::Driver` |
-| `Facet` | facet target、`active_facets`、语义面文档 | 词已出现，命名仍在收敛 | profile / target / component |
+| `Facet` | facet target、`active_facets`、语义面文档、`system_input.resolved_input.active_facets` | 词已出现，开始显式投影解析来源 | profile / target / component |
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
+| `BindingResult` | `artifact report.binding_result`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
+| `BringupOrder` | `artifact report.bringup_order`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |
+| `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、默认总览 `Formation / FormCmp` | 已有正式结果物载体 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
 
 ## 6. 一个最小 worked example

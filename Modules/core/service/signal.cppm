@@ -26,6 +26,8 @@ export namespace service {
         using slot_type = util::delegate<Args...>;
 
         struct connection {
+            // connection is only a disconnect token.
+            // It does not own the target and does not imply auto-unbind.
             util::u16 slot{};
             util::u16 generation{};
 

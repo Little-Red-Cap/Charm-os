@@ -1,5 +1,12 @@
 # Charm Signal / State v0
 
+这份文档描述的是 v0 的原语形态、目标与系统关系。
+
+如果你要看允许用法、禁止用法、ISR 边界、生命周期规则与 review checklist，
+请优先同时阅读：
+
+- `docs/architecture/signal_state_contract_v0.md`
+
 ## 目标
 
 `signal_state_v0` 定义的是 Charm 在 Foundation 层的最小事件连接原语。

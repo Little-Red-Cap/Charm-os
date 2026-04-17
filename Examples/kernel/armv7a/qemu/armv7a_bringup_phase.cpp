@@ -84,6 +84,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-trap-failure";
     case Armv7aBringupPhase::kContextSwitchSmoke:
         return "context-switch-smoke";
+    case Armv7aBringupPhase::kThreadRuntime:
+        return "thread-runtime";
     case Armv7aBringupPhase::kSchedulerDispatch:
         return "scheduler-dispatch";
     case Armv7aBringupPhase::kRuntimeBridge:

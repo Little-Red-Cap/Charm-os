@@ -30,6 +30,7 @@
 #include "armv7a_task_syscall_roundtrip.hpp"
 #include "armv7a_scheduler_dispatch.hpp"
 #include "armv7a_scheduler_tick.hpp"
+#include "armv7a_thread_runtime.hpp"
 
 int main()
 {
@@ -96,6 +97,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
     armv7a_run_context_switch_smoke();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kThreadRuntime);
+    armv7a_print_thread_runtime_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kThreadRuntime);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSchedulerDispatch);
     armv7a_print_scheduler_dispatch_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kSchedulerDispatch);

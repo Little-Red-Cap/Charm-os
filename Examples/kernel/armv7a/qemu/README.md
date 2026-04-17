@@ -165,6 +165,7 @@ ARMv7-A runtime trap caller, yield-path=svc-call-frame, yield-svc=0x000043, yiel
 ARMv7-A runtime trap failure, unsupported=unsupported-service, decode=decode-failed, writeback=writeback-failed, adapter=unbound-adapter, dispatch=unbound-adapter, failure=yes
 ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x40...., stack-top=0x40...., prepared-sp=0x40...., resume=0x40...., return=0x40...., entry=0x40...., arg=0x40...., aligned=yes, in-range=yes, ready=yes
 ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-entry-sp=0x40...., thread-saved=0x40...., thread-resume-sp=0x40...., entry=yes, resumed=yes, round-trip=yes
+ARMv7-A thread runtime, kind=cooperative-sys, task=0x0000000059537001, current-sp=0x000000005200B000, prepared-sp=0x40...., current=yes, prepare=yes, switch=yes, runtime=yes
 ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes
 ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000002, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes
 ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes
@@ -541,6 +542,10 @@ continue
   which says the task-side `svc-trap` path, the ISR-side `timer-tick` path,
   and the cooperative context round-trip can all meet at one future scheduler
   dispatch seam without the generic kernel core knowing anything QEMU-specific.
+- The same leaf now also prints one `thread runtime` line that proves the
+  lower-half `current` capture, cooperative frame preparation, and already
+  observed context-switch round-trip can meet at one reusable runtime seam
+  before the upper thread/runtime port starts binding to this leaf.
 - The returning SVC path now also records the 24-bit service tag and the
   trap-time `r0-r3` values into one explicit `runtime trap ingress` contract,
   so later `yield / sleep / syscall-like` runtime glue can bind to a proven

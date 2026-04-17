@@ -152,6 +152,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-trap-failure",
     "ARMv7-A phase, stage=context-switch-smoke",
     "ARMv7-A phase complete, stage=context-switch-smoke",
+    "ARMv7-A phase, stage=thread-runtime",
+    "ARMv7-A phase complete, stage=thread-runtime",
     "ARMv7-A phase, stage=scheduler-dispatch",
     "ARMv7-A phase complete, stage=scheduler-dispatch",
     "ARMv7-A phase, stage=runtime-bridge",
@@ -361,6 +363,9 @@ if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0
 }
 if (($log -notmatch "ARMv7-A context switch smoke, main-before=0x[0-9A-F]{8}, main-saved=0x[0-9A-F]{8}, thread-entry-sp=0x[0-9A-F]{8}, thread-saved=0x[0-9A-F]{8}, thread-resume-sp=0x[0-9A-F]{8}, entry=yes, resumed=yes, round-trip=yes")) {
     $missing += "ARMv7-A context switch smoke, main-before=0x..."
+}
+if (($log -notmatch "ARMv7-A thread runtime, kind=cooperative-sys, task=0x0000000059537001, current-sp=0x000000005200B000, prepared-sp=0x[0-9A-F]{8}, current=yes, prepare=yes, switch=yes, runtime=yes")) {
+    $missing += "ARMv7-A thread runtime, kind=cooperative-sys..."
 }
 if (($log -notmatch "ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes")) {
     $missing += "ARMv7-A scheduler dispatch, task=svc-trap..."

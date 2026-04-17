@@ -109,6 +109,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     main.cpp
     armv7a_bringup_phase.cpp
     armv7a_context_smoke.cpp
+    armv7a_thread_runtime.cpp
     armv7a_context_switch.cpp
     armv7a_context_switch.S
     armv7a_cpu.cpp

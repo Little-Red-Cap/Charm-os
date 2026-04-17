@@ -3,6 +3,7 @@ module;
 export module charm.widgets.bar;
 
 import charm.core.object;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
@@ -14,6 +15,10 @@ using namespace ui::render;
 export
 class Bar : public WidgetBase<Bar> {
 public:
+    using value_state_type = service::state<int, 4>;
+    using value_slot_type = typename value_state_type::slot_type;
+    using value_connection = typename value_state_type::connection;
+
     Bar() {
         set_size(160, 12);
     }
@@ -26,15 +31,26 @@ public:
         }
         min_ = min_v;
         max_ = max_v;
-        set_value(value_);
+        set_value(value());
     }
 
     void set_value(int v) noexcept {
-        value_ = alg::arc::clamp_to_range(v, min_, max_);
+        (void)value_.set(alg::arc::clamp_to_range(v, min_, max_));
     }
+
+    [[nodiscard]] int value() const noexcept { return value_.get(); }
 
     void set_mode(bool reverse) noexcept { reverse_ = reverse; }
     void set_secondary(int v) noexcept { secondary_ = v; }
+
+    // observe_value() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
+        return value_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
+        return value_.disconnect(c);
+    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -57,7 +73,7 @@ public:
         int filled = 0;
         int secondary_filled = 0;
         if (range > 0) {
-            const int clamped = alg::arc::clamp_to_range(value_, min_, max_);
+            const int clamped = alg::arc::clamp_to_range(value(), min_, max_);
             const std::int64_t num = static_cast<std::int64_t>(inner_w) * (clamped - min_);
             filled = static_cast<int>(num / range);
             if (secondary_ >= min_ && secondary_ <= max_) {
@@ -85,7 +101,7 @@ public:
 private:
     int min_{0};
     int max_{100};
-    int value_{0};
+    value_state_type value_{0};
     int secondary_{-1};
     bool reverse_{false};
 };

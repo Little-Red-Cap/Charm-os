@@ -367,6 +367,8 @@ report / system 侧的现实载体包括：
 
 - `artifact report` 中的 `fact_resolution`
 - `artifact report.comparison.fact_resolution`
+- artifact_root 默认总览中的 `fact_resolution_summary`
+- artifact_root 默认总览中的 `comparison.fact_resolution_summary`
 - report 级 `resource summary` explain 结果
 
 它最适合回答这类问题：
@@ -497,7 +499,7 @@ report / system 侧的现实载体包括：
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
 | `BindingResult` | `artifact report.binding_result`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
-| `FactResolution` | `artifact report.fact_resolution`、`comparison.fact_resolution`、`resource summary` | 已有正式结果物载体 | 只等于 `resource_contract` 审计层 |
+| `FactResolution` | `artifact report.fact_resolution`、`comparison.fact_resolution`、`fact_resolution_summary`、`resource summary` | 已有正式结果物载体 | 只等于 `resource_contract` 审计层 |
 | `BringupOrder` | `artifact report.bringup_order`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |
 | `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、默认总览 `Formation / FormCmp` | 已有正式结果物载体 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |

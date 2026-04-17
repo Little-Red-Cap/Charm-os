@@ -378,10 +378,15 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_formation_changed_case_count`
 - `comparison.binding_result_changed_case_count`
 - `comparison.bringup_order_changed_case_count`
+- `comparison.fact_resolution_changed_case_count`
 - `system_formation_summary.case_count / formed_case_count / blocked_case_count`
 - `system_formation_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
+- `fact_resolution_summary.case_count`
+- `fact_resolution_summary.required_fact_matrix / provided_fact_matrix`
 - `comparison.system_formation_summary.changed_case_count`
 - `comparison.system_formation_summary.status_change_matrix / blocker_change_matrix`
+- `comparison.fact_resolution_summary.changed_case_count`
+- `comparison.fact_resolution_summary.fact_inventory_change_matrix`
 - `cases[*].Formation`
 - `cases[*].InpCmp`
 - `cases[*].FormCmp`
@@ -394,7 +399,9 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 
 - 这一组 case 当前整体有多少已经 `formed`、多少已经 `blocked`
 - unresolved capability / blocked node / blocker 在多 case 之间如何聚集
+- required fact / audit provided fact 在多 case 之间如何聚集
 - compare 模式下哪些 `formed -> blocked` 或 `blocked -> formed` 转换真的发生了
+- compare 模式下哪些 fact inventory / contract state 已经进入正式 fact resolution 漂移面
 
 这意味着默认 explain 面现在已经可以先回答两层问题：
 
@@ -839,12 +846,22 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 
 如果选择的是整组 compare report，
 artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
-`query.comparison.resource_contract`，至少带出：
+`query.comparison.resource_contract` 与 `query.comparison.fact_resolution`。
+
+其中 `query.comparison.resource_contract` 至少带出：
 
 - `compared_case_count / changed_case_count / unchanged_case_count`
 - `changed_cases / unchanged_cases`
 - `summary_change_matrix`
 - `contract_change_matrix`
+
+而 `query.comparison.fact_resolution` 至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `contract_change_matrix`
+- `fact_inventory_change_matrix`
 
 这让资源解释面不只会横向看“哪些合同在哪些 case 中成立”，
 还可以横向看：
@@ -852,6 +869,7 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 - 哪些 case 的资源法律相对 baseline 发生漂移
 - 哪条合同在多少 case 中发生 compare change
 - summary drift 是否集中在少数几个 contract law 变化上
+- 哪组 `required / graph_provided / audit_provided` facts 在多少 case 中发生 added/removed 漂移
 
 当前 `resource summary` 的最小解释方式是：
 

@@ -311,10 +311,13 @@ $rootSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.
 Assert-Condition ([int]$rootSummary.case_count -eq @($ExportCases).Count) 'default artifact_root summary case_count mismatch'
 Assert-Condition (@($rootSummary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary cases length mismatch'
 Assert-Condition ($null -ne $rootSummary.system_formation_summary) 'default artifact_root summary must expose system_formation_summary'
+Assert-Condition ($null -ne $rootSummary.fact_resolution_summary) 'default artifact_root summary must expose fact_resolution_summary'
 Assert-Condition ([int]$rootSummary.system_formation_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_formation_summary.formed_case_count -eq @($ExportCases).Count) 'default artifact_root summary formed_case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_formation_summary.blocked_case_count -eq 0) 'default artifact_root summary blocked_case_count must stay zero in export_only mode'
 Assert-Condition (@($rootSummary.system_formation_summary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.cases length mismatch'
+Assert-Condition ([int]$rootSummary.fact_resolution_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary fact_resolution_summary.case_count mismatch'
+Assert-Condition (@($rootSummary.fact_resolution_summary.required_fact_matrix).Count -gt 0) 'default artifact_root summary must expose required_fact_matrix'
 $rootReportSummary = @(
     @($rootSummary.cases) |
         Where-Object { [string]$_.Case -eq $ReportCase } |
@@ -337,7 +340,9 @@ $subsetSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summar
 }
 Assert-Condition ([int]$subsetSummary.case_count -eq @($SubsetCases).Count) 'subset artifact_root summary case_count mismatch'
 Assert-Condition ($null -ne $subsetSummary.system_formation_summary) 'subset artifact_root summary must expose system_formation_summary'
+Assert-Condition ($null -ne $subsetSummary.fact_resolution_summary) 'subset artifact_root summary must expose fact_resolution_summary'
 Assert-Condition ([int]$subsetSummary.system_formation_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root system_formation_summary.case_count mismatch'
+Assert-Condition ([int]$subsetSummary.fact_resolution_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root fact_resolution_summary.case_count mismatch'
 
 $capListReport = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'cap_list.report.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $ReportCase -CapList -AsJson
@@ -449,6 +454,7 @@ $resourceSummaryRoot = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot '
 Assert-Condition ([string]$resourceSummaryRoot.query.kind -eq 'resource_summary') 'resource_summary artifact_root query kind mismatch'
 Assert-Condition ([string]$resourceSummaryRoot.query.scope -eq 'artifact_root') 'resource_summary artifact_root scope mismatch'
 Assert-Condition ([int]$resourceSummaryRoot.query.result.case_count -eq @($ExportCases).Count) 'resource_summary artifact_root case_count mismatch'
+Assert-Condition (@($resourceSummaryRoot.query.result.required_fact_matrix).Count -gt 0) 'resource_summary artifact_root must expose required_fact_matrix'
 
 $resourceSummarySubset = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'resource_summary.root_subset.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $SubsetCases -ResourceSummary -AsJson
@@ -520,6 +526,7 @@ $summary = [ordered]@{
         runtime_only_summary_exposes_formed_system_formation = $true
         default_summary_artifact_root_supported = $true
         default_summary_subset_supported = $true
+        default_summary_artifact_root_exposes_fact_resolution = $true
         cap_list_report_supported = $true
         cap_list_artifact_root_supported = $true
         cap_list_partial_root_rejected = $true
@@ -536,6 +543,7 @@ $summary = [ordered]@{
         resource_summary_report_supported = $true
         resource_summary_report_exposes_required_facts = $true
         resource_summary_artifact_root_supported = $true
+        resource_summary_artifact_root_exposes_required_fact_matrix = $true
         resource_summary_subset_supported = $true
         show_transitions_appendix_reuses_report_language = $true
         compare_smokes_reused = (-not $SkipCompareSmokes)

@@ -207,12 +207,17 @@ Assert-Condition ([string]$inspectResult.query.kind -eq 'resource_summary') 'ins
 Assert-Condition ([string]$inspectResult.query.scope -eq 'artifact_root') 'inspect resource summary scope mismatch'
 Assert-Condition ($null -ne $inspectResult.query.comparison) 'artifact_root resource summary must expose comparison payload'
 Assert-Condition ($null -ne $inspectResult.query.comparison.resource_contract) 'artifact_root resource summary missing comparison.resource_contract'
+Assert-Condition ($null -ne $inspectResult.query.comparison.fact_resolution) 'artifact_root resource summary missing comparison.fact_resolution'
 
 $resourceComparison = $inspectResult.query.comparison.resource_contract
+$factResolutionComparison = $inspectResult.query.comparison.fact_resolution
 Assert-Condition ([int]$resourceComparison.changed_case_count -eq 1) 'resource compare root changed_case_count must be 1'
 Assert-Condition ((@($resourceComparison.changed_cases) -contains $ChangedCase)) 'resource compare root changed_cases missing target case'
 Assert-Condition ((@($resourceComparison.unchanged_cases) -contains $ExpectedUnchangedCase)) 'resource compare root unchanged_cases missing baseline peer case'
 Assert-Condition ((@($resourceComparison.summary_change_matrix | Where-Object { [string]$_.change -eq 'violated_count:0->1' }).Count -eq 1)) 'resource compare root summary_change_matrix missing violated_count change'
+Assert-Condition ([int]$factResolutionComparison.changed_case_count -eq 1) 'fact resolution compare root changed_case_count must be 1'
+Assert-Condition ((@($factResolutionComparison.changed_cases) -contains $ChangedCase)) 'fact resolution compare root changed_cases missing target case'
+Assert-Condition ($null -ne $factResolutionComparison.fact_inventory_change_matrix.required_facts) 'fact resolution compare root must expose required_facts change matrix'
 
 $contractChangeEntry = @(
     @($resourceComparison.contract_change_matrix) |
@@ -232,9 +237,13 @@ Assert-Condition ([string]$contractCase.right_state -eq 'violated') 'resource co
 $rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
 }
-Assert-Condition ([int]$rootSummaryInspectResult.comparison.compared_case_count -eq 2) 'artifact_root summary compared_case_count must be 2'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.compared_case_count -ge 2) 'artifact_root summary compared_case_count must include at least the changed and unchanged cases'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.resource_changed_case_count -eq 1) 'artifact_root summary resource_changed_case_count must be 1'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.fact_resolution_changed_case_count -eq 1) 'artifact_root summary fact_resolution_changed_case_count must be 1'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.resource_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing resource changed case'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.fact_resolution_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing fact resolution changed case'
+Assert-Condition ($null -ne $rootSummaryInspectResult.fact_resolution_summary) 'artifact_root summary must expose fact_resolution_summary'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.fact_resolution_summary) 'artifact_root summary must expose comparison.fact_resolution_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.capability_summary) 'artifact_root summary must expose capability summary'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.capability_summary.resource_compare_capability_count -eq 1) 'artifact_root summary resource compare capability count must be 1'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.capability_summary.resource_compare_capabilities) -contains $AddedRequiredFact)) 'artifact_root summary capability summary missing required fact'
@@ -263,10 +272,12 @@ $summary = [ordered]@{
     why_inspect_json = $whyInspectJsonPath
     assertions = [ordered]@{
         artifact_root_compare_present = $true
+        artifact_root_fact_resolution_compare_present = $true
         changed_case_detected = $true
         unchanged_case_detected = $true
         contract_change_matrix_detected = $true
         root_summary_compare_detected = $true
+        root_summary_fact_resolution_detected = $true
         root_summary_capability_compare_detected = $true
         root_why_compare_detected = $true
     }

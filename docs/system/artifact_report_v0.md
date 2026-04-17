@@ -114,7 +114,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
 - compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.system_formation / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract / comparison.fact_resolution`
-- artifact_root 默认总览里的 `system_formation_summary / comparison.system_formation_summary`
+- artifact_root 默认总览里的 `system_formation_summary / fact_resolution_summary`
+- artifact_root 默认总览里的 `comparison.system_formation_summary / comparison.fact_resolution_summary`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
@@ -208,12 +209,15 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `bringup_order_changed_case_count`
 - `bringup_changed_case_count`
 - `resource_changed_case_count`
+- `fact_resolution_changed_case_count`
 - `capability_summary.compared_capability_count`
 - `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
 - `capability_summary.compared_capabilities`
 - `system_formation_summary.changed_case_count / unchanged_case_count`
 - `system_formation_summary.status_change_matrix`
 - `system_formation_summary.blocker_change_matrix`
+- `fact_resolution_summary.changed_case_count / unchanged_case_count`
+- `fact_resolution_summary.fact_inventory_change_matrix`
 
 这意味着默认总览已经能直接回答：
 
@@ -225,8 +229,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 > **这些漂移主要集中在哪些 capability 上。**
 
 与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
-`system_formation_summary`，
-至少包括：
+`system_formation_summary`，至少包括：
 
 - `case_count / formed_case_count / blocked_case_count`
 - `formed_cases / blocked_cases`
@@ -235,11 +238,24 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `blocked_node_matrix`
 - `blocker_matrix`
 
+并继续显式带出一份 `fact_resolution_summary`，
+至少包括：
+
+- `case_count`
+- `totals.declared_contracts / totals.satisfied_count / totals.violated_count / totals.unknown_count`
+- `required_fact_matrix / provided_fact_matrix`
+- `contract_matrix`
+- `resource_hotspot_matrix`
+
 这意味着 inspector 已经不只会逐 case 地回答
 “系统是否 formed / blocked”，
 还会横向回答：
 
 > **这一组系统实例整体是怎么形成的，阻塞面主要集中在哪里。**
+
+同时也会横向回答：
+
+> **这一组系统实例依赖哪些 facts、哪些资源法律在多少 case 中成立、热点集中在哪些 contract/fact 上。**
 
 而 `why unavailable` 当前则支持两种读取作用域：
 

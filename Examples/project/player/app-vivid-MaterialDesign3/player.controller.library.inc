@@ -953,6 +953,7 @@
             const bool has_context = library_has_context();
             const bool path_active = library_can_step_back();
             const bool sort_desc = list_sort == ListSort::NameDesc;
+            const bool sort_active = list_shuffle_enabled || sort_desc;
             const WidgetHandle active_tab = active_library_tab_handle();
             const Rect active_rect = active_tab ? access.world_rect(active_tab) : Rect{};
             if (library_visual_state.valid
@@ -992,7 +993,10 @@
             apply_library_tab_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
             apply_library_tab_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
             apply_library_chip_style(handles.list_shuffle, list_shuffle_enabled, kLibraryTabRadius, true);
-            apply_library_chip_style(handles.list_sort, sort_desc, kLibrarySortRadius, true);
+            apply_library_chip_style(handles.list_sort, sort_active, kLibrarySortRadius, true);
+            if (handles.list_sort) {
+                access.set_button_icon(handles.list_sort, list_shuffle_enabled ? icons.shuffle : icons.down);
+            }
             if (handles.list_tab_indicator) {
                 const int indicator_w = std::max(36, active_rect.w / 4);
                 access.set_rect(handles.list_tab_indicator,
@@ -1038,7 +1042,7 @@
                 patch.has_font_role = true;
                 patch.font_role = FontId::Small;
                 patch.has_font_weight = true;
-                patch.font_weight = FontWeight::Medium;
+                patch.font_weight = path_active ? FontWeight::Bold : FontWeight::Medium;
                 access.set_style_override(handles.list_path, patch);
             }
             if (handles.list_path_hit) {
@@ -1641,7 +1645,7 @@
         void update_list_path() {
             if (!access.valid() || !handles.list_path) return;
             FixedString<192> path;
-            path.assign("Library");
+            path.assign(library_can_step_back() ? "< Library" : "Library");
             path.append(" / ");
             path.append(library_tab_title(library_tab));
             if (library_has_context()) {
@@ -1656,13 +1660,15 @@
 
         void update_list_sort_label() {
             if (!access.valid() || !handles.list_sort) return;
-            const char* label = (list_sort == ListSort::NameAsc) ? "A-Z" : "Z-A";
+            const char* label = list_shuffle_enabled
+                ? "Rand"
+                : ((list_sort == ListSort::NameAsc) ? "A-Z" : "Z-A");
             set_label_slot(handles.list_sort, text_slots.list_sort, label);
         }
 
         void update_list_shuffle_label() {
             if (!access.valid() || !handles.list_shuffle) return;
-            const char* label = list_shuffle_enabled ? "Shuffled" : "Shuffle";
+            const char* label = list_shuffle_enabled ? "Shuffle On" : "Shuffle";
             set_label_slot(handles.list_shuffle, text_slots.list_shuffle, label);
         }
 

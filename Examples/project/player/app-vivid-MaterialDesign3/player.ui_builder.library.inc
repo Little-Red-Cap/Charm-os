@@ -143,7 +143,7 @@
         h.list_tab_albums = builder.create_button_static("ALBUMS");
         h.list_tab_artist = builder.create_button_static("ARTISTS");
 
-        h.list_shuffle = builder.create_button_static("Shuffle All");
+        h.list_shuffle = builder.create_button_static("Shuffle");
         const int tab_radius = library_tabs_h / 2;
         apply_tab_base_style(builder, h.list_tab_songs, tab_radius);
         apply_tab_base_style(builder, h.list_tab_albums, tab_radius);

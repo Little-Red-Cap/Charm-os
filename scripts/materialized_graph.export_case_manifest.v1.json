@@ -22,6 +22,29 @@
       }
     },
     {
+      "name": "connection-observe-demo",
+      "source": "Examples/init/connection_observe_demo",
+      "build_dir": "cmake-build-init-connection-observe-demo-clang",
+      "build_target": "init-connection-observe-demo",
+      "case_kind": "materialized_graph",
+      "export_target": "export_connection_graph_demo",
+      "dot_cache": "CONNECTION_OBSERVE_DOT_PATH",
+      "json_cache": "CONNECTION_OBSERVE_JSON_PATH",
+      "default_dot": "connection_graph.dot",
+      "default_json": "connection_graph.sample.json",
+      "declared_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [
+        "CHARM_TARGET_HAS_HOSTED_CXX=OFF",
+        "CHARM_TARGET_HAS_CXX_MATH=OFF"
+      ],
+      "subject": {
+        "profile": null,
+        "board": null,
+        "active_facets": []
+      }
+    },
+    {
       "name": "bringup-block-observe-demo",
       "source": "Examples/init/bringup_block_observe_demo",
       "build_dir": "cmake-build-init-bringup-block-observe-clang",

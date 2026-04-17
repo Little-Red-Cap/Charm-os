@@ -9,6 +9,7 @@ import charm.system.reactor_pump;
 import input.pump;
 import kernel.config;
 import kernel.eda;
+import kernel.poster;
 import kernel.scheduler;
 import kernel.task_state;
 import util.core;
@@ -61,11 +62,48 @@ export namespace charm::system {
         PostFn post_demand_fn() noexcept { return &charm::system::scheduler_post_demand<Scheduler>; }
         void* post_ctx() noexcept { return &scheduler_; }
 
+        [[nodiscard]] auto posters(kernel::TaskId task) noexcept {
+            return kernel::make_poster_set(scheduler_, task);
+        }
+
+        [[nodiscard]] auto event_poster(kernel::TaskId task) noexcept {
+            return posters(task).event;
+        }
+
+        [[nodiscard]] auto io_ready_poster(kernel::TaskId task) noexcept {
+            return posters(task).io_ready;
+        }
+
+        [[nodiscard]] auto demand_poster(kernel::TaskId task) noexcept {
+            return posters(task).demand;
+        }
+
+        template <typename Task>
+        [[nodiscard]] auto posters() noexcept {
+            return posters(task_id<Task>());
+        }
+
+        template <typename Task>
+        [[nodiscard]] auto event_poster() noexcept {
+            return posters<Task>().event;
+        }
+
+        template <typename Task>
+        [[nodiscard]] auto io_ready_poster() noexcept {
+            return posters<Task>().io_ready;
+        }
+
+        template <typename Task>
+        [[nodiscard]] auto demand_poster() noexcept {
+            return posters<Task>().demand;
+        }
+
         input::ScheduleFn schedule_fn() noexcept {
             return &input::scheduler_schedule_at<Scheduler>;
         }
         void* schedule_ctx() noexcept { return &scheduler_; }
 
+        std::size_t dispatch_batch(std::size_t budget) noexcept { return scheduler_.dispatch_batch(budget); }
         bool run_once() noexcept { return scheduler_.run_once(); }
         bool run_budget(std::size_t budget) noexcept { return scheduler_.run_budget(budget); }
         bool run_auto() noexcept { return scheduler_.run_auto(); }

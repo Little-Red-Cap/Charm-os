@@ -43,6 +43,9 @@
     "structure": {
       "$ref": "#/$defs/structure"
     },
+    "connection_summary": {
+      "$ref": "#/$defs/connectionSummary"
+    },
     "bringup_evidence": {
       "$ref": "#/$defs/bringupEvidence"
     },
@@ -70,6 +73,16 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "countMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
       }
     },
     "stringCountMap": {
@@ -195,6 +208,66 @@
         },
         "unresolved_bindings": {
           "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "connectionSummaryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "phase",
+        "runlevel_text",
+        "source",
+        "sink",
+        "mode",
+        "requires"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "runlevel_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "source": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "sink": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "mode": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "connectionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connection_node_count",
+        "connection_modes",
+        "connections"
+      ],
+      "properties": {
+        "connection_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "connection_modes": {
+          "$ref": "#/$defs/countMap"
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/connectionSummaryEntry"
+          }
         }
       }
     },

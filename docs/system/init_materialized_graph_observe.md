@@ -48,6 +48,7 @@
 - `provide_names`
 - `requires_caps`
 - `require_names`
+- `connection_source` / `connection_sink` / `connection_mode`（仅 `kind=connection` 时）
 - `kind`
 
 其中 `kind` 当前分为：
@@ -56,6 +57,7 @@
 - `barrier`
 - `legacy`
 - `binding`
+- `connection`
 
 ### `materialized_edge_view`
 
@@ -89,6 +91,9 @@
 
 兼容层的 legacy node 仍然只以旧 `Node` IR 为输入。
 
+在当前导出里，这类节点会继续以 `legacy` 节点种类保留；
+而单节点 binding / compat 适配路径会以 `binding` 节点种类出现。
+
 旧 `Node` 只携带：
 
 - `provides: span<CapId>`
@@ -101,7 +106,7 @@
 
 这是当前 compat 边界，不是观察 API 的 bug。
 
-### legacy 名称恢复
+### binding / legacy path 名称恢复
 
 当前主路径只保留对象级命名恢复。
 
@@ -151,6 +156,7 @@ std::string_view capability_name(init::CapId id) const noexcept;
 - `legacy` -> `ellipse`
 - `binding` -> `ellipse`
 - `barrier` -> `diamond`
+- `connection` -> `hexagon`
 
 这层输出的目标不是审美，而是尽快验证：
 
@@ -169,6 +175,10 @@ std::string_view capability_name(init::CapId id) const noexcept;
 `v2` 的变化重点是 capability 从纯字符串升级成对象：
 
 - `{"id":"0x...","name":"demo.clock"}`
+
+对于 `kind=connection` 的节点，当前还会额外带一个可选 `connection` 对象：
+
+- `{"source":"...","sink":"...","mode":"direct|deferred"}`
 
 JSON sample 当前更适合：
 
@@ -255,11 +265,12 @@ auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
 仓库中已经提供多个示例：
 
 - `Examples/init/materialize_observe_demo/main.cpp`
+- `Examples/init/connection_observe_demo/main.cpp`
 - `Examples/init/bringup_block_observe_demo/main.cpp`
 - `Examples/init/bringup_minimal_observe_demo/main.cpp`
 - `Examples/usb/usb_msc_block_demo/main.cpp`
 
-这个示例刻意同时包含：
+其中 `materialize_observe_demo` 刻意同时包含：
 
 - `recipe` 节点
 - `legacy` 节点
@@ -269,7 +280,13 @@ auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
 并且示范了 legacy 节点通过 `capability_name(...)` 恢复 capability 可读名称，
 以及单节点 binding 如何在导出层保留为独立节点种类。
 
-便于直接观察四类节点在导出中的表现。
+便于先观察 `recipe / legacy / binding / barrier` 四类节点在导出中的表现。
+`connection_observe_demo` 则额外示范了：
+
+- `kind=connection` 的节点如何出现在导出里
+- `source / sink / mode` 如何继续留在可观察结果中
+
+便于直接观察 `recipe / legacy / binding / barrier / connection` 五类节点在导出中的表现。
 
 其中 `bringup_block_observe_demo` 走的是更贴近真实 bringup 的组合：
 
@@ -373,6 +390,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 ```powershell
 ./scripts/export_materialized_graph.ps1 -Case materialize-observe-demo
+./scripts/export_materialized_graph.ps1 -Case connection-observe-demo
 ./scripts/export_materialized_graph.ps1 -Case bringup-block-observe-demo
 ./scripts/export_materialized_graph.ps1 -Case bringup-minimal-observe-demo
 ./scripts/export_materialized_graph.ps1 -Case usb-msc-block-demo
@@ -406,7 +424,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - case 自带的 `declared_facts`
 - case 自带的 `declared_contracts`
 - bundle 内相对路径形式的 `dot / json`
-- 从 `JSON sample` 提取出的轻量摘要，例如 `node_count / edge_count / phase / runlevel / node_kinds`
+- 从 `JSON sample` 提取出的轻量摘要，例如 `node_count / edge_count / phase / runlevel / node_kinds / connection_modes`
 
 这些 `subject` 字段、`declared_facts` 与 `declared_contracts` 当前都不是最终 DSL，
 但它们已经可以作为 per-case 的声明式输入事实，
@@ -416,6 +434,10 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 而 `index.json` 负责把这些事实投影到 bundle 消费面。
 现在这层投影里也会显式保留输入 `manifest` provenance，
 这样 bundle/CI/inspect 不再只能“看到结果”，也能知道“这些结果是基于哪份输入清单生成的”。
+对于带 `connection` 节点的 case，
+`artifact report` 现在还会额外导出 `connection_summary`，
+把 `connection_node_count / connection_modes / connections(source -> sink [mode])`
+摊平成稳定摘要，方便 CI 或上层工具直接读取 wiring 轮廓，而不必重新遍历整份 `sample.json`。
 
 仓库根目录还提供了一个最小 bundle 消费脚本：
 
@@ -427,11 +449,11 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 它当前支持：
 
-- 从 `index.json` 汇总所有 case 的 `nodes / edges / phase / runlevel / node_kinds`
+- 从 `index.json` 汇总所有 case 的 `nodes / edges / phase / runlevel / node_kinds / connection_modes`
 - 显示 bundle 顶层记录的输入 `manifest` provenance（如果 index 提供）
 - 在单 case 视图里继续带出该 case 的 `declared_facts`
 - 在单 case 视图里继续带出该 case 的 `declared_contracts`
-- 读取单个 case 的 `JSON sample` 并展开节点表
+- 读取单个 case 的 `JSON sample` 并展开节点表，包括 `kind=connection` 节点的 `source / sink / mode`
 - 按需展开依赖边表，验证 provider / consumer / capability
 - 用 `-AsJson` 把汇总结果重新转成更适合脚本继续消费的结构
 
@@ -446,8 +468,8 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 它当前会比较：
 
 - case 是否新增 / 删除 / 变化 / 不变
-- case 级摘要字段，例如 `node_count / edge_count / phase / runlevel / node_kinds`
-- 节点新增 / 删除 / 字段变化
+- case 级摘要字段，例如 `node_count / edge_count / phase / runlevel / node_kinds / connection_modes`
+- 节点新增 / 删除 / 字段变化，包括 `connection.source / connection.sink / connection.mode`
 - 依赖边新增 / 删除
 
 当使用 `-AsJson` 时，当前输出还会带：
@@ -499,7 +521,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 - 左右 case 的 `declared_facts`
 - 左右 case 的 `declared_contracts`
 - 可点击的 `dot / json` 工件链接
-- 节点新增 / 删除 / 字段变化表
+- 节点新增 / 删除 / 字段变化表，其中会带出 connection 节点的 wiring 信息
 - 依赖边新增 / 删除表
 
 其中 `manifest.json` 当前会汇总：
@@ -531,6 +553,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
 
 - 当前运行模式：`export_only / compare`
 - candidate / baseline 索引路径
+- candidate / baseline 的聚合图统计，例如 `case_count / node_count / edge_count / connection_case_count / node_kinds / connection_modes`
 - candidate / baseline bundle 的输入 `manifest` provenance（如果对应 bundle index 提供）
 - candidate / baseline bundle 的 `declared_facts_defaults`
 - candidate / baseline bundle 的 `declared_contracts_defaults`
@@ -616,7 +639,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --export-case-manifest
   与 `out/materialized-graph-runtime-plane-smoke`
   和 `out/materialized-graph-resource-contract-smoke`
   以及 `out/materialized-graph-resource-contract-matrix-smoke` 作为 workflow artifact
-- 把关键计数与报告路径写入 GitHub Step Summary，方便直接在 Actions 页面浏览
+- 把关键计数、候选/基线 graph 聚合统计，以及报告路径写入 GitHub Step Summary，方便直接在 Actions 页面浏览
 
 ## 当前验收点
 

@@ -341,6 +341,54 @@ function Format-NullableValue {
     return $Value
 }
 
+function Get-CountMapEntries {
+    param(
+        $Map
+    )
+
+    $items = @()
+    if ($null -eq $Map) {
+        return $items
+    }
+
+    foreach ($property in $Map.PSObject.Properties) {
+        $items += "$($property.Name)=$($property.Value)"
+    }
+
+    return $items
+}
+
+function Format-NodeConnectionText {
+    param(
+        $NodeDescriptor
+    )
+
+    if ($null -eq $NodeDescriptor) {
+        return ''
+    }
+
+    $source = [string]$NodeDescriptor.ConnectionSource
+    $sink = [string]$NodeDescriptor.ConnectionSink
+    $mode = [string]$NodeDescriptor.ConnectionMode
+    if ([string]::IsNullOrWhiteSpace($source) -and [string]::IsNullOrWhiteSpace($sink) -and [string]::IsNullOrWhiteSpace($mode)) {
+        return ''
+    }
+
+    $text = ''
+    if (-not [string]::IsNullOrWhiteSpace($source) -or -not [string]::IsNullOrWhiteSpace($sink)) {
+        $text = "$source -> $sink"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($mode)) {
+        if ([string]::IsNullOrWhiteSpace($text)) {
+            $text = "[$mode]"
+        } else {
+            $text += " [$mode]"
+        }
+    }
+
+    return $text
+}
+
 function Get-CaseSubjectInfo {
     param(
         $CaseEntry
@@ -559,6 +607,21 @@ function Get-NodeDescriptors {
             $key = "$key#$($seenNames[$name])"
         }
 
+        $connectionSource = $null
+        $connectionSink = $null
+        $connectionMode = $null
+        if ($null -ne $node.PSObject.Properties['connection'] -and $null -ne $node.connection) {
+            if ($null -ne $node.connection.PSObject.Properties['source'] -and -not [string]::IsNullOrWhiteSpace([string]$node.connection.source)) {
+                $connectionSource = [string]$node.connection.source
+            }
+            if ($null -ne $node.connection.PSObject.Properties['sink'] -and -not [string]::IsNullOrWhiteSpace([string]$node.connection.sink)) {
+                $connectionSink = [string]$node.connection.sink
+            }
+            if ($null -ne $node.connection.PSObject.Properties['mode'] -and -not [string]::IsNullOrWhiteSpace([string]$node.connection.mode)) {
+                $connectionMode = [string]$node.connection.mode
+            }
+        }
+
         $descriptors[$key] = [pscustomobject]@{
             Key = $key
             Index = [int]$node.index
@@ -568,6 +631,9 @@ function Get-NodeDescriptors {
             Runlevel = [string]$node.runlevel_text
             Provides = @(Get-CapabilityNames $node.provides)
             Requires = @(Get-CapabilityNames $node.requires)
+            ConnectionSource = $connectionSource
+            ConnectionSink = $connectionSink
+            ConnectionMode = $connectionMode
         }
     }
 
@@ -632,6 +698,15 @@ function Get-ChangedFields {
     }
     if (-not (Compare-StringArrays -Left $LeftNode.Requires -Right $RightNode.Requires)) {
         $fields += "requires:[$(Join-Names $LeftNode.Requires)]->[$(Join-Names $RightNode.Requires)]"
+    }
+    if ([string]$LeftNode.ConnectionSource -ne [string]$RightNode.ConnectionSource) {
+        $fields += "connection.source:$(Format-NullableValue ([string]$LeftNode.ConnectionSource))->$(Format-NullableValue ([string]$RightNode.ConnectionSource))"
+    }
+    if ([string]$LeftNode.ConnectionSink -ne [string]$RightNode.ConnectionSink) {
+        $fields += "connection.sink:$(Format-NullableValue ([string]$LeftNode.ConnectionSink))->$(Format-NullableValue ([string]$RightNode.ConnectionSink))"
+    }
+    if ([string]$LeftNode.ConnectionMode -ne [string]$RightNode.ConnectionMode) {
+        $fields += "connection.mode:$(Format-NullableValue ([string]$LeftNode.ConnectionMode))->$(Format-NullableValue ([string]$RightNode.ConnectionMode))"
     }
 
     return $fields
@@ -747,20 +822,16 @@ function Compare-CaseSummary {
             $changes += "runlevel:$([string]$leftGraph.effective_runlevel_text)->$([string]$rightGraph.effective_runlevel_text)"
         }
 
-        $leftKinds = @()
-        $rightKinds = @()
-        if ($null -ne $leftGraph.node_kinds) {
-            foreach ($property in $leftGraph.node_kinds.PSObject.Properties) {
-                $leftKinds += "$($property.Name)=$($property.Value)"
-            }
-        }
-        if ($null -ne $rightGraph.node_kinds) {
-            foreach ($property in $rightGraph.node_kinds.PSObject.Properties) {
-                $rightKinds += "$($property.Name)=$($property.Value)"
-            }
-        }
+        $leftKinds = @(Get-CountMapEntries -Map $leftGraph.node_kinds)
+        $rightKinds = @(Get-CountMapEntries -Map $rightGraph.node_kinds)
         if (-not (Compare-StringArrays -Left $leftKinds -Right $rightKinds)) {
             $changes += "node_kinds:[$(Join-Names $leftKinds)]->[$(Join-Names $rightKinds)]"
+        }
+
+        $leftConnectionModes = @(Get-CountMapEntries -Map $leftGraph.connection_modes)
+        $rightConnectionModes = @(Get-CountMapEntries -Map $rightGraph.connection_modes)
+        if (-not (Compare-StringArrays -Left $leftConnectionModes -Right $rightConnectionModes)) {
+            $changes += "connection_modes:[$(Join-Names $leftConnectionModes)]->[$(Join-Names $rightConnectionModes)]"
         }
     }
 
@@ -930,7 +1001,7 @@ function New-NodeJsonView {
         $NodeDescriptor
     )
 
-    return [ordered]@{
+    $view = [ordered]@{
         name = $NodeDescriptor.Name
         key = $NodeDescriptor.Key
         kind = $NodeDescriptor.Kind
@@ -939,6 +1010,16 @@ function New-NodeJsonView {
         provides = @($NodeDescriptor.Provides)
         requires = @($NodeDescriptor.Requires)
     }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$NodeDescriptor.ConnectionSource) -or -not [string]::IsNullOrWhiteSpace([string]$NodeDescriptor.ConnectionSink) -or -not [string]::IsNullOrWhiteSpace([string]$NodeDescriptor.ConnectionMode)) {
+        $view.connection = [ordered]@{
+            source = [string]$NodeDescriptor.ConnectionSource
+            sink = [string]$NodeDescriptor.ConnectionSink
+            mode = [string]$NodeDescriptor.ConnectionMode
+        }
+    }
+
+    return $view
 }
 
 function New-EdgeJsonView {
@@ -1017,15 +1098,15 @@ function Write-CaseDetails {
 
     if ($CaseDiff.NodeChanges.Added.Count -gt 0) {
         Write-Host '[NODES ADDED]'
-        @($CaseDiff.NodeChanges.Added | Sort-Object Name) | Select-Object Name, Kind, Phase, Runlevel, @{Name='Provides';Expression={ Join-Names $_.Provides }}, @{Name='Requires';Expression={ Join-Names $_.Requires }} | Format-Table -AutoSize | Out-Host
+        @($CaseDiff.NodeChanges.Added | Sort-Object Name) | Select-Object Name, Kind, Phase, Runlevel, @{Name='Connection';Expression={ Format-NodeConnectionText $_ }}, @{Name='Provides';Expression={ Join-Names $_.Provides }}, @{Name='Requires';Expression={ Join-Names $_.Requires }} | Format-Table -Wrap -AutoSize | Out-Host
     }
     if ($CaseDiff.NodeChanges.Removed.Count -gt 0) {
         Write-Host '[NODES REMOVED]'
-        @($CaseDiff.NodeChanges.Removed | Sort-Object Name) | Select-Object Name, Kind, Phase, Runlevel, @{Name='Provides';Expression={ Join-Names $_.Provides }}, @{Name='Requires';Expression={ Join-Names $_.Requires }} | Format-Table -AutoSize | Out-Host
+        @($CaseDiff.NodeChanges.Removed | Sort-Object Name) | Select-Object Name, Kind, Phase, Runlevel, @{Name='Connection';Expression={ Format-NodeConnectionText $_ }}, @{Name='Provides';Expression={ Join-Names $_.Provides }}, @{Name='Requires';Expression={ Join-Names $_.Requires }} | Format-Table -Wrap -AutoSize | Out-Host
     }
     if ($CaseDiff.NodeChanges.Changed.Count -gt 0) {
         Write-Host '[NODES CHANGED]'
-        @($CaseDiff.NodeChanges.Changed | Sort-Object Name) | Select-Object Name, @{Name='Fields';Expression={ $_.Fields -join '; ' }} | Format-Table -AutoSize | Out-Host
+        @($CaseDiff.NodeChanges.Changed | Sort-Object Name) | Select-Object Name, @{Name='Fields';Expression={ $_.Fields -join '; ' }}, @{Name='LeftConnection';Expression={ Format-NodeConnectionText $_.Left }}, @{Name='RightConnection';Expression={ Format-NodeConnectionText $_.Right }} | Format-Table -Wrap -AutoSize | Out-Host
     }
     if ($CaseDiff.EdgeChanges.Added.Count -gt 0) {
         Write-Host '[EDGES ADDED]'

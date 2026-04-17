@@ -13,6 +13,7 @@ import input.raw_event;
 import input.service;
 import kernel.eda;
 import kernel.evt;
+import kernel.poster;
 import kernel.ssu;
 import util.core;
 import util.error;
@@ -24,7 +25,7 @@ export namespace input {
                                 charm::system::ClockTick due) noexcept;
 
     using SinkFn = bool (*)(void* ctx, const RawInputEvent& ev) noexcept;
-    using PostFn = bool (*)(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept;
+    using PostFn = kernel::PostFn;
 
     struct InputPumpTask {
         static constexpr kernel::Priority priority{0};

@@ -14,6 +14,7 @@ import canopen.nmt_service;
 import canopen.pump;
 import charm.system.clock;
 import kernel.eda;
+import kernel.poster;
 import util.core;
 
 export namespace charm::system {
@@ -63,7 +64,7 @@ export namespace charm::system {
                            clock,
                            &canopen::scheduler_schedule_at<Scheduler>,
                            &scheduler,
-                           &canopen::scheduler_post_demand<Scheduler>,
+                           &kernel::scheduler_post_demand<Scheduler>,
                            &scheduler,
                            pump_id,
                            &sdo_service,

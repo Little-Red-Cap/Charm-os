@@ -145,6 +145,7 @@ docs/
 - `docs/architecture/dependency_whitelist.md`
 - `docs/architecture/driver_model.md`
 - `docs/architecture/device_model_overview.md`
+- `docs/architecture/signal_state_v0.md`
 - `docs/architecture/capability_recovery_rules.md`
 - `docs/architecture/capability_recovery_matrix.md`
 

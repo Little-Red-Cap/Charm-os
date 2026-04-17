@@ -84,21 +84,53 @@ function Get-BundleInputManifestInfo {
     }
 }
 
-function Format-NodeKinds {
+function Format-CountMap {
     param(
-        $NodeKinds
+        $Map
     )
 
-    if ($null -eq $NodeKinds) {
+    if ($null -eq $Map) {
         return ''
     }
 
     $parts = @()
-    foreach ($property in $NodeKinds.PSObject.Properties) {
+    foreach ($property in $Map.PSObject.Properties) {
         $parts += "$($property.Name)=$($property.Value)"
     }
 
     return ($parts -join ', ')
+}
+
+function Format-NodeConnection {
+    param(
+        $Connection
+    )
+
+    if ($null -eq $Connection) {
+        return ''
+    }
+
+    $source = if ($null -ne $Connection.PSObject.Properties['source']) { [string]$Connection.source } else { '' }
+    $sink = if ($null -ne $Connection.PSObject.Properties['sink']) { [string]$Connection.sink } else { '' }
+    $mode = if ($null -ne $Connection.PSObject.Properties['mode']) { [string]$Connection.mode } else { '' }
+
+    if ([string]::IsNullOrWhiteSpace($source) -and [string]::IsNullOrWhiteSpace($sink) -and [string]::IsNullOrWhiteSpace($mode)) {
+        return ''
+    }
+
+    $text = ''
+    if (-not [string]::IsNullOrWhiteSpace($source) -or -not [string]::IsNullOrWhiteSpace($sink)) {
+        $text = "$source -> $sink"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($mode)) {
+        if ([string]::IsNullOrWhiteSpace($text)) {
+            $text = "[$mode]"
+        } else {
+            $text += " [$mode]"
+        }
+    }
+
+    return $text
 }
 
 function Format-CapabilityList {
@@ -405,7 +437,20 @@ function Get-CaseNodeKindsText {
         return ''
     }
 
-    return Format-NodeKinds $graphSummary.node_kinds
+    return Format-CountMap $graphSummary.node_kinds
+}
+
+function Get-CaseConnectionModesText {
+    param(
+        $CaseEntry
+    )
+
+    $graphSummary = Get-CaseGraphSummary -CaseEntry $CaseEntry
+    if ($null -eq $graphSummary) {
+        return ''
+    }
+
+    return Format-CountMap $graphSummary.connection_modes
 }
 
 function Load-CaseGraph {
@@ -478,6 +523,7 @@ function New-CaseSummaryRow {
         Phase = Get-CaseEffectivePhase -CaseEntry $CaseEntry
         Runlevel = Get-CaseEffectiveRunlevel -CaseEntry $CaseEntry
         Kinds = Get-CaseNodeKindsText -CaseEntry $CaseEntry
+        ConnectionModes = Get-CaseConnectionModesText -CaseEntry $CaseEntry
     }
 }
 
@@ -488,6 +534,11 @@ function New-NodeRows {
 
     $rows = @()
     foreach ($node in @($Graph.nodes)) {
+        $connection = $null
+        if ($null -ne $node.PSObject.Properties['connection']) {
+            $connection = $node.connection
+        }
+
         $rows += [pscustomobject]@{
             Index = [int]$node.index
             Kind = [string]$node.kind
@@ -495,6 +546,7 @@ function New-NodeRows {
             Name = [string]$node.name
             Provides = Format-CapabilityList $node.provides
             Requires = Format-CapabilityList $node.requires
+            Connection = Format-NodeConnection $connection
         }
     }
 
@@ -564,7 +616,7 @@ if ($selectedCases.Count -ne 1) {
         if ($null -ne $inputManifest) {
             Write-Host "[MANIFEST] $($inputManifest.path) ($($inputManifest.schema))"
         }
-        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, CaseKind, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
+        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, CaseKind, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds, ConnectionModes | Out-Host
     }
     exit 0
 }
@@ -646,10 +698,10 @@ if ($declaredContracts.Count -gt 0) {
 }
 Write-Host ''
 
-$summaryRows | Format-List Case, CaseKind, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds | Out-Host
+$summaryRows | Format-List Case, CaseKind, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds, ConnectionModes | Out-Host
 if ($null -ne $caseGraph) {
     Write-Host '[NODES]'
-    $nodeRows | Format-Table -AutoSize Index, Kind, Phase, Name, Provides, Requires | Out-Host
+    $nodeRows | Format-Table -Wrap -AutoSize Index, Kind, Phase, Name, Connection, Provides, Requires | Out-Host
 } else {
     Write-Host '[NODES] no static graph'
 }

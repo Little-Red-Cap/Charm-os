@@ -9,6 +9,7 @@ module;
 
 export module init.observe;
 
+import init.connection;
 import init.meta;
 import init.materialize;
 import init.node;
@@ -267,6 +268,7 @@ namespace init::detail {
             case materialized_node_kind::recipe: return "box";
             case materialized_node_kind::barrier: return "diamond";
             case materialized_node_kind::binding: return "ellipse";
+            case materialized_node_kind::connection: return "hexagon";
             case materialized_node_kind::unknown: return "box";
         }
         return "box";
@@ -291,6 +293,7 @@ export namespace init {
             case materialized_node_kind::recipe: return "recipe";
             case materialized_node_kind::barrier: return "barrier";
             case materialized_node_kind::binding: return "binding";
+            case materialized_node_kind::connection: return "connection";
         }
         return "unknown";
     }
@@ -304,6 +307,9 @@ export namespace init {
         std::span<const std::string_view> provide_names{};
         std::span<const CapId> requires_caps{};
         std::span<const std::string_view> require_names{};
+        std::string_view connection_source{};
+        std::string_view connection_sink{};
+        std::string_view connection_mode{};
         materialized_node_kind kind{materialized_node_kind::unknown};
     };
 
@@ -356,6 +362,9 @@ export namespace init {
                 .provide_names = std::span<const std::string_view>{mats.provides_name_storage[row].data(), mats.provides_count[row]},
                 .requires_caps = std::span<const CapId>{mats.requires_storage[row].data(), mats.requires_count[row]},
                 .require_names = std::span<const std::string_view>{mats.requires_name_storage[row].data(), mats.requires_count[row]},
+                .connection_source = mats.connection_source_storage[row],
+                .connection_sink = mats.connection_sink_storage[row],
+                .connection_mode = mats.connection_mode_storage[row],
                 .kind = mats.node_kinds[row],
             };
         }
@@ -467,6 +476,24 @@ export namespace init {
             offset = detail::append_cap_list(out, max, offset, node.provides, node.provide_names);
             offset = detail::append_text(out, max, offset, "\\nrequires=");
             offset = detail::append_cap_list(out, max, offset, node.requires_caps, node.require_names);
+            if (!node.connection_mode.empty()) {
+                offset = detail::append_text(out, max, offset, "\\nconnection=");
+                offset = detail::append_dot_escaped(out,
+                                                    max,
+                                                    offset,
+                                                    node.connection_source.empty()
+                                                        ? std::string_view{"(source)"}
+                                                        : node.connection_source);
+                offset = detail::append_text(out, max, offset, " -> ");
+                offset = detail::append_dot_escaped(out,
+                                                    max,
+                                                    offset,
+                                                    node.connection_sink.empty()
+                                                        ? std::string_view{"(sink)"}
+                                                        : node.connection_sink);
+                offset = detail::append_text(out, max, offset, "\\nmode=");
+                offset = detail::append_dot_escaped(out, max, offset, node.connection_mode);
+            }
             offset = detail::append_text(out, max, offset, "\"];\n");
         }
 
@@ -572,6 +599,15 @@ export namespace init {
             offset = detail::append_json_cap_array(out, max, offset, node.provides, node.provide_names);
             offset = detail::append_text(out, max, offset, ",\"requires\":");
             offset = detail::append_json_cap_array(out, max, offset, node.requires_caps, node.require_names);
+            if (!node.connection_mode.empty()) {
+                offset = detail::append_text(out, max, offset, ",\"connection\":{\"source\":");
+                offset = detail::append_json_string(out, max, offset, node.connection_source);
+                offset = detail::append_text(out, max, offset, ",\"sink\":");
+                offset = detail::append_json_string(out, max, offset, node.connection_sink);
+                offset = detail::append_text(out, max, offset, ",\"mode\":");
+                offset = detail::append_json_string(out, max, offset, node.connection_mode);
+                offset = detail::append_char(out, max, offset, '}');
+            }
             offset = detail::append_char(out, max, offset, '}');
         }
         offset = detail::append_char(out, max, offset, ']');
@@ -687,6 +723,46 @@ export namespace init {
             || std::strstr(json.data(), "\"edges\":[") == nullptr
             || std::strstr(json.data(), "\"kind\":\"barrier\"") == nullptr
             || std::strstr(json.data(), "\"name\":\"observe.done\"") == nullptr) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        auto connection = direct_connection<"observe.connection", CapA, CapB>();
+        auto connection_mats = materialize<4, 8>(compose(
+            bind<RecipeA>(ctx),
+            bind<RecipeB>(ctx),
+            as_plan(connection)));
+        if (!connection_mats) {
+            return util::unexpected(connection_mats.error());
+        }
+        auto connection_view = observe(*connection_mats);
+        if (connection_view.node_count != 3 || connection_view.edge_count != 3) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        if (connection_view.nodes[2].kind != materialized_node_kind::connection
+            || connection_view.nodes[2].connection_source != CapA::view()
+            || connection_view.nodes[2].connection_sink != CapB::view()
+            || connection_view.nodes[2].connection_mode != "direct") {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        std::array<char, 2048> connection_dot{};
+        const auto connection_dot_used = format_dot(connection_view,
+                                                    connection_dot.data(),
+                                                    connection_dot.size());
+        if (connection_dot_used == 0
+            || std::strstr(connection_dot.data(), "shape=hexagon") == nullptr
+            || std::strstr(connection_dot.data(), "mode=direct") == nullptr
+            || std::strstr(connection_dot.data(), "connection=observe.a -> observe.b") == nullptr) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        std::array<char, 2048> connection_json{};
+        const auto connection_json_used = format_json_sample(connection_view,
+                                                             connection_json.data(),
+                                                             connection_json.size());
+        if (connection_json_used == 0
+            || std::strstr(connection_json.data(), "\"kind\":\"connection\"") == nullptr
+            || std::strstr(connection_json.data(), "\"connection\":{\"source\":\"observe.a\",\"sink\":\"observe.b\",\"mode\":\"direct\"}") == nullptr) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

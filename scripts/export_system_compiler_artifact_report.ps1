@@ -341,6 +341,102 @@ function Get-UnresolvedBindings {
     return @($unresolved | Sort-Object -Unique)
 }
 
+function Add-CountMapEntry {
+    param(
+        [hashtable]$Counts,
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return
+    }
+
+    if ($Counts.ContainsKey($Name)) {
+        $Counts[$Name] = [int]$Counts[$Name] + 1
+    } else {
+        $Counts[$Name] = 1
+    }
+}
+
+function ConvertTo-OrderedCountMap {
+    param(
+        [hashtable]$Counts
+    )
+
+    $result = [ordered]@{}
+    foreach ($entry in @($Counts.GetEnumerator() | Sort-Object Key)) {
+        $result[[string]$entry.Key] = [int]$entry.Value
+    }
+
+    return $result
+}
+
+function Get-GraphConnectionSummary {
+    param(
+        $Graph
+    )
+
+    $connections = @()
+    $connectionModes = @{}
+
+    if ($null -ne $Graph -and $null -ne $Graph.PSObject.Properties['nodes']) {
+        foreach ($node in @($Graph.nodes | Sort-Object index)) {
+            if ($null -eq $node) {
+                continue
+            }
+
+            $hasConnectionPayload = ($null -ne $node.PSObject.Properties['connection']) -and ($null -ne $node.connection)
+            if (([string]$node.kind -ne 'connection') -and -not $hasConnectionPayload) {
+                continue
+            }
+
+            $connectionInfo = if ($hasConnectionPayload) { $node.connection } else { $null }
+            $source = $null
+            $sink = $null
+            $mode = $null
+            if ($null -ne $connectionInfo) {
+                if ($null -ne $connectionInfo.PSObject.Properties['source'] -and -not [string]::IsNullOrWhiteSpace([string]$connectionInfo.source)) {
+                    $source = [string]$connectionInfo.source
+                }
+                if ($null -ne $connectionInfo.PSObject.Properties['sink'] -and -not [string]::IsNullOrWhiteSpace([string]$connectionInfo.sink)) {
+                    $sink = [string]$connectionInfo.sink
+                }
+                if ($null -ne $connectionInfo.PSObject.Properties['mode'] -and -not [string]::IsNullOrWhiteSpace([string]$connectionInfo.mode)) {
+                    $mode = [string]$connectionInfo.mode
+                }
+            }
+
+            Add-CountMapEntry -Counts $connectionModes -Name $mode
+
+            $phase = $null
+            if ($null -ne $node.PSObject.Properties['phase'] -and -not [string]::IsNullOrWhiteSpace([string]$node.phase)) {
+                $phase = [string]$node.phase
+            }
+
+            $runlevelText = $null
+            if ($null -ne $node.PSObject.Properties['runlevel_text'] -and -not [string]::IsNullOrWhiteSpace([string]$node.runlevel_text)) {
+                $runlevelText = [string]$node.runlevel_text
+            }
+
+            $connections += [ordered]@{
+                name = [string]$node.name
+                phase = $phase
+                runlevel_text = $runlevelText
+                source = $source
+                sink = $sink
+                mode = $mode
+                requires = @(Get-CapabilityNames -Capabilities $node.requires)
+            }
+        }
+    }
+
+    return [ordered]@{
+        connection_node_count = @($connections).Count
+        connection_modes = ConvertTo-OrderedCountMap -Counts $connectionModes
+        connections = @($connections)
+    }
+}
+
 function Get-RuntimeObserveSummary {
     param(
         $RuntimeObserveInfo
@@ -493,6 +589,23 @@ function Get-CapabilityScopedReasons {
                 )
             } |
             Sort-Object -Unique
+    )
+}
+
+function Get-OptionalStringArrayValue {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    if ($null -eq $Object -or $null -eq $Object.PSObject.Properties[$PropertyName]) {
+        return @()
+    }
+
+    return @(
+        @($Object.$PropertyName) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
     )
 }
 
@@ -1628,10 +1741,12 @@ function New-ArtifactReport {
         $caseName = [string]$CaseEntry.name
         $caseDiff = @($ArtifactContext.DiffData.cases | Where-Object { [string]$_.name -eq $caseName } | Select-Object -First 1)
         if ($caseDiff.Count -gt 0) {
+            $summaryChanges = @(Get-OptionalStringArrayValue -Object $caseDiff[0] -PropertyName 'summary_changes')
+            $metadataChanges = @(Get-OptionalStringArrayValue -Object $caseDiff[0] -PropertyName 'metadata_changes')
             $comparison = [ordered]@{
                 status = [string]$caseDiff[0].status
-                summary_changes = @($caseDiff[0].summary_changes)
-                metadata_changes = @($caseDiff[0].metadata_changes)
+                summary_changes = $summaryChanges
+                metadata_changes = $metadataChanges
                 node_changes = [ordered]@{
                     added = @($caseDiff[0].node_changes.added).Count
                     removed = @($caseDiff[0].node_changes.removed).Count
@@ -1691,6 +1806,7 @@ function New-ArtifactReport {
         $comparison.resource_contract = New-ResourceContractComparison -LeftSummary $baselineResourceContractSummary -RightSummary $resourceContractSummary
     }
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
+    $connectionSummary = Get-GraphConnectionSummary -Graph $graph
     $dotArtifactPath = if ($null -ne $CaseEntry.PSObject.Properties['dot'] -and
         -not [string]::IsNullOrWhiteSpace([string]$CaseEntry.dot)) {
         Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.dot)
@@ -1720,6 +1836,7 @@ function New-ArtifactReport {
             required_facts = @($requiredFacts)
             unresolved_bindings = @($unresolvedBindings)
         }
+        connection_summary = $connectionSummary
         bringup_evidence = [ordered]@{
             declared_count = [int]$bringupEvidenceSummary.declared_count
             materialized_count = [int]$bringupEvidenceSummary.materialized_count

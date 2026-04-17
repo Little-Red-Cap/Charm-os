@@ -19,6 +19,14 @@ constexpr std::uint32_t kArmv7aSvcSleepArg0 = 0x00000005u;
 constexpr std::uint32_t kArmv7aSvcSleepArg1 = 0x00000000u;
 constexpr std::uint32_t kArmv7aSvcSleepArg2 = 0x00000002u;
 constexpr std::uint32_t kArmv7aSvcSleepArg3 = 0x00000005u;
+constexpr std::uint32_t kArmv7aSvcDebugWriteArg0 = 0x00000044u;
+constexpr std::uint32_t kArmv7aSvcDebugWriteArg1 = 0x00000000u;
+constexpr std::uint32_t kArmv7aSvcDebugWriteArg2 = 0x00000000u;
+constexpr std::uint32_t kArmv7aSvcDebugWriteArg3 = 0x00000000u;
+constexpr std::uint32_t kArmv7aSvcCapabilityArg0 = 0x00000007u;
+constexpr std::uint32_t kArmv7aSvcCapabilityArg1 = 0x00000002u;
+constexpr std::uint32_t kArmv7aSvcCapabilityArg2 = 0x00000021u;
+constexpr std::uint32_t kArmv7aSvcCapabilityArg3 = 0x00000000u;
 } // namespace
 
 extern "C" void armv7a_data_sync_barrier()
@@ -160,6 +168,26 @@ extern "C" std::uint32_t armv7a_svc_sleep_smoke_test_result()
     register std::uint32_t r2 asm("r2") = kArmv7aSvcSleepArg2;
     register std::uint32_t r3 asm("r3") = kArmv7aSvcSleepArg3;
     asm volatile("svc #0x44" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
+    return r0;
+}
+
+extern "C" std::uint32_t armv7a_svc_debug_write_smoke_test_result()
+{
+    register std::uint32_t r0 asm("r0") = kArmv7aSvcDebugWriteArg0;
+    register std::uint32_t r1 asm("r1") = kArmv7aSvcDebugWriteArg1;
+    register std::uint32_t r2 asm("r2") = kArmv7aSvcDebugWriteArg2;
+    register std::uint32_t r3 asm("r3") = kArmv7aSvcDebugWriteArg3;
+    asm volatile("svc #0x45" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
+    return r0;
+}
+
+extern "C" std::uint32_t armv7a_svc_capability_call_smoke_test_result()
+{
+    register std::uint32_t r0 asm("r0") = kArmv7aSvcCapabilityArg0;
+    register std::uint32_t r1 asm("r1") = kArmv7aSvcCapabilityArg1;
+    register std::uint32_t r2 asm("r2") = kArmv7aSvcCapabilityArg2;
+    register std::uint32_t r3 asm("r3") = kArmv7aSvcCapabilityArg3;
+    asm volatile("svc #0x46" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
     return r0;
 }
 

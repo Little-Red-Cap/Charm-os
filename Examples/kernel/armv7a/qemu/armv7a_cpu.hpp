@@ -27,6 +27,8 @@ extern "C" void armv7a_svc_smoke_test();
 extern "C" void armv7a_svc_sleep_smoke_test();
 extern "C" std::uint32_t armv7a_svc_smoke_test_result();
 extern "C" std::uint32_t armv7a_svc_sleep_smoke_test_result();
+extern "C" std::uint32_t armv7a_svc_debug_write_smoke_test_result();
+extern "C" std::uint32_t armv7a_svc_capability_call_smoke_test_result();
 
 std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value);
 std::uint32_t armv7a_id_mmfr0_pmsa_field(std::uint32_t value);

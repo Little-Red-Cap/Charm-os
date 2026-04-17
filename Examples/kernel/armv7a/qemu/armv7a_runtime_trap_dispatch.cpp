@@ -49,6 +49,18 @@ Armv7aRuntimeTrapIngressResult armv7a_qemu_runtime_trap_dispatch_stub(
             .error = Armv7aRuntimeTrapIngressError::none,
             .value = frame_view.arg0,
         };
+    case kArmv7aGenericTrapServiceDebugWrite:
+        return Armv7aRuntimeTrapIngressResult{
+            .disposition = Armv7aRuntimeTrapIngressDisposition::handled,
+            .error = Armv7aRuntimeTrapIngressError::none,
+            .value = frame_view.arg0,
+        };
+    case kArmv7aGenericTrapServiceCapabilityCall:
+        return Armv7aRuntimeTrapIngressResult{
+            .disposition = Armv7aRuntimeTrapIngressDisposition::handled,
+            .error = Armv7aRuntimeTrapIngressError::none,
+            .value = frame_view.arg0 + frame_view.arg1 + frame_view.arg2,
+        };
     default:
         return Armv7aRuntimeTrapIngressResult{
             .disposition = Armv7aRuntimeTrapIngressDisposition::unsupported,

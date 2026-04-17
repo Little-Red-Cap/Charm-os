@@ -154,6 +154,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=scheduler-dispatch",
     "ARMv7-A phase, stage=runtime-bridge",
     "ARMv7-A phase complete, stage=runtime-bridge",
+    "ARMv7-A phase, stage=task-syscall-surface",
+    "ARMv7-A phase complete, stage=task-syscall-surface",
     "ARMv7-A phase, stage=handoff-prepare",
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=idle",
@@ -349,6 +351,9 @@ if (($log -notmatch "ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, 
 }
 if (($log -notmatch "ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000002, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes")) {
     $missing += "ARMv7-A runtime bridge, tick=yes..."
+}
+if (($log -notmatch "ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes")) {
+    $missing += "ARMv7-A task syscall surface, debug-path=live-svc-dispatch..."
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."

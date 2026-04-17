@@ -3,6 +3,10 @@
 This is the first Cortex-A oriented leaf target for Charm.
 It keeps startup, linker, and early UART code inside the example target
 instead of pushing ARMv7-A specifics into shared `Modules/`.
+The same leaf now also pulls in one explicit minimal kernel/task-syscall
+module slice plus the ARMv7-A target-side glue modules, so the lower-half
+adapter seam can be proven inside the real bare-metal image without linking
+the full `Charm-os`.
 The shared ARMv7-A handoff prepare contract now lives in
 `targets/armv7a/common/`, carries explicit load/payload/entry metadata,
 and lets this QEMU leaf keep the hook implementation and runtime evidence
@@ -168,6 +172,7 @@ ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, 
 ARMv7-A task syscall ingress-adapter, debug-path=live-frame-adapter, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-frame-adapter, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, ingress-adapter=yes
 ARMv7-A task syscall caller, debug-path=svc-call-frame, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=svc-call-frame, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, caller=yes
 ARMv7-A task syscall roundtrip, debug-path=svc-return, debug-svc=0x000045, debug-value=0x00000044, debug-ready=yes, capability-path=svc-return, capability-svc=0x000046, capability-value=0x0000002A, capability-ready=yes, roundtrip=yes
+ARMv7-A task syscall glue, task=0x0000000059534001, stack=0x0000000052008000, yield=0x00000001, sleep=0x00000037, debug=0x000000CD, capability=0x0000002A, generic=yes, ingress=yes, bridge=yes, caller=yes, glue=yes
 ARMv7-A handoff context, vector-base=0x40200000, translation-table=0x4021...., image-base=0x40200000
 ARMv7-A handoff request, kind=copy, payload-base=0x40200000, entry=0x40200000, storage-payload=0x00000000, storage-entry=0x00000000, entry-offset=0x00000000, payload-size=0x00000000, image-size=0x00000000, flags=0x00000000
 ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
@@ -600,6 +605,11 @@ continue
   the live `SVC #0x45/#0x46` return path closes too, so the value observed
   by the caller after exception return matches both the lower dispatch result
   and the expected syscall semantics for `debug_write` and `capability_call`.
+- The same leaf now also prints one `task syscall glue` line that proves the
+  new target-side adapter-of-adapter seam can survive inside the real QEMU
+  bare-metal image too: generic trap capture, task-syscall ingress,
+  task-syscall frame bridge, and caller-side frame synthesis now close in one
+  place without linking the full shared runtime target.
 - Those returning SVC/IRQ/FIQ smoke lines now also print the pre-exception
   `origin-mode` captured from `SPSR` and the live `handler-mode` read from
   `CPSR`, so banked-mode routing mistakes become visible before we move from

@@ -9,6 +9,7 @@
 .type __vector_table_start, %object
 
 .extern _start
+.extern g_rk3506_vector_breadcrumb
 .extern rk3506_handle_svc
 .extern rk3506_handle_irq
 .extern rk3506_handle_fiq
@@ -21,6 +22,14 @@
 .equ EXC_IRQ, 5
 .equ EXC_FIQ, 6
 .equ EXC_SVC, 7
+
+.equ VECTOR_BREADCRUMB_UNDEFINED, 0x101
+.equ VECTOR_BREADCRUMB_PREFETCH_ABORT, 0x102
+.equ VECTOR_BREADCRUMB_DATA_ABORT, 0x103
+.equ VECTOR_BREADCRUMB_RESERVED, 0x104
+.equ VECTOR_BREADCRUMB_IRQ, 0x105
+.equ VECTOR_BREADCRUMB_FIQ, 0x106
+.equ VECTOR_BREADCRUMB_SVC, 0x107
 
 .equ FRAME_SPSR, 0
 .equ FRAME_VECTOR_ID, 4
@@ -37,8 +46,11 @@ __vector_table_start:
     b rk3506_fiq_entry
 __vector_table_end:
 
-.macro build_exception_frame id
+.macro build_exception_frame id, breadcrumb
     push {r0-r3, r12, lr}
+    ldr r2, =g_rk3506_vector_breadcrumb
+    ldr r1, =\breadcrumb
+    str r1, [r2]
     sub sp, sp, #8
     mrs r1, spsr
     str r1, [sp, #FRAME_SPSR]
@@ -52,18 +64,18 @@ __vector_table_end:
     pop {r0-r3, r12, lr}
 .endm
 
-.macro fatal_vector name, id
+.macro fatal_vector name, id, breadcrumb
     .global \name
     .type \name, %function
 \name:
-    build_exception_frame \id
+    build_exception_frame \id, \breadcrumb
     bl rk3506_exception_fatal
 .endm
 
 .global rk3506_svc_entry
 .type rk3506_svc_entry, %function
 rk3506_svc_entry:
-    build_exception_frame EXC_SVC
+    build_exception_frame EXC_SVC, VECTOR_BREADCRUMB_SVC
     bl rk3506_handle_svc
     destroy_exception_frame
     movs pc, lr
@@ -71,7 +83,7 @@ rk3506_svc_entry:
 .global rk3506_irq_entry
 .type rk3506_irq_entry, %function
 rk3506_irq_entry:
-    build_exception_frame EXC_IRQ
+    build_exception_frame EXC_IRQ, VECTOR_BREADCRUMB_IRQ
     bl rk3506_handle_irq
     destroy_exception_frame
     subs pc, lr, #4
@@ -79,12 +91,12 @@ rk3506_irq_entry:
 .global rk3506_fiq_entry
 .type rk3506_fiq_entry, %function
 rk3506_fiq_entry:
-    build_exception_frame EXC_FIQ
+    build_exception_frame EXC_FIQ, VECTOR_BREADCRUMB_FIQ
     bl rk3506_handle_fiq
     destroy_exception_frame
     subs pc, lr, #4
 
-fatal_vector rk3506_undefined_entry, EXC_UNDEFINED
-fatal_vector rk3506_prefetch_abort_entry, EXC_PREFETCH_ABORT
-fatal_vector rk3506_data_abort_entry, EXC_DATA_ABORT
-fatal_vector rk3506_reserved_entry, EXC_RESERVED
+fatal_vector rk3506_undefined_entry, EXC_UNDEFINED, VECTOR_BREADCRUMB_UNDEFINED
+fatal_vector rk3506_prefetch_abort_entry, EXC_PREFETCH_ABORT, VECTOR_BREADCRUMB_PREFETCH_ABORT
+fatal_vector rk3506_data_abort_entry, EXC_DATA_ABORT, VECTOR_BREADCRUMB_DATA_ABORT
+fatal_vector rk3506_reserved_entry, EXC_RESERVED, VECTOR_BREADCRUMB_RESERVED

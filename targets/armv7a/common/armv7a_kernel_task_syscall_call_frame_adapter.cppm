@@ -87,3 +87,14 @@ export template <typename Tick>
             : &armv7a_task_syscall_call_frame_result_ready<Tick>,
     };
 }
+
+export template <typename Tick>
+[[nodiscard]] auto armv7a_make_task_syscall_frame_caller(
+    kernel::TaskSyscallFramePort<Armv7aRuntimeTrapLiveFrame> port,
+    kernel::RuntimeTrapCallFrameAdapter<Armv7aRuntimeTrapLiveFrame, Tick>&
+        adapter) noexcept
+    -> kernel::TaskSyscallFrameCaller<Armv7aRuntimeTrapLiveFrame, Tick>
+{
+    return kernel::make_task_syscall_frame_caller<Armv7aRuntimeTrapLiveFrame, Tick>(
+        port, armv7a_make_task_syscall_call_frame_adapter(adapter));
+}

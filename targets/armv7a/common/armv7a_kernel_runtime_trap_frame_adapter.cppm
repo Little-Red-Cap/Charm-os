@@ -6,7 +6,7 @@ module;
 
 export module target.armv7a.kernel_runtime_trap_frame_adapter;
 
-export import kernel.runtime_trap_ingress;
+export import kernel.task_syscall_frame;
 
 export struct Armv7aKernelRuntimeTrapFrameAdapterContext {
     Armv7aRuntimeTrapFrameAdapter lower{};
@@ -149,4 +149,86 @@ export [[nodiscard]] auto armv7a_make_kernel_runtime_trap_frame_adapter(
         .capture = &armv7a_capture_kernel_runtime_trap_frame,
         .apply_result = &armv7a_apply_kernel_runtime_trap_result,
     };
+}
+
+export template <
+    typename Table,
+    typename TraceBuffer = kernel::TaskSyscallFrameTraceBuffer<1>>
+class Armv7aTaskSyscallFrameBridge {
+public:
+    using table_type = Table;
+    using frame_type = Armv7aRuntimeTrapLiveFrame;
+    using trace_type = TraceBuffer;
+    using runtime_adapter_type = kernel::RuntimeTrapFrameAdapter<frame_type>;
+    using bridge_type = kernel::TaskSyscallFrameBridge<Table, frame_type, TraceBuffer>;
+    using port_type = kernel::TaskSyscallFramePort<frame_type>;
+
+    Armv7aTaskSyscallFrameBridge(Table& table,
+                                 Armv7aKernelRuntimeTrapFrameAdapterContext& context,
+                                 TraceBuffer* trace = nullptr) noexcept
+        : runtime_adapter_(armv7a_make_kernel_runtime_trap_frame_adapter(context)),
+          bridge_(table,
+                  kernel::make_task_syscall_frame_adapter(runtime_adapter_),
+                  trace)
+    {
+    }
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return bridge_.valid();
+    }
+
+    [[nodiscard]] runtime_adapter_type& runtime_adapter() noexcept
+    {
+        return runtime_adapter_;
+    }
+
+    [[nodiscard]] const runtime_adapter_type& runtime_adapter() const noexcept
+    {
+        return runtime_adapter_;
+    }
+
+    [[nodiscard]] bridge_type& bridge() noexcept
+    {
+        return bridge_;
+    }
+
+    [[nodiscard]] const bridge_type& bridge() const noexcept
+    {
+        return bridge_;
+    }
+
+    [[nodiscard]] port_type port() noexcept
+    {
+        return kernel::make_task_syscall_frame_port(bridge_);
+    }
+
+    [[nodiscard]] kernel::TrapResult dispatch(frame_type& frame) noexcept
+    {
+        return bridge_.dispatch(frame);
+    }
+
+private:
+    runtime_adapter_type runtime_adapter_{};
+    bridge_type bridge_{};
+};
+
+export template <typename Table>
+[[nodiscard]] auto armv7a_make_task_syscall_frame_bridge(
+    Table& table,
+    Armv7aKernelRuntimeTrapFrameAdapterContext& context) noexcept
+    -> Armv7aTaskSyscallFrameBridge<Table>
+{
+    return Armv7aTaskSyscallFrameBridge<Table>{table, context};
+}
+
+export template <typename Table, typename TraceBuffer>
+[[nodiscard]] auto armv7a_make_task_syscall_frame_bridge(
+    Table& table,
+    Armv7aKernelRuntimeTrapFrameAdapterContext& context,
+    TraceBuffer* trace) noexcept
+    -> Armv7aTaskSyscallFrameBridge<Table, TraceBuffer>
+{
+    return Armv7aTaskSyscallFrameBridge<Table, TraceBuffer>{
+        table, context, trace};
 }

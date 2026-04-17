@@ -777,11 +777,9 @@ namespace demo {
         Armv7aKernelRuntimeTrapFrameAdapterContext wrapper{
             .lower = lower_adapter,
         };
-        auto generic_adapter =
-            armv7a_make_kernel_runtime_trap_frame_adapter(wrapper);
-        auto frame_bridge = kernel::make_task_syscall_frame_bridge(
-            table, generic_adapter, &frame_trace);
-        auto port = kernel::make_task_syscall_frame_port(frame_bridge);
+        auto frame_bridge = armv7a_make_task_syscall_frame_bridge(
+            table, wrapper, &frame_trace);
+        auto port = frame_bridge.port();
 
         Armv7aCallFrameBuilderState builder_state{
             .policy =
@@ -813,11 +811,8 @@ namespace demo {
                     &make_armv7a_capability_call_frame,
                 .result_ready = &armv7a_call_frame_result_ready,
             };
-        auto syscall_call_adapter =
-            armv7a_make_task_syscall_call_frame_adapter(runtime_call_adapter);
-        auto caller = kernel::make_task_syscall_frame_caller<
-            Armv7aRuntimeTrapLiveFrame,
-            std::uint64_t>(port, syscall_call_adapter);
+        auto caller = armv7a_make_task_syscall_frame_caller(
+            port, runtime_call_adapter);
 
         const auto yielded = caller.yield();
         const auto slept = caller.sleep_until(55u);

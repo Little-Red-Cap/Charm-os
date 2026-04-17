@@ -388,12 +388,16 @@ report / system 侧的现实载体包括：
 
 - `artifact report` 中的 `system_formation`
 - `artifact report.comparison.system_formation`
+- artifact_root 默认总览中的 `system_formation_summary`
+- artifact_root 默认总览中的 `comparison.system_formation_summary`
 - 默认总览里的 `Formation / FormCmp`
 
 它最适合回答这类问题：
 
 - 当前系统整体是 `formed` 还是 `blocked`
 - unresolved capability 与 blocked node 是否已经收敛成正式 blocker 列表
+- 一组 case 整体有多少已经 `formed` / `blocked`
+- compare 模式下哪些 case 发生了 `formed -> blocked` 一类 formation 漂移
 - compare 漂移有没有已经进入成立性结果面
 
 ### 4.6 `Materialized Graph`

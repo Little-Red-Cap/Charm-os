@@ -378,11 +378,23 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_formation_changed_case_count`
 - `comparison.binding_result_changed_case_count`
 - `comparison.bringup_order_changed_case_count`
+- `system_formation_summary.case_count / formed_case_count / blocked_case_count`
+- `system_formation_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
+- `comparison.system_formation_summary.changed_case_count`
+- `comparison.system_formation_summary.status_change_matrix / blocker_change_matrix`
 - `cases[*].Formation`
 - `cases[*].InpCmp`
 - `cases[*].FormCmp`
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
+
+也就是说，artifact_root 默认总览现在不只会说
+“有多少 case 发生了 system formation 漂移”，
+还会继续直接带出：
+
+- 这一组 case 当前整体有多少已经 `formed`、多少已经 `blocked`
+- unresolved capability / blocked node / blocker 在多 case 之间如何聚集
+- compare 模式下哪些 `formed -> blocked` 或 `blocked -> formed` 转换真的发生了
 
 这意味着默认 explain 面现在已经可以先回答两层问题：
 

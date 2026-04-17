@@ -307,6 +307,11 @@ $rootSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.
 }
 Assert-Condition ([int]$rootSummary.case_count -eq @($ExportCases).Count) 'default artifact_root summary case_count mismatch'
 Assert-Condition (@($rootSummary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary cases length mismatch'
+Assert-Condition ($null -ne $rootSummary.system_formation_summary) 'default artifact_root summary must expose system_formation_summary'
+Assert-Condition ([int]$rootSummary.system_formation_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.case_count mismatch'
+Assert-Condition ([int]$rootSummary.system_formation_summary.formed_case_count -eq @($ExportCases).Count) 'default artifact_root summary formed_case_count mismatch'
+Assert-Condition ([int]$rootSummary.system_formation_summary.blocked_case_count -eq 0) 'default artifact_root summary blocked_case_count must stay zero in export_only mode'
+Assert-Condition (@($rootSummary.system_formation_summary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.cases length mismatch'
 $rootReportSummary = @(
     @($rootSummary.cases) |
         Where-Object { [string]$_.Case -eq $ReportCase } |
@@ -328,6 +333,8 @@ $subsetSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summar
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $SubsetCases -AsJson
 }
 Assert-Condition ([int]$subsetSummary.case_count -eq @($SubsetCases).Count) 'subset artifact_root summary case_count mismatch'
+Assert-Condition ($null -ne $subsetSummary.system_formation_summary) 'subset artifact_root summary must expose system_formation_summary'
+Assert-Condition ([int]$subsetSummary.system_formation_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root system_formation_summary.case_count mismatch'
 
 $capListReport = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'cap_list.report.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $ReportCase -CapList -AsJson

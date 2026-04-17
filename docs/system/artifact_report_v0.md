@@ -113,6 +113,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
 - compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.system_formation / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract`
+- artifact_root 默认总览里的 `system_formation_summary / comparison.system_formation_summary`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
@@ -209,6 +210,9 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `capability_summary.compared_capability_count`
 - `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
 - `capability_summary.compared_capabilities`
+- `system_formation_summary.changed_case_count / unchanged_case_count`
+- `system_formation_summary.status_change_matrix`
+- `system_formation_summary.blocker_change_matrix`
 
 这意味着默认总览已经能直接回答：
 
@@ -218,6 +222,23 @@ artifact_root 级 `cap list` 现在也会继续带出：
 用来先回答：
 
 > **这些漂移主要集中在哪些 capability 上。**
+
+与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
+`system_formation_summary`，
+至少包括：
+
+- `case_count / formed_case_count / blocked_case_count`
+- `formed_cases / blocked_cases`
+- `totals.required_binding_count / totals.unresolved_binding_count`
+- `unresolved_capability_matrix`
+- `blocked_node_matrix`
+- `blocker_matrix`
+
+这意味着 inspector 已经不只会逐 case 地回答
+“系统是否 formed / blocked”，
+还会横向回答：
+
+> **这一组系统实例整体是怎么形成的，阻塞面主要集中在哪里。**
 
 而 `why unavailable` 当前则支持两种读取作用域：
 

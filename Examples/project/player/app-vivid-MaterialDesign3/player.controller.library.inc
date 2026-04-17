@@ -500,11 +500,84 @@
             if (!buf || buf_size == 0) return;
             buf[0] = '\0';
             if (key.empty()) return;
+            const auto* tracks = storage.tracks;
+            if (!tracks) return;
 
-            const int track_count = library_group_track_count(key);
+            int track_count = 0;
+            int total_sec = 0;
+            bool duration_complete = true;
+            int album_count = 0;
+            std::string primary_artist{};
+            bool multiple_artists = false;
+            std::vector<std::string> unique_albums{};
+
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                if (compare_ci(library_group_title_for_track(static_cast<int>(i)), key) != 0) {
+                    continue;
+                }
+
+                ++track_count;
+                const auto path = (*tracks)[i].view();
+                const int duration_sec = cached_track_duration(static_cast<int>(i));
+                if (duration_sec == kTrackDurationUnknown) {
+                    duration_complete = false;
+                } else if (duration_sec > 0) {
+                    total_sec += duration_sec;
+                }
+
+                if (library_tab == LibraryTab::Albums) {
+                    const auto stem = library_track_stem(path);
+                    const auto artist = library_artist_label(library_artist_from_stem(stem));
+                    if (primary_artist.empty()) {
+                        primary_artist.assign(artist.begin(), artist.end());
+                    } else if (compare_ci(primary_artist, artist) != 0) {
+                        multiple_artists = true;
+                    }
+                } else if (library_tab == LibraryTab::Artists) {
+                    const auto album = library_album_label(library_parent_folder(path));
+                    bool exists = false;
+                    for (const auto& existing : unique_albums) {
+                        if (compare_ci(existing, album) == 0) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        unique_albums.emplace_back(album.begin(), album.end());
+                    }
+                }
+            }
+
+            album_count = static_cast<int>(unique_albums.size());
             const char* track_label = (track_count == 1) ? "track" : "tracks";
-            bool duration_complete = false;
-            const int total_sec = library_group_total_duration(key, &duration_complete);
+            if (library_tab == LibraryTab::Albums && !primary_artist.empty()) {
+                const char* artist_label = multiple_artists ? "Various Artists" : primary_artist.c_str();
+                if (duration_complete && total_sec > 0) {
+                    char duration_buf[16]{};
+                    format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
+                    std::snprintf(buf, buf_size, "%s | %d %s | %s",
+                                  artist_label, track_count, track_label, duration_buf);
+                } else {
+                    std::snprintf(buf, buf_size, "%s | %d %s",
+                                  artist_label, track_count, track_label);
+                }
+                return;
+            }
+
+            if (library_tab == LibraryTab::Artists && album_count > 0) {
+                const char* album_label = (album_count == 1) ? "album" : "albums";
+                if (duration_complete && total_sec > 0) {
+                    char duration_buf[16]{};
+                    format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));
+                    std::snprintf(buf, buf_size, "%d %s | %d %s | %s",
+                                  album_count, album_label, track_count, track_label, duration_buf);
+                } else {
+                    std::snprintf(buf, buf_size, "%d %s | %d %s",
+                                  album_count, album_label, track_count, track_label);
+                }
+                return;
+            }
+
             if (duration_complete && total_sec > 0) {
                 char duration_buf[16]{};
                 format_duration_compact(total_sec, duration_buf, sizeof(duration_buf));

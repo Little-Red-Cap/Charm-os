@@ -135,34 +135,32 @@ extern "C" void armv7a_undefined_instruction()
 
 extern "C" void armv7a_svc_smoke_test()
 {
-    asm volatile(
-        "mov r0, %0\n"
-        "mov r1, %1\n"
-        "mov r2, %2\n"
-        "mov r3, %3\n"
-        "svc #0x43"
-        :
-        : "r"(kArmv7aSvcYieldArg0),
-          "r"(kArmv7aSvcYieldArg1),
-          "r"(kArmv7aSvcYieldArg2),
-          "r"(kArmv7aSvcYieldArg3)
-        : "r0", "r1", "r2", "r3", "memory");
+    (void)armv7a_svc_smoke_test_result();
+}
+
+extern "C" std::uint32_t armv7a_svc_smoke_test_result()
+{
+    register std::uint32_t r0 asm("r0") = kArmv7aSvcYieldArg0;
+    register std::uint32_t r1 asm("r1") = kArmv7aSvcYieldArg1;
+    register std::uint32_t r2 asm("r2") = kArmv7aSvcYieldArg2;
+    register std::uint32_t r3 asm("r3") = kArmv7aSvcYieldArg3;
+    asm volatile("svc #0x43" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
+    return r0;
 }
 
 extern "C" void armv7a_svc_sleep_smoke_test()
 {
-    asm volatile(
-        "mov r0, %0\n"
-        "mov r1, %1\n"
-        "mov r2, %2\n"
-        "mov r3, %3\n"
-        "svc #0x44"
-        :
-        : "r"(kArmv7aSvcSleepArg0),
-          "r"(kArmv7aSvcSleepArg1),
-          "r"(kArmv7aSvcSleepArg2),
-          "r"(kArmv7aSvcSleepArg3)
-        : "r0", "r1", "r2", "r3", "memory");
+    (void)armv7a_svc_sleep_smoke_test_result();
+}
+
+extern "C" std::uint32_t armv7a_svc_sleep_smoke_test_result()
+{
+    register std::uint32_t r0 asm("r0") = kArmv7aSvcSleepArg0;
+    register std::uint32_t r1 asm("r1") = kArmv7aSvcSleepArg1;
+    register std::uint32_t r2 asm("r2") = kArmv7aSvcSleepArg2;
+    register std::uint32_t r3 asm("r3") = kArmv7aSvcSleepArg3;
+    asm volatile("svc #0x44" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
+    return r0;
 }
 
 std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value)

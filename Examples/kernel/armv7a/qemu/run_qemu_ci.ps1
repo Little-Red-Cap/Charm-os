@@ -142,6 +142,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-trap-caller",
     "ARMv7-A phase, stage=runtime-trap-dispatch",
     "ARMv7-A phase complete, stage=runtime-trap-dispatch",
+    "ARMv7-A phase, stage=runtime-trap-roundtrip",
+    "ARMv7-A phase complete, stage=runtime-trap-roundtrip",
     "ARMv7-A phase, stage=context-switch-smoke",
     "ARMv7-A phase complete, stage=context-switch-smoke",
     "ARMv7-A phase, stage=scheduler-dispatch",
@@ -322,6 +324,9 @@ if (($log -notmatch "ARMv7-A runtime trap caller, yield-path=svc-call-frame, yie
 }
 if (($log -notmatch "ARMv7-A runtime trap dispatch, yield-path=dispatch-port, yield-generic=0x0001, yield-r0=0x00000001, yield-ready=yes, sleep-path=dispatch-port, sleep-generic=0x0002, sleep-r0=0x00000005, sleep-ready=yes, dispatch=yes")) {
     $missing += "ARMv7-A runtime trap dispatch, yield-path=dispatch-port..."
+}
+if (($log -notmatch "ARMv7-A runtime trap roundtrip, yield-path=svc-return, yield-svc=0x000043, yield-value=0x00000001, yield-ready=yes, sleep-path=svc-return, sleep-svc=0x000044, sleep-value=0x00000005, sleep-ready=yes, roundtrip=yes")) {
+    $missing += "ARMv7-A runtime trap roundtrip, yield-path=svc-return..."
 }
 if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0-9A-F]{8}, stack-top=0x[0-9A-F]{8}, prepared-sp=0x[0-9A-F]{8}, resume=0x[0-9A-F]{8}, return=0x[0-9A-F]{8}, entry=0x[0-9A-F]{8}, arg=0x[0-9A-F]{8}, aligned=yes, in-range=yes, ready=yes")) {
     $missing += "ARMv7-A thread frame, kind=cooperative-sys..."

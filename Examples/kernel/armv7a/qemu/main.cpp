@@ -14,6 +14,7 @@
 #include "armv7a_runtime_trap_dispatch.hpp"
 #include "armv7a_runtime_trap_ingress_adapter.hpp"
 #include "armv7a_runtime_trap_live_adapter.hpp"
+#include "armv7a_runtime_trap_roundtrip.hpp"
 #include "armv7a_runtime_trap_seam.hpp"
 #include "armv7a_runtime_trap_mapping.hpp"
 #include "armv7a_scheduler_dispatch.hpp"
@@ -69,6 +70,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapDispatch);
     armv7a_print_runtime_trap_dispatch_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapDispatch);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapRoundtrip);
+    armv7a_print_runtime_trap_roundtrip_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapRoundtrip);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
     armv7a_run_context_switch_smoke();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);

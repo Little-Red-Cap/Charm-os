@@ -5,6 +5,42 @@
 
 如果你是新同学，建议先读 `docs/overview.md`。
 
+## 先按这个顺序读
+
+如果你是第一次进仓库，先别试图一口气看完所有专题，建议按这条路径建立认知：
+
+1. `docs/overview.md`：10 分钟入门
+2. `docs/architecture_overview.md`：全局架构、依赖红线、公开入口
+3. `docs/README.md`：按任务继续路由
+4. `docs/board/README.md` 或 `docs/system/posix_support_overview.md`：按当前任务选专题入口
+
+## 先分清哪类文档最值得信
+
+遇到同一主题下文档很多时，优先按下面的权威层级判断：
+
+1. `README.md` / `*_overview.md`
+   用来找入口、理解主题边界，不直接替代具体契约。
+2. `*_contract.md`
+   现行行为、边界和接口约束优先以契约文档为准。
+3. `*_plan.md` / `*_roadmap.md` / `*_draft.md`
+   表达方向、设计草案或迁移计划，不自动等同于已落地事实。
+4. `*_review.md` / `*_summary.md` / `*_v0.md`
+   记录阶段性结论、阶段快照或实验收口，需要结合当前代码和上位文档阅读。
+5. `*_tasklist.md` / `*_checklist.md`
+   主要服务推进、验收和排期，不应直接充当长期对外接口说明。
+6. `reference/*` / `generated/*`
+   前者偏参考材料，后者偏生成结果，都不是默认的一手入口。
+
+## 文档维护入口
+
+如果你要新增、整理或归档文档，先看 `docs/documentation_maintenance.md`。  
+这份约定会定义：
+
+- 什么时候该更新入口文档
+- 什么时候应该落成契约文档
+- 什么时候只该放进计划、复盘或任务清单
+- 旧文档应该如何标注替代关系，避免继续制造重复入口
+
 ## 文档状态说明
 
 为降低认知负担，先区分文档类型：
@@ -27,6 +63,8 @@
 - 入门指南：`docs/overview.md`
 - 架构总览：`docs/architecture_overview.md`
 - 文档总索引：`docs/README.md`
+- 系统文档入口：`docs/system/README.md`
+- 项目文档入口：`docs/project/README.md`
 - 板级资料入口：`docs/board/README.md`
 - RK3506 上板资料：`docs/board/rk3506/README.md`
 - RK3506 post-DDR handoff 契约：`docs/board/rk3506/post_ddr_handoff_contract.md`
@@ -122,14 +160,14 @@ flowchart TD
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
 | 实现 USB 设备 | `docs/usb/usb_arch_plan.md` → `docs/usb/usb_dsl_overview.md` |
 | 实现 USB Host 运行期发现 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` |
-| 开始改代码 | `docs/overview.md` → `docs/project/standards/项目C++编码要求.md` |
+| 开始改代码 | `docs/overview.md` → `docs/project/README.md` → `docs/project/standards/README.md` |
 | 和 AI 协作 | `docs/agent/README.md` |
 | 做代码审查 | `docs/agent/skills/code-review/` |
 | 做网络协议栈设计 | `docs/io/net_stack_dual_surface_design.md` |
 | 看网络协议栈阶段复盘 | `docs/io/net_stack_stage_review.md` |
 | 拆网络底座收口任务 | `docs/io/net_stack_foundation_tasklist.md` |
 | 看网络底座是否已可关单 | `docs/io/net_stack_v0_closure_checklist.md` |
-| 做主框架全仓体检 / 收敛排期 | `docs/project/tracking/主框架全仓审查与收敛_backlog.md` |
+| 做主框架全仓体检 / 收敛排期 | `docs/project/tracking/README.md` → `docs/project/tracking/主框架全仓审查与收敛_backlog.md` |
 | POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
 | POSIX 分层与演进原则 | `docs/system/posix_subsystem_principles.md` |
 | POSIX 三层执行模型 | `docs/system/posix_three_layer_contract.md` |
@@ -210,6 +248,7 @@ docs/
 - `docs/architecture/device_model_overview.md`（USB Host discovery / lifecycle）
 
 ### 系统与启动
+- `docs/system/README.md`
 - `docs/system/artifact_report_v0.md`
 - `docs/system/explain_surface_v0.md`
 - `docs/system/resource_contract_v0.md`
@@ -261,6 +300,9 @@ docs/
 - `docs/reference/vsf/vsf_usb_map.md`
 
 ### 项目规范与协作
+- `docs/project/README.md`
+- `docs/project/standards/README.md`
+- `docs/project/tracking/README.md`
 - `docs/project/standards/project_conventions.md`
 - `docs/project/standards/项目C++编码要求.md`
 - `docs/project/collaboration/《协作期待与规范》.md`

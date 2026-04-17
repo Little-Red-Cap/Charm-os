@@ -51,7 +51,7 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 - 同域通知与状态契约：`docs/architecture/signal_state_contract_v0.md`
 - 同域通知与状态原语：`docs/architecture/signal_state_v0.md`
 - 存储：`docs/storage/*`
-- 系统：`docs/system/*`
+- 系统：`docs/system/README.md`
 - Linux 用户态兼容：`docs/system/posix_support_overview.md`
 - 音频：`docs/system/charm_audio_architecture.md`
 - 协作入口：`docs/agent/README.md`
@@ -59,7 +59,7 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 - 架构讨论：`docs/agent/skills/architect-review/`
 
 ## 下一步读什么
-- 要开始改代码：先读 `docs/project/standards/项目C++编码要求.md`
+- 要开始改代码：先读 `docs/project/README.md`
 - 要和 AI 协作：先读 `docs/agent/README.md`
 
 ## 更高层总纲

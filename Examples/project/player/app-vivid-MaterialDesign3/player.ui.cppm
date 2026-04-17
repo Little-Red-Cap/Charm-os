@@ -153,56 +153,67 @@ export namespace player::ui {
     inline constexpr rgba kUiLibraryHeroTopEnd = {24, 40, 80, 18};
     inline constexpr rgba kUiLibraryHeroBottomStart = {12, 22, 48, 92};
     inline constexpr rgba kUiLibraryHeroBottomEnd = {4, 8, 22, 252};
-    inline constexpr rgba kUiLibraryControlsTop = {42, 58, 98, 148};
-    inline constexpr rgba kUiLibraryControlsBottom = {18, 28, 56, 208};
-    inline constexpr rgba kUiLibraryControlsBorder = {118, 142, 198, 102};
-    inline constexpr rgba kUiLibraryCardTop = {28, 40, 70, 150};
-    inline constexpr rgba kUiLibraryCardBottom = {4, 8, 24, 248};
-    inline constexpr rgba kUiLibraryCardBorder = {72, 94, 146, 112};
-    inline constexpr rgba kUiLibraryHeaderPlate = {42, 58, 92, 66};
-    inline constexpr rgba kUiLibraryHeaderBorder = {100, 124, 178, 54};
-    inline constexpr rgba kUiLibraryBodyPlate = {8, 14, 34, 94};
-    inline constexpr rgba kUiLibraryBodyBorder = {58, 76, 124, 44};
+    inline constexpr rgba kUiLibrarySurfaceBg = {15, 19, 28, 255};
+    inline constexpr rgba kUiLibraryControlsTop = {26, 34, 58, 236};
+    inline constexpr rgba kUiLibraryControlsBottom = {10, 14, 24, 248};
+    inline constexpr rgba kUiLibraryControlsBorder = {126, 144, 188, 54};
+    inline constexpr rgba kUiLibraryCardTop = {18, 22, 32, 252};
+    inline constexpr rgba kUiLibraryCardBottom = {18, 22, 32, 252};
+    inline constexpr rgba kUiLibraryCardBorder = {102, 118, 154, 62};
+    inline constexpr rgba kUiLibraryHeaderPlate = {28, 33, 46, 255};
+    inline constexpr rgba kUiLibraryHeaderBorder = {110, 128, 170, 42};
+    inline constexpr rgba kUiLibraryBodyPlate = {19, 23, 34, 255};
+    inline constexpr rgba kUiLibraryBodyBorder = {70, 84, 120, 34};
     inline constexpr rgba kUiHomeDailyMixTop = {94, 130, 220, 255};
     inline constexpr rgba kUiHomeDailyMixBottom = {172, 102, 202, 255};
-    inline constexpr rgba kUiLibraryChipIdle = {24, 32, 50, 224};
+    inline constexpr rgba kUiLibraryChipIdle = {24, 28, 40, 236};
     inline constexpr rgba kUiLibraryChipBorder = {82, 96, 134, 144};
-    inline constexpr rgba kUiLibraryChipActive = {104, 92, 156, 236};
+    inline constexpr rgba kUiLibraryChipActive = {66, 82, 118, 240};
     inline constexpr rgba kUiLibraryChipTextMuted = {194, 202, 226, 220};
     inline constexpr rgba kUiLibraryChipText = {226, 232, 246, 244};
     inline constexpr rgba kUiLibraryChipTextActive = {248, 250, 255, 255};
-    inline constexpr rgba kUiLibraryTabActive = {190, 206, 255, 248};
-    inline constexpr rgba kUiLibraryTabBorderActive = {226, 234, 255, 255};
-    inline constexpr rgba kUiLibraryTabTextActive = {20, 42, 92, 255};
-    inline constexpr rgba kUiLibraryListAccent = {120, 150, 214, 212};
-    inline constexpr rgba kUiLibraryListOnAccent = {248, 250, 255, 255};
-    inline constexpr rgba kUiLibraryPathIdle = {24, 34, 52, 214};
-    inline constexpr rgba kUiLibraryPathActive = {44, 62, 94, 236};
+    inline constexpr rgba kUiLibraryTabActive = {176, 194, 236, 246};
+    inline constexpr rgba kUiLibraryTabBorderActive = {220, 230, 255, 255};
+    inline constexpr rgba kUiLibraryTabTextActive = {24, 38, 76, 255};
+    inline constexpr rgba kUiLibraryListAccent = {88, 108, 156, 228};
+    inline constexpr rgba kUiLibraryListOnAccent = {238, 242, 250, 255};
+    inline constexpr rgba kUiLibraryPathIdle = {30, 35, 49, 236};
+    inline constexpr rgba kUiLibraryPathActive = {42, 49, 68, 244};
     inline constexpr rgba kUiLibraryPathBorderActive = {132, 162, 226, 246};
-    inline constexpr rgba kUiLibraryPathText = {202, 214, 238, 226};
+    inline constexpr rgba kUiLibraryPathText = {210, 220, 240, 226};
     inline constexpr rgba kUiLibraryPathTextActive = {232, 240, 255, 255};
+    inline constexpr rgba kUiBottomBarBg = {22, 26, 38, 248};
+    inline constexpr rgba kUiBottomButtonBg = {30, 35, 49, 255};
+    inline constexpr rgba kUiBottomButtonFg = {232, 238, 248, 255};
+    inline constexpr rgba kUiBottomPlayBg = {50, 65, 98, 255};
+    inline constexpr rgba kUiBottomPlayFg = {246, 249, 255, 255};
 
     struct PlayerIconIds {
         ::ui::gfx::ImageId prev{};
         ::ui::gfx::ImageId play{};
         ::ui::gfx::ImageId pause{};
         ::ui::gfx::ImageId next{};
+        ::ui::gfx::ImageId chevron_right{};
         ::ui::gfx::ImageId loop{};
         ::ui::gfx::ImageId single{};
         ::ui::gfx::ImageId shuffle{};
         ::ui::gfx::ImageId folder{};
         ::ui::gfx::ImageId home{};
+        ::ui::gfx::ImageId home_active{};
         ::ui::gfx::ImageId search{};
+        ::ui::gfx::ImageId search_active{};
         ::ui::gfx::ImageId settings{};
         ::ui::gfx::ImageId down{};
         ::ui::gfx::ImageId more{};
+        ::ui::gfx::ImageId folder_active{};
     };
 
     namespace detail {
-        constexpr int kIconSize = 32;
+        constexpr int kIconSize = 48;
         constexpr int kIconStride = kIconSize * 4;
         using IconBuffer = std::array<std::byte, kIconSize * kIconSize * 4>;
-        constexpr ::ui::gfx::svg::ViewBox kIconView{960.0f, 960.0f};
+        constexpr ::ui::gfx::svg::ViewBox kIconView{24.0f, 24.0f};
+        constexpr ::ui::gfx::svg::ViewBox kLegacyIconView{960.0f, 960.0f};
 
         void icon_clear(IconBuffer& buf) {
             buf.fill(std::byte{0});
@@ -217,50 +228,75 @@ export namespace player::ui {
             buf[idx + 3] = std::byte{color.b};
         }
 
-        bool rasterize_svg_path(IconBuffer& buf, std::string_view path, const rgba& color) {
-            const ::ui::gfx::svg::RasterConfig cfg{.width = kIconSize, .height = kIconSize, .view = kIconView};
+        bool rasterize_svg_path(IconBuffer& buf, std::string_view path, const rgba& color,
+                                ::ui::gfx::svg::ViewBox view = kIconView) {
+            const ::ui::gfx::svg::RasterConfig cfg{.width = kIconSize, .height = kIconSize, .view = view};
             return ::ui::gfx::svg::rasterize_path(path, cfg,
                                                 std::span<std::byte>(buf.data(), buf.size()),
                                                 color, true);
         }
 
         constexpr std::string_view kPathPrev =
-            "M220,680L220,280Q220,263 231.5,251.5Q243,240 260,240Q277,240 288.5,251.5Q300,263 300,280L300,680Q300,697 288.5,708.5Q277,720 260,720Q243,720 231.5,708.5Q220,697 220,680Z"
-            "M678,679L430,513Q421,507 416.5,498.5Q412,490 412,480Q412,470 416.5,461.5Q421,453 430,447L678,281Q683,277 689,276Q695,275 700,275Q716,275 728,286Q740,297 740,315L740,645Q740,663 728,674Q716,685 700,685Q695,685 689,684Q683,683 678,679Z"
-            "M660,480L660,480L660,480Z"
-            "M660,570L660,390L524,480L660,570Z";
+            "M6 6h2v12H6z"
+            "M16 18V6l-8.5 6L16 18z";
         constexpr std::string_view kPathPlay =
-            "M320,687L320,273Q320,256 332,244.5Q344,233 360,233Q365,233 370.5,234.5Q376,236 381,239L707,446Q716,452 720.5,461Q725,470 725,480Q725,490 720.5,499Q716,508 707,514L381,721Q376,724 370.5,725.5Q365,727 360,727Q344,727 332,715.5Q320,704 320,687Z"
-            "M400,480L400,480L400,480Z"
-            "M400,614L610,480L400,346L400,614Z";
+            "M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18a1 1 0 0 0 0-1.69L9.54 5.98"
+            "A.998.998 0 0 0 8 6.82z";
         constexpr std::string_view kPathPause =
-            "M600,760Q567,760 543.5,736.5Q520,713 520,680L520,280Q520,247 543.5,223.5Q567,200 600,200L680,200Q713,200 736.5,223.5Q760,247 760,280L760,680Q760,713 736.5,736.5Q713,760 680,760L600,760Z"
-            "M280,760Q247,760 223.5,736.5Q200,713 200,680L200,280Q200,247 223.5,223.5Q247,200 280,200L360,200Q393,200 416.5,223.5Q440,247 440,280L440,680Q440,713 416.5,736.5Q393,760 360,760L280,760Z"
-            "M600,680L680,680L680,280L600,280L600,680Z"
-            "M280,680L360,680L360,280L280,280L280,680Z";
+            "M6 5h4v14H6z"
+            "M14 5h4v14h-4z";
         constexpr std::string_view kPathNext =
-            "M660,680L660,280Q660,263 671.5,251.5Q683,240 700,240Q717,240 728.5,251.5Q740,263 740,280L740,680Q740,697 728.5,708.5Q717,720 700,720Q683,720 671.5,708.5Q660,697 660,680Z"
-            "M220,645L220,315Q220,297 232,286Q244,275 260,275Q265,275 271,276Q277,277 282,281L530,447Q539,453 543.5,461.5Q548,470 548,480Q548,490 543.5,498.5Q539,507 530,513L282,679Q277,683 271,684Q265,685 260,685Q244,685 232,674Q220,663 220,645Z"
-            "M300,480L300,480L300,480Z"
-            "M300,570L436,480L300,390L300,570Z";
+            "M8 18V6l8.5 6L8 18z"
+            "M16 6h2v12h-2z";
+        constexpr std::string_view kPathChevronRight =
+            "M9.29 6.71a.996.996 0 0 0 0 1.41L13.17 12l-3.88 3.88"
+            "a.996.996 0 1 0 1.41 1.41l4.59-4.59c.39-.39.39-1.02 0-1.41"
+            "L10.7 6.7a.996.996 0 0 0-1.41.01z";
+        constexpr std::string_view kPathLoop =
+            "M5 7h10v2H5z"
+            "M15 4l4 4-4 4z"
+            "M17 9h2v4h-2z"
+            "M9 15h10v2H9z"
+            "M9 12l-4 4 4 4z"
+            "M5 9h2v4H5z";
+        constexpr std::string_view kPathSingle =
+            "M5 7h10v2H5z"
+            "M15 4l4 4-4 4z"
+            "M17 9h2v4h-2z"
+            "M9 15h10v2H9z"
+            "M9 12l-4 4 4 4z"
+            "M5 9h2v4H5z"
+            "M11 9h2v8h-2z";
+        constexpr std::string_view kPathShuffle =
+            "M10.59 9.17L6.12 4.7a.996.996 0 1 0-1.41 1.41l4.46 4.46l1.42-1.4z"
+            "m4.76-4.32l1.19 1.19L4.7 17.88a.996.996 0 1 0 1.41 1.41L17.96 7.46l1.19 1.19"
+            "a.5.5 0 0 0 .85-.36V4.5c0-.28-.22-.5-.5-.5h-3.79a.5.5 0 0 0-.36.85z"
+            "m-.52 8.56l-1.41 1.41l3.13 3.13l-1.2 1.2a.5.5 0 0 0 .36.85h3.79c.28 0 .5-.22.5-.5"
+            "v-3.79c0-.45-.54-.67-.85-.35l-1.19 1.19l-3.13-3.14z";
         constexpr std::string_view kPathFolder =
-            "M120,260H360L440,340H840V760H120Z";
+            "M10.59 4.59C10.21 4.21 9.7 4 9.17 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2"
+            "h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-1.41-1.41z";
         constexpr std::string_view kPathHome =
-            "M240,760L360,760L360,560Q360,543 371.5,531.5Q383,520 400,520L560,520Q577,520 588.5,531.5Q600,543 600,560L600,760L720,760L720,400L480,220L240,400L240,760Z"
-            "M160,760L160,400Q160,381 168.5,364Q177,347 192,336L432,156Q453,140 480,140Q507,140 528,156L768,336Q783,347 791.5,364Q800,381 800,400L800,760Q800,793 776.5,816.5Q753,840 720,840L560,840Q543,840 531.5,828.5Q520,817 520,800L520,600L440,600L440,800Q440,817 428.5,828.5Q417,840 400,840L240,840Q207,840 183.5,816.5Q160,793 160,760Z";
+            "M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6"
+            "c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3"
+            "c.55 0 1-.45 1-1z";
         constexpr std::string_view kPathSearch =
-            "M380,640Q271,640 195.5,564.5Q120,489 120,380Q120,271 195.5,195.5Q271,120 380,120Q489,120 564.5,195.5Q640,271 640,380Q640,424 626,463Q612,502 588,532L812,756Q823,767 823,784Q823,801 812,812Q801,823 784,823Q767,823 756,812L532,588Q502,612 463,626Q424,640 380,640Z"
-            "M380,560Q455,560 507.5,507.5Q560,455 560,380Q560,305 507.5,252.5Q455,200 380,200Q305,200 252.5,252.5Q200,305 200,380Q200,455 252.5,507.5Q305,560 380,560Z";
+            "M9 3.5L12.9 5.1L14.5 9L12.9 12.9L9 14.5L5.1 12.9L3.5 9L5.1 5.1Z"
+            "M9 6.5L6.9 7.4L6 9L6.9 10.6L9 11.5L11.1 10.6L12 9L11.1 7.4Z"
+            "M12.8 13.8L14.2 12.4L19.2 17.4L17.8 18.8Z";
         constexpr std::string_view kPathSettings =
-            "M433,880Q406,880 386.5,862Q367,844 363,818L354,752Q341,747 329.5,740Q318,733 307,725L245,751Q220,762 195,753Q170,744 156,721L109,639Q95,616 101,590Q107,564 128,547L181,507Q180,500 180,493.5Q180,487 180,480Q180,473 180,466.5Q180,460 181,453L128,413Q107,396 101,370Q95,344 109,321L156,239Q170,216 195,207Q220,198 245,209L307,235Q318,227 330,220Q342,213 354,208L363,142Q367,116 386.5,98Q406,80 433,80L527,80Q554,80 573.5,98Q593,116 597,142L606,208Q619,213 630.5,220Q642,227 653,235L715,209Q740,198 765,207Q790,216 804,239L851,321Q865,344 859,370Q853,396 832,413L779,453Q780,460 780,466.5Q780,473 780,480Q780,487 780,493.5Q780,500 778,507L831,547Q852,564 858,590Q864,616 850,639L802,721Q788,744 763,753Q738,762 713,751L653,725Q642,733 630,740Q618,747 606,752L597,818Q593,844 573.5,862Q554,880 527,880L433,880Z"
-            "M440,800L519,800L533,694Q564,686 590.5,670.5Q617,655 639,633L738,674L777,606L691,541Q696,527 698,511.5Q700,496 700,480Q700,464 698,448.5Q696,433 691,419L777,354L738,286L639,328Q617,305 590.5,289.5Q564,274 533,266L520,160L441,160L427,266Q396,274 369.5,289.5Q343,305 321,327L222,286L183,354L269,418Q264,433 262,448Q260,463 260,480Q260,496 262,511Q264,526 269,541L183,606L222,674L321,632Q343,655 369.5,670.5Q396,686 427,694L440,800Z"
-            "M482,620Q540,620 581,579Q622,538 622,480Q622,422 581,381Q540,340 482,340Q423,340 382.5,381Q342,422 342,480Q342,538 382.5,579Q423,620 482,620Z";
+            "M3 17v2h6v-2H3z"
+            "M3 5v2h10V5H3z"
+            "M13 21v-2h8v-2h-8v-2h-2v6h2z"
+            "M7 11h2V9h12V7H9V5H7v6z"
+            "M15 15v2h6v-2h-6z";
         constexpr std::string_view kPathDown =
-            "M480,608L284,412L340,356L480,496L620,356L676,412L480,608Z";
+            "M15.88 9.29L12 13.17L8.12 9.29a.996.996 0 1 0-1.41 1.41l4.59 4.59"
+            "c.39.39 1.02.39 1.41 0l4.59-4.59a.996.996 0 0 0 0-1.41c-.39-.38-1.03-.39-1.42 0z";
         constexpr std::string_view kPathMore =
-            "M480,800Q447,800 423.5,776.5Q400,753 400,720Q400,687 423.5,663.5Q447,640 480,640Q513,640 536.5,663.5Q560,687 560,720Q560,753 536.5,776.5Q513,800 480,800Z"
-            "M480,560Q447,560 423.5,536.5Q400,513 400,480Q400,447 423.5,423.5Q447,400 480,400Q513,400 536.5,423.5Q560,447 560,480Q560,513 536.5,536.5Q513,560 480,560Z"
-            "M480,320Q447,320 423.5,296.5Q400,273 400,240Q400,207 423.5,183.5Q447,160 480,160Q513,160 536.5,183.5Q560,207 560,240Q560,273 536.5,296.5Q513,320 480,320Z";
+            "M12 4a2 2 0 1 0 0 4a2 2 0 1 0 0-4z"
+            "M12 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4z"
+            "M12 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4z";
 
         void build_prev_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
@@ -279,33 +315,27 @@ export namespace player::ui {
 
         void build_loop_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf,
-                               "M274,760L308,794Q320,806 319.5,822Q319,838 308,850Q296,862 279.5,862.5Q263,863 251,851L148,748Q142,742 139.5,735Q137,728 137,720Q137,712 139.5,705Q142,698 148,692L251,589Q263,577 279.5,577.5Q296,578 308,590Q319,602 319.5,618Q320,634 308,646L274,680L680,680Q680,680 680,680Q680,680 680,680L680,560Q680,543 691.5,531.5Q703,520 720,520Q737,520 748.5,531.5Q760,543 760,560L760,680Q760,713 736.5,736.5Q713,760 680,760L274,760Z"
-                               "M686,280L280,280Q280,280 280,280Q280,280 280,280L280,400Q280,417 268.5,428.5Q257,440 240,440Q223,440 211.5,428.5Q200,417 200,400L200,280Q200,247 223.5,223.5Q247,200 280,200L686,200L652,166Q640,154 640.5,138Q641,122 652,110Q664,98 680.5,97.5Q697,97 709,109L812,212Q818,218 820.5,225Q823,232 823,240Q823,248 820.5,255Q818,262 812,268L709,371Q697,383 680.5,382.5Q664,382 652,370Q641,358 640.5,342Q640,326 652,314L686,280Z",
-                               color);
+            rasterize_svg_path(buf, kPathLoop, color);
         }
 
         void build_single_icon(IconBuffer& buf, const rgba& color) {
-            build_loop_icon(buf, color);
-            rasterize_svg_path(buf,
-                               "M460,420L430,420Q417,420 408.5,411.5Q400,403 400,390Q400,377 408.5,368.5Q417,360 430,360L480,360Q497,360 508.5,371.5Q520,383 520,400L520,570Q520,583 511.5,591.5Q503,600 490,600Q477,600 468.5,591.5Q460,583 460,570L460,420Z"
-                               "M274,760L308,794Q320,806 319.5,822Q319,838 308,850Q296,862 279.5,862.5Q263,863 251,851L148,748Q142,742 139.5,735Q137,728 137,720Q137,712 139.5,705Q142,698 148,692L251,589Q263,577 279.5,577.5Q296,578 308,590Q319,602 319.5,618Q320,634 308,646L274,680L680,680Q680,680 680,680Q680,680 680,680L680,560Q680,543 691.5,531.5Q703,520 720,520Q737,520 748.5,531.5Q760,543 760,560L760,680Q760,713 736.5,736.5Q713,760 680,760L274,760Z"
-                               "M686,280L280,280Q280,280 280,280Q280,280 280,280L280,400Q280,417 268.5,428.5Q257,440 240,440Q223,440 211.5,428.5Q200,417 200,400L200,280Q200,247 223.5,223.5Q247,200 280,200L686,200L652,166Q640,154 640.5,138Q641,122 652,110Q664,98 680.5,97.5Q697,97 709,109L812,212Q818,218 820.5,225Q823,232 823,240Q823,248 820.5,255Q818,262 812,268L709,371Q697,383 680.5,382.5Q664,382 652,370Q641,358 640.5,342Q640,326 652,314L686,280Z",
-                               color);
+            icon_clear(buf);
+            rasterize_svg_path(buf, kPathSingle, color);
         }
 
         void build_shuffle_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf,
-                               "M600,800Q583,800 571.5,788.5Q560,777 560,760Q560,743 571.5,731.5Q583,720 600,720L664,720L565,621Q553,609 553.5,592.5Q554,576 566,564Q578,552 594.5,552Q611,552 623,564L720,662L720,600Q720,583 731.5,571.5Q743,560 760,560Q777,560 788.5,571.5Q800,583 800,600L800,760Q800,777 788.5,788.5Q777,800 760,800L600,800Z"
-                               "M172,788Q161,777 161,760Q161,743 172,732L664,240L600,240Q583,240 571.5,228.5Q560,217 560,200Q560,183 571.5,171.5Q583,160 600,160L760,160Q777,160 788.5,171.5Q800,183 800,200L800,360Q800,377 788.5,388.5Q777,400 760,400Q743,400 731.5,388.5Q720,377 720,360L720,296L228,788Q217,799 200,799Q183,799 172,788Z"
-                               "M171,228Q160,217 160,200Q160,183 171,172Q182,161 198.5,161Q215,161 227,172L395,339Q406,350 406.5,366.5Q407,383 395,395Q384,406 367,406Q350,406 339,395L171,228Z",
-                               color);
+            rasterize_svg_path(buf, kPathShuffle, color);
         }
 
         void build_next_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
             rasterize_svg_path(buf, kPathNext, color);
+        }
+
+        void build_chevron_right_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            rasterize_svg_path(buf, kPathChevronRight, color);
         }
 
         void build_folder_icon(IconBuffer& buf, const rgba& color) {
@@ -520,6 +550,22 @@ export namespace player::ui {
                                false);
     }
 
+    inline ImageView icon_chevron_right() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_chevron_right_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
     inline ImageView icon_folder() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
@@ -552,11 +598,43 @@ export namespace player::ui {
                                false);
     }
 
+    inline ImageView icon_home_active() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_home_icon(buf, kUiOk);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
     inline ImageView icon_search() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
             detail::build_search_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_search_active() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_search_icon(buf, kUiOk);
             init = true;
         }
         return make_image_view(PixelFormat::ARGB8888,
@@ -616,6 +694,22 @@ export namespace player::ui {
                                false);
     }
 
+    inline ImageView icon_folder_active() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_folder_icon(buf, kUiOk);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
     inline PlayerIconIds register_player_icons() noexcept {
         PlayerIconIds out{};
         auto reg = [](const ImageView& view) noexcept {
@@ -626,14 +720,19 @@ export namespace player::ui {
         out.play = reg(icon_play());
         out.pause = reg(icon_pause());
         out.next = reg(icon_next());
+        out.chevron_right = reg(icon_chevron_right());
         out.loop = reg(icon_loop());
         out.single = reg(icon_single());
         out.shuffle = reg(icon_shuffle());
         out.folder = reg(icon_folder());
         out.home = reg(icon_home());
+        out.home_active = reg(icon_home_active());
         out.search = reg(icon_search());
+        out.search_active = reg(icon_search_active());
         out.settings = reg(icon_settings());
+        out.down = reg(icon_down());
         out.more = reg(icon_more());
+        out.folder_active = reg(icon_folder_active());
         return out;
     }
 
@@ -911,15 +1010,9 @@ export namespace player::ui {
                 .apply_bg_color = false,
                 .apply_border_color = false,
                 .apply_corner_radius = false,
-                .shadow = {
-                    .enabled = true,
-                    .color = kUiCardShadow,
-                    .offset_x = 0,
-                    .offset_y = 3,
-                    .spread = 3,
-                    .radius = 16,
-                },
             });
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ShuffleShadow), patch);
         }
 
@@ -948,30 +1041,18 @@ export namespace player::ui {
 
         {
             StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiLibraryCardTop;
             patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = kUiLibraryCardTop;
-            patch.has_gradient_end = true;
-            patch.gradient_end = kUiLibraryCardBottom;
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            patch.gradient_enabled = false;
             patch.has_border_color = true;
-            patch.border_color = kUiLibraryCardBorder;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
             patch.has_corner_radius = true;
-            patch.corner_radius = 24;
+            patch.corner_radius = 28;
             patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = kUiCardShadow;
-            patch.has_shadow_offset_x = true;
-            patch.shadow_offset_x = 0;
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 4;
-            patch.has_shadow_spread = true;
-            patch.shadow_spread = 2;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = 16;
+            patch.shadow_enabled = false;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard), patch);
         }
 
@@ -991,23 +1072,15 @@ export namespace player::ui {
         {
             StylePatch patch{};
             patch.has_bg_color = true;
-            patch.bg_color = kUiListBg;
+            patch.bg_color = kUiBottomBarBg;
             patch.has_border_color = true;
-            patch.border_color = kUiListBorder;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
             patch.has_corner_radius = true;
-            patch.corner_radius = 18;
+            patch.corner_radius = 20;
             patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = kUiCardShadow;
-            patch.has_shadow_offset_x = true;
-            patch.shadow_offset_x = 0;
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 4;
-            patch.has_shadow_spread = true;
-            patch.shadow_spread = 6;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = 18;
+            patch.shadow_enabled = false;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomBar), patch);
         }
         {
@@ -1015,25 +1088,21 @@ export namespace player::ui {
             patch.has_corner_radius = true;
             patch.corner_radius = 16;
             patch.has_bg_color = true;
-            patch.bg_color = kUiButtonBg;
+            patch.bg_color = kUiBottomButtonBg;
             patch.has_border_color = true;
-            patch.border_color = kUiButtonBorder;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_font_color = true;
+            patch.font_color = kUiBottomButtonFg;
             patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = kUiCardShadow;
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 3;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = 10;
+            patch.shadow_enabled = false;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomButton), patch);
 
             StylePatch play = patch;
             play.corner_radius = 18;
-            play.has_shadow_offset_y = true;
-            play.shadow_offset_y = 4;
-            play.has_shadow_radius = true;
-            play.shadow_radius = 14;
+            play.bg_color = kUiBottomPlayBg;
+            play.font_color = kUiBottomPlayFg;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomPlay), play);
         }
         Style baseline = theme.get<Button>();
@@ -1220,6 +1289,14 @@ export namespace player::ui {
         StylePatch image_patch{};
         image_patch.has_corner_radius = true;
         image_patch.corner_radius = 24;
+        image_patch.has_border_width = true;
+        image_patch.border_width = 0;
+        image_patch.has_inner_stroke_enabled = true;
+        image_patch.inner_stroke_enabled = false;
+        image_patch.has_outline_enabled = true;
+        image_patch.outline_enabled = false;
+        image_patch.has_shadow_enabled = true;
+        image_patch.shadow_enabled = false;
         theme.patch<Image>(image_patch);
 
         StylePatch image_box_patch = chart_patch;

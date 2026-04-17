@@ -148,8 +148,12 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-trap-context",
     "ARMv7-A phase, stage=runtime-trap-roundtrip",
     "ARMv7-A phase complete, stage=runtime-trap-roundtrip",
+    "ARMv7-A phase, stage=runtime-trap-failure",
+    "ARMv7-A phase complete, stage=runtime-trap-failure",
     "ARMv7-A phase, stage=context-switch-smoke",
     "ARMv7-A phase complete, stage=context-switch-smoke",
+    "ARMv7-A phase, stage=thread-runtime",
+    "ARMv7-A phase complete, stage=thread-runtime",
     "ARMv7-A phase, stage=scheduler-dispatch",
     "ARMv7-A phase complete, stage=scheduler-dispatch",
     "ARMv7-A phase, stage=runtime-bridge",
@@ -166,6 +170,10 @@ $expected = @(
     "ARMv7-A phase complete, stage=task-syscall-caller",
     "ARMv7-A phase, stage=task-syscall-roundtrip",
     "ARMv7-A phase complete, stage=task-syscall-roundtrip",
+    "ARMv7-A phase, stage=task-syscall-glue",
+    "ARMv7-A phase complete, stage=task-syscall-glue",
+    "ARMv7-A phase, stage=task-syscall-failure",
+    "ARMv7-A phase complete, stage=task-syscall-failure",
     "ARMv7-A phase, stage=handoff-prepare",
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=idle",
@@ -356,6 +364,9 @@ if (($log -notmatch "ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x[0
 if (($log -notmatch "ARMv7-A context switch smoke, main-before=0x[0-9A-F]{8}, main-saved=0x[0-9A-F]{8}, thread-entry-sp=0x[0-9A-F]{8}, thread-saved=0x[0-9A-F]{8}, thread-resume-sp=0x[0-9A-F]{8}, entry=yes, resumed=yes, round-trip=yes")) {
     $missing += "ARMv7-A context switch smoke, main-before=0x..."
 }
+if (($log -notmatch "ARMv7-A thread runtime, kind=cooperative-sys, task=0x0000000059537001, current-sp=0x000000005200B000, prepared-sp=0x[0-9A-F]{8}, current=yes, prepare=yes, switch=yes, runtime=yes")) {
+    $missing += "ARMv7-A thread runtime, kind=cooperative-sys..."
+}
 if (($log -notmatch "ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes")) {
     $missing += "ARMv7-A scheduler dispatch, task=svc-trap..."
 }
@@ -364,6 +375,9 @@ if (($log -notmatch "ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=
 }
 if (($log -notmatch "ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes")) {
     $missing += "ARMv7-A task syscall frame, debug-path=svc-frame..."
+}
+if (($log -notmatch "ARMv7-A runtime trap failure, unsupported=unsupported-service, decode=decode-failed, writeback=writeback-failed, adapter=unbound-adapter, dispatch=unbound-adapter, failure=yes")) {
+    $missing += "ARMv7-A runtime trap failure, unsupported=unsupported-service..."
 }
 if (($log -notmatch "ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes")) {
     $missing += "ARMv7-A task syscall dispatch, debug-path=dispatch-port..."
@@ -379,6 +393,12 @@ if (($log -notmatch "ARMv7-A task syscall caller, debug-path=svc-call-frame, deb
 }
 if (($log -notmatch "ARMv7-A task syscall roundtrip, debug-path=svc-return, debug-svc=0x000045, debug-value=0x00000044, debug-ready=yes, capability-path=svc-return, capability-svc=0x000046, capability-value=0x0000002A, capability-ready=yes, roundtrip=yes")) {
     $missing += "ARMv7-A task syscall roundtrip, debug-path=svc-return..."
+}
+if (($log -notmatch "ARMv7-A task syscall glue, task=0x0000000059534001, stack=0x0000000052008000, yield=0x00000001, sleep=0x00000037, debug=0x000000CD, capability=0x0000002A, generic=yes, ingress=yes, bridge=yes, caller=yes, api=yes, glue=yes")) {
+    $missing += "ARMv7-A task syscall glue, task=0x0000000059534001..."
+}
+if (($log -notmatch "ARMv7-A task syscall failure, decode=decode-failed, unsupported=unsupported-service, bridge=unbound-bridge, caller=unbound-adapter, writeback=writeback-failed, failure=yes")) {
+    $missing += "ARMv7-A task syscall failure, decode=decode-failed..."
 }
 if (($log -notmatch "ARMv7-A SGI pending evidence, route=irq, line=group[01]/(yes|no)/(yes|no)/(yes|no), gicd=0x[0-9A-F]{8}, gicc=0x[0-9A-F]{8}, hppir=0x[0-9A-F]{8}, spurious=no")) {
     $missing += "ARMv7-A SGI pending evidence, route=irq..."

@@ -36,7 +36,9 @@ enum class Armv7aBringupPhase : unsigned char {
     kRuntimeCurrent,
     kRuntimeTrapContext,
     kRuntimeTrapRoundtrip,
+    kRuntimeTrapFailure,
     kContextSwitchSmoke,
+    kThreadRuntime,
     kSchedulerDispatch,
     kRuntimeBridge,
     kTaskSyscallFrame,
@@ -45,6 +47,8 @@ enum class Armv7aBringupPhase : unsigned char {
     kTaskSyscallIngressAdapter,
     kTaskSyscallCaller,
     kTaskSyscallRoundtrip,
+    kTaskSyscallGlue,
+    kTaskSyscallFailure,
     kHandoffPrepare,
     kIdle,
 };

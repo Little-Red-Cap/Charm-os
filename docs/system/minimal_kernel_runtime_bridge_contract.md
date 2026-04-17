@@ -80,6 +80,12 @@
 
 这层更适合被下半层持有，因为它已经把“当前这条运行时实例是谁、idle 是谁、trace 放哪里”这几个问题收住了。
 
+当前专门验证这条 ISR deferral seam 的 host 证据是：
+
+- `Examples/kernel/runtime_isr_defer_host`
+
+它直接覆盖 `defer_from_isr(task, event) -> scheduler.post_demand(...)` 的正反路径，以及 worker wait/idle/deferred resume 的最小闭环。
+
 ### 3) `RuntimeThreadPort<Tick>`
 
 位置：同 `kernel.runtime_bridge`
@@ -96,6 +102,12 @@
 - `make_runtime_thread_port(runtime_bridge)`
 
 从 `RuntimeBridge` 派生出来。
+
+当前专门验证这条 thread-side seam 的 host 证据是：
+
+- `Examples/kernel/runtime_thread_port_host`
+
+它直接覆盖 `RuntimeBridge -> RuntimeThreadPort -> scheduler/timer`，不经过 trap/syscall transport。
 
 ### 4) `kernel.runtime_trap`
 
@@ -219,6 +231,9 @@
 当前证据 example：
 
 - `Examples/kernel/runtime_minimal_host`
+- `Examples/kernel/runtime_isr_defer_host`
+- `Examples/kernel/runtime_thread_port_host`
+- `scripts/minimal_kernel_runtime_host_smoke.ps1`
 
 它验证的就是这条最小闭环：
 
@@ -231,6 +246,8 @@
 - 一条可观察 runtime trace
 
 当前这条 example 已接入 `ctest`，可以作为“上半层运行时语义仍然闭环”的基础证据。
+
+如果需要把当前这批上半层 `runtime_*_host` verifier 一次性做 configure/build/run 回归，可以直接跑 `scripts/minimal_kernel_runtime_host_smoke.ps1`。
 
 ## 对 ARMv7-A ingress 的意义
 

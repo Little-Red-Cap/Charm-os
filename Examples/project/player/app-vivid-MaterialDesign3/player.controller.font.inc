@@ -1,23 +1,52 @@
         void refresh_exact_font_styles() noexcept {
             if (!access.valid()) return;
             const Font& title_font = get_player_font_px(72, FontWeight::Bold);
+            const Font& library_title_font = get_player_font_px(60, FontWeight::Bold);
             const Font& subtitle_font = get_player_font_px(18, FontWeight::Regular);
             auto apply_font = [&](WidgetHandle h, const Font& font) {
                 if (!h) return;
                 StylePatch patch{};
                 patch.has_font = true;
                 patch.font = &font;
+                access.set_style_adjust(h, patch);
+            };
+            auto apply_library_title_style = [&](WidgetHandle h) {
+                if (!h) return;
+                StylePatch patch{};
+                patch.has_font = true;
+                patch.font = &library_title_font;
+                patch.has_font_color = true;
+                patch.font_color = kUiOk;
+                patch.has_font_color_disabled = true;
+                patch.font_color_disabled = kUiOk;
+                patch.has_bg_color = true;
+                patch.bg_color = {0, 0, 0, 0};
+                patch.has_border_color = true;
+                patch.border_color = {0, 0, 0, 0};
+                patch.has_border_width = true;
+                patch.border_width = 0;
+                patch.has_padding = true;
+                patch.padding = 0;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 0;
                 access.set_style_override(h, patch);
             };
+            if (handles.library_hero_title) {
+                // TODO(player-ui): move this rect back to the UI builder once the library top-bar layout source stays authoritative.
+                access.set_rect(handles.library_hero_title,
+                                {2, 4, screen_width - kUiPadding * 2 - 66, 92});
+            }
             apply_font(handles.home_title_top, title_font);
             apply_font(handles.home_title_bottom, title_font);
             apply_font(handles.home_subtitle, subtitle_font);
+            apply_library_title_style(handles.library_hero_title);
             apply_font(handles.probe_hero_top, title_font);
             apply_font(handles.probe_hero_bottom, title_font);
             apply_font(handles.probe_hero_subtitle, subtitle_font);
             access.set_text(handles.home_title_top, "Your");
             access.set_text(handles.home_title_bottom, "Mix");
             access.set_text(handles.home_subtitle, "Today's Mix for you");
+            access.set_text(handles.library_hero_title, "Library");
             access.set_text(handles.probe_hero_top, "Your");
             access.set_text(handles.probe_hero_bottom, "Mix");
             access.set_text(handles.probe_hero_subtitle, "Today's Mix for you");
@@ -33,6 +62,8 @@
                                       font_large_px);
             apply_player_theme();
             refresh_exact_font_styles();
+            invalidate_library_visual_state();
+            update_library_state_visuals();
         }
 
         void set_font_config(std::string_view path,

@@ -14,6 +14,7 @@
 #include "armv7a_runtime_current.hpp"
 #include "armv7a_runtime_trap_context.hpp"
 #include "armv7a_runtime_trap_dispatch.hpp"
+#include "armv7a_runtime_trap_failure.hpp"
 #include "armv7a_runtime_trap_ingress_adapter.hpp"
 #include "armv7a_runtime_trap_live_adapter.hpp"
 #include "armv7a_runtime_trap_roundtrip.hpp"
@@ -24,9 +25,12 @@
 #include "armv7a_task_syscall_surface.hpp"
 #include "armv7a_task_syscall_ingress_adapter.hpp"
 #include "armv7a_task_syscall_caller.hpp"
+#include "armv7a_task_syscall_glue.hpp"
+#include "armv7a_task_syscall_failure.hpp"
 #include "armv7a_task_syscall_roundtrip.hpp"
 #include "armv7a_scheduler_dispatch.hpp"
 #include "armv7a_scheduler_tick.hpp"
+#include "armv7a_thread_runtime.hpp"
 
 int main()
 {
@@ -87,9 +91,15 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapRoundtrip);
     armv7a_print_runtime_trap_roundtrip_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapRoundtrip);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeTrapFailure);
+    armv7a_print_runtime_trap_failure_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeTrapFailure);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
     armv7a_run_context_switch_smoke();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kContextSwitchSmoke);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kThreadRuntime);
+    armv7a_print_thread_runtime_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kThreadRuntime);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kSchedulerDispatch);
     armv7a_print_scheduler_dispatch_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kSchedulerDispatch);
@@ -116,6 +126,12 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallRoundtrip);
     armv7a_print_task_syscall_roundtrip_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallRoundtrip);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallGlue);
+    armv7a_print_task_syscall_glue_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallGlue);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallFailure);
+    armv7a_print_task_syscall_failure_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallFailure);
     armv7a_run_handoff_prepare_dry_run();
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);
     armv7a_platform_idle_forever();

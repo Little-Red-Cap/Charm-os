@@ -3018,7 +3018,7 @@ export namespace ui::draw_cmd {
                                             continue;
                                         }
                                         const char* text = buf.text_at(item.text.offset);
-                                        const Font& font = get_font(item.font);
+                                        const Font& font = item.font_ptr ? *item.font_ptr : get_font(item.font);
                                         draw_text_box(canvas, item.rect, text, item.color, font,
                                                       item.align_h, item.align_v, item.wrap, item.ellipsis);
                                         count_cmd(kind);

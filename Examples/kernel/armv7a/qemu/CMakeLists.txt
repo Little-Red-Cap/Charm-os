@@ -77,9 +77,28 @@ set(charm_armv7a_qemu_module_files
     "${CHARM_ROOT}/Modules/core/util/core.cppm"
     "${CHARM_ROOT}/Modules/core/util/expected.cppm"
     "${CHARM_ROOT}/Modules/core/util/error.cppm"
+    "${CHARM_ROOT}/Modules/core/util/type_list.cppm"
+    "${CHARM_ROOT}/Modules/core/util/variant.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.core.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.sink.cppm"
-    "${CHARM_ROOT}/Modules/io/out/out.format.cppm")
+    "${CHARM_ROOT}/Modules/io/out/out.format.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/context.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/eda.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/evt.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/runtime_bridge.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/runtime_glue.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/runtime_service.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/runtime_trap.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/runtime_trap_ingress.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/ssu.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_runtime_api.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_syscall_api.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_syscall_catalog.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_syscall_dispatch.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_syscall_table.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_syscall_frame.cppm"
+    "${CHARM_ROOT}/targets/armv7a/common/armv7a_kernel_runtime_trap_frame_adapter.cppm"
+    "${CHARM_ROOT}/targets/armv7a/common/armv7a_kernel_task_syscall_call_frame_adapter.cppm")
 
 add_executable(${PROJECT_NAME})
 
@@ -90,6 +109,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     main.cpp
     armv7a_bringup_phase.cpp
     armv7a_context_smoke.cpp
+    armv7a_thread_runtime.cpp
     armv7a_context_switch.cpp
     armv7a_context_switch.S
     armv7a_cpu.cpp
@@ -109,6 +129,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_runtime_current.cpp
     armv7a_runtime_trap_context.cpp
     armv7a_runtime_trap_roundtrip.cpp
+    armv7a_runtime_trap_failure.cpp
     armv7a_runtime_bridge.cpp
     armv7a_task_syscall_frame.cpp
     armv7a_task_syscall_dispatch.cpp
@@ -116,6 +137,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_task_syscall_ingress_adapter.cpp
     armv7a_task_syscall_caller.cpp
     armv7a_task_syscall_roundtrip.cpp
+    armv7a_task_syscall_glue.cpp
+    armv7a_task_syscall_failure.cpp
     armv7a_diag_console.cpp
     armv7a_diag_context.cpp
     armv7a_handler_stack.cpp
@@ -152,11 +175,13 @@ target_sources(${PROJECT_NAME}
     FILE_SET modules TYPE CXX_MODULES
     BASE_DIRS
         "${CHARM_ROOT}/Modules"
+        "${CHARM_ROOT}/targets"
     FILES
         ${charm_armv7a_qemu_module_files})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CHARM_ROOT}"
     "${CHARM_ROOT}/targets/armv7a/common")
 
 target_compile_options(${PROJECT_NAME} PRIVATE

@@ -154,6 +154,7 @@ ARMv7-A runtime trap frame, yield-path=svc-frame, yield-handler=svc, yield-retur
 ARMv7-A runtime trap ingress, source=svc, service=0x000043, arg0=0x00000001, arg1=0x00000001, arg2=0x00000000, arg3=0x00000000, service-ready=yes, args-ready=yes, trap=yes
 ARMv7-A runtime trap mapping, yield=yield-current, yield-generic=0x0001, yield-origin=kernel-thread, yield-return-pc=0x4020...., yield-ready=yes, sleep=sleep-until, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-due=0x0000000000000005, sleep-ready=yes, mapping=yes
 ARMv7-A runtime trap adapter, yield-path=svc-r0, yield-r0=0x00000001, yield-preserve=yes, yield-ready=yes, sleep-path=svc-r0, sleep-r0=0x00000005, sleep-preserve=yes, sleep-ready=yes, adapter=yes
+ARMv7-A runtime trap seam, yield-path=svc-frame-r0, yield-generic=0x0001, yield-origin=kernel-thread, yield-r0=0x00000001, yield-ready=yes, sleep-path=svc-frame-r0, sleep-generic=0x0002, sleep-origin=kernel-thread, sleep-r0=0x00000005, sleep-ready=yes, seam=yes
 ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x40...., stack-top=0x40...., prepared-sp=0x40...., resume=0x40...., return=0x40...., entry=0x40...., arg=0x40...., aligned=yes, in-range=yes, ready=yes
 ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-entry-sp=0x40...., thread-saved=0x40...., thread-resume-sp=0x40...., entry=yes, resumed=yes, round-trip=yes
 ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, dispatch=yes
@@ -541,6 +542,11 @@ continue
   the current ARMv7-A SVC path can take that mapped trap shape, treat `r0` as
   the result register, and preserve `lr/spsr` while preparing a future
   `apply_result(frame, result)` ingress seam.
+- The same leaf now also prints one `runtime trap seam` line that closes the
+  live `svc frame -> mapped generic view -> r0 writeback` path into one
+  lower-half contract, so a later upper `RuntimeTrapFrameAdapter` can bind to
+  a proven `capture/apply_result` shape instead of inventing that boundary in
+  the dark.
 - The same QEMU leaf now also closes `timer IRQ -> tick handoff`, `SVC #0x43
   -> yield_current`, `SVC #0x44 -> sleep_current_until`, and dispatch
   readiness into one `runtime bridge` line, so the lower half can align with

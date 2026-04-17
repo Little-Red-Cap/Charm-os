@@ -12,6 +12,7 @@ module;
 #if defined(CHARM_ENABLE_FREETYPE)
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_MULTIPLE_MASTERS_H
 #include FT_SYNTHESIS_H
 #endif
 
@@ -213,6 +214,93 @@ export namespace charm::font {
             if (library_) return true;
             return FT_Init_FreeType(&library_) == 0;
         }
+
+        static FT_ULong make_axis_tag(std::string_view value) noexcept {
+            if (value.size() < 4) return 0;
+            return FT_MAKE_TAG(value[0], value[1], value[2], value[3]);
+        }
+
+        static bool parse_axis_value(std::string_view value, FT_Fixed& out) noexcept {
+            if (value.empty()) return false;
+            bool negative = false;
+            std::size_t index = 0;
+            if (value[index] == '+' || value[index] == '-') {
+                negative = (value[index] == '-');
+                ++index;
+            }
+            if (index >= value.size()) return false;
+            int parsed = 0;
+            bool has_digit = false;
+            for (; index < value.size(); ++index) {
+                const char ch = value[index];
+                if (ch < '0' || ch > '9') return false;
+                has_digit = true;
+                parsed = parsed * 10 + (ch - '0');
+            }
+            if (!has_digit) return false;
+            if (negative) parsed = -parsed;
+            out = static_cast<FT_Fixed>(parsed << 16);
+            return true;
+        }
+
+        bool apply_variation_axes(FT_Face face, std::string_view path) const noexcept {
+            if (!face) return true;
+            const std::size_t pos = path.find('#');
+            if (pos == std::string_view::npos) return true;
+            const std::string_view suffix = path.substr(pos + 1);
+
+            struct AxisRequest {
+                FT_ULong tag{0};
+                FT_Fixed value{0};
+            };
+            std::vector<AxisRequest> requests{};
+
+            std::size_t start = 0;
+            while (start < suffix.size()) {
+                std::size_t end = suffix.find('_', start);
+                if (end == std::string_view::npos) end = suffix.size();
+                const std::string_view token = suffix.substr(start, end - start);
+                if (token.size() > 4) {
+                    FT_Fixed axis_value = 0;
+                    if (parse_axis_value(token.substr(4), axis_value)) {
+                        const FT_ULong axis_tag = make_axis_tag(token.substr(0, 4));
+                        if (axis_tag != 0) {
+                            requests.push_back(AxisRequest{axis_tag, axis_value});
+                        }
+                    }
+                }
+                start = end + 1;
+            }
+
+            if (requests.empty()) return true;
+
+            FT_MM_Var* mm_var = nullptr;
+            if (FT_Get_MM_Var(face, &mm_var) != 0 || !mm_var) {
+                return false;
+            }
+
+            std::vector<FT_Fixed> coords{};
+            coords.resize(mm_var->num_axis);
+            for (FT_UInt i = 0; i < mm_var->num_axis; ++i) {
+                coords[i] = mm_var->axis[i].def;
+            }
+
+            for (const auto& request : requests) {
+                for (FT_UInt i = 0; i < mm_var->num_axis; ++i) {
+                    if (mm_var->axis[i].tag == request.tag) {
+                        coords[i] = request.value;
+                        break;
+                    }
+                }
+            }
+
+            const FT_Error set_err = FT_Set_Var_Design_Coordinates(
+                face,
+                mm_var->num_axis,
+                coords.data());
+            FT_Done_MM_Var(library_, mm_var);
+            return set_err == 0;
+        }
 #endif
 
         static bool load_trampoline(void* ctx, std::string_view path, Font& out) noexcept {
@@ -345,6 +433,7 @@ export namespace charm::font {
                     return false;
                 }
                 select_best_charmap(slot.face);
+                (void)apply_variation_axes(slot.face, path);
                 (void)FT_Set_Pixel_Sizes(slot.face, 0, static_cast<FT_UInt>(size_px));
                 out.line_height = static_cast<int>(slot.face->size->metrics.height >> 6);
                 out.baseline = static_cast<int>(slot.face->size->metrics.ascender >> 6);
@@ -405,6 +494,7 @@ export namespace charm::font {
                 return false;
             }
             select_best_charmap(slot.face);
+            (void)apply_variation_axes(slot.face, path);
             (void)FT_Set_Pixel_Sizes(slot.face, 0, static_cast<FT_UInt>(size_px));
             out.line_height = static_cast<int>(slot.face->size->metrics.height >> 6);
             out.baseline = static_cast<int>(slot.face->size->metrics.ascender >> 6);

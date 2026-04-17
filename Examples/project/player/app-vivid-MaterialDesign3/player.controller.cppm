@@ -155,6 +155,7 @@ export namespace player {
         WidgetHandle list_tab_songs{};
         WidgetHandle list_tab_albums{};
         WidgetHandle list_tab_artist{};
+        WidgetHandle list_tab_indicator{};
         WidgetHandle list_shuffle{};
         WidgetHandle list_title{};
         WidgetHandle list_path_bg{};

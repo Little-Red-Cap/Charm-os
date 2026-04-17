@@ -54,8 +54,22 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "sgi-fiq-timeout-smoke";
     case Armv7aBringupPhase::kKernelIngress:
         return "kernel-ingress";
+    case Armv7aBringupPhase::kSchedulerTickIngress:
+        return "scheduler-tick-ingress";
+    case Armv7aBringupPhase::kRuntimeTrapFrame:
+        return "runtime-trap-frame";
+    case Armv7aBringupPhase::kRuntimeTrapIngress:
+        return "runtime-trap-ingress";
+    case Armv7aBringupPhase::kRuntimeTrapMapping:
+        return "runtime-trap-mapping";
+    case Armv7aBringupPhase::kRuntimeTrapAdapter:
+        return "runtime-trap-adapter";
     case Armv7aBringupPhase::kContextSwitchSmoke:
         return "context-switch-smoke";
+    case Armv7aBringupPhase::kSchedulerDispatch:
+        return "scheduler-dispatch";
+    case Armv7aBringupPhase::kRuntimeBridge:
+        return "runtime-bridge";
     case Armv7aBringupPhase::kHandoffPrepare:
         return "handoff-prepare";
     case Armv7aBringupPhase::kIdle:

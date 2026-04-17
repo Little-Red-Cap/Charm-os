@@ -24,6 +24,7 @@ extern "C" void armv7a_branch_to_address(std::uintptr_t target);
 extern "C" std::uint32_t armv7a_load_word_relaxed(std::uintptr_t address);
 extern "C" void armv7a_undefined_instruction();
 extern "C" void armv7a_svc_smoke_test();
+extern "C" void armv7a_svc_sleep_smoke_test();
 
 std::uint32_t armv7a_id_mmfr0_vmsa_field(std::uint32_t value);
 std::uint32_t armv7a_id_mmfr0_pmsa_field(std::uint32_t value);

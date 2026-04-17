@@ -132,6 +132,30 @@ jobs:
             -BundleRoot ../out/materialized-graph-ci/bundle-current `
             -OutputRoot ../out/materialized-graph-resource-contract-compare-smoke
 
+      - name: Run bringup evidence compare smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_bringup_evidence_compare_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-bringup-evidence-compare-smoke
+
+      - name: Run resource contract compare root smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_resource_contract_compare_root_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-resource-contract-compare-root-smoke
+
+      - name: Run bringup evidence compare root smoke
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1 `
+            -BundleRoot ../out/materialized-graph-ci/bundle-current `
+            -OutputRoot ../out/materialized-graph-bringup-evidence-compare-root-smoke
+
       - name: Validate materialized graph artifacts
         shell: pwsh
         working-directory: candidate
@@ -142,7 +166,9 @@ jobs:
             ../out/materialized-graph-runtime-plane-smoke/runtime_plane_diff.json `
             ../out/materialized-graph-runtime-plane-smoke/report/materialized_graph_bundle_diff_report.manifest.json `
             ../out/materialized-graph-resource-contract-compare-smoke/artifact-report/bringup-minimal-observe-demo.artifact_report.json `
-            ../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare.diff.json
+            ../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare.diff.json `
+            ../out/materialized-graph-bringup-evidence-compare-smoke/artifact-report/bringup-minimal-observe-demo.artifact_report.json `
+            ../out/materialized-graph-bringup-evidence-compare-smoke/bringup_evidence_compare.diff.json
 
       - name: Publish workflow summary
         shell: pwsh
@@ -155,6 +181,9 @@ jobs:
           $resourceContractMatrix = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-matrix-smoke/resource_contract_matrix_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $bringupEvidenceMatrix = Get-Content -LiteralPath ../out/materialized-graph-bringup-evidence-matrix-smoke/bringup_evidence_matrix_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           $resourceContractCompare = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $bringupEvidenceCompare = Get-Content -LiteralPath ../out/materialized-graph-bringup-evidence-compare-smoke/bringup_evidence_compare_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $resourceContractCompareRoot = Get-Content -LiteralPath ../out/materialized-graph-resource-contract-compare-root-smoke/resource_contract_compare_root_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $bringupEvidenceCompareRoot = Get-Content -LiteralPath ../out/materialized-graph-bringup-evidence-compare-root-smoke/bringup_evidence_compare_root_smoke.summary.json -Raw -Encoding utf8 | ConvertFrom-Json
           @(
             '## Materialized Graph Observe'
             ''
@@ -193,6 +222,19 @@ jobs:
             "- Resource contract compare smoke artifact report: `$($resourceContractCompare.artifact_report)`"
             "- Resource contract compare smoke diff: `$($resourceContractCompare.diff_json)`"
             "- Resource contract compare smoke summary: `../out/materialized-graph-resource-contract-compare-smoke/resource_contract_compare_smoke.summary.json`"
+            "- Bringup evidence compare smoke case: `$($bringupEvidenceCompare.case)`"
+            "- Bringup evidence compare smoke published capability: `$($bringupEvidenceCompare.published_capability)`"
+            "- Bringup evidence compare smoke artifact report: `$($bringupEvidenceCompare.artifact_report)`"
+            "- Bringup evidence compare smoke diff: `$($bringupEvidenceCompare.diff_json)`"
+            "- Bringup evidence compare smoke summary: `../out/materialized-graph-bringup-evidence-compare-smoke/bringup_evidence_compare_smoke.summary.json`"
+            "- Resource contract compare root smoke changed case: `$($resourceContractCompareRoot.changed_case)`"
+            "- Resource contract compare root smoke unchanged case: `$($resourceContractCompareRoot.unchanged_case)`"
+            "- Resource contract compare root smoke artifact report root: `$($resourceContractCompareRoot.artifact_report_root)`"
+            "- Resource contract compare root smoke summary: `../out/materialized-graph-resource-contract-compare-root-smoke/resource_contract_compare_root_smoke.summary.json`"
+            "- Bringup evidence compare root smoke changed case: `$($bringupEvidenceCompareRoot.changed_case)`"
+            "- Bringup evidence compare root smoke unchanged case: `$($bringupEvidenceCompareRoot.unchanged_case)`"
+            "- Bringup evidence compare root smoke artifact report root: `$($bringupEvidenceCompareRoot.artifact_report_root)`"
+            "- Bringup evidence compare root smoke summary: `../out/materialized-graph-bringup-evidence-compare-root-smoke/bringup_evidence_compare_root_smoke.summary.json`"
           ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Upload materialized graph artifacts
@@ -209,3 +251,6 @@ jobs:
             out/materialized-graph-resource-contract-matrix-smoke
             out/materialized-graph-bringup-evidence-matrix-smoke
             out/materialized-graph-resource-contract-compare-smoke
+            out/materialized-graph-bringup-evidence-compare-smoke
+            out/materialized-graph-resource-contract-compare-root-smoke
+            out/materialized-graph-bringup-evidence-compare-root-smoke

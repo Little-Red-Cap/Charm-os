@@ -66,21 +66,22 @@
             builder.set_hit_testable(library_bg_bottom, false);
         }
 
-        const int library_top_y = layout.top_bar_y + 2;
-        const int library_top_h = 102;
-        const int library_tabs_y = library_top_y + library_top_h + 14;
-        const int library_tabs_h = 44;
-        const int library_tabs_gap = 12;
+        const int library_top_y = layout.top_bar_y + 4;
+        const int library_top_h = 138;
+        const int library_tabs_y = library_top_y + library_top_h + 16;
+        const int library_tabs_h = 54;
+        const int library_tabs_gap = 14;
         const int library_tab_w = (screen_width - kUiPadding * 2 - library_tabs_gap * 2) / 3;
-        const int library_shuffle_y = library_tabs_y + library_tabs_h + 14;
-        const int library_list_card_y = library_shuffle_y + layout.shuffle_h + 12;
+        const int library_shuffle_h = 40;
+        const int library_shuffle_y = library_tabs_y + library_tabs_h + 16;
+        const int library_list_card_y = library_shuffle_y + library_shuffle_h + 14;
         const int library_list_card_h = std::max(240, layout.bottom_bar_y - library_list_card_y - 20);
         const int controls_inset = kUiPadding - 2;
         const Rect library_controls_rect{
             controls_inset,
-            library_tabs_y - 12,
+            library_tabs_y - 14,
             screen_width - controls_inset * 2,
-            (library_shuffle_y + layout.shuffle_h) - (library_tabs_y - 12) + 10
+            (library_shuffle_y + library_shuffle_h) - (library_tabs_y - 14) + 12
         };
         const WidgetHandle library_controls = builder.create_container();
         anchor_rect(builder, library_controls, library_controls_rect);
@@ -99,7 +100,7 @@
             patch.has_border_width = true;
             patch.border_width = 1;
             patch.has_corner_radius = true;
-            patch.corner_radius = 28;
+            patch.corner_radius = 30;
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
@@ -107,11 +108,11 @@
             patch.has_shadow_offset_x = true;
             patch.shadow_offset_x = 0;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 1;
+            patch.shadow_offset_y = 2;
             patch.has_shadow_spread = true;
             patch.shadow_spread = 0;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 10;
+            patch.shadow_radius = 12;
             builder.set_style_override(library_controls, patch);
             builder.set_hit_testable(library_controls, false);
         }
@@ -119,49 +120,51 @@
         const WidgetHandle lib_top = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, library_top_y, layout.top_bar_w, library_top_h};
         const ::ui::scene::TopBarTitleSpec lib_title_spec{
-            .left_gap = 0,
-            .top_gap = 2,
-            .right_gap = 136,
-            .height = 74,
+            .left_gap = 2,
+            .top_gap = 0,
+            .right_gap = 144,
+            .height = 110,
         };
         const ::ui::scene::TopBarButtonSpec lib_right_spec{
-            .width = 52,
-            .height = 52,
-            .top_gap = 16,
+            .width = 60,
+            .height = 60,
+            .top_gap = 18,
         };
         const ::ui::scene::TopBarLayout lib_top_layout = ::ui::scene::make_top_bar_layout(
             top_bar_rect,
             nullptr,
             &lib_title_spec,
             &lib_right_spec,
-            60);
+            68);
         anchor_rect(builder, lib_top, top_bar_rect);
         const WidgetHandle lib_title = builder.create_label_static("Library");
         anchor_rect(builder, lib_title, lib_top_layout.title_rect);
         {
             // TODO(player/ui): Promote Library top chrome to a dedicated hero header widget.
+            // TODO(player/ui): Fold hero/title variation-axis tuning into reusable text presets after the Library pass stabilizes.
             StylePatch patch = make_player_text_patch(PlayerTextRole::HeroTitle, kUiTitle);
             patch.has_font = true;
-            patch.font = &get_player_font_px(60, FontWeight::Bold);
+            patch.font = &get_player_font_px_variant(92, FontWeight::Bold,
+                "ROND100_wdth92_XTRA520_YOPQ90_YTLC505");
             builder.set_style_override(lib_title, patch);
         }
-        builder.set_label_align(lib_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        builder.set_label_align(lib_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Top);
         builder.set_hit_testable(lib_title, false);
         const WidgetHandle lib_settings = create_top_icon_button(builder,
             lib_top_layout.right_primary_rect,
-            icons.settings, 18);
+            icons.settings, 20);
         {
             StylePatch patch = ::ui::scene::make_pill_surface_patch({
                 .bg_color = {20, 86, 212, 244},
                 .border_color = {154, 190, 255, 120},
-                .corner_radius = 26,
+                .corner_radius = 30,
                 .shadow = {
                     .enabled = true,
                     .color = {0, 0, 0, 46},
                     .offset_x = 0,
-                    .offset_y = 4,
+                    .offset_y = 5,
                     .spread = 0,
-                    .radius = 14,
+                    .radius = 16,
                 },
             });
             patch.has_font_color = true;
@@ -169,9 +172,9 @@
             builder.set_style_override(lib_settings, patch);
         }
 
-        h.list_tab_songs = builder.create_button_static("Songs");
-        h.list_tab_albums = builder.create_button_static("Albums");
-        h.list_tab_artist = builder.create_button_static("Artists");
+        h.list_tab_songs = builder.create_button_static("SONGS");
+        h.list_tab_albums = builder.create_button_static("ALBUMS");
+        h.list_tab_artist = builder.create_button_static("ARTISTS");
 
         h.list_shuffle = builder.create_button_static("Shuffle All");
         const int tab_radius = library_tabs_h / 2;
@@ -193,18 +196,45 @@
         tabs_row.add(h.list_tab_songs, library_tab_w, library_tabs_h);
         tabs_row.add(h.list_tab_albums, library_tab_w, library_tabs_h);
         tabs_row.add(h.list_tab_artist, library_tab_w, library_tabs_h);
+        h.list_tab_indicator = builder.create_container();
+        anchor_rect(builder, h.list_tab_indicator,
+                    {kUiPadding + (library_tab_w - 56) / 2,
+                     library_tabs_y + library_tabs_h + 6,
+                     56,
+                     6});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {kUiLibraryTabActive.r, kUiLibraryTabActive.g, kUiLibraryTabActive.b, 232};
+            patch.has_border_color = true;
+            patch.border_color = {kUiLibraryTabBorderActive.r, kUiLibraryTabBorderActive.g, kUiLibraryTabBorderActive.b, 220};
+            patch.has_border_width = true;
+            patch.border_width = 1;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 4;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = {0, 0, 0, 42};
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 1;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 6;
+            builder.set_style_override(h.list_tab_indicator, patch);
+            builder.set_hit_testable(h.list_tab_indicator, false);
+        }
 
         ::ui::scene::RowBuilder shuffle_row{builder,
-                                            {kUiPadding, library_shuffle_y, screen_width - kUiPadding * 2, layout.shuffle_h},
+                                            {kUiPadding, library_shuffle_y, screen_width - kUiPadding * 2, library_shuffle_h},
                                             0, lib_layout.shuffle_padding,
                                             ::ui::scene::LayoutAlign::Start};
         const WidgetHandle shuffle_root = shuffle_row.root();
-        shuffle_row.add(h.list_shuffle, lib_layout.shuffle_w, layout.shuffle_h);
+        shuffle_row.add(h.list_shuffle, lib_layout.shuffle_w, library_shuffle_h);
         const Rect sort_action_rect{
             screen_width - kUiPadding - lib_layout.list_sort_w,
             library_shuffle_y,
             lib_layout.list_sort_w,
-            layout.shuffle_h
+            library_shuffle_h
         };
 
         const Rect list_card_rect{kUiPadding, library_list_card_y,
@@ -325,6 +355,7 @@
         builder.link(lib_top, lib_settings);
         builder.link(library_layers.content, library_controls);
         builder.link(library_layers.content, tabs_root);
+        builder.link(library_layers.content, h.list_tab_indicator);
         builder.link(library_layers.content, shuffle_root);
         builder.link(library_layers.content, h.list_sort);
         builder.link(library_layers.content, list_card_root);

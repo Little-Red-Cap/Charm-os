@@ -6,6 +6,14 @@
 #include "armv7a_interrupt_contract.hpp"
 #include "armv7a_interrupt_lifecycle_contract.hpp"
 #include "armv7a_kernel_port_contract.hpp"
+#include "armv7a_runtime_trap_adapter_contract.hpp"
+#include "armv7a_runtime_bridge_contract.hpp"
+#include "armv7a_runtime_trap_frame_contract.hpp"
+#include "armv7a_runtime_trap_mapping_contract.hpp"
+#include "armv7a_runtime_trap_ingress_contract.hpp"
+#include "armv7a_scheduler_dispatch_contract.hpp"
+#include "armv7a_scheduler_tick_contract.hpp"
+#include "armv7a_runtime_trap_contract.hpp"
 #include "armv7a_special_interrupt_contract.hpp"
 #include "armv7a_interrupt_timeout_contract.hpp"
 #include "armv7a_thread_context_contract.hpp"
@@ -25,6 +33,8 @@
 
 import charm.foundation;
 import charm.runtime;
+import kernel.eda;
+import kernel.runtime_trap;
 import platform.board;
 import platform.board.armv7a_stub;
 
@@ -589,6 +599,12 @@ namespace {
         Armv7aSvcObservation svc_idle{};
         Armv7aSvcObservation svc_seen{
             .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
+            .immediate = 0x43u,
+            .arg0 = 0x13579BDFu,
+            .arg1 = 0x2468ACE0u,
+            .arg2 = 0x11223344u,
+            .arg3 = 0x55667788u,
+            .arguments_sampled = true,
         };
 
         return armv7a_exception_kind(undefined_frame) == kArmv7aExceptionUndefined &&
@@ -617,12 +633,21 @@ namespace {
                armv7a_exception_pc(fiq_frame) == 0x6000u &&
                armv7a_exception_return_pc(fiq_frame) == 0x6000u &&
                armv7a_exception_pc(svc_frame) == 0x7000u &&
-               armv7a_exception_return_pc(svc_frame) == 0x7004u &&
-               !armv7a_svc_observation_observed(svc_idle) &&
-               armv7a_svc_observation_observed(svc_seen) &&
-               svc_seen.entry.origin_psr == 0x1Fu &&
-               svc_seen.entry.handler_psr == 0x13u &&
-               svc_seen.entry.return_pc == 0x7004u;
+                armv7a_exception_return_pc(svc_frame) == 0x7004u &&
+                !armv7a_svc_observation_observed(svc_idle) &&
+                armv7a_svc_observation_observed(svc_seen) &&
+                !armv7a_svc_service_sampled(svc_idle) &&
+                armv7a_svc_service_sampled(svc_seen) &&
+                !armv7a_svc_arguments_ready(svc_idle) &&
+                armv7a_svc_arguments_ready(svc_seen) &&
+                armv7a_svc_service_matches(svc_seen, 0x43u) &&
+                svc_seen.entry.origin_psr == 0x1Fu &&
+                svc_seen.entry.handler_psr == 0x13u &&
+                svc_seen.entry.return_pc == 0x7004u &&
+                svc_seen.arg0 == 0x13579BDFu &&
+                svc_seen.arg1 == 0x2468ACE0u &&
+                svc_seen.arg2 == 0x11223344u &&
+                svc_seen.arg3 == 0x55667788u;
     }
 
     bool verify_armv7a_vector_entry_contract() noexcept {
@@ -1319,6 +1344,993 @@ namespace {
                !wrong_kind_ready;
     }
 
+    bool verify_armv7a_scheduler_tick_contract() noexcept {
+        auto delivery = armv7a_make_unobserved_interrupt_observation(1023u);
+        delivery.intid = 30u;
+        delivery.line = Armv7aPlatformInterruptLineState{
+            .intid = 30u,
+            .group = 0u,
+            .enabled = 0u,
+            .pending = 0u,
+            .active = 0u,
+            .line_group1 = true,
+            .line_enabled = true,
+            .line_pending = true,
+            .line_active = true,
+        };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 1023u,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 30u,
+                .group = 0u,
+                .enabled = 0u,
+                .pending = 0u,
+                .active = 0u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = false,
+                .line_active = false,
+            });
+
+        const Armv7aSchedulerTickIngressObservation ready{
+            .tick_mode = Armv7aKernelTickMode::one_shot,
+            .route = Armv7aPlatformInterruptRoute::kIrq,
+            .frequency_hz = 62500000u,
+            .now = 0x12345678u,
+            .now_sampled = true,
+            .timer_source = true,
+            .scheduler_tick_isr_safe = true,
+            .delivery = delivery,
+            .completion = completion,
+        };
+
+        auto periodic = ready;
+        periodic.tick_mode = Armv7aKernelTickMode::periodic;
+
+        auto missing_source = ready;
+        missing_source.timer_source = false;
+
+        auto missing_counter = ready;
+        missing_counter.now_sampled = false;
+
+        auto missing_isr_safety = ready;
+        missing_isr_safety.scheduler_tick_isr_safe = false;
+
+        auto wrong_route = ready;
+        wrong_route.route = Armv7aPlatformInterruptRoute::kFiq;
+
+        auto not_retired = ready;
+        not_retired.completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 30u,
+                .highest_pending_intid = 30u,
+                .highest_pending_special = false,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 30u,
+                .group = 0u,
+                .enabled = 0u,
+                .pending = 0u,
+                .active = 0u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = false,
+                .line_active = true,
+            });
+
+        auto no_tick_mode = ready;
+        no_tick_mode.tick_mode = Armv7aKernelTickMode::none;
+
+        return armv7a_scheduler_tick_source_matches_timer(ready) &&
+               armv7a_scheduler_tick_counter_ready(ready) &&
+               armv7a_scheduler_tick_delivery_retired(ready) &&
+               armv7a_scheduler_tick_handoff_ready(ready) &&
+               armv7a_scheduler_tick_requires_rearm(ready) &&
+               armv7a_scheduler_tick_handoff_ready(periodic) &&
+               !armv7a_scheduler_tick_requires_rearm(periodic) &&
+               !armv7a_scheduler_tick_source_matches_timer(missing_source) &&
+               !armv7a_scheduler_tick_counter_ready(missing_counter) &&
+               !armv7a_scheduler_tick_handoff_ready(missing_counter) &&
+               !armv7a_scheduler_tick_handoff_ready(missing_isr_safety) &&
+               !armv7a_scheduler_tick_handoff_ready(wrong_route) &&
+               !armv7a_scheduler_tick_delivery_retired(not_retired) &&
+               !armv7a_scheduler_tick_handoff_ready(not_retired) &&
+               !armv7a_scheduler_tick_handoff_ready(no_tick_mode);
+    }
+
+    bool verify_armv7a_scheduler_dispatch_contract() noexcept {
+        const auto task = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
+        };
+
+        auto delivery = armv7a_make_unobserved_interrupt_observation(1023u);
+        delivery.intid = 30u;
+        delivery.line = Armv7aPlatformInterruptLineState{
+            .intid = 30u,
+            .group = 0u,
+            .enabled = 0u,
+            .pending = 0u,
+            .active = 0u,
+            .line_group1 = true,
+            .line_enabled = true,
+            .line_pending = true,
+            .line_active = true,
+        };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 1023u,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 30u,
+                .group = 0u,
+                .enabled = 0u,
+                .pending = 0u,
+                .active = 0u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = false,
+                .line_active = false,
+            });
+
+        const Armv7aSchedulerDispatchObservation ready{
+            .task_path = Armv7aSchedulerDispatchPath::svc_trap,
+            .isr_path = Armv7aSchedulerDispatchPath::timer_tick,
+            .context_switch_ready = true,
+            .context_round_trip = true,
+            .task = task,
+            .isr =
+                Armv7aSchedulerTickIngressObservation{
+                    .tick_mode = Armv7aKernelTickMode::one_shot,
+                    .route = Armv7aPlatformInterruptRoute::kIrq,
+                    .frequency_hz = 62500000u,
+                    .now = 0x12345678u,
+                    .now_sampled = true,
+                    .timer_source = true,
+                    .scheduler_tick_isr_safe = true,
+                    .delivery = delivery,
+                    .completion = completion,
+                },
+        };
+
+        auto missing_task = ready;
+        missing_task.task_path = Armv7aSchedulerDispatchPath::none;
+
+        auto missing_isr = ready;
+        missing_isr.isr_path = Armv7aSchedulerDispatchPath::none;
+
+        auto missing_context = ready;
+        missing_context.context_switch_ready = false;
+
+        auto missing_round_trip = ready;
+        missing_round_trip.context_round_trip = false;
+
+        auto bad_tick = ready;
+        bad_tick.isr.timer_source = false;
+
+        return armv7a_scheduler_task_path_ready(ready) &&
+               armv7a_scheduler_isr_path_ready(ready) &&
+               armv7a_scheduler_dispatch_context_ready(ready) &&
+               armv7a_scheduler_dispatch_ready(ready) &&
+               !armv7a_scheduler_task_path_ready(missing_task) &&
+               !armv7a_scheduler_dispatch_ready(missing_task) &&
+               !armv7a_scheduler_isr_path_ready(missing_isr) &&
+               !armv7a_scheduler_dispatch_ready(missing_isr) &&
+               !armv7a_scheduler_dispatch_context_ready(missing_context) &&
+               !armv7a_scheduler_dispatch_ready(missing_context) &&
+               !armv7a_scheduler_dispatch_context_ready(missing_round_trip) &&
+               !armv7a_scheduler_dispatch_ready(missing_round_trip) &&
+               !armv7a_scheduler_isr_path_ready(bad_tick) &&
+               !armv7a_scheduler_dispatch_ready(bad_tick);
+    }
+
+    bool verify_armv7a_runtime_trap_contract() noexcept {
+        const Armv7aRuntimeTrapObservation empty{};
+
+        const Armv7aRuntimeTrapObservation ready{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc =
+                Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x1Fu, 0x13u, 0x7004u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000001u,
+                    .arg1 = 0x00000001u,
+                    .arg2 = 0x00000000u,
+                    .arg3 = 0x00000000u,
+                    .arguments_sampled = true,
+                },
+        };
+
+        auto service_missing = ready;
+        service_missing.service_id_sampled = false;
+
+        auto arguments_missing = ready;
+        arguments_missing.arguments_sampled = false;
+
+        auto mismatched_service = ready;
+        mismatched_service.service_id = kArmv7aRuntimeBridgeSleepServiceId;
+
+        auto missing_svc_args = ready;
+        missing_svc_args.svc.arguments_sampled = false;
+
+        return !armv7a_runtime_trap_path_ready(empty) &&
+               !armv7a_runtime_trap_service_ready(empty) &&
+               !armv7a_runtime_trap_arguments_ready(empty) &&
+               !armv7a_runtime_trap_ready(empty) &&
+               armv7a_runtime_trap_path_ready(ready) &&
+               armv7a_runtime_trap_service_ready(ready) &&
+               armv7a_runtime_trap_arguments_ready(ready) &&
+               armv7a_runtime_trap_ready(ready) &&
+               !armv7a_runtime_trap_service_ready(service_missing) &&
+               !armv7a_runtime_trap_ready(service_missing) &&
+               !armv7a_runtime_trap_arguments_ready(arguments_missing) &&
+               !armv7a_runtime_trap_ready(arguments_missing) &&
+               !armv7a_runtime_trap_service_ready(mismatched_service) &&
+               !armv7a_runtime_trap_ready(mismatched_service) &&
+               !armv7a_runtime_trap_arguments_ready(missing_svc_args) &&
+               !armv7a_runtime_trap_ready(missing_svc_args);
+    }
+
+    bool verify_armv7a_runtime_bridge_contract() noexcept {
+        auto delivery = armv7a_make_unobserved_interrupt_observation(1023u);
+        delivery.intid = 30u;
+        delivery.line = Armv7aPlatformInterruptLineState{
+            .intid = 30u,
+            .group = 0u,
+            .enabled = 0u,
+            .pending = 0u,
+            .active = 0u,
+            .line_group1 = true,
+            .line_enabled = true,
+            .line_pending = true,
+            .line_active = true,
+        };
+        delivery.entry = armv7a_make_vector_entry_observation(0x1Fu, 0x12u, 0x5000u);
+
+        const auto completion = armv7a_make_interrupt_completion_observation(
+            delivery,
+            Armv7aPlatformInterruptControllerState{
+                .highest_pending = 1023u,
+                .highest_pending_intid = 1023u,
+                .highest_pending_special = true,
+            },
+            Armv7aPlatformInterruptLineState{
+                .intid = 30u,
+                .group = 0u,
+                .enabled = 0u,
+                .pending = 0u,
+                .active = 0u,
+                .line_group1 = true,
+                .line_enabled = true,
+                .line_pending = false,
+                .line_active = false,
+            });
+
+        const auto tick = Armv7aSchedulerTickIngressObservation{
+            .tick_mode = Armv7aKernelTickMode::one_shot,
+            .route = Armv7aPlatformInterruptRoute::kIrq,
+            .frequency_hz = 62500000u,
+            .now = 0x12345678u,
+            .now_sampled = true,
+            .timer_source = true,
+            .scheduler_tick_isr_safe = true,
+            .delivery = delivery,
+            .completion = completion,
+        };
+
+        const auto yield_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
+            .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+            .arg0 = 0x00000001u,
+            .arg1 = 0x00000001u,
+            .arg2 = 0x00000000u,
+            .arg3 = 0x00000000u,
+            .arguments_sampled = true,
+        };
+        const auto sleep_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7008u),
+            .immediate = kArmv7aRuntimeBridgeSleepServiceId,
+            .arg0 = 0x00000005u,
+            .arg1 = 0x00000000u,
+            .arg2 = 0x00000002u,
+            .arg3 = 0x00000005u,
+            .arguments_sampled = true,
+        };
+        const auto unknown_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x700Cu),
+            .immediate = 0x45u,
+            .arg0 = 0xDEADBEEFu,
+            .arg1 = 0xCAFEBABEu,
+            .arg2 = 0x00000000u,
+            .arg3 = 0x00000000u,
+            .arguments_sampled = true,
+        };
+
+        const auto yield = armv7a_decode_runtime_bridge_trap(yield_observation);
+        const auto sleep = armv7a_decode_runtime_bridge_trap(sleep_observation);
+        const auto unknown = armv7a_decode_runtime_bridge_trap(unknown_observation);
+
+        const auto dispatch = Armv7aSchedulerDispatchObservation{
+            .task_path = Armv7aSchedulerDispatchPath::svc_trap,
+            .isr_path = Armv7aSchedulerDispatchPath::timer_tick,
+            .context_switch_ready = true,
+            .context_round_trip = true,
+            .task = yield_observation,
+            .isr = tick,
+        };
+
+        const Armv7aRuntimeBridgeObservation ready{
+            .tick = tick,
+            .yield = yield,
+            .sleep = sleep,
+            .dispatch = dispatch,
+        };
+
+        auto missing_isr_safe = ready;
+        missing_isr_safe.tick.scheduler_tick_isr_safe = false;
+
+        auto missing_yield_arguments = ready;
+        missing_yield_arguments.yield.arguments_ready = false;
+
+        auto missing_sleep_arguments = ready;
+        missing_sleep_arguments.sleep.arguments_ready = false;
+
+        auto missing_dispatch = ready;
+        missing_dispatch.dispatch.context_round_trip = false;
+
+        return yield.kind == Armv7aRuntimeBridgeTrapKind::yield_current &&
+               yield.service_id == kArmv7aRuntimeBridgeYieldServiceId &&
+               yield.event_id == 0x00000001u &&
+               yield.event_payload == 0x00000001u &&
+               yield.service_ready &&
+               yield.arguments_ready &&
+               sleep.kind == Armv7aRuntimeBridgeTrapKind::sleep_current_until &&
+               sleep.service_id == kArmv7aRuntimeBridgeSleepServiceId &&
+               sleep.due == 0x0000000000000005ull &&
+               sleep.event_id == 0x00000002u &&
+               sleep.event_payload == 0x00000005u &&
+               sleep.service_ready &&
+               sleep.arguments_ready &&
+               unknown.kind == Armv7aRuntimeBridgeTrapKind::none &&
+               unknown.service_id == 0x45u &&
+               !unknown.service_ready &&
+               unknown.arguments_ready &&
+               armv7a_runtime_bridge_yield_request_ready(yield) &&
+               armv7a_runtime_bridge_sleep_request_ready(sleep) &&
+               armv7a_runtime_bridge_tick_ready(ready) &&
+               armv7a_runtime_bridge_isr_defer_ready(ready) &&
+               armv7a_runtime_bridge_dispatch_ready(ready) &&
+               armv7a_runtime_bridge_ready(ready) &&
+               !armv7a_runtime_bridge_isr_defer_ready(missing_isr_safe) &&
+               !armv7a_runtime_bridge_ready(missing_isr_safe) &&
+               !armv7a_runtime_bridge_yield_request_ready(
+                   missing_yield_arguments.yield) &&
+               !armv7a_runtime_bridge_ready(missing_yield_arguments) &&
+               !armv7a_runtime_bridge_sleep_request_ready(
+                   missing_sleep_arguments.sleep) &&
+               !armv7a_runtime_bridge_ready(missing_sleep_arguments) &&
+               !armv7a_runtime_bridge_dispatch_ready(missing_dispatch) &&
+               !armv7a_runtime_bridge_ready(missing_dispatch);
+    }
+
+    kernel::TrapOrigin to_kernel_trap_origin(
+        Armv7aRuntimeTrapOrigin origin) noexcept
+    {
+        switch (origin) {
+        case Armv7aRuntimeTrapOrigin::kernel_thread:
+            return kernel::TrapOrigin::kernel_thread;
+        case Armv7aRuntimeTrapOrigin::user_task:
+            return kernel::TrapOrigin::user_task;
+        case Armv7aRuntimeTrapOrigin::supervisor:
+            return kernel::TrapOrigin::supervisor;
+        case Armv7aRuntimeTrapOrigin::isr:
+            return kernel::TrapOrigin::isr;
+        case Armv7aRuntimeTrapOrigin::unknown:
+        default:
+            return kernel::TrapOrigin::kernel_thread;
+        }
+    }
+
+    kernel::TrapFrameView make_kernel_trap_frame_view(
+        const Armv7aRuntimeTrapFrameProjection& projection) noexcept
+    {
+        return kernel::TrapFrameView{
+            .service_id = projection.service_id,
+            .arg0 = projection.arg0,
+            .arg1 = projection.arg1,
+            .arg2 = projection.arg2,
+            .arg3 = projection.arg3,
+            .return_pc = projection.return_pc,
+            .stack_pointer = projection.stack_pointer,
+            .status = projection.status,
+            .origin = to_kernel_trap_origin(projection.origin),
+            .task = kernel::TaskId{
+                .value = static_cast<std::size_t>(projection.task),
+            },
+            .task_valid = projection.task_valid,
+        };
+    }
+
+    kernel::TrapFrameView make_kernel_trap_frame_view(
+        const Armv7aRuntimeTrapMappedFrame& mapped) noexcept
+    {
+        return kernel::TrapFrameView{
+            .service_id = mapped.service_id,
+            .arg0 = mapped.arg0,
+            .arg1 = mapped.arg1,
+            .arg2 = mapped.arg2,
+            .arg3 = mapped.arg3,
+            .return_pc = mapped.return_pc,
+            .stack_pointer = mapped.stack_pointer,
+            .status = mapped.status,
+            .origin = to_kernel_trap_origin(mapped.origin),
+            .task = kernel::TaskId{
+                .value = static_cast<std::size_t>(mapped.task),
+            },
+            .task_valid = mapped.task_valid,
+        };
+    }
+
+    bool verify_armv7a_runtime_trap_ingress_contract() noexcept {
+        const auto kernel_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x1Fu, 0x13u, 0x7004u),
+            .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+            .arg0 = 0x00000001u,
+            .arg1 = 0x00000001u,
+            .arg2 = 0x00000000u,
+            .arg3 = 0x00000000u,
+            .arguments_sampled = true,
+        };
+        const auto kernel_projection = armv7a_project_runtime_trap_frame(
+            kernel_observation,
+            Armv7aRuntimeTrapIngressContext{
+                .stack_pointer = 0x00004050u,
+                .task = 7u,
+                .task_valid = true,
+            });
+        const auto kernel_frame =
+            make_kernel_trap_frame_view(kernel_projection);
+
+        const auto user_observation = Armv7aSvcObservation{
+            .entry = armv7a_make_vector_entry_observation(0x10u, 0x13u, 0x7104u),
+            .immediate = kArmv7aRuntimeBridgeSleepServiceId,
+            .arg0 = 0x00000005u,
+            .arg1 = 0x00000000u,
+            .arg2 = 0x00000002u,
+            .arg3 = 0x00000005u,
+            .arguments_sampled = true,
+        };
+        const auto user_projection = armv7a_project_runtime_trap_frame(
+            user_observation,
+            Armv7aRuntimeTrapIngressContext{
+                .stack_pointer = 0x00005050u,
+            });
+        const auto user_frame = make_kernel_trap_frame_view(user_projection);
+
+        const auto supervisor_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x13u, 0x13u, 0x7204u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x2u,
+                .arg1 = 0x3u,
+                .arguments_sampled = true,
+            });
+
+        const auto isr_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x12u, 0x13u, 0x7304u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x4u,
+                .arg1 = 0x5u,
+                .arguments_sampled = true,
+            });
+
+        const auto wide_service_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x1Fu, 0x13u, 0x7404u),
+                .immediate = 0x012345u,
+                .arg0 = 0x1u,
+                .arguments_sampled = true,
+            });
+
+        const auto missing_arguments_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x1Fu, 0x13u, 0x7504u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x1u,
+                .arguments_sampled = false,
+            });
+
+        const auto unknown_origin_projection = armv7a_project_runtime_trap_frame(
+            Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x00u, 0x13u, 0x7604u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x1u,
+                .arguments_sampled = true,
+            });
+
+        const auto unobserved_projection =
+            armv7a_project_runtime_trap_frame(Armv7aSvcObservation{});
+
+        return std::string_view(armv7a_runtime_trap_origin_name(
+                   Armv7aRuntimeTrapOrigin::kernel_thread)) == "kernel-thread" &&
+               std::string_view(armv7a_runtime_trap_origin_name(
+                   Armv7aRuntimeTrapOrigin::user_task)) == "user-task" &&
+               std::string_view(armv7a_runtime_trap_origin_name(
+                   Armv7aRuntimeTrapOrigin::supervisor)) == "supervisor" &&
+               std::string_view(armv7a_runtime_trap_origin_name(
+                   Armv7aRuntimeTrapOrigin::isr)) == "isr" &&
+               kernel_projection.service_ready &&
+               kernel_projection.arguments_ready &&
+               kernel_projection.origin_ready &&
+               armv7a_runtime_trap_frame_projection_ready(kernel_projection) &&
+               kernel_projection.service_id ==
+                   kArmv7aRuntimeBridgeYieldServiceId &&
+               kernel_projection.return_pc == 0x00007004u &&
+               kernel_projection.stack_pointer == 0x00004050u &&
+               kernel_projection.status == 0x1Fu &&
+               kernel_projection.origin ==
+                   Armv7aRuntimeTrapOrigin::kernel_thread &&
+               kernel_projection.task == 7u &&
+               kernel_projection.task_valid &&
+               kernel_frame.service_id ==
+                   kArmv7aRuntimeBridgeYieldServiceId &&
+               kernel_frame.arg0 == 0x00000001u &&
+               kernel_frame.arg1 == 0x00000001u &&
+               kernel_frame.return_pc == 0x00007004u &&
+               kernel_frame.stack_pointer == 0x00004050u &&
+               kernel_frame.status == 0x1Fu &&
+               kernel_frame.origin == kernel::TrapOrigin::kernel_thread &&
+               kernel_frame.task.value == 7u &&
+               kernel_frame.task_valid &&
+               user_projection.service_ready &&
+               user_projection.arguments_ready &&
+               user_projection.origin_ready &&
+               armv7a_runtime_trap_frame_projection_ready(user_projection) &&
+               user_projection.origin == Armv7aRuntimeTrapOrigin::user_task &&
+               user_projection.stack_pointer == 0x00005050u &&
+               !user_projection.task_valid &&
+               user_frame.service_id ==
+                   kArmv7aRuntimeBridgeSleepServiceId &&
+               user_frame.arg0 == 0x00000005u &&
+               user_frame.arg2 == 0x00000002u &&
+               user_frame.arg3 == 0x00000005u &&
+               user_frame.origin == kernel::TrapOrigin::user_task &&
+               !user_frame.task_valid &&
+               supervisor_projection.origin ==
+                   Armv7aRuntimeTrapOrigin::supervisor &&
+               supervisor_projection.origin_ready &&
+               armv7a_runtime_trap_frame_projection_ready(
+                   supervisor_projection) &&
+               isr_projection.origin == Armv7aRuntimeTrapOrigin::isr &&
+               isr_projection.origin_ready &&
+               armv7a_runtime_trap_frame_projection_ready(isr_projection) &&
+               !wide_service_projection.service_ready &&
+               !armv7a_runtime_trap_frame_projection_ready(
+                   wide_service_projection) &&
+               !missing_arguments_projection.arguments_ready &&
+               !armv7a_runtime_trap_frame_projection_ready(
+                   missing_arguments_projection) &&
+               !unknown_origin_projection.origin_ready &&
+               !armv7a_runtime_trap_frame_projection_ready(
+                   unknown_origin_projection) &&
+               !unobserved_projection.service_ready &&
+               !unobserved_projection.arguments_ready &&
+               !unobserved_projection.origin_ready &&
+               !armv7a_runtime_trap_frame_projection_ready(
+                   unobserved_projection);
+    }
+
+    bool verify_armv7a_runtime_trap_frame_contract() noexcept {
+        const auto yield_sample = armv7a_make_runtime_trap_frame_sample(
+            Armv7aExceptionFrame{
+                .spsr = 0x1Fu,
+                .vector_id = kArmv7aExceptionSvc,
+                .r0 = 0x00000001u,
+                .r1 = 0x00000001u,
+                .r2 = 0x00000000u,
+                .r3 = 0x00000000u,
+                .r12 = 0x000000AAu,
+                .lr = 0x00009304u,
+            },
+            0x13u,
+            0xEF000043u);
+        const auto yield_capture =
+            armv7a_observe_runtime_trap_frame_capture(yield_sample);
+
+        const auto sleep_sample = armv7a_make_runtime_trap_frame_sample(
+            Armv7aExceptionFrame{
+                .spsr = 0x10u,
+                .vector_id = kArmv7aExceptionSvc,
+                .r0 = 0x00000005u,
+                .r1 = 0x00000000u,
+                .r2 = 0x00000002u,
+                .r3 = 0x00000005u,
+                .r12 = 0x000000BBu,
+                .lr = 0x00009404u,
+            },
+            0x13u,
+            0xEF000044u);
+        const auto sleep_capture =
+            armv7a_observe_runtime_trap_frame_capture(sleep_sample);
+
+        auto bad_instruction_sample = yield_sample;
+        bad_instruction_sample.instruction_word = 0xE1A00000u;
+        const auto bad_instruction_capture =
+            armv7a_observe_runtime_trap_frame_capture(bad_instruction_sample);
+
+        auto bad_vector_sample = yield_sample;
+        bad_vector_sample.frame.vector_id = kArmv7aExceptionIrq;
+        const auto bad_vector_capture =
+            armv7a_observe_runtime_trap_frame_capture(bad_vector_sample);
+
+        auto missing_handler_sample = yield_sample;
+        missing_handler_sample.handler_sampled = false;
+        const auto missing_handler_capture =
+            armv7a_observe_runtime_trap_frame_capture(missing_handler_sample);
+
+        return std::string_view(armv7a_runtime_trap_frame_path_name(
+                   yield_capture.path)) == "svc-frame" &&
+               armv7a_runtime_trap_frame_capture_ready(yield_capture) &&
+               yield_capture.trap.service_id ==
+                   kArmv7aRuntimeBridgeYieldServiceId &&
+               yield_capture.immediate_from_instruction ==
+                   kArmv7aRuntimeBridgeYieldServiceId &&
+               yield_capture.trap.svc.entry.handler_psr == 0x13u &&
+               yield_capture.trap.svc.entry.return_pc == 0x00009304u &&
+               yield_capture.trap.svc.arg0 == 0x00000001u &&
+               yield_capture.arguments_match_frame &&
+               armv7a_runtime_trap_frame_capture_ready(sleep_capture) &&
+               sleep_capture.trap.service_id ==
+                   kArmv7aRuntimeBridgeSleepServiceId &&
+               sleep_capture.immediate_from_instruction ==
+                   kArmv7aRuntimeBridgeSleepServiceId &&
+               sleep_capture.trap.svc.entry.handler_psr == 0x13u &&
+               sleep_capture.trap.svc.entry.return_pc == 0x00009404u &&
+               sleep_capture.trap.svc.arg2 == 0x00000002u &&
+               sleep_capture.arguments_match_frame &&
+               !bad_instruction_capture.instruction_is_svc &&
+               !armv7a_runtime_trap_frame_capture_ready(
+                   bad_instruction_capture) &&
+               !bad_vector_capture.frame_is_svc &&
+               !armv7a_runtime_trap_frame_capture_ready(bad_vector_capture) &&
+               !missing_handler_capture.handler_ready &&
+               !armv7a_runtime_trap_frame_capture_ready(
+                   missing_handler_capture);
+    }
+
+    bool verify_armv7a_runtime_trap_mapping_contract() noexcept {
+        const auto policy = Armv7aRuntimeTrapMappingPolicy{
+            .yield_event_id = 0x00000007u,
+            .yield_event_payload = 0x00000001u,
+            .sleep_event_id = 0x00000001u,
+            .sleep_payload_matches_due_low32 = true,
+        };
+
+        const auto yield_observation = Armv7aRuntimeTrapObservation{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc = Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x1Fu, 0x13u, 0x8104u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x00000007u,
+                .arg1 = 0x00000001u,
+                .arguments_sampled = true,
+            },
+        };
+        const auto yield_mapped = armv7a_map_runtime_trap_frame(
+            yield_observation,
+            policy,
+            Armv7aRuntimeTrapIngressContext{
+                .stack_pointer = 0x00004050u,
+            });
+        const auto yield_frame = make_kernel_trap_frame_view(yield_mapped);
+
+        const auto sleep_observation = Armv7aRuntimeTrapObservation{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeSleepServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc = Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x10u, 0x13u, 0x8204u),
+                .immediate = kArmv7aRuntimeBridgeSleepServiceId,
+                .arg0 = 0x00000005u,
+                .arg1 = 0x00000000u,
+                .arg2 = 0x00000001u,
+                .arg3 = 0x00000005u,
+                .arguments_sampled = true,
+            },
+        };
+        const auto sleep_mapped = armv7a_map_runtime_trap_frame(
+            sleep_observation,
+            policy,
+            Armv7aRuntimeTrapIngressContext{
+                .stack_pointer = 0x00005050u,
+                .task = 9u,
+                .task_valid = true,
+            });
+        const auto sleep_frame = make_kernel_trap_frame_view(sleep_mapped);
+
+        const auto supervisor_mapped = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+                .service_id_sampled = true,
+                .arguments_sampled = true,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x13u, 0x13u, 0x8304u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000007u,
+                    .arg1 = 0x00000001u,
+                    .arguments_sampled = true,
+                },
+            },
+            policy);
+
+        const auto bad_policy = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+                .service_id_sampled = true,
+                .arguments_sampled = true,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x1Fu, 0x13u, 0x8404u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000007u,
+                    .arg1 = 0x00000002u,
+                    .arguments_sampled = true,
+                },
+            },
+            policy);
+
+        const auto invalid_origin = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+                .service_id_sampled = true,
+                .arguments_sampled = true,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x12u, 0x13u, 0x8504u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000007u,
+                    .arg1 = 0x00000001u,
+                    .arguments_sampled = true,
+                },
+            },
+            policy);
+
+        const auto unsupported_service = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = 0x45u,
+                .service_id_sampled = true,
+                .arguments_sampled = true,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x1Fu, 0x13u, 0x8604u),
+                    .immediate = 0x45u,
+                    .arg0 = 0x00000001u,
+                    .arg1 = 0x00000002u,
+                    .arguments_sampled = true,
+                },
+            },
+            policy);
+
+        const auto trap_not_ready = armv7a_map_runtime_trap_frame(
+            Armv7aRuntimeTrapObservation{
+                .path = Armv7aRuntimeTrapPath::svc_immediate,
+                .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+                .service_id_sampled = true,
+                .arguments_sampled = false,
+                .svc = Armv7aSvcObservation{
+                    .entry = armv7a_make_vector_entry_observation(
+                        0x1Fu, 0x13u, 0x8704u),
+                    .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                    .arg0 = 0x00000007u,
+                    .arg1 = 0x00000001u,
+                    .arguments_sampled = false,
+                },
+            },
+            policy);
+
+        const bool mapping_ok =
+            std::string_view(armv7a_runtime_trap_mapped_service_name(
+                Armv7aRuntimeTrapMappedService::yield_current)) ==
+                "yield-current" &&
+            std::string_view(armv7a_runtime_trap_mapped_service_name(
+                Armv7aRuntimeTrapMappedService::sleep_until)) ==
+                "sleep-until" &&
+            yield_mapped.mapped_service ==
+                Armv7aRuntimeTrapMappedService::yield_current &&
+            yield_mapped.service_id == kArmv7aGenericTrapServiceYieldCurrent &&
+            yield_mapped.arg0 == 0x00000007u &&
+            yield_mapped.arg1 == 0x00000001u &&
+            yield_mapped.return_pc == 0x00008104u &&
+            yield_mapped.stack_pointer == 0x00004050u &&
+            yield_mapped.origin == Armv7aRuntimeTrapOrigin::kernel_thread &&
+            yield_mapped.trap_ready &&
+            yield_mapped.request_ready &&
+            yield_mapped.policy_ready &&
+            yield_mapped.origin_ready &&
+            armv7a_runtime_trap_mapping_ready(yield_mapped) &&
+            static_cast<kernel::TrapService>(yield_frame.service_id) ==
+                kernel::TrapService::yield_current &&
+            yield_frame.arg0 == 0x00000007u &&
+            yield_frame.arg1 == 0x00000001u &&
+            yield_frame.origin == kernel::TrapOrigin::kernel_thread &&
+            sleep_mapped.mapped_service ==
+                Armv7aRuntimeTrapMappedService::sleep_until &&
+            sleep_mapped.service_id == kArmv7aGenericTrapServiceSleepUntil &&
+            sleep_mapped.arg0 == 0x0000000000000005ull &&
+            sleep_mapped.arg1 == 0x00000001u &&
+            sleep_mapped.arg2 == 0x00000005u &&
+            sleep_mapped.return_pc == 0x00008204u &&
+            sleep_mapped.stack_pointer == 0x00005050u &&
+            sleep_mapped.origin == Armv7aRuntimeTrapOrigin::user_task &&
+            sleep_mapped.task == 9u &&
+            sleep_mapped.task_valid &&
+            sleep_mapped.trap_ready &&
+            sleep_mapped.request_ready &&
+            sleep_mapped.policy_ready &&
+            sleep_mapped.origin_ready &&
+            armv7a_runtime_trap_mapping_ready(sleep_mapped) &&
+            static_cast<kernel::TrapService>(sleep_frame.service_id) ==
+                kernel::TrapService::sleep_until &&
+            sleep_frame.arg0 == 0x0000000000000005ull &&
+            sleep_frame.arg1 == 0x00000001u &&
+            sleep_frame.arg2 == 0x00000005u &&
+            sleep_frame.origin == kernel::TrapOrigin::user_task &&
+            sleep_frame.task.value == 9u &&
+            sleep_frame.task_valid &&
+            supervisor_mapped.origin ==
+                Armv7aRuntimeTrapOrigin::supervisor &&
+            supervisor_mapped.origin_ready &&
+            armv7a_runtime_trap_mapping_ready(supervisor_mapped) &&
+            bad_policy.request_ready &&
+            !bad_policy.policy_ready &&
+            !armv7a_runtime_trap_mapping_ready(bad_policy) &&
+            invalid_origin.request_ready &&
+            !invalid_origin.origin_ready &&
+            !armv7a_runtime_trap_mapping_ready(invalid_origin) &&
+            unsupported_service.mapped_service ==
+                Armv7aRuntimeTrapMappedService::none &&
+            unsupported_service.trap_ready &&
+            !unsupported_service.request_ready &&
+            !unsupported_service.policy_ready &&
+            !armv7a_runtime_trap_mapping_ready(unsupported_service) &&
+            !trap_not_ready.trap_ready &&
+            !trap_not_ready.request_ready &&
+            !trap_not_ready.policy_ready &&
+            trap_not_ready.origin_ready &&
+            !armv7a_runtime_trap_mapping_ready(trap_not_ready);
+
+        return mapping_ok;
+    }
+
+    bool verify_armv7a_runtime_trap_adapter_contract() noexcept {
+        const auto policy = Armv7aRuntimeTrapMappingPolicy{
+            .yield_event_id = 0x00000001u,
+            .yield_event_payload = 0x00000001u,
+            .sleep_event_id = 0x00000002u,
+            .sleep_payload_matches_due_low32 = true,
+        };
+
+        const auto yield_observation = Armv7aRuntimeTrapObservation{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeYieldServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc = Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x1Fu, 0x13u, 0x9104u),
+                .immediate = kArmv7aRuntimeBridgeYieldServiceId,
+                .arg0 = 0x00000001u,
+                .arg1 = 0x00000001u,
+                .arguments_sampled = true,
+            },
+        };
+        const auto yield_adapter = armv7a_observe_runtime_trap_adapter(
+            yield_observation,
+            armv7a_map_runtime_trap_frame(yield_observation, policy),
+            0x00000001u);
+
+        const auto sleep_observation = Armv7aRuntimeTrapObservation{
+            .path = Armv7aRuntimeTrapPath::svc_immediate,
+            .service_id = kArmv7aRuntimeBridgeSleepServiceId,
+            .service_id_sampled = true,
+            .arguments_sampled = true,
+            .svc = Armv7aSvcObservation{
+                .entry = armv7a_make_vector_entry_observation(
+                    0x10u, 0x13u, 0x9204u),
+                .immediate = kArmv7aRuntimeBridgeSleepServiceId,
+                .arg0 = 0x00000005u,
+                .arg1 = 0x00000000u,
+                .arg2 = 0x00000002u,
+                .arg3 = 0x00000005u,
+                .arguments_sampled = true,
+            },
+        };
+        const auto sleep_adapter = armv7a_observe_runtime_trap_adapter(
+            sleep_observation,
+            armv7a_map_runtime_trap_frame(
+                sleep_observation,
+                policy,
+                Armv7aRuntimeTrapIngressContext{
+                    .stack_pointer = 0x00005050u,
+                }),
+            0x0000000000000005ull);
+
+        const auto direct_frame_before =
+            armv7a_make_runtime_trap_svc_frame(yield_observation.svc);
+        auto direct_frame = direct_frame_before;
+        const bool direct_writeback =
+            armv7a_runtime_trap_svc_frame_matches(
+                direct_frame_before, yield_observation.svc) &&
+            armv7a_apply_runtime_trap_result_to_frame(
+                direct_frame, 0x12345678u) &&
+            direct_frame.r0 == 0x12345678u &&
+            direct_frame.lr == direct_frame_before.lr &&
+            direct_frame.spsr == direct_frame_before.spsr;
+
+        const auto overflow_adapter = armv7a_observe_runtime_trap_adapter(
+            yield_observation,
+            armv7a_map_runtime_trap_frame(yield_observation, policy),
+            0x0000000100000000ull);
+
+        return std::string_view(armv7a_runtime_trap_adapter_path_name(
+                   yield_adapter.path)) == "svc-r0" &&
+               std::string_view(armv7a_runtime_trap_adapter_path_name(
+                   sleep_adapter.path)) == "svc-r0" &&
+               armv7a_runtime_trap_adapter_ready(yield_adapter) &&
+               yield_adapter.result_register_before == 0x00000001u &&
+               yield_adapter.result_register_after == 0x00000001u &&
+               yield_adapter.return_pc_before == 0x00009104u &&
+               yield_adapter.return_pc_after == 0x00009104u &&
+               yield_adapter.return_pc_preserved &&
+               yield_adapter.status_preserved &&
+               armv7a_runtime_trap_adapter_ready(sleep_adapter) &&
+               sleep_adapter.result_register_before == 0x00000005u &&
+               sleep_adapter.result_register_after == 0x00000005u &&
+               sleep_adapter.return_pc_before == 0x00009204u &&
+               sleep_adapter.return_pc_after == 0x00009204u &&
+               sleep_adapter.return_pc_preserved &&
+               sleep_adapter.status_preserved &&
+               direct_writeback &&
+               !armv7a_runtime_trap_adapter_ready(overflow_adapter) &&
+               !overflow_adapter.value_fits_result_register &&
+               !overflow_adapter.result_written &&
+               overflow_adapter.return_pc_preserved &&
+               overflow_adapter.status_preserved;
+    }
+
     platform::board::BootExecRequest make_common_boot_exec_request(
         const Armv7aHandoffPrepareContext& prepare) noexcept {
         return platform::board::BootExecRequest{
@@ -1992,6 +3004,22 @@ int main() {
         verify_armv7a_kernel_port_contract();
     const bool armv7_thread_context_contract_ok =
         verify_armv7a_thread_context_contract();
+    const bool armv7_scheduler_tick_contract_ok =
+        verify_armv7a_scheduler_tick_contract();
+    const bool armv7_scheduler_dispatch_contract_ok =
+        verify_armv7a_scheduler_dispatch_contract();
+    const bool armv7_runtime_trap_contract_ok =
+        verify_armv7a_runtime_trap_contract();
+    const bool armv7_runtime_bridge_contract_ok =
+        verify_armv7a_runtime_bridge_contract();
+    const bool armv7_runtime_trap_ingress_contract_ok =
+        verify_armv7a_runtime_trap_ingress_contract();
+    const bool armv7_runtime_trap_frame_contract_ok =
+        verify_armv7a_runtime_trap_frame_contract();
+    const bool armv7_runtime_trap_mapping_contract_ok =
+        verify_armv7a_runtime_trap_mapping_contract();
+    const bool armv7_runtime_trap_adapter_contract_ok =
+        verify_armv7a_runtime_trap_adapter_contract();
 
     const bool ok = slot_a_written &&
                     transfer_ok &&
@@ -2052,10 +3080,18 @@ int main() {
                     armv7_stack_observation_contract_ok &&
                     armv7_vector_exit_contract_ok &&
                     armv7_interrupt_lifecycle_contract_ok &&
-                    armv7_interrupt_timeout_contract_ok &&
-                    armv7_special_interrupt_contract_ok &&
-                    armv7_kernel_port_contract_ok &&
-                    armv7_thread_context_contract_ok;
+                     armv7_interrupt_timeout_contract_ok &&
+                     armv7_special_interrupt_contract_ok &&
+                     armv7_kernel_port_contract_ok &&
+                    armv7_thread_context_contract_ok &&
+                     armv7_scheduler_tick_contract_ok &&
+                     armv7_scheduler_dispatch_contract_ok &&
+                     armv7_runtime_trap_contract_ok &&
+                     armv7_runtime_bridge_contract_ok &&
+                     armv7_runtime_trap_ingress_contract_ok &&
+                     armv7_runtime_trap_frame_contract_ok &&
+                     armv7_runtime_trap_mapping_contract_ok &&
+                     armv7_runtime_trap_adapter_contract_ok;
 
     std::printf("[boot] slot_a_written=%d\n", slot_a_written ? 1 : 0);
     std::printf("[boot] xymodem_transport=%d\n", transfer_ok ? 1 : 0);
@@ -2135,6 +3171,22 @@ int main() {
                 armv7_kernel_port_contract_ok ? 1 : 0);
     std::printf("[boot] armv7_thread_context_contract=%d\n",
                 armv7_thread_context_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_scheduler_tick_contract=%d\n",
+                armv7_scheduler_tick_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_scheduler_dispatch_contract=%d\n",
+                armv7_scheduler_dispatch_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_contract=%d\n",
+                armv7_runtime_trap_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_bridge_contract=%d\n",
+                armv7_runtime_bridge_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_ingress_contract=%d\n",
+                armv7_runtime_trap_ingress_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_frame_contract=%d\n",
+                armv7_runtime_trap_frame_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_mapping_contract=%d\n",
+                armv7_runtime_trap_mapping_contract_ok ? 1 : 0);
+    std::printf("[boot] armv7_runtime_trap_adapter_contract=%d\n",
+                armv7_runtime_trap_adapter_contract_ok ? 1 : 0);
     std::printf("[boot] ok=%d\n", ok ? 1 : 0);
     return ok ? 0 : 1;
 }

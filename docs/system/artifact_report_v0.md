@@ -108,7 +108,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `recent transitions` 查询结果
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
-- compare 模式下的 `summary_changes / metadata_changes`
+- compare 模式下的 `summary_changes / metadata_changes / comparison.bringup_evidence / comparison.resource_contract`
+- artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
 
@@ -124,9 +125,57 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `declared_fact / resource_fact / unresolved_binding`
 - `provider_nodes / consumer_nodes`
 
+如果当前 report 来自 compare 模式，
+单 report 级 `cap list` 现在还会继续为每个 capability 带出最小 compare 摘要，
+至少包括：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+与此同时，
+单 report 默认总览里的 `comparison` 现在也会继续带出一份最小 `capability_summary`，
+至少包括：
+
+- `comparison.capability_summary.compared_capability_count`
+- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `comparison.capability_summary.compared_capabilities`
+
+如果选择的是整组 compare report，
+artifact_root 级 `cap list` 现在也会继续带出：
+
+- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases`
+- capability 级 `bringup_change_kinds / resource_change_kinds`
+- query 级 compare 摘要计数
+
+这意味着当前 inspector 已经可以把“capability 分布”与“compare drift 分布”放进同一张表面。
+
 当调用方显式选择多个 case 子集时，
 当前 inspector 不支持直接对这类“部分 root”做 `cap list` 汇总，
 以避免把单 case 证据和跨 case 聚合语义混在一起。
+
+与此同时，
+如果调用方直接读取 artifact_root 默认总览，
+而所选报告又来自 compare 模式，
+当前 JSON 总览也会额外带出一份最小 `comparison` 摘要，
+至少回答：
+
+- `compared_case_count`
+- `metadata_changed_case_count`
+- `bringup_changed_case_count`
+- `resource_changed_case_count`
+- `capability_summary.compared_capability_count`
+- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `capability_summary.compared_capabilities`
+
+这意味着默认总览已经能直接回答：
+
+> **这一组 compare report 里，到底有多少 case 真正在 compare 维度上发生了漂移。**
+
+它现在还会继续给出一份最小 capability 热点入口，
+用来先回答：
+
+> **这些漂移主要集中在哪些 capability 上。**
 
 而 `graph path` 当前则明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：
@@ -527,12 +576,28 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `metadata_changes`
 - `node_changes`
 - `edge_changes`
+- `bringup_evidence`
 - `resource_contract`
 
 这组字段不应取代底层 `bundle_diff`，
 但它应该把 case 级最重要的比较结论直接拉到报告顶层。
 对于 metadata-only diff，当前 `status` 仍可保持 `unchanged`，
 但 `metadata_changes` 不应被吞掉。
+而 `comparison.bringup_evidence` 则用于承载“结构未变但 bringup 证据发生漂移”的比较面，
+避免把 sidecar / published 状态变化误塞回结构 diff 语义。
+
+`comparison.bringup_evidence` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `capability_changes`
+- `published_capability_changes`
+
+这意味着 compare 模式下即使顶层 `status = unchanged`，
+报告仍然可以明确回答 baseline/candidate 的 bringup 证据是否发生漂移，
+尤其是哪些 capability 在 `missing / published` 与 `missing / detached / attached` 之间发生切换。
+
 而 `comparison.resource_contract` 则用于承载“结构未变但资源法律发生漂移”的比较面，
 避免把资源契约变更误塞回结构 diff 语义。
 
@@ -668,6 +733,58 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
     ],
     "node_changes": {"added": 0, "removed": 0, "changed": 0},
     "edge_changes": {"added": 0, "removed": 0},
+    "bringup_evidence": {
+      "changed": true,
+      "left": {
+        "declared_count": 12,
+        "materialized_count": 12,
+        "published_count": 0,
+        "observed_count": 12,
+        "blocked_count": 0,
+        "failed_count": 0,
+        "published_capabilities": [],
+        "observed_capabilities": []
+      },
+      "right": {
+        "declared_count": 12,
+        "materialized_count": 12,
+        "published_count": 1,
+        "observed_count": 12,
+        "blocked_count": 0,
+        "failed_count": 0,
+        "published_capabilities": ["io.uart1"],
+        "observed_capabilities": ["io.uart1"]
+      },
+      "summary_changes": [
+        "published_count:0->1"
+      ],
+      "published_capability_changes": {
+        "added": ["io.uart1"],
+        "removed": []
+      },
+      "capability_changes": [
+        {
+          "capability": "io.uart1",
+          "change_kind": "changed",
+          "left_declared": true,
+          "right_declared": true,
+          "left_materialized": true,
+          "right_materialized": true,
+          "left_observed": true,
+          "right_observed": true,
+          "left_published": false,
+          "right_published": true,
+          "left_blocked": false,
+          "right_blocked": false,
+          "left_failed": false,
+          "right_failed": false,
+          "left_publish_state": "missing",
+          "right_publish_state": "published",
+          "left_export_state": null,
+          "right_export_state": "attached"
+        }
+      ]
+    },
     "resource_contract": {
       "changed": true,
       "left": {

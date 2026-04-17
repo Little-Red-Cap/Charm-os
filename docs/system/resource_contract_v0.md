@@ -416,6 +416,7 @@ SSU 已经证明了另一件事：
 - `scripts/materialized_graph_resource_contract_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_matrix_smoke.ps1`
 - `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
 
 它当前直接消费已有 `artifact-report` 输出，并复用
 `inspect_system_compiler_artifact_report.ps1 -ResourceSummary` 的真实查询结果，
@@ -454,6 +455,22 @@ SSU 已经证明了另一件事：
 - 哪些 case 满足 / 违反 / 仍未知
 - 某个资源事实究竟覆盖了哪些 case
 - 热点是否在多案例之间重复出现
+
+如果这些 report 来自 compare 模式，
+artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
+`query.comparison.resource_contract`，至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `contract_change_matrix`
+
+这意味着资源契约 explain 现在已经不只会回答“单 case 相对 baseline 漂移了什么”，
+还可以横向回答：
+
+- 哪些 case 真正发生 compare drift
+- 哪些 summary change 在多 case 之间重复出现
+- 某条合同的 compare 变化究竟覆盖了哪些 case
 
 ## 10. v0 的工程边界
 

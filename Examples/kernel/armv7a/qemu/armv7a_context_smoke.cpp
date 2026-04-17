@@ -22,6 +22,7 @@ Armv7aContextSmokeArgument g_armv7aContextSmokeArgument{};
 volatile bool g_armv7aContextSmokeEntrySeen = false;
 volatile bool g_armv7aContextSmokeResumedSeen = false;
 volatile bool g_armv7aContextSmokeUnexpectedReturn = false;
+volatile bool g_armv7aContextSmokeRoundTrip = false;
 std::uintptr_t g_armv7aContextSmokeMainSpSaved = 0u;
 std::uintptr_t g_armv7aContextSmokeThreadSpSaved = 0u;
 std::uintptr_t g_armv7aContextSmokeMainSpBefore = 0u;
@@ -77,6 +78,7 @@ void armv7a_run_context_switch_smoke()
     g_armv7aContextSmokeEntrySeen = false;
     g_armv7aContextSmokeResumedSeen = false;
     g_armv7aContextSmokeUnexpectedReturn = false;
+    g_armv7aContextSmokeRoundTrip = false;
     g_armv7aContextSmokeMainSpSaved = 0u;
     g_armv7aContextSmokeThreadSpSaved = 0u;
     g_armv7aContextSmokeMainSpBefore = armv7a_read_sp();
@@ -126,6 +128,7 @@ void armv7a_run_context_switch_smoke()
         armv7a_context_sp_in_range(g_armv7aContextSmokeThreadSpEntry) &&
         armv7a_context_sp_in_range(g_armv7aContextSmokeThreadSpResume) &&
         g_armv7aContextSmokeMainSpBefore > g_armv7aContextSmokeMainSpSaved;
+    g_armv7aContextSmokeRoundTrip = round_trip_ok;
 
     armv7a_platform_early_console_puts(
         "ARMv7-A context switch smoke, main-before=0x");
@@ -148,4 +151,20 @@ void armv7a_run_context_switch_smoke()
     armv7a_platform_early_console_puts(
         armv7a_diag_yes_no(round_trip_ok));
     armv7a_platform_early_console_puts("\r\n");
+}
+
+Armv7aContextSwitchSmokeObservation
+armv7a_context_switch_smoke_last_observation() noexcept
+{
+    return Armv7aContextSwitchSmokeObservation{
+        .entry_seen = g_armv7aContextSmokeEntrySeen,
+        .resumed_seen = g_armv7aContextSmokeResumedSeen,
+        .unexpected_return = g_armv7aContextSmokeUnexpectedReturn,
+        .round_trip = g_armv7aContextSmokeRoundTrip,
+        .main_sp_before = g_armv7aContextSmokeMainSpBefore,
+        .main_sp_saved = g_armv7aContextSmokeMainSpSaved,
+        .thread_entry_sp = g_armv7aContextSmokeThreadSpEntry,
+        .thread_saved_sp = g_armv7aContextSmokeThreadSpSaved,
+        .thread_resume_sp = g_armv7aContextSmokeThreadSpResume,
+    };
 }

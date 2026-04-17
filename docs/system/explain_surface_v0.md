@@ -260,6 +260,21 @@ v0 阶段建议至少覆盖：
 - `declared_fact / resource_fact / unresolved_binding`
 - `provider_nodes / consumer_nodes`
 
+如果当前 report 来自 compare 模式，
+单 report 级 `-CapList -AsJson` 现在也会把 capability 级 compare 摘要一起带出来，
+至少覆盖：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+与此同时，
+单 report 默认总览里的 `comparison` 现在也会继续附带：
+
+- `comparison.capability_summary.compared_capability_count`
+- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `comparison.capability_summary.compared_capabilities`
+
 当前实现支持两种读取作用域：
 
 - 单 report 查询
@@ -288,6 +303,35 @@ v0 阶段建议至少覆盖：
 而 root 汇总模式还会额外带出 `cases` 与 `*_cases` 数组，
 用于表达 capability 在不同 case 中的出现分布。
 
+如果选择的是整组 compare report，
+artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
+
+- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases`
+- capability 级 `bringup_change_kinds / resource_change_kinds`
+- query 级 `comparison.compared_capability_count`
+- query 级 `comparison.bringup_compare_capability_count / resource_compare_capability_count`
+
+这意味着 `cap list` 现在已经不只会回答“这个 capability 出现在哪些 case 里”，
+还可以直接回答：
+
+- 哪些 capability 本身已经进入 compare drift 热点
+- 这些热点更偏 bringup 漂移还是资源法律漂移
+- 某个 capability 的 compare 漂移究竟覆盖了哪些 case
+
+与此同时，
+如果调用方直接读取 artifact_root 默认总览，
+当前 `comparison` 摘要也会继续附带一个最小 `capability_summary`，
+至少包括：
+
+- `capability_summary.compared_capability_count`
+- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `capability_summary.compared_capabilities`
+
+这意味着默认 explain 面现在已经可以先回答两层问题：
+
+- 有多少 case 发生了 compare drift
+- compare drift 主要集中在哪些 capability 上
+
 围绕同一批 capability，
 当前仓库里还新增了一个更直接的单 report 入口：
 
@@ -313,6 +357,22 @@ v0 阶段建议至少覆盖：
 - blocked reason matrix
 - failed reason matrix
 
+如果这些 report 来自 compare 模式，
+artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
+`query.comparison.bringup_evidence`，至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `capability_change_matrix`
+
+这意味着 explain surface 已经不只会回答“哪个 capability 在哪些 case 中存在”，
+还可以横向回答：
+
+- 哪些 case 的 bringup 证据相对 baseline 发生漂移
+- 漂移集中在哪些 summary change
+- 某个 capability 的 compare 漂移究竟出现在多少 case 里
+
 这样 bringup 证据不再只能按单 case 追问，
 还可以直接横向查看：
 
@@ -320,6 +380,20 @@ v0 阶段建议至少覆盖：
 - 哪些 capability 已经跨 case materialized / observed
 - `publish_state / export_state` 在不同 case 之间如何分布
 - 哪些 blocked / failed reason 在多个 case 之间重复出现
+
+如果当前 report 来自 compare 模式，
+`-BringupEvidence -AsJson` 还会额外暴露 `query.comparison.bringup_evidence`，
+至少带出：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `published_capability_changes`
+- `capability_changes`
+
+这让 explain surface 可以在结构 diff 仍保持 `unchanged` 时，
+继续回答“bringup 证据相对 baseline 漂移了什么”，
+尤其是哪些 capability 的 `publish_state / export_state` 已经发生切换。
 
 ### 6.2 `why unavailable`
 
@@ -589,6 +663,22 @@ v0 阶段建议至少覆盖：
 
 这让 explain surface 可以在不伪造结构变化的前提下，
 直接回答“资源契约相对 baseline 漂移了什么”。
+
+如果选择的是整组 compare report，
+artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
+`query.comparison.resource_contract`，至少带出：
+
+- `compared_case_count / changed_case_count / unchanged_case_count`
+- `changed_cases / unchanged_cases`
+- `summary_change_matrix`
+- `contract_change_matrix`
+
+这让资源解释面不只会横向看“哪些合同在哪些 case 中成立”，
+还可以横向看：
+
+- 哪些 case 的资源法律相对 baseline 发生漂移
+- 哪条合同在多少 case 中发生 compare change
+- summary drift 是否集中在少数几个 contract law 变化上
 
 当前 `resource summary` 的最小解释方式是：
 

@@ -8,11 +8,15 @@
 
 constexpr std::uint16_t kArmv7aGenericTrapServiceYieldCurrent = 0x0001u;
 constexpr std::uint16_t kArmv7aGenericTrapServiceSleepUntil = 0x0002u;
+constexpr std::uint16_t kArmv7aGenericTrapServiceDebugWrite = 0x0003u;
+constexpr std::uint16_t kArmv7aGenericTrapServiceCapabilityCall = 0x0004u;
 
 enum class Armv7aRuntimeTrapMappedService : std::uint8_t {
     none = 0,
     yield_current,
     sleep_until,
+    debug_write,
+    capability_call,
 };
 
 constexpr const char* armv7a_runtime_trap_mapped_service_name(
@@ -23,6 +27,10 @@ constexpr const char* armv7a_runtime_trap_mapped_service_name(
         return "yield-current";
     case Armv7aRuntimeTrapMappedService::sleep_until:
         return "sleep-until";
+    case Armv7aRuntimeTrapMappedService::debug_write:
+        return "debug-write";
+    case Armv7aRuntimeTrapMappedService::capability_call:
+        return "capability-call";
     case Armv7aRuntimeTrapMappedService::none:
     default:
         return "none";
@@ -126,6 +134,25 @@ constexpr Armv7aRuntimeTrapMappedFrame armv7a_map_runtime_trap_frame(
             armv7a_runtime_bridge_sleep_request_ready(request);
         mapped.policy_ready =
             armv7a_runtime_trap_sleep_request_matches_policy(request, policy);
+        break;
+    case Armv7aRuntimeBridgeTrapKind::debug_write:
+        mapped.mapped_service = Armv7aRuntimeTrapMappedService::debug_write;
+        mapped.service_id = kArmv7aGenericTrapServiceDebugWrite;
+        mapped.arg0 = request.arg0;
+        mapped.request_ready =
+            armv7a_runtime_bridge_debug_write_request_ready(request);
+        mapped.policy_ready = true;
+        break;
+    case Armv7aRuntimeBridgeTrapKind::capability_call:
+        mapped.mapped_service =
+            Armv7aRuntimeTrapMappedService::capability_call;
+        mapped.service_id = kArmv7aGenericTrapServiceCapabilityCall;
+        mapped.arg0 = request.arg0;
+        mapped.arg1 = request.arg1;
+        mapped.arg2 = request.arg2;
+        mapped.request_ready =
+            armv7a_runtime_bridge_capability_call_request_ready(request);
+        mapped.policy_ready = true;
         break;
     case Armv7aRuntimeBridgeTrapKind::none:
     default:

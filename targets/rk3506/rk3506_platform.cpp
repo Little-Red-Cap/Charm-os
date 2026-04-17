@@ -84,7 +84,48 @@
 #define CHARM_RK3506_GENERIC_TIMER_EXPECTED_INTID 30
 #endif
 
+#ifndef CHARM_RK3506_BRINGUP_LEVEL
+#define CHARM_RK3506_BRINGUP_LEVEL 2
+#endif
+
+extern "C" {
+volatile std::uint32_t g_rk3506_startup_breadcrumb
+    __attribute__((section(".data.rk3506_breadcrumb"), used)) = 0u;
+volatile std::uint32_t g_rk3506_vector_breadcrumb
+    __attribute__((section(".data.rk3506_breadcrumb"), used)) = 0u;
+}
+
 namespace {
+constexpr std::uint32_t kRk3506BringupLevelMinimal = 0u;
+constexpr std::uint32_t kRk3506BringupLevelObserve = 1u;
+constexpr std::uint32_t kRk3506BringupLevelIrqSmoke = 2u;
+constexpr bool kReadOnlySmokeEnabled =
+    CHARM_RK3506_BRINGUP_LEVEL >= kRk3506BringupLevelObserve;
+constexpr bool kIrqTimerSmokeEnabled =
+    CHARM_RK3506_BRINGUP_LEVEL >= kRk3506BringupLevelIrqSmoke;
+
+constexpr std::uint32_t kStartupBreadcrumbEntry = 0x10u;
+constexpr std::uint32_t kStartupBreadcrumbMasked = 0x20u;
+constexpr std::uint32_t kStartupBreadcrumbStackBase = 0x30u;
+constexpr std::uint32_t kStartupBreadcrumbBssCleared = 0x40u;
+constexpr std::uint32_t kStartupBreadcrumbModeStacksReady = 0x50u;
+constexpr std::uint32_t kStartupBreadcrumbResetHookEnter = 0x60u;
+constexpr std::uint32_t kStartupBreadcrumbResetHookDone = 0x70u;
+constexpr std::uint32_t kStartupBreadcrumbVectorsInstalled = 0x80u;
+constexpr std::uint32_t kStartupBreadcrumbBootMainEntry = 0x90u;
+constexpr std::uint32_t kStartupBreadcrumbConsoleReady = 0xa0u;
+constexpr std::uint32_t kStartupBreadcrumbReadOnlySmokeDone = 0xb0u;
+constexpr std::uint32_t kStartupBreadcrumbIrqSmokeDone = 0xc0u;
+
+constexpr std::uint32_t kVectorBreadcrumbNone = 0u;
+constexpr std::uint32_t kVectorBreadcrumbUndefined = 0x101u;
+constexpr std::uint32_t kVectorBreadcrumbPrefetchAbort = 0x102u;
+constexpr std::uint32_t kVectorBreadcrumbDataAbort = 0x103u;
+constexpr std::uint32_t kVectorBreadcrumbReserved = 0x104u;
+constexpr std::uint32_t kVectorBreadcrumbIrq = 0x105u;
+constexpr std::uint32_t kVectorBreadcrumbFiq = 0x106u;
+constexpr std::uint32_t kVectorBreadcrumbSvc = 0x107u;
+
 constexpr std::uint32_t kUartRegShift = CHARM_RK3506_UART_REG_SHIFT;
 constexpr std::uint32_t kUartThrIndex = 0u;
 constexpr std::uint32_t kUartDllIndex = 0u;
@@ -202,6 +243,13 @@ constexpr Rk3506PlatformTiming kTiming{
 };
 
 Rk3506PlatformResetState g_resetState{};
+Rk3506PlatformBringupState g_bringupState{
+    .configured_level = CHARM_RK3506_BRINGUP_LEVEL,
+    .startup_breadcrumb = 0u,
+    .vector_breadcrumb = 0u,
+    .read_only_smoke_enabled = kReadOnlySmokeEnabled,
+    .irq_timer_smoke_enabled = kIrqTimerSmokeEnabled,
+};
 Rk3506PlatformEarlyConsoleState g_earlyConsoleState{};
 Rk3506PlatformGenericTimerSmokeState g_genericTimerSmokeState{};
 Rk3506PlatformGicSmokeState g_gicSmokeState{};
@@ -634,6 +682,13 @@ const Rk3506PlatformResetState& rk3506_platform_reset_state()
     return g_resetState;
 }
 
+const Rk3506PlatformBringupState& rk3506_platform_bringup_state()
+{
+    g_bringupState.startup_breadcrumb = g_rk3506_startup_breadcrumb;
+    g_bringupState.vector_breadcrumb = g_rk3506_vector_breadcrumb;
+    return g_bringupState;
+}
+
 const Rk3506PlatformEarlyConsoleState& rk3506_platform_early_console_state()
 {
     return g_earlyConsoleState;
@@ -653,6 +708,76 @@ const Rk3506PlatformGicSmokeState& rk3506_platform_gic_smoke_state()
 const Rk3506PlatformIrqTimerSmokeState& rk3506_platform_irq_timer_smoke_state()
 {
     return g_irqTimerSmokeState;
+}
+
+const char* rk3506_platform_bringup_level_name(unsigned int level)
+{
+    switch (level) {
+    case kRk3506BringupLevelMinimal:
+        return "minimal";
+    case kRk3506BringupLevelObserve:
+        return "observe";
+    case kRk3506BringupLevelIrqSmoke:
+        return "irq-smoke";
+    default:
+        return "unknown";
+    }
+}
+
+const char* rk3506_platform_startup_breadcrumb_name(std::uint32_t value)
+{
+    switch (value) {
+    case kStartupBreadcrumbEntry:
+        return "startup-entry";
+    case kStartupBreadcrumbMasked:
+        return "async-masks-applied";
+    case kStartupBreadcrumbStackBase:
+        return "bootstrap-stack-ready";
+    case kStartupBreadcrumbBssCleared:
+        return "bss-cleared";
+    case kStartupBreadcrumbModeStacksReady:
+        return "mode-stacks-ready";
+    case kStartupBreadcrumbResetHookEnter:
+        return "platform-reset-hook-enter";
+    case kStartupBreadcrumbResetHookDone:
+        return "platform-reset-hook-done";
+    case kStartupBreadcrumbVectorsInstalled:
+        return "vectors-installed";
+    case kStartupBreadcrumbBootMainEntry:
+        return "boot-main-entry";
+    case kStartupBreadcrumbConsoleReady:
+        return "early-console-ready";
+    case kStartupBreadcrumbReadOnlySmokeDone:
+        return "read-only-smoke-done";
+    case kStartupBreadcrumbIrqSmokeDone:
+        return "irq-smoke-done";
+    default:
+        return "unknown";
+    }
+}
+
+const char* rk3506_platform_vector_breadcrumb_name(std::uint32_t value)
+{
+    switch (value) {
+    case kVectorBreadcrumbNone:
+        return "none";
+    case kVectorBreadcrumbUndefined:
+        return "undefined-entry";
+    case kVectorBreadcrumbPrefetchAbort:
+        return "prefetch-abort-entry";
+    case kVectorBreadcrumbDataAbort:
+        return "data-abort-entry";
+    case kVectorBreadcrumbReserved:
+        return "reserved-entry";
+    case kVectorBreadcrumbIrq:
+        return "irq-entry";
+    case kVectorBreadcrumbFiq:
+        return "fiq-entry";
+    case kVectorBreadcrumbSvc:
+        return "svc-entry";
+    default:
+        return "unknown";
+    }
 }
 
 const char* rk3506_platform_interrupt_source_name(unsigned int intid)
@@ -718,6 +843,11 @@ extern "C" void rk3506_platform_early_console_puts(const char* text)
 
 extern "C" void rk3506_platform_capture_read_only_smoke()
 {
+    g_genericTimerSmokeState = {};
+    g_gicSmokeState = {};
+    if (!kReadOnlySmokeEnabled) {
+        return;
+    }
     rk3506_capture_generic_timer_smoke_state(g_genericTimerSmokeState);
     rk3506_capture_gic_smoke_state(g_gicSmokeState);
 }
@@ -725,6 +855,9 @@ extern "C" void rk3506_platform_capture_read_only_smoke()
 extern "C" void rk3506_platform_run_irq_timer_smoke()
 {
     g_irqTimerSmokeState = {};
+    if (!kIrqTimerSmokeEnabled) {
+        return;
+    }
     g_irqTimerSmokeState.attempted = true;
     g_irqTimerSmokeState.expected_intid = kRk3506ExpectedGenericTimerIntId;
     g_irqTimerSmokeState.generic_timer_available =

@@ -63,6 +63,12 @@ set(CHARM_RK3506_GENERIC_TIMER_FREQUENCY_HZ "24000000" CACHE STRING
     "RK3506 generic timer frequency in Hz from DTS/U-Boot sources")
 set(CHARM_RK3506_GENERIC_TIMER_EXPECTED_INTID "30" CACHE STRING
     "RK3506 generic timer IRQ contract; default assumes post-DDR normal-world PL1 handoff uses the non-secure physical timer PPI")
+set(CHARM_RK3506_BRINGUP_STAGE "irq-smoke" CACHE STRING
+    "RK3506 board bring-up stage: minimal, observe, or irq-smoke")
+set_property(CACHE CHARM_RK3506_BRINGUP_STAGE PROPERTY STRINGS
+    minimal
+    observe
+    irq-smoke)
 
 if (NOT TARGET ${_CHARM_RK3506_TARGET})
     charm_add_config_interface(${_CHARM_RK3506_TARGET}

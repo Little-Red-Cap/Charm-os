@@ -39,6 +39,15 @@ void put_labeled_text(const char* label, const char* value) noexcept
     rk3506_platform_early_console_init();
     rk3506_platform_early_console_puts("\nRK3506 exception entry\n");
     put_labeled_text("Reason: ", reason);
+    const auto& bringup = rk3506_platform_bringup_state();
+    put_labeled_text("Bring-up profile: ",
+        rk3506_platform_bringup_level_name(bringup.configured_level));
+    put_labeled_hex("Startup breadcrumb: ", bringup.startup_breadcrumb);
+    put_labeled_text("Startup breadcrumb stage: ",
+        rk3506_platform_startup_breadcrumb_name(bringup.startup_breadcrumb));
+    put_labeled_hex("Vector breadcrumb: ", bringup.vector_breadcrumb);
+    put_labeled_text("Vector breadcrumb stage: ",
+        rk3506_platform_vector_breadcrumb_name(bringup.vector_breadcrumb));
 
     if (frame) {
         const auto handler_cpsr = rk3506::armv7a::read_cpsr();

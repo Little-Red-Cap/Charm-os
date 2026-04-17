@@ -101,6 +101,28 @@
       "cacheVariables": {
         "CHARM_BUILD_TARGET_BOOTSTRAP": "ON"
       }
+    },
+    {
+      "name": "rk3506-baremetal-image-uart0-minimal-debug",
+      "displayName": "RK3506 Bare-metal Image UART0 Minimal Debug",
+      "inherits": "rk3506-baremetal-base",
+      "binaryDir": "${sourceDir}/cmake-build-rk3506-baremetal-image-minimal",
+      "cacheVariables": {
+        "CHARM_BUILD_TARGET_BOOTSTRAP": "ON",
+        "CHARM_RK3506_EARLY_UART_BASE": "0xff0a0000",
+        "CHARM_RK3506_BRINGUP_STAGE": "minimal"
+      }
+    },
+    {
+      "name": "rk3506-baremetal-image-uart0-irq-smoke-debug",
+      "displayName": "RK3506 Bare-metal Image UART0 IRQ Smoke Debug",
+      "inherits": "rk3506-baremetal-base",
+      "binaryDir": "${sourceDir}/cmake-build-rk3506-baremetal-image-irq-smoke",
+      "cacheVariables": {
+        "CHARM_BUILD_TARGET_BOOTSTRAP": "ON",
+        "CHARM_RK3506_EARLY_UART_BASE": "0xff0a0000",
+        "CHARM_RK3506_BRINGUP_STAGE": "irq-smoke"
+      }
     }
   ],
   "buildPresets": [
@@ -115,6 +137,20 @@
     {
       "name": "rk3506-baremetal-image-debug",
       "configurePreset": "rk3506-baremetal-image-debug"
+    },
+    {
+      "name": "rk3506-baremetal-image-uart0-minimal-debug",
+      "configurePreset": "rk3506-baremetal-image-uart0-minimal-debug",
+      "targets": [
+        "rk3506-baremetal-skeleton"
+      ]
+    },
+    {
+      "name": "rk3506-baremetal-image-uart0-irq-smoke-debug",
+      "configurePreset": "rk3506-baremetal-image-uart0-irq-smoke-debug",
+      "targets": [
+        "rk3506-baremetal-skeleton"
+      ]
     }
   ]
 }

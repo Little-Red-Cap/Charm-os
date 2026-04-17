@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "armv7a_interrupt_contract.hpp"
+#include "armv7a_runtime_current_contract.hpp"
 #include "armv7a_thread_context_contract.hpp"
 
 // This contract captures the minimum ARMv7-A ingress seams that a leaf target
@@ -64,6 +65,7 @@ struct Armv7aKernelPortContract {
     Armv7aKernelInterruptPort interrupt{};
     Armv7aKernelTimerPort timer{};
     Armv7aKernelContextPort context{};
+    Armv7aRuntimeCurrentContextPort current{};
 };
 
 constexpr bool armv7a_kernel_exception_port_ready(
@@ -98,6 +100,12 @@ constexpr bool armv7a_kernel_context_port_ready(
            port.switch_context != nullptr;
 }
 
+constexpr bool armv7a_kernel_current_port_ready(
+    const Armv7aRuntimeCurrentContextPort& port) noexcept
+{
+    return armv7a_runtime_current_context_port_ready(port);
+}
+
 constexpr bool armv7a_kernel_tick_runtime_ready(
     const Armv7aKernelPortContract& contract) noexcept
 {
@@ -110,5 +118,6 @@ constexpr bool armv7a_kernel_thread_runtime_ready(
     const Armv7aKernelPortContract& contract) noexcept
 {
     return armv7a_kernel_tick_runtime_ready(contract) &&
-           armv7a_kernel_context_port_ready(contract.context);
+           armv7a_kernel_context_port_ready(contract.context) &&
+           armv7a_kernel_current_port_ready(contract.current);
 }

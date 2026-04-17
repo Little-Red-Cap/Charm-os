@@ -9,6 +9,7 @@
 .extern rk3506_boot_main
 .extern rk3506_platform_reset_early
 .extern rk3506_platform_install_exception_vectors
+.extern g_rk3506_startup_breadcrumb
 .extern __vector_table_start
 .extern __bss_start
 .extern __bss_end
@@ -34,13 +35,22 @@
     msr cpsr_c, r1
 .endm
 
+.macro set_startup_breadcrumb value
+    ldr r0, =g_rk3506_startup_breadcrumb
+    ldr r1, =\value
+    str r1, [r0]
+.endm
+
 _start:
     mrs r3, cpsr
+    set_startup_breadcrumb 0x10
     orr r4, r3, #0x1c0
     msr cpsr_fsxc, r4
     isb
+    set_startup_breadcrumb 0x20
 
     ldr sp, =__stack_top
+    set_startup_breadcrumb 0x30
 
     ldr r0, =__bss_start
     ldr r1, =__bss_end
@@ -53,15 +63,21 @@ _start:
     b 1b
 
 2:
+    set_startup_breadcrumb 0x40
     bl init_mode_stacks
+    set_startup_breadcrumb 0x50
 
+    set_startup_breadcrumb 0x60
     mov r0, r3
     bl rk3506_platform_reset_early
+    set_startup_breadcrumb 0x70
     ldr r0, =__vector_table_start
     bl rk3506_platform_install_exception_vectors
+    set_startup_breadcrumb 0x80
 
     enter_mode MODE_SYS
     ldr sp, =__sys_stack_top
+    set_startup_breadcrumb 0x90
     bl rk3506_boot_main
 
 3:

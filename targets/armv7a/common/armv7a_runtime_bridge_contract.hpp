@@ -8,16 +8,24 @@
 
 constexpr std::uint32_t kArmv7aRuntimeBridgeYieldServiceId = 0x43u;
 constexpr std::uint32_t kArmv7aRuntimeBridgeSleepServiceId = 0x44u;
+constexpr std::uint32_t kArmv7aRuntimeBridgeDebugWriteServiceId = 0x45u;
+constexpr std::uint32_t kArmv7aRuntimeBridgeCapabilityCallServiceId = 0x46u;
 
 enum class Armv7aRuntimeBridgeTrapKind : std::uint8_t {
     none = 0,
     yield_current,
     sleep_current_until,
+    debug_write,
+    capability_call,
 };
 
 struct Armv7aRuntimeBridgeTrapRequest {
     Armv7aRuntimeBridgeTrapKind kind = Armv7aRuntimeBridgeTrapKind::none;
     std::uint32_t service_id = 0u;
+    std::uint64_t arg0 = 0u;
+    std::uint64_t arg1 = 0u;
+    std::uint64_t arg2 = 0u;
+    std::uint64_t arg3 = 0u;
     std::uint64_t due = 0u;
     std::uint32_t event_id = 0u;
     std::uint32_t event_payload = 0u;
@@ -37,6 +45,10 @@ constexpr Armv7aRuntimeBridgeTrapRequest armv7a_decode_runtime_bridge_trap(
         return Armv7aRuntimeBridgeTrapRequest{
             .kind = Armv7aRuntimeBridgeTrapKind::yield_current,
             .service_id = observation.immediate,
+            .arg0 = observation.arg0,
+            .arg1 = observation.arg1,
+            .arg2 = observation.arg2,
+            .arg3 = observation.arg3,
             .event_id = observation.arg0,
             .event_payload = observation.arg1,
             .service_ready = true,
@@ -49,6 +61,10 @@ constexpr Armv7aRuntimeBridgeTrapRequest armv7a_decode_runtime_bridge_trap(
         return Armv7aRuntimeBridgeTrapRequest{
             .kind = Armv7aRuntimeBridgeTrapKind::sleep_current_until,
             .service_id = observation.immediate,
+            .arg0 = observation.arg0,
+            .arg1 = observation.arg1,
+            .arg2 = observation.arg2,
+            .arg3 = observation.arg3,
             .due = armv7a_svc_args01_u64(observation),
             .event_id = observation.arg2,
             .event_payload = observation.arg3,
@@ -57,8 +73,40 @@ constexpr Armv7aRuntimeBridgeTrapRequest armv7a_decode_runtime_bridge_trap(
         };
     }
 
+    if (armv7a_svc_service_matches(
+            observation, kArmv7aRuntimeBridgeDebugWriteServiceId)) {
+        return Armv7aRuntimeBridgeTrapRequest{
+            .kind = Armv7aRuntimeBridgeTrapKind::debug_write,
+            .service_id = observation.immediate,
+            .arg0 = observation.arg0,
+            .arg1 = observation.arg1,
+            .arg2 = observation.arg2,
+            .arg3 = observation.arg3,
+            .service_ready = true,
+            .arguments_ready = armv7a_svc_arguments_ready(observation),
+        };
+    }
+
+    if (armv7a_svc_service_matches(
+            observation, kArmv7aRuntimeBridgeCapabilityCallServiceId)) {
+        return Armv7aRuntimeBridgeTrapRequest{
+            .kind = Armv7aRuntimeBridgeTrapKind::capability_call,
+            .service_id = observation.immediate,
+            .arg0 = observation.arg0,
+            .arg1 = observation.arg1,
+            .arg2 = observation.arg2,
+            .arg3 = observation.arg3,
+            .service_ready = true,
+            .arguments_ready = armv7a_svc_arguments_ready(observation),
+        };
+    }
+
     return Armv7aRuntimeBridgeTrapRequest{
         .service_id = observation.immediate,
+        .arg0 = observation.arg0,
+        .arg1 = observation.arg1,
+        .arg2 = observation.arg2,
+        .arg3 = observation.arg3,
         .service_ready = false,
         .arguments_ready = armv7a_svc_arguments_ready(observation),
     };
@@ -75,6 +123,20 @@ constexpr bool armv7a_runtime_bridge_sleep_request_ready(
     const Armv7aRuntimeBridgeTrapRequest& request) noexcept
 {
     return request.kind == Armv7aRuntimeBridgeTrapKind::sleep_current_until &&
+           request.service_ready && request.arguments_ready;
+}
+
+constexpr bool armv7a_runtime_bridge_debug_write_request_ready(
+    const Armv7aRuntimeBridgeTrapRequest& request) noexcept
+{
+    return request.kind == Armv7aRuntimeBridgeTrapKind::debug_write &&
+           request.service_ready && request.arguments_ready;
+}
+
+constexpr bool armv7a_runtime_bridge_capability_call_request_ready(
+    const Armv7aRuntimeBridgeTrapRequest& request) noexcept
+{
+    return request.kind == Armv7aRuntimeBridgeTrapKind::capability_call &&
            request.service_ready && request.arguments_ready;
 }
 

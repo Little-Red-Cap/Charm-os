@@ -64,6 +64,30 @@ export namespace net::icmp::echo {
         [[nodiscard]] constexpr bool failed() const noexcept {
             return state == ProbeState::error;
         }
+
+        [[nodiscard]] constexpr bool has_value() const noexcept {
+            return ok();
+        }
+
+        [[nodiscard]] constexpr util::u16 identifier() const noexcept {
+            return info.identifier;
+        }
+
+        [[nodiscard]] constexpr util::u16 sequence() const noexcept {
+            return info.sequence;
+        }
+
+        [[nodiscard]] constexpr util::usize payload_size() const noexcept {
+            return payload.size();
+        }
+
+        [[nodiscard]] constexpr bool has_payload() const noexcept {
+            return payload.size() != 0;
+        }
+
+        [[nodiscard]] ByteView value_payload() const noexcept {
+            return has_value() ? payload : ByteView{};
+        }
     };
 
     namespace detail {

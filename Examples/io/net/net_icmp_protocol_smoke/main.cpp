@@ -421,13 +421,16 @@ int main() {
         || !probe_pending_result.pending()
         || probe_pending_result.ready()
         || probe_pending_result.ok()
+        || probe_pending_result.has_value()
         || probe_pending_result.timed_out()
         || probe_pending_result.cancelled()
         || probe_pending_result.failed()
         || probe_pending_result.error != net::errc::ok
-        || probe_pending_result.info.identifier != probe_ping.value().info.identifier
-        || probe_pending_result.info.sequence != probe_ping.value().info.sequence
-        || probe_pending_result.payload.size() != 0
+        || probe_pending_result.identifier() != probe_ping.value().info.identifier
+        || probe_pending_result.sequence() != probe_ping.value().info.sequence
+        || probe_pending_result.has_payload()
+        || probe_pending_result.payload_size() != 0
+        || probe_pending_result.value_payload().size() != 0
         || probe_client_node.link.tx_calls != 1) {
         return fail("icmp protocol smoke probe send failed\n", 7);
     }
@@ -438,11 +441,13 @@ int main() {
 
     auto probe_reply = probe.last_reply_payload();
     const auto probe_reply_result = probe.result();
+    const auto probe_reply_summary_payload = probe_reply_result.value_payload();
     if (!probe.has_reply()
         || probe.has_timeout()
         || !probe.has_result()
         || !probe_reply_result.ready()
         || !probe_reply_result.ok()
+        || !probe_reply_result.has_value()
         || probe_reply_result.pending()
         || probe_reply_result.timed_out()
         || probe_reply_result.cancelled()
@@ -457,9 +462,11 @@ int main() {
         || !same_ipv4(probe.last_reply_info().peer, server_ip)
         || probe.last_reply_info().identifier != probe_ping.value().info.identifier
         || probe.last_reply_info().sequence != probe_ping.value().info.sequence
-        || probe_reply_result.info.identifier != probe_ping.value().info.identifier
-        || probe_reply_result.info.sequence != probe_ping.value().info.sequence
-        || probe_reply_result.payload.size() != sizeof(payload)
+        || probe_reply_result.identifier() != probe_ping.value().info.identifier
+        || probe_reply_result.sequence() != probe_ping.value().info.sequence
+        || !probe_reply_result.has_payload()
+        || probe_reply_result.payload_size() != sizeof(payload)
+        || probe_reply_summary_payload.size() != sizeof(payload)
         || probe_reply.size() != sizeof(payload)
         || probe_server.request_count() != 1
         || probe_server.reply_count() != 1
@@ -468,7 +475,8 @@ int main() {
         return fail("icmp protocol smoke probe reply mismatch\n", 9);
     }
     for (util::usize index = 0; index < sizeof(payload); ++index) {
-        if (probe_reply[index] != payload[index]) {
+        if (probe_reply[index] != payload[index]
+            || probe_reply_summary_payload[index] != payload[index]) {
             return fail("icmp protocol smoke probe payload mismatch\n", 10);
         }
     }
@@ -803,11 +811,15 @@ int main() {
         || !probe_timeout_pending_result.pending()
         || probe_timeout_pending_result.ready()
         || probe_timeout_pending_result.ok()
+        || probe_timeout_pending_result.has_value()
         || probe_timeout_pending_result.timed_out()
         || probe_timeout_pending_result.cancelled()
         || probe_timeout_pending_result.failed()
-        || probe_timeout_pending_result.info.identifier != probe_timeout.value().info.identifier
-        || probe_timeout_pending_result.info.sequence != probe_timeout.value().info.sequence
+        || probe_timeout_pending_result.identifier() != probe_timeout.value().info.identifier
+        || probe_timeout_pending_result.sequence() != probe_timeout.value().info.sequence
+        || probe_timeout_pending_result.has_payload()
+        || probe_timeout_pending_result.payload_size() != 0
+        || probe_timeout_pending_result.value_payload().size() != 0
         || probe.pending_count() != 1
         || probe.request_count() != 2
         || probe.transmitted_count() != 1
@@ -847,12 +859,15 @@ int main() {
         || !probe_timeout_result.timed_out()
         || probe_timeout_result.pending()
         || probe_timeout_result.ok()
+        || probe_timeout_result.has_value()
         || probe_timeout_result.cancelled()
         || probe_timeout_result.failed()
         || probe_timeout_result.error != net::errc::ok
-        || probe_timeout_result.info.identifier != probe_timeout.value().info.identifier
-        || probe_timeout_result.info.sequence != probe_timeout.value().info.sequence
-        || probe_timeout_result.payload.size() != 0
+        || probe_timeout_result.identifier() != probe_timeout.value().info.identifier
+        || probe_timeout_result.sequence() != probe_timeout.value().info.sequence
+        || probe_timeout_result.has_payload()
+        || probe_timeout_result.payload_size() != 0
+        || probe_timeout_result.value_payload().size() != 0
         || probe.pending_count() != 0
         || probe.timeout_count() != 1
         || probe.error_count() != 0) {
@@ -882,8 +897,15 @@ int main() {
         || !probe_late_result.ready()
         || !probe_late_result.timed_out()
         || probe_late_result.ok()
+        || probe_late_result.has_value()
         || probe_late_result.cancelled()
         || probe_late_result.failed()
+        || probe_late_result.error != net::errc::ok
+        || probe_late_result.identifier() != probe_timeout_result.identifier()
+        || probe_late_result.sequence() != probe_timeout_result.sequence()
+        || probe_late_result.has_payload()
+        || probe_late_result.payload_size() != 0
+        || probe_late_result.value_payload().size() != 0
         || probe.error_count() != 0) {
         return fail("icmp protocol smoke probe late reply mismatch\n", 46);
     }

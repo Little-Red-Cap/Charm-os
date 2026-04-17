@@ -4,6 +4,7 @@ export module charm.widgets.scrollbar;
 
 import charm.core.object;
 import charm.core.event;
+import service.state;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.style;
@@ -19,6 +20,10 @@ public:
         Vertical
     };
 
+    using value_state_type = service::state<int, 4>;
+    using value_slot_type = typename value_state_type::slot_type;
+    using value_connection = typename value_state_type::connection;
+
     ScrollBar() {
         set_focusable(true);
         set_size(160, 12);
@@ -31,7 +36,7 @@ public:
         if (min_v > max_v) std::swap(min_v, max_v);
         min_ = min_v;
         max_ = max_v;
-        value_ = clamp(value_);
+        apply_value(clamp(value()), false);
     }
 
     void set_page_size(int v) noexcept {
@@ -39,15 +44,21 @@ public:
     }
 
     void set_value(int v) noexcept {
-        const int clamped = clamp(v);
-        if (value_ == clamped) return;
-        value_ = clamped;
-        if (on_change_) on_change_();
+        apply_value(clamp(v), true);
     }
 
-    int value() const noexcept { return value_; }
+    int value() const noexcept { return value_.get(); }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
+
+    // observe_value() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
+        return value_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
+        return value_.disconnect(c);
+    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -83,16 +94,16 @@ public:
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
             drag_start_pos_ = (orient_ == Orientation::Horizontal) ? e.x : e.y;
-            drag_start_value_ = value_;
+            drag_start_value_ = value();
             const Rect thumb = calc_thumb_rect(st);
             dragging_ = thumb.contains(e.x, e.y);
             if (!dragging_) {
                 const int step = page_size_ > 0 ? page_size_ : 1;
                 if ((orient_ == Orientation::Horizontal && e.x < thumb.x) ||
                     (orient_ == Orientation::Vertical && e.y < thumb.y)) {
-                    set_value(value_ - step);
+                    set_value(value() - step);
                 } else {
-                    set_value(value_ + step);
+                    set_value(value() + step);
                 }
             }
             return true;
@@ -115,6 +126,12 @@ public:
     }
 
 private:
+    void apply_value(int v, bool notify_callback) noexcept {
+        if (value_.set(v) && notify_callback && on_change_) {
+            on_change_();
+        }
+    }
+
     int clamp(int v) const noexcept {
         if (v < min_) return min_;
         if (v > max_) return max_;
@@ -156,7 +173,7 @@ private:
         const int thumb_len = thumb_length(track_len, st);
         const int span = track_len - thumb_len;
         const int range = max_ - min_;
-        const int offset = (range > 0 && span > 0) ? ((value_ - min_) * span) / range : 0;
+        const int offset = (range > 0 && span > 0) ? ((value() - min_) * span) / range : 0;
         if (orient_ == Orientation::Horizontal) {
             return Rect{track.x + offset, track.y, thumb_len, track.h};
         }
@@ -166,7 +183,7 @@ private:
     Orientation orient_{Orientation::Horizontal};
     int min_{0};
     int max_{100};
-    int value_{0};
+    value_state_type value_{0};
     int page_size_{10};
     bool dragging_{false};
     int drag_start_pos_{0};

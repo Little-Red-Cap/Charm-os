@@ -241,7 +241,9 @@
             if (out.group_row) {
                 out.show_tail_action = false;
                 out.tail_action_icon = ::ui::scene::invalid_image_id();
-                out.tail_icon = icons.chevron_right;
+                out.tail_icon = out.current_row
+                    ? (is_paused() ? icons.pause : icons.play)
+                    : icons.chevron_right;
             } else {
                 out.show_tail_action = row_has_action && (out.selected_row || !out.current_row);
                 out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
@@ -300,8 +302,6 @@
                     continue;
                 }
                 if (row.group_row) {
-                    row.tail.assign("Open");
-                    player::font_cache::ensure_text(row.tail.view());
                     continue;
                 }
                 const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
@@ -1228,7 +1228,7 @@
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
-            if (row.current_row && !row.group_row) {
+            if (row.current_row) {
                 return self->library_current_group_state_text();
             }
             if (row.model) {

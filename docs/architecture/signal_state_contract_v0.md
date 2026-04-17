@@ -204,6 +204,57 @@ v0 黑名单如下：
 
 而不是只存在对象私有字段或构造过程的匿名 connect 操作里。
 
+### 6.5 与 Vivid object-level widget / SoA SceneAccess
+
+Vivid 当前同时存在两层表面：
+
+- object-level widget 表面
+- SoA `SceneBuilder / SceneAccess / SoaKernel` 表面
+
+这两层不是同一件事，禁止混说。
+
+#### object-level widget 表面
+
+典型形态：
+
+- `Checkbox::observe_checked()`
+- `Dropdown::observe_selected()`
+- `Slider::observe_value()`
+- `ProgressBarSimple::observe_value()`
+
+它的语义是：
+
+- 直接绑定 widget 对象实例
+- 同执行域、同步、bounded
+- 本质上仍然继承 `state<T>` 的契约
+- 适合局部 widget 组合、对象级 smoke、非 SoA 小系统
+
+#### SoA `SceneAccess` 表面
+
+典型形态：
+
+- `access.set_value(handle, value)`
+- `access.set_checked(handle, on)`
+- `builder.set_value(handle, value)`
+- `builder.set_checked(handle, on)`
+
+它的语义是：
+
+- 句柄驱动的 runtime / kernel 更新入口
+- 服务于 SoA 场景装配、输入、布局、record/execute 边界
+- 默认不承诺 object-level widget 的 `observe_*` / 兼容回调语义
+
+硬规则：
+
+- 禁止因为 API 对称性冲动，把 `SceneAccess` 伪装成 object-level `observe_*` 表面。
+- 禁止假设 `SceneAccess::set_value()` 自动等价于对象级 widget 的旧 `on_change` 兼容语义。
+- SoA 页面/控制器中的跨 widget 关系，应显式写在 controller / app-state / page logic 中，不要偷藏在 kernel 更新接口里。
+
+一句话判断：
+
+- 直接拿 widget 对象时，看 `observe_*`。
+- 走 SoA 句柄和 `SceneAccess` 时，看 scene/kernel/runtime 语义，而不是对象级 signal/state 语义镜像。
+
 ## 7. v0 审查清单
 
 每次引入或评审一段 signal/state 用法时，至少问下面这几句：
@@ -215,5 +266,6 @@ v0 黑名单如下：
 - 有没有生命周期不清楚的 target？
 - 这个事件以后是否需要 replay / trace / stats？
 - 这件事是不是本该进 scheduler / reactor，而不是 `signal`？
+- 这里到底是 object-level widget 表面，还是 SoA `SceneAccess` / runtime 表面？
 
 如果有任意一条答不上来，默认先不要把它做成 `signal.emit()`。

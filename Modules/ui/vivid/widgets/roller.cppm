@@ -4,6 +4,7 @@ export module charm.widgets.roller;
 
 import charm.core.object;
 import charm.core.event;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.string;
@@ -16,6 +17,10 @@ using namespace ui::render;
 export
 class Roller : public WidgetBase<Roller> {
 public:
+    using selected_state_type = service::state<int, 4>;
+    using selected_slot_type = typename selected_state_type::slot_type;
+    using selected_connection = typename selected_state_type::connection;
+
     Roller() {
         set_size(140, 80);
         set_focusable(true);
@@ -31,13 +36,23 @@ public:
 
     void set_selected(int idx) noexcept {
         if (idx < 0 || idx >= option_count_) return;
-        selected_ = idx;
+        (void)selected_.set(idx);
+        // Legacy on_change is a roller command callback, not a pure state-change signal.
         if (on_change_) on_change_();
     }
 
-    int selected() const noexcept { return selected_; }
+    [[nodiscard]] int selected() const noexcept { return selected_.get(); }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
+
+    // observe_selected() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_selected(selected_slot_type slot) noexcept {
+        return selected_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_selected(selected_connection c) noexcept {
+        return selected_.disconnect(c);
+    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -58,7 +73,7 @@ public:
         const int center_y = r.y + r.h / 2;
         const int visible = 2; // above and below
         for (int i = -visible; i <= visible; ++i) {
-            int idx = wrap_index(selected_ + i);
+            const int idx = wrap_index(selected() + i);
             if (idx < 0) continue;
             Label lbl{options_[idx].c_str()};
             lbl.set_font(resolve_font(st));
@@ -104,8 +119,7 @@ public:
 private:
     void step(int delta) {
         if (option_count_ == 0) return;
-        selected_ = wrap_index(selected_ + delta);
-        if (on_change_) on_change_();
+        set_selected(wrap_index(selected() + delta));
     }
 
     int wrap_index(int idx) const noexcept {
@@ -118,7 +132,7 @@ private:
     static constexpr int max_options = 16;
     StaticString<32> options_[max_options]{};
     int option_count_{0};
-    int selected_{0};
+    selected_state_type selected_{0};
     Callback on_change_{};
 };
 

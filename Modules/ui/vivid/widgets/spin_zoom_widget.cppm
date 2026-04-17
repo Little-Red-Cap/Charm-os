@@ -27,7 +27,7 @@ public:
     SpinZoomWidget() {
         set_size(180, 180);
         set_focusable(true);
-        double_tap_.set_callback(&SpinZoomWidget::on_double_tap, this);
+        double_tap_.set_callback(DoubleTapRestoreStrategy::callback_delegate::bind<&SpinZoomWidget::on_double_tap>(*this));
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
         enable_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
     }
@@ -320,9 +320,8 @@ private:
     int double_tap_radius_{12};
     DoubleTapRestoreStrategy double_tap_{};
 
-    static void on_double_tap(void* ctx) {
-        auto* self = static_cast<SpinZoomWidget*>(ctx);
-        if (self) self->reset_transform();
+    void on_double_tap() noexcept {
+        reset_transform();
     }
 };
 

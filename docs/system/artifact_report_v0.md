@@ -84,6 +84,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -CapList -AsJson
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -GraphPath io.uart1
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -RecentTransitions
+./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ShowTransitions
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ResourceSummary
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -BringupEvidence
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -ShowArtifacts
@@ -101,17 +102,56 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 当前 inspector 至少会直接带出：
 
 - case / mode / profile / board / facets
+- `system_input`
+- `system_formation`
 - `node_count / edge_count / unresolved_bindings`
+- `binding_result / bringup_order`
 - `declared_contract_entries / provided_facts / satisfied / violated / unknown`
 - 最小 `cap list` 查询结果
 - 最小 `graph path` 查询结果
 - 最小 `recent transitions` 查询结果
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
-- compare 模式下的 `summary_changes / metadata_changes / comparison.bringup_evidence / comparison.resource_contract`
+- compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.system_formation / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract`
+- artifact_root 默认总览里的 `system_formation_summary / comparison.system_formation_summary`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
+
+为了避免 inspector 继续在“支持哪些查询 / 哪些 scope / 哪些边界”上漂移，
+当前也需要把它压成一张更具体的支持矩阵。
+这张矩阵现在已经由：
+
+- `scripts/system_compiler_explain_surface_contract_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_bringup_evidence_compare_root_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_smoke.ps1`
+- `scripts/materialized_graph_resource_contract_compare_root_smoke.ps1`
+- `scripts/materialized_graph_system_input_compare_smoke.ps1`
+- `scripts/materialized_graph_system_formation_compare_smoke.ps1`
+
+一起冻结成 v0 契约。
+
+| inspector 入口 | 单 report / export_only | 单 report / compare | artifact_root / export_only | artifact_root / compare | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| 默认总览 | 支持 | 支持 | 支持 | 支持 | `-Case` 为空时读取整 root；显式多 case 子集也继续返回 artifact_root 聚合摘要 |
+| `-CapList` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集直接拒绝 |
+| `-WhyCapability <cap>` | 支持 | 支持 | 支持 | 支持 | 只接受精确单 report 或整 root；显式多 case 子集直接拒绝 |
+| `-GraphPath <cap>` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `-RecentTransitions` | 支持 | 支持 | 不支持 | 不支持 | 必须精确命中一个 artifact report |
+| `-BringupEvidence` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+| `-ResourceSummary` | 支持 | 支持 | 支持 | 支持 | root 侧允许整 root 或显式多 case 子集聚合 |
+
+对应地，当前也把两个附录型 flag 的边界说明写死：
+
+- `-ShowTransitions`
+  不是独立 query kind。
+  它只在单 report 默认总览里把 `recent transitions` 投影成附录；
+  compare 模式会先给最小 `TRANSITION COMPARE` 摘要，
+  export_only 模式则保持无 compare 头部的纯附录展示。
+- `-ShowArtifacts`
+  同样不是独立 query kind。
+  它只是把当前 report 已经持有的 bundle / sample / runtime observe / diff / report manifest 等引用追加展示出来。
 
 其中 `cap list` 当前已经能在两种作用域上工作：
 
@@ -162,11 +202,17 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 - `compared_case_count`
 - `metadata_changed_case_count`
+- `system_formation_changed_case_count`
+- `binding_result_changed_case_count`
+- `bringup_order_changed_case_count`
 - `bringup_changed_case_count`
 - `resource_changed_case_count`
 - `capability_summary.compared_capability_count`
 - `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
 - `capability_summary.compared_capabilities`
+- `system_formation_summary.changed_case_count / unchanged_case_count`
+- `system_formation_summary.status_change_matrix`
+- `system_formation_summary.blocker_change_matrix`
 
 这意味着默认总览已经能直接回答：
 
@@ -177,14 +223,63 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 > **这些漂移主要集中在哪些 capability 上。**
 
+与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
+`system_formation_summary`，
+至少包括：
+
+- `case_count / formed_case_count / blocked_case_count`
+- `formed_cases / blocked_cases`
+- `totals.required_binding_count / totals.unresolved_binding_count`
+- `unresolved_capability_matrix`
+- `blocked_node_matrix`
+- `blocker_matrix`
+
+这意味着 inspector 已经不只会逐 case 地回答
+“系统是否 formed / blocked”，
+还会横向回答：
+
+> **这一组系统实例整体是怎么形成的，阻塞面主要集中在哪里。**
+
+而 `why unavailable` 当前则支持两种读取作用域：
+
+- 单 report 查询
+- 全 artifact root 汇总
+
+如果当前 report 来自 compare 模式，
+单 report 级该查询现在也会继续为目标 capability 带出最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+如果选择的是整组 compare report，
+artifact_root 级该查询现在也会继续带出：
+
+- `state_counts`
+- `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
+- `compared_cases / bringup_compare_cases / resource_compare_cases`
+- `resource_contracts`
+
 而 `graph path` 当前则明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：
 
 - `capability`
 - `state / availability_state`
+- `comparison`
 - `direct_edges`
 - `provider_paths`
 - `consumer_paths`
+
+如果当前 report 来自 compare 模式，
+`graph path` 现在也会继续为目标 capability 带出最小 `comparison` 证据块，
+至少包括：
+
+- `comparison.changed`
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
 
 其中：
 
@@ -225,6 +320,45 @@ artifact_root 级 `cap list` 现在也会继续带出：
 这里会返回真实的 runtime export 观察摘要；
 如果尚未接入 sidecar，
 则继续返回稳定形状，但结果为空。
+
+如果当前 report 来自 compare 模式，
+`recent transitions` 现在也会继续为“出现在 transition 列表里的 capability”
+带出最小 compare 摘要。
+
+其中 `query.result.comparison` 当前至少包括：
+
+- `compared_transition_count / bringup_compare_transition_count / resource_compare_transition_count`
+- `compared_capability_count / bringup_compare_capability_count / resource_compare_capability_count`
+- `compared_capabilities`
+- `bringup_change_kinds / resource_change_kinds`
+- `resource_contracts`
+
+与此同时，`query.result.transitions[*]` 当前至少继续带出：
+
+- `comparison.bringup_changed / comparison.bringup_change_kinds`
+- `comparison.resource_changed / comparison.resource_change_kinds`
+- `comparison.resource_contracts`
+
+这意味着 compare 模式下，
+`recent transitions` 现在可以直接回答：
+
+> **最近这批 runtime export 切换里，哪些 capability 既发生了切换，也在 compare 维度上发生了漂移。**
+
+但它仍保持一个边界：
+
+- 不做 artifact_root 聚合
+- 不把未出现在 `recent_transitions` 里的 compare capability 强行混入 runtime 视图
+
+如果调用方当前只是在看单 report 默认总览，
+`-ShowTransitions` 现在也会继续复用同一套 transition 行展示语言，
+至少带出：
+
+- `order / capability / action / before / after`
+- 行级 `BrCmp / ResCmp`
+
+如果当前 report 来自 compare 模式，
+它还会在 `[TRANSITIONS]` 前先给出一行最小 `TRANSITION COMPARE` 摘要，
+用来快速说明这批附录里的 transition 有多少条同时落在 compare 漂移面上。
 
 当前仓库里，`Examples/usb/usb_host_runtime_multi_smoke` 已经作为第一条正式
 `runtime_only` case 接入 `export_case_manifest -> export_bundle -> artifact_report`，
@@ -390,7 +524,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 ## 5. v0 建议字段分组
 
-当前建议把 `artifact report` 分成八组字段。
+当前建议把 `artifact report` 分成十一组字段。
 
 ### 5.1 报告身份
 
@@ -432,7 +566,49 @@ artifact_root 级 `cap list` 现在也会继续带出：
 这里不要求所有字段立即 100% 完备，  
 但 v0 应先把这些对象正式列为报告语言的一部分。
 
-### 5.3 静态结构摘要
+### 5.3 规范化输入摘要
+
+这一组回答：
+
+> “这个系统实例是按什么输入成立的，profile / board / facets 又是从哪里解析出来的。”
+
+当前建议至少包含：
+
+- `system_spec`
+- `declared_input`
+- `resolved_input`
+
+其中：
+
+- `system_spec`
+  当前先把 `case_name / case_kind / source / build_dir / build_target / export_target` 收成最小输入投影
+- `declared_input`
+  当前先保留来自 case entry 的 `subject / declared_facts / declared_contract_entries`
+- `resolved_input`
+  当前先保留：
+  - `profile.value / profile.source`
+  - `board.value / board.source`
+  - `active_facets.values / active_facets.source`
+  - `subject_facts`
+
+这组字段的意义，不是发明最终 DSL，  
+而是先把当前散落在：
+
+- case manifest
+- export bundle case entry
+- CLI override
+- CI subject defaults
+
+里的输入载体，压成一份正式结果物里的规范化输入摘要。
+
+也就是说，`artifact report` 现在不仅能回答“系统长成了什么样”，
+也开始能回答：
+
+- 这个 case 当前属于哪类 `SystemSpec` 投影
+- profile / board / facets 是从显式参数、默认值还是 case subject 来的
+- 哪些事实和合同是 case 自己显式声明的
+
+### 5.4 静态结构摘要
 
 这一组回答：
 
@@ -460,7 +636,100 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `unresolved_bindings`
   则是最关键的未完成结构结论之一
 
-### 5.4 bringup 证据摘要
+### 5.5 binding 结果摘要
+
+这一组回答：
+
+> “当前 required binding 到底成立了多少，还有哪些没成立。”
+
+建议至少包含：
+
+- `required_binding_count`
+- `resolved_binding_count`
+- `unresolved_binding_count`
+- `resolved_capabilities`
+- `unresolved_capabilities`
+- `binding_entries`
+
+其中 `binding_entries` 当前建议至少稳定保留：
+
+- `capability`
+- `state`
+- `provider_nodes`
+- `consumer_nodes`
+- `reason`
+
+这组字段的意义在于把原先散落在：
+
+- `required_facts`
+- `unresolved_bindings`
+- capability provider / consumer 关系
+
+里的成立性结论，正式压成一个结果物。
+
+也就是说，`binding_result` 当前不只是“哪些 capability 缺了”，
+还要能回答：
+
+- 这个 required capability 由谁提供
+- 谁在消费它
+- 为什么当前被判成 `resolved` 或 `unresolved`
+
+### 5.6 bringup 顺序摘要
+
+这一组回答：
+
+> “系统当前按什么顺序被 bring up，以及每个节点依赖谁。”
+
+建议至少包含：
+
+- `ordered_node_count`
+- `blocked_node_count`
+- `phase_counts`
+- `entries`
+
+其中 `entries` 当前建议至少稳定保留：
+
+- `order`
+- `node`
+- `kind`
+- `phase`
+- `runlevel_text`
+- `provides`
+- `requires`
+- `dependency_nodes`
+- `resolved_requires`
+- `missing_requires`
+- `state`
+
+这组字段的价值不在于重复 DOT，
+而在于把“系统如何成立”的过程性结果正式写进报告对象。
+
+也就是说，它应该开始稳定回答：
+
+- 谁先被 bring up
+- 谁依赖谁
+- 哪些 require 已满足
+- 哪些 require 仍缺失，因此当前只能标成 `blocked`
+
+与此同时，v0 当前还把 `binding_result + bringup_order` 的合成成立性结论压成一组顶层 `system_formation` 摘要，
+用来正式回答：
+
+- 当前系统整体是 `formed` 还是 `blocked`
+- 这份成立性判断基于哪类 case、多少 declared fact / declared contract / subject fact
+- unresolved capability 与 blocked node 最终如何收敛成 blocker 列表
+
+`system_formation` 当前建议至少包含：
+
+- `status`
+- `formation_basis`
+- `binding_summary`
+- `bringup_summary`
+- `blocker_count / blockers`
+
+它不取代 `binding_result` 或 `bringup_order`，
+而是把“系统是否成立、为什么没成立”正式压成一个顶层结果物。
+
+### 5.7 bringup 证据摘要
 
 这一组回答：
 
@@ -507,7 +776,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 而不只是 `runtime_observe.observed_capabilities` 的条目数。
 对于 graph case，它现在允许把 `materialized_graph` 的稳定观察结果一并算入 `observed`。
 
-### 5.5 资源契约摘要
+### 5.8 资源契约摘要
 
 这一组回答：
 
@@ -541,7 +810,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 当前 v0 里，`declared_contract_entries` 更适合作为输入侧法律文本的直接投影，
 而 `provided_facts / satisfied / violated / unknown` 则是最小审计层。
 
-### 5.6 运行时观察摘要
+### 5.9 运行时观察摘要
 
 这一组回答：
 
@@ -563,7 +832,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 这些已经存在的观察语言。
 
-### 5.7 比较摘要（compare 模式可选）
+### 5.10 比较摘要（compare 模式可选）
 
 这一组回答：
 
@@ -576,6 +845,8 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `metadata_changes`
 - `node_changes`
 - `edge_changes`
+- `binding_result`
+- `bringup_order`
 - `bringup_evidence`
 - `resource_contract`
 
@@ -583,6 +854,75 @@ artifact_root 级 `cap list` 现在也会继续带出：
 但它应该把 case 级最重要的比较结论直接拉到报告顶层。
 对于 metadata-only diff，当前 `status` 仍可保持 `unchanged`，
 但 `metadata_changes` 不应被吞掉。
+而 `comparison.system_input` 则用于承载“系统如何成立”的输入投影相对 baseline 发生了什么漂移，
+把 `system_spec / declared_input / resolved_input` 正式收进 compare 结果物。
+
+`comparison.system_input` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `system_spec_changes / declared_subject_changes / resolved_input_changes`
+- `declared_fact_changes / declared_contract_changes / subject_fact_changes`
+
+这意味着 compare 模式下即使顶层 `status = unchanged`，
+报告也已经能继续回答：
+
+- 当前输入侧到底有没有漂移
+- 漂移发生在 `SystemSpec`、声明输入还是解析后的输入
+- 哪个 declared fact / declared contract / subject fact 让“系统如何成立”出现了变化
+
+而 `comparison.system_formation` 则用于承载“系统整体是否成立、阻塞点为何物”相对 baseline 发生了什么变化，
+把 formation status、summary drift 与 blocker drift 正式收进 compare 结果物。
+
+`comparison.system_formation` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `blocker_changes`
+- `unresolved_capability_changes`
+- `blocked_node_changes`
+
+这意味着 compare 模式下报告已经能继续回答：
+
+- 当前 candidate 是否已经从 `formed` 退化为 `blocked`
+- 哪些 blocker 是新增、删除或发生了状态变化
+- 哪些 unresolved capability / blocked node 已经进入正式 formation 结果面
+
+而 `comparison.binding_result` 则用于承载“同一份结构相对 baseline 的 binding 成立情况发生了什么变化”，
+把 `resolved / unresolved` 与 capability 级 binding 切换正式拉进结果物。
+
+`comparison.binding_result` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `binding_changes`
+- `resolved_capability_changes`
+- `unresolved_capability_changes`
+
+这意味着 compare 模式下报告已经能直接回答：
+
+- 哪些 required capability 从 `resolved` 漂移到 `unresolved`
+- 哪些 binding 只是 provider / consumer / reason 发生变化
+
+而 `comparison.bringup_order` 则用于承载“系统 bringup 次序与阻塞面相对 baseline 发生了什么变化”，
+把 `ready / blocked` 与 blocked node 漂移也收口进正式 compare 结果物。
+
+`comparison.bringup_order` 当前建议至少包含：
+
+- `changed`
+- `left / right`
+- `summary_changes`
+- `entry_changes`
+- `blocked_node_changes`
+
+这意味着 compare 模式下报告已经能继续回答：
+
+- 哪些 node 的 bringup 状态发生了漂移
+- 哪些 blocked node 是新出现的
+
 而 `comparison.bringup_evidence` 则用于承载“结构未变但 bringup 证据发生漂移”的比较面，
 避免把 sidecar / published 状态变化误塞回结构 diff 语义。
 
@@ -614,7 +954,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 报告仍然可以明确回答 baseline/candidate 的资源契约是否发生漂移，
 以及是哪条合同从 `absent / satisfied / violated / unknown` 之间切换了状态。
 
-### 5.8 支持工件引用
+### 5.11 支持工件引用
 
 这一组回答：
 
@@ -659,6 +999,38 @@ artifact_root 级 `cap list` 现在也会继续带出：
     "board": "stm32_stub",
     "active_facets": ["runtime", "input"]
   },
+  "system_input": {
+    "system_spec": {
+      "case_name": "bringup-minimal-observe-demo",
+      "case_kind": "materialized_graph",
+      "source": "Examples/init/bringup_minimal_observe_demo",
+      "build_dir": "cmake-build-init-bringup-minimal-observe-clang",
+      "build_target": "init-bringup-minimal-observe-demo",
+      "export_target": "export_bringup_minimal_materialized_graph"
+    },
+    "declared_input": {
+      "subject": {
+        "profile": null,
+        "board": "stm32_stub",
+        "active_facets": ["runtime", "input"]
+      },
+      "declared_facts": ["board.stm32_stub"],
+      "declared_contract_entries": [
+        { "contract": "needs_monotonic_clock", "requires": ["system.clock"] }
+      ]
+    },
+    "resolved_input": {
+      "profile": { "value": "MCU_MIN", "source": "explicit_argument" },
+      "board": { "value": "stm32_stub", "source": "case_subject" },
+      "active_facets": { "values": ["runtime", "input"], "source": "case_subject" },
+      "subject_facts": [
+        "profile.MCU_MIN",
+        "board.stm32_stub",
+        "facet.runtime",
+        "facet.input"
+      ]
+    }
+  },
   "structure": {
     "capability_count": 12,
     "node_count": 9,
@@ -666,6 +1038,39 @@ artifact_root 级 `cap list` 现在也会继续带出：
     "declared_facts": ["board.stm32_stub"],
     "required_facts": ["platform.irq", "system.clock"],
     "unresolved_bindings": []
+  },
+  "binding_result": {
+    "required_binding_count": 2,
+    "resolved_binding_count": 2,
+    "unresolved_binding_count": 0,
+    "binding_entries": [
+      {
+        "capability": "platform.irq",
+        "state": "resolved",
+        "provider_nodes": ["platform.irq"],
+        "consumer_nodes": ["hal.uart1"],
+        "reason": "required capability is provided by at least one materialized node"
+      }
+    ]
+  },
+  "bringup_order": {
+    "ordered_node_count": 5,
+    "blocked_node_count": 0,
+    "phase_counts": {
+      "core": 3,
+      "service": 2
+    },
+    "entries": [
+      {
+        "order": 3,
+        "node": "hal.uart1",
+        "phase": "service",
+        "requires": ["platform.irq", "system.clock"],
+        "dependency_nodes": ["platform.irq", "system.clock"],
+        "missing_requires": [],
+        "state": "ready"
+      }
+    ]
   },
   "bringup_evidence": {
     "declared_count": 12,

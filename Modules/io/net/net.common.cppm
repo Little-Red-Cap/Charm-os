@@ -207,6 +207,18 @@ export namespace net {
         [[nodiscard]] static constexpr IpAddress ipv4_loopback() noexcept {
             return ipv4(127, 0, 0, 1);
         }
+
+        [[nodiscard]] static constexpr IpAddress ipv4_broadcast() noexcept {
+            return ipv4(255, 255, 255, 255);
+        }
+
+        [[nodiscard]] constexpr bool is_ipv4_limited_broadcast() const noexcept {
+            return is_ipv4()
+                && bytes[0] == 255u
+                && bytes[1] == 255u
+                && bytes[2] == 255u
+                && bytes[3] == 255u;
+        }
     };
 
     struct Endpoint {
@@ -235,6 +247,10 @@ export namespace net {
 
         [[nodiscard]] static constexpr Endpoint ipv4_loopback(util::u16 port) noexcept {
             return Endpoint{IpAddress::ipv4_loopback(), port};
+        }
+
+        [[nodiscard]] static constexpr Endpoint ipv4_broadcast(util::u16 port) noexcept {
+            return Endpoint{IpAddress::ipv4_broadcast(), port};
         }
     };
 
@@ -282,11 +298,22 @@ namespace net {
         constexpr auto loopback = IpAddress::ipv4_loopback();
         static_assert(loopback.is_ipv4());
         static_assert(!loopback.is_any());
+        static_assert(!loopback.is_ipv4_limited_broadcast());
+
+        constexpr auto broadcast = IpAddress::ipv4_broadcast();
+        static_assert(broadcast.is_ipv4());
+        static_assert(!broadcast.is_any());
+        static_assert(broadcast.is_ipv4_limited_broadcast());
 
         constexpr auto any = Endpoint::ipv4_any(8080);
         static_assert(any.family() == AddressFamily::ipv4);
         static_assert(any.address.is_any());
         static_assert(any.port == 8080);
+
+        constexpr auto broadcast_endpoint = Endpoint::ipv4_broadcast(8081);
+        static_assert(broadcast_endpoint.family() == AddressFamily::ipv4);
+        static_assert(broadcast_endpoint.address.is_ipv4_limited_broadcast());
+        static_assert(broadcast_endpoint.port == 8081);
 
         if (!validate_bind_endpoint_v0(any)) return false;
         if (validate_remote_endpoint_v0(Endpoint::ipv4_any(9000))) return false;

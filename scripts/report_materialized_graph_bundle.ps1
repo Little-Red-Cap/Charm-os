@@ -329,6 +329,38 @@ function Get-CaseEdgeCount {
     return [int]$graphSummary.edge_count
 }
 
+function Get-NodeConnectionText {
+    param(
+        $Node
+    )
+
+    if ($null -eq $Node -or $null -eq $Node.PSObject.Properties['connection'] -or $null -eq $Node.connection) {
+        return ''
+    }
+
+    $source = if ($null -ne $Node.connection.PSObject.Properties['source']) { [string]$Node.connection.source } else { '' }
+    $sink = if ($null -ne $Node.connection.PSObject.Properties['sink']) { [string]$Node.connection.sink } else { '' }
+    $mode = if ($null -ne $Node.connection.PSObject.Properties['mode']) { [string]$Node.connection.mode } else { '' }
+
+    if ([string]::IsNullOrWhiteSpace($source) -and [string]::IsNullOrWhiteSpace($sink) -and [string]::IsNullOrWhiteSpace($mode)) {
+        return ''
+    }
+
+    $text = ''
+    if (-not [string]::IsNullOrWhiteSpace($source) -or -not [string]::IsNullOrWhiteSpace($sink)) {
+        $text = "$source -> $sink"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($mode)) {
+        if ([string]::IsNullOrWhiteSpace($text)) {
+            $text = "[$mode]"
+        } else {
+            $text += " [$mode]"
+        }
+    }
+
+    return $text
+}
+
 function Get-ArtifactLinkMarkdown {
     param(
         [string]$ReportPath,
@@ -450,11 +482,12 @@ function Add-MarkdownNodeTable {
             [string]$node.kind,
             [string]$node.phase,
             [string]$node.runlevel,
+            (Get-NodeConnectionText $node),
             (Join-Strings -Items @($node.provides)),
             (Join-Strings -Items @($node.requires))
         )
     }
-    Add-MarkdownTable -Builder $Builder -Headers @('Name', 'Kind', 'Phase', 'Runlevel', 'Provides', 'Requires') -Rows $rows
+    Add-MarkdownTable -Builder $Builder -Headers @('Name', 'Kind', 'Phase', 'Runlevel', 'Connection', 'Provides', 'Requires') -Rows $rows
 }
 
 function Add-HtmlNodeTable {
@@ -476,11 +509,12 @@ function Add-HtmlNodeTable {
             [string]$node.kind,
             [string]$node.phase,
             [string]$node.runlevel,
+            (Get-NodeConnectionText $node),
             (Join-Strings -Items @($node.provides)),
             (Join-Strings -Items @($node.requires))
         )
     }
-    Add-HtmlTable -Builder $Builder -Headers @('Name', 'Kind', 'Phase', 'Runlevel', 'Provides', 'Requires') -Rows $rows
+    Add-HtmlTable -Builder $Builder -Headers @('Name', 'Kind', 'Phase', 'Runlevel', 'Connection', 'Provides', 'Requires') -Rows $rows
 }
 
 function Add-MarkdownChangedNodeTable {
@@ -503,10 +537,12 @@ function Add-MarkdownChangedNodeTable {
             [string]$entry.left.phase,
             [string]$entry.right.phase,
             [string]$entry.left.kind,
-            [string]$entry.right.kind
+            [string]$entry.right.kind,
+            (Get-NodeConnectionText $entry.left),
+            (Get-NodeConnectionText $entry.right)
         )
     }
-    Add-MarkdownTable -Builder $Builder -Headers @('Name', 'Fields', 'Left Phase', 'Right Phase', 'Left Kind', 'Right Kind') -Rows $rows
+    Add-MarkdownTable -Builder $Builder -Headers @('Name', 'Fields', 'Left Phase', 'Right Phase', 'Left Kind', 'Right Kind', 'Left Connection', 'Right Connection') -Rows $rows
 }
 
 function Add-HtmlChangedNodeTable {
@@ -528,10 +564,12 @@ function Add-HtmlChangedNodeTable {
             [string]$entry.left.phase,
             [string]$entry.right.phase,
             [string]$entry.left.kind,
-            [string]$entry.right.kind
+            [string]$entry.right.kind,
+            (Get-NodeConnectionText $entry.left),
+            (Get-NodeConnectionText $entry.right)
         )
     }
-    Add-HtmlTable -Builder $Builder -Headers @('Name', 'Fields', 'Left Phase', 'Right Phase', 'Left Kind', 'Right Kind') -Rows $rows
+    Add-HtmlTable -Builder $Builder -Headers @('Name', 'Fields', 'Left Phase', 'Right Phase', 'Left Kind', 'Right Kind', 'Left Connection', 'Right Connection') -Rows $rows
 }
 
 function Add-MarkdownEdgeTable {

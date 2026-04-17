@@ -33,9 +33,9 @@
 
 | 任务类型                    | 推荐读取顺序                                                                                                                                    |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Code Review             | `rules/` → `skills/code-review/` → `workflows/review-workflow.md` → `templates/review-output.md`                                          |
-| Code Generation         | `rules/` → `skills/codegen/` → `workflows/codegen-workflow.md` → `templates/codegen-output.md`                                            |
-| Architecture Discussion | `rules/` → `glossary.md` → `skills/architect-review/` → `workflows/architect-review-workflow.md` → `templates/architect-review-output.md` |
+| Code Review             | `rules/` → `docs/architecture/signal_state_contract_v0.md`（涉及事件连接时） → `skills/code-review/` → `workflows/review-workflow.md` → `templates/review-output.md` |
+| Code Generation         | `rules/` → `docs/architecture/signal_state_contract_v0.md`（按需） → `skills/codegen/` → `workflows/codegen-workflow.md` → `templates/codegen-output.md` |
+| Architecture Discussion | `rules/` → `docs/architecture/signal_state_contract_v0.md`（涉及同域通知 / 状态 / post 时） → `glossary.md` → `skills/architect-review/` → `workflows/architect-review-workflow.md` → `templates/architect-review-output.md` |
 
 ---
 
@@ -269,6 +269,14 @@ Glossary 用来防止 AI 在关键术语上产生漂移，避免用外部经验�
 | `rules/embedded-modern-cpp.md` | 定义现代嵌入式 C++ 技术立场        | 接口设计、抽象方向、是否退回传统写法    |
 | `rules/charm-architecture.md`  | 定义 Charm 项目的具体工程纪律与架构要求 | 分层、初始化、IO、错误模型、时间源一致性 |
 
+### 事件连接补充入口
+
+当任务涉及 `delegate / signal / state / deferred_signal / poster / connection wiring` 时，
+应额外优先阅读：
+
+- `docs/architecture/signal_state_contract_v0.md`
+- `docs/architecture/signal_state_v0.md`
+
 ---
 
 ## 当前核心技能
@@ -307,28 +315,31 @@ Glossary 用来防止 AI 在关键术语上产生漂移，避免用外部经验�
 
 1. `rules/charm-architecture.md`
 2. `rules/embedded-modern-cpp.md`
-3. `skills/code-review/SKILL.md`
-4. `skills/code-review/checklist.md`
-5. `workflows/review-workflow.md`
-6. `templates/review-output.md`
+3. `docs/architecture/signal_state_contract_v0.md`（涉及事件连接时）
+4. `skills/code-review/SKILL.md`
+5. `skills/code-review/checklist.md`
+6. `workflows/review-workflow.md`
+7. `templates/review-output.md`
 
 ### 场景 2：代码生成
 
 1. `rules/collaboration.md`
 2. `rules/embedded-modern-cpp.md`
 3. `rules/charm-architecture.md`
-4. `skills/codegen/SKILL.md`
-5. `workflows/codegen-workflow.md`
-6. `templates/codegen-output.md`
+4. `docs/architecture/signal_state_contract_v0.md`（涉及事件连接时）
+5. `skills/codegen/SKILL.md`
+6. `workflows/codegen-workflow.md`
+7. `templates/codegen-output.md`
 
 ### 场景 3：架构评审
 
 1. `rules/charm-architecture.md`
 2. `rules/embedded-modern-cpp.md`
-3. `glossary.md`
-4. `skills/architect-review/SKILL.md`
-5. `workflows/architect-review-workflow.md`
-6. `templates/architect-review-output.md`
+3. `docs/architecture/signal_state_contract_v0.md`（涉及事件连接时）
+4. `glossary.md`
+5. `skills/architect-review/SKILL.md`
+6. `workflows/architect-review-workflow.md`
+7. `templates/architect-review-output.md`
 
 ---
 

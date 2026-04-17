@@ -376,6 +376,7 @@ function Get-GraphSummary {
     $graph = Get-Content -LiteralPath $JsonPath -Raw -Encoding utf8 | ConvertFrom-Json
     Assert-MaterializedGraphSampleShape -Graph $graph -Context $JsonPath
     $kindCounts = [ordered]@{}
+    $connectionModeCounts = [ordered]@{}
     foreach ($node in $graph.nodes) {
         $kind = [string]$node.kind
         if ([string]::IsNullOrWhiteSpace($kind)) {
@@ -386,6 +387,17 @@ function Get-GraphSummary {
             $kindCounts[$kind] += 1
         } else {
             $kindCounts[$kind] = 1
+        }
+
+        if ($null -ne $node.PSObject.Properties['connection'] -and $null -ne $node.connection) {
+            $mode = [string]$node.connection.mode
+            if (-not [string]::IsNullOrWhiteSpace($mode)) {
+                if ($connectionModeCounts.Contains($mode)) {
+                    $connectionModeCounts[$mode] += 1
+                } else {
+                    $connectionModeCounts[$mode] = 1
+                }
+            }
         }
     }
 
@@ -399,6 +411,9 @@ function Get-GraphSummary {
     }
     if ($kindCounts.Count -gt 0) {
         $summary.node_kinds = $kindCounts
+    }
+    if ($connectionModeCounts.Count -gt 0) {
+        $summary.connection_modes = $connectionModeCounts
     }
 
     return $summary

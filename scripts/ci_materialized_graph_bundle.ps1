@@ -138,6 +138,117 @@ function Compare-StringArrays {
     return $true
 }
 
+function Add-CountMapEntries {
+    param(
+        [System.Collections.IDictionary]$Target,
+        $Source
+    )
+
+    if ($null -eq $Source) {
+        return
+    }
+
+    foreach ($property in $Source.PSObject.Properties) {
+        $name = [string]$property.Name
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            continue
+        }
+
+        $value = [int]$property.Value
+        if ($value -le 0) {
+            continue
+        }
+
+        if ($Target.Contains($name)) {
+            $Target[$name] += $value
+        } else {
+            $Target[$name] = $value
+        }
+    }
+}
+
+function Get-SelectedCaseEntries {
+    param(
+        [object[]]$CaseEntries,
+        [string[]]$CaseNames = @()
+    )
+
+    if (@($CaseNames).Count -eq 0) {
+        return @($CaseEntries)
+    }
+
+    $selectedNames = @{}
+    foreach ($caseName in @($CaseNames)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$caseName)) {
+            $selectedNames[[string]$caseName] = $true
+        }
+    }
+
+    $selectedEntries = @()
+    foreach ($entry in @($CaseEntries)) {
+        $name = [string]$entry.name
+        if ($selectedNames.ContainsKey($name)) {
+            $selectedEntries += $entry
+        }
+    }
+
+    return $selectedEntries
+}
+
+function New-BundleGraphAggregate {
+    param(
+        [object[]]$CaseEntries,
+        [string[]]$CaseNames = @()
+    )
+
+    $selectedEntries = @(Get-SelectedCaseEntries -CaseEntries $CaseEntries -CaseNames $CaseNames)
+    $nodeKinds = [ordered]@{}
+    $connectionModes = [ordered]@{}
+    $nodeCount = 0
+    $edgeCount = 0
+    $connectionCaseCount = 0
+
+    foreach ($entry in $selectedEntries) {
+        if ($null -eq $entry -or $null -eq $entry.PSObject.Properties['graph'] -or $null -eq $entry.graph) {
+            continue
+        }
+
+        $nodeCount += [int]$entry.graph.node_count
+        $edgeCount += [int]$entry.graph.edge_count
+        Add-CountMapEntries -Target $nodeKinds -Source $entry.graph.node_kinds
+        Add-CountMapEntries -Target $connectionModes -Source $entry.graph.connection_modes
+
+        $hasConnectionData = $false
+        if ($null -ne $entry.graph.PSObject.Properties['connection_modes'] -and $null -ne $entry.graph.connection_modes -and $entry.graph.connection_modes.PSObject.Properties.Count -gt 0) {
+            $hasConnectionData = $true
+        } elseif ($null -ne $entry.graph.PSObject.Properties['node_kinds'] -and $null -ne $entry.graph.node_kinds) {
+            $connectionKindProperty = $entry.graph.node_kinds.PSObject.Properties['connection']
+            if ($null -ne $connectionKindProperty -and [int]$connectionKindProperty.Value -gt 0) {
+                $hasConnectionData = $true
+            }
+        }
+
+        if ($hasConnectionData) {
+            $connectionCaseCount += 1
+        }
+    }
+
+    $aggregate = [ordered]@{
+        case_count = $selectedEntries.Count
+        node_count = $nodeCount
+        edge_count = $edgeCount
+        connection_case_count = $connectionCaseCount
+    }
+    if ($nodeKinds.Count -gt 0) {
+        $aggregate.node_kinds = $nodeKinds
+    }
+    if ($connectionModes.Count -gt 0) {
+        $aggregate.connection_modes = $connectionModes
+    }
+
+    return $aggregate
+}
+
 function Get-CaseSubjectInfo {
     param(
         $CaseEntry
@@ -451,6 +562,7 @@ $summary = [ordered]@{
         input_manifest = $null
         declared_facts_defaults = $null
         declared_contracts_defaults = $null
+        graph_aggregate = $null
     }
     baseline = $null
     diff = $null
@@ -465,6 +577,7 @@ $candidateDeclaredFactsDefaults = Get-DerivedDeclaredFactsDefaults -CaseEntries 
 $summary.candidate.declared_facts_defaults = if ($null -eq $candidateDeclaredFactsDefaults) { $null } else { ,@($candidateDeclaredFactsDefaults) }
 $candidateDeclaredContractsDefaults = Get-DerivedDeclaredContractsDefaults -CaseEntries @($candidateIndex.cases)
 $summary.candidate.declared_contracts_defaults = if ($null -eq $candidateDeclaredContractsDefaults) { $null } else { ,@($candidateDeclaredContractsDefaults) }
+$summary.candidate.graph_aggregate = New-BundleGraphAggregate -CaseEntries @($candidateIndex.cases) -CaseNames $(if ($selection.AllCases) { @() } else { @($selection.Cases) })
 $derivedSubjectDefaults = Get-DerivedSubjectDefaults -CaseEntries @($candidateIndex.cases)
 if ([string]::IsNullOrWhiteSpace($Profile)) {
     $summary.subject_defaults.profile = $derivedSubjectDefaults.profile
@@ -607,12 +720,15 @@ $hasVisibleDiff = ($changedCases.Count + $addedCases.Count + $removedCases.Count
 $summary.mode = 'compare'
 $summary.has_diff = $hasVisibleDiff
 $summary.status = if ($hasVisibleDiff) { 'different' } else { 'same' }
+$comparedCaseNames = @($diffData.cases | ForEach-Object { [string]$_.name })
+$summary.candidate.graph_aggregate = New-BundleGraphAggregate -CaseEntries @($candidateIndex.cases) -CaseNames $comparedCaseNames
 $summary.baseline = [ordered]@{
     bundle_root = if (-not [string]::IsNullOrWhiteSpace($resolvedBaselineBundleRoot)) { $resolvedBaselineBundleRoot } else { Split-Path -Parent ([string]$diffData.left.index) }
     index = [string]$diffData.left.index
     input_manifest = $null
     declared_facts_defaults = $null
     declared_contracts_defaults = $null
+    graph_aggregate = $null
 }
 $baselineIndexData = Get-Content -LiteralPath ([string]$diffData.left.index) -Raw -Encoding utf8 | ConvertFrom-Json
 $summary.baseline.input_manifest = Get-BundleInputManifestInfo -IndexData $baselineIndexData
@@ -620,6 +736,7 @@ $baselineDeclaredFactsDefaults = Get-DerivedDeclaredFactsDefaults -CaseEntries @
 $summary.baseline.declared_facts_defaults = if ($null -eq $baselineDeclaredFactsDefaults) { $null } else { ,@($baselineDeclaredFactsDefaults) }
 $baselineDeclaredContractsDefaults = Get-DerivedDeclaredContractsDefaults -CaseEntries @($baselineIndexData.cases)
 $summary.baseline.declared_contracts_defaults = if ($null -eq $baselineDeclaredContractsDefaults) { $null } else { ,@($baselineDeclaredContractsDefaults) }
+$summary.baseline.graph_aggregate = New-BundleGraphAggregate -CaseEntries @($baselineIndexData.cases) -CaseNames $comparedCaseNames
 $summary.diff = [ordered]@{
     json = $diffJsonPath
     case_count = [int]$diffData.case_count

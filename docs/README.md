@@ -59,6 +59,7 @@
 - 网络 socket v0 契约：`docs/io/net_socket_v0_contract.md`
 - 网络协议栈阶段复盘：`docs/io/net_stack_stage_review.md`
 - 网络协议栈底座收口任务单：`docs/io/net_stack_foundation_tasklist.md`
+- 网络底座 v0 关单清单：`docs/io/net_stack_v0_closure_checklist.md`
 
 ## 文档体系图
 
@@ -105,6 +106,7 @@ flowchart TD
 | 做网络协议栈设计 | `docs/io/net_stack_dual_surface_design.md` |
 | 看网络协议栈阶段复盘 | `docs/io/net_stack_stage_review.md` |
 | 拆网络底座收口任务 | `docs/io/net_stack_foundation_tasklist.md` |
+| 看网络底座是否已可关单 | `docs/io/net_stack_v0_closure_checklist.md` |
 | 做主框架全仓体检 / 收敛排期 | `docs/project/tracking/主框架全仓审查与收敛_backlog.md` |
 | POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
 | POSIX 分层与演进原则 | `docs/system/posix_subsystem_principles.md` |
@@ -145,6 +147,8 @@ docs/
 - `docs/architecture/dependency_whitelist.md`
 - `docs/architecture/driver_model.md`
 - `docs/architecture/device_model_overview.md`
+- `docs/architecture/signal_state_contract_v0.md`
+- `docs/architecture/signal_state_v0.md`
 - `docs/architecture/capability_recovery_rules.md`
 - `docs/architecture/capability_recovery_matrix.md`
 
@@ -162,6 +166,7 @@ docs/
 - `docs/io/net_socket_v0_contract.md`
 - `docs/io/net_stack_stage_review.md`
 - `docs/io/net_stack_foundation_tasklist.md`
+- `docs/io/net_stack_v0_closure_checklist.md`
 - `docs/input/input_layering_decision.md`
 - `docs/input/input_protocol_map.md`
 

@@ -30,8 +30,8 @@
         }
 
         static constexpr int kLibraryTabRadius = 20;
-        static constexpr int kLibrarySortRadius = 18;
-        static constexpr int kLibraryPathRadius = 16;
+        static constexpr int kLibrarySortRadius = 20;
+        static constexpr int kLibraryPathRadius = 18;
         static constexpr int kLibraryListRowHeight = 72;
         static constexpr int kTrackDurationUnknown = -1;
         static constexpr int kTrackDurationUnavailable = -2;
@@ -238,7 +238,8 @@
                 out.detail_secondary = out.model->subtitle.view();
             }
             const bool row_has_action = (out.model != nullptr) || (out.track_index >= 0);
-            out.show_tail_action = row_has_action && (out.selected_row || !out.current_row);
+            out.show_tail_action = row_has_action && (out.group_row ? out.selected_row
+                                                                    : (out.selected_row || !out.current_row));
             out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
             out.tail_icon = out.current_row
                 ? (is_paused() ? icons.pause : icons.play)
@@ -255,10 +256,15 @@
                 out.detail_primary = out.track_path;
                 out.detail_secondary = {};
             }
-            out.fallback_icon = is_audio_path(out.track_path)
-                ? icons.play
-                : icons.folder;
-            out.prefer_cover = is_audio_path(out.track_path);
+            if (out.group_row) {
+                out.fallback_icon = icons.folder;
+                out.prefer_cover = (library_tab == LibraryTab::Albums) && is_audio_path(out.track_path);
+            } else {
+                out.fallback_icon = is_audio_path(out.track_path)
+                    ? icons.play
+                    : icons.folder;
+                out.prefer_cover = is_audio_path(out.track_path);
+            }
             if (out.track_index < static_cast<int>(list_cover_paths.size())) {
                 out.cover_path = list_cover_paths[static_cast<std::size_t>(out.track_index)].view();
             }
@@ -893,29 +899,33 @@
             spec.corner_radius = radius;
             if (active && elevated) {
                 spec.shadow.enabled = true;
-                spec.shadow.color = with_alpha(kUiCardShadow, 76);
+                spec.shadow.color = with_alpha(kUiCardShadow, 62);
+                spec.shadow.offset_x = 0;
+                spec.shadow.offset_y = 2;
+                spec.shadow.spread = 0;
+                spec.shadow.radius = 9;
+            } else if (active) {
+                spec.shadow.enabled = true;
+                spec.shadow.color = with_alpha(kUiCardShadow, 82);
                 spec.shadow.offset_x = 0;
                 spec.shadow.offset_y = 2;
                 spec.shadow.spread = 0;
                 spec.shadow.radius = 10;
-            } else if (active) {
-                spec.shadow.enabled = true;
-                spec.shadow.color = with_alpha(kUiCardShadow, 96);
-                spec.shadow.offset_x = 0;
-                spec.shadow.offset_y = 3;
-                spec.shadow.spread = 1;
-                spec.shadow.radius = 12;
             } else if (elevated) {
                 spec.shadow.enabled = true;
-                spec.shadow.color = with_alpha(kUiCardShadow, 40);
+                spec.shadow.color = with_alpha(kUiCardShadow, 28);
                 spec.shadow.offset_x = 0;
                 spec.shadow.offset_y = 1;
                 spec.shadow.spread = 0;
-                spec.shadow.radius = 7;
+                spec.shadow.radius = 6;
             }
             if (active) {
                 spec.inner_stroke_enabled = true;
                 spec.inner_stroke_color = with_alpha(kUiLibraryListOnAccent, 52);
+                spec.inner_stroke_width = 1;
+            } else if (elevated) {
+                spec.inner_stroke_enabled = true;
+                spec.inner_stroke_color = with_alpha(kUiLibraryPathTextActive, 16);
                 spec.inner_stroke_width = 1;
             }
             StylePatch patch = ::ui::scene::make_pill_surface_patch(spec);
@@ -925,8 +935,8 @@
                 : (elevated ? kUiLibraryChipText : kUiLibraryChipTextMuted);
             patch.has_font = true;
             patch.font = active
-                ? &get_player_font_px(elevated ? 18 : 17, FontWeight::Medium)
-                : &get_player_font_px(elevated ? 18 : 17, FontWeight::Regular);
+                ? &get_player_font_px(elevated ? 17 : 17, FontWeight::Medium)
+                : &get_player_font_px(elevated ? 17 : 16, FontWeight::Regular);
             patch.has_border_focus = true;
             patch.border_focus = kUiLibraryPathBorderActive;
             access.set_style_override(handle, patch);
@@ -1082,7 +1092,14 @@
                 switch (library_tab) {
                 case LibraryTab::Songs:
                     display_title = title.empty() ? stem : title;
-                    if (!artist.empty()) {
+                    if (!artist.empty() && !album.empty()) {
+                        char subtitle_buf[192]{};
+                        std::snprintf(subtitle_buf, sizeof(subtitle_buf), "%.*s / %.*s",
+                                      static_cast<int>(artist.size()), artist.data(),
+                                      static_cast<int>(album.size()), album.data());
+                        row.subtitle.assign(subtitle_buf);
+                        display_subtitle = row.subtitle.view();
+                    } else if (!artist.empty()) {
                         display_subtitle = artist;
                     } else if (!album.empty()) {
                         display_subtitle = album;
@@ -1170,7 +1187,6 @@
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
             if (row.current_row) {
-                if (row.group_row) return "";
                 return self->library_current_group_state_text();
             }
             if (row.model) {
@@ -1181,6 +1197,17 @@
             const auto* tracks = self->storage.tracks;
             if (!tracks || track_index >= static_cast<int>(tracks->size())) return "";
             return format_from_path((*tracks)[static_cast<std::size_t>(track_index)].view()).data();
+        }
+
+        static std::uint8_t list_view_row_flags(const void* ctx, std::uint16_t index) noexcept {
+            auto* self = static_cast<const PlayerController*>(ctx);
+            if (!self) return 0;
+            const auto row = self->make_library_row_recipe(static_cast<int>(index));
+            std::uint8_t flags = 0;
+            if (row.group_row) {
+                flags |= ::ui::scene::kListViewRowFlagGroup;
+            }
+            return flags;
         }
 
         static ::ui::scene::ImageId list_view_tail_action_icon(const void* ctx, std::uint16_t index) noexcept {
@@ -1397,10 +1424,12 @@
                                          &PlayerController::list_view_text);
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
+            access.set_list_view_row_flags_source(handles.list, this, &PlayerController::list_view_row_flags);
             access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 20);
             access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 26);
-            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 48);
-            access.set_list_view_icon_corner_radius(handles.list, 16);
+            const bool artist_group_rows = library_shows_group_rows() && library_tab == LibraryTab::Artists;
+            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, artist_group_rows ? 40 : 48);
+            access.set_list_view_icon_corner_radius(handles.list, artist_group_rows ? 20 : 16);
             access.set_list_row_height(handles.list, kLibraryListRowHeight);
             access.set_scroll_step(handles.list, kLibraryListRowHeight);
             if (count > 0) {

@@ -18,6 +18,8 @@
 相关文件：
 - `collaboration.md`
 - `embedded-modern-cpp.md`
+- `../../architecture/signal_state_contract_v0.md`
+- `../../architecture/signal_state_v0.md`
 
 ---
 
@@ -198,7 +200,7 @@ Kernel/驱动/实时回调中不得引入动态分配。
 
 ---
 
-## 10. 初始化与能力装配
+## 10. 初始化、能力装配与事件连接
 
 初始化统一通过：
 
@@ -218,6 +220,16 @@ Kernel/驱动/实时回调中不得引入动态分配。
 内核能力统一通过：
 
 - `charm.system.caps::SystemCaps`
+
+事件连接纪律：
+
+- `signal.emit()` 只允许同执行域同步广播，不得被当作队列、mailbox 或隐式异步机制。
+- `deferred_signal` / `poster.post()` 只表达显式跨上下文投递，不得偷做 direct call fallback。
+- 只要事件要跨 ISR / task / reactor / scheduler submit 边界，默认必须走 `post()`，而不是 `emit()`。
+- ISR 中默认只允许使用 irq-safe 的 `poster` / queue ingress；不得直接 `emit()` 非 irq-safe 槽，不得直接 `state.set()`。
+- `state` 只表达当前真相与变化通知，不得被当作命令总线、event log 或 replay 队列。
+- 长期 wiring 不得藏在对象构造过程的匿名 `connect` 里；系统级连接应优先进入 `init.connection` / `materialize`，让 graph/export/explain 能看见。
+- 如果拿不准当前场景是否同域，默认按跨上下文处理，先 `post()` 到明确执行面。
 
 禁止散落临时 Caps 结构体。
 
@@ -292,6 +304,8 @@ bringup 只负责注入，不应在模块内部偷取平台时间。
 - 是否使用隐式默认通道
 - 是否引入不统一错误模型
 - 是否自建时间源
+- 是否把 `signal` / `state` / `post` 用成了错误语义
+- 是否把系统长期 wiring 藏成了运行时自由订阅图
 - 是否引入不可控第三方依赖
 
 ---

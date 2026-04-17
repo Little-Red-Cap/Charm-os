@@ -341,6 +341,302 @@ function Get-UnresolvedBindings {
     return @($unresolved | Sort-Object -Unique)
 }
 
+function Get-BindingEntries {
+    param(
+        $Graph
+    )
+
+    if ($null -eq $Graph) {
+        return @()
+    }
+
+    $providerMap = @{}
+    $consumerMap = @{}
+    foreach ($node in @($Graph.nodes)) {
+        $nodeName = [string]$node.name
+        if ([string]::IsNullOrWhiteSpace($nodeName)) {
+            continue
+        }
+
+        foreach ($capabilityName in @(Get-CapabilityNames -Capabilities $node.provides)) {
+            if (-not $providerMap.ContainsKey($capabilityName)) {
+                $providerMap[$capabilityName] = @()
+            }
+            $providerMap[$capabilityName] = @($providerMap[$capabilityName] + $nodeName | Sort-Object -Unique)
+        }
+
+        foreach ($capabilityName in @(Get-CapabilityNames -Capabilities $node.requires)) {
+            if (-not $consumerMap.ContainsKey($capabilityName)) {
+                $consumerMap[$capabilityName] = @()
+            }
+            $consumerMap[$capabilityName] = @($consumerMap[$capabilityName] + $nodeName | Sort-Object -Unique)
+        }
+    }
+
+    $entries = @()
+    foreach ($capabilityName in @($consumerMap.Keys | Sort-Object)) {
+        $providerNodes = if ($providerMap.ContainsKey($capabilityName)) {
+            @($providerMap[$capabilityName] | Sort-Object -Unique)
+        } else {
+            @()
+        }
+        $consumerNodes = @($consumerMap[$capabilityName] | Sort-Object -Unique)
+        $state = if (@($providerNodes).Count -gt 0) { 'resolved' } else { 'unresolved' }
+        $reason = if ($state -eq 'resolved') {
+            'required capability is provided by at least one materialized node'
+        } else {
+            'required capability was not provided by any materialized node'
+        }
+
+        $entries += [ordered]@{
+            capability = $capabilityName
+            state = $state
+            provider_nodes = @($providerNodes)
+            consumer_nodes = @($consumerNodes)
+            reason = $reason
+        }
+    }
+
+    return @($entries)
+}
+
+function Get-BindingResultSummary {
+    param(
+        $Graph
+    )
+
+    $bindingEntries = @(Get-BindingEntries -Graph $Graph)
+    $resolvedCapabilities = @(
+        @($bindingEntries) |
+            Where-Object { [string]$_.state -eq 'resolved' } |
+            ForEach-Object { [string]$_.capability } |
+            Sort-Object -Unique
+    )
+    $unresolvedCapabilities = @(
+        @($bindingEntries) |
+            Where-Object { [string]$_.state -eq 'unresolved' } |
+            ForEach-Object { [string]$_.capability } |
+            Sort-Object -Unique
+    )
+
+    return [ordered]@{
+        required_binding_count = @($bindingEntries).Count
+        resolved_binding_count = @($resolvedCapabilities).Count
+        unresolved_binding_count = @($unresolvedCapabilities).Count
+        resolved_capabilities = @($resolvedCapabilities)
+        unresolved_capabilities = @($unresolvedCapabilities)
+        binding_entries = @($bindingEntries)
+    }
+}
+
+function Add-CountMapEntry {
+    param(
+        [hashtable]$Counts,
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return
+    }
+
+    if ($Counts.ContainsKey($Name)) {
+        $Counts[$Name] = [int]$Counts[$Name] + 1
+    } else {
+        $Counts[$Name] = 1
+    }
+}
+
+function ConvertTo-OrderedCountMap {
+    param(
+        [hashtable]$Counts
+    )
+
+    $result = [ordered]@{}
+    foreach ($entry in @($Counts.GetEnumerator() | Sort-Object Key)) {
+        $result[[string]$entry.Key] = [int]$entry.Value
+    }
+
+    return $result
+}
+
+function Get-GraphConnectionSummary {
+    param(
+        $Graph
+    )
+
+    $connections = @()
+    $connectionModes = @{}
+
+    if ($null -ne $Graph -and $null -ne $Graph.PSObject.Properties['nodes']) {
+        foreach ($node in @($Graph.nodes | Sort-Object index)) {
+            if ($null -eq $node) {
+                continue
+            }
+
+            $hasConnectionPayload = ($null -ne $node.PSObject.Properties['connection']) -and ($null -ne $node.connection)
+            if (([string]$node.kind -ne 'connection') -and -not $hasConnectionPayload) {
+                continue
+            }
+
+            $connectionInfo = if ($hasConnectionPayload) { $node.connection } else { $null }
+            $source = $null
+            $sink = $null
+            $mode = $null
+            if ($null -ne $connectionInfo) {
+                if ($null -ne $connectionInfo.PSObject.Properties['source'] -and -not [string]::IsNullOrWhiteSpace([string]$connectionInfo.source)) {
+                    $source = [string]$connectionInfo.source
+                }
+                if ($null -ne $connectionInfo.PSObject.Properties['sink'] -and -not [string]::IsNullOrWhiteSpace([string]$connectionInfo.sink)) {
+                    $sink = [string]$connectionInfo.sink
+                }
+                if ($null -ne $connectionInfo.PSObject.Properties['mode'] -and -not [string]::IsNullOrWhiteSpace([string]$connectionInfo.mode)) {
+                    $mode = [string]$connectionInfo.mode
+                }
+            }
+
+            Add-CountMapEntry -Counts $connectionModes -Name $mode
+
+            $phase = $null
+            if ($null -ne $node.PSObject.Properties['phase'] -and -not [string]::IsNullOrWhiteSpace([string]$node.phase)) {
+                $phase = [string]$node.phase
+            }
+
+            $runlevelText = $null
+            if ($null -ne $node.PSObject.Properties['runlevel_text'] -and -not [string]::IsNullOrWhiteSpace([string]$node.runlevel_text)) {
+                $runlevelText = [string]$node.runlevel_text
+            }
+
+            $connections += [ordered]@{
+                name = [string]$node.name
+                phase = $phase
+                runlevel_text = $runlevelText
+                source = $source
+                sink = $sink
+                mode = $mode
+                requires = @(Get-CapabilityNames -Capabilities $node.requires)
+            }
+        }
+    }
+
+    return [ordered]@{
+        connection_node_count = @($connections).Count
+        connection_modes = ConvertTo-OrderedCountMap -Counts $connectionModes
+        connections = @($connections)
+    }
+}
+
+function Get-BringupOrderSummary {
+    param(
+        $Graph
+    )
+
+    if ($null -eq $Graph) {
+        return [ordered]@{
+            ordered_node_count = 0
+            blocked_node_count = 0
+            phase_counts = [ordered]@{}
+            entries = @()
+        }
+    }
+
+    $nodeByIndex = @{}
+    foreach ($node in @($Graph.nodes)) {
+        $nodeByIndex[[int]$node.index] = $node
+    }
+
+    $dependencyMap = @{}
+    foreach ($edge in @($Graph.edges)) {
+        if ($null -eq $edge) {
+            continue
+        }
+
+        $consumerIndex = [int]$edge.consumer_index
+        $providerIndex = [int]$edge.provider_index
+        if (-not $dependencyMap.ContainsKey($consumerIndex)) {
+            $dependencyMap[$consumerIndex] = @()
+        }
+
+        $providerNode = if ($nodeByIndex.ContainsKey($providerIndex)) { $nodeByIndex[$providerIndex] } else { $null }
+        $providerName = if ($null -ne $providerNode) { [string]$providerNode.name } else { '' }
+        $capabilityName = $null
+        if ($null -ne $edge.PSObject.Properties['capability'] -and $null -ne $edge.capability) {
+            $capabilityName = [string]$edge.capability.name
+            if ([string]::IsNullOrWhiteSpace($capabilityName)) {
+                $capabilityName = [string]$edge.capability.id
+            }
+        }
+
+        $dependencyMap[$consumerIndex] += [ordered]@{
+            provider_node = $providerName
+            capability = $capabilityName
+        }
+    }
+
+    $phaseCounts = @{}
+    $entries = @()
+    foreach ($node in @($Graph.nodes | Sort-Object index)) {
+        if ($null -eq $node) {
+            continue
+        }
+
+        $phaseName = [string]$node.phase
+        Add-CountMapEntry -Counts $phaseCounts -Name $phaseName
+
+        $requires = @(Get-CapabilityNames -Capabilities $node.requires)
+        $provides = @(Get-CapabilityNames -Capabilities $node.provides)
+        $dependencyEntries = if ($dependencyMap.ContainsKey([int]$node.index)) {
+            @(
+                @($dependencyMap[[int]$node.index]) |
+                    Sort-Object capability, provider_node
+            )
+        } else {
+            @()
+        }
+        $resolvedRequires = @(
+            @($dependencyEntries) |
+                ForEach-Object { [string]$_.capability } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $dependencyNodes = @(
+            @($dependencyEntries) |
+                ForEach-Object { [string]$_.provider_node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $missingRequires = @(
+            @($requires) |
+                Where-Object { @($resolvedRequires) -notcontains [string]$_ } |
+                Sort-Object -Unique
+        )
+        $state = if (@($missingRequires).Count -gt 0) { 'blocked' } else { 'ready' }
+
+        $entries += [ordered]@{
+            order = [int]$node.index
+            node = [string]$node.name
+            kind = [string]$node.kind
+            phase = $phaseName
+            runlevel_text = [string]$node.runlevel_text
+            provides = @($provides)
+            requires = @($requires)
+            dependency_nodes = @($dependencyNodes)
+            resolved_requires = @($resolvedRequires)
+            missing_requires = @($missingRequires)
+            state = $state
+        }
+    }
+
+    return [ordered]@{
+        ordered_node_count = @($entries).Count
+        blocked_node_count = @(
+            @($entries) |
+                Where-Object { [string]$_.state -eq 'blocked' }
+        ).Count
+        phase_counts = ConvertTo-OrderedCountMap -Counts $phaseCounts
+        entries = @($entries)
+    }
+}
+
 function Get-RuntimeObserveSummary {
     param(
         $RuntimeObserveInfo
@@ -496,6 +792,23 @@ function Get-CapabilityScopedReasons {
     )
 }
 
+function Get-OptionalStringArrayValue {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    if ($null -eq $Object -or $null -eq $Object.PSObject.Properties[$PropertyName]) {
+        return @()
+    }
+
+    return @(
+        @($Object.$PropertyName) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+}
+
 function Get-RuntimeExportStateMap {
     param(
         $RuntimeObserveInfo
@@ -642,6 +955,28 @@ function Get-SubjectInfo {
         Board = $board
         ActiveFacets = @($activeFacets)
     }
+}
+
+function Get-OptionalCaseEntryString {
+    param(
+        $CaseEntry,
+        [string]$PropertyName
+    )
+
+    if ($null -eq $CaseEntry -or [string]::IsNullOrWhiteSpace($PropertyName)) {
+        return $null
+    }
+
+    if ($null -eq $CaseEntry.PSObject.Properties[$PropertyName]) {
+        return $null
+    }
+
+    $value = [string]$CaseEntry.$PropertyName
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+
+    return $value
 }
 
 function Get-CaseDeclaredFacts {
@@ -862,6 +1197,26 @@ function New-EmptyBringupEvidenceSummary {
     }
 }
 
+function New-EmptyBindingResultSummary {
+    return [ordered]@{
+        required_binding_count = 0
+        resolved_binding_count = 0
+        unresolved_binding_count = 0
+        resolved_capabilities = @()
+        unresolved_capabilities = @()
+        binding_entries = @()
+    }
+}
+
+function New-EmptyBringupOrderSummary {
+    return [ordered]@{
+        ordered_node_count = 0
+        blocked_node_count = 0
+        phase_counts = [ordered]@{}
+        entries = @()
+    }
+}
+
 function Join-Names {
     param(
         [string[]]$Names
@@ -881,6 +1236,57 @@ function Compare-StringArrays {
     return $leftText -eq $rightText
 }
 
+function Copy-OrderedCountMap {
+    param(
+        $CountMapLike
+    )
+
+    $result = [ordered]@{}
+    if ($null -eq $CountMapLike) {
+        return $result
+    }
+
+    if ($CountMapLike -is [System.Collections.IDictionary]) {
+        foreach ($key in @($CountMapLike.Keys | Sort-Object)) {
+            $result[[string]$key] = [int]$CountMapLike[$key]
+        }
+
+        return $result
+    }
+
+    foreach ($property in @($CountMapLike.PSObject.Properties | Sort-Object Name)) {
+        $result[[string]$property.Name] = [int]$property.Value
+    }
+
+    return $result
+}
+
+function Format-CountMapText {
+    param(
+        $CountMapLike
+    )
+
+    $orderedMap = Copy-OrderedCountMap -CountMapLike $CountMapLike
+    $parts = @()
+    foreach ($entry in @($orderedMap.GetEnumerator())) {
+        $parts += "$([string]$entry.Key):$([int]$entry.Value)"
+    }
+
+    return (@($parts) -join ', ')
+}
+
+function Format-ComparisonScalarText {
+    param(
+        $Value
+    )
+
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) {
+        return '<null>'
+    }
+
+    return [string]$Value
+}
+
 function New-ResolvedCaseSubject {
     param(
         $CaseEntry,
@@ -893,11 +1299,682 @@ function New-ResolvedCaseSubject {
         Get-SubjectInfo -SubjectLike $null
     }
     $defaultSubject = $ArtifactContext.SubjectDefaults
+    $profileResolution = Resolve-SubjectScalarInfo -ExplicitValue $Profile -DefaultValue $defaultSubject.Profile -CaseValue $caseSubject.Profile
+    $boardResolution = Resolve-SubjectScalarInfo -ExplicitValue $Board -DefaultValue $defaultSubject.Board -CaseValue $caseSubject.Board
+    $facetResolution = Resolve-SubjectFacetsInfo -ExplicitFacets $Facet -DefaultFacets $defaultSubject.ActiveFacets -CaseFacets $caseSubject.ActiveFacets
 
     return [pscustomobject]@{
-        Profile = Resolve-SubjectScalar -ExplicitValue $Profile -DefaultValue $defaultSubject.Profile -CaseValue $caseSubject.Profile
-        Board = Resolve-SubjectScalar -ExplicitValue $Board -DefaultValue $defaultSubject.Board -CaseValue $caseSubject.Board
-        ActiveFacets = @(Resolve-SubjectFacets -ExplicitFacets $Facet -DefaultFacets $defaultSubject.ActiveFacets -CaseFacets $caseSubject.ActiveFacets)
+        Profile = $profileResolution.value
+        Board = $boardResolution.value
+        ActiveFacets = @($facetResolution.values)
+        ProfileResolution = $profileResolution
+        BoardResolution = $boardResolution
+        ActiveFacetResolution = $facetResolution
+    }
+}
+
+function New-SystemInputSummary {
+    param(
+        $CaseEntry,
+        $ResolvedCaseSubject
+    )
+
+    $declaredSubject = if ($null -ne $CaseEntry -and $null -ne $CaseEntry.PSObject.Properties['subject']) {
+        Get-SubjectInfo -SubjectLike $CaseEntry.subject
+    } else {
+        Get-SubjectInfo -SubjectLike $null
+    }
+    $declaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
+    $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
+    $subjectFacts = @(Get-SubjectFacts -ProfileValue $ResolvedCaseSubject.Profile -BoardValue $ResolvedCaseSubject.Board -ActiveFacets $ResolvedCaseSubject.ActiveFacets)
+
+    return [ordered]@{
+        system_spec = [ordered]@{
+            case_name = [string]$CaseEntry.name
+            case_kind = Get-CaseKind -CaseEntry $CaseEntry
+            source = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'source'
+            build_dir = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'build_dir'
+            build_target = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'build_target'
+            export_target = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'export_target'
+        }
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = $declaredSubject.Profile
+                board = $declaredSubject.Board
+                active_facets = @($declaredSubject.ActiveFacets)
+            }
+            declared_facts = @($declaredFacts)
+            declared_contract_entries = @($declaredContracts)
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = $ResolvedCaseSubject.Profile
+                source = [string]$ResolvedCaseSubject.ProfileResolution.source
+            }
+            board = [ordered]@{
+                value = $ResolvedCaseSubject.Board
+                source = [string]$ResolvedCaseSubject.BoardResolution.source
+            }
+            active_facets = [ordered]@{
+                values = @($ResolvedCaseSubject.ActiveFacets)
+                source = [string]$ResolvedCaseSubject.ActiveFacetResolution.source
+            }
+            subject_facts = @($subjectFacts)
+        }
+    }
+}
+
+function New-EmptySystemInputComparisonSide {
+    return [ordered]@{
+        system_spec = [ordered]@{
+            case_name = $null
+            case_kind = $null
+            source = $null
+            build_dir = $null
+            build_target = $null
+            export_target = $null
+        }
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+            declared_facts = @()
+            declared_contract_entries = @()
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = $null
+                source = 'missing'
+            }
+            board = [ordered]@{
+                value = $null
+                source = 'missing'
+            }
+            active_facets = [ordered]@{
+                values = @()
+                source = 'missing'
+            }
+            subject_facts = @()
+        }
+    }
+}
+
+function New-SystemInputComparisonSide {
+    param(
+        $SystemInputSummary
+    )
+
+    if ($null -eq $SystemInputSummary) {
+        return New-EmptySystemInputComparisonSide
+    }
+
+    return [ordered]@{
+        system_spec = [ordered]@{
+            case_name = $SystemInputSummary.system_spec.case_name
+            case_kind = $SystemInputSummary.system_spec.case_kind
+            source = $SystemInputSummary.system_spec.source
+            build_dir = $SystemInputSummary.system_spec.build_dir
+            build_target = $SystemInputSummary.system_spec.build_target
+            export_target = $SystemInputSummary.system_spec.export_target
+        }
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = $SystemInputSummary.declared_input.subject.profile
+                board = $SystemInputSummary.declared_input.subject.board
+                active_facets = @($SystemInputSummary.declared_input.subject.active_facets)
+            }
+            declared_facts = @($SystemInputSummary.declared_input.declared_facts)
+            declared_contract_entries = @($SystemInputSummary.declared_input.declared_contract_entries)
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = $SystemInputSummary.resolved_input.profile.value
+                source = [string]$SystemInputSummary.resolved_input.profile.source
+            }
+            board = [ordered]@{
+                value = $SystemInputSummary.resolved_input.board.value
+                source = [string]$SystemInputSummary.resolved_input.board.source
+            }
+            active_facets = [ordered]@{
+                values = @($SystemInputSummary.resolved_input.active_facets.values)
+                source = [string]$SystemInputSummary.resolved_input.active_facets.source
+            }
+            subject_facts = @($SystemInputSummary.resolved_input.subject_facts)
+        }
+    }
+}
+
+function New-SystemInputContractStateMap {
+    param(
+        [object[]]$DeclaredContractEntries
+    )
+
+    $stateMap = @{}
+    foreach ($entry in @($DeclaredContractEntries)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $contractName = [string]$entry.contract
+        if ([string]::IsNullOrWhiteSpace($contractName)) {
+            continue
+        }
+
+        $requires = @()
+        if ($null -ne $entry.PSObject.Properties['requires']) {
+            $requires = @(
+                @($entry.requires) |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                    ForEach-Object { [string]$_ } |
+                    Sort-Object -Unique
+            )
+        }
+
+        $stateMap[$contractName] = [ordered]@{
+            contract = $contractName
+            requires = @($requires)
+        }
+    }
+
+    return $stateMap
+}
+
+function New-SystemInputComparison {
+    param(
+        $LeftSummary,
+        $RightSummary
+    )
+
+    $leftSide = New-SystemInputComparisonSide -SystemInputSummary $LeftSummary
+    $rightSide = New-SystemInputComparisonSide -SystemInputSummary $RightSummary
+    $leftContractStateMap = New-SystemInputContractStateMap -DeclaredContractEntries @($leftSide.declared_input.declared_contract_entries)
+    $rightContractStateMap = New-SystemInputContractStateMap -DeclaredContractEntries @($rightSide.declared_input.declared_contract_entries)
+
+    $systemSpecChanges = @()
+    foreach ($fieldName in @('case_name', 'case_kind', 'source', 'build_dir', 'build_target', 'export_target')) {
+        $leftValue = $leftSide.system_spec.$fieldName
+        $rightValue = $rightSide.system_spec.$fieldName
+        if ([string]$leftValue -ne [string]$rightValue) {
+            $systemSpecChanges += "${fieldName}:$(Format-ComparisonScalarText $leftValue)->$(Format-ComparisonScalarText $rightValue)"
+        }
+    }
+
+    $declaredSubjectChanges = @()
+    foreach ($fieldName in @('profile', 'board')) {
+        $leftValue = $leftSide.declared_input.subject.$fieldName
+        $rightValue = $rightSide.declared_input.subject.$fieldName
+        if ([string]$leftValue -ne [string]$rightValue) {
+            $declaredSubjectChanges += "${fieldName}:$(Format-ComparisonScalarText $leftValue)->$(Format-ComparisonScalarText $rightValue)"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.declared_input.subject.active_facets) -Right @($rightSide.declared_input.subject.active_facets))) {
+        $declaredSubjectChanges += "active_facets:[$(Join-Names @($leftSide.declared_input.subject.active_facets))]->[$(Join-Names @($rightSide.declared_input.subject.active_facets))]"
+    }
+
+    $resolvedInputChanges = @()
+    foreach ($resolvedFieldName in @('profile', 'board')) {
+        $leftValue = $leftSide.resolved_input.$resolvedFieldName.value
+        $rightValue = $rightSide.resolved_input.$resolvedFieldName.value
+        if ([string]$leftValue -ne [string]$rightValue) {
+            $resolvedInputChanges += "${resolvedFieldName}.value:$(Format-ComparisonScalarText $leftValue)->$(Format-ComparisonScalarText $rightValue)"
+        }
+
+        $leftSource = [string]$leftSide.resolved_input.$resolvedFieldName.source
+        $rightSource = [string]$rightSide.resolved_input.$resolvedFieldName.source
+        if ($leftSource -ne $rightSource) {
+            $resolvedInputChanges += "${resolvedFieldName}.source:$(Format-ComparisonScalarText $leftSource)->$(Format-ComparisonScalarText $rightSource)"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.resolved_input.active_facets.values) -Right @($rightSide.resolved_input.active_facets.values))) {
+        $resolvedInputChanges += "active_facets.values:[$(Join-Names @($leftSide.resolved_input.active_facets.values))]->[$(Join-Names @($rightSide.resolved_input.active_facets.values))]"
+    }
+    $leftFacetSource = [string]$leftSide.resolved_input.active_facets.source
+    $rightFacetSource = [string]$rightSide.resolved_input.active_facets.source
+    if ($leftFacetSource -ne $rightFacetSource) {
+        $resolvedInputChanges += "active_facets.source:$(Format-ComparisonScalarText $leftFacetSource)->$(Format-ComparisonScalarText $rightFacetSource)"
+    }
+
+    $declaredFactsAdded = @(
+        @($rightSide.declared_input.declared_facts) |
+            Where-Object { @($leftSide.declared_input.declared_facts) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $declaredFactsRemoved = @(
+        @($leftSide.declared_input.declared_facts) |
+            Where-Object { @($rightSide.declared_input.declared_facts) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $subjectFactsAdded = @(
+        @($rightSide.resolved_input.subject_facts) |
+            Where-Object { @($leftSide.resolved_input.subject_facts) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $subjectFactsRemoved = @(
+        @($leftSide.resolved_input.subject_facts) |
+            Where-Object { @($rightSide.resolved_input.subject_facts) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $contractNames = @(
+        @($leftContractStateMap.Keys) +
+        @($rightContractStateMap.Keys) |
+            Sort-Object -Unique
+    )
+    $declaredContractChanges = @()
+    foreach ($contractName in @($contractNames)) {
+        $leftEntry = if ($leftContractStateMap.ContainsKey($contractName)) { $leftContractStateMap[$contractName] } else { $null }
+        $rightEntry = if ($rightContractStateMap.ContainsKey($contractName)) { $rightContractStateMap[$contractName] } else { $null }
+        $leftRequires = if ($null -eq $leftEntry) { @() } else { @($leftEntry.requires) }
+        $rightRequires = if ($null -eq $rightEntry) { @() } else { @($rightEntry.requires) }
+
+        $changeKind = 'unchanged'
+        if ($null -eq $leftEntry -and $null -ne $rightEntry) {
+            $changeKind = 'added'
+        } elseif ($null -ne $leftEntry -and $null -eq $rightEntry) {
+            $changeKind = 'removed'
+        } elseif (-not (Compare-StringArrays -Left $leftRequires -Right $rightRequires)) {
+            $changeKind = 'changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $declaredContractChanges += [ordered]@{
+            contract = $contractName
+            change_kind = $changeKind
+            left_requires = @($leftRequires)
+            right_requires = @($rightRequires)
+        }
+    }
+
+    $summaryChanges = @()
+    $summaryChanges += @($systemSpecChanges | ForEach-Object { "system_spec.$_" })
+    $summaryChanges += @($declaredSubjectChanges | ForEach-Object { "declared_subject.$_" })
+    $summaryChanges += @($resolvedInputChanges | ForEach-Object { "resolved_input.$_" })
+    if (@($declaredFactsAdded).Count -gt 0 -or @($declaredFactsRemoved).Count -gt 0) {
+        $summaryChanges += "declared_facts:[$(Join-Names @($leftSide.declared_input.declared_facts))]->[$(Join-Names @($rightSide.declared_input.declared_facts))]"
+    }
+    foreach ($contractChange in @($declaredContractChanges | Sort-Object contract)) {
+        if ([string]$contractChange.change_kind -eq 'changed') {
+            $summaryChanges += "declared_contract_entries.$([string]$contractChange.contract):[$(Join-Names @($contractChange.left_requires))]->[$(Join-Names @($contractChange.right_requires))]"
+        } else {
+            $summaryChanges += "declared_contract_entries.$([string]$contractChange.contract):$([string]$contractChange.change_kind)"
+        }
+    }
+    if (@($subjectFactsAdded).Count -gt 0 -or @($subjectFactsRemoved).Count -gt 0) {
+        $summaryChanges += "subject_facts:[$(Join-Names @($leftSide.resolved_input.subject_facts))]->[$(Join-Names @($rightSide.resolved_input.subject_facts))]"
+    }
+
+    return [ordered]@{
+        changed = (
+            @($summaryChanges).Count -gt 0 -or
+            @($declaredFactsAdded).Count -gt 0 -or
+            @($declaredFactsRemoved).Count -gt 0 -or
+            @($declaredContractChanges).Count -gt 0 -or
+            @($subjectFactsAdded).Count -gt 0 -or
+            @($subjectFactsRemoved).Count -gt 0
+        )
+        left = $leftSide
+        right = $rightSide
+        summary_changes = @($summaryChanges)
+        system_spec_changes = @($systemSpecChanges)
+        declared_subject_changes = @($declaredSubjectChanges)
+        declared_fact_changes = [ordered]@{
+            added = @($declaredFactsAdded)
+            removed = @($declaredFactsRemoved)
+        }
+        declared_contract_changes = @($declaredContractChanges | Sort-Object contract)
+        resolved_input_changes = @($resolvedInputChanges)
+        subject_fact_changes = [ordered]@{
+            added = @($subjectFactsAdded)
+            removed = @($subjectFactsRemoved)
+        }
+    }
+}
+
+function Get-SystemFormationBlockers {
+    param(
+        $BindingResultSummary,
+        $BringupOrderSummary
+    )
+
+    $bindingResultValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
+    $bringupOrderValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
+
+    $blockers = @()
+    foreach ($bindingEntry in @($bindingResultValue.binding_entries)) {
+        if ($null -eq $bindingEntry -or [string]$bindingEntry.state -ne 'unresolved') {
+            continue
+        }
+
+        $capabilityName = [string]$bindingEntry.capability
+        if ([string]::IsNullOrWhiteSpace($capabilityName)) {
+            continue
+        }
+
+        $reasonText = if ([string]::IsNullOrWhiteSpace([string]$bindingEntry.reason)) {
+            "unresolved binding: $capabilityName"
+        } else {
+            [string]$bindingEntry.reason
+        }
+
+        $blockers += [ordered]@{
+            kind = 'binding'
+            name = $capabilityName
+            state = 'unresolved'
+            reason = $reasonText
+            missing_requires = @()
+            dependency_nodes = @($bindingEntry.consumer_nodes)
+        }
+    }
+
+    foreach ($bringupEntry in @($bringupOrderValue.entries)) {
+        if ($null -eq $bringupEntry -or [string]$bringupEntry.state -ne 'blocked') {
+            continue
+        }
+
+        $nodeName = [string]$bringupEntry.node
+        if ([string]::IsNullOrWhiteSpace($nodeName)) {
+            continue
+        }
+
+        $missingRequires = @($bringupEntry.missing_requires)
+        $reasonText = if (@($missingRequires).Count -gt 0) {
+            "missing requires [$((@($missingRequires) -join ', '))]"
+        } else {
+            "blocked node: $nodeName"
+        }
+
+        $blockers += [ordered]@{
+            kind = 'node'
+            name = $nodeName
+            state = 'blocked'
+            reason = $reasonText
+            missing_requires = @($missingRequires)
+            dependency_nodes = @($bringupEntry.dependency_nodes)
+        }
+    }
+
+    return @(
+        @($blockers) |
+            Sort-Object kind, name
+    )
+}
+
+function New-SystemFormationSummary {
+    param(
+        $SystemInputSummary,
+        $BindingResultSummary,
+        $BringupOrderSummary
+    )
+
+    $bindingResultValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
+    $bringupOrderValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
+    $systemInputValue = if ($null -eq $SystemInputSummary) { New-EmptySystemInputComparisonSide } else { $SystemInputSummary }
+
+    $blockers = @(Get-SystemFormationBlockers -BindingResultSummary $bindingResultValue -BringupOrderSummary $bringupOrderValue)
+    $status = if (@($blockers).Count -gt 0) { 'blocked' } else { 'formed' }
+
+    return [ordered]@{
+        status = $status
+        formation_basis = [ordered]@{
+            case_kind = [string]$systemInputValue.system_spec.case_kind
+            declared_fact_count = [int]@($systemInputValue.declared_input.declared_facts).Count
+            declared_contract_count = [int]@($systemInputValue.declared_input.declared_contract_entries).Count
+            subject_fact_count = [int]@($systemInputValue.resolved_input.subject_facts).Count
+        }
+        binding_summary = [ordered]@{
+            required_binding_count = [int]$bindingResultValue.required_binding_count
+            resolved_binding_count = [int]$bindingResultValue.resolved_binding_count
+            unresolved_binding_count = [int]$bindingResultValue.unresolved_binding_count
+            unresolved_capabilities = @($bindingResultValue.unresolved_capabilities)
+        }
+        bringup_summary = [ordered]@{
+            ordered_node_count = [int]$bringupOrderValue.ordered_node_count
+            blocked_node_count = [int]$bringupOrderValue.blocked_node_count
+            blocked_nodes = @(Get-BlockedBringupNodes -BringupOrderSummary $bringupOrderValue)
+        }
+        blocker_count = [int]@($blockers).Count
+        blockers = @($blockers)
+    }
+}
+
+function New-EmptySystemFormationComparisonSide {
+    return [ordered]@{
+        status = 'missing'
+        formation_basis = [ordered]@{
+            case_kind = $null
+            declared_fact_count = 0
+            declared_contract_count = 0
+            subject_fact_count = 0
+        }
+        binding_summary = [ordered]@{
+            required_binding_count = 0
+            resolved_binding_count = 0
+            unresolved_binding_count = 0
+            unresolved_capabilities = @()
+        }
+        bringup_summary = [ordered]@{
+            ordered_node_count = 0
+            blocked_node_count = 0
+            blocked_nodes = @()
+        }
+        blocker_count = 0
+        blockers = @()
+    }
+}
+
+function New-SystemFormationComparisonSide {
+    param(
+        $SystemFormationSummary
+    )
+
+    if ($null -eq $SystemFormationSummary) {
+        return New-EmptySystemFormationComparisonSide
+    }
+
+    return [ordered]@{
+        status = [string]$SystemFormationSummary.status
+        formation_basis = [ordered]@{
+            case_kind = $SystemFormationSummary.formation_basis.case_kind
+            declared_fact_count = [int]$SystemFormationSummary.formation_basis.declared_fact_count
+            declared_contract_count = [int]$SystemFormationSummary.formation_basis.declared_contract_count
+            subject_fact_count = [int]$SystemFormationSummary.formation_basis.subject_fact_count
+        }
+        binding_summary = [ordered]@{
+            required_binding_count = [int]$SystemFormationSummary.binding_summary.required_binding_count
+            resolved_binding_count = [int]$SystemFormationSummary.binding_summary.resolved_binding_count
+            unresolved_binding_count = [int]$SystemFormationSummary.binding_summary.unresolved_binding_count
+            unresolved_capabilities = @($SystemFormationSummary.binding_summary.unresolved_capabilities)
+        }
+        bringup_summary = [ordered]@{
+            ordered_node_count = [int]$SystemFormationSummary.bringup_summary.ordered_node_count
+            blocked_node_count = [int]$SystemFormationSummary.bringup_summary.blocked_node_count
+            blocked_nodes = @($SystemFormationSummary.bringup_summary.blocked_nodes)
+        }
+        blocker_count = [int]$SystemFormationSummary.blocker_count
+        blockers = @($SystemFormationSummary.blockers)
+    }
+}
+
+function New-SystemFormationBlockerStateMap {
+    param(
+        [object[]]$Blockers
+    )
+
+    $stateMap = @{}
+    foreach ($blocker in @($Blockers)) {
+        if ($null -eq $blocker) {
+            continue
+        }
+
+        $kind = [string]$blocker.kind
+        $name = [string]$blocker.name
+        if ([string]::IsNullOrWhiteSpace($kind) -or [string]::IsNullOrWhiteSpace($name)) {
+            continue
+        }
+
+        $stateMap["${kind}:$name"] = [ordered]@{
+            kind = $kind
+            name = $name
+            state = [string]$blocker.state
+            reason = if ([string]::IsNullOrWhiteSpace([string]$blocker.reason)) { $null } else { [string]$blocker.reason }
+            missing_requires = @($blocker.missing_requires)
+            dependency_nodes = @($blocker.dependency_nodes)
+        }
+    }
+
+    return $stateMap
+}
+
+function New-SystemFormationComparison {
+    param(
+        $LeftSummary,
+        $RightSummary
+    )
+
+    $leftSide = New-SystemFormationComparisonSide -SystemFormationSummary $LeftSummary
+    $rightSide = New-SystemFormationComparisonSide -SystemFormationSummary $RightSummary
+    $leftBlockerStateMap = New-SystemFormationBlockerStateMap -Blockers @($leftSide.blockers)
+    $rightBlockerStateMap = New-SystemFormationBlockerStateMap -Blockers @($rightSide.blockers)
+
+    $blockerKeys = @(
+        @($leftBlockerStateMap.Keys) +
+        @($rightBlockerStateMap.Keys) |
+            Sort-Object -Unique
+    )
+    $blockerChanges = @()
+    foreach ($blockerKey in @($blockerKeys)) {
+        $leftEntry = if ($leftBlockerStateMap.ContainsKey($blockerKey)) { $leftBlockerStateMap[$blockerKey] } else { $null }
+        $rightEntry = if ($rightBlockerStateMap.ContainsKey($blockerKey)) { $rightBlockerStateMap[$blockerKey] } else { $null }
+
+        $kind = if ($null -ne $rightEntry) { [string]$rightEntry.kind } elseif ($null -ne $leftEntry) { [string]$leftEntry.kind } else { 'binding' }
+        $name = if ($null -ne $rightEntry) { [string]$rightEntry.name } elseif ($null -ne $leftEntry) { [string]$leftEntry.name } else { '' }
+        $leftState = if ($null -eq $leftEntry) { 'absent' } else { [string]$leftEntry.state }
+        $rightState = if ($null -eq $rightEntry) { 'absent' } else { [string]$rightEntry.state }
+        $leftReason = if ($null -eq $leftEntry) { $null } else { $leftEntry.reason }
+        $rightReason = if ($null -eq $rightEntry) { $null } else { $rightEntry.reason }
+        $leftMissingRequires = if ($null -eq $leftEntry) { @() } else { @($leftEntry.missing_requires) }
+        $rightMissingRequires = if ($null -eq $rightEntry) { @() } else { @($rightEntry.missing_requires) }
+        $leftDependencyNodes = if ($null -eq $leftEntry) { @() } else { @($leftEntry.dependency_nodes) }
+        $rightDependencyNodes = if ($null -eq $rightEntry) { @() } else { @($rightEntry.dependency_nodes) }
+
+        $changeKind = 'unchanged'
+        if ($leftState -eq 'absent' -and $rightState -ne 'absent') {
+            $changeKind = 'added'
+        } elseif ($leftState -ne 'absent' -and $rightState -eq 'absent') {
+            $changeKind = 'removed'
+        } elseif ($leftState -ne $rightState -or
+            [string]$leftReason -ne [string]$rightReason -or
+            -not (Compare-StringArrays -Left $leftMissingRequires -Right $rightMissingRequires) -or
+            -not (Compare-StringArrays -Left $leftDependencyNodes -Right $rightDependencyNodes)) {
+            $changeKind = 'changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $blockerChanges += [ordered]@{
+            kind = $kind
+            name = $name
+            change_kind = $changeKind
+            left_state = $leftState
+            right_state = $rightState
+            left_reason = $leftReason
+            right_reason = $rightReason
+            left_missing_requires = @($leftMissingRequires)
+            right_missing_requires = @($rightMissingRequires)
+            left_dependency_nodes = @($leftDependencyNodes)
+            right_dependency_nodes = @($rightDependencyNodes)
+        }
+    }
+
+    $unresolvedCapabilitiesAdded = @(
+        @($rightSide.binding_summary.unresolved_capabilities) |
+            Where-Object { @($leftSide.binding_summary.unresolved_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $unresolvedCapabilitiesRemoved = @(
+        @($leftSide.binding_summary.unresolved_capabilities) |
+            Where-Object { @($rightSide.binding_summary.unresolved_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $blockedNodesAdded = @(
+        @($rightSide.bringup_summary.blocked_nodes) |
+            Where-Object { @($leftSide.bringup_summary.blocked_nodes) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $blockedNodesRemoved = @(
+        @($leftSide.bringup_summary.blocked_nodes) |
+            Where-Object { @($rightSide.bringup_summary.blocked_nodes) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $summaryChanges = @()
+    if ([string]$leftSide.status -ne [string]$rightSide.status) {
+        $summaryChanges += "status:$([string]$leftSide.status)->$([string]$rightSide.status)"
+    }
+
+    foreach ($fieldName in @('case_kind', 'declared_fact_count', 'declared_contract_count', 'subject_fact_count')) {
+        $leftValue = $leftSide.formation_basis.$fieldName
+        $rightValue = $rightSide.formation_basis.$fieldName
+        if ([string]$leftValue -ne [string]$rightValue) {
+            $summaryChanges += "formation_basis.${fieldName}:$(Format-ComparisonScalarText $leftValue)->$(Format-ComparisonScalarText $rightValue)"
+        }
+    }
+
+    foreach ($fieldName in @('required_binding_count', 'resolved_binding_count', 'unresolved_binding_count')) {
+        $leftValue = [int]$leftSide.binding_summary.$fieldName
+        $rightValue = [int]$rightSide.binding_summary.$fieldName
+        if ($leftValue -ne $rightValue) {
+            $summaryChanges += "binding_summary.${fieldName}:$leftValue->$rightValue"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.binding_summary.unresolved_capabilities) -Right @($rightSide.binding_summary.unresolved_capabilities))) {
+        $summaryChanges += "binding_summary.unresolved_capabilities:[$(Join-Names @($leftSide.binding_summary.unresolved_capabilities))]->[$(Join-Names @($rightSide.binding_summary.unresolved_capabilities))]"
+    }
+
+    foreach ($fieldName in @('ordered_node_count', 'blocked_node_count')) {
+        $leftValue = [int]$leftSide.bringup_summary.$fieldName
+        $rightValue = [int]$rightSide.bringup_summary.$fieldName
+        if ($leftValue -ne $rightValue) {
+            $summaryChanges += "bringup_summary.${fieldName}:$leftValue->$rightValue"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.bringup_summary.blocked_nodes) -Right @($rightSide.bringup_summary.blocked_nodes))) {
+        $summaryChanges += "bringup_summary.blocked_nodes:[$(Join-Names @($leftSide.bringup_summary.blocked_nodes))]->[$(Join-Names @($rightSide.bringup_summary.blocked_nodes))]"
+    }
+
+    if ([int]$leftSide.blocker_count -ne [int]$rightSide.blocker_count) {
+        $summaryChanges += "blocker_count:$([int]$leftSide.blocker_count)->$([int]$rightSide.blocker_count)"
+    }
+
+    return [ordered]@{
+        changed = (
+            @($summaryChanges).Count -gt 0 -or
+            @($blockerChanges).Count -gt 0 -or
+            @($unresolvedCapabilitiesAdded).Count -gt 0 -or
+            @($unresolvedCapabilitiesRemoved).Count -gt 0 -or
+            @($blockedNodesAdded).Count -gt 0 -or
+            @($blockedNodesRemoved).Count -gt 0
+        )
+        left = $leftSide
+        right = $rightSide
+        summary_changes = @($summaryChanges)
+        blocker_changes = @($blockerChanges | Sort-Object kind, name)
+        unresolved_capability_changes = [ordered]@{
+            added = @($unresolvedCapabilitiesAdded)
+            removed = @($unresolvedCapabilitiesRemoved)
+        }
+        blocked_node_changes = [ordered]@{
+            added = @($blockedNodesAdded)
+            removed = @($blockedNodesRemoved)
+        }
     }
 }
 
@@ -974,6 +2051,38 @@ function New-CaseBringupEvidenceSummary {
     return Get-BringupEvidenceSummary -Graph $graph -RuntimeObserveInfo $runtimeObserveInfo
 }
 
+function New-CaseBindingResultSummary {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry) {
+        return New-EmptyBindingResultSummary
+    }
+
+    $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
+    $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
+
+    return Get-BindingResultSummary -Graph $graph
+}
+
+function New-CaseBringupOrderSummary {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry) {
+        return New-EmptyBringupOrderSummary
+    }
+
+    $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
+    $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
+
+    return Get-BringupOrderSummary -Graph $graph
+}
+
 function New-CaseResourceContractSummary {
     param(
         $Bundle,
@@ -1044,6 +2153,383 @@ function New-BringupEvidenceStateMap {
     }
 
     return $stateMap
+}
+
+function New-BindingResultStateMap {
+    param(
+        $BindingResultSummary
+    )
+
+    $stateMap = @{}
+    if ($null -eq $BindingResultSummary) {
+        return $stateMap
+    }
+
+    foreach ($entry in @($BindingResultSummary.binding_entries)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $capabilityName = [string]$entry.capability
+        if ([string]::IsNullOrWhiteSpace($capabilityName)) {
+            continue
+        }
+
+        $reasonText = if ([string]::IsNullOrWhiteSpace([string]$entry.reason)) { $null } else { [string]$entry.reason }
+        $stateMap[$capabilityName] = [ordered]@{
+            capability = $capabilityName
+            state = [string]$entry.state
+            provider_nodes = @($entry.provider_nodes)
+            consumer_nodes = @($entry.consumer_nodes)
+            reason = $reasonText
+        }
+    }
+
+    return $stateMap
+}
+
+function New-BindingResultComparisonSide {
+    param(
+        $BindingResultSummary
+    )
+
+    if ($null -eq $BindingResultSummary) {
+        $BindingResultSummary = New-EmptyBindingResultSummary
+    }
+
+    return [ordered]@{
+        required_binding_count = [int]$BindingResultSummary.required_binding_count
+        resolved_binding_count = [int]$BindingResultSummary.resolved_binding_count
+        unresolved_binding_count = [int]$BindingResultSummary.unresolved_binding_count
+        resolved_capabilities = @($BindingResultSummary.resolved_capabilities)
+        unresolved_capabilities = @($BindingResultSummary.unresolved_capabilities)
+    }
+}
+
+function New-BindingResultComparison {
+    param(
+        $LeftSummary,
+        $RightSummary
+    )
+
+    $leftSummaryValue = if ($null -eq $LeftSummary) { New-EmptyBindingResultSummary } else { $LeftSummary }
+    $rightSummaryValue = if ($null -eq $RightSummary) { New-EmptyBindingResultSummary } else { $RightSummary }
+    $leftSide = New-BindingResultComparisonSide -BindingResultSummary $leftSummaryValue
+    $rightSide = New-BindingResultComparisonSide -BindingResultSummary $rightSummaryValue
+    $leftStateMap = New-BindingResultStateMap -BindingResultSummary $leftSummaryValue
+    $rightStateMap = New-BindingResultStateMap -BindingResultSummary $rightSummaryValue
+
+    $capabilityNames = @(
+        @($leftStateMap.Keys) +
+        @($rightStateMap.Keys) |
+            Sort-Object -Unique
+    )
+
+    $bindingChanges = @()
+    foreach ($capabilityName in @($capabilityNames)) {
+        $leftEntry = if ($leftStateMap.ContainsKey($capabilityName)) { $leftStateMap[$capabilityName] } else { $null }
+        $rightEntry = if ($rightStateMap.ContainsKey($capabilityName)) { $rightStateMap[$capabilityName] } else { $null }
+
+        $leftState = if ($null -eq $leftEntry) { 'absent' } else { [string]$leftEntry.state }
+        $rightState = if ($null -eq $rightEntry) { 'absent' } else { [string]$rightEntry.state }
+        $leftProviderNodes = if ($null -eq $leftEntry) { @() } else { @($leftEntry.provider_nodes) }
+        $rightProviderNodes = if ($null -eq $rightEntry) { @() } else { @($rightEntry.provider_nodes) }
+        $leftConsumerNodes = if ($null -eq $leftEntry) { @() } else { @($leftEntry.consumer_nodes) }
+        $rightConsumerNodes = if ($null -eq $rightEntry) { @() } else { @($rightEntry.consumer_nodes) }
+        $leftReason = if ($null -eq $leftEntry) { $null } else { $leftEntry.reason }
+        $rightReason = if ($null -eq $rightEntry) { $null } else { $rightEntry.reason }
+
+        $changeKind = 'unchanged'
+        if ($leftState -eq 'absent' -and $rightState -ne 'absent') {
+            $changeKind = 'added'
+        } elseif ($leftState -ne 'absent' -and $rightState -eq 'absent') {
+            $changeKind = 'removed'
+        } elseif ($leftState -ne $rightState -or
+            -not (Compare-StringArrays -Left $leftProviderNodes -Right $rightProviderNodes) -or
+            -not (Compare-StringArrays -Left $leftConsumerNodes -Right $rightConsumerNodes) -or
+            [string]$leftReason -ne [string]$rightReason) {
+            $changeKind = 'changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $bindingChanges += [ordered]@{
+            capability = $capabilityName
+            change_kind = $changeKind
+            left_state = $leftState
+            right_state = $rightState
+            left_provider_nodes = @($leftProviderNodes)
+            right_provider_nodes = @($rightProviderNodes)
+            left_consumer_nodes = @($leftConsumerNodes)
+            right_consumer_nodes = @($rightConsumerNodes)
+            left_reason = $leftReason
+            right_reason = $rightReason
+        }
+    }
+
+    $resolvedCapabilitiesAdded = @(
+        @($rightSide.resolved_capabilities) |
+            Where-Object { @($leftSide.resolved_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $resolvedCapabilitiesRemoved = @(
+        @($leftSide.resolved_capabilities) |
+            Where-Object { @($rightSide.resolved_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $unresolvedCapabilitiesAdded = @(
+        @($rightSide.unresolved_capabilities) |
+            Where-Object { @($leftSide.unresolved_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $unresolvedCapabilitiesRemoved = @(
+        @($leftSide.unresolved_capabilities) |
+            Where-Object { @($rightSide.unresolved_capabilities) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $summaryChanges = @()
+    foreach ($countField in @('required_binding_count', 'resolved_binding_count', 'unresolved_binding_count')) {
+        if ([int]$leftSide.$countField -ne [int]$rightSide.$countField) {
+            $summaryChanges += "${countField}:$([int]$leftSide.$countField)->$([int]$rightSide.$countField)"
+        }
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.resolved_capabilities) -Right @($rightSide.resolved_capabilities))) {
+        $summaryChanges += "resolved_capabilities:[$(Join-Names @($leftSide.resolved_capabilities))]->[$(Join-Names @($rightSide.resolved_capabilities))]"
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.unresolved_capabilities) -Right @($rightSide.unresolved_capabilities))) {
+        $summaryChanges += "unresolved_capabilities:[$(Join-Names @($leftSide.unresolved_capabilities))]->[$(Join-Names @($rightSide.unresolved_capabilities))]"
+    }
+
+    return [ordered]@{
+        changed = (
+            @($summaryChanges).Count -gt 0 -or
+            @($bindingChanges).Count -gt 0 -or
+            @($resolvedCapabilitiesAdded).Count -gt 0 -or
+            @($resolvedCapabilitiesRemoved).Count -gt 0 -or
+            @($unresolvedCapabilitiesAdded).Count -gt 0 -or
+            @($unresolvedCapabilitiesRemoved).Count -gt 0
+        )
+        left = $leftSide
+        right = $rightSide
+        summary_changes = @($summaryChanges)
+        binding_changes = @($bindingChanges | Sort-Object capability)
+        resolved_capability_changes = [ordered]@{
+            added = @($resolvedCapabilitiesAdded)
+            removed = @($resolvedCapabilitiesRemoved)
+        }
+        unresolved_capability_changes = [ordered]@{
+            added = @($unresolvedCapabilitiesAdded)
+            removed = @($unresolvedCapabilitiesRemoved)
+        }
+    }
+}
+
+function Get-BlockedBringupNodes {
+    param(
+        $BringupOrderSummary
+    )
+
+    if ($null -eq $BringupOrderSummary) {
+        return @()
+    }
+
+    return @(
+        @($BringupOrderSummary.entries) |
+            Where-Object { [string]$_.state -eq 'blocked' } |
+            ForEach-Object { [string]$_.node } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+}
+
+function New-BringupOrderStateMap {
+    param(
+        $BringupOrderSummary
+    )
+
+    $stateMap = @{}
+    if ($null -eq $BringupOrderSummary) {
+        return $stateMap
+    }
+
+    foreach ($entry in @($BringupOrderSummary.entries)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $nodeName = [string]$entry.node
+        if ([string]::IsNullOrWhiteSpace($nodeName)) {
+            continue
+        }
+
+        $stateMap[$nodeName] = [ordered]@{
+            node = $nodeName
+            order = [int]$entry.order
+            kind = [string]$entry.kind
+            phase = if ([string]::IsNullOrWhiteSpace([string]$entry.phase)) { $null } else { [string]$entry.phase }
+            runlevel_text = if ([string]::IsNullOrWhiteSpace([string]$entry.runlevel_text)) { $null } else { [string]$entry.runlevel_text }
+            provides = @($entry.provides)
+            requires = @($entry.requires)
+            dependency_nodes = @($entry.dependency_nodes)
+            resolved_requires = @($entry.resolved_requires)
+            missing_requires = @($entry.missing_requires)
+            state = [string]$entry.state
+        }
+    }
+
+    return $stateMap
+}
+
+function New-BringupOrderComparisonSide {
+    param(
+        $BringupOrderSummary
+    )
+
+    if ($null -eq $BringupOrderSummary) {
+        $BringupOrderSummary = New-EmptyBringupOrderSummary
+    }
+
+    return [ordered]@{
+        ordered_node_count = [int]$BringupOrderSummary.ordered_node_count
+        blocked_node_count = [int]$BringupOrderSummary.blocked_node_count
+        phase_counts = Copy-OrderedCountMap -CountMapLike $BringupOrderSummary.phase_counts
+        blocked_nodes = @(Get-BlockedBringupNodes -BringupOrderSummary $BringupOrderSummary)
+    }
+}
+
+function New-BringupOrderComparison {
+    param(
+        $LeftSummary,
+        $RightSummary
+    )
+
+    $leftSummaryValue = if ($null -eq $LeftSummary) { New-EmptyBringupOrderSummary } else { $LeftSummary }
+    $rightSummaryValue = if ($null -eq $RightSummary) { New-EmptyBringupOrderSummary } else { $RightSummary }
+    $leftSide = New-BringupOrderComparisonSide -BringupOrderSummary $leftSummaryValue
+    $rightSide = New-BringupOrderComparisonSide -BringupOrderSummary $rightSummaryValue
+    $leftStateMap = New-BringupOrderStateMap -BringupOrderSummary $leftSummaryValue
+    $rightStateMap = New-BringupOrderStateMap -BringupOrderSummary $rightSummaryValue
+
+    $nodeNames = @(
+        @($leftStateMap.Keys) +
+        @($rightStateMap.Keys) |
+            Sort-Object -Unique
+    )
+
+    $entryChanges = @()
+    foreach ($nodeName in @($nodeNames)) {
+        $leftEntry = if ($leftStateMap.ContainsKey($nodeName)) { $leftStateMap[$nodeName] } else { $null }
+        $rightEntry = if ($rightStateMap.ContainsKey($nodeName)) { $rightStateMap[$nodeName] } else { $null }
+
+        $leftOrder = if ($null -eq $leftEntry) { $null } else { [int]$leftEntry.order }
+        $rightOrder = if ($null -eq $rightEntry) { $null } else { [int]$rightEntry.order }
+        $leftKind = if ($null -eq $leftEntry) { $null } else { [string]$leftEntry.kind }
+        $rightKind = if ($null -eq $rightEntry) { $null } else { [string]$rightEntry.kind }
+        $leftPhase = if ($null -eq $leftEntry) { $null } else { $leftEntry.phase }
+        $rightPhase = if ($null -eq $rightEntry) { $null } else { $rightEntry.phase }
+        $leftRunlevelText = if ($null -eq $leftEntry) { $null } else { $leftEntry.runlevel_text }
+        $rightRunlevelText = if ($null -eq $rightEntry) { $null } else { $rightEntry.runlevel_text }
+        $leftState = if ($null -eq $leftEntry) { 'absent' } else { [string]$leftEntry.state }
+        $rightState = if ($null -eq $rightEntry) { 'absent' } else { [string]$rightEntry.state }
+        $leftProvides = if ($null -eq $leftEntry) { @() } else { @($leftEntry.provides) }
+        $rightProvides = if ($null -eq $rightEntry) { @() } else { @($rightEntry.provides) }
+        $leftRequires = if ($null -eq $leftEntry) { @() } else { @($leftEntry.requires) }
+        $rightRequires = if ($null -eq $rightEntry) { @() } else { @($rightEntry.requires) }
+        $leftDependencyNodes = if ($null -eq $leftEntry) { @() } else { @($leftEntry.dependency_nodes) }
+        $rightDependencyNodes = if ($null -eq $rightEntry) { @() } else { @($rightEntry.dependency_nodes) }
+        $leftMissingRequires = if ($null -eq $leftEntry) { @() } else { @($leftEntry.missing_requires) }
+        $rightMissingRequires = if ($null -eq $rightEntry) { @() } else { @($rightEntry.missing_requires) }
+
+        $changeKind = 'unchanged'
+        if ($leftState -eq 'absent' -and $rightState -ne 'absent') {
+            $changeKind = 'added'
+        } elseif ($leftState -ne 'absent' -and $rightState -eq 'absent') {
+            $changeKind = 'removed'
+        } elseif (
+            $leftOrder -ne $rightOrder -or
+            [string]$leftKind -ne [string]$rightKind -or
+            [string]$leftPhase -ne [string]$rightPhase -or
+            [string]$leftRunlevelText -ne [string]$rightRunlevelText -or
+            $leftState -ne $rightState -or
+            -not (Compare-StringArrays -Left $leftProvides -Right $rightProvides) -or
+            -not (Compare-StringArrays -Left $leftRequires -Right $rightRequires) -or
+            -not (Compare-StringArrays -Left $leftDependencyNodes -Right $rightDependencyNodes) -or
+            -not (Compare-StringArrays -Left $leftMissingRequires -Right $rightMissingRequires)
+        ) {
+            $changeKind = 'changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $entryChanges += [ordered]@{
+            node = $nodeName
+            change_kind = $changeKind
+            left_order = $leftOrder
+            right_order = $rightOrder
+            left_kind = $leftKind
+            right_kind = $rightKind
+            left_phase = $leftPhase
+            right_phase = $rightPhase
+            left_runlevel_text = $leftRunlevelText
+            right_runlevel_text = $rightRunlevelText
+            left_state = $leftState
+            right_state = $rightState
+            left_provides = @($leftProvides)
+            right_provides = @($rightProvides)
+            left_requires = @($leftRequires)
+            right_requires = @($rightRequires)
+            left_dependency_nodes = @($leftDependencyNodes)
+            right_dependency_nodes = @($rightDependencyNodes)
+            left_missing_requires = @($leftMissingRequires)
+            right_missing_requires = @($rightMissingRequires)
+        }
+    }
+
+    $blockedNodesAdded = @(
+        @($rightSide.blocked_nodes) |
+            Where-Object { @($leftSide.blocked_nodes) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+    $blockedNodesRemoved = @(
+        @($leftSide.blocked_nodes) |
+            Where-Object { @($rightSide.blocked_nodes) -notcontains [string]$_ } |
+            Sort-Object -Unique
+    )
+
+    $summaryChanges = @()
+    foreach ($countField in @('ordered_node_count', 'blocked_node_count')) {
+        if ([int]$leftSide.$countField -ne [int]$rightSide.$countField) {
+            $summaryChanges += "${countField}:$([int]$leftSide.$countField)->$([int]$rightSide.$countField)"
+        }
+    }
+    if ((Format-CountMapText -CountMapLike $leftSide.phase_counts) -ne (Format-CountMapText -CountMapLike $rightSide.phase_counts)) {
+        $summaryChanges += "phase_counts:[$(Format-CountMapText -CountMapLike $leftSide.phase_counts)]->[$(Format-CountMapText -CountMapLike $rightSide.phase_counts)]"
+    }
+    if (-not (Compare-StringArrays -Left @($leftSide.blocked_nodes) -Right @($rightSide.blocked_nodes))) {
+        $summaryChanges += "blocked_nodes:[$(Join-Names @($leftSide.blocked_nodes))]->[$(Join-Names @($rightSide.blocked_nodes))]"
+    }
+
+    return [ordered]@{
+        changed = (
+            @($summaryChanges).Count -gt 0 -or
+            @($entryChanges).Count -gt 0 -or
+            @($blockedNodesAdded).Count -gt 0 -or
+            @($blockedNodesRemoved).Count -gt 0
+        )
+        left = $leftSide
+        right = $rightSide
+        summary_changes = @($summaryChanges)
+        entry_changes = @($entryChanges | Sort-Object node)
+        blocked_node_changes = [ordered]@{
+            added = @($blockedNodesAdded)
+            removed = @($blockedNodesRemoved)
+        }
+    }
 }
 
 function New-BringupEvidenceComparisonSide {
@@ -1445,17 +2931,39 @@ function Resolve-SubjectScalar {
         [string]$CaseValue
     )
 
+    return (Resolve-SubjectScalarInfo -ExplicitValue $ExplicitValue -DefaultValue $DefaultValue -CaseValue $CaseValue).value
+}
+
+function Resolve-SubjectScalarInfo {
+    param(
+        [string]$ExplicitValue,
+        [string]$DefaultValue,
+        [string]$CaseValue
+    )
+
     if (-not [string]::IsNullOrWhiteSpace($ExplicitValue)) {
-        return [string]$ExplicitValue
+        return [ordered]@{
+            value = [string]$ExplicitValue
+            source = 'explicit_argument'
+        }
     }
     if (-not [string]::IsNullOrWhiteSpace($DefaultValue)) {
-        return [string]$DefaultValue
+        return [ordered]@{
+            value = [string]$DefaultValue
+            source = 'subject_default'
+        }
     }
     if (-not [string]::IsNullOrWhiteSpace($CaseValue)) {
-        return [string]$CaseValue
+        return [ordered]@{
+            value = [string]$CaseValue
+            source = 'case_subject'
+        }
     }
 
-    return $null
+    return [ordered]@{
+        value = $null
+        source = 'missing'
+    }
 }
 
 function Resolve-SubjectFacets {
@@ -1465,18 +2973,59 @@ function Resolve-SubjectFacets {
         [string[]]$CaseFacets
     )
 
-    if (@($ExplicitFacets).Count -gt 0) {
-        return @(
-            @($ExplicitFacets) |
-                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
-                ForEach-Object { [string]$_ }
-        )
-    }
-    if (@($DefaultFacets).Count -gt 0) {
-        return @($DefaultFacets)
+    return @((Resolve-SubjectFacetsInfo -ExplicitFacets $ExplicitFacets -DefaultFacets $DefaultFacets -CaseFacets $CaseFacets).values)
+}
+
+function Resolve-SubjectFacetsInfo {
+    param(
+        [string[]]$ExplicitFacets,
+        [string[]]$DefaultFacets,
+        [string[]]$CaseFacets
+    )
+
+    $normalizedExplicit = @(
+        @($ExplicitFacets) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+    if (@($normalizedExplicit).Count -gt 0) {
+        return [ordered]@{
+            values = @($normalizedExplicit)
+            source = 'explicit_argument'
+        }
     }
 
-    return @($CaseFacets)
+    $normalizedDefault = @(
+        @($DefaultFacets) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+    if (@($normalizedDefault).Count -gt 0) {
+        return [ordered]@{
+            values = @($normalizedDefault)
+            source = 'subject_default'
+        }
+    }
+
+    $normalizedCase = @(
+        @($CaseFacets) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+    if (@($normalizedCase).Count -gt 0) {
+        return [ordered]@{
+            values = @($normalizedCase)
+            source = 'case_subject'
+        }
+    }
+
+    return [ordered]@{
+        values = @()
+        source = 'missing'
+    }
 }
 
 function Load-CiSummaryData {
@@ -1628,10 +3177,12 @@ function New-ArtifactReport {
         $caseName = [string]$CaseEntry.name
         $caseDiff = @($ArtifactContext.DiffData.cases | Where-Object { [string]$_.name -eq $caseName } | Select-Object -First 1)
         if ($caseDiff.Count -gt 0) {
+            $summaryChanges = @(Get-OptionalStringArrayValue -Object $caseDiff[0] -PropertyName 'summary_changes')
+            $metadataChanges = @(Get-OptionalStringArrayValue -Object $caseDiff[0] -PropertyName 'metadata_changes')
             $comparison = [ordered]@{
                 status = [string]$caseDiff[0].status
-                summary_changes = @($caseDiff[0].summary_changes)
-                metadata_changes = @($caseDiff[0].metadata_changes)
+                summary_changes = $summaryChanges
+                metadata_changes = $metadataChanges
                 node_changes = [ordered]@{
                     added = @($caseDiff[0].node_changes.added).Count
                     removed = @($caseDiff[0].node_changes.removed).Count
@@ -1675,6 +3226,7 @@ function New-ArtifactReport {
     $resolvedProfile = $resolvedSubject.Profile
     $resolvedBoard = $resolvedSubject.Board
     $resolvedFacets = @($resolvedSubject.ActiveFacets)
+    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
     $resourceAvailableFacts = @(
         @($providedFacts) +
@@ -1683,14 +3235,27 @@ function New-ArtifactReport {
         @(Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedFacets)
     ) | Sort-Object -Unique
     $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts $declaredContracts -AvailableFacts $resourceAvailableFacts
+    $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
+    $bindingResultSummary = Get-BindingResultSummary -Graph $graph
+    $bringupOrderSummary = Get-BringupOrderSummary -Graph $graph
+    $systemFormationSummary = New-SystemFormationSummary -SystemInputSummary $systemInputSummary -BindingResultSummary $bindingResultSummary -BringupOrderSummary $bringupOrderSummary
+    $connectionSummary = Get-GraphConnectionSummary -Graph $graph
     if ($null -ne $comparison) {
         $baselineCaseEntry = Get-CaseEntryByName -Bundle $ArtifactContext.LeftBundle -CaseName ([string]$CaseEntry.name)
+        $baselineResolvedSubject = New-ResolvedCaseSubject -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
+        $baselineSystemInputSummary = New-SystemInputSummary -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject
+        $baselineBindingResultSummary = New-CaseBindingResultSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
+        $baselineBringupOrderSummary = New-CaseBringupOrderSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupEvidenceSummary = New-CaseBringupEvidenceSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineResourceContractSummary = New-CaseResourceContractSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
+        $baselineSystemFormationSummary = New-SystemFormationSummary -SystemInputSummary $baselineSystemInputSummary -BindingResultSummary $baselineBindingResultSummary -BringupOrderSummary $baselineBringupOrderSummary
+        $comparison.system_input = New-SystemInputComparison -LeftSummary $baselineSystemInputSummary -RightSummary $systemInputSummary
+        $comparison.system_formation = New-SystemFormationComparison -LeftSummary $baselineSystemFormationSummary -RightSummary $systemFormationSummary
+        $comparison.binding_result = New-BindingResultComparison -LeftSummary $baselineBindingResultSummary -RightSummary $bindingResultSummary
+        $comparison.bringup_order = New-BringupOrderComparison -LeftSummary $baselineBringupOrderSummary -RightSummary $bringupOrderSummary
         $comparison.bringup_evidence = New-BringupEvidenceComparison -LeftSummary $baselineBringupEvidenceSummary -RightSummary $bringupEvidenceSummary
         $comparison.resource_contract = New-ResourceContractComparison -LeftSummary $baselineResourceContractSummary -RightSummary $resourceContractSummary
     }
-    $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
     $dotArtifactPath = if ($null -ne $CaseEntry.PSObject.Properties['dot'] -and
         -not [string]::IsNullOrWhiteSpace([string]$CaseEntry.dot)) {
         Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.dot)
@@ -1711,6 +3276,7 @@ function New-ArtifactReport {
             board = $resolvedBoard
             active_facets = @($resolvedFacets)
         }
+        system_input = $systemInputSummary
         structure = [ordered]@{
             capability_count = $allCapabilities.Count
             node_count = if ($null -ne $graph) { [int]$graph.node_count } else { 0 }
@@ -1720,6 +3286,10 @@ function New-ArtifactReport {
             required_facts = @($requiredFacts)
             unresolved_bindings = @($unresolvedBindings)
         }
+        binding_result = $bindingResultSummary
+        bringup_order = $bringupOrderSummary
+        system_formation = $systemFormationSummary
+        connection_summary = $connectionSummary
         bringup_evidence = [ordered]@{
             declared_count = [int]$bringupEvidenceSummary.declared_count
             materialized_count = [int]$bringupEvidenceSummary.materialized_count

@@ -43,6 +43,8 @@ export namespace ui::scene {
     using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewTailFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = soa_detail::ListViewIconFn;
+    using ListViewRowFlagsFn = soa_detail::ListViewRowFlagsFn;
+    constexpr std::uint8_t kListViewRowFlagGroup = soa_detail::kListViewRowFlagGroup;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
     using TreeViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using RollerTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
@@ -176,6 +178,11 @@ export namespace ui::scene {
                                        const void* ctx,
                                        ListViewTailFn tail_fn) noexcept {
             kernel_->set_list_view_tail_source(h, ctx, tail_fn);
+        }
+        void set_list_view_row_flags_source(WidgetHandle h,
+                                            const void* ctx,
+                                            ListViewRowFlagsFn row_flags_fn) noexcept {
+            kernel_->set_list_view_row_flags_source(h, ctx, row_flags_fn);
         }
         void set_list_view_tail_icon_source(WidgetHandle h,
                                             const void* ctx,
@@ -750,6 +757,7 @@ export namespace ui::scene {
         WidgetHandle hit_test(int x, int y) noexcept { return gui_.hit_test(x, y); }
 
         Rect world_rect(WidgetHandle h) const noexcept { return kernel_.world_rect(h); }
+        const char* text(WidgetHandle h) const noexcept { return kernel_.text(h); }
         SceneAccess access() noexcept { return SceneAccess(kernel_); }
 
         CmdStats last_cmd_stats() const noexcept { return last_cmd_stats_; }

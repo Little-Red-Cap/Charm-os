@@ -4,6 +4,8 @@ module;
 
 export module charm.core.event;
 
+export import util.delegate;
+
 export class Event {
 public:
     enum class GesturePhase {
@@ -100,12 +102,39 @@ public:
 export
 struct Callback {
     using Fn = void(*)(void*);
-    Fn    fn{nullptr};
+    using delegate_type = util::delegate<>;
+
+    Fn fn{nullptr};
     void* ctx{nullptr};
+    delegate_type delegate{};
 
     constexpr void operator()() const noexcept {
-        if (fn) fn(ctx);
+        if (delegate) {
+            delegate();
+        } else if (fn) {
+            fn(ctx);
+        }
     }
 
-    constexpr explicit operator bool() const noexcept { return fn != nullptr; }
+    [[nodiscard]] constexpr bool same_as(const Callback& other) const noexcept {
+        return fn == other.fn && ctx == other.ctx && delegate.same_as(other.delegate);
+    }
+
+    constexpr explicit operator bool() const noexcept {
+        return static_cast<bool>(delegate) || fn != nullptr;
+    }
+
+    template <auto Method, class T>
+    [[nodiscard]] static constexpr Callback bind(T& obj) noexcept {
+        Callback callback{};
+        callback.delegate = delegate_type::bind<Method>(obj);
+        return callback;
+    }
+
+    template <auto Fn0>
+    [[nodiscard]] static constexpr Callback bind() noexcept {
+        Callback callback{};
+        callback.delegate = delegate_type::bind<Fn0>();
+        return callback;
+    }
 };

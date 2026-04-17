@@ -10,6 +10,7 @@ module;
 export module init.materialize;
 
 import init.binding;
+import init.connection;
 import init.graph;
 import init.meta;
 import init.plan;
@@ -196,6 +197,7 @@ export namespace init {
         recipe,
         barrier,
         binding,
+        connection,
     };
 
     template <util::usize MaxNodes, util::usize MaxCaps>
@@ -209,6 +211,9 @@ export namespace init {
         std::array<std::array<std::string_view, MaxCaps>, MaxNodes> requires_name_storage{};
         std::array<util::usize, MaxNodes> provides_count{};
         std::array<util::usize, MaxNodes> requires_count{};
+        std::array<std::string_view, MaxNodes> connection_source_storage{};
+        std::array<std::string_view, MaxNodes> connection_sink_storage{};
+        std::array<std::string_view, MaxNodes> connection_mode_storage{};
         std::array<CapId, MaxCaps> provided_caps_seen{};
         util::usize provided_caps_count{0};
         util::usize count{0};
@@ -235,6 +240,34 @@ export namespace init {
 }
 
 namespace init::detail {
+    struct node_observe_metadata {
+        materialized_node_kind kind{materialized_node_kind::binding};
+        std::string_view connection_source{};
+        std::string_view connection_sink{};
+        std::string_view connection_mode{};
+    };
+
+    template <typename T>
+    concept connection_binding_like = requires(const T& candidate) {
+        candidate.source_capability();
+        candidate.sink_capability();
+        candidate.connection_mode();
+    };
+
+    template <typename Item>
+    [[nodiscard]] constexpr node_observe_metadata describe_single_node(const Item& value) noexcept {
+        if constexpr (connection_binding_like<Item>) {
+            return node_observe_metadata{
+                .kind = materialized_node_kind::connection,
+                .connection_source = std::string_view{value.source_capability()},
+                .connection_sink = std::string_view{value.sink_capability()},
+                .connection_mode = std::string_view{value.connection_mode()},
+            };
+        } else {
+            return {};
+        }
+    }
+
     template <util::usize MaxNodes, util::usize MaxCaps>
     constexpr bool contains_provided(const materialized_graph<MaxNodes, MaxCaps>& out,
                                      CapId id) noexcept {
@@ -292,7 +325,8 @@ namespace init::detail {
     util::Result<materialize_summary<MaxCaps>> append_node_with_lookup(materialized_graph<MaxNodes, MaxCaps>& out,
                                                                        const Node& base,
                                                                        const materialize_constraints<MaxCaps>& constraints,
-                                                                       NameLookup&& lookup_name) noexcept;
+                                                                       NameLookup&& lookup_name,
+                                                                       node_observe_metadata metadata = {}) noexcept;
 
     template <util::usize MaxNodes, util::usize MaxCaps>
     util::Result<materialize_summary<MaxCaps>> finalize_node(materialized_graph<MaxNodes, MaxCaps>& out,
@@ -338,13 +372,17 @@ namespace init::detail {
     util::Result<materialize_summary<MaxCaps>> append_node_with_lookup(materialized_graph<MaxNodes, MaxCaps>& out,
                                                                        const Node& base,
                                                                        const materialize_constraints<MaxCaps>& constraints,
-                                                                       NameLookup&& lookup_name) noexcept {
+                                                                       NameLookup&& lookup_name,
+                                                                       node_observe_metadata metadata) noexcept {
         if (out.count >= MaxNodes) {
             return util::unexpected(util::Errc::buffer_overflow);
         }
         const auto row = out.count++;
         out.nodes[row] = base;
-        out.node_kinds[row] = materialized_node_kind::binding;
+        out.node_kinds[row] = metadata.kind;
+        out.connection_source_storage[row] = metadata.connection_source;
+        out.connection_sink_storage[row] = metadata.connection_sink;
+        out.connection_mode_storage[row] = metadata.connection_mode;
         if (static_cast<util::u8>(out.nodes[row].phase) > static_cast<util::u8>(constraints.max_phase)) {
             return util::unexpected(util::Errc::bad_state);
         }
@@ -398,6 +436,9 @@ namespace init::detail {
         }
         const auto row = out.count++;
         out.node_kinds[row] = materialized_node_kind::recipe;
+        out.connection_source_storage[row] = {};
+        out.connection_sink_storage[row] = {};
+        out.connection_mode_storage[row] = {};
         auto& node = out.nodes[row];
         node.name = Recipe::name.sv();
         node.phase = Recipe::phase;
@@ -491,12 +532,14 @@ namespace init::detail {
                                                                         const Item& value,
                                                                         const materialize_constraints<MaxCaps>& constraints) noexcept {
         materialize_summary<MaxCaps> summary{};
+        const auto metadata = describe_single_node(value);
         auto current = append_node_with_lookup(out,
-                                              value.node,
-                                              constraints,
-                                              [&](CapId id) noexcept {
-                                                  return init::lookup_capability_name(value, id);
-                                              });
+                                               value.node,
+                                               constraints,
+                                               [&](CapId id) noexcept {
+                                                   return init::lookup_capability_name(value, id);
+                                               },
+                                               metadata);
         if (!current) {
             return util::unexpected(current.error());
         }
@@ -591,6 +634,9 @@ namespace init::detail {
             const auto row = out.count++;
             out.nodes[row] = barrier;
             out.node_kinds[row] = materialized_node_kind::barrier;
+            out.connection_source_storage[row] = {};
+            out.connection_sink_storage[row] = {};
+            out.connection_mode_storage[row] = {};
             out.provides_count[row] = 0;
             out.requires_count[row] = 0;
 
@@ -785,6 +831,20 @@ export namespace init {
             return util::unexpected(util::Errc::bad_state);
         }
         if (maybe_optional->node_kinds[0] != materialized_node_kind::binding) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        auto connection = direct_connection<"test.connection", CapA, CapB>();
+        auto connection_mats = materialize<2, 4>(compose(as_plan(connection)));
+        if (!connection_mats || connection_mats->size() != 1) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        if (connection_mats->node_kinds[0] != materialized_node_kind::connection) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        if (connection_mats->connection_source_storage[0] != CapA::view()
+            || connection_mats->connection_sink_storage[0] != CapB::view()
+            || connection_mats->connection_mode_storage[0] != "direct") {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

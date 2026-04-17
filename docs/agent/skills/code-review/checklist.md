@@ -5,6 +5,7 @@
 
 - `../../rules/charm-architecture.md`
 - `../../rules/embedded-modern-cpp.md`
+- 涉及事件连接时额外结合 `../../../architecture/signal_state_contract_v0.md`
 
 本清单不是规则来源，而是 review 时的检查辅助。
 
@@ -46,6 +47,16 @@
 - [ ] 是否违反 Foundation→Runtime→IO→Domain 依赖方向
 - [ ] 是否存在反向渗透
 - [ ] 是否暴露不该暴露的内部细节
+
+### 1.7 事件连接纪律
+- [ ] 是否把 `signal.emit()` 用成了队列、mailbox 或隐式异步
+- [ ] 跨 ISR / task / reactor / scheduler submit 边界时是否仍在 direct `emit()`
+- [ ] `deferred_signal` / `poster.post()` 是否偷偷退化成 direct call
+- [ ] 是否在 ISR 中直接 `emit()` 非 irq-safe 槽或直接 `state.set()`
+- [ ] 是否把 `state` 当成命令总线、event log 或 replay 队列
+- [ ] 是否在 `emit` 过程中修改同一 `signal` 的连接拓扑
+- [ ] 是否把长期 wiring 藏在构造过程的匿名 `connect` 中，而没有进入 `init.connection` / `materialize`
+- [ ] target 生命周期是否明显覆盖 connection 生命周期
 
 ---
 

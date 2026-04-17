@@ -23,6 +23,7 @@
 
 - 文档总索引：`docs/README.md`
 - 架构总览：`docs/architecture_overview.md`
+- Signal / State 契约：`docs/architecture/signal_state_contract_v0.md`
 - Agent 协作入口：`docs/agent/README.md`
 - POSIX 总览：`docs/system/posix_support_overview.md`
 - POSIX 原则：`docs/system/posix_subsystem_principles.md`

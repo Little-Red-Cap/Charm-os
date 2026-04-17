@@ -11,12 +11,13 @@ import init.binding;
 import io.reactor;
 import kernel.eda;
 import kernel.evt;
+import kernel.poster;
 import kernel.ssu;
 import util.core;
 import util.error;
 
 export namespace charm::system {
-    using PostFn = bool (*)(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept;
+    using PostFn = kernel::PostFn;
 
     struct ReactorPumpTask {
         static constexpr kernel::Priority priority{0};
@@ -85,29 +86,17 @@ export namespace charm::system {
 
     template <typename Scheduler>
     inline bool scheduler_post(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept {
-        auto* scheduler = static_cast<Scheduler*>(ctx);
-        if (!scheduler) {
-            return false;
-        }
-        return scheduler->post(task, evt);
+        return kernel::scheduler_post<Scheduler>(ctx, task, evt);
     }
 
     template <typename Scheduler>
     inline bool scheduler_post_io_ready(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept {
-        auto* scheduler = static_cast<Scheduler*>(ctx);
-        if (!scheduler) {
-            return false;
-        }
-        return scheduler->post_io_ready(task, evt);
+        return kernel::scheduler_post_io_ready<Scheduler>(ctx, task, evt);
     }
 
     template <typename Scheduler>
     inline bool scheduler_post_demand(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept {
-        auto* scheduler = static_cast<Scheduler*>(ctx);
-        if (!scheduler) {
-            return false;
-        }
-        return scheduler->post_demand(task, evt);
+        return kernel::scheduler_post_demand<Scheduler>(ctx, task, evt);
     }
 
 

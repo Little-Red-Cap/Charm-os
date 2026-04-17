@@ -31,10 +31,9 @@ public:
         set_focusable(true);
         set_clip_policy(ClipPolicy::Custom);
         set_custom_layout(kLayoutId);
-        pinch_strategy_.set_callbacks(&ScrollContainer::on_pinch_begin,
-                                      &ScrollContainer::on_pinch_update,
-                                      &ScrollContainer::on_pinch_end,
-                                      this);
+        pinch_strategy_.set_callbacks(PinchScrollStrategy::begin_delegate::bind<&ScrollContainer::on_pinch_begin>(*this),
+                                      PinchScrollStrategy::update_delegate::bind<&ScrollContainer::on_pinch_update>(*this),
+                                      PinchScrollStrategy::end_delegate::bind<&ScrollContainer::on_pinch_end>(*this));
         enable_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
@@ -318,24 +317,18 @@ private:
         }
     }
 
-    static void on_pinch_begin(void* ctx) {
-        auto* self = static_cast<ScrollContainer*>(ctx);
-        if (!self) return;
-        self->pinch_active_ = true;
-        self->velocity_ = 0;
+    void on_pinch_begin() noexcept {
+        pinch_active_ = true;
+        velocity_ = 0;
     }
 
-    static void on_pinch_update(void* ctx, int dy) {
-        auto* self = static_cast<ScrollContainer*>(ctx);
-        if (!self) return;
-        self->add_scroll_y(-dy);
-        self->velocity_ = -dy;
+    void on_pinch_update(int dy) noexcept {
+        add_scroll_y(-dy);
+        velocity_ = -dy;
     }
 
-    static void on_pinch_end(void* ctx) {
-        auto* self = static_cast<ScrollContainer*>(ctx);
-        if (!self) return;
-        self->pinch_active_ = false;
+    void on_pinch_end() noexcept {
+        pinch_active_ = false;
     }
 
     int clamp_scroll(int y) const noexcept {

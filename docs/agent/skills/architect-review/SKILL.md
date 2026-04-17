@@ -21,6 +21,7 @@
 - `../../rules/collaboration.md`
 - `../../rules/embedded-modern-cpp.md`
 - `../../rules/charm-architecture.md`
+- 涉及事件连接时额外参考 `../../../architecture/signal_state_contract_v0.md`
 
 相关文件：
 - `../code-review/SKILL.md`
@@ -66,6 +67,13 @@
 - 是否可替换
 - 是否可验证
 - 成本是否清晰
+
+### 2.5 事件连接视角
+- 这是同域同步通知，还是跨上下文投递
+- 应该用 `signal.emit()`、`state.set()`，还是显式 `post()`
+- 是否把边沿事件和状态真相混成一层
+- wiring 是 page/session 临时关系，还是应进入 `init.connection` / materialize 的系统长期拓扑
+- 生命周期与 target 所有权是否清楚
 
 ---
 

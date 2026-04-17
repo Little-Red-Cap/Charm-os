@@ -19,6 +19,7 @@
 - `../../rules/charm-architecture.md`
 - `../../rules/embedded-modern-cpp.md`
 - 必要时参考 `../../rules/collaboration.md`
+- 涉及事件连接时额外参考 `../../../architecture/signal_state_contract_v0.md`
 
 相关文件：
 - `checklist.md`
@@ -62,6 +63,7 @@
 - 动态分配 / 异常 / RTTI
 - 错误模型不统一
 - 时间源不统一
+- `signal.emit()` / `post()` / `state` / `connection wiring` 语义错位
 
 ### 3.3 再查设计退化
 - 类型语义过弱

@@ -336,22 +336,6 @@ namespace {
         }
     };
 
-    template <typename Pump>
-    struct PumpSender {
-        Pump* pump{nullptr};
-
-        static net::Result<net::UdpSendDisposition> send(void* ctx,
-                                                         net::Endpoint local,
-                                                         const net::Endpoint& peer,
-                                                         net::ByteView payload) noexcept {
-            auto* self = static_cast<PumpSender*>(ctx);
-            if (!self || !self->pump) {
-                return util::unexpected(net::errc::bad_state);
-            }
-            return self->pump->send(local, peer, payload);
-        }
-    };
-
     template <typename Client, typename ClientNode, typename ServerNode>
     [[nodiscard]] bool drive_until_idle(Client& client,
                                         ClientNode& client_node,
@@ -411,18 +395,14 @@ int main() {
 
     net::diag::udp::Client<16, 4> client{};
     ClientState client_state{};
-    PumpSender<decltype(client_node.pump)> client_sender{&client_node.pump};
-    client.set_sender(&PumpSender<decltype(client_node.pump)>::send, &client_sender);
     client.set_error_handler(&ClientState::on_error, &client_state);
 
     net::diag::udp::Server<16> server{};
     ServerState server_state{};
-    PumpSender<decltype(server_node.pump)> server_sender{&server_node.pump};
-    server.set_sender(&PumpSender<decltype(server_node.pump)>::send, &server_sender);
     server.set_error_handler(&ServerState::on_error, &server_state);
 
-    auto bound_client = client_node.pump.bind_udp(client_local.port, net::make_udp_datagram_sink_ref(client));
-    auto bound_server = server_node.pump.bind_udp(server_local.port, net::make_udp_datagram_sink_ref(server));
+    auto bound_client = net::bind_udp_protocol(client_node.pump, client_local, client);
+    auto bound_server = net::bind_udp_protocol(server_node.pump, server_local, server);
     auto registered_ping = server.on_ping(&ServerState::on_ping, &server_state);
     auto registered_count = server.on_count(&ServerState::on_count, &server_state);
     auto registered_slow_count = server.on_slow_count(&ServerState::on_slow_count, &server_state);
@@ -431,6 +411,8 @@ int main() {
         || !registered_ping
         || !registered_count
         || !registered_slow_count
+        || !client_node.pump.has_udp_binding(client_local.port)
+        || !server_node.pump.has_udp_binding(server_local.port)
         || client_node.pump.udp_binding_count() != 1
         || server_node.pump.udp_binding_count() != 1) {
         return fail("udp diag roundtrip smoke bind failed\n", 3);

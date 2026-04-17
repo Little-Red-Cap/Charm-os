@@ -205,21 +205,6 @@ namespace {
         }
     };
 
-    template <typename Pump>
-    struct PumpSender {
-        Pump* pump{nullptr};
-
-        static net::Result<net::UdpSendDisposition> send(void* ctx,
-                                                         net::Endpoint local,
-                                                         const net::Endpoint& peer,
-                                                         net::ByteView payload) noexcept {
-            auto* self = static_cast<PumpSender*>(ctx);
-            if (!self || !self->pump) {
-                return util::unexpected(net::errc::bad_state);
-            }
-            return self->pump->send(local, peer, payload);
-        }
-    };
 }
 
 int main() {
@@ -278,19 +263,18 @@ int main() {
 
     net::diag::udp::Server<16> server{};
     ServerState server_state{};
-    PumpSender<decltype(pump)> sender{&pump};
-    server.set_sender(&PumpSender<decltype(pump)>::send, &sender);
 
     auto ping_route = server.on_ping(&ServerState::on_ping, &server_state);
     auto count_route = server.on_count(&ServerState::on_count, &server_state);
     auto meta_route = server.on_meta(&ServerState::on_meta, &server_state);
     auto slow_count_route = server.on_slow_count(&ServerState::on_slow_count, &server_state);
-    auto bound = pump.bind_udp(local_endpoint.port, net::make_udp_datagram_sink_ref(server));
+    auto bound = net::bind_udp_protocol(pump, local_endpoint, server);
     if (!ping_route
         || !count_route
         || !meta_route
         || !slow_count_route
         || !bound
+        || !pump.has_udp_binding(local_endpoint.port)
         || pump.udp_binding_count() != 1) {
         std::fputs("udp diag smoke server bind failed\n", stderr);
         return 5;

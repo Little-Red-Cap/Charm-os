@@ -866,22 +866,29 @@ export namespace net::icmp::echo {
             return ping(ByteView{}, now_ms, timeout_ms);
         }
 
+        [[nodiscard]] bool cancel() noexcept {
+            if (!client_.has_pending()) {
+                return false;
+            }
+
+            const auto cancelled = client_.cancel(current_info_);
+            if (cancelled) {
+                observe_cancelled(current_info_);
+            }
+            return cancelled;
+        }
+
         [[nodiscard]] bool cancel(const PingTicket& ticket) noexcept {
             const auto cancelled = client_.cancel(ticket);
             if (cancelled) {
-                clear_reply_payload();
-                current_info_ = ticket.info;
-                observed_error_ = errc::ok;
-                state_ = ProbeState::cancelled;
+                observe_cancelled(ticket.info);
             }
             return cancelled;
         }
 
         void cancel_all() noexcept {
             if (client_.has_pending()) {
-                clear_reply_payload();
-                observed_error_ = errc::ok;
-                state_ = ProbeState::cancelled;
+                observe_cancelled(current_info_);
             }
             client_.cancel_all();
         }
@@ -955,6 +962,13 @@ export namespace net::icmp::echo {
             clear_reply_payload();
             state_ = ProbeState::error;
             ++error_count_;
+        }
+
+        void observe_cancelled(const IcmpEchoInfo& info) noexcept {
+            clear_reply_payload();
+            current_info_ = info;
+            observed_error_ = errc::ok;
+            state_ = ProbeState::cancelled;
         }
 
         void clear_observation() noexcept {

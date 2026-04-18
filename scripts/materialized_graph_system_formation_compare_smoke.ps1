@@ -327,11 +327,18 @@ Assert-Condition ([int]$reportInspectResult.summary.OrdCmp -gt 0) 'default repor
 $rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
 }
+Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary) 'artifact_root summary must expose system_compiler_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.binding_result_summary) 'artifact_root summary must expose binding_result_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.bringup_order_summary) 'artifact_root summary must expose bringup_order_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_formation_summary) 'artifact_root summary must expose system_formation_summary'
+Assert-Condition ([int]$rootSummaryInspectResult.system_compiler_summary.case_count -ge 2) 'artifact_root system_compiler_summary.case_count must be at least 2'
 Assert-Condition ([int]$rootSummaryInspectResult.binding_result_summary.case_count -ge 2) 'artifact_root binding_result_summary.case_count must be at least 2'
 Assert-Condition ([int]$rootSummaryInspectResult.bringup_order_summary.case_count -ge 2) 'artifact_root bringup_order_summary.case_count must be at least 2'
+Assert-Condition ([int]$rootSummaryInspectResult.system_compiler_summary.formed_case_count -ge 1) 'artifact_root system_compiler_summary must retain at least one formed case'
+Assert-Condition ([int]$rootSummaryInspectResult.system_compiler_summary.blocked_case_count -eq 1) 'artifact_root system_compiler_summary blocked_case_count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.system_compiler_summary.blocked_cases) -contains $ChangedCase)) 'artifact_root system_compiler_summary missing blocked case'
+Assert-Condition ((@($rootSummaryInspectResult.system_compiler_summary.unresolved_capability_matrix | ForEach-Object { [string]$_.capability }) -contains $RemovedCapability)) 'artifact_root system_compiler_summary unresolved_capability_matrix missing removed capability'
+Assert-Condition ((@($rootSummaryInspectResult.system_compiler_summary.blocked_node_matrix | ForEach-Object { [string]$_.node }) -contains $BlockedNode)) 'artifact_root system_compiler_summary blocked_node_matrix missing blocked node'
 Assert-Condition ((@($rootSummaryInspectResult.binding_result_summary.unresolved_capability_matrix | ForEach-Object { [string]$_.capability }) -contains $RemovedCapability)) 'artifact_root binding_result_summary unresolved_capability_matrix missing removed capability'
 Assert-Condition ((@($rootSummaryInspectResult.bringup_order_summary.blocked_node_matrix | ForEach-Object { [string]$_.node }) -contains $BlockedNode)) 'artifact_root bringup_order_summary blocked_node_matrix missing blocked node'
 Assert-Condition ([int]$rootSummaryInspectResult.system_formation_summary.case_count -ge 2) 'artifact_root system_formation_summary.case_count must be at least 2'
@@ -351,9 +358,16 @@ Assert-Condition ((@($rootSummaryInspectResult.comparison.bringup_order_changed_
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_formation_changed_cases) -notcontains $ExpectedUnchangedCase)) 'artifact_root summary incorrectly marks unchanged case as system_formation changed'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.binding_result_changed_cases) -notcontains $ExpectedUnchangedCase)) 'artifact_root summary incorrectly marks unchanged case as binding_result changed'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.bringup_order_changed_cases) -notcontains $ExpectedUnchangedCase)) 'artifact_root summary incorrectly marks unchanged case as bringup_order changed'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary) 'artifact_root summary comparison must expose system_compiler_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.binding_result_summary) 'artifact_root summary comparison must expose binding_result_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.bringup_order_summary) 'artifact_root summary comparison must expose bringup_order_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_formation_summary) 'artifact_root summary comparison must expose system_formation_summary'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.changed_case_count -eq 1) 'artifact_root comparison.system_compiler_summary changed_case_count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.changed_cases) -contains $ChangedCase)) 'artifact_root comparison.system_compiler_summary missing changed case'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.system_input -eq 0) 'artifact_root comparison.system_compiler_summary system_input stage count must stay 0'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.binding_result -eq 1) 'artifact_root comparison.system_compiler_summary binding_result stage count must be 1'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.bringup_order -eq 1) 'artifact_root comparison.system_compiler_summary bringup_order stage count must be 1'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.system_formation -eq 1) 'artifact_root comparison.system_compiler_summary system_formation stage count must be 1'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.binding_result_summary.changed_case_count -eq 1) 'artifact_root comparison.binding_result_summary changed_case_count must be 1'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.bringup_order_summary.changed_case_count -eq 1) 'artifact_root comparison.bringup_order_summary changed_case_count must be 1'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.binding_result_summary.changed_cases) -contains $ChangedCase)) 'artifact_root comparison.binding_result_summary missing changed case'
@@ -370,6 +384,14 @@ $formationStatusTransition = @(
 Assert-Condition ($null -ne $formationStatusTransition) 'artifact_root comparison.system_formation_summary missing formed->blocked status transition'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_formation_summary.unresolved_capability_change_matrix | ForEach-Object { [string]$_.capability }) -contains $RemovedCapability)) 'artifact_root comparison.system_formation_summary unresolved_capability_change_matrix missing removed capability'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_formation_summary.blocked_node_change_matrix | ForEach-Object { [string]$_.node }) -contains $BlockedNode)) 'artifact_root comparison.system_formation_summary blocked_node_change_matrix missing blocked node'
+$compilerStatusTransition = @(
+    @($rootSummaryInspectResult.comparison.system_compiler_summary.status_change_matrix) |
+        Where-Object { [string]$_.transition -eq 'formed->blocked' } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $compilerStatusTransition) 'artifact_root comparison.system_compiler_summary missing formed->blocked status transition'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.unresolved_capability_change_matrix | ForEach-Object { [string]$_.capability }) -contains $RemovedCapability)) 'artifact_root comparison.system_compiler_summary unresolved_capability_change_matrix missing removed capability'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.blocked_node_change_matrix | ForEach-Object { [string]$_.node }) -contains $BlockedNode)) 'artifact_root comparison.system_compiler_summary blocked_node_change_matrix missing blocked node'
 
 $changedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ChangedCase
 $unchangedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ExpectedUnchangedCase
@@ -400,6 +422,7 @@ $summary = [ordered]@{
     assertions = [ordered]@{
         diff_marks_system_formation_as_changed = $true
         artifact_report_exposes_system_formation = $true
+        system_compiler_summary_supported = $true
         binding_result_compare_supported = $true
         bringup_order_compare_supported = $true
         default_report_summary_exposes_system_formation_counts = $true

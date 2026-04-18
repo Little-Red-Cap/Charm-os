@@ -238,9 +238,38 @@ $rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJs
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
 }
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.compared_case_count -ge 2) 'artifact_root summary compared_case_count must be at least 2'
+Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary) 'artifact_root summary must expose system_compiler_summary in compare mode'
+Assert-Condition ($null -ne $rootSummaryInspectResult.system_input_summary) 'artifact_root summary must expose system_input_summary in compare mode'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary) 'artifact_root summary comparison must expose system_compiler_summary'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_input_summary) 'artifact_root summary comparison must expose system_input_summary'
+Assert-Condition ([int]$rootSummaryInspectResult.system_compiler_summary.case_count -ge 2) 'artifact_root summary system_compiler_summary.case_count must be at least 2'
+Assert-Condition ([int]$rootSummaryInspectResult.system_input_summary.case_count -ge 2) 'artifact_root summary system_input_summary.case_count must be at least 2'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.input_changed_case_count -eq 1) 'artifact_root summary input_changed_case_count must be 1'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.input_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing input changed case'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.input_changed_cases) -notcontains $ExpectedUnchangedCase)) 'artifact_root summary incorrectly marks unchanged case as input changed'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.changed_case_count -eq 1) 'artifact_root comparison system_compiler_summary.changed_case_count must be 1'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_input_summary.changed_case_count -eq 1) 'artifact_root comparison system_input_summary.changed_case_count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.changed_cases) -contains $ChangedCase)) 'artifact_root comparison system_compiler_summary missing changed case'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_input_summary.changed_cases) -contains $ChangedCase)) 'artifact_root comparison system_input_summary missing changed case'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.system_input -eq 1) 'artifact_root comparison system_compiler_summary system_input stage count must be 1'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.binding_result -eq 0) 'artifact_root comparison system_compiler_summary binding_result stage count must stay 0'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.bringup_order -eq 0) 'artifact_root comparison system_compiler_summary bringup_order stage count must stay 0'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.system_formation -eq 1) 'artifact_root comparison system_compiler_summary system_formation stage count must be 1 when formation basis drifts'
+Assert-Condition ((@($rootSummaryInspectResult.system_input_summary.declared_fact_matrix | Where-Object { [string]$_.fact -eq $AddedDeclaredFact }).Count -eq 1)) 'artifact_root summary system_input_summary must include synthetic declared fact'
+$declaredFactChangeEntry = @(
+    @($rootSummaryInspectResult.comparison.system_input_summary.declared_fact_change_matrix) |
+        Where-Object { [string]$_.fact -eq $AddedDeclaredFact } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $declaredFactChangeEntry) 'artifact_root comparison system_input_summary must expose declared_fact_change_matrix entry'
+Assert-Condition ((@($declaredFactChangeEntry.change_kinds) -contains 'added')) 'artifact_root comparison system_input_summary declared_fact change must be marked added'
+$systemCompilerDeclaredFactChangeEntry = @(
+    @($rootSummaryInspectResult.comparison.system_compiler_summary.declared_fact_change_matrix) |
+        Where-Object { [string]$_.fact -eq $AddedDeclaredFact } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $systemCompilerDeclaredFactChangeEntry) 'artifact_root comparison system_compiler_summary must expose declared_fact_change_matrix entry'
+Assert-Condition ((@($systemCompilerDeclaredFactChangeEntry.change_kinds) -contains 'added')) 'artifact_root comparison system_compiler_summary declared_fact change must be marked added'
 
 $changedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ChangedCase
 $unchangedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ExpectedUnchangedCase
@@ -265,6 +294,10 @@ $summary = [ordered]@{
         metadata_only_diff_preserved = $true
         comparison_system_input_present = $true
         declared_fact_drift_detected = $true
+        artifact_root_summary_exposes_system_compiler_summary = $true
+        artifact_root_compare_exposes_system_compiler_summary = $true
+        artifact_root_summary_exposes_system_input_summary = $true
+        artifact_root_compare_exposes_system_input_summary = $true
         default_report_summary_exposes_input_compare = $true
         default_root_summary_exposes_input_changed_counts = $true
     }

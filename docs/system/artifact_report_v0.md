@@ -114,8 +114,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - 最小 `resource summary` 查询结果
 - 最小 `bringup evidence` 查询结果
 - compare 模式下的 `summary_changes / metadata_changes / comparison.system_input / comparison.system_formation / comparison.binding_result / comparison.bringup_order / comparison.bringup_evidence / comparison.resource_contract / comparison.fact_resolution`
-- artifact_root 默认总览里的 `binding_result_summary / bringup_order_summary / system_formation_summary / fact_resolution_summary`
-- artifact_root 默认总览里的 `comparison.binding_result_summary / comparison.bringup_order_summary / comparison.system_formation_summary / comparison.fact_resolution_summary`
+- artifact_root 默认总览里的 `system_compiler_summary / system_input_summary / binding_result_summary / bringup_order_summary / system_formation_summary / fact_resolution_summary`
+- artifact_root 默认总览里的 `comparison.system_compiler_summary / comparison.system_input_summary / comparison.binding_result_summary / comparison.bringup_order_summary / comparison.system_formation_summary / comparison.fact_resolution_summary`
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
@@ -213,6 +213,15 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `capability_summary.compared_capability_count`
 - `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
 - `capability_summary.compared_capabilities`
+- `system_compiler_summary.changed_case_count / unchanged_case_count`
+- `system_compiler_summary.stage_change_matrix / status_change_matrix`
+- `system_compiler_summary.system_spec_change_matrix / resolved_input_change_matrix`
+- `system_compiler_summary.declared_fact_change_matrix / declared_contract_change_matrix / subject_fact_change_matrix`
+- `system_compiler_summary.unresolved_capability_change_matrix / blocked_node_change_matrix / blocker_change_matrix`
+- `system_input_summary.changed_case_count / unchanged_case_count`
+- `system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`
+- `system_input_summary.declared_fact_change_matrix / subject_fact_change_matrix`
+- `system_input_summary.declared_contract_change_matrix`
 - `binding_result_summary.changed_case_count / unchanged_case_count`
 - `binding_result_summary.capability_change_matrix / unresolved_capability_change_matrix`
 - `bringup_order_summary.changed_case_count / unchanged_case_count`
@@ -233,6 +242,34 @@ artifact_root 级 `cap list` 现在也会继续带出：
 > **这些漂移主要集中在哪些 capability 上。**
 
 与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
+`system_compiler_summary`，至少包括：
+
+- `case_count / formed_case_count / blocked_case_count`
+- `totals.declared_fact_count / totals.declared_contract_count / totals.subject_fact_count`
+- `totals.required_binding_count / totals.unresolved_binding_count`
+- `totals.ordered_node_count / totals.blocked_node_count / totals.blocker_count`
+- `case_kind_matrix`
+- `resolved_profile_matrix / resolved_board_matrix / resolved_active_facet_matrix`
+- `unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
+
+它不取代后面的分阶段摘要，
+而是把“系统如何成立”的主链先压成一份 root 级总结果物，
+用来先回答：
+
+> **这一组 case 到底以什么输入成立、在哪个阶段收口、最终为什么 formed 或 blocked。**
+
+与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
+`system_input_summary`，至少包括：
+
+- `case_count`
+- `totals.declared_fact_count / totals.declared_contract_count / totals.subject_fact_count`
+- `case_kind_matrix`
+- `declared_profile_matrix / declared_board_matrix`
+- `resolved_profile_matrix / resolved_board_matrix`
+- `resolved_active_facet_matrix`
+- `declared_fact_matrix / declared_contract_matrix / subject_fact_matrix`
+
+并继续显式带出一份
 `binding_result_summary`，至少包括：
 
 - `case_count`
@@ -270,6 +307,10 @@ artifact_root 级 `cap list` 现在也会继续带出：
 这意味着 inspector 已经不只会逐 case 地回答
 “系统是否 formed / blocked”，
 还会横向回答：
+
+> **这一组系统实例当前是以哪些规范化输入被成立出来的，输入侧事实和解析结果如何收口。**
+
+同时也会横向回答：
 
 > **这一组系统实例整体是怎么形成的，阻塞面主要集中在哪里。**
 

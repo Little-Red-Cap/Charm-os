@@ -34,6 +34,15 @@
 
 ## 推荐阅读路径
 
+- 看内核示例集合：
+  [`kernel/README.md`](kernel/README.md)
+
+- 看文件系统示例集合：
+  [`fs/README.md`](fs/README.md)
+
+- 看项目化示例集合：
+  [`project/README.md`](project/README.md)
+
 - 看项目化示例：
   [`project/player/README.md`](project/player/README.md)
 

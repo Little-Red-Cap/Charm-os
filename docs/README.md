@@ -65,6 +65,7 @@
 - 文档总索引：`docs/README.md`
 - 系统文档入口：`docs/system/README.md`
 - 项目文档入口：`docs/project/README.md`
+- 存储文档入口：`docs/storage/README.md`
 - 板级资料入口：`docs/board/README.md`
 - RK3506 上板资料：`docs/board/rk3506/README.md`
 - RK3506 post-DDR handoff 契约：`docs/board/rk3506/post_ddr_handoff_contract.md`
@@ -231,6 +232,7 @@ docs/
 - `docs/input/input_protocol_map.md`
 
 ### 存储/文件系统
+- `docs/storage/README.md`
 - `docs/storage/block_device_contract.md`
 - `docs/storage/mal_overview.md`
 - `docs/storage/mal_fatfs_demo.md`

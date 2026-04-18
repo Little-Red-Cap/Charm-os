@@ -47,7 +47,7 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 - 依赖方向反转（protocol/io/at 禁止依赖 platform/hal）
 
 ## 继续深入
-- IO 分层：`docs/io/io_layering_overview.md`
+- IO：`docs/io/README.md`
 - 同域通知与状态契约：`docs/architecture/signal_state_contract_v0.md`
 - 同域通知与状态原语：`docs/architecture/signal_state_v0.md`
 - 存储：`docs/storage/README.md`

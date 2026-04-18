@@ -65,12 +65,14 @@
 - 文档总索引：`docs/README.md`
 - 系统文档入口：`docs/system/README.md`
 - 项目文档入口：`docs/project/README.md`
+- IO 文档入口：`docs/io/README.md`
 - 存储文档入口：`docs/storage/README.md`
 - 板级资料入口：`docs/board/README.md`
 - RK3506 上板资料：`docs/board/rk3506/README.md`
 - RK3506 post-DDR handoff 契约：`docs/board/rk3506/post_ddr_handoff_contract.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
+- IO 文档入口：`docs/io/README.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
 - ARMv7-A 平台契约：`docs/system/armv7a_platform_contract.md`
@@ -219,6 +221,7 @@ docs/
 - `docs/board/rk3506/post_ddr_handoff_contract.md`
 
 ### IO 与输入
+- `docs/io/README.md`
 - `docs/io/io_layering_overview.md`
 - `docs/io/io_channel_contract.md`
 - `docs/io/io_reactor_contract.md`

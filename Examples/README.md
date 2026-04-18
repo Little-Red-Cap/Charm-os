@@ -37,6 +37,12 @@
 - 看内核示例集合：
   [`kernel/README.md`](kernel/README.md)
 
+- 看 init / observe 示例集合：
+  [`init/README.md`](init/README.md)
+
+- 看 POSIX 样本与测试集合：
+  [`posix/README.md`](posix/README.md)
+
 - 看文件系统示例集合：
   [`fs/README.md`](fs/README.md)
 

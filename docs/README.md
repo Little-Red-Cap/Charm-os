@@ -65,8 +65,10 @@
 - 文档总索引：`docs/README.md`
 - 系统文档入口：`docs/system/README.md`
 - 项目文档入口：`docs/project/README.md`
+- 架构文档入口：`docs/architecture/README.md`
 - IO 文档入口：`docs/io/README.md`
 - 存储文档入口：`docs/storage/README.md`
+- USB 文档入口：`docs/usb/README.md`
 - 板级资料入口：`docs/board/README.md`
 - RK3506 上板资料：`docs/board/rk3506/README.md`
 - RK3506 post-DDR handoff 契约：`docs/board/rk3506/post_ddr_handoff_contract.md`
@@ -204,6 +206,7 @@ docs/
 - `docs/architecture_overview.md`
 
 ### 架构与依赖
+- `docs/architecture/README.md`
 - `docs/architecture/system_compiler_roadmap.md`
 - `docs/architecture/system_compiler_vocabulary_v0.md`
 - `docs/architecture/dependency_contract.md`
@@ -245,6 +248,7 @@ docs/
 - `docs/storage/filex_charm_map.md`
 
 ### USB
+- `docs/usb/README.md`
 - `docs/usb/usb_arch_plan.md`
 - `docs/usb/usb_dsl_overview.md`
 - `docs/usb/usb_cdc_contract.md`

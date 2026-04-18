@@ -80,6 +80,12 @@
 
 这层更适合被下半层持有，因为它已经把“当前这条运行时实例是谁、idle 是谁、trace 放哪里”这几个问题收住了。
 
+当前专门验证这条 tick seam 的 host 证据是：
+
+- `Examples/kernel/runtime_tick_host`
+
+它直接覆盖 `advance_tick(now) -> scheduler.tick(now)` 的未到期/到期路径，以及 timer source 统计与 runtime tick trace 的对齐。
+
 当前专门验证这条 ISR deferral seam 的 host 证据是：
 
 - `Examples/kernel/runtime_isr_defer_host`
@@ -231,6 +237,7 @@
 当前证据 example：
 
 - `Examples/kernel/runtime_minimal_host`
+- `Examples/kernel/runtime_tick_host`
 - `Examples/kernel/runtime_isr_defer_host`
 - `Examples/kernel/runtime_thread_port_host`
 - `scripts/minimal_kernel_runtime_host_smoke.ps1`

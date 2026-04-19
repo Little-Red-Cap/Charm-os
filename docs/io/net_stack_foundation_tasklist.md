@@ -390,3 +390,13 @@
 当前阶段的执行口径可以压缩成一句话：
 
 > **先把网络底座做成 Charm 主线里稳定、可回归、可承载上层协议的公共 I/O 能力，再谈协议铺开。**
+
+---
+
+## 实验场骨架（2026-04-20）
+
+- 已新增 `Modules/io/net/net.lab.cppm`，作为网络实验场的最小公共骨架。
+- `net::lab::DuplexLink` 提供双端虚拟链路、双向独立时延、单次丢包注入与方向统计，方便做可重复的协议回归。
+- `net::lab::StackNode<Pump>` 收口 `NetIf / NetDriver / Stack / Pump` 的宿主节点装配，减少每个 smoke 重复搭线。
+- `Examples/io/net/net_lab_smoke` 现覆盖“延迟链路 ICMP 往返 + 丢弃回复触发 timeout + 一次性故障恢复”这一条实验场闭环。
+- 这条线的目标不是立刻扩 API，而是先把后续 traceroute、故障注入、协议回放所需的试验底座搭稳。

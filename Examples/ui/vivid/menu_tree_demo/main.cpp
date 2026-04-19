@@ -139,12 +139,24 @@ int main() {
                 "root branch exposes shared group row flag")) {
         return 1;
     }
+    if (!expect((StructuredMenuView::row_flags(&root_view, 0) & kStructuredListRowFlagDisabled) == 0,
+                "enabled root branch does not expose disabled row flag")) {
+        return 1;
+    }
     if (!expect((StructuredMenuView::row_flags(&root_view, 1) & kStructuredListRowFlagGroup) == 0,
                 "disabled root leaf does not expose group row flag")) {
         return 1;
     }
+    if (!expect((StructuredMenuView::row_flags(&root_view, 1) & kStructuredListRowFlagDisabled) != 0,
+                "disabled root leaf exposes shared disabled row flag")) {
+        return 1;
+    }
     if (!expect((StructuredMenuView::row_flags(&file_view, 0) & kStructuredListRowFlagGroup) == 0,
                 "submenu leaf keeps leaf row flag semantics")) {
+        return 1;
+    }
+    if (!expect((StructuredMenuView::row_flags(&file_view, 0) & kStructuredListRowFlagDisabled) != 0,
+                "disabled submenu leaf also exposes shared disabled row flag")) {
         return 1;
     }
 

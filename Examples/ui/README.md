@@ -15,6 +15,7 @@
 
 - [`vivid/widget_state_demo/README.md`](vivid/widget_state_demo/README.md)
 - [`vivid/scene_state_demo/README.md`](vivid/scene_state_demo/README.md)
+- [`vivid/list_row_flags_demo/README.md`](vivid/list_row_flags_demo/README.md)
 
 ### 我想看交互、布局与渲染路径
 

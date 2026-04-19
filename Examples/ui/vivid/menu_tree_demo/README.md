@@ -6,7 +6,7 @@
 它要证明的是：
 
 - `StructuredMenuSelectionModel` 才是 `MenuTree` 的高亮 truth 持有面
-- `StructuredMenuView::row_flags()` 会把 branch row 映射成共享 group capability，而不是让 `MenuTree` 私藏位值
+- `StructuredMenuView::row_flags()` 会把 branch/disabled row 映射成共享 row capability，而不是让 `MenuTree` 私藏位值
 - `MouseMove` 之类的导航会推进外部 selection truth，但不会制造 confirm edge
 - disabled item 可以进入高亮 truth，但不能 open submenu，也不能 confirm
 - `Click / Enter / Space` 确认 leaf 时，才会触发 `observe_select()` 与旧 `set_on_select()` 兼容回调

@@ -60,6 +60,8 @@ public:
 
     // observe_select() is a same-domain synchronous confirm edge surface.
     // MenuTree highlight truth remains owned by the external StructuredMenuSelectionModel.
+    // Disabled items may still become highlight truth, but they never open submenus
+    // and never emit confirm edges.
     [[nodiscard]] auto observe_select(select_slot_type slot) noexcept {
         return selected_edge_.connect(slot);
     }
@@ -183,6 +185,7 @@ public:
 
 private:
     static constexpr int kMaxVisible = 10;
+    static constexpr std::uint8_t kListViewRowFlagGroup = 0x01;
 
     std::uint16_t count(int menu_id) const noexcept {
         if (!provider_.count) return 0;
@@ -247,6 +250,7 @@ private:
         const StructuredSelectionModel selection_view = selection.to_selection();
         const std::uint16_t count = provider_view.size();
         factory_->set_list_view_source(list, count, &view, &StructuredMenuView::label_text);
+        factory_->set_list_view_row_flags_source(list, &view, &MenuTree::row_flags_for_view);
         const int selected = selection_view.current();
         if (selected >= 0) {
             factory_->kernel().set_list_view_selected(list, selected);
@@ -300,6 +304,10 @@ private:
 
     void open_submenu(int index, int row_y) {
         if (!factory_ || !provider_.count) return;
+        if (!enabled(active_menu_id_, static_cast<std::uint16_t>(index))) {
+            close_submenu();
+            return;
+        }
         if (!has_children(active_menu_id_, static_cast<std::uint16_t>(index))) {
             close_submenu();
             return;
@@ -350,6 +358,9 @@ private:
         if (idx < 0) return;
         set_selected(menu_id, idx);
         factory_->kernel().set_list_view_selected(list, idx);
+        if (!enabled(menu_id, static_cast<std::uint16_t>(idx))) {
+            return;
+        }
         if (has_children(menu_id, static_cast<std::uint16_t>(idx))) {
             if (!is_submenu) {
                 open_submenu(idx, mapper.y_of(idx));
@@ -389,8 +400,10 @@ private:
             return true;
         case Event::Key::Right:
             if (!submenu_open && has_children(menu_id, static_cast<std::uint16_t>(selected))) {
-                const StructuredViewportMapper mapper = make_mapper(menu_list_);
-                open_submenu(selected, mapper.y_of(selected));
+                if (enabled(menu_id, static_cast<std::uint16_t>(selected))) {
+                    const StructuredViewportMapper mapper = make_mapper(menu_list_);
+                    open_submenu(selected, mapper.y_of(selected));
+                }
                 return true;
             }
             return false;
@@ -405,8 +418,13 @@ private:
         case Event::Key::Enter:
         case Event::Key::Space:
             if (has_children(menu_id, static_cast<std::uint16_t>(selected))) {
-                const StructuredViewportMapper mapper = make_mapper(menu_list_);
-                open_submenu(selected, mapper.y_of(selected));
+                if (enabled(menu_id, static_cast<std::uint16_t>(selected))) {
+                    const StructuredViewportMapper mapper = make_mapper(menu_list_);
+                    open_submenu(selected, mapper.y_of(selected));
+                }
+                return true;
+            }
+            if (!enabled(menu_id, static_cast<std::uint16_t>(selected))) {
                 return true;
             }
             emit_select(menu_id, selected);
@@ -425,6 +443,18 @@ private:
         };
         (void)selected_edge_.emit(ref);
         if (on_select_) on_select_();
+    }
+
+    static std::uint8_t row_flags_for_view(const void* ctx, std::uint16_t index) noexcept {
+        const auto* view = static_cast<const StructuredMenuView*>(ctx);
+        if (!view || !view->provider) {
+            return 0;
+        }
+        if (view->provider->has_children
+            && view->provider->has_children(view->provider->ctx, view->menu_id, index)) {
+            return kListViewRowFlagGroup;
+        }
+        return 0;
     }
 
     bool owns_input_state() const noexcept {

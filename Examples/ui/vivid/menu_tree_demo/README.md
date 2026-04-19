@@ -7,6 +7,7 @@
 
 - `StructuredMenuSelectionModel` 才是 `MenuTree` 的高亮 truth 持有面
 - `MouseMove` 之类的导航会推进外部 selection truth，但不会制造 confirm edge
+- disabled item 可以进入高亮 truth，但不能 open submenu，也不能 confirm
 - `Click / Enter / Space` 确认 leaf 时，才会触发 `observe_select()` 与旧 `set_on_select()` 兼容回调
 
 这个示例当前覆盖了：
@@ -18,6 +19,7 @@
 其中最关键的 contract 点是：
 
 - opening menu / opening submenu 可以 materialize highlight truth，但不等于 confirm
+- disabled leaf 保持可高亮但不可确认
 - outside click 只负责关闭 menu，不会制造隐藏 confirm
 - disconnect token 生效后，confirm edge 观察者保持静默，但 legacy callback 仍按原语义工作
 

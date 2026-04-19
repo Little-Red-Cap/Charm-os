@@ -156,6 +156,7 @@ object-level widget 里，旧回调和真相观察面已经被显式拆开。
 
 - 高亮 truth 直接交给外部 `StructuredMenuSelectionModel`
 - helper 自己只显式补 `observe_select()` 这类 confirm edge
+- disabled item 仍可推进外部 highlight truth，但不能 open submenu，也不能 confirm
 
 这同样说明的是 helper contract 被写清楚了，而不是 `SceneAccess` 变成了 observe 总线。
 
@@ -209,6 +210,7 @@ object-level widget 里，旧回调和真相观察面已经被显式拆开。
 
 - 外部 selection model 持有 highlight truth
 - hover / 导航推进 truth，但不触发 confirm
+- disabled item 可以进入 highlight truth，但不能 open submenu，也不能 confirm
 - leaf confirm 才触发 `observe_select()`
 
 ## 4. 一句话规则

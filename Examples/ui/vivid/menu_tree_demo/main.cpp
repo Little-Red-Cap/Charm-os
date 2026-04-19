@@ -36,6 +36,12 @@ namespace {
             if (menu_id == 0 && index == 0) return 1;
             return -1;
         }
+
+        static bool enabled(const void*, int menu_id, std::uint16_t index) noexcept {
+            if (menu_id == 0 && index == 1) return false;
+            if (menu_id == 1 && index == 0) return false;
+            return true;
+        }
     };
 
     struct MenuSelection {
@@ -115,7 +121,7 @@ int main() {
         &selection,
         &MenuData::count,
         &MenuData::label,
-        nullptr,
+        &MenuData::enabled,
         &MenuData::has_children,
         &MenuData::child_menu,
     });
@@ -146,15 +152,14 @@ int main() {
     if (!expect(probe.select_edges == 0 && g_legacy_selects == 0, "hover stays silent for confirm edge")) return 1;
 
     if (!expect(menu.handle_event(Event::mouse(Event::Type::Click, kPopupX + 8, row_center_y(kPopupY, 1), 1)),
-                "clicking root leaf is accepted")) {
+                "clicking disabled root leaf is accepted")) {
         return 1;
     }
-    if (!expect(!menu.is_open(), "root leaf confirm closes menu")) return 1;
-    if (!expect(probe.select_edges == 1 && probe.last_menu_id == 0 && probe.last_index == 1,
-                "root leaf click emits confirm edge")) {
+    if (!expect(menu.is_open(), "disabled root leaf does not close menu")) return 1;
+    if (!expect(probe.select_edges == 0 && g_legacy_selects == 0,
+                "disabled root leaf does not emit confirm edge")) {
         return 1;
     }
-    if (!expect(g_legacy_selects == 1, "root leaf click still triggers legacy callback")) return 1;
 
     menu.open_at(kPopupX, kPopupY, kPopupW);
     if (!expect(menu.handle_event(Event::mouse(Event::Type::MouseMove, kPopupX + 8, row_center_y(kPopupY, 0), 0)),
@@ -163,27 +168,46 @@ int main() {
     }
     if (!expect(selection.root_sel == 0, "hover returns root highlight truth to submenu owner")) return 1;
     if (!expect(selection.file_sel == 0, "opening submenu materializes submenu highlight truth")) return 1;
-    if (!expect(probe.select_edges == 1 && g_legacy_selects == 1, "opening submenu does not emit confirm edge")) {
+    if (!expect(probe.select_edges == 0 && g_legacy_selects == 0, "opening submenu does not emit confirm edge")) {
+        return 1;
+    }
+
+    if (!expect(menu.handle_event(Event::mouse(Event::Type::MouseMove, kPopupX + kPopupW + 8, row_center_y(kPopupY, 0), 0)),
+                "hovering disabled submenu leaf is accepted")) {
+        return 1;
+    }
+    if (!expect(selection.file_sel == 0, "hover keeps disabled submenu leaf as current truth")) return 1;
+    if (!expect(probe.select_edges == 0 && g_legacy_selects == 0, "disabled submenu hover stays silent")) return 1;
+
+    if (!expect(menu.handle_event(Event::key(Event::Type::KeyDown, Event::Key::Enter)),
+                "enter on disabled submenu leaf is handled")) {
+        return 1;
+    }
+    if (!expect(menu.is_open(), "disabled submenu leaf does not close menu")) return 1;
+    if (!expect(probe.select_edges == 0 && g_legacy_selects == 0,
+                "disabled submenu leaf does not emit confirm edge")) {
         return 1;
     }
 
     if (!expect(menu.handle_event(Event::mouse(Event::Type::MouseMove, kPopupX + kPopupW + 8, row_center_y(kPopupY, 1), 0)),
-                "hovering submenu leaf is accepted")) {
+                "hovering enabled submenu leaf is accepted")) {
         return 1;
     }
-    if (!expect(selection.file_sel == 1, "hover updates external submenu highlight truth")) return 1;
-    if (!expect(probe.select_edges == 1 && g_legacy_selects == 1, "submenu hover stays silent")) return 1;
+    if (!expect(selection.file_sel == 1, "hover updates external submenu truth to enabled leaf")) return 1;
+    if (!expect(probe.select_edges == 0 && g_legacy_selects == 0, "enabled submenu hover still stays silent")) {
+        return 1;
+    }
 
     if (!expect(menu.handle_event(Event::key(Event::Type::KeyDown, Event::Key::Enter)),
-                "enter confirms highlighted submenu leaf")) {
+                "enter confirms enabled submenu leaf")) {
         return 1;
     }
-    if (!expect(!menu.is_open(), "submenu leaf confirm closes menu")) return 1;
-    if (!expect(probe.select_edges == 2 && probe.last_menu_id == 1 && probe.last_index == 1,
-                "submenu enter emits confirm edge")) {
+    if (!expect(!menu.is_open(), "enabled submenu leaf confirm closes menu")) return 1;
+    if (!expect(probe.select_edges == 1 && probe.last_menu_id == 1 && probe.last_index == 1,
+                "enabled submenu enter emits confirm edge")) {
         return 1;
     }
-    if (!expect(g_legacy_selects == 2, "submenu enter still triggers legacy callback")) return 1;
+    if (!expect(g_legacy_selects == 1, "enabled submenu enter still triggers legacy callback")) return 1;
 
     menu.open_at(kPopupX, kPopupY, kPopupW);
     if (!expect(menu.handle_event(Event::mouse(Event::Type::Click, 4, 4, 1)),
@@ -191,7 +215,7 @@ int main() {
         return 1;
     }
     if (!expect(!menu.is_open(), "outside click closes menu without confirm")) return 1;
-    if (!expect(probe.select_edges == 2 && g_legacy_selects == 2, "outside click does not emit hidden edge")) {
+    if (!expect(probe.select_edges == 1 && g_legacy_selects == 1, "outside click does not emit hidden edge")) {
         return 1;
     }
 
@@ -200,11 +224,26 @@ int main() {
 
     menu.open_at(kPopupX, kPopupY, kPopupW);
     if (!expect(menu.handle_event(Event::mouse(Event::Type::Click, kPopupX + 8, row_center_y(kPopupY, 1), 1)),
-                "root leaf still confirms after observer disconnect")) {
+                "disabled root leaf still stays inert after observer disconnect")) {
         return 1;
     }
-    if (!expect(probe.select_edges == 2, "disconnected menu tree edge observer stays silent")) return 1;
-    if (!expect(g_legacy_selects == 3, "legacy callback still works after observer disconnect")) return 1;
+    if (!expect(probe.select_edges == 1, "disconnected menu tree edge observer stays silent")) return 1;
+    if (!expect(g_legacy_selects == 1, "disabled root leaf still does not trigger legacy callback")) return 1;
+
+    if (!expect(menu.handle_event(Event::mouse(Event::Type::MouseMove, kPopupX + 8, row_center_y(kPopupY, 0), 0)),
+                "hovering enabled root branch still works after observer disconnect")) {
+        return 1;
+    }
+    if (!expect(menu.handle_event(Event::mouse(Event::Type::MouseMove, kPopupX + kPopupW + 8, row_center_y(kPopupY, 1), 0)),
+                "hovering enabled submenu leaf still works after observer disconnect")) {
+        return 1;
+    }
+    if (!expect(menu.handle_event(Event::key(Event::Type::KeyDown, Event::Key::Enter)),
+                "enabled submenu leaf still confirms after observer disconnect")) {
+        return 1;
+    }
+    if (!expect(probe.select_edges == 1, "disconnected edge observer remains silent on enabled confirm")) return 1;
+    if (!expect(g_legacy_selects == 2, "legacy callback still works on enabled confirm after disconnect")) return 1;
 
     std::printf("[menu_tree] root_sel=%d file_sel=%d edges=%d legacy=%d\n",
                 selection.root_sel,

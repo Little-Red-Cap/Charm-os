@@ -266,6 +266,7 @@ Vivid 当前同时存在两层表面：
 
 - helper 自己把 committed truth 和 confirm edge 拆开
 - 或者把 highlight truth 外置给 caller，只保留 confirm edge
+- helper 可以允许 disabled item 进入局部 highlight truth，但不得借此伪造 open/confirm
 - 可以依赖 `SoaFactory / SoaKernel` 落地，但仍然是 helper 局部语义
 - 不自动扩散成 `SceneAccess` / runtime 的全局 observe 面
 
@@ -289,7 +290,7 @@ Vivid 当前同时存在两层表面：
 - `Examples/system/signal_state_closure_demo`
   冻结跨层 contract：同域 `emit()` 同步落地、`state` 真相只在值变化时通知、`init.connection` 的 direct/deferred wiring 保持 graph 可见、worker 只会在真实 scheduler dispatch 后收到 deferred work。
 - `Examples/ui/vivid/widget_signal_demo`、`Examples/ui/vivid/widget_state_demo`、`Examples/ui/vivid/dropdown_popup_demo` 与 `Examples/ui/vivid/menu_tree_demo`
-  冻结 Vivid widget/helper 表面：`Button::observe_click()` / `MenuItem::observe_click()` / `ListItem::observe_click()` 是边沿 `signal`，`Checkbox / Dropdown / Slider / ProgressBarSimple / Arc` 的 `observe_*()` 是真相 `state`，`DropdownPopup::observe_selected()` 与 `observe_select()` 在 SoA-backed helper 内部显式拆开 committed truth 和 confirm edge，而 `MenuTree` 则把 highlight truth 交给 `StructuredMenuSelectionModel`，自己只显式补 `observe_select()` 这条 confirm edge；旧 `set_on_*()` 兼容口不等同于统一 truth/edge 模型。
+  冻结 Vivid widget/helper 表面：`Button::observe_click()` / `MenuItem::observe_click()` / `ListItem::observe_click()` 是边沿 `signal`，`Checkbox / Dropdown / Slider / ProgressBarSimple / Arc` 的 `observe_*()` 是真相 `state`，`DropdownPopup::observe_selected()` 与 `observe_select()` 在 SoA-backed helper 内部显式拆开 committed truth 和 confirm edge，而 `MenuTree` 则把 highlight truth 交给 `StructuredMenuSelectionModel`，自己只显式补 `observe_select()` 这条 confirm edge；其中 disabled item 仍可进入 highlight truth，但不能 open submenu，也不能制造 confirm edge；旧 `set_on_*()` 兼容口不等同于统一 truth/edge 模型。
 
 这些示例加在一起表达的是：
 

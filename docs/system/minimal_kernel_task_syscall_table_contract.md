@@ -235,9 +235,9 @@
 
 如果当前要继续看“静态 handler table 之上，numbered syscall frame 怎样 decode / writeback”，见：
 
-- `docs/system/minimal_kernel_task_syscall_frame_contract.md`（当前存在历史编码损坏，待恢复）
+- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
 
-恢复前建议优先结合：
+建议同时结合：
 
 - `docs/system/minimal_kernel_trap_syscall_contract.md`
 - `docs/system/minimal_kernel_trap_ingress_contract.md`

@@ -1,8 +1,18 @@
-# Audio/Video 中间件：Stream/Pipeline 形状对齐
+# AV 中间件草图：Stream/Pipeline 形状对齐
 
-目的：对标 VSF 的 stream/pipeline 接口形状，把现有 Audio 设计抽象成可复用的 AV 中间件骨架。
+这份文档记录一版基于历史 VSF stream/pipeline 形状对照得到的 AV 中间件草图。
 
-## 1. 分层映射（对标 VSF）
+它更适合用来讨论未来 `media.stream / media.pipeline` 的抽象方向，
+不应直接替代当前音频主线文档。
+
+如果你要看 Charm 当前音频主链路，先读：
+
+- `docs/audio/README.md`
+- `docs/system/charm_audio_architecture.md`
+
+目的：对照 stream/pipeline 接口形状，把现有 Audio 设计抽象成可复用的 AV 中间件骨架。
+
+## 1. 分层映射（历史对照）
 
 ```
 VSF:  stream/source -> filter -> sink

@@ -14,6 +14,10 @@
 > `try_add_device` / `try_add_driver` / `try_add_bus` 这类
 > `util::Result<void>` 风格入口；旧 `add_*` 仍保留为兼容包装。
 >
+> 文末的 VSF 对照段落只保留为历史接口形状参考，
+> 不应被当成当前设备模型的主依据；
+> 当前主结论仍以前文与 `docs/architecture/driver_model.md` 为准。
+>
 > 目前代码里的收敛进度可以简要理解为：
 > - `device::Registry` / `device::System`：已有 `try_dispatch` / `try_match_detected` /
 >   `try_suspend_all` / `try_resume_all` / `try_enumerate_all`
@@ -231,7 +235,7 @@ void register_usb(DeviceSystem& sys) {
 - 新增 `try_*` 入口时，优先使用 `util::Result<T>` + `util::Errc`，
   不要再引入第三套错误返回约定。
 
-## 9. VSF 对照表（接口形状参考）
+## 9. 历史对照（VSF 接口形状参考）
 
 仅参考分层与接口形状，不参考宏体系与实现细节。
 
@@ -243,6 +247,9 @@ void register_usb(DeviceSystem& sys) {
 | Registry | vsf_device_registry | 设备注册与查找 |
 | probe/init/remove | vsf_xxx_init / vsf_xxx_fini | 生命周期钩子 |
 | suspend/resume | vsf_pm 相关 | 电源管理入口 |
+
+这张表的作用只是帮助理解“我们早期借鉴过哪些概念形状”，
+不意味着 Charm 需要回到 VSF 式宏体系或复制其对象模型。
 
 ## 10. 迁移清单（从易到难）
 

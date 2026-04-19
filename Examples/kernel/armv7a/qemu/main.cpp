@@ -7,6 +7,7 @@
 #include "armv7a_memory_probe_sequence.hpp"
 #include "armv7a_platform.hpp"
 #include "armv7a_runtime_bridge.hpp"
+#include "armv7a_runtime_live.hpp"
 #include "armv7a_runtime_loop.hpp"
 #include "armv7a_runtime_trap_frame.hpp"
 #include "armv7a_runtime_trap.hpp"
@@ -110,6 +111,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeLoopIngress);
     armv7a_print_runtime_loop_ingress();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeLoopIngress);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeLive);
+    armv7a_print_runtime_live_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeLive);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallFrame);
     armv7a_print_task_syscall_frame_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallFrame);

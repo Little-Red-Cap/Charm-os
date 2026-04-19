@@ -9,6 +9,7 @@ export module charm.ui.scene;
 export import charm.core.event;
 export import charm.core.geometry;
 export import charm.core.handle;
+import charm.core.structured_view;
 export import charm.core.style;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
@@ -43,8 +44,8 @@ export namespace ui::scene {
     using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewTailFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = soa_detail::ListViewIconFn;
-    using ListViewRowFlagsFn = soa_detail::ListViewRowFlagsFn;
-    constexpr std::uint8_t kListViewRowFlagGroup = soa_detail::kListViewRowFlagGroup;
+    using ListViewRowFlagsFn = StructuredListRowFlagsFn;
+    constexpr std::uint8_t kListViewRowFlagGroup = kStructuredListRowFlagGroup;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
     using TreeViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using RollerTextFn = const char* (*)(const void*, std::uint16_t) noexcept;

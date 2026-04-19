@@ -4,6 +4,7 @@ module;
 export module charm.core.soa_factory;
 
 export import charm.core.soa_kernel;
+import charm.core.structured_view;
 import charm.core.soa_registry;
 import charm.core.soa_payload;
 
@@ -421,7 +422,7 @@ public:
     }
     void set_list_view_row_flags_source(WidgetHandle h,
                                         const void* ctx,
-                                        soa_detail::ListViewRowFlagsFn fn) noexcept {
+                                        StructuredListRowFlagsFn fn) noexcept {
         kernel_.set_list_view_row_flags_source(h, ctx, fn);
     }
     void set_list_view_tail_icon_source(WidgetHandle h,

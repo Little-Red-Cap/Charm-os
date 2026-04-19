@@ -411,15 +411,23 @@ inline rgba decode_pixel(const ImageView& img, int sx, int sy) noexcept {
 inline int scaled_sample_index(int dst_coord,
                                int dst_origin,
                                int dst_extent,
-                               int src_extent) noexcept {
+                               int src_extent,
+                               int src_inset = 0) noexcept {
     if (src_extent <= 1 || dst_extent <= 1) return 0;
+    const int max_inset = (src_extent - 1) / 2;
+    if (src_inset < 0) src_inset = 0;
+    if (src_inset > max_inset) src_inset = max_inset;
+    const int sample_extent = src_extent - src_inset * 2;
+    if (sample_extent <= 0) return src_extent / 2;
     const int local = dst_coord - dst_origin;
     const std::int64_t numerator =
-        static_cast<std::int64_t>(local * 2 + 1) * static_cast<std::int64_t>(src_extent);
+        static_cast<std::int64_t>(local * 2 + 1) * static_cast<std::int64_t>(sample_extent);
     const std::int64_t denominator = static_cast<std::int64_t>(dst_extent) * 2;
-    int sample = static_cast<int>(numerator / denominator);
-    if (sample < 0) return 0;
-    if (sample >= src_extent) return src_extent - 1;
+    int sample = src_inset + static_cast<int>(numerator / denominator);
+    const int min_sample = src_inset;
+    const int max_sample_index = src_extent - 1 - src_inset;
+    if (sample < min_sample) return min_sample;
+    if (sample > max_sample_index) return max_sample_index;
     return sample;
 }
 
@@ -454,7 +462,8 @@ inline void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y, const rgba& src, bo
 inline ImageView make_subview(const ImageView& img, int x, int y, int w, int h) noexcept {
     const int bpp = bytes_per_pixel(img.format);
     const std::byte* data = img.data + y * img.stride_bytes + x * bpp;
-    return make_image_view(img.format, w, h, img.stride_bytes, data, img.premultiplied_alpha, img.force_opaque);
+    return make_image_view(img.format, w, h, img.stride_bytes, data,
+                           img.premultiplied_alpha, img.force_opaque, img.sample_inset_px);
 }
 } // namespace detail
 
@@ -548,7 +557,7 @@ export inline void draw_image_round_rect(CanvasBase& cvs,
                                          int radius) noexcept
 {
     if (!img.data || img.w <= 0 || img.h <= 0) return;
-    const int eff_radius = (radius > 0) ? (radius + 1) : 0;
+    const int eff_radius = (radius > 0) ? radius : 0;
     Rect rect{dst_x, dst_y, img.w, img.h};
     int x0 = rect.x;
     int y0 = rect.y;
@@ -619,10 +628,10 @@ void draw_image_scaled(Canvas<PF, W, H>& cvs,
     if (y1 > static_cast<int>(H)) y1 = static_cast<int>(H);
 
     for (int y = y0; y < y1; ++y) {
-        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h);
+        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h, img.sample_inset_px);
         for (int x = x0; x < x1; ++x) {
             if (!cvs.in_clip(x, y)) continue;
-            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w);
+            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w, img.sample_inset_px);
             const rgba src = detail::decode_pixel(img, sx, sy);
             detail::blend_pixel(cvs, x, y, src, img.premultiplied_alpha);
         }
@@ -645,10 +654,10 @@ export inline void draw_image_scaled(CanvasBase& cvs,
     if (y0 < 0) { y0 = 0; }
 
     for (int y = y0; y < y1; ++y) {
-        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h);
+        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h, img.sample_inset_px);
         for (int x = x0; x < x1; ++x) {
             if (!cvs.in_clip(x, y)) continue;
-            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w);
+            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w, img.sample_inset_px);
             const rgba src = detail::decode_pixel(img, sx, sy);
             detail::blend_pixel(cvs, x, y, src, img.premultiplied_alpha);
         }
@@ -662,7 +671,7 @@ export inline void draw_image_scaled_round_rect(CanvasBase& cvs,
                                                 int radius) noexcept
 {
     if (!img.data || img.w <= 0 || img.h <= 0 || dst_w <= 0 || dst_h <= 0) return;
-    const int eff_radius = (radius > 0) ? (radius + 1) : 0;
+    const int eff_radius = (radius > 0) ? radius : 0;
     Rect rect{dst_x, dst_y, dst_w, dst_h};
     int x0 = rect.x;
     int y0 = rect.y;
@@ -672,12 +681,12 @@ export inline void draw_image_scaled_round_rect(CanvasBase& cvs,
     if (x0 < 0) { x0 = 0; }
     if (y0 < 0) { y0 = 0; }
     for (int y = y0; y < y1; ++y) {
-        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h);
+        const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h, img.sample_inset_px);
         for (int x = x0; x < x1; ++x) {
             if (!cvs.in_clip(x, y)) continue;
             const std::uint8_t mask = detail::round_rect_alpha(x, y, rect, eff_radius);
             if (mask == 0) continue;
-            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w);
+            const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w, img.sample_inset_px);
             const rgba src = detail::decode_pixel(img, sx, sy);
             rgba out = src;
             out.a = static_cast<std::uint8_t>((static_cast<int>(out.a) * mask) / 255);

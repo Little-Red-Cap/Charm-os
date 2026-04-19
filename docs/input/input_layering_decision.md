@@ -3,13 +3,22 @@
 关联总览：
 - `docs/io/io_layering_overview.md`（IO 分层与依赖边界）
 
+这份文档保留“UI/Ink 输入链路刚开始收敛时”的阶段性决策，用来说明为什么输入语义不应整体下沉到 HAL。
+
+如果当前输入实现、IO 契约或驱动模型与本文不同，优先以：
+
+- `docs/io/io_layering_overview.md`
+- `docs/architecture/driver_model.md`
+- 当前代码
+
+为准。
 
 ## 背景
 
 我们正在收敛 `Modules/ui/ink/platform/input/*`，并遇到边界问题：
 “输入模块是否应该归 HAL 管？”
 
-结合当前架构红线（Foundation -> Runtime -> Domains）以及“先耦合再治理”的策略，本文给出一个可落地、低返工的分层方案，并补充 VSF 的 HAL 思路作为参考。
+结合当前架构红线（Foundation -> Runtime -> Domains）以及“先耦合再治理”的策略，本文给出一个可落地、低返工的分层方案，并补充 VSF 的 HAL 思路作为历史参考。
 
 ## 结论（先说答案）
 
@@ -34,9 +43,9 @@
 - 换 UI（Ink <-> Vivid）时 HAL 无法复用
 - 输入策略迭代必须触碰底层，回归成本飙升
 
-## VSF 的 HAL 思路（参考）
+## VSF 的 HAL 思路（历史参考）
 
-从 `Draft/vsf/source/hal/README.md` 和 `Draft/vsf/source/hal/driver/common/template/README.md` 可见，VSF 的 HAL 强调：
+结合 VSF 的 `source/hal` 总览、driver template 约定与本仓库已有的历史对照笔记，可见 VSF 的 HAL 强调：
 
 - 分层结构：
   - `hal/arch`：架构相关底层
@@ -52,7 +61,13 @@
 - 统一接口优先于平台细节：由模板与宏展开确保“调用方式一致”。
 
 - Rust 参考：
-  VSF 在 `Draft/vsf/source/shell/hal/rust-embedded-hal/lib/README.md` 提供了基于 `hal/driver/driver.h` 的 bindgen 流程，表明其 HAL 头文件天然支持 Rust Embedded HAL 风格的绑定。
+  VSF 还提供了基于 `hal/driver/driver.h` 的 Rust Embedded HAL 风格 bindgen 路径，表明其 HAL 头文件天然支持跨语言绑定。
+
+如果需要继续考古具体 VSF 材料，优先从：
+
+- `docs/reference/vsf/README.md`
+
+进入，而不是依赖旧的工作目录路径。
 
 对 Charm 的启示：
 
@@ -114,7 +129,7 @@
 
 这样可复用内核的状态机/调度能力，同时保持 HAL 纯净。
 
-## 立即可执行的 5 件事
+## 立即可执行的 6 件事
 
 1. 新增 `hal_input` 的最小接口（含 Win/Stub 实现）
 2. 新增 `input.service` 作为统一采样入口（使用 `charm.system.clock`）
@@ -123,15 +138,8 @@
 5. `input.queue` 改用 `core/service/service_ring_buffer`（替换使用，不删旧 API）
 6. 给输入链路加 trace 点（中断事件、去抖命中、意图识别结果）
 
-## 协作同步约定（避免并行冲突）
-
-1. 任务开始前检查最近提交：`git log --oneline -n 8`
-2. 改动前确认工作树干净：`git status --short`
-3. 提交前再次检查最新 HEAD，避免基于旧状态继续修改
-4. 出现冲突优先保留你的最新意图，再调整我的改动
-5. 每次交付附上执行过的同步命令，确保可追溯
-
 ---
 
-如果你同意，下一步我可以给出“文件级迁移清单”（精确到每个 `.cppm` 的去留与依赖方向），并按你当前整理的 `Modules/ui/ink/platform/input` 先落第一刀。
+本文只负责回答“输入分层该怎么切”这一层问题。
+如果后续要继续推进落地，建议另写一份文件级迁移清单，把 `.cppm` 去留、依赖方向与验证路径单独列清。
 

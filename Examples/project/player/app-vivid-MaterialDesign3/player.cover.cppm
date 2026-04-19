@@ -44,7 +44,6 @@ export namespace player {
             if (img.width < 3 || img.height < 3 || img.argb.empty()) return;
             constexpr int kOpaqueThreshold = 250;
             constexpr int kCleanupRings = 2;
-            constexpr int kInsetCropRings = 1;
             const auto src = img.argb;
             auto index_of = [&](int x, int y) noexcept -> std::size_t {
                 return static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width)
@@ -61,31 +60,8 @@ export namespace player {
                 img.argb[index_of(dst_x, dst_y)] = sample;
             };
 
-            // Some album covers carry a faint 1px frame that becomes obvious on our clean surfaces.
-            // We softly crop the outer ring inward before the transparent-edge cleanup.
-            for (int ring = 0; ring < kInsetCropRings; ++ring) {
-                const int top_y = ring;
-                const int bottom_y = img.height - 1 - ring;
-                const int left_x = ring;
-                const int right_x = img.width - 1 - ring;
-                if (top_y >= bottom_y || left_x >= right_x) break;
-                const int sample_top_y = std::min(img.height - 1, top_y + 1);
-                const int sample_bottom_y = std::max(0, bottom_y - 1);
-                const int sample_left_x = std::min(img.width - 1, left_x + 1);
-                const int sample_right_x = std::max(0, right_x - 1);
-
-                for (int x = left_x; x <= right_x; ++x) {
-                    const int sample_x = std::clamp(x, sample_left_x, sample_right_x);
-                    set_from(x, top_y, sample_x, sample_top_y, true);
-                    set_from(x, bottom_y, sample_x, sample_bottom_y, true);
-                }
-                for (int y = top_y + 1; y < bottom_y; ++y) {
-                    const int sample_y = std::clamp(y, sample_top_y, sample_bottom_y);
-                    set_from(left_x, y, sample_left_x, sample_y, true);
-                    set_from(right_x, y, sample_right_x, sample_y, true);
-                }
-            }
-
+            // Keep opaque cover borders untouched. We only repair transparent edge pixels so
+            // album art doesn't pick up an artificial inner frame.
             for (int ring = 0; ring < kCleanupRings; ++ring) {
                 const int top_y = ring;
                 const int bottom_y = img.height - 1 - ring;
@@ -125,6 +101,20 @@ export namespace player {
                     set_from(right_x, y, right_src_x, y, false);
                 }
             }
+        }
+
+        bool is_fully_opaque(const CoverImage& img) noexcept {
+            for (const auto px : img.argb) {
+                if ((px >> 24) != 0xFFu) return false;
+            }
+            return true;
+        }
+
+        std::uint8_t cover_sample_inset_px(int w, int h) noexcept {
+            const int min_side = std::min(w, h);
+            if (min_side < 192) return 0;
+            const int inset = std::clamp(min_side / 96, 2, 12);
+            return static_cast<std::uint8_t>(inset);
         }
 
         bool is_flac_path(std::string_view path) noexcept {
@@ -184,7 +174,11 @@ export namespace player {
             out.width = w;
             out.height = h;
             out.path.assign(path_tag.begin(), path_tag.end());
-            normalize_cover_edge_ring(out);
+            // Cover artwork should render from its decoded pixels directly. The old edge-ring
+            // cleanup was introduced as a workaround, but it can leave a visible band on the
+            // straight edges of otherwise normal covers.
+            const bool fully_opaque = is_fully_opaque(out);
+            const auto sample_inset = cover_sample_inset_px(w, h);
             const auto view = make_image_view(
                 PixelFormat::ARGB8888,
                 w,
@@ -192,7 +186,8 @@ export namespace player {
                 w * 4,
                 reinterpret_cast<const std::byte*>(out.argb.data()),
                 false,
-                false);
+                fully_opaque,
+                sample_inset);
             const auto res = ui::gfx::register_image(view);
             out.image_id = res.ok() ? res.id : ui::gfx::invalid_image_id();
             return ui::gfx::image_id_valid(out.image_id);

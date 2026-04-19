@@ -1,8 +1,10 @@
         void refresh_exact_font_styles() noexcept {
             if (!access.valid()) return;
-            const Font& title_font = get_player_font_px(72, FontWeight::Bold);
+            const Font& title_font = get_player_font_px_variant(
+                64, FontWeight::Regular, "wght636_wdth152_ROND50_XTRA520_YOPQ90_YTLC505");
             const Font& library_title_font = get_player_font_px(60, FontWeight::Bold);
-            const Font& subtitle_font = get_player_font_px(18, FontWeight::Regular);
+            const Font& subtitle_font = get_player_font_px_variant(
+                14, FontWeight::Regular, "ROND100");
             auto apply_font = [&](WidgetHandle h, const Font& font) {
                 if (!h) return;
                 StylePatch patch{};

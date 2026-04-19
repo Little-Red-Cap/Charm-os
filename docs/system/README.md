@@ -53,12 +53,8 @@
 - [`minimal_kernel_task_syscall_catalog_contract.md`](minimal_kernel_task_syscall_catalog_contract.md)
 - [`minimal_kernel_task_syscall_dispatch_contract.md`](minimal_kernel_task_syscall_dispatch_contract.md)
 - [`minimal_kernel_task_syscall_table_contract.md`](minimal_kernel_task_syscall_table_contract.md)
+- [`minimal_kernel_task_syscall_frame_contract.md`](minimal_kernel_task_syscall_frame_contract.md)
 - [`minimal_kernel_trap_ingress_contract.md`](minimal_kernel_trap_ingress_contract.md)
-
-补充说明：
-
-- [`minimal_kernel_task_syscall_frame_contract.md`](minimal_kernel_task_syscall_frame_contract.md) 当前存在历史编码损坏，待恢复；在恢复前，不建议把它当成 syscall / trap 主入口。
-- 恢复前请优先以 `table / trap_syscall / trap_ingress / runtime_trap_mapping` 这几篇契约为准。
 
 ### 我在看 POSIX / Linux 用户态兼容
 
@@ -113,6 +109,10 @@
 - System compiler / explain surface：`artifact_report_v0`、`resource_contract_v0`、`explain_surface_v0`、`bringup_evidence_pipeline_v0`
 - SSU：`ssu_*`
 - 专题总览：`power_lowpower_overview.md`、`av_pipeline_overview.md`、`at_system.md`
+
+补充提醒：
+
+- `av_pipeline_overview.md` 更偏 AV 中间件接口草图；如果你是看当前音频主线，优先回到 [`../audio/README.md`](../audio/README.md) 与 [`charm_audio_architecture.md`](charm_audio_architecture.md)。
 
 ## 暂时不要怎么读
 

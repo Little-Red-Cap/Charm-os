@@ -323,7 +323,7 @@ Modules/
 - `docs/system/minimal_kernel_task_syscall_catalog_contract.md`
 - `docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
 - `docs/system/minimal_kernel_task_syscall_table_contract.md`
-- `docs/system/minimal_kernel_task_syscall_frame_contract.md`（当前存在历史编码损坏，待恢复）
+- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
 - `docs/system/minimal_kernel_trap_syscall_contract.md`
 - `docs/system/minimal_kernel_trap_ingress_contract.md`
 - `docs/system/armv7a_runtime_trap_mapping_contract.md`

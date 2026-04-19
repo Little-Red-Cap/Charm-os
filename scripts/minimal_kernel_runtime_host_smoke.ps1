@@ -6,6 +6,7 @@ param(
         "runtime_minimal_host",
         "runtime_binding_chain_host",
         "runtime_bridge_binding_host",
+        "runtime_mailbox_host",
         "runtime_loop_port_host",
         "runtime_run_loop_host",
         "runtime_tick_host",

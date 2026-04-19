@@ -56,7 +56,7 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 - Boot：`docs/boot/README.md`
 - Trace：`docs/trace/README.md`
 - Linux 用户态兼容：`docs/system/posix_support_overview.md`
-- 音频：`docs/system/charm_audio_architecture.md`
+- 音频：`docs/audio/README.md`
 - UI：`docs/ui/README.md`
 - 协作入口：`docs/agent/README.md`
 - 代码审查：`docs/agent/skills/code-review/`

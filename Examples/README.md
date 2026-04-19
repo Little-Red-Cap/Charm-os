@@ -21,6 +21,10 @@
   VFS、BlockFS、FatFs 等存储链路示例。
 - `io/`
   输入、pump、通道等 IO 相关示例。
+- `common/`
+  多个 PC / SDL3 示例共享的宿主侧辅助模块。
+- `cmake/`
+  示例工程共用的 CMake 模板与接线约定。
 - `service/`
   Service 核心能力与信号/状态链路示例。
 - `usb/`
@@ -49,6 +53,12 @@
 - 看音频示例集合：
   [`audio/README.md`](audio/README.md)
 
+- 看系统能力示例集合：
+  [`system/README.md`](system/README.md)
+
+- 看 UI / Vivid 示例集合：
+  [`ui/README.md`](ui/README.md)
+
 - 看项目化示例集合：
   [`project/README.md`](project/README.md)
 
@@ -66,6 +76,18 @@
 
 - 看 Service 示例集合：
   [`service/README.md`](service/README.md)
+
+- 看 Shell / ModuleX 示例集合：
+  [`shell/README.md`](shell/README.md)
+
+- 看 HAL 示例集合：
+  [`hal/README.md`](hal/README.md)
+
+- 看算法示例集合：
+  [`alg/README.md`](alg/README.md)
+
+- 看示例构建模板：
+  [`cmake/README.md`](cmake/README.md)
 
 - 看 FatFs / VFS 示例：
   先回到 [`../docs/storage/fs_fatfs_demo.md`](../docs/storage/fs_fatfs_demo.md)，

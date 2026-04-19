@@ -56,6 +56,16 @@ export namespace net {
         PacketView quoted_packet{};
     };
 
+    struct IcmpErrorQuoteInfo {
+        IcmpType type{IcmpType::time_exceeded};
+        util::u8 code{0};
+        util::u16 checksum{0};
+        util::u32 reserved{0};
+        IpAddress local{};
+        IpAddress peer{};
+        Ipv4PacketView quoted_ipv4{};
+    };
+
     enum class IcmpSendDisposition : util::u8 {
         transmitted,
         queued,
@@ -70,6 +80,11 @@ export namespace net {
 
     template <typename T>
     concept IcmpEchoSink = requires(T& t, const IcmpEchoInfo& info, OwnedPacket packet) {
+        { t.consume(info, static_cast<OwnedPacket&&>(packet)) } noexcept -> std::same_as<Result<void>>;
+    };
+
+    template <typename T>
+    concept IcmpErrorQuoteSink = requires(T& t, const IcmpErrorQuoteInfo& info, OwnedPacket packet) {
         { t.consume(info, static_cast<OwnedPacket&&>(packet)) } noexcept -> std::same_as<Result<void>>;
     };
 
@@ -93,6 +108,26 @@ export namespace net {
         }
     };
 
+    struct IcmpErrorQuoteSinkOps {
+        Result<void> (*consume)(void*, const IcmpErrorQuoteInfo&, OwnedPacket) noexcept;
+    };
+
+    struct IcmpErrorQuoteSinkRef {
+        void* self{nullptr};
+        const IcmpErrorQuoteSinkOps* ops{nullptr};
+
+        [[nodiscard]] constexpr bool valid() const noexcept {
+            return self != nullptr && ops != nullptr && ops->consume != nullptr;
+        }
+
+        [[nodiscard]] Result<void> consume(const IcmpErrorQuoteInfo& info, OwnedPacket packet) const noexcept {
+            if (!valid()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            return ops->consume(self, info, static_cast<OwnedPacket&&>(packet));
+        }
+    };
+
     template <IcmpEchoSink T>
     inline const IcmpEchoSinkOps* icmp_echo_sink_ops() noexcept {
         static const IcmpEchoSinkOps ops{
@@ -106,6 +141,21 @@ export namespace net {
     template <IcmpEchoSink T>
     inline IcmpEchoSinkRef make_icmp_echo_sink_ref(T& sink) noexcept {
         return IcmpEchoSinkRef{&sink, icmp_echo_sink_ops<T>()};
+    }
+
+    template <IcmpErrorQuoteSink T>
+    inline const IcmpErrorQuoteSinkOps* icmp_error_quote_sink_ops() noexcept {
+        static const IcmpErrorQuoteSinkOps ops{
+            .consume = [](void* self, const IcmpErrorQuoteInfo& info, OwnedPacket packet) noexcept {
+                return static_cast<T*>(self)->consume(info, static_cast<OwnedPacket&&>(packet));
+            }
+        };
+        return &ops;
+    }
+
+    template <IcmpErrorQuoteSink T>
+    inline IcmpErrorQuoteSinkRef make_icmp_error_quote_sink_ref(T& sink) noexcept {
+        return IcmpErrorQuoteSinkRef{&sink, icmp_error_quote_sink_ops<T>()};
     }
 
     [[nodiscard]] constexpr util::u8 icmp_type_value(IcmpType type) noexcept {
@@ -238,6 +288,31 @@ export namespace net {
         return decode_icmp_echo(parsed.value());
     }
 
+    [[nodiscard]] constexpr Result<IcmpEchoView> parse_icmp_echo_packet_prefix(
+        PacketView packet) noexcept {
+        if (packet.size() < icmp_echo_header_size()) {
+            return util::unexpected(errc::invalid_format);
+        }
+
+        const auto type = static_cast<IcmpType>(packet[0]);
+        if (type != IcmpType::echo_request
+            && type != IcmpType::echo_reply) {
+            return util::unexpected(errc::not_supported);
+        }
+        if (packet[1] != 0u) {
+            return util::unexpected(errc::invalid_format);
+        }
+
+        return Result<IcmpEchoView>{std::in_place, IcmpEchoView{
+            .type = type,
+            .code = packet[1],
+            .checksum = icmp_detail::load_be16(packet, 2),
+            .identifier = icmp_detail::load_be16(packet, 4),
+            .sequence = icmp_detail::load_be16(packet, 6),
+            .payload = packet.subspan(icmp_echo_header_size()),
+        }};
+    }
+
     [[nodiscard]] constexpr Result<IcmpErrorQuoteView> decode_icmp_error_quote(
         const IcmpPacketView& packet) noexcept {
         const auto type = static_cast<IcmpType>(packet.type);
@@ -272,6 +347,26 @@ export namespace net {
             return util::unexpected(parsed.error());
         }
         return decode_icmp_error_quote(parsed.value());
+    }
+
+    [[nodiscard]] constexpr Result<IcmpEchoInfo> parse_icmp_error_quote_echo_info(
+        const IcmpErrorQuoteInfo& info) noexcept {
+        if (info.quoted_ipv4.protocol != Ipv4Protocol::icmp) {
+            return util::unexpected(errc::not_supported);
+        }
+
+        const auto quoted_echo = parse_icmp_echo_packet_prefix(info.quoted_ipv4.payload);
+        if (!quoted_echo) {
+            return util::unexpected(quoted_echo.error());
+        }
+
+        return Result<IcmpEchoInfo>{std::in_place, IcmpEchoInfo{
+            .type = quoted_echo.value().type,
+            .local = info.quoted_ipv4.source,
+            .peer = info.quoted_ipv4.destination,
+            .identifier = quoted_echo.value().identifier,
+            .sequence = quoted_echo.value().sequence,
+        }};
     }
 
     template <util::usize Capacity>
@@ -959,6 +1054,19 @@ export namespace net {
             return sink_.valid();
         }
 
+        void set_error_quote_sink(IcmpErrorQuoteSinkRef sink) noexcept {
+            error_quote_sink_ = sink;
+        }
+
+        template <IcmpErrorQuoteSink T>
+        void set_error_quote_sink(T& sink) noexcept {
+            set_error_quote_sink(make_icmp_error_quote_sink_ref(sink));
+        }
+
+        [[nodiscard]] bool has_error_quote_sink() const noexcept {
+            return error_quote_sink_.valid();
+        }
+
         [[nodiscard]] util::usize packet_count() const noexcept {
             return packet_count_;
         }
@@ -971,6 +1079,18 @@ export namespace net {
             return reply_count_;
         }
 
+        [[nodiscard]] util::usize error_quote_count() const noexcept {
+            return error_quote_count_;
+        }
+
+        [[nodiscard]] util::usize time_exceeded_count() const noexcept {
+            return time_exceeded_count_;
+        }
+
+        [[nodiscard]] util::usize destination_unreachable_count() const noexcept {
+            return destination_unreachable_count_;
+        }
+
         [[nodiscard]] util::usize drop_count() const noexcept {
             return drop_count_;
         }
@@ -981,13 +1101,24 @@ export namespace net {
                 return util::unexpected(parsed.error());
             }
 
-            if (parsed.value().type != icmp_type_value(IcmpType::echo_request)
-                && parsed.value().type != icmp_type_value(IcmpType::echo_reply)) {
-                ++drop_count_;
-                return {};
+            const auto type = static_cast<IcmpType>(parsed.value().type);
+            if (type == IcmpType::echo_request
+                || type == IcmpType::echo_reply) {
+                return consume_echo(ipv4, parsed.value(), static_cast<OwnedPacket&&>(packet));
+            }
+            if (icmp_detail::is_error_quote_type(type)) {
+                return consume_error_quote(ipv4, parsed.value(), static_cast<OwnedPacket&&>(packet));
             }
 
-            const auto echo = decode_icmp_echo(parsed.value());
+            ++drop_count_;
+            return {};
+        }
+
+    private:
+        [[nodiscard]] Result<void> consume_echo(const Ipv4PacketView& ipv4,
+                                                const IcmpPacketView& parsed,
+                                                OwnedPacket packet) noexcept {
+            const auto echo = decode_icmp_echo(parsed);
             if (!echo) {
                 return util::unexpected(echo.error());
             }
@@ -1031,11 +1162,58 @@ export namespace net {
                 static_cast<OwnedPacket&&>(packet));
         }
 
-    private:
+        [[nodiscard]] Result<void> consume_error_quote(const Ipv4PacketView& ipv4,
+                                                       const IcmpPacketView& parsed,
+                                                       OwnedPacket packet) noexcept {
+            const auto error_quote = decode_icmp_error_quote(parsed);
+            if (!error_quote) {
+                return util::unexpected(error_quote.error());
+            }
+
+            auto trimmed_front = packet.trim_front(icmp_error_quote_header_size());
+            if (!trimmed_front) {
+                return util::unexpected(trimmed_front.error());
+            }
+
+            const auto quoted_ipv4 = parse_ipv4_packet_prefix(packet.view());
+            if (!quoted_ipv4) {
+                return util::unexpected(quoted_ipv4.error());
+            }
+
+            if (!error_quote_sink_.valid()) {
+                ++drop_count_;
+                return {};
+            }
+
+            ++packet_count_;
+            ++error_quote_count_;
+            if (error_quote.value().type == IcmpType::time_exceeded) {
+                ++time_exceeded_count_;
+            } else if (error_quote.value().type == IcmpType::destination_unreachable) {
+                ++destination_unreachable_count_;
+            }
+
+            return error_quote_sink_.consume(
+                IcmpErrorQuoteInfo{
+                    .type = error_quote.value().type,
+                    .code = error_quote.value().code,
+                    .checksum = error_quote.value().checksum,
+                    .reserved = error_quote.value().reserved,
+                    .local = ipv4.destination,
+                    .peer = ipv4.source,
+                    .quoted_ipv4 = quoted_ipv4.value(),
+                },
+                static_cast<OwnedPacket&&>(packet));
+        }
+
         IcmpEchoSinkRef sink_{};
+        IcmpErrorQuoteSinkRef error_quote_sink_{};
         util::usize packet_count_{0};
         util::usize request_count_{0};
         util::usize reply_count_{0};
+        util::usize error_quote_count_{0};
+        util::usize time_exceeded_count_{0};
+        util::usize destination_unreachable_count_{0};
         util::usize drop_count_{0};
     };
 }

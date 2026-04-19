@@ -227,6 +227,9 @@ export namespace net {
         util::usize icmp_dropped{0};
         util::usize icmp_requests{0};
         util::usize icmp_replies{0};
+        util::usize icmp_error_quotes{0};
+        util::usize icmp_time_exceeded{0};
+        util::usize icmp_destination_unreachable{0};
         util::usize arp_retried{0};
         util::usize arp_timed_out{0};
         util::usize egress_flushed{0};
@@ -335,8 +338,21 @@ export namespace net {
             icmp_.set_sink(sink);
         }
 
+        void set_error_quote_sink(IcmpErrorQuoteSinkRef sink) noexcept {
+            icmp_.set_error_quote_sink(sink);
+        }
+
+        template <IcmpErrorQuoteSink T>
+        void set_error_quote_sink(T& sink) noexcept {
+            icmp_.set_error_quote_sink(sink);
+        }
+
         [[nodiscard]] bool has_echo_sink() const noexcept {
             return icmp_.has_sink();
+        }
+
+        [[nodiscard]] bool has_error_quote_sink() const noexcept {
+            return icmp_.has_error_quote_sink();
         }
 
         [[nodiscard]] util::usize pending_count() const noexcept {
@@ -425,6 +441,9 @@ export namespace net {
             const auto icmp_drops_before = icmp_.drop_count();
             const auto icmp_requests_before = icmp_.request_count();
             const auto icmp_replies_before = icmp_.reply_count();
+            const auto icmp_error_quotes_before = icmp_.error_quote_count();
+            const auto icmp_time_exceeded_before = icmp_.time_exceeded_count();
+            const auto icmp_destination_unreachable_before = icmp_.destination_unreachable_count();
 
             auto progress = egress_.service(elapsed_ticks);
             if (!progress) {
@@ -439,6 +458,10 @@ export namespace net {
                 .icmp_dropped = icmp_.drop_count() - icmp_drops_before,
                 .icmp_requests = icmp_.request_count() - icmp_requests_before,
                 .icmp_replies = icmp_.reply_count() - icmp_replies_before,
+                .icmp_error_quotes = icmp_.error_quote_count() - icmp_error_quotes_before,
+                .icmp_time_exceeded = icmp_.time_exceeded_count() - icmp_time_exceeded_before,
+                .icmp_destination_unreachable =
+                    icmp_.destination_unreachable_count() - icmp_destination_unreachable_before,
                 .arp_retried = progress.value().arp_retried,
                 .arp_timed_out = progress.value().arp_timed_out,
                 .egress_flushed = progress.value().flushed,

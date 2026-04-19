@@ -406,4 +406,12 @@
 - `net.ipv4` 已补上 IPv4 前缀解析能力，可解析 ICMP 引用报文中“不完整但头部合法”的原始 IPv4 片段。
 - `net.icmp` 已补上 `time_exceeded / destination_unreachable` 这类 error quote 的最小编解码能力。
 - `net_icmp_smoke` 现可验证 `ICMP Time Exceeded + quoted IPv4 prefix` 的解析，这一步是 traceroute 控制面的直接前置能力。
-- 当前 `IcmpEchoService` 仍保持 echo-only；error quote 已进入 codec 能力面，但尚未进入更高层 pump / client 语义面。
+- 当前 `IcmpEchoService` 已同时支持 echo 与 error quote 分发；`IcmpStackPump` / `bind_icmp_protocol()` 已把这条控制面接到更高层协议语义面。
+
+## traceroute 风格闭环（2026-04-20）
+
+- 已新增 `Modules/io/net/net.protocol.trace_icmp.cppm`，提供最小 `net::icmp::trace::Probe` 协议面：可发带 TTL 的 ICMP echo probe，并统一收敛 `time_exceeded / destination_unreachable / echo_reply / timeout` 结果。
+- `net.icmp` 已新增 `IcmpErrorQuoteSink`、`parse_icmp_echo_packet_prefix()` 与 `parse_icmp_error_quote_echo_info()`，把 quoted echo 重新关联回原始 probe。
+- `net.icmp_protocol_binding` 已扩成同时支持 echo sink / error quote sink / full send trampoline；`IcmpStackPump` 也已补上 `set_error_quote_sink()` 与对应统计出口。
+- 已新增 `Examples/io/net/net_lab_trace_smoke`，用脚本化多跳 peer 覆盖“TTL=1 -> hop1 time exceeded、TTL=2 -> hop2 time exceeded、终点 destination unreachable、终点 echo reply、静默 timeout、恢复后再次 reach”这条 traceroute 风格控制面闭环。
+- 这一步的意义是：在路由 / 转发数据面尚未完全展开前，先把 traceroute 所需的 ICMP 控制面观测、匹配与实验回归链路打通。

@@ -400,3 +400,10 @@
 - `net::lab::StackNode<Pump>` 收口 `NetIf / NetDriver / Stack / Pump` 的宿主节点装配，减少每个 smoke 重复搭线。
 - `Examples/io/net/net_lab_smoke` 现覆盖“延迟链路 ICMP 往返 + 丢弃回复触发 timeout + 一次性故障恢复”这一条实验场闭环。
 - 这条线的目标不是立刻扩 API，而是先把后续 traceroute、故障注入、协议回放所需的试验底座搭稳。
+
+## ICMP 控制面前置（2026-04-20）
+
+- `net.ipv4` 已补上 IPv4 前缀解析能力，可解析 ICMP 引用报文中“不完整但头部合法”的原始 IPv4 片段。
+- `net.icmp` 已补上 `time_exceeded / destination_unreachable` 这类 error quote 的最小编解码能力。
+- `net_icmp_smoke` 现可验证 `ICMP Time Exceeded + quoted IPv4 prefix` 的解析，这一步是 traceroute 控制面的直接前置能力。
+- 当前 `IcmpEchoService` 仍保持 echo-only；error quote 已进入 codec 能力面，但尚未进入更高层 pump / client 语义面。

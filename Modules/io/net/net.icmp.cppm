@@ -18,7 +18,9 @@ import util.expected;
 export namespace net {
     enum class IcmpType : util::u8 {
         echo_reply = 0u,
+        destination_unreachable = 3u,
         echo_request = 8u,
+        time_exceeded = 11u,
     };
 
     struct IcmpPacketView {
@@ -43,6 +45,15 @@ export namespace net {
         IpAddress peer{};
         util::u16 identifier{0};
         util::u16 sequence{0};
+    };
+
+    struct IcmpErrorQuoteView {
+        IcmpType type{IcmpType::time_exceeded};
+        util::u8 code{0};
+        util::u16 checksum{0};
+        util::u32 reserved{0};
+        Ipv4PacketView quoted_ipv4{};
+        PacketView quoted_packet{};
     };
 
     enum class IcmpSendDisposition : util::u8 {
@@ -109,6 +120,10 @@ export namespace net {
         return 8u;
     }
 
+    [[nodiscard]] constexpr util::usize icmp_error_quote_header_size() noexcept {
+        return 8u;
+    }
+
     namespace icmp_detail {
         [[nodiscard]] constexpr util::u16 load_be16(PacketView packet, util::usize offset) noexcept {
             return static_cast<util::u16>(
@@ -116,9 +131,23 @@ export namespace net {
                 | static_cast<util::u16>(packet[offset + 1]));
         }
 
+        [[nodiscard]] constexpr util::u32 load_be32(PacketView packet, util::usize offset) noexcept {
+            return (static_cast<util::u32>(packet[offset]) << 24)
+                | (static_cast<util::u32>(packet[offset + 1]) << 16)
+                | (static_cast<util::u32>(packet[offset + 2]) << 8)
+                | static_cast<util::u32>(packet[offset + 3]);
+        }
+
         constexpr void store_be16(util::u8* out, util::u16 value) noexcept {
             out[0] = static_cast<util::u8>((value >> 8) & 0xFFu);
             out[1] = static_cast<util::u8>(value & 0xFFu);
+        }
+
+        constexpr void store_be32(util::u8* out, util::u32 value) noexcept {
+            out[0] = static_cast<util::u8>((value >> 24) & 0xFFu);
+            out[1] = static_cast<util::u8>((value >> 16) & 0xFFu);
+            out[2] = static_cast<util::u8>((value >> 8) & 0xFFu);
+            out[3] = static_cast<util::u8>(value & 0xFFu);
         }
 
         [[nodiscard]] constexpr util::u32 accumulate_checksum(util::u32 sum, ByteView bytes) noexcept {
@@ -156,6 +185,11 @@ export namespace net {
                 return util::unexpected(errc::invalid_arg);
             }
             return Result<IpAddress>{std::in_place, local};
+        }
+
+        [[nodiscard]] constexpr bool is_error_quote_type(IcmpType type) noexcept {
+            return type == IcmpType::destination_unreachable
+                || type == IcmpType::time_exceeded;
         }
     }
 
@@ -202,6 +236,42 @@ export namespace net {
             return util::unexpected(parsed.error());
         }
         return decode_icmp_echo(parsed.value());
+    }
+
+    [[nodiscard]] constexpr Result<IcmpErrorQuoteView> decode_icmp_error_quote(
+        const IcmpPacketView& packet) noexcept {
+        const auto type = static_cast<IcmpType>(packet.type);
+        if (!icmp_detail::is_error_quote_type(type)) {
+            return util::unexpected(errc::not_supported);
+        }
+        if (packet.payload.size() < (icmp_error_quote_header_size() - icmp_common_header_size())
+                + ipv4_min_header_size()) {
+            return util::unexpected(errc::invalid_format);
+        }
+
+        const auto quoted_packet = packet.payload.subspan(4);
+        const auto quoted_ipv4 = parse_ipv4_packet_prefix(quoted_packet);
+        if (!quoted_ipv4) {
+            return util::unexpected(quoted_ipv4.error());
+        }
+
+        return Result<IcmpErrorQuoteView>{std::in_place, IcmpErrorQuoteView{
+            .type = type,
+            .code = packet.code,
+            .checksum = packet.checksum,
+            .reserved = icmp_detail::load_be32(packet.payload, 0),
+            .quoted_ipv4 = quoted_ipv4.value(),
+            .quoted_packet = quoted_packet,
+        }};
+    }
+
+    [[nodiscard]] constexpr Result<IcmpErrorQuoteView> parse_icmp_error_quote_packet(
+        PacketView packet) noexcept {
+        const auto parsed = parse_icmp_packet(packet);
+        if (!parsed) {
+            return util::unexpected(parsed.error());
+        }
+        return decode_icmp_error_quote(parsed.value());
     }
 
     template <util::usize Capacity>
@@ -283,6 +353,73 @@ export namespace net {
         }
 
         return prepend_icmp_echo_header(packet, type, identifier, sequence);
+    }
+
+    template <util::usize Capacity>
+    [[nodiscard]] Result<void> write_icmp_error_quote_packet(PacketBuffer<Capacity>& packet,
+                                                             IcmpType type,
+                                                             util::u8 code,
+                                                             util::u32 reserved,
+                                                             ByteView quoted_packet) noexcept {
+        if (!icmp_detail::is_error_quote_type(type)) {
+            return util::unexpected(errc::invalid_arg);
+        }
+        if ((icmp_error_quote_header_size() + quoted_packet.size()) > Capacity) {
+            return util::unexpected(errc::buffer_overflow);
+        }
+
+        auto reset = packet.reset();
+        if (!reset) {
+            return util::unexpected(reset.error());
+        }
+
+        std::array<util::u8, icmp_error_quote_header_size()> header{};
+        header[0] = icmp_type_value(type);
+        header[1] = code;
+        icmp_detail::store_be32(header.data() + 4, reserved);
+
+        auto appended_header = packet.append(ByteView{header.data(), header.size()});
+        if (!appended_header) {
+            return util::unexpected(appended_header.error());
+        }
+
+        auto appended_quote = packet.append(quoted_packet);
+        if (!appended_quote) {
+            return util::unexpected(appended_quote.error());
+        }
+
+        auto checksum = icmp_detail::compute_icmp_checksum(packet.view());
+        if (checksum == 0u) {
+            checksum = 0xFFFFu;
+        }
+        auto out = packet.mut_view();
+        icmp_detail::store_be16(out.data() + 2, checksum);
+        return {};
+    }
+
+    template <util::usize Capacity>
+    [[nodiscard]] Result<void> write_icmp_time_exceeded_packet(PacketBuffer<Capacity>& packet,
+                                                               util::u8 code,
+                                                               ByteView quoted_packet) noexcept {
+        return write_icmp_error_quote_packet(
+            packet,
+            IcmpType::time_exceeded,
+            code,
+            0u,
+            quoted_packet);
+    }
+
+    template <util::usize Capacity>
+    [[nodiscard]] Result<void> write_icmp_destination_unreachable_packet(
+        PacketBuffer<Capacity>& packet,
+        util::u8 code,
+        ByteView quoted_packet) noexcept {
+        return write_icmp_error_quote_packet(
+            packet,
+            IcmpType::destination_unreachable,
+            code,
+            0u,
+            quoted_packet);
     }
 
     template <util::usize Capacity>

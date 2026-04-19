@@ -155,7 +155,7 @@ export namespace net {
         }
     }
 
-    [[nodiscard]] constexpr Result<Ipv4PacketView> parse_ipv4_packet(PacketView packet) noexcept {
+    [[nodiscard]] constexpr Result<Ipv4PacketView> parse_ipv4_packet_prefix(PacketView packet) noexcept {
         if (packet.size() < ipv4_min_header_size()) {
             return util::unexpected(errc::invalid_format);
         }
@@ -172,7 +172,7 @@ export namespace net {
         }
 
         const auto total_length = detail::load_be16(packet, 2);
-        if (total_length < header_length || total_length > packet.size()) {
+        if (total_length < header_length) {
             return util::unexpected(errc::invalid_format);
         }
 
@@ -203,8 +203,23 @@ export namespace net {
             .source = IpAddress::ipv4(packet[12], packet[13], packet[14], packet[15]),
             .destination = IpAddress::ipv4(packet[16], packet[17], packet[18], packet[19]),
             .options = packet.subspan(ipv4_min_header_size(), header_length - ipv4_min_header_size()),
-            .payload = packet.subspan(header_length, total_length - header_length),
+            .payload = packet.subspan(header_length),
         }};
+    }
+
+    [[nodiscard]] constexpr Result<Ipv4PacketView> parse_ipv4_packet(PacketView packet) noexcept {
+        const auto parsed = parse_ipv4_packet_prefix(packet);
+        if (!parsed) {
+            return util::unexpected(parsed.error());
+        }
+
+        if (parsed.value().total_length > packet.size()) {
+            return util::unexpected(errc::invalid_format);
+        }
+
+        auto full = parsed.value();
+        full.payload = packet.subspan(full.header_length, full.total_length - full.header_length);
+        return Result<Ipv4PacketView>{std::in_place, full};
     }
 
     template <util::usize Capacity>

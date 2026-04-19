@@ -88,7 +88,7 @@
 - 最小内核 task syscall catalog 契约：`docs/system/minimal_kernel_task_syscall_catalog_contract.md`
 - 最小内核 task syscall dispatch 契约：`docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
 - 最小内核 task syscall table 契约：`docs/system/minimal_kernel_task_syscall_table_contract.md`
-- 最小内核 task syscall frame 契约：`docs/system/minimal_kernel_task_syscall_frame_contract.md`
+- 最小内核 task syscall frame 契约：`docs/system/minimal_kernel_task_syscall_frame_contract.md`（当前存在历史编码损坏，待恢复，不作为首选入口）
 - 最小内核 trap/syscall 契约：`docs/system/minimal_kernel_trap_syscall_contract.md`
 - 最小内核 trap ingress adapter 契约：`docs/system/minimal_kernel_trap_ingress_contract.md`
 - ARMv7-A SVC 到 trap frame 映射证据：`docs/system/armv7a_runtime_trap_mapping_contract.md`
@@ -160,7 +160,7 @@ flowchart TD
 | 推进最小 syscall 编号 / catalog / trap 映射 | `docs/system/minimal_kernel_task_syscall_catalog_contract.md` → `docs/system/minimal_kernel_task_syscall_api_contract.md` |
 | 推进最小 syscall request / dispatch bridge | `docs/system/minimal_kernel_task_syscall_dispatch_contract.md` → `docs/system/minimal_kernel_task_syscall_catalog_contract.md` |
 | 推进最小静态 syscall handler table | `docs/system/minimal_kernel_task_syscall_table_contract.md` → `docs/system/minimal_kernel_task_syscall_dispatch_contract.md` |
-| 推进最小 numbered syscall frame bridge | `docs/system/minimal_kernel_task_syscall_frame_contract.md` → `docs/system/minimal_kernel_task_syscall_table_contract.md` |
+| 推进最小 numbered syscall frame bridge | 恢复前先读 `docs/system/minimal_kernel_task_syscall_table_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` → `docs/system/minimal_kernel_trap_ingress_contract.md` |
 | 推进最小 trap / syscall 边界 | `docs/system/minimal_kernel_trap_syscall_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 推进 trap frame / ingress adapter 边界 | `docs/system/minimal_kernel_trap_ingress_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` |
 | 推进 ARMv7-A SVC / trap frame 映射验证 | `docs/system/armv7a_runtime_trap_mapping_contract.md` → `docs/system/minimal_kernel_trap_ingress_contract.md` |
@@ -288,7 +288,7 @@ docs/
 - `docs/system/minimal_kernel_task_syscall_catalog_contract.md`
 - `docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
 - `docs/system/minimal_kernel_task_syscall_table_contract.md`
-- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
+- `docs/system/minimal_kernel_task_syscall_frame_contract.md`（当前存在历史编码损坏，待恢复）
 - `docs/system/minimal_kernel_trap_syscall_contract.md`
 - `docs/system/minimal_kernel_trap_ingress_contract.md`
 - `docs/system/armv7a_runtime_trap_mapping_contract.md`
@@ -325,6 +325,8 @@ docs/
 - `docs/reference/vsf/vsf_storage_map.md`
 - `docs/reference/vsf/vsf_tcpip_map.md`
 - `docs/reference/vsf/vsf_usb_map.md`
+
+说明：VSF 相关条目主要保留为早期历史参考，不再默认充当当前架构输入入口。
 
 ### Benchmark / 性能记录
 - `docs/benchmarks/README.md`

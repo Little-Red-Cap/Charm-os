@@ -4,6 +4,7 @@ export import io.channel;
 export import io.reactor;
 
 export import net.common;
+export import net.forward;
 export import net.icmp;
 export import net.icmp_protocol_binding;
 export import net.lab;

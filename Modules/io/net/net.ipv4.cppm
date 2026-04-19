@@ -5,6 +5,8 @@ module;
 
 export module net.ipv4;
 
+import net.arp;
+import net.ether;
 import net.netif;
 import net.packet;
 import util.core;
@@ -112,7 +114,7 @@ export namespace net {
         return static_cast<util::u8>(protocol);
     }
 
-    namespace detail {
+    namespace ipv4_detail {
         [[nodiscard]] constexpr util::u16 load_be16(PacketView packet, util::usize offset) noexcept {
             return static_cast<util::u16>(
                 (static_cast<util::u16>(packet[offset]) << 8)
@@ -171,12 +173,12 @@ export namespace net {
             return util::unexpected(errc::invalid_format);
         }
 
-        const auto total_length = detail::load_be16(packet, 2);
+        const auto total_length = ipv4_detail::load_be16(packet, 2);
         if (total_length < header_length) {
             return util::unexpected(errc::invalid_format);
         }
 
-        const auto flags_fragment = detail::load_be16(packet, 6);
+        const auto flags_fragment = ipv4_detail::load_be16(packet, 6);
         if ((flags_fragment & 0x8000u) != 0u) {
             return util::unexpected(errc::invalid_format);
         }
@@ -185,8 +187,8 @@ export namespace net {
         }
 
         const auto header = packet.subspan(0, header_length);
-        const auto expected_checksum = detail::compute_header_checksum(header);
-        const auto actual_checksum = detail::load_be16(header, 10);
+        const auto expected_checksum = ipv4_detail::compute_header_checksum(header);
+        const auto actual_checksum = ipv4_detail::load_be16(header, 10);
         if (actual_checksum != expected_checksum) {
             return util::unexpected(errc::invalid_format);
         }
@@ -195,7 +197,7 @@ export namespace net {
             .dscp_ecn = packet[1],
             .header_length = static_cast<util::u8>(header_length),
             .total_length = total_length,
-            .identification = detail::load_be16(packet, 4),
+            .identification = ipv4_detail::load_be16(packet, 4),
             .flags_fragment = flags_fragment,
             .ttl = packet[8],
             .protocol = static_cast<Ipv4Protocol>(packet[9]),
@@ -254,9 +256,9 @@ export namespace net {
         std::array<util::u8, ipv4_max_header_size()> header{};
         header[0] = static_cast<util::u8>((ipv4_version() << 4) | (header_length / 4u));
         header[1] = spec.dscp_ecn;
-        detail::store_be16(header.data() + 2, static_cast<util::u16>(total_length));
-        detail::store_be16(header.data() + 4, spec.identification);
-        detail::store_be16(header.data() + 6, spec.flags_fragment);
+        ipv4_detail::store_be16(header.data() + 2, static_cast<util::u16>(total_length));
+        ipv4_detail::store_be16(header.data() + 4, spec.identification);
+        ipv4_detail::store_be16(header.data() + 6, spec.flags_fragment);
         header[8] = spec.ttl;
         header[9] = ipv4_protocol_value(spec.protocol);
         for (util::usize i = 0; i < 4; ++i) {
@@ -267,12 +269,12 @@ export namespace net {
             header[ipv4_min_header_size() + i] = spec.options[i];
         }
 
-        const auto checksum = detail::compute_header_checksum(PacketView{
+        const auto checksum = ipv4_detail::compute_header_checksum(PacketView{
             ByteView{header.data(), header_length},
             0,
             0
         });
-        detail::store_be16(header.data() + 10, checksum);
+        ipv4_detail::store_be16(header.data() + 10, checksum);
         return packet.prepend(ByteView{header.data(), header_length});
     }
 
@@ -291,6 +293,373 @@ export namespace net {
         }
         return prepend_ipv4_header(packet, spec);
     }
+
+    enum class Ipv4SendDisposition : util::u8 {
+        transmitted,
+        queued,
+    };
+
+    struct Ipv4EgressProgress {
+        util::usize arp_retried{0};
+        util::usize arp_timed_out{0};
+        util::usize flushed{0};
+        util::usize dropped{0};
+    };
+
+    [[nodiscard]] Result<void> rewrite_ipv4_ttl(MutPacketView packet,
+                                                util::u8 ttl) noexcept {
+        if (ttl == 0u) {
+            return util::unexpected(errc::invalid_arg);
+        }
+
+        const auto parsed = parse_ipv4_packet_prefix(packet);
+        if (!parsed) {
+            return util::unexpected(parsed.error());
+        }
+        if (parsed.value().total_length > packet.size()) {
+            return util::unexpected(errc::invalid_format);
+        }
+
+        auto header = packet.subspan(0, parsed.value().header_length);
+        header[8] = ttl;
+        header[10] = 0u;
+        header[11] = 0u;
+
+        const auto checksum = ipv4_detail::compute_header_checksum(static_cast<PacketView>(header));
+        ipv4_detail::store_be16(header.data() + 10, checksum);
+        return {};
+    }
+
+    namespace ipv4_detail {
+        [[nodiscard]] Result<IpAddress> normalize_ipv4_egress_target(
+            const Ipv4PacketView& packet,
+            IpAddress next_hop) noexcept {
+            if (next_hop.is_unspecified() || next_hop.is_any()) {
+                next_hop = packet.destination;
+            }
+            if (!next_hop.is_ipv4() || next_hop.is_any()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            return Result<IpAddress>{std::in_place, next_hop};
+        }
+    }
+
+    template <util::usize TxCapacity>
+    [[nodiscard]] Result<void> send_ipv4_datagram_resolved(NetIf& netif,
+                                                           MacAddress peer_mac,
+                                                           ByteView packet) noexcept {
+        const auto parsed = parse_ipv4_packet(PacketView{packet, 0, 0});
+        if (!parsed) {
+            return util::unexpected(parsed.error());
+        }
+
+        PacketBuffer<TxCapacity> frame{};
+        auto reset = frame.reset(ether_header_size());
+        if (!reset) {
+            return util::unexpected(reset.error());
+        }
+
+        auto appended_ipv4 = frame.append(packet.subspan(0, parsed.value().total_length));
+        if (!appended_ipv4) {
+            return util::unexpected(appended_ipv4.error());
+        }
+
+        auto prepended_ether = prepend_ether_header(
+            frame,
+            peer_mac,
+            netif.mac(),
+            EtherType::ipv4);
+        if (!prepended_ether) {
+            return util::unexpected(prepended_ether.error());
+        }
+
+        return netif.transmit(frame.view());
+    }
+
+    template <util::usize TxCapacity, util::usize ArpCapacity>
+    [[nodiscard]] Result<void> send_ipv4_datagram(NetIf& netif,
+                                                  const ArpTable<ArpCapacity>& arp,
+                                                  ByteView packet,
+                                                  IpAddress next_hop = {}) noexcept {
+        const auto parsed = parse_ipv4_packet(PacketView{packet, 0, 0});
+        if (!parsed) {
+            return util::unexpected(parsed.error());
+        }
+
+        const auto target = ipv4_detail::normalize_ipv4_egress_target(parsed.value(), next_hop);
+        if (!target) {
+            return util::unexpected(target.error());
+        }
+
+        if (target.value().is_ipv4_limited_broadcast()) {
+            if (!netif.supports(NetIfCapability::broadcast)) {
+                return util::unexpected(errc::not_supported);
+            }
+            return send_ipv4_datagram_resolved<TxCapacity>(
+                netif,
+                MacAddress::broadcast(),
+                packet.subspan(0, parsed.value().total_length));
+        }
+
+        const auto resolved = arp.lookup(target.value());
+        if (!resolved) {
+            return util::unexpected(resolved.error());
+        }
+
+        return send_ipv4_datagram_resolved<TxCapacity>(
+            netif,
+            resolved.value(),
+            packet.subspan(0, parsed.value().total_length));
+    }
+
+    template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+    [[nodiscard]] Result<void> send_ipv4_datagram(NetIf& netif,
+                                                  ArpService<ArpCapacity, ArpTxCapacity>& arp,
+                                                  ByteView packet,
+                                                  IpAddress next_hop = {}) noexcept {
+        const auto parsed = parse_ipv4_packet(PacketView{packet, 0, 0});
+        if (!parsed) {
+            return util::unexpected(parsed.error());
+        }
+
+        const auto target = ipv4_detail::normalize_ipv4_egress_target(parsed.value(), next_hop);
+        if (!target) {
+            return util::unexpected(target.error());
+        }
+
+        if (target.value().is_ipv4_limited_broadcast()) {
+            if (!netif.supports(NetIfCapability::broadcast)) {
+                return util::unexpected(errc::not_supported);
+            }
+            return send_ipv4_datagram_resolved<TxCapacity>(
+                netif,
+                MacAddress::broadcast(),
+                packet.subspan(0, parsed.value().total_length));
+        }
+
+        const auto resolved = arp.lookup_or_request(target.value());
+        if (!resolved) {
+            return util::unexpected(resolved.error());
+        }
+
+        return send_ipv4_datagram_resolved<TxCapacity>(
+            netif,
+            resolved.value(),
+            packet.subspan(0, parsed.value().total_length));
+    }
+
+    template <util::usize TxCapacity>
+    [[nodiscard]] Result<void> send_ipv4_resolved(NetIf& netif,
+                                                  MacAddress peer_mac,
+                                                  const Ipv4PacketSpec& spec,
+                                                  ByteView payload) noexcept {
+        PacketBuffer<TxCapacity> packet{};
+        auto encoded = write_ipv4_packet(packet, spec, payload);
+        if (!encoded) {
+            return util::unexpected(encoded.error());
+        }
+        return send_ipv4_datagram_resolved<TxCapacity>(netif, peer_mac, packet.view().payload);
+    }
+
+    template <util::usize TxCapacity, util::usize ArpCapacity>
+    [[nodiscard]] Result<void> send_ipv4(NetIf& netif,
+                                         const ArpTable<ArpCapacity>& arp,
+                                         const Ipv4PacketSpec& spec,
+                                         ByteView payload,
+                                         IpAddress next_hop = {}) noexcept {
+        PacketBuffer<TxCapacity> packet{};
+        auto encoded = write_ipv4_packet(packet, spec, payload);
+        if (!encoded) {
+            return util::unexpected(encoded.error());
+        }
+        return send_ipv4_datagram<TxCapacity>(netif, arp, packet.view().payload, next_hop);
+    }
+
+    template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+    [[nodiscard]] Result<void> send_ipv4(NetIf& netif,
+                                         ArpService<ArpCapacity, ArpTxCapacity>& arp,
+                                         const Ipv4PacketSpec& spec,
+                                         ByteView payload,
+                                         IpAddress next_hop = {}) noexcept {
+        PacketBuffer<TxCapacity> packet{};
+        auto encoded = write_ipv4_packet(packet, spec, payload);
+        if (!encoded) {
+            return util::unexpected(encoded.error());
+        }
+        return send_ipv4_datagram<TxCapacity>(netif, arp, packet.view().payload, next_hop);
+    }
+
+    template <util::usize PendingCapacity, util::usize PacketCapacity>
+    class Ipv4EgressQueue {
+    public:
+        [[nodiscard]] util::usize pending_count() const noexcept {
+            util::usize count = 0;
+            for (const auto& entry : entries_) {
+                if (entry.used) {
+                    ++count;
+                }
+            }
+            return count;
+        }
+
+        [[nodiscard]] util::usize queued_count() const noexcept {
+            return queued_count_;
+        }
+
+        [[nodiscard]] util::usize flushed_count() const noexcept {
+            return flushed_count_;
+        }
+
+        [[nodiscard]] util::usize dropped_count() const noexcept {
+            return dropped_count_;
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<Ipv4SendDisposition> send(
+            NetIf& netif,
+            ArpService<ArpCapacity, ArpTxCapacity>& arp,
+            ByteView packet,
+            IpAddress next_hop = {}) noexcept {
+            auto sent = send_ipv4_datagram<TxCapacity>(netif, arp, packet, next_hop);
+            if (sent) {
+                return Result<Ipv4SendDisposition>{std::in_place, Ipv4SendDisposition::transmitted};
+            }
+            if (sent.error() != errc::again) {
+                return util::unexpected(sent.error());
+            }
+
+            auto* entry = allocate_entry();
+            if (entry == nullptr) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+
+            auto stored = store_entry(*entry, packet, next_hop);
+            if (!stored) {
+                *entry = {};
+                return util::unexpected(stored.error());
+            }
+
+            ++queued_count_;
+            return Result<Ipv4SendDisposition>{std::in_place, Ipv4SendDisposition::queued};
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<Ipv4SendDisposition> send(
+            NetIf& netif,
+            ArpService<ArpCapacity, ArpTxCapacity>& arp,
+            const Ipv4PacketSpec& spec,
+            ByteView payload,
+            IpAddress next_hop = {}) noexcept {
+            PacketBuffer<PacketCapacity> packet{};
+            auto encoded = write_ipv4_packet(packet, spec, payload);
+            if (!encoded) {
+                return util::unexpected(encoded.error());
+            }
+            return send<TxCapacity>(netif, arp, packet.view().payload, next_hop);
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<util::usize> flush(
+            NetIf& netif,
+            ArpService<ArpCapacity, ArpTxCapacity>& arp) noexcept {
+            util::usize flushed = 0;
+            for (auto& entry : entries_) {
+                if (!entry.used) {
+                    continue;
+                }
+
+                auto sent = send_ipv4_datagram<TxCapacity>(
+                    netif,
+                    arp,
+                    ByteView{entry.packet.data(), entry.packet_size},
+                    entry.next_hop);
+                if (sent) {
+                    entry = {};
+                    ++flushed;
+                    ++flushed_count_;
+                    continue;
+                }
+                if (sent.error() == errc::again) {
+                    continue;
+                }
+                if (sent.error() == errc::timeout) {
+                    entry = {};
+                    ++dropped_count_;
+                    continue;
+                }
+                return util::unexpected(sent.error());
+            }
+            return Result<util::usize>{std::in_place, flushed};
+        }
+
+        template <util::usize TxCapacity, util::usize ArpCapacity, util::usize ArpTxCapacity>
+        [[nodiscard]] Result<Ipv4EgressProgress> service(
+            NetIf& netif,
+            ArpService<ArpCapacity, ArpTxCapacity>& arp,
+            util::usize elapsed_ticks = 1,
+            util::usize retry_interval_ticks = 1,
+            util::usize max_attempts = static_cast<util::usize>(-1)) noexcept {
+            arp.advance_ticks(elapsed_ticks);
+
+            auto arp_progress = arp.service_pending(retry_interval_ticks, max_attempts);
+            if (!arp_progress) {
+                return util::unexpected(arp_progress.error());
+            }
+
+            const auto dropped_before = dropped_count_;
+            auto flushed = flush<TxCapacity>(netif, arp);
+            if (!flushed) {
+                return util::unexpected(flushed.error());
+            }
+
+            return Result<Ipv4EgressProgress>{std::in_place, Ipv4EgressProgress{
+                .arp_retried = arp_progress.value().retried,
+                .arp_timed_out = arp_progress.value().timed_out,
+                .flushed = flushed.value(),
+                .dropped = dropped_count_ - dropped_before,
+            }};
+        }
+
+    private:
+        struct PendingEntry {
+            bool used{false};
+            IpAddress next_hop{};
+            util::usize packet_size{0};
+            std::array<util::u8, PacketCapacity> packet{};
+        };
+
+        [[nodiscard]] PendingEntry* allocate_entry() noexcept {
+            for (auto& entry : entries_) {
+                if (entry.used) {
+                    continue;
+                }
+                entry = {};
+                entry.used = true;
+                return &entry;
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] Result<void> store_entry(PendingEntry& entry,
+                                               ByteView packet,
+                                               IpAddress next_hop) noexcept {
+            if (packet.size() > PacketCapacity) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+
+            entry.next_hop = next_hop;
+            entry.packet_size = packet.size();
+            for (util::usize i = 0; i < packet.size(); ++i) {
+                entry.packet[i] = packet[i];
+            }
+            return {};
+        }
+
+        std::array<PendingEntry, PendingCapacity> entries_{};
+        util::usize queued_count_{0};
+        util::usize flushed_count_{0};
+        util::usize dropped_count_{0};
+    };
 
     class Ipv4Service {
     public:
@@ -332,7 +701,7 @@ export namespace net {
 
             if (netif_ != nullptr
                 && netif_->address().is_ipv4()
-                && !detail::same_ipv4_address(datagram.destination, netif_->address())
+                && !ipv4_detail::same_ipv4_address(datagram.destination, netif_->address())
                 && !(netif_->supports(NetIfCapability::broadcast)
                      && datagram.destination.is_ipv4_limited_broadcast())) {
                 ++drop_count_;

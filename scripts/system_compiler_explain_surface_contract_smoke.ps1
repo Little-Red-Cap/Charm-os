@@ -345,12 +345,36 @@ $rootRuntimeSummary = @(
         Where-Object { [string]$_.Case -eq $RuntimeCase } |
         Select-Object -First 1
 ) | Select-Object -First 1
+$rootReportCompilerSummary = @(
+    @($rootSummary.system_compiler_summary.cases) |
+        Where-Object { [string]$_.case -eq $ReportCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
+$rootRuntimeCompilerSummary = @(
+    @($rootSummary.system_compiler_summary.cases) |
+        Where-Object { [string]$_.case -eq $RuntimeCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
 Assert-Condition ($null -ne $rootReportSummary) "default artifact_root summary missing case row: $ReportCase"
 Assert-Condition ($null -ne $rootRuntimeSummary) "default artifact_root summary missing case row: $RuntimeCase"
+Assert-Condition ($null -ne $rootReportCompilerSummary) "default artifact_root system_compiler_summary missing case row: $ReportCase"
+Assert-Condition ($null -ne $rootRuntimeCompilerSummary) "default artifact_root system_compiler_summary missing case row: $RuntimeCase"
 Assert-Condition ([string]$rootReportSummary.Formation -eq 'formed') 'default artifact_root summary report case Formation must stay formed'
 Assert-Condition ([int]$rootReportSummary.FormCmp -eq 0) 'default artifact_root summary report case FormCmp must stay zero'
 Assert-Condition ([string]$rootRuntimeSummary.Formation -eq 'formed') 'default artifact_root summary runtime case Formation must stay formed'
 Assert-Condition ([int]$rootRuntimeSummary.FormCmp -eq 0) 'default artifact_root summary runtime case FormCmp must stay zero'
+Assert-Condition ($null -ne $rootReportCompilerSummary.formation_basis) 'default artifact_root system_compiler_summary report case must expose formation_basis'
+Assert-Condition ($null -ne $rootReportCompilerSummary.binding_summary) 'default artifact_root system_compiler_summary report case must expose binding_summary'
+Assert-Condition ($null -ne $rootReportCompilerSummary.bringup_summary) 'default artifact_root system_compiler_summary report case must expose bringup_summary'
+Assert-Condition ([string]$rootReportCompilerSummary.formation_basis.case_kind -eq 'materialized_graph') 'default artifact_root system_compiler_summary report case formation_basis.case_kind must stay materialized_graph'
+Assert-Condition ([int]$rootReportCompilerSummary.binding_summary.required_binding_count -eq [int]$rootReportCompilerSummary.required_binding_count) 'default artifact_root system_compiler_summary report case binding_summary.required_binding_count mismatch'
+Assert-Condition ([int]$rootReportCompilerSummary.bringup_summary.ordered_node_count -eq [int]$rootReportCompilerSummary.ordered_node_count) 'default artifact_root system_compiler_summary report case bringup_summary.ordered_node_count mismatch'
+Assert-Condition ($null -ne $rootRuntimeCompilerSummary.formation_basis) 'default artifact_root system_compiler_summary runtime case must expose formation_basis'
+Assert-Condition ($null -ne $rootRuntimeCompilerSummary.binding_summary) 'default artifact_root system_compiler_summary runtime case must expose binding_summary'
+Assert-Condition ($null -ne $rootRuntimeCompilerSummary.bringup_summary) 'default artifact_root system_compiler_summary runtime case must expose bringup_summary'
+Assert-Condition ([string]$rootRuntimeCompilerSummary.formation_basis.case_kind -eq 'runtime_only') 'default artifact_root system_compiler_summary runtime case formation_basis.case_kind must stay runtime_only'
+Assert-Condition ([int]$rootRuntimeCompilerSummary.binding_summary.required_binding_count -eq 0) 'default artifact_root system_compiler_summary runtime case binding_summary.required_binding_count must stay zero'
+Assert-Condition ([int]$rootRuntimeCompilerSummary.bringup_summary.ordered_node_count -eq 0) 'default artifact_root system_compiler_summary runtime case bringup_summary.ordered_node_count must stay zero'
 Assert-Condition ((@($rootSummary.system_compiler_summary.case_kind_matrix | Where-Object { [string]$_.case_kind -eq 'runtime_only' }).Count -eq 1)) 'default artifact_root summary system_compiler_summary must retain runtime_only case kind'
 Assert-Condition ((@($rootSummary.system_compiler_summary.case_kind_matrix | Where-Object { [string]$_.case_kind -eq 'materialized_graph' }).Count -ge 1)) 'default artifact_root summary system_compiler_summary must retain materialized_graph case kind'
 Assert-Condition ((@($rootSummary.system_input_summary.case_kind_matrix | Where-Object { [string]$_.case_kind -eq 'runtime_only' }).Count -eq 1)) 'default artifact_root summary must retain runtime_only case kind'

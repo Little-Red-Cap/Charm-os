@@ -271,6 +271,28 @@ $systemCompilerDeclaredFactChangeEntry = @(
 Assert-Condition ($null -ne $systemCompilerDeclaredFactChangeEntry) 'artifact_root comparison system_compiler_summary must expose declared_fact_change_matrix entry'
 Assert-Condition ((@($systemCompilerDeclaredFactChangeEntry.change_kinds) -contains 'added')) 'artifact_root comparison system_compiler_summary declared_fact change must be marked added'
 
+$changedCompilerSummary = @(
+    @($rootSummaryInspectResult.system_compiler_summary.cases) |
+        Where-Object { [string]$_.case -eq $ChangedCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
+$changedCompilerComparisonSummary = @(
+    @($rootSummaryInspectResult.comparison.system_compiler_summary.cases) |
+        Where-Object { [string]$_.case -eq $ChangedCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $changedCompilerSummary) "artifact_root system_compiler_summary missing case row: $ChangedCase"
+Assert-Condition ($null -ne $changedCompilerComparisonSummary) "artifact_root comparison.system_compiler_summary missing case row: $ChangedCase"
+Assert-Condition ($null -ne $changedCompilerSummary.formation_basis) 'artifact_root system_compiler_summary changed case must expose formation_basis'
+Assert-Condition ($null -ne $changedCompilerSummary.binding_summary) 'artifact_root system_compiler_summary changed case must expose binding_summary'
+Assert-Condition ($null -ne $changedCompilerSummary.bringup_summary) 'artifact_root system_compiler_summary changed case must expose bringup_summary'
+Assert-Condition ($null -ne $changedCompilerComparisonSummary.formation_basis_changes) 'artifact_root comparison.system_compiler_summary changed case must expose formation_basis_changes'
+Assert-Condition ($null -ne $changedCompilerComparisonSummary.binding_summary_changes) 'artifact_root comparison.system_compiler_summary changed case must expose binding_summary_changes'
+Assert-Condition ($null -ne $changedCompilerComparisonSummary.bringup_summary_changes) 'artifact_root comparison.system_compiler_summary changed case must expose bringup_summary_changes'
+Assert-Condition ((@($changedCompilerComparisonSummary.formation_basis_changes.declared_fact_changes.added) -contains $AddedDeclaredFact)) 'artifact_root comparison.system_compiler_summary formation_basis_changes must include added declared fact'
+Assert-Condition ([int]$changedCompilerComparisonSummary.binding_summary_changes.binding_change_count -eq 0) 'artifact_root comparison.system_compiler_summary binding_summary_changes must stay empty for input-only drift'
+Assert-Condition ([int]$changedCompilerComparisonSummary.bringup_summary_changes.entry_change_count -eq 0) 'artifact_root comparison.system_compiler_summary bringup_summary_changes must stay empty for input-only drift'
+
 $changedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ChangedCase
 $unchangedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ExpectedUnchangedCase
 Assert-Condition ($null -ne $changedCaseSummary) "artifact_root summary missing case row: $ChangedCase"

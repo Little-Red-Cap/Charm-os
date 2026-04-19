@@ -393,6 +393,31 @@ Assert-Condition ($null -ne $compilerStatusTransition) 'artifact_root comparison
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.unresolved_capability_change_matrix | ForEach-Object { [string]$_.capability }) -contains $RemovedCapability)) 'artifact_root comparison.system_compiler_summary unresolved_capability_change_matrix missing removed capability'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.blocked_node_change_matrix | ForEach-Object { [string]$_.node }) -contains $BlockedNode)) 'artifact_root comparison.system_compiler_summary blocked_node_change_matrix missing blocked node'
 
+$changedCompilerSummary = @(
+    @($rootSummaryInspectResult.system_compiler_summary.cases) |
+        Where-Object { [string]$_.case -eq $ChangedCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
+$changedCompilerComparisonSummary = @(
+    @($rootSummaryInspectResult.comparison.system_compiler_summary.cases) |
+        Where-Object { [string]$_.case -eq $ChangedCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $changedCompilerSummary) "artifact_root system_compiler_summary missing case row: $ChangedCase"
+Assert-Condition ($null -ne $changedCompilerComparisonSummary) "artifact_root comparison.system_compiler_summary missing case row: $ChangedCase"
+Assert-Condition ($null -ne $changedCompilerSummary.formation_basis) 'artifact_root system_compiler_summary changed case must expose formation_basis'
+Assert-Condition ($null -ne $changedCompilerSummary.binding_summary) 'artifact_root system_compiler_summary changed case must expose binding_summary'
+Assert-Condition ($null -ne $changedCompilerSummary.bringup_summary) 'artifact_root system_compiler_summary changed case must expose bringup_summary'
+Assert-Condition ((@($changedCompilerSummary.binding_summary.unresolved_capabilities) -contains $RemovedCapability)) 'artifact_root system_compiler_summary changed case binding_summary must expose removed capability as unresolved'
+Assert-Condition ((@($changedCompilerSummary.bringup_summary.blocked_nodes) -contains $BlockedNode)) 'artifact_root system_compiler_summary changed case bringup_summary must expose blocked node'
+Assert-Condition ($null -ne $changedCompilerComparisonSummary.formation_basis_changes) 'artifact_root comparison.system_compiler_summary changed case must expose formation_basis_changes'
+Assert-Condition ($null -ne $changedCompilerComparisonSummary.binding_summary_changes) 'artifact_root comparison.system_compiler_summary changed case must expose binding_summary_changes'
+Assert-Condition ($null -ne $changedCompilerComparisonSummary.bringup_summary_changes) 'artifact_root comparison.system_compiler_summary changed case must expose bringup_summary_changes'
+Assert-Condition ((@($changedCompilerComparisonSummary.binding_summary_changes.unresolved_capability_changes.added) -contains $RemovedCapability)) 'artifact_root comparison.system_compiler_summary binding_summary_changes must include removed capability'
+Assert-Condition ((@($changedCompilerComparisonSummary.bringup_summary_changes.blocked_node_changes.added) -contains $BlockedNode)) 'artifact_root comparison.system_compiler_summary bringup_summary_changes must include blocked node'
+Assert-Condition ([int]$changedCompilerComparisonSummary.binding_summary_changes.binding_change_count -gt 0) 'artifact_root comparison.system_compiler_summary binding_summary_changes must expose changed bindings'
+Assert-Condition ([int]$changedCompilerComparisonSummary.bringup_summary_changes.entry_change_count -gt 0) 'artifact_root comparison.system_compiler_summary bringup_summary_changes must expose changed bringup entries'
+
 $changedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ChangedCase
 $unchangedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ExpectedUnchangedCase
 Assert-Condition ($null -ne $changedCaseSummary) "artifact_root summary missing case row: $ChangedCase"

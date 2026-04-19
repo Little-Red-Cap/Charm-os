@@ -4027,13 +4027,30 @@ function New-ArtifactRootSystemFormationCaseSummary {
         declared_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_fact_count } else { 0 }
         declared_contract_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_contract_count } else { 0 }
         subject_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.subject_fact_count } else { 0 }
+        formation_basis = [ordered]@{
+            case_kind = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [string]$formation.formation_basis.case_kind } else { $null }
+            declared_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_fact_count } else { 0 }
+            declared_contract_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_contract_count } else { 0 }
+            subject_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.subject_fact_count } else { 0 }
+        }
         required_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.required_binding_count } else { 0 }
         resolved_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.resolved_binding_count } else { 0 }
         unresolved_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.unresolved_binding_count } else { 0 }
         unresolved_capabilities = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { @($formation.binding_summary.unresolved_capabilities) } else { @() }
+        binding_summary = [ordered]@{
+            required_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.required_binding_count } else { 0 }
+            resolved_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.resolved_binding_count } else { 0 }
+            unresolved_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.unresolved_binding_count } else { 0 }
+            unresolved_capabilities = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { @($formation.binding_summary.unresolved_capabilities) } else { @() }
+        }
         ordered_node_count = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.ordered_node_count } else { 0 }
         blocked_node_count = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.blocked_node_count } else { 0 }
         blocked_nodes = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { @($formation.bringup_summary.blocked_nodes) } else { @() }
+        bringup_summary = [ordered]@{
+            ordered_node_count = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.ordered_node_count } else { 0 }
+            blocked_node_count = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.blocked_node_count } else { 0 }
+            blocked_nodes = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { @($formation.bringup_summary.blocked_nodes) } else { @() }
+        }
         blocker_count = [int]$formation.blocker_count
         blockers = @($formation.blockers)
     }
@@ -4642,6 +4659,59 @@ function New-ArtifactRootSystemCompilerCaseSummary {
         resolved_board_source = if ($null -eq $systemInputSummary) { $null } else { [string]$systemInputSummary.resolved_board_source }
         resolved_active_facets = if ($null -eq $systemInputSummary) { @() } else { @($systemInputSummary.resolved_active_facets) }
         resolved_active_facets_source = if ($null -eq $systemInputSummary) { $null } else { [string]$systemInputSummary.resolved_active_facets_source }
+        formation_basis = if ($null -ne $systemFormationSummary -and $null -ne $systemFormationSummary.formation_basis) {
+            [ordered]@{
+                case_kind = [string]$systemFormationSummary.formation_basis.case_kind
+                declared_fact_count = [int]$systemFormationSummary.formation_basis.declared_fact_count
+                declared_contract_count = [int]$systemFormationSummary.formation_basis.declared_contract_count
+                subject_fact_count = [int]$systemFormationSummary.formation_basis.subject_fact_count
+            }
+        } elseif ($null -ne $systemInputSummary) {
+            [ordered]@{
+                case_kind = if ($null -eq $systemInputSummary.case_kind) { $null } else { [string]$systemInputSummary.case_kind }
+                declared_fact_count = [int]@($systemInputSummary.declared_facts).Count
+                declared_contract_count = [int]@($systemInputSummary.declared_contract_entries).Count
+                subject_fact_count = [int]@($systemInputSummary.subject_facts).Count
+            }
+        } else {
+            $null
+        }
+        binding_summary = if ($null -ne $systemFormationSummary -and $null -ne $systemFormationSummary.binding_summary) {
+            [ordered]@{
+                required_binding_count = [int]$systemFormationSummary.binding_summary.required_binding_count
+                resolved_binding_count = [int]$systemFormationSummary.binding_summary.resolved_binding_count
+                unresolved_binding_count = [int]$systemFormationSummary.binding_summary.unresolved_binding_count
+                resolved_capabilities = if ($null -eq $bindingResultSummary) { @() } else { @($bindingResultSummary.resolved_capabilities) }
+                unresolved_capabilities = @($systemFormationSummary.binding_summary.unresolved_capabilities)
+            }
+        } elseif ($null -ne $bindingResultSummary) {
+            [ordered]@{
+                required_binding_count = [int]$bindingResultSummary.required_binding_count
+                resolved_binding_count = [int]$bindingResultSummary.resolved_binding_count
+                unresolved_binding_count = [int]$bindingResultSummary.unresolved_binding_count
+                resolved_capabilities = @($bindingResultSummary.resolved_capabilities)
+                unresolved_capabilities = @($bindingResultSummary.unresolved_capabilities)
+            }
+        } else {
+            $null
+        }
+        bringup_summary = if ($null -ne $systemFormationSummary -and $null -ne $systemFormationSummary.bringup_summary) {
+            [ordered]@{
+                ordered_node_count = [int]$systemFormationSummary.bringup_summary.ordered_node_count
+                blocked_node_count = [int]$systemFormationSummary.bringup_summary.blocked_node_count
+                blocked_nodes = @($systemFormationSummary.bringup_summary.blocked_nodes)
+                phase_counts = if ($null -eq $bringupOrderSummary) { @{} } else { $bringupOrderSummary.phase_counts }
+            }
+        } elseif ($null -ne $bringupOrderSummary) {
+            [ordered]@{
+                ordered_node_count = [int]$bringupOrderSummary.ordered_node_count
+                blocked_node_count = [int]$bringupOrderSummary.blocked_node_count
+                blocked_nodes = @($bringupOrderSummary.blocked_nodes)
+                phase_counts = $bringupOrderSummary.phase_counts
+            }
+        } else {
+            $null
+        }
         declared_fact_count = if ($null -eq $systemInputSummary) { 0 } else { [int]@($systemInputSummary.declared_facts).Count }
         declared_contract_count = if ($null -eq $systemInputSummary) { 0 } else { [int]@($systemInputSummary.declared_contract_entries).Count }
         subject_fact_count = if ($null -eq $systemInputSummary) { 0 } else { [int]@($systemInputSummary.subject_facts).Count }
@@ -4811,6 +4881,9 @@ function New-ArtifactRootSystemCompilerSummaryResult {
                     resolved_board_source,
                     resolved_active_facets,
                     resolved_active_facets_source,
+                    formation_basis,
+                    binding_summary,
+                    bringup_summary,
                     declared_fact_count,
                     declared_contract_count,
                     subject_fact_count,
@@ -4889,6 +4962,53 @@ function New-ArtifactRootSystemCompilerCompareCaseSummary {
         system_formation_changed = $systemFormationChanged
         left_status = if ($null -eq $systemFormationComparison) { $null } else { [string]$systemFormationComparison.left_status }
         right_status = if ($null -eq $systemFormationComparison) { $null } else { [string]$systemFormationComparison.right_status }
+        formation_basis_changes = if ($null -eq $systemInputComparison) {
+            $null
+        } else {
+            [ordered]@{
+                system_spec_changes = @($systemInputComparison.system_spec_changes)
+                resolved_input_changes = @($systemInputComparison.resolved_input_changes)
+                declared_fact_changes = [ordered]@{
+                    added = @($systemInputComparison.declared_fact_changes.added)
+                    removed = @($systemInputComparison.declared_fact_changes.removed)
+                }
+                declared_contract_changes = @($systemInputComparison.declared_contract_changes)
+                subject_fact_changes = [ordered]@{
+                    added = @($systemInputComparison.subject_fact_changes.added)
+                    removed = @($systemInputComparison.subject_fact_changes.removed)
+                }
+            }
+        }
+        binding_summary_changes = if ($null -eq $bindingResultComparison) {
+            $null
+        } else {
+            [ordered]@{
+                summary_changes = @($bindingResultComparison.summary_changes)
+                binding_change_count = [int]$bindingResultComparison.binding_change_count
+                capabilities_changed = @($bindingResultComparison.capabilities_changed)
+                resolved_capability_changes = [ordered]@{
+                    added = @($bindingResultComparison.resolved_capability_changes.added)
+                    removed = @($bindingResultComparison.resolved_capability_changes.removed)
+                }
+                unresolved_capability_changes = [ordered]@{
+                    added = @($bindingResultComparison.unresolved_capability_changes.added)
+                    removed = @($bindingResultComparison.unresolved_capability_changes.removed)
+                }
+            }
+        }
+        bringup_summary_changes = if ($null -eq $bringupOrderComparison) {
+            $null
+        } else {
+            [ordered]@{
+                summary_changes = @($bringupOrderComparison.summary_changes)
+                entry_change_count = [int]$bringupOrderComparison.entry_change_count
+                nodes_changed = @($bringupOrderComparison.nodes_changed)
+                blocked_node_changes = [ordered]@{
+                    added = @($bringupOrderComparison.blocked_node_changes.added)
+                    removed = @($bringupOrderComparison.blocked_node_changes.removed)
+                }
+            }
+        }
         system_spec_changes = if ($null -eq $systemInputComparison) { @() } else { @($systemInputComparison.system_spec_changes) }
         resolved_input_changes = if ($null -eq $systemInputComparison) { @() } else { @($systemInputComparison.resolved_input_changes) }
         declared_fact_changes = if ($null -eq $systemInputComparison) {
@@ -5130,6 +5250,9 @@ function New-ArtifactRootSystemCompilerComparisonResult {
                     system_formation_changed,
                     left_status,
                     right_status,
+                    formation_basis_changes,
+                    binding_summary_changes,
+                    bringup_summary_changes,
                     system_spec_changes,
                     resolved_input_changes,
                     declared_fact_changes,

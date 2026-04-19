@@ -2,6 +2,12 @@
 
 本目录用于存放面向 AI / Agent 协作的规则、技能、模板、工作流与术语说明。
 
+进入本目录前，默认应先读仓库根目录的 [`AGENTS.md`](../../AGENTS.md)。
+
+- 根目录 `AGENTS.md` 负责第一跳启动、任务直达路由与仓库级共识。
+- `docs/agent/routes/` 负责第二跳任务卡片。
+- `docs/agent/` 其余目录负责进一步展开规则、技能、工作流、模板与术语锚点。
+
 它的目标不是收集零散 prompt，而是逐步形成一套 **可长期演进、可版本管理、可任务路由、可稳定输出** 的 Charm Agent 协作体系。
 
 ---
@@ -23,11 +29,12 @@
 当 Agent 在 Charm 仓库中执行任务时，默认按以下顺序工作：
 
 1. 识别任务类型
-2. 加载相关 rules
-3. 加载对应 skill
-4. 按 workflow 执行任务
-5. 用 template 组织输出
-6. 遇到项目术语时查 glossary
+2. 加载对应 route card
+3. 按 route card 加载相关 rules
+4. 加载对应 skill
+5. 按 workflow 执行任务
+6. 用 template 组织输出
+7. 遇到项目术语时查 glossary
 
 ### 任务到文档的推荐路由
 
@@ -45,6 +52,12 @@
 docs/agent/
 ├─ README.md
 ├─ glossary.md
+├─ routes/
+│   ├─ README.md
+│   ├─ review.md
+│   ├─ codegen.md
+│   ├─ architecture.md
+│   └─ ...
 │
 ├─ rules/
 │   ├─ README.md
@@ -103,6 +116,16 @@ flowchart TD
 * 如何协作
 * 现代嵌入式 C++ 的技术立场
 * Charm 项目的架构纪律与工程约束
+
+### `routes/`
+
+用于存放第二跳任务卡片。
+
+它回答的问题是：
+
+> **在 Charm 中，识别出任务类型后，下一步最短应该读什么？**
+
+它们不替代 rules / skills / workflows，只负责把 Agent 从“已识别任务”快速路由到正确材料。
 
 ### `skills/`
 

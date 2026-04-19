@@ -3,7 +3,8 @@ param(
     [string]$QemuExe = "qemu-system-arm",
     [int]$BuildJobs = 1,
     [int]$TimeoutSec = 10,
-    [int]$TailLines = 40
+    [int]$TailLines = 40,
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,19 +70,21 @@ $configurePreset = "debug"
 $buildPreset = "debug"
 $elfPath = "out\\build\\debug\\charm-armv7a-qemu"
 
-Push-Location $PSScriptRoot
-try {
-    & $cmake --preset $configurePreset
-    if ($LASTEXITCODE -ne 0) {
-        throw "cmake configure failed for preset: $configurePreset"
-    }
+if (-not $SkipBuild) {
+    Push-Location $PSScriptRoot
+    try {
+        & $cmake --preset $configurePreset
+        if ($LASTEXITCODE -ne 0) {
+            throw "cmake configure failed for preset: $configurePreset"
+        }
 
-    & $cmake --build --preset $buildPreset --parallel $BuildJobs
-    if ($LASTEXITCODE -ne 0) {
-        throw "cmake build failed for preset: $buildPreset"
+        & $cmake --build --preset $buildPreset --parallel $BuildJobs
+        if ($LASTEXITCODE -ne 0) {
+            throw "cmake build failed for preset: $buildPreset"
+        }
+    } finally {
+        Pop-Location
     }
-} finally {
-    Pop-Location
 }
 
 $elf = Resolve-ExamplePath -Path $elfPath

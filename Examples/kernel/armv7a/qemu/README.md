@@ -221,6 +221,12 @@ For a shorter failure loop around the live task-syscall seam, use:
 .\run_qemu_task_syscall_ci.ps1
 ```
 
+To run the lower-half focused bundle after one shared `debug` build, use:
+
+```powershell
+.\run_qemu_lower_half_ci.ps1
+```
+
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:
 

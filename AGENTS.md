@@ -48,91 +48,49 @@
 
 ### 我在做代码审查
 
-先读：
-
-- `docs/agent/rules/charm-architecture.md`
-- `docs/agent/rules/embedded-modern-cpp.md`
-- `docs/architecture/signal_state_contract_v0.md`（涉及事件连接时）
-- `docs/agent/skills/code-review/SKILL.md`
+先读：`docs/agent/routes/review.md`
 
 ### 我在做代码生成或模块骨架设计
 
-先读：
-
-- `docs/agent/rules/collaboration.md`
-- `docs/agent/rules/embedded-modern-cpp.md`
-- `docs/agent/rules/charm-architecture.md`
-- `docs/architecture/signal_state_contract_v0.md`（涉及事件连接时）
-- `docs/agent/skills/codegen/SKILL.md`
+先读：`docs/agent/routes/codegen.md`
 
 ### 我在做架构讨论 / 能力归属 / 分层判断
 
-先读：
-
-- `docs/agent/rules/charm-architecture.md`
-- `docs/agent/rules/embedded-modern-cpp.md`
-- `docs/architecture/signal_state_contract_v0.md`（涉及同域通知 / 状态 / post 时）
-- `docs/agent/glossary.md`
-- `docs/agent/skills/architect-review/SKILL.md`
+先读：`docs/agent/routes/architecture.md`
 
 ### 我在做文档整理 / 路由清理
 
-先读：
-
-- `docs/documentation_maintenance.md`
-- `docs/README.md`
-- 目标目录下的 `README.md`
-- `docs/agent/skills/charm-docs-minimal/SKILL.md`
+先读：`docs/agent/routes/docs.md`
 
 ### 我在修乱码 / 编码问题
 
-先读：
-
-- `docs/documentation_maintenance.md`
-- `docs/agent/skills/charm-docs-utf8/SKILL.md`
+先读：`docs/agent/routes/utf8.md`
 
 ### 我在看 init.graph / 装配问题
 
-先读：
-
-- `docs/system/init_graph_contract.md`
-- `docs/agent/skills/charm-init-graph/SKILL.md`
+先读：`docs/agent/routes/init-graph.md`
 
 ### 我在看 IO 契约 / Channel / Reactor / Registry
 
-先读：
-
-- `docs/io/io_channel_contract.md`
-- `docs/io/io_reactor_contract.md`
-- `docs/io/io_registry_contract.md`
-- `docs/agent/skills/charm-io-contracts/SKILL.md`
+先读：`docs/agent/routes/io.md`
 
 ### 我在看 capability map / 能力归属
 
-先读：
-
-- `docs/capability_map.md`
-- `docs/agent/skills/charm-capability-map/SKILL.md`
+先读：`docs/agent/routes/capability.md`
 
 ### 我在看 block device / 存储接线
 
-先读：
-
-- `docs/storage/README.md`
-- `docs/agent/skills/charm-block-device/SKILL.md`
+先读：`docs/agent/routes/block-device.md`
 
 ### 我在看 CMake / preset / 构建接线
 
-先读：
-
-- `CMakePresets.json`
-- `docs/project/README.md`
-- `docs/agent/skills/charm-cmake/SKILL.md`
+先读：`docs/agent/routes/build.md`
 
 ## 第二跳入口
 
 如果任务需要更完整的 Agent 体系说明，再进入：
 
+- `docs/agent/routes/README.md`
 - `docs/agent/README.md`
 
-它负责 rules / skills / workflows / templates / glossary 的完整关系说明，但不是第一触点。
+前者负责第二跳任务卡片，后者负责 rules / skills / workflows / templates / glossary 的完整关系说明；两者都不是第一触点。

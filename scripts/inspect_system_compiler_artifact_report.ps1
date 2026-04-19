@@ -5116,21 +5116,28 @@ function New-ArtifactRootSystemCompilerCaseSummary {
     )
 }
 
-function New-ArtifactRootSystemCompilerSummaryResult {
+function New-ArtifactRootSystemCompilerAggregateProjection {
     param(
         [object[]]$LoadedReports
     )
 
-    $caseSummaries = @(
+    $caseProjections = @(
         @($LoadedReports) |
-            ForEach-Object { New-ArtifactRootSystemCompilerCaseSummary -LoadedReport $_ } |
+            ForEach-Object { New-ArtifactRootSystemCompilerCaseProjection -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object { [string]$_.subject.case }
+    )
+
+    if (@($caseProjections).Count -eq 0) {
+        return $null
+    }
+
+    $caseSummaries = @(
+        @($caseProjections) |
+            ForEach-Object { Convert-ArtifactRootSystemCompilerCaseProjectionToSummary -CaseProjection $_ } |
             Where-Object { $null -ne $_ } |
             Sort-Object case
     )
-
-    if (@($caseSummaries).Count -eq 0) {
-        return $null
-    }
 
     $statusCounts = @{}
     foreach ($caseSummary in @($caseSummaries)) {
@@ -5217,6 +5224,60 @@ function New-ArtifactRootSystemCompilerSummaryResult {
         }
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
+    return [pscustomobject][ordered]@{
+        case_projections = @($caseProjections)
+        case_summaries = @($caseSummaries)
+        status_counts = ConvertTo-AggregatedOrderedCountMap -Counts $statusCounts
+        formed_cases = @($formedCases)
+        blocked_cases = @($blockedCases)
+        totals = [ordered]@{
+            declared_fact_count = [int](@($caseSummaries | Measure-Object -Property declared_fact_count -Sum).Sum)
+            declared_contract_count = [int](@($caseSummaries | Measure-Object -Property declared_contract_count -Sum).Sum)
+            subject_fact_count = [int](@($caseSummaries | Measure-Object -Property subject_fact_count -Sum).Sum)
+            required_binding_count = [int](@($caseSummaries | Measure-Object -Property required_binding_count -Sum).Sum)
+            resolved_binding_count = [int](@($caseSummaries | Measure-Object -Property resolved_binding_count -Sum).Sum)
+            unresolved_binding_count = [int](@($caseSummaries | Measure-Object -Property unresolved_binding_count -Sum).Sum)
+            ordered_node_count = [int](@($caseSummaries | Measure-Object -Property ordered_node_count -Sum).Sum)
+            blocked_node_count = [int](@($caseSummaries | Measure-Object -Property blocked_node_count -Sum).Sum)
+            blocker_count = [int](@($caseSummaries | Measure-Object -Property blocker_count -Sum).Sum)
+        }
+        universes = [ordered]@{
+            case_kinds = @($caseKinds)
+            resolved_profiles = @($resolvedProfiles)
+            resolved_boards = @($resolvedBoards)
+            resolved_active_facets = @($resolvedActiveFacets)
+            unresolved_capabilities = @($unresolvedCapabilities)
+            blocked_nodes = @($blockedNodes)
+            blocker_keys = @($blockerKeys)
+            blocker_reasons = @($blockerReasons)
+            blocker_missing_requires = @($blockerMissingRequires)
+            blocker_depends_on = @($blockerDependsOn)
+        }
+    }
+}
+
+function New-ArtifactRootSystemCompilerSummaryResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $aggregateProjection = New-ArtifactRootSystemCompilerAggregateProjection -LoadedReports $LoadedReports
+    if ($null -eq $aggregateProjection) {
+        return $null
+    }
+
+    $caseSummaries = @($aggregateProjection.case_summaries)
+    $caseKinds = @($aggregateProjection.universes.case_kinds)
+    $resolvedProfiles = @($aggregateProjection.universes.resolved_profiles)
+    $resolvedBoards = @($aggregateProjection.universes.resolved_boards)
+    $resolvedActiveFacets = @($aggregateProjection.universes.resolved_active_facets)
+    $unresolvedCapabilities = @($aggregateProjection.universes.unresolved_capabilities)
+    $blockedNodes = @($aggregateProjection.universes.blocked_nodes)
+    $blockerKeys = @($aggregateProjection.universes.blocker_keys)
+    $blockerReasons = @($aggregateProjection.universes.blocker_reasons)
+    $blockerMissingRequires = @($aggregateProjection.universes.blocker_missing_requires)
+    $blockerDependsOn = @($aggregateProjection.universes.blocker_depends_on)
+
     $caseKindMatrix = @(
         foreach ($caseKind in @($caseKinds)) {
             New-ArtifactRootSystemInputValueMatrixEntry -ValueName $caseKind -CaseSummaries $caseSummaries -PropertyName 'case_kind' -FieldName 'case_kind'
@@ -5275,22 +5336,12 @@ function New-ArtifactRootSystemCompilerSummaryResult {
 
     return [ordered]@{
         case_count = @($caseSummaries).Count
-        status_counts = ConvertTo-AggregatedOrderedCountMap -Counts $statusCounts
-        formed_case_count = @($formedCases).Count
-        blocked_case_count = @($blockedCases).Count
-        formed_cases = @($formedCases)
-        blocked_cases = @($blockedCases)
-        totals = [ordered]@{
-            declared_fact_count = [int](@($caseSummaries | Measure-Object -Property declared_fact_count -Sum).Sum)
-            declared_contract_count = [int](@($caseSummaries | Measure-Object -Property declared_contract_count -Sum).Sum)
-            subject_fact_count = [int](@($caseSummaries | Measure-Object -Property subject_fact_count -Sum).Sum)
-            required_binding_count = [int](@($caseSummaries | Measure-Object -Property required_binding_count -Sum).Sum)
-            resolved_binding_count = [int](@($caseSummaries | Measure-Object -Property resolved_binding_count -Sum).Sum)
-            unresolved_binding_count = [int](@($caseSummaries | Measure-Object -Property unresolved_binding_count -Sum).Sum)
-            ordered_node_count = [int](@($caseSummaries | Measure-Object -Property ordered_node_count -Sum).Sum)
-            blocked_node_count = [int](@($caseSummaries | Measure-Object -Property blocked_node_count -Sum).Sum)
-            blocker_count = [int](@($caseSummaries | Measure-Object -Property blocker_count -Sum).Sum)
-        }
+        status_counts = $aggregateProjection.status_counts
+        formed_case_count = @($aggregateProjection.formed_cases).Count
+        blocked_case_count = @($aggregateProjection.blocked_cases).Count
+        formed_cases = @($aggregateProjection.formed_cases)
+        blocked_cases = @($aggregateProjection.blocked_cases)
+        totals = $aggregateProjection.totals
         cases = @(
             @($caseSummaries) |
                 Select-Object `
@@ -5555,48 +5606,28 @@ function New-ArtifactRootSystemCompilerCompareCaseSummary {
     )
 }
 
-function New-ArtifactRootSystemCompilerStageChangeEntry {
-    param(
-        [string]$StageName,
-        [object[]]$CaseSummaries,
-        [string]$PropertyName
-    )
-
-    if ([string]::IsNullOrWhiteSpace($StageName)) {
-        return $null
-    }
-
-    $cases = @()
-    foreach ($caseSummary in @($CaseSummaries)) {
-        if (-not [bool]$caseSummary.$PropertyName) {
-            continue
-        }
-
-        $cases += New-ArtifactRootSystemInputMatrixCaseEntry -CaseSummary $caseSummary
-    }
-
-    return [ordered]@{
-        stage = $StageName
-        case_count = @($cases).Count
-        cases = @($cases | Sort-Object case)
-    }
-}
-
-function New-ArtifactRootSystemCompilerComparisonResult {
+function New-ArtifactRootSystemCompilerCompareAggregateProjection {
     param(
         [object[]]$LoadedReports
     )
 
-    $caseSummaries = @(
+    $caseProjections = @(
         @($LoadedReports) |
-            ForEach-Object { New-ArtifactRootSystemCompilerCompareCaseSummary -LoadedReport $_ } |
+            ForEach-Object { New-ArtifactRootSystemCompilerCompareCaseProjection -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object { [string]$_.subject.case }
+    )
+
+    if (@($caseProjections).Count -eq 0) {
+        return $null
+    }
+
+    $caseSummaries = @(
+        @($caseProjections) |
+            ForEach-Object { Convert-ArtifactRootSystemCompilerCompareCaseProjectionToSummary -CaseProjection $_ } |
             Where-Object { $null -ne $_ } |
             Sort-Object case
     )
-
-    if (@($caseSummaries).Count -eq 0) {
-        return $null
-    }
 
     $changedCases = @(
         @($caseSummaries) |
@@ -5696,6 +5727,87 @@ function New-ArtifactRootSystemCompilerComparisonResult {
         }
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
+    return [pscustomobject][ordered]@{
+        case_projections = @($caseProjections)
+        case_summaries = @($caseSummaries)
+        changed_cases = @($changedCases)
+        unchanged_cases = @($unchangedCases)
+        stage_changed_case_counts = [ordered]@{
+            system_input = @($caseSummaries | Where-Object { [bool]$_.system_input_changed }).Count
+            binding_result = @($caseSummaries | Where-Object { [bool]$_.binding_result_changed }).Count
+            bringup_order = @($caseSummaries | Where-Object { [bool]$_.bringup_order_changed }).Count
+            system_formation = @($caseSummaries | Where-Object { [bool]$_.system_formation_changed }).Count
+        }
+        universes = [ordered]@{
+            system_spec_changes = @($systemSpecChanges)
+            resolved_input_changes = @($resolvedInputChanges)
+            status_transitions = @($statusTransitions)
+            declared_fact_names = @($declaredFactNames)
+            declared_contract_names = @($declaredContractNames)
+            subject_fact_names = @($subjectFactNames)
+            unresolved_capability_names = @($unresolvedCapabilityNames)
+            blocked_node_names = @($blockedNodeNames)
+            blocker_keys = @($blockerKeys)
+            blocker_reasons = @($blockerReasons)
+            blocker_missing_requires = @($blockerMissingRequires)
+            blocker_depends_on = @($blockerDependsOn)
+        }
+    }
+}
+
+function New-ArtifactRootSystemCompilerStageChangeEntry {
+    param(
+        [string]$StageName,
+        [object[]]$CaseSummaries,
+        [string]$PropertyName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($StageName)) {
+        return $null
+    }
+
+    $cases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        if (-not [bool]$caseSummary.$PropertyName) {
+            continue
+        }
+
+        $cases += New-ArtifactRootSystemInputMatrixCaseEntry -CaseSummary $caseSummary
+    }
+
+    return [ordered]@{
+        stage = $StageName
+        case_count = @($cases).Count
+        cases = @($cases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootSystemCompilerComparisonResult {
+    param(
+        [object[]]$LoadedReports
+    )
+
+    $aggregateProjection = New-ArtifactRootSystemCompilerCompareAggregateProjection -LoadedReports $LoadedReports
+    if ($null -eq $aggregateProjection) {
+        return $null
+    }
+
+    $caseSummaries = @($aggregateProjection.case_summaries)
+    $changedCases = @($aggregateProjection.changed_cases)
+    $unchangedCases = @($aggregateProjection.unchanged_cases)
+    $systemSpecChanges = @($aggregateProjection.universes.system_spec_changes)
+    $resolvedInputChanges = @($aggregateProjection.universes.resolved_input_changes)
+    $statusTransitions = @($aggregateProjection.universes.status_transitions)
+    $declaredFactNames = @($aggregateProjection.universes.declared_fact_names)
+    $subjectFactNames = @($aggregateProjection.universes.subject_fact_names)
+    $declaredContractNames = @($aggregateProjection.universes.declared_contract_names)
+    $unresolvedCapabilityNames = @($aggregateProjection.universes.unresolved_capability_names)
+    $blockedNodeNames = @($aggregateProjection.universes.blocked_node_names)
+    $blockerKeys = @($aggregateProjection.universes.blocker_keys)
+    $blockerReasons = @($aggregateProjection.universes.blocker_reasons)
+    $blockerMissingRequires = @($aggregateProjection.universes.blocker_missing_requires)
+    $blockerDependsOn = @($aggregateProjection.universes.blocker_depends_on)
+
     $stageChangeMatrix = @(
         New-ArtifactRootSystemCompilerStageChangeEntry -StageName 'system_input' -CaseSummaries $caseSummaries -PropertyName 'system_input_changed'
         New-ArtifactRootSystemCompilerStageChangeEntry -StageName 'binding_result' -CaseSummaries $caseSummaries -PropertyName 'binding_result_changed'
@@ -5774,12 +5886,7 @@ function New-ArtifactRootSystemCompilerComparisonResult {
         unchanged_case_count = @($unchangedCases).Count
         changed_cases = @($changedCases)
         unchanged_cases = @($unchangedCases)
-        stage_changed_case_counts = [ordered]@{
-            system_input = @($caseSummaries | Where-Object { [bool]$_.system_input_changed }).Count
-            binding_result = @($caseSummaries | Where-Object { [bool]$_.binding_result_changed }).Count
-            bringup_order = @($caseSummaries | Where-Object { [bool]$_.bringup_order_changed }).Count
-            system_formation = @($caseSummaries | Where-Object { [bool]$_.system_formation_changed }).Count
-        }
+        stage_changed_case_counts = $aggregateProjection.stage_changed_case_counts
         cases = @(
             @($caseSummaries) |
                 Select-Object `

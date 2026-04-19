@@ -132,8 +132,6 @@ export namespace player {
         WidgetHandle now_progress_group{};
         WidgetHandle now_aux_group{};
         WidgetHandle cover{};
-        WidgetHandle cover_left{};
-        WidgetHandle cover_right{};
         WidgetHandle title{};
         WidgetHandle subtitle{};
         WidgetHandle status{};
@@ -856,7 +854,7 @@ export namespace player {
                 .apply_border_color = true,
                 .apply_corner_radius = true,
                 .bg_color = has_cover ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 0}
-                                      : cover_theme.backdrop,
+                                      : cover_theme.primary_container,
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 42,
             });
@@ -876,8 +874,6 @@ export namespace player {
                 }
             };
             clear_image(handles.cover);
-            clear_image(handles.cover_left);
-            clear_image(handles.cover_right);
             clear_image(handles.bottom_cover);
             clear_image(handles.transition_cover);
         }
@@ -895,8 +891,6 @@ export namespace player {
                     }
                 };
                 clear_image(handles.cover);
-                clear_image(handles.cover_left);
-                clear_image(handles.cover_right);
                 clear_image(handles.bottom_cover);
                 clear_image(handles.transition_cover);
                 restore_now_playing_group_visibility();
@@ -916,8 +910,6 @@ export namespace player {
                         }
                     };
                     set_image(handles.cover);
-                    set_image(handles.cover_left);
-                    set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
                     set_image(handles.transition_cover);
                     cover_path.assign(candidate);
@@ -941,8 +933,6 @@ export namespace player {
                         }
                     };
                     set_image(handles.cover);
-                    set_image(handles.cover_left);
-                    set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
                     set_image(handles.transition_cover);
                     cover_path.assign(candidate);
@@ -986,8 +976,6 @@ export namespace player {
                 }
             };
             clear_image(handles.cover);
-            clear_image(handles.cover_left);
-            clear_image(handles.cover_right);
             clear_image(handles.bottom_cover);
             clear_image(handles.transition_cover);
             cover_tint_path.clear();

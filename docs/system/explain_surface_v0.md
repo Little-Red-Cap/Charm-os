@@ -385,7 +385,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `system_compiler_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `system_compiler_summary.blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`
 - `system_compiler_summary.binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`
-- `system_compiler_summary.binding_basis / bringup_basis`
+- `system_compiler_summary.formation_basis / binding_basis / bringup_basis`
 - `system_compiler_summary.cases[*].formation_basis / binding_summary / bringup_summary`
 - `system_input_summary.case_count`
 - `system_input_summary.case_kind_matrix`
@@ -406,7 +406,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_compiler_summary.unresolved_capability_change_matrix / blocked_node_change_matrix / blocker_change_matrix`
 - `comparison.system_compiler_summary.blocker_reason_change_matrix / blocker_missing_requires_change_matrix / blocker_depends_on_change_matrix`
 - `comparison.system_compiler_summary.binding_reason_change_matrix / bringup_phase_change_matrix / bringup_dependency_change_matrix`
-- `comparison.system_compiler_summary.binding_drift / bringup_drift`
+- `comparison.system_compiler_summary.formation_drift / binding_drift / bringup_drift`
 - `comparison.system_compiler_summary.cases[*].formation_basis_changes / binding_summary_changes / bringup_summary_changes`
 - `comparison.system_input_summary.changed_case_count`
 - `comparison.system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -437,6 +437,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - blocker reasons / missing requires / dependency nodes 在多 case 之间如何聚集
 - binding reasons / bringup phases / bringup dependency nodes 在多 case 之间如何聚集
 - declared fact / declared contract / subject fact 在多 case 之间如何聚集
+- `formation / binding / bringup` 三段 basis 与 drift 是否都已经进入正式结果块
 - 这一组 case 当前整体有多少已经 `formed`、多少已经 `blocked`
 - binding result 在多 case 之间是如何收口的，哪些 capability 仍然 unresolved
 - bringup order 在多 case 之间是如何展开的，哪些节点已经进入 blocked

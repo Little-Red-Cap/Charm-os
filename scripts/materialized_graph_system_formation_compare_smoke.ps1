@@ -332,6 +332,7 @@ Assert-Condition ($null -ne $rootSummaryInspectResult.binding_result_summary) 'a
 Assert-Condition ($null -ne $rootSummaryInspectResult.bringup_order_summary) 'artifact_root summary must expose bringup_order_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_formation_summary) 'artifact_root summary must expose system_formation_summary'
 Assert-Condition ([int]$rootSummaryInspectResult.system_compiler_summary.case_count -ge 2) 'artifact_root system_compiler_summary.case_count must be at least 2'
+Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.formation_basis) 'artifact_root system_compiler_summary must expose formation_basis'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.binding_basis) 'artifact_root system_compiler_summary must expose binding_basis'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.bringup_basis) 'artifact_root system_compiler_summary must expose bringup_basis'
 Assert-Condition ([int]$rootSummaryInspectResult.binding_result_summary.case_count -ge 2) 'artifact_root binding_result_summary.case_count must be at least 2'
@@ -365,6 +366,7 @@ Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.binding_result_
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.bringup_order_summary) 'artifact_root summary comparison must expose bringup_order_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_formation_summary) 'artifact_root summary comparison must expose system_formation_summary'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.changed_case_count -eq 1) 'artifact_root comparison.system_compiler_summary changed_case_count must be 1'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift) 'artifact_root comparison.system_compiler_summary must expose formation_drift'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.binding_drift) 'artifact_root comparison.system_compiler_summary must expose binding_drift'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.bringup_drift) 'artifact_root comparison.system_compiler_summary must expose bringup_drift'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.changed_cases) -contains $ChangedCase)) 'artifact_root comparison.system_compiler_summary missing changed case'
@@ -372,6 +374,21 @@ Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summ
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.binding_result -eq 1) 'artifact_root comparison.system_compiler_summary binding_result stage count must be 1'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.bringup_order -eq 1) 'artifact_root comparison.system_compiler_summary bringup_order stage count must be 1'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.stage_changed_case_counts.system_formation -eq 1) 'artifact_root comparison.system_compiler_summary system_formation stage count must be 1'
+Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.changed_case_count -eq 1) 'artifact_root comparison.system_compiler_summary formation_drift.changed_case_count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.changed_cases) -contains $ChangedCase)) 'artifact_root comparison.system_compiler_summary formation_drift missing changed case'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.status_change_matrix).Count -gt 0) 'artifact_root comparison.system_compiler_summary formation_drift.status_change_matrix must expose formation drift transitions'
+$formationDriftStatusTransition = @(
+    @($rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.status_change_matrix) |
+        Where-Object { [string]$_.transition -eq 'formed->blocked' } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $formationDriftStatusTransition) 'artifact_root comparison.system_compiler_summary formation_drift missing formed->blocked status transition'
+Assert-Condition ([int]$formationDriftStatusTransition.case_count -eq 1) 'artifact_root comparison.system_compiler_summary formation_drift formed->blocked status transition must only cover changed case'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.unresolved_capability_change_matrix | ForEach-Object { [string]$_.capability }) -contains $RemovedCapability)) 'artifact_root comparison.system_compiler_summary formation_drift unresolved_capability_change_matrix missing removed capability'
+Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.blocked_node_change_matrix | ForEach-Object { [string]$_.node }) -contains $BlockedNode)) 'artifact_root comparison.system_compiler_summary formation_drift blocked_node_change_matrix missing blocked node'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.blocker_change_matrix).Count -gt 0) 'artifact_root comparison.system_compiler_summary formation_drift.blocker_change_matrix must expose blocker drift hotspots'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.blocker_reason_change_matrix).Count -gt 0) 'artifact_root comparison.system_compiler_summary formation_drift.blocker_reason_change_matrix must expose blocker reason drift hotspots'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift.blocker_depends_on_change_matrix).Count -gt 0) 'artifact_root comparison.system_compiler_summary formation_drift.blocker_depends_on_change_matrix must expose dependency drift hotspots'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.binding_drift.changed_case_count -eq 1) 'artifact_root comparison.system_compiler_summary binding_drift.changed_case_count must be 1'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summary.binding_drift.binding_change_count -gt 0) 'artifact_root comparison.system_compiler_summary binding_drift.binding_change_count must expose binding drift'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.binding_drift.changed_cases) -contains $ChangedCase)) 'artifact_root comparison.system_compiler_summary binding_drift missing changed case'
@@ -431,6 +448,7 @@ Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.bl
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.binding_reason_matrix) 'artifact_root system_compiler_summary must expose binding_reason_matrix'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.bringup_phase_matrix) 'artifact_root system_compiler_summary must expose bringup_phase_matrix'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.bringup_dependency_matrix) 'artifact_root system_compiler_summary must expose bringup_dependency_matrix'
+Assert-Condition (@($rootSummaryInspectResult.system_compiler_summary.formation_basis.blocker_reason_matrix).Count -gt 0) 'artifact_root system_compiler_summary formation_basis.blocker_reason_matrix must expose blocker hotspots'
 Assert-Condition (@($rootSummaryInspectResult.system_compiler_summary.blocker_reason_matrix).Count -gt 0) 'artifact_root system_compiler_summary blocker_reason_matrix must expose blocker hotspots'
 $missingRequireEntry = @(
     @($rootSummaryInspectResult.system_compiler_summary.blocker_missing_requires_matrix) |
@@ -438,6 +456,7 @@ $missingRequireEntry = @(
         Select-Object -First 1
 ) | Select-Object -First 1
 Assert-Condition ($null -ne $missingRequireEntry) 'artifact_root system_compiler_summary blocker_missing_requires_matrix missing removed capability'
+Assert-Condition ((@($rootSummaryInspectResult.system_compiler_summary.formation_basis.blocked_node_matrix | ForEach-Object { [string]$_.node }) -contains $BlockedNode)) 'artifact_root system_compiler_summary formation_basis blocked_node_matrix missing blocked node'
 Assert-Condition (@($rootSummaryInspectResult.system_compiler_summary.blocker_depends_on_matrix).Count -gt 0) 'artifact_root system_compiler_summary blocker_depends_on_matrix must expose dependency hotspots'
 Assert-Condition (@($rootSummaryInspectResult.system_compiler_summary.binding_reason_matrix).Count -gt 0) 'artifact_root system_compiler_summary binding_reason_matrix must expose binding hotspots'
 Assert-Condition (@($rootSummaryInspectResult.system_compiler_summary.bringup_phase_matrix).Count -gt 0) 'artifact_root system_compiler_summary bringup_phase_matrix must expose bringup hotspots'

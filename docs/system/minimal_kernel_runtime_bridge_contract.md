@@ -78,6 +78,12 @@
 - `sleep_current_until(due, event)`
 - `run_once_or_idle(now)`
 
+当前专门验证 RuntimeBridge stateful binding seam 的 host 证据是：
+
+- `Examples/kernel/runtime_bridge_binding_host`
+
+它直接覆盖 `bind_idle(...)`、`bind_trace(...)`、getter 对齐，以及 fallback idle retarget，不把这类状态绑定语义混进 tick / thread-side / trap transport 证据里。
+
 这层更适合被下半层持有，因为它已经把“当前这条运行时实例是谁、idle 是谁、trace 放哪里”这几个问题收住了。
 
 当前专门验证这条 tick seam 的 host 证据是：
@@ -237,6 +243,7 @@
 当前证据 example：
 
 - `Examples/kernel/runtime_minimal_host`
+- `Examples/kernel/runtime_bridge_binding_host`
 - `Examples/kernel/runtime_run_loop_host`
 - `Examples/kernel/runtime_tick_host`
 - `Examples/kernel/runtime_isr_defer_host`

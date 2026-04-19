@@ -38,6 +38,15 @@ export namespace ui::scene {
         int padding{};
     };
 
+    struct SurfaceRecolorSpec {
+        bool apply_bg_color{false};
+        bool apply_border_color{false};
+        bool apply_border_width{true};
+        rgba bg_color{};
+        rgba border_color{};
+        int border_width{};
+    };
+
     inline StylePatch make_pill_surface_patch(const PillSurfaceSpec& spec) noexcept {
         StylePatch patch{};
         if (spec.apply_bg_color) {
@@ -99,6 +108,30 @@ export namespace ui::scene {
         }
         patch.has_border_width = true;
         patch.border_width = spec.apply_border_width ? spec.border_width : 0;
+        patch.has_shadow_enabled = true;
+        patch.shadow_enabled = false;
+        patch.has_inner_stroke_enabled = true;
+        patch.inner_stroke_enabled = false;
+        patch.has_outline_enabled = true;
+        patch.outline_enabled = false;
+        return patch;
+    }
+
+    inline StylePatch make_surface_recolor_patch(const SurfaceRecolorSpec& spec) noexcept {
+        StylePatch patch{};
+        if (spec.apply_bg_color) {
+            patch.has_bg_color = true;
+            patch.bg_color = spec.bg_color;
+        }
+        if (spec.apply_border_color) {
+            patch.has_border_color = true;
+            patch.border_color = spec.border_color;
+        }
+        if (spec.apply_border_width) {
+            patch.has_border_width = true;
+            patch.border_width = spec.border_width;
+        }
+        // Recoloring should not accidentally flatten corner radius or re-enable old chrome.
         patch.has_shadow_enabled = true;
         patch.shadow_enabled = false;
         patch.has_inner_stroke_enabled = true;

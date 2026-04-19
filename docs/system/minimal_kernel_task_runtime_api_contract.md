@@ -188,11 +188,12 @@
 
 ## 当前证据路径
 
-当前与这层直接相关的证据路径有三条：
+当前与这层直接相关的证据路径有四条：
 
 - `Examples/kernel/runtime_task_api_host`
 - `Examples/kernel/runtime_minimal_host`
 - `Examples/kernel/runtime_trap_armv7a_host`
+- `Examples/kernel/runtime_binding_chain_host`
 
 它们当前分别承担：
 
@@ -202,8 +203,10 @@
   - 验证 generic host 的真实 worker context 已切到 `TaskRuntimeApi<RuntimeTrapServiceFacade<...>>`
 - `runtime_trap_armv7a_host`
   - 验证 ARMv7-A host trap mapping 证据路径上的 worker context 也已切到这层
+- `runtime_binding_chain_host`
+  - 验证 `bind_services(...)` 的 unbind / rebind 会向上传播到顶层 `TaskSyscallApi`，而不是停留在中间 facade 内部
 
-这说明 `TaskRuntimeApi` 不是只存在于文档中的 future idea，而是已经进入现有 host 证据链。
+这说明 `TaskRuntimeApi` 不是只存在于文档中的 future idea，而是已经进入现有 host 证据链；同时它的 `bind_services(...)` 也已经有穿过更高层 wrapper 后仍可稳定观察的证据。
 
 ## 当前非目标
 

@@ -511,7 +511,8 @@ private:
         if (w <= 0 || h <= 0) return {};
         const int bpp = bytes_per_pixel(img.format);
         const std::byte* data = img.data + y * img.stride_bytes + x * bpp;
-        return make_image_view(img.format, w, h, img.stride_bytes, data, img.premultiplied_alpha, img.force_opaque);
+        return make_image_view(img.format, w, h, img.stride_bytes, data,
+                               img.premultiplied_alpha, img.force_opaque, img.sample_inset_px);
     }
 
     void reset_zoom() noexcept {

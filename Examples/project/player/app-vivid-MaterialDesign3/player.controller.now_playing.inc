@@ -29,10 +29,9 @@
             apply_label(handles.time_right, time);
 
             if (handles.bottom_bar) {
-                StylePatch bar = ::ui::scene::make_clean_surface_patch({
+                StylePatch bar = ::ui::scene::make_surface_recolor_patch({
                     .apply_bg_color = true,
                     .apply_border_color = true,
-                    .apply_corner_radius = false,
                     .bg_color = theme.primary_container,
                     .border_color = {0, 0, 0, 0},
                 });
@@ -40,7 +39,7 @@
             }
 
             if (handles.info_tag) {
-                StylePatch tag = ::ui::scene::make_clean_surface_patch({
+                StylePatch tag = ::ui::scene::make_surface_recolor_patch({
                     .apply_bg_color = true,
                     .apply_border_color = true,
                     .bg_color = theme.surface_high,
@@ -62,7 +61,7 @@
 
             auto apply_btn = [&](WidgetHandle h, const rgba& bg, const rgba& border, const rgba& font) {
                 if (!h) return;
-                StylePatch btn = ::ui::scene::make_clean_surface_patch({
+                StylePatch btn = ::ui::scene::make_surface_recolor_patch({
                     .apply_bg_color = true,
                     .apply_border_color = true,
                     .bg_color = bg,
@@ -118,15 +117,14 @@
                                               bool controls_visible,
                                               bool aux) noexcept {
             if (!access.valid()) return;
+            const bool cover_plate_visible = cover_plate && !has_cover_image();
             const bool cover_widgets_visible = cover && has_cover_image();
             const auto set_visible = [this](WidgetHandle handle, bool visible) {
                 if (handle) access.set_visible(handle, visible);
             };
             set_visible(handles.now_top_bar, top_bar);
-            set_visible(handles.now_cover_plate, cover_plate);
+            set_visible(handles.now_cover_plate, cover_plate_visible);
             set_visible(handles.cover, cover_widgets_visible);
-            set_visible(handles.cover_left, cover_widgets_visible);
-            set_visible(handles.cover_right, cover_widgets_visible);
             set_visible(handles.now_text_group, text);
             set_visible(handles.now_progress_group, progress);
             set_visible(handles.controls, controls_visible);

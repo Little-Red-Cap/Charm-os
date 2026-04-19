@@ -23,7 +23,7 @@
 
 ## 当前模块分层
 
-当前建议把运行时胶水分成六层：
+当前建议把运行时胶水分成七层：
 
 ### 1) `kernel.runtime_glue`
 
@@ -98,7 +98,33 @@
 
 它直接覆盖 `defer_from_isr(task, event) -> scheduler.post_demand(...)` 的正反路径，以及 worker wait/idle/deferred resume 的最小闭环。
 
-### 3) `RuntimeThreadPort<Tick>`
+### 3) `RuntimeLoopPort<Tick>`
+
+位置：同 `kernel.runtime_bridge`
+
+职责是“给下半层 / leaf 持有的最小 runtime loop 入口”，把 `RuntimeBridge` 这组 stateful 行为收成不暴露 `Scheduler` 模板细节的 type-erased port。
+
+当前只保留最靠近 lower-half ingress 的几项：
+
+- `advance_tick(now)`
+- `defer_from_isr(task, event)`
+- `bootstrap_idle()`
+- `bootstrap_idle(event)`
+- `bootstrap_worker(task, event)`
+- `run_once_or_idle(now)`
+
+它的目的不是替代 `RuntimeBridge` 本体，而是给 ARMv7-A / QEMU / future board leaf 一个更薄、更稳定的 runtime 落点：
+
+- leaf 可以持有 port，而不是直接知道上半层 bridge 的具体模板参数
+- 这条边界和任务侧 `RuntimeThreadPort` 分开，避免把 lower-half loop 入口和 thread-side yield/sleep 混成一团
+
+当前专门验证这条 lower-half runtime loop seam 的 host 证据是：
+
+- `Examples/kernel/runtime_loop_port_host`
+
+它直接覆盖 `RuntimeBridge -> RuntimeLoopPort -> tick / ISR defer / idle bootstrap / worker bootstrap / run_once_or_idle`，把下半层真正会持有的那一小组动作收成独立证据。
+
+### 4) `RuntimeThreadPort<Tick>`
 
 位置：同 `kernel.runtime_bridge`
 
@@ -121,7 +147,7 @@
 
 它直接覆盖 `RuntimeBridge -> RuntimeThreadPort -> scheduler/timer`，不经过 trap/syscall transport。
 
-### 4) `kernel.runtime_trap`
+### 5) `kernel.runtime_trap`
 
 位置：`Modules/system/kernel/runtime_trap.cppm`
 
@@ -139,7 +165,7 @@
 
 - `docs/system/minimal_kernel_trap_syscall_contract.md`
 
-### 5) `kernel.runtime_service`
+### 6) `kernel.runtime_service`
 
 位置：`Modules/system/kernel/runtime_service.cppm`
 
@@ -163,7 +189,7 @@
 - `docs/system/minimal_kernel_task_runtime_api_contract.md`
 - `docs/system/minimal_kernel_task_syscall_api_contract.md`
 
-### 6) `kernel.runtime_trap_ingress`
+### 7) `kernel.runtime_trap_ingress`
 
 位置：`Modules/system/kernel/runtime_trap_ingress.cppm`
 
@@ -208,6 +234,7 @@
 
 - 定时中断推进软定时器时，调用 `advance_tick(now)`
 - ISR 只做 deferred post 时，调用 `defer_from_isr(task, event)`
+- 如果下半层不想直接持有具体 `RuntimeBridge<Scheduler, ...>` 类型，可以先持有 `RuntimeLoopPort<Tick>`
 
 ### 主循环 / run loop 阶段
 
@@ -244,6 +271,7 @@
 
 - `Examples/kernel/runtime_minimal_host`
 - `Examples/kernel/runtime_bridge_binding_host`
+- `Examples/kernel/runtime_loop_port_host`
 - `Examples/kernel/runtime_run_loop_host`
 - `Examples/kernel/runtime_tick_host`
 - `Examples/kernel/runtime_isr_defer_host`

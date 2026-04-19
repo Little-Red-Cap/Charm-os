@@ -167,8 +167,9 @@ ARMv7-A thread frame, kind=cooperative-sys, stack-base=0x40...., stack-top=0x40.
 ARMv7-A context switch smoke, main-before=0x40...., main-saved=0x40...., thread-entry-sp=0x40...., thread-saved=0x40...., thread-resume-sp=0x40...., entry=yes, resumed=yes, round-trip=yes
 ARMv7-A thread runtime, kind=cooperative-sys, task=0x0000000059537001, current-sp=0x000000005200B000, prepared-sp=0x40...., current=yes, prepare=yes, switch=yes, runtime=yes
 ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes
-ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000002, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes
+ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000001, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes
 ARMv7-A runtime loop ingress, mode=oneshot, route=irq, hz=62500000, tick-runtime=yes, thread=yes, tick=yes, isr-defer=yes, idle=yes, worker=yes, run=yes, loop=yes
+ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=yes, idle=yes, worker=yes, live=yes, resumes=3, idle-runs=1, wake-due=0x000000000000...., tick-now=0x000000000000....
 ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes
 ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes
 ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes
@@ -195,7 +196,36 @@ ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00
 before launching QEMU, so the smoke log stays aligned with the current source
 instead of whatever ELF happened to be left in `out\build\debug`. The default
 build leg now also uses `--parallel 1`, which keeps the ARM bare-metal GCC
-modules output stable during CI smoke runs.
+modules output stable during CI smoke runs. The same smoke now also gates the
+`runtime-live` phase markers plus the `ARMv7-A runtime live, ... live=yes`
+summary, and treats `ARMv7-A runtime live debug` as unexpected output so the
+mainline log only stays green once the live path is fully closed.
+
+For a shorter failure loop around just this lower-half seam, use the focused
+runtime-live smoke:
+
+```powershell
+.\run_qemu_runtime_live_ci.ps1
+```
+
+For a shorter failure loop around the runtime-trap ingress/capture/writeback
+seam, use:
+
+```powershell
+.\run_qemu_runtime_trap_ci.ps1
+```
+
+For a shorter failure loop around the live task-syscall seam, use:
+
+```powershell
+.\run_qemu_task_syscall_ci.ps1
+```
+
+To run the lower-half focused bundle after one shared `debug` build, use:
+
+```powershell
+.\run_qemu_lower_half_ci.ps1
+```
 
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:

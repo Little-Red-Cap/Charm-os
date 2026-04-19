@@ -185,11 +185,12 @@ view 重载则继续保留，方便 host verifier、future syscall facade 或更
 
 ## 当前证据路径
 
-当前与这层 facade 直接相关的证据路径有三条：
+当前与这层 facade 直接相关的证据路径有四条：
 
 - `Examples/kernel/runtime_minimal_host`
 - `Examples/kernel/runtime_trap_armv7a_host`
 - `Examples/kernel/runtime_service_host`
+- `Examples/kernel/runtime_binding_chain_host`
 
 它们当前分别承担：
 
@@ -199,12 +200,15 @@ view 重载则继续保留，方便 host verifier、future syscall facade 或更
   - 证明 facade 可以挂在 ARMv7-A host trap mapping 之上，而不暴露 arch frame 细节给 worker
 - `runtime_service_host`
   - 证明 facade 自身的 `valid()`、`bind_transport(...)`、标量/视图双重重载，以及 default payload 等 task-side 语义
+- `runtime_binding_chain_host`
+  - 证明 facade 底层的 `bind_transport(...)` unbind / rebind 能穿过 `TaskRuntimeApi -> TaskSyscallApi` wrapper 链，并被顶层 `sys_*` 直接观察到
 
-这三条证据合起来说明：
+这四条证据合起来说明：
 
 - facade 不是只存在于文档里的包装层
 - 它已经同时有“接在真实 trap transport 之上”的证据
 - 也有“脱离 scheduler/ingress 细节独立验证自身语义”的证据
+- 它也已经有“作为更高层 runtime/syscall facade 底座时，重绑定效果仍然稳定可见”的证据
 
 ## 与其它上半层模块的关系
 

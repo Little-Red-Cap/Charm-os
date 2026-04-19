@@ -82,6 +82,7 @@
 - 装配与启动：`docs/system/init_graph_contract.md`
 - ARMv7-A 平台契约：`docs/system/armv7a_platform_contract.md`
 - 最小内核运行时 bridge 契约：`docs/system/minimal_kernel_runtime_bridge_contract.md`
+- 最小内核运行时证据矩阵：`docs/system/minimal_kernel_runtime_evidence_matrix.md`
 - 最小内核 task-side runtime service 契约：`docs/system/minimal_kernel_runtime_service_contract.md`
 - 最小内核 task runtime API 契约：`docs/system/minimal_kernel_task_runtime_api_contract.md`
 - 最小内核 task syscall API 契约：`docs/system/minimal_kernel_task_syscall_api_contract.md`
@@ -154,6 +155,7 @@ flowchart TD
 | 上 RK3506 板 / 查早期寄存器 | `docs/board/rk3506/README.md` → `docs/board/rk3506/post_ddr_handoff_contract.md` → `docs/system/armv7a_platform_contract.md` |
 | 推进 ARMv7-A 平台 bring-up | `docs/system/armv7a_platform_contract.md` → `docs/boot/bootloader_overview.md` |
 | 推进最小内核运行时 glue / bridge | `docs/system/minimal_kernel_runtime_bridge_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
+| 查看最小内核运行时证据覆盖 | `docs/system/minimal_kernel_runtime_evidence_matrix.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |
 | 推进 task-side runtime service / syscall facade | `docs/system/minimal_kernel_runtime_service_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` |
 | 推进 task runtime API / future current-task syscall facade | `docs/system/minimal_kernel_task_runtime_api_contract.md` → `docs/system/minimal_kernel_runtime_service_contract.md` |
 | 推进 task syscall API / future syscall surface naming | `docs/system/minimal_kernel_task_syscall_api_contract.md` → `docs/system/minimal_kernel_task_runtime_api_contract.md` |
@@ -283,6 +285,7 @@ docs/
 - `docs/system/init_materialized_graph_tooling_milestone.md`
 - `docs/system/armv7a_platform_contract.md`
 - `docs/system/minimal_kernel_runtime_bridge_contract.md`
+- `docs/system/minimal_kernel_runtime_evidence_matrix.md`
 - `docs/system/minimal_kernel_runtime_service_contract.md`
 - `docs/system/minimal_kernel_task_runtime_api_contract.md`
 - `docs/system/minimal_kernel_task_syscall_api_contract.md`

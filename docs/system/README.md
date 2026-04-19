@@ -40,6 +40,7 @@
 - [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
 - [`minimal_kernel_runtime_mailbox_contract.md`](minimal_kernel_runtime_mailbox_contract.md)
 - [`minimal_kernel_task_message_api_contract.md`](minimal_kernel_task_message_api_contract.md)
+- [`minimal_kernel_task_message_table_contract.md`](minimal_kernel_task_message_table_contract.md)
 - [`minimal_kernel_runtime_service_contract.md`](minimal_kernel_runtime_service_contract.md)
 - [`minimal_kernel_task_runtime_api_contract.md`](minimal_kernel_task_runtime_api_contract.md)
 - [`minimal_kernel_task_syscall_api_contract.md`](minimal_kernel_task_syscall_api_contract.md)

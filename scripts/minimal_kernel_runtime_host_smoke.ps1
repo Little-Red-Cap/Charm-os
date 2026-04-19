@@ -8,6 +8,7 @@ param(
         "runtime_bridge_binding_host",
         "runtime_mailbox_host",
         "runtime_task_message_host",
+        "runtime_task_message_table_host",
         "runtime_loop_port_host",
         "runtime_run_loop_host",
         "runtime_tick_host",

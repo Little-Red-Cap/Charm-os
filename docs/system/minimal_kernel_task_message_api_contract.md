@@ -153,6 +153,12 @@
 - `RuntimeMailbox` / `TaskMessageApi`：task-to-task object semantics
 - `RuntimeTrapServiceFacade` / `TaskRuntimeApi` / `TaskSyscallApi`：task-to-kernel self-service semantics
 
+如果下一步要继续长 server-side message routing，当前更推荐在这层之上新增独立的：
+
+- `kernel.task_message_table`
+
+而不是反过来让 `TaskMessageApi` 自己变成 label dispatcher。
+
 ## 当前证据路径
 
 当前与这层直接相关的证据路径有三条：

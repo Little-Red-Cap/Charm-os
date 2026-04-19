@@ -15,6 +15,7 @@ include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
 
 charm_example_sdl3_options()
 
+set(CHARM_ENABLE_FREETYPE ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_SDL3 ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)

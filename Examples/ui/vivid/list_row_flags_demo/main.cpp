@@ -106,6 +106,12 @@ int main() {
         return 1;
     }
 
+    access.set_list_view_selected(handles.list, -1);
+    if (!expect(access.list_view_selected(handles.list) == -1,
+                "programmatic selection can clear back to empty truth")) {
+        return 1;
+    }
+
     access.set_list_view_selected(handles.list, 1);
     if (!expect(access.list_view_selected(handles.list) == 1,
                 "programmatic selection can still target disabled row")) {

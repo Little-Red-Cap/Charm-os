@@ -495,7 +495,8 @@
                                            const rgba& color) {
         StylePatch patch = make_player_text_patch(PlayerTextRole::CardTitle, color);
         patch.has_font = true;
-        patch.font = &get_player_font_px(24, FontWeight::Bold);
+        patch.font = &get_player_font_px_variant(
+            20, FontWeight::Regular, "wght630_wdth136_GRAD40_ROND100_XTRA520_YOPQ90_YTLC505");
         builder.set_style_override(h, patch);
     }
 

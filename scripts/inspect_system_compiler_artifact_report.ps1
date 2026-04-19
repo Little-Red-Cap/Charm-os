@@ -5116,6 +5116,230 @@ function New-ArtifactRootSystemCompilerCaseSummary {
     )
 }
 
+function New-ArtifactRootSystemCompilerBindingReasonMatrixEntry {
+    param(
+        [string]$ReasonText,
+        [object[]]$CaseProjections
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ReasonText)) {
+        return $null
+    }
+
+    $cases = @()
+    $capabilities = @()
+    $states = @()
+    $providerNodes = @()
+    $consumerNodes = @()
+    foreach ($caseProjection in @($CaseProjections)) {
+        $bindingStage = $caseProjection.stages.binding_result
+        if ($null -eq $bindingStage) {
+            continue
+        }
+
+        $matchedEntries = @(
+            @($bindingStage.binding_entries) |
+                Where-Object { [string]$_.reason -eq $ReasonText }
+        )
+        if (@($matchedEntries).Count -eq 0) {
+            continue
+        }
+
+        $caseCapabilities = @(
+            @($matchedEntries) |
+                ForEach-Object { [string]$_.capability } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseStates = @(
+            @($matchedEntries) |
+                ForEach-Object { [string]$_.state } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseProviderNodes = @(
+            foreach ($entry in @($matchedEntries)) {
+                @($entry.provider_nodes)
+            }
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+        $caseConsumerNodes = @(
+            foreach ($entry in @($matchedEntries)) {
+                @($entry.consumer_nodes)
+            }
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+        $capabilities += @($caseCapabilities)
+        $states += @($caseStates)
+        $providerNodes += @($caseProviderNodes)
+        $consumerNodes += @($caseConsumerNodes)
+
+        $cases += [ordered]@{
+            case = [string]$caseProjection.subject.case
+            profile = [string]$caseProjection.subject.profile
+            board = [string]$caseProjection.subject.board
+            capabilities = @($caseCapabilities)
+            states = @($caseStates)
+            provider_nodes = @($caseProviderNodes)
+            consumer_nodes = @($caseConsumerNodes)
+        }
+    }
+
+    return [ordered]@{
+        reason = $ReasonText
+        case_count = @($cases).Count
+        capability_count = @($capabilities | Sort-Object -Unique).Count
+        capabilities = @($capabilities | Sort-Object -Unique)
+        states = @($states | Sort-Object -Unique)
+        provider_nodes = @($providerNodes | Sort-Object -Unique)
+        consumer_nodes = @($consumerNodes | Sort-Object -Unique)
+        cases = @($cases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootSystemCompilerBringupPhaseMatrixEntry {
+    param(
+        [string]$PhaseName,
+        [object[]]$CaseProjections
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PhaseName)) {
+        return $null
+    }
+
+    $cases = @()
+    $nodes = @()
+    $states = @()
+    $kinds = @()
+    foreach ($caseProjection in @($CaseProjections)) {
+        $bringupStage = $caseProjection.stages.bringup_order
+        if ($null -eq $bringupStage) {
+            continue
+        }
+
+        $matchedEntries = @(
+            @($bringupStage.entries) |
+                Where-Object { [string]$_.phase -eq $PhaseName }
+        )
+        if (@($matchedEntries).Count -eq 0) {
+            continue
+        }
+
+        $caseNodes = @(
+            @($matchedEntries) |
+                ForEach-Object { [string]$_.node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseStates = @(
+            @($matchedEntries) |
+                ForEach-Object { [string]$_.state } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseKinds = @(
+            @($matchedEntries) |
+                ForEach-Object { [string]$_.kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+
+        $nodes += @($caseNodes)
+        $states += @($caseStates)
+        $kinds += @($caseKinds)
+
+        $cases += [ordered]@{
+            case = [string]$caseProjection.subject.case
+            profile = [string]$caseProjection.subject.profile
+            board = [string]$caseProjection.subject.board
+            nodes = @($caseNodes)
+            states = @($caseStates)
+            kinds = @($caseKinds)
+        }
+    }
+
+    return [ordered]@{
+        phase = $PhaseName
+        case_count = @($cases).Count
+        node_count = @($nodes | Sort-Object -Unique).Count
+        nodes = @($nodes | Sort-Object -Unique)
+        states = @($states | Sort-Object -Unique)
+        kinds = @($kinds | Sort-Object -Unique)
+        cases = @($cases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootSystemCompilerBringupDependencyMatrixEntry {
+    param(
+        [string]$NodeName,
+        [object[]]$CaseProjections
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NodeName)) {
+        return $null
+    }
+
+    $cases = @()
+    $dependentNodes = @()
+    $states = @()
+    $phases = @()
+    foreach ($caseProjection in @($CaseProjections)) {
+        $bringupStage = $caseProjection.stages.bringup_order
+        if ($null -eq $bringupStage) {
+            continue
+        }
+
+        $matchedEntries = @(
+            @($bringupStage.entries) |
+                Where-Object { @($_.dependency_nodes) -contains $NodeName }
+        )
+        if (@($matchedEntries).Count -eq 0) {
+            continue
+        }
+
+        $caseDependentNodes = @(
+            @($matchedEntries) |
+                ForEach-Object { [string]$_.node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseStates = @(
+            @($matchedEntries) |
+                ForEach-Object { [string]$_.state } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $casePhases = @(
+            @($matchedEntries) |
+                ForEach-Object { [string]$_.phase } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+
+        $dependentNodes += @($caseDependentNodes)
+        $states += @($caseStates)
+        $phases += @($casePhases)
+
+        $cases += [ordered]@{
+            case = [string]$caseProjection.subject.case
+            profile = [string]$caseProjection.subject.profile
+            board = [string]$caseProjection.subject.board
+            dependent_nodes = @($caseDependentNodes)
+            states = @($caseStates)
+            phases = @($casePhases)
+        }
+    }
+
+    return [ordered]@{
+        node = $NodeName
+        case_count = @($cases).Count
+        dependent_node_count = @($dependentNodes | Sort-Object -Unique).Count
+        dependent_nodes = @($dependentNodes | Sort-Object -Unique)
+        states = @($states | Sort-Object -Unique)
+        phases = @($phases | Sort-Object -Unique)
+        cases = @($cases | Sort-Object case)
+    }
+}
+
 function New-ArtifactRootSystemCompilerAggregateProjection {
     param(
         [object[]]$LoadedReports
@@ -5223,6 +5447,49 @@ function New-ArtifactRootSystemCompilerAggregateProjection {
             }
         }
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $bindingReasons = @(
+        foreach ($caseProjection in @($caseProjections)) {
+            foreach ($bindingEntry in @($caseProjection.stages.binding_result.binding_entries)) {
+                $reasonText = [string]$bindingEntry.reason
+                if (-not [string]::IsNullOrWhiteSpace($reasonText)) {
+                    $reasonText
+                }
+            }
+        }
+    ) | Sort-Object -Unique
+    $bringupPhases = @(
+        foreach ($caseProjection in @($caseProjections)) {
+            foreach ($bringupEntry in @($caseProjection.stages.bringup_order.entries)) {
+                $phaseName = [string]$bringupEntry.phase
+                if (-not [string]::IsNullOrWhiteSpace($phaseName)) {
+                    $phaseName
+                }
+            }
+        }
+    ) | Sort-Object -Unique
+    $bringupDependencyNodes = @(
+        foreach ($caseProjection in @($caseProjections)) {
+            foreach ($bringupEntry in @($caseProjection.stages.bringup_order.entries)) {
+                @($bringupEntry.dependency_nodes)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $bindingReasonMatrix = @(
+        foreach ($reasonText in @($bindingReasons)) {
+            New-ArtifactRootSystemCompilerBindingReasonMatrixEntry -ReasonText $reasonText -CaseProjections $caseProjections
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object reason
+    $bringupPhaseMatrix = @(
+        foreach ($phaseName in @($bringupPhases)) {
+            New-ArtifactRootSystemCompilerBringupPhaseMatrixEntry -PhaseName $phaseName -CaseProjections $caseProjections
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object phase
+    $bringupDependencyMatrix = @(
+        foreach ($nodeName in @($bringupDependencyNodes)) {
+            New-ArtifactRootSystemCompilerBringupDependencyMatrixEntry -NodeName $nodeName -CaseProjections $caseProjections
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object node
 
     return [pscustomobject][ordered]@{
         case_projections = @($caseProjections)
@@ -5252,6 +5519,14 @@ function New-ArtifactRootSystemCompilerAggregateProjection {
             blocker_reasons = @($blockerReasons)
             blocker_missing_requires = @($blockerMissingRequires)
             blocker_depends_on = @($blockerDependsOn)
+            binding_reasons = @($bindingReasons)
+            bringup_phases = @($bringupPhases)
+            bringup_dependency_nodes = @($bringupDependencyNodes)
+        }
+        matrices = [ordered]@{
+            binding_reason_matrix = @($bindingReasonMatrix)
+            bringup_phase_matrix = @($bringupPhaseMatrix)
+            bringup_dependency_matrix = @($bringupDependencyMatrix)
         }
     }
 }
@@ -5387,6 +5662,9 @@ function New-ArtifactRootSystemCompilerSummaryResult {
         blocker_reason_matrix = @($blockerReasonMatrix)
         blocker_missing_requires_matrix = @($blockerMissingRequiresMatrix)
         blocker_depends_on_matrix = @($blockerDependsOnMatrix)
+        binding_reason_matrix = @($aggregateProjection.matrices.binding_reason_matrix)
+        bringup_phase_matrix = @($aggregateProjection.matrices.bringup_phase_matrix)
+        bringup_dependency_matrix = @($aggregateProjection.matrices.bringup_dependency_matrix)
     }
 }
 
@@ -5606,6 +5884,241 @@ function New-ArtifactRootSystemCompilerCompareCaseSummary {
     )
 }
 
+function New-ArtifactRootSystemCompilerBindingReasonChangeMatrixEntry {
+    param(
+        [string]$ReasonText,
+        [object[]]$CaseProjections
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ReasonText)) {
+        return $null
+    }
+
+    $cases = @()
+    $capabilities = @()
+    $changeKinds = @()
+    $states = @()
+    foreach ($caseProjection in @($CaseProjections)) {
+        $bindingStage = $caseProjection.stages.binding_result
+        if ($null -eq $bindingStage) {
+            continue
+        }
+
+        $matchedChanges = @(
+            @($bindingStage.binding_changes) |
+                Where-Object {
+                    ([string]$_.left_reason -eq $ReasonText) -or
+                    ([string]$_.right_reason -eq $ReasonText)
+                }
+        )
+        if (@($matchedChanges).Count -eq 0) {
+            continue
+        }
+
+        $caseCapabilities = @(
+            @($matchedChanges) |
+                ForEach-Object { [string]$_.capability } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseChangeKinds = @(
+            @($matchedChanges) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseStates = @(
+            @($matchedChanges) |
+                ForEach-Object { @([string]$_.left_state, [string]$_.right_state) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+
+        $capabilities += @($caseCapabilities)
+        $changeKinds += @($caseChangeKinds)
+        $states += @($caseStates)
+
+        $cases += [ordered]@{
+            case = [string]$caseProjection.subject.case
+            profile = [string]$caseProjection.subject.profile
+            board = [string]$caseProjection.subject.board
+            capabilities = @($caseCapabilities)
+            change_kinds = @($caseChangeKinds)
+            states = @($caseStates)
+        }
+    }
+
+    return [ordered]@{
+        reason = $ReasonText
+        case_count = @($cases).Count
+        capability_count = @($capabilities | Sort-Object -Unique).Count
+        capabilities = @($capabilities | Sort-Object -Unique)
+        change_kinds = @($changeKinds | Sort-Object -Unique)
+        states = @($states | Sort-Object -Unique)
+        cases = @($cases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootSystemCompilerBringupPhaseChangeMatrixEntry {
+    param(
+        [string]$PhaseName,
+        [object[]]$CaseProjections
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PhaseName)) {
+        return $null
+    }
+
+    $cases = @()
+    $nodes = @()
+    $changeKinds = @()
+    $states = @()
+    foreach ($caseProjection in @($CaseProjections)) {
+        $bringupStage = $caseProjection.stages.bringup_order
+        if ($null -eq $bringupStage) {
+            continue
+        }
+
+        $matchedChanges = @(
+            @($bringupStage.entry_changes) |
+                Where-Object {
+                    ([string]$_.left_phase -eq $PhaseName) -or
+                    ([string]$_.right_phase -eq $PhaseName)
+                }
+        )
+        if (@($matchedChanges).Count -eq 0) {
+            continue
+        }
+
+        $caseNodes = @(
+            @($matchedChanges) |
+                ForEach-Object { [string]$_.node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseChangeKinds = @(
+            @($matchedChanges) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseStates = @(
+            @($matchedChanges) |
+                ForEach-Object { @([string]$_.left_state, [string]$_.right_state) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+
+        $nodes += @($caseNodes)
+        $changeKinds += @($caseChangeKinds)
+        $states += @($caseStates)
+
+        $cases += [ordered]@{
+            case = [string]$caseProjection.subject.case
+            profile = [string]$caseProjection.subject.profile
+            board = [string]$caseProjection.subject.board
+            nodes = @($caseNodes)
+            change_kinds = @($caseChangeKinds)
+            states = @($caseStates)
+        }
+    }
+
+    return [ordered]@{
+        phase = $PhaseName
+        case_count = @($cases).Count
+        node_count = @($nodes | Sort-Object -Unique).Count
+        nodes = @($nodes | Sort-Object -Unique)
+        change_kinds = @($changeKinds | Sort-Object -Unique)
+        states = @($states | Sort-Object -Unique)
+        cases = @($cases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootSystemCompilerBringupDependencyChangeMatrixEntry {
+    param(
+        [string]$NodeName,
+        [object[]]$CaseProjections
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NodeName)) {
+        return $null
+    }
+
+    $cases = @()
+    $dependentNodes = @()
+    $changeKinds = @()
+    $states = @()
+    $phases = @()
+    foreach ($caseProjection in @($CaseProjections)) {
+        $bringupStage = $caseProjection.stages.bringup_order
+        if ($null -eq $bringupStage) {
+            continue
+        }
+
+        $matchedChanges = @(
+            @($bringupStage.entry_changes) |
+                Where-Object {
+                    (@($_.left_dependency_nodes) -contains $NodeName) -or
+                    (@($_.right_dependency_nodes) -contains $NodeName)
+                }
+        )
+        if (@($matchedChanges).Count -eq 0) {
+            continue
+        }
+
+        $caseDependentNodes = @(
+            @($matchedChanges) |
+                ForEach-Object { [string]$_.node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseChangeKinds = @(
+            @($matchedChanges) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $caseStates = @(
+            @($matchedChanges) |
+                ForEach-Object { @([string]$_.left_state, [string]$_.right_state) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $casePhases = @(
+            @($matchedChanges) |
+                ForEach-Object { @([string]$_.left_phase, [string]$_.right_phase) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+
+        $dependentNodes += @($caseDependentNodes)
+        $changeKinds += @($caseChangeKinds)
+        $states += @($caseStates)
+        $phases += @($casePhases)
+
+        $cases += [ordered]@{
+            case = [string]$caseProjection.subject.case
+            profile = [string]$caseProjection.subject.profile
+            board = [string]$caseProjection.subject.board
+            dependent_nodes = @($caseDependentNodes)
+            change_kinds = @($caseChangeKinds)
+            states = @($caseStates)
+            phases = @($casePhases)
+        }
+    }
+
+    return [ordered]@{
+        node = $NodeName
+        case_count = @($cases).Count
+        dependent_node_count = @($dependentNodes | Sort-Object -Unique).Count
+        dependent_nodes = @($dependentNodes | Sort-Object -Unique)
+        change_kinds = @($changeKinds | Sort-Object -Unique)
+        states = @($states | Sort-Object -Unique)
+        phases = @($phases | Sort-Object -Unique)
+        cases = @($cases | Sort-Object case)
+    }
+}
+
 function New-ArtifactRootSystemCompilerCompareAggregateProjection {
     param(
         [object[]]$LoadedReports
@@ -5726,6 +6239,44 @@ function New-ArtifactRootSystemCompilerCompareAggregateProjection {
             }
         }
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $bindingReasonChanges = @(
+        foreach ($caseProjection in @($caseProjections)) {
+            foreach ($bindingChange in @($caseProjection.stages.binding_result.binding_changes)) {
+                @([string]$bindingChange.left_reason, [string]$bindingChange.right_reason)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $bringupPhaseChanges = @(
+        foreach ($caseProjection in @($caseProjections)) {
+            foreach ($entryChange in @($caseProjection.stages.bringup_order.entry_changes)) {
+                @([string]$entryChange.left_phase, [string]$entryChange.right_phase)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $bringupDependencyChanges = @(
+        foreach ($caseProjection in @($caseProjections)) {
+            foreach ($entryChange in @($caseProjection.stages.bringup_order.entry_changes)) {
+                @($entryChange.left_dependency_nodes)
+                @($entryChange.right_dependency_nodes)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    $bindingReasonChangeMatrix = @(
+        foreach ($reasonText in @($bindingReasonChanges)) {
+            New-ArtifactRootSystemCompilerBindingReasonChangeMatrixEntry -ReasonText $reasonText -CaseProjections $caseProjections
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object reason
+    $bringupPhaseChangeMatrix = @(
+        foreach ($phaseName in @($bringupPhaseChanges)) {
+            New-ArtifactRootSystemCompilerBringupPhaseChangeMatrixEntry -PhaseName $phaseName -CaseProjections $caseProjections
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object phase
+    $bringupDependencyChangeMatrix = @(
+        foreach ($nodeName in @($bringupDependencyChanges)) {
+            New-ArtifactRootSystemCompilerBringupDependencyChangeMatrixEntry -NodeName $nodeName -CaseProjections $caseProjections
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object node
 
     return [pscustomobject][ordered]@{
         case_projections = @($caseProjections)
@@ -5751,6 +6302,14 @@ function New-ArtifactRootSystemCompilerCompareAggregateProjection {
             blocker_reasons = @($blockerReasons)
             blocker_missing_requires = @($blockerMissingRequires)
             blocker_depends_on = @($blockerDependsOn)
+            binding_reason_changes = @($bindingReasonChanges)
+            bringup_phase_changes = @($bringupPhaseChanges)
+            bringup_dependency_changes = @($bringupDependencyChanges)
+        }
+        matrices = [ordered]@{
+            binding_reason_change_matrix = @($bindingReasonChangeMatrix)
+            bringup_phase_change_matrix = @($bringupPhaseChangeMatrix)
+            bringup_dependency_change_matrix = @($bringupDependencyChangeMatrix)
         }
     }
 }
@@ -5928,6 +6487,9 @@ function New-ArtifactRootSystemCompilerComparisonResult {
         blocker_reason_change_matrix = @($blockerReasonChangeMatrix)
         blocker_missing_requires_change_matrix = @($blockerMissingRequiresChangeMatrix)
         blocker_depends_on_change_matrix = @($blockerDependsOnChangeMatrix)
+        binding_reason_change_matrix = @($aggregateProjection.matrices.binding_reason_change_matrix)
+        bringup_phase_change_matrix = @($aggregateProjection.matrices.bringup_phase_change_matrix)
+        bringup_dependency_change_matrix = @($aggregateProjection.matrices.bringup_dependency_change_matrix)
     }
 }
 
@@ -7385,6 +7947,15 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             if (@($systemCompilerSummary.blocker_depends_on_matrix).Count -gt 0) {
                 Write-Host "blocker_depends_on      = $((@($systemCompilerSummary.blocker_depends_on_matrix | ForEach-Object { [string]$_.node }) -join ', '))"
             }
+            if (@($systemCompilerSummary.binding_reason_matrix).Count -gt 0) {
+                Write-Host "binding_reasons         = $((@($systemCompilerSummary.binding_reason_matrix | ForEach-Object { [string]$_.reason }) -join ', '))"
+            }
+            if (@($systemCompilerSummary.bringup_phase_matrix).Count -gt 0) {
+                Write-Host "bringup_phases          = $((@($systemCompilerSummary.bringup_phase_matrix | ForEach-Object { [string]$_.phase }) -join ', '))"
+            }
+            if (@($systemCompilerSummary.bringup_dependency_matrix).Count -gt 0) {
+                Write-Host "bringup_dependencies    = $((@($systemCompilerSummary.bringup_dependency_matrix | ForEach-Object { [string]$_.node }) -join ', '))"
+            }
             Write-Host ''
         }
         if ($null -ne $systemInputSummary) {
@@ -7523,6 +8094,15 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
                 }
                 if (@($comparisonOverview.system_compiler_summary.blocker_reason_change_matrix).Count -gt 0) {
                     Write-Host "system_compiler_blocker_reasons = $((@($comparisonOverview.system_compiler_summary.blocker_reason_change_matrix | ForEach-Object { [string]$_.reason }) -join ', '))"
+                }
+                if (@($comparisonOverview.system_compiler_summary.binding_reason_change_matrix).Count -gt 0) {
+                    Write-Host "system_compiler_binding_reasons = $((@($comparisonOverview.system_compiler_summary.binding_reason_change_matrix | ForEach-Object { [string]$_.reason }) -join ', '))"
+                }
+                if (@($comparisonOverview.system_compiler_summary.bringup_phase_change_matrix).Count -gt 0) {
+                    Write-Host "system_compiler_bringup_phases = $((@($comparisonOverview.system_compiler_summary.bringup_phase_change_matrix | ForEach-Object { [string]$_.phase }) -join ', '))"
+                }
+                if (@($comparisonOverview.system_compiler_summary.bringup_dependency_change_matrix).Count -gt 0) {
+                    Write-Host "system_compiler_bringup_dependencies = $((@($comparisonOverview.system_compiler_summary.bringup_dependency_change_matrix | ForEach-Object { [string]$_.node }) -join ', '))"
                 }
             }
             if ($null -ne $comparisonOverview.system_input_summary) {

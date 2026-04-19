@@ -384,6 +384,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `system_compiler_summary.resolved_profile_matrix / resolved_board_matrix / resolved_active_facet_matrix`
 - `system_compiler_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `system_compiler_summary.blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`
+- `system_compiler_summary.binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`
 - `system_compiler_summary.cases[*].formation_basis / binding_summary / bringup_summary`
 - `system_input_summary.case_count`
 - `system_input_summary.case_kind_matrix`
@@ -403,6 +404,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_compiler_summary.declared_fact_change_matrix / declared_contract_change_matrix / subject_fact_change_matrix`
 - `comparison.system_compiler_summary.unresolved_capability_change_matrix / blocked_node_change_matrix / blocker_change_matrix`
 - `comparison.system_compiler_summary.blocker_reason_change_matrix / blocker_missing_requires_change_matrix / blocker_depends_on_change_matrix`
+- `comparison.system_compiler_summary.binding_reason_change_matrix / bringup_phase_change_matrix / bringup_dependency_change_matrix`
 - `comparison.system_compiler_summary.cases[*].formation_basis_changes / binding_summary_changes / bringup_summary_changes`
 - `comparison.system_input_summary.changed_case_count`
 - `comparison.system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -431,6 +433,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - 单个 case 的 `formation_basis / binding_summary / bringup_summary` 是怎样收口的
 - 这一组 case 在 binding / bringup / formation 上的阻塞面主要集中在哪里
 - blocker reasons / missing requires / dependency nodes 在多 case 之间如何聚集
+- binding reasons / bringup phases / bringup dependency nodes 在多 case 之间如何聚集
 - declared fact / declared contract / subject fact 在多 case 之间如何聚集
 - 这一组 case 当前整体有多少已经 `formed`、多少已经 `blocked`
 - binding result 在多 case 之间是如何收口的，哪些 capability 仍然 unresolved
@@ -441,6 +444,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - compare 模式下哪些 `system_spec / declared_input / resolved_input` 已经发生输入侧漂移
 - compare 模式下单个 case 的 `binding_summary / bringup_summary` 到底是怎么变的
 - compare 模式下 blocker reason / missing requires / dependency nodes 漂移集中在哪里
+- compare 模式下 binding reason / bringup phase / bringup dependency node 漂移集中在哪里
 - compare 模式下哪些 `formed -> blocked` 或 `blocked -> formed` 转换真的发生了
 - compare 模式下哪些 binding_result / bringup_order 变化已经进入正式结果物摘要
 - compare 模式下哪些 fact inventory / contract state 已经进入正式 fact resolution 漂移面

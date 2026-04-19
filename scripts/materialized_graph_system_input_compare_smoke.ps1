@@ -292,6 +292,12 @@ Assert-Condition ($null -ne $changedCompilerComparisonSummary.bringup_summary_ch
 Assert-Condition ((@($changedCompilerComparisonSummary.formation_basis_changes.declared_fact_changes.added) -contains $AddedDeclaredFact)) 'artifact_root comparison.system_compiler_summary formation_basis_changes must include added declared fact'
 Assert-Condition ([int]$changedCompilerComparisonSummary.binding_summary_changes.binding_change_count -eq 0) 'artifact_root comparison.system_compiler_summary binding_summary_changes must stay empty for input-only drift'
 Assert-Condition ([int]$changedCompilerComparisonSummary.bringup_summary_changes.entry_change_count -eq 0) 'artifact_root comparison.system_compiler_summary bringup_summary_changes must stay empty for input-only drift'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.blocker_reason_change_matrix) 'artifact_root comparison.system_compiler_summary must expose blocker_reason_change_matrix'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.blocker_missing_requires_change_matrix) 'artifact_root comparison.system_compiler_summary must expose blocker_missing_requires_change_matrix'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.blocker_depends_on_change_matrix) 'artifact_root comparison.system_compiler_summary must expose blocker_depends_on_change_matrix'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.blocker_reason_change_matrix).Count -eq 0) 'artifact_root comparison.system_compiler_summary blocker_reason_change_matrix must stay empty for input-only drift'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.blocker_missing_requires_change_matrix).Count -eq 0) 'artifact_root comparison.system_compiler_summary blocker_missing_requires_change_matrix must stay empty for input-only drift'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.blocker_depends_on_change_matrix).Count -eq 0) 'artifact_root comparison.system_compiler_summary blocker_depends_on_change_matrix must stay empty for input-only drift'
 
 $changedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ChangedCase
 $unchangedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ExpectedUnchangedCase

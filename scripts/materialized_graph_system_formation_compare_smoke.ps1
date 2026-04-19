@@ -410,6 +410,17 @@ Assert-Condition ($null -ne $changedCompilerSummary.binding_summary) 'artifact_r
 Assert-Condition ($null -ne $changedCompilerSummary.bringup_summary) 'artifact_root system_compiler_summary changed case must expose bringup_summary'
 Assert-Condition ((@($changedCompilerSummary.binding_summary.unresolved_capabilities) -contains $RemovedCapability)) 'artifact_root system_compiler_summary changed case binding_summary must expose removed capability as unresolved'
 Assert-Condition ((@($changedCompilerSummary.bringup_summary.blocked_nodes) -contains $BlockedNode)) 'artifact_root system_compiler_summary changed case bringup_summary must expose blocked node'
+Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.blocker_reason_matrix) 'artifact_root system_compiler_summary must expose blocker_reason_matrix'
+Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.blocker_missing_requires_matrix) 'artifact_root system_compiler_summary must expose blocker_missing_requires_matrix'
+Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.blocker_depends_on_matrix) 'artifact_root system_compiler_summary must expose blocker_depends_on_matrix'
+Assert-Condition (@($rootSummaryInspectResult.system_compiler_summary.blocker_reason_matrix).Count -gt 0) 'artifact_root system_compiler_summary blocker_reason_matrix must expose blocker hotspots'
+$missingRequireEntry = @(
+    @($rootSummaryInspectResult.system_compiler_summary.blocker_missing_requires_matrix) |
+        Where-Object { [string]$_.require -eq $RemovedCapability } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $missingRequireEntry) 'artifact_root system_compiler_summary blocker_missing_requires_matrix missing removed capability'
+Assert-Condition (@($rootSummaryInspectResult.system_compiler_summary.blocker_depends_on_matrix).Count -gt 0) 'artifact_root system_compiler_summary blocker_depends_on_matrix must expose dependency hotspots'
 Assert-Condition ($null -ne $changedCompilerComparisonSummary.formation_basis_changes) 'artifact_root comparison.system_compiler_summary changed case must expose formation_basis_changes'
 Assert-Condition ($null -ne $changedCompilerComparisonSummary.binding_summary_changes) 'artifact_root comparison.system_compiler_summary changed case must expose binding_summary_changes'
 Assert-Condition ($null -ne $changedCompilerComparisonSummary.bringup_summary_changes) 'artifact_root comparison.system_compiler_summary changed case must expose bringup_summary_changes'
@@ -417,6 +428,17 @@ Assert-Condition ((@($changedCompilerComparisonSummary.binding_summary_changes.u
 Assert-Condition ((@($changedCompilerComparisonSummary.bringup_summary_changes.blocked_node_changes.added) -contains $BlockedNode)) 'artifact_root comparison.system_compiler_summary bringup_summary_changes must include blocked node'
 Assert-Condition ([int]$changedCompilerComparisonSummary.binding_summary_changes.binding_change_count -gt 0) 'artifact_root comparison.system_compiler_summary binding_summary_changes must expose changed bindings'
 Assert-Condition ([int]$changedCompilerComparisonSummary.bringup_summary_changes.entry_change_count -gt 0) 'artifact_root comparison.system_compiler_summary bringup_summary_changes must expose changed bringup entries'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.blocker_reason_change_matrix) 'artifact_root comparison.system_compiler_summary must expose blocker_reason_change_matrix'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.blocker_missing_requires_change_matrix) 'artifact_root comparison.system_compiler_summary must expose blocker_missing_requires_change_matrix'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.blocker_depends_on_change_matrix) 'artifact_root comparison.system_compiler_summary must expose blocker_depends_on_change_matrix'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.blocker_reason_change_matrix).Count -gt 0) 'artifact_root comparison.system_compiler_summary blocker_reason_change_matrix must expose blocker drift hotspots'
+$missingRequireChangeEntry = @(
+    @($rootSummaryInspectResult.comparison.system_compiler_summary.blocker_missing_requires_change_matrix) |
+        Where-Object { [string]$_.require -eq $RemovedCapability } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $missingRequireChangeEntry) 'artifact_root comparison.system_compiler_summary blocker_missing_requires_change_matrix missing removed capability'
+Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.blocker_depends_on_change_matrix).Count -gt 0) 'artifact_root comparison.system_compiler_summary blocker_depends_on_change_matrix must expose dependency drift hotspots'
 
 $changedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ChangedCase
 $unchangedCaseSummary = Get-CaseSummaryRow -Rows @($rootSummaryInspectResult.cases) -CaseName $ExpectedUnchangedCase

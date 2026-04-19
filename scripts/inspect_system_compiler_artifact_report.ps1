@@ -4123,7 +4123,7 @@ function New-ArtifactRootSystemFormationBlockerMatrixEntry {
                 status = [string]$caseSummary.status
                 state = [string]$blocker.state
                 missing_requires = @($blocker.missing_requires)
-                depends_on = @($blocker.depends_on)
+                depends_on = @($blocker.dependency_nodes)
                 reason = if ([string]::IsNullOrWhiteSpace([string]$blocker.reason)) { $null } else { [string]$blocker.reason }
             }
         }
@@ -4159,6 +4159,149 @@ function New-ArtifactRootSystemFormationBlockerMatrixEntry {
         )
         cases = @($cases | Sort-Object case)
     }
+}
+
+function Convert-ArtifactRootBlockerKeysToEntries {
+    param(
+        [string[]]$BlockerKeys
+    )
+
+    $entries = @()
+    foreach ($blockerKey in @($BlockerKeys | Sort-Object -Unique)) {
+        $parts = [string]$blockerKey -split '\|', 2
+        if (@($parts).Count -ne 2) {
+            continue
+        }
+
+        $entries += [ordered]@{
+            kind = [string]$parts[0]
+            name = [string]$parts[1]
+        }
+    }
+
+    return @($entries)
+}
+
+function New-ArtifactRootSystemFormationBlockerReasonMatrixEntry {
+    param(
+        [string]$ReasonText,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ReasonText)) {
+        return $null
+    }
+
+    $cases = @()
+    $blockerKeys = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $matchedBlockers = @(
+            @($caseSummary.blockers) |
+                Where-Object { [string]$_.reason -eq $ReasonText }
+        )
+        if (@($matchedBlockers).Count -eq 0) {
+            continue
+        }
+
+        $caseBlockerKeys = @(
+            foreach ($blocker in @($matchedBlockers)) {
+                $kind = [string]$blocker.kind
+                $name = [string]$blocker.name
+                if ([string]::IsNullOrWhiteSpace($kind) -or [string]::IsNullOrWhiteSpace($name)) {
+                    continue
+                }
+
+                "${kind}|${name}"
+            }
+        ) | Sort-Object -Unique
+        $blockerKeys += @($caseBlockerKeys)
+
+        $cases += [ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            status = [string]$caseSummary.status
+            blockers = @(Convert-ArtifactRootBlockerKeysToEntries -BlockerKeys @($caseBlockerKeys))
+        }
+    }
+
+    return [ordered]@{
+        reason = $ReasonText
+        case_count = @($cases).Count
+        blocker_count = @($blockerKeys | Sort-Object -Unique).Count
+        blockers = @(Convert-ArtifactRootBlockerKeysToEntries -BlockerKeys @($blockerKeys))
+        cases = @($cases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootSystemFormationBlockerDetailMatrixEntry {
+    param(
+        [string]$DetailName,
+        [object[]]$CaseSummaries,
+        [string]$CollectionName,
+        [string]$FieldName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($DetailName) -or
+        [string]::IsNullOrWhiteSpace($CollectionName) -or
+        [string]::IsNullOrWhiteSpace($FieldName)) {
+        return $null
+    }
+
+    $cases = @()
+    $blockerKeys = @()
+    $reasons = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $matchedBlockers = @(
+            @($caseSummary.blockers) |
+                Where-Object { @($_.$CollectionName) -contains $DetailName }
+        )
+        if (@($matchedBlockers).Count -eq 0) {
+            continue
+        }
+
+        $caseBlockerKeys = @(
+            foreach ($blocker in @($matchedBlockers)) {
+                $kind = [string]$blocker.kind
+                $name = [string]$blocker.name
+                if ([string]::IsNullOrWhiteSpace($kind) -or [string]::IsNullOrWhiteSpace($name)) {
+                    continue
+                }
+
+                "${kind}|${name}"
+            }
+        ) | Sort-Object -Unique
+        $blockerKeys += @($caseBlockerKeys)
+        $caseReasons = @(
+            @($matchedBlockers) |
+                ForEach-Object { [string]$_.reason } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $reasons += @($caseReasons)
+
+        $cases += [ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            status = [string]$caseSummary.status
+            reasons = @($caseReasons)
+            blockers = @(Convert-ArtifactRootBlockerKeysToEntries -BlockerKeys @($caseBlockerKeys))
+        }
+    }
+
+    $result = [ordered]@{}
+    $result[$FieldName] = $DetailName
+    $result.case_count = @($cases).Count
+    $result.blocker_count = @($blockerKeys | Sort-Object -Unique).Count
+    $result.blockers = @(Convert-ArtifactRootBlockerKeysToEntries -BlockerKeys @($blockerKeys))
+    $result.reasons = @(
+        @($reasons) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $result.cases = @($cases | Sort-Object case)
+    return $result
 }
 
 function New-ArtifactRootSystemFormationSummaryResult {
@@ -4408,8 +4551,8 @@ function New-ArtifactRootSystemFormationCompareBlockerEntry {
                 right_reason = if ([string]::IsNullOrWhiteSpace([string]$change.right_reason)) { $null } else { [string]$change.right_reason }
                 left_missing_requires = @($change.left_missing_requires)
                 right_missing_requires = @($change.right_missing_requires)
-                left_depends_on = @($change.left_depends_on)
-                right_depends_on = @($change.right_depends_on)
+                left_depends_on = @($change.left_dependency_nodes)
+                right_depends_on = @($change.right_dependency_nodes)
             }
         }
     }
@@ -4450,6 +4593,176 @@ function New-ArtifactRootSystemFormationCompareBlockerEntry {
         )
         cases = @($cases | Sort-Object case)
     }
+}
+
+function New-ArtifactRootSystemFormationCompareBlockerReasonEntry {
+    param(
+        [string]$ReasonText,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ReasonText)) {
+        return $null
+    }
+
+    $cases = @()
+    $blockerKeys = @()
+    $changeKinds = @()
+    $states = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $matchedChanges = @(
+            @($caseSummary.blocker_changes) |
+                Where-Object {
+                    ([string]$_.left_reason -eq $ReasonText) -or
+                    ([string]$_.right_reason -eq $ReasonText)
+                }
+        )
+        if (@($matchedChanges).Count -eq 0) {
+            continue
+        }
+
+        $caseBlockerKeys = @(
+            foreach ($change in @($matchedChanges)) {
+                $kind = [string]$change.kind
+                $name = [string]$change.name
+                if ([string]::IsNullOrWhiteSpace($kind) -or [string]::IsNullOrWhiteSpace($name)) {
+                    continue
+                }
+
+                "${kind}|${name}"
+            }
+        ) | Sort-Object -Unique
+        $blockerKeys += @($caseBlockerKeys)
+        $caseChangeKinds = @(
+            @($matchedChanges) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $changeKinds += @($caseChangeKinds)
+        $caseStates = @(
+            @($matchedChanges) |
+                ForEach-Object { @([string]$_.left_state, [string]$_.right_state) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $states += @($caseStates)
+
+        $cases += [ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            change_kinds = @($caseChangeKinds)
+            states = @($caseStates)
+            blockers = @(Convert-ArtifactRootBlockerKeysToEntries -BlockerKeys @($caseBlockerKeys))
+        }
+    }
+
+    return [ordered]@{
+        reason = $ReasonText
+        case_count = @($cases).Count
+        blocker_count = @($blockerKeys | Sort-Object -Unique).Count
+        blockers = @(Convert-ArtifactRootBlockerKeysToEntries -BlockerKeys @($blockerKeys))
+        change_kinds = @(
+            @($changeKinds) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        states = @(
+            @($states) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        cases = @($cases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootSystemFormationCompareBlockerDetailEntry {
+    param(
+        [string]$DetailName,
+        [object[]]$CaseSummaries,
+        [string]$LeftCollectionName,
+        [string]$RightCollectionName,
+        [string]$FieldName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($DetailName) -or
+        [string]::IsNullOrWhiteSpace($LeftCollectionName) -or
+        [string]::IsNullOrWhiteSpace($RightCollectionName) -or
+        [string]::IsNullOrWhiteSpace($FieldName)) {
+        return $null
+    }
+
+    $cases = @()
+    $blockerKeys = @()
+    $changeKinds = @()
+    $reasons = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $matchedChanges = @(
+            @($caseSummary.blocker_changes) |
+                Where-Object {
+                    (@($_.$LeftCollectionName) -contains $DetailName) -or
+                    (@($_.$RightCollectionName) -contains $DetailName)
+                }
+        )
+        if (@($matchedChanges).Count -eq 0) {
+            continue
+        }
+
+        $caseBlockerKeys = @(
+            foreach ($change in @($matchedChanges)) {
+                $kind = [string]$change.kind
+                $name = [string]$change.name
+                if ([string]::IsNullOrWhiteSpace($kind) -or [string]::IsNullOrWhiteSpace($name)) {
+                    continue
+                }
+
+                "${kind}|${name}"
+            }
+        ) | Sort-Object -Unique
+        $blockerKeys += @($caseBlockerKeys)
+        $caseChangeKinds = @(
+            @($matchedChanges) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $changeKinds += @($caseChangeKinds)
+        $caseReasons = @(
+            @($matchedChanges) |
+                ForEach-Object { @([string]$_.left_reason, [string]$_.right_reason) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $reasons += @($caseReasons)
+
+        $cases += [ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            change_kinds = @($caseChangeKinds)
+            reasons = @($caseReasons)
+            blockers = @(Convert-ArtifactRootBlockerKeysToEntries -BlockerKeys @($caseBlockerKeys))
+        }
+    }
+
+    $result = [ordered]@{}
+    $result[$FieldName] = $DetailName
+    $result.case_count = @($cases).Count
+    $result.blocker_count = @($blockerKeys | Sort-Object -Unique).Count
+    $result.blockers = @(Convert-ArtifactRootBlockerKeysToEntries -BlockerKeys @($blockerKeys))
+    $result.change_kinds = @(
+        @($changeKinds) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $result.reasons = @(
+        @($reasons) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $result.cases = @($cases | Sort-Object case)
+    return $result
 }
 
 function New-ArtifactRootSystemFormationCompareNamedChangeEntry {
@@ -4804,6 +5117,30 @@ function New-ArtifactRootSystemCompilerSummaryResult {
             }
         }
     ) | Sort-Object -Unique
+    $blockerReasons = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($blocker in @($caseSummary.blockers)) {
+                $reasonText = [string]$blocker.reason
+                if (-not [string]::IsNullOrWhiteSpace($reasonText)) {
+                    $reasonText
+                }
+            }
+        }
+    ) | Sort-Object -Unique
+    $blockerMissingRequires = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($blocker in @($caseSummary.blockers)) {
+                @($blocker.missing_requires)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $blockerDependsOn = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($blocker in @($caseSummary.blockers)) {
+                @($blocker.dependency_nodes)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
     $caseKindMatrix = @(
         foreach ($caseKind in @($caseKinds)) {
@@ -4845,6 +5182,21 @@ function New-ArtifactRootSystemCompilerSummaryResult {
             New-ArtifactRootSystemFormationBlockerMatrixEntry -Kind ([string]$parts[0]) -Name ([string]$parts[1]) -CaseSummaries $caseSummaries
         }
     ) | Where-Object { $null -ne $_ } | Sort-Object kind, name
+    $blockerReasonMatrix = @(
+        foreach ($reasonText in @($blockerReasons)) {
+            New-ArtifactRootSystemFormationBlockerReasonMatrixEntry -ReasonText $reasonText -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object reason
+    $blockerMissingRequiresMatrix = @(
+        foreach ($requireName in @($blockerMissingRequires)) {
+            New-ArtifactRootSystemFormationBlockerDetailMatrixEntry -DetailName $requireName -CaseSummaries $caseSummaries -CollectionName 'missing_requires' -FieldName 'require'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object require
+    $blockerDependsOnMatrix = @(
+        foreach ($nodeName in @($blockerDependsOn)) {
+            New-ArtifactRootSystemFormationBlockerDetailMatrixEntry -DetailName $nodeName -CaseSummaries $caseSummaries -CollectionName 'depends_on' -FieldName 'node'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object node
 
     return [ordered]@{
         case_count = @($caseSummaries).Count
@@ -4906,6 +5258,9 @@ function New-ArtifactRootSystemCompilerSummaryResult {
         unresolved_capability_matrix = @($unresolvedCapabilityMatrix)
         blocked_node_matrix = @($blockedNodeMatrix)
         blocker_matrix = @($blockerMatrix)
+        blocker_reason_matrix = @($blockerReasonMatrix)
+        blocker_missing_requires_matrix = @($blockerMissingRequiresMatrix)
+        blocker_depends_on_matrix = @($blockerDependsOnMatrix)
     }
 }
 
@@ -5165,6 +5520,29 @@ function New-ArtifactRootSystemCompilerComparisonResult {
             }
         }
     ) | Sort-Object -Unique
+    $blockerReasons = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($change in @($caseSummary.blocker_changes)) {
+                @([string]$change.left_reason, [string]$change.right_reason)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $blockerMissingRequires = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($change in @($caseSummary.blocker_changes)) {
+                @($change.left_missing_requires)
+                @($change.right_missing_requires)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $blockerDependsOn = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            foreach ($change in @($caseSummary.blocker_changes)) {
+                @($change.left_dependency_nodes)
+                @($change.right_dependency_nodes)
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
     $stageChangeMatrix = @(
         New-ArtifactRootSystemCompilerStageChangeEntry -StageName 'system_input' -CaseSummaries $caseSummaries -PropertyName 'system_input_changed'
@@ -5222,6 +5600,21 @@ function New-ArtifactRootSystemCompilerComparisonResult {
             New-ArtifactRootSystemFormationCompareBlockerEntry -Kind ([string]$parts[0]) -Name ([string]$parts[1]) -CaseSummaries $caseSummaries
         }
     ) | Where-Object { $null -ne $_ } | Sort-Object kind, name
+    $blockerReasonChangeMatrix = @(
+        foreach ($reasonText in @($blockerReasons)) {
+            New-ArtifactRootSystemFormationCompareBlockerReasonEntry -ReasonText $reasonText -CaseSummaries $caseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object reason
+    $blockerMissingRequiresChangeMatrix = @(
+        foreach ($requireName in @($blockerMissingRequires)) {
+            New-ArtifactRootSystemFormationCompareBlockerDetailEntry -DetailName $requireName -CaseSummaries $caseSummaries -LeftCollectionName 'left_missing_requires' -RightCollectionName 'right_missing_requires' -FieldName 'require'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object require
+    $blockerDependsOnChangeMatrix = @(
+        foreach ($nodeName in @($blockerDependsOn)) {
+            New-ArtifactRootSystemFormationCompareBlockerDetailEntry -DetailName $nodeName -CaseSummaries $caseSummaries -LeftCollectionName 'left_dependency_nodes' -RightCollectionName 'right_dependency_nodes' -FieldName 'node'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object node
 
     return [ordered]@{
         compared_case_count = @($caseSummaries).Count
@@ -5273,6 +5666,9 @@ function New-ArtifactRootSystemCompilerComparisonResult {
         unresolved_capability_change_matrix = @($unresolvedCapabilityChangeMatrix)
         blocked_node_change_matrix = @($blockedNodeChangeMatrix)
         blocker_change_matrix = @($blockerChangeMatrix)
+        blocker_reason_change_matrix = @($blockerReasonChangeMatrix)
+        blocker_missing_requires_change_matrix = @($blockerMissingRequiresChangeMatrix)
+        blocker_depends_on_change_matrix = @($blockerDependsOnChangeMatrix)
     }
 }
 
@@ -6721,6 +7117,15 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             if (@($systemCompilerSummary.blocker_matrix).Count -gt 0) {
                 Write-Host "blockers                = $((@($systemCompilerSummary.blocker_matrix | ForEach-Object { ('{0}:{1}' -f [string]$_.kind, [string]$_.name) }) -join ', '))"
             }
+            if (@($systemCompilerSummary.blocker_reason_matrix).Count -gt 0) {
+                Write-Host "blocker_reasons         = $((@($systemCompilerSummary.blocker_reason_matrix | ForEach-Object { [string]$_.reason }) -join ', '))"
+            }
+            if (@($systemCompilerSummary.blocker_missing_requires_matrix).Count -gt 0) {
+                Write-Host "blocker_missing_requires = $((@($systemCompilerSummary.blocker_missing_requires_matrix | ForEach-Object { [string]$_.require }) -join ', '))"
+            }
+            if (@($systemCompilerSummary.blocker_depends_on_matrix).Count -gt 0) {
+                Write-Host "blocker_depends_on      = $((@($systemCompilerSummary.blocker_depends_on_matrix | ForEach-Object { [string]$_.node }) -join ', '))"
+            }
             Write-Host ''
         }
         if ($null -ne $systemInputSummary) {
@@ -6856,6 +7261,9 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
                 Write-Host "system_compiler_cmp     = $([int]$comparisonOverview.system_compiler_summary.changed_case_count)"
                 if (@($comparisonOverview.system_compiler_summary.changed_cases).Count -gt 0) {
                     Write-Host "system_compiler_list    = $((@($comparisonOverview.system_compiler_summary.changed_cases) -join ', '))"
+                }
+                if (@($comparisonOverview.system_compiler_summary.blocker_reason_change_matrix).Count -gt 0) {
+                    Write-Host "system_compiler_blocker_reasons = $((@($comparisonOverview.system_compiler_summary.blocker_reason_change_matrix | ForEach-Object { [string]$_.reason }) -join ', '))"
                 }
             }
             if ($null -ne $comparisonOverview.system_input_summary) {

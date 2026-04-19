@@ -218,6 +218,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `system_compiler_summary.system_spec_change_matrix / resolved_input_change_matrix`
 - `system_compiler_summary.declared_fact_change_matrix / declared_contract_change_matrix / subject_fact_change_matrix`
 - `system_compiler_summary.unresolved_capability_change_matrix / blocked_node_change_matrix / blocker_change_matrix`
+- `system_compiler_summary.blocker_reason_change_matrix / blocker_missing_requires_change_matrix / blocker_depends_on_change_matrix`
 - `comparison.system_compiler_summary.cases[*].formation_basis_changes / binding_summary_changes / bringup_summary_changes`
 - `system_input_summary.changed_case_count / unchanged_case_count`
 - `system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -252,6 +253,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `case_kind_matrix`
 - `resolved_profile_matrix / resolved_board_matrix / resolved_active_facet_matrix`
 - `unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
+- `blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`
 - `cases[*].formation_basis / binding_summary / bringup_summary`
 
 它不取代后面的分阶段摘要，
@@ -270,6 +272,23 @@ artifact_root 级 `cap list` 现在也会继续带出：
 这样调用方在 root 级总结果里，
 就已经可以直接看到每个 case 的最小成立 basis，
 而不必先跳回各个分阶段摘要再重新拼接。
+
+与此同时，这份总结果现在也会继续把 blocker 热点直接聚成：
+
+- `blocker_reason_matrix`
+- `blocker_missing_requires_matrix`
+- `blocker_depends_on_matrix`
+
+以及 compare 模式下的：
+
+- `blocker_reason_change_matrix`
+- `blocker_missing_requires_change_matrix`
+- `blocker_depends_on_change_matrix`
+
+这样调用方在 root 级总结果里，
+就已经可以先回答：
+
+> **这组系统实例主要卡在哪些 blocker reason、缺哪几个 require、被哪些 dependency node 牵住。**
 
 与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
 `system_input_summary`，至少包括：

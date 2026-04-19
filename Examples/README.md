@@ -46,6 +46,9 @@
 - 看文件系统示例集合：
   [`fs/README.md`](fs/README.md)
 
+- 看音频示例集合：
+  [`audio/README.md`](audio/README.md)
+
 - 看项目化示例集合：
   [`project/README.md`](project/README.md)
 
@@ -60,6 +63,9 @@
 
 - 看 USB 示例集合：
   [`usb/README.md`](usb/README.md)
+
+- 看 Service 示例集合：
+  [`service/README.md`](service/README.md)
 
 - 看 FatFs / VFS 示例：
   先回到 [`../docs/storage/fs_fatfs_demo.md`](../docs/storage/fs_fatfs_demo.md)，

@@ -67,7 +67,9 @@
 - 项目文档入口：`docs/project/README.md`
 - 架构文档入口：`docs/architecture/README.md`
 - IO 文档入口：`docs/io/README.md`
+- 输入文档入口：`docs/input/README.md`
 - 存储文档入口：`docs/storage/README.md`
+- Boot 文档入口：`docs/boot/README.md`
 - USB 文档入口：`docs/usb/README.md`
 - 板级资料入口：`docs/board/README.md`
 - RK3506 上板资料：`docs/board/rk3506/README.md`
@@ -234,6 +236,7 @@ docs/
 - `docs/io/net_stack_stage_review.md`
 - `docs/io/net_stack_foundation_tasklist.md`
 - `docs/io/net_stack_v0_closure_checklist.md`
+- `docs/input/README.md`
 - `docs/input/input_layering_decision.md`
 - `docs/input/input_protocol_map.md`
 
@@ -294,10 +297,12 @@ docs/
 - `docs/system/posix_errno_mapping.md`
 - `docs/system/posix_error_semantics.md`
 - `docs/system/posix_busybox_phase_checklist.md`
+- `docs/boot/README.md`
 - `docs/boot/bootloader_overview.md`
 - `docs/boot/bootloader_xymodem.md`
 
 ### Trace
+- `docs/trace/README.md`
 - `docs/trace/trace_core_entry.md`
 - `docs/trace/trace_core_ids.md`
 
@@ -324,6 +329,7 @@ docs/
 - `docs/project/tooling/Powershell设置utf8.md`
 
 ### UI
+- `docs/ui/README.md`
 - `docs/ui/player_ui.md`
 - `docs/ui/player_vivid_patterns.md`
 

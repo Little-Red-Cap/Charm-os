@@ -3,6 +3,10 @@
 这个示例用最小的 object-level widget 代码，冻结当前 Vivid 控件接入
 `service::state` 之后的 observe 语义。
 
+如果你要先看 object-level 的边沿事件表面，请先看：
+
+- `Examples/ui/vivid/widget_signal_demo`
+
 它刻意不走 SoA `SceneAccess`，而是直接实例化控件对象，专门演示这几件事：
 
 - `observe_checked()` / `observe_selected()` / `observe_value()` 是对象级真相观察面

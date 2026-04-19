@@ -217,6 +217,9 @@ Vivid 当前同时存在两层表面：
 
 典型形态：
 
+- `Button::observe_click()`
+- `MenuItem::observe_click()`
+- `ListItem::observe_click()`
 - `Checkbox::observe_checked()`
 - `Dropdown::observe_selected()`
 - `Slider::observe_value()`
@@ -226,7 +229,7 @@ Vivid 当前同时存在两层表面：
 
 - 直接绑定 widget 对象实例
 - 同执行域、同步、bounded
-- 本质上仍然继承 `state<T>` 的契约
+- 边沿接口继承 `signal` 契约，真相接口继承 `state<T>` 契约
 - 适合局部 widget 组合、对象级 smoke、非 SoA 小系统
 
 #### SoA `SceneAccess` 表面
@@ -250,12 +253,52 @@ Vivid 当前同时存在两层表面：
 - 禁止假设 `SceneAccess::set_value()` 自动等价于对象级 widget 的旧 `on_change` 兼容语义。
 - SoA 页面/控制器中的跨 widget 关系，应显式写在 controller / app-state / page logic 中，不要偷藏在 kernel 更新接口里。
 
+#### SoA-backed helper 表面
+
+典型形态：
+
+- `DropdownPopup::observe_selected()`
+- `DropdownPopup::observe_select()`
+- `MenuTree::set_selection_model(...)`
+- `MenuTree::observe_select()`
+
+它的语义是：
+
+- helper 自己把 committed truth 和 confirm edge 拆开
+- 或者把 highlight truth 外置给 caller，只保留 confirm edge
+- helper 可以允许 disabled item 进入局部 highlight truth，但不得借此伪造 open/confirm
+- 可以依赖 `SoaFactory / SoaKernel` 落地，但仍然是 helper 局部语义
+- 不自动扩散成 `SceneAccess` / runtime 的全局 observe 面
+
+硬规则：
+
+- 禁止因为 helper 拥有 `observe_*`，就反推 `SceneAccess` 也应该镜像暴露同名接口。
+- 禁止把 helper 级 edge/truth 观察面误写成 scene/runtime 级自由订阅图。
+- helper 级 `observe_*` 只说明 helper 本地 contract 成立，不说明系统级 wiring 已被 materialize。
+
 一句话判断：
 
 - 直接拿 widget 对象时，看 `observe_*`。
 - 走 SoA 句柄和 `SceneAccess` 时，看 scene/kernel/runtime 语义，而不是对象级 signal/state 语义镜像。
 
-## 7. v0 审查清单
+## 7. 当前 contract smoke 证据
+
+当前仓库里，`signal/state` v0 的 contract smoke 主要靠下面两条示例链冻结：
+
+- `Examples/service/service_signal_state_demo`
+  冻结局部 contract：空 delegate 拒绝、固定容量溢出拒绝、stale token 拒绝、`state.set(same)` 不通知、`state.disconnect(token)` 后真相继续更新但观察者静默、`deferred_signal` 保留显式 poster 身份且不 direct call。
+- `Examples/system/signal_state_closure_demo`
+  冻结跨层 contract：同域 `emit()` 同步落地、`state` 真相只在值变化时通知、`init.connection` 的 direct/deferred wiring 保持 graph 可见、worker 只会在真实 scheduler dispatch 后收到 deferred work。
+- `Examples/ui/vivid/widget_signal_demo`、`Examples/ui/vivid/widget_state_demo`、`Examples/ui/vivid/dropdown_popup_demo` 与 `Examples/ui/vivid/menu_tree_demo`
+  冻结 Vivid widget/helper 表面：`Button::observe_click()` / `MenuItem::observe_click()` / `ListItem::observe_click()` 是边沿 `signal`，`Checkbox / Dropdown / Slider / ProgressBarSimple / Arc` 的 `observe_*()` 是真相 `state`，`DropdownPopup::observe_selected()` 与 `observe_select()` 在 SoA-backed helper 内部显式拆开 committed truth 和 confirm edge，而 `MenuTree` 则把 highlight truth 交给 `StructuredMenuSelectionModel`，自己只显式补 `observe_select()` 这条 confirm edge；其中 disabled item 仍可进入 highlight truth，但不能 open submenu，也不能制造 confirm edge；旧 `set_on_*()` 兼容口不等同于统一 truth/edge 模型。
+
+这些示例加在一起表达的是：
+
+- local contract 已经可运行、可断言
+- cross-layer 边界已经可运行、可断言
+- `emit()` 和 `post()` 的职责分界已经不只是文档主张，而是仓库里的执行证据
+
+## 8. v0 审查清单
 
 每次引入或评审一段 signal/state 用法时，至少问下面这几句：
 

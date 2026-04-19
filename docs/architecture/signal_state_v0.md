@@ -350,6 +350,51 @@ SSU 当前已经收口三类提交入口：
 
 它不是运行时“自由订阅图”，而是让静态 wiring 关系继续留在 `init.graph` / materialize 可见面上。
 
+## 当前闭环证据
+
+当前仓库里，`signal/state` v0 第一版的主要证据链可以按下面四个示例理解：
+
+- `Examples/service/service_signal_state_demo`
+  冻结 `delegate / signal / state / deferred_signal / poster_set` 的基础语义、bounded 行为与 direct-vs-post 边界。
+- `Examples/init/connection_observe_demo`
+  冻结 `init.connection` 如何把 `source / sink / mode` materialize 成可观察的 connection 节点。
+- `Examples/system/app_host_poster_demo`
+  冻结真实 `AppHost` scheduler 上的 task-local poster 与 `deferred_signal.post()` 关系。
+- `Examples/system/signal_state_closure_demo`
+  把同域 `emit()`、`state` 真相、静态 direct/deferred wiring 与真实 `demand` poster 放到同一条最小可运行路径里。
+
+这四个示例组合起来表达的是：
+
+- 原语已经成立
+- direct / deferred 边界已经成立
+- 静态 wiring 已经可见
+- post 已经能进入真实执行面
+
+但它们并不意味着：
+
+- `init.connection` 已经自动编译成 runtime binding
+- system compiler 已经能直接生成 signal/state/poster 适配代码
+
+当前 v0 仍然是“语义闭环已成立，自动化装配尚未完全接上”。
+
+## 第一版完成标志
+
+如果要把 `signal/state` v0 视作“第一版完整闭环可用版本”，建议至少满足下面这些条件：
+
+- `delegate` 保持零动态、零隐式所有权、零运行时反射
+- `signal` 明确只做同域同步 bounded broadcast
+- `state` 明确只做真相存储与变化通知，不做响应式传播图
+- `deferred_signal` 明确只做 `post()`，不做 direct call fallback
+- `init.connection` 能把 direct / deferred wiring 留在 materialize / observe 可见面
+- 仓库里同时存在 foundation/service、static wiring、real scheduler 三条证据链
+- 至少有一个最小示例把 `emit / state / connection / post / scheduler dispatch` 串成同一条路径
+
+不满足这些条件时，更准确的说法应是：
+
+- 有原语
+- 有局部能力
+- 但还没有形成第一版闭环
+
 ## v0 边界
 
 v0 第一版只落以下内容：

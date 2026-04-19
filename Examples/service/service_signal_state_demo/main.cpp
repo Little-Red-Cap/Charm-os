@@ -166,21 +166,34 @@ int main() {
     if (!expect(emitted_second == 2, "second emit fanout")) return 1;
     if (!expect(g_free_hits == 2, "rebound free slot invoked")) return 1;
     if (!expect(controller.direct_sum == 5, "member slot accumulated")) return 1;
+    tick.clear();
+    if (!expect(tick.empty() && tick.size() == 0, "clear drops local signal wiring")) return 1;
+    if (!expect(tick.emit(7) == 0, "cleared signal does not keep hidden dispatch")) return 1;
+    if (!expect(!tick.disconnect(free_conn_rebound.value()), "clear invalidates old connection token")) return 1;
+    if (!expect(g_free_hits == 2 && controller.direct_sum == 5, "cleared signal does not invoke stale slots")) return 1;
 
     service::state<int, 2> level{10};
     if (!expect(level.get() == 10, "state exposes initial truth")) return 1;
     const auto state_conn =
         level.connect(util::delegate<const int&, const int&>::bind<&Controller::on_level_changed>(controller));
     if (!expect(static_cast<bool>(state_conn), "connect state observer")) return 1;
+    if (!expect(level.changed().size() == 1, "state changed() keeps explicit local observer set")) return 1;
     if (!expect(!level.set(10), "state suppresses unchanged set")) return 1;
     if (!expect(level.get() == 10, "unchanged set keeps state truth")) return 1;
     if (!expect(level.set(12), "state accepts changed set")) return 1;
     if (!expect(level.get() == 12, "changed set updates state truth")) return 1;
     if (!expect(controller.state_change_count == 1, "state changed once")) return 1;
     if (!expect(controller.last_old == 10 && controller.last_new == 12, "state reports old and new")) return 1;
+    if (!expect(level.disconnect(state_conn.value()), "disconnect state observer by token")) return 1;
+    if (!expect(!level.disconnect(state_conn.value()), "stale state token rejected")) return 1;
+    if (!expect(level.changed().empty(), "state disconnect removes local observer")) return 1;
+    if (!expect(level.set(13), "state truth still updates after disconnect")) return 1;
+    if (!expect(level.get() == 13, "state truth survives observer disconnect")) return 1;
+    if (!expect(controller.state_change_count == 1, "disconnected state observer stays silent")) return 1;
 
     FixedPoster<4> poster{};
     service::deferred_signal<DeferredEvent, FixedPoster<4>> deferred{poster};
+    if (!expect(&deferred.poster() == &poster, "deferred signal keeps explicit poster surface")) return 1;
     if (!expect(deferred.post(DeferredEvent{4}), "post deferred event 4")) return 1;
     if (!expect(deferred.post(DeferredEvent{6}), "post deferred event 6")) return 1;
     if (!expect(controller.deferred_sum == 0, "deferred post does not call immediately")) return 1;
@@ -218,12 +231,14 @@ int main() {
     if (!expect(scheduler.last_route == SubmitRoute::io_ready, "io_ready poster keeps io_ready semantics")) return 1;
 
     service::deferred_signal<kernel::Event, decltype(posters.demand)> scheduler_deferred{posters.demand};
+    if (!expect(&scheduler_deferred.poster() == &posters.demand, "scheduler deferred keeps demand poster")) return 1;
     if (!expect(scheduler_deferred.post(scheduler_event), "post scheduler demand")) return 1;
     if (!expect(scheduler.last_route == SubmitRoute::demand, "deferred signal keeps demand semantics")) return 1;
     if (!expect(kernel::payload_u32(scheduler.last_event) == 9, "scheduler payload preserved")) return 1;
 
     std::printf("[signal] direct_sum=%d free_hits=%d\n", controller.direct_sum, g_free_hits);
-    std::printf("[state] old=%d new=%d changes=%d\n",
+    std::printf("[state] truth=%d old=%d new=%d changes=%d\n",
+                level.get(),
                 controller.last_old,
                 controller.last_new,
                 controller.state_change_count);

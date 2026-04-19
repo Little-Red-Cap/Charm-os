@@ -239,6 +239,18 @@ Modules/
 - `ArchTimerPort`
 - `ArchContextPort`
 
+在当前这条 `runtime_glue / runtime_bridge` 路线上，还应该同时给下半层留出一个更靠近落地形状的入口：
+
+- `RuntimeLoopPort<Tick>`
+
+它不替代上面四类 arch hook，而是把 lower-half 真正会持有的那组最小动作收成一扇更明确的门：
+
+- `advance_tick(now)`
+- `defer_from_isr(task, event)`
+- `bootstrap_idle(...)`
+- `bootstrap_worker(...)`
+- `run_once_or_idle(now)`
+
 它们的责任可以先非常小：
 
 - 安装/切换异常向量
@@ -311,7 +323,7 @@ Modules/
 - `docs/system/minimal_kernel_task_syscall_catalog_contract.md`
 - `docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
 - `docs/system/minimal_kernel_task_syscall_table_contract.md`
-- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
+- `docs/system/minimal_kernel_task_syscall_frame_contract.md`（当前存在历史编码损坏，待恢复）
 - `docs/system/minimal_kernel_trap_syscall_contract.md`
 - `docs/system/minimal_kernel_trap_ingress_contract.md`
 - `docs/system/armv7a_runtime_trap_mapping_contract.md`

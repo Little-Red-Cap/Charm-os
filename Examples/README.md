@@ -21,6 +21,10 @@
   VFS、BlockFS、FatFs 等存储链路示例。
 - `io/`
   输入、pump、通道等 IO 相关示例。
+- `common/`
+  多个 PC / SDL3 示例共享的宿主侧辅助模块。
+- `cmake/`
+  示例工程共用的 CMake 模板与接线约定。
 - `service/`
   Service 核心能力与信号/状态链路示例。
 - `usb/`
@@ -34,6 +38,36 @@
 
 ## 推荐阅读路径
 
+- 看内核示例集合：
+  [`kernel/README.md`](kernel/README.md)
+
+- 看 init / observe 示例集合：
+  [`init/README.md`](init/README.md)
+
+- 看 POSIX 样本与测试集合：
+  [`posix/README.md`](posix/README.md)
+
+- 看文件系统示例集合：
+  [`fs/README.md`](fs/README.md)
+
+- 看 IO 示例集合：
+  [`io/README.md`](io/README.md)
+
+- 看音频示例集合：
+  [`audio/README.md`](audio/README.md)
+
+- 看 Ink 示例集合：
+  [`ink/README.md`](ink/README.md)
+
+- 看系统能力示例集合：
+  [`system/README.md`](system/README.md)
+
+- 看 UI / Vivid 示例集合：
+  [`ui/README.md`](ui/README.md)
+
+- 看项目化示例集合：
+  [`project/README.md`](project/README.md)
+
 - 看项目化示例：
   [`project/player/README.md`](project/player/README.md)
 
@@ -46,9 +80,36 @@
 - 看 USB 示例集合：
   [`usb/README.md`](usb/README.md)
 
+- 看 Service 示例集合：
+  [`service/README.md`](service/README.md)
+
+- 看 Shell / ModuleX 示例集合：
+  [`shell/README.md`](shell/README.md)
+
+- 看 HAL 示例集合：
+  [`hal/README.md`](hal/README.md)
+
+- 看算法示例集合：
+  [`alg/README.md`](alg/README.md)
+
+- 看示例构建模板：
+  [`cmake/README.md`](cmake/README.md)
+
 - 看 FatFs / VFS 示例：
   先回到 [`../docs/storage/fs_fatfs_demo.md`](../docs/storage/fs_fatfs_demo.md)，
   再进入对应示例目录。
+
+- 看 signal/state v0 第一版闭环：
+  [`service/service_signal_state_demo/README.md`](service/service_signal_state_demo/README.md) →
+  [`init/connection_observe_demo/README.md`](init/connection_observe_demo/README.md) →
+  [`system/signal_state_closure_demo/README.md`](system/signal_state_closure_demo/README.md)
+
+- 看 Vivid widget/helper/scene 的 truth-edge 边界：
+  [`ui/vivid/widget_signal_demo/README.md`](ui/vivid/widget_signal_demo/README.md) →
+  [`ui/vivid/widget_state_demo/README.md`](ui/vivid/widget_state_demo/README.md) →
+  [`ui/vivid/dropdown_popup_demo/README.md`](ui/vivid/dropdown_popup_demo/README.md) →
+  [`ui/vivid/menu_tree_demo/README.md`](ui/vivid/menu_tree_demo/README.md) →
+  [`ui/vivid/scene_state_demo/README.md`](ui/vivid/scene_state_demo/README.md)
 
 ## 快速构建（Windows + Ninja）
 

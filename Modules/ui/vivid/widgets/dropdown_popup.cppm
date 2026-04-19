@@ -8,6 +8,8 @@ import charm.core.soa_factory;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.string;
+import service.signal;
+import service.state;
 
 // Dropdown + Popup + ListItem ???????????
 export
@@ -16,6 +18,12 @@ public:
     static constexpr int kMaxOptions = 16;
     static constexpr int kRowHeight = 24;
     static constexpr int kMaxVisible = 8;
+    using selected_state_type = service::state<int, 4>;
+    using selected_slot_type = typename selected_state_type::slot_type;
+    using selected_connection = typename selected_state_type::connection;
+    using select_signal_type = service::signal<void(const int&), 4>;
+    using select_slot_type = typename select_signal_type::slot_type;
+    using select_connection = typename select_signal_type::connection;
 
     DropdownPopup(SoaFactory& factory, WidgetHandle host, WidgetHandle root)
         : factory_(factory), host_(host), root_(root) {
@@ -35,9 +43,12 @@ public:
             options_[i].assign(opts[i] ? opts[i] : "");
             ++option_count_;
         }
-        if (selected_ >= option_count_) {
-            selected_ = (option_count_ > 0) ? (option_count_ - 1) : 0;
+        int selected = selected_.get();
+        if (selected >= option_count_) {
+            selected = (option_count_ > 0) ? (option_count_ - 1) : 0;
+            (void)selected_.set(selected);
         }
+        highlighted_ = selected;
         sync_list_source();
     }
 
@@ -52,6 +63,7 @@ public:
         factory_.kernel().set_rect(popup_list_, {0, 0, w, visible * kRowHeight});
         factory_.kernel().set_visible(popup_container_, true);
         is_open_ = true;
+        highlighted_ = selected_.get();
         sync_list_source();
     }
 
@@ -71,11 +83,32 @@ public:
     void set_on_select(Callback cb) { on_select_ = cb; }
     void set_selection(int idx) {
         if (idx < 0 || idx >= option_count_) return;
-        selected_ = idx;
-        factory_.kernel().set_list_view_selected(popup_list_, selected_);
+        (void)selected_.set(idx);
+        highlighted_ = idx;
+        sync_list_selection();
     }
 
-    int selected() const noexcept { return selected_; }
+    [[nodiscard]] int selected() const noexcept { return selected_.get(); }
+
+    // observe_selected() is a same-domain truth surface for the committed selection.
+    // Navigation highlight stays internal until the user confirms a selection.
+    [[nodiscard]] auto observe_selected(selected_slot_type slot) noexcept {
+        return selected_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_selected(selected_connection c) noexcept {
+        return selected_.disconnect(c);
+    }
+
+    // observe_select() is a same-domain synchronous edge surface for accepted confirms.
+    // It fires even when the user confirms the currently committed selection again.
+    [[nodiscard]] auto observe_select(select_slot_type slot) noexcept {
+        return selected_edge_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_select(select_connection c) noexcept {
+        return selected_edge_.disconnect(c);
+    }
 
     bool handle_event(const Event& e) {
         if (!is_open()) return false;
@@ -89,9 +122,7 @@ public:
             if (r.contains(e.x, e.y)) {
                 const int idx = index_from_pos(e.y);
                 if (idx >= 0 && idx < option_count_) {
-                    selected_ = idx;
-                    factory_.kernel().set_list_view_selected(popup_list_, selected_);
-                    if (on_select_) on_select_();
+                    commit_selection(idx);
                 }
                 close();
                 return true;
@@ -103,32 +134,34 @@ public:
             if (r.contains(e.x, e.y)) {
                 const int idx = index_from_pos(e.y);
                 if (idx >= 0 && idx < option_count_) {
-                    selected_ = idx;
-                    factory_.kernel().set_list_view_selected(popup_list_, selected_);
+                    set_highlighted(idx);
                 }
                 return true;
             }
         } else if (e.type == Event::Type::MouseWheel) {
             if (r.contains(e.x, e.y)) {
+                if (e.wheel_y == 0) {
+                    return true;
+                }
                 const int dir = (e.wheel_y < 0) ? 1 : -1;
                 if (option_count_ > 0) {
-                    selected_ = (selected_ + dir + option_count_) % option_count_;
-                    factory_.kernel().set_list_view_selected(popup_list_, selected_);
+                    const int current = normalized_highlighted();
+                    set_highlighted((current + dir + option_count_) % option_count_);
                 }
                 return true;
             }
         } else if (e.type == Event::Type::KeyDown) {
             if (option_count_ == 0) return false;
             if (e.key_code == Event::Key::Down) {
-                selected_ = (selected_ + 1) % option_count_;
-                factory_.kernel().set_list_view_selected(popup_list_, selected_);
+                const int current = normalized_highlighted();
+                set_highlighted((current + 1) % option_count_);
                 return true;
             } else if (e.key_code == Event::Key::Up) {
-                selected_ = (selected_ - 1 + option_count_) % option_count_;
-                factory_.kernel().set_list_view_selected(popup_list_, selected_);
+                const int current = normalized_highlighted();
+                set_highlighted((current - 1 + option_count_) % option_count_);
                 return true;
             } else if (e.key_code == Event::Key::Enter || e.key_code == Event::Key::Space) {
-                if (on_select_) on_select_();
+                commit_selection(normalized_highlighted());
                 close();
                 return true;
             } else if (e.key_code == Event::Key::Escape) {
@@ -142,7 +175,38 @@ public:
 private:
     void sync_list_source() {
         factory_.set_list_view_items(popup_list_, items_ptrs(), static_cast<std::uint16_t>(option_count_));
-        factory_.kernel().set_list_view_selected(popup_list_, selected_);
+        sync_list_selection();
+    }
+
+    void sync_list_selection() {
+        if (option_count_ <= 0) {
+            factory_.kernel().set_list_view_selected(popup_list_, -1);
+            return;
+        }
+        factory_.kernel().set_list_view_selected(popup_list_, normalized_highlighted());
+    }
+
+    [[nodiscard]] int normalized_highlighted() const noexcept {
+        if (option_count_ <= 0) return 0;
+        if (highlighted_ < 0) return 0;
+        if (highlighted_ >= option_count_) return option_count_ - 1;
+        return highlighted_;
+    }
+
+    void set_highlighted(int idx) noexcept {
+        if (idx < 0 || idx >= option_count_) return;
+        highlighted_ = idx;
+        sync_list_selection();
+    }
+
+    void commit_selection(int idx) noexcept {
+        if (idx < 0 || idx >= option_count_) return;
+        highlighted_ = idx;
+        (void)selected_.set(idx);
+        sync_list_selection();
+        const int committed = selected_.get();
+        (void)selected_edge_.emit(committed);
+        if (on_select_) on_select_();
     }
 
     int index_from_pos(int y) const noexcept {
@@ -179,7 +243,9 @@ private:
     StaticString<32> options_[kMaxOptions]{};
     const char* item_ptrs_[kMaxOptions]{};
     int option_count_{0};
-    int selected_{0};
+    selected_state_type selected_{0};
+    int highlighted_{0};
     bool is_open_{false};
+    select_signal_type selected_edge_{};
     Callback on_select_{};
 };

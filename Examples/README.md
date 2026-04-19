@@ -50,8 +50,14 @@
 - 看文件系统示例集合：
   [`fs/README.md`](fs/README.md)
 
+- 看 IO 示例集合：
+  [`io/README.md`](io/README.md)
+
 - 看音频示例集合：
   [`audio/README.md`](audio/README.md)
+
+- 看 Ink 示例集合：
+  [`ink/README.md`](ink/README.md)
 
 - 看系统能力示例集合：
   [`system/README.md`](system/README.md)

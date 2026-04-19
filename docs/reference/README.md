@@ -14,11 +14,7 @@
 
 先读：
 
-- [`vsf/vsf_comparison.md`](vsf/vsf_comparison.md)
-- [`vsf/vsf_component_scan.md`](vsf/vsf_component_scan.md)
-- [`vsf/vsf_storage_map.md`](vsf/vsf_storage_map.md)
-- [`vsf/vsf_tcpip_map.md`](vsf/vsf_tcpip_map.md)
-- [`vsf/vsf_usb_map.md`](vsf/vsf_usb_map.md)
+- [`vsf/README.md`](vsf/README.md)
 
 ### 我想看音频驱动对象 / 架构讨论摘录
 

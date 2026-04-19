@@ -318,6 +318,7 @@ docs/
 
 ### 参考 / 对照材料
 - `docs/reference/README.md`
+- `docs/reference/vsf/README.md`
 - `docs/reference/Charm Audio Design.md`
 - `docs/reference/vsf/vsf_comparison.md`
 - `docs/reference/vsf/vsf_component_scan.md`

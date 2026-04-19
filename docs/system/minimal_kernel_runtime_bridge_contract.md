@@ -237,10 +237,15 @@
 当前证据 example：
 
 - `Examples/kernel/runtime_minimal_host`
+- `Examples/kernel/runtime_run_loop_host`
 - `Examples/kernel/runtime_tick_host`
 - `Examples/kernel/runtime_isr_defer_host`
 - `Examples/kernel/runtime_thread_port_host`
 - `scripts/minimal_kernel_runtime_host_smoke.ps1`
+
+更细的 seam -> verifier 对照见：
+
+- [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
 
 它验证的就是这条最小闭环：
 

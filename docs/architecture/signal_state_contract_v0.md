@@ -218,6 +218,8 @@ Vivid 当前同时存在两层表面：
 典型形态：
 
 - `Button::observe_click()`
+- `MenuItem::observe_click()`
+- `ListItem::observe_click()`
 - `Checkbox::observe_checked()`
 - `Dropdown::observe_selected()`
 - `Slider::observe_value()`
@@ -265,7 +267,7 @@ Vivid 当前同时存在两层表面：
 - `Examples/system/signal_state_closure_demo`
   冻结跨层 contract：同域 `emit()` 同步落地、`state` 真相只在值变化时通知、`init.connection` 的 direct/deferred wiring 保持 graph 可见、worker 只会在真实 scheduler dispatch 后收到 deferred work。
 - `Examples/ui/vivid/widget_signal_demo` 与 `Examples/ui/vivid/widget_state_demo`
-  冻结 object-level widget 表面：`Button::observe_click()` 是边沿 `signal`，`Checkbox / Dropdown / Slider / ProgressBarSimple / Arc` 的 `observe_*()` 是真相 `state`，旧 `set_on_*()` 兼容口不等同于统一 truth/edge 模型。
+  冻结 object-level widget 表面：`Button::observe_click()` / `MenuItem::observe_click()` / `ListItem::observe_click()` 是边沿 `signal`，`Checkbox / Dropdown / Slider / ProgressBarSimple / Arc` 的 `observe_*()` 是真相 `state`，旧 `set_on_*()` 兼容口不等同于统一 truth/edge 模型。
 
 这两条示例加在一起表达的是：
 

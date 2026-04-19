@@ -296,6 +296,7 @@
 
 如果需要把当前这批上半层 `runtime_*_host` verifier 一次性做 configure/build/run 回归，可以直接跑 `scripts/minimal_kernel_runtime_host_smoke.ps1`。
 如果需要把 ARMv7-A QEMU 叶子里的 `runtime-trap / runtime-live / task-syscall` 下半层聚焦 smoke 一次性回归，可以直接跑 `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1`。
+如果需要把这两条线串成一次仓库级 runtime 回归，可以直接跑 `scripts/minimal_kernel_runtime_smoke.ps1`。
 
 ## 对 ARMv7-A ingress 的意义
 

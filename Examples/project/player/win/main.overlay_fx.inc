@@ -27,24 +27,12 @@
                              const PlayerUiContext& ctx,
                              const ::ui::scene::Scene& scene,
                              float t_sec) {
+        (void)t_sec;
         if (ctx.current_page != player::PlayerPage::NowPlaying) {
             return;
         }
         if (!ctx.handles.page_now_playing || scene.world_rect(ctx.handles.page_now_playing).w <= 0) {
             return;
-        }
-        const Rect cover = scene.world_rect(ctx.handles.cover);
-        const int cover_radius = 20;
-        const bool has_cover = ui::gfx::image_id_valid(ctx.cover_image.image_id);
-        if (has_cover) {
-            rgba cover_ring = kUiOk;
-            if (ctx.is_playing()) {
-                const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);
-                cover_ring.a = static_cast<std::uint8_t>(80 + pulse * 120.0f);
-            } else {
-                cover_ring.a = 70;
-            }
-            out.stroke_round_rect(cover, cover_radius, cover_ring);
         }
         (void)scene;
 

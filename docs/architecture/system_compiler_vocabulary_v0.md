@@ -333,7 +333,32 @@ report / system 侧的现实载体包括：
 
 两者差异不在名字，而在语义位置。
 
-### 4.3 `BindingResult`
+### 4.3 `SystemInput`
+
+它回答的是：
+
+> **当前系统是以什么规范化输入被解释/编译出来的，以及这些输入在多 case 之间如何收口或漂移。**
+
+它当前更偏“输入侧结果物”，
+而不是单个 subject 字段或 metadata diff 本身。
+
+当前对应载体包括：
+
+- `artifact report` 中的 `system_input`
+- `artifact report.comparison.system_input`
+- artifact_root 默认总览中的 `system_input_summary`
+- artifact_root 默认总览中的 `comparison.system_input_summary`
+- 默认总览里的 `InpCmp` 与 compare 摘要里的 `input_changed_case_count`
+
+它最适合回答这类问题：
+
+- 某个 case 当前到底属于哪种 `case_kind`
+- declared input 与 resolved input 分别是什么
+- 一组 case 整体有哪些 resolved profile / resolved board / active facet
+- 哪些 declared fact / declared contract / subject fact 在多 case 之间收口
+- compare 模式下输入漂移发生在 `system_spec`、`declared_input` 还是 `resolved_input`
+
+### 4.4 `BindingResult`
 
 它回答的是：
 
@@ -357,7 +382,7 @@ report / system 侧的现实载体包括：
 - 某个 required capability 由谁提供、被谁消费
 - compare 模式下哪些 capability 的 binding state 已经发生漂移
 
-### 4.4 `FactResolution`
+### 4.5 `FactResolution`
 
 它回答的是：
 
@@ -381,7 +406,7 @@ report / system 侧的现实载体包括：
 - 某条合同成立时，证据来自 declared、subject 还是 graph/audit fact
 - compare 模式下哪些 facts 或合同成立性已经发生漂移
 
-### 4.5 `BringupOrder`
+### 4.6 `BringupOrder`
 
 它回答的是：
 
@@ -409,7 +434,7 @@ report / system 侧的现实载体包括：
 - 哪些 require 仍缺失，因此当前只能标成 blocked
 - compare 模式下哪些节点的 bringup order / blocked 状态已经发生漂移
 
-### 4.6 `SystemFormation`
+### 4.7 `SystemFormation`
 
 它回答的是：
 
@@ -431,7 +456,7 @@ report / system 侧的现实载体包括：
 - compare 模式下哪些 case 发生了 `formed -> blocked` 一类 formation 漂移
 - compare 漂移有没有已经进入成立性结果面
 
-### 4.6 `Materialized Graph`
+### 4.8 `Materialized Graph`
 
 它回答的是：
 
@@ -446,7 +471,7 @@ report / system 侧的现实载体包括：
 
 它是当前 system compiler 最成熟的结果物之一。
 
-### 4.7 `Bringup Evidence`
+### 4.9 `Bringup Evidence`
 
 它回答的是：
 
@@ -457,7 +482,7 @@ report / system 侧的现实载体包括：
 - `docs/system/bringup_evidence_pipeline_v0.md`
 - `artifact report` 中的 `bringup_evidence` 摘要
 
-### 4.8 `Resource Contract`
+### 4.10 `Resource Contract`
 
 它回答的是：
 
@@ -468,7 +493,7 @@ report / system 侧的现实载体包括：
 - `docs/system/resource_contract_v0.md`
 - `artifact report` 中的 `resource_contract` 摘要
 
-### 4.9 `Artifact Report`
+### 4.11 `Artifact Report`
 
 它回答的是：
 
@@ -479,8 +504,10 @@ report / system 侧的现实载体包括：
 - `docs/system/artifact_report_v0.md`
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `scripts/export_system_compiler_artifact_report.ps1`
+- artifact_root 默认总览中的 `system_compiler_summary`
+- artifact_root 默认总览中的 `comparison.system_compiler_summary`
 
-### 4.10 `Explain Surface`
+### 4.12 `Explain Surface`
 
 它回答的是：
 
@@ -504,6 +531,8 @@ report / system 侧的现实载体包括：
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
+| `SystemCompilerSummary` | `system_compiler_summary`、`comparison.system_compiler_summary`、artifact_root 默认总览、`cases[*].formation_basis / binding_summary / bringup_summary`、`blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`、`binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`、`binding_basis / bringup_basis / binding_drift / bringup_drift` | root 级跨阶段总结果物已经出现，并开始携带单 case 成立 basis、blocker 热点，以及 binding / bringup 成立热区与 drift 热区 | 单个阶段摘要或单条 compare 统计 |
+| `SystemInput` | `artifact report.system_input`、`comparison.system_input`、`system_input_summary`、`comparison.system_input_summary`、默认总览 `InpCmp` | 已有正式输入侧结果物载体，并开始进入 root 级聚合摘要 | 单个 subject 字段或 metadata diff |
 | `BindingResult` | `artifact report.binding_result`、`binding_result_summary`、`comparison.binding_result_summary`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
 | `FactResolution` | `artifact report.fact_resolution`、`comparison.fact_resolution`、`fact_resolution_summary`、`resource summary` | 已有正式结果物载体 | 只等于 `resource_contract` 审计层 |
 | `BringupOrder` | `artifact report.bringup_order`、`bringup_order_summary`、`comparison.bringup_order_summary`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |

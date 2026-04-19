@@ -158,6 +158,10 @@ $expected = @(
     "ARMv7-A phase complete, stage=scheduler-dispatch",
     "ARMv7-A phase, stage=runtime-bridge",
     "ARMv7-A phase complete, stage=runtime-bridge",
+    "ARMv7-A phase, stage=runtime-loop-ingress",
+    "ARMv7-A phase complete, stage=runtime-loop-ingress",
+    "ARMv7-A phase, stage=runtime-live",
+    "ARMv7-A phase complete, stage=runtime-live",
     "ARMv7-A phase, stage=task-syscall-frame",
     "ARMv7-A phase complete, stage=task-syscall-frame",
     "ARMv7-A phase, stage=task-syscall-dispatch",
@@ -370,8 +374,14 @@ if (($log -notmatch "ARMv7-A thread runtime, kind=cooperative-sys, task=0x000000
 if (($log -notmatch "ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes")) {
     $missing += "ARMv7-A scheduler dispatch, task=svc-trap..."
 }
-if (($log -notmatch "ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000002, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes")) {
+if (($log -notmatch "ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000001, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes")) {
     $missing += "ARMv7-A runtime bridge, tick=yes..."
+}
+if (($log -notmatch "ARMv7-A runtime loop ingress, mode=oneshot, route=irq, hz=[0-9]+, tick-runtime=yes, thread=yes, tick=yes, isr-defer=yes, idle=yes, worker=yes, run=yes, loop=yes")) {
+    $missing += "ARMv7-A runtime loop ingress, mode=oneshot..."
+}
+if (($log -notmatch "ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=yes, idle=yes, worker=yes, live=yes, resumes=3, idle-runs=[0-9]+, wake-due=0x[0-9A-F]{16}, tick-now=0x[0-9A-F]{16}")) {
+    $missing += "ARMv7-A runtime live, task=yes..."
 }
 if (($log -notmatch "ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes")) {
     $missing += "ARMv7-A task syscall frame, debug-path=svc-frame..."
@@ -444,6 +454,9 @@ if (($log -notmatch "ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcac
 }
 if (($log -notmatch "ARMv7-A handoff ready, result=yes, vbar=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked")) {
     $missing += "ARMv7-A handoff ready, result=yes..."
+}
+if ($log.Contains("ARMv7-A runtime live debug")) {
+    $missing += "ARMv7-A runtime live debug (unexpected)"
 }
 if ($missing.Count -gt 0) {
     Write-Output "[armv7a-qemu] log tail:"

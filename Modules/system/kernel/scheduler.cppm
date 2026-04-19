@@ -533,6 +533,7 @@ export namespace kernel {
                     } else {
                         node = queues_[i].pop();
                     }
+                    Caps::IrqGuard::leave(guard);
                 }
                 if (node.has_value()) {
                     if constexpr (Config::enable_event_debounce) {
@@ -1288,7 +1289,9 @@ export namespace kernel {
     private:
         [[nodiscard]] util::u64 next_tag() noexcept {
             [[maybe_unused]] auto guard = Caps::IrqGuard::enter();
-            return ++seq_;
+            const auto next = ++seq_;
+            Caps::IrqGuard::leave(guard);
+            return next;
         }
         Registry* registry_{nullptr};
         Caps* caps_{nullptr};

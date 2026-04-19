@@ -263,40 +263,6 @@
         anchor_rect(builder, h.cover, metrics.cover_rect);
         apply_now_cover_style(builder, h.cover, metrics.cover_radius, false, 0, 0, 0, 0);
         builder.link(now_playing, h.cover);
-
-        constexpr bool kShowCoverCollage = false;
-        if constexpr (kShowCoverCollage) {
-            const int collage_small = now_layout.collage_small;
-            const int collage_tiny = now_layout.collage_tiny;
-
-            h.cover_left = builder.create_image();
-            anchor_rect(builder, h.cover_left, {metrics.cover_rect.x + now_layout.collage_left_dx,
-                                                metrics.cover_rect.y + metrics.cover_rect.h - collage_small + now_layout.collage_left_dy,
-                                                collage_small,
-                                                collage_small});
-            apply_now_cover_style(builder, h.cover_left,
-                                  now_layout.collage_corner_radius,
-                                  true,
-                                  static_cast<std::uint8_t>(now_layout.collage_shadow_alpha),
-                                  now_layout.collage_shadow_offset_y,
-                                  now_layout.collage_shadow_spread,
-                                  now_layout.collage_shadow_radius);
-            builder.link(now_playing, h.cover_left);
-
-            h.cover_right = builder.create_image();
-            anchor_rect(builder, h.cover_right, {metrics.cover_rect.x + metrics.cover_rect.w - collage_tiny + now_layout.collage_right_dx,
-                                                 metrics.cover_rect.y + metrics.cover_rect.h / 2 + now_layout.collage_right_dy,
-                                                 collage_tiny,
-                                                 collage_tiny});
-            apply_now_cover_style(builder, h.cover_right,
-                                  now_layout.collage_corner_radius,
-                                  true,
-                                  static_cast<std::uint8_t>(now_layout.collage_shadow_alpha),
-                                  now_layout.collage_shadow_offset_y,
-                                  now_layout.collage_shadow_spread,
-                                  now_layout.collage_shadow_radius);
-            builder.link(now_playing, h.cover_right);
-        }
     }
 
     static void build_now_playing_text_area(::ui::scene::SceneBuilder& builder,

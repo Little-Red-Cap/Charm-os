@@ -75,6 +75,7 @@ charm_add_config_interface(charm_cfg_armv7a_qemu
 
 set(charm_armv7a_qemu_module_files
     "${CHARM_ROOT}/Modules/core/util/core.cppm"
+    "${CHARM_ROOT}/Modules/core/trace_core.cppm"
     "${CHARM_ROOT}/Modules/core/util/expected.cppm"
     "${CHARM_ROOT}/Modules/core/util/error.cppm"
     "${CHARM_ROOT}/Modules/core/util/type_list.cppm"
@@ -82,21 +83,31 @@ set(charm_armv7a_qemu_module_files
     "${CHARM_ROOT}/Modules/io/out/out.core.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.sink.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.format.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/capabilities.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/config.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/context.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/eda.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/evt.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/event_queue.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/event_queue_list.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/event_token.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/runtime_bridge.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/runtime_glue.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/runtime_service.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/runtime_trap.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/runtime_trap_ingress.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/scheduler.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/ssu.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_state.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_runtime_api.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_syscall_api.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_syscall_catalog.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_syscall_dispatch.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_syscall_table.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_syscall_frame.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/thread.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/timer.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/trace.cppm"
     "${CHARM_ROOT}/targets/armv7a/common/armv7a_kernel_runtime_trap_frame_adapter.cppm"
     "${CHARM_ROOT}/targets/armv7a/common/armv7a_kernel_task_syscall_call_frame_adapter.cppm")
 
@@ -131,6 +142,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_runtime_trap_roundtrip.cpp
     armv7a_runtime_trap_failure.cpp
     armv7a_runtime_bridge.cpp
+    armv7a_runtime_loop.cpp
+    armv7a_runtime_live.cpp
     armv7a_task_syscall_frame.cpp
     armv7a_task_syscall_dispatch.cpp
     armv7a_task_syscall_surface.cpp
@@ -144,6 +157,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_handler_stack.cpp
     armv7a_handoff_prepare.cpp
     armv7a_interrupt_smoke.cpp
+    armv7a_interrupt_runtime_hook.cpp
     armv7a_interrupt_diagnostics.cpp
     armv7a_interrupt_observation_sequence.cpp
     armv7a_arch_timer.cpp

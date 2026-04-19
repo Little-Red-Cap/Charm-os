@@ -8,12 +8,20 @@ import charm.core.handle;
 import charm.core.geometry;
 import charm.core.event;
 import charm.core.structured_view;
+import service.signal;
 
 export
 class MenuTree {
 public:
     using MenuProvider = StructuredMenuProvider;
     using MenuSelectionModel = StructuredMenuSelectionModel;
+    struct menu_item_ref {
+        int menu_id{-1};
+        int index{-1};
+    };
+    using select_signal_type = service::signal<void(const menu_item_ref&), 4>;
+    using select_slot_type = typename select_signal_type::slot_type;
+    using select_connection = typename select_signal_type::connection;
 
     MenuTree() = default;
 
@@ -49,6 +57,18 @@ public:
     void set_provider(MenuProvider provider) noexcept { provider_ = provider; }
     void set_selection_model(MenuSelectionModel model) noexcept { selection_ = model; }
     void set_on_select(Callback cb) noexcept { on_select_ = cb; }
+
+    // observe_select() is a same-domain synchronous confirm edge surface.
+    // MenuTree highlight truth remains owned by the external StructuredMenuSelectionModel.
+    // Disabled items may still become highlight truth, but they never open submenus
+    // and never emit confirm edges.
+    [[nodiscard]] auto observe_select(select_slot_type slot) noexcept {
+        return selected_edge_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_select(select_connection c) noexcept {
+        return selected_edge_.disconnect(c);
+    }
 
     void set_root_menu(int menu_id) noexcept { root_menu_id_ = menu_id; }
 
@@ -165,6 +185,7 @@ public:
 
 private:
     static constexpr int kMaxVisible = 10;
+    static constexpr std::uint8_t kListViewRowFlagGroup = 0x01;
 
     std::uint16_t count(int menu_id) const noexcept {
         if (!provider_.count) return 0;
@@ -229,6 +250,7 @@ private:
         const StructuredSelectionModel selection_view = selection.to_selection();
         const std::uint16_t count = provider_view.size();
         factory_->set_list_view_source(list, count, &view, &StructuredMenuView::label_text);
+        factory_->set_list_view_row_flags_source(list, &view, &MenuTree::row_flags_for_view);
         const int selected = selection_view.current();
         if (selected >= 0) {
             factory_->kernel().set_list_view_selected(list, selected);
@@ -282,6 +304,10 @@ private:
 
     void open_submenu(int index, int row_y) {
         if (!factory_ || !provider_.count) return;
+        if (!enabled(active_menu_id_, static_cast<std::uint16_t>(index))) {
+            close_submenu();
+            return;
+        }
         if (!has_children(active_menu_id_, static_cast<std::uint16_t>(index))) {
             close_submenu();
             return;
@@ -332,13 +358,16 @@ private:
         if (idx < 0) return;
         set_selected(menu_id, idx);
         factory_->kernel().set_list_view_selected(list, idx);
+        if (!enabled(menu_id, static_cast<std::uint16_t>(idx))) {
+            return;
+        }
         if (has_children(menu_id, static_cast<std::uint16_t>(idx))) {
             if (!is_submenu) {
                 open_submenu(idx, mapper.y_of(idx));
             }
             return;
         }
-        if (on_select_) on_select_();
+        emit_select(menu_id, idx);
         close();
     }
 
@@ -371,8 +400,10 @@ private:
             return true;
         case Event::Key::Right:
             if (!submenu_open && has_children(menu_id, static_cast<std::uint16_t>(selected))) {
-                const StructuredViewportMapper mapper = make_mapper(menu_list_);
-                open_submenu(selected, mapper.y_of(selected));
+                if (enabled(menu_id, static_cast<std::uint16_t>(selected))) {
+                    const StructuredViewportMapper mapper = make_mapper(menu_list_);
+                    open_submenu(selected, mapper.y_of(selected));
+                }
                 return true;
             }
             return false;
@@ -387,17 +418,43 @@ private:
         case Event::Key::Enter:
         case Event::Key::Space:
             if (has_children(menu_id, static_cast<std::uint16_t>(selected))) {
-                const StructuredViewportMapper mapper = make_mapper(menu_list_);
-                open_submenu(selected, mapper.y_of(selected));
+                if (enabled(menu_id, static_cast<std::uint16_t>(selected))) {
+                    const StructuredViewportMapper mapper = make_mapper(menu_list_);
+                    open_submenu(selected, mapper.y_of(selected));
+                }
                 return true;
             }
-            if (on_select_) on_select_();
+            if (!enabled(menu_id, static_cast<std::uint16_t>(selected))) {
+                return true;
+            }
+            emit_select(menu_id, selected);
             close();
             return true;
         default:
             break;
         }
         return false;
+    }
+
+    void emit_select(int menu_id, int index) noexcept {
+        const menu_item_ref ref{
+            .menu_id = menu_id,
+            .index = index,
+        };
+        (void)selected_edge_.emit(ref);
+        if (on_select_) on_select_();
+    }
+
+    static std::uint8_t row_flags_for_view(const void* ctx, std::uint16_t index) noexcept {
+        const auto* view = static_cast<const StructuredMenuView*>(ctx);
+        if (!view || !view->provider) {
+            return 0;
+        }
+        if (view->provider->has_children
+            && view->provider->has_children(view->provider->ctx, view->menu_id, index)) {
+            return kListViewRowFlagGroup;
+        }
+        return 0;
     }
 
     bool owns_input_state() const noexcept {
@@ -455,6 +512,7 @@ private:
     int fallback_selected_{-1};
     int item_h_{24};
     bool is_open_{false};
+    select_signal_type selected_edge_{};
     Callback on_select_{};
     StructuredScrollModel menu_scroll_{};
     StructuredScrollModel submenu_scroll_{};

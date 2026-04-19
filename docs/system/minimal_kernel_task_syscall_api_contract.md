@@ -176,12 +176,13 @@
 
 ## 当前证据路径
 
-当前与这层直接相关的证据路径有三条：
+当前与这层直接相关的证据路径有五条：
 
 - `Examples/kernel/runtime_task_syscall_host`
 - `Examples/kernel/runtime_minimal_host`
 - `Examples/kernel/runtime_trap_armv7a_host`
 - `Examples/kernel/runtime_task_syscall_frame_caller_host`
+- `Examples/kernel/runtime_binding_chain_host`
 
 它们当前分别承担：
 
@@ -193,8 +194,10 @@
   - 验证 ARMv7-A host trap mapping 证据路径上的 worker context 也已切到这层
 - `runtime_task_syscall_frame_caller_host`
   - 验证 `TaskSyscallApi` 现在也可以直接挂在架构无关 numbered syscall frame caller 之上，形成 `sys_* -> frame -> table` 的独立 host 闭环
+- `runtime_binding_chain_host`
+  - 验证在完整 `TaskSyscallApi<TaskRuntimeApi<RuntimeTrapServiceFacade<...>>>` 链上，`bind_runtime(...)` 与来自下层 `bind_services(...)` / `bind_transport(...)` 的重绑定效果都能被顶层 `sys_*` 直接观察
 
-这说明 `TaskSyscallApi` 已经不是纯概念层，而是开始成为现有 host 证据链里的最高一层 task-facing surface。
+这说明 `TaskSyscallApi` 已经不是纯概念层，而是开始成为现有 host 证据链里的最高一层 task-facing surface；并且它作为 wrapper 顶层时，对下层 runtime / service 重绑定的可见性也已经有独立证据。
 
 ## 当前非目标
 

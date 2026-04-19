@@ -310,12 +310,40 @@ $rootSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.
 }
 Assert-Condition ([int]$rootSummary.case_count -eq @($ExportCases).Count) 'default artifact_root summary case_count mismatch'
 Assert-Condition (@($rootSummary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary cases length mismatch'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary) 'default artifact_root summary must expose system_compiler_summary'
+Assert-Condition ($null -ne $rootSummary.system_input_summary) 'default artifact_root summary must expose system_input_summary'
 Assert-Condition ($null -ne $rootSummary.binding_result_summary) 'default artifact_root summary must expose binding_result_summary'
 Assert-Condition ($null -ne $rootSummary.bringup_order_summary) 'default artifact_root summary must expose bringup_order_summary'
 Assert-Condition ($null -ne $rootSummary.system_formation_summary) 'default artifact_root summary must expose system_formation_summary'
 Assert-Condition ($null -ne $rootSummary.fact_resolution_summary) 'default artifact_root summary must expose fact_resolution_summary'
+Assert-Condition ([int]$rootSummary.system_compiler_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_compiler_summary.case_count mismatch'
+Assert-Condition ([int]$rootSummary.system_input_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_input_summary.case_count mismatch'
 Assert-Condition ([int]$rootSummary.binding_result_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary binding_result_summary.case_count mismatch'
 Assert-Condition ([int]$rootSummary.bringup_order_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary bringup_order_summary.case_count mismatch'
+Assert-Condition ([int]$rootSummary.system_compiler_summary.formed_case_count -eq @($ExportCases).Count) 'default artifact_root summary system_compiler_summary formed_case_count mismatch'
+Assert-Condition ([int]$rootSummary.system_compiler_summary.blocked_case_count -eq 0) 'default artifact_root summary system_compiler_summary blocked_case_count must stay zero in export_only mode'
+Assert-Condition (@($rootSummary.system_compiler_summary.case_kind_matrix).Count -gt 0) 'default artifact_root summary must expose system_compiler_summary case_kind_matrix'
+Assert-Condition (@($rootSummary.system_compiler_summary.resolved_board_matrix).Count -gt 0) 'default artifact_root summary must expose system_compiler_summary resolved_board_matrix'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.blocker_reason_matrix) 'default artifact_root summary must expose system_compiler_summary blocker_reason_matrix'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.blocker_missing_requires_matrix) 'default artifact_root summary must expose system_compiler_summary blocker_missing_requires_matrix'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.blocker_depends_on_matrix) 'default artifact_root summary must expose system_compiler_summary blocker_depends_on_matrix'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.binding_reason_matrix) 'default artifact_root summary must expose system_compiler_summary binding_reason_matrix'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.bringup_phase_matrix) 'default artifact_root summary must expose system_compiler_summary bringup_phase_matrix'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.bringup_dependency_matrix) 'default artifact_root summary must expose system_compiler_summary bringup_dependency_matrix'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.binding_basis) 'default artifact_root summary must expose system_compiler_summary binding_basis'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.bringup_basis) 'default artifact_root summary must expose system_compiler_summary bringup_basis'
+Assert-Condition (@($rootSummary.system_compiler_summary.blocker_reason_matrix).Count -eq 0) 'default artifact_root summary system_compiler_summary blocker_reason_matrix must stay empty in export_only mode'
+Assert-Condition (@($rootSummary.system_compiler_summary.blocker_missing_requires_matrix).Count -eq 0) 'default artifact_root summary system_compiler_summary blocker_missing_requires_matrix must stay empty in export_only mode'
+Assert-Condition (@($rootSummary.system_compiler_summary.blocker_depends_on_matrix).Count -eq 0) 'default artifact_root summary system_compiler_summary blocker_depends_on_matrix must stay empty in export_only mode'
+Assert-Condition (@($rootSummary.system_compiler_summary.binding_reason_matrix).Count -gt 0) 'default artifact_root summary system_compiler_summary binding_reason_matrix must expose binding hotspots'
+Assert-Condition (@($rootSummary.system_compiler_summary.bringup_phase_matrix).Count -gt 0) 'default artifact_root summary system_compiler_summary bringup_phase_matrix must expose bringup phases'
+Assert-Condition (@($rootSummary.system_compiler_summary.bringup_dependency_matrix).Count -gt 0) 'default artifact_root summary system_compiler_summary bringup_dependency_matrix must expose bringup dependencies'
+Assert-Condition (@($rootSummary.system_compiler_summary.binding_basis.reason_matrix).Count -gt 0) 'default artifact_root summary system_compiler_summary binding_basis.reason_matrix must expose binding hotspots'
+Assert-Condition (@($rootSummary.system_compiler_summary.bringup_basis.phase_matrix).Count -gt 0) 'default artifact_root summary system_compiler_summary bringup_basis.phase_matrix must expose bringup phases'
+Assert-Condition (@($rootSummary.system_compiler_summary.bringup_basis.dependency_matrix).Count -gt 0) 'default artifact_root summary system_compiler_summary bringup_basis.dependency_matrix must expose bringup dependencies'
+Assert-Condition (@($rootSummary.system_input_summary.case_kind_matrix).Count -gt 0) 'default artifact_root summary must expose system_input case_kind_matrix'
+Assert-Condition (@($rootSummary.system_input_summary.resolved_board_matrix).Count -gt 0) 'default artifact_root summary must expose system_input resolved_board_matrix'
+Assert-Condition (@($rootSummary.system_input_summary.declared_fact_matrix).Count -gt 0) 'default artifact_root summary must expose system_input declared_fact_matrix'
 Assert-Condition (@($rootSummary.binding_result_summary.capability_matrix).Count -gt 0) 'default artifact_root summary must expose binding_result capability_matrix'
 Assert-Condition (@($rootSummary.bringup_order_summary.node_matrix).Count -gt 0) 'default artifact_root summary must expose bringup_order node_matrix'
 Assert-Condition ([int]$rootSummary.system_formation_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.case_count mismatch'
@@ -334,21 +362,53 @@ $rootRuntimeSummary = @(
         Where-Object { [string]$_.Case -eq $RuntimeCase } |
         Select-Object -First 1
 ) | Select-Object -First 1
+$rootReportCompilerSummary = @(
+    @($rootSummary.system_compiler_summary.cases) |
+        Where-Object { [string]$_.case -eq $ReportCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
+$rootRuntimeCompilerSummary = @(
+    @($rootSummary.system_compiler_summary.cases) |
+        Where-Object { [string]$_.case -eq $RuntimeCase } |
+        Select-Object -First 1
+) | Select-Object -First 1
 Assert-Condition ($null -ne $rootReportSummary) "default artifact_root summary missing case row: $ReportCase"
 Assert-Condition ($null -ne $rootRuntimeSummary) "default artifact_root summary missing case row: $RuntimeCase"
+Assert-Condition ($null -ne $rootReportCompilerSummary) "default artifact_root system_compiler_summary missing case row: $ReportCase"
+Assert-Condition ($null -ne $rootRuntimeCompilerSummary) "default artifact_root system_compiler_summary missing case row: $RuntimeCase"
 Assert-Condition ([string]$rootReportSummary.Formation -eq 'formed') 'default artifact_root summary report case Formation must stay formed'
 Assert-Condition ([int]$rootReportSummary.FormCmp -eq 0) 'default artifact_root summary report case FormCmp must stay zero'
 Assert-Condition ([string]$rootRuntimeSummary.Formation -eq 'formed') 'default artifact_root summary runtime case Formation must stay formed'
 Assert-Condition ([int]$rootRuntimeSummary.FormCmp -eq 0) 'default artifact_root summary runtime case FormCmp must stay zero'
+Assert-Condition ($null -ne $rootReportCompilerSummary.formation_basis) 'default artifact_root system_compiler_summary report case must expose formation_basis'
+Assert-Condition ($null -ne $rootReportCompilerSummary.binding_summary) 'default artifact_root system_compiler_summary report case must expose binding_summary'
+Assert-Condition ($null -ne $rootReportCompilerSummary.bringup_summary) 'default artifact_root system_compiler_summary report case must expose bringup_summary'
+Assert-Condition ([string]$rootReportCompilerSummary.formation_basis.case_kind -eq 'materialized_graph') 'default artifact_root system_compiler_summary report case formation_basis.case_kind must stay materialized_graph'
+Assert-Condition ([int]$rootReportCompilerSummary.binding_summary.required_binding_count -eq [int]$rootReportCompilerSummary.required_binding_count) 'default artifact_root system_compiler_summary report case binding_summary.required_binding_count mismatch'
+Assert-Condition ([int]$rootReportCompilerSummary.bringup_summary.ordered_node_count -eq [int]$rootReportCompilerSummary.ordered_node_count) 'default artifact_root system_compiler_summary report case bringup_summary.ordered_node_count mismatch'
+Assert-Condition ($null -ne $rootRuntimeCompilerSummary.formation_basis) 'default artifact_root system_compiler_summary runtime case must expose formation_basis'
+Assert-Condition ($null -ne $rootRuntimeCompilerSummary.binding_summary) 'default artifact_root system_compiler_summary runtime case must expose binding_summary'
+Assert-Condition ($null -ne $rootRuntimeCompilerSummary.bringup_summary) 'default artifact_root system_compiler_summary runtime case must expose bringup_summary'
+Assert-Condition ([string]$rootRuntimeCompilerSummary.formation_basis.case_kind -eq 'runtime_only') 'default artifact_root system_compiler_summary runtime case formation_basis.case_kind must stay runtime_only'
+Assert-Condition ([int]$rootRuntimeCompilerSummary.binding_summary.required_binding_count -eq 0) 'default artifact_root system_compiler_summary runtime case binding_summary.required_binding_count must stay zero'
+Assert-Condition ([int]$rootRuntimeCompilerSummary.bringup_summary.ordered_node_count -eq 0) 'default artifact_root system_compiler_summary runtime case bringup_summary.ordered_node_count must stay zero'
+Assert-Condition ((@($rootSummary.system_compiler_summary.case_kind_matrix | Where-Object { [string]$_.case_kind -eq 'runtime_only' }).Count -eq 1)) 'default artifact_root summary system_compiler_summary must retain runtime_only case kind'
+Assert-Condition ((@($rootSummary.system_compiler_summary.case_kind_matrix | Where-Object { [string]$_.case_kind -eq 'materialized_graph' }).Count -ge 1)) 'default artifact_root summary system_compiler_summary must retain materialized_graph case kind'
+Assert-Condition ((@($rootSummary.system_input_summary.case_kind_matrix | Where-Object { [string]$_.case_kind -eq 'runtime_only' }).Count -eq 1)) 'default artifact_root summary must retain runtime_only case kind'
+Assert-Condition ((@($rootSummary.system_input_summary.case_kind_matrix | Where-Object { [string]$_.case_kind -eq 'materialized_graph' }).Count -ge 1)) 'default artifact_root summary must retain materialized_graph case kind'
 
 $subsetSummary = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'summary.root_subset.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $SubsetCases -AsJson
 }
 Assert-Condition ([int]$subsetSummary.case_count -eq @($SubsetCases).Count) 'subset artifact_root summary case_count mismatch'
+Assert-Condition ($null -ne $subsetSummary.system_compiler_summary) 'subset artifact_root summary must expose system_compiler_summary'
+Assert-Condition ($null -ne $subsetSummary.system_input_summary) 'subset artifact_root summary must expose system_input_summary'
 Assert-Condition ($null -ne $subsetSummary.binding_result_summary) 'subset artifact_root summary must expose binding_result_summary'
 Assert-Condition ($null -ne $subsetSummary.bringup_order_summary) 'subset artifact_root summary must expose bringup_order_summary'
 Assert-Condition ($null -ne $subsetSummary.system_formation_summary) 'subset artifact_root summary must expose system_formation_summary'
 Assert-Condition ($null -ne $subsetSummary.fact_resolution_summary) 'subset artifact_root summary must expose fact_resolution_summary'
+Assert-Condition ([int]$subsetSummary.system_compiler_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root system_compiler_summary.case_count mismatch'
+Assert-Condition ([int]$subsetSummary.system_input_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root system_input_summary.case_count mismatch'
 Assert-Condition ([int]$subsetSummary.binding_result_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root binding_result_summary.case_count mismatch'
 Assert-Condition ([int]$subsetSummary.bringup_order_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root bringup_order_summary.case_count mismatch'
 Assert-Condition ([int]$subsetSummary.system_formation_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root system_formation_summary.case_count mismatch'
@@ -535,7 +595,11 @@ $summary = [ordered]@{
         runtime_only_summary_exposes_empty_bringup_order = $true
         runtime_only_summary_exposes_formed_system_formation = $true
         default_summary_artifact_root_supported = $true
+        default_summary_artifact_root_exposes_system_compiler_summary = $true
+        default_summary_artifact_root_exposes_system_input_summary = $true
         default_summary_subset_supported = $true
+        default_summary_subset_exposes_system_compiler_summary = $true
+        default_summary_subset_exposes_system_input_summary = $true
         default_summary_artifact_root_exposes_fact_resolution = $true
         cap_list_report_supported = $true
         cap_list_artifact_root_supported = $true

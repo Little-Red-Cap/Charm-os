@@ -237,6 +237,12 @@
 
 - `docs/system/minimal_kernel_task_syscall_frame_contract.md`
 
+建议同时结合：
+
+- `docs/system/minimal_kernel_trap_syscall_contract.md`
+- `docs/system/minimal_kernel_trap_ingress_contract.md`
+- `docs/system/armv7a_runtime_trap_mapping_contract.md`
+
 ## 当前非目标
 
 当前这层仍然不处理：

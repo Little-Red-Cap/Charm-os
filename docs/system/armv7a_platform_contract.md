@@ -56,6 +56,7 @@ QEMU 先验证的是顺序和契约：
 - 中断控制器接线
 - 异常与 abort 路径
 - cache / TLB / MMU 操作顺序
+- 向最小 runtime loop 入口收口的 lower-half 证据
 
 RK3506 之后负责把这些语义落在真实地址和真实外设上。
 

@@ -5608,6 +5608,26 @@ function New-ArtifactRootSystemCompilerSummaryResult {
             New-ArtifactRootSystemFormationBlockerDetailMatrixEntry -DetailName $nodeName -CaseSummaries $caseSummaries -CollectionName 'depends_on' -FieldName 'node'
         }
     ) | Where-Object { $null -ne $_ } | Sort-Object node
+    $bindingBasis = [ordered]@{
+        case_count = @($caseSummaries).Count
+        totals = [ordered]@{
+            required_binding_count = [int]$aggregateProjection.totals.required_binding_count
+            resolved_binding_count = [int]$aggregateProjection.totals.resolved_binding_count
+            unresolved_binding_count = [int]$aggregateProjection.totals.unresolved_binding_count
+        }
+        reason_matrix = @($aggregateProjection.matrices.binding_reason_matrix)
+        unresolved_capability_matrix = @($unresolvedCapabilityMatrix)
+    }
+    $bringupBasis = [ordered]@{
+        case_count = @($caseSummaries).Count
+        totals = [ordered]@{
+            ordered_node_count = [int]$aggregateProjection.totals.ordered_node_count
+            blocked_node_count = [int]$aggregateProjection.totals.blocked_node_count
+        }
+        phase_matrix = @($aggregateProjection.matrices.bringup_phase_matrix)
+        dependency_matrix = @($aggregateProjection.matrices.bringup_dependency_matrix)
+        blocked_node_matrix = @($blockedNodeMatrix)
+    }
 
     return [ordered]@{
         case_count = @($caseSummaries).Count
@@ -5665,6 +5685,8 @@ function New-ArtifactRootSystemCompilerSummaryResult {
         binding_reason_matrix = @($aggregateProjection.matrices.binding_reason_matrix)
         bringup_phase_matrix = @($aggregateProjection.matrices.bringup_phase_matrix)
         bringup_dependency_matrix = @($aggregateProjection.matrices.bringup_dependency_matrix)
+        binding_basis = $bindingBasis
+        bringup_basis = $bringupBasis
     }
 }
 
@@ -6191,6 +6213,12 @@ function New-ArtifactRootSystemCompilerCompareAggregateProjection {
             }
         }
     ) | Sort-Object -Unique
+    $resolvedCapabilityNames = @(
+        foreach ($caseSummary in @($caseSummaries)) {
+            @($caseSummary.resolved_capability_changes.added)
+            @($caseSummary.resolved_capability_changes.removed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
     $unresolvedCapabilityNames = @(
         foreach ($caseSummary in @($caseSummaries)) {
             @($caseSummary.unresolved_capability_changes.added)
@@ -6296,6 +6324,7 @@ function New-ArtifactRootSystemCompilerCompareAggregateProjection {
             declared_fact_names = @($declaredFactNames)
             declared_contract_names = @($declaredContractNames)
             subject_fact_names = @($subjectFactNames)
+            resolved_capability_names = @($resolvedCapabilityNames)
             unresolved_capability_names = @($unresolvedCapabilityNames)
             blocked_node_names = @($blockedNodeNames)
             blocker_keys = @($blockerKeys)
@@ -6360,6 +6389,7 @@ function New-ArtifactRootSystemCompilerComparisonResult {
     $declaredFactNames = @($aggregateProjection.universes.declared_fact_names)
     $subjectFactNames = @($aggregateProjection.universes.subject_fact_names)
     $declaredContractNames = @($aggregateProjection.universes.declared_contract_names)
+    $resolvedCapabilityNames = @($aggregateProjection.universes.resolved_capability_names)
     $unresolvedCapabilityNames = @($aggregateProjection.universes.unresolved_capability_names)
     $blockedNodeNames = @($aggregateProjection.universes.blocked_node_names)
     $blockerKeys = @($aggregateProjection.universes.blocker_keys)
@@ -6403,6 +6433,11 @@ function New-ArtifactRootSystemCompilerComparisonResult {
             New-ArtifactRootSystemFormationCompareNamedChangeEntry -Name $factName -CaseSummaries $caseSummaries -FieldName 'fact' -CollectionName 'subject_fact_changes'
         }
     ) | Where-Object { $null -ne $_ } | Sort-Object fact
+    $resolvedCapabilityChangeMatrix = @(
+        foreach ($capabilityName in @($resolvedCapabilityNames)) {
+            New-ArtifactRootSystemFormationCompareNamedChangeEntry -Name $capabilityName -CaseSummaries $caseSummaries -FieldName 'capability' -CollectionName 'resolved_capability_changes'
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object capability
     $unresolvedCapabilityChangeMatrix = @(
         foreach ($capabilityName in @($unresolvedCapabilityNames)) {
             New-ArtifactRootSystemFormationCompareNamedChangeEntry -Name $capabilityName -CaseSummaries $caseSummaries -FieldName 'capability' -CollectionName 'unresolved_capability_changes'
@@ -6438,6 +6473,47 @@ function New-ArtifactRootSystemCompilerComparisonResult {
             New-ArtifactRootSystemFormationCompareBlockerDetailEntry -DetailName $nodeName -CaseSummaries $caseSummaries -LeftCollectionName 'left_dependency_nodes' -RightCollectionName 'right_dependency_nodes' -FieldName 'node'
         }
     ) | Where-Object { $null -ne $_ } | Sort-Object node
+    $bindingChangedCases = @(
+        @($caseSummaries) |
+            Where-Object { [bool]$_.binding_result_changed } |
+            ForEach-Object { [string]$_.case } |
+            Sort-Object
+    )
+    $bringupChangedCases = @(
+        @($caseSummaries) |
+            Where-Object { [bool]$_.bringup_order_changed } |
+            ForEach-Object { [string]$_.case } |
+            Sort-Object
+    )
+    $bindingChangeCount = 0
+    $bringupEntryChangeCount = 0
+    foreach ($caseProjection in @($aggregateProjection.case_projections)) {
+        if ($null -ne $caseProjection.stages.binding_result) {
+            $bindingChangeCount += [int]$caseProjection.stages.binding_result.binding_change_count
+        }
+
+        if ($null -ne $caseProjection.stages.bringup_order) {
+            $bringupEntryChangeCount += [int]$caseProjection.stages.bringup_order.entry_change_count
+        }
+    }
+    $bindingDrift = [ordered]@{
+        compared_case_count = @($caseSummaries).Count
+        changed_case_count = @($bindingChangedCases).Count
+        changed_cases = @($bindingChangedCases)
+        binding_change_count = $bindingChangeCount
+        reason_change_matrix = @($aggregateProjection.matrices.binding_reason_change_matrix)
+        resolved_capability_change_matrix = @($resolvedCapabilityChangeMatrix)
+        unresolved_capability_change_matrix = @($unresolvedCapabilityChangeMatrix)
+    }
+    $bringupDrift = [ordered]@{
+        compared_case_count = @($caseSummaries).Count
+        changed_case_count = @($bringupChangedCases).Count
+        changed_cases = @($bringupChangedCases)
+        entry_change_count = $bringupEntryChangeCount
+        phase_change_matrix = @($aggregateProjection.matrices.bringup_phase_change_matrix)
+        dependency_change_matrix = @($aggregateProjection.matrices.bringup_dependency_change_matrix)
+        blocked_node_change_matrix = @($blockedNodeChangeMatrix)
+    }
 
     return [ordered]@{
         compared_case_count = @($caseSummaries).Count
@@ -6481,6 +6557,7 @@ function New-ArtifactRootSystemCompilerComparisonResult {
         declared_fact_change_matrix = @($declaredFactChangeMatrix)
         declared_contract_change_matrix = @($declaredContractChangeMatrix)
         subject_fact_change_matrix = @($subjectFactChangeMatrix)
+        resolved_capability_change_matrix = @($resolvedCapabilityChangeMatrix)
         unresolved_capability_change_matrix = @($unresolvedCapabilityChangeMatrix)
         blocked_node_change_matrix = @($blockedNodeChangeMatrix)
         blocker_change_matrix = @($blockerChangeMatrix)
@@ -6490,6 +6567,8 @@ function New-ArtifactRootSystemCompilerComparisonResult {
         binding_reason_change_matrix = @($aggregateProjection.matrices.binding_reason_change_matrix)
         bringup_phase_change_matrix = @($aggregateProjection.matrices.bringup_phase_change_matrix)
         bringup_dependency_change_matrix = @($aggregateProjection.matrices.bringup_dependency_change_matrix)
+        binding_drift = $bindingDrift
+        bringup_drift = $bringupDrift
     }
 }
 

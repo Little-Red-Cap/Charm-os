@@ -385,6 +385,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `system_compiler_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `system_compiler_summary.blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`
 - `system_compiler_summary.binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`
+- `system_compiler_summary.binding_basis / bringup_basis`
 - `system_compiler_summary.cases[*].formation_basis / binding_summary / bringup_summary`
 - `system_input_summary.case_count`
 - `system_input_summary.case_kind_matrix`
@@ -405,6 +406,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_compiler_summary.unresolved_capability_change_matrix / blocked_node_change_matrix / blocker_change_matrix`
 - `comparison.system_compiler_summary.blocker_reason_change_matrix / blocker_missing_requires_change_matrix / blocker_depends_on_change_matrix`
 - `comparison.system_compiler_summary.binding_reason_change_matrix / bringup_phase_change_matrix / bringup_dependency_change_matrix`
+- `comparison.system_compiler_summary.binding_drift / bringup_drift`
 - `comparison.system_compiler_summary.cases[*].formation_basis_changes / binding_summary_changes / bringup_summary_changes`
 - `comparison.system_input_summary.changed_case_count`
 - `comparison.system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`

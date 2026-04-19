@@ -220,6 +220,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `system_compiler_summary.unresolved_capability_change_matrix / blocked_node_change_matrix / blocker_change_matrix`
 - `system_compiler_summary.blocker_reason_change_matrix / blocker_missing_requires_change_matrix / blocker_depends_on_change_matrix`
 - `system_compiler_summary.binding_reason_change_matrix / bringup_phase_change_matrix / bringup_dependency_change_matrix`
+- `system_compiler_summary.binding_drift / bringup_drift`
 - `comparison.system_compiler_summary.cases[*].formation_basis_changes / binding_summary_changes / bringup_summary_changes`
 - `system_input_summary.changed_case_count / unchanged_case_count`
 - `system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -256,6 +257,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`
 - `binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`
+- `binding_basis / bringup_basis`
 - `cases[*].formation_basis / binding_summary / bringup_summary`
 
 它不取代后面的分阶段摘要，
@@ -298,6 +300,16 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `binding_reason_change_matrix`
 - `bringup_phase_change_matrix`
 - `bringup_dependency_change_matrix`
+
+与此同时，这些热区现在也会继续被压进更正式的 stage-level result block：
+
+- `binding_basis`
+- `bringup_basis`
+
+以及 compare 模式下的：
+
+- `binding_drift`
+- `bringup_drift`
 
 这样调用方在 root 级总结果里，
 就已经可以先回答：

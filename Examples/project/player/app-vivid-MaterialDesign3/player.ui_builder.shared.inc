@@ -500,6 +500,31 @@
         builder.set_style_override(h, patch);
     }
 
+    static void apply_home_mix_subtitle_style(::ui::scene::SceneBuilder& builder,
+                                              WidgetHandle h,
+                                              const rgba& color) {
+        StylePatch patch = make_player_text_patch(PlayerTextRole::MetaText, color);
+        patch.has_font = true;
+        patch.font = &get_player_font_px_variant(14, FontWeight::Regular, "ROND100");
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_home_daily_mix_preview_plate_style(::ui::scene::SceneBuilder& builder,
+                                                         WidgetHandle h,
+                                                         int corner_radius) {
+        StylePatch patch = ::ui::scene::make_clean_surface_patch({
+            .apply_bg_color = true,
+            .apply_border_color = true,
+            .apply_border_width = true,
+            .apply_corner_radius = true,
+            .bg_color = rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 18},
+            .border_color = rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 176},
+            .border_width = 2,
+            .corner_radius = corner_radius,
+        });
+        builder.set_style_override(h, patch);
+    }
+
     static void apply_text_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, const rgba& color,
                                        const Font& font) {
         StylePatch patch = make_player_text_patch(PlayerTextRole::CardBody, color);
@@ -910,22 +935,21 @@
         anchor_rect(builder, title_label, {20, 14, rect.w - 200, 28});
         builder.link(root, title_label);
 
-        const WidgetHandle subtitle_label = builder.create_label_static("Based on history");
-        apply_player_text_style(builder, subtitle_label, PlayerTextRole::MetaText,
-                                rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 214});
+        const WidgetHandle subtitle_label = builder.create_label_static("Based on History");
+        apply_home_mix_subtitle_style(builder, subtitle_label,
+                                      rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 214});
         builder.set_label_align(subtitle_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, subtitle_label, {21, 44, rect.w - 200, 16});
         builder.link(root, subtitle_label);
 
         const auto add_preview = [&](WidgetHandle& out_image,
                                      const Rect& image_rect,
-                                     int corner_radius,
-                                     bool emphasize = false) {
-            const int pad = 1;
+                                     int corner_radius) {
+            const int pad = 2;
             const WidgetHandle plate = builder.create_container();
             anchor_rect(builder, plate,
                         {image_rect.x - pad, image_rect.y - pad, image_rect.w + pad * 2, image_rect.h + pad * 2});
-            apply_home_card_preview_plate_style(builder, plate, corner_radius + pad, emphasize);
+            apply_home_daily_mix_preview_plate_style(builder, plate, corner_radius + pad);
             builder.set_hit_testable(plate, false);
             builder.link(root, plate);
 
@@ -936,9 +960,9 @@
             builder.link(root, out_image);
         };
 
-        add_preview(h.home_daily_mix_covers[0], {rect.w - 160, 16, 46, 46}, 14, true);
-        add_preview(h.home_daily_mix_covers[1], {rect.w - 118, 20, 40, 40}, 20, false);
-        add_preview(h.home_daily_mix_covers[2], {rect.w - 70, 16, 48, 48}, 16, true);
+        add_preview(h.home_daily_mix_covers[0], {rect.w - 126, 14, 50, 50}, 16);
+        add_preview(h.home_daily_mix_covers[1], {rect.w - 92, 20, 44, 44}, 22);
+        add_preview(h.home_daily_mix_covers[2], {rect.w - 64, 16, 48, 48}, 16);
 
         const WidgetHandle body_label = builder.create_label_static(body.data());
         apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);

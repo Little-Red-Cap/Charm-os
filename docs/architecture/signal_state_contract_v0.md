@@ -217,6 +217,7 @@ Vivid 当前同时存在两层表面：
 
 典型形态：
 
+- `Button::observe_click()`
 - `Checkbox::observe_checked()`
 - `Dropdown::observe_selected()`
 - `Slider::observe_value()`
@@ -226,7 +227,7 @@ Vivid 当前同时存在两层表面：
 
 - 直接绑定 widget 对象实例
 - 同执行域、同步、bounded
-- 本质上仍然继承 `state<T>` 的契约
+- 边沿接口继承 `signal` 契约，真相接口继承 `state<T>` 契约
 - 适合局部 widget 组合、对象级 smoke、非 SoA 小系统
 
 #### SoA `SceneAccess` 表面
@@ -263,6 +264,8 @@ Vivid 当前同时存在两层表面：
   冻结局部 contract：空 delegate 拒绝、固定容量溢出拒绝、stale token 拒绝、`state.set(same)` 不通知、`state.disconnect(token)` 后真相继续更新但观察者静默、`deferred_signal` 保留显式 poster 身份且不 direct call。
 - `Examples/system/signal_state_closure_demo`
   冻结跨层 contract：同域 `emit()` 同步落地、`state` 真相只在值变化时通知、`init.connection` 的 direct/deferred wiring 保持 graph 可见、worker 只会在真实 scheduler dispatch 后收到 deferred work。
+- `Examples/ui/vivid/widget_signal_demo` 与 `Examples/ui/vivid/widget_state_demo`
+  冻结 object-level widget 表面：`Button::observe_click()` 是边沿 `signal`，`Checkbox / Dropdown / Slider / ProgressBarSimple / Arc` 的 `observe_*()` 是真相 `state`，旧 `set_on_*()` 兼容口不等同于统一 truth/edge 模型。
 
 这两条示例加在一起表达的是：
 

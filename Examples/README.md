@@ -55,6 +55,10 @@
   [`init/connection_observe_demo/README.md`](init/connection_observe_demo/README.md) →
   [`system/signal_state_closure_demo/README.md`](system/signal_state_closure_demo/README.md)
 
+- 看 Vivid object-level signal/state 表面：
+  [`ui/vivid/widget_signal_demo/README.md`](ui/vivid/widget_signal_demo/README.md) →
+  [`ui/vivid/widget_state_demo/README.md`](ui/vivid/widget_state_demo/README.md)
+
 ## 快速构建（Windows + Ninja）
 
 ```bash

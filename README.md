@@ -24,6 +24,7 @@
 [架构总览](docs/architecture_overview.md) 
 
 参与项目 or 开发者 推荐阅读顺序：
+[Agent 启动页](AGENTS.md) →
 [架构能力](docs/capability_map.md) →
 [架构总览](docs/architecture_overview.md) →
 [协作文档](docs/agent/README.md)

@@ -65,11 +65,19 @@
 - 文档总索引：`docs/README.md`
 - 系统文档入口：`docs/system/README.md`
 - 项目文档入口：`docs/project/README.md`
+- 架构文档入口：`docs/architecture/README.md`
+- IO 文档入口：`docs/io/README.md`
+- 输入文档入口：`docs/input/README.md`
+- 音频文档入口：`docs/audio/README.md`
+- 存储文档入口：`docs/storage/README.md`
+- Boot 文档入口：`docs/boot/README.md`
+- USB 文档入口：`docs/usb/README.md`
 - 板级资料入口：`docs/board/README.md`
 - RK3506 上板资料：`docs/board/rk3506/README.md`
 - RK3506 post-DDR handoff 契约：`docs/board/rk3506/post_ddr_handoff_contract.md`
 - 驱动模型：`docs/architecture/driver_model.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
+- IO 文档入口：`docs/io/README.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
 - ARMv7-A 平台契约：`docs/system/armv7a_platform_contract.md`
@@ -81,7 +89,7 @@
 - 最小内核 task syscall catalog 契约：`docs/system/minimal_kernel_task_syscall_catalog_contract.md`
 - 最小内核 task syscall dispatch 契约：`docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
 - 最小内核 task syscall table 契约：`docs/system/minimal_kernel_task_syscall_table_contract.md`
-- 最小内核 task syscall frame 契约：`docs/system/minimal_kernel_task_syscall_frame_contract.md`
+- 最小内核 task syscall frame 契约：`docs/system/minimal_kernel_task_syscall_frame_contract.md`（当前存在历史编码损坏，待恢复，不作为首选入口）
 - 最小内核 trap/syscall 契约：`docs/system/minimal_kernel_trap_syscall_contract.md`
 - 最小内核 trap ingress adapter 契约：`docs/system/minimal_kernel_trap_ingress_contract.md`
 - ARMv7-A SVC 到 trap frame 映射证据：`docs/system/armv7a_runtime_trap_mapping_contract.md`
@@ -154,11 +162,12 @@ flowchart TD
 | 推进最小 syscall 编号 / catalog / trap 映射 | `docs/system/minimal_kernel_task_syscall_catalog_contract.md` → `docs/system/minimal_kernel_task_syscall_api_contract.md` |
 | 推进最小 syscall request / dispatch bridge | `docs/system/minimal_kernel_task_syscall_dispatch_contract.md` → `docs/system/minimal_kernel_task_syscall_catalog_contract.md` |
 | 推进最小静态 syscall handler table | `docs/system/minimal_kernel_task_syscall_table_contract.md` → `docs/system/minimal_kernel_task_syscall_dispatch_contract.md` |
-| 推进最小 numbered syscall frame bridge | `docs/system/minimal_kernel_task_syscall_frame_contract.md` → `docs/system/minimal_kernel_task_syscall_table_contract.md` |
+| 推进最小 numbered syscall frame bridge | 恢复前先读 `docs/system/minimal_kernel_task_syscall_table_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` → `docs/system/minimal_kernel_trap_ingress_contract.md` |
 | 推进最小 trap / syscall 边界 | `docs/system/minimal_kernel_trap_syscall_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 推进 trap frame / ingress adapter 边界 | `docs/system/minimal_kernel_trap_ingress_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` |
 | 推进 ARMv7-A SVC / trap frame 映射验证 | `docs/system/armv7a_runtime_trap_mapping_contract.md` → `docs/system/minimal_kernel_trap_ingress_contract.md` |
 | 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
+| 看音频播放链路设计 | `docs/audio/README.md` → `docs/system/charm_audio_architecture.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
 | 实现 USB 设备 | `docs/usb/usb_arch_plan.md` → `docs/usb/usb_dsl_overview.md` |
 | 实现 USB Host 运行期发现 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` |
@@ -194,8 +203,11 @@ docs/
 ├─ README.md                  文档总索引
 ├─ agent/                     AI / Agent 协作体系
 ├─ architecture/              架构规则与依赖边界
+├─ audio/                     音频设计与实时链路约束
+├─ benchmarks/                性能与 benchmark 落点
 ├─ board/                     板级 bring-up 与 SoC 资料收口
 ├─ io/                        IO 核心契约
+├─ reference/                 外部对照与参考材料
 ├─ system/                    装配、启动、系统服务
 └─ ...
 ```
@@ -204,6 +216,7 @@ docs/
 - `docs/architecture_overview.md`
 
 ### 架构与依赖
+- `docs/architecture/README.md`
 - `docs/architecture/system_compiler_roadmap.md`
 - `docs/architecture/system_compiler_vocabulary_v0.md`
 - `docs/architecture/dependency_contract.md`
@@ -221,6 +234,7 @@ docs/
 - `docs/board/rk3506/post_ddr_handoff_contract.md`
 
 ### IO 与输入
+- `docs/io/README.md`
 - `docs/io/io_layering_overview.md`
 - `docs/io/io_channel_contract.md`
 - `docs/io/io_reactor_contract.md`
@@ -230,10 +244,17 @@ docs/
 - `docs/io/net_stack_stage_review.md`
 - `docs/io/net_stack_foundation_tasklist.md`
 - `docs/io/net_stack_v0_closure_checklist.md`
+- `docs/input/README.md`
 - `docs/input/input_layering_decision.md`
 - `docs/input/input_protocol_map.md`
 
+### 音频
+- `docs/audio/README.md`
+- `docs/system/charm_audio_architecture.md`
+- `docs/audio/audio_design_v1.md`
+
 ### 存储/文件系统
+- `docs/storage/README.md`
 - `docs/storage/block_device_contract.md`
 - `docs/storage/mal_overview.md`
 - `docs/storage/mal_fatfs_demo.md`
@@ -243,6 +264,7 @@ docs/
 - `docs/storage/filex_charm_map.md`
 
 ### USB
+- `docs/usb/README.md`
 - `docs/usb/usb_arch_plan.md`
 - `docs/usb/usb_dsl_overview.md`
 - `docs/usb/usb_cdc_contract.md`
@@ -270,7 +292,7 @@ docs/
 - `docs/system/minimal_kernel_task_syscall_catalog_contract.md`
 - `docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
 - `docs/system/minimal_kernel_task_syscall_table_contract.md`
-- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
+- `docs/system/minimal_kernel_task_syscall_frame_contract.md`（当前存在历史编码损坏，待恢复）
 - `docs/system/minimal_kernel_trap_syscall_contract.md`
 - `docs/system/minimal_kernel_trap_ingress_contract.md`
 - `docs/system/armv7a_runtime_trap_mapping_contract.md`
@@ -289,19 +311,30 @@ docs/
 - `docs/system/posix_errno_mapping.md`
 - `docs/system/posix_error_semantics.md`
 - `docs/system/posix_busybox_phase_checklist.md`
+- `docs/boot/README.md`
 - `docs/boot/bootloader_overview.md`
 - `docs/boot/bootloader_xymodem.md`
 
 ### Trace
+- `docs/trace/README.md`
 - `docs/trace/trace_core_entry.md`
 - `docs/trace/trace_core_ids.md`
 
-### VSF 参考
+### 参考 / 对照材料
+- `docs/reference/README.md`
+- `docs/reference/vsf/README.md`
+- `docs/reference/Charm Audio Design.md`
 - `docs/reference/vsf/vsf_comparison.md`
 - `docs/reference/vsf/vsf_component_scan.md`
 - `docs/reference/vsf/vsf_storage_map.md`
 - `docs/reference/vsf/vsf_tcpip_map.md`
 - `docs/reference/vsf/vsf_usb_map.md`
+
+说明：VSF 相关条目主要保留为早期历史参考，不再默认充当当前架构输入入口。
+
+### Benchmark / 性能记录
+- `docs/benchmarks/README.md`
+- `docs/benchmarks/spi_transfer.md`
 
 ### 项目规范与协作
 - `docs/project/README.md`
@@ -319,6 +352,7 @@ docs/
 - `docs/project/tooling/Powershell设置utf8.md`
 
 ### UI
+- `docs/ui/README.md`
 - `docs/ui/player_ui.md`
 - `docs/ui/player_vivid_patterns.md`
 - `docs/ui/vivid_widget_state_observe.md`

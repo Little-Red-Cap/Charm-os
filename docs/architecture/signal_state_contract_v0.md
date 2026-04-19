@@ -255,7 +255,22 @@ Vivid 当前同时存在两层表面：
 - 直接拿 widget 对象时，看 `observe_*`。
 - 走 SoA 句柄和 `SceneAccess` 时，看 scene/kernel/runtime 语义，而不是对象级 signal/state 语义镜像。
 
-## 7. v0 审查清单
+## 7. 当前 contract smoke 证据
+
+当前仓库里，`signal/state` v0 的 contract smoke 主要靠下面两条示例链冻结：
+
+- `Examples/service/service_signal_state_demo`
+  冻结局部 contract：空 delegate 拒绝、固定容量溢出拒绝、stale token 拒绝、`state.set(same)` 不通知、`state.disconnect(token)` 后真相继续更新但观察者静默、`deferred_signal` 保留显式 poster 身份且不 direct call。
+- `Examples/system/signal_state_closure_demo`
+  冻结跨层 contract：同域 `emit()` 同步落地、`state` 真相只在值变化时通知、`init.connection` 的 direct/deferred wiring 保持 graph 可见、worker 只会在真实 scheduler dispatch 后收到 deferred work。
+
+这两条示例加在一起表达的是：
+
+- local contract 已经可运行、可断言
+- cross-layer 边界已经可运行、可断言
+- `emit()` 和 `post()` 的职责分界已经不只是文档主张，而是仓库里的执行证据
+
+## 8. v0 审查清单
 
 每次引入或评审一段 signal/state 用法时，至少问下面这几句：
 

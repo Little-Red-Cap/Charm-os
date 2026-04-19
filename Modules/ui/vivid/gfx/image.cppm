@@ -14,6 +14,7 @@ struct ImageView {
     PixelFormat format{PixelFormat::RGB888};
     bool premultiplied_alpha{false};
     bool force_opaque{false};
+    std::uint8_t sample_inset_px{0};
     int w{0};
     int h{0};
     int stride_bytes{0};
@@ -29,12 +30,14 @@ constexpr ImageView make_image_view(PixelFormat fmt,
                                     int stride_bytes,
                                     const std::byte* data,
                                     bool premultiplied_alpha = false,
-                                    bool force_opaque = false) noexcept
+                                    bool force_opaque = false,
+                                    std::uint8_t sample_inset_px = 0) noexcept
 {
     ImageView img{};
     img.format = fmt;
     img.premultiplied_alpha = premultiplied_alpha;
     img.force_opaque = force_opaque;
+    img.sample_inset_px = sample_inset_px;
     img.w = w;
     img.h = h;
     img.stride_bytes = stride_bytes;
@@ -176,12 +179,14 @@ export namespace ui::gfx {
             const std::uint32_t stride = static_cast<std::uint32_t>(view.stride_bytes);
             const std::uint8_t premul = view.premultiplied_alpha ? 1u : 0u;
             const std::uint8_t opaque = view.force_opaque ? 1u : 0u;
+            const std::uint8_t inset = view.sample_inset_px;
             hash = hash_bytes(hash, &fmt, sizeof(fmt));
             hash = hash_bytes(hash, &w, sizeof(w));
             hash = hash_bytes(hash, &h, sizeof(h));
             hash = hash_bytes(hash, &stride, sizeof(stride));
             hash = hash_bytes(hash, &premul, sizeof(premul));
             hash = hash_bytes(hash, &opaque, sizeof(opaque));
+            hash = hash_bytes(hash, &inset, sizeof(inset));
             if (view.data && data_bytes > 0) {
                 hash = hash_bytes(hash, view.data, data_bytes);
             }
@@ -198,6 +203,7 @@ export namespace ui::gfx {
             if (a.format != b.format) return false;
             if (a.premultiplied_alpha != b.premultiplied_alpha) return false;
             if (a.force_opaque != b.force_opaque) return false;
+            if (a.sample_inset_px != b.sample_inset_px) return false;
             if (a.w != b.w || a.h != b.h || a.stride_bytes != b.stride_bytes) return false;
             if (!a.data || !b.data) return false;
             if (data_bytes == 0) return false;

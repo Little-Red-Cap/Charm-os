@@ -1,62 +1,80 @@
-# 鏈€灏忓唴鏍?task syscall frame 濂戠害锛堣崏妗堬級
+# 最小内核 task syscall frame 契约（草案）
 
-杩欎唤鏂囨。鐢ㄤ簬鎶娾€滄渶灏?syscall handler table 宸茬粡瀛樺湪浠ュ悗锛屾€庢牱鎶婁竴涓灦鏋勬棤鍏崇殑 numbered syscall frame 绋冲畾鍦版帴杩涙潵鈥濆崟鐙敹鍙ｃ€?
-瀹冨搴斿綋鍓嶆柊澧炵殑锛?
+这份文档用于把“最小 syscall handler table 已经存在以后，怎样把一个架构无关的 numbered syscall frame 稳定地接进来”单独收口。
+
+它对应当前新增的：
+
 - `Modules/system/kernel/task_syscall_frame.cppm`
 
-鐩爣涓嶆槸鐜板湪灏辨壙璇虹湡瀹?ARMv7-A SVC frame锛屼篃涓嶆槸椹笂瀹氫箟瀹屾暣鐢ㄦ埛鎬?syscall ABI锛岃€屾槸鍏堟妸涓嬮潰杩欐潯閾捐矾鍋氭垚涓€鏉¤杽鑰岀ǔ銆佸彲瑙傚療銆佸彲鍥炲綊鐨勬ˉ闈細
+以下内容按当前 `task_syscall_frame.cppm` 与两条 host verifier 重新整理。  
+如果文档和实现冲突，优先以代码为准。
+
+目标不是现在就承诺真实 ARMv7-A SVC frame，也不是马上定义完整用户态 syscall ABI，而是先把下面这条链路做成一条薄而稳、可观察、可回归的桥面：
 
 - `frame -> TaskSyscallRequest -> TaskSyscallTable -> TrapResult -> frame writeback`
 
-## 涓€鍙ヨ瘽鐗堟湰
+## 一句话版本
 
-- `TaskSyscallTable` 璐熻矗鈥滀竴涓?syscall 鍙峰簲璇ヨ惤鍒板摢涓€涓?handler鈥?- `TaskSyscallFrame` 璐熻矗鈥滀竴涓渶灏?numbered frame 鎬庢牱 decode銆乨ispatch銆佸啀 writeback鈥?
-鍓嶈€呮槸闈欐€佽〃锛屽悗鑰呮槸 frame 妗ャ€?
-## 涓轰粈涔堢幇鍦ㄥ€煎緱鍔犺繖涓€灞?
-褰撳墠涓婂崐灞傚凡缁忔湁锛?
+- `TaskSyscallTable` 负责“一个 syscall 号应该落到哪一个 handler”
+- `TaskSyscallFrame` 负责“一个最小 numbered frame 怎样 decode、dispatch、再 writeback”
+
+前者是静态表，后者是 frame 桥。
+
+## 为什么现在值得加这一层
+
+当前上半层已经有：
+
 - `TaskSyscallApi`
 - `TaskSyscallCatalog`
 - `TaskSyscallDispatch`
 - `TaskSyscallTable`
 - `RuntimeTrapIngress`
 
-杩欏凡缁忚冻澶熻〃杈撅細
+这已经足够表达：
 
-- task 渚?syscall-facing 鍛藉悕
-- syscall 鍙峰拰 trap service 鐨勫叧绯?- request 鎬庢牱钀藉埌 surface / handler
-- trap frame ingress 鎬庢牱璧?`TrapFrameView`
+- task 侧 syscall-facing 命名
+- syscall 号和 trap service 的关系
+- request 怎样落到 surface / handler
+- trap frame ingress 怎样产出 `TrapFrameView`
 
-浣嗗湪 `TaskSyscallTable` 鍜岀湡瀹?arch frame 涔嬮棿锛岃繕缂轰竴灞傚緢鍏抽敭鐨勨€滀腑闂存ˉ鈥濓細
+但在 `TaskSyscallTable` 和真实 arch frame 之间，还缺一层很关键的“中间桥”：
 
-- 瀹冧笉鐩存帴鐞嗚В ARMv7-A 淇濆瓨甯冨眬
-- 瀹冧篃涓嶉噸鏂板彂鏄庣浜屽 request/result 鍗忚
-- 瀹冨彧璐熻矗鎶婁竴涓渶灏?numbered syscall frame 绋冲畾鍦版敹鎴?`TaskSyscallRequest`
+- 它不直接理解 ARMv7-A 保存布局
+- 它也不重新发明第二套 request/result 协议
+- 它只负责把一个最小 numbered syscall frame 稳定地收成 `TaskSyscallRequest`
 
-濡傛灉杩欎竴灞備笉鍗曠嫭鏀跺嚭鏉ワ紝鍚庨潰涓嶅悓 host verifier銆乫uture arch ingress銆乫uture user boundary 寰堝鏄撳張鍚勮嚜缁存姢涓€浠?鈥渟yscall 鍙峰湪鍝釜妲介噷銆佸弬鏁版€庝箞閲囥€佺粨鏋滄€庝箞鍥炲啓鈥?鐨勯噸澶嶉€昏緫銆?
-## 妯″潡浣嶇疆涓庡叧绯?
-妯″潡浣嶇疆锛?
+如果这一层不单独收出来，后面不同 host verifier、future arch ingress、future user boundary 很容易又各自维护一份“syscall 号在哪个槽里、参数怎么采、结果怎么回写”的重复逻辑。
+
+## 模块位置与关系
+
+模块位置：
+
 - `Modules/system/kernel/task_syscall_frame.cppm`
 
-褰撳墠寤鸿鍏崇郴鏄細
+当前建议关系是：
 
 1. `kernel.task_syscall_api`
-   - task-facing syscall 鍛藉悕闈?2. `kernel.task_syscall_catalog`
-   - syscall 鍙?/ trap service / 璇箟鐩綍
+   - task-facing syscall 命名面
+2. `kernel.task_syscall_catalog`
+   - syscall 号 / trap service / 语义目录
 3. `kernel.task_syscall_dispatch`
    - request -> transport / handler surface
 4. `kernel.task_syscall_table`
-   - syscall 鍙?-> 闈欐€?handler 琛?5. `kernel.task_syscall_frame`
+   - syscall 号 -> 静态 handler 表
+5. `kernel.task_syscall_frame`
    - numbered frame -> request -> table -> writeback
 6. `kernel.runtime_trap_ingress`
-   - 鐪熷疄 trap frame / arch ingress -> `TrapFrameView`
+   - 真实 trap frame / arch ingress -> `TrapFrameView`
 
-杩欐剰鍛崇潃锛?
-- `TaskSyscallFrame` 涓嶅彇浠?`RuntimeTrapIngress`
-- `TaskSyscallFrame` 涔熶笉鍥炲啓 `TaskSyscallTable`
-- 瀹冨彧鏄妸鈥滄渶灏?syscall 鍙?frame鈥濇敹鎴愪竴鏉＄嫭绔嬫ˉ闈?
-## 褰撳墠鏍稿績绫诲瀷
+这意味着：
 
-褰撳墠鏂板鐨勬牳蹇冪被鍨嬩笌鍑芥暟鏄細
+- `TaskSyscallFrame` 不取代 `RuntimeTrapIngress`
+- `TaskSyscallFrame` 也不回写 `TaskSyscallTable`
+- 它只是把“最小 syscall 号 frame”收成一条独立桥面
+
+## 当前核心类型
+
+当前这层的核心类型与函数包括：
 
 - `TaskSyscallFrameStage`
 - `task_syscall_frame_stage_name(...)`
@@ -64,20 +82,23 @@
 - `task_syscall_frame_view_ready(...)`
 - `task_syscall_frame_view_from_request(...)`
 - `task_syscall_request_from_frame_view(...)`
-- `task_syscall_frame_view_decode(TrapRequest, ...)`
-- `task_syscall_frame_view_decode(TrapFrameView, ...)`
+- `task_syscall_frame_view_decode(const TrapRequest&, ...)`
+- `task_syscall_frame_view_decode(const TrapFrameView&, ...)`
+- `task_syscall_semantic_projection(const TaskSyscallFrameView&)`
 - `TaskSyscallFrameAdapter<Frame>`
 - `task_syscall_frame_adapter_ready(...)`
 - `TaskSyscallFrameIngressAdapter<Frame>`
 - `task_syscall_frame_ingress_adapter_ready(...)`
 - `TaskSyscallFrameTraceEvent`
+- `task_syscall_frame_view_from_trace_event(...)`
+- `task_syscall_request_from_trace_event(...)`
+- `task_syscall_semantic_projection(const TaskSyscallFrameTraceEvent&)`
 - `TaskSyscallFrameTraceBuffer<Capacity>`
 - `TaskSyscallFrameBridge<Table, Frame, TraceBuffer>`
 - `TaskSyscallFramePort<Frame>`
 - `TaskSyscallCallFrameAdapter<Frame>`
 - `TaskSyscallTrapCallFrameAdapter<Frame>`
 - `TaskSyscallFrameCaller<Frame, Tick>`
-
 - `make_task_syscall_frame_ingress_adapter(...)`
 - `make_task_syscall_frame_adapter(...)`
 - `make_task_syscall_call_frame_adapter(...)`
@@ -85,79 +106,97 @@
 - `make_task_syscall_frame_port(...)`
 - `make_task_syscall_frame_caller(...)`
 
-## 褰撳墠鏈€灏?frame 瑙嗗浘
+## 当前最小 frame 视图
 
-`TaskSyscallFrameView` 褰撳墠鍙〃杈炬渶灏?numbered syscall frame 鎵€闇€瀛楁锛?
+`TaskSyscallFrameView` 当前只表达最小 numbered syscall frame 所需字段：
+
 - `syscall`
 - `arg0`
 - `arg1`
 - `arg2`
 - `arg3`
 
-瀹冩湁鎰忎笉鍦ㄨ繖涓€灞傚紩鍏ワ細
+它有意不在这一层引入：
 
-- 鐪熷疄瀵勫瓨鍣ㄤ繚瀛樺竷灞€
+- 真实寄存器保存布局
 - `TrapOrigin`
 - `return_pc / status / stack_pointer`
-- 鐢ㄦ埛鎬佸湴鍧€绌洪棿鎴栨寚閽堣涔?
-杩欎簺浠嶇劧搴旇缁х画鐣欑粰 arch ingress 鎴?future user ABI銆?
-鍚屾椂杩欏眰鐜板湪涔熸彁渚涗簡涓ゆ潯涓撻棬缁?future ingress adapter 鐢ㄧ殑鍏叡杞崲锛?
+- 用户态地址空间或指针语义
+
+这些仍然应该继续留给 arch ingress 或 future user ABI。
+
+同时这层已经提供了两条给 future ingress adapter 复用的公共转换：
+
 - `task_syscall_frame_view_decode(const TrapRequest&, ...)`
 - `task_syscall_frame_view_decode(const TrapFrameView&, ...)`
 
-瀹冧滑鐨勬剰涔夋槸鎶娾€滃凡缁忚 lower-half 鏀舵垚 generic trap request / trap frame view 鐨勪笢瑗库€濊繘涓€姝ョǔ瀹氬湴瑙ｆ垚 `TaskSyscallFrameView`锛岃€屼笉鏄姣忎釜 leaf adapter 鍐嶅悇鑷淮鎶や竴浠?syscall 鍙锋槧灏勩€?
-鍐嶅線鍓嶄竴姝ワ紝杩欏眰鐜板湪杩樻彁渚涗簡涓€涓洿鐩存帴鐨勫叕鍏辨嫾鎺ヤ欢锛?
-- `TaskSyscallFrameIngressAdapter<Frame>`
+它们的意义是把“已经被 lower-half 收成 generic trap request / trap frame view 的东西”进一步稳定地解成 `TaskSyscallFrameView`，而不是让每个 leaf adapter 再各自维护一份 syscall 号映射。
+
+## 当前 ingress / helper 形状
+
+`TaskSyscallFrameIngressAdapter<Frame>` 用来复用已经存在的 `RuntimeTrapFrameAdapter<Frame>`：
+
+- 先把真实或 synthetic frame capture 成 `TrapFrameView`
+- 再解成 `TaskSyscallFrameView`
+- 最后继续复用原来的 `TrapResult -> frame` writeback
+
+这让 leaf 或 verifier 如果已经持有稳定的 trap adapter，就不需要再手写第二份 syscall-frame capture/apply glue。
+
+当前这层提供的公共拼接件包括：
+
 - `make_task_syscall_frame_ingress_adapter(RuntimeTrapFrameAdapter<Frame>)`
-- `make_task_syscall_frame_adapter(ingress_adapter)`
 - `make_task_syscall_frame_adapter(RuntimeTrapFrameAdapter<Frame>&)`
+- `make_task_syscall_frame_adapter(TaskSyscallFrameIngressAdapter<Frame>&)`
+- `make_task_syscall_frame_bridge(table, RuntimeTrapFrameAdapter<Frame>&)`
 - `make_task_syscall_frame_bridge(table, RuntimeTrapFrameAdapter<Frame>&, trace)`
+- `make_task_syscall_frame_bridge(table, TaskSyscallFrameIngressAdapter<Frame>&)`
 - `make_task_syscall_frame_bridge(table, TaskSyscallFrameIngressAdapter<Frame>&, trace)`
 - `make_task_syscall_call_frame_adapter(TaskSyscallTrapCallFrameAdapter<Frame>&)`
 - `make_task_syscall_frame_caller(port, TaskSyscallTrapCallFrameAdapter<Frame>&)`
 
-这次额外补的三条 helper，目标是把“leaf 已经持有稳定的 trap adapter / ingress adapter”这条接法进一步压薄：
+其中几条直接接 `RuntimeTrapFrameAdapter<Frame>&` 或 `TaskSyscallFrameIngressAdapter<Frame>&` 的 helper，目的是把“leaf 已经持有稳定 trap adapter / ingress adapter”这条接法再压薄一层。
 
-- `make_task_syscall_frame_adapter(RuntimeTrapFrameAdapter<Frame>&)`
-  - 把 leaf 已稳定持有的 trap adapter 直接封成 `TaskSyscallFrameAdapter<Frame>`。
-- `make_task_syscall_frame_bridge(table, RuntimeTrapFrameAdapter<Frame>&, trace)`
-  - 基于稳定 trap adapter 直接拼出 `TaskSyscallFrameBridge`。
-- `make_task_syscall_frame_bridge(table, TaskSyscallFrameIngressAdapter<Frame>&, trace)`
-  - 当 leaf 已经先显式持有 ingress adapter 时，避免再手写一层 `make_task_syscall_frame_adapter(...)` glue。
+这里故意只接收 lvalue reference，而不是临时对象。原因很简单：
 
-杩欓噷鏁呮剰閮藉彧鏀?lvalue reference锛岃€屼笉鏄复鏃跺璞°€傚師鍥犲緢绠€鍗曪細
+- `TaskSyscallFrameAdapter<Frame>` 当前仍然通过 `ctx` 指针回指外部 adapter 存储
+- 如果 helper 偷偷接受临时 `RuntimeTrapFrameAdapter<Frame>` 或临时 ingress adapter，就会把 `ctx` 指到生命周期已经结束的对象
+- 所以这些 glue 明确要求 trap adapter / ingress adapter 的存储由 leaf 或 verifier 自己持有，并且至少活到 bridge 用完为止
 
-- `TaskSyscallFrameAdapter<Frame>` 褰撳墠浠嶇劧閫氳繃 `ctx` 鎸囬拡鍥炴寚澶栭儴 adapter 瀛樺偍
-- 濡傛灉 helper 鍋峰伔鎺ュ彈涓存椂 `RuntimeTrapFrameAdapter<Frame>` 鎴栦复鏃?ingress adapter锛屽氨浼氭妸 `ctx` 鎸囧埌鐢熷懡鍛ㄦ湡宸茬粡缁撴潫鐨勫璞?- 鎵€浠ュ叕鍏?glue 杩欓噷鏄庣‘瑕佹眰锛歵rap adapter / ingress adapter 鐨勫瓨鍌ㄥ繀椤荤敱 leaf 鎴?verifier 鑷繁鎸佹湁锛屽苟涓旇嚦灏戞椿鍒?bridge 鐢ㄥ畬涓烘
+## 当前 adapter 责任
 
-瀹冪殑浣滅敤鏄妸鐜版湁 `RuntimeTrapFrameAdapter<Frame>` 鐩存帴鍖呮垚 `TaskSyscallFrameAdapter<Frame>`锛岃繖鏍?leaf 鍙宸茬粡鏈夛細
-
-- 鐪熷疄 frame -> `TrapFrameView`
-- `TrapResult` -> 鐪熷疄 frame writeback
-
-灏变笉闇€瑕佸啀鎵嬪啓绗簩浠?syscall-frame capture/apply glue銆?
-## 褰撳墠 adapter 璐ｄ换
-
-`TaskSyscallFrameAdapter<Frame>` 褰撳墠鍙仛涓や欢浜嬶細
+`TaskSyscallFrameAdapter<Frame>` 当前只做两件事：
 
 - `capture(ctx, frame, out_view)`
 - `apply_result(ctx, frame, result)`
 
-涔熷氨鏄锛岃繖灞傛ˉ涓嶇洿鎺ョ悊瑙ｅ叿浣?frame 缁撴瀯锛岃€屾槸鎶娾€滃浣曚粠鏌愪釜 frame 鎶藉彇 syscall 缂栧彿涓庡弬鏁扳€濃€滃浣曟妸缁撴灉鍐欏洖鏌愪釜 frame鈥濋兘浜ょ粰 adapter銆?
-杩欒瀹冨ぉ鐒跺彲浠ュ鎺ワ細
+也就是说，这层桥不直接理解具体 frame 结构，而是把：
 
-- host verifier 閲岀殑 fake frame
+- 如何从某个 frame 抽取 syscall 编号与参数
+- 如何把结果写回某个 frame
+
+都交给 adapter。
+
+这让它天然可以对接：
+
+- host verifier 里的 fake frame
 - future arch-neutral stub frame
-- 浠ュ悗鐪熷疄 ARMv7-A / AArch64 / 鍏跺畠 leaf target 鐨?syscall frame adapter
+- 以后真实 ARMv7-A / AArch64 / 其他 leaf target 的 syscall frame adapter
 
-## 褰撳墠 task-side caller
+## 当前 task-side caller
 
-`TaskSyscallFrameCaller` 表示 task-side 的最小 caller 闭环，负责把 task-facing syscall facade 变成可走 `TaskSyscallFramePort` 的 numbered frame 调用。
+`TaskSyscallFrameCaller<Frame, Tick>` 表示 task-side 的最小 caller 闭环，负责把 task-facing syscall facade 变成可走 `TaskSyscallFramePort` 的 numbered frame 调用。
 
 它当前覆盖两类输入：
 
 - `TaskSyscallRequest`
-- `sys_yield / sys_sleep_until / sys_debug_write / sys_capability_call`
+- `TrapRequest`
+
+并提供最小 task-facing 调用面：
+
+- `yield(...)`
+- `sleep_until(...)`
+- `debug_write(...)`
+- `capability_call(...)`
 
 最小调用路径保持为：
 
@@ -175,49 +214,67 @@ caller 侧新增的 helper 放在这里理解更自然：
 - `frame -> request -> table -> writeback`
 - `task-side syscall surface -> request -> frame`
 
-## 褰撳墠 bridge 璐ｄ换
+## 当前 bridge 责任
 
-`TaskSyscallFrameBridge<Table, Frame, ...>` 褰撳墠鎸夊浐瀹氫笁娈佃蛋锛?
+`TaskSyscallFrameBridge<Table, Frame, ...>` 当前按固定三段走：
+
 1. `decode`
-   - 閫氳繃 adapter 鎶?`Frame` 閲囨垚 `TaskSyscallFrameView`
+   - 通过 adapter 把 `Frame` 收成 `TaskSyscallFrameView`
 2. `dispatch`
-   - 鎶?`TaskSyscallFrameView` 杞垚 `TaskSyscallRequest`
-   - 鍐嶄氦缁?`TaskSyscallTable`
+   - 把 `TaskSyscallFrameView` 转成 `TaskSyscallRequest`
+   - 再交给 `TaskSyscallTable`
 3. `writeback`
-   - 鎶?`TrapResult` 鍥炲啓鍒板師濮?`Frame`
+   - 把 `TrapResult` 回写到原始 `Frame`
 
-瀹冨綋鍓嶄笉璐熻矗锛?
-- 鍔ㄦ€?syscall registry
-- 鐪熷疄 trap frame decode
-- trap origin / privilege 瑙ｉ噴
-- 绗簩濂?errno / negative-return ABI
+它当前不负责：
 
-## 褰撳墠閿欒璇箟
+- 动态 syscall registry
+- 真实 trap frame decode
+- trap origin / privilege 解释
+- 第二套 errno / negative-return ABI
 
-杩欏眰浠嶇劧鐩存帴澶嶇敤锛?
+## 当前错误语义
+
+这层继续直接复用：
+
 - `TrapDisposition`
 - `TrapError`
 - `TrapResult`
 
-褰撳墠鏈€灏忚鍒欐槸锛?
-- adapter 鏈粦瀹?  - `TrapDisposition::rejected`
+当前最小规则是：
+
+- adapter 未绑定
+  - `TrapDisposition::rejected`
   - `TrapError::unbound_adapter`
-- frame capture 澶辫触
+- frame capture 失败
   - `TrapDisposition::rejected`
   - `TrapError::decode_failed`
-- table 鏈粦瀹?  - `TrapDisposition::rejected`
+- table 未绑定
+  - `TrapDisposition::rejected`
   - `TrapError::unbound_bridge`
-- result writeback 澶辫触
+- result writeback 失败
   - `TrapDisposition::rejected`
   - `TrapError::writeback_failed`
 
-杩欐剰鍛崇潃 frame bridge 渚濈劧娌℃湁寮曞叆绗簩濂?frame-specific result 鍗忚銆?
-## 褰撳墠 observability
+caller 侧也延续同一套错误面：
 
-褰撳墠 frame bridge 鑷甫鐙珛 trace锛?
+- builder 未绑定或 caller 未就绪
+  - `TrapError::unbound_adapter`
+- builder 无法构造 frame
+  - `TrapError::decode_failed`
+- 可选 `result_ready(...)` 失败
+  - `TrapError::writeback_failed`
+
+这意味着 frame bridge 和 caller 都没有引入第二套 frame-specific result 协议。
+
+## 当前 observability
+
+当前 frame bridge 自带独立 trace：
+
 - `TaskSyscallFrameTraceBuffer`
 
-姣忔潯 trace 鑷冲皯璁板綍锛?
+每条 trace 至少记录：
+
 - `sequence`
 - `stage`
 - `syscall`
@@ -228,64 +285,70 @@ caller 侧新增的 helper 放在这里理解更自然：
 - `value`
 - `ok`
 
-骞朵笖褰撳墠宸茬粡鏀寔锛?
+并且当前已经支持：
+
 - `task_syscall_frame_view_from_trace_event(event)`
 - `task_syscall_request_from_trace_event(event)`
 - `task_syscall_semantic_projection(event)`
 
-涔熷氨鏄锛宖rame trace 鍜?dispatch/table trace 涓€鏍凤紝閮借兘琚噸鏂版姇褰卞洖鍚屼竴濂?task syscall 璇箟瀛楁銆?
-## 涓庣幇鏈夊眰鐨勫垎宸?
-褰撳墠寤鸿杩欐牱鍒嗭細
+也就是说，frame trace 和 dispatch/table trace 一样，都能被重新投影回同一套 task syscall 语义字段。
+
+## 与现有层的分工
+
+当前建议这样分：
 
 - `TaskSyscallDispatch`
-  - 璐熻矗鈥滀竴涓?request 鎬庢牱钀藉埌涓€涓?surface鈥?- `TaskSyscallTable`
-  - 璐熻矗鈥滀竴涓?syscall 鍙峰簲璇ヨ惤鍒板摢涓€涓?handler鈥?- `TaskSyscallFrame`
-  - 璐熻矗鈥滀竴涓?numbered frame 鎬庢牱 decode銆乨ispatch銆佸啀 writeback鈥?- `RuntimeTrapIngress`
-  - 璐熻矗鈥滅湡瀹?trap frame 鎬庢牱琚В閲婃垚鏋舵瀯鏃犲叧 trap 璇锋眰鈥?
-杩欏嚑灞傛媶寮€浠ュ悗锛?
-- request 璇箟
+  - 负责“一个 request 怎样落到一个 surface”
+- `TaskSyscallTable`
+  - 负责“一个 syscall 号应该落到哪一个 handler”
+- `TaskSyscallFrame`
+  - 负责“一个 numbered frame 怎样 decode、dispatch、再 writeback”
+- `RuntimeTrapIngress`
+  - 负责“真实 trap frame 怎样被解释成架构无关 trap 请求”
+
+这几层拆开以后：
+
+- request 语义
 - handler table
 - numbered frame writeback
-- 鐪熷疄 trap ingress
+- 真实 trap ingress
 
-灏变笉鍐嶈鎻夊洖鍚屼竴涓枃浠躲€?
-## 褰撳墠璇佹嵁璺緞
+就不会再被揉回同一个文件里。
 
-褰撳墠涓庤繖灞傜洿鎺ョ浉鍏崇殑鐙珛璇佹嵁璺緞鏄細
+## 当前证据路径
+
+当前与这层直接相关的独立证据路径是：
 
 - `Examples/kernel/runtime_task_syscall_frame_host`
 - `Examples/kernel/runtime_task_syscall_frame_caller_host`
 
-鏂板杩欎袱鏉¤瘉鎹悗锛屽彲浠ユ妸褰撳墠 verifier 鍏虫敞鐐规€荤粨鎴愶細
+它们当前覆盖：
 
-- `runtime_task_syscall_frame_host`
-  - `RuntimeTrapFrameAdapter<Frame> -> TaskSyscallFrameIngressAdapter<Frame> -> TaskSyscallFrameAdapter<Frame>` 鐨勫叕鍏辨嫾鎺?  - `RuntimeTrapFrameAdapter<Frame>& -> TaskSyscallFrameAdapter<Frame>` 鐨勭洿鎺?helper
-  - `RuntimeTrapFrameAdapter<Frame>& / TaskSyscallFrameIngressAdapter<Frame>& -> TaskSyscallFrameBridge` 鐨勭洿鎺?helper
-- `runtime_task_syscall_frame_caller_host`
-  - `TaskSyscallApi -> TaskSyscallFrameCaller -> TaskSyscallFramePort -> TaskSyscallFrameBridge -> TaskSyscallTable`
-  - `TaskSyscallApi -> TaskSyscallFrameCaller -> generic trap frame -> TaskSyscallFrameBridge -> TaskSyscallTable`
-  - `TaskSyscallTrapCallFrameAdapter<Frame>& -> TaskSyscallCallFrameAdapter<Frame>`
-  - `TaskSyscallTrapCallFrameAdapter<Frame>& -> TaskSyscallFrameCaller<Frame, Tick>`
-  - `bind_runtime(...)` 涓?builder/result-ready 璐熷悜璺緞
-
-瀹冨綋鍓嶉獙璇侊細
-
-- `TaskSyscallFrameView <-> TaskSyscallRequest` 鐨勬渶灏忚浆鎹?- frame -> table -> handler 鐨勬甯搁棴鐜?- table 娣峰悎鎸傛帴 dispatch bridge 涓庣洿杩?handler
-- `RuntimeTrapFrameAdapter<Frame> -> TaskSyscallFrameIngressAdapter<Frame> -> TaskSyscallFrameAdapter<Frame>` 鐨勫叕鍏辨嫾鎺?- `unbound_adapter`
+- `TaskSyscallFrameView <-> TaskSyscallRequest` 的最小转换
+- frame -> table -> handler 的正常闭环
+- table 混合挂接 dispatch bridge 与直连 handler
+- `RuntimeTrapFrameAdapter<Frame> -> TaskSyscallFrameIngressAdapter<Frame> -> TaskSyscallFrameAdapter<Frame>` 的公共拼接
+- `RuntimeTrapFrameAdapter<Frame>& -> TaskSyscallFrameAdapter<Frame>` 的直接 helper
+- `RuntimeTrapFrameAdapter<Frame>& / TaskSyscallFrameIngressAdapter<Frame>& -> TaskSyscallFrameBridge` 的直接 helper
+- `TaskSyscallApi -> TaskSyscallFrameCaller -> TaskSyscallFramePort -> TaskSyscallFrameBridge -> TaskSyscallTable`
+- `TaskSyscallApi -> TaskSyscallFrameCaller -> generic trap frame -> TaskSyscallFrameBridge -> TaskSyscallTable`
+- `TaskSyscallTrapCallFrameAdapter<Frame>& -> TaskSyscallCallFrameAdapter<Frame>`
+- `TaskSyscallTrapCallFrameAdapter<Frame>& -> TaskSyscallFrameCaller<Frame, Tick>`
+- `bind_runtime(...)` 切换不同 caller
+- `unbound_adapter`
 - `decode_failed`
 - `writeback_failed`
-- frame trace 鐨?stage / semantic projection
+- frame trace 的 `stage / semantic projection`
+- caller builder 失败与 caller result-ready 失败的负向路径
 
-浠ュ強锛?
-- `TaskSyscallApi -> TaskSyscallFrameCaller -> TaskSyscallFramePort -> TaskSyscallFrameBridge -> TaskSyscallTable`
-- `bind_runtime(...)` 鎹㈡帴涓嶅悓 caller
-- caller builder 澶辫触涓?caller result-ready 澶辫触鐨勮礋鍚戣矾寰?
-## 褰撳墠闈炵洰鏍?
-褰撳墠杩欏眰浠嶇劧涓嶅鐞嗭細
+## 当前非目标
 
-- 鐪熷疄 ARMv7-A SVC frame 褰㈢姸
-- 鐪熷疄 trap origin / privilege 瑙ｉ噴
-- 鐢ㄦ埛鎬佸湴鍧€绌洪棿涓庢寚閽堟牎楠?- 瀹屾暣 syscall ABI
-- 鍔ㄦ€?syscall handler registry
+当前这层仍然不处理：
 
-瀹冨彧鏄厛鎶娾€滄渶灏?numbered syscall frame bridge鈥濈珛浣忥紝涓?future arch ingress 鎴?user ABI 鎻愪緵涓€涓洿骞插噣鐨勮惤鐐广€?
+- 真实 ARMv7-A SVC frame 形状
+- 真实 trap origin / privilege 解释
+- 用户态地址空间与指针校验
+- 完整 syscall ABI
+- 动态 syscall handler registry
+
+它只是先把“最小 numbered syscall frame bridge”立住，为 future arch ingress 或 user ABI 提供一个更干净的落点。

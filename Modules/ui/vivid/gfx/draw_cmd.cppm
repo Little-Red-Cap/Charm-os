@@ -660,6 +660,11 @@ export namespace ui::draw_cmd {
         [[nodiscard]] std::size_t capacity() const noexcept { return Capacity; }
         [[nodiscard]] bool overflowed() const noexcept { return overflowed_; }
         [[nodiscard]] const std::byte* data() const noexcept { return buffer_.data(); }
+        [[nodiscard]] bool can_add_bytes(std::size_t len, std::size_t alignment) const noexcept {
+            if (len == 0) return false;
+            const std::size_t offset = align_up(used_, alignment);
+            return (offset + len) <= Capacity;
+        }
 
         BlobRef add_bytes(const void* data, std::size_t len, std::size_t alignment) noexcept {
             if (!data || len == 0) return BlobRef{};
@@ -1059,7 +1064,7 @@ export namespace ui::draw_cmd {
             std::array<PathBatchItem, kMaxBatchItems> path_items{};
             std::array<GlyphRunItem, kMaxBatchItems> text_items{};
             std::array<ImageBatchItem, kMaxBatchItems> image_items{};
-            const bool allow_batch = !blob_.overflowed();
+            bool allow_batch = !blob_.overflowed();
             batch_shrink_ = 0;
             batch_shrink_line_ = 0;
             batch_shrink_path_ = 0;
@@ -1126,6 +1131,7 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
+                        bool merged = false;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1156,8 +1162,13 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
+                            const std::size_t blob_bytes = batch * sizeof(LineBatchItem);
+                            if (!blob_.can_add_bytes(blob_bytes, alignof(LineBatchItem))) {
+                                --batch;
+                                continue;
+                            }
                             const BlobRef blob = blob_.add_bytes(line_items.data(),
-                                                                 batch * sizeof(LineBatchItem),
+                                                                 blob_bytes,
                                                                  alignof(LineBatchItem));
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
@@ -1168,12 +1179,14 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p0 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
+                                merged = true;
                                 break;
                             }
                             ok = false;
+                            allow_batch = false;
                             break;
                         }
-                        if (batch >= 2) {
+                        if (merged) {
                             continue;
                         }
                     }
@@ -1190,6 +1203,7 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
+                        bool merged = false;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds = cmd.rect;
@@ -1220,8 +1234,13 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
+                            const std::size_t blob_bytes = batch * sizeof(PathBatchItem);
+                            if (!blob_.can_add_bytes(blob_bytes, alignof(PathBatchItem))) {
+                                --batch;
+                                continue;
+                            }
                             const BlobRef blob = blob_.add_bytes(path_items.data(),
-                                                                 batch * sizeof(PathBatchItem),
+                                                                 blob_bytes,
                                                                  alignof(PathBatchItem));
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
@@ -1232,12 +1251,14 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p0 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
+                                merged = true;
                                 break;
                             }
                             ok = false;
+                            allow_batch = false;
                             break;
                         }
-                        if (batch >= 2) {
+                        if (merged) {
                             continue;
                         }
                     }
@@ -1253,6 +1274,7 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
+                        bool merged = false;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1281,8 +1303,13 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
+                            const std::size_t blob_bytes = batch * sizeof(RectBatchItem);
+                            if (!blob_.can_add_bytes(blob_bytes, alignof(RectBatchItem))) {
+                                --batch;
+                                continue;
+                            }
                             const BlobRef blob = blob_.add_bytes(rect_items.data(),
-                                                                 batch * sizeof(RectBatchItem),
+                                                                 blob_bytes,
                                                                  alignof(RectBatchItem));
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
@@ -1295,12 +1322,14 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p0 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
+                                merged = true;
                                 break;
                             }
                             ok = false;
+                            allow_batch = false;
                             break;
                         }
-                        if (batch >= 2) {
+                        if (merged) {
                             continue;
                         }
                     }
@@ -1322,6 +1351,7 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
+                        bool merged = false;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1350,8 +1380,13 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
+                            const std::size_t blob_bytes = batch * sizeof(RectBatchItem);
+                            if (!blob_.can_add_bytes(blob_bytes, alignof(RectBatchItem))) {
+                                --batch;
+                                continue;
+                            }
                             const BlobRef blob = blob_.add_bytes(rect_items.data(),
-                                                                 batch * sizeof(RectBatchItem),
+                                                                 blob_bytes,
                                                                  alignof(RectBatchItem));
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
@@ -1379,12 +1414,14 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p1 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
+                                merged = true;
                                 break;
                             }
                             ok = false;
+                            allow_batch = false;
                             break;
                         }
-                        if (batch >= 2) {
+                        if (merged) {
                             continue;
                         }
                     }
@@ -1423,27 +1460,33 @@ export namespace ui::draw_cmd {
                             }
                             item_offset += item_stride;
                         }
-                        const BlobRef blob = blob_.add_bytes(text_items.data(),
-                                                             batch * sizeof(GlyphRunItem),
-                                                             alignof(GlyphRunItem));
-                        if (blob.length != 0) {
-                            DrawCmd batch_cmd{};
-                            batch_cmd.type = CmdType::GlyphRun;
-                            batch_cmd.rect = bounds;
-                            batch_cmd.color = cmd.color;
-                            batch_cmd.font_ptr = cmd.font_ptr;
-                            batch_cmd.font = cmd.font;
-                            batch_cmd.align_h = cmd.align_h;
-                            batch_cmd.align_v = cmd.align_v;
-                            batch_cmd.wrap = cmd.wrap;
-                            batch_cmd.ellipsis = cmd.ellipsis;
-                            batch_cmd.blob = blob;
-                            batch_cmd.p0 = static_cast<std::int16_t>(batch);
-                            if (!emit_cmd(batch_cmd)) ok = false;
-                            offset = item_offset;
-                            continue;
+                        const std::size_t blob_bytes = batch * sizeof(GlyphRunItem);
+                        if (blob_.can_add_bytes(blob_bytes, alignof(GlyphRunItem))) {
+                            const BlobRef blob = blob_.add_bytes(text_items.data(),
+                                                                 blob_bytes,
+                                                                 alignof(GlyphRunItem));
+                            if (blob.length != 0) {
+                                DrawCmd batch_cmd{};
+                                batch_cmd.type = CmdType::GlyphRun;
+                                batch_cmd.rect = bounds;
+                                batch_cmd.color = cmd.color;
+                                batch_cmd.font_ptr = cmd.font_ptr;
+                                batch_cmd.font = cmd.font;
+                                batch_cmd.align_h = cmd.align_h;
+                                batch_cmd.align_v = cmd.align_v;
+                                batch_cmd.wrap = cmd.wrap;
+                                batch_cmd.ellipsis = cmd.ellipsis;
+                                batch_cmd.blob = blob;
+                                batch_cmd.p0 = static_cast<std::int16_t>(batch);
+                                if (!emit_cmd(batch_cmd)) ok = false;
+                                offset = item_offset;
+                                continue;
+                            }
+                            ok = false;
+                            allow_batch = false;
+                        } else {
+                            allow_batch = false;
                         }
-                        ok = false;
                     }
                 } else if (allow_batch && cmd.type == CmdType::DrawImage) {
                     if (!image_id_valid(cmd.image)) {
@@ -1463,6 +1506,7 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
+                        bool merged = false;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1491,8 +1535,13 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
+                            const std::size_t blob_bytes = batch * sizeof(ImageBatchItem);
+                            if (!blob_.can_add_bytes(blob_bytes, alignof(ImageBatchItem))) {
+                                --batch;
+                                continue;
+                            }
                             const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                                 batch * sizeof(ImageBatchItem),
+                                                                 blob_bytes,
                                                                  alignof(ImageBatchItem));
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
@@ -1503,12 +1552,14 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p0 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
+                                merged = true;
                                 break;
                             }
                             ok = false;
+                            allow_batch = false;
                             break;
                         }
-                        if (batch >= 2) {
+                        if (merged) {
                             continue;
                         }
                     }
@@ -1531,6 +1582,7 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
+                        bool merged = false;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1559,8 +1611,13 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
+                            const std::size_t blob_bytes = batch * sizeof(ImageBatchItem);
+                            if (!blob_.can_add_bytes(blob_bytes, alignof(ImageBatchItem))) {
+                                --batch;
+                                continue;
+                            }
                             const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                                 batch * sizeof(ImageBatchItem),
+                                                                 blob_bytes,
                                                                  alignof(ImageBatchItem));
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
@@ -1572,12 +1629,14 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p1 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
+                                merged = true;
                                 break;
                             }
                             ok = false;
+                            allow_batch = false;
                             break;
                         }
-                        if (batch >= 2) {
+                        if (merged) {
                             continue;
                         }
                     }
@@ -1601,6 +1660,7 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
+                        bool merged = false;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1629,8 +1689,13 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
+                            const std::size_t blob_bytes = batch * sizeof(ImageBatchItem);
+                            if (!blob_.can_add_bytes(blob_bytes, alignof(ImageBatchItem))) {
+                                --batch;
+                                continue;
+                            }
                             const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                                 batch * sizeof(ImageBatchItem),
+                                                                 blob_bytes,
                                                                  alignof(ImageBatchItem));
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
@@ -1644,12 +1709,14 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p3 = cmd.p3;
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
+                                merged = true;
                                 break;
                             }
                             ok = false;
+                            allow_batch = false;
                             break;
                         }
-                        if (batch >= 2) {
+                        if (merged) {
                             continue;
                         }
                     }
@@ -1667,6 +1734,7 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
+                        bool merged = false;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1695,8 +1763,13 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
+                            const std::size_t blob_bytes = batch * sizeof(RectBatchItem);
+                            if (!blob_.can_add_bytes(blob_bytes, alignof(RectBatchItem))) {
+                                --batch;
+                                continue;
+                            }
                             const BlobRef blob = blob_.add_bytes(rect_items.data(),
-                                                                 batch * sizeof(RectBatchItem),
+                                                                 blob_bytes,
                                                                  alignof(RectBatchItem));
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
@@ -1710,12 +1783,14 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p3 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
+                                merged = true;
                                 break;
                             }
                             ok = false;
+                            allow_batch = false;
                             break;
                         }
-                        if (batch >= 2) {
+                        if (merged) {
                             continue;
                         }
                     }

@@ -323,7 +323,7 @@ Modules/
 - `docs/system/minimal_kernel_task_syscall_catalog_contract.md`
 - `docs/system/minimal_kernel_task_syscall_dispatch_contract.md`
 - `docs/system/minimal_kernel_task_syscall_table_contract.md`
-- `docs/system/minimal_kernel_task_syscall_frame_contract.md`（当前存在历史编码损坏，待恢复）
+- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
 - `docs/system/minimal_kernel_trap_syscall_contract.md`
 - `docs/system/minimal_kernel_trap_ingress_contract.md`
 - `docs/system/armv7a_runtime_trap_mapping_contract.md`
@@ -377,6 +377,7 @@ Modules/
 
 - `Examples/kernel/runtime_trap_armv7a_host/`
 - `scripts/minimal_kernel_runtime_host_smoke.ps1`
+- `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1`
 
 它的作用不是替代 QEMU，而是先验证：
 
@@ -391,14 +392,15 @@ Modules/
 - CI 证明“这不是一次性的偶然成功”
 
 其中 `scripts/minimal_kernel_runtime_host_smoke.ps1` 当前会批量回归上半层 `runtime_*_host` verifier，默认不把 lower-half 认领的 `runtime_task_syscall_frame_armv7a_host` 纳入同一批次，避免两条并行线重新耦合。
+而 `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1` 则把 QEMU 叶子里的 `runtime-trap / runtime-live / task-syscall` 聚焦 smoke 收成一条共享 `debug` 构建的 lower-half 回归入口。
 
 如果以后线程、调度器、syscall、页表操作都能保持这个节奏，我们会比很多“先把功能糊上去”的内核项目更稳。
 
-## 7. 两人协作时，怎么分工最不容易互相踩
+## 7. 两人协作时，怎样分工更不容易互相踩
 
-如果后面开始并行推进，我更推荐下面这种分法。
+如果后面开始并行推进，更推荐下面这种分法。
 
-### 7.1 一个人负责平台叶子与板级映射
+### 7.1 平台叶子与板级映射
 
 适合负责的内容：
 
@@ -415,7 +417,7 @@ Modules/
 - 和 CMake / target 边界更近
 - 对 kernel core 的直接改动相对少
 
-### 7.2 一个人负责公共契约与内核核心承接
+### 7.2 公共契约与内核核心承接
 
 适合负责的内容：
 
@@ -442,12 +444,12 @@ Modules/
 
 因为这些接口一旦定型，后面会影响很多年。
 
-## 8. 如果现在就开始分工，我建议先这样配合
+## 8. 并行推进时的推荐组合
 
-如果要尽快进入并行推进，我更推荐下面这个组合：
+如果要尽快进入并行推进，较推荐下面这个组合：
 
-- 我继续主攻 `targets/armv7a/common/`、QEMU 证据层、arch ingress seam
-- 你优先主攻 CMake/target 组织、board leaf 边界、RK3506 映射、以及和现有仓库主线的对齐
+- 一条线主攻 `targets/armv7a/common/`、QEMU 证据层、arch ingress seam
+- 另一条线优先主攻 CMake/target 组织、board leaf 边界、RK3506 映射，以及和现有仓库主线的对齐
 
 这样分的好处是：
 
@@ -455,7 +457,7 @@ Modules/
 - 不容易在同一批文件里反复打架
 - 我们仍然通过 contract 和 CI 汇合，而不是通过“谁先改完某个大文件”汇合
 
-如果你后面想再多接一点裸机代码，最适合并行切入的子题目通常是：
+如果后续还需要再增加一部分裸机侧并行任务，较适合的切入点通常是：
 
 - 新增一个 leaf target 的最小串口/中断接线
 - 给某个已有 contract 补 host 验证

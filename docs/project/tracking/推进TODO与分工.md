@@ -90,15 +90,15 @@
 
 
 
-USBHost（你现在只有Device）：Host的管线/Hub/枚举流程可借鉴，但实现可自研。
-2.TCP/IP（IwIP/NSFTCPIP）接口层：不急着搬协议栈，先定义socket/packet/endpoint 抽象。
-3.驱动框架（设备模型+统一init/probe)：VSF有较完整的 driver组织方式，适合抽成”设备注册表”。
-4. Power / Low-Power 管理：时钟域、休眠、唤醒策略，这块现在你的 Kernel/Platform还没覆盖。
-5. Audio/Video 中间件 (VSF stream/pipeline 的接口形状): 可对标你音频 pipeline的分层设计。
-   我更激进的建议：
-   先把**"设备注册表+ driver lifecycle"**抽象出来（ModuleX+Kernel + IO 很好承载)，让 USB/TCPIP/FS 都能挂到统一设备模型上。
-   这样后续再扩VSF模块时，不会成为孤岛。
-   如果你同意，我可以先做一份"设备模型草案"（driver/init/probe/remove/pm hooks+注册表），再对照VSF的设备层结构给出迁移路线。
+USBHost（当前主线还只有 Device）：Host 的管线、Hub、枚举流程可借鉴，但实现可自研。
+2. TCP/IP（IwIP/NSFTCPIP）接口层：不急着搬协议栈，先定义 socket / packet / endpoint 抽象。
+3. 驱动框架（设备模型 + 统一 init/probe)：VSF 有较完整的 driver 组织方式，适合抽成“设备注册表”。
+4. Power / Low-Power 管理：时钟域、休眠、唤醒策略，这块当前 Kernel / Platform 还没覆盖。
+5. Audio/Video 中间件（VSF stream/pipeline 的接口形状）：可对标音频 pipeline 的分层设计。
+   更激进的路线：
+   先把 **“设备注册表 + driver lifecycle”** 抽象出来（ModuleX + Kernel + IO 很好承载），让 USB / TCPIP / FS 都能挂到统一设备模型上。
+   这样后续再扩 VSF 模块时，不会成为孤岛。
+   可先补一份“设备模型草案”（driver/init/probe/remove/pm hooks + 注册表），再对照 VSF 的设备层结构给出迁移路线。
 
 
 

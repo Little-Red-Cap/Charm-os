@@ -1,6 +1,16 @@
-﻿# 输入协议映射（VSF -> Charm）
+﻿# 输入协议映射（历史对照：VSF -> Charm）
 
-目标：把 VSF 的 input 协议事件编码迁移为 Charm 的 RawInputEvent 统一规范，避免 UI/Runtime 之间的语义漂移。
+这份文档记录一套从 VSF input 协议到 Charm `RawInputEvent` 的历史映射思路，主要用于对照位段编码与字段语义，不应直接被当成当前输入主契约。
+
+如果当前 `RawInputEvent`、`ProtocolEvent` 或输入链路实现与本文不同，优先以：
+
+- `docs/input/input_layering_decision.md`
+- `docs/io/io_layering_overview.md`
+- 当前代码
+
+为准。
+
+目标：保留一份可复查的协议形状对照，避免 UI/Runtime 之间的语义漂移。
 
 ## 1) VSF 事件模型要点
 
@@ -90,7 +100,8 @@ Charm 建议：
 ---
 
 参考来源：
-- `Draft/vsf/source/component/input/vsf_input.h`
-- `Draft/vsf/source/component/input/protocol/vsf_input_mouse.h`
-- `Draft/vsf/source/component/input/protocol/vsf_input_keyboard.h`
-- `Draft/vsf/source/component/input/protocol/vsf_input_touchscreen.h`
+- VSF `source/component/input/vsf_input.h`
+- VSF `source/component/input/protocol/vsf_input_mouse.h`
+- VSF `source/component/input/protocol/vsf_input_keyboard.h`
+- VSF `source/component/input/protocol/vsf_input_touchscreen.h`
+- 本仓库历史对照入口：`docs/reference/vsf/README.md`

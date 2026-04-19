@@ -13,7 +13,7 @@
 ## 先怎么理解这个目录
 
 - `io_layering_overview.md`
-  负责说明 IO 在仓库里的分层位置和主题边界。
+  负责说明 IO 在仓库里的分层位置和主题边界，但不替代 `io.channel / io.reactor / io.registry` 的硬契约。
 - `*_contract.md`
   优先视为现行规则、硬约束或阶段性收口契约。
 - `net_*design/review/tasklist/checklist`
@@ -66,4 +66,5 @@
 ## 使用提醒
 
 - 如果这里的说明和 `docs/system/*`、`docs/architecture/*` 或当前代码冲突，优先回到更上位入口复核。
+- `io_layering_overview.md` 更适合先建立主题边界；真正的行为约束仍应回到三篇 `*_contract.md`。
 - 当 channel / reactor / registry 的行为边界变化，或网络协议栈的现行入口发生变化时，应同步更新本目录入口。

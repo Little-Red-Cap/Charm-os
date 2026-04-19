@@ -17,7 +17,7 @@ constexpr std::uint32_t kArmv7aSvcYieldArg2 = 0x00000000u;
 constexpr std::uint32_t kArmv7aSvcYieldArg3 = 0x00000000u;
 constexpr std::uint32_t kArmv7aSvcSleepArg0 = 0x00000005u;
 constexpr std::uint32_t kArmv7aSvcSleepArg1 = 0x00000000u;
-constexpr std::uint32_t kArmv7aSvcSleepArg2 = 0x00000002u;
+constexpr std::uint32_t kArmv7aSvcSleepArg2 = 0x00000001u;
 constexpr std::uint32_t kArmv7aSvcSleepArg3 = 0x00000005u;
 constexpr std::uint32_t kArmv7aSvcDebugWriteArg0 = 0x00000044u;
 constexpr std::uint32_t kArmv7aSvcDebugWriteArg1 = 0x00000000u;
@@ -148,12 +148,8 @@ extern "C" void armv7a_svc_smoke_test()
 
 extern "C" std::uint32_t armv7a_svc_smoke_test_result()
 {
-    register std::uint32_t r0 asm("r0") = kArmv7aSvcYieldArg0;
-    register std::uint32_t r1 asm("r1") = kArmv7aSvcYieldArg1;
-    register std::uint32_t r2 asm("r2") = kArmv7aSvcYieldArg2;
-    register std::uint32_t r3 asm("r3") = kArmv7aSvcYieldArg3;
-    asm volatile("svc #0x43" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
-    return r0;
+    return armv7a_runtime_yield_call(
+        kArmv7aSvcYieldArg0, kArmv7aSvcYieldArg1);
 }
 
 extern "C" void armv7a_svc_sleep_smoke_test()
@@ -163,12 +159,11 @@ extern "C" void armv7a_svc_sleep_smoke_test()
 
 extern "C" std::uint32_t armv7a_svc_sleep_smoke_test_result()
 {
-    register std::uint32_t r0 asm("r0") = kArmv7aSvcSleepArg0;
-    register std::uint32_t r1 asm("r1") = kArmv7aSvcSleepArg1;
-    register std::uint32_t r2 asm("r2") = kArmv7aSvcSleepArg2;
-    register std::uint32_t r3 asm("r3") = kArmv7aSvcSleepArg3;
-    asm volatile("svc #0x44" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
-    return r0;
+    return armv7a_runtime_sleep_until_call(
+        (static_cast<std::uint64_t>(kArmv7aSvcSleepArg1) << 32u) |
+            static_cast<std::uint64_t>(kArmv7aSvcSleepArg0),
+        kArmv7aSvcSleepArg2,
+        kArmv7aSvcSleepArg3);
 }
 
 extern "C" std::uint32_t armv7a_svc_debug_write_smoke_test_result()
@@ -188,6 +183,32 @@ extern "C" std::uint32_t armv7a_svc_capability_call_smoke_test_result()
     register std::uint32_t r2 asm("r2") = kArmv7aSvcCapabilityArg2;
     register std::uint32_t r3 asm("r3") = kArmv7aSvcCapabilityArg3;
     asm volatile("svc #0x46" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
+    return r0;
+}
+
+extern "C" std::uint32_t armv7a_runtime_yield_call(std::uint32_t event_id,
+                                                   std::uint32_t event_payload)
+{
+    register std::uint32_t r0 asm("r0") = event_id;
+    register std::uint32_t r1 asm("r1") = event_payload;
+    register std::uint32_t r2 asm("r2") = 0u;
+    register std::uint32_t r3 asm("r3") = 0u;
+    asm volatile("svc #0x43" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
+    return r0;
+}
+
+extern "C" std::uint32_t armv7a_runtime_sleep_until_call(
+    std::uint64_t due,
+    std::uint32_t event_id,
+    std::uint32_t event_payload)
+{
+    register std::uint32_t r0 asm("r0") =
+        static_cast<std::uint32_t>(due & 0xFFFF'FFFFull);
+    register std::uint32_t r1 asm("r1") =
+        static_cast<std::uint32_t>((due >> 32u) & 0xFFFF'FFFFull);
+    register std::uint32_t r2 asm("r2") = event_id;
+    register std::uint32_t r3 asm("r3") = event_payload;
+    asm volatile("svc #0x44" : "+r"(r0) : "r"(r1), "r"(r2), "r"(r3) : "memory");
     return r0;
 }
 

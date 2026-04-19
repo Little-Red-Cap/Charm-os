@@ -10,6 +10,7 @@ import kernel.evt;
 import kernel.runtime_bridge;
 import kernel.runtime_mailbox;
 import kernel.scheduler;
+import kernel.task_message_api;
 import kernel.task_state;
 import kernel.thread;
 
@@ -120,6 +121,7 @@ namespace demo {
     using RuntimeTrace =
         kernel::RuntimeTraceBuffer<ManualTimeSource::Tick, 32>;
     using Mailbox = kernel::RuntimeMailbox<RunningScheduler, 4, 4, 4>;
+    using TaskMessages = kernel::TaskMessageApi<Mailbox>;
 
     inline constexpr auto kIdleId = Registry::id_of<IdleTask>();
     inline constexpr auto kServerId = Registry::id_of<ServerTask>();
@@ -135,8 +137,8 @@ namespace demo {
     inline constexpr std::uint64_t kRequestValue{42u};
     inline constexpr std::uint64_t kRequestSequence{0x55u};
     inline constexpr std::uint64_t kReplyValue{kRequestValue + 1000u};
-
-    inline Mailbox* mailbox{nullptr};
+    inline TaskMessages* server_messages{nullptr};
+    inline TaskMessages* client_messages{nullptr};
 
     [[nodiscard]] kernel::Event make_idle_event() noexcept
     {
@@ -185,7 +187,8 @@ namespace demo {
                      kernel::ThreadControl& control,
                      kernel::Event event)
     {
-        if (context.shared == nullptr || mailbox == nullptr) {
+        if (context.shared == nullptr || server_messages == nullptr ||
+            !server_messages->valid()) {
             return;
         }
 
@@ -203,19 +206,19 @@ namespace demo {
             kernel::payload_u32(event) == kServerBootstrapPayload) {
             ++context.shared->server_runs;
             context.shared->server_wait_armed =
-                mailbox->wait_receive_current_until(kInitialReceiveDue);
+                server_messages->wait_receive_until(kInitialReceiveDue);
             std::printf("[server] wait due=%llu armed=%d\n",
                         static_cast<unsigned long long>(kInitialReceiveDue),
                         context.shared->server_wait_armed ? 1 : 0);
             return;
         }
 
-        if (mailbox->consume_receive_timeout_current(event)) {
+        if (server_messages->consume_receive_timeout(event)) {
             ++context.shared->server_runs;
             ++context.shared->server_timeouts;
             context.shared->server_timeout_seen = true;
             context.shared->server_rewait_armed =
-                mailbox->wait_receive_current_until(kSecondReceiveDue);
+                server_messages->wait_receive_until(kSecondReceiveDue);
             std::printf(
                 "[server] recv-timeout count=%u now=%llu rewait=%d due=%llu\n",
                 context.shared->server_timeouts,
@@ -226,7 +229,7 @@ namespace demo {
         }
 
         kernel::RuntimeMailboxRequest request{};
-        if (!mailbox->receive_current(request)) {
+        if (!server_messages->receive(request)) {
             return;
         }
 
@@ -240,8 +243,7 @@ namespace demo {
             request.from == kClientId && request.label == kRequestLabel &&
             request.value == kRequestValue &&
             request.sequence == kRequestSequence;
-        context.shared->reply_sent =
-            mailbox->reply_current(request.from, request.sequence, kReplyValue);
+        context.shared->reply_sent = server_messages->reply(request, kReplyValue);
 
         std::printf(
             "[server] recv from=%llu seq=%llu label=%llu value=%llu reply=%d\n",
@@ -257,7 +259,8 @@ namespace demo {
                      kernel::ThreadControl& control,
                      kernel::Event event)
     {
-        if (context.shared == nullptr || mailbox == nullptr) {
+        if (context.shared == nullptr || client_messages == nullptr ||
+            !client_messages->valid()) {
             return;
         }
 
@@ -274,10 +277,10 @@ namespace demo {
         if (event.id == kernel::EventId::user0 &&
             kernel::payload_u32(event) == kClientBootstrapPayload) {
             ++context.shared->client_runs;
-            context.shared->request_sent = mailbox->send_current(
+            context.shared->request_sent = client_messages->send(
                 kRequestLabel, kRequestValue, kRequestSequence);
             context.shared->client_wait_armed =
-                mailbox->wait_reply_current_until(kReplyDue);
+                client_messages->wait_reply_until(kReplyDue);
             std::printf("[client] send=%d wait=%d due=%llu\n",
                         context.shared->request_sent ? 1 : 0,
                         context.shared->client_wait_armed ? 1 : 0,
@@ -285,7 +288,7 @@ namespace demo {
             return;
         }
 
-        if (mailbox->consume_reply_timeout_current(event)) {
+        if (client_messages->consume_reply_timeout(event)) {
             ++context.shared->client_runs;
             context.shared->reply_timeout_seen = true;
             std::printf("[client] reply-timeout now=%llu\n",
@@ -295,7 +298,7 @@ namespace demo {
         }
 
         kernel::RuntimeMailboxReply reply{};
-        if (!mailbox->receive_reply_current(reply)) {
+        if (!client_messages->receive_reply(reply)) {
             return;
         }
 
@@ -396,7 +399,12 @@ int main()
         &runtime_trace,
     };
     demo::Mailbox mailbox{running, demo::kServerId};
-    demo::mailbox = &mailbox;
+    demo::TaskMessages server_task_messages =
+        kernel::make_task_message_api(mailbox);
+    demo::TaskMessages client_task_messages =
+        kernel::make_task_message_api(mailbox);
+    demo::server_messages = &server_task_messages;
+    demo::client_messages = &client_task_messages;
 
     auto& idle = registry.get<demo::IdleTask>();
     idle.context.shared = &shared;
@@ -411,7 +419,8 @@ int main()
     }
 
     shared.mailbox_valid =
-        mailbox.valid() && mailbox.server() == demo::kServerId;
+        mailbox.valid() && mailbox.server() == demo::kServerId &&
+        server_task_messages.valid() && client_task_messages.valid();
     shared.server_bootstrapped =
         runtime.bootstrap_worker(
             demo::kServerId, demo::make_server_bootstrap_event());

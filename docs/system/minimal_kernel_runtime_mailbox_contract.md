@@ -25,6 +25,10 @@
 - `RuntimeMailboxRequest`
 - `RuntimeMailboxReply`
 
+当前直接承接这层 task-facing 命名面的模块：
+
+- `Modules/system/kernel/task_message_api.cppm`
+
 它当前负责四件事：
 
 1. 保存发往单个 server task 的请求队列。
@@ -65,6 +69,10 @@
 - `make_runtime_mailbox_receive_timeout_event()`
 - `make_runtime_mailbox_reply_event()`
 - `make_runtime_mailbox_reply_timeout_event()`
+
+当前这层的 current-task message naming 已经单独收成：
+
+- `kernel.task_message_api`
 
 这里有两个刻意收口的点：
 
@@ -124,11 +132,13 @@
    - stateful runtime loop / idle / tick bridge
 3. `kernel.runtime_mailbox`
    - 第一个运行在这条 bridge 之上的 stateful kernel object
-4. `kernel.runtime_service`
+4. `kernel.task_message_api`
+   - `RuntimeMailbox` 之上的 current-task message surface
+5. `kernel.runtime_service`
    - task-side trap/service facade
-5. `kernel.task_runtime_api`
+6. `kernel.task_runtime_api`
    - current-task runtime 命名面
-6. `kernel.task_syscall_api`
+7. `kernel.task_syscall_api`
    - future syscall-facing 命名面
 
 也就是说，`runtime_mailbox` 不是 `runtime_service` 的替代品。
@@ -136,6 +146,7 @@
 两条线现在分别在证明：
 
 - `runtime_mailbox`：任务之间的 runtime object 语义
+- `task_message_api`：站在 mailbox 之上的 current-task message 命名与重绑定语义
 - `runtime_service/task_runtime_api/task_syscall_api`：任务自身向内核发起最小 service/trap 请求的语义
 
 这两条线未来会汇合，但当前不必强行揉成一层。
@@ -144,10 +155,15 @@
 
 当前与这层直接相关的证据路径是：
 
+- `Examples/kernel/runtime_task_message_host`
 - `Examples/kernel/runtime_mailbox_host`
 - `scripts/minimal_kernel_runtime_host_smoke.ps1`
 
-`runtime_mailbox_host` 当前专门证明：
+- `runtime_task_message_host` 当前专门证明：
+  - `TaskMessageApi` 的默认未绑定占位
+  - task-named `send / receive / reply / wait_*` 入口
+  - `bind_mailbox(...)` / `unbind_mailbox()` 的重绑定可见性
+- `runtime_mailbox_host` 当前专门证明：
 
 - server 先进入 `recv(timeout)` 等待
 - 首次等待可以被 timer 超时唤醒

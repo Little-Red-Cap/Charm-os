@@ -31,6 +31,7 @@ set(kernel_runtime_demo_modules
     "${CHARM_ROOT}/Modules/system/kernel/runtime_mailbox.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/scheduler.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/ssu.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_message_api.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_state.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/thread.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/timer.cppm"

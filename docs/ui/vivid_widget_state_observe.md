@@ -61,10 +61,13 @@
 
 - `DropdownPopup::observe_selected()`
 - `DropdownPopup::observe_select()`
+- `MenuTree::set_selection_model(...)`
+- `MenuTree::observe_select()`
 
 这一层的本质是：
 
 - helper 自己可以把 committed truth 和 confirm edge 拆开
+- helper 也可以把 highlight truth 外置给 caller，再只保留 confirm edge
 - 它可以依赖 `SoaFactory / SoaKernel` 落地，但这仍然是 helper 级本地语义
 - 它不是 `SceneAccess` 的自动镜像，更不是整个 scene/runtime 的统一观察总线
 
@@ -149,6 +152,13 @@ object-level widget 里，旧回调和真相观察面已经被显式拆开。
 - SoA runtime 会自动帮你广播所有 helper 边沿
 - helper 级 callback/signal 语义会自动扩散成系统级 wiring
 
+`MenuTree` 这类 helper 则更进一步：
+
+- 高亮 truth 直接交给外部 `StructuredMenuSelectionModel`
+- helper 自己只显式补 `observe_select()` 这类 confirm edge
+
+这同样说明的是 helper contract 被写清楚了，而不是 `SceneAccess` 变成了 observe 总线。
+
 ## 3. 当前推荐做法
 
 ### 3.1 做 object-level 语义验证
@@ -187,12 +197,19 @@ object-level widget 里，旧回调和真相观察面已经被显式拆开。
 优先看：
 
 - `Examples/ui/vivid/dropdown_popup_demo`
+- `Examples/ui/vivid/menu_tree_demo`
 
 这个示例专门冻结：
 
 - `set_selection()` 只改 committed truth
 - 导航高亮不偷偷改 committed truth
 - confirm 才触发 edge 与 legacy callback
+
+`MenuTree` 示例则专门冻结：
+
+- 外部 selection model 持有 highlight truth
+- hover / 导航推进 truth，但不触发 confirm
+- leaf confirm 才触发 `observe_select()`
 
 ## 4. 一句话规则
 

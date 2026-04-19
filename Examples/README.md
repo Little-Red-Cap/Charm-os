@@ -55,10 +55,11 @@
   [`init/connection_observe_demo/README.md`](init/connection_observe_demo/README.md) →
   [`system/signal_state_closure_demo/README.md`](system/signal_state_closure_demo/README.md)
 
-- 看 Vivid object-level signal/state 表面：
+- 看 Vivid widget/helper/scene 的 truth-edge 边界：
   [`ui/vivid/widget_signal_demo/README.md`](ui/vivid/widget_signal_demo/README.md) →
   [`ui/vivid/widget_state_demo/README.md`](ui/vivid/widget_state_demo/README.md) →
   [`ui/vivid/dropdown_popup_demo/README.md`](ui/vivid/dropdown_popup_demo/README.md) →
+  [`ui/vivid/menu_tree_demo/README.md`](ui/vivid/menu_tree_demo/README.md) →
   [`ui/vivid/scene_state_demo/README.md`](ui/vivid/scene_state_demo/README.md)
 
 ## 快速构建（Windows + Ninja）

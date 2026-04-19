@@ -127,6 +127,70 @@ export namespace kernel {
     };
 
     template <typename Tick>
+    struct RuntimeLoopPort {
+        void* self{nullptr};
+        std::size_t (*advance_tick_fn)(void* self, Tick now) noexcept {nullptr};
+        bool (*defer_from_isr_fn)(void* self, TaskId task, Event event) noexcept {
+            nullptr
+        };
+        bool (*bootstrap_idle_default_fn)(void* self) noexcept {nullptr};
+        bool (*bootstrap_idle_event_fn)(void* self, Event event) noexcept {
+            nullptr
+        };
+        bool (*bootstrap_worker_fn)(void* self,
+                                    TaskId task,
+                                    Event event) noexcept {nullptr};
+        bool (*run_once_or_idle_fn)(void* self, Tick now) noexcept {nullptr};
+
+        [[nodiscard]] bool valid() const noexcept
+        {
+            return self != nullptr && advance_tick_fn != nullptr &&
+                   defer_from_isr_fn != nullptr &&
+                   bootstrap_idle_default_fn != nullptr &&
+                   bootstrap_idle_event_fn != nullptr &&
+                   bootstrap_worker_fn != nullptr &&
+                   run_once_or_idle_fn != nullptr;
+        }
+
+        [[nodiscard]] std::size_t advance_tick(Tick now) const noexcept
+        {
+            return advance_tick_fn != nullptr ? advance_tick_fn(self, now) : 0u;
+        }
+
+        [[nodiscard]] bool defer_from_isr(TaskId task, Event event) const noexcept
+        {
+            return defer_from_isr_fn != nullptr &&
+                   defer_from_isr_fn(self, task, event);
+        }
+
+        [[nodiscard]] bool bootstrap_idle() const noexcept
+        {
+            return bootstrap_idle_default_fn != nullptr &&
+                   bootstrap_idle_default_fn(self);
+        }
+
+        [[nodiscard]] bool bootstrap_idle(Event event) const noexcept
+        {
+            return bootstrap_idle_event_fn != nullptr &&
+                   bootstrap_idle_event_fn(self, event);
+        }
+
+        [[nodiscard]] bool bootstrap_worker(
+            TaskId task,
+            Event event = make_event(EventId::user0)) const noexcept
+        {
+            return bootstrap_worker_fn != nullptr &&
+                   bootstrap_worker_fn(self, task, event);
+        }
+
+        [[nodiscard]] bool run_once_or_idle(Tick now) const noexcept
+        {
+            return run_once_or_idle_fn != nullptr &&
+                   run_once_or_idle_fn(self, now);
+        }
+    };
+
+    template <typename Tick>
     struct RuntimeThreadPort {
         void* self{nullptr};
         bool (*yield_current_fn)(void* self, Event event) noexcept {nullptr};
@@ -157,6 +221,55 @@ export namespace kernel {
 
     namespace detail {
         template <typename Bridge>
+        [[nodiscard]] std::size_t runtime_bridge_advance_tick_adapter(
+            void* self,
+            typename Bridge::tick_type now) noexcept
+        {
+            return static_cast<Bridge*>(self)->advance_tick(now);
+        }
+
+        template <typename Bridge>
+        [[nodiscard]] bool runtime_bridge_defer_from_isr_adapter(
+            void* self,
+            TaskId task,
+            Event event) noexcept
+        {
+            return static_cast<Bridge*>(self)->defer_from_isr(task, event);
+        }
+
+        template <typename Bridge>
+        [[nodiscard]] bool runtime_bridge_bootstrap_idle_default_adapter(
+            void* self) noexcept
+        {
+            return static_cast<Bridge*>(self)->bootstrap_idle();
+        }
+
+        template <typename Bridge>
+        [[nodiscard]] bool runtime_bridge_bootstrap_idle_event_adapter(
+            void* self,
+            Event event) noexcept
+        {
+            return static_cast<Bridge*>(self)->bootstrap_idle(event);
+        }
+
+        template <typename Bridge>
+        [[nodiscard]] bool runtime_bridge_bootstrap_worker_adapter(
+            void* self,
+            TaskId task,
+            Event event) noexcept
+        {
+            return static_cast<Bridge*>(self)->bootstrap_worker(task, event);
+        }
+
+        template <typename Bridge>
+        [[nodiscard]] bool runtime_bridge_run_once_or_idle_adapter(
+            void* self,
+            typename Bridge::tick_type now) noexcept
+        {
+            return static_cast<Bridge*>(self)->run_once_or_idle(now);
+        }
+
+        template <typename Bridge>
         [[nodiscard]] bool runtime_bridge_yield_current_adapter(
             void* self,
             Event event) noexcept
@@ -172,6 +285,26 @@ export namespace kernel {
         {
             return static_cast<Bridge*>(self)->sleep_current_until(due, event);
         }
+    }
+
+    template <typename Bridge>
+    [[nodiscard]] auto make_runtime_loop_port(Bridge& bridge) noexcept
+        -> RuntimeLoopPort<typename Bridge::tick_type>
+    {
+        return RuntimeLoopPort<typename Bridge::tick_type>{
+            .self = &bridge,
+            .advance_tick_fn = &detail::runtime_bridge_advance_tick_adapter<Bridge>,
+            .defer_from_isr_fn =
+                &detail::runtime_bridge_defer_from_isr_adapter<Bridge>,
+            .bootstrap_idle_default_fn =
+                &detail::runtime_bridge_bootstrap_idle_default_adapter<Bridge>,
+            .bootstrap_idle_event_fn =
+                &detail::runtime_bridge_bootstrap_idle_event_adapter<Bridge>,
+            .bootstrap_worker_fn =
+                &detail::runtime_bridge_bootstrap_worker_adapter<Bridge>,
+            .run_once_or_idle_fn =
+                &detail::runtime_bridge_run_once_or_idle_adapter<Bridge>,
+        };
     }
 
     template <typename Bridge>

@@ -6,6 +6,7 @@
 #include "armv7a_exception_frame.hpp"
 #include "armv7a_handler_stack.hpp"
 #include "armv7a_interrupt_diagnostics.hpp"
+#include "armv7a_interrupt_runtime_hook.hpp"
 #include "armv7a_platform.hpp"
 
 namespace {
@@ -330,7 +331,9 @@ void handle_interrupt(Armv7aExceptionFrame* frame,
     record_interrupt(acknowledge, controller_before_ack, line, *frame, synthetic);
     armv7a_print_handler_stack_evidence(fiq_route ? "fiq" : "irq", armv7a_read_cpsr());
     const auto observation = load_observation(g_last_observation);
-    if (!interrupt_matches_expected(intid, fiq_route)) {
+    const auto runtime_handled = armv7a_dispatch_interrupt_runtime_hook(
+        intid, *frame, fiq_route);
+    if (!runtime_handled && !interrupt_matches_expected(intid, fiq_route)) {
         armv7a_interrupt_print_unexpected(label, observation, *frame);
     }
 

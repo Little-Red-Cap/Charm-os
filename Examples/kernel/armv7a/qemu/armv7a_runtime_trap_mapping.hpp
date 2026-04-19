@@ -8,7 +8,7 @@ armv7a_qemu_runtime_trap_mapping_policy() noexcept
     return Armv7aRuntimeTrapMappingPolicy{
         .yield_event_id = 0x00000001u,
         .yield_event_payload = 0x00000001u,
-        .sleep_event_id = 0x00000002u,
+        .sleep_event_id = 0x00000001u,
         .sleep_payload_matches_due_low32 = true,
     };
 }

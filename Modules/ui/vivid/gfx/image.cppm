@@ -14,6 +14,7 @@ struct ImageView {
     PixelFormat format{PixelFormat::RGB888};
     bool premultiplied_alpha{false};
     bool force_opaque{false};
+    // Allows selective overscan during scaled draws so edge cleanup can stay data-driven.
     std::uint8_t sample_inset_px{0};
     int w{0};
     int h{0};

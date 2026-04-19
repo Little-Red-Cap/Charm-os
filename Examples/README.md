@@ -99,6 +99,18 @@
   先回到 [`../docs/storage/fs_fatfs_demo.md`](../docs/storage/fs_fatfs_demo.md)，
   再进入对应示例目录。
 
+- 看 signal/state v0 第一版闭环：
+  [`service/service_signal_state_demo/README.md`](service/service_signal_state_demo/README.md) →
+  [`init/connection_observe_demo/README.md`](init/connection_observe_demo/README.md) →
+  [`system/signal_state_closure_demo/README.md`](system/signal_state_closure_demo/README.md)
+
+- 看 Vivid widget/helper/scene 的 truth-edge 边界：
+  [`ui/vivid/widget_signal_demo/README.md`](ui/vivid/widget_signal_demo/README.md) →
+  [`ui/vivid/widget_state_demo/README.md`](ui/vivid/widget_state_demo/README.md) →
+  [`ui/vivid/dropdown_popup_demo/README.md`](ui/vivid/dropdown_popup_demo/README.md) →
+  [`ui/vivid/menu_tree_demo/README.md`](ui/vivid/menu_tree_demo/README.md) →
+  [`ui/vivid/scene_state_demo/README.md`](ui/vivid/scene_state_demo/README.md)
+
 ## 快速构建（Windows + Ninja）
 
 ```bash

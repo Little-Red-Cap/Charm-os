@@ -47,5 +47,7 @@ import charm.domain;
 
 ## Reference
 
-- VSF comparison: `docs/reference/vsf/vsf_comparison.md`
+- Current architecture overview: [`docs/architecture_overview.md`](../architecture_overview.md)
+- Driver model: [`driver_model.md`](driver_model.md)
+- Historical comparison only: [`docs/reference/vsf/vsf_comparison.md`](../reference/vsf/vsf_comparison.md)
 

@@ -106,6 +106,10 @@
 - SSU：`ssu_*`
 - 专题总览：`power_lowpower_overview.md`、`av_pipeline_overview.md`、`at_system.md`
 
+补充提醒：
+
+- `av_pipeline_overview.md` 更偏 AV 中间件接口草图；如果你是看当前音频主线，优先回到 [`../audio/README.md`](../audio/README.md) 与 [`charm_audio_architecture.md`](charm_audio_architecture.md)。
+
 ## 暂时不要怎么读
 
 - 不要第一次进 `docs/system/` 就从 `plan / draft / review / checklist` 开始。

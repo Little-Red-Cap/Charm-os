@@ -35,7 +35,7 @@
 先读：
 
 - [`driver_model.md`](driver_model.md)
-- [`device_model_overview.md`](device_model_overview.md)
+- [`device_model_overview.md`](device_model_overview.md)（偏动态 discovery 平面快照与补充说明）
 
 ### 我想看 signal / state 这条线
 
@@ -77,7 +77,7 @@
 - 看依赖与分层：
   `dependency_contract.md`
 - 看驱动与设备：
-  `driver_model.md` → `device_model_overview.md`
+  `driver_model.md` → `device_model_overview.md`（后者偏动态 discovery 平面与历史补充）
 - 看 signal/state：
   `signal_state_contract_v0.md`
 - 看 system compiler：
@@ -86,4 +86,5 @@
 ## 使用提醒
 
 - 如果这里的说明和 `docs/system/*`、`docs/io/*` 或当前代码冲突，优先回到更上位入口复核。
+- 如果你只想抓“当前主结论”，优先先停在 `driver_model.md`，不要直接从历史对照段落建立认知。
 - 当分层规则、驱动模型、signal/state 契约或 system compiler 公开主线变化时，应同步更新本目录入口。

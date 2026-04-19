@@ -90,7 +90,8 @@ Charm 建议：
 ---
 
 参考来源：
-- `Draft/vsf/source/component/input/vsf_input.h`
-- `Draft/vsf/source/component/input/protocol/vsf_input_mouse.h`
-- `Draft/vsf/source/component/input/protocol/vsf_input_keyboard.h`
-- `Draft/vsf/source/component/input/protocol/vsf_input_touchscreen.h`
+- VSF `source/component/input/vsf_input.h`
+- VSF `source/component/input/protocol/vsf_input_mouse.h`
+- VSF `source/component/input/protocol/vsf_input_keyboard.h`
+- VSF `source/component/input/protocol/vsf_input_touchscreen.h`
+- 本仓库历史对照入口：`docs/reference/vsf/README.md`

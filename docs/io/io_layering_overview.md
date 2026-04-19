@@ -108,7 +108,7 @@ RuntimeBus
 
 ## 与 VSF HAL 的对齐（参考点）
 
-VSF 在 `Draft/vsf/source/hal` 中采用：
+VSF 的 `source/hal` 目录采用：
 
 - arch：架构相关底层
 - driver：厂商/芯片驱动
@@ -120,6 +120,12 @@ VSF 在 `Draft/vsf/source/hal` 中采用：
 - HAL 以统一接口为中心，而非平台细节
 - driver 与 template 形成“接口一致性约束”
 - Rust 绑定（bindgen）依赖 hal/driver/driver.h
+
+如果需要继续查看 Charm 侧保留的历史对照入口，优先从：
+
+- `docs/reference/vsf/README.md`
+
+进入，而不是依赖已经废弃的本地工作目录写法。
 
 ## 输入层的定位（简版）
 

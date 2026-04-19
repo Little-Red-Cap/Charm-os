@@ -36,7 +36,7 @@
 
 ## VSF 的 HAL 思路（参考）
 
-从 `Draft/vsf/source/hal/README.md` 和 `Draft/vsf/source/hal/driver/common/template/README.md` 可见，VSF 的 HAL 强调：
+结合 VSF 的 `source/hal` 总览、driver template 约定与本仓库已有的历史对照笔记，可见 VSF 的 HAL 强调：
 
 - 分层结构：
   - `hal/arch`：架构相关底层
@@ -52,7 +52,13 @@
 - 统一接口优先于平台细节：由模板与宏展开确保“调用方式一致”。
 
 - Rust 参考：
-  VSF 在 `Draft/vsf/source/shell/hal/rust-embedded-hal/lib/README.md` 提供了基于 `hal/driver/driver.h` 的 bindgen 流程，表明其 HAL 头文件天然支持 Rust Embedded HAL 风格的绑定。
+  VSF 还提供了基于 `hal/driver/driver.h` 的 Rust Embedded HAL 风格 bindgen 路径，表明其 HAL 头文件天然支持跨语言绑定。
+
+如果需要继续考古具体 VSF 材料，优先从：
+
+- `docs/reference/vsf/README.md`
+
+进入，而不是依赖旧的工作目录路径。
 
 对 Charm 的启示：
 

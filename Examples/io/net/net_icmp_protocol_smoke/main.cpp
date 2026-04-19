@@ -396,7 +396,7 @@ int main() {
     probe_client_node.link.peer = &probe_server_node.link;
     probe_server_node.link.peer = &probe_client_node.link;
 
-    net::icmp::echo::Probe<16> probe{net::IpAddress::ipv4_any(), server_ip};
+    net::icmp::echo::Probe<16> probe{server_ip};
     net::icmp::echo::AutoReplyServer probe_server{};
     auto bound_probe = probe.bind(probe_client_node.pump);
     auto bound_probe_server = probe_server.bind(probe_server_node.pump);
@@ -481,7 +481,7 @@ int main() {
         }
     }
 
-    net::icmp::echo::Client client{net::IpAddress::ipv4_any(), server_ip};
+    net::icmp::echo::Client client{server_ip};
     net::icmp::echo::AutoReplyServer server{};
     ClientState client_state{};
     ServerState server_state{};
@@ -501,7 +501,7 @@ int main() {
     }
 
     net::icmp::echo::Client rebound_client{};
-    auto rebound = rebound_client.bind(client_node.pump, net::IpAddress::ipv4_any(), server_ip);
+    auto rebound = rebound_client.bind(client_node.pump, server_ip);
     if (!rebound
         || !rebound_client.configured()
         || !same_ipv4(rebound_client.peer_address(), server_ip)) {
@@ -1063,7 +1063,7 @@ int main() {
         return fail("icmp protocol smoke probe cancel_all late reply mismatch\n", 53);
     }
 
-    net::icmp::echo::Probe<2> overflow_probe{net::IpAddress::ipv4_any(), server_ip};
+    net::icmp::echo::Probe<2> overflow_probe{server_ip};
     auto overflow_bound = overflow_probe.bind(probe_client_node.pump);
     if (!overflow_bound || !probe_client_node.pump.has_echo_sink()) {
         return fail("icmp protocol smoke overflow probe bind failed\n", 54);

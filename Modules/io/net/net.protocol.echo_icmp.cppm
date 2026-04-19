@@ -123,6 +123,9 @@ export namespace net::icmp::echo {
     public:
         Client() noexcept = default;
 
+        constexpr explicit Client(IpAddress peer) noexcept
+            : Client(IpAddress::ipv4_any(), peer) {}
+
         constexpr Client(IpAddress local, IpAddress peer) noexcept
             : local_(local),
               peer_(peer),
@@ -152,6 +155,10 @@ export namespace net::icmp::echo {
             local_ = local;
             peer_ = peer;
             configured_ = true;
+        }
+
+        void configure(IpAddress peer) noexcept {
+            configure(IpAddress::ipv4_any(), peer);
         }
 
         void reset() noexcept {
@@ -240,6 +247,12 @@ export namespace net::icmp::echo {
                                         IpAddress local,
                                         IpAddress peer) noexcept {
             configure(local, peer);
+            return bind(pump);
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump, IpAddress peer) noexcept {
+            configure(peer);
             return bind(pump);
         }
 
@@ -727,6 +740,9 @@ export namespace net::icmp::echo {
         Probe(Probe&&) = delete;
         Probe& operator=(Probe&&) = delete;
 
+        explicit Probe(IpAddress peer) noexcept
+            : Probe(IpAddress::ipv4_any(), peer) {}
+
         explicit Probe(IpAddress local, IpAddress peer) noexcept
             : client_(local, peer) {
             install_handlers();
@@ -734,6 +750,10 @@ export namespace net::icmp::echo {
 
         void configure(IpAddress local, IpAddress peer) noexcept {
             client_.configure(local, peer);
+        }
+
+        void configure(IpAddress peer) noexcept {
+            client_.configure(peer);
         }
 
         void reset() noexcept {
@@ -901,6 +921,12 @@ export namespace net::icmp::echo {
                                         IpAddress local,
                                         IpAddress peer) noexcept {
             configure(local, peer);
+            return bind(pump);
+        }
+
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump, IpAddress peer) noexcept {
+            configure(peer);
             return bind(pump);
         }
 

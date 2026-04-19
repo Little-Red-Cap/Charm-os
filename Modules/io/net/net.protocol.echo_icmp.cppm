@@ -289,6 +289,14 @@ export namespace net::icmp::echo {
             return send_echo(identifier, sequence, payload);
         }
 
+        template <util::usize Size>
+        [[nodiscard]] Result<IcmpSendDisposition> ping(
+            util::u16 identifier,
+            util::u16 sequence,
+            const util::u8 (&payload)[Size]) noexcept {
+            return ping(identifier, sequence, ByteView{payload, Size});
+        }
+
         [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
                                                        util::u16 sequence,
                                                        ByteView payload,
@@ -302,6 +310,15 @@ export namespace net::icmp::echo {
                         nullptr,
                         nullptr,
                         nullptr);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
+                                                       util::u16 sequence,
+                                                       const util::u8 (&payload)[Size],
+                                                       util::u32 now_ms,
+                                                       util::u32 timeout_ms) noexcept {
+            return ping(identifier, sequence, ByteView{payload, Size}, now_ms, timeout_ms);
         }
 
         [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
@@ -350,6 +367,26 @@ export namespace net::icmp::echo {
             return sent;
         }
 
+        template <util::usize Size>
+        [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
+                                                       util::u16 sequence,
+                                                       const util::u8 (&payload)[Size],
+                                                       util::u32 now_ms,
+                                                       util::u32 timeout_ms,
+                                                       ReplyFn on_reply,
+                                                       TimeoutFn on_timeout = nullptr,
+                                                       void* user = nullptr) noexcept {
+            return ping(
+                identifier,
+                sequence,
+                ByteView{payload, Size},
+                now_ms,
+                timeout_ms,
+                on_reply,
+                on_timeout,
+                user);
+        }
+
         [[nodiscard]] Result<PingTicket> ping(ByteView payload) noexcept {
             auto ticket = next_ticket();
             auto sent = send_echo(ticket.info.identifier, ticket.info.sequence, payload);
@@ -361,10 +398,22 @@ export namespace net::icmp::echo {
             return Result<PingTicket>{std::in_place, ticket};
         }
 
+        template <util::usize Size>
+        [[nodiscard]] Result<PingTicket> ping(const util::u8 (&payload)[Size]) noexcept {
+            return ping(ByteView{payload, Size});
+        }
+
         [[nodiscard]] Result<PingTicket> ping(ByteView payload,
                                               util::u32 now_ms,
                                               util::u32 timeout_ms) noexcept {
             return ping(payload, now_ms, timeout_ms, nullptr, nullptr, nullptr);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] Result<PingTicket> ping(const util::u8 (&payload)[Size],
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms) noexcept {
+            return ping(ByteView{payload, Size}, now_ms, timeout_ms);
         }
 
         [[nodiscard]] Result<PingTicket> ping(ByteView payload,
@@ -394,6 +443,16 @@ export namespace net::icmp::echo {
             ticket.disposition = sent.value();
             advance_ticket_seed();
             return Result<PingTicket>{std::in_place, ticket};
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] Result<PingTicket> ping(const util::u8 (&payload)[Size],
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms,
+                                              ReplyFn on_reply,
+                                              TimeoutFn on_timeout = nullptr,
+                                              void* user = nullptr) noexcept {
+            return ping(ByteView{payload, Size}, now_ms, timeout_ms, on_reply, on_timeout, user);
         }
 
         void tick(util::u32 now_ms) noexcept {
@@ -859,6 +918,13 @@ export namespace net::icmp::echo {
             current_info_ = ping.value().info;
             state_ = ProbeState::pending;
             return ping;
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] Result<PingTicket> ping(const util::u8 (&payload)[Size],
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms) noexcept {
+            return ping(ByteView{payload, Size}, now_ms, timeout_ms);
         }
 
         [[nodiscard]] Result<PingTicket> ping(util::u32 now_ms,

@@ -361,7 +361,7 @@ int main() {
     };
 
     net::icmp::echo::Client dry_client{client_ip, server_ip};
-    auto dry_run = dry_client.ping(0x0001u, 0x0001u, net::ByteView{payload, sizeof(payload)});
+    auto dry_run = dry_client.ping(0x0001u, 0x0001u, payload);
     if (dry_run || dry_run.error() != net::errc::bad_state) {
         return fail("icmp protocol smoke dry-run bad_state check failed\n", 1);
     }
@@ -407,7 +407,7 @@ int main() {
         return fail("icmp protocol smoke probe bind failed\n", 6);
     }
 
-    auto probe_ping = probe.ping(net::ByteView{payload, sizeof(payload)}, 8, 20);
+    auto probe_ping = probe.ping(payload, 8, 20);
     const auto probe_pending_result = probe.result();
     if (!probe_ping
         || probe_ping.value().disposition != net::IcmpSendDisposition::queued
@@ -512,7 +512,7 @@ int main() {
         return fail("icmp protocol smoke rebound restore failed\n", 13);
     }
 
-    auto sent = client.ping(0x1357u, 0x0009u, net::ByteView{payload, sizeof(payload)});
+    auto sent = client.ping(0x1357u, 0x0009u, payload);
     if (!sent
         || sent.value() != net::IcmpSendDisposition::queued
         || client.request_count() != 1
@@ -556,7 +556,7 @@ int main() {
         return fail("icmp protocol smoke client reply mismatch\n", 17);
     }
 
-    auto tracked = client.ping(net::ByteView{payload, sizeof(payload)}, 40, 20);
+    auto tracked = client.ping(payload, 40, 20);
     if (!tracked
         || tracked.value().disposition != net::IcmpSendDisposition::transmitted
         || tracked.value().info.identifier == 0u
@@ -592,7 +592,7 @@ int main() {
     }
 
     auto scoped_ping = client.ping(
-        net::ByteView{payload, sizeof(payload)},
+        payload,
         60,
         20,
         &ClientState::on_scoped_reply,
@@ -630,7 +630,7 @@ int main() {
     }
 
     server_node.link.peer = nullptr;
-    auto timeout_ping = client.ping(net::ByteView{payload, sizeof(payload)}, 90, 10);
+    auto timeout_ping = client.ping(payload, 90, 10);
     if (!timeout_ping
         || timeout_ping.value().disposition != net::IcmpSendDisposition::transmitted
         || client.pending_count() != 1
@@ -697,7 +697,7 @@ int main() {
 
     client_node.link.peer = nullptr;
     auto scoped_timeout_ping = client.ping(
-        net::ByteView{payload, sizeof(payload)},
+        payload,
         120,
         10,
         nullptr,
@@ -732,7 +732,7 @@ int main() {
         return fail("icmp protocol smoke scoped timeout mismatch\n", 33);
     }
 
-    auto cancelled_ping = client.ping(net::ByteView{payload, sizeof(payload)}, 150, 30);
+    auto cancelled_ping = client.ping(payload, 150, 30);
     if (!cancelled_ping
         || cancelled_ping.value().disposition != net::IcmpSendDisposition::transmitted
         || client.pending_count() != 1
@@ -801,8 +801,8 @@ int main() {
     }
 
     probe_server_node.link.peer = nullptr;
-    auto probe_timeout = probe.ping(net::ByteView{payload, sizeof(payload)}, 40, 10);
-    auto probe_busy = probe.ping(net::ByteView{payload, sizeof(payload)}, 41, 10);
+    auto probe_timeout = probe.ping(payload, 40, 10);
+    auto probe_busy = probe.ping(payload, 41, 10);
     const auto probe_timeout_pending_result = probe.result();
     if (!probe_timeout
         || probe_timeout.value().disposition != net::IcmpSendDisposition::transmitted
@@ -910,7 +910,7 @@ int main() {
         return fail("icmp protocol smoke probe late reply mismatch\n", 46);
     }
 
-    auto probe_cancel = probe.ping(net::ByteView{payload, sizeof(payload)}, 60, 10);
+    auto probe_cancel = probe.ping(payload, 60, 10);
     if (!probe_cancel
         || probe_cancel.value().disposition != net::IcmpSendDisposition::transmitted
         || !probe.has_pending()
@@ -984,7 +984,7 @@ int main() {
         return fail("icmp protocol smoke probe cancel late reply mismatch\n", 49);
     }
 
-    auto probe_cancel_all = probe.ping(net::ByteView{payload, sizeof(payload)}, 70, 10);
+    auto probe_cancel_all = probe.ping(payload, 70, 10);
     if (!probe_cancel_all
         || probe_cancel_all.value().disposition != net::IcmpSendDisposition::transmitted
         || !probe.has_pending()
@@ -1069,7 +1069,7 @@ int main() {
         return fail("icmp protocol smoke overflow probe bind failed\n", 54);
     }
 
-    auto overflow_ping = overflow_probe.ping(net::ByteView{payload, sizeof(payload)}, 80, 20);
+    auto overflow_ping = overflow_probe.ping(payload, 80, 20);
     if (!overflow_ping
         || overflow_ping.value().disposition != net::IcmpSendDisposition::transmitted
         || !overflow_probe.has_pending()

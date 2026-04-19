@@ -123,6 +123,9 @@ export namespace net::icmp::echo {
     public:
         Client() noexcept = default;
 
+        constexpr explicit Client(IpAddress peer) noexcept
+            : Client(IpAddress::ipv4_any(), peer) {}
+
         constexpr Client(IpAddress local, IpAddress peer) noexcept
             : local_(local),
               peer_(peer),
@@ -152,6 +155,10 @@ export namespace net::icmp::echo {
             local_ = local;
             peer_ = peer;
             configured_ = true;
+        }
+
+        void configure(IpAddress peer) noexcept {
+            configure(IpAddress::ipv4_any(), peer);
         }
 
         void reset() noexcept {
@@ -243,6 +250,12 @@ export namespace net::icmp::echo {
             return bind(pump);
         }
 
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump, IpAddress peer) noexcept {
+            configure(peer);
+            return bind(pump);
+        }
+
         [[nodiscard]] bool cancel(util::u16 identifier, util::u16 sequence) noexcept {
             IcmpEchoInfo info{
                 .type = IcmpType::echo_request,
@@ -289,6 +302,14 @@ export namespace net::icmp::echo {
             return send_echo(identifier, sequence, payload);
         }
 
+        template <util::usize Size>
+        [[nodiscard]] Result<IcmpSendDisposition> ping(
+            util::u16 identifier,
+            util::u16 sequence,
+            const util::u8 (&payload)[Size]) noexcept {
+            return ping(identifier, sequence, ByteView{payload, Size});
+        }
+
         [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
                                                        util::u16 sequence,
                                                        ByteView payload,
@@ -302,6 +323,15 @@ export namespace net::icmp::echo {
                         nullptr,
                         nullptr,
                         nullptr);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
+                                                       util::u16 sequence,
+                                                       const util::u8 (&payload)[Size],
+                                                       util::u32 now_ms,
+                                                       util::u32 timeout_ms) noexcept {
+            return ping(identifier, sequence, ByteView{payload, Size}, now_ms, timeout_ms);
         }
 
         [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
@@ -350,6 +380,26 @@ export namespace net::icmp::echo {
             return sent;
         }
 
+        template <util::usize Size>
+        [[nodiscard]] Result<IcmpSendDisposition> ping(util::u16 identifier,
+                                                       util::u16 sequence,
+                                                       const util::u8 (&payload)[Size],
+                                                       util::u32 now_ms,
+                                                       util::u32 timeout_ms,
+                                                       ReplyFn on_reply,
+                                                       TimeoutFn on_timeout = nullptr,
+                                                       void* user = nullptr) noexcept {
+            return ping(
+                identifier,
+                sequence,
+                ByteView{payload, Size},
+                now_ms,
+                timeout_ms,
+                on_reply,
+                on_timeout,
+                user);
+        }
+
         [[nodiscard]] Result<PingTicket> ping(ByteView payload) noexcept {
             auto ticket = next_ticket();
             auto sent = send_echo(ticket.info.identifier, ticket.info.sequence, payload);
@@ -361,10 +411,22 @@ export namespace net::icmp::echo {
             return Result<PingTicket>{std::in_place, ticket};
         }
 
+        template <util::usize Size>
+        [[nodiscard]] Result<PingTicket> ping(const util::u8 (&payload)[Size]) noexcept {
+            return ping(ByteView{payload, Size});
+        }
+
         [[nodiscard]] Result<PingTicket> ping(ByteView payload,
                                               util::u32 now_ms,
                                               util::u32 timeout_ms) noexcept {
             return ping(payload, now_ms, timeout_ms, nullptr, nullptr, nullptr);
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] Result<PingTicket> ping(const util::u8 (&payload)[Size],
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms) noexcept {
+            return ping(ByteView{payload, Size}, now_ms, timeout_ms);
         }
 
         [[nodiscard]] Result<PingTicket> ping(ByteView payload,
@@ -394,6 +456,16 @@ export namespace net::icmp::echo {
             ticket.disposition = sent.value();
             advance_ticket_seed();
             return Result<PingTicket>{std::in_place, ticket};
+        }
+
+        template <util::usize Size>
+        [[nodiscard]] Result<PingTicket> ping(const util::u8 (&payload)[Size],
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms,
+                                              ReplyFn on_reply,
+                                              TimeoutFn on_timeout = nullptr,
+                                              void* user = nullptr) noexcept {
+            return ping(ByteView{payload, Size}, now_ms, timeout_ms, on_reply, on_timeout, user);
         }
 
         void tick(util::u32 now_ms) noexcept {
@@ -668,6 +740,9 @@ export namespace net::icmp::echo {
         Probe(Probe&&) = delete;
         Probe& operator=(Probe&&) = delete;
 
+        explicit Probe(IpAddress peer) noexcept
+            : Probe(IpAddress::ipv4_any(), peer) {}
+
         explicit Probe(IpAddress local, IpAddress peer) noexcept
             : client_(local, peer) {
             install_handlers();
@@ -675,6 +750,10 @@ export namespace net::icmp::echo {
 
         void configure(IpAddress local, IpAddress peer) noexcept {
             client_.configure(local, peer);
+        }
+
+        void configure(IpAddress peer) noexcept {
+            client_.configure(peer);
         }
 
         void reset() noexcept {
@@ -845,6 +924,12 @@ export namespace net::icmp::echo {
             return bind(pump);
         }
 
+        template <class Pump>
+        [[nodiscard]] Result<void> bind(Pump& pump, IpAddress peer) noexcept {
+            configure(peer);
+            return bind(pump);
+        }
+
         [[nodiscard]] Result<PingTicket> ping(ByteView payload,
                                               util::u32 now_ms,
                                               util::u32 timeout_ms) noexcept {
@@ -861,27 +946,41 @@ export namespace net::icmp::echo {
             return ping;
         }
 
+        template <util::usize Size>
+        [[nodiscard]] Result<PingTicket> ping(const util::u8 (&payload)[Size],
+                                              util::u32 now_ms,
+                                              util::u32 timeout_ms) noexcept {
+            return ping(ByteView{payload, Size}, now_ms, timeout_ms);
+        }
+
         [[nodiscard]] Result<PingTicket> ping(util::u32 now_ms,
                                               util::u32 timeout_ms) noexcept {
             return ping(ByteView{}, now_ms, timeout_ms);
         }
 
+        [[nodiscard]] bool cancel() noexcept {
+            if (!client_.has_pending()) {
+                return false;
+            }
+
+            const auto cancelled = client_.cancel(current_info_);
+            if (cancelled) {
+                observe_cancelled(current_info_);
+            }
+            return cancelled;
+        }
+
         [[nodiscard]] bool cancel(const PingTicket& ticket) noexcept {
             const auto cancelled = client_.cancel(ticket);
             if (cancelled) {
-                clear_reply_payload();
-                current_info_ = ticket.info;
-                observed_error_ = errc::ok;
-                state_ = ProbeState::cancelled;
+                observe_cancelled(ticket.info);
             }
             return cancelled;
         }
 
         void cancel_all() noexcept {
             if (client_.has_pending()) {
-                clear_reply_payload();
-                observed_error_ = errc::ok;
-                state_ = ProbeState::cancelled;
+                observe_cancelled(current_info_);
             }
             client_.cancel_all();
         }
@@ -955,6 +1054,13 @@ export namespace net::icmp::echo {
             clear_reply_payload();
             state_ = ProbeState::error;
             ++error_count_;
+        }
+
+        void observe_cancelled(const IcmpEchoInfo& info) noexcept {
+            clear_reply_payload();
+            current_info_ = info;
+            observed_error_ = errc::ok;
+            state_ = ProbeState::cancelled;
         }
 
         void clear_observation() noexcept {

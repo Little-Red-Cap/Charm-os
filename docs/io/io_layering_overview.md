@@ -4,6 +4,17 @@
 - `docs/architecture/driver_model.md`
 - `docs/input/input_layering_decision.md`（UI/Ink 输入层分层决策）
 
+这份文档负责说明 IO 在仓库里的主题边界与分层位置，更接近“总览入口”，不是 `io.channel / io.reactor / io.registry` 的硬契约正文。
+
+如果这里的表述与现行规则冲突，优先以：
+
+- `docs/architecture/driver_model.md`
+- `docs/io/io_channel_contract.md`
+- `docs/io/io_reactor_contract.md`
+- `docs/io/io_registry_contract.md`
+- 当前代码
+
+为准。
 
 ## 目标
 
@@ -106,7 +117,7 @@ RuntimeBus
 - Domains 可依赖 Foundation 与 Runtime
 - hal 不依赖 domain 语义，不引入 UI/Audio/FS 逻辑
 
-## 与 VSF HAL 的对齐（参考点）
+## 与 VSF HAL 的对齐（历史参考点）
 
 VSF 的 `source/hal` 目录采用：
 
@@ -133,7 +144,7 @@ VSF 的 `source/hal` 目录采用：
 - UI intent/gesture 只在 Domains/UI
 - 队列/背压策略：Runtime 只负责投递与统计
 
-## 后续落地建议
+## 后续落地方向
 
 1. IO 目录结构在文档中固定
 2. 为每个 IO 子域建立“接口 + 参考实现 + stub”三件套
@@ -141,7 +152,7 @@ VSF 的 `source/hal` 目录采用：
 
 ---
 
-备注：本文件是架构边界定义，不替代各模块设计文档。
+备注：本文件是主题边界总览，不替代各模块设计文档或 IO 核心契约正文。
 
 
 

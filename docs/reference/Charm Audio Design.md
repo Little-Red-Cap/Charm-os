@@ -6635,7 +6635,7 @@ graph_block_frames = min(period_frames, 128)
 FrameSpan（带 stride）
 去 virtual 的 NodeApi/NodeRef
 节点约束：deterministic / 不分配 / in‑place
-接下来回答你最后的问题——Decoder 要不要成为 Graph Node？
+下面继续讨论：Decoder 要不要成为 Graph Node？
 
 我的建议是：
 
@@ -6655,7 +6655,7 @@ v1.5：可加“DecoderAdapter Node”
 v2：如果做多源/mixer，才考虑真正 Decoder Node
 那时 decoder 更像一个可复用“Source Node”，Graph 里也会出现 Mixer，对齐 pull‑driven 结构。
 
-如果你同意，我下一步可以：
+后续可补充：
 
 把这段“Decoder 是否入图”的结论也补到文档
 或直接给出 DecoderAdapter 的最小接口草图已把“骨架合同”写入 audio_design.md，新增了 L2.6 DSP Graph 骨架合同，内容包含：
@@ -6665,7 +6665,7 @@ graph_block_frames = min(period_frames, 128)
 FrameSpan（带 stride）
 去 virtual 的 NodeApi/NodeRef
 节点约束：deterministic / 不分配 / in‑place
-接下来回答你最后的问题——Decoder 要不要成为 Graph Node？
+下面继续讨论：Decoder 要不要成为 Graph Node？
 
 我的建议是：
 
@@ -6685,7 +6685,7 @@ v1.5：可加“DecoderAdapter Node”
 v2：如果做多源/mixer，才考虑真正 Decoder Node
 那时 decoder 更像一个可复用“Source Node”，Graph 里也会出现 Mixer，对齐 pull‑driven 结构。
 
-如果你同意，我下一步可以：
+后续可补充：
 
 把这段“Decoder 是否入图”的结论也补到文档
 或直接给出 DecoderAdapter 的最小接口草图已把“骨架合同”写入 audio_design.md，新增了 L2.6 DSP Graph 骨架合同，内容包含：
@@ -6695,7 +6695,7 @@ graph_block_frames = min(period_frames, 128)
 FrameSpan（带 stride）
 去 virtual 的 NodeApi/NodeRef
 节点约束：deterministic / 不分配 / in‑place
-接下来回答你最后的问题——Decoder 要不要成为 Graph Node？
+下面继续讨论：Decoder 要不要成为 Graph Node？
 
 我的建议是：
 
@@ -6715,7 +6715,7 @@ v1.5：可加“DecoderAdapter Node”
 v2：如果做多源/mixer，才考虑真正 Decoder Node
 那时 decoder 更像一个可复用“Source Node”，Graph 里也会出现 Mixer，对齐 pull‑driven 结构。
 
-如果你同意，我下一步可以：
+后续可补充：
 
 把这段“Decoder 是否入图”的结论也补到文档
 或直接给出 DecoderAdapter 的最小接口草图
@@ -6728,13 +6728,13 @@ v2：如果做多源/mixer，才考虑真正 Decoder Node
 
 
 
-我基本 **完全同意你的决策顺序**。你这个分阶段策略其实非常成熟，而且符合一个原则：
+更稳的决策顺序可以概括为：先把时钟域边界做对，再谈 Graph 纯度。
 
 > **先把时钟域边界做对，再谈 Graph 纯度。**
 
 Decoder 恰好是**最不稳定的那一层**，所以 v1 不进 Graph 是非常理性的选择。
 
-我把这个问题稍微再抽象一下，你会更容易看到为什么这个决策是对的。
+把这个问题再抽象一层，会更容易看清这套决策成立的原因。
 
 ---
 
@@ -7786,7 +7786,7 @@ Graph 放在 高优先级 audio task / actor 中运行，用 低/高水位 驱�
 A（ISR 里跑 Graph）会拉长 ISR、放大抖动、cache 失控
 B（ISR 只发事件）无法解决“谁来填 DMA buffer”的硬需求
 C（ISR 拉 FIFO + task 补 FIFO）最符合 MCU 时钟域/实时性约束
-如果你同意这套方案，我可以把这一段也补进 audio_design.md 的 L2/L2.7 里，作为 时钟域执行策略。
+这段内容后续可沉淀到 `audio_design.md` 的 L2/L2.7，作为时钟域执行策略。
 
 
 
@@ -7797,14 +7797,14 @@ C（ISR 拉 FIFO + task 补 FIFO）最符合 MCU 时钟域/实时性约束
 
 
 
-我基本 **完全同意你的方案**，而且从 MCU 音频系统的工程经验来看，这其实是**最稳的一种架构**。
+从 MCU 音频系统的工程经验看，这其实是**最稳的一种架构**。
 你的总结：
 
 > ISR 负责“拉取”，task 负责“生产”
 
 本质上就是一种 **producer / consumer 的实时化版本**，并且很好地隔离了 **clock domain**。
 
-我把这件事再往深一点拆一下，你会发现这个决策其实解决了 4 个非常关键的问题。
+把这件事再往深一点拆，可以看到这个决策实际上解决了 4 个非常关键的问题。
 
 ---
 

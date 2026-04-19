@@ -208,6 +208,13 @@ runtime-live smoke:
 .\run_qemu_runtime_live_ci.ps1
 ```
 
+For a shorter failure loop around the runtime-trap ingress/capture/writeback
+seam, use:
+
+```powershell
+.\run_qemu_runtime_trap_ci.ps1
+```
+
 For a shorter failure loop around the live task-syscall seam, use:
 
 ```powershell

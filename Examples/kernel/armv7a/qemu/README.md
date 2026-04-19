@@ -208,6 +208,12 @@ runtime-live smoke:
 .\run_qemu_runtime_live_ci.ps1
 ```
 
+For a shorter failure loop around the live task-syscall seam, use:
+
+```powershell
+.\run_qemu_task_syscall_ci.ps1
+```
+
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:
 

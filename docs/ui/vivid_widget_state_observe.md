@@ -55,6 +55,25 @@
 - 运行期 page/controller 更新
 - 句柄化 UI 状态推进
 
+### 1.3 SoA-backed helper 表面
+
+典型 API：
+
+- `DropdownPopup::observe_selected()`
+- `DropdownPopup::observe_select()`
+
+这一层的本质是：
+
+- helper 自己可以把 committed truth 和 confirm edge 拆开
+- 它可以依赖 `SoaFactory / SoaKernel` 落地，但这仍然是 helper 级本地语义
+- 它不是 `SceneAccess` 的自动镜像，更不是整个 scene/runtime 的统一观察总线
+
+适合场景：
+
+- popup / menu / picker 这类局部交互 helper
+- 需要在 SoA-backed 组件里显式拆开 truth 与 edge 的地方
+- helper 级 smoke / contract 冻结
+
 ## 2. 硬边界
 
 ### 2.1 不要把 `SceneAccess` 当成 `observe_*` 镜像
@@ -113,6 +132,23 @@ object-level widget 里，旧回调和真相观察面已经被显式拆开。
 - `SceneAccess` 的隐式联动
 - “设置一个 handle 顺便帮我通知所有相关控件”的魔法接口
 
+### 2.4 不要把 helper 级 observe 误判成 `SceneAccess` 镜像
+
+像 `DropdownPopup` 这样的 SoA-backed helper，可以自己定义：
+
+- committed truth：`observe_selected()`
+- confirm edge：`observe_select()`
+
+但这说明的是：
+
+- helper 内部语义已经被拆清楚
+
+而不是：
+
+- `SceneAccess` 从此也应该拥有同名 `observe_*`
+- SoA runtime 会自动帮你广播所有 helper 边沿
+- helper 级 callback/signal 语义会自动扩散成系统级 wiring
+
 ## 3. 当前推荐做法
 
 ### 3.1 做 object-level 语义验证
@@ -146,11 +182,24 @@ object-level widget 里，旧回调和真相观察面已经被显式拆开。
 
 而不是把 SoA runtime 当成对象级 widget 事件系统的自动放大器。
 
+### 3.3 做 SoA-backed helper 语义验证
+
+优先看：
+
+- `Examples/ui/vivid/dropdown_popup_demo`
+
+这个示例专门冻结：
+
+- `set_selection()` 只改 committed truth
+- 导航高亮不偷偷改 committed truth
+- confirm 才触发 edge 与 legacy callback
+
 ## 4. 一句话规则
 
 可以直接记成：
 
 > object-level `observe_*` 负责“这个 widget 的真相如何被同步观察”；
+> SoA helper 的 `observe_*` 负责“这个局部 helper 自己的 truth/edge 如何被拆清”；
 > SoA `SceneAccess` 负责“这个 scene/runtime 里的句柄状态如何被显式推进”。
 
 二者可以协作，但不是一层，也不应伪装成同一层。

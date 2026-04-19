@@ -167,7 +167,7 @@ flowchart TD
 | 看网络协议栈阶段复盘 | `docs/io/net_stack_stage_review.md` |
 | 拆网络底座收口任务 | `docs/io/net_stack_foundation_tasklist.md` |
 | 看网络底座是否已可关单 | `docs/io/net_stack_v0_closure_checklist.md` |
-| 看 Vivid object-level widget `observe_*` 与 SoA `SceneAccess` 边界 | `docs/ui/vivid_widget_state_observe.md` → `Examples/ui/vivid/widget_state_demo` → `Examples/ui/vivid/scene_state_demo` |
+| 看 Vivid object-level widget `observe_*`、SoA helper 与 `SceneAccess` 边界 | `docs/ui/vivid_widget_state_observe.md` → `Examples/ui/vivid/widget_state_demo` → `Examples/ui/vivid/dropdown_popup_demo` → `Examples/ui/vivid/scene_state_demo` |
 | 做主框架全仓体检 / 收敛排期 | `docs/project/tracking/README.md` → `docs/project/tracking/主框架全仓审查与收敛_backlog.md` |
 | POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
 | POSIX 分层与演进原则 | `docs/system/posix_subsystem_principles.md` |

@@ -57,7 +57,9 @@
 
 - 看 Vivid object-level signal/state 表面：
   [`ui/vivid/widget_signal_demo/README.md`](ui/vivid/widget_signal_demo/README.md) →
-  [`ui/vivid/widget_state_demo/README.md`](ui/vivid/widget_state_demo/README.md)
+  [`ui/vivid/widget_state_demo/README.md`](ui/vivid/widget_state_demo/README.md) →
+  [`ui/vivid/dropdown_popup_demo/README.md`](ui/vivid/dropdown_popup_demo/README.md) →
+  [`ui/vivid/scene_state_demo/README.md`](ui/vivid/scene_state_demo/README.md)
 
 ## 快速构建（Windows + Ninja）
 

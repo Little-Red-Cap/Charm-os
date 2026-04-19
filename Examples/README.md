@@ -50,6 +50,11 @@
   先回到 [`../docs/storage/fs_fatfs_demo.md`](../docs/storage/fs_fatfs_demo.md)，
   再进入对应示例目录。
 
+- 看 signal/state v0 第一版闭环：
+  [`service/service_signal_state_demo/README.md`](service/service_signal_state_demo/README.md) →
+  [`init/connection_observe_demo/README.md`](init/connection_observe_demo/README.md) →
+  [`system/signal_state_closure_demo/README.md`](system/signal_state_closure_demo/README.md)
+
 ## 快速构建（Windows + Ninja）
 
 ```bash

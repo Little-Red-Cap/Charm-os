@@ -426,12 +426,12 @@
         spec.color = color;
         switch (role) {
         case PlayerTextRole::HeroTitle:
-            spec.explicit_font = &get_player_font_px(72, FontWeight::Bold);
+            spec.explicit_font = &get_player_font_px_variant(
+                64, FontWeight::Regular, "wght636_wdth152_ROND50_XTRA520_YOPQ90_YTLC505");
             spec.emphasis = ::ui::scene::TextEmphasis::Emphasis;
             break;
         case PlayerTextRole::HeroSubtitle:
-            spec.font_role = FontId::Normal;
-            spec.font_weight = FontWeight::Regular;
+            spec.explicit_font = &get_player_font_px_variant(14, FontWeight::Regular, "ROND100");
             break;
         case PlayerTextRole::PageTitle:
             spec.font_role = FontId::Normal;
@@ -472,7 +472,8 @@
                                             const rgba& color) {
         StylePatch patch = make_player_text_patch(PlayerTextRole::HeroTitle, color);
         patch.has_font = true;
-        patch.font = &get_player_font_px(66, FontWeight::Bold);
+        patch.font = &get_player_font_px_variant(
+            64, FontWeight::Regular, "wght636_wdth152_ROND50_XTRA520_YOPQ90_YTLC505");
         builder.set_style_override(h, patch);
     }
 

@@ -13,6 +13,7 @@ import net.ipv4;
 import util.core;
 import util.error;
 import util.expected;
+import util.optional;
 
 namespace net::detail {
     template <typename Provider>
@@ -56,6 +57,15 @@ export namespace net {
         util::usize egress_dropped{0};
     };
 
+    struct Ipv4ForwardingDecisionSnapshot {
+        IpAddress network{IpAddress::ipv4_any()};
+        util::u8 prefix_length{0};
+        Ipv4ForwardingPort egress_port{Ipv4ForwardingPort::a};
+        bool has_next_hop{false};
+        IpAddress next_hop{};
+        bool from_connected_prefix{false};
+    };
+
     template <util::usize TxCapacity,
               util::usize ArpCapacity,
               util::usize ArpTxCapacity,
@@ -80,8 +90,11 @@ export namespace net {
         struct ForwardDecision {
             bool valid{false};
             util::usize egress{0};
+            IpAddress network{IpAddress::ipv4_any()};
             util::u8 prefix_length{0};
+            bool has_next_hop{false};
             IpAddress next_hop{};
+            bool from_connected_prefix{false};
         };
 
         struct IngressPath {
@@ -182,6 +195,53 @@ export namespace net {
 
         [[nodiscard]] util::usize route_count() const noexcept {
             return route_count_;
+        }
+
+        [[nodiscard]] bool route_at(util::usize index,
+                                    Ipv4ForwardingRoute& out) const noexcept {
+            if (index >= route_count_) {
+                return false;
+            }
+
+            out = routes_[index];
+            return true;
+        }
+
+        [[nodiscard]] util::optional<Ipv4ForwardingRoute> route_at(
+            util::usize index) const noexcept {
+            Ipv4ForwardingRoute route{};
+            if (!route_at(index, route)) {
+                return util::nullopt;
+            }
+            return route;
+        }
+
+        [[nodiscard]] bool inspect_forwarding_decision(
+            IpAddress destination,
+            Ipv4ForwardingDecisionSnapshot& out) const noexcept {
+            const auto decision = select_forwarding_decision(destination);
+            if (!decision.valid) {
+                return false;
+            }
+
+            out = Ipv4ForwardingDecisionSnapshot{
+                .network = decision.network,
+                .prefix_length = decision.prefix_length,
+                .egress_port = static_cast<Ipv4ForwardingPort>(decision.egress),
+                .has_next_hop = decision.has_next_hop,
+                .next_hop = decision.next_hop,
+                .from_connected_prefix = decision.from_connected_prefix,
+            };
+            return true;
+        }
+
+        [[nodiscard]] util::optional<Ipv4ForwardingDecisionSnapshot>
+        inspect_forwarding_decision(IpAddress destination) const noexcept {
+            Ipv4ForwardingDecisionSnapshot snapshot{};
+            if (!inspect_forwarding_decision(destination, snapshot)) {
+                return util::nullopt;
+            }
+            return snapshot;
         }
 
         [[nodiscard]] bool port_a_has_connected_prefix() const noexcept {
@@ -660,8 +720,13 @@ export namespace net {
                 if (!best.valid || port.connected_prefix_length > best.prefix_length) {
                     best.valid = true;
                     best.egress = index;
+                    best.network = canonical_ipv4_network(
+                        port.netif.address(),
+                        port.connected_prefix_length);
                     best.prefix_length = port.connected_prefix_length;
+                    best.has_next_hop = false;
                     best.next_hop = {};
+                    best.from_connected_prefix = true;
                 }
             }
             return best;
@@ -672,8 +737,11 @@ export namespace net {
             if (const auto* route = select_route(destination); route != nullptr) {
                 best.valid = true;
                 best.egress = port_index(route->egress_port);
+                best.network = route->network;
                 best.prefix_length = route->prefix_length;
+                best.has_next_hop = route->has_next_hop;
                 best.next_hop = route->has_next_hop ? route->next_hop : IpAddress{};
+                best.from_connected_prefix = false;
             }
 
             const auto connected = select_connected_route(destination);

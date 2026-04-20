@@ -3,6 +3,7 @@ param(
     [string]$Generator = "Ninja",
     [string]$SummaryPath = "",
     [int]$Jobs = 0,
+    [switch]$KeepBuildDirs,
     [switch]$StopOnFailure,
     [string[]]$Examples
 )
@@ -23,6 +24,10 @@ $invokeArgs = @{
 
 if (-not [string]::IsNullOrWhiteSpace($SummaryPath)) {
     $invokeArgs.SummaryPath = $SummaryPath
+}
+
+if ($KeepBuildDirs) {
+    $invokeArgs.KeepBuildDirs = $true
 }
 
 if ($StopOnFailure) {

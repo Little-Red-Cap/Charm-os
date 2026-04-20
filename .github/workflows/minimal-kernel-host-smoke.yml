@@ -56,29 +56,56 @@ jobs:
           cmake --version
           ninja --version
 
-      - name: Run minimal kernel host smoke bundle
+      - name: Run minimal kernel host smoke cold bundle
         shell: pwsh
         run: |
           ./scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1 `
             -OutputRoot out/minimal-kernel-runtime-host-smoke-ci `
+            -ReportTitle "Minimal Kernel Host Smoke Cold Start Report" `
+            -Jobs 8
+
+      - name: Run minimal kernel host smoke warm bundle
+        if: success()
+        shell: pwsh
+        run: |
+          ./scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1 `
+            -OutputRoot out/minimal-kernel-runtime-host-smoke-daily `
+            -ReportTitle "Minimal Kernel Host Smoke Warm Reuse Report" `
             -Jobs 8
 
       - name: Publish minimal kernel host smoke summary
         if: always()
         shell: pwsh
         run: |
-          $reportPath = "out/minimal-kernel-runtime-host-smoke-ci/report.md"
-          if (-not (Test-Path $reportPath)) {
-            "## Minimal Kernel Host Smoke`n`n`Report not generated.`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-            exit 0
+          $reportPaths = @(
+            "out/minimal-kernel-runtime-host-smoke-ci/report.md",
+            "out/minimal-kernel-runtime-host-smoke-daily/report.md"
+          )
+
+          $published = 0
+          foreach ($reportPath in $reportPaths) {
+            if (-not (Test-Path $reportPath)) {
+              continue
+            }
+
+            if ($published -gt 0) {
+              "`n---`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+
+            Get-Content -LiteralPath $reportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            $published += 1
           }
 
-          Get-Content -LiteralPath $reportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          if ($published -eq 0) {
+            "## Minimal Kernel Host Smoke`n`n`Report not generated.`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          }
 
       - name: Upload minimal kernel host smoke artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: minimal-kernel-runtime-host-smoke-ci
-          path: out/minimal-kernel-runtime-host-smoke-ci
+          name: minimal-kernel-runtime-host-smoke
+          path: |
+            out/minimal-kernel-runtime-host-smoke-ci
+            out/minimal-kernel-runtime-host-smoke-daily
           if-no-files-found: error

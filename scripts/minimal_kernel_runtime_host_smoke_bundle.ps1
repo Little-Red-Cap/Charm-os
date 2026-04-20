@@ -7,6 +7,7 @@ param(
     [string]$InspectTextPath = "",
     [string]$InspectJsonPath = "",
     [string]$ReportMarkdownPath = "",
+    [string]$ReportTitle = "",
     [string]$CheckTextPath = "",
     [string]$BaselineSummary = "",
     [string]$CMakeExe = "cmake",
@@ -112,6 +113,17 @@ function Get-DefaultOutputRoot {
     switch ($BundleProfile) {
         "daily" { return "out/minimal-kernel-runtime-host-smoke-daily" }
         default { return "out/minimal-kernel-runtime-host-smoke-ci" }
+    }
+}
+
+function Get-DefaultReportTitle {
+    param(
+        [string]$BundleProfile
+    )
+
+    switch ($BundleProfile) {
+        "daily" { return "Minimal Kernel Host Smoke Daily Report" }
+        default { return "Minimal Kernel Host Smoke CI Report" }
     }
 }
 
@@ -222,9 +234,21 @@ function Add-ProfileCheckModeArgument {
     }
 }
 
+function Add-ProfileSmokeModeArgument {
+    param(
+        [System.Collections.Generic.List[string]]$Arguments,
+        [string]$BundleProfile
+    )
+
+    switch ($BundleProfile) {
+        "ci" { $Arguments.Add("-KeepBuildDirs") | Out-Null }
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $resolvedOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) { Get-DefaultOutputRoot -BundleProfile $Profile } else { $OutputRoot }
 $outputRootPath = Resolve-FullPath -Path $resolvedOutputRoot
+$resolvedReportTitle = if ([string]::IsNullOrWhiteSpace($ReportTitle)) { Get-DefaultReportTitle -BundleProfile $Profile } else { $ReportTitle }
 
 if ($Profile -eq "daily") {
     Write-Host "==> profile-note: daily bundle expects warmed cmake-build-verify-* directories"
@@ -264,6 +288,7 @@ if ($StopOnFailure) {
     $smokeArgs.Add("-StopOnFailure") | Out-Null
 }
 Add-StringArrayScriptArgument -Arguments $smokeArgs -Name "-Examples" -Values $Examples
+Add-ProfileSmokeModeArgument -Arguments $smokeArgs -BundleProfile $Profile
 
 $inspectArgs = [System.Collections.Generic.List[string]]::new()
 Add-ScriptArgument -Arguments $inspectArgs -Name "-Summary" -Value $summaryPathResolved
@@ -282,6 +307,7 @@ $reportArgs = [System.Collections.Generic.List[string]]::new()
 Add-ScriptArgument -Arguments $reportArgs -Name "-Summary" -Value $summaryPathResolved
 Add-ScriptArgument -Arguments $reportArgs -Name "-InspectJson" -Value $inspectJsonPathResolved
 Add-ScriptArgument -Arguments $reportArgs -Name "-OutputPath" -Value $reportMarkdownPathResolved
+Add-ScriptArgument -Arguments $reportArgs -Name "-Title" -Value $resolvedReportTitle
 Add-ScriptArgument -Arguments $reportArgs -Name "-Top" -Value (Format-Number -Value $Top)
 if (-not [string]::IsNullOrWhiteSpace($baselineSummaryPathResolved)) {
     Add-ScriptArgument -Arguments $reportArgs -Name "-BaselineSummary" -Value $baselineSummaryPathResolved

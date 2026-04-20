@@ -140,7 +140,7 @@ $bindingLog = if ($phaseIndex -ge 0) {
     $log
 }
 
-if (($bindingLog -notmatch "ARMv7-A runtime binding bundle, current=yes, trap=yes, thread=yes, loop=yes, live=yes, binding=yes")) {
+if (($bindingLog -notmatch "ARMv7-A runtime binding bundle, current=yes, trap=yes, thread=yes, loop=yes, live=yes, export=yes, binding=yes")) {
     $missing += "ARMv7-A runtime binding bundle, current=yes..."
 }
 

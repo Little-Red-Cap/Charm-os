@@ -94,6 +94,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-loop-ingress";
     case Armv7aBringupPhase::kRuntimeLeafPorts:
         return "runtime-leaf-ports";
+    case Armv7aBringupPhase::kRuntimeThreadPort:
+        return "runtime-thread-port";
     case Armv7aBringupPhase::kRuntimeLive:
         return "runtime-live";
     case Armv7aBringupPhase::kRuntimeLeafBundle:

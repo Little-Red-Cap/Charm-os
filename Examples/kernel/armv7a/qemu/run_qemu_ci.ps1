@@ -162,6 +162,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-loop-ingress",
     "ARMv7-A phase, stage=runtime-leaf-ports",
     "ARMv7-A phase complete, stage=runtime-leaf-ports",
+    "ARMv7-A phase, stage=runtime-thread-port",
+    "ARMv7-A phase complete, stage=runtime-thread-port",
     "ARMv7-A phase, stage=runtime-live",
     "ARMv7-A phase complete, stage=runtime-live",
     "ARMv7-A phase, stage=runtime-leaf-bundle",
@@ -389,6 +391,9 @@ if (($log -notmatch "ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=y
 }
 if (($log -notmatch "ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, shared=yes, ports=yes")) {
     $missing += "ARMv7-A runtime leaf ports, tick-mode=oneshot..."
+}
+if (($log -notmatch "ARMv7-A runtime thread port, yield-path=svc-call-frame, yield-ready=yes, sleep-path=svc-call-frame, sleep-ready=yes, trap-call=yes, thread-runtime=yes, port=yes, bridge=yes, thread=yes")) {
+    $missing += "ARMv7-A runtime thread port, yield-path=svc-call-frame..."
 }
 if (($log -notmatch "ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, ports=yes, bundle=yes")) {
     $missing += "ARMv7-A runtime leaf bundle, tick-mode=oneshot..."

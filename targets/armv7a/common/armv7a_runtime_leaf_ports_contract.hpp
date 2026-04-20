@@ -3,6 +3,7 @@
 #include "armv7a_interrupt_runtime_hook_contract.hpp"
 #include "armv7a_kernel_port_contract.hpp"
 #include "armv7a_runtime_loop_port_contract.hpp"
+#include "armv7a_runtime_thread_port_contract.hpp"
 #include "armv7a_runtime_trap_call_port_contract.hpp"
 #include "armv7a_runtime_trap_dispatch_contract.hpp"
 
@@ -11,6 +12,7 @@ struct Armv7aRuntimeLeafPortsContract {
     Armv7aInterruptRuntimeHook interrupt_hook{};
     Armv7aRuntimeTrapDispatchPort trap_dispatch{};
     Armv7aRuntimeTrapCallPortContract trap_call{};
+    Armv7aRuntimeThreadPortContract runtime_thread{};
     Armv7aRuntimeLoopPortContract runtime_loop{};
 };
 
@@ -62,6 +64,12 @@ constexpr bool armv7a_runtime_leaf_ports_call_ready(
     return armv7a_runtime_trap_call_port_ready(contract.trap_call);
 }
 
+constexpr bool armv7a_runtime_leaf_ports_thread_ready(
+    const Armv7aRuntimeLeafPortsContract& contract) noexcept
+{
+    return armv7a_runtime_thread_port_ready(contract.runtime_thread);
+}
+
 constexpr bool armv7a_runtime_leaf_ports_loop_ready(
     const Armv7aRuntimeLeafPortsContract& contract) noexcept
 {
@@ -79,5 +87,6 @@ constexpr bool armv7a_runtime_leaf_ports_ready(
            armv7a_runtime_leaf_ports_hook_ready(contract) &&
            armv7a_runtime_leaf_ports_trap_ready(contract) &&
            armv7a_runtime_leaf_ports_call_ready(contract) &&
+           armv7a_runtime_leaf_ports_thread_ready(contract) &&
            armv7a_runtime_leaf_ports_loop_ready(contract);
 }

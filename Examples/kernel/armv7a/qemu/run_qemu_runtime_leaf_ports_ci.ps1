@@ -140,7 +140,7 @@ $portsLog = if ($phaseIndex -ge 0) {
     $log
 }
 
-if (($portsLog -notmatch "ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, shared=yes, ports=yes")) {
+if (($portsLog -notmatch "ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, shared=yes, ports=yes")) {
     $missing += "ARMv7-A runtime leaf ports, tick-mode=oneshot..."
 }
 

@@ -154,7 +154,7 @@ struct Armv7aLiveIdleContext {
 
 struct Armv7aLiveWorkerContext {
     Armv7aLiveSharedState* shared = nullptr;
-    Armv7aRuntimeTrapCallPortContract trap_call{};
+    Armv7aRuntimeThreadPortContract runtime_thread{};
 };
 
 [[nodiscard]] kernel::Event armv7a_live_idle_event() noexcept
@@ -236,8 +236,8 @@ void armv7a_live_worker_step(Armv7aLiveWorkerContext& context,
             static_cast<std::uint64_t>(armv7a_read_sp());
         context.shared->cpsr_before_yield = armv7a_read_cpsr();
         context.shared->yield_return_ok =
-            armv7a_runtime_trap_call_port_yield_current(
-                context.trap_call,
+            armv7a_runtime_thread_port_yield_current(
+                context.runtime_thread,
                 armv7a_live_worker_yield_loop_event()) == 1u;
         context.shared->cpsr_after_yield = armv7a_read_cpsr();
         context.shared->irq_enabled_after_yield =
@@ -257,8 +257,8 @@ void armv7a_live_worker_step(Armv7aLiveWorkerContext& context,
             static_cast<std::uint64_t>(armv7a_read_sp());
         context.shared->cpsr_before_sleep = armv7a_read_cpsr();
         context.shared->sleep_return_ok =
-            armv7a_runtime_trap_call_port_sleep_current_until(
-                context.trap_call,
+            armv7a_runtime_thread_port_sleep_current_until(
+                context.runtime_thread,
                 context.shared->wake_due,
                 armv7a_live_sleep_loop_event(context.shared->wake_due)) ==
             static_cast<std::uint32_t>(
@@ -339,6 +339,8 @@ struct Armv7aLiveSession {
     Armv7aLiveLoopPort loop_port;
     Armv7aLiveTrapBridge trap;
     Armv7aLiveRuntimeContext runtime_context{};
+    Armv7aRuntimeTrapCallPortContract trap_call_port{};
+    Armv7aRuntimeThreadPortContract thread_port{};
 
     Armv7aLiveSession() noexcept
         : running(kernel::start(kernel::make_scheduler<
@@ -360,7 +362,14 @@ struct Armv7aLiveSession {
               .trap = &trap,
               .shared = &shared,
               .session = this,
-          }
+          },
+          trap_call_port{
+              .ctx = &runtime_context,
+              .yield_current = &armv7a_live_runtime_trap_call_yield_current,
+              .sleep_current_until =
+                  &armv7a_live_runtime_trap_call_sleep_current_until,
+          },
+          thread_port(armv7a_make_runtime_thread_port(trap_call_port))
     {
         shared.worker_id = worker_id;
 
@@ -369,13 +378,7 @@ struct Armv7aLiveSession {
 
         auto& worker = registry.get<Armv7aLiveWorkerTask>();
         worker.context.shared = &shared;
-        worker.context.trap_call =
-            Armv7aRuntimeTrapCallPortContract{
-                .ctx = &runtime_context,
-                .yield_current = &armv7a_live_runtime_trap_call_yield_current,
-                .sleep_current_until =
-                    &armv7a_live_runtime_trap_call_sleep_current_until,
-            };
+        worker.context.runtime_thread = thread_port;
 
         while (running.run_once()) {
         }
@@ -694,13 +697,8 @@ Armv7aRuntimeLeafPortsContract armv7a_make_live_runtime_leaf_ports(
                 .ctx = &session.runtime_context,
                 .dispatch_frame = &armv7a_dispatch_live_runtime_trap,
             },
-        .trap_call =
-            Armv7aRuntimeTrapCallPortContract{
-                .ctx = &session.runtime_context,
-                .yield_current = &armv7a_live_runtime_trap_call_yield_current,
-                .sleep_current_until =
-                    &armv7a_live_runtime_trap_call_sleep_current_until,
-            },
+        .trap_call = session.trap_call_port,
+        .runtime_thread = session.thread_port,
         .runtime_loop =
             Armv7aRuntimeLoopPortContract{
                 .ctx = &session.runtime_context,

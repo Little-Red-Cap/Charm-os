@@ -140,7 +140,7 @@ $bundleLog = if ($phaseIndex -ge 0) {
     $log
 }
 
-if (($bundleLog -notmatch "ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, live=yes, ports=yes, bundle=yes")) {
+if (($bundleLog -notmatch "ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, ports=yes, bundle=yes")) {
     $missing += "ARMv7-A runtime leaf bundle, tick-mode=oneshot..."
 }
 

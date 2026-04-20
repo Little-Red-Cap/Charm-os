@@ -63,6 +63,12 @@ constexpr bool armv7a_runtime_leaf_bundle_call_ready(
     return armv7a_runtime_leaf_ports_call_ready(contract.ports);
 }
 
+constexpr bool armv7a_runtime_leaf_bundle_thread_ready(
+    const Armv7aRuntimeLeafBundleContract& contract) noexcept
+{
+    return armv7a_runtime_leaf_ports_thread_ready(contract.ports);
+}
+
 constexpr bool armv7a_runtime_leaf_bundle_ports_ready(
     const Armv7aRuntimeLeafBundleContract& contract) noexcept
 {
@@ -87,6 +93,7 @@ constexpr bool armv7a_runtime_leaf_bundle_ready(
            armv7a_runtime_leaf_bundle_loop_ready(contract) &&
            armv7a_runtime_leaf_bundle_trap_ready(contract) &&
            armv7a_runtime_leaf_bundle_call_ready(contract) &&
+           armv7a_runtime_leaf_bundle_thread_ready(contract) &&
            armv7a_runtime_leaf_bundle_ports_ready(contract) &&
            armv7a_runtime_leaf_bundle_live_ready(contract);
 }

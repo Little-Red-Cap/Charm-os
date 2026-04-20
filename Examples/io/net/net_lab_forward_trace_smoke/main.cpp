@@ -179,10 +179,13 @@ int main() {
     });
     auto router1_a_init = router1.init_port_a(client_link.endpoint_b(), router1_a_mac, router1_a_ip);
     auto router1_b_init = router1.init_port_b(middle_link.endpoint_a(), router1_b_mac, router1_b_ip);
-    auto router1_client_route = router1.add_direct_route(
-        net::IpAddress::ipv4(10, 0, 0, 0),
+    auto router1_prefix_a = router1.set_port_a_prefix_length(24u);
+    auto router1_prefix_b = router1.set_port_b_prefix_length(24u);
+    auto router1_invalid_gateway = router1.add_gateway_route(
+        net::IpAddress::ipv4(10, 0, 4, 0),
         24u,
-        net::Ipv4ForwardingPort::a);
+        net::Ipv4ForwardingPort::b,
+        server_ip);
     auto router1_server_route = router1.add_gateway_route(
         net::IpAddress::ipv4(10, 0, 2, 0),
         24u,
@@ -195,9 +198,17 @@ int main() {
         router2_a_ip);
     if (!router1_a_init
         || !router1_b_init
-        || !router1_client_route
+        || !router1_prefix_a
+        || !router1_prefix_b
+        || router1_invalid_gateway
+        || router1_invalid_gateway.error() != net::errc::invalid_arg
         || !router1_server_route
         || !router1_unreachable_route
+        || !router1.port_a_has_connected_prefix()
+        || !router1.port_b_has_connected_prefix()
+        || router1.port_a_prefix_length() != 24u
+        || router1.port_b_prefix_length() != 24u
+        || router1.route_count() != 2u
         || !router1.ready()) {
         return fail("net lab forward trace smoke router1 init failed\n", 2);
     }
@@ -210,19 +221,23 @@ int main() {
     });
     auto router2_a_init = router2.init_port_a(middle_link.endpoint_b(), router2_a_mac, router2_a_ip);
     auto router2_b_init = router2.init_port_b(server_link.endpoint_a(), router2_b_mac, router2_b_ip);
+    auto router2_prefix_a = router2.set_port_a_prefix_length(24u);
+    auto router2_prefix_b = router2.set_port_b_prefix_length(24u);
     auto router2_client_route = router2.add_gateway_route(
         net::IpAddress::ipv4(10, 0, 0, 0),
         24u,
         net::Ipv4ForwardingPort::a,
         router1_b_ip);
-    auto router2_server_route = router2.add_direct_route(
-        net::IpAddress::ipv4(10, 0, 2, 0),
-        24u,
-        net::Ipv4ForwardingPort::b);
     if (!router2_a_init
         || !router2_b_init
+        || !router2_prefix_a
+        || !router2_prefix_b
         || !router2_client_route
-        || !router2_server_route
+        || !router2.port_a_has_connected_prefix()
+        || !router2.port_b_has_connected_prefix()
+        || router2.port_a_prefix_length() != 24u
+        || router2.port_b_prefix_length() != 24u
+        || router2.route_count() != 1u
         || !router2.ready()) {
         return fail("net lab forward trace smoke router2 init failed\n", 3);
     }

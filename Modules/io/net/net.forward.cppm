@@ -69,10 +69,19 @@ export namespace net {
             ArpService<ArpCapacity, ArpTxCapacity> arp{};
             Ipv4EgressQueue<PendingCapacity, PacketCapacity> egress{};
             util::u16 next_identification{0x4000u};
+            bool connected_prefix_configured{false};
+            util::u8 connected_prefix_length{0};
 
             [[nodiscard]] bool ready() const noexcept {
                 return driver.attached() && netif.state() == NetIfState::up;
             }
+        };
+
+        struct ForwardDecision {
+            bool valid{false};
+            util::usize egress{0};
+            util::u8 prefix_length{0};
+            IpAddress next_hop{};
         };
 
         struct IngressPath {
@@ -175,6 +184,30 @@ export namespace net {
             return route_count_;
         }
 
+        [[nodiscard]] bool port_a_has_connected_prefix() const noexcept {
+            return ports_[0].connected_prefix_configured;
+        }
+
+        [[nodiscard]] bool port_b_has_connected_prefix() const noexcept {
+            return ports_[1].connected_prefix_configured;
+        }
+
+        [[nodiscard]] util::u8 port_a_prefix_length() const noexcept {
+            return ports_[0].connected_prefix_length;
+        }
+
+        [[nodiscard]] util::u8 port_b_prefix_length() const noexcept {
+            return ports_[1].connected_prefix_length;
+        }
+
+        [[nodiscard]] Result<void> set_port_a_prefix_length(util::u8 prefix_length) noexcept {
+            return set_port_prefix<0u>(prefix_length);
+        }
+
+        [[nodiscard]] Result<void> set_port_b_prefix_length(util::u8 prefix_length) noexcept {
+            return set_port_prefix<1u>(prefix_length);
+        }
+
         void clear_routes() noexcept {
             for (util::usize index = 0; index < route_count_; ++index) {
                 routes_[index] = {};
@@ -188,6 +221,10 @@ export namespace net {
             }
             if (route.has_next_hop
                 && (!route.next_hop.is_ipv4() || route.next_hop.is_any())) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            if (route.has_next_hop
+                && !gateway_matches_port(port_index(route.egress_port), route.next_hop)) {
                 return util::unexpected(errc::invalid_arg);
             }
             if (route_count_ >= routes_.size()) {
@@ -356,6 +393,34 @@ export namespace net {
                 return util::unexpected(up.error());
             }
 
+            auto valid_gateway_routes = validate_gateway_routes_for_port<Index>();
+            if (!valid_gateway_routes) {
+                return util::unexpected(valid_gateway_routes.error());
+            }
+
+            return {};
+        }
+
+        template <util::usize Index>
+        [[nodiscard]] Result<void> set_port_prefix(util::u8 prefix_length) noexcept {
+            if (prefix_length > 32u) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            auto& port = ports_[Index];
+            const auto previous_configured = port.connected_prefix_configured;
+            const auto previous_prefix_length = port.connected_prefix_length;
+
+            port.connected_prefix_configured = true;
+            port.connected_prefix_length = prefix_length;
+
+            auto valid_gateway_routes = validate_gateway_routes_for_port<Index>();
+            if (!valid_gateway_routes) {
+                port.connected_prefix_configured = previous_configured;
+                port.connected_prefix_length = previous_prefix_length;
+                return util::unexpected(valid_gateway_routes.error());
+            }
+
             return {};
         }
 
@@ -414,6 +479,43 @@ export namespace net {
                 || is_same_ipv4_address(address, ports_[1].netif.address());
         }
 
+        [[nodiscard]] bool routing_configured() const noexcept {
+            return route_count_ != 0u
+                || ports_[0].connected_prefix_configured
+                || ports_[1].connected_prefix_configured;
+        }
+
+        [[nodiscard]] bool gateway_matches_port(util::usize egress,
+                                                IpAddress next_hop) const noexcept {
+            if (egress >= ports_.size()) {
+                return false;
+            }
+
+            const auto& port = ports_[egress];
+            if (!port.connected_prefix_configured || !port.netif.address().is_ipv4()) {
+                return true;
+            }
+
+            return matches_ipv4_prefix(
+                next_hop,
+                canonical_ipv4_network(port.netif.address(), port.connected_prefix_length),
+                port.connected_prefix_length);
+        }
+
+        template <util::usize Index>
+        [[nodiscard]] Result<void> validate_gateway_routes_for_port() const noexcept {
+            for (util::usize route_index = 0; route_index < route_count_; ++route_index) {
+                const auto& route = routes_[route_index];
+                if (port_index(route.egress_port) != Index || !route.has_next_hop) {
+                    continue;
+                }
+                if (!gateway_matches_port(Index, route.next_hop)) {
+                    return util::unexpected(errc::invalid_arg);
+                }
+            }
+            return {};
+        }
+
         [[nodiscard]] const Ipv4ForwardingRoute* select_route(IpAddress destination) const noexcept {
             if (!destination.is_ipv4()) {
                 return nullptr;
@@ -434,7 +536,53 @@ export namespace net {
             return best;
         }
 
-        [[nodiscard]] bool can_forward_to(IpAddress destination) const noexcept {
+        [[nodiscard]] ForwardDecision select_connected_route(IpAddress destination) const noexcept {
+            if (!destination.is_ipv4()) {
+                return {};
+            }
+
+            ForwardDecision best{};
+            for (util::usize index = 0; index < ports_.size(); ++index) {
+                const auto& port = ports_[index];
+                if (!port.connected_prefix_configured || !port.netif.address().is_ipv4()) {
+                    continue;
+                }
+                if (!matches_ipv4_prefix(
+                        destination,
+                        canonical_ipv4_network(port.netif.address(), port.connected_prefix_length),
+                        port.connected_prefix_length)) {
+                    continue;
+                }
+                if (!best.valid || port.connected_prefix_length > best.prefix_length) {
+                    best.valid = true;
+                    best.egress = index;
+                    best.prefix_length = port.connected_prefix_length;
+                    best.next_hop = {};
+                }
+            }
+            return best;
+        }
+
+        [[nodiscard]] ForwardDecision select_forwarding_decision(IpAddress destination) const noexcept {
+            ForwardDecision best{};
+            if (const auto* route = select_route(destination); route != nullptr) {
+                best.valid = true;
+                best.egress = port_index(route->egress_port);
+                best.prefix_length = route->prefix_length;
+                best.next_hop = route->has_next_hop ? route->next_hop : IpAddress{};
+            }
+
+            const auto connected = select_connected_route(destination);
+            if (connected.valid
+                && (!best.valid || connected.prefix_length > best.prefix_length)) {
+                best = connected;
+            }
+
+            return best;
+        }
+
+        [[nodiscard]] bool can_proxy_arp_to(util::usize ingress,
+                                            IpAddress destination) const noexcept {
             if (!destination.is_ipv4()
                 || destination.is_any()
                 || destination.is_ipv4_limited_broadcast()
@@ -442,10 +590,12 @@ export namespace net {
                 return false;
             }
 
-            if (route_count_ == 0u) {
+            if (!routing_configured()) {
                 return true;
             }
-            return select_route(destination) != nullptr;
+
+            const auto decision = select_forwarding_decision(destination);
+            return decision.valid && decision.egress != ingress;
         }
 
         [[nodiscard]] Result<void> consume_port(util::usize ingress,
@@ -497,7 +647,7 @@ export namespace net {
             if (is_same_ipv4_address(arp.value().target_ip, port.netif.address())) {
                 should_reply = true;
                 sender_ip = port.netif.address();
-            } else if (can_forward_to(arp.value().target_ip)) {
+            } else if (can_proxy_arp_to(ingress, arp.value().target_ip)) {
                 should_reply = true;
                 sender_ip = arp.value().target_ip;
             }
@@ -573,12 +723,11 @@ export namespace net {
 
             IpAddress next_hop{};
             util::usize egress = egress_index(ingress);
-            if (const auto* route = select_route(datagram.value().destination); route != nullptr) {
-                egress = port_index(route->egress_port);
-                if (route->has_next_hop) {
-                    next_hop = route->next_hop;
-                }
-            } else if (route_count_ != 0u) {
+            const auto decision = select_forwarding_decision(datagram.value().destination);
+            if (decision.valid) {
+                egress = decision.egress;
+                next_hop = decision.next_hop;
+            } else if (routing_configured()) {
                 auto emitted = emit_destination_unreachable(
                     ingress_port,
                     datagram.value().source,

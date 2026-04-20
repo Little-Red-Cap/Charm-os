@@ -40,16 +40,54 @@ function Get-OptionalSummaryPath {
     return Resolve-FullPath -Path $BaselineSummary
 }
 
+function Get-EntryInt64Property {
+    param(
+        $Entry,
+        [string]$Name
+    )
+
+    $property = $Entry.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        return $null
+    }
+
+    return [int64]$property.Value
+}
+
+function Get-EntryStringProperty {
+    param(
+        $Entry,
+        [string]$Name
+    )
+
+    $property = $Entry.PSObject.Properties[$Name]
+    if ($null -eq $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+        return ""
+    }
+
+    return [string]$property.Value
+}
+
 function Convert-ToSummaryResult {
     param(
         $Entry
     )
 
+    $configureMs = Get-EntryInt64Property -Entry $Entry -Name "ConfigureMs"
+    $buildMs = Get-EntryInt64Property -Entry $Entry -Name "BuildMs"
+    $runMs = Get-EntryInt64Property -Entry $Entry -Name "RunMs"
+    $failurePhase = Get-EntryStringProperty -Entry $Entry -Name "FailurePhase"
+
     return [pscustomobject]@{
-        Example   = [string]$Entry.Example
-        Status    = [string]$Entry.Status
-        ElapsedMs = [int64]$Entry.ElapsedMs
-        Detail    = [string]$Entry.Detail
+        Example        = [string]$Entry.Example
+        Status         = [string]$Entry.Status
+        ElapsedMs      = [int64]$Entry.ElapsedMs
+        ConfigureMs    = $configureMs
+        BuildMs        = $buildMs
+        RunMs          = $runMs
+        FailurePhase   = $failurePhase
+        HasPhaseTiming = ($null -ne $configureMs) -or ($null -ne $buildMs) -or ($null -ne $runMs)
+        Detail         = [string]$Entry.Detail
     }
 }
 
@@ -151,6 +189,71 @@ function Get-ElapsedStats {
     }
 }
 
+function Get-PhaseMetricStats {
+    param(
+        [object[]]$Results,
+        [string]$PropertyName
+    )
+
+    $phaseResults = @(
+        @($Results) |
+            Where-Object { $null -ne $_.$PropertyName }
+    )
+
+    if ($phaseResults.Count -eq 0) {
+        return $null
+    }
+
+    $values = @(
+        @($phaseResults) |
+            ForEach-Object { [int64]$_.$PropertyName } |
+            Sort-Object
+    )
+
+    $totalMs = 0
+    foreach ($value in $values) {
+        $totalMs += $value
+    }
+
+    $count = $values.Count
+    if (($count % 2) -eq 1) {
+        $medianMs = $values[[int]($count / 2)]
+    } else {
+        $left = $values[($count / 2) - 1]
+        $right = $values[$count / 2]
+        $medianMs = [int64][Math]::Round((($left + $right) / 2.0), 0)
+    }
+
+    $slowest = @(
+        @($phaseResults) |
+            Sort-Object -Property @{ Expression = { [int64]$_.($PropertyName) }; Descending = $true }, @{ Expression = { [string]$_.Example }; Descending = $false } |
+            Select-Object -First 1
+    )[0]
+
+    return [pscustomobject]@{
+        Count         = $count
+        TotalMs       = $totalMs
+        AverageMs     = [int64][Math]::Round(($totalMs / [double]$count), 0)
+        MedianMs      = $medianMs
+        MinMs         = $values[0]
+        MaxMs         = $values[$count - 1]
+        SlowestExample = [string]$slowest.Example
+        SlowestMs     = [int64]$slowest.($PropertyName)
+    }
+}
+
+function Get-PhaseStats {
+    param(
+        [object[]]$Results
+    )
+
+    return [pscustomobject]@{
+        Configure = Get-PhaseMetricStats -Results $Results -PropertyName "ConfigureMs"
+        Build     = Get-PhaseMetricStats -Results $Results -PropertyName "BuildMs"
+        Run       = Get-PhaseMetricStats -Results $Results -PropertyName "RunMs"
+    }
+}
+
 function Get-StatusSummary {
     param(
         [object[]]$Results
@@ -191,11 +294,23 @@ function New-ResultView {
         $Result
     )
 
-    return [ordered]@{
+    $view = [ordered]@{
         example    = [string]$Result.Example
         status     = [string]$Result.Status
         elapsed_ms = [int64]$Result.ElapsedMs
     }
+
+    if ($Result.HasPhaseTiming) {
+        $view.configure_ms = $Result.ConfigureMs
+        $view.build_ms = $Result.BuildMs
+        $view.run_ms = $Result.RunMs
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$Result.FailurePhase)) {
+        $view.failure_phase = [string]$Result.FailurePhase
+    }
+
+    return $view
 }
 
 function New-FailureView {
@@ -203,12 +318,79 @@ function New-FailureView {
         $Result
     )
 
-    return [ordered]@{
+    $view = [ordered]@{
         example    = [string]$Result.Example
         status     = [string]$Result.Status
         elapsed_ms = [int64]$Result.ElapsedMs
         detail     = [string]$Result.Detail
     }
+
+    if ($Result.HasPhaseTiming) {
+        $view.configure_ms = $Result.ConfigureMs
+        $view.build_ms = $Result.BuildMs
+        $view.run_ms = $Result.RunMs
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$Result.FailurePhase)) {
+        $view.failure_phase = [string]$Result.FailurePhase
+    }
+
+    return $view
+}
+
+function New-PhaseStatsView {
+    param(
+        $PhaseStat
+    )
+
+    if ($null -eq $PhaseStat) {
+        return $null
+    }
+
+    return [ordered]@{
+        count = $PhaseStat.Count
+        total_ms = $PhaseStat.TotalMs
+        average_ms = $PhaseStat.AverageMs
+        median_ms = $PhaseStat.MedianMs
+        min_ms = $PhaseStat.MinMs
+        max_ms = $PhaseStat.MaxMs
+        slowest = [ordered]@{
+            example = [string]$PhaseStat.SlowestExample
+            elapsed_ms = [int64]$PhaseStat.SlowestMs
+        }
+    }
+}
+
+function Get-PhaseValueText {
+    param(
+        $Value
+    )
+
+    if ($null -eq $Value) {
+        return "-"
+    }
+
+    return ("{0}" -f [int64]$Value)
+}
+
+function Format-ResultText {
+    param(
+        $Result,
+        [switch]$IncludeDetail
+    )
+
+    $text = ("{0}|{1}|{2}ms" -f [string]$Result.Example, [string]$Result.Status, [int64]$Result.ElapsedMs)
+    if ($Result.HasPhaseTiming) {
+        $text += ("|cfg={0}ms|build={1}ms|run={2}ms" -f (Get-PhaseValueText -Value $Result.ConfigureMs), (Get-PhaseValueText -Value $Result.BuildMs), (Get-PhaseValueText -Value $Result.RunMs))
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$Result.FailurePhase)) {
+        $text += ("|phase={0}" -f [string]$Result.FailurePhase)
+    }
+    if ($IncludeDetail) {
+        $text += ("|{0}" -f [string]$Result.Detail)
+    }
+
+    return $text
 }
 
 function New-ComparisonEntry {
@@ -310,6 +492,7 @@ function New-JsonView {
         [string]$SummaryPath,
         $StatusSummary,
         $ElapsedStats,
+        $PhaseStats,
         [object[]]$SortedResults,
         [object[]]$Failures,
         $ComparisonData,
@@ -347,6 +530,20 @@ function New-JsonView {
             @($Failures) |
                 ForEach-Object { New-FailureView -Result $_ }
         )
+    }
+
+    $phaseElapsedView = [ordered]@{}
+    if ($null -ne $PhaseStats.Configure) {
+        $phaseElapsedView.configure = New-PhaseStatsView -PhaseStat $PhaseStats.Configure
+    }
+    if ($null -ne $PhaseStats.Build) {
+        $phaseElapsedView.build = New-PhaseStatsView -PhaseStat $PhaseStats.Build
+    }
+    if ($null -ne $PhaseStats.Run) {
+        $phaseElapsedView.run = New-PhaseStatsView -PhaseStat $PhaseStats.Run
+    }
+    if ($phaseElapsedView.Count -gt 0) {
+        $view.phase_elapsed_ms = $phaseElapsedView
     }
 
     if ($ShowAllResults) {
@@ -407,6 +604,7 @@ $sortedResults = Get-SortedResults -Results $loaded.Results
 $failures = @($sortedResults | Where-Object { [string]$_.Status -ne "ok" })
 $statusSummary = Get-StatusSummary -Results $sortedResults
 $elapsedStats = Get-ElapsedStats -Results $sortedResults
+$phaseStats = Get-PhaseStats -Results $sortedResults
 
 $comparison = $null
 if (-not [string]::IsNullOrWhiteSpace($baselinePath)) {
@@ -420,6 +618,7 @@ if ($AsJson) {
         -SummaryPath $summaryPath `
         -StatusSummary $statusSummary `
         -ElapsedStats $elapsedStats `
+        -PhaseStats $phaseStats `
         -SortedResults $sortedResults `
         -Failures $failures `
         -ComparisonData $comparison `
@@ -437,17 +636,37 @@ Write-Output ("profile: {0}" -f (Get-RunProfile -SummaryData $loaded.Data))
 Write-Output ("examples: selected={0} results={1} ok={2} fail={3} other={4}" -f $selectedExamples.Count, @($sortedResults).Count, $statusSummary.OkCount, $statusSummary.FailCount, $statusSummary.OtherCount)
 Write-Output ("elapsed_ms: total={0} avg={1} median={2} min={3} max={4}" -f $elapsedStats.TotalMs, $elapsedStats.AverageMs, $elapsedStats.MedianMs, $elapsedStats.MinMs, $elapsedStats.MaxMs)
 
+if ($null -ne $phaseStats.Configure -or $null -ne $phaseStats.Build -or $null -ne $phaseStats.Run) {
+    $phaseTotals = [System.Collections.Generic.List[string]]::new()
+    $phaseSlowest = [System.Collections.Generic.List[string]]::new()
+    if ($null -ne $phaseStats.Configure) {
+        $phaseTotals.Add(("configure={0}ms" -f $phaseStats.Configure.TotalMs))
+        $phaseSlowest.Add(("configure={0}|{1}ms" -f [string]$phaseStats.Configure.SlowestExample, [int64]$phaseStats.Configure.SlowestMs))
+    }
+    if ($null -ne $phaseStats.Build) {
+        $phaseTotals.Add(("build={0}ms" -f $phaseStats.Build.TotalMs))
+        $phaseSlowest.Add(("build={0}|{1}ms" -f [string]$phaseStats.Build.SlowestExample, [int64]$phaseStats.Build.SlowestMs))
+    }
+    if ($null -ne $phaseStats.Run) {
+        $phaseTotals.Add(("run={0}ms" -f $phaseStats.Run.TotalMs))
+        $phaseSlowest.Add(("run={0}|{1}ms" -f [string]$phaseStats.Run.SlowestExample, [int64]$phaseStats.Run.SlowestMs))
+    }
+
+    Write-Output ("phase_elapsed_ms: {0}" -f ($phaseTotals -join " "))
+    Write-Output ("phase_slowest: {0}" -f ($phaseSlowest -join " "))
+}
+
 Write-Output ""
 Write-Output "slowest:"
 foreach ($result in @($sortedResults | Select-Object -First $Top)) {
-    Write-Output ("{0}|{1}|{2}ms" -f [string]$result.Example, [string]$result.Status, [int64]$result.ElapsedMs)
+    Write-Output (Format-ResultText -Result $result)
 }
 
 if ($ShowAllResults) {
     Write-Output ""
     Write-Output "all_results:"
     foreach ($result in @($sortedResults)) {
-        Write-Output ("{0}|{1}|{2}ms" -f [string]$result.Example, [string]$result.Status, [int64]$result.ElapsedMs)
+        Write-Output (Format-ResultText -Result $result)
     }
 }
 
@@ -455,7 +674,7 @@ if ($failures.Count -gt 0) {
     Write-Output ""
     Write-Output "failures:"
     foreach ($result in @($failures)) {
-        Write-Output ("{0}|{1}|{2}ms|{3}" -f [string]$result.Example, [string]$result.Status, [int64]$result.ElapsedMs, [string]$result.Detail)
+        Write-Output (Format-ResultText -Result $result -IncludeDetail)
     }
 }
 

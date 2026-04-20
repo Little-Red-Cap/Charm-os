@@ -175,6 +175,11 @@ try {
         $outputText = ""
         $status = "ok"
         $elapsedMs = 0
+        $configureMs = 0
+        $buildMs = 0
+        $runMs = 0
+        $failurePhase = ""
+        $currentPhase = "prepare"
         $exampleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         try {
@@ -184,33 +189,54 @@ try {
 
             $sourceDir = Resolve-ExamplePath -RepoRoot $repoRoot -Example $example
 
+            $currentPhase = "configure"
             Write-Host "==> [$example] configure"
-            Invoke-Checked -FilePath $cmake `
-                -ArgumentList @("-S", $sourceDir, "-B", $buildDir, "-G", $Generator) `
-                -FailureMessage "cmake configure failed for $example"
+            $configureStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                Invoke-Checked -FilePath $cmake `
+                    -ArgumentList @("-S", $sourceDir, "-B", $buildDir, "-G", $Generator) `
+                    -FailureMessage "cmake configure failed for $example"
+            } finally {
+                $configureStopwatch.Stop()
+                $configureMs = $configureStopwatch.ElapsedMilliseconds
+            }
 
+            $currentPhase = "build"
             Write-Host "==> [$example] build"
             $buildArgs = @("--build", $buildDir)
             if ($Jobs -gt 0) {
                 $buildArgs += @("--parallel", $Jobs)
             }
-            Invoke-Checked -FilePath $cmake `
-                -ArgumentList $buildArgs `
-                -FailureMessage "cmake build failed for $example"
+            $buildStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                Invoke-Checked -FilePath $cmake `
+                    -ArgumentList $buildArgs `
+                    -FailureMessage "cmake build failed for $example"
+            } finally {
+                $buildStopwatch.Stop()
+                $buildMs = $buildStopwatch.ElapsedMilliseconds
+            }
 
             $exePath = Resolve-ExecutablePath -BuildDir $buildDir -TargetName $targetName
 
+            $currentPhase = "run"
             Write-Host "==> [$example] run"
-            $runOutput = & $exePath 2>&1
-            $exitCode = $LASTEXITCODE
-            $outputText = (($runOutput | Out-String).Trim() -replace "`r?`n", " | ")
+            $runStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                $runOutput = & $exePath 2>&1
+                $exitCode = $LASTEXITCODE
+                $outputText = (($runOutput | Out-String).Trim() -replace "`r?`n", " | ")
 
-            if ([string]::IsNullOrWhiteSpace($outputText)) {
-                $outputText = "<no output>"
-            }
+                if ([string]::IsNullOrWhiteSpace($outputText)) {
+                    $outputText = "<no output>"
+                }
 
-            if ($exitCode -ne 0) {
-                throw "program exited with code $exitCode"
+                if ($exitCode -ne 0) {
+                    throw "program exited with code $exitCode"
+                }
+            } finally {
+                $runStopwatch.Stop()
+                $runMs = $runStopwatch.ElapsedMilliseconds
             }
 
             Write-Host $outputText
@@ -225,6 +251,7 @@ try {
             } else {
                 $outputText = $outputText + " ; " + $_.Exception.Message
             }
+            $failurePhase = $currentPhase
 
             Write-Host "FAIL [$example] $outputText"
             if ($StopOnFailure) {
@@ -239,6 +266,10 @@ try {
                 Example = $example
                 Status  = $status
                 ElapsedMs = $elapsedMs
+                ConfigureMs = $configureMs
+                BuildMs = $buildMs
+                RunMs = $runMs
+                FailurePhase = $failurePhase
                 Detail  = $outputText
             })
 
@@ -255,7 +286,7 @@ Write-Host "==> summary"
 
 $hasFailure = $false
 foreach ($result in $results) {
-    Write-Host ("{0}|{1}|{2}ms|{3}" -f $result.Example, $result.Status, $result.ElapsedMs, $result.Detail)
+    Write-Host ("{0}|{1}|{2}ms|cfg={3}ms|build={4}ms|run={5}ms|{6}" -f $result.Example, $result.Status, $result.ElapsedMs, $result.ConfigureMs, $result.BuildMs, $result.RunMs, $result.Detail)
     if ($result.Status -ne "ok") {
         $hasFailure = $true
     }

@@ -690,27 +690,30 @@
             }
             const int count = static_cast<int>(list_order.size());
             char buf[160]{};
-            const bool shuffled = list_shuffle_enabled;
+            const auto append_current_group = [&]() noexcept {
+                if (!library_shows_group_rows() || track_index < 0) return;
+                const auto current_group = library_group_title_for_track(track_index);
+                if (current_group.empty()) return;
+                append_library_status_suffix(buf, sizeof(buf), library_current_group_state_text());
+                const std::size_t used = std::char_traits<char>::length(buf);
+                if (used == 0 || used + 3 >= sizeof(buf)) return;
+                std::snprintf(buf + used, sizeof(buf) - used, " | %.*s",
+                              static_cast<int>(current_group.size()), current_group.data());
+            };
             if (library_shows_group_rows()) {
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
-                if (shuffled) {
-                    std::snprintf(buf, sizeof(buf), "%s | %d %s | Shuffled",
-                                  library_tab_title(library_tab), count, label);
-                } else {
-                    std::snprintf(buf, sizeof(buf), "%s | %d %s",
-                                  library_tab_title(library_tab), count, label);
-                }
+                std::snprintf(buf, sizeof(buf), "%s | %d %s",
+                              library_tab_title(library_tab), count, label);
+                append_current_group();
             } else {
                 const char* label = (count == 1) ? "track" : "tracks";
-                if (shuffled) {
-                    std::snprintf(buf, sizeof(buf), "%s | %d %s | Shuffled",
-                                  library_tab_title(library_tab), count, label);
-                } else {
-                    std::snprintf(buf, sizeof(buf), "%s | %d %s",
-                                  library_tab_title(library_tab), count, label);
-                }
+                std::snprintf(buf, sizeof(buf), "%s | %d %s",
+                              library_tab_title(library_tab), count, label);
+            }
+            if (list_shuffle_enabled) {
+                append_library_status_suffix(buf, sizeof(buf), "Shuffled");
             }
             set_status(buf);
         }
@@ -1900,16 +1903,10 @@
                 ? library_context_key.view()
                 : std::string_view{};
             const char* base = library_tab_title(library_tab);
-            char buf[96]{};
             if (!context.empty()) {
                 if (last_list_title_text.view() == context) return;
                 last_list_title_text.assign(context);
                 set_label_slot(handles.list_title, text_slots.list_title, last_list_title_text.c_str());
-            } else if (count > 0) {
-                std::snprintf(buf, sizeof(buf), "%s (%d)", base, count);
-                if (last_list_title_text.view() == buf) return;
-                last_list_title_text.assign(buf);
-                set_label_slot(handles.list_title, text_slots.list_title, buf);
             } else {
                 if (last_list_title_text.view() == base) return;
                 last_list_title_text.assign(base);

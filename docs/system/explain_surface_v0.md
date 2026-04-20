@@ -428,6 +428,19 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
 
+对机器消费者来说，`system_compiler_summary` 现在也不再只是
+artifact_root 默认总览里的匿名嵌套块。
+无论 summary 还是 comparison 形态，它都会显式带出：
+
+- `kind = system_compiler_summary/v0`
+- `mode = summary | comparison`
+
+对应 schema 与样例入口见：
+
+- [`../../schemas/system_compiler_summary.v0.schema.json`](../../schemas/system_compiler_summary.v0.schema.json)
+- [`../../schemas/examples/system_compiler_summary.summary.v0.sample.json`](../../schemas/examples/system_compiler_summary.summary.v0.sample.json)
+- [`../../schemas/examples/system_compiler_summary.comparison.v0.sample.json`](../../schemas/examples/system_compiler_summary.comparison.v0.sample.json)
+
 补充一点，`system_compiler_summary.result_map.stage_blocks[*].root_fields`
 表示的是 `system_compiler_summary` 根上的 stage 归属字段；
 它们用于说明这些 root field 该和哪个 stage block、哪个分阶段 summary 一起解释，
@@ -439,6 +452,10 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 如果要把这份 relation language 单独交给外部脚本或 CI 消费，
 当前最小 schema 锚点见
 [`../../schemas/system_compiler_result_map.v0.schema.json`](../../schemas/system_compiler_result_map.v0.schema.json)。
+
+而如果外部调用方想直接把整个 root-level summary object 当成 explain surface 的稳定输入，
+就应该优先以 `system_compiler_summary/v0` 作为识别锚点，
+再通过它内部的 `result_map` 进入 relation language。
 
 - `input_bridge.field_relations[*]`
 - `case_projection_field_relations.<stage>[*]`

@@ -336,6 +336,8 @@ Assert-Condition ($null -ne $rootSummary.system_compiler_summary.formation_basis
 Assert-Condition ($null -ne $rootSummary.system_compiler_summary.binding_basis) 'default artifact_root summary must expose system_compiler_summary binding_basis'
 Assert-Condition ($null -ne $rootSummary.system_compiler_summary.bringup_basis) 'default artifact_root summary must expose system_compiler_summary bringup_basis'
 Assert-Condition ($null -ne $rootSummary.system_compiler_summary.result_map) 'default artifact_root summary must expose system_compiler_summary result_map'
+Assert-Condition ([string]$rootSummary.system_compiler_summary.kind -eq 'system_compiler_summary/v0') 'default artifact_root summary system_compiler_summary kind mismatch'
+Assert-Condition ([string]$rootSummary.system_compiler_summary.mode -eq 'summary') 'default artifact_root summary system_compiler_summary mode mismatch'
 Assert-SystemCompilerResultMapContract -RootSummary $rootSummary -Context 'default artifact_root summary system_compiler_summary'
 Assert-Condition (@($rootSummary.system_compiler_summary.blocker_reason_matrix).Count -eq 0) 'default artifact_root summary system_compiler_summary blocker_reason_matrix must stay empty in export_only mode'
 Assert-Condition (@($rootSummary.system_compiler_summary.blocker_missing_requires_matrix).Count -eq 0) 'default artifact_root summary system_compiler_summary blocker_missing_requires_matrix must stay empty in export_only mode'

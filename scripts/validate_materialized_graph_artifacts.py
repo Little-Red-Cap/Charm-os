@@ -14,6 +14,7 @@ SCHEMA_FILES = {
     "system_compiler.artifact_report/v0": "schemas/system_compiler.artifact_report.v0.schema.json",
     "system_compiler.runtime_observe_snapshot/v0": "schemas/system_compiler.runtime_observe_snapshot.v0.schema.json",
     "system_compiler_result_map/v0": "schemas/system_compiler_result_map.v0.schema.json",
+    "system_compiler_summary/v0": "schemas/system_compiler_summary.v0.schema.json",
 }
 
 
@@ -35,6 +36,16 @@ def load_schema(repo_root: Path, schema_name: str):
     return load_json(repo_root / schema_rel)
 
 
+def build_schema_store(repo_root: Path):
+    store = {}
+    for schema_rel in sorted(set(SCHEMA_FILES.values())):
+        schema = load_json(repo_root / schema_rel)
+        schema_id = schema.get("$id")
+        if isinstance(schema_id, str) and schema_id:
+            store[schema_id] = schema
+    return store
+
+
 def validate_file(path: Path, repo_root: Path):
     import jsonschema
 
@@ -46,7 +57,8 @@ def validate_file(path: Path, repo_root: Path):
         raise RuntimeError(f"schema/kind field missing: {path}")
 
     schema = load_schema(repo_root, schema_name)
-    jsonschema.validate(data, schema)
+    resolver = jsonschema.RefResolver.from_schema(schema, store=build_schema_store(repo_root))
+    jsonschema.validate(data, schema, resolver=resolver)
     print(f"[OK] {schema_name} -> {path}")
     return data
 

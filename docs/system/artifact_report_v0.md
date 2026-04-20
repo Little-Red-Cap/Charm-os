@@ -7,6 +7,9 @@
 
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `schemas/examples/system_compiler.artifact_report.v0.sample.json`
+- `schemas/system_compiler_summary.v0.schema.json`
+- `schemas/examples/system_compiler_summary.summary.v0.sample.json`
+- `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
 - `schemas/system_compiler.runtime_observe_snapshot.v0.schema.json`
 - `schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json`
 
@@ -14,6 +17,8 @@
 
 ```powershell
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json
 ```
 
@@ -268,6 +273,20 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 > **这一组 case 到底以什么输入成立、在哪个阶段收口、最终为什么 formed 或 blocked。**
 
+为了让这份 root 级总结果物不再只是“inspector 顺手吐出的一个大对象”，
+`system_compiler_summary` 现在也已经被提升成独立协议对象：
+
+- summary 模式显式带出 `kind = system_compiler_summary/v0` 与 `mode = summary`
+- comparison 模式显式带出 `kind = system_compiler_summary/v0` 与 `mode = comparison`
+- 对应 schema 入口见 [`../../schemas/system_compiler_summary.v0.schema.json`](../../schemas/system_compiler_summary.v0.schema.json)
+- 对应最小样例见 [`../../schemas/examples/system_compiler_summary.summary.v0.sample.json`](../../schemas/examples/system_compiler_summary.summary.v0.sample.json)
+- comparison 样例见 [`../../schemas/examples/system_compiler_summary.comparison.v0.sample.json`](../../schemas/examples/system_compiler_summary.comparison.v0.sample.json)
+
+这样外部脚本、CI 与 IDE 原型如果直接消费 artifact_root 默认总览里的
+`system_compiler_summary` 或 `comparison.system_compiler_summary`，
+就不再需要依赖“当前上下文是不是 artifact_root 默认总览”来猜对象类型，
+而可以直接通过 `kind / mode` 识别它。
+
 这里的 `result_map.stage_blocks[*].root_fields` 语义也要收紧理解：
 它描述的是 `system_compiler_summary` 根上哪些字段归属于该 stage，
 以及这些字段应如何和 `formation_basis / binding_basis / bringup_basis`
@@ -335,7 +354,9 @@ artifact_root 级 `cap list` 现在也会继续带出：
 这让 `system_compiler_summary` 更接近一个真正的 `system compiler v0 result object`，
 而不再只是“若干热点矩阵并排摆放”。
 
-同时，`result_map` 现在也开始把这些 block 和分阶段 summary 的对应关系正式机器可读化：
+同时，`result_map` 现在也开始把这些 block 和分阶段 summary 的对应关系正式机器可读化。
+而 `system_compiler_summary` 自身的 schema 也会继续直接引用这份 relation language，
+让“总结果物”与“结果物内部关系图”留在同一个协议边界内：
 
 如果外部工具要直接消费这份关系语言，当前最小 schema 锚点见
 [`../../schemas/system_compiler_result_map.v0.schema.json`](../../schemas/system_compiler_result_map.v0.schema.json)。

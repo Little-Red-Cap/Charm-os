@@ -5981,6 +5981,8 @@ function New-ArtifactRootSystemCompilerSummaryResult {
     $resultMap = New-ArtifactRootSystemCompilerResultMap
 
     return [ordered]@{
+        kind = 'system_compiler_summary/v0'
+        mode = 'summary'
         case_count = @($caseSummaries).Count
         status_counts = $aggregateProjection.status_counts
         formed_case_count = @($aggregateProjection.formed_cases).Count
@@ -6906,6 +6908,8 @@ function New-ArtifactRootSystemCompilerComparisonResult {
     $resultMap = New-ArtifactRootSystemCompilerResultMap -Comparison
 
     return [ordered]@{
+        kind = 'system_compiler_summary/v0'
+        mode = 'comparison'
         compared_case_count = @($caseSummaries).Count
         changed_case_count = @($changedCases).Count
         unchanged_case_count = @($unchangedCases).Count

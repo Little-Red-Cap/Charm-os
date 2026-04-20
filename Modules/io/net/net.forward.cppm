@@ -34,6 +34,7 @@ export namespace net {
         Ipv4ForwardingPort egress_port{Ipv4ForwardingPort::a};
         bool has_next_hop{false};
         IpAddress next_hop{};
+        util::u16 metric{0};
     };
 
     struct Ipv4ForwardingHopConfig {
@@ -63,6 +64,7 @@ export namespace net {
         Ipv4ForwardingPort egress_port{Ipv4ForwardingPort::a};
         bool has_next_hop{false};
         IpAddress next_hop{};
+        util::u16 metric{0};
         bool from_connected_prefix{false};
     };
 
@@ -94,6 +96,7 @@ export namespace net {
             util::u8 prefix_length{0};
             bool has_next_hop{false};
             IpAddress next_hop{};
+            util::u16 metric{0};
             bool from_connected_prefix{false};
         };
 
@@ -230,6 +233,7 @@ export namespace net {
                 .egress_port = static_cast<Ipv4ForwardingPort>(decision.egress),
                 .has_next_hop = decision.has_next_hop,
                 .next_hop = decision.next_hop,
+                .metric = decision.metric,
                 .from_connected_prefix = decision.from_connected_prefix,
             };
             return true;
@@ -330,51 +334,59 @@ export namespace net {
 
         [[nodiscard]] Result<void> add_direct_route(IpAddress network,
                                                     util::u8 prefix_length,
-                                                    Ipv4ForwardingPort egress_port) noexcept {
+                                                    Ipv4ForwardingPort egress_port,
+                                                    util::u16 metric = 0u) noexcept {
             return add_route(Ipv4ForwardingRoute{
                 .network = network,
                 .prefix_length = prefix_length,
                 .egress_port = egress_port,
                 .has_next_hop = false,
                 .next_hop = {},
+                .metric = metric,
             });
         }
 
         [[nodiscard]] Result<void> add_gateway_route(IpAddress network,
                                                      util::u8 prefix_length,
                                                      Ipv4ForwardingPort egress_port,
-                                                     IpAddress next_hop) noexcept {
+                                                     IpAddress next_hop,
+                                                     util::u16 metric = 0u) noexcept {
             return add_route(Ipv4ForwardingRoute{
                 .network = network,
                 .prefix_length = prefix_length,
                 .egress_port = egress_port,
                 .has_next_hop = true,
                 .next_hop = next_hop,
+                .metric = metric,
             });
         }
 
         [[nodiscard]] Result<void> set_direct_route(IpAddress network,
                                                     util::u8 prefix_length,
-                                                    Ipv4ForwardingPort egress_port) noexcept {
+                                                    Ipv4ForwardingPort egress_port,
+                                                    util::u16 metric = 0u) noexcept {
             return set_route(Ipv4ForwardingRoute{
                 .network = network,
                 .prefix_length = prefix_length,
                 .egress_port = egress_port,
                 .has_next_hop = false,
                 .next_hop = {},
+                .metric = metric,
             });
         }
 
         [[nodiscard]] Result<void> set_gateway_route(IpAddress network,
                                                      util::u8 prefix_length,
                                                      Ipv4ForwardingPort egress_port,
-                                                     IpAddress next_hop) noexcept {
+                                                     IpAddress next_hop,
+                                                     util::u16 metric = 0u) noexcept {
             return set_route(Ipv4ForwardingRoute{
                 .network = network,
                 .prefix_length = prefix_length,
                 .egress_port = egress_port,
                 .has_next_hop = true,
                 .next_hop = next_hop,
+                .metric = metric,
             });
         }
 
@@ -687,14 +699,18 @@ export namespace net {
 
             const Ipv4ForwardingRoute* best = nullptr;
             util::u8 best_prefix = 0u;
+            util::u16 best_metric = 0u;
             for (util::usize index = 0; index < route_count_; ++index) {
                 const auto& route = routes_[index];
                 if (!matches_ipv4_prefix(destination, route.network, route.prefix_length)) {
                     continue;
                 }
-                if (best == nullptr || route.prefix_length > best_prefix) {
+                if (best == nullptr
+                    || route.prefix_length > best_prefix
+                    || (route.prefix_length == best_prefix && route.metric < best_metric)) {
                     best = &route;
                     best_prefix = route.prefix_length;
+                    best_metric = route.metric;
                 }
             }
             return best;
@@ -726,6 +742,7 @@ export namespace net {
                     best.prefix_length = port.connected_prefix_length;
                     best.has_next_hop = false;
                     best.next_hop = {};
+                    best.metric = 0u;
                     best.from_connected_prefix = true;
                 }
             }
@@ -741,6 +758,7 @@ export namespace net {
                 best.prefix_length = route->prefix_length;
                 best.has_next_hop = route->has_next_hop;
                 best.next_hop = route->has_next_hop ? route->next_hop : IpAddress{};
+                best.metric = route->metric;
                 best.from_connected_prefix = false;
             }
 

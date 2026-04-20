@@ -295,6 +295,7 @@
 当前这条 example 已接入 `ctest`，可以作为“上半层运行时语义仍然闭环”的基础证据。
 
 如果需要把当前这批上半层 `runtime_*_host` verifier 一次性做 configure/build/run 回归，可以直接跑 `scripts/minimal_kernel_runtime_host_smoke.ps1`。
+日常迭代时更推荐配合 `-KeepBuildDirs` 复用已有 `cmake-build-verify-*` 目录；只有在想确认冷重建路径、排除缓存影响时再加 `-Fresh`，局部排查则可以用 `-Examples ...` 和 `-Jobs ...` 收窄批次。
 如果需要把 ARMv7-A QEMU 叶子里的 `runtime-trap / runtime-live / task-syscall` 下半层聚焦 smoke 一次性回归，可以直接跑 `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1`。
 
 ## 对 ARMv7-A ingress 的意义

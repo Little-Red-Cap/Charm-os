@@ -392,6 +392,7 @@ Modules/
 - CI 证明“这不是一次性的偶然成功”
 
 其中 `scripts/minimal_kernel_runtime_host_smoke.ps1` 当前会批量回归上半层 `runtime_*_host` verifier，默认不把 lower-half 认领的 `runtime_task_syscall_frame_armv7a_host` 纳入同一批次，避免两条并行线重新耦合。
+日常本地回归优先配合 `-KeepBuildDirs` 复用 `cmake-build-verify-*` 构建目录；只有需要确认冷启动路径或清理缓存时再显式加 `-Fresh`。如果只想缩小回归范围，也可以用 `-Examples runtime_minimal_host,runtime_binding_chain_host -Jobs 8` 只跑局部批次。
 而 `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1` 则把 QEMU 叶子里的 `runtime-trap / runtime-live / task-syscall` 聚焦 smoke 收成一条共享 `debug` 构建的 lower-half 回归入口。
 
 如果以后线程、调度器、syscall、页表操作都能保持这个节奏，我们会比很多“先把功能糊上去”的内核项目更稳。

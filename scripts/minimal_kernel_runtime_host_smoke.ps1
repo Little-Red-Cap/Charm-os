@@ -1,7 +1,10 @@
 param(
     [string]$CMakeExe = "cmake",
     [string]$Generator = "Ninja",
+    [switch]$Fresh,
     [switch]$KeepBuildDirs,
+    [int]$Jobs = 0,
+    [switch]$StopOnFailure,
     [string[]]$Examples = @(
         "runtime_minimal_host",
         "runtime_binding_chain_host",
@@ -89,6 +92,30 @@ function Resolve-ExecutablePath {
     throw "executable not found for target: $TargetName"
 }
 
+function Normalize-Examples {
+    param([string[]]$InputExamples)
+
+    $normalized = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in $InputExamples) {
+        if ([string]::IsNullOrWhiteSpace($entry)) {
+            continue
+        }
+
+        foreach ($item in ($entry -split ",")) {
+            $name = $item.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($name)) {
+                $normalized.Add($name)
+            }
+        }
+    }
+
+    if ($normalized.Count -eq 0) {
+        throw "no examples selected"
+    }
+
+    return $normalized.ToArray()
+}
+
 function Invoke-Checked {
     param(
         [string]$FilePath,
@@ -104,18 +131,22 @@ function Invoke-Checked {
 
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $repoRoot = Resolve-RepoRoot
+$selectedExamples = Normalize-Examples -InputExamples $Examples
 $results = [System.Collections.Generic.List[object]]::new()
+$stopRequested = $false
 
 Push-Location $repoRoot
 try {
-    foreach ($example in $Examples) {
+    foreach ($example in $selectedExamples) {
         $buildDir = Join-Path $repoRoot ("cmake-build-verify-" + $example)
         $targetName = "kernel-" + ($example -replace "_", "-")
         $outputText = ""
         $status = "ok"
+        $elapsedMs = 0
+        $exampleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         try {
-            if (Test-Path $buildDir) {
+            if ($Fresh -and (Test-Path $buildDir)) {
                 Remove-Item $buildDir -Recurse -Force
             }
 
@@ -127,8 +158,12 @@ try {
                 -FailureMessage "cmake configure failed for $example"
 
             Write-Host "==> [$example] build"
+            $buildArgs = @("--build", $buildDir)
+            if ($Jobs -gt 0) {
+                $buildArgs += @("--parallel", $Jobs)
+            }
             Invoke-Checked -FilePath $cmake `
-                -ArgumentList @("--build", $buildDir) `
+                -ArgumentList $buildArgs `
                 -FailureMessage "cmake build failed for $example"
 
             $exePath = Resolve-ExecutablePath -BuildDir $buildDir -TargetName $targetName
@@ -160,13 +195,24 @@ try {
             }
 
             Write-Host "FAIL [$example] $outputText"
+            if ($StopOnFailure) {
+                $stopRequested = $true
+            }
+        } finally {
+            $exampleStopwatch.Stop()
+            $elapsedMs = $exampleStopwatch.ElapsedMilliseconds
         }
 
         $results.Add([pscustomobject]@{
                 Example = $example
                 Status  = $status
+                ElapsedMs = $elapsedMs
                 Detail  = $outputText
             })
+
+        if ($stopRequested) {
+            break
+        }
     }
 } finally {
     Pop-Location
@@ -177,7 +223,7 @@ Write-Host "==> summary"
 
 $hasFailure = $false
 foreach ($result in $results) {
-    Write-Host ("{0}|{1}|{2}" -f $result.Example, $result.Status, $result.Detail)
+    Write-Host ("{0}|{1}|{2}ms|{3}" -f $result.Example, $result.Status, $result.ElapsedMs, $result.Detail)
     if ($result.Status -ne "ok") {
         $hasFailure = $true
     }

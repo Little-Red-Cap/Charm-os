@@ -221,6 +221,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `system_compiler_summary.blocker_reason_change_matrix / blocker_missing_requires_change_matrix / blocker_depends_on_change_matrix`
 - `system_compiler_summary.binding_reason_change_matrix / bringup_phase_change_matrix / bringup_dependency_change_matrix`
 - `system_compiler_summary.formation_drift / binding_drift / bringup_drift`
+- `system_compiler_summary.result_map`
 - `comparison.system_compiler_summary.cases[*].formation_basis_changes / binding_summary_changes / bringup_summary_changes`
 - `system_input_summary.changed_case_count / unchanged_case_count`
 - `system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -258,6 +259,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`
 - `binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`
 - `formation_basis / binding_basis / bringup_basis`
+- `result_map`
 - `cases[*].formation_basis / binding_summary / bringup_summary`
 
 它不取代后面的分阶段摘要，
@@ -325,6 +327,16 @@ artifact_root 级 `cap list` 现在也会继续带出：
 而现在 `formation / binding / bringup` 三段也已经在同一份 root 结果里都拥有正式 block，
 这让 `system_compiler_summary` 更接近一个真正的 `system compiler v0 result object`，
 而不再只是“若干热点矩阵并排摆放”。
+
+同时，`result_map` 现在也开始把这些 block 和分阶段 summary 的对应关系正式机器可读化：
+
+- 哪个 stage 对应 `cases[*]` 里的哪个 case projection 字段
+- 哪个 stage 对应 root 里的哪个 block
+- 哪个 stage 对应 artifact_root 里的哪个分阶段 summary
+- 哪些 root 级矩阵仍然属于 input bridge，而不是 formation / binding / bringup block 本体
+
+这样 `system_compiler_summary` 不只是“有块”，
+而是已经开始带出“这些块之间如何组成 result object”的语言。
 
 与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
 `system_input_summary`，至少包括：

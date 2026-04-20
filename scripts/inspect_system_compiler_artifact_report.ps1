@@ -5531,6 +5531,129 @@ function New-ArtifactRootSystemCompilerAggregateProjection {
     }
 }
 
+function New-ArtifactRootSystemCompilerResultMap {
+    param(
+        [switch]$Comparison
+    )
+
+    if ($Comparison) {
+        return [ordered]@{
+            kind = 'system_compiler_result_map/v0'
+            mode = 'comparison'
+            input_bridge = [ordered]@{
+                summary_field = 'comparison.system_input_summary'
+                root_fields = @(
+                    'system_spec_change_matrix'
+                    'resolved_input_change_matrix'
+                    'declared_fact_change_matrix'
+                    'declared_contract_change_matrix'
+                    'subject_fact_change_matrix'
+                )
+            }
+            case_projection_fields = [ordered]@{
+                formation = 'cases[*].formation_basis_changes'
+                binding = 'cases[*].binding_summary_changes'
+                bringup = 'cases[*].bringup_summary_changes'
+            }
+            stage_blocks = @(
+                [ordered]@{
+                    stage = 'formation'
+                    block_field = 'formation_drift'
+                    summary_field = 'comparison.system_formation_summary'
+                    root_fields = @(
+                        'status_change_matrix'
+                        'declared_fact_change_matrix'
+                        'declared_contract_change_matrix'
+                        'subject_fact_change_matrix'
+                        'unresolved_capability_change_matrix'
+                        'blocked_node_change_matrix'
+                        'blocker_change_matrix'
+                        'blocker_reason_change_matrix'
+                        'blocker_missing_requires_change_matrix'
+                        'blocker_depends_on_change_matrix'
+                    )
+                }
+                [ordered]@{
+                    stage = 'binding'
+                    block_field = 'binding_drift'
+                    summary_field = 'comparison.binding_result_summary'
+                    root_fields = @(
+                        'binding_reason_change_matrix'
+                        'resolved_capability_change_matrix'
+                        'unresolved_capability_change_matrix'
+                    )
+                }
+                [ordered]@{
+                    stage = 'bringup'
+                    block_field = 'bringup_drift'
+                    summary_field = 'comparison.bringup_order_summary'
+                    root_fields = @(
+                        'bringup_phase_change_matrix'
+                        'bringup_dependency_change_matrix'
+                        'blocked_node_change_matrix'
+                    )
+                }
+            )
+        }
+    }
+
+    return [ordered]@{
+        kind = 'system_compiler_result_map/v0'
+        mode = 'summary'
+        input_bridge = [ordered]@{
+            summary_field = 'system_input_summary'
+            root_fields = @(
+                'case_kind_matrix'
+                'resolved_profile_matrix'
+                'resolved_board_matrix'
+                'resolved_active_facet_matrix'
+            )
+        }
+        case_projection_fields = [ordered]@{
+            formation = 'cases[*].formation_basis'
+            binding = 'cases[*].binding_summary'
+            bringup = 'cases[*].bringup_summary'
+        }
+        stage_blocks = @(
+            [ordered]@{
+                stage = 'formation'
+                block_field = 'formation_basis'
+                summary_field = 'system_formation_summary'
+                root_fields = @(
+                    'status_counts'
+                    'formed_case_count'
+                    'blocked_case_count'
+                    'unresolved_capability_matrix'
+                    'blocked_node_matrix'
+                    'blocker_matrix'
+                    'blocker_reason_matrix'
+                    'blocker_missing_requires_matrix'
+                    'blocker_depends_on_matrix'
+                )
+            }
+            [ordered]@{
+                stage = 'binding'
+                block_field = 'binding_basis'
+                summary_field = 'binding_result_summary'
+                root_fields = @(
+                    'binding_reason_matrix'
+                    'unresolved_capability_matrix'
+                )
+            }
+            [ordered]@{
+                stage = 'bringup'
+                block_field = 'bringup_basis'
+                summary_field = 'bringup_order_summary'
+                root_fields = @(
+                    'bringup_phase_matrix'
+                    'bringup_dependency_matrix'
+                    'blocked_node_matrix'
+                )
+            }
+        )
+    }
+}
+
 function New-ArtifactRootSystemCompilerSummaryResult {
     param(
         [object[]]$LoadedReports
@@ -5648,6 +5771,7 @@ function New-ArtifactRootSystemCompilerSummaryResult {
         dependency_matrix = @($aggregateProjection.matrices.bringup_dependency_matrix)
         blocked_node_matrix = @($blockedNodeMatrix)
     }
+    $resultMap = New-ArtifactRootSystemCompilerResultMap
 
     return [ordered]@{
         case_count = @($caseSummaries).Count
@@ -5708,6 +5832,7 @@ function New-ArtifactRootSystemCompilerSummaryResult {
         formation_basis = $formationBasis
         binding_basis = $bindingBasis
         bringup_basis = $bringupBasis
+        result_map = $resultMap
     }
 }
 
@@ -6571,6 +6696,7 @@ function New-ArtifactRootSystemCompilerComparisonResult {
         dependency_change_matrix = @($aggregateProjection.matrices.bringup_dependency_change_matrix)
         blocked_node_change_matrix = @($blockedNodeChangeMatrix)
     }
+    $resultMap = New-ArtifactRootSystemCompilerResultMap -Comparison
 
     return [ordered]@{
         compared_case_count = @($caseSummaries).Count
@@ -6627,6 +6753,7 @@ function New-ArtifactRootSystemCompilerComparisonResult {
         formation_drift = $formationDrift
         binding_drift = $bindingDrift
         bringup_drift = $bringupDrift
+        result_map = $resultMap
     }
 }
 

@@ -246,6 +246,7 @@ Assert-Condition ([int]$rootSummaryInspectResult.system_compiler_summary.case_co
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.formation_basis) 'artifact_root summary system_compiler_summary must expose formation_basis'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.binding_basis) 'artifact_root summary system_compiler_summary must expose binding_basis'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.bringup_basis) 'artifact_root summary system_compiler_summary must expose bringup_basis'
+Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary.result_map) 'artifact_root summary system_compiler_summary must expose result_map'
 Assert-Condition ([int]$rootSummaryInspectResult.system_input_summary.case_count -ge 2) 'artifact_root summary system_input_summary.case_count must be at least 2'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.input_changed_case_count -eq 1) 'artifact_root summary input_changed_case_count must be 1'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.input_changed_cases) -contains $ChangedCase)) 'artifact_root summary missing input changed case'
@@ -254,6 +255,9 @@ Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_compiler_summ
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.formation_drift) 'artifact_root comparison system_compiler_summary must expose formation_drift'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.binding_drift) 'artifact_root comparison system_compiler_summary must expose binding_drift'
 Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.bringup_drift) 'artifact_root comparison system_compiler_summary must expose bringup_drift'
+Assert-Condition ($null -ne $rootSummaryInspectResult.comparison.system_compiler_summary.result_map) 'artifact_root comparison system_compiler_summary must expose result_map'
+Assert-Condition ([string]$rootSummaryInspectResult.comparison.system_compiler_summary.result_map.mode -eq 'comparison') 'artifact_root comparison system_compiler_summary result_map.mode mismatch'
+Assert-Condition ([string]$rootSummaryInspectResult.comparison.system_compiler_summary.result_map.input_bridge.summary_field -eq 'comparison.system_input_summary') 'artifact_root comparison system_compiler_summary result_map input bridge mismatch'
 Assert-Condition ([int]$rootSummaryInspectResult.comparison.system_input_summary.changed_case_count -eq 1) 'artifact_root comparison system_input_summary.changed_case_count must be 1'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_compiler_summary.changed_cases) -contains $ChangedCase)) 'artifact_root comparison system_compiler_summary missing changed case'
 Assert-Condition ((@($rootSummaryInspectResult.comparison.system_input_summary.changed_cases) -contains $ChangedCase)) 'artifact_root comparison system_input_summary missing changed case'
@@ -282,6 +286,14 @@ Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary
 Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.bringup_drift.phase_change_matrix).Count -eq 0) 'artifact_root comparison system_compiler_summary bringup_drift.phase_change_matrix must stay empty for input-only drift'
 Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.bringup_drift.dependency_change_matrix).Count -eq 0) 'artifact_root comparison system_compiler_summary bringup_drift.dependency_change_matrix must stay empty for input-only drift'
 Assert-Condition (@($rootSummaryInspectResult.comparison.system_compiler_summary.bringup_drift.blocked_node_change_matrix).Count -eq 0) 'artifact_root comparison system_compiler_summary bringup_drift.blocked_node_change_matrix must stay empty for input-only drift'
+$comparisonFormationStageMap = @(
+    @($rootSummaryInspectResult.comparison.system_compiler_summary.result_map.stage_blocks) |
+        Where-Object { [string]$_.stage -eq 'formation' } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $comparisonFormationStageMap) 'artifact_root comparison system_compiler_summary result_map missing formation stage'
+Assert-Condition ([string]$comparisonFormationStageMap.block_field -eq 'formation_drift') 'artifact_root comparison system_compiler_summary result_map formation block mismatch'
+Assert-Condition ([string]$comparisonFormationStageMap.summary_field -eq 'comparison.system_formation_summary') 'artifact_root comparison system_compiler_summary result_map formation summary mismatch'
 Assert-Condition ((@($rootSummaryInspectResult.system_input_summary.declared_fact_matrix | Where-Object { [string]$_.fact -eq $AddedDeclaredFact }).Count -eq 1)) 'artifact_root summary system_input_summary must include synthetic declared fact'
 $declaredFactChangeEntry = @(
     @($rootSummaryInspectResult.comparison.system_input_summary.declared_fact_change_matrix) |

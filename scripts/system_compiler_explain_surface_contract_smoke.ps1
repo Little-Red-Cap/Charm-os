@@ -333,6 +333,19 @@ Assert-Condition ($null -ne $rootSummary.system_compiler_summary.bringup_depende
 Assert-Condition ($null -ne $rootSummary.system_compiler_summary.formation_basis) 'default artifact_root summary must expose system_compiler_summary formation_basis'
 Assert-Condition ($null -ne $rootSummary.system_compiler_summary.binding_basis) 'default artifact_root summary must expose system_compiler_summary binding_basis'
 Assert-Condition ($null -ne $rootSummary.system_compiler_summary.bringup_basis) 'default artifact_root summary must expose system_compiler_summary bringup_basis'
+Assert-Condition ($null -ne $rootSummary.system_compiler_summary.result_map) 'default artifact_root summary must expose system_compiler_summary result_map'
+Assert-Condition ([string]$rootSummary.system_compiler_summary.result_map.kind -eq 'system_compiler_result_map/v0') 'default artifact_root summary system_compiler_summary result_map.kind mismatch'
+Assert-Condition ([string]$rootSummary.system_compiler_summary.result_map.mode -eq 'summary') 'default artifact_root summary system_compiler_summary result_map.mode mismatch'
+Assert-Condition ([string]$rootSummary.system_compiler_summary.result_map.case_projection_fields.formation -eq 'cases[*].formation_basis') 'default artifact_root summary system_compiler_summary result_map formation projection mismatch'
+Assert-Condition ([int]@($rootSummary.system_compiler_summary.result_map.stage_blocks).Count -eq 3) 'default artifact_root summary system_compiler_summary result_map must expose three stage blocks'
+$summaryFormationStageMap = @(
+    @($rootSummary.system_compiler_summary.result_map.stage_blocks) |
+        Where-Object { [string]$_.stage -eq 'formation' } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $summaryFormationStageMap) 'default artifact_root summary system_compiler_summary result_map missing formation stage'
+Assert-Condition ([string]$summaryFormationStageMap.block_field -eq 'formation_basis') 'default artifact_root summary system_compiler_summary result_map formation block mismatch'
+Assert-Condition ([string]$summaryFormationStageMap.summary_field -eq 'system_formation_summary') 'default artifact_root summary system_compiler_summary result_map formation summary mismatch'
 Assert-Condition (@($rootSummary.system_compiler_summary.blocker_reason_matrix).Count -eq 0) 'default artifact_root summary system_compiler_summary blocker_reason_matrix must stay empty in export_only mode'
 Assert-Condition (@($rootSummary.system_compiler_summary.blocker_missing_requires_matrix).Count -eq 0) 'default artifact_root summary system_compiler_summary blocker_missing_requires_matrix must stay empty in export_only mode'
 Assert-Condition (@($rootSummary.system_compiler_summary.blocker_depends_on_matrix).Count -eq 0) 'default artifact_root summary system_compiler_summary blocker_depends_on_matrix must stay empty in export_only mode'

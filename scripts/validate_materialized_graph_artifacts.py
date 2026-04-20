@@ -13,6 +13,7 @@ SCHEMA_FILES = {
     "materialized_graph.report_manifest/v1": "schemas/materialized_graph.report_manifest.v1.schema.json",
     "system_compiler.artifact_report/v0": "schemas/system_compiler.artifact_report.v0.schema.json",
     "system_compiler.runtime_observe_snapshot/v0": "schemas/system_compiler.runtime_observe_snapshot.v0.schema.json",
+    "system_compiler_result_map/v0": "schemas/system_compiler_result_map.v0.schema.json",
 }
 
 
@@ -40,7 +41,9 @@ def validate_file(path: Path, repo_root: Path):
     data = load_json(path)
     schema_name = data.get("schema")
     if not isinstance(schema_name, str) or not schema_name:
-        raise RuntimeError(f"schema field missing: {path}")
+        schema_name = data.get("kind")
+    if not isinstance(schema_name, str) or not schema_name:
+        raise RuntimeError(f"schema/kind field missing: {path}")
 
     schema = load_schema(repo_root, schema_name)
     jsonschema.validate(data, schema)
@@ -109,6 +112,8 @@ def validate_once(path: Path, repo_root: Path, visited: set[Path]):
     data = validate_file(resolved, repo_root)
     visited.add(resolved)
     schema_name = data.get("schema")
+    if not isinstance(schema_name, str) or not schema_name:
+        schema_name = data.get("kind")
 
     if schema_name == "materialized_graph.export_bundle/v1":
         bundle_root = resolved.parent

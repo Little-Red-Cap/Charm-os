@@ -337,6 +337,9 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 同时，`result_map` 现在也开始把这些 block 和分阶段 summary 的对应关系正式机器可读化：
 
+如果外部工具要直接消费这份关系语言，当前最小 schema 锚点见
+[`../../schemas/system_compiler_result_map.v0.schema.json`](../../schemas/system_compiler_result_map.v0.schema.json)。
+
 - 哪个 stage 对应 `cases[*]` 里的哪个 case projection 字段
 - `cases[*]` 里的 projection 内部字段到底来自哪一个 stage case summary，是否存在 fallback source
 - 哪个 stage 对应 root 里的哪个 block

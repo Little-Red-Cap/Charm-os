@@ -67,6 +67,21 @@
   - 对应 `system_compiler.runtime_observe_snapshot/v0` 的最小样例
   - 用途偏向 sidecar schema 自检与后续真实 runtime 导出链对形状的对齐
 
+- `system_compiler_result_map.v0.schema.json`
+  - 对应 `inspect_system_compiler_artifact_report.ps1` 导出的 `system_compiler_summary.result_map`
+    与 `comparison.system_compiler_summary.result_map`
+  - 用途偏向把 system compiler root summary 里的 stage ownership、root/block/summary field relation、
+    case projection fallback source 正式锚定成机器可读语言
+  - 它当前是 v0 草案协议，负责冻结对象形状与关系语义，不替代更严格的脚本契约校验
+
+- `examples/system_compiler_result_map.summary.v0.sample.json`
+  - 对应 `system_compiler_result_map/v0` 在 `mode = summary` 下的最小样例
+  - 用途偏向 schema 自检、字段讨论与 explain surface 工具接入前的锚点
+
+- `examples/system_compiler_result_map.comparison.v0.sample.json`
+  - 对应 `system_compiler_result_map/v0` 在 `mode = comparison` 下的最小样例
+  - 用途偏向 comparison drift 工具接入前的样例锚点
+
 ## 稳定性约定
 
 当前建议这样理解稳定性：
@@ -79,6 +94,7 @@
 - `report_manifest/v1`：当前报告层稳定依赖的工件元数据协议
 - `runtime_observe_snapshot/v0`：当前 runtime 观察输入 sidecar 的最小协议，用于把动态观察事实稳定挂接到 bundle / report 链
 - `system_compiler.artifact_report/v0`：当前 system compiler 输出面的对象草案锚点，字段仍允许继续收敛
+- `system_compiler_result_map/v0`：当前 system compiler root summary 关系语言的对象锚点，语义继续由脚本契约与样例共同收紧
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，
 而是在把不同层次的协议边界分别钉清楚。

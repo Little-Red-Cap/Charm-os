@@ -436,6 +436,10 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 
 在这个基础上，`result_map` 现在还会继续显式带出 field-level relation：
 
+如果要把这份 relation language 单独交给外部脚本或 CI 消费，
+当前最小 schema 锚点见
+[`../../schemas/system_compiler_result_map.v0.schema.json`](../../schemas/system_compiler_result_map.v0.schema.json)。
+
 - `input_bridge.field_relations[*]`
 - `case_projection_field_relations.<stage>[*]`
 - `stage_blocks[*].field_relations[*]`

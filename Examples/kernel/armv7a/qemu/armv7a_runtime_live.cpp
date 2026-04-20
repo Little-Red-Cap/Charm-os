@@ -34,6 +34,7 @@ constexpr kernel::Priority kArmv7aLiveIdlePriority{0u};
 constexpr kernel::Priority kArmv7aLiveWorkerPriority{1u};
 constexpr std::uint32_t kArmv7aLiveWorkerBootstrapPayload = 1u;
 constexpr std::uint32_t kArmv7aLiveWorkerYieldPayload = 1u;
+constexpr std::uint32_t kArmv7aLiveTrapCallEventId = 1u;
 constexpr std::uint64_t kArmv7aLiveWakeDeltaTicks = 0x00004000ull;
 constexpr std::uint64_t kArmv7aLiveWaitTimeoutTicks = 0x00080000ull;
 constexpr std::size_t kArmv7aLiveTraceCapacity = 32u;
@@ -153,6 +154,7 @@ struct Armv7aLiveIdleContext {
 
 struct Armv7aLiveWorkerContext {
     Armv7aLiveSharedState* shared = nullptr;
+    Armv7aRuntimeTrapCallPortContract trap_call{};
 };
 
 [[nodiscard]] kernel::Event armv7a_live_idle_event() noexcept
@@ -172,10 +174,26 @@ struct Armv7aLiveWorkerContext {
                               kArmv7aLiveWorkerYieldPayload);
 }
 
+[[nodiscard]] Armv7aRuntimeLoopEvent
+armv7a_live_worker_yield_loop_event() noexcept
+{
+    return armv7a_make_runtime_loop_event_u32(
+        kArmv7aLiveTrapCallEventId,
+        kArmv7aLiveWorkerYieldPayload);
+}
+
 [[nodiscard]] kernel::Event armv7a_live_sleep_event(
     Armv7aPlatformTimeSource::Tick due) noexcept
 {
     return kernel::make_event(kernel::EventId::tick, due);
+}
+
+[[nodiscard]] Armv7aRuntimeLoopEvent armv7a_live_sleep_loop_event(
+    Armv7aPlatformTimeSource::Tick due) noexcept
+{
+    return armv7a_make_runtime_loop_event_u32(
+        kArmv7aLiveTrapCallEventId,
+        static_cast<std::uint32_t>(due & 0xffff'ffffull));
 }
 
 void armv7a_live_idle_step(Armv7aLiveIdleContext& context,
@@ -218,7 +236,9 @@ void armv7a_live_worker_step(Armv7aLiveWorkerContext& context,
             static_cast<std::uint64_t>(armv7a_read_sp());
         context.shared->cpsr_before_yield = armv7a_read_cpsr();
         context.shared->yield_return_ok =
-            armv7a_runtime_yield_call(1u, 1u) == 1u;
+            armv7a_runtime_trap_call_port_yield_current(
+                context.trap_call,
+                armv7a_live_worker_yield_loop_event()) == 1u;
         context.shared->cpsr_after_yield = armv7a_read_cpsr();
         context.shared->irq_enabled_after_yield =
             !armv7a_irq_masked(context.shared->cpsr_after_yield);
@@ -237,13 +257,12 @@ void armv7a_live_worker_step(Armv7aLiveWorkerContext& context,
             static_cast<std::uint64_t>(armv7a_read_sp());
         context.shared->cpsr_before_sleep = armv7a_read_cpsr();
         context.shared->sleep_return_ok =
-            armv7a_runtime_sleep_until_call(
+            armv7a_runtime_trap_call_port_sleep_current_until(
+                context.trap_call,
                 context.shared->wake_due,
-                static_cast<std::uint32_t>(kernel::EventId::tick),
-                static_cast<std::uint32_t>(
-                    context.shared->wake_due & 0xFFFF'FFFFull)) ==
+                armv7a_live_sleep_loop_event(context.shared->wake_due)) ==
             static_cast<std::uint32_t>(
-                context.shared->wake_due & 0xFFFF'FFFFull);
+                context.shared->wake_due & 0xffff'ffffull);
         context.shared->cpsr_after_sleep = armv7a_read_cpsr();
         context.shared->irq_enabled_after_sleep =
             !armv7a_irq_masked(context.shared->cpsr_after_sleep);
@@ -299,6 +318,14 @@ struct Armv7aLiveRuntimeContext {
     Armv7aLiveSession* session = nullptr;
 };
 
+std::uint64_t armv7a_live_runtime_trap_call_yield_current(
+    void* ctx,
+    Armv7aRuntimeLoopEvent event) noexcept;
+std::uint64_t armv7a_live_runtime_trap_call_sleep_current_until(
+    void* ctx,
+    std::uint64_t due,
+    Armv7aRuntimeLoopEvent event) noexcept;
+
 struct Armv7aLiveSession {
     Armv7aLiveRegistry registry{};
     Armv7aLiveRuntimeCaps caps{};
@@ -342,6 +369,13 @@ struct Armv7aLiveSession {
 
         auto& worker = registry.get<Armv7aLiveWorkerTask>();
         worker.context.shared = &shared;
+        worker.context.trap_call =
+            Armv7aRuntimeTrapCallPortContract{
+                .ctx = &runtime_context,
+                .yield_current = &armv7a_live_runtime_trap_call_yield_current,
+                .sleep_current_until =
+                    &armv7a_live_runtime_trap_call_sleep_current_until,
+            };
 
         while (running.run_once()) {
         }
@@ -560,6 +594,36 @@ std::uint64_t armv7a_live_runtime_loop_advance_tick(
     return context != nullptr ? context->loop_port.advance_tick(now) : 0u;
 }
 
+std::uint64_t armv7a_live_runtime_trap_call_yield_current(
+    void* ctx,
+    Armv7aRuntimeLoopEvent event) noexcept
+{
+    auto* context = static_cast<Armv7aLiveRuntimeContext*>(ctx);
+    if (context == nullptr) {
+        return 0u;
+    }
+
+    return armv7a_runtime_yield_call(
+        event.id,
+        armv7a_runtime_trap_call_event_payload_u32(event));
+}
+
+std::uint64_t armv7a_live_runtime_trap_call_sleep_current_until(
+    void* ctx,
+    std::uint64_t due,
+    Armv7aRuntimeLoopEvent event) noexcept
+{
+    auto* context = static_cast<Armv7aLiveRuntimeContext*>(ctx);
+    if (context == nullptr) {
+        return 0u;
+    }
+
+    return armv7a_runtime_sleep_until_call(
+        due,
+        event.id,
+        armv7a_runtime_trap_call_event_payload_u32(event));
+}
+
 bool armv7a_live_runtime_loop_defer_from_isr(
     void* ctx,
     std::uint64_t task,
@@ -629,6 +693,13 @@ Armv7aRuntimeLeafPortsContract armv7a_make_live_runtime_leaf_ports(
             Armv7aRuntimeTrapDispatchPort{
                 .ctx = &session.runtime_context,
                 .dispatch_frame = &armv7a_dispatch_live_runtime_trap,
+            },
+        .trap_call =
+            Armv7aRuntimeTrapCallPortContract{
+                .ctx = &session.runtime_context,
+                .yield_current = &armv7a_live_runtime_trap_call_yield_current,
+                .sleep_current_until =
+                    &armv7a_live_runtime_trap_call_sleep_current_until,
             },
         .runtime_loop =
             Armv7aRuntimeLoopPortContract{

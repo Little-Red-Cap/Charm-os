@@ -169,9 +169,9 @@ ARMv7-A thread runtime, kind=cooperative-sys, task=0x0000000059537001, current-s
 ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes
 ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000001, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes
 ARMv7-A runtime loop ingress, mode=oneshot, route=irq, hz=62500000, tick-runtime=yes, thread=yes, tick=yes, isr-defer=yes, idle=yes, worker=yes, run=yes, loop=yes
-ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, shared=yes, ports=yes
+ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, shared=yes, ports=yes
 ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=yes, idle=yes, worker=yes, live=yes, resumes=3, idle-runs=1, wake-due=0x000000000000...., tick-now=0x000000000000....
-ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, live=yes, ports=yes, bundle=yes
+ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, live=yes, ports=yes, bundle=yes
 ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes
 ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes
 ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes
@@ -200,11 +200,11 @@ instead of whatever ELF happened to be left in `out\build\debug`. The default
 build leg now also uses `--parallel 1`, which keeps the ARM bare-metal GCC
 modules output stable during CI smoke runs. The same smoke now also gates the
 `runtime-leaf-ports`, `runtime-live`, and `runtime-leaf-bundle` phase
-markers, plus the `ARMv7-A runtime leaf ports, ... ports=yes`,
+markers, plus the `ARMv7-A runtime leaf ports, ... call=yes, ... ports=yes`,
 `ARMv7-A runtime live, ... live=yes`, and
-`ARMv7-A runtime leaf bundle, ... bundle=yes` summaries, and treats
-`ARMv7-A runtime live debug` as unexpected output so the mainline log only
-stays green once the live path is fully closed.
+`ARMv7-A runtime leaf bundle, ... call=yes, ... bundle=yes` summaries, and
+treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
+only stays green once the live path is fully closed.
 
 For a shorter failure loop around just this lower-half seam, use the focused
 runtime-live smoke:
@@ -653,15 +653,16 @@ continue
   live QEMU session into a real reusable lower-half package instead of only a
   read-only summary: one shared session-local bundle now carries
   exception/interrupt/timer/context/current ingress, the interrupt hook, the
-  trap dispatch port, and the `RuntimeLoopPort`-shaped runtime loop contract
-  through one explicit leaf-owned surface before we ask any later board port
-  to bind against it.
+  trap dispatch port, the task-side trap-call port, and the
+  `RuntimeLoopPort`-shaped runtime loop contract through one explicit
+  leaf-owned surface before we ask any later board port to bind against it.
 - The same leaf now also prints one `runtime leaf bundle` line that finally
   collects the target-side payload we want future Cortex-A leaves to hand
   upward: exception/interrupt/timer/context/current ingress, one runnable
   `RuntimeLoopPort`-shaped lower-half seam, one proven trap dispatch seam,
-  and one already-live runtime path. That gives us a single QEMU-visible
-  bundle shape to preserve when we later swap `virt` out for RK3506.
+  one task-side trap-call seam, and one already-live runtime path. That gives
+  us a single QEMU-visible bundle shape to preserve when we later swap `virt`
+  out for RK3506.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

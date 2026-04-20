@@ -24,6 +24,7 @@ bool armv7a_runtime_leaf_ports_shared_context(
     const auto* shared = contract.kernel.current.ctx;
     return shared != nullptr && shared == contract.interrupt_hook.ctx &&
            shared == contract.trap_dispatch.ctx &&
+           shared == contract.trap_call.ctx &&
            shared == contract.runtime_loop.ctx;
 }
 } // namespace
@@ -67,6 +68,9 @@ void armv7a_print_runtime_leaf_ports_observation()
     armv7a_platform_early_console_puts(", trap=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_ports_trap_ready(contract)));
+    armv7a_platform_early_console_puts(", call=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_leaf_ports_call_ready(contract)));
     armv7a_platform_early_console_puts(", shared=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_ports_shared_context(contract)));

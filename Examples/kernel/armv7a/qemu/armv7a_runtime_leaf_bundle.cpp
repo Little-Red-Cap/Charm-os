@@ -78,6 +78,9 @@ void armv7a_print_runtime_leaf_bundle_observation()
     armv7a_platform_early_console_puts(", trap=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_trap_ready(observation.contract)));
+    armv7a_platform_early_console_puts(", call=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_leaf_bundle_call_ready(observation.contract)));
     armv7a_platform_early_console_puts(", live=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_live_ready(observation.contract)));

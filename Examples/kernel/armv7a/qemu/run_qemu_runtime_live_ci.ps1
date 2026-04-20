@@ -118,12 +118,12 @@ $expected = @(
     "Targeting Cortex-A7 first, RK3506 later.",
     "ARMv7-A phase, stage=runtime-live",
     "ARMv7-A phase complete, stage=runtime-live",
-    "ARMv7-A phase, stage=task-syscall-frame"
+    "ARMv7-A phase, stage=runtime-leaf-bundle"
 )
 $missing = $expected | Where-Object { -not $log.Contains($_) }
 
 $phaseMarker = "ARMv7-A phase, stage=runtime-live"
-$nextPhaseMarker = "ARMv7-A phase, stage=task-syscall-frame"
+$nextPhaseMarker = "ARMv7-A phase, stage=runtime-leaf-bundle"
 $phaseIndex = $log.IndexOf($phaseMarker)
 $nextPhaseIndex = if ($phaseIndex -ge 0) {
     $log.IndexOf($nextPhaseMarker, $phaseIndex)

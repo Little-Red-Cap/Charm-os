@@ -45,6 +45,7 @@ try {
 
 $scripts = @(
     "run_qemu_runtime_trap_ci.ps1",
+    "run_qemu_runtime_leaf_ports_ci.ps1",
     "run_qemu_runtime_live_ci.ps1",
     "run_qemu_runtime_leaf_bundle_ci.ps1",
     "run_qemu_task_syscall_ci.ps1"

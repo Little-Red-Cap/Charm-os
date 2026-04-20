@@ -143,6 +143,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_runtime_trap_failure.cpp
     armv7a_runtime_bridge.cpp
     armv7a_runtime_loop.cpp
+    armv7a_runtime_leaf_ports.cpp
     armv7a_runtime_live.cpp
     armv7a_runtime_leaf_bundle.cpp
     armv7a_task_syscall_frame.cpp

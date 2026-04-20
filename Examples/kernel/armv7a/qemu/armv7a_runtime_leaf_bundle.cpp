@@ -1,9 +1,8 @@
 #include "armv7a_runtime_leaf_bundle.hpp"
 
 #include "armv7a_diag_console.hpp"
-#include "armv7a_kernel_port.hpp"
 #include "armv7a_platform.hpp"
-#include "armv7a_runtime_loop.hpp"
+#include "armv7a_runtime_leaf_ports.hpp"
 
 namespace {
 const char* armv7a_runtime_leaf_bundle_tick_mode_name(
@@ -24,19 +23,17 @@ const char* armv7a_runtime_leaf_bundle_tick_mode_name(
 Armv7aRuntimeLeafBundleObservation
 armv7a_capture_runtime_leaf_bundle_observation() noexcept
 {
-    const auto kernel = armv7a_make_qemu_kernel_port_contract();
-    const auto runtime_loop = armv7a_capture_runtime_loop_ingress();
+    auto ports = armv7a_last_runtime_leaf_ports();
+    if (!armv7a_runtime_leaf_ports_ready(ports)) {
+        ports = armv7a_prepare_runtime_leaf_ports();
+    }
     const auto trap_dispatch = armv7a_last_runtime_trap_dispatch_observation();
     const auto runtime_live = armv7a_last_runtime_live_observation();
 
     return Armv7aRuntimeLeafBundleObservation{
         .contract =
             Armv7aRuntimeLeafBundleContract{
-                .kernel = kernel,
-                .runtime_loop = runtime_loop,
-                .trap_ingress_ready =
-                    armv7a_runtime_trap_dispatch_observation_ready(
-                        trap_dispatch),
+                .ports = ports,
                 .runtime_live_ready = armv7a_runtime_live_ready(runtime_live),
             },
         .trap_dispatch = trap_dispatch,
@@ -52,11 +49,11 @@ void armv7a_print_runtime_leaf_bundle_observation()
         "ARMv7-A runtime leaf bundle, tick-mode=");
     armv7a_platform_early_console_puts(
         armv7a_runtime_leaf_bundle_tick_mode_name(
-            observation.contract.kernel.timer.tick_mode));
+            observation.contract.ports.kernel.timer.tick_mode));
     armv7a_platform_early_console_puts(", tick-route=");
     armv7a_platform_early_console_puts(
         armv7a_interrupt_route_name(
-            observation.contract.kernel.timer.tick_route));
+            observation.contract.ports.kernel.timer.tick_route));
     armv7a_platform_early_console_puts(", exception=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_exception_ready(observation.contract)));
@@ -72,6 +69,9 @@ void armv7a_print_runtime_leaf_bundle_observation()
     armv7a_platform_early_console_puts(", current=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_current_ready(observation.contract)));
+    armv7a_platform_early_console_puts(", hook=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_leaf_bundle_hook_ready(observation.contract)));
     armv7a_platform_early_console_puts(", loop=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_loop_ready(observation.contract)));
@@ -81,6 +81,9 @@ void armv7a_print_runtime_leaf_bundle_observation()
     armv7a_platform_early_console_puts(", live=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_live_ready(observation.contract)));
+    armv7a_platform_early_console_puts(", ports=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_leaf_bundle_ports_ready(observation.contract)));
     armv7a_platform_early_console_puts(", bundle=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_ready(observation.contract)));

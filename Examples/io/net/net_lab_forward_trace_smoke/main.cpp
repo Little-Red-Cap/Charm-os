@@ -137,6 +137,7 @@ int main() {
     constexpr auto router2_a_ip = net::IpAddress::ipv4(10, 0, 1, 2);
     constexpr auto router2_b_ip = net::IpAddress::ipv4(10, 0, 2, 1);
     constexpr auto server_ip = net::IpAddress::ipv4(10, 0, 2, 9);
+    constexpr auto unreachable_ip = net::IpAddress::ipv4(10, 0, 3, 9);
 
     static constexpr util::u8 payload[]{'h', 'o', 'p'};
 
@@ -178,7 +179,26 @@ int main() {
     });
     auto router1_a_init = router1.init_port_a(client_link.endpoint_b(), router1_a_mac, router1_a_ip);
     auto router1_b_init = router1.init_port_b(middle_link.endpoint_a(), router1_b_mac, router1_b_ip);
-    if (!router1_a_init || !router1_b_init || !router1.ready()) {
+    auto router1_client_route = router1.add_direct_route(
+        net::IpAddress::ipv4(10, 0, 0, 0),
+        24u,
+        net::Ipv4ForwardingPort::a);
+    auto router1_server_route = router1.add_gateway_route(
+        net::IpAddress::ipv4(10, 0, 2, 0),
+        24u,
+        net::Ipv4ForwardingPort::b,
+        router2_a_ip);
+    auto router1_unreachable_route = router1.add_gateway_route(
+        net::IpAddress::ipv4(10, 0, 3, 0),
+        24u,
+        net::Ipv4ForwardingPort::b,
+        router2_a_ip);
+    if (!router1_a_init
+        || !router1_b_init
+        || !router1_client_route
+        || !router1_server_route
+        || !router1_unreachable_route
+        || !router1.ready()) {
         return fail("net lab forward trace smoke router1 init failed\n", 2);
     }
 
@@ -190,7 +210,20 @@ int main() {
     });
     auto router2_a_init = router2.init_port_a(middle_link.endpoint_b(), router2_a_mac, router2_a_ip);
     auto router2_b_init = router2.init_port_b(server_link.endpoint_a(), router2_b_mac, router2_b_ip);
-    if (!router2_a_init || !router2_b_init || !router2.ready()) {
+    auto router2_client_route = router2.add_gateway_route(
+        net::IpAddress::ipv4(10, 0, 0, 0),
+        24u,
+        net::Ipv4ForwardingPort::a,
+        router1_b_ip);
+    auto router2_server_route = router2.add_direct_route(
+        net::IpAddress::ipv4(10, 0, 2, 0),
+        24u,
+        net::Ipv4ForwardingPort::b);
+    if (!router2_a_init
+        || !router2_b_init
+        || !router2_client_route
+        || !router2_server_route
+        || !router2.ready()) {
         return fail("net lab forward trace smoke router2 init failed\n", 3);
     }
 
@@ -261,9 +294,11 @@ int main() {
         || !client_target
         || !same_mac(client_target.value(), router1_a_mac)
         || router1.ttl_expired_count() != 1
+        || router1.destination_unreachable_count() != 0
         || router1.forwarded_count() != 0
         || router1.proxy_arp_reply_count() != 1
         || router2.ttl_expired_count() != 0
+        || router2.destination_unreachable_count() != 0
         || router2.forwarded_count() != 0
         || router2.proxy_arp_reply_count() != 0
         || server.request_count() != 0
@@ -293,7 +328,7 @@ int main() {
     }
 
     const auto second_result = probe.result();
-    const auto middle_target = router1.arp_b().table().lookup(server_ip);
+    const auto middle_target = router1.arp_b().table().lookup(router2_a_ip);
     const auto middle_client = router2.arp_a().table().lookup(client_ip);
     if (!second_result.ready()
         || !second_result.hop()
@@ -316,11 +351,13 @@ int main() {
         || !middle_client
         || !same_mac(middle_client.value(), router1_b_mac)
         || router1.ttl_expired_count() != 1
+        || router1.destination_unreachable_count() != 0
         || router1.forwarded_count() != 2
         || router1.proxy_arp_reply_count() != 1
         || router2.ttl_expired_count() != 1
+        || router2.destination_unreachable_count() != 0
         || router2.forwarded_count() != 0
-        || router2.proxy_arp_reply_count() != 1
+        || router2.proxy_arp_reply_count() != 0
         || server.request_count() != 0
         || !client_link.idle()
         || !middle_link.idle()
@@ -369,11 +406,13 @@ int main() {
         || !server_client
         || !same_mac(server_client.value(), router2_b_mac)
         || router1.ttl_expired_count() != 1
+        || router1.destination_unreachable_count() != 0
         || router1.forwarded_count() != 4
         || router1.proxy_arp_reply_count() != 1
         || router2.ttl_expired_count() != 1
+        || router2.destination_unreachable_count() != 0
         || router2.forwarded_count() != 2
-        || router2.proxy_arp_reply_count() != 2
+        || router2.proxy_arp_reply_count() != 1
         || server.request_count() != 1
         || server.reply_count() != 1
         || server.drop_count() != 0
@@ -385,6 +424,68 @@ int main() {
         || client_node.pump().pending_count() != 0
         || server_node.pump().pending_count() != 0) {
         return fail("net lab forward trace smoke ttl3 mismatch\n", 14);
+    }
+
+    probe.configure(unreachable_ip);
+    auto fourth_probe = probe.probe(4u, payload, client_link.now_ticks(), 20);
+    if (!fourth_probe
+        || fourth_probe.value().disposition != net::IcmpSendDisposition::queued
+        || !probe.pending()) {
+        return fail("net lab forward trace smoke no-route submit failed\n", 15);
+    }
+
+    if (!drive_until_ready(
+            probe,
+            client_node,
+            router1,
+            router2,
+            server_node,
+            client_link,
+            middle_link,
+            server_link)) {
+        return fail("net lab forward trace smoke no-route stalled\n", 16);
+    }
+
+    const auto fourth_result = probe.result();
+    const auto unreachable_target = client_node.pump().arp().table().lookup(unreachable_ip);
+    if (!fourth_result.ready()
+        || !fourth_result.unreachable()
+        || !fourth_result.ok()
+        || fourth_result.has_value()
+        || fourth_result.response_type != net::IcmpType::destination_unreachable
+        || fourth_result.response_code != 0u
+        || fourth_result.ttl != 4u
+        || !same_ipv4(fourth_result.responder, router2_a_ip)
+        || probe.request_count() != 4
+        || probe.response_count() != 4
+        || probe.hop_count() != 2
+        || probe.reach_count() != 1
+        || probe.unreachable_count() != 1
+        || probe.timeout_count() != 0
+        || probe.error_count() != 0
+        || probe.queued_count() != 2
+        || probe.transmitted_count() != 2
+        || !unreachable_target
+        || !same_mac(unreachable_target.value(), router1_a_mac)
+        || router1.ttl_expired_count() != 1
+        || router1.destination_unreachable_count() != 0
+        || router1.forwarded_count() != 6
+        || router1.proxy_arp_reply_count() != 2
+        || router2.ttl_expired_count() != 1
+        || router2.destination_unreachable_count() != 1
+        || router2.forwarded_count() != 2
+        || router2.proxy_arp_reply_count() != 1
+        || server.request_count() != 1
+        || server.reply_count() != 1
+        || server.drop_count() != 0
+        || !client_link.idle()
+        || !middle_link.idle()
+        || !server_link.idle()
+        || router1.pending_count() != 0
+        || router2.pending_count() != 0
+        || client_node.pump().pending_count() != 0
+        || server_node.pump().pending_count() != 0) {
+        return fail("net lab forward trace smoke no-route mismatch\n", 17);
     }
 
     std::puts("net lab forward trace smoke: ok");

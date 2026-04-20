@@ -22,6 +22,19 @@ namespace net::detail {
 }
 
 export namespace net {
+    enum class Ipv4ForwardingPort : util::u8 {
+        a = 0u,
+        b = 1u,
+    };
+
+    struct Ipv4ForwardingRoute {
+        IpAddress network{IpAddress::ipv4_any()};
+        util::u8 prefix_length{0};
+        Ipv4ForwardingPort egress_port{Ipv4ForwardingPort::a};
+        bool has_next_hop{false};
+        IpAddress next_hop{};
+    };
+
     struct Ipv4ForwardingHopConfig {
         util::usize retry_interval_ticks{1};
         util::usize max_attempts{static_cast<util::usize>(-1)};
@@ -34,6 +47,7 @@ export namespace net {
         util::usize ipv4_packets{0};
         util::usize forwarded{0};
         util::usize ttl_expired{0};
+        util::usize destination_unreachable{0};
         util::usize local_dropped{0};
         util::usize proxy_arp_replied{0};
         util::usize arp_retried{0};
@@ -137,6 +151,10 @@ export namespace net {
             return ttl_expired_count_;
         }
 
+        [[nodiscard]] util::usize destination_unreachable_count() const noexcept {
+            return destination_unreachable_count_;
+        }
+
         [[nodiscard]] util::usize local_drop_count() const noexcept {
             return local_drop_count_;
         }
@@ -151,6 +169,60 @@ export namespace net {
 
         [[nodiscard]] util::usize proxy_arp_reply_count() const noexcept {
             return proxy_arp_reply_count_;
+        }
+
+        [[nodiscard]] util::usize route_count() const noexcept {
+            return route_count_;
+        }
+
+        void clear_routes() noexcept {
+            for (util::usize index = 0; index < route_count_; ++index) {
+                routes_[index] = {};
+            }
+            route_count_ = 0;
+        }
+
+        [[nodiscard]] Result<void> add_route(Ipv4ForwardingRoute route) noexcept {
+            if (!route.network.is_ipv4() || route.prefix_length > 32u) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            if (route.has_next_hop
+                && (!route.next_hop.is_ipv4() || route.next_hop.is_any())) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            if (route_count_ >= routes_.size()) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+
+            route.network = canonical_ipv4_network(route.network, route.prefix_length);
+            routes_[route_count_] = route;
+            ++route_count_;
+            return {};
+        }
+
+        [[nodiscard]] Result<void> add_direct_route(IpAddress network,
+                                                    util::u8 prefix_length,
+                                                    Ipv4ForwardingPort egress_port) noexcept {
+            return add_route(Ipv4ForwardingRoute{
+                .network = network,
+                .prefix_length = prefix_length,
+                .egress_port = egress_port,
+                .has_next_hop = false,
+                .next_hop = {},
+            });
+        }
+
+        [[nodiscard]] Result<void> add_gateway_route(IpAddress network,
+                                                     util::u8 prefix_length,
+                                                     Ipv4ForwardingPort egress_port,
+                                                     IpAddress next_hop) noexcept {
+            return add_route(Ipv4ForwardingRoute{
+                .network = network,
+                .prefix_length = prefix_length,
+                .egress_port = egress_port,
+                .has_next_hop = true,
+                .next_hop = next_hop,
+            });
         }
 
         template <NetDriverProvider Provider>
@@ -193,6 +265,7 @@ export namespace net {
             const auto ipv4_packets_before = ipv4_packet_count_;
             const auto forwarded_before = forwarded_count_;
             const auto ttl_expired_before = ttl_expired_count_;
+            const auto destination_unreachable_before = destination_unreachable_count_;
             const auto local_drop_before = local_drop_count_;
             const auto proxy_arp_before = proxy_arp_reply_count_;
 
@@ -232,6 +305,7 @@ export namespace net {
                 .ipv4_packets = ipv4_packet_count_ - ipv4_packets_before,
                 .forwarded = forwarded_count_ - forwarded_before,
                 .ttl_expired = ttl_expired_count_ - ttl_expired_before,
+                .destination_unreachable = destination_unreachable_count_ - destination_unreachable_before,
                 .local_dropped = local_drop_count_ - local_drop_before,
                 .proxy_arp_replied = proxy_arp_reply_count_ - proxy_arp_before,
                 .arp_retried = egress_a.value().arp_retried + egress_b.value().arp_retried,
@@ -289,9 +363,89 @@ export namespace net {
             return ingress == 0u ? 1u : 0u;
         }
 
+        [[nodiscard]] static constexpr util::usize port_index(Ipv4ForwardingPort port) noexcept {
+            return static_cast<util::usize>(port);
+        }
+
+        [[nodiscard]] static constexpr util::u32 ipv4_bits(IpAddress address) noexcept {
+            return (static_cast<util::u32>(address.bytes[0]) << 24)
+                | (static_cast<util::u32>(address.bytes[1]) << 16)
+                | (static_cast<util::u32>(address.bytes[2]) << 8)
+                | static_cast<util::u32>(address.bytes[3]);
+        }
+
+        [[nodiscard]] static constexpr util::u32 ipv4_prefix_mask(util::u8 prefix_length) noexcept {
+            if (prefix_length == 0u) {
+                return 0u;
+            }
+            if (prefix_length >= 32u) {
+                return 0xFFFF'FFFFu;
+            }
+            return 0xFFFF'FFFFu << (32u - prefix_length);
+        }
+
+        [[nodiscard]] static constexpr IpAddress canonical_ipv4_network(IpAddress network,
+                                                                        util::u8 prefix_length) noexcept {
+            if (!network.is_ipv4()) {
+                return {};
+            }
+
+            const auto masked = ipv4_bits(network) & ipv4_prefix_mask(prefix_length);
+            return IpAddress::ipv4(
+                static_cast<util::u8>((masked >> 24) & 0xFFu),
+                static_cast<util::u8>((masked >> 16) & 0xFFu),
+                static_cast<util::u8>((masked >> 8) & 0xFFu),
+                static_cast<util::u8>(masked & 0xFFu));
+        }
+
+        [[nodiscard]] static constexpr bool matches_ipv4_prefix(IpAddress address,
+                                                                IpAddress network,
+                                                                util::u8 prefix_length) noexcept {
+            if (!address.is_ipv4() || !network.is_ipv4() || prefix_length > 32u) {
+                return false;
+            }
+
+            const auto mask = ipv4_prefix_mask(prefix_length);
+            return (ipv4_bits(address) & mask) == (ipv4_bits(network) & mask);
+        }
+
         [[nodiscard]] bool is_local_address(IpAddress address) const noexcept {
             return is_same_ipv4_address(address, ports_[0].netif.address())
                 || is_same_ipv4_address(address, ports_[1].netif.address());
+        }
+
+        [[nodiscard]] const Ipv4ForwardingRoute* select_route(IpAddress destination) const noexcept {
+            if (!destination.is_ipv4()) {
+                return nullptr;
+            }
+
+            const Ipv4ForwardingRoute* best = nullptr;
+            util::u8 best_prefix = 0u;
+            for (util::usize index = 0; index < route_count_; ++index) {
+                const auto& route = routes_[index];
+                if (!matches_ipv4_prefix(destination, route.network, route.prefix_length)) {
+                    continue;
+                }
+                if (best == nullptr || route.prefix_length > best_prefix) {
+                    best = &route;
+                    best_prefix = route.prefix_length;
+                }
+            }
+            return best;
+        }
+
+        [[nodiscard]] bool can_forward_to(IpAddress destination) const noexcept {
+            if (!destination.is_ipv4()
+                || destination.is_any()
+                || destination.is_ipv4_limited_broadcast()
+                || is_local_address(destination)) {
+                return false;
+            }
+
+            if (route_count_ == 0u) {
+                return true;
+            }
+            return select_route(destination) != nullptr;
         }
 
         [[nodiscard]] Result<void> consume_port(util::usize ingress,
@@ -343,7 +497,7 @@ export namespace net {
             if (is_same_ipv4_address(arp.value().target_ip, port.netif.address())) {
                 should_reply = true;
                 sender_ip = port.netif.address();
-            } else if (!is_local_address(arp.value().target_ip)) {
+            } else if (can_forward_to(arp.value().target_ip)) {
                 should_reply = true;
                 sender_ip = arp.value().target_ip;
             }
@@ -379,7 +533,6 @@ export namespace net {
                                                 MacAddress source_mac,
                                                 OwnedPacket packet) noexcept {
             auto& ingress_port = ports_[ingress];
-            auto& egress_port = ports_[egress_index(ingress)];
 
             const auto datagram = parse_ipv4_packet(packet.view());
             if (!datagram) {
@@ -399,13 +552,13 @@ export namespace net {
                 return {};
             }
 
-            if (datagram.value().ttl <= 1u) {
-                auto quoted_size = datagram.value().header_length;
-                const auto quoted_payload_size = datagram.value().payload.size() < 8u
-                    ? datagram.value().payload.size()
-                    : 8u;
-                quoted_size += quoted_payload_size;
+            auto quoted_size = datagram.value().header_length;
+            const auto quoted_payload_size = datagram.value().payload.size() < 8u
+                ? datagram.value().payload.size()
+                : 8u;
+            quoted_size += quoted_payload_size;
 
+            if (datagram.value().ttl <= 1u) {
                 auto emitted = emit_time_exceeded(
                     ingress_port,
                     datagram.value().source,
@@ -417,6 +570,29 @@ export namespace net {
                 ++ttl_expired_count_;
                 return {};
             }
+
+            IpAddress next_hop{};
+            util::usize egress = egress_index(ingress);
+            if (const auto* route = select_route(datagram.value().destination); route != nullptr) {
+                egress = port_index(route->egress_port);
+                if (route->has_next_hop) {
+                    next_hop = route->next_hop;
+                }
+            } else if (route_count_ != 0u) {
+                auto emitted = emit_destination_unreachable(
+                    ingress_port,
+                    datagram.value().source,
+                    0u,
+                    packet.view().subspan(0, quoted_size).payload);
+                if (!emitted) {
+                    return util::unexpected(emitted.error());
+                }
+
+                ++destination_unreachable_count_;
+                return {};
+            }
+
+            auto& egress_port = ports_[egress];
 
             PacketBuffer<PacketCapacity> forwarded{};
             auto reset = forwarded.reset();
@@ -439,7 +615,8 @@ export namespace net {
             auto sent = egress_port.egress.template send<TxCapacity>(
                 egress_port.netif,
                 egress_port.arp,
-                forwarded.view().payload);
+                forwarded.view().payload,
+                next_hop);
             if (!sent) {
                 return util::unexpected(sent.error());
             }
@@ -486,13 +663,55 @@ export namespace net {
             return {};
         }
 
+        [[nodiscard]] Result<void> emit_destination_unreachable(Port& port,
+                                                                IpAddress peer,
+                                                                util::u8 code,
+                                                                ByteView quoted_packet) noexcept {
+            PacketBuffer<PacketCapacity> icmp_packet{};
+            auto encoded_icmp = write_icmp_destination_unreachable_packet(
+                icmp_packet,
+                code,
+                quoted_packet);
+            if (!encoded_icmp) {
+                return util::unexpected(encoded_icmp.error());
+            }
+
+            PacketBuffer<PacketCapacity> ipv4_packet{};
+            auto encoded_ipv4 = write_ipv4_packet(
+                ipv4_packet,
+                Ipv4PacketSpec{
+                    .identification = port.next_identification++,
+                    .flags_fragment = ipv4_do_not_fragment_flag(),
+                    .ttl = config_.icmp_ttl,
+                    .protocol = Ipv4Protocol::icmp,
+                    .source = port.netif.address(),
+                    .destination = peer,
+                },
+                icmp_packet.view().payload);
+            if (!encoded_ipv4) {
+                return util::unexpected(encoded_ipv4.error());
+            }
+
+            auto sent = port.egress.template send<TxCapacity>(
+                port.netif,
+                port.arp,
+                ipv4_packet.view().payload);
+            if (!sent) {
+                return util::unexpected(sent.error());
+            }
+            return {};
+        }
+
         std::array<Port, 2> ports_{};
         std::array<IngressPath, 2> ingress_paths_{};
+        std::array<Ipv4ForwardingRoute, 8> routes_{};
         Ipv4ForwardingHopConfig config_{};
+        util::usize route_count_{0};
         util::usize arp_packet_count_{0};
         util::usize ipv4_packet_count_{0};
         util::usize forwarded_count_{0};
         util::usize ttl_expired_count_{0};
+        util::usize destination_unreachable_count_{0};
         util::usize local_drop_count_{0};
         util::usize proxy_arp_reply_count_{0};
     };

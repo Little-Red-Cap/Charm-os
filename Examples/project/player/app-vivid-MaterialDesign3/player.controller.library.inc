@@ -1829,7 +1829,9 @@
                 if (summary_buf[0] != '\0') {
                     path.append(" / ");
                     path.append(summary_buf);
-                } else if (count > 0) {
+                } else {
+                    path.append(" / ");
+                    path.append(library_context_key.view());
                     char count_buf[24]{};
                     std::snprintf(count_buf, sizeof(count_buf), "%d %s",
                                   count, (count == 1) ? "track" : "tracks");

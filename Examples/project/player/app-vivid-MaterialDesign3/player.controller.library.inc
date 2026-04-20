@@ -494,7 +494,7 @@
         }
 
         void format_library_group_summary(std::string_view key,
-                                          bool /*current_group*/,
+                                          bool current_group,
                                           char* buf,
                                           std::size_t buf_size) const noexcept {
             if (!buf || buf_size == 0) return;
@@ -502,6 +502,13 @@
             if (key.empty()) return;
             const auto* tracks = storage.tracks;
             if (!tracks) return;
+            const auto append_current_group_state = [&]() noexcept {
+                if (!current_group || library_shows_group_rows()) return;
+                const char* state = library_current_group_state_text();
+                const std::size_t used = std::char_traits<char>::length(buf);
+                if (used == 0 || used + 3 >= buf_size) return;
+                std::snprintf(buf + used, buf_size - used, " | %s", state);
+            };
 
             int track_count = 0;
             int total_sec = 0;
@@ -561,6 +568,7 @@
                     std::snprintf(buf, buf_size, "%s | %d %s",
                                   artist_label, track_count, track_label);
                 }
+                append_current_group_state();
                 return;
             }
 
@@ -575,6 +583,7 @@
                     std::snprintf(buf, buf_size, "%d %s | %d %s",
                                   album_count, album_label, track_count, track_label);
                 }
+                append_current_group_state();
                 return;
             }
 
@@ -585,6 +594,7 @@
             } else {
                 std::snprintf(buf, buf_size, "%d %s", track_count, track_label);
             }
+            append_current_group_state();
         }
 
         bool library_context_cover_for_view(std::string_view& track_path_out,
@@ -647,9 +657,10 @@
 
         void show_library_context_status() {
             if (!library_has_context()) return;
+            const bool current_group = library_context_is_current_group();
             char summary[160]{};
             format_library_group_summary(library_context_key.view(),
-                                         library_context_is_current_group(),
+                                         current_group,
                                          summary,
                                          sizeof(summary));
 
@@ -659,6 +670,11 @@
                               library_group_status_label(),
                               static_cast<int>(library_context_key.size()), library_context_key.view().data(),
                               summary);
+            } else if (current_group) {
+                std::snprintf(buf, sizeof(buf), "%s | %.*s | %s",
+                              library_group_status_label(),
+                              static_cast<int>(library_context_key.size()), library_context_key.view().data(),
+                              library_current_group_state_text());
             } else {
                 std::snprintf(buf, sizeof(buf), "%s | %.*s",
                               library_group_status_label(),

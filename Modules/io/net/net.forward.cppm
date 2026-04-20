@@ -237,6 +237,22 @@ export namespace net {
             return {};
         }
 
+        [[nodiscard]] bool remove_route(IpAddress network,
+                                        util::u8 prefix_length) noexcept {
+            if (!network.is_ipv4() || prefix_length > 32u) {
+                return false;
+            }
+
+            const auto canonical_network = canonical_ipv4_network(network, prefix_length);
+            const auto existing = find_route_index(canonical_network, prefix_length);
+            if (existing >= route_count_) {
+                return false;
+            }
+
+            erase_route_at(existing);
+            return true;
+        }
+
         [[nodiscard]] Result<void> add_route(Ipv4ForwardingRoute route) noexcept {
             auto validated = validate_route(route);
             if (!validated) {
@@ -548,6 +564,18 @@ export namespace net {
                 }
             }
             return route_count_;
+        }
+
+        void erase_route_at(util::usize index) noexcept {
+            if (index >= route_count_) {
+                return;
+            }
+
+            for (auto write = index; write + 1u < route_count_; ++write) {
+                routes_[write] = routes_[write + 1u];
+            }
+            routes_[route_count_ - 1u] = {};
+            --route_count_;
         }
 
         [[nodiscard]] bool is_local_address(IpAddress address) const noexcept {

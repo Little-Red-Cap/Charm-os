@@ -6,9 +6,13 @@ on:
     paths:
       - .github/workflows/minimal-kernel-host-smoke.yml
       - scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1
+      - scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1
+      - scripts/minimal_kernel_runtime_host_smoke_bundle.ps1
       - scripts/minimal_kernel_runtime_host_smoke.ps1
       - scripts/minimal_kernel_runtime_host_smoke_ci.ps1
+      - scripts/minimal_kernel_runtime_host_smoke_daily.ps1
       - scripts/inspect_minimal_kernel_runtime_host_smoke.ps1
+      - scripts/report_minimal_kernel_runtime_host_smoke.ps1
       - scripts/check_minimal_kernel_runtime_host_smoke_summary.ps1
       - Examples/kernel/runtime*_host/**
       - Modules/core/**
@@ -58,6 +62,18 @@ jobs:
           ./scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1 `
             -OutputRoot out/minimal-kernel-runtime-host-smoke-ci `
             -Jobs 8
+
+      - name: Publish minimal kernel host smoke summary
+        if: always()
+        shell: pwsh
+        run: |
+          $reportPath = "out/minimal-kernel-runtime-host-smoke-ci/report.md"
+          if (-not (Test-Path $reportPath)) {
+            "## Minimal Kernel Host Smoke`n`n`Report not generated.`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            exit 0
+          }
+
+          Get-Content -LiteralPath $reportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Upload minimal kernel host smoke artifact
         if: always()

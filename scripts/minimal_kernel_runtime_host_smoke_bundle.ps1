@@ -6,6 +6,7 @@ param(
     [string]$SmokeLogPath = "",
     [string]$InspectTextPath = "",
     [string]$InspectJsonPath = "",
+    [string]$ReportMarkdownPath = "",
     [string]$CheckTextPath = "",
     [string]$BaselineSummary = "",
     [string]$CMakeExe = "cmake",
@@ -172,7 +173,8 @@ function Invoke-PowerShellFile {
         [string]$ScriptPath,
         [string[]]$ArgumentList,
         [string]$LogPath,
-        [string]$FailureMessage
+        [string]$FailureMessage,
+        [switch]$AllowFailure
     )
 
     Ensure-ParentDirectory -Path $LogPath
@@ -190,9 +192,11 @@ function Invoke-PowerShellFile {
 
     & $PowerShellExe @commandArgs 2>&1 | Tee-Object -FilePath $LogPath
     $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0) {
+    if ($exitCode -ne 0 -and -not $AllowFailure) {
         throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
     }
+
+    return $exitCode
 }
 
 function Resolve-SmokeScriptPath {
@@ -235,14 +239,17 @@ $summaryPathResolved = Get-OutputPath -ExplicitPath $SummaryPath -OutputRootPath
 $smokeLogPathResolved = Get-OutputPath -ExplicitPath $SmokeLogPath -OutputRootPath $outputRootPath -DefaultFileName "smoke.log"
 $inspectTextPathResolved = Get-OutputPath -ExplicitPath $InspectTextPath -OutputRootPath $outputRootPath -DefaultFileName "inspect.txt"
 $inspectJsonPathResolved = Get-OutputPath -ExplicitPath $InspectJsonPath -OutputRootPath $outputRootPath -DefaultFileName "inspect.json"
+$reportMarkdownPathResolved = Get-OutputPath -ExplicitPath $ReportMarkdownPath -OutputRootPath $outputRootPath -DefaultFileName "report.md"
+$reportLogPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $outputRootPath -DefaultFileName "report.log"
 $checkTextPathResolved = Get-OutputPath -ExplicitPath $CheckTextPath -OutputRootPath $outputRootPath -DefaultFileName "check.txt"
 $baselineSummaryPathResolved = Resolve-FullPath -Path $BaselineSummary
 
 $powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
 $smokeScript = Resolve-SmokeScriptPath -BundleProfile $Profile
 $inspectScript = Join-Path $PSScriptRoot "inspect_minimal_kernel_runtime_host_smoke.ps1"
+$reportScript = Join-Path $PSScriptRoot "report_minimal_kernel_runtime_host_smoke.ps1"
 $checkScript = Join-Path $PSScriptRoot "check_minimal_kernel_runtime_host_smoke_summary.ps1"
-foreach ($scriptPath in @($smokeScript, $inspectScript, $checkScript)) {
+foreach ($scriptPath in @($smokeScript, $inspectScript, $reportScript, $checkScript)) {
     if (-not (Test-Path $scriptPath)) {
         throw "missing script: $scriptPath"
     }
@@ -271,6 +278,15 @@ foreach ($entry in @($inspectArgs)) {
 }
 $inspectJsonArgs.Add("-AsJson") | Out-Null
 
+$reportArgs = [System.Collections.Generic.List[string]]::new()
+Add-ScriptArgument -Arguments $reportArgs -Name "-Summary" -Value $summaryPathResolved
+Add-ScriptArgument -Arguments $reportArgs -Name "-InspectJson" -Value $inspectJsonPathResolved
+Add-ScriptArgument -Arguments $reportArgs -Name "-OutputPath" -Value $reportMarkdownPathResolved
+Add-ScriptArgument -Arguments $reportArgs -Name "-Top" -Value (Format-Number -Value $Top)
+if (-not [string]::IsNullOrWhiteSpace($baselineSummaryPathResolved)) {
+    Add-ScriptArgument -Arguments $reportArgs -Name "-BaselineSummary" -Value $baselineSummaryPathResolved
+}
+
 $checkArgs = [System.Collections.Generic.List[string]]::new()
 Add-ScriptArgument -Arguments $checkArgs -Name "-Summary" -Value $summaryPathResolved
 Add-ScriptArgument -Arguments $checkArgs -Name "-MaxFailures" -Value (Format-Number -Value $MaxFailures)
@@ -295,32 +311,44 @@ if ($AllowRemovedExamples) {
 Push-Location $repoRoot
 try {
     try {
-        Invoke-PowerShellFile `
+        $smokeExitCode = Invoke-PowerShellFile `
             -PowerShellExe $powerShellExe `
             -ScriptPath $smokeScript `
             -ArgumentList $smokeArgs.ToArray() `
             -LogPath $smokeLogPathResolved `
-            -FailureMessage ("minimal kernel host smoke {0} run failed" -f $Profile)
+            -FailureMessage ("minimal kernel host smoke {0} run failed" -f $Profile) `
+            -AllowFailure
 
         if (-not (Test-Path $summaryPathResolved)) {
+            if ($smokeExitCode -ne 0) {
+                throw ("host smoke exited {0} and did not produce summary: {1}" -f $smokeExitCode, $summaryPathResolved)
+            }
+
             throw "host smoke summary not found: $summaryPathResolved"
         }
 
-        Invoke-PowerShellFile `
+        $null = Invoke-PowerShellFile `
             -PowerShellExe $powerShellExe `
             -ScriptPath $inspectScript `
             -ArgumentList $inspectArgs.ToArray() `
             -LogPath $inspectTextPathResolved `
             -FailureMessage "host smoke inspect text generation failed"
 
-        Invoke-PowerShellFile `
+        $null = Invoke-PowerShellFile `
             -PowerShellExe $powerShellExe `
             -ScriptPath $inspectScript `
             -ArgumentList $inspectJsonArgs.ToArray() `
             -LogPath $inspectJsonPathResolved `
             -FailureMessage "host smoke inspect json generation failed"
 
-        Invoke-PowerShellFile `
+        $null = Invoke-PowerShellFile `
+            -PowerShellExe $powerShellExe `
+            -ScriptPath $reportScript `
+            -ArgumentList $reportArgs.ToArray() `
+            -LogPath $reportLogPathResolved `
+            -FailureMessage "host smoke markdown report generation failed"
+
+        $null = Invoke-PowerShellFile `
             -PowerShellExe $powerShellExe `
             -ScriptPath $checkScript `
             -ArgumentList $checkArgs.ToArray() `
@@ -334,6 +362,7 @@ try {
         Write-Host ("smoke_log={0}" -f $smokeLogPathResolved)
         Write-Host ("inspect_text={0}" -f $inspectTextPathResolved)
         Write-Host ("inspect_json={0}" -f $inspectJsonPathResolved)
+        Write-Host ("report_markdown={0}" -f $reportMarkdownPathResolved)
         Write-Host ("check_text={0}" -f $checkTextPathResolved)
     }
 } finally {

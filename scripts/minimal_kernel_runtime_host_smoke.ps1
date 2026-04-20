@@ -1,6 +1,7 @@
 param(
     [string]$CMakeExe = "cmake",
     [string]$Generator = "Ninja",
+    [string]$SummaryPath = "",
     [switch]$Fresh,
     [switch]$KeepBuildDirs,
     [int]$Jobs = 0,
@@ -30,6 +31,36 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Resolve-FullPath {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return ""
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
+}
+
+function Ensure-Directory {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    if (-not (Test-Path $Path)) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    }
+}
 
 function Resolve-ToolPath {
     param([string]$Tool)
@@ -131,6 +162,7 @@ function Invoke-Checked {
 
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $repoRoot = Resolve-RepoRoot
+$resolvedSummaryPath = Resolve-FullPath -Path $SummaryPath
 $selectedExamples = Normalize-Examples -InputExamples $Examples
 $results = [System.Collections.Generic.List[object]]::new()
 $stopRequested = $false
@@ -227,6 +259,29 @@ foreach ($result in $results) {
     if ($result.Status -ne "ok") {
         $hasFailure = $true
     }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($resolvedSummaryPath)) {
+    Ensure-Directory -Path (Split-Path -Parent $resolvedSummaryPath)
+    $summary = [pscustomobject]@{
+        schema          = "minimal_kernel.runtime_host_smoke.summary/v1"
+        generated_at    = (Get-Date).ToString("o")
+        repo_root       = $repoRoot
+        cmake           = $cmake
+        generator       = $Generator
+        selected_examples = @($selectedExamples)
+        example_count   = $results.Count
+        has_failure     = $hasFailure
+        mode            = [pscustomobject]@{
+            fresh          = [bool]$Fresh
+            keep_build_dirs = [bool]$KeepBuildDirs
+            jobs           = $Jobs
+            stop_on_failure = [bool]$StopOnFailure
+        }
+        results         = @($results)
+    }
+    $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $resolvedSummaryPath -Encoding utf8
+    Write-Host ("[SUMMARY] {0}" -f $resolvedSummaryPath)
 }
 
 if ($hasFailure) {

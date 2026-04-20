@@ -1,6 +1,7 @@
 param(
     [string]$CMakeExe = "cmake",
     [string]$Generator = "Ninja",
+    [string]$SummaryPath = "",
     [int]$Jobs = 0,
     [switch]$StopOnFailure,
     [string[]]$Examples
@@ -18,6 +19,10 @@ $invokeArgs = @{
     Generator = $Generator
     Fresh     = $true
     Jobs      = $Jobs
+}
+
+if (-not [string]::IsNullOrWhiteSpace($SummaryPath)) {
+    $invokeArgs.SummaryPath = $SummaryPath
 }
 
 if ($StopOnFailure) {

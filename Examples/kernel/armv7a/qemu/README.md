@@ -172,6 +172,7 @@ ARMv7-A runtime loop ingress, mode=oneshot, route=irq, hz=62500000, tick-runtime
 ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, shared=yes, ports=yes
 ARMv7-A runtime thread port, yield-path=svc-call-frame, yield-ready=yes, sleep-path=svc-call-frame, sleep-ready=yes, trap-call=yes, thread-runtime=yes, port=yes, bridge=yes, thread=yes
 ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=yes, idle=yes, worker=yes, live=yes, resumes=3, idle-runs=1, wake-due=0x000000000000...., tick-now=0x000000000000....
+ARMv7-A runtime binding bundle, current=yes, trap=yes, thread=yes, loop=yes, live=yes, binding=yes
 ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, ports=yes, bundle=yes
 ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes
 ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes
@@ -200,9 +201,11 @@ before launching QEMU, so the smoke log stays aligned with the current source
 instead of whatever ELF happened to be left in `out\build\debug`. The default
 build leg now also uses `--parallel 1`, which keeps the ARM bare-metal GCC
 modules output stable during CI smoke runs. The same smoke now also gates the
-`runtime-leaf-ports`, `runtime-live`, and `runtime-leaf-bundle` phase
-markers, plus the `ARMv7-A runtime leaf ports, ... call=yes, thread=yes, ... ports=yes`,
+`runtime-leaf-ports`, `runtime-live`, `runtime-binding-bundle`, and
+`runtime-leaf-bundle` phase markers, plus the
+`ARMv7-A runtime leaf ports, ... call=yes, thread=yes, ... ports=yes`,
 the `ARMv7-A runtime thread port, ... thread=yes` summary,
+the `ARMv7-A runtime binding bundle, ... binding=yes` summary,
 `ARMv7-A runtime live, ... live=yes`, and
 `ARMv7-A runtime leaf bundle, ... call=yes, thread=yes, ... bundle=yes` summaries, and
 treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
@@ -225,6 +228,12 @@ For a shorter failure loop around the exported runtime-thread egress seam, use:
 
 ```powershell
 .\run_qemu_runtime_thread_ci.ps1
+```
+
+For a shorter failure loop around the runtime-facing binding bundle, use:
+
+```powershell
+.\run_qemu_runtime_binding_bundle_ci.ps1
 ```
 
 For a shorter failure loop around the exported lower-half leaf payload, use:
@@ -677,6 +686,11 @@ continue
   now see directly that the exported `RuntimeThreadPort`-shaped surface is
   backed by the proven SVC caller path, shares the same leaf context as the
   lower trap-call seam, and stays regression-testable on its own.
+- The same leaf now also prints one `runtime binding bundle` line that turns
+  the upper-runtime-facing subset into an explicit contract: `current`,
+  `trap dispatch`, `runtime thread`, and `runtime loop` now exist as one
+  smaller bindable package, with the already-live QEMU runtime path folded in
+  as the final readiness gate before any future upper runtime glue binds to it.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

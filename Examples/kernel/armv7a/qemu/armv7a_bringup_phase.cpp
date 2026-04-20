@@ -98,6 +98,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-thread-port";
     case Armv7aBringupPhase::kRuntimeLive:
         return "runtime-live";
+    case Armv7aBringupPhase::kRuntimeBindingBundle:
+        return "runtime-binding-bundle";
     case Armv7aBringupPhase::kRuntimeLeafBundle:
         return "runtime-leaf-bundle";
     case Armv7aBringupPhase::kTaskSyscallFrame:

@@ -45,6 +45,7 @@ enum class Armv7aBringupPhase : unsigned char {
     kRuntimeLeafPorts,
     kRuntimeThreadPort,
     kRuntimeLive,
+    kRuntimeBindingBundle,
     kRuntimeLeafBundle,
     kTaskSyscallFrame,
     kTaskSyscallDispatch,

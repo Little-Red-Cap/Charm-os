@@ -55,7 +55,7 @@ function Show-LogTail {
         [int]$Lines
     )
 
-    Write-Output "[armv7a-qemu-runtime-leaf-ports] log tail:"
+    Write-Output "[armv7a-qemu-runtime-binding-bundle] log tail:"
     if (Test-Path $OutPath) {
         Get-Content $OutPath -Tail $Lines
     }
@@ -88,8 +88,8 @@ if (-not $SkipBuild) {
 }
 
 $elf = Resolve-ExamplePath -Path $elfPath
-$outFile = Join-Path $PSScriptRoot "qemu-runtime-leaf-ports.log"
-$errFile = Join-Path $PSScriptRoot "qemu-runtime-leaf-ports.err.log"
+$outFile = Join-Path $PSScriptRoot "qemu-runtime-binding-bundle.log"
+$errFile = Join-Path $PSScriptRoot "qemu-runtime-binding-bundle.err.log"
 
 Remove-Item $outFile, $errFile -Force -ErrorAction SilentlyContinue
 
@@ -116,21 +116,21 @@ $log = [string](Read-LogSafe -Path $outFile) + [string](Read-LogSafe -Path $errF
 $expected = @(
     "Charm ARMv7-A QEMU skeleton",
     "Targeting Cortex-A7 first, RK3506 later.",
-    "ARMv7-A phase, stage=runtime-leaf-ports",
-    "ARMv7-A phase complete, stage=runtime-leaf-ports",
-    "ARMv7-A phase, stage=runtime-thread-port"
+    "ARMv7-A phase, stage=runtime-binding-bundle",
+    "ARMv7-A phase complete, stage=runtime-binding-bundle",
+    "ARMv7-A phase, stage=runtime-leaf-bundle"
 )
 $missing = $expected | Where-Object { -not $log.Contains($_) }
 
-$phaseMarker = "ARMv7-A phase, stage=runtime-leaf-ports"
-$nextPhaseMarker = "ARMv7-A phase, stage=runtime-thread-port"
+$phaseMarker = "ARMv7-A phase, stage=runtime-binding-bundle"
+$nextPhaseMarker = "ARMv7-A phase, stage=runtime-leaf-bundle"
 $phaseIndex = $log.IndexOf($phaseMarker)
 $nextPhaseIndex = if ($phaseIndex -ge 0) {
     $log.IndexOf($nextPhaseMarker, $phaseIndex)
 } else {
     -1
 }
-$portsLog = if ($phaseIndex -ge 0) {
+$bindingLog = if ($phaseIndex -ge 0) {
     if ($nextPhaseIndex -gt $phaseIndex) {
         $log.Substring($phaseIndex, $nextPhaseIndex - $phaseIndex)
     } else {
@@ -140,8 +140,8 @@ $portsLog = if ($phaseIndex -ge 0) {
     $log
 }
 
-if (($portsLog -notmatch "ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, shared=yes, ports=yes")) {
-    $missing += "ARMv7-A runtime leaf ports, tick-mode=oneshot..."
+if (($bindingLog -notmatch "ARMv7-A runtime binding bundle, current=yes, trap=yes, thread=yes, loop=yes, live=yes, binding=yes")) {
+    $missing += "ARMv7-A runtime binding bundle, current=yes..."
 }
 
 if ($missing.Count -gt 0) {
@@ -149,4 +149,4 @@ if ($missing.Count -gt 0) {
     throw "missing expected output: $($missing -join '; ')"
 }
 
-Write-Output "[ok] armv7a qemu runtime-leaf-ports smoke detected"
+Write-Output "[ok] armv7a qemu runtime-binding-bundle smoke detected"

@@ -146,6 +146,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_runtime_leaf_ports.cpp
     armv7a_runtime_thread.cpp
     armv7a_runtime_live.cpp
+    armv7a_runtime_binding_bundle.cpp
     armv7a_runtime_leaf_bundle.cpp
     armv7a_task_syscall_frame.cpp
     armv7a_task_syscall_dispatch.cpp

@@ -162,6 +162,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-loop-ingress",
     "ARMv7-A phase, stage=runtime-live",
     "ARMv7-A phase complete, stage=runtime-live",
+    "ARMv7-A phase, stage=runtime-leaf-bundle",
+    "ARMv7-A phase complete, stage=runtime-leaf-bundle",
     "ARMv7-A phase, stage=task-syscall-frame",
     "ARMv7-A phase complete, stage=task-syscall-frame",
     "ARMv7-A phase, stage=task-syscall-dispatch",
@@ -382,6 +384,9 @@ if (($log -notmatch "ARMv7-A runtime loop ingress, mode=oneshot, route=irq, hz=[
 }
 if (($log -notmatch "ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=yes, idle=yes, worker=yes, live=yes, resumes=3, idle-runs=[0-9]+, wake-due=0x[0-9A-F]{16}, tick-now=0x[0-9A-F]{16}")) {
     $missing += "ARMv7-A runtime live, task=yes..."
+}
+if (($log -notmatch "ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, loop=yes, trap=yes, live=yes, bundle=yes")) {
+    $missing += "ARMv7-A runtime leaf bundle, tick-mode=oneshot..."
 }
 if (($log -notmatch "ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes")) {
     $missing += "ARMv7-A task syscall frame, debug-path=svc-frame..."

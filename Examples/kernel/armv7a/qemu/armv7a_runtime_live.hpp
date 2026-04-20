@@ -62,4 +62,5 @@ constexpr bool armv7a_runtime_live_ready(
 }
 
 Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept;
+Armv7aRuntimeLiveObservation armv7a_last_runtime_live_observation() noexcept;
 void armv7a_print_runtime_live_observation();

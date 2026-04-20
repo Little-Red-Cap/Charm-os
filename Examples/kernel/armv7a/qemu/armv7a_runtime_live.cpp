@@ -345,6 +345,8 @@ struct Armv7aLiveSession {
 alignas(Armv7aLiveSession) std::byte
     g_armv7a_live_session_storage[sizeof(Armv7aLiveSession)];
 bool g_armv7a_live_session_ready = false;
+Armv7aRuntimeLiveObservation g_armv7a_last_runtime_live_observation{};
+bool g_armv7a_last_runtime_live_observation_valid = false;
 
 Armv7aLiveSession& armv7a_prepare_live_session() noexcept
 {
@@ -777,7 +779,7 @@ Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept
                                    session.shared,
                                    session.worker_id);
 
-    return Armv7aRuntimeLiveObservation{
+    const auto observation = Armv7aRuntimeLiveObservation{
         .task_ready = session.shared.trap_task_matches &&
                       session.shared.trap_stack_matches,
         .trap_ready = session.shared.yield_return_ok &&
@@ -846,6 +848,17 @@ Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept
         .last_tick_now = session.shared.last_tick_now,
         .last_trap_value = session.shared.last_trap_value,
     };
+
+    g_armv7a_last_runtime_live_observation = observation;
+    g_armv7a_last_runtime_live_observation_valid = true;
+    return observation;
+}
+
+Armv7aRuntimeLiveObservation armv7a_last_runtime_live_observation() noexcept
+{
+    return g_armv7a_last_runtime_live_observation_valid
+        ? g_armv7a_last_runtime_live_observation
+        : Armv7aRuntimeLiveObservation{};
 }
 
 void armv7a_print_runtime_live_observation()

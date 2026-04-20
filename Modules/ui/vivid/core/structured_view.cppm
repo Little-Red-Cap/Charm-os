@@ -12,6 +12,15 @@ struct StructuredVisibleRange {
 };
 
 export
+using StructuredListRowFlagsFn = std::uint8_t (*)(const void*, std::uint16_t) noexcept;
+
+export
+constexpr std::uint8_t kStructuredListRowFlagGroup = 0x01;
+
+export
+constexpr std::uint8_t kStructuredListRowFlagDisabled = 0x02;
+
+export
 struct StructuredViewportMapper {
     Rect rect{};
     int row_height{0};
@@ -142,6 +151,17 @@ struct StructuredMenuView {
 
     static const char* label_text(const void* ctx, std::uint16_t index) noexcept {
         return view_label(ctx, index);
+    }
+
+    static std::uint8_t row_flags(const void* ctx, std::uint16_t index) noexcept {
+        std::uint8_t flags = 0;
+        if (view_has_children(ctx, index)) {
+            flags |= kStructuredListRowFlagGroup;
+        }
+        if (!view_enabled(ctx, index)) {
+            flags |= kStructuredListRowFlagDisabled;
+        }
+        return flags;
     }
 
 private:

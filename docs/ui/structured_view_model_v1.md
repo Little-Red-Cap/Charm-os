@@ -16,6 +16,7 @@
 - 统一按 **row-oriented** 处理。
 - `TableView` 的列信息是行内附加数据，不引入二维模型。
 - `menu_tree` 的子菜单能力属于 **菜单扩展协议**，不得污染基础接口。
+- menu-backed list surface 如果需要 branch/group/disabled 语义，应优先复用 `StructuredMenuView::row_flags()` 与共享 `kStructuredListRowFlagGroup` / `kStructuredListRowFlagDisabled`，不要在 helper 里手写私有位值。
 
 ## 禁止事项（v1）
 

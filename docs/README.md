@@ -83,6 +83,7 @@
 - ARMv7-A 平台契约：`docs/system/armv7a_platform_contract.md`
 - 最小内核运行时 bridge 契约：`docs/system/minimal_kernel_runtime_bridge_contract.md`
 - 最小内核运行时证据矩阵：`docs/system/minimal_kernel_runtime_evidence_matrix.md`
+- 最小内核运行时总回归：`scripts/minimal_kernel_runtime_smoke.ps1`
 - 最小内核 runtime mailbox 契约：`docs/system/minimal_kernel_runtime_mailbox_contract.md`
 - 最小内核 task message API 契约：`docs/system/minimal_kernel_task_message_api_contract.md`
 - 最小内核 task message table 契约：`docs/system/minimal_kernel_task_message_table_contract.md`
@@ -160,6 +161,7 @@ flowchart TD
 | 推进 ARMv7-A 平台 bring-up | `docs/system/armv7a_platform_contract.md` → `docs/boot/bootloader_overview.md` |
 | 推进最小内核运行时 glue / bridge | `docs/system/minimal_kernel_runtime_bridge_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 查看最小内核运行时证据覆盖 | `docs/system/minimal_kernel_runtime_evidence_matrix.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |
+| 回归最小内核运行时总入口 | `scripts/minimal_kernel_runtime_smoke.ps1` → `docs/system/README.md` |
 | 推进第一个 stateful kernel object / runtime mailbox | `docs/system/minimal_kernel_runtime_mailbox_contract.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |
 | 推进 task-facing message surface / current-task mailbox facade | `docs/system/minimal_kernel_task_message_api_contract.md` → `docs/system/minimal_kernel_runtime_mailbox_contract.md` |
 | 推进 server-side task message routing / label table | `docs/system/minimal_kernel_task_message_table_contract.md` → `docs/system/minimal_kernel_task_message_api_contract.md` |

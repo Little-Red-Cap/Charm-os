@@ -1108,6 +1108,19 @@
                 || library_tab != LibraryTab::Songs;
         }
 
+        const char* library_back_target_label() const noexcept {
+            if (library_has_context()) {
+                return library_tab_title(library_tab);
+            }
+            if (list_shuffle_enabled) {
+                return library_tab_title(library_tab);
+            }
+            if (library_tab != LibraryTab::Songs) {
+                return library_tab_title(LibraryTab::Songs);
+            }
+            return "Library";
+        }
+
         void apply_library_tab_style(WidgetHandle handle, bool active, int radius) {
             if (!access.valid() || !handle) return;
             ::ui::scene::PillSurfaceSpec spec{};
@@ -1880,9 +1893,19 @@
             if (!access.valid() || !handles.list_path) return;
             const int count = static_cast<int>(list_order.size());
             FixedString<256> path;
-            path.assign(library_can_step_back() ? "< Library" : "Library");
-            path.append(" / ");
-            path.append(library_tab_title(library_tab));
+            const bool can_step_back = library_can_step_back();
+            const std::string_view back_target = library_back_target_label();
+            const std::string_view current_tab = library_tab_title(library_tab);
+            if (can_step_back) {
+                path.assign("< ");
+                path.append(back_target);
+            } else {
+                path.assign("Library");
+            }
+            if (!can_step_back || compare_ci(back_target, current_tab) != 0) {
+                path.append(" / ");
+                path.append(current_tab);
+            }
             if (library_has_context()) {
                 char summary_buf[128]{};
                 format_library_group_summary(

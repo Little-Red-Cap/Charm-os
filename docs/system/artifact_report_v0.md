@@ -341,9 +341,37 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - 哪个 stage 对应 root 里的哪个 block
 - 哪个 stage 对应 artifact_root 里的哪个分阶段 summary
 - 哪些 root 级矩阵仍然属于 input bridge，而不是 formation / binding / bringup block 本体
+- 每个 root field 在 field-level 上到底是直接复用分阶段 summary 字段、只是 block 内部别名，还是当前没有 direct mirror
 
 这样 `system_compiler_summary` 不只是“有块”，
 而是已经开始带出“这些块之间如何组成 result object”的语言。
+
+其中这层 field-level 关系现在会继续收进：
+
+- `input_bridge.field_relations[*]`
+- `stage_blocks[*].field_relations[*]`
+
+每条 relation 至少会带出：
+
+- `root_field`
+- `block_field_path`
+- `block_relation`
+- `summary_field_path`
+- `summary_relation`
+
+当前 `block_relation / summary_relation` 只使用三种最小语义：
+
+- `same_field`
+- `field_alias`
+- `none`
+
+也就是说，调用方现在不只能知道
+“`binding` 这段对应 `binding_basis` 和 `binding_result_summary`”，
+还可以继续知道：
+
+- `binding_reason_matrix` 在 root 上属于 `binding`，但在 block 内对应 `binding_basis.reason_matrix`
+- `bringup_phase_matrix` 在 root 上属于 `bringup`，但当前没有 direct summary field mirror
+- `unresolved_capability_matrix` 这类字段则既能在 root 上看，也能在 block 和部分分阶段 summary 上按同一字段名看到
 
 与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
 `system_input_summary`，至少包括：

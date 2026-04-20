@@ -434,6 +434,30 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 但不等于要求 `system_formation_summary`、`binding_result_summary`、
 `bringup_order_summary` 都逐字段同名复制一份。
 
+在这个基础上，`result_map` 现在还会继续显式带出 field-level relation：
+
+- `input_bridge.field_relations[*]`
+- `stage_blocks[*].field_relations[*]`
+
+每条 relation 会用：
+
+- `root_field`
+- `block_field_path / block_relation`
+- `summary_field_path / summary_relation`
+
+把 root field 和 block 内部字段、分阶段 summary 字段之间的关系正式写出来。
+当前 `block_relation / summary_relation` 只冻结为：
+
+- `same_field`
+- `field_alias`
+- `none`
+
+所以 explain 调用方现在能区分三种情况：
+
+- 这个 root field 在 block 或 summary 侧有同名 direct mirror
+- 这个 root field 在 block 里只是别名，比如 `binding_reason_matrix -> reason_matrix`
+- 这个 root field 目前只有 stage ownership，没有 direct summary field mirror
+
 也就是说，artifact_root 默认总览现在不只会说
 “有多少 case 发生了 system formation 漂移”，
 还会继续直接带出：

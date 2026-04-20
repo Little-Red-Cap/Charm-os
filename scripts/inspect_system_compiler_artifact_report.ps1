@@ -5531,6 +5531,24 @@ function New-ArtifactRootSystemCompilerAggregateProjection {
     }
 }
 
+function New-ArtifactRootSystemCompilerResultMapFieldRelation {
+    param(
+        [string]$RootField,
+        [string]$BlockFieldPath,
+        [string]$BlockRelation = 'none',
+        [string]$SummaryFieldPath,
+        [string]$SummaryRelation = 'none'
+    )
+
+    return [ordered]@{
+        root_field = [string]$RootField
+        block_field_path = if ([string]::IsNullOrWhiteSpace($BlockFieldPath)) { $null } else { [string]$BlockFieldPath }
+        block_relation = [string]$BlockRelation
+        summary_field_path = if ([string]::IsNullOrWhiteSpace($SummaryFieldPath)) { $null } else { [string]$SummaryFieldPath }
+        summary_relation = [string]$SummaryRelation
+    }
+}
+
 function New-ArtifactRootSystemCompilerResultMap {
     param(
         [switch]$Comparison
@@ -5548,6 +5566,13 @@ function New-ArtifactRootSystemCompilerResultMap {
                     'declared_fact_change_matrix'
                     'declared_contract_change_matrix'
                     'subject_fact_change_matrix'
+                )
+                field_relations = @(
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'system_spec_change_matrix' -SummaryFieldPath 'system_spec_change_matrix' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'resolved_input_change_matrix' -SummaryFieldPath 'resolved_input_change_matrix' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'declared_fact_change_matrix' -SummaryFieldPath 'declared_fact_change_matrix' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'declared_contract_change_matrix' -SummaryFieldPath 'declared_contract_change_matrix' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'subject_fact_change_matrix' -SummaryFieldPath 'subject_fact_change_matrix' -SummaryRelation 'same_field'
                 )
             }
             case_projection_fields = [ordered]@{
@@ -5572,6 +5597,18 @@ function New-ArtifactRootSystemCompilerResultMap {
                         'blocker_missing_requires_change_matrix'
                         'blocker_depends_on_change_matrix'
                     )
+                    field_relations = @(
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'status_change_matrix' -BlockFieldPath 'status_change_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'status_change_matrix' -SummaryRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'declared_fact_change_matrix' -BlockFieldPath 'declared_fact_change_matrix' -BlockRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'declared_contract_change_matrix' -BlockFieldPath 'declared_contract_change_matrix' -BlockRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'subject_fact_change_matrix' -BlockFieldPath 'subject_fact_change_matrix' -BlockRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'unresolved_capability_change_matrix' -BlockFieldPath 'unresolved_capability_change_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'unresolved_capability_change_matrix' -SummaryRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocked_node_change_matrix' -BlockFieldPath 'blocked_node_change_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'blocked_node_change_matrix' -SummaryRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocker_change_matrix' -BlockFieldPath 'blocker_change_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'blocker_change_matrix' -SummaryRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocker_reason_change_matrix' -BlockFieldPath 'blocker_reason_change_matrix' -BlockRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocker_missing_requires_change_matrix' -BlockFieldPath 'blocker_missing_requires_change_matrix' -BlockRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocker_depends_on_change_matrix' -BlockFieldPath 'blocker_depends_on_change_matrix' -BlockRelation 'same_field'
+                    )
                 }
                 [ordered]@{
                     stage = 'binding'
@@ -5582,6 +5619,11 @@ function New-ArtifactRootSystemCompilerResultMap {
                         'resolved_capability_change_matrix'
                         'unresolved_capability_change_matrix'
                     )
+                    field_relations = @(
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'binding_reason_change_matrix' -BlockFieldPath 'reason_change_matrix' -BlockRelation 'field_alias'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'resolved_capability_change_matrix' -BlockFieldPath 'resolved_capability_change_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'resolved_capability_change_matrix' -SummaryRelation 'same_field'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'unresolved_capability_change_matrix' -BlockFieldPath 'unresolved_capability_change_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'unresolved_capability_change_matrix' -SummaryRelation 'same_field'
+                    )
                 }
                 [ordered]@{
                     stage = 'bringup'
@@ -5591,6 +5633,11 @@ function New-ArtifactRootSystemCompilerResultMap {
                         'bringup_phase_change_matrix'
                         'bringup_dependency_change_matrix'
                         'blocked_node_change_matrix'
+                    )
+                    field_relations = @(
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'bringup_phase_change_matrix' -BlockFieldPath 'phase_change_matrix' -BlockRelation 'field_alias'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'bringup_dependency_change_matrix' -BlockFieldPath 'dependency_change_matrix' -BlockRelation 'field_alias'
+                        New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocked_node_change_matrix' -BlockFieldPath 'blocked_node_change_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'blocked_node_change_matrix' -SummaryRelation 'same_field'
                     )
                 }
             )
@@ -5607,6 +5654,12 @@ function New-ArtifactRootSystemCompilerResultMap {
                 'resolved_profile_matrix'
                 'resolved_board_matrix'
                 'resolved_active_facet_matrix'
+            )
+            field_relations = @(
+                New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'case_kind_matrix' -SummaryFieldPath 'case_kind_matrix' -SummaryRelation 'same_field'
+                New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'resolved_profile_matrix' -SummaryFieldPath 'resolved_profile_matrix' -SummaryRelation 'same_field'
+                New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'resolved_board_matrix' -SummaryFieldPath 'resolved_board_matrix' -SummaryRelation 'same_field'
+                New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'resolved_active_facet_matrix' -SummaryFieldPath 'resolved_active_facet_matrix' -SummaryRelation 'same_field'
             )
         }
         case_projection_fields = [ordered]@{
@@ -5630,6 +5683,17 @@ function New-ArtifactRootSystemCompilerResultMap {
                     'blocker_missing_requires_matrix'
                     'blocker_depends_on_matrix'
                 )
+                field_relations = @(
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'status_counts' -BlockFieldPath 'status_counts' -BlockRelation 'same_field' -SummaryFieldPath 'status_counts' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'formed_case_count' -BlockFieldPath 'formed_case_count' -BlockRelation 'same_field' -SummaryFieldPath 'formed_case_count' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocked_case_count' -BlockFieldPath 'blocked_case_count' -BlockRelation 'same_field' -SummaryFieldPath 'blocked_case_count' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'unresolved_capability_matrix' -BlockFieldPath 'unresolved_capability_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'unresolved_capability_matrix' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocked_node_matrix' -BlockFieldPath 'blocked_node_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'blocked_node_matrix' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocker_matrix' -BlockFieldPath 'blocker_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'blocker_matrix' -SummaryRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocker_reason_matrix' -BlockFieldPath 'blocker_reason_matrix' -BlockRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocker_missing_requires_matrix' -BlockFieldPath 'blocker_missing_requires_matrix' -BlockRelation 'same_field'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocker_depends_on_matrix' -BlockFieldPath 'blocker_depends_on_matrix' -BlockRelation 'same_field'
+                )
             }
             [ordered]@{
                 stage = 'binding'
@@ -5638,6 +5702,10 @@ function New-ArtifactRootSystemCompilerResultMap {
                 root_fields = @(
                     'binding_reason_matrix'
                     'unresolved_capability_matrix'
+                )
+                field_relations = @(
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'binding_reason_matrix' -BlockFieldPath 'reason_matrix' -BlockRelation 'field_alias'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'unresolved_capability_matrix' -BlockFieldPath 'unresolved_capability_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'unresolved_capability_matrix' -SummaryRelation 'same_field'
                 )
             }
             [ordered]@{
@@ -5648,6 +5716,11 @@ function New-ArtifactRootSystemCompilerResultMap {
                     'bringup_phase_matrix'
                     'bringup_dependency_matrix'
                     'blocked_node_matrix'
+                )
+                field_relations = @(
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'bringup_phase_matrix' -BlockFieldPath 'phase_matrix' -BlockRelation 'field_alias'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'bringup_dependency_matrix' -BlockFieldPath 'dependency_matrix' -BlockRelation 'field_alias'
+                    New-ArtifactRootSystemCompilerResultMapFieldRelation -RootField 'blocked_node_matrix' -BlockFieldPath 'blocked_node_matrix' -BlockRelation 'same_field' -SummaryFieldPath 'blocked_node_matrix' -SummaryRelation 'same_field'
                 )
             }
         )

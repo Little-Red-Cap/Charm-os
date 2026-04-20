@@ -290,7 +290,8 @@ export namespace daplink::board {
         if (uart == nullptr) {
             return 0;
         }
-        return static_cast<std::uint8_t>(uart->Instance->DR & 0xFFU);
+        // return static_cast<std::uint8_t>(uart->Instance->DR & 0xFFU);
+        return static_cast<std::uint8_t>(uart->Instance->RDR & 0xFFU);
     }
 
     inline bool cdc_uart_tx_ready() noexcept {
@@ -306,6 +307,7 @@ export namespace daplink::board {
         if (uart == nullptr) {
             return;
         }
-        uart->Instance->DR = byte;
+        // uart->Instance->DR = byte;
+        uart->Instance->TDR = byte;
     }
 }

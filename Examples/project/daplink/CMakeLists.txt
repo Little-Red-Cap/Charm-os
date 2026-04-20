@@ -1,0 +1,126 @@
+﻿cmake_minimum_required(VERSION 4.0)
+
+#
+# This file is generated only once,
+# and is not re-generated if converter is called multiple times.
+#
+# User is free to modify the file as much as necessary
+#
+
+# Setup compiler settings
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)
+
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
+
+# Define the build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug")
+endif()
+
+# Set the project name
+set(CMAKE_PROJECT_NAME daplink)
+
+# Include toolchain file
+#include("cmake/gcc-arm-none-eabi.cmake")
+include("g431/cmake/gcc-arm-none-eabi.cmake")
+
+# Enable compile command to ease indexing with e.g. clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+
+# Core project settings
+project(${CMAKE_PROJECT_NAME})
+message("Build type: " ${CMAKE_BUILD_TYPE})
+
+# Enable CMake support for ASM, C and CXX languages
+enable_language(C ASM CXX)
+
+# Create an executable object type
+add_executable(${CMAKE_PROJECT_NAME})
+
+# Add STM32CubeMX generated sources
+#add_subdirectory(cmake/stm32cubemx)
+add_subdirectory(g431/cmake/stm32cubemx)
+
+# Link directories setup
+target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined library search paths
+)
+
+# Add sources to executable
+file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS
+        "./app/*.cppm"
+        "./*.cppm"
+)
+list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/audio_player_demo.cppm"
+        "${CMAKE_CURRENT_SOURCE_DIR}/audio_demo.cppm"
+)
+
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user sources here
+        app/main.cpp
+
+    PUBLIC
+    FILE_SET modules TYPE CXX_MODULES
+    BASE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/../"
+    FILES
+        ${MODULE_INTERFACE_UNITS}
+)
+
+# Add include paths
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined include paths
+    "${CMAKE_CURRENT_SOURCE_DIR}/app"
+)
+
+# Add project symbols (macros)
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined symbols
+    CHARM_VIVID_ENABLE_LAYER_CACHE=0
+    CHARM_DAP_ENABLE_SWO=0
+    CHARM_DAP_ENABLE_SWO_STREAM=0
+    CHARM_DAP_ENABLE_DAP_UART=0
+    CHARM_DAP_CDC_UART=2
+    CHARM_DAP_USB_PROFILE=2
+    STM32F103xx
+    USE_HAL_DRIVER
+    CHARM_KERNEL_REQUIRE_SSU_META=1
+)
+
+# Ensure Charm-os is built with the same feature flags.
+add_compile_definitions(CHARM_VIVID_ENABLE_LAYER_CACHE=0)
+add_compile_definitions(CHARM_DAP_ENABLE_SWO=0)
+add_compile_definitions(CHARM_DAP_ENABLE_SWO_STREAM=0)
+add_compile_definitions(CHARM_DAP_ENABLE_DAP_UART=0)
+add_compile_definitions(CHARM_DAP_CDC_UART=2)
+add_compile_definitions(CHARM_DAP_USB_PROFILE=2)
+add_compile_definitions(STM32F103xx)
+add_compile_definitions(USE_HAL_DRIVER)
+
+set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
+charm_add_config_interface(charm_cfg_daplink_charm
+    INCLUDE_DIRECTORIES
+        $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>
+    COMPILE_DEFINITIONS
+        CHARM_KERNEL_REQUIRE_SSU_META=1)
+set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_MEDIA OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_FATFS OFF CACHE BOOL "" FORCE)
+set(CHARM_AUDIO_SINK_I2S OFF CACHE BOOL "" FORCE)
+set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
+add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
+charm_apply_config_targets(Charm-build-config charm_cfg_daplink_charm)
+
+# Add linked libraries
+target_link_libraries(${CMAKE_PROJECT_NAME}
+    stm32cubemx
+    Charm-os
+
+    # Add user defined libraries
+)

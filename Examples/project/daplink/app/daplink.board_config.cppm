@@ -1,6 +1,6 @@
 module;
 
-#include "stm32f1xx_hal.h"
+#include "gpio.h"
 
 export module daplink.board_config;
 

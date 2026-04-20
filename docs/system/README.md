@@ -39,6 +39,7 @@
 - [`minimal_kernel_runtime_bridge_contract.md`](minimal_kernel_runtime_bridge_contract.md)
 - [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
 - [`minimal_kernel_runtime_mailbox_contract.md`](minimal_kernel_runtime_mailbox_contract.md)
+- [`minimal_kernel_runtime_smoke.ps1`](../../scripts/minimal_kernel_runtime_smoke.ps1)
 - [`minimal_kernel_task_message_api_contract.md`](minimal_kernel_task_message_api_contract.md)
 - [`minimal_kernel_task_message_table_contract.md`](minimal_kernel_task_message_table_contract.md)
 - [`minimal_kernel_task_message_dispatch_contract.md`](minimal_kernel_task_message_dispatch_contract.md)

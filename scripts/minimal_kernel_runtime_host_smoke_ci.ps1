@@ -1,0 +1,32 @@
+param(
+    [string]$CMakeExe = "cmake",
+    [string]$Generator = "Ninja",
+    [int]$Jobs = 0,
+    [switch]$StopOnFailure,
+    [string[]]$Examples
+)
+
+$ErrorActionPreference = "Stop"
+
+$rootScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_host_smoke.ps1"
+if (-not (Test-Path $rootScript)) {
+    throw "missing host smoke script: $rootScript"
+}
+
+$invokeArgs = @{
+    CMakeExe  = $CMakeExe
+    Generator = $Generator
+    Fresh     = $true
+    Jobs      = $Jobs
+}
+
+if ($StopOnFailure) {
+    $invokeArgs.StopOnFailure = $true
+}
+
+if ($PSBoundParameters.ContainsKey("Examples")) {
+    $invokeArgs.Examples = $Examples
+}
+
+& $rootScript @invokeArgs
+exit $LASTEXITCODE

@@ -1985,7 +1985,8 @@
             const int count = static_cast<int>(list_order.size());
             const bool show_empty = (count == 0);
             const bool show_group_hint = !show_empty && library_shows_group_rows();
-            const bool show = show_empty || show_group_hint;
+            const bool show_context_hint = !show_empty && library_has_context() && library_can_step_back();
+            const bool show = show_empty || show_group_hint || show_context_hint;
             access.set_visible(handles.list_hint, show);
             if (!show) return;
             if (show_empty && !mount_status.empty()) {
@@ -2000,8 +2001,13 @@
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
-                std::snprintf(buf, sizeof(buf), "%d %s available | open one to browse tracks",
-                              count, label);
+                std::snprintf(buf, sizeof(buf), "%d %s available | open a %s to browse tracks",
+                              count, label, (library_tab == LibraryTab::Albums) ? "album" : "artist");
+                hint = buf;
+            } else if (show_context_hint) {
+                const std::string_view back_target = library_back_target_label();
+                std::snprintf(buf, sizeof(buf), "Path bar returns to %.*s",
+                              static_cast<int>(back_target.size()), back_target.data());
                 hint = buf;
             } else {
                 if (!fs_ready) {

@@ -215,17 +215,32 @@ export namespace net {
             route_count_ = 0;
         }
 
+        [[nodiscard]] Result<void> set_route(Ipv4ForwardingRoute route) noexcept {
+            auto validated = validate_route(route);
+            if (!validated) {
+                return util::unexpected(validated.error());
+            }
+
+            route.network = canonical_ipv4_network(route.network, route.prefix_length);
+            const auto existing = find_route_index(route.network, route.prefix_length);
+            if (existing < route_count_) {
+                routes_[existing] = route;
+                return {};
+            }
+
+            if (route_count_ >= routes_.size()) {
+                return util::unexpected(errc::buffer_overflow);
+            }
+
+            routes_[route_count_] = route;
+            ++route_count_;
+            return {};
+        }
+
         [[nodiscard]] Result<void> add_route(Ipv4ForwardingRoute route) noexcept {
-            if (!route.network.is_ipv4() || route.prefix_length > 32u) {
-                return util::unexpected(errc::invalid_arg);
-            }
-            if (route.has_next_hop
-                && (!route.next_hop.is_ipv4() || route.next_hop.is_any())) {
-                return util::unexpected(errc::invalid_arg);
-            }
-            if (route.has_next_hop
-                && !gateway_matches_port(port_index(route.egress_port), route.next_hop)) {
-                return util::unexpected(errc::invalid_arg);
+            auto validated = validate_route(route);
+            if (!validated) {
+                return util::unexpected(validated.error());
             }
             if (route_count_ >= routes_.size()) {
                 return util::unexpected(errc::buffer_overflow);
@@ -254,6 +269,31 @@ export namespace net {
                                                      Ipv4ForwardingPort egress_port,
                                                      IpAddress next_hop) noexcept {
             return add_route(Ipv4ForwardingRoute{
+                .network = network,
+                .prefix_length = prefix_length,
+                .egress_port = egress_port,
+                .has_next_hop = true,
+                .next_hop = next_hop,
+            });
+        }
+
+        [[nodiscard]] Result<void> set_direct_route(IpAddress network,
+                                                    util::u8 prefix_length,
+                                                    Ipv4ForwardingPort egress_port) noexcept {
+            return set_route(Ipv4ForwardingRoute{
+                .network = network,
+                .prefix_length = prefix_length,
+                .egress_port = egress_port,
+                .has_next_hop = false,
+                .next_hop = {},
+            });
+        }
+
+        [[nodiscard]] Result<void> set_gateway_route(IpAddress network,
+                                                     util::u8 prefix_length,
+                                                     Ipv4ForwardingPort egress_port,
+                                                     IpAddress next_hop) noexcept {
+            return set_route(Ipv4ForwardingRoute{
                 .network = network,
                 .prefix_length = prefix_length,
                 .egress_port = egress_port,
@@ -472,6 +512,42 @@ export namespace net {
 
             const auto mask = ipv4_prefix_mask(prefix_length);
             return (ipv4_bits(address) & mask) == (ipv4_bits(network) & mask);
+        }
+
+        [[nodiscard]] Result<void> validate_route(const Ipv4ForwardingRoute& route) const noexcept {
+            if (!route.network.is_ipv4() || route.prefix_length > 32u) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            const auto egress = port_index(route.egress_port);
+            if (egress >= ports_.size()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            if (route.has_next_hop
+                && (!route.next_hop.is_ipv4() || route.next_hop.is_any())) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            if (route.has_next_hop && !gateway_matches_port(egress, route.next_hop)) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            return {};
+        }
+
+        [[nodiscard]] util::usize find_route_index(IpAddress network,
+                                                   util::u8 prefix_length) const noexcept {
+            for (util::usize index = 0; index < route_count_; ++index) {
+                const auto& route = routes_[index];
+                if (route.prefix_length != prefix_length) {
+                    continue;
+                }
+                if (is_same_ipv4_address(route.network, network)) {
+                    return index;
+                }
+            }
+            return route_count_;
         }
 
         [[nodiscard]] bool is_local_address(IpAddress address) const noexcept {

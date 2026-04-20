@@ -22,6 +22,21 @@
 
 /* USER CODE BEGIN 0 */
 
+static void MX_USB_CRS_Init(void)
+{
+  RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
+
+  __HAL_RCC_CRS_CLK_ENABLE();
+
+  RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
+  RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_USB;
+  RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
+  RCC_CRSInitStruct.ReloadValue = __HAL_RCC_CRS_RELOADVALUE_CALCULATE(48000000, 1000);
+  RCC_CRSInitStruct.ErrorLimitValue = RCC_CRS_ERRORLIMIT_DEFAULT;
+  RCC_CRSInitStruct.HSI48CalibrationValue = RCC_CRS_HSI48CALIBRATION_DEFAULT;
+  HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
+}
+
 /* USER CODE END 0 */
 
 PCD_HandleTypeDef hpcd_USB_FS;
@@ -74,6 +89,8 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
     {
       Error_Handler();
     }
+
+    MX_USB_CRS_Init();
 
     /* USB clock enable */
     __HAL_RCC_USB_CLK_ENABLE();

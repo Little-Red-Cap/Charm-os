@@ -87,7 +87,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     CHARM_DAP_ENABLE_DAP_UART=0
     CHARM_DAP_CDC_UART=2
     CHARM_DAP_USB_PROFILE=2
-    STM32F103xx
+    STM32G431xx
     USE_HAL_DRIVER
     CHARM_KERNEL_REQUIRE_SSU_META=1
 )
@@ -99,7 +99,7 @@ add_compile_definitions(CHARM_DAP_ENABLE_SWO_STREAM=0)
 add_compile_definitions(CHARM_DAP_ENABLE_DAP_UART=0)
 add_compile_definitions(CHARM_DAP_CDC_UART=2)
 add_compile_definitions(CHARM_DAP_USB_PROFILE=2)
-add_compile_definitions(STM32F103xx)
+add_compile_definitions(STM32G431xx)
 add_compile_definitions(USE_HAL_DRIVER)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../..")

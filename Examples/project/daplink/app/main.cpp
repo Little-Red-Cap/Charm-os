@@ -21,6 +21,7 @@ namespace {
     constexpr bool kEnableCdc =
         (kUsbProfile == daplink::app_config::UsbProfile::cdc) ||
         (kUsbProfile == daplink::app_config::UsbProfile::composite);
+    constexpr bool kCdcLoopbackTest = daplink::app_config::kCdcLoopbackTestValue;
     constexpr bool kEnableHid =
         (kUsbProfile == daplink::app_config::UsbProfile::hid) ||
         (kUsbProfile == daplink::app_config::UsbProfile::composite);
@@ -49,15 +50,14 @@ namespace {
     }
 
     io::result uart_write(void*, io::ByteView buf) noexcept {
-        std::size_t count = 0;
-        while (count < buf.size() && daplink::board::cdc_uart_tx_ready()) {
-            daplink::board::cdc_uart_write(static_cast<std::uint8_t>(buf[count]));
-            ++count;
-        }
-        if (count == 0) {
+        if (buf.empty()) {
             return io::fail(io::errc::would_block);
         }
-        return io::ok(count);
+        if (!daplink::board::cdc_uart_tx_ready()) {
+            return io::fail(io::errc::would_block);
+        }
+        daplink::board::cdc_uart_write(static_cast<std::uint8_t>(buf[0]));
+        return io::ok(1);
     }
 
     io::result usb_cdc_read(void*, io::MutByteView buf) noexcept {
@@ -125,7 +125,7 @@ int main()
         io::ChannelOps{uart_read, uart_write, nullptr}
     };
     auto last_line = daplink::dap_policy::UsbScheduler::to_line(daplink::usb_minimal::cdc_line());
-    if constexpr (kEnableCdc) {
+    if constexpr (kEnableCdc && !kCdcLoopbackTest) {
         daplink::board::cdc_uart_apply_line(
             last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
     }

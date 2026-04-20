@@ -74,6 +74,13 @@ export namespace daplink::app_config {
     constexpr std::uint8_t kCdcPolicyValue = kCdcPolicy;
 #endif
 
+#ifdef CHARM_DAP_CDC_LOOPBACK_TEST
+    constexpr bool kCdcLoopbackTestValue =
+        static_cast<std::uint8_t>(CHARM_DAP_CDC_LOOPBACK_TEST) != 0;
+#else
+    constexpr bool kCdcLoopbackTestValue = false;
+#endif
+
     struct UsbStrings {
         const char* manufacturer;
         const char* product;

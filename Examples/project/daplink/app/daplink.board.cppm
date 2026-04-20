@@ -1,5 +1,8 @@
 module;
 
+#if __has_include("dma.h")
+#include "dma.h"
+#endif
 #include "gpio.h"
 #include "usart.h"
 #include "usb.h"
@@ -15,6 +18,37 @@ import daplink.board_config;
 namespace {
     constexpr std::uint8_t kCdcUartIndex = daplink::app_config::kConfig.cdc.uart_index;
     namespace board_cfg = daplink::board_config;
+}
+
+namespace daplink::board::detail {
+    inline void cdc_uart_post_init(UART_HandleTypeDef* uart) noexcept {
+#if defined(USART_CR1_FIFOEN)
+        if (uart == nullptr) {
+            return;
+        }
+        (void)HAL_UARTEx_SetTxFifoThreshold(uart, UART_TXFIFO_THRESHOLD_1_8);
+        (void)HAL_UARTEx_SetRxFifoThreshold(uart, UART_RXFIFO_THRESHOLD_1_8);
+        (void)HAL_UARTEx_DisableFifoMode(uart);
+#else
+        (void)uart;
+#endif
+    }
+
+    inline auto cdc_uart_data_read(const UART_HandleTypeDef* uart) noexcept -> std::uint8_t {
+#if defined(USART_RDR_RDR)
+        return static_cast<std::uint8_t>(uart->Instance->RDR & 0xFFU);
+#else
+        return static_cast<std::uint8_t>(uart->Instance->DR & 0xFFU);
+#endif
+    }
+
+    inline void cdc_uart_data_write(UART_HandleTypeDef* uart, const std::uint8_t byte) noexcept {
+#if defined(USART_TDR_TDR)
+        uart->Instance->TDR = byte;
+#else
+        uart->Instance->DR = byte;
+#endif
+    }
 }
 
 extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef* hpcd) {
@@ -228,6 +262,9 @@ export namespace daplink::board {
     inline auto init_peripherals() noexcept -> std::expected<void, init_error> {
         MX_GPIO_Init();
         if constexpr (kCdcUartIndex == 2) {
+#if __has_include("dma.h")
+            MX_DMA_Init();
+#endif
             MX_USART2_UART_Init();
         } else {
             MX_USART1_UART_Init();
@@ -275,11 +312,16 @@ export namespace daplink::board {
             uart->Init.WordLength = UART_WORDLENGTH_9B;
         }
         (void)HAL_UART_Init(uart);
+        detail::cdc_uart_post_init(uart);
     }
 
     inline bool cdc_uart_rx_ready() noexcept {
         auto* uart = cdc_uart_handle();
         if (uart == nullptr) {
+            return false;
+        }
+        if (__HAL_UART_GET_FLAG(uart, UART_FLAG_ORE) != RESET) {
+            __HAL_UART_CLEAR_OREFLAG(uart);
             return false;
         }
         return __HAL_UART_GET_FLAG(uart, UART_FLAG_RXNE) != RESET;
@@ -290,8 +332,7 @@ export namespace daplink::board {
         if (uart == nullptr) {
             return 0;
         }
-        // return static_cast<std::uint8_t>(uart->Instance->DR & 0xFFU);
-        return static_cast<std::uint8_t>(uart->Instance->RDR & 0xFFU);
+        return detail::cdc_uart_data_read(uart);
     }
 
     inline bool cdc_uart_tx_ready() noexcept {
@@ -307,7 +348,6 @@ export namespace daplink::board {
         if (uart == nullptr) {
             return;
         }
-        // uart->Instance->DR = byte;
-        uart->Instance->TDR = byte;
+        detail::cdc_uart_data_write(uart, byte);
     }
 }

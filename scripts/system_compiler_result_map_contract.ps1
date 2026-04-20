@@ -121,6 +121,32 @@ function New-ResultMapContractFieldRelationDescriptor {
     }
 }
 
+function New-ResultMapContractCaseProjectionSourceCandidateDescriptor {
+    param(
+        [string]$Stage,
+        [string]$FieldPath,
+        [string]$Relation = 'same_field'
+    )
+
+    return [ordered]@{
+        stage = [string]$Stage
+        field_path = [string]$FieldPath
+        relation = [string]$Relation
+    }
+}
+
+function New-ResultMapContractCaseProjectionFieldRelationDescriptor {
+    param(
+        [string]$ProjectionField,
+        [object[]]$SourceCandidates
+    )
+
+    return [ordered]@{
+        projection_field = [string]$ProjectionField
+        source_candidates = @($SourceCandidates)
+    }
+}
+
 function Get-ResultMapContractExpectedDescriptor {
     param(
         [switch]$Comparison
@@ -151,6 +177,56 @@ function Get-ResultMapContractExpectedDescriptor {
                 formation = 'cases[*].formation_basis_changes'
                 binding = 'cases[*].binding_summary_changes'
                 bringup = 'cases[*].bringup_summary_changes'
+            }
+            case_projection_field_relations = [ordered]@{
+                formation = @(
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'system_spec_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'system_spec_changes'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'resolved_input_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'resolved_input_changes'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'declared_fact_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'declared_fact_changes'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'declared_contract_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'declared_contract_changes'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'subject_fact_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'subject_fact_changes'
+                    )
+                )
+                binding = @(
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'summary_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'summary_changes'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'binding_change_count' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'binding_change_count'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'capabilities_changed' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'capabilities_changed'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'resolved_capability_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'resolved_capability_changes'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'unresolved_capability_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'unresolved_capability_changes'
+                    )
+                )
+                bringup = @(
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'summary_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'bringup_order' -FieldPath 'summary_changes'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'entry_change_count' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'bringup_order' -FieldPath 'entry_change_count'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'nodes_changed' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'bringup_order' -FieldPath 'nodes_changed'
+                    )
+                    New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'blocked_node_changes' -SourceCandidates @(
+                        New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'bringup_order' -FieldPath 'blocked_node_changes'
+                    )
+                )
             }
             stage_blocks = @(
                 [ordered]@{
@@ -239,6 +315,64 @@ function Get-ResultMapContractExpectedDescriptor {
             binding = 'cases[*].binding_summary'
             bringup = 'cases[*].bringup_summary'
         }
+        case_projection_field_relations = [ordered]@{
+            formation = @(
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'case_kind' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'case_kind'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'case_kind'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'declared_fact_count' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'declared_fact_count'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'declared_fact_count'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'declared_contract_count' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'declared_contract_count'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'declared_contract_count'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'subject_fact_count' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'subject_fact_count'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_input' -FieldPath 'subject_fact_count'
+                )
+            )
+            binding = @(
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'required_binding_count' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'required_binding_count'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'required_binding_count'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'resolved_binding_count' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'resolved_binding_count'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'resolved_binding_count'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'unresolved_binding_count' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'unresolved_binding_count'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'unresolved_binding_count'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'resolved_capabilities' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'resolved_capabilities'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'unresolved_capabilities' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'unresolved_capabilities'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'binding_result' -FieldPath 'unresolved_capabilities'
+                )
+            )
+            bringup = @(
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'ordered_node_count' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'ordered_node_count'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'bringup_order' -FieldPath 'ordered_node_count'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'blocked_node_count' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'blocked_node_count'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'bringup_order' -FieldPath 'blocked_node_count'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'blocked_nodes' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'system_formation' -FieldPath 'blocked_nodes'
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'bringup_order' -FieldPath 'blocked_nodes'
+                )
+                New-ResultMapContractCaseProjectionFieldRelationDescriptor -ProjectionField 'phase_counts' -SourceCandidates @(
+                    New-ResultMapContractCaseProjectionSourceCandidateDescriptor -Stage 'bringup_order' -FieldPath 'phase_counts'
+                )
+            )
+        }
         stage_blocks = @(
             [ordered]@{
                 stage = 'formation'
@@ -296,6 +430,123 @@ function Get-ResultMapContractExpectedDescriptor {
                 )
             }
         )
+    }
+}
+
+function Get-ResultMapContractCaseStageSummaryPath {
+    param(
+        [string]$Stage,
+        [switch]$Comparison
+    )
+
+    $prefix = if ($Comparison) { 'comparison.' } else { '' }
+    switch ([string]$Stage) {
+        'system_input' { return "${prefix}system_input_summary" }
+        'binding_result' { return "${prefix}binding_result_summary" }
+        'bringup_order' { return "${prefix}bringup_order_summary" }
+        'system_formation' { return "${prefix}system_formation_summary" }
+        default { return '' }
+    }
+}
+
+function Assert-ResultMapContractCaseProjectionFieldRelations {
+    param(
+        $RootSummary,
+        $CaseProjectionFieldRelations,
+        $CaseProjectionFields,
+        $ExpectedCaseProjectionFieldRelations,
+        [switch]$Comparison,
+        [string]$Context
+    )
+
+    $stageNames = @('formation', 'binding', 'bringup')
+    foreach ($stageName in @($stageNames)) {
+        $projectionPath = [string](Get-ResultMapContractDirectPropertyValue -Object $CaseProjectionFields -PropertyName $stageName)
+        $projectionPropertyName = Get-ResultMapCaseProjectionPropertyName -ProjectionPath $projectionPath
+        Assert-ResultMapContractCondition (-not [string]::IsNullOrWhiteSpace($projectionPropertyName)) "$Context $stageName projection path invalid"
+
+        $expectedFieldRelations = @(
+            @(Get-ResultMapContractDirectPropertyValue -Object $ExpectedCaseProjectionFieldRelations -PropertyName $stageName) |
+                Where-Object { $null -ne $_ }
+        )
+        $actualFieldRelations = @(
+            @(Get-ResultMapContractDirectPropertyValue -Object $CaseProjectionFieldRelations -PropertyName $stageName) |
+                Where-Object { $null -ne $_ }
+        )
+        Assert-ResultMapContractCondition ($actualFieldRelations.Count -eq $expectedFieldRelations.Count) "$Context $stageName case_projection_field_relations count mismatch"
+
+        $summaryObject = if ($Comparison) {
+            Get-ResultMapContractPathValue -Object $RootSummary -Path 'comparison.system_compiler_summary'
+        } else {
+            Get-ResultMapContractPathValue -Object $RootSummary -Path 'system_compiler_summary'
+        }
+        $caseEntries = @(
+            @(Get-ResultMapContractDirectPropertyValue -Object $summaryObject -PropertyName 'cases') |
+                Where-Object { $null -ne $_ }
+        )
+        $projectionCaseEntry = @(
+            @($caseEntries) |
+                Where-Object { Test-ResultMapContractHasDirectProperty -Object $_ -PropertyName $projectionPropertyName } |
+                Where-Object { $null -ne (Get-ResultMapContractDirectPropertyValue -Object $_ -PropertyName $projectionPropertyName) } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+        Assert-ResultMapContractCondition ($null -ne $projectionCaseEntry) "$Context $stageName missing non-null case projection"
+
+        $projectionObject = Get-ResultMapContractDirectPropertyValue -Object $projectionCaseEntry -PropertyName $projectionPropertyName
+        foreach ($expectedFieldRelation in @($expectedFieldRelations)) {
+            $projectionField = [string]$expectedFieldRelation.projection_field
+            $actualFieldRelation = @(
+                @($actualFieldRelations) |
+                    Where-Object { [string]$_.projection_field -eq $projectionField } |
+                    Select-Object -First 1
+            ) | Select-Object -First 1
+
+            Assert-ResultMapContractCondition ($null -ne $actualFieldRelation) "$Context $stageName missing projection field relation $projectionField"
+            Assert-ResultMapContractCondition (Test-ResultMapContractHasDirectProperty -Object $projectionObject -PropertyName $projectionField) "$Context $stageName projection missing field $projectionField"
+
+            $expectedSourceCandidates = @(
+                @($expectedFieldRelation.source_candidates) |
+                    Where-Object { $null -ne $_ }
+            )
+            $actualSourceCandidates = @(
+                @(Get-ResultMapContractDirectPropertyValue -Object $actualFieldRelation -PropertyName 'source_candidates') |
+                    Where-Object { $null -ne $_ }
+            )
+            Assert-ResultMapContractCondition ($actualSourceCandidates.Count -eq $expectedSourceCandidates.Count) "$Context $stageName $projectionField source_candidates count mismatch"
+
+            foreach ($expectedSourceCandidate in @($expectedSourceCandidates)) {
+                $expectedStage = [string]$expectedSourceCandidate.stage
+                $expectedFieldPath = [string]$expectedSourceCandidate.field_path
+                $expectedRelation = [string]$expectedSourceCandidate.relation
+
+                $actualSourceCandidate = @(
+                    @($actualSourceCandidates) |
+                        Where-Object {
+                            ([string]$_.stage -eq $expectedStage) -and
+                            ([string]$_.field_path -eq $expectedFieldPath)
+                        } |
+                        Select-Object -First 1
+                ) | Select-Object -First 1
+
+                Assert-ResultMapContractCondition ($null -ne $actualSourceCandidate) "$Context $stageName $projectionField missing source candidate $expectedStage::$expectedFieldPath"
+                Assert-ResultMapContractCondition ([string]$actualSourceCandidate.relation -eq $expectedRelation) "$Context $stageName $projectionField relation mismatch for $expectedStage::$expectedFieldPath"
+
+                $stageSummaryPath = Get-ResultMapContractCaseStageSummaryPath -Stage $expectedStage -Comparison:$Comparison
+                Assert-ResultMapContractCondition (-not [string]::IsNullOrWhiteSpace($stageSummaryPath)) "$Context $stageName $projectionField unknown stage summary path for $expectedStage"
+                $stageSummary = Get-ResultMapContractPathValue -Object $RootSummary -Path $stageSummaryPath
+                Assert-ResultMapContractCondition ($null -ne $stageSummary) "$Context $stageName $projectionField missing stage summary $stageSummaryPath"
+                $stageCases = @(
+                    @(Get-ResultMapContractDirectPropertyValue -Object $stageSummary -PropertyName 'cases') |
+                        Where-Object { $null -ne $_ }
+                )
+                $stageCaseEntry = @(
+                    @($stageCases) |
+                        Where-Object { Test-ResultMapContractPathExists -Object $_ -Path $expectedFieldPath } |
+                        Select-Object -First 1
+                ) | Select-Object -First 1
+                Assert-ResultMapContractCondition ($null -ne $stageCaseEntry) "$Context $stageName $projectionField missing stage case field path $expectedStage::$expectedFieldPath"
+            }
+        }
     }
 }
 
@@ -422,6 +673,7 @@ function Assert-SystemCompilerResultMapContract {
             Assert-ResultMapContractCondition ($null -ne $projectedCase) "$Context cases do not expose $caseProjectionField"
         }
     }
+    Assert-ResultMapContractCaseProjectionFieldRelations -RootSummary $RootSummary -CaseProjectionFieldRelations (Get-ResultMapContractDirectPropertyValue -Object $resultMap -PropertyName 'case_projection_field_relations') -CaseProjectionFields $caseProjectionFields -ExpectedCaseProjectionFieldRelations $expected.case_projection_field_relations -Comparison:$Comparison -Context "$Context result_map.case_projection"
 
     $stageBlocks = @(
         @(Get-ResultMapContractDirectPropertyValue -Object $resultMap -PropertyName 'stage_blocks') |

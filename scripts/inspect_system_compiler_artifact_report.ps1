@@ -5549,6 +5549,32 @@ function New-ArtifactRootSystemCompilerResultMapFieldRelation {
     }
 }
 
+function New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate {
+    param(
+        [string]$Stage,
+        [string]$FieldPath,
+        [string]$Relation = 'same_field'
+    )
+
+    return [ordered]@{
+        stage = [string]$Stage
+        field_path = [string]$FieldPath
+        relation = [string]$Relation
+    }
+}
+
+function New-ArtifactRootSystemCompilerCaseProjectionFieldRelation {
+    param(
+        [string]$ProjectionField,
+        [object[]]$SourceCandidates
+    )
+
+    return [ordered]@{
+        projection_field = [string]$ProjectionField
+        source_candidates = @($SourceCandidates)
+    }
+}
+
 function New-ArtifactRootSystemCompilerResultMap {
     param(
         [switch]$Comparison
@@ -5579,6 +5605,56 @@ function New-ArtifactRootSystemCompilerResultMap {
                 formation = 'cases[*].formation_basis_changes'
                 binding = 'cases[*].binding_summary_changes'
                 bringup = 'cases[*].bringup_summary_changes'
+            }
+            case_projection_field_relations = [ordered]@{
+                formation = @(
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'system_spec_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'system_spec_changes'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'resolved_input_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'resolved_input_changes'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'declared_fact_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'declared_fact_changes'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'declared_contract_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'declared_contract_changes'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'subject_fact_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'subject_fact_changes'
+                    )
+                )
+                binding = @(
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'summary_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'summary_changes'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'binding_change_count' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'binding_change_count'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'capabilities_changed' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'capabilities_changed'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'resolved_capability_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'resolved_capability_changes'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'unresolved_capability_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'unresolved_capability_changes'
+                    )
+                )
+                bringup = @(
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'summary_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'bringup_order' -FieldPath 'summary_changes'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'entry_change_count' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'bringup_order' -FieldPath 'entry_change_count'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'nodes_changed' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'bringup_order' -FieldPath 'nodes_changed'
+                    )
+                    New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'blocked_node_changes' -SourceCandidates @(
+                        New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'bringup_order' -FieldPath 'blocked_node_changes'
+                    )
+                )
             }
             stage_blocks = @(
                 [ordered]@{
@@ -5666,6 +5742,64 @@ function New-ArtifactRootSystemCompilerResultMap {
             formation = 'cases[*].formation_basis'
             binding = 'cases[*].binding_summary'
             bringup = 'cases[*].bringup_summary'
+        }
+        case_projection_field_relations = [ordered]@{
+            formation = @(
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'case_kind' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'case_kind'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'case_kind'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'declared_fact_count' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'declared_fact_count'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'declared_fact_count'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'declared_contract_count' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'declared_contract_count'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'declared_contract_count'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'subject_fact_count' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'subject_fact_count'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_input' -FieldPath 'subject_fact_count'
+                )
+            )
+            binding = @(
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'required_binding_count' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'required_binding_count'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'required_binding_count'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'resolved_binding_count' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'resolved_binding_count'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'resolved_binding_count'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'unresolved_binding_count' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'unresolved_binding_count'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'unresolved_binding_count'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'resolved_capabilities' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'resolved_capabilities'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'unresolved_capabilities' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'unresolved_capabilities'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'binding_result' -FieldPath 'unresolved_capabilities'
+                )
+            )
+            bringup = @(
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'ordered_node_count' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'ordered_node_count'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'bringup_order' -FieldPath 'ordered_node_count'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'blocked_node_count' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'blocked_node_count'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'bringup_order' -FieldPath 'blocked_node_count'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'blocked_nodes' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'system_formation' -FieldPath 'blocked_nodes'
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'bringup_order' -FieldPath 'blocked_nodes'
+                )
+                New-ArtifactRootSystemCompilerCaseProjectionFieldRelation -ProjectionField 'phase_counts' -SourceCandidates @(
+                    New-ArtifactRootSystemCompilerCaseProjectionSourceCandidate -Stage 'bringup_order' -FieldPath 'phase_counts'
+                )
+            )
         }
         stage_blocks = @(
             [ordered]@{

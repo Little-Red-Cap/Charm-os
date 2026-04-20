@@ -338,6 +338,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 同时，`result_map` 现在也开始把这些 block 和分阶段 summary 的对应关系正式机器可读化：
 
 - 哪个 stage 对应 `cases[*]` 里的哪个 case projection 字段
+- `cases[*]` 里的 projection 内部字段到底来自哪一个 stage case summary，是否存在 fallback source
 - 哪个 stage 对应 root 里的哪个 block
 - 哪个 stage 对应 artifact_root 里的哪个分阶段 summary
 - 哪些 root 级矩阵仍然属于 input bridge，而不是 formation / binding / bringup block 本体
@@ -349,10 +350,13 @@ artifact_root 级 `cap list` 现在也会继续带出：
 其中这层 field-level 关系现在会继续收进：
 
 - `input_bridge.field_relations[*]`
+- `case_projection_field_relations.<stage>[*]`
 - `stage_blocks[*].field_relations[*]`
 
 每条 relation 至少会带出：
 
+- `projection_field`
+- `source_candidates[*].stage / field_path / relation`
 - `root_field`
 - `block_field_path`
 - `block_relation`
@@ -365,6 +369,12 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `field_alias`
 - `none`
 
+而 `case_projection_field_relations.<stage>[*].source_candidates[*].relation`
+当前则会使用：
+
+- `same_field`
+- `field_alias`
+
 也就是说，调用方现在不只能知道
 “`binding` 这段对应 `binding_basis` 和 `binding_result_summary`”，
 还可以继续知道：
@@ -372,6 +382,8 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `binding_reason_matrix` 在 root 上属于 `binding`，但在 block 内对应 `binding_basis.reason_matrix`
 - `bringup_phase_matrix` 在 root 上属于 `bringup`，但当前没有 direct summary field mirror
 - `unresolved_capability_matrix` 这类字段则既能在 root 上看，也能在 block 和部分分阶段 summary 上按同一字段名看到
+- `cases[*].formation_basis.declared_fact_count` 优先来自 `system_formation_summary.cases[*].declared_fact_count`，缺位时再退回到 `system_input_summary.cases[*].declared_fact_count`
+- `cases[*].binding_summary.resolved_capabilities` 当前来自 `binding_result_summary.cases[*].resolved_capabilities`，并不要求 `system_formation_summary.cases[*]` 也同名提供
 
 与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
 `system_input_summary`，至少包括：

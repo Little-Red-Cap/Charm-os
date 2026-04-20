@@ -437,10 +437,13 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 在这个基础上，`result_map` 现在还会继续显式带出 field-level relation：
 
 - `input_bridge.field_relations[*]`
+- `case_projection_field_relations.<stage>[*]`
 - `stage_blocks[*].field_relations[*]`
 
 每条 relation 会用：
 
+- `projection_field`
+- `source_candidates[*].stage / field_path / relation`
 - `root_field`
 - `block_field_path / block_relation`
 - `summary_field_path / summary_relation`
@@ -458,6 +461,12 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - 这个 root field 在 block 里只是别名，比如 `binding_reason_matrix -> reason_matrix`
 - 这个 root field 目前只有 stage ownership，没有 direct summary field mirror
 
+与此同时，case projection 侧也开始能区分：
+
+- 这个 projection field 直接来自哪一个 stage case summary
+- 这个 projection field 是否存在 fallback source
+- 这个 fallback 是同名 direct mirror，还是需要经过 alias
+
 也就是说，artifact_root 默认总览现在不只会说
 “有多少 case 发生了 system formation 漂移”，
 还会继续直接带出：
@@ -465,6 +474,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - 这一组 case 的 system compiler 总结果当前是怎样收口的
 - 这一组 case 当前有哪些 `case_kind / resolved profile / resolved board / active facet`
 - 单个 case 的 `formation_basis / binding_summary / bringup_summary` 是怎样收口的
+- 单个 case 的 projection 字段到底来自哪条 stage case summary，是否经过 alias 或 fallback 收口
 - 这一组 case 在 binding / bringup / formation 上的阻塞面主要集中在哪里
 - blocker reasons / missing requires / dependency nodes 在多 case 之间如何聚集
 - binding reasons / bringup phases / bringup dependency nodes 在多 case 之间如何聚集

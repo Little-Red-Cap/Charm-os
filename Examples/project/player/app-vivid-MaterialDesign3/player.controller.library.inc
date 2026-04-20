@@ -715,15 +715,28 @@
             set_status(buf);
         }
 
-        bool format_library_row_status(int list_index, char* buf, std::size_t buf_size) const noexcept {
+        static void append_library_status_suffix(char* buf,
+                                                 std::size_t buf_size,
+                                                 const char* suffix) noexcept {
+            if (!buf || buf_size == 0 || !suffix || suffix[0] == '\0') return;
+            const std::size_t used = std::char_traits<char>::length(buf);
+            if (used == 0 || used + 3 >= buf_size) return;
+            std::snprintf(buf + used, buf_size - used, " | %s", suffix);
+        }
+
+        bool format_library_row_selection_status(int list_index,
+                                                 char* buf,
+                                                 std::size_t buf_size) const noexcept {
             if (!buf || buf_size == 0) return false;
             buf[0] = '\0';
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return false;
 
             const auto row = make_library_row_recipe(list_index);
+            auto primary = row.title();
+            auto secondary = row.subtitle();
+            if (primary.empty()) primary = row.detail_primary;
+            if (secondary.empty()) secondary = row.detail_secondary;
             if (row.group_row) {
-                const auto primary = row.detail_primary;
-                const auto secondary = row.detail_secondary;
                 if (primary.empty()) return false;
                 if (secondary.empty()) {
                     std::snprintf(buf, buf_size, "%s | %.*s",
@@ -736,17 +749,11 @@
                                   static_cast<int>(secondary.size()), secondary.data());
                 }
                 if (row.current_row) {
-                    const char* state = library_current_group_state_text();
-                    const std::size_t used = std::char_traits<char>::length(buf);
-                    if (used + 3 < buf_size) {
-                        std::snprintf(buf + used, buf_size - used, " | %s", state);
-                    }
+                    append_library_status_suffix(buf, buf_size, library_current_group_state_text());
                 }
                 return true;
             }
 
-            const auto primary = row.detail_primary;
-            const auto secondary = row.detail_secondary;
             if (primary.empty()) return false;
             if (secondary.empty()) {
                 std::snprintf(buf, buf_size, "%.*s",
@@ -756,6 +763,28 @@
                               static_cast<int>(primary.size()), primary.data(),
                               static_cast<int>(secondary.size()), secondary.data());
             }
+            if (row.current_row) {
+                append_library_status_suffix(buf, buf_size, library_current_group_state_text());
+            }
+            return true;
+        }
+
+        bool format_library_row_secondary_status(int list_index,
+                                                 char* buf,
+                                                 std::size_t buf_size) const noexcept {
+            if (!buf || buf_size == 0) return false;
+            buf[0] = '\0';
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return false;
+
+            const auto row = make_library_row_recipe(list_index);
+            if (row.group_row) {
+                return format_library_row_selection_status(list_index, buf, buf_size);
+            }
+            if (row.track_path.empty()) {
+                return format_library_row_selection_status(list_index, buf, buf_size);
+            }
+            std::snprintf(buf, buf_size, "Path | %.*s",
+                          static_cast<int>(row.track_path.size()), row.track_path.data());
             return true;
         }
 
@@ -1001,7 +1030,7 @@
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
 
             char buf[224]{};
-            if (!format_library_row_status(list_index, buf, sizeof(buf))) return;
+            if (!format_library_row_secondary_status(list_index, buf, sizeof(buf))) return;
             set_status(buf);
         }
 
@@ -1788,7 +1817,7 @@
             ignore_list_select = false;
             last_list_selected = list_index;
             char buf[224]{};
-            if (format_library_row_status(list_index, buf, sizeof(buf))) {
+            if (format_library_row_selection_status(list_index, buf, sizeof(buf))) {
                 set_status(buf);
             } else {
                 show_library_view_status();

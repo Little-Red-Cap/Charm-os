@@ -1,5 +1,6 @@
 module;
 
+#include "daplink_backend.hpp"
 #include "usb.h"
 
 #include <array>
@@ -32,21 +33,13 @@ namespace daplink::usb_minimal::detail {
     constexpr std::uint16_t kCdcEpCmdMps = kConfig.usb.cdc_ep_cmd_mps;
     constexpr std::uint16_t kCdcEpMps = kConfig.usb.cdc_ep_mps;
 
-    static_assert(PMA_ACCESS == 1U || PMA_ACCESS == 2U);
-
-    constexpr std::uint16_t pma_addr_from_f1_layout(const std::uint16_t f1_addr) noexcept {
-        return static_cast<std::uint16_t>(f1_addr * (2U / PMA_ACCESS));
-    }
-
-    // These PMA offsets originally came from the F1 layout, where HAL addresses are half-word based.
-    // G4 uses byte-based PMA addressing, so we convert them to the active HAL address unit here.
-    constexpr std::uint16_t kPmaEp0Out = pma_addr_from_f1_layout(0x18);
-    constexpr std::uint16_t kPmaEp0In = pma_addr_from_f1_layout(0x58);
-    constexpr std::uint16_t kPmaHidIn = pma_addr_from_f1_layout(0x98);
-    constexpr std::uint16_t kPmaHidOut = pma_addr_from_f1_layout(0xD8);
-    constexpr std::uint16_t kPmaCdcCmd = pma_addr_from_f1_layout(0x118);
-    constexpr std::uint16_t kPmaCdcOut = pma_addr_from_f1_layout(0x120);
-    constexpr std::uint16_t kPmaCdcIn = pma_addr_from_f1_layout(0x160);
+    constexpr std::uint16_t kPmaEp0Out = daplink::backend::kUsbPmaEp0Out;
+    constexpr std::uint16_t kPmaEp0In = daplink::backend::kUsbPmaEp0In;
+    constexpr std::uint16_t kPmaHidIn = daplink::backend::kUsbPmaHidIn;
+    constexpr std::uint16_t kPmaHidOut = daplink::backend::kUsbPmaHidOut;
+    constexpr std::uint16_t kPmaCdcCmd = daplink::backend::kUsbPmaCdcCmd;
+    constexpr std::uint16_t kPmaCdcOut = daplink::backend::kUsbPmaCdcOut;
+    constexpr std::uint16_t kPmaCdcIn = daplink::backend::kUsbPmaCdcIn;
     constexpr std::uint8_t kReqGetStatus = 0x00;
     constexpr std::uint8_t kReqClearFeature = 0x01;
     constexpr std::uint8_t kReqSetFeature = 0x03;

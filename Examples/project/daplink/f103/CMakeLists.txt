@@ -49,7 +49,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS
-        "./app/*.cppm"
+        "../app/*.cppm"
         "./*.cppm"
 )
 list(REMOVE_ITEM MODULE_INTERFACE_UNITS
@@ -59,7 +59,7 @@ list(REMOVE_ITEM MODULE_INTERFACE_UNITS
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-        app/main.cpp
+        ../app/main.cpp
 
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES
@@ -72,7 +72,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
-    "${CMAKE_CURRENT_SOURCE_DIR}/app"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../app"
 )
 
 # Add project symbols (macros)
@@ -99,7 +99,7 @@ add_compile_definitions(CHARM_DAP_USB_PROFILE=2)
 add_compile_definitions(STM32F103xx)
 add_compile_definitions(USE_HAL_DRIVER)
 
-set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
 charm_add_config_interface(charm_cfg_daplink_charm
     INCLUDE_DIRECTORIES

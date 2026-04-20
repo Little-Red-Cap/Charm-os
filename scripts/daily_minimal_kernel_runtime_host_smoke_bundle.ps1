@@ -33,19 +33,19 @@ if (-not (Test-Path $rootScript)) {
 }
 
 $invokeArgs = @{
-    Profile            = "ci"
-    CMakeExe           = $CMakeExe
-    Generator          = $Generator
-    Jobs               = $Jobs
-    Top                = $Top
-    MaxFailures        = $MaxFailures
-    MaxOtherResults    = $MaxOtherResults
-    MaxTotalElapsedMs  = $MaxTotalElapsedMs
+    Profile             = "daily"
+    CMakeExe            = $CMakeExe
+    Generator           = $Generator
+    Jobs                = $Jobs
+    Top                 = $Top
+    MaxFailures         = $MaxFailures
+    MaxOtherResults     = $MaxOtherResults
+    MaxTotalElapsedMs   = $MaxTotalElapsedMs
     MaxAverageElapsedMs = $MaxAverageElapsedMs
-    MaxMaxElapsedMs    = $MaxMaxElapsedMs
-    MaxRegressionCount = $MaxRegressionCount
-    MaxRegressionMs    = $MaxRegressionMs
-    MaxRegressionPct   = $MaxRegressionPct
+    MaxMaxElapsedMs     = $MaxMaxElapsedMs
+    MaxRegressionCount  = $MaxRegressionCount
+    MaxRegressionMs     = $MaxRegressionMs
+    MaxRegressionPct    = $MaxRegressionPct
 }
 
 if (-not [string]::IsNullOrWhiteSpace($OutputRoot)) {

@@ -428,6 +428,12 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
 
+补充一点，`system_compiler_summary.result_map.stage_blocks[*].root_fields`
+表示的是 `system_compiler_summary` 根上的 stage 归属字段；
+它们用于说明这些 root field 该和哪个 stage block、哪个分阶段 summary 一起解释，
+但不等于要求 `system_formation_summary`、`binding_result_summary`、
+`bringup_order_summary` 都逐字段同名复制一份。
+
 也就是说，artifact_root 默认总览现在不只会说
 “有多少 case 发生了 system formation 漂移”，
 还会继续直接带出：

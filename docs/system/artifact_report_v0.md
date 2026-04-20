@@ -268,6 +268,13 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 > **这一组 case 到底以什么输入成立、在哪个阶段收口、最终为什么 formed 或 blocked。**
 
+这里的 `result_map.stage_blocks[*].root_fields` 语义也要收紧理解：
+它描述的是 `system_compiler_summary` 根上哪些字段归属于该 stage，
+以及这些字段应如何和 `formation_basis / binding_basis / bringup_basis`
+或 `formation_drift / binding_drift / bringup_drift` 这类 stage block 一起阅读；
+它不承诺 `system_formation_summary`、`binding_result_summary`、`bringup_order_summary`
+一定逐字段同名镜像这些 root field。
+
 其中 `cases[*]` 现在也会显式携带：
 
 - `formation_basis.case_kind / declared_fact_count / declared_contract_count / subject_fact_count`

@@ -9,6 +9,7 @@ export module charm.ui.scene;
 export import charm.core.event;
 export import charm.core.geometry;
 export import charm.core.handle;
+import charm.core.structured_view;
 export import charm.core.style;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
@@ -43,8 +44,9 @@ export namespace ui::scene {
     using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewTailFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = soa_detail::ListViewIconFn;
-    using ListViewRowFlagsFn = soa_detail::ListViewRowFlagsFn;
-    constexpr std::uint8_t kListViewRowFlagGroup = soa_detail::kListViewRowFlagGroup;
+    using ListViewRowFlagsFn = StructuredListRowFlagsFn;
+    constexpr std::uint8_t kListViewRowFlagGroup = kStructuredListRowFlagGroup;
+    constexpr std::uint8_t kListViewRowFlagDisabled = kStructuredListRowFlagDisabled;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
     using TreeViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using RollerTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
@@ -209,6 +211,9 @@ export namespace ui::scene {
         void set_list_view_active(WidgetHandle h, int index) noexcept { kernel_->set_list_view_active(h, index); }
         int list_view_selected(WidgetHandle h) const noexcept { return kernel_->list_view_selected(h); }
         int list_view_active(WidgetHandle h) const noexcept { return kernel_->list_view_active(h); }
+        std::uint8_t list_view_item_row_flags(WidgetHandle h, std::uint16_t index) const noexcept {
+            return kernel_->list_view_item_row_flags(h, index);
+        }
         int consume_list_view_tail_action(WidgetHandle h) noexcept { return kernel_->consume_list_view_tail_action(h); }
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }

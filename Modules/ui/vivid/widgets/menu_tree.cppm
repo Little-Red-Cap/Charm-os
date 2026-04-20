@@ -185,7 +185,6 @@ public:
 
 private:
     static constexpr int kMaxVisible = 10;
-    static constexpr std::uint8_t kListViewRowFlagGroup = 0x01;
 
     std::uint16_t count(int menu_id) const noexcept {
         if (!provider_.count) return 0;
@@ -250,7 +249,7 @@ private:
         const StructuredSelectionModel selection_view = selection.to_selection();
         const std::uint16_t count = provider_view.size();
         factory_->set_list_view_source(list, count, &view, &StructuredMenuView::label_text);
-        factory_->set_list_view_row_flags_source(list, &view, &MenuTree::row_flags_for_view);
+        factory_->set_list_view_row_flags_source(list, &view, &StructuredMenuView::row_flags);
         const int selected = selection_view.current();
         if (selected >= 0) {
             factory_->kernel().set_list_view_selected(list, selected);
@@ -443,18 +442,6 @@ private:
         };
         (void)selected_edge_.emit(ref);
         if (on_select_) on_select_();
-    }
-
-    static std::uint8_t row_flags_for_view(const void* ctx, std::uint16_t index) noexcept {
-        const auto* view = static_cast<const StructuredMenuView*>(ctx);
-        if (!view || !view->provider) {
-            return 0;
-        }
-        if (view->provider->has_children
-            && view->provider->has_children(view->provider->ctx, view->menu_id, index)) {
-            return kListViewRowFlagGroup;
-        }
-        return 0;
     }
 
     bool owns_input_state() const noexcept {

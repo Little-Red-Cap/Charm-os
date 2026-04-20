@@ -1445,8 +1445,12 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const bool row_active = (i == active);
         const std::uint8_t row_flags = kernel.list_view_item_row_flags(h, static_cast<std::uint16_t>(i));
         const bool row_group = (row_flags & soa_detail::kListViewRowFlagGroup) != 0;
+        const bool row_disabled = (row_flags & soa_detail::kListViewRowFlagDisabled) != 0;
         const bool row_focus_emphasis = row_group && row_selected && state.focused;
         const bool row_press_emphasis = row_group && row_selected && state.pressed;
+        const auto muted_text = [&](const rgba& color, std::uint8_t alpha) noexcept {
+            return with_alpha(color, alpha);
+        };
         Rect row_surface = row;
         const int row_inset_x = row_group ? ((row_h >= 44) ? 3 : 2)
                                           : ((row_h >= 44) ? 5 : 2);
@@ -1494,8 +1498,15 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
                 out.focus_ring(row_surface, with_alpha(colors.border_focus, 228), row_radius, 0, -1);
             }
         }
-        const rgba font = row_selected ? colors.on_accent
-                                       : (row_active ? colors.accent : colors.font);
+        const rgba font = [&]() noexcept {
+            if (row_disabled) {
+                if (row_selected) return muted_text(colors.on_accent, 184);
+                if (row_active) return muted_text(colors.accent, 156);
+                return muted_text(colors.font, row_group ? 168 : 132);
+            }
+            return row_selected ? colors.on_accent
+                                : (row_active ? colors.accent : colors.font);
+        }();
         const auto icon = kernel.list_view_item_icon(h, static_cast<std::uint16_t>(i));
         const int icon_corner_radius = static_cast<int>(kernel.list_view_icon_corner_radius(h));
         int text_x = row.x + pad;
@@ -1635,9 +1646,16 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             if (top < row.y) top = row.y;
             const Rect title_rect{text_x, top, main_text_w, title_h};
             const Rect subtitle_rect{text_x, top + title_h + line_gap, main_text_w, subtitle_h};
-            const auto subtitle_color = row_selected ? colors.on_accent
-                                                     : (row_active ? colors.accent
-                                                                   : with_alpha(colors.font, row_group ? 212 : 156));
+            const auto subtitle_color = [&]() noexcept {
+                if (row_disabled) {
+                    if (row_selected) return muted_text(colors.on_accent, 164);
+                    if (row_active) return muted_text(colors.accent, 144);
+                    return muted_text(colors.font, row_group ? 136 : 118);
+                }
+                return row_selected ? colors.on_accent
+                                    : (row_active ? colors.accent
+                                                  : with_alpha(colors.font, row_group ? 212 : 156));
+            }();
             out.draw_text_box(title_rect, title ? title : "", font, title_font,
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             out.draw_text_box(subtitle_rect, subtitle, subtitle_color, subtitle_font,
@@ -1650,23 +1668,34 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             const Font& tail_font = row_group
                 ? get_font_weighted(FontId::Small, FontWeight::Medium)
                 : get_font(FontId::Small);
-            const auto tail_color = row_selected ? colors.on_accent
-                                                 : (row_active ? colors.accent
-                                                               : with_alpha(colors.font, row_group ? 232 : 172));
+            const auto tail_color = [&]() noexcept {
+                if (row_disabled) {
+                    if (row_selected) return muted_text(colors.on_accent, 164);
+                    if (row_active) return muted_text(colors.accent, 148);
+                    return muted_text(colors.font, row_group ? 148 : 124);
+                }
+                return row_selected ? colors.on_accent
+                                    : (row_active ? colors.accent
+                                                  : with_alpha(colors.font, row_group ? 232 : 172));
+            }();
             out.draw_text_box(tail_rect, tail, tail_color, tail_font,
                               TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         }
         if (draw_tail_icon) {
             if (draw_tail_icon_chip) {
                 const int chip_radius = tail_icon_chip_rect.h / 2;
-                const auto chip_bg = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 76
-                                                                                            : (row_focus_emphasis ? 64 : 52))
-                                                  : (row_active ? with_alpha(colors.accent, 44)
-                                                                : with_alpha(colors.accent, 32));
-                const auto chip_border = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 156
-                                                                                                : (row_focus_emphasis ? 124 : 98))
-                                                      : (row_active ? with_alpha(colors.accent, 126)
-                                                                    : with_alpha(colors.accent, 92));
+                auto chip_bg = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 76
+                                                                                               : (row_focus_emphasis ? 64 : 52))
+                                            : (row_active ? with_alpha(colors.accent, 44)
+                                                          : with_alpha(colors.accent, 32));
+                auto chip_border = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 156
+                                                                                                   : (row_focus_emphasis ? 124 : 98))
+                                                : (row_active ? with_alpha(colors.accent, 126)
+                                                              : with_alpha(colors.accent, 92));
+                if (row_disabled) {
+                    chip_bg = with_alpha(chip_bg, chip_bg.a > 36 ? 36 : chip_bg.a);
+                    chip_border = with_alpha(chip_border, chip_border.a > 70 ? 70 : chip_border.a);
+                }
                 out.fill_round_rect(tail_icon_chip_rect, chip_radius, chip_bg);
                 out.stroke_round_rect(tail_icon_chip_rect, chip_radius, chip_border);
             }
@@ -1674,14 +1703,18 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         }
         if (draw_tail_action_icon) {
             const int chip_radius = tail_action_chip_rect.h / 2;
-            const auto chip_bg = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 72
-                                                                                        : (row_focus_emphasis ? 60 : 52))
-                                              : (row_active ? with_alpha(colors.accent, 44)
-                                                            : with_alpha(colors.border, 44));
-            const auto chip_border = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 150
-                                                                                            : (row_focus_emphasis ? 120 : 96))
-                                                  : (row_active ? with_alpha(colors.accent, 118)
-                                                                : with_alpha(colors.border, 84));
+            auto chip_bg = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 72
+                                                                                           : (row_focus_emphasis ? 60 : 52))
+                                        : (row_active ? with_alpha(colors.accent, 44)
+                                                      : with_alpha(colors.border, 44));
+            auto chip_border = row_selected ? with_alpha(colors.on_accent, row_press_emphasis ? 150
+                                                                                               : (row_focus_emphasis ? 120 : 96))
+                                            : (row_active ? with_alpha(colors.accent, 118)
+                                                          : with_alpha(colors.border, 84));
+            if (row_disabled) {
+                chip_bg = with_alpha(chip_bg, chip_bg.a > 36 ? 36 : chip_bg.a);
+                chip_border = with_alpha(chip_border, chip_border.a > 70 ? 70 : chip_border.a);
+            }
             out.fill_round_rect(tail_action_chip_rect, chip_radius, chip_bg);
             out.stroke_round_rect(tail_action_chip_rect, chip_radius, chip_border);
             out.draw_icon(tail_action_icon_rect, tail_action_icon);

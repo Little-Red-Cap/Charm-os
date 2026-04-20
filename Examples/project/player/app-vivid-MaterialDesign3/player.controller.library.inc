@@ -748,6 +748,10 @@
             }
         }
 
+        const char* library_group_tail_hint_label() const noexcept {
+            return "Open";
+        }
+
         std::size_t build_list_action_menu_items(int list_index,
                                                  ::ui::scene::AnchoredMenuItemSpec (&items)[3]) const noexcept {
             for (auto& item : items) item = {};
@@ -1387,7 +1391,14 @@
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
-            if (row.current_row) {
+            if (row.group_row) {
+                if (row.current_row) {
+                    return self->library_current_group_state_text();
+                }
+                if (row.selected_row) {
+                    return self->library_group_tail_hint_label();
+                }
+            } else if (row.current_row) {
                 return self->library_current_group_state_text();
             }
             if (row.model) {

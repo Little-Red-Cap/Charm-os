@@ -21,7 +21,6 @@ namespace {
     constexpr bool kEnableCdc =
         (kUsbProfile == daplink::app_config::UsbProfile::cdc) ||
         (kUsbProfile == daplink::app_config::UsbProfile::composite);
-    constexpr bool kCdcLoopbackTest = daplink::app_config::kCdcLoopbackTestValue;
     constexpr bool kEnableHid =
         (kUsbProfile == daplink::app_config::UsbProfile::hid) ||
         (kUsbProfile == daplink::app_config::UsbProfile::composite);
@@ -36,6 +35,7 @@ namespace {
     constexpr std::size_t kUartBufSize = 256;
     using UartRing = daplink::ring_buffer::Buffer<kUartBufSize>;
     constexpr std::size_t kIoChunk = 64;
+    constexpr std::size_t kUartTxBurstLimit = 8;
 
     io::result uart_read(void*, io::MutByteView buf) noexcept {
         std::size_t count = 0;
@@ -50,14 +50,22 @@ namespace {
     }
 
     io::result uart_write(void*, io::ByteView buf) noexcept {
-        if (buf.empty()) {
+        const std::size_t limit = (buf.size() < kUartTxBurstLimit) ? buf.size() : kUartTxBurstLimit;
+        if (limit == 0) {
             return io::fail(io::errc::would_block);
         }
-        if (!daplink::board::cdc_uart_tx_ready()) {
+        std::size_t count = 0;
+        while (count < limit && daplink::board::cdc_uart_tx_ready()) {
+            daplink::board::cdc_uart_write(static_cast<std::uint8_t>(buf[count]));
+            ++count;
+            if (daplink::board::cdc_uart_rx_pending()) {
+                break;
+            }
+        }
+        if (count == 0) {
             return io::fail(io::errc::would_block);
         }
-        daplink::board::cdc_uart_write(static_cast<std::uint8_t>(buf[0]));
-        return io::ok(1);
+        return io::ok(count);
     }
 
     io::result usb_cdc_read(void*, io::MutByteView buf) noexcept {
@@ -125,7 +133,7 @@ int main()
         io::ChannelOps{uart_read, uart_write, nullptr}
     };
     auto last_line = daplink::dap_policy::UsbScheduler::to_line(daplink::usb_minimal::cdc_line());
-    if constexpr (kEnableCdc && !kCdcLoopbackTest) {
+    if constexpr (kEnableCdc) {
         daplink::board::cdc_uart_apply_line(
             last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
     }

@@ -784,20 +784,20 @@
             switch (library_tab) {
             case LibraryTab::Songs:
                 if (!library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Albums).empty()) {
-                    return "Open album";
+                    return "Go to album";
                 }
                 if (!library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Artists).empty()) {
-                    return "Open artist";
+                    return "Go to artist";
                 }
                 return {};
             case LibraryTab::Albums:
                 if (!library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Artists).empty()) {
-                    return "Open artist";
+                    return "Go to artist";
                 }
                 return {};
             case LibraryTab::Artists:
                 if (!library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Albums).empty()) {
-                    return "Open album";
+                    return "Go to album";
                 }
                 return {};
             }
@@ -805,26 +805,18 @@
         }
 
         const char* library_group_primary_action_label() const noexcept {
-            switch (library_tab) {
-            case LibraryTab::Albums:
-                return "Open album";
-            case LibraryTab::Artists:
-                return "Open artist";
-            case LibraryTab::Songs:
-            default:
-                return "Open group";
-            }
+            return "Browse tracks";
         }
 
         const char* library_group_secondary_action_label() const noexcept {
             switch (library_tab) {
             case LibraryTab::Albums:
-                return "Show album summary";
+                return "Show album details";
             case LibraryTab::Artists:
-                return "Show artist summary";
+                return "Show artist details";
             case LibraryTab::Songs:
             default:
-                return "Show summary";
+                return "Show details";
             }
         }
 
@@ -841,7 +833,7 @@
         }
 
         const char* library_group_tail_hint_label() const noexcept {
-            return "Open";
+            return "Browse";
         }
 
         std::size_t build_list_action_menu_items(int list_index,

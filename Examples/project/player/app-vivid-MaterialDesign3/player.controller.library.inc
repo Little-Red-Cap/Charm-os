@@ -1785,16 +1785,8 @@
             const char* base = library_tab_title(library_tab);
             char buf[96]{};
             if (!context.empty()) {
-                if (count > 0) {
-                    std::snprintf(buf, sizeof(buf), "%.*s (%d)",
-                                  static_cast<int>(context.size()), context.data(),
-                                  count);
-                    if (last_list_title_text.view() == buf) return;
-                    last_list_title_text.assign(buf);
-                } else {
-                    if (last_list_title_text.view() == context) return;
-                    last_list_title_text.assign(context);
-                }
+                if (last_list_title_text.view() == context) return;
+                last_list_title_text.assign(context);
                 set_label_slot(handles.list_title, text_slots.list_title, last_list_title_text.c_str());
             } else if (count > 0) {
                 std::snprintf(buf, sizeof(buf), "%s (%d)", base, count);
@@ -1812,14 +1804,21 @@
         void update_list_path() {
             if (!access.valid() || !handles.list_path) return;
             const int count = static_cast<int>(list_order.size());
-            FixedString<192> path;
+            FixedString<256> path;
             path.assign(library_can_step_back() ? "< Library" : "Library");
             path.append(" / ");
             path.append(library_tab_title(library_tab));
             if (library_has_context()) {
-                path.append(" / ");
-                path.append(library_context_key.view());
-                if (count > 0) {
+                char summary_buf[128]{};
+                format_library_group_summary(
+                    library_context_key.view(),
+                    library_context_is_current_group(),
+                    summary_buf,
+                    sizeof(summary_buf));
+                if (summary_buf[0] != '\0') {
+                    path.append(" / ");
+                    path.append(summary_buf);
+                } else if (count > 0) {
                     char count_buf[24]{};
                     std::snprintf(count_buf, sizeof(count_buf), "%d %s",
                                   count, (count == 1) ? "track" : "tracks");
@@ -1879,7 +1878,15 @@
                               count, label);
                 hint = buf;
             } else {
-                hint = fs_ready ? "No items in current library view" : "FS not ready";
+                if (!fs_ready) {
+                    hint = "FS not ready";
+                } else if (library_has_context()) {
+                    hint = (library_tab == LibraryTab::Albums)
+                        ? "No tracks in this album"
+                        : "No tracks by this artist";
+                } else {
+                    hint = "No items in current library view";
+                }
             }
             if (last_list_hint_text.view() == hint) return;
             last_list_hint_text.assign(hint);

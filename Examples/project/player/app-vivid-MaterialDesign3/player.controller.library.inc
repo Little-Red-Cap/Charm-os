@@ -683,6 +683,38 @@
             set_status(buf);
         }
 
+        void show_library_view_status() {
+            if (library_has_context()) {
+                show_library_context_status();
+                return;
+            }
+            const int count = static_cast<int>(list_order.size());
+            char buf[160]{};
+            const bool shuffled = list_shuffle_enabled;
+            if (library_shows_group_rows()) {
+                const char* label = (library_tab == LibraryTab::Albums)
+                    ? ((count == 1) ? "album" : "albums")
+                    : ((count == 1) ? "artist" : "artists");
+                if (shuffled) {
+                    std::snprintf(buf, sizeof(buf), "%s | %d %s | Shuffled",
+                                  library_tab_title(library_tab), count, label);
+                } else {
+                    std::snprintf(buf, sizeof(buf), "%s | %d %s",
+                                  library_tab_title(library_tab), count, label);
+                }
+            } else {
+                const char* label = (count == 1) ? "track" : "tracks";
+                if (shuffled) {
+                    std::snprintf(buf, sizeof(buf), "%s | %d %s | Shuffled",
+                                  library_tab_title(library_tab), count, label);
+                } else {
+                    std::snprintf(buf, sizeof(buf), "%s | %d %s",
+                                  library_tab_title(library_tab), count, label);
+                }
+            }
+            set_status(buf);
+        }
+
         ::ui::scene::AnchoredMenuHandles list_action_menu_handles() const noexcept {
             ::ui::scene::AnchoredMenuHandles out{};
             out.scrim = handles.list_action_scrim;
@@ -1691,14 +1723,17 @@
                 if (library_has_context()) {
                     library_context_key.clear();
                     refresh_list_view();
+                    show_library_view_status();
                     return;
                 }
                 update_library_state_visuals();
+                show_library_view_status();
                 return;
             }
             library_tab = tab;
             library_context_key.clear();
             refresh_list_view();
+            show_library_view_status();
         }
 
         bool set_library_context_for_preview(std::string_view key) {
@@ -1749,6 +1784,7 @@
                 list_shuffle_seed = seed;
             }
             refresh_list_view();
+            show_library_view_status();
         }
 
         void reset_library_context() {
@@ -1756,20 +1792,24 @@
             if (library_has_context()) {
                 library_context_key.clear();
                 refresh_list_view();
+                show_library_view_status();
                 return;
             }
             if (list_shuffle_enabled) {
                 list_shuffle_enabled = false;
                 refresh_list_view();
+                show_library_view_status();
                 return;
             }
             if (library_tab != LibraryTab::Songs) {
                 library_tab = LibraryTab::Songs;
                 refresh_list_view();
+                show_library_view_status();
                 return;
             }
             update_library_state_visuals();
             update_list_path();
+            show_library_view_status();
         }
 
         void apply_storage_view(StorageView view) {

@@ -208,7 +208,8 @@ function Get-ElapsedStats {
 function Get-PhaseMetricStats {
     param(
         [object[]]$Results,
-        [string]$PropertyName
+        [string]$PropertyName,
+        [string]$SkipPropertyName = ""
     )
 
     $phaseResults = @(
@@ -240,21 +241,41 @@ function Get-PhaseMetricStats {
         $medianMs = [int64][Math]::Round((($left + $right) / 2.0), 0)
     }
 
-    $slowest = @(
-        @($phaseResults) |
-            Sort-Object -Property @{ Expression = { [int64]$_.($PropertyName) }; Descending = $true }, @{ Expression = { [string]$_.Example }; Descending = $false } |
-            Select-Object -First 1
-    )[0]
+    $skippedCount = 0
+    $executedResults = $phaseResults
+    if (-not [string]::IsNullOrWhiteSpace($SkipPropertyName)) {
+        $skippedCount = @(
+            @($phaseResults) |
+                Where-Object { $_.$SkipPropertyName }
+        ).Count
+        $executedResults = @(
+            @($phaseResults) |
+                Where-Object { -not $_.$SkipPropertyName }
+        )
+    }
+
+    $executedCount = @($executedResults).Count
+    $slowest = $null
+    if ($executedCount -gt 0) {
+        $slowest = @(
+            @($executedResults) |
+                Sort-Object -Property @{ Expression = { [int64]$_.($PropertyName) }; Descending = $true }, @{ Expression = { [string]$_.Example }; Descending = $false } |
+                Select-Object -First 1
+        )[0]
+    }
 
     return [pscustomobject]@{
-        Count         = $count
-        TotalMs       = $totalMs
-        AverageMs     = [int64][Math]::Round(($totalMs / [double]$count), 0)
-        MedianMs      = $medianMs
-        MinMs         = $values[0]
-        MaxMs         = $values[$count - 1]
-        SlowestExample = [string]$slowest.Example
-        SlowestMs     = [int64]$slowest.($PropertyName)
+        Count          = $count
+        ExecutedCount  = $executedCount
+        SkippedCount   = $skippedCount
+        AllSkipped     = ($count -gt 0 -and $executedCount -eq 0 -and $skippedCount -gt 0)
+        TotalMs        = $totalMs
+        AverageMs      = [int64][Math]::Round(($totalMs / [double]$count), 0)
+        MedianMs       = $medianMs
+        MinMs          = $values[0]
+        MaxMs          = $values[$count - 1]
+        SlowestExample = if ($null -eq $slowest) { "" } else { [string]$slowest.Example }
+        SlowestMs      = if ($null -eq $slowest) { $null } else { [int64]$slowest.($PropertyName) }
     }
 }
 
@@ -264,7 +285,7 @@ function Get-PhaseStats {
     )
 
     return [pscustomobject]@{
-        Configure = Get-PhaseMetricStats -Results $Results -PropertyName "ConfigureMs"
+        Configure = Get-PhaseMetricStats -Results $Results -PropertyName "ConfigureMs" -SkipPropertyName "ConfigureSkipped"
         Build     = Get-PhaseMetricStats -Results $Results -PropertyName "BuildMs"
         Run       = Get-PhaseMetricStats -Results $Results -PropertyName "RunMs"
     }
@@ -371,16 +392,63 @@ function New-PhaseStatsView {
 
     return [ordered]@{
         count = $PhaseStat.Count
+        executed_count = $PhaseStat.ExecutedCount
         total_ms = $PhaseStat.TotalMs
         average_ms = $PhaseStat.AverageMs
         median_ms = $PhaseStat.MedianMs
         min_ms = $PhaseStat.MinMs
         max_ms = $PhaseStat.MaxMs
-        slowest = [ordered]@{
+    }
+}
+
+function Add-OptionalPhaseStatsViewFields {
+    param(
+        [System.Collections.IDictionary]$View,
+        $PhaseStat
+    )
+
+    if ($PhaseStat.SkippedCount -gt 0) {
+        $View.skipped_count = $PhaseStat.SkippedCount
+    }
+
+    if ($null -ne $PhaseStat.SlowestMs) {
+        $View.slowest = [ordered]@{
             example = [string]$PhaseStat.SlowestExample
             elapsed_ms = [int64]$PhaseStat.SlowestMs
         }
     }
+}
+
+function Format-PhaseTotalsText {
+    param(
+        [string]$Name,
+        $PhaseStat
+    )
+
+    $text = "{0}={1}ms" -f $Name, [int64]$PhaseStat.TotalMs
+    if ($PhaseStat.SkippedCount -gt 0) {
+        $text += "(reused={0})" -f [int]$PhaseStat.SkippedCount
+    }
+
+    return $text
+}
+
+function Format-PhaseSlowestText {
+    param(
+        [string]$Name,
+        $PhaseStat
+    )
+
+    if ($PhaseStat.AllSkipped) {
+        return "{0}=reused({1})" -f $Name, [int]$PhaseStat.SkippedCount
+    }
+
+    $text = "{0}={1}|{2}ms" -f $Name, [string]$PhaseStat.SlowestExample, [int64]$PhaseStat.SlowestMs
+    if ($PhaseStat.SkippedCount -gt 0) {
+        $text += "(reused={0})" -f [int]$PhaseStat.SkippedCount
+    }
+
+    return $text
 }
 
 function Get-PhaseValueText {
@@ -557,13 +625,19 @@ function New-JsonView {
 
     $phaseElapsedView = [ordered]@{}
     if ($null -ne $PhaseStats.Configure) {
-        $phaseElapsedView.configure = New-PhaseStatsView -PhaseStat $PhaseStats.Configure
+        $configureView = New-PhaseStatsView -PhaseStat $PhaseStats.Configure
+        Add-OptionalPhaseStatsViewFields -View $configureView -PhaseStat $PhaseStats.Configure
+        $phaseElapsedView.configure = $configureView
     }
     if ($null -ne $PhaseStats.Build) {
-        $phaseElapsedView.build = New-PhaseStatsView -PhaseStat $PhaseStats.Build
+        $buildView = New-PhaseStatsView -PhaseStat $PhaseStats.Build
+        Add-OptionalPhaseStatsViewFields -View $buildView -PhaseStat $PhaseStats.Build
+        $phaseElapsedView.build = $buildView
     }
     if ($null -ne $PhaseStats.Run) {
-        $phaseElapsedView.run = New-PhaseStatsView -PhaseStat $PhaseStats.Run
+        $runView = New-PhaseStatsView -PhaseStat $PhaseStats.Run
+        Add-OptionalPhaseStatsViewFields -View $runView -PhaseStat $PhaseStats.Run
+        $phaseElapsedView.run = $runView
     }
     if ($phaseElapsedView.Count -gt 0) {
         $view.phase_elapsed_ms = $phaseElapsedView
@@ -663,16 +737,16 @@ if ($null -ne $phaseStats.Configure -or $null -ne $phaseStats.Build -or $null -n
     $phaseTotals = [System.Collections.Generic.List[string]]::new()
     $phaseSlowest = [System.Collections.Generic.List[string]]::new()
     if ($null -ne $phaseStats.Configure) {
-        $phaseTotals.Add(("configure={0}ms" -f $phaseStats.Configure.TotalMs))
-        $phaseSlowest.Add(("configure={0}|{1}ms" -f [string]$phaseStats.Configure.SlowestExample, [int64]$phaseStats.Configure.SlowestMs))
+        $phaseTotals.Add((Format-PhaseTotalsText -Name "configure" -PhaseStat $phaseStats.Configure))
+        $phaseSlowest.Add((Format-PhaseSlowestText -Name "configure" -PhaseStat $phaseStats.Configure))
     }
     if ($null -ne $phaseStats.Build) {
-        $phaseTotals.Add(("build={0}ms" -f $phaseStats.Build.TotalMs))
-        $phaseSlowest.Add(("build={0}|{1}ms" -f [string]$phaseStats.Build.SlowestExample, [int64]$phaseStats.Build.SlowestMs))
+        $phaseTotals.Add((Format-PhaseTotalsText -Name "build" -PhaseStat $phaseStats.Build))
+        $phaseSlowest.Add((Format-PhaseSlowestText -Name "build" -PhaseStat $phaseStats.Build))
     }
     if ($null -ne $phaseStats.Run) {
-        $phaseTotals.Add(("run={0}ms" -f $phaseStats.Run.TotalMs))
-        $phaseSlowest.Add(("run={0}|{1}ms" -f [string]$phaseStats.Run.SlowestExample, [int64]$phaseStats.Run.SlowestMs))
+        $phaseTotals.Add((Format-PhaseTotalsText -Name "run" -PhaseStat $phaseStats.Run))
+        $phaseSlowest.Add((Format-PhaseSlowestText -Name "run" -PhaseStat $phaseStats.Run))
     }
 
     Write-Output ("phase_elapsed_ms: {0}" -f ($phaseTotals -join " "))

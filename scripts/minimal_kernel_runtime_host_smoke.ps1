@@ -2,6 +2,7 @@ param(
     [string]$CMakeExe = "cmake",
     [string]$Generator = "Ninja",
     [string]$SummaryPath = "",
+    [switch]$SkipConfigureIfPresent,
     [switch]$Fresh,
     [switch]$KeepBuildDirs,
     [int]$Jobs = 0,
@@ -123,6 +124,50 @@ function Resolve-ExecutablePath {
     throw "executable not found for target: $TargetName"
 }
 
+function Get-CMakeCacheValue {
+    param(
+        [string]$CachePath,
+        [string]$Name
+    )
+
+    if (-not (Test-Path $CachePath)) {
+        return ""
+    }
+
+    $pattern = '^{0}:[^=]*=(.*)$' -f [regex]::Escape($Name)
+    $match = Select-String -LiteralPath $CachePath -Pattern $pattern | Select-Object -First 1
+    if ($null -eq $match) {
+        return ""
+    }
+
+    return [string]$match.Matches[0].Groups[1].Value
+}
+
+function Test-ConfiguredBuildDirReuse {
+    param(
+        [string]$BuildDir,
+        [string]$Generator,
+        [string]$SourceDir
+    )
+
+    $cachePath = Join-Path $BuildDir "CMakeCache.txt"
+    if (-not (Test-Path $cachePath)) {
+        return $false
+    }
+
+    $configuredGenerator = Get-CMakeCacheValue -CachePath $cachePath -Name "CMAKE_GENERATOR"
+    if ([string]::IsNullOrWhiteSpace($configuredGenerator) -or $configuredGenerator -ne $Generator) {
+        return $false
+    }
+
+    $configuredSourceDir = Get-CMakeCacheValue -CachePath $cachePath -Name "CMAKE_HOME_DIRECTORY"
+    if ([string]::IsNullOrWhiteSpace($configuredSourceDir)) {
+        return $false
+    }
+
+    return ([System.IO.Path]::GetFullPath($configuredSourceDir) -eq [System.IO.Path]::GetFullPath($SourceDir))
+}
+
 function Normalize-Examples {
     param([string[]]$InputExamples)
 
@@ -178,6 +223,7 @@ try {
         $configureMs = 0
         $buildMs = 0
         $runMs = 0
+        $configureSkipped = $false
         $failurePhase = ""
         $currentPhase = "prepare"
         $exampleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -190,15 +236,20 @@ try {
             $sourceDir = Resolve-ExamplePath -RepoRoot $repoRoot -Example $example
 
             $currentPhase = "configure"
-            Write-Host "==> [$example] configure"
-            $configureStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            try {
-                Invoke-Checked -FilePath $cmake `
-                    -ArgumentList @("-S", $sourceDir, "-B", $buildDir, "-G", $Generator) `
-                    -FailureMessage "cmake configure failed for $example"
-            } finally {
-                $configureStopwatch.Stop()
-                $configureMs = $configureStopwatch.ElapsedMilliseconds
+            if ($SkipConfigureIfPresent -and (Test-ConfiguredBuildDirReuse -BuildDir $buildDir -Generator $Generator -SourceDir $sourceDir)) {
+                $configureSkipped = $true
+                Write-Host "==> [$example] configure (reused)"
+            } else {
+                Write-Host "==> [$example] configure"
+                $configureStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                try {
+                    Invoke-Checked -FilePath $cmake `
+                        -ArgumentList @("-S", $sourceDir, "-B", $buildDir, "-G", $Generator) `
+                        -FailureMessage "cmake configure failed for $example"
+                } finally {
+                    $configureStopwatch.Stop()
+                    $configureMs = $configureStopwatch.ElapsedMilliseconds
+                }
             }
 
             $currentPhase = "build"
@@ -267,6 +318,7 @@ try {
                 Status  = $status
                 ElapsedMs = $elapsedMs
                 ConfigureMs = $configureMs
+                ConfigureSkipped = $configureSkipped
                 BuildMs = $buildMs
                 RunMs = $runMs
                 FailurePhase = $failurePhase
@@ -286,7 +338,8 @@ Write-Host "==> summary"
 
 $hasFailure = $false
 foreach ($result in $results) {
-    Write-Host ("{0}|{1}|{2}ms|cfg={3}ms|build={4}ms|run={5}ms|{6}" -f $result.Example, $result.Status, $result.ElapsedMs, $result.ConfigureMs, $result.BuildMs, $result.RunMs, $result.Detail)
+    $configureText = if ($result.ConfigureSkipped) { "skip" } else { "{0}ms" -f $result.ConfigureMs }
+    Write-Host ("{0}|{1}|{2}ms|cfg={3}|build={4}ms|run={5}ms|{6}" -f $result.Example, $result.Status, $result.ElapsedMs, $configureText, $result.BuildMs, $result.RunMs, $result.Detail)
     if ($result.Status -ne "ok") {
         $hasFailure = $true
     }
@@ -304,6 +357,7 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedSummaryPath)) {
         example_count   = $results.Count
         has_failure     = $hasFailure
         mode            = [pscustomobject]@{
+            skip_configure_if_present = [bool]$SkipConfigureIfPresent
             fresh          = [bool]$Fresh
             keep_build_dirs = [bool]$KeepBuildDirs
             jobs           = $Jobs

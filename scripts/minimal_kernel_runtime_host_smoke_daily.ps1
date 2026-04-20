@@ -15,10 +15,11 @@ if (-not (Test-Path $rootScript)) {
 }
 
 $invokeArgs = @{
-    CMakeExe      = $CMakeExe
-    Generator     = $Generator
-    KeepBuildDirs = $true
-    Jobs          = $Jobs
+    CMakeExe               = $CMakeExe
+    Generator              = $Generator
+    KeepBuildDirs          = $true
+    SkipConfigureIfPresent = $true
+    Jobs                   = $Jobs
 }
 
 if (-not [string]::IsNullOrWhiteSpace($SummaryPath)) {

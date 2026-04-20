@@ -68,12 +68,27 @@ function Get-EntryStringProperty {
     return [string]$property.Value
 }
 
+function Get-EntryBoolProperty {
+    param(
+        $Entry,
+        [string]$Name
+    )
+
+    $property = $Entry.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        return $false
+    }
+
+    return [bool]$property.Value
+}
+
 function Convert-ToSummaryResult {
     param(
         $Entry
     )
 
     $configureMs = Get-EntryInt64Property -Entry $Entry -Name "ConfigureMs"
+    $configureSkipped = Get-EntryBoolProperty -Entry $Entry -Name "ConfigureSkipped"
     $buildMs = Get-EntryInt64Property -Entry $Entry -Name "BuildMs"
     $runMs = Get-EntryInt64Property -Entry $Entry -Name "RunMs"
     $failurePhase = Get-EntryStringProperty -Entry $Entry -Name "FailurePhase"
@@ -83,6 +98,7 @@ function Convert-ToSummaryResult {
         Status         = [string]$Entry.Status
         ElapsedMs      = [int64]$Entry.ElapsedMs
         ConfigureMs    = $configureMs
+        ConfigureSkipped = $configureSkipped
         BuildMs        = $buildMs
         RunMs          = $runMs
         FailurePhase   = $failurePhase
@@ -302,6 +318,9 @@ function New-ResultView {
 
     if ($Result.HasPhaseTiming) {
         $view.configure_ms = $Result.ConfigureMs
+        if ($Result.ConfigureSkipped) {
+            $view.configure_skipped = $true
+        }
         $view.build_ms = $Result.BuildMs
         $view.run_ms = $Result.RunMs
     }
@@ -327,6 +346,9 @@ function New-FailureView {
 
     if ($Result.HasPhaseTiming) {
         $view.configure_ms = $Result.ConfigureMs
+        if ($Result.ConfigureSkipped) {
+            $view.configure_skipped = $true
+        }
         $view.build_ms = $Result.BuildMs
         $view.run_ms = $Result.RunMs
     }
@@ -381,7 +403,8 @@ function Format-ResultText {
 
     $text = ("{0}|{1}|{2}ms" -f [string]$Result.Example, [string]$Result.Status, [int64]$Result.ElapsedMs)
     if ($Result.HasPhaseTiming) {
-        $text += ("|cfg={0}ms|build={1}ms|run={2}ms" -f (Get-PhaseValueText -Value $Result.ConfigureMs), (Get-PhaseValueText -Value $Result.BuildMs), (Get-PhaseValueText -Value $Result.RunMs))
+        $configureText = if ($Result.ConfigureSkipped) { "skip" } else { "{0}ms" -f (Get-PhaseValueText -Value $Result.ConfigureMs) }
+        $text += ("|cfg={0}|build={1}ms|run={2}ms" -f $configureText, (Get-PhaseValueText -Value $Result.BuildMs), (Get-PhaseValueText -Value $Result.RunMs))
     }
     if (-not [string]::IsNullOrWhiteSpace([string]$Result.FailurePhase)) {
         $text += ("|phase={0}" -f [string]$Result.FailurePhase)

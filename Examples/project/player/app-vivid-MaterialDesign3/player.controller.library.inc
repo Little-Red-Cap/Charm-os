@@ -715,6 +715,50 @@
             set_status(buf);
         }
 
+        bool format_library_row_status(int list_index, char* buf, std::size_t buf_size) const noexcept {
+            if (!buf || buf_size == 0) return false;
+            buf[0] = '\0';
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return false;
+
+            const auto row = make_library_row_recipe(list_index);
+            if (row.group_row) {
+                const auto primary = row.detail_primary;
+                const auto secondary = row.detail_secondary;
+                if (primary.empty()) return false;
+                if (secondary.empty()) {
+                    std::snprintf(buf, buf_size, "%s | %.*s",
+                                  library_group_status_label(),
+                                  static_cast<int>(primary.size()), primary.data());
+                } else {
+                    std::snprintf(buf, buf_size, "%s | %.*s | %.*s",
+                                  library_group_status_label(),
+                                  static_cast<int>(primary.size()), primary.data(),
+                                  static_cast<int>(secondary.size()), secondary.data());
+                }
+                if (row.current_row) {
+                    const char* state = library_current_group_state_text();
+                    const std::size_t used = std::char_traits<char>::length(buf);
+                    if (used + 3 < buf_size) {
+                        std::snprintf(buf + used, buf_size - used, " | %s", state);
+                    }
+                }
+                return true;
+            }
+
+            const auto primary = row.detail_primary;
+            const auto secondary = row.detail_secondary;
+            if (primary.empty()) return false;
+            if (secondary.empty()) {
+                std::snprintf(buf, buf_size, "%.*s",
+                              static_cast<int>(primary.size()), primary.data());
+            } else {
+                std::snprintf(buf, buf_size, "%.*s | %.*s",
+                              static_cast<int>(primary.size()), primary.data(),
+                              static_cast<int>(secondary.size()), secondary.data());
+            }
+            return true;
+        }
+
         ::ui::scene::AnchoredMenuHandles list_action_menu_handles() const noexcept {
             ::ui::scene::AnchoredMenuHandles out{};
             out.scrim = handles.list_action_scrim;
@@ -965,43 +1009,7 @@
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
 
             char buf[224]{};
-            const auto row = make_library_row_recipe(list_index);
-            if (row.group_row) {
-                const auto primary = row.detail_primary;
-                const auto secondary = row.detail_secondary;
-                if (primary.empty()) return;
-                if (secondary.empty()) {
-                    std::snprintf(buf, sizeof(buf), "%s | %.*s",
-                                  library_group_status_label(),
-                                  static_cast<int>(primary.size()), primary.data());
-                } else {
-                    std::snprintf(buf, sizeof(buf), "%s | %.*s | %.*s",
-                                  library_group_status_label(),
-                                  static_cast<int>(primary.size()), primary.data(),
-                                  static_cast<int>(secondary.size()), secondary.data());
-                }
-                if (row.current_row) {
-                    const char* state = library_current_group_state_text();
-                    const std::size_t used = std::char_traits<char>::length(buf);
-                    if (used + 3 < sizeof(buf)) {
-                        std::snprintf(buf + used, sizeof(buf) - used, " | %s", state);
-                    }
-                }
-                set_status(buf);
-                return;
-            }
-
-            const auto primary = row.detail_primary;
-            const auto secondary = row.detail_secondary;
-            if (primary.empty()) return;
-            if (secondary.empty()) {
-                std::snprintf(buf, sizeof(buf), "%.*s",
-                              static_cast<int>(primary.size()), primary.data());
-            } else {
-                std::snprintf(buf, sizeof(buf), "%.*s | %.*s",
-                              static_cast<int>(primary.size()), primary.data(),
-                              static_cast<int>(secondary.size()), secondary.data());
-            }
+            if (!format_library_row_status(list_index, buf, sizeof(buf))) return;
             set_status(buf);
         }
 
@@ -1746,6 +1754,7 @@
                 if (compare_ci(library_group_title_for_track(static_cast<int>(i)), key) == 0) {
                     library_context_key.assign(library_group_title_for_track(static_cast<int>(i)));
                     refresh_list_view();
+                    show_library_context_status();
                     return true;
                 }
             }
@@ -1761,6 +1770,7 @@
             if (key.empty()) return false;
             library_context_key.assign(key);
             refresh_list_view();
+            show_library_context_status();
             return true;
         }
 
@@ -1772,6 +1782,12 @@
             access.set_list_view_selected(handles.list, list_index);
             ignore_list_select = false;
             last_list_selected = list_index;
+            char buf[224]{};
+            if (format_library_row_status(list_index, buf, sizeof(buf))) {
+                set_status(buf);
+            } else {
+                show_library_view_status();
+            }
             return true;
         }
 

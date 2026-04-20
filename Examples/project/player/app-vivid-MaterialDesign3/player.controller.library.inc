@@ -1987,9 +1987,20 @@
             const bool show_group_hint = !show_empty && library_shows_group_rows();
             const bool show_context_hint = !show_empty && library_has_context() && library_can_step_back();
             const bool show = show_empty || show_group_hint || show_context_hint;
+            const auto apply_hint_style = [&](rgba color,
+                                              FontWeight weight,
+                                              int px) noexcept {
+                StylePatch patch{};
+                patch.has_font = true;
+                patch.font = &get_player_font_px(px, weight);
+                patch.has_font_color = true;
+                patch.font_color = color;
+                access.set_style_override(handles.list_hint, patch);
+            };
             access.set_visible(handles.list_hint, show);
             if (!show) return;
             if (show_empty && !mount_status.empty()) {
+                apply_hint_style(with_alpha(kUiSubtitle, 230), FontWeight::Medium, 14);
                 if (last_list_hint_text.view() == mount_status.view()) return;
                 last_list_hint_text.assign(mount_status.view());
                 set_label_slot(handles.list_hint, text_slots.list_hint, mount_status.c_str());
@@ -1998,6 +2009,7 @@
             const char* hint = "";
             char buf[96]{};
             if (show_group_hint) {
+                apply_hint_style(with_alpha(kUiLibraryPathTextActive, 214), FontWeight::Medium, 14);
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
@@ -2005,11 +2017,15 @@
                               count, label, (library_tab == LibraryTab::Albums) ? "album" : "artist");
                 hint = buf;
             } else if (show_context_hint) {
+                apply_hint_style(with_alpha(kUiLibraryPathTextActive, 188), FontWeight::Medium, 14);
                 const std::string_view back_target = library_back_target_label();
                 std::snprintf(buf, sizeof(buf), "Path bar returns to %.*s",
                               static_cast<int>(back_target.size()), back_target.data());
                 hint = buf;
             } else {
+                apply_hint_style(with_alpha(kUiSubtitle, 236),
+                                 !fs_ready ? FontWeight::Medium : FontWeight::Regular,
+                                 14);
                 if (!fs_ready) {
                     hint = "FS not ready";
                 } else if (library_has_context()) {

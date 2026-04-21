@@ -1962,7 +1962,6 @@
 
         void update_list_path() {
             if (!access.valid() || !handles.list_path) return;
-            const int count = static_cast<int>(list_order.size());
             FixedString<256> path;
             const bool can_step_back = library_can_step_back();
             const std::string_view back_target = library_back_target_label();
@@ -1978,36 +1977,8 @@
                 path.append(current_tab);
             }
             if (library_has_context()) {
-                char summary_buf[128]{};
-                format_library_group_summary(
-                    library_context_key.view(),
-                    library_context_is_current_group(),
-                    summary_buf,
-                    sizeof(summary_buf),
-                    false);
-                if (summary_buf[0] != '\0') {
-                    path.append(" / ");
-                    path.append(summary_buf);
-                } else {
-                    path.append(" / ");
-                    path.append(library_context_key.view());
-                    char count_buf[24]{};
-                    std::snprintf(count_buf, sizeof(count_buf), "%d %s",
-                                  count, (count == 1) ? "track" : "tracks");
-                    path.append(" / ");
-                    path.append(count_buf);
-                }
-            } else if (library_shows_group_rows() && count > 0) {
-                char count_buf[24]{};
-                const char* label = (library_tab == LibraryTab::Albums)
-                    ? ((count == 1) ? "album" : "albums")
-                    : ((count == 1) ? "artist" : "artists");
-                std::snprintf(count_buf, sizeof(count_buf), "%d %s", count, label);
                 path.append(" / ");
-                path.append(count_buf);
-            }
-            if (list_shuffle_enabled) {
-                path.append(" / Shuffled");
+                path.append(library_context_key.view());
             }
             set_label_slot(handles.list_path, text_slots.list_path, path.c_str());
         }
@@ -2063,11 +2034,21 @@
                               count, label, (library_tab == LibraryTab::Albums) ? "album" : "artist");
                 hint = buf;
             } else if (show_context_hint) {
-                apply_hint_style(with_alpha(kUiLibraryPathTextActive, 188), FontWeight::Medium, 14);
-                const std::string_view back_target = library_back_target_label();
-                std::snprintf(buf, sizeof(buf), "Path bar returns to %.*s",
-                              static_cast<int>(back_target.size()), back_target.data());
-                hint = buf;
+                format_library_group_summary(
+                    library_context_key.view(),
+                    library_context_is_current_group(),
+                    buf,
+                    sizeof(buf));
+                if (buf[0] != '\0') {
+                    apply_hint_style(with_alpha(kUiSubtitle, 236), FontWeight::Medium, 14);
+                    hint = buf;
+                } else {
+                    apply_hint_style(with_alpha(kUiLibraryPathTextActive, 188), FontWeight::Medium, 14);
+                    const std::string_view back_target = library_back_target_label();
+                    std::snprintf(buf, sizeof(buf), "Path bar returns to %.*s",
+                                  static_cast<int>(back_target.size()), back_target.data());
+                    hint = buf;
+                }
             } else {
                 apply_hint_style(with_alpha(kUiSubtitle, 236),
                                  !fs_ready ? FontWeight::Medium : FontWeight::Regular,

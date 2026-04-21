@@ -4,6 +4,10 @@
 
 这份文档是当前最小内核 host smoke 证据链的干净入口。
 
+如果你现在要看的不是 host 上半层本身，而是“host + ARMv7-A QEMU lower-half”合起来的总证据入口，改读：
+
+- `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md`
+
 当你想快速回答下面这些问题时，先读这里：
 
 - 哪个脚本是底座，哪个只是薄包装

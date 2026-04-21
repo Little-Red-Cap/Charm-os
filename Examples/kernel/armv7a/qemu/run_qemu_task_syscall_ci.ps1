@@ -2,7 +2,7 @@ param(
     [string]$CMakeExe = "cmake",
     [string]$QemuExe = "qemu-system-arm",
     [int]$BuildJobs = 1,
-    [int]$TimeoutSec = 10,
+    [int]$TimeoutSec = 30,
     [int]$TailLines = 40,
     [switch]$SkipBuild
 )

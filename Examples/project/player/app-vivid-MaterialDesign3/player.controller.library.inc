@@ -811,7 +811,25 @@
 
             const auto row = make_library_row_recipe(list_index);
             if (row.group_row) {
-                return format_library_row_selection_status(list_index, buf, buf_size);
+                auto primary = row.title();
+                auto secondary = row.subtitle();
+                if (primary.empty()) primary = row.detail_primary;
+                if (secondary.empty()) secondary = row.detail_secondary;
+                if (primary.empty()) return false;
+                if (secondary.empty()) {
+                    std::snprintf(buf, buf_size, "%s | %.*s",
+                                  library_group_status_label(),
+                                  static_cast<int>(primary.size()), primary.data());
+                } else {
+                    std::snprintf(buf, buf_size, "%s | %.*s | %.*s",
+                                  library_group_status_label(),
+                                  static_cast<int>(primary.size()), primary.data(),
+                                  static_cast<int>(secondary.size()), secondary.data());
+                }
+                if (row.current_row) {
+                    append_library_status_suffix(buf, buf_size, library_current_group_state_text());
+                }
+                return true;
             }
             if (row.track_path.empty()) {
                 return format_library_row_selection_status(list_index, buf, buf_size);

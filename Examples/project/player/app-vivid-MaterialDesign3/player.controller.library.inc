@@ -498,13 +498,15 @@
         void format_library_group_summary(std::string_view key,
                                           bool current_group,
                                           char* buf,
-                                          std::size_t buf_size) const noexcept {
+                                          std::size_t buf_size,
+                                          bool include_state = true) const noexcept {
             if (!buf || buf_size == 0) return;
             buf[0] = '\0';
             if (key.empty()) return;
             const auto* tracks = storage.tracks;
             if (!tracks) return;
             const auto append_current_group_state = [&]() noexcept {
+                if (!include_state) return;
                 if (!current_group || library_shows_group_rows()) return;
                 const char* state = library_current_group_state_text();
                 const std::size_t used = std::char_traits<char>::length(buf);
@@ -1955,7 +1957,8 @@
                     library_context_key.view(),
                     library_context_is_current_group(),
                     summary_buf,
-                    sizeof(summary_buf));
+                    sizeof(summary_buf),
+                    false);
                 if (summary_buf[0] != '\0') {
                     path.append(" / ");
                     path.append(summary_buf);

@@ -606,15 +606,30 @@
             if (!library_has_context()) return false;
             const auto* tracks = storage.tracks;
             if (!tracks) return false;
-            for (const int track_index : list_order) {
+            const auto assign_track = [&](int track_index) noexcept -> bool {
                 if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
-                    continue;
+                    return false;
                 }
                 track_path_out = (*tracks)[static_cast<std::size_t>(track_index)].view();
                 if (track_index < static_cast<int>(list_cover_paths.size())) {
                     cover_path_out = list_cover_paths[static_cast<std::size_t>(track_index)].view();
                 }
                 return !track_path_out.empty();
+            };
+            if (track_index >= 0
+                && track_index < static_cast<int>(tracks->size())
+                && library_context_matches_track(track_index)
+                && assign_track(track_index)) {
+                return true;
+            }
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                const int candidate = static_cast<int>(i);
+                if (!library_context_matches_track(candidate)) {
+                    continue;
+                }
+                if (assign_track(candidate)) {
+                    return true;
+                }
             }
             return false;
         }

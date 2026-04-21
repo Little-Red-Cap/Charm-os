@@ -22,6 +22,9 @@
 - `schemas/system_formation_summary.v0.schema.json`
 - `schemas/examples/system_formation_summary.summary.v0.sample.json`
 - `schemas/examples/system_formation_summary.comparison.v0.sample.json`
+- `schemas/fact_resolution_summary.v0.schema.json`
+- `schemas/examples/fact_resolution_summary.summary.v0.sample.json`
+- `schemas/examples/fact_resolution_summary.comparison.v0.sample.json`
 - `schemas/system_compiler.runtime_observe_snapshot.v0.schema.json`
 - `schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json`
 
@@ -39,6 +42,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/bri
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/bringup_order_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_formation_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_formation_summary.comparison.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/fact_resolution_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/fact_resolution_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json
 ```
 
@@ -526,6 +531,12 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `required_fact_matrix / provided_fact_matrix`
 - `contract_matrix`
 - `resource_hotspot_matrix`
+
+对应 schema 入口见 [`../../schemas/fact_resolution_summary.v0.schema.json`](../../schemas/fact_resolution_summary.v0.schema.json)，
+最小样例见 [`../../schemas/examples/fact_resolution_summary.summary.v0.sample.json`](../../schemas/examples/fact_resolution_summary.summary.v0.sample.json)，
+comparison 样例见 [`../../schemas/examples/fact_resolution_summary.comparison.v0.sample.json`](../../schemas/examples/fact_resolution_summary.comparison.v0.sample.json)。
+现在外部脚本也可以直接通过 `kind = fact_resolution_summary/v0` 与 `mode = summary | comparison`
+把它当作独立的 fact-resolution-side result object 识别。
 
 这意味着 inspector 已经不只会逐 case 地回答
 “系统是否 formed / blocked”，

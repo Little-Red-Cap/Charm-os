@@ -1332,6 +1332,8 @@ function New-ArtifactRootFactResolutionSummaryResult {
     )
 
     return [ordered]@{
+        kind = 'fact_resolution_summary/v0'
+        mode = 'summary'
         case_count = @($caseSummaries).Count
         totals = [ordered]@{
             declared_contracts = (@($caseSummaries | Measure-Object -Property declared_contracts -Sum).Sum)
@@ -2799,6 +2801,8 @@ function New-ArtifactRootFactResolutionComparisonResult {
     ) | Where-Object { $null -ne $_ } | Sort-Object contract
 
     return [ordered]@{
+        kind = 'fact_resolution_summary/v0'
+        mode = 'comparison'
         compared_case_count = @($caseSummaries).Count
         changed_case_count = @($caseSummaries | Where-Object { [bool]$_.changed }).Count
         unchanged_case_count = @($caseSummaries | Where-Object { -not [bool]$_.changed }).Count

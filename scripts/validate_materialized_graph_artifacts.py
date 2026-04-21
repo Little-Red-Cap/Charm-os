@@ -19,6 +19,7 @@ SCHEMA_FILES = {
     "binding_result_summary/v0": "schemas/binding_result_summary.v0.schema.json",
     "bringup_order_summary/v0": "schemas/bringup_order_summary.v0.schema.json",
     "system_formation_summary/v0": "schemas/system_formation_summary.v0.schema.json",
+    "fact_resolution_summary/v0": "schemas/fact_resolution_summary.v0.schema.json",
 }
 
 

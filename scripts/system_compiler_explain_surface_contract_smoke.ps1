@@ -370,6 +370,8 @@ Assert-Condition ([int]$rootSummary.system_formation_summary.formed_case_count -
 Assert-Condition ([int]$rootSummary.system_formation_summary.blocked_case_count -eq 0) 'default artifact_root summary blocked_case_count must stay zero in export_only mode'
 Assert-Condition (@($rootSummary.system_formation_summary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.cases length mismatch'
 Assert-Condition ([int]$rootSummary.fact_resolution_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary fact_resolution_summary.case_count mismatch'
+Assert-Condition ([string]$rootSummary.fact_resolution_summary.kind -eq 'fact_resolution_summary/v0') 'default artifact_root summary fact_resolution_summary kind mismatch'
+Assert-Condition ([string]$rootSummary.fact_resolution_summary.mode -eq 'summary') 'default artifact_root summary fact_resolution_summary mode mismatch'
 Assert-Condition (@($rootSummary.fact_resolution_summary.required_fact_matrix).Count -gt 0) 'default artifact_root summary must expose required_fact_matrix'
 $rootReportSummary = @(
     @($rootSummary.cases) |
@@ -432,6 +434,8 @@ Assert-Condition ([int]$subsetSummary.binding_result_summary.case_count -eq @($S
 Assert-Condition ([int]$subsetSummary.bringup_order_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root bringup_order_summary.case_count mismatch'
 Assert-Condition ([int]$subsetSummary.system_formation_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root system_formation_summary.case_count mismatch'
 Assert-Condition ([int]$subsetSummary.fact_resolution_summary.case_count -eq @($SubsetCases).Count) 'subset artifact_root fact_resolution_summary.case_count mismatch'
+Assert-Condition ([string]$subsetSummary.fact_resolution_summary.kind -eq 'fact_resolution_summary/v0') 'subset artifact_root fact_resolution_summary kind mismatch'
+Assert-Condition ([string]$subsetSummary.fact_resolution_summary.mode -eq 'summary') 'subset artifact_root fact_resolution_summary mode mismatch'
 
 $capListReport = Invoke-CommandJson -OutputPath (Join-Path $capturesRoot 'cap_list.report.json') -Command {
     & $inspectScript -ArtifactRoot $artifactReportRoot -Case $ReportCase -CapList -AsJson

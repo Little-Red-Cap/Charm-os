@@ -400,6 +400,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `system_formation_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `fact_resolution_summary.case_count`
 - `fact_resolution_summary.required_fact_matrix / provided_fact_matrix`
+- `fact_resolution_summary.kind / mode`
 - `comparison.system_compiler_summary.changed_case_count`
 - `comparison.system_compiler_summary.stage_change_matrix / status_change_matrix`
 - `comparison.system_compiler_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -422,6 +423,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_formation_summary.status_change_matrix / blocker_change_matrix`
 - `comparison.fact_resolution_summary.changed_case_count`
 - `comparison.fact_resolution_summary.fact_inventory_change_matrix`
+- `comparison.fact_resolution_summary.kind / mode`
 - `cases[*].Formation`
 - `cases[*].InpCmp`
 - `cases[*].FormCmp`

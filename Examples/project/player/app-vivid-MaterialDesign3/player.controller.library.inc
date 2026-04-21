@@ -1174,7 +1174,7 @@
                 return library_tab_title(library_tab);
             }
             if (list_shuffle_enabled) {
-                return library_tab_title(library_tab);
+                return "Shuffle Off";
             }
             if (library_tab != LibraryTab::Songs) {
                 return library_tab_title(LibraryTab::Songs);

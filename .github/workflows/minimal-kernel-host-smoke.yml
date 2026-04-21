@@ -7,6 +7,7 @@ on:
       - .github/workflows/minimal-kernel-host-smoke.yml
       - scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1
       - scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1
+      - scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1
       - scripts/minimal_kernel_runtime_host_smoke_bundle.ps1
       - scripts/minimal_kernel_runtime_host_smoke.ps1
       - scripts/minimal_kernel_runtime_host_smoke_ci.ps1
@@ -56,22 +57,11 @@ jobs:
           cmake --version
           ninja --version
 
-      - name: Run minimal kernel host smoke cold bundle
+      - name: Run minimal kernel host smoke dual bundle
         shell: pwsh
         run: |
-          ./scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1 `
-            -OutputRoot out/minimal-kernel-runtime-host-smoke-ci `
-            -ReportTitle "Minimal Kernel Host Smoke Cold Start Report" `
-            -Jobs 8
-
-      - name: Run minimal kernel host smoke warm bundle
-        if: success()
-        shell: pwsh
-        run: |
-          ./scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1 `
-            -OutputRoot out/minimal-kernel-runtime-host-smoke-daily `
-            -BaselineSummary out/minimal-kernel-runtime-host-smoke-ci/summary.json `
-            -ReportTitle "Minimal Kernel Host Smoke Warm Reuse Report" `
+          ./scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1 `
+            -OutputRoot out/minimal-kernel-runtime-host-smoke `
             -Jobs 8
 
       - name: Publish minimal kernel host smoke summary
@@ -79,8 +69,8 @@ jobs:
         shell: pwsh
         run: |
           $reportPaths = @(
-            "out/minimal-kernel-runtime-host-smoke-ci/report.md",
-            "out/minimal-kernel-runtime-host-smoke-daily/report.md"
+            "out/minimal-kernel-runtime-host-smoke/ci/report.md",
+            "out/minimal-kernel-runtime-host-smoke/daily/report.md"
           )
 
           $published = 0
@@ -106,7 +96,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: minimal-kernel-runtime-host-smoke
-          path: |
-            out/minimal-kernel-runtime-host-smoke-ci
-            out/minimal-kernel-runtime-host-smoke-daily
+          path: out/minimal-kernel-runtime-host-smoke
           if-no-files-found: error

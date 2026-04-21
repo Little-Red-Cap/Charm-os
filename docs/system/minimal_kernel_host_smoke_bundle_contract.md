@@ -30,8 +30,11 @@
   - 冷启动 bundle 的薄包装
 - `scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1`
   - 热复用 bundle 的薄包装
+- `scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1`
+  - 冷启动 + 热复用的双态入口
+  - 先跑 `ci bundle`，再把 cold `summary.json` 作为 baseline 传给 `daily bundle`
 - `.github/workflows/minimal-kernel-host-smoke.yml`
-  - 先跑 cold，再在同一 runner 上跑 warm 的 CI workflow
+  - 直接复用 dual bundle，在同一 runner 上完成 cold + warm 证据链
 
 ## Bundle 契约
 
@@ -68,26 +71,18 @@ workflow 应当把两份 Markdown 报告都写入 `GITHUB_STEP_SUMMARY`，并把
 
 ## 本地验证
 
-在一台机器上串行验证 cold -> warm，可以直接这样跑：
+在一台机器上复现 CI 的 cold -> warm 证据链，优先直接跑：
 
 ```powershell
-./scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1 `
-  -OutputRoot out/minimal-kernel-runtime-host-smoke-ci `
-  -ReportTitle "Minimal Kernel Host Smoke Cold Start Report" `
-  -Examples runtime_minimal_host `
-  -Jobs 8
-
-./scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1 `
-  -OutputRoot out/minimal-kernel-runtime-host-smoke-daily `
-  -BaselineSummary out/minimal-kernel-runtime-host-smoke-ci/summary.json `
-  -ReportTitle "Minimal Kernel Host Smoke Warm Reuse Report" `
+./scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1 `
+  -OutputRoot out/minimal-kernel-runtime-host-smoke `
   -Examples runtime_minimal_host `
   -Jobs 8
 ```
 
 期望信号：
 
-- cold 报告显示 `Profile: ci`
-- warm 报告显示 `Profile: daily`
+- `out/minimal-kernel-runtime-host-smoke/ci/report.md` 显示 `Profile: ci`
+- `out/minimal-kernel-runtime-host-smoke/daily/report.md` 显示 `Profile: daily`
 - warm 报告显示 `configure: total=0ms, executed=0, reused=...`
 - warm 报告包含相对 cold baseline 的 `Comparison` 段

@@ -17,6 +17,7 @@ SCHEMA_FILES = {
     "system_compiler_summary/v0": "schemas/system_compiler_summary.v0.schema.json",
     "system_input_summary/v0": "schemas/system_input_summary.v0.schema.json",
     "binding_result_summary/v0": "schemas/binding_result_summary.v0.schema.json",
+    "bringup_order_summary/v0": "schemas/bringup_order_summary.v0.schema.json",
 }
 
 

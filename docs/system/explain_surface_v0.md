@@ -465,6 +465,18 @@ artifact_root 默认总览里的匿名嵌套块。
 - [`../../schemas/examples/binding_result_summary.summary.v0.sample.json`](../../schemas/examples/binding_result_summary.summary.v0.sample.json)
 - [`../../schemas/examples/binding_result_summary.comparison.v0.sample.json`](../../schemas/examples/binding_result_summary.comparison.v0.sample.json)
 
+而 `bringup_order_summary` 与 `comparison.bringup_order_summary`
+现在也会显式带出：
+
+- `kind = bringup_order_summary/v0`
+- `mode = summary | comparison`
+
+对应 schema 与样例入口见：
+
+- [`../../schemas/bringup_order_summary.v0.schema.json`](../../schemas/bringup_order_summary.v0.schema.json)
+- [`../../schemas/examples/bringup_order_summary.summary.v0.sample.json`](../../schemas/examples/bringup_order_summary.summary.v0.sample.json)
+- [`../../schemas/examples/bringup_order_summary.comparison.v0.sample.json`](../../schemas/examples/bringup_order_summary.comparison.v0.sample.json)
+
 补充一点，`system_compiler_summary.result_map.stage_blocks[*].root_fields`
 表示的是 `system_compiler_summary` 根上的 stage 归属字段；
 它们用于说明这些 root field 该和哪个 stage block、哪个分阶段 summary 一起解释，

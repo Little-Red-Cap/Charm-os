@@ -189,6 +189,7 @@ ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
 ARMv7-A handoff quiesced, cntp_ctl=0x00000002, secure-line=group0/no/no/no, nonsecure-line=group1/no/no/no, sgi-line=group0/yes/no/no, gicd=0x00000000, gicc=0x00000000, hppir=0x000003FF, spurious=yes
 ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, tlb=yes, vectors=yes, sync=yes
 ARMv7-A runtime handoff, runtime=yes, context=yes, hooks=yes, vector=yes, report=yes, export=yes, handoff=yes
+ARMv7-A handoff entry, target=0x40200000, request=yes, offset=yes, mode=sys, vector=yes, translation=yes, cache=yes, masks=yes, export=yes, entry=yes
 ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00000000, dacr=0x00000001, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked
 ```
 
@@ -212,6 +213,7 @@ the `ARMv7-A runtime binding bundle, ... export=yes, binding=yes` summary,
 the `ARMv7-A runtime leaf bundle, ... export=yes, ... bundle=yes` summary,
 the `ARMv7-A runtime package, leaf=yes, binding=yes, ... package=yes` summary,
 the `ARMv7-A runtime handoff, runtime=yes, ... handoff=yes` summary, and
+the `ARMv7-A handoff entry, target=0x..., ... entry=yes` summary, and
 treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
 only stays green once the live path is fully closed.
 
@@ -721,6 +723,14 @@ continue
   exported runtime package, handoff context, and handoff hook table now have
   to line up as one seam before the prepare report is allowed to count as
   ready.
+- The same handoff phase now also prints one `handoff entry` line that proves
+  the next-image entry seam is no longer just an implied branch target:
+  exported runtime handoff payload, entry address, current branch mode, low
+  vectors, translation state, cache state, and masked IRQ/FIQ state now have
+  to line up together before this entry surface counts as ready. On the
+  current QEMU leaf that branch mode is still the live `sys` mode we are
+  running in today, which keeps the log honest until a later real branch shim
+  deliberately normalizes it to something else such as `svc`.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

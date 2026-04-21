@@ -8,6 +8,7 @@
 #include "armv7a_interrupt_diagnostics.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_handoff_entry.hpp"
 #include "armv7a_runtime_handoff.hpp"
 
 extern "C" void armv7a_vector_table();
@@ -307,6 +308,7 @@ void armv7a_run_handoff_prepare_dry_run()
     print_handoff_quiesced_state();
     print_handoff_step_report(report);
     armv7a_print_runtime_handoff_observation(report);
+    armv7a_print_handoff_entry_observation(report);
     print_handoff_ready_state(report);
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffPrepare);

@@ -162,6 +162,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_diag_context.cpp
     armv7a_handler_stack.cpp
     armv7a_handoff_prepare.cpp
+    armv7a_handoff_entry.cpp
     armv7a_interrupt_smoke.cpp
     armv7a_interrupt_runtime_hook.cpp
     armv7a_interrupt_diagnostics.cpp

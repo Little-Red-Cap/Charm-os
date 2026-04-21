@@ -143,6 +143,9 @@ $handoffLog = if ($phaseIndex -ge 0) {
 if (($handoffLog -notmatch "ARMv7-A runtime handoff, runtime=yes, context=yes, hooks=yes, vector=yes, report=yes, export=yes, handoff=yes")) {
     $missing += "ARMv7-A runtime handoff, runtime=yes..."
 }
+if (($handoffLog -notmatch "ARMv7-A handoff entry, target=0x[0-9A-F]{8}, request=yes, offset=yes, mode=sys, vector=yes, translation=yes, cache=yes, masks=yes, export=yes, entry=yes")) {
+    $missing += "ARMv7-A handoff entry, target=0x..."
+}
 if (($handoffLog -notmatch "ARMv7-A handoff context, vector-base=0x[0-9A-F]{8}, translation-table=0x[0-9A-F]{8}, image-base=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A handoff context, vector-base=0x..."
 }

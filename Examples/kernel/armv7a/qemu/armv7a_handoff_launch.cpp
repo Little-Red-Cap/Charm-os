@@ -27,6 +27,16 @@ extern "C" bool armv7a_invoke_handoff_launch_probe(
 extern "C" void armv7a_handoff_launch_probe_target() noexcept;
 extern "C" void armv7a_handoff_launch_probe_return_site() noexcept;
 
+std::uintptr_t armv7a_handoff_launch_probe_target_address() noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(&armv7a_handoff_launch_probe_target);
+}
+
+std::uintptr_t armv7a_handoff_launch_probe_return_site_address() noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(&armv7a_handoff_launch_probe_return_site);
+}
+
 const char* armv7a_branch_state_name(bool arm_state) noexcept
 {
     return arm_state ? "arm" : "thumb";
@@ -73,7 +83,12 @@ Armv7aHandoffLaunchContract armv7a_prepare_handoff_launch() noexcept
         Armv7aHandoffLaunchHook{
             .ctx = nullptr,
             .launch = &armv7a_qemu_probe_handoff_launch,
-        });
+        },
+        armv7a_make_handoff_launch_route(
+            transfer,
+            armv7a_handoff_launch_probe_target_address(),
+            armv7a_handoff_launch_probe_return_site_address(),
+            true));
     g_last_handoff_launch = contract;
     g_last_handoff_launch_valid = true;
     return contract;
@@ -119,12 +134,16 @@ Armv7aHandoffLaunchObservation armv7a_capture_handoff_launch_observation()
             contract.transfer.entry.expected_mode &&
         armv7a_thumb_enabled(g_last_handoff_launch_probe.cpsr) !=
             contract.transfer.expect_arm_state;
+    const auto route_ready =
+        armv7a_handoff_launch_trampoline_route(contract) &&
+        contract.route.dispatch_target ==
+            armv7a_handoff_launch_probe_target_address() &&
+        contract.route.return_site ==
+            armv7a_handoff_launch_probe_return_site_address();
     const auto probe_link_ready =
         g_last_handoff_launch_probe_valid &&
         (g_last_handoff_launch_probe.lr & ~std::uintptr_t{1u}) ==
-            (reinterpret_cast<std::uintptr_t>(
-                 &armv7a_handoff_launch_probe_return_site) &
-             ~std::uintptr_t{1u});
+            (contract.route.return_site & ~std::uintptr_t{1u});
     const auto probe_return_ready =
         armv7a_psr_mode(return_cpsr) == armv7a_psr_mode(current_cpsr) &&
         armv7a_thumb_enabled(return_cpsr) ==
@@ -150,6 +169,7 @@ Armv7aHandoffLaunchObservation armv7a_capture_handoff_launch_observation()
             armv7a_handoff_transfer_equal(
                 g_last_handoff_launch_capture,
                 contract.transfer),
+        .route_ready = route_ready,
         .probe_arg0_ready = probe_arg0_ready,
         .probe_stack_ready = probe_stack_ready,
         .probe_state_ready = probe_state_ready,
@@ -180,6 +200,9 @@ void armv7a_print_handoff_launch_observation()
     armv7a_platform_early_console_puts(", hook=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_handoff_launch_hook_ready(observation.contract)));
+    armv7a_platform_early_console_puts(", route=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        observation.route_ready));
     armv7a_platform_early_console_puts(", probe=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_handoff_launch_export_ready(observation)));

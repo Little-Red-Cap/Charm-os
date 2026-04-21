@@ -12,6 +12,7 @@ struct Armv7aHandoffLaunchObservation {
     bool launch_invoked = false;
     bool launch_ok = false;
     bool from_hook_capture = false;
+    bool route_ready = false;
     bool probe_arg0_ready = false;
     bool probe_stack_ready = false;
     bool probe_state_ready = false;
@@ -32,6 +33,7 @@ constexpr bool armv7a_handoff_launch_observation_ready(
     return armv7a_handoff_launch_ready(observation.contract) &&
            observation.from_transfer && observation.current_state_ready &&
            observation.launch_invoked && observation.launch_ok &&
+           observation.route_ready &&
            observation.probe_link_ready &&
            observation.probe_return_ready &&
            armv7a_handoff_launch_export_ready(observation);

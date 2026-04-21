@@ -192,7 +192,7 @@ ARMv7-A runtime handoff, runtime=yes, context=yes, hooks=yes, vector=yes, report
 ARMv7-A handoff entry, target=0x40200000, request=yes, offset=yes, mode=sys, vector=yes, translation=yes, cache=yes, masks=yes, export=yes, entry=yes
 ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00000000, dacr=0x00000001, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked
 ARMv7-A handoff transfer, target=0x40200000, arg0=0x4023...., size=0x00000138, mode=sys, state=arm, entry=yes, payload=yes, stack=yes, export=yes, transfer=yes
-ARMv7-A handoff launch, target=0x40200000, arg0=0x4023...., mode=sys, state=arm, transfer=yes, hook=yes, probe=yes, arg0=yes, stack=yes, branch=yes, link=yes, return=yes, invoke=yes, launch=yes
+ARMv7-A handoff launch, target=0x40200000, arg0=0x4023...., mode=sys, state=arm, transfer=yes, hook=yes, route=yes, probe=yes, arg0=yes, stack=yes, branch=yes, link=yes, return=yes, invoke=yes, launch=yes
 ```
 
 ## CI smoke
@@ -744,11 +744,13 @@ continue
   replace this pre-launch proof with a real jump/relocation path.
 - A third handoff-side `handoff launch` line now turns that pre-branch seam
   into a real returnable branch probe: the ready transfer payload is handed to
-  one explicit launch hook, a tiny assembly shim really enters a probe target
-  with the inherited `r0/sp` shape, and the log only goes green once probe
-  capture, branch-state, helper return-link, and post-return state all still
-  match the transfer contract. This keeps the seam honest without pretending
-  we already jump into the real next image.
+  one explicit launch hook, a tiny assembly shim really enters a trampoline
+  dispatch target with the inherited `r0/sp` shape, and the contract now says
+  out loud which dispatch target and return site belong to that route. The log
+  only goes green once route-shape, probe capture, branch-state, helper
+  return-link, and post-return state all still match the transfer contract.
+  This keeps the seam honest without pretending we already jump into the real
+  next image.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

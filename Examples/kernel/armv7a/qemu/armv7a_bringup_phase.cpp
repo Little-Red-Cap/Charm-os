@@ -102,6 +102,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-binding-bundle";
     case Armv7aBringupPhase::kRuntimeLeafBundle:
         return "runtime-leaf-bundle";
+    case Armv7aBringupPhase::kRuntimePackage:
+        return "runtime-package";
     case Armv7aBringupPhase::kTaskSyscallFrame:
         return "task-syscall-frame";
     case Armv7aBringupPhase::kTaskSyscallDispatch:

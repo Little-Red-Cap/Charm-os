@@ -9,6 +9,34 @@ struct Armv7aRuntimeLeafBundleContract {
     bool runtime_live_ready = false;
 };
 
+constexpr bool armv7a_runtime_leaf_bundle_equal(
+    const Armv7aRuntimeLeafBundleContract& lhs,
+    const Armv7aRuntimeLeafBundleContract& rhs) noexcept
+{
+    return armv7a_runtime_leaf_ports_equal(lhs.ports, rhs.ports) &&
+           lhs.runtime_live_ready == rhs.runtime_live_ready;
+}
+
+constexpr Armv7aRuntimeLeafBundleContract armv7a_make_runtime_leaf_bundle(
+    const Armv7aRuntimeLeafPortsContract& ports,
+    bool runtime_live_ready = false) noexcept
+{
+    return Armv7aRuntimeLeafBundleContract{
+        .ports = ports,
+        .runtime_live_ready = runtime_live_ready,
+    };
+}
+
+constexpr bool armv7a_runtime_leaf_bundle_matches_leaf_ports(
+    const Armv7aRuntimeLeafBundleContract& contract,
+    const Armv7aRuntimeLeafPortsContract& ports,
+    bool runtime_live_ready = false) noexcept
+{
+    return armv7a_runtime_leaf_bundle_equal(
+        contract,
+        armv7a_make_runtime_leaf_bundle(ports, runtime_live_ready));
+}
+
 constexpr bool armv7a_runtime_leaf_bundle_exception_ready(
     const Armv7aRuntimeLeafBundleContract& contract) noexcept
 {

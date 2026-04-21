@@ -173,7 +173,8 @@ ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, in
 ARMv7-A runtime thread port, yield-path=svc-call-frame, yield-ready=yes, sleep-path=svc-call-frame, sleep-ready=yes, trap-call=yes, thread-runtime=yes, port=yes, bridge=yes, thread=yes
 ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=yes, idle=yes, worker=yes, live=yes, resumes=3, idle-runs=1, wake-due=0x000000000000...., tick-now=0x000000000000....
 ARMv7-A runtime binding bundle, current=yes, trap=yes, thread=yes, loop=yes, live=yes, export=yes, binding=yes
-ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, ports=yes, bundle=yes
+ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, export=yes, ports=yes, bundle=yes
+ARMv7-A runtime package, leaf=yes, binding=yes, current=yes, trap=yes, call=yes, thread=yes, loop=yes, live=yes, derived=yes, export=yes, package=yes
 ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes
 ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes
 ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes
@@ -207,7 +208,8 @@ modules output stable during CI smoke runs. The same smoke now also gates the
 the `ARMv7-A runtime thread port, ... thread=yes` summary,
 the `ARMv7-A runtime binding bundle, ... export=yes, binding=yes` summary,
 `ARMv7-A runtime live, ... live=yes`, and
-`ARMv7-A runtime leaf bundle, ... call=yes, thread=yes, ... bundle=yes` summaries, and
+the `ARMv7-A runtime leaf bundle, ... export=yes, ... bundle=yes` summary,
+the `ARMv7-A runtime package, leaf=yes, binding=yes, ... package=yes` summary, and
 treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
 only stays green once the live path is fully closed.
 
@@ -234,6 +236,12 @@ For a shorter failure loop around the runtime-facing binding bundle, use:
 
 ```powershell
 .\run_qemu_runtime_binding_bundle_ci.ps1
+```
+
+For a shorter failure loop around the board-facing runtime package, use:
+
+```powershell
+.\run_qemu_runtime_package_ci.ps1
 ```
 
 For a shorter failure loop around the exported lower-half leaf payload, use:
@@ -679,8 +687,10 @@ continue
   upward: exception/interrupt/timer/context/current ingress, one runnable
   `RuntimeLoopPort`-shaped lower-half seam, one proven trap dispatch seam,
   one task-side trap-call seam, one `RuntimeThreadPort`-shaped thread egress,
-  and one already-live runtime path. That gives us a single QEMU-visible
-  bundle shape to preserve when we later swap `virt` out for RK3506.
+  and one already-live runtime path. That line now also proves the bundle is
+  exported straight from the live leaf-owned ports/runtime state instead of
+  being rebuilt locally. That gives us a single QEMU-visible bundle shape to
+  preserve when we later swap `virt` out for RK3506.
 - The same leaf now also prints one dedicated `runtime thread port` line that
   separates this thread-side egress seam from the wider leaf package: we can
   now see directly that the exported `RuntimeThreadPort`-shaped surface is
@@ -693,6 +703,11 @@ continue
   as the final readiness gate before any future upper runtime glue binds to it,
   while also proving that this smaller package is exported straight from the
   leaf-owned ports/live state instead of being another hand-written summary.
+- The same leaf now also prints one `runtime package` line that puts the two
+  previous layers together into one board-facing payload: the wider leaf
+  bundle and the smaller runtime-facing binding slice now have to be ready at
+  the same time, and the binding slice has to prove it is derived from the
+  exported leaf bundle instead of drifting into a second independent shape.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

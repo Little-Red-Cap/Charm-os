@@ -400,8 +400,11 @@ if (($log -notmatch "ARMv7-A runtime thread port, yield-path=svc-call-frame, yie
 if (($log -notmatch "ARMv7-A runtime binding bundle, current=yes, trap=yes, thread=yes, loop=yes, live=yes, export=yes, binding=yes")) {
     $missing += "ARMv7-A runtime binding bundle, current=yes..."
 }
-if (($log -notmatch "ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, ports=yes, bundle=yes")) {
+if (($log -notmatch "ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, export=yes, ports=yes, bundle=yes")) {
     $missing += "ARMv7-A runtime leaf bundle, tick-mode=oneshot..."
+}
+if (($log -notmatch "ARMv7-A runtime package, leaf=yes, binding=yes, current=yes, trap=yes, call=yes, thread=yes, loop=yes, live=yes, derived=yes, export=yes, package=yes")) {
+    $missing += "ARMv7-A runtime package, leaf=yes..."
 }
 if (($log -notmatch "ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes")) {
     $missing += "ARMv7-A task syscall frame, debug-path=svc-frame..."

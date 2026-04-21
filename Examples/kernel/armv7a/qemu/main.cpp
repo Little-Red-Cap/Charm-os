@@ -10,6 +10,7 @@
 #include "armv7a_runtime_live.hpp"
 #include "armv7a_runtime_binding_bundle.hpp"
 #include "armv7a_runtime_leaf_bundle.hpp"
+#include "armv7a_runtime_package.hpp"
 #include "armv7a_runtime_leaf_ports.hpp"
 #include "armv7a_runtime_loop.hpp"
 #include "armv7a_runtime_thread.hpp"
@@ -130,6 +131,9 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeLeafBundle);
     armv7a_print_runtime_leaf_bundle_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeLeafBundle);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimePackage);
+    armv7a_print_runtime_package_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimePackage);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallFrame);
     armv7a_print_task_syscall_frame_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallFrame);

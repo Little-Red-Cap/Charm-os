@@ -5,6 +5,9 @@
 #include "armv7a_runtime_leaf_ports.hpp"
 
 namespace {
+Armv7aRuntimeLeafBundleContract g_last_runtime_leaf_bundle{};
+bool g_last_runtime_leaf_bundle_valid = false;
+
 const char* armv7a_runtime_leaf_bundle_tick_mode_name(
     Armv7aKernelTickMode mode) noexcept
 {
@@ -20,24 +23,48 @@ const char* armv7a_runtime_leaf_bundle_tick_mode_name(
 }
 } // namespace
 
-Armv7aRuntimeLeafBundleObservation
-armv7a_capture_runtime_leaf_bundle_observation() noexcept
+Armv7aRuntimeLeafBundleContract armv7a_prepare_runtime_leaf_bundle() noexcept
 {
     auto ports = armv7a_last_runtime_leaf_ports();
     if (!armv7a_runtime_leaf_ports_ready(ports)) {
         ports = armv7a_prepare_runtime_leaf_ports();
     }
+
+    const auto runtime_live = armv7a_last_runtime_live_observation();
+    const auto contract = armv7a_make_runtime_leaf_bundle(
+        ports,
+        armv7a_runtime_live_ready(runtime_live));
+    g_last_runtime_leaf_bundle = contract;
+    g_last_runtime_leaf_bundle_valid = true;
+    return contract;
+}
+
+Armv7aRuntimeLeafBundleContract armv7a_last_runtime_leaf_bundle() noexcept
+{
+    return g_last_runtime_leaf_bundle_valid
+        ? g_last_runtime_leaf_bundle
+        : Armv7aRuntimeLeafBundleContract{};
+}
+
+Armv7aRuntimeLeafBundleObservation
+armv7a_capture_runtime_leaf_bundle_observation() noexcept
+{
+    const auto contract = armv7a_prepare_runtime_leaf_bundle();
+    const auto ports = armv7a_last_runtime_leaf_ports();
     const auto trap_dispatch = armv7a_last_runtime_trap_dispatch_observation();
     const auto runtime_live = armv7a_last_runtime_live_observation();
 
     return Armv7aRuntimeLeafBundleObservation{
-        .contract =
-            Armv7aRuntimeLeafBundleContract{
-                .ports = ports,
-                .runtime_live_ready = armv7a_runtime_live_ready(runtime_live),
-            },
+        .contract = contract,
         .trap_dispatch = trap_dispatch,
         .runtime_live = runtime_live,
+        .from_leaf_ports = armv7a_runtime_leaf_bundle_matches_leaf_ports(
+            contract,
+            ports,
+            armv7a_runtime_live_ready(runtime_live)),
+        .from_runtime_live =
+            contract.runtime_live_ready ==
+            armv7a_runtime_live_ready(runtime_live),
     };
 }
 
@@ -87,11 +114,14 @@ void armv7a_print_runtime_leaf_bundle_observation()
     armv7a_platform_early_console_puts(", live=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_live_ready(observation.contract)));
+    armv7a_platform_early_console_puts(", export=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_leaf_bundle_export_ready(observation)));
     armv7a_platform_early_console_puts(", ports=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_leaf_bundle_ports_ready(observation.contract)));
     armv7a_platform_early_console_puts(", bundle=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
-        armv7a_runtime_leaf_bundle_ready(observation.contract)));
+        armv7a_runtime_leaf_bundle_observation_ready(observation)));
     armv7a_platform_early_console_puts("\r\n");
 }

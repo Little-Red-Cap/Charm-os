@@ -188,6 +188,7 @@ ARMv7-A handoff request, kind=copy, payload-base=0x40200000, entry=0x40200000, s
 ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
 ARMv7-A handoff quiesced, cntp_ctl=0x00000002, secure-line=group0/no/no/no, nonsecure-line=group1/no/no/no, sgi-line=group0/yes/no/no, gicd=0x00000000, gicc=0x00000000, hppir=0x000003FF, spurious=yes
 ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, tlb=yes, vectors=yes, sync=yes
+ARMv7-A runtime handoff, runtime=yes, context=yes, hooks=yes, vector=yes, report=yes, export=yes, handoff=yes
 ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00000000, dacr=0x00000001, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked
 ```
 
@@ -209,7 +210,8 @@ the `ARMv7-A runtime thread port, ... thread=yes` summary,
 the `ARMv7-A runtime binding bundle, ... export=yes, binding=yes` summary,
 `ARMv7-A runtime live, ... live=yes`, and
 the `ARMv7-A runtime leaf bundle, ... export=yes, ... bundle=yes` summary,
-the `ARMv7-A runtime package, leaf=yes, binding=yes, ... package=yes` summary, and
+the `ARMv7-A runtime package, leaf=yes, binding=yes, ... package=yes` summary,
+the `ARMv7-A runtime handoff, runtime=yes, ... handoff=yes` summary, and
 treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
 only stays green once the live path is fully closed.
 
@@ -242,6 +244,12 @@ For a shorter failure loop around the board-facing runtime package, use:
 
 ```powershell
 .\run_qemu_runtime_package_ci.ps1
+```
+
+For a shorter failure loop around the board-facing handoff seam, use:
+
+```powershell
+.\run_qemu_handoff_ci.ps1
 ```
 
 For a shorter failure loop around the exported lower-half leaf payload, use:
@@ -708,6 +716,11 @@ continue
   bundle and the smaller runtime-facing binding slice now have to be ready at
   the same time, and the binding slice has to prove it is derived from the
   exported leaf bundle instead of drifting into a second independent shape.
+- The same handoff phase now also prints one `runtime handoff` line that
+  proves the board-facing payload survives into the actual prepare stage:
+  exported runtime package, handoff context, and handoff hook table now have
+  to line up as one seam before the prepare report is allowed to count as
+  ready.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

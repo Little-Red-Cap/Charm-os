@@ -1405,7 +1405,7 @@
                     display_title = library_group_title_for_track(track_index);
                     char buf[64]{};
                     const bool is_current_group = library_group_row_is_current(static_cast<int>(i));
-                    format_library_group_summary(display_title, is_current_group, buf, sizeof(buf));
+                    format_library_group_summary(display_title, is_current_group, buf, sizeof(buf), false);
                     row.title.assign(display_title.empty() ? std::string_view{"Library"} : display_title);
                     row.subtitle.assign(buf);
                     player::font_cache::ensure_text(row.title.view());

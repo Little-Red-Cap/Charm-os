@@ -1,6 +1,7 @@
 #ifndef DAPLINK_BACKEND_HPP
 #define DAPLINK_BACKEND_HPP
 
+#include "usb.h"
 #if __has_include("dma.h")
 #include "dma.h"
 #endif
@@ -26,6 +27,14 @@ namespace daplink::backend {
 
     inline UART_HandleTypeDef* cdc_uart_handle(const std::uint8_t uart_index) noexcept {
         return (uart_index == 2U) ? &huart2 : &huart1;
+    }
+
+    inline void init_usb_pcd() noexcept {
+        MX_USB_PCD_Init();
+    }
+
+    inline auto usb_pcd_handle() noexcept -> PCD_HandleTypeDef& {
+        return hpcd_USB_FS;
     }
 
     inline void cdc_uart_post_init(UART_HandleTypeDef* uart) noexcept {

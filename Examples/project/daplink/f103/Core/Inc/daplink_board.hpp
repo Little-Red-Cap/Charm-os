@@ -72,6 +72,13 @@ namespace daplink::board_target {
         return HAL_GPIO_ReadPin(T_RST_GPIO_Port, T_RST_Pin) == GPIO_PIN_SET;
     }
 
+    inline std::uint8_t reset_target() noexcept {
+        write_reset(false);
+        HAL_Delay(10);
+        write_reset(true);
+        return 1U;
+    }
+
     inline void configure_indicator_pins() noexcept {
         init_gpio(CONNECT_LED_GPIO_Port, CONNECT_LED_Pin, GPIO_MODE_OUTPUT_OD, GPIO_NOPULL, GPIO_SPEED_FREQ_LOW);
         init_gpio(DBG_LED_GPIO_Port, DBG_LED_Pin, GPIO_MODE_OUTPUT_OD, GPIO_NOPULL, GPIO_SPEED_FREQ_LOW);

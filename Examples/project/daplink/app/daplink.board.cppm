@@ -3,7 +3,6 @@ module;
 #include "daplink_backend.hpp"
 #include "daplink_board.hpp"
 #include "gpio.h"
-#include "usb.h"
 
 #include <cstdint>
 #include <expected>
@@ -137,10 +136,7 @@ export namespace daplink::board {
         }
 
         static std::uint8_t reset_target() noexcept {
-            board_cfg::write_reset(false);
-            HAL_Delay(10);
-            board_cfg::write_reset(true);
-            return 1;
+            return board_cfg::reset_target();
         }
     };
 
@@ -159,12 +155,13 @@ export namespace daplink::board {
     inline auto init_peripherals() noexcept -> std::expected<void, init_error> {
         MX_GPIO_Init();
         daplink::backend::init_cdc_uart(kCdcUartIndex);
-        MX_USB_PCD_Init();
+        daplink::backend::init_usb_pcd();
         SwdBackend::set_swj_clock_hz(daplink::app_config::kConfig.swd.default_hz);
-        if (!daplink::usb_minimal::attach(hpcd_USB_FS)) {
+        auto& usb = daplink::backend::usb_pcd_handle();
+        if (!daplink::usb_minimal::attach(usb)) {
             return std::unexpected(init_error::usb_pma_config_failed);
         }
-        if (HAL_OK != HAL_PCD_Start(&hpcd_USB_FS)) {
+        if (HAL_OK != HAL_PCD_Start(&usb)) {
             return std::unexpected(init_error::usb_start_failed);
         }
         usb_connect_on();

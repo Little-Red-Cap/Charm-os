@@ -778,6 +778,8 @@
                 }
                 if (row.current_row) {
                     append_library_status_suffix(buf, buf_size, library_current_group_state_text());
+                } else {
+                    append_library_status_suffix(buf, buf_size, library_group_primary_action_label());
                 }
                 return true;
             }
@@ -890,7 +892,7 @@
         }
 
         const char* library_group_tail_hint_label() const noexcept {
-            return "Browse";
+            return "Tracks";
         }
 
         std::size_t build_list_action_menu_items(int list_index,
@@ -2077,7 +2079,7 @@
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
-                std::snprintf(buf, sizeof(buf), "%d %s available | open a %s to browse tracks",
+                std::snprintf(buf, sizeof(buf), "%d %s available | open an %s to browse tracks",
                               count, label, (library_tab == LibraryTab::Albums) ? "album" : "artist");
                 hint = buf;
             } else if (show_context_hint) {

@@ -827,6 +827,7 @@ export namespace net {
             if (stack_ == nullptr) {
                 return;
             }
+            ipv4_.set_icmp_sink(make_ipv4_packet_sink_ref(icmp_));
             ipv4_.set_udp_sink(make_ipv4_packet_sink_ref(udp_));
             stack_->set_arp_sink(make_owned_packet_sink_ref(arp_));
             stack_->set_ipv4_sink(make_owned_packet_sink_ref(ipv4_));
@@ -836,6 +837,7 @@ export namespace net {
         NetIf* netif_{nullptr};
         ArpService<ArpCapacity, ArpTxCapacity> arp_{};
         Ipv4Service ipv4_{};
+        IcmpEchoService icmp_{};
         UdpService<UdpBindingCapacity> udp_{};
         UdpEgressPump<TxCapacity,
                       ArpCapacity,

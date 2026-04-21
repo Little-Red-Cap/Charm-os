@@ -1254,26 +1254,6 @@
                 && library_visual_state.active_tab_rect.h == active_rect.h) {
                 return;
             }
-            if (handles.library_hero_title) {
-                StylePatch patch{};
-                patch.has_font = true;
-                patch.font = &get_player_font_px(60, FontWeight::Bold);
-                patch.has_font_color = true;
-                patch.font_color = kUiOk;
-                patch.has_font_color_disabled = true;
-                patch.font_color_disabled = kUiOk;
-                patch.has_bg_color = true;
-                patch.bg_color = {0, 0, 0, 0};
-                patch.has_border_color = true;
-                patch.border_color = {0, 0, 0, 0};
-                patch.has_border_width = true;
-                patch.border_width = 0;
-                patch.has_padding = true;
-                patch.padding = 0;
-                patch.has_corner_radius = true;
-                patch.corner_radius = 0;
-                access.set_style_override(handles.library_hero_title, patch);
-            }
             apply_library_tab_style(handles.list_tab_songs, library_tab == LibraryTab::Songs, kLibraryTabRadius);
             apply_library_tab_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
             apply_library_tab_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);

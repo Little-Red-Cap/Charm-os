@@ -2035,6 +2035,9 @@
                     : ((count == 1) ? "artist" : "artists");
                 std::snprintf(buf, sizeof(buf), "%d %s available | open an %s to browse tracks",
                               count, label, (library_tab == LibraryTab::Albums) ? "album" : "artist");
+                if (list_shuffle_enabled) {
+                    append_library_status_suffix(buf, sizeof(buf), "Shuffled");
+                }
                 hint = buf;
             } else if (show_context_hint) {
                 format_library_group_summary(
@@ -2074,7 +2077,18 @@
                         ? "No tracks in this album"
                         : "No tracks by this artist";
                 } else {
-                    hint = "No items in current library view";
+                    switch (library_tab) {
+                    case LibraryTab::Albums:
+                        hint = "No albums in library";
+                        break;
+                    case LibraryTab::Artists:
+                        hint = "No artists in library";
+                        break;
+                    case LibraryTab::Songs:
+                    default:
+                        hint = "No tracks in library";
+                        break;
+                    }
                 }
             }
             if (last_list_hint_text.view() == hint) return;

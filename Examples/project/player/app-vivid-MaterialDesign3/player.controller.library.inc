@@ -618,6 +618,13 @@
                 }
                 return !track_path_out.empty();
             };
+            const int selected_track = list_index_to_track(last_list_selected);
+            if (selected_track >= 0
+                && selected_track < static_cast<int>(tracks->size())
+                && library_context_matches_track(selected_track)
+                && assign_track(selected_track)) {
+                return true;
+            }
             if (track_index >= 0
                 && track_index < static_cast<int>(tracks->size())
                 && library_context_matches_track(track_index)
@@ -1844,6 +1851,7 @@
             } else {
                 show_library_view_status();
             }
+            update_library_context_watermark();
             return true;
         }
 

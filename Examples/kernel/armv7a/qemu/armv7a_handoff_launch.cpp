@@ -25,6 +25,7 @@ extern "C" bool armv7a_invoke_handoff_launch_probe(
     std::uintptr_t arg0,
     std::uintptr_t stack_pointer) noexcept;
 extern "C" void armv7a_handoff_launch_probe_target() noexcept;
+extern "C" void armv7a_handoff_launch_probe_return_site() noexcept;
 
 const char* armv7a_branch_state_name(bool arm_state) noexcept
 {
@@ -118,6 +119,12 @@ Armv7aHandoffLaunchObservation armv7a_capture_handoff_launch_observation()
             contract.transfer.entry.expected_mode &&
         armv7a_thumb_enabled(g_last_handoff_launch_probe.cpsr) !=
             contract.transfer.expect_arm_state;
+    const auto probe_link_ready =
+        g_last_handoff_launch_probe_valid &&
+        (g_last_handoff_launch_probe.lr & ~std::uintptr_t{1u}) ==
+            (reinterpret_cast<std::uintptr_t>(
+                 &armv7a_handoff_launch_probe_return_site) &
+             ~std::uintptr_t{1u});
     const auto probe_return_ready =
         armv7a_psr_mode(return_cpsr) == armv7a_psr_mode(current_cpsr) &&
         armv7a_thumb_enabled(return_cpsr) ==
@@ -146,6 +153,7 @@ Armv7aHandoffLaunchObservation armv7a_capture_handoff_launch_observation()
         .probe_arg0_ready = probe_arg0_ready,
         .probe_stack_ready = probe_stack_ready,
         .probe_state_ready = probe_state_ready,
+        .probe_link_ready = probe_link_ready,
         .probe_return_ready = probe_return_ready,
     };
 }
@@ -184,6 +192,9 @@ void armv7a_print_handoff_launch_observation()
     armv7a_platform_early_console_puts(", branch=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         observation.probe_state_ready));
+    armv7a_platform_early_console_puts(", link=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        observation.probe_link_ready));
     armv7a_platform_early_console_puts(", return=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         observation.probe_return_ready));

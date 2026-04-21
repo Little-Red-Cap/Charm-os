@@ -3,6 +3,7 @@
 
 .section .text, "ax"
 .global armv7a_invoke_handoff_launch_probe
+.global armv7a_handoff_launch_probe_return_site
 .type armv7a_invoke_handoff_launch_probe, %function
 .extern armv7a_handoff_launch_probe_target
 
@@ -16,6 +17,7 @@ armv7a_invoke_handoff_launch_probe:
     mov sp, r2
     mov r0, r1
     blx ip
+armv7a_handoff_launch_probe_return_site:
     cmp r0, #0
     movne r0, #1
     pop {r4, pc}

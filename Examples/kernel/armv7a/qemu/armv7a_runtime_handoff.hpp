@@ -32,6 +32,8 @@ constexpr bool armv7a_runtime_handoff_observation_ready(
 
 Armv7aRuntimeHandoffContract armv7a_prepare_runtime_handoff() noexcept;
 Armv7aRuntimeHandoffContract armv7a_last_runtime_handoff() noexcept;
+const Armv7aRuntimeHandoffContract* armv7a_runtime_handoff_export() noexcept;
+std::uint32_t armv7a_runtime_handoff_export_size() noexcept;
 Armv7aRuntimeHandoffObservation armv7a_capture_runtime_handoff_observation(
     const Armv7aHandoffPrepareReport& report) noexcept;
 void armv7a_print_runtime_handoff_observation(

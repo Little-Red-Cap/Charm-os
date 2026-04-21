@@ -4,6 +4,7 @@
 
 namespace armv7a::psr {
 constexpr std::uint32_t kModeMask = 0x1fu;
+constexpr std::uint32_t kThumbMask = 1u << 5;
 constexpr std::uint32_t kIrqMask = 1u << 7;
 constexpr std::uint32_t kFiqMask = 1u << 6;
 } // namespace armv7a::psr
@@ -16,6 +17,11 @@ constexpr std::uint32_t armv7a_psr_mode(std::uint32_t psr) noexcept
 constexpr bool armv7a_irq_masked(std::uint32_t psr) noexcept
 {
     return (psr & armv7a::psr::kIrqMask) != 0u;
+}
+
+constexpr bool armv7a_thumb_enabled(std::uint32_t psr) noexcept
+{
+    return (psr & armv7a::psr::kThumbMask) != 0u;
 }
 
 constexpr bool armv7a_fiq_masked(std::uint32_t psr) noexcept

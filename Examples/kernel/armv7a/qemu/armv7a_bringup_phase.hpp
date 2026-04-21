@@ -57,6 +57,7 @@ enum class Armv7aBringupPhase : unsigned char {
     kTaskSyscallGlue,
     kTaskSyscallFailure,
     kHandoffPrepare,
+    kHandoffTransfer,
     kIdle,
 };
 

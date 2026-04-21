@@ -27,6 +27,16 @@ Armv7aRuntimeHandoffContract armv7a_last_runtime_handoff() noexcept
                                         : Armv7aRuntimeHandoffContract{};
 }
 
+const Armv7aRuntimeHandoffContract* armv7a_runtime_handoff_export() noexcept
+{
+    return g_last_runtime_handoff_valid ? &g_last_runtime_handoff : nullptr;
+}
+
+std::uint32_t armv7a_runtime_handoff_export_size() noexcept
+{
+    return static_cast<std::uint32_t>(sizeof(Armv7aRuntimeHandoffContract));
+}
+
 Armv7aRuntimeHandoffObservation armv7a_capture_runtime_handoff_observation(
     const Armv7aHandoffPrepareReport& report) noexcept
 {

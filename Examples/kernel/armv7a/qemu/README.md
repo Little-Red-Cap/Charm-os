@@ -191,6 +191,7 @@ ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, t
 ARMv7-A runtime handoff, runtime=yes, context=yes, hooks=yes, vector=yes, report=yes, export=yes, handoff=yes
 ARMv7-A handoff entry, target=0x40200000, request=yes, offset=yes, mode=sys, vector=yes, translation=yes, cache=yes, masks=yes, export=yes, entry=yes
 ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00000000, dacr=0x00000001, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked
+ARMv7-A handoff transfer, target=0x40200000, arg0=0x4023...., size=0x00000138, mode=sys, state=arm, entry=yes, payload=yes, stack=yes, export=yes, transfer=yes
 ```
 
 ## CI smoke
@@ -214,6 +215,7 @@ the `ARMv7-A runtime leaf bundle, ... export=yes, ... bundle=yes` summary,
 the `ARMv7-A runtime package, leaf=yes, binding=yes, ... package=yes` summary,
 the `ARMv7-A runtime handoff, runtime=yes, ... handoff=yes` summary, and
 the `ARMv7-A handoff entry, target=0x..., ... entry=yes` summary, and
+the `ARMv7-A handoff transfer, target=0x..., ... transfer=yes` summary, and
 treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
 only stays green once the live path is fully closed.
 
@@ -731,6 +733,13 @@ continue
   current QEMU leaf that branch mode is still the live `sys` mode we are
   running in today, which keeps the log honest until a later real branch shim
   deliberately normalizes it to something else such as `svc`.
+- A second handoff-side `handoff transfer` line now pushes that proof one step
+  closer to a real branch shim: the exported runtime handoff payload is now
+  shaped as the `arg0` value we would actually pass forward, the inherited
+  stack pointer is checked at the live transfer site, and the current branch
+  state is forced to stay honest about still being `arm/sys` on this QEMU
+  leaf. That gives us one explicit pre-branch seam to preserve when we later
+  replace this dry-run proof with a real jump/relocation path.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

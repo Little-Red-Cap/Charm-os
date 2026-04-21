@@ -15,6 +15,7 @@ SCHEMA_FILES = {
     "system_compiler.runtime_observe_snapshot/v0": "schemas/system_compiler.runtime_observe_snapshot.v0.schema.json",
     "system_compiler_result_map/v0": "schemas/system_compiler_result_map.v0.schema.json",
     "system_compiler_summary/v0": "schemas/system_compiler_summary.v0.schema.json",
+    "system_input_summary/v0": "schemas/system_input_summary.v0.schema.json",
 }
 
 

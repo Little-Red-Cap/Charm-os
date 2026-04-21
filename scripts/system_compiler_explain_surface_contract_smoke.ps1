@@ -320,6 +320,8 @@ Assert-Condition ($null -ne $rootSummary.system_formation_summary) 'default arti
 Assert-Condition ($null -ne $rootSummary.fact_resolution_summary) 'default artifact_root summary must expose fact_resolution_summary'
 Assert-Condition ([int]$rootSummary.system_compiler_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_compiler_summary.case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_input_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_input_summary.case_count mismatch'
+Assert-Condition ([string]$rootSummary.system_input_summary.kind -eq 'system_input_summary/v0') 'default artifact_root summary system_input_summary kind mismatch'
+Assert-Condition ([string]$rootSummary.system_input_summary.mode -eq 'summary') 'default artifact_root summary system_input_summary mode mismatch'
 Assert-Condition ([int]$rootSummary.binding_result_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary binding_result_summary.case_count mismatch'
 Assert-Condition ([int]$rootSummary.bringup_order_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary bringup_order_summary.case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_compiler_summary.formed_case_count -eq @($ExportCases).Count) 'default artifact_root summary system_compiler_summary formed_case_count mismatch'

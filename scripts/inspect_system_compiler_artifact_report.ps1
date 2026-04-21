@@ -1819,6 +1819,8 @@ function New-ArtifactRootSystemInputSummaryResult {
     ) | Where-Object { $null -ne $_ } | Sort-Object contract
 
     return [ordered]@{
+        kind = 'system_input_summary/v0'
+        mode = 'summary'
         case_count = @($caseSummaries).Count
         totals = [ordered]@{
             declared_fact_count = [int](@($caseSummaries | ForEach-Object { @($_.declared_facts).Count } | Measure-Object -Sum).Sum)
@@ -2087,6 +2089,8 @@ function New-ArtifactRootSystemInputComparisonResult {
     ) | Where-Object { $null -ne $_ } | Sort-Object contract
 
     return [ordered]@{
+        kind = 'system_input_summary/v0'
+        mode = 'comparison'
         compared_case_count = @($caseSummaries).Count
         changed_case_count = @($changedCases).Count
         unchanged_case_count = @($unchangedCases).Count

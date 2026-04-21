@@ -10,6 +10,9 @@
 - `schemas/system_compiler_summary.v0.schema.json`
 - `schemas/examples/system_compiler_summary.summary.v0.sample.json`
 - `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
+- `schemas/system_input_summary.v0.schema.json`
+- `schemas/examples/system_input_summary.summary.v0.sample.json`
+- `schemas/examples/system_input_summary.comparison.v0.sample.json`
 - `schemas/system_compiler.runtime_observe_snapshot.v0.schema.json`
 - `schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json`
 
@@ -19,6 +22,8 @@
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json
 ```
 
@@ -419,6 +424,19 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `resolved_profile_matrix / resolved_board_matrix`
 - `resolved_active_facet_matrix`
 - `declared_fact_matrix / declared_contract_matrix / subject_fact_matrix`
+
+现在这份 input-side summary object 也已经被提升成独立协议对象：
+
+- summary 模式显式带出 `kind = system_input_summary/v0` 与 `mode = summary`
+- comparison 模式显式带出 `kind = system_input_summary/v0` 与 `mode = comparison`
+- 对应 schema 入口见 [`../../schemas/system_input_summary.v0.schema.json`](../../schemas/system_input_summary.v0.schema.json)
+- 对应最小样例见 [`../../schemas/examples/system_input_summary.summary.v0.sample.json`](../../schemas/examples/system_input_summary.summary.v0.sample.json)
+- comparison 样例见 [`../../schemas/examples/system_input_summary.comparison.v0.sample.json`](../../schemas/examples/system_input_summary.comparison.v0.sample.json)
+
+这样外部脚本与 CI 如果直接消费 artifact_root 默认总览里的
+`system_input_summary` 或 `comparison.system_input_summary`，
+就不必再依赖“当前字段名碰巧叫这个”来识别对象语义，
+而可以直接通过 `kind / mode` 把它当作正式的 input-side result object。
 
 并继续显式带出一份
 `binding_result_summary`，至少包括：

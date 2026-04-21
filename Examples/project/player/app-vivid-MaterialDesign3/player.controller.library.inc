@@ -310,6 +310,8 @@
                     char buf[16]{};
                     format_duration_compact(duration_sec, buf, sizeof(buf));
                     row.tail.assign(buf);
+                } else if (duration_sec == kTrackDurationUnknown) {
+                    row.tail.assign("--:--");
                 } else {
                     row.tail.assign(format_from_path(path));
                 }

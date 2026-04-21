@@ -46,6 +46,7 @@
 - [`net_lab_udp_diag_forward_failure_smoke/`](net_lab_udp_diag_forward_failure_smoke/)
 - [`net_lab_udp_diag_forward_late_reply_smoke/`](net_lab_udp_diag_forward_late_reply_smoke/)
 - [`net_lab_udp_diag_forward_route_churn_smoke/`](net_lab_udp_diag_forward_route_churn_smoke/)
+- [`net_lab_udp_diag_forward_proxy_arp_churn_smoke/`](net_lab_udp_diag_forward_proxy_arp_churn_smoke/)
 
 ### 我想看 UDP / 诊断链路
 
@@ -61,6 +62,7 @@
 - [`net_lab_udp_diag_forward_failure_smoke/`](net_lab_udp_diag_forward_failure_smoke/)
 - [`net_lab_udp_diag_forward_late_reply_smoke/`](net_lab_udp_diag_forward_late_reply_smoke/)
 - [`net_lab_udp_diag_forward_route_churn_smoke/`](net_lab_udp_diag_forward_route_churn_smoke/)
+- [`net_lab_udp_diag_forward_proxy_arp_churn_smoke/`](net_lab_udp_diag_forward_proxy_arp_churn_smoke/)
 
 ### 我想看 reactor / service / socket 行为
 

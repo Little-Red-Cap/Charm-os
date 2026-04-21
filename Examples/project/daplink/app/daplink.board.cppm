@@ -13,7 +13,7 @@ import daplink.app_config;
 
 namespace {
     constexpr std::uint8_t kCdcUartIndex = daplink::app_config::kConfig.cdc.uart_index;
-    namespace board_cfg = daplink::board_target;
+    using board_cfg = daplink::board_target::Support;
 }
 
 extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef* hpcd) {

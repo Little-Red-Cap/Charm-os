@@ -162,6 +162,15 @@
       "cacheVariables": {
         "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE": "sgi_fiq_timeout"
       }
+    },
+    {
+      "name": "debug-handoff-live",
+      "displayName": "ARMv7-A QEMU Debug (Live Handoff Smoke)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/out/build/debug-handoff-live",
+      "cacheVariables": {
+        "CHARM_ARMV7A_HANDOFF_SMOKE": "live"
+      }
     }
   ],
   "buildPresets": [
@@ -232,6 +241,10 @@
     {
       "name": "debug-interrupt-sgi-fiq-timeout",
       "configurePreset": "debug-interrupt-sgi-fiq-timeout"
+    },
+    {
+      "name": "debug-handoff-live",
+      "configurePreset": "debug-handoff-live"
     }
   ]
 }

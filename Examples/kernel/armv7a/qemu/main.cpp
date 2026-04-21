@@ -2,6 +2,7 @@
 #include "armv7a_boot_diagnostics.hpp"
 #include "armv7a_context_smoke.hpp"
 #include "armv7a_handoff_launch.hpp"
+#include "armv7a_handoff_live.hpp"
 #include "armv7a_handoff_prepare.hpp"
 #include "armv7a_handoff_transfer.hpp"
 #include "armv7a_interrupt_observation_sequence.hpp"
@@ -166,9 +167,13 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kHandoffTransfer);
     armv7a_print_handoff_transfer_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffTransfer);
+#if defined(CHARM_ARMV7A_HANDOFF_SMOKE_LIVE)
+    armv7a_run_handoff_live_smoke();
+#else
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kHandoffLaunch);
     armv7a_print_handoff_launch_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffLaunch);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);
     armv7a_platform_idle_forever();
+#endif
 }

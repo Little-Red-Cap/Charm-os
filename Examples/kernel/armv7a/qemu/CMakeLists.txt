@@ -8,6 +8,8 @@ set(CHARM_ARMV7A_EXCEPTION_SMOKE "off" CACHE STRING "Optional exception smoke ki
 set_property(CACHE CHARM_ARMV7A_EXCEPTION_SMOKE PROPERTY STRINGS off undefined)
 set(CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE "off" CACHE STRING "Optional interrupt edge smoke kind: off, special_irq, sgi_irq_timeout, unexpected_irq, sgi_fiq_timeout")
 set_property(CACHE CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE PROPERTY STRINGS off special_irq sgi_irq_timeout unexpected_irq sgi_fiq_timeout)
+set(CHARM_ARMV7A_HANDOFF_SMOKE "off" CACHE STRING "Optional handoff smoke kind: off, live")
+set_property(CACHE CHARM_ARMV7A_HANDOFF_SMOKE PROPERTY STRINGS off live)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -57,10 +59,22 @@ if (NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "off"
     message(FATAL_ERROR
         "CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE must be one of: off, special_irq, sgi_irq_timeout, unexpected_irq, sgi_fiq_timeout")
 endif()
+if (NOT CHARM_ARMV7A_HANDOFF_SMOKE STREQUAL "off"
+    AND NOT CHARM_ARMV7A_HANDOFF_SMOKE STREQUAL "live")
+    message(FATAL_ERROR
+        "CHARM_ARMV7A_HANDOFF_SMOKE must be one of: off, live")
+endif()
 if (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
     AND NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "off")
     message(FATAL_ERROR
         "Only one of CHARM_ARMV7A_ABORT_SMOKE or CHARM_ARMV7A_EXCEPTION_SMOKE may be enabled at a time")
+endif()
+if (NOT CHARM_ARMV7A_HANDOFF_SMOKE STREQUAL "off"
+    AND (NOT CHARM_ARMV7A_ABORT_SMOKE STREQUAL "off"
+        OR NOT CHARM_ARMV7A_EXCEPTION_SMOKE STREQUAL "off"
+        OR NOT CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "off"))
+    message(FATAL_ERROR
+        "CHARM_ARMV7A_HANDOFF_SMOKE may only be enabled with the default abort/exception/interrupt smoke settings")
 endif()
 
 get_filename_component(CHARM_ROOT
@@ -166,6 +180,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_handoff_transfer.cpp
     armv7a_handoff_launch.S
     armv7a_handoff_launch.cpp
+    armv7a_handoff_live.S
+    armv7a_handoff_live.cpp
     armv7a_interrupt_smoke.cpp
     armv7a_interrupt_runtime_hook.cpp
     armv7a_interrupt_diagnostics.cpp
@@ -269,4 +285,9 @@ elseif (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "unexpected_irq")
 elseif (CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE STREQUAL "sgi_fiq_timeout")
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         CHARM_ARMV7A_INTERRUPT_EDGE_SMOKE_SGI_FIQ_TIMEOUT=1)
+endif()
+
+if (CHARM_ARMV7A_HANDOFF_SMOKE STREQUAL "live")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        CHARM_ARMV7A_HANDOFF_SMOKE_LIVE=1)
 endif()

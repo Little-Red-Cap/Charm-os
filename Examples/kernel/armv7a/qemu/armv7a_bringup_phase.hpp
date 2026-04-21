@@ -59,6 +59,7 @@ enum class Armv7aBringupPhase : unsigned char {
     kHandoffPrepare,
     kHandoffTransfer,
     kHandoffLaunch,
+    kHandoffLive,
     kIdle,
 };
 

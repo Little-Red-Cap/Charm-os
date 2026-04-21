@@ -2,6 +2,7 @@
 
 #include "armv7a_cpu.hpp"
 #include "armv7a_diag_console.hpp"
+#include "armv7a_handoff_live.hpp"
 #include "armv7a_platform.hpp"
 
 namespace {
@@ -83,6 +84,21 @@ Armv7aHandoffLaunchContract armv7a_prepare_handoff_launch() noexcept
         transfer = armv7a_prepare_handoff_transfer();
     }
 
+#if defined(CHARM_ARMV7A_HANDOFF_SMOKE_LIVE)
+    transfer.stack_pointer = armv7a_read_sp();
+    const auto contract = armv7a_make_handoff_launch(
+        transfer,
+        Armv7aHandoffLaunchHook{
+            .ctx = nullptr,
+            .launch = &armv7a_qemu_live_handoff_launch,
+        },
+        armv7a_make_handoff_launch_route(
+            transfer,
+            reinterpret_cast<std::uintptr_t>(
+                &armv7a_handoff_live_trampoline_target),
+            0u,
+            false));
+#else
     const auto contract = armv7a_make_handoff_launch(
         transfer,
         Armv7aHandoffLaunchHook{
@@ -94,6 +110,7 @@ Armv7aHandoffLaunchContract armv7a_prepare_handoff_launch() noexcept
             armv7a_handoff_launch_probe_target_address(),
             armv7a_handoff_launch_probe_return_site_address(),
             true));
+#endif
     g_last_handoff_launch = contract;
     g_last_handoff_launch_valid = true;
     return contract;

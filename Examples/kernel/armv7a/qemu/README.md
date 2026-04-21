@@ -77,6 +77,9 @@ cmake --build out\build\debug-interrupt-unexpected-irq --verbose
 
 cmake --preset debug-interrupt-sgi-fiq-timeout
 cmake --build out\build\debug-interrupt-sgi-fiq-timeout --verbose
+
+cmake --preset debug-handoff-live
+cmake --build out\build\debug-handoff-live --verbose
 ```
 
 ## Run
@@ -239,6 +242,20 @@ For a shorter failure loop around the exported runtime-thread egress seam, use:
 ```powershell
 .\run_qemu_runtime_thread_ci.ps1
 ```
+
+For a dedicated real non-returning handoff landing smoke, use:
+
+```powershell
+.\run_qemu_handoff_live_ci.ps1
+```
+
+That live handoff preset keeps the default returnable `handoff launch` probe
+untouched in the main `debug` smoke, but swaps in one separate synthetic
+next-stage landing path for the dedicated smoke build. The live path only goes
+green once QEMU really branches through the explicit launch route, lands in the
+synthetic next-stage entry with the inherited `r0/sp` shape, completes the
+`handoff-launch` phase from the landing side, reports one
+`ARMv7-A handoff live, ... live=yes` line, and then idles forever.
 
 For a shorter failure loop around the runtime-facing binding bundle, use:
 

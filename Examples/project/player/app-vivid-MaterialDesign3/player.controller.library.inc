@@ -870,12 +870,12 @@
         const char* library_group_secondary_action_label() const noexcept {
             switch (library_tab) {
             case LibraryTab::Albums:
-                return "Show album details";
+                return "Show album summary";
             case LibraryTab::Artists:
-                return "Show artist details";
+                return "Show artist summary";
             case LibraryTab::Songs:
             default:
-                return "Show details";
+                return "Show summary";
             }
         }
 

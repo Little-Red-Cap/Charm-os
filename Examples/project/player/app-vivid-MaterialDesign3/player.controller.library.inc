@@ -288,41 +288,79 @@
             return true;
         }
 
-        void rebuild_list_display_tails() {
+        void refresh_list_row_tail(LibraryRowModel& row, int track_index) {
+            row.tail.clear();
             const auto* tracks = storage.tracks;
+            if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
+                return;
+            }
+            if (row.group_row) {
+                return;
+            }
+            const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
+            const int duration_sec = cached_track_duration(track_index);
+            if (duration_sec > 0) {
+                char buf[16]{};
+                format_duration_compact(duration_sec, buf, sizeof(buf));
+                row.tail.assign(buf);
+            } else if (duration_sec == kTrackDurationUnknown) {
+                row.tail.assign("--:--");
+            } else {
+                row.tail.assign(format_from_path(path));
+            }
+            player::font_cache::ensure_text(row.tail.view());
+        }
+
+        void rebuild_list_display_tails() {
             const std::size_t count = list_order.size();
             if (list_rows.size() != count) {
                 list_rows.resize(count);
             }
             for (std::size_t i = 0; i < count; ++i) {
-                auto& row = list_rows[i];
-                row.tail.clear();
-                const int track_index = list_order[i];
-                if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
-                    continue;
-                }
-                if (row.group_row) {
-                    continue;
-                }
-                const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
-                const int duration_sec = cached_track_duration(track_index);
-                if (duration_sec > 0) {
-                    char buf[16]{};
-                    format_duration_compact(duration_sec, buf, sizeof(buf));
-                    row.tail.assign(buf);
-                } else if (duration_sec == kTrackDurationUnknown) {
-                    row.tail.assign("--:--");
-                } else {
-                    row.tail.assign(format_from_path(path));
-                }
-                player::font_cache::ensure_text(row.tail.view());
+                refresh_list_row_tail(list_rows[i], list_order[i]);
             }
         }
 
-        void notify_list_text_sources_changed() {
+        bool refresh_list_tail_for_track(int track_index) {
+            if (track_index < 0 || library_shows_group_rows()) return false;
+            const int row_index = track_index_to_list(track_index);
+            auto* row = library_row_model(row_index);
+            if (!row || row->group_row) return false;
+            refresh_list_row_tail(*row, track_index);
+            return true;
+        }
+
+        bool refresh_group_row_summary_for_track(int track_index) {
+            if (track_index < 0 || !library_shows_group_rows()) return false;
+            const int row_index = track_index_to_list(track_index);
+            auto* row = library_row_model(row_index);
+            if (!row || !row->group_row) return false;
+
+            const auto key = library_group_title_for_track(track_index);
+            char buf[64]{};
+            format_library_group_summary(key,
+                                         library_group_row_is_current(row_index),
+                                         buf,
+                                         sizeof(buf),
+                                         false);
+            row->subtitle.assign(buf);
+            player::font_cache::ensure_text(row->subtitle.view());
+            return true;
+        }
+
+        void notify_list_subtitle_source_changed() {
             if (!access.valid() || !handles.list) return;
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
+        }
+
+        void notify_list_tail_source_changed() {
+            if (!access.valid() || !handles.list) return;
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
+        }
+
+        void notify_list_text_sources_changed() {
+            notify_list_subtitle_source_changed();
+            notify_list_tail_source_changed();
         }
 
         void tick_list_duration_probe() {
@@ -344,8 +382,23 @@
                 const bool ok = player::probe_duration_seconds((*tracks)[static_cast<std::size_t>(track_index)].c_str(), seconds);
                 const bool changed = cache_track_duration(track_index, ok ? seconds : 0);
                 if (changed) {
-                    rebuild_list_display_cache();
-                    notify_list_text_sources_changed();
+                    if (library_shows_group_rows()) {
+                        if (refresh_group_row_summary_for_track(track_index)) {
+                            notify_list_subtitle_source_changed();
+                        } else {
+                            rebuild_list_display_cache();
+                            notify_list_subtitle_source_changed();
+                            notify_list_tail_source_changed();
+                        }
+                    } else {
+                        if (refresh_list_tail_for_track(track_index)) {
+                            notify_list_tail_source_changed();
+                        }
+                        if (library_has_context() && library_context_matches_track(track_index)) {
+                            update_list_placeholder();
+                            show_library_context_status();
+                        }
+                    }
                 }
                 return true;
             };

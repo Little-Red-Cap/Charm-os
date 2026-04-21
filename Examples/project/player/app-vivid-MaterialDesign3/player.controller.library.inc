@@ -1731,19 +1731,35 @@
             rebuild_list_display_cache();
         }
 
-        void sync_list_selection() {
-            if (!access.valid() || !handles.list) return;
+        bool sync_list_selection() {
+            if (!access.valid() || !handles.list) return false;
             const auto* labels = storage.track_labels;
-            if (!labels) return;
-            if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return;
+            if (!labels || track_index < 0 || track_index >= static_cast<int>(labels->size())) {
+                access.set_list_view_active(handles.list, -1);
+                return false;
+            }
             ignore_list_select = true;
             const int list_index = track_index_to_list(track_index);
             access.set_list_view_active(handles.list, list_index);
             if (list_index >= 0) {
                 access.set_list_view_selected(handles.list, list_index);
                 last_list_selected = list_index;
+                ignore_list_select = false;
+                return true;
             }
             ignore_list_select = false;
+            return false;
+        }
+
+        bool restore_list_selection_from_track(int preferred_track) {
+            if (!access.valid() || !handles.list) return false;
+            const int list_index = track_index_to_list(preferred_track);
+            if (list_index < 0) return false;
+            ignore_list_select = true;
+            access.set_list_view_selected(handles.list, list_index);
+            ignore_list_select = false;
+            last_list_selected = list_index;
+            return true;
         }
 
         void ensure_library_context_selection() {
@@ -1759,6 +1775,7 @@
 
         void refresh_list_view() {
             if (!access.valid() || !handles.list) return;
+            const int preferred_selected_track = list_index_to_track(last_list_selected);
             rebuild_list_order();
             const int count = static_cast<int>(list_order.size());
             access.set_list_view_source(handles.list,
@@ -1776,7 +1793,12 @@
             access.set_list_row_height(handles.list, kLibraryListRowHeight);
             access.set_scroll_step(handles.list, kLibraryListRowHeight);
             if (count > 0) {
-                sync_list_selection();
+                const bool synced = sync_list_selection();
+                if (!synced
+                    && !restore_list_selection_from_track(preferred_selected_track)
+                    && library_has_context()) {
+                    ensure_library_context_selection();
+                }
             } else {
                 access.set_list_view_active(handles.list, -1);
                 last_list_selected = -1;

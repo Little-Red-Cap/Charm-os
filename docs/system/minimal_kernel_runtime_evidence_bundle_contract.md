@@ -100,7 +100,24 @@ out/minimal-kernel-runtime-evidence/
 - `qemu/report.md` 显示 `ok=3 fail=0 other=0`
 - 根 `report.md` 同时汇总上半层与下半层证据
 
+## CI 验收
+
+仓库当前已提供统一的总证据 workflow：
+
+- `.github/workflows/minimal-kernel-runtime-evidence.yml`
+
+它的职责不是重新拼一套分散步骤，而是直接调用：
+
+- `scripts/minimal_kernel_runtime_evidence_bundle.ps1`
+
+当前 CI 形态约定如下：
+
+- 在 `windows-latest` 上同时准备 host 侧 CLANG64 工具链、`arm-none-eabi` 裸机工具链、`qemu-system-arm`
+- 统一把产物落到 `out/minimal-kernel-runtime-evidence`
+- 把根 `report.md` 发布到 workflow step summary
+- 上传整包 artifact，而不是只上传某个局部 smoke 结果
+
 ## 当前注意事项
 
 - `task-syscall` lower-half smoke 当前默认需要比早期更长的等待窗口，相关入口默认超时已统一上调到 `30s`
-- 总 bundle 当前首先解决的是“把证据收拢成一个可信入口”，还没有接入新的 CI workflow
+- 如果 CI 失败，优先先看根 `report.md / check.txt`，再沿着 `host.bundle.log` 与 `qemu.bundle.log` 下钻

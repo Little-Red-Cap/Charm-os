@@ -12,6 +12,7 @@ bool g_last_handoff_launch_capture_valid = false;
 
 struct Armv7aHandoffLaunchProbeCapture {
     std::uintptr_t arg0 = 0u;
+    std::uintptr_t target = 0u;
     std::uintptr_t sp = 0u;
     std::uint32_t cpsr = 0u;
     std::uintptr_t lr = 0u;
@@ -22,6 +23,7 @@ bool g_last_handoff_launch_probe_valid = false;
 
 extern "C" bool armv7a_invoke_handoff_launch_probe(
     std::uintptr_t probe_target,
+    std::uintptr_t next_target,
     std::uintptr_t arg0,
     std::uintptr_t stack_pointer) noexcept;
 extern "C" void armv7a_handoff_launch_probe_target() noexcept;
@@ -44,12 +46,14 @@ const char* armv7a_branch_state_name(bool arm_state) noexcept
 
 extern "C" void armv7a_record_handoff_launch_probe(
     std::uintptr_t arg0,
+    std::uintptr_t target,
     std::uintptr_t sp,
     std::uint32_t cpsr,
     std::uintptr_t lr) noexcept
 {
     g_last_handoff_launch_probe = Armv7aHandoffLaunchProbeCapture{
         .arg0 = arg0,
+        .target = target,
         .sp = sp,
         .cpsr = cpsr,
         .lr = lr,
@@ -66,6 +70,7 @@ bool armv7a_qemu_probe_handoff_launch(
     g_last_handoff_launch_probe_valid = false;
     return armv7a_invoke_handoff_launch_probe(
         contract.route.dispatch_target,
+        contract.transfer.entry.branch_target,
         contract.transfer.arg0_handoff,
         contract.transfer.stack_pointer);
 }
@@ -125,6 +130,10 @@ Armv7aHandoffLaunchObservation armv7a_capture_handoff_launch_observation()
     const auto probe_arg0_ready =
         g_last_handoff_launch_probe_valid &&
         g_last_handoff_launch_probe.arg0 == contract.transfer.arg0_handoff;
+    const auto probe_target_ready =
+        g_last_handoff_launch_probe_valid &&
+        g_last_handoff_launch_probe.target ==
+            contract.transfer.entry.branch_target;
     const auto probe_stack_ready =
         g_last_handoff_launch_probe_valid &&
         g_last_handoff_launch_probe.sp == contract.transfer.stack_pointer;
@@ -171,6 +180,7 @@ Armv7aHandoffLaunchObservation armv7a_capture_handoff_launch_observation()
                 contract),
         .route_ready = route_ready,
         .probe_arg0_ready = probe_arg0_ready,
+        .probe_target_ready = probe_target_ready,
         .probe_stack_ready = probe_stack_ready,
         .probe_state_ready = probe_state_ready,
         .probe_link_ready = probe_link_ready,
@@ -209,6 +219,9 @@ void armv7a_print_handoff_launch_observation()
     armv7a_platform_early_console_puts(", arg0=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         observation.probe_arg0_ready));
+    armv7a_platform_early_console_puts(", next=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        observation.probe_target_ready));
     armv7a_platform_early_console_puts(", stack=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         observation.probe_stack_ready));

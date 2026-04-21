@@ -14,6 +14,7 @@ struct Armv7aHandoffLaunchObservation {
     bool from_hook_capture = false;
     bool route_ready = false;
     bool probe_arg0_ready = false;
+    bool probe_target_ready = false;
     bool probe_stack_ready = false;
     bool probe_state_ready = false;
     bool probe_link_ready = false;
@@ -24,7 +25,8 @@ constexpr bool armv7a_handoff_launch_export_ready(
     const Armv7aHandoffLaunchObservation& observation) noexcept
 {
     return observation.from_hook_capture && observation.probe_arg0_ready &&
-           observation.probe_stack_ready && observation.probe_state_ready;
+           observation.probe_target_ready && observation.probe_stack_ready &&
+           observation.probe_state_ready;
 }
 
 constexpr bool armv7a_handoff_launch_observation_ready(

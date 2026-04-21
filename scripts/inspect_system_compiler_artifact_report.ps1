@@ -4386,6 +4386,8 @@ function New-ArtifactRootSystemFormationSummaryResult {
     ) | Where-Object { $null -ne $_ } | Sort-Object kind, name
 
     return [ordered]@{
+        kind = 'system_formation_summary/v0'
+        mode = 'summary'
         case_count = @($caseSummaries).Count
         status_counts = [ordered]@{
             formed = @($formedCases).Count
@@ -4914,6 +4916,8 @@ function New-ArtifactRootSystemFormationComparisonResult {
     ) | Where-Object { $null -ne $_ } | Sort-Object node
 
     return [ordered]@{
+        kind = 'system_formation_summary/v0'
+        mode = 'comparison'
         compared_case_count = @($caseSummaries).Count
         changed_case_count = @($changedCases).Count
         unchanged_case_count = @($unchangedCases).Count

@@ -364,6 +364,8 @@ Assert-Condition (@($rootSummary.system_input_summary.declared_fact_matrix).Coun
 Assert-Condition (@($rootSummary.binding_result_summary.capability_matrix).Count -gt 0) 'default artifact_root summary must expose binding_result capability_matrix'
 Assert-Condition (@($rootSummary.bringup_order_summary.node_matrix).Count -gt 0) 'default artifact_root summary must expose bringup_order node_matrix'
 Assert-Condition ([int]$rootSummary.system_formation_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.case_count mismatch'
+Assert-Condition ([string]$rootSummary.system_formation_summary.kind -eq 'system_formation_summary/v0') 'default artifact_root summary system_formation_summary kind mismatch'
+Assert-Condition ([string]$rootSummary.system_formation_summary.mode -eq 'summary') 'default artifact_root summary system_formation_summary mode mismatch'
 Assert-Condition ([int]$rootSummary.system_formation_summary.formed_case_count -eq @($ExportCases).Count) 'default artifact_root summary formed_case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_formation_summary.blocked_case_count -eq 0) 'default artifact_root summary blocked_case_count must stay zero in export_only mode'
 Assert-Condition (@($rootSummary.system_formation_summary.cases).Count -eq @($ExportCases).Count) 'default artifact_root summary system_formation_summary.cases length mismatch'

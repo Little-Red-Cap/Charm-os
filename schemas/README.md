@@ -142,6 +142,21 @@
   - 对应 `bringup_order_summary/v0` 在 `mode = comparison` 下的最小样例
   - 用途偏向 bringup drift 汇总对象接入前的样例锚点
 
+- `system_formation_summary.v0.schema.json`
+  - 对应 `inspect_system_compiler_artifact_report.ps1` 导出的 `system_formation_summary`
+    与 `comparison.system_formation_summary`
+  - 用途偏向把 artifact_root 默认总览里的 formation-side summary object
+    正式锚定成可验证协议，并把 `kind / mode` 自描述字段固定下来
+  - 它当前负责冻结 formation status、blocker 分布与 formation drift 汇总对象形状
+
+- `examples/system_formation_summary.summary.v0.sample.json`
+  - 对应 `system_formation_summary/v0` 在 `mode = summary` 下的最小样例
+  - 用途偏向 schema 自检、artifact_root formation-side 总览消费面接入与 explain surface 工具对齐
+
+- `examples/system_formation_summary.comparison.v0.sample.json`
+  - 对应 `system_formation_summary/v0` 在 `mode = comparison` 下的最小样例
+  - 用途偏向 formation drift 汇总对象接入前的样例锚点
+
 ## 稳定性约定
 
 当前建议这样理解稳定性：
@@ -158,6 +173,7 @@
 - `system_input_summary/v0`：当前 artifact_root 默认总览里的 input-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `binding_result_summary/v0`：当前 artifact_root 默认总览里的 binding-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `bringup_order_summary/v0`：当前 artifact_root 默认总览里的 bringup-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
+- `system_formation_summary/v0`：当前 artifact_root 默认总览里的 formation-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_compiler_result_map/v0`：当前 system compiler root summary 关系语言的对象锚点，语义继续由脚本契约与样例共同收紧
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，

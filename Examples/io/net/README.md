@@ -29,6 +29,20 @@
 - [`net_icmp_protocol_smoke/`](net_icmp_protocol_smoke/)
 - [`net_icmp_roundtrip_smoke/`](net_icmp_roundtrip_smoke/)
 
+### 我想看 forwarding / route 语义
+
+先看：
+
+- [`net_lab_smoke/`](net_lab_smoke/)
+- [`net_lab_trace_smoke/`](net_lab_trace_smoke/)
+- [`net_lab_forward_trace_smoke/`](net_lab_forward_trace_smoke/)
+- [`net_lab_route_precedence_smoke/`](net_lab_route_precedence_smoke/)
+- [`net_lab_route_metric_smoke/`](net_lab_route_metric_smoke/)
+- [`net_lab_route_table_mutation_smoke/`](net_lab_route_table_mutation_smoke/)
+- [`net_lab_route_delete_smoke/`](net_lab_route_delete_smoke/)
+- [`net_lab_route_precise_delete_smoke/`](net_lab_route_precise_delete_smoke/)
+- [`net_lab_route_introspection_smoke/`](net_lab_route_introspection_smoke/)
+
 ### 我想看 UDP / 诊断链路
 
 先看：

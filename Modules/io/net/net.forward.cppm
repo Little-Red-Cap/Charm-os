@@ -219,6 +219,15 @@ export namespace net {
             return route;
         }
 
+        [[nodiscard]] bool remove_route_at(util::usize index) noexcept {
+            if (index >= route_count_) {
+                return false;
+            }
+
+            erase_route_at(index);
+            return true;
+        }
+
         [[nodiscard]] bool inspect_forwarding_decision(
             IpAddress destination,
             Ipv4ForwardingDecisionSnapshot& out) const noexcept {

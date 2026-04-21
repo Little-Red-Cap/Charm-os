@@ -601,46 +601,51 @@
             append_current_group_state();
         }
 
-        bool library_context_cover_for_view(std::string_view& track_path_out,
-                                            std::string_view& cover_path_out) const noexcept {
-            track_path_out = {};
-            cover_path_out = {};
-            if (!library_has_context()) return false;
+        ::ui::scene::ImageId library_context_cover_for_view() {
             const auto* tracks = storage.tracks;
-            if (!tracks) return false;
-            const auto assign_track = [&](int track_index) noexcept -> bool {
-                if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
-                    return false;
+            if (!library_has_context() || !tracks) {
+                return ::ui::scene::invalid_image_id();
+            }
+            const auto try_track = [&](int candidate) -> ::ui::scene::ImageId {
+                if (candidate < 0 || candidate >= static_cast<int>(tracks->size())) {
+                    return ::ui::scene::invalid_image_id();
                 }
-                track_path_out = (*tracks)[static_cast<std::size_t>(track_index)].view();
-                if (track_index < static_cast<int>(list_cover_paths.size())) {
-                    cover_path_out = list_cover_paths[static_cast<std::size_t>(track_index)].view();
+                if (!library_context_matches_track(candidate)) {
+                    return ::ui::scene::invalid_image_id();
                 }
-                return !track_path_out.empty();
+                const auto track_path = (*tracks)[static_cast<std::size_t>(candidate)].view();
+                if (track_path.empty()) {
+                    return ::ui::scene::invalid_image_id();
+                }
+                std::string_view cover_path{};
+                if (candidate < static_cast<int>(list_cover_paths.size())) {
+                    cover_path = list_cover_paths[static_cast<std::size_t>(candidate)].view();
+                }
+                return resolve_list_cover_icon(track_path, cover_path);
             };
+
             const int selected_track = list_index_to_track(last_list_selected);
-            if (selected_track >= 0
-                && selected_track < static_cast<int>(tracks->size())
-                && library_context_matches_track(selected_track)
-                && assign_track(selected_track)) {
-                return true;
+            auto image_id = try_track(selected_track);
+            if (::ui::scene::image_id_valid(image_id)) {
+                return image_id;
             }
-            if (track_index >= 0
-                && track_index < static_cast<int>(tracks->size())
-                && library_context_matches_track(track_index)
-                && assign_track(track_index)) {
-                return true;
+
+            image_id = try_track(track_index);
+            if (::ui::scene::image_id_valid(image_id)) {
+                return image_id;
             }
+
             for (std::size_t i = 0; i < tracks->size(); ++i) {
                 const int candidate = static_cast<int>(i);
-                if (!library_context_matches_track(candidate)) {
+                if (candidate == selected_track || candidate == track_index) {
                     continue;
                 }
-                if (assign_track(candidate)) {
-                    return true;
+                image_id = try_track(candidate);
+                if (::ui::scene::image_id_valid(image_id)) {
+                    return image_id;
                 }
             }
-            return false;
+            return ::ui::scene::invalid_image_id();
         }
 
         void update_library_context_watermark() {
@@ -661,13 +666,7 @@
                 return;
             }
 
-            std::string_view track_path{};
-            std::string_view cover_path{};
-            if (!library_context_cover_for_view(track_path, cover_path)) {
-                hide();
-                return;
-            }
-            const auto image_id = resolve_list_cover_icon(track_path, cover_path);
+            const auto image_id = library_context_cover_for_view();
             if (!::ui::scene::image_id_valid(image_id)) {
                 hide();
                 return;

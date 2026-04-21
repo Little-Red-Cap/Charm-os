@@ -13,6 +13,9 @@
 - `schemas/system_input_summary.v0.schema.json`
 - `schemas/examples/system_input_summary.summary.v0.sample.json`
 - `schemas/examples/system_input_summary.comparison.v0.sample.json`
+- `schemas/binding_result_summary.v0.schema.json`
+- `schemas/examples/binding_result_summary.summary.v0.sample.json`
+- `schemas/examples/binding_result_summary.comparison.v0.sample.json`
 - `schemas/system_compiler.runtime_observe_snapshot.v0.schema.json`
 - `schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json`
 
@@ -24,6 +27,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.comparison.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/binding_result_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/binding_result_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json
 ```
 
@@ -445,6 +450,19 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `totals.required_binding_count / totals.resolved_binding_count / totals.unresolved_binding_count`
 - `capability_matrix`
 - `resolved_capability_matrix / unresolved_capability_matrix`
+
+现在这份 binding-side summary object 也已经被提升成独立协议对象：
+
+- summary 模式显式带出 `kind = binding_result_summary/v0` 与 `mode = summary`
+- comparison 模式显式带出 `kind = binding_result_summary/v0` 与 `mode = comparison`
+- 对应 schema 入口见 [`../../schemas/binding_result_summary.v0.schema.json`](../../schemas/binding_result_summary.v0.schema.json)
+- 对应最小样例见 [`../../schemas/examples/binding_result_summary.summary.v0.sample.json`](../../schemas/examples/binding_result_summary.summary.v0.sample.json)
+- comparison 样例见 [`../../schemas/examples/binding_result_summary.comparison.v0.sample.json`](../../schemas/examples/binding_result_summary.comparison.v0.sample.json)
+
+这样外部脚本与 CI 如果直接消费 artifact_root 默认总览里的
+`binding_result_summary` 或 `comparison.binding_result_summary`，
+就不必再依赖外围上下文去猜“这是不是 binding 热区汇总对象”，
+而可以直接通过 `kind / mode` 把它当作正式的 binding-side result object。
 
 并显式带出一份 `bringup_order_summary`，
 至少包括：

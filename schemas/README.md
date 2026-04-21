@@ -112,6 +112,21 @@
   - 对应 `system_input_summary/v0` 在 `mode = comparison` 下的最小样例
   - 用途偏向 input drift 汇总对象接入前的样例锚点
 
+- `binding_result_summary.v0.schema.json`
+  - 对应 `inspect_system_compiler_artifact_report.ps1` 导出的 `binding_result_summary`
+    与 `comparison.binding_result_summary`
+  - 用途偏向把 artifact_root 默认总览里的 binding-side summary object
+    正式锚定成可验证协议，并把 `kind / mode` 自描述字段固定下来
+  - 它当前负责冻结 binding hotspot、resolved/unresolved capability 分布与 binding drift 汇总对象形状
+
+- `examples/binding_result_summary.summary.v0.sample.json`
+  - 对应 `binding_result_summary/v0` 在 `mode = summary` 下的最小样例
+  - 用途偏向 schema 自检、artifact_root binding-side 总览消费面接入与 explain surface 工具对齐
+
+- `examples/binding_result_summary.comparison.v0.sample.json`
+  - 对应 `binding_result_summary/v0` 在 `mode = comparison` 下的最小样例
+  - 用途偏向 binding drift 汇总对象接入前的样例锚点
+
 ## 稳定性约定
 
 当前建议这样理解稳定性：
@@ -126,6 +141,7 @@
 - `system_compiler.artifact_report/v0`：当前 system compiler 输出面的对象草案锚点，字段仍允许继续收敛
 - `system_compiler_summary/v0`：当前 artifact_root 默认总览里的 root-level system compiler result object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_input_summary/v0`：当前 artifact_root 默认总览里的 input-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
+- `binding_result_summary/v0`：当前 artifact_root 默认总览里的 binding-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_compiler_result_map/v0`：当前 system compiler root summary 关系语言的对象锚点，语义继续由脚本契约与样例共同收紧
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，

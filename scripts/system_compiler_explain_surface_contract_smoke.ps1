@@ -323,6 +323,8 @@ Assert-Condition ([int]$rootSummary.system_input_summary.case_count -eq @($Expor
 Assert-Condition ([string]$rootSummary.system_input_summary.kind -eq 'system_input_summary/v0') 'default artifact_root summary system_input_summary kind mismatch'
 Assert-Condition ([string]$rootSummary.system_input_summary.mode -eq 'summary') 'default artifact_root summary system_input_summary mode mismatch'
 Assert-Condition ([int]$rootSummary.binding_result_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary binding_result_summary.case_count mismatch'
+Assert-Condition ([string]$rootSummary.binding_result_summary.kind -eq 'binding_result_summary/v0') 'default artifact_root summary binding_result_summary kind mismatch'
+Assert-Condition ([string]$rootSummary.binding_result_summary.mode -eq 'summary') 'default artifact_root summary binding_result_summary mode mismatch'
 Assert-Condition ([int]$rootSummary.bringup_order_summary.case_count -eq @($ExportCases).Count) 'default artifact_root summary bringup_order_summary.case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_compiler_summary.formed_case_count -eq @($ExportCases).Count) 'default artifact_root summary system_compiler_summary formed_case_count mismatch'
 Assert-Condition ([int]$rootSummary.system_compiler_summary.blocked_case_count -eq 0) 'default artifact_root summary system_compiler_summary blocked_case_count must stay zero in export_only mode'

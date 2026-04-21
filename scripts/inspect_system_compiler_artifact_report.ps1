@@ -2251,6 +2251,8 @@ function New-ArtifactRootBindingResultSummaryResult {
     ) | Where-Object { $null -ne $_ } | Sort-Object capability
 
     return [ordered]@{
+        kind = 'binding_result_summary/v0'
+        mode = 'summary'
         case_count = @($caseSummaries).Count
         totals = [ordered]@{
             required_binding_count = [int](@($caseSummaries | Measure-Object -Property required_binding_count -Sum).Sum)
@@ -7655,6 +7657,8 @@ function New-ArtifactRootBindingResultComparisonResult {
     ) | Where-Object { $null -ne $_ } | Sort-Object capability
 
     return [ordered]@{
+        kind = 'binding_result_summary/v0'
+        mode = 'comparison'
         compared_case_count = @($caseSummaries).Count
         changed_case_count = @($caseSummaries | Where-Object { [bool]$_.changed }).Count
         unchanged_case_count = @($caseSummaries | Where-Object { -not [bool]$_.changed }).Count

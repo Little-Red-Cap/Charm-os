@@ -70,6 +70,7 @@ jobs:
         run: |
           ./scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1 `
             -OutputRoot out/minimal-kernel-runtime-host-smoke-daily `
+            -BaselineSummary out/minimal-kernel-runtime-host-smoke-ci/summary.json `
             -ReportTitle "Minimal Kernel Host Smoke Warm Reuse Report" `
             -Jobs 8
 

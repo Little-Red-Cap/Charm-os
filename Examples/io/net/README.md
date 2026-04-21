@@ -43,6 +43,7 @@
 - [`net_lab_route_precise_delete_smoke/`](net_lab_route_precise_delete_smoke/)
 - [`net_lab_route_introspection_smoke/`](net_lab_route_introspection_smoke/)
 - [`net_lab_udp_diag_forward_smoke/`](net_lab_udp_diag_forward_smoke/)
+- [`net_lab_udp_diag_forward_failure_smoke/`](net_lab_udp_diag_forward_failure_smoke/)
 
 ### 我想看 UDP / 诊断链路
 
@@ -55,6 +56,7 @@
 - [`net_udp_diag_client_smoke/`](net_udp_diag_client_smoke/)
 - [`net_udp_service_codec_smoke/`](net_udp_service_codec_smoke/)
 - [`net_lab_udp_diag_forward_smoke/`](net_lab_udp_diag_forward_smoke/)
+- [`net_lab_udp_diag_forward_failure_smoke/`](net_lab_udp_diag_forward_failure_smoke/)
 
 ### 我想看 reactor / service / socket 行为
 

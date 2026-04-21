@@ -7,7 +7,7 @@
 namespace {
 Armv7aHandoffLaunchContract g_last_handoff_launch{};
 bool g_last_handoff_launch_valid = false;
-Armv7aHandoffTransferContract g_last_handoff_launch_capture{};
+Armv7aHandoffLaunchContract g_last_handoff_launch_capture{};
 bool g_last_handoff_launch_capture_valid = false;
 
 struct Armv7aHandoffLaunchProbeCapture {
@@ -58,16 +58,16 @@ extern "C" void armv7a_record_handoff_launch_probe(
 }
 
 bool armv7a_qemu_probe_handoff_launch(
-    void* ctx, const Armv7aHandoffTransferContract& transfer) noexcept
+    void* ctx, const Armv7aHandoffLaunchContract& contract) noexcept
 {
     (void)ctx;
-    g_last_handoff_launch_capture = transfer;
+    g_last_handoff_launch_capture = contract;
     g_last_handoff_launch_capture_valid = true;
     g_last_handoff_launch_probe_valid = false;
     return armv7a_invoke_handoff_launch_probe(
-        reinterpret_cast<std::uintptr_t>(&armv7a_handoff_launch_probe_target),
-        transfer.arg0_handoff,
-        transfer.stack_pointer);
+        contract.route.dispatch_target,
+        contract.transfer.arg0_handoff,
+        contract.transfer.stack_pointer);
 }
 } // namespace
 
@@ -118,7 +118,7 @@ Armv7aHandoffLaunchObservation armv7a_capture_handoff_launch_observation()
     g_last_handoff_launch_capture_valid = false;
     const auto launch_invoked = armv7a_handoff_launch_hook_ready(contract);
     const auto launch_ok = launch_invoked &&
-        contract.hook.launch(contract.hook.ctx, contract.transfer);
+        contract.hook.launch(contract.hook.ctx, contract);
     const auto return_cpsr = armv7a_read_cpsr();
     const auto return_sp = armv7a_read_sp();
 
@@ -166,9 +166,9 @@ Armv7aHandoffLaunchObservation armv7a_capture_handoff_launch_observation()
         .launch_ok = launch_ok,
         .from_hook_capture =
             g_last_handoff_launch_capture_valid &&
-            armv7a_handoff_transfer_equal(
+            armv7a_handoff_launch_equal(
                 g_last_handoff_launch_capture,
-                contract.transfer),
+                contract),
         .route_ready = route_ready,
         .probe_arg0_ready = probe_arg0_ready,
         .probe_stack_ready = probe_stack_ready,

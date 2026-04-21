@@ -3,11 +3,14 @@
 #include "armv7a_handoff_transfer_contract.hpp"
 
 // This is the bindable launch seam right before a real branch shim takes over:
-// one ready transfer contract plus the hook that will consume it.
+// one ready transfer contract, one explicit launch route, and the hook that
+// will consume the full launch contract.
+struct Armv7aHandoffLaunchContract;
+
 struct Armv7aHandoffLaunchHook {
     void* ctx = nullptr;
     bool (*launch)(void* ctx,
-                   const Armv7aHandoffTransferContract& transfer) noexcept =
+                   const Armv7aHandoffLaunchContract& contract) noexcept =
         nullptr;
 };
 

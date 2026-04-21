@@ -747,10 +747,10 @@ continue
   one explicit launch hook, a tiny assembly shim really enters a trampoline
   dispatch target with the inherited `r0/sp` shape, and the contract now says
   out loud which dispatch target and return site belong to that route. The log
-  only goes green once route-shape, probe capture, branch-state, helper
-  return-link, and post-return state all still match the transfer contract.
-  This keeps the seam honest without pretending we already jump into the real
-  next image.
+  only goes green once that full launch contract is the one the hook actually
+  consumed, and once route-shape, probe capture, branch-state, helper
+  return-link, and post-return state all still match it. This keeps the seam
+  honest without pretending we already jump into the real next image.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

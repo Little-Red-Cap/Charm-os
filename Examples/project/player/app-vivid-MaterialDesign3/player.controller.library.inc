@@ -1305,16 +1305,33 @@
             }
 
             if (handles.list_path_bg) {
+                const rgba path_bg = has_context
+                    ? with_alpha(kUiLibraryPathIdle, 180)
+                    : (path_active ? kUiLibraryPathActive : kUiLibraryPathIdle);
+                const rgba path_gradient_start = has_context
+                    ? with_alpha(kUiLibraryPathActive, 208)
+                    : (path_active ? with_alpha(kUiLibraryPathActive, 248)
+                                   : with_alpha(kUiLibraryPathIdle, 236));
+                const rgba path_gradient_end = has_context
+                    ? with_alpha(kUiLibraryPathIdle, 168)
+                    : (path_active ? with_alpha(kUiLibraryPathIdle, 224)
+                                   : with_alpha(kUiLibraryPathIdle, 228));
                 auto patch = ::ui::scene::make_clean_surface_patch({
                     .apply_bg_color = true,
                     .apply_border_color = true,
                     .apply_corner_radius = true,
-                    .bg_color = has_context
-                        ? with_alpha(kUiLibraryPathIdle, 180)
-                        : (path_active ? kUiLibraryPathActive : kUiLibraryPathIdle),
+                    .bg_color = path_bg,
                     .border_color = {0, 0, 0, 0},
                     .corner_radius = kLibraryPathRadius,
                 });
+                patch.has_gradient_enabled = true;
+                patch.gradient_enabled = true;
+                patch.has_gradient_start = true;
+                patch.gradient_start = path_gradient_start;
+                patch.has_gradient_end = true;
+                patch.gradient_end = path_gradient_end;
+                patch.has_gradient_direction = true;
+                patch.gradient_direction = 0;
                 access.set_style_override(handles.list_path_bg, patch);
             }
             if (handles.list_path) {

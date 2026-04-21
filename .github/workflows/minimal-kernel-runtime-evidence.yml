@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/minimal-kernel-runtime-evidence.yml
       - scripts/minimal_kernel_runtime_evidence_bundle.ps1
+      - scripts/validate_minimal_kernel_runtime_evidence.py
       - scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1
       - scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1
       - scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1
@@ -27,6 +28,7 @@ on:
       - Modules/system/kernel/**
       - targets/armv7a/**
       - cmake/**
+      - schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json
 
 permissions:
   contents: read
@@ -42,6 +44,11 @@ jobs:
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
           release: "15.2.Rel1"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
 
       - name: Setup MSYS2 (CLANG64)
         id: msys2
@@ -71,11 +78,17 @@ jobs:
       - name: Verify toolchain
         shell: pwsh
         run: |
+          python --version
           arm-none-eabi-gcc --version
           clang++ --version
           cmake --version
           ninja --version
           qemu-system-arm --version
+
+      - name: Install runtime evidence validator dependency
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check jsonschema
 
       - name: Run minimal kernel runtime evidence bundle
         shell: pwsh
@@ -87,6 +100,12 @@ jobs:
             -HostJobs 8 `
             -QemuBuildJobs 8 `
             -QemuTailLines 20
+
+      - name: Validate minimal kernel runtime evidence summary
+        shell: pwsh
+        run: |
+          python ./scripts/validate_minimal_kernel_runtime_evidence.py `
+            --bundle-root out/minimal-kernel-runtime-evidence
 
       - name: Publish minimal kernel runtime evidence summary
         if: always()

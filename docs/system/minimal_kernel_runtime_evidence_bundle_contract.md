@@ -79,6 +79,25 @@ out/minimal-kernel-runtime-evidence/
 - `host/daily` 对应 warm reuse host 证据
 - `qemu/cases/*` 保留 lower-half case 日志
 - 根 `summary.json / report.md / check.txt` 是这次总证据包的聚合视图
+- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path`，方便上层自动化只消费一个入口
+
+## 机器可读契约
+
+当前总证据 summary 已补齐独立 schema：
+
+- `schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json`
+
+本地或 CI 如需校验 summary 结构与引用工件完整性，使用：
+
+```powershell
+python ./scripts/validate_minimal_kernel_runtime_evidence.py `
+  --bundle-root out/minimal-kernel-runtime-evidence
+```
+
+这个校验器会做两件事：
+
+- 用 schema 校验根 `summary.json` 的结构
+- 检查 summary 中引用到的 host / qemu / report / check / case log 工件是否都存在
 
 ## 本地验证
 

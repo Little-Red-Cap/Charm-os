@@ -2003,7 +2003,10 @@
             const bool show_empty = (count == 0);
             const bool show_group_hint = !show_empty && library_shows_group_rows();
             const bool show_context_hint = !show_empty && library_has_context() && library_can_step_back();
-            const bool show = show_empty || show_group_hint || show_context_hint;
+            const bool show_tracks_hint = !show_empty
+                && !library_has_context()
+                && library_tab == LibraryTab::Songs;
+            const bool show = show_empty || show_group_hint || show_context_hint || show_tracks_hint;
             const auto apply_hint_style = [&](rgba color,
                                               FontWeight weight,
                                               int px) noexcept {
@@ -2049,6 +2052,17 @@
                                   static_cast<int>(back_target.size()), back_target.data());
                     hint = buf;
                 }
+            } else if (show_tracks_hint) {
+                apply_hint_style(with_alpha(kUiSubtitle, 230), FontWeight::Medium, 14);
+                const char* track_label = (count == 1) ? "track" : "tracks";
+                if (list_shuffle_enabled) {
+                    std::snprintf(buf, sizeof(buf), "%d %s available | Shuffled",
+                                  count, track_label);
+                } else {
+                    std::snprintf(buf, sizeof(buf), "%d %s available",
+                                  count, track_label);
+                }
+                hint = buf;
             } else {
                 apply_hint_style(with_alpha(kUiSubtitle, 236),
                                  !fs_ready ? FontWeight::Medium : FontWeight::Regular,

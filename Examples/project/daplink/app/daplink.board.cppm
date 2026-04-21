@@ -181,13 +181,21 @@ export namespace daplink::board {
         }
 
         static void set_connected_led(const bool on) noexcept {
-            HAL_GPIO_WritePin(board_cfg::kConnectLedPort, board_cfg::kConnectLedPin,
-                              on ? GPIO_PIN_RESET : GPIO_PIN_SET);
+            if constexpr (board_cfg::kHasConnectLed) {
+                HAL_GPIO_WritePin(board_cfg::kConnectLedPort, board_cfg::kConnectLedPin,
+                                  on ? board_cfg::kConnectLedOnState : board_cfg::kConnectLedOffState);
+            } else {
+                (void)on;
+            }
         }
 
         static void set_running_led(const bool on) noexcept {
-            HAL_GPIO_WritePin(board_cfg::kDbgLedPort, board_cfg::kDbgLedPin,
-                              on ? GPIO_PIN_RESET : GPIO_PIN_SET);
+            if constexpr (board_cfg::kHasDbgLed) {
+                HAL_GPIO_WritePin(board_cfg::kDbgLedPort, board_cfg::kDbgLedPin,
+                                  on ? board_cfg::kDbgLedOnState : board_cfg::kDbgLedOffState);
+            } else {
+                (void)on;
+            }
         }
 
         static std::uint8_t reset_target() noexcept {
@@ -202,27 +210,39 @@ export namespace daplink::board {
     inline void configure_debug_pins_hi_z() noexcept {
         SwdBackend::setup_swd_pins_hi_z();
 
-        GPIO_InitTypeDef cfg = {};
-        cfg.Pin = board_cfg::kConnectLedPin;
-        cfg.Mode = GPIO_MODE_OUTPUT_OD;
-        cfg.Pull = GPIO_NOPULL;
-        cfg.Speed = GPIO_SPEED_FREQ_LOW;
-        HAL_GPIO_Init(board_cfg::kConnectLedPort, &cfg);
+        if constexpr (board_cfg::kHasConnectLed || board_cfg::kHasDbgLed) {
+            GPIO_InitTypeDef cfg = {};
+            cfg.Mode = GPIO_MODE_OUTPUT_OD;
+            cfg.Pull = GPIO_NOPULL;
+            cfg.Speed = GPIO_SPEED_FREQ_LOW;
 
-        cfg.Pin = board_cfg::kDbgLedPin;
-        HAL_GPIO_Init(board_cfg::kDbgLedPort, &cfg);
+            if constexpr (board_cfg::kHasConnectLed) {
+                cfg.Pin = board_cfg::kConnectLedPin;
+                HAL_GPIO_Init(board_cfg::kConnectLedPort, &cfg);
+            }
+
+            if constexpr (board_cfg::kHasDbgLed) {
+                cfg.Pin = board_cfg::kDbgLedPin;
+                HAL_GPIO_Init(board_cfg::kDbgLedPort, &cfg);
+            }
+        }
         SwdBackend::set_connected_led(false);
         SwdBackend::set_running_led(false);
     }
 
     inline void usb_connect_on() noexcept {
+        if constexpr (!board_cfg::kHasUsbConnectSwitch) {
+            return;
+        }
         GPIO_InitTypeDef cfg = {};
-        cfg.Pin = GPIO_PIN_15;
+        cfg.Pin = board_cfg::kUsbConnectSwitchPin;
         cfg.Mode = GPIO_MODE_OUTPUT_PP;
         cfg.Pull = GPIO_NOPULL;
         cfg.Speed = GPIO_SPEED_FREQ_LOW;
-        HAL_GPIO_Init(GPIOA, &cfg);
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+        HAL_GPIO_Init(board_cfg::kUsbConnectSwitchPort, &cfg);
+        HAL_GPIO_WritePin(board_cfg::kUsbConnectSwitchPort,
+                          board_cfg::kUsbConnectSwitchPin,
+                          board_cfg::kUsbConnectSwitchOnState);
     }
 
     inline auto init_peripherals() noexcept -> std::expected<void, init_error> {

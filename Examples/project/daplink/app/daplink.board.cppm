@@ -2,6 +2,7 @@ module;
 
 #include "daplink_backend.hpp"
 #include "daplink_board.hpp"
+#include "daplink_cdc_uart_support.hpp"
 #include "daplink_swd_backend_support.hpp"
 #include "gpio.h"
 
@@ -15,6 +16,7 @@ import daplink.app_config;
 namespace {
     constexpr std::uint8_t kCdcUartIndex = daplink::app_config::kConfig.cdc.uart_index;
     using board_cfg = daplink::board_target::Support;
+    using cdc_uart_cfg = daplink::cdc_uart_support::BasicCdcUart<daplink::backend::Support, kCdcUartIndex>;
 }
 
 extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef* hpcd) {
@@ -71,76 +73,33 @@ export namespace daplink::board {
     }
 
     inline UART_HandleTypeDef* cdc_uart_handle() noexcept {
-        return daplink::backend::cdc_uart_handle(kCdcUartIndex);
+        return cdc_uart_cfg::handle();
     }
 
     inline void cdc_uart_apply_line(const std::uint32_t baud,
                                     const std::uint8_t stop_bits,
                                     const std::uint8_t parity,
                                     const std::uint8_t data_bits) noexcept {
-        auto* uart = cdc_uart_handle();
-        if (uart == nullptr) {
-            return;
-        }
-        uart->Init.BaudRate = baud;
-        uart->Init.StopBits = (stop_bits == 2) ? UART_STOPBITS_2 : UART_STOPBITS_1;
-        uart->Init.Parity = UART_PARITY_NONE;
-        if (parity == 1) {
-            uart->Init.Parity = UART_PARITY_ODD;
-        } else if (parity == 2) {
-            uart->Init.Parity = UART_PARITY_EVEN;
-        }
-        uart->Init.WordLength = UART_WORDLENGTH_8B;
-        if (data_bits == 9) {
-            uart->Init.WordLength = UART_WORDLENGTH_9B;
-        } else if (data_bits == 8 && uart->Init.Parity != UART_PARITY_NONE) {
-            uart->Init.WordLength = UART_WORDLENGTH_9B;
-        }
-        (void)HAL_UART_Init(uart);
-        daplink::backend::cdc_uart_post_init(uart);
+        cdc_uart_cfg::apply_line(baud, stop_bits, parity, data_bits);
     }
 
     inline bool cdc_uart_rx_ready() noexcept {
-        auto* uart = cdc_uart_handle();
-        if (uart == nullptr) {
-            return false;
-        }
-        if (__HAL_UART_GET_FLAG(uart, UART_FLAG_ORE) != RESET) {
-            __HAL_UART_CLEAR_OREFLAG(uart);
-        }
-        return __HAL_UART_GET_FLAG(uart, UART_FLAG_RXNE) != RESET;
+        return cdc_uart_cfg::rx_ready();
     }
 
     inline bool cdc_uart_rx_pending() noexcept {
-        auto* uart = cdc_uart_handle();
-        if (uart == nullptr) {
-            return false;
-        }
-        return (__HAL_UART_GET_FLAG(uart, UART_FLAG_RXNE) != RESET) ||
-            (__HAL_UART_GET_FLAG(uart, UART_FLAG_ORE) != RESET);
+        return cdc_uart_cfg::rx_pending();
     }
 
     inline std::uint8_t cdc_uart_read() noexcept {
-        auto* uart = cdc_uart_handle();
-        if (uart == nullptr) {
-            return 0;
-        }
-        return daplink::backend::cdc_uart_data_read(uart);
+        return cdc_uart_cfg::read();
     }
 
     inline bool cdc_uart_tx_ready() noexcept {
-        auto* uart = cdc_uart_handle();
-        if (uart == nullptr) {
-            return false;
-        }
-        return __HAL_UART_GET_FLAG(uart, UART_FLAG_TXE) != RESET;
+        return cdc_uart_cfg::tx_ready();
     }
 
     inline void cdc_uart_write(const std::uint8_t byte) noexcept {
-        auto* uart = cdc_uart_handle();
-        if (uart == nullptr) {
-            return;
-        }
-        daplink::backend::cdc_uart_data_write(uart, byte);
+        cdc_uart_cfg::write(byte);
     }
 }

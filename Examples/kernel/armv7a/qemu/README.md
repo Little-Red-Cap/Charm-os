@@ -192,6 +192,7 @@ ARMv7-A runtime handoff, runtime=yes, context=yes, hooks=yes, vector=yes, report
 ARMv7-A handoff entry, target=0x40200000, request=yes, offset=yes, mode=sys, vector=yes, translation=yes, cache=yes, masks=yes, export=yes, entry=yes
 ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00000000, dacr=0x00000001, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked
 ARMv7-A handoff transfer, target=0x40200000, arg0=0x4023...., size=0x00000138, mode=sys, state=arm, entry=yes, payload=yes, stack=yes, export=yes, transfer=yes
+ARMv7-A handoff launch, target=0x40200000, arg0=0x4023...., mode=sys, state=arm, transfer=yes, hook=yes, capture=yes, invoke=yes, launch=yes
 ```
 
 ## CI smoke
@@ -216,6 +217,7 @@ the `ARMv7-A runtime package, leaf=yes, binding=yes, ... package=yes` summary,
 the `ARMv7-A runtime handoff, runtime=yes, ... handoff=yes` summary, and
 the `ARMv7-A handoff entry, target=0x..., ... entry=yes` summary, and
 the `ARMv7-A handoff transfer, target=0x..., ... transfer=yes` summary, and
+the `ARMv7-A handoff launch, target=0x..., ... launch=yes` summary, and
 treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
 only stays green once the live path is fully closed.
 
@@ -740,6 +742,12 @@ continue
   state is forced to stay honest about still being `arm/sys` on this QEMU
   leaf. That gives us one explicit pre-branch seam to preserve when we later
   replace this dry-run proof with a real jump/relocation path.
+- A third handoff-side `handoff launch` line now turns that pre-branch seam
+  into a bindable hook contract: the ready transfer payload is handed to one
+  explicit launch hook, the QEMU dry-run hook captures the exact request it
+  received, and the log only goes green once that captured request still
+  matches the transfer contract. This gives us a safe place to swap in a real
+  assembly branch shim later without having to redesign the seam itself.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

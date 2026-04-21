@@ -120,6 +120,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=handoff-transfer",
     "ARMv7-A phase complete, stage=handoff-transfer",
+    "ARMv7-A phase, stage=handoff-launch",
+    "ARMv7-A phase complete, stage=handoff-launch",
     "ARMv7-A phase, stage=idle"
 )
 $missing = $expected | Where-Object { -not $log.Contains($_) }
@@ -150,6 +152,9 @@ if (($handoffLog -notmatch "ARMv7-A handoff entry, target=0x[0-9A-F]{8}, request
 }
 if (($handoffLog -notmatch "ARMv7-A handoff transfer, target=0x[0-9A-F]{8}, arg0=0x[0-9A-F]{8}, size=0x[0-9A-F]{8}, mode=sys, state=arm, entry=yes, payload=yes, stack=yes, export=yes, transfer=yes")) {
     $missing += "ARMv7-A handoff transfer, target=0x..."
+}
+if (($handoffLog -notmatch "ARMv7-A handoff launch, target=0x[0-9A-F]{8}, arg0=0x[0-9A-F]{8}, mode=sys, state=arm, transfer=yes, hook=yes, capture=yes, invoke=yes, launch=yes")) {
+    $missing += "ARMv7-A handoff launch, target=0x..."
 }
 if (($handoffLog -notmatch "ARMv7-A handoff context, vector-base=0x[0-9A-F]{8}, translation-table=0x[0-9A-F]{8}, image-base=0x[0-9A-F]{8}")) {
     $missing += "ARMv7-A handoff context, vector-base=0x..."

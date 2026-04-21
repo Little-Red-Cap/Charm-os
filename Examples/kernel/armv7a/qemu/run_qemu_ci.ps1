@@ -190,6 +190,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=handoff-prepare",
     "ARMv7-A phase, stage=handoff-transfer",
     "ARMv7-A phase complete, stage=handoff-transfer",
+    "ARMv7-A phase, stage=handoff-launch",
+    "ARMv7-A phase complete, stage=handoff-launch",
     "ARMv7-A phase, stage=idle",
     "ARMv7-A SVC vector active, imm=0x000043",
     "ARMv7-A SVC vector active, imm=0x000044"
@@ -485,6 +487,9 @@ if (($log -notmatch "ARMv7-A handoff entry, target=0x[0-9A-F]{8}, request=yes, o
 }
 if (($log -notmatch "ARMv7-A handoff transfer, target=0x[0-9A-F]{8}, arg0=0x[0-9A-F]{8}, size=0x[0-9A-F]{8}, mode=sys, state=arm, entry=yes, payload=yes, stack=yes, export=yes, transfer=yes")) {
     $missing += "ARMv7-A handoff transfer, target=0x..."
+}
+if (($log -notmatch "ARMv7-A handoff launch, target=0x[0-9A-F]{8}, arg0=0x[0-9A-F]{8}, mode=sys, state=arm, transfer=yes, hook=yes, capture=yes, invoke=yes, launch=yes")) {
+    $missing += "ARMv7-A handoff launch, target=0x..."
 }
 if (($log -notmatch "ARMv7-A handoff ready, result=yes, vbar=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked")) {
     $missing += "ARMv7-A handoff ready, result=yes..."

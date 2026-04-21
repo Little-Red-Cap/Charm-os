@@ -705,6 +705,9 @@
                               library_group_status_label(),
                               static_cast<int>(library_context_key.size()), library_context_key.view().data());
             }
+            if (list_shuffle_enabled) {
+                append_library_status_suffix(buf, sizeof(buf), "Shuffled");
+            }
             set_status(buf);
         }
 

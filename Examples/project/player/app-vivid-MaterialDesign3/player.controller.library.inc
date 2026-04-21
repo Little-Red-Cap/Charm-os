@@ -1103,6 +1103,7 @@
             library_tab = target_tab;
             library_context_key.assign(key);
             refresh_list_view();
+            ensure_library_context_selection();
             show_library_context_status();
         }
 
@@ -1129,6 +1130,7 @@
                 if (row.model) {
                     library_context_key.assign(row.title());
                     refresh_list_view();
+                    ensure_library_context_selection();
                     show_library_context_status();
                 }
                 return;
@@ -1744,6 +1746,17 @@
             ignore_list_select = false;
         }
 
+        void ensure_library_context_selection() {
+            if (!access.valid() || !handles.list) return;
+            if (!library_has_context() || list_order.empty()) return;
+            if (track_index_to_list(track_index) >= 0) return;
+            ignore_list_select = true;
+            access.set_list_view_selected(handles.list, 0);
+            ignore_list_select = false;
+            last_list_selected = 0;
+            update_library_context_watermark();
+        }
+
         void refresh_list_view() {
             if (!access.valid() || !handles.list) return;
             rebuild_list_order();
@@ -1816,6 +1829,7 @@
                 if (compare_ci(library_group_title_for_track(static_cast<int>(i)), key) == 0) {
                     library_context_key.assign(library_group_title_for_track(static_cast<int>(i)));
                     refresh_list_view();
+                    ensure_library_context_selection();
                     show_library_context_status();
                     return true;
                 }
@@ -1832,6 +1846,7 @@
             if (key.empty()) return false;
             library_context_key.assign(key);
             refresh_list_view();
+            ensure_library_context_selection();
             show_library_context_status();
             return true;
         }

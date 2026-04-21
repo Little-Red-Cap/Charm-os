@@ -153,7 +153,7 @@ export namespace daplink::board {
     }
 
     inline auto init_peripherals() noexcept -> std::expected<void, init_error> {
-        MX_GPIO_Init();
+        board_cfg::init_board_gpio();
         daplink::backend::init_cdc_uart(kCdcUartIndex);
         daplink::backend::init_usb_pcd();
         SwdBackend::set_swj_clock_hz(daplink::app_config::kConfig.swd.default_hz);

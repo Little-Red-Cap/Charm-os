@@ -6,6 +6,10 @@
 #include <cstdint>
 
 namespace daplink::board_target {
+    inline void init_board_gpio() noexcept {
+        MX_GPIO_Init();
+    }
+
     inline void init_gpio(GPIO_TypeDef* port,
                           const std::uint32_t pin,
                           const std::uint32_t mode,

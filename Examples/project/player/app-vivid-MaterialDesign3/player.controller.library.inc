@@ -832,7 +832,8 @@
                 }
                 if (row.current_row) {
                     append_library_status_suffix(buf, buf_size, library_current_group_state_text());
-                } else {
+                }
+                if (row.selected_row) {
                     append_library_status_suffix(buf, buf_size, library_group_primary_action_label());
                 }
                 return true;
@@ -876,9 +877,6 @@
                                   library_group_status_label(),
                                   static_cast<int>(primary.size()), primary.data(),
                                   static_cast<int>(secondary.size()), secondary.data());
-                }
-                if (row.current_row) {
-                    append_library_status_suffix(buf, buf_size, library_current_group_state_text());
                 }
                 return true;
             }
@@ -960,6 +958,18 @@
             case LibraryTab::Songs:
             default:
                 return "Group";
+            }
+        }
+
+        const char* library_group_object_label() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return "album";
+            case LibraryTab::Artists:
+                return "artist";
+            case LibraryTab::Songs:
+            default:
+                return "group";
             }
         }
 
@@ -1252,6 +1262,17 @@
                 return library_tab_title(LibraryTab::Songs);
             }
             return "Library";
+        }
+
+        bool format_library_path_bar_hint(char* buf,
+                                          std::size_t buf_size) const noexcept {
+            if (!buf || buf_size == 0) return false;
+            buf[0] = '\0';
+            const std::string_view back_target = library_back_target_label();
+            if (back_target.empty()) return false;
+            std::snprintf(buf, buf_size, "Path bar returns to %.*s",
+                          static_cast<int>(back_target.size()), back_target.data());
+            return buf[0] != '\0';
         }
 
         void apply_library_tab_style(WidgetHandle handle, bool active, int radius) {
@@ -2053,21 +2074,11 @@
             if (!access.valid() || !handles.list_path) return;
             FixedString<256> path;
             const bool can_step_back = library_can_step_back();
-            const std::string_view back_target = library_back_target_label();
-            const std::string_view current_tab = library_tab_title(library_tab);
             if (can_step_back) {
                 path.assign("< ");
-                path.append(back_target);
+                path.append(library_back_target_label());
             } else {
                 path.assign("Library");
-            }
-            if (!can_step_back || compare_ci(back_target, current_tab) != 0) {
-                path.append(" / ");
-                path.append(current_tab);
-            }
-            if (library_has_context()) {
-                path.append(" / ");
-                path.append(library_context_key.view());
             }
             set_label_slot(handles.list_path, text_slots.list_path, path.c_str());
         }
@@ -2116,33 +2127,42 @@
                 return;
             }
             const char* hint = "";
-            char buf[96]{};
+            char buf[160]{};
             if (show_group_hint) {
                 apply_hint_style(with_alpha(kUiLibraryPathTextActive, 214), FontWeight::Medium, 14);
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
-                std::snprintf(buf, sizeof(buf), "%d %s available | open an %s to browse tracks",
-                              count, label, (library_tab == LibraryTab::Albums) ? "album" : "artist");
+                std::snprintf(buf, sizeof(buf), "%d %s available | Select an %s to browse tracks",
+                              count, label, library_group_object_label());
+                char path_hint_buf[80]{};
+                if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
+                    append_library_status_suffix(buf, sizeof(buf), path_hint_buf);
+                }
                 if (list_shuffle_enabled) {
                     append_library_status_suffix(buf, sizeof(buf), "Shuffled");
                 }
                 hint = buf;
             } else if (show_context_hint) {
+                char summary_buf[96]{};
+                char path_hint_buf[80]{};
                 format_library_group_summary(
                     library_context_key.view(),
                     library_context_is_current_group(),
-                    buf,
-                    sizeof(buf));
-                if (buf[0] != '\0') {
+                    summary_buf,
+                    sizeof(summary_buf));
+                const bool has_path_hint = format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf));
+                if (summary_buf[0] != '\0') {
                     apply_hint_style(with_alpha(kUiSubtitle, 236), FontWeight::Medium, 14);
-                    hint = buf;
-                } else {
+                    if (has_path_hint) {
+                        std::snprintf(buf, sizeof(buf), "%s | %s", summary_buf, path_hint_buf);
+                        hint = buf;
+                    } else {
+                        hint = summary_buf;
+                    }
+                } else if (has_path_hint) {
                     apply_hint_style(with_alpha(kUiLibraryPathTextActive, 188), FontWeight::Medium, 14);
-                    const std::string_view back_target = library_back_target_label();
-                    std::snprintf(buf, sizeof(buf), "Path bar returns to %.*s",
-                                  static_cast<int>(back_target.size()), back_target.data());
-                    hint = buf;
+                    hint = path_hint_buf;
                 }
             } else if (show_tracks_hint) {
                 apply_hint_style(with_alpha(kUiSubtitle, 230), FontWeight::Medium, 14);
@@ -2153,6 +2173,10 @@
                 } else {
                     std::snprintf(buf, sizeof(buf), "%d %s available",
                                   count, track_label);
+                }
+                char path_hint_buf[80]{};
+                if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
+                    append_library_status_suffix(buf, sizeof(buf), path_hint_buf);
                 }
                 hint = buf;
             } else {

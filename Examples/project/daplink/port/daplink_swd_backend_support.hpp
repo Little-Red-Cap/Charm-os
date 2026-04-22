@@ -1,7 +1,7 @@
 #ifndef DAPLINK_SWD_BACKEND_SUPPORT_HPP
 #define DAPLINK_SWD_BACKEND_SUPPORT_HPP
 
-#include "gpio.h"
+#include "daplink_port_api.hpp"
 
 #include <cstdint>
 
@@ -13,10 +13,10 @@ namespace daplink::swd_backend_support {
 
         static void pin_delay() noexcept {
             for (std::uint32_t i = 0; i < swj_delay_cycles; ++i) {
-                __NOP();
+                daplink::port::nop();
             }
-            __NOP();
-            __NOP();
+            daplink::port::nop();
+            daplink::port::nop();
         }
 
         static void set_swj_clock_hz(const std::uint32_t hz) noexcept {
@@ -24,7 +24,7 @@ namespace daplink::swd_backend_support {
                 swj_delay_cycles = 0;
                 return;
             }
-            const std::uint32_t core = SystemCoreClock;
+            const std::uint32_t core = daplink::port::system_core_clock_hz();
             const std::uint32_t target = hz * 2U;
             if (target == 0U) {
                 swj_delay_cycles = 0;

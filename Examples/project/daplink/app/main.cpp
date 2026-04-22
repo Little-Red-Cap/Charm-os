@@ -1,10 +1,9 @@
-#include "main.h"
-
 #include <array>
 #include <cstdint>
 
 import daplink.board;
 import daplink.usb_minimal;
+import daplink.port_runtime;
 import daplink.cmsis_dap;
 import daplink.app_config;
 import daplink.dap_init;
@@ -27,9 +26,6 @@ namespace {
 
     static_assert(!kEnableHid || (daplink::usb_minimal::hid_packet_size == daplink::cmsis_dap::kPacketSize));
 }
-
-extern "C" void SystemClock_Config(void);
-extern "C" void MPU_Config(void);
 
 namespace {
     constexpr std::size_t kUartBufSize = 256;
@@ -97,11 +93,10 @@ namespace {
 
 int main()
 {
-    HAL_Init();
-    SystemClock_Config();
+    daplink::port_runtime::init();
 
     if (!daplink::board::init_peripherals()) {
-        Error_Handler();
+        daplink::port_runtime::fail_fast();
     }
     daplink::board::configure_debug_pins_hi_z();
 

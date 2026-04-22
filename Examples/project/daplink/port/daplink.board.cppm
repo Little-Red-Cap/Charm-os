@@ -2,9 +2,8 @@ module;
 
 #include "daplink_backend.hpp"
 #include "daplink_board.hpp"
-#include "daplink_cdc_uart_support.hpp"
-#include "daplink_swd_backend_support.hpp"
-#include "gpio.h"
+#include "port/daplink_cdc_uart_support.hpp"
+#include "port/daplink_swd_backend_support.hpp"
 
 #include <cstdint>
 #include <expected>
@@ -17,22 +16,6 @@ namespace {
     constexpr std::uint8_t kCdcUartIndex = daplink::app_config::kConfig.cdc.uart_index;
     using board_cfg = daplink::board_target::Support;
     using cdc_uart_cfg = daplink::cdc_uart_support::BasicCdcUart<daplink::backend::Support, kCdcUartIndex>;
-}
-
-extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef* hpcd) {
-    daplink::usb_minimal::on_reset(*hpcd);
-}
-
-extern "C" void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
-    daplink::usb_minimal::on_setup_stage(*hpcd);
-}
-
-extern "C" void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
-    daplink::usb_minimal::on_data_out_stage(*hpcd, epnum);
-}
-
-extern "C" void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
-    daplink::usb_minimal::on_data_in_stage(*hpcd, epnum);
 }
 
 export namespace daplink::board {
@@ -65,14 +48,14 @@ export namespace daplink::board {
         if (!daplink::usb_minimal::attach(usb)) {
             return std::unexpected(init_error::usb_pma_config_failed);
         }
-        if (HAL_OK != HAL_PCD_Start(&usb)) {
+        if (!daplink::port::usb_start(usb)) {
             return std::unexpected(init_error::usb_start_failed);
         }
         usb_connect_on();
         return {};
     }
 
-    inline UART_HandleTypeDef* cdc_uart_handle() noexcept {
+    inline auto cdc_uart_handle() noexcept -> daplink::port::UartHandle* {
         return cdc_uart_cfg::handle();
     }
 

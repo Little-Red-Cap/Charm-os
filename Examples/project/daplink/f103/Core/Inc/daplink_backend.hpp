@@ -1,7 +1,7 @@
 #ifndef DAPLINK_BACKEND_HPP
 #define DAPLINK_BACKEND_HPP
 
-#include "daplink_backend_support.hpp"
+#include "port/daplink_backend_support.hpp"
 
 namespace daplink::backend_target {
     struct Traits : daplink::backend_support::DefaultTraits {
@@ -13,18 +13,22 @@ namespace daplink::backend_target {
             MX_USART2_UART_Init();
         }
 
-        static auto uart1_handle() noexcept -> UART_HandleTypeDef* {
+        static auto uart1_handle() noexcept -> daplink::port::UartHandle* {
             return &huart1;
         }
 
-        static auto uart2_handle() noexcept -> UART_HandleTypeDef* {
+        static auto uart2_handle() noexcept -> daplink::port::UartHandle* {
             return &huart2;
+        }
+
+        static auto usb_pcd_handle() noexcept -> daplink::port::UsbPcdHandle& {
+            return hpcd_USB_FS;
         }
     };
 
     using Support = daplink::backend_support::BasicBackendOps<Traits>;
 }
 
-#include "daplink_backend_api.hpp"
+#include "port/daplink_backend_api.hpp"
 
 #endif

@@ -17,7 +17,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 function(daplink_configure_target)
     set(options)
     set(oneValueArgs TARGET LOCAL_ROOT APP_ROOT STM32CUBEMX_DIR STM32_DEVICE CHARM_ROOT)
-    cmake_parse_arguments(DAPLINK "${options}" "${oneValueArgs}" "" ${ARGN})
+    set(multiValueArgs EXTRA_CPP_SOURCES)
+    cmake_parse_arguments(DAPLINK "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     foreach(required_arg TARGET LOCAL_ROOT APP_ROOT STM32CUBEMX_DIR STM32_DEVICE CHARM_ROOT)
         if(NOT DAPLINK_${required_arg})
@@ -43,6 +44,8 @@ function(daplink_configure_target)
 
     file(GLOB_RECURSE _module_interface_units CONFIGURE_DEPENDS
         "${DAPLINK_APP_ROOT}/*.cppm"
+        "${_module_base_dir}/frontends/*.cppm"
+        "${_module_base_dir}/port/*.cppm"
         "${DAPLINK_LOCAL_ROOT}/*.cppm"
     )
     list(REMOVE_ITEM _module_interface_units
@@ -52,6 +55,7 @@ function(daplink_configure_target)
 
     target_sources(${DAPLINK_TARGET} PRIVATE
         "${DAPLINK_APP_ROOT}/main.cpp"
+        ${DAPLINK_EXTRA_CPP_SOURCES}
         PUBLIC
         FILE_SET modules TYPE CXX_MODULES
         BASE_DIRS
@@ -62,6 +66,7 @@ function(daplink_configure_target)
 
     target_include_directories(${DAPLINK_TARGET} PRIVATE
         "${DAPLINK_APP_ROOT}"
+        "${_module_base_dir}"
     )
 
     target_compile_definitions(${DAPLINK_TARGET} PRIVATE

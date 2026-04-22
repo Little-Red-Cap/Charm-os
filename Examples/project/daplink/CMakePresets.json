@@ -2,59 +2,53 @@
     "version": 3,
     "configurePresets": [
         {
-            "name": "default",
+            "name": "base",
             "hidden": true,
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build/${presetName}",
-		    "toolchainFile": "${sourceDir}/g431/cmake/gcc-arm-none-eabi.cmake",
+            "binaryDir": "${sourceDir}/cmake-build-daplink-${presetName}",
             "cacheVariables": {
             }
         },
         {
-            "name": "Debug",
-            "inherits": "default",
+            "name": "f103-debug",
+            "inherits": "base",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/daplink-f103-gcc-arm-none-eabi.cmake",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
+                "CMAKE_BUILD_TYPE": "Debug",
+                "DAPLINK_PORT": "f103"
             }
         },
         {
-            "name": "RelWithDebInfo",
-            "inherits": "default",
+            "name": "g431-debug",
+            "inherits": "base",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/daplink-g431-gcc-arm-none-eabi.cmake",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+                "CMAKE_BUILD_TYPE": "Debug",
+                "DAPLINK_PORT": "g431"
             }
         },
         {
-            "name": "Release",
-            "inherits": "default",
+            "name": "h503-debug",
+            "inherits": "base",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/daplink-h503-gcc-arm-none-eabi.cmake",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
-        },
-        {
-            "name": "MinSizeRel",
-            "inherits": "default",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "MinSizeRel"
+                "CMAKE_BUILD_TYPE": "Debug",
+                "DAPLINK_PORT": "h503"
             }
         }
     ],
     "buildPresets": [
         {
-            "name": "Debug",
-            "configurePreset": "Debug"
+            "name": "f103-debug",
+            "configurePreset": "f103-debug"
         },
         {
-            "name": "RelWithDebInfo",
-            "configurePreset": "RelWithDebInfo"
+            "name": "g431-debug",
+            "configurePreset": "g431-debug"
         },
         {
-            "name": "Release",
-            "configurePreset": "Release"
-        },
-        {
-            "name": "MinSizeRel",
-            "configurePreset": "MinSizeRel"
+            "name": "h503-debug",
+            "configurePreset": "h503-debug"
         }
     ]
 }

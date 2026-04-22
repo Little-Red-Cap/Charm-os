@@ -1264,6 +1264,17 @@
             return "Library";
         }
 
+        bool format_library_path_bar_hint(char* buf,
+                                          std::size_t buf_size) const noexcept {
+            if (!buf || buf_size == 0) return false;
+            buf[0] = '\0';
+            const std::string_view back_target = library_back_target_label();
+            if (back_target.empty()) return false;
+            std::snprintf(buf, buf_size, "Path bar returns to %.*s",
+                          static_cast<int>(back_target.size()), back_target.data());
+            return buf[0] != '\0';
+        }
+
         void apply_library_tab_style(WidgetHandle handle, bool active, int radius) {
             if (!access.valid() || !handle) return;
             ::ui::scene::PillSurfaceSpec spec{};
@@ -2126,7 +2137,7 @@
                 return;
             }
             const char* hint = "";
-            char buf[96]{};
+            char buf[160]{};
             if (show_group_hint) {
                 apply_hint_style(with_alpha(kUiLibraryPathTextActive, 214), FontWeight::Medium, 14);
                 const char* label = (library_tab == LibraryTab::Albums)
@@ -2139,20 +2150,25 @@
                 }
                 hint = buf;
             } else if (show_context_hint) {
+                char summary_buf[96]{};
+                char path_hint_buf[80]{};
                 format_library_group_summary(
                     library_context_key.view(),
                     library_context_is_current_group(),
-                    buf,
-                    sizeof(buf));
-                if (buf[0] != '\0') {
+                    summary_buf,
+                    sizeof(summary_buf));
+                const bool has_path_hint = format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf));
+                if (summary_buf[0] != '\0') {
                     apply_hint_style(with_alpha(kUiSubtitle, 236), FontWeight::Medium, 14);
-                    hint = buf;
-                } else {
+                    if (has_path_hint) {
+                        std::snprintf(buf, sizeof(buf), "%s | %s", summary_buf, path_hint_buf);
+                        hint = buf;
+                    } else {
+                        hint = summary_buf;
+                    }
+                } else if (has_path_hint) {
                     apply_hint_style(with_alpha(kUiLibraryPathTextActive, 188), FontWeight::Medium, 14);
-                    const std::string_view back_target = library_back_target_label();
-                    std::snprintf(buf, sizeof(buf), "Path bar returns to %.*s",
-                                  static_cast<int>(back_target.size()), back_target.data());
-                    hint = buf;
+                    hint = path_hint_buf;
                 }
             } else if (show_tracks_hint) {
                 apply_hint_style(with_alpha(kUiSubtitle, 230), FontWeight::Medium, 14);

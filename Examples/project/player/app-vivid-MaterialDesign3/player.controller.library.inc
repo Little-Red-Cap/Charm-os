@@ -2135,6 +2135,10 @@
                     : ((count == 1) ? "artist" : "artists");
                 std::snprintf(buf, sizeof(buf), "%d %s available | Select an %s to browse tracks",
                               count, label, library_group_object_label());
+                char path_hint_buf[80]{};
+                if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
+                    append_library_status_suffix(buf, sizeof(buf), path_hint_buf);
+                }
                 if (list_shuffle_enabled) {
                     append_library_status_suffix(buf, sizeof(buf), "Shuffled");
                 }
@@ -2169,6 +2173,10 @@
                 } else {
                     std::snprintf(buf, sizeof(buf), "%d %s available",
                                   count, track_label);
+                }
+                char path_hint_buf[80]{};
+                if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
+                    append_library_status_suffix(buf, sizeof(buf), path_hint_buf);
                 }
                 hint = buf;
             } else {

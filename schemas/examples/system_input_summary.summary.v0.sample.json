@@ -1,0 +1,351 @@
+{
+  "kind": "system_input_summary/v0",
+  "mode": "summary",
+  "case_count": 1,
+  "totals": {
+    "declared_fact_count": 1,
+    "declared_contract_count": 1,
+    "subject_fact_count": 1
+  },
+  "cases": [
+    {
+      "case": "demo-case",
+      "board": "win_stub",
+      "profile": "",
+      "active_facets": [
+        "runtime",
+        "block"
+      ],
+      "case_kind": "materialized_graph",
+      "source": "Examples/init/demo_case",
+      "build_target": "init-demo-case",
+      "export_target": "export_demo_case",
+      "declared_profile": null,
+      "declared_board": "win_stub",
+      "declared_active_facets": [
+        "runtime",
+        "block"
+      ],
+      "declared_fact_count": 1,
+      "declared_contract_count": 1,
+      "resolved_profile": null,
+      "resolved_profile_source": "missing",
+      "resolved_board": "win_stub",
+      "resolved_board_source": "case_subject",
+      "resolved_active_facets": [
+        "runtime",
+        "block"
+      ],
+      "resolved_active_facets_source": "case_subject",
+      "subject_fact_count": 1
+    }
+  ],
+  "case_kind_matrix": [
+    {
+      "case_kind": "materialized_graph",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "source_matrix": [
+    {
+      "source": "Examples/init/demo_case",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "build_target_matrix": [
+    {
+      "build_target": "init-demo-case",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "export_target_matrix": [
+    {
+      "export_target": "export_demo_case",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "declared_profile_matrix": [
+    {
+      "profile": "[unspecified]",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "declared_board_matrix": [
+    {
+      "board": "win_stub",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "declared_active_facet_matrix": [
+    {
+      "facet": "runtime",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    },
+    {
+      "facet": "block",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "resolved_profile_matrix": [
+    {
+      "profile": "[unspecified]",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "resolved_profile_source_matrix": [
+    {
+      "source": "missing",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "resolved_board_matrix": [
+    {
+      "board": "win_stub",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "resolved_board_source_matrix": [
+    {
+      "source": "case_subject",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "resolved_active_facet_matrix": [
+    {
+      "facet": "runtime",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    },
+    {
+      "facet": "block",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "resolved_active_facet_source_matrix": [
+    {
+      "source": "case_subject",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "declared_fact_matrix": [
+    {
+      "fact": "platform.storage",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ],
+  "declared_contract_matrix": [
+    {
+      "contract": "needs_storage",
+      "case_count": 1,
+      "requires": [
+        "platform.storage"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ],
+          "requires": [
+            "platform.storage"
+          ]
+        }
+      ]
+    }
+  ],
+  "subject_fact_matrix": [
+    {
+      "fact": "board.win_stub",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "block"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -139,18 +139,26 @@ function Get-RunProfile {
     )
 
     $fresh = $false
+    $skipConfigureIfPresent = $false
     $keepBuildDirs = $false
 
     if ($null -ne $SummaryData.PSObject.Properties["mode"] -and $null -ne $SummaryData.mode) {
         if ($null -ne $SummaryData.mode.PSObject.Properties["fresh"]) {
             $fresh = [bool]$SummaryData.mode.fresh
         }
+        if ($null -ne $SummaryData.mode.PSObject.Properties["skip_configure_if_present"]) {
+            $skipConfigureIfPresent = [bool]$SummaryData.mode.skip_configure_if_present
+        }
         if ($null -ne $SummaryData.mode.PSObject.Properties["keep_build_dirs"]) {
             $keepBuildDirs = [bool]$SummaryData.mode.keep_build_dirs
         }
     }
 
-    if ($fresh -and -not $keepBuildDirs) {
+    if ($skipConfigureIfPresent -and -not $fresh) {
+        return "daily"
+    }
+
+    if ($fresh -and -not $skipConfigureIfPresent) {
         return "ci"
     }
 

@@ -36,6 +36,10 @@
 
 - `docs/reference/vsf/*` 主要保留为早期历史参考，不是当前主路线入口。
 - `docs/system/minimal_kernel_task_syscall_frame_contract.md` 当前存在历史编码损坏，待恢复，不作为首选入口。
+- 如果当前在看 minimal-kernel runtime 总证据链 / 上半层 + 下半层合并验收，优先读：
+  - `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md`
+- 如果当前在看 minimal-kernel host smoke / 冷启动与热复用证据链，优先读：
+  - `docs/system/minimal_kernel_host_smoke_bundle_contract.md`
 - 如果当前在看最小 syscall / trap 链，恢复前优先读：
   - `docs/system/minimal_kernel_task_syscall_table_contract.md`
   - `docs/system/minimal_kernel_trap_syscall_contract.md`

@@ -1,0 +1,194 @@
+{
+  "kind": "system_input_summary/v0",
+  "mode": "comparison",
+  "compared_case_count": 1,
+  "changed_case_count": 1,
+  "unchanged_case_count": 0,
+  "changed_cases": [
+    "demo-case"
+  ],
+  "unchanged_cases": [],
+  "cases": [
+    {
+      "case": "demo-case",
+      "board": "win_stub",
+      "profile": "",
+      "active_facets": [
+        "runtime",
+        "input"
+      ],
+      "changed": true,
+      "summary_changes": [
+        "declared_facts:[platform.storage]->[platform.storage, synthetic.system_input_compare]"
+      ],
+      "system_spec_changes": [
+        "source"
+      ],
+      "declared_subject_changes": [
+        "active_facets"
+      ],
+      "declared_fact_changes": {
+        "added": [
+          "synthetic.system_input_compare"
+        ],
+        "removed": []
+      },
+      "declared_contract_changes": [
+        {
+          "contract": "needs_storage",
+          "change_kind": "changed",
+          "left_requires": [
+            "platform.storage"
+          ],
+          "right_requires": [
+            "platform.storage",
+            "system.heap"
+          ]
+        }
+      ],
+      "resolved_input_changes": [
+        "subject_facts"
+      ],
+      "subject_fact_changes": {
+        "added": [
+          "system.heap"
+        ],
+        "removed": []
+      }
+    }
+  ],
+  "summary_change_matrix": [
+    {
+      "change": "declared_facts:[platform.storage]->[platform.storage, synthetic.system_input_compare]",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "input"
+          ]
+        }
+      ]
+    }
+  ],
+  "system_spec_change_matrix": [
+    {
+      "change": "source",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "input"
+          ]
+        }
+      ]
+    }
+  ],
+  "declared_subject_change_matrix": [
+    {
+      "change": "active_facets",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "input"
+          ]
+        }
+      ]
+    }
+  ],
+  "resolved_input_change_matrix": [
+    {
+      "change": "subject_facts",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "input"
+          ]
+        }
+      ]
+    }
+  ],
+  "declared_fact_change_matrix": [
+    {
+      "fact": "synthetic.system_input_compare",
+      "case_count": 1,
+      "change_kinds": [
+        "added"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "change_kinds": [
+            "added"
+          ]
+        }
+      ]
+    }
+  ],
+  "declared_contract_change_matrix": [
+    {
+      "contract": "needs_storage",
+      "case_count": 1,
+      "change_kinds": [
+        "changed"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "active_facets": [
+            "runtime",
+            "input"
+          ],
+          "change_kind": "changed",
+          "left_requires": [
+            "platform.storage"
+          ],
+          "right_requires": [
+            "platform.storage",
+            "system.heap"
+          ]
+        }
+      ]
+    }
+  ],
+  "subject_fact_change_matrix": [
+    {
+      "fact": "system.heap",
+      "case_count": 1,
+      "change_kinds": [
+        "added"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "change_kinds": [
+            "added"
+          ]
+        }
+      ]
+    }
+  ]
+}

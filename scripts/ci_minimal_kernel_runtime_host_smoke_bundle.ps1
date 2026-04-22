@@ -4,6 +4,8 @@ param(
     [string]$SmokeLogPath = "",
     [string]$InspectTextPath = "",
     [string]$InspectJsonPath = "",
+    [string]$ReportMarkdownPath = "",
+    [string]$ReportTitle = "",
     [string]$CheckTextPath = "",
     [string]$BaselineSummary = "",
     [string]$CMakeExe = "cmake",
@@ -62,6 +64,12 @@ if (-not [string]::IsNullOrWhiteSpace($InspectTextPath)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($InspectJsonPath)) {
     $invokeArgs.InspectJsonPath = $InspectJsonPath
+}
+if (-not [string]::IsNullOrWhiteSpace($ReportMarkdownPath)) {
+    $invokeArgs.ReportMarkdownPath = $ReportMarkdownPath
+}
+if (-not [string]::IsNullOrWhiteSpace($ReportTitle)) {
+    $invokeArgs.ReportTitle = $ReportTitle
 }
 if (-not [string]::IsNullOrWhiteSpace($CheckTextPath)) {
     $invokeArgs.CheckTextPath = $CheckTextPath

@@ -1,0 +1,213 @@
+{
+  "kind": "fact_resolution_summary/v0",
+  "mode": "comparison",
+  "compared_case_count": 2,
+  "changed_case_count": 1,
+  "unchanged_case_count": 1,
+  "changed_cases": [
+    "bringup-minimal-observe-demo"
+  ],
+  "unchanged_cases": [
+    "usb-host-runtime-multi-smoke"
+  ],
+  "contract_change_count": 1,
+  "cases": [
+    {
+      "case": "bringup-minimal-observe-demo",
+      "profile": "mcu_min",
+      "board": "win_stub",
+      "active_facets": [
+        "runtime",
+        "input"
+      ],
+      "changed": true,
+      "summary_changes": [
+        "contract states changed",
+        "provided fact inventory changed"
+      ],
+      "contract_change_count": 1,
+      "contracts_changed": [
+        "needs_heap"
+      ],
+      "fact_inventory_changes": {
+        "declared_facts": {
+          "added": [],
+          "removed": []
+        },
+        "subject_facts": {
+          "added": [],
+          "removed": []
+        },
+        "required_facts": {
+          "added": [],
+          "removed": []
+        },
+        "graph_provided_facts": {
+          "added": [],
+          "removed": []
+        },
+        "audit_provided_facts": {
+          "added": [
+            "system.heap"
+          ],
+          "removed": []
+        },
+        "all_available_facts": {
+          "added": [
+            "system.heap"
+          ],
+          "removed": []
+        }
+      },
+      "hotspots_added": [],
+      "hotspots_removed": [
+        "missing system.heap"
+      ],
+      "contract_changes": [
+        {
+          "contract": "needs_heap",
+          "change_kind": "changed",
+          "left_state": "violated",
+          "right_state": "satisfied",
+          "left_requires": [
+            "system.heap"
+          ],
+          "right_requires": [
+            "system.heap"
+          ],
+          "left_status_text": "missing required facts: system.heap",
+          "right_status_text": "all required facts are present"
+        }
+      ]
+    },
+    {
+      "case": "usb-host-runtime-multi-smoke",
+      "profile": "",
+      "board": "",
+      "active_facets": [
+        "usb",
+        "runtime"
+      ],
+      "changed": false,
+      "summary_changes": [],
+      "contract_change_count": 0,
+      "contracts_changed": [],
+      "fact_inventory_changes": {
+        "declared_facts": {
+          "added": [],
+          "removed": []
+        },
+        "subject_facts": {
+          "added": [],
+          "removed": []
+        },
+        "required_facts": {
+          "added": [],
+          "removed": []
+        },
+        "graph_provided_facts": {
+          "added": [],
+          "removed": []
+        },
+        "audit_provided_facts": {
+          "added": [],
+          "removed": []
+        },
+        "all_available_facts": {
+          "added": [],
+          "removed": []
+        }
+      },
+      "hotspots_added": [],
+      "hotspots_removed": [],
+      "contract_changes": []
+    }
+  ],
+  "summary_change_matrix": [
+    {
+      "change": "contract states changed",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "bringup-minimal-observe-demo",
+          "profile": "mcu_min",
+          "board": "win_stub"
+        }
+      ]
+    },
+    {
+      "change": "provided fact inventory changed",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "bringup-minimal-observe-demo",
+          "profile": "mcu_min",
+          "board": "win_stub"
+        }
+      ]
+    }
+  ],
+  "contract_change_matrix": [
+    {
+      "contract": "needs_heap",
+      "case_count": 1,
+      "change_kinds": [
+        "changed"
+      ],
+      "cases": [
+        {
+          "case": "bringup-minimal-observe-demo",
+          "profile": "mcu_min",
+          "board": "win_stub",
+          "change_kind": "changed",
+          "left_state": "violated",
+          "right_state": "satisfied",
+          "left_requires": [
+            "system.heap"
+          ],
+          "right_requires": [
+            "system.heap"
+          ],
+          "left_status_text": "missing required facts: system.heap",
+          "right_status_text": "all required facts are present"
+        }
+      ]
+    }
+  ],
+  "fact_inventory_change_matrix": {
+    "declared_facts": [],
+    "subject_facts": [],
+    "required_facts": [],
+    "graph_provided_facts": [],
+    "audit_provided_facts": [
+      {
+        "fact": "system.heap",
+        "added_case_count": 1,
+        "removed_case_count": 0,
+        "added_cases": [
+          {
+            "case": "bringup-minimal-observe-demo",
+            "profile": "mcu_min",
+            "board": "win_stub"
+          }
+        ],
+        "removed_cases": []
+      }
+    ],
+    "all_available_facts": [
+      {
+        "fact": "system.heap",
+        "added_case_count": 1,
+        "removed_case_count": 0,
+        "added_cases": [
+          {
+            "case": "bringup-minimal-observe-demo",
+            "profile": "mcu_min",
+            "board": "win_stub"
+          }
+        ],
+        "removed_cases": []
+      }
+    ]
+  }
+}

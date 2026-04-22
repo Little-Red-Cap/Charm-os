@@ -7,6 +7,24 @@
 
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `schemas/examples/system_compiler.artifact_report.v0.sample.json`
+- `schemas/system_compiler_summary.v0.schema.json`
+- `schemas/examples/system_compiler_summary.summary.v0.sample.json`
+- `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
+- `schemas/system_input_summary.v0.schema.json`
+- `schemas/examples/system_input_summary.summary.v0.sample.json`
+- `schemas/examples/system_input_summary.comparison.v0.sample.json`
+- `schemas/binding_result_summary.v0.schema.json`
+- `schemas/examples/binding_result_summary.summary.v0.sample.json`
+- `schemas/examples/binding_result_summary.comparison.v0.sample.json`
+- `schemas/bringup_order_summary.v0.schema.json`
+- `schemas/examples/bringup_order_summary.summary.v0.sample.json`
+- `schemas/examples/bringup_order_summary.comparison.v0.sample.json`
+- `schemas/system_formation_summary.v0.schema.json`
+- `schemas/examples/system_formation_summary.summary.v0.sample.json`
+- `schemas/examples/system_formation_summary.comparison.v0.sample.json`
+- `schemas/fact_resolution_summary.v0.schema.json`
+- `schemas/examples/fact_resolution_summary.summary.v0.sample.json`
+- `schemas/examples/fact_resolution_summary.comparison.v0.sample.json`
 - `schemas/system_compiler.runtime_observe_snapshot.v0.schema.json`
 - `schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json`
 
@@ -14,6 +32,18 @@
 
 ```powershell
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.comparison.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/binding_result_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/binding_result_summary.comparison.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/bringup_order_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/bringup_order_summary.comparison.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_formation_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_formation_summary.comparison.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/fact_resolution_summary.summary.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/fact_resolution_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.runtime_observe_snapshot.v0.sample.json
 ```
 
@@ -220,7 +250,8 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `system_compiler_summary.unresolved_capability_change_matrix / blocked_node_change_matrix / blocker_change_matrix`
 - `system_compiler_summary.blocker_reason_change_matrix / blocker_missing_requires_change_matrix / blocker_depends_on_change_matrix`
 - `system_compiler_summary.binding_reason_change_matrix / bringup_phase_change_matrix / bringup_dependency_change_matrix`
-- `system_compiler_summary.binding_drift / bringup_drift`
+- `system_compiler_summary.formation_drift / binding_drift / bringup_drift`
+- `system_compiler_summary.result_map`
 - `comparison.system_compiler_summary.cases[*].formation_basis_changes / binding_summary_changes / bringup_summary_changes`
 - `system_input_summary.changed_case_count / unchanged_case_count`
 - `system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -257,7 +288,8 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`
 - `binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`
-- `binding_basis / bringup_basis`
+- `formation_basis / binding_basis / bringup_basis`
+- `result_map`
 - `cases[*].formation_basis / binding_summary / bringup_summary`
 
 它不取代后面的分阶段摘要，
@@ -265,6 +297,27 @@ artifact_root 级 `cap list` 现在也会继续带出：
 用来先回答：
 
 > **这一组 case 到底以什么输入成立、在哪个阶段收口、最终为什么 formed 或 blocked。**
+
+为了让这份 root 级总结果物不再只是“inspector 顺手吐出的一个大对象”，
+`system_compiler_summary` 现在也已经被提升成独立协议对象：
+
+- summary 模式显式带出 `kind = system_compiler_summary/v0` 与 `mode = summary`
+- comparison 模式显式带出 `kind = system_compiler_summary/v0` 与 `mode = comparison`
+- 对应 schema 入口见 [`../../schemas/system_compiler_summary.v0.schema.json`](../../schemas/system_compiler_summary.v0.schema.json)
+- 对应最小样例见 [`../../schemas/examples/system_compiler_summary.summary.v0.sample.json`](../../schemas/examples/system_compiler_summary.summary.v0.sample.json)
+- comparison 样例见 [`../../schemas/examples/system_compiler_summary.comparison.v0.sample.json`](../../schemas/examples/system_compiler_summary.comparison.v0.sample.json)
+
+这样外部脚本、CI 与 IDE 原型如果直接消费 artifact_root 默认总览里的
+`system_compiler_summary` 或 `comparison.system_compiler_summary`，
+就不再需要依赖“当前上下文是不是 artifact_root 默认总览”来猜对象类型，
+而可以直接通过 `kind / mode` 识别它。
+
+这里的 `result_map.stage_blocks[*].root_fields` 语义也要收紧理解：
+它描述的是 `system_compiler_summary` 根上哪些字段归属于该 stage，
+以及这些字段应如何和 `formation_basis / binding_basis / bringup_basis`
+或 `formation_drift / binding_drift / bringup_drift` 这类 stage block 一起阅读；
+它不承诺 `system_formation_summary`、`binding_result_summary`、`bringup_order_summary`
+一定逐字段同名镜像这些 root field。
 
 其中 `cases[*]` 现在也会显式携带：
 
@@ -303,11 +356,13 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 与此同时，这些热区现在也会继续被压进更正式的 stage-level result block：
 
+- `formation_basis`
 - `binding_basis`
 - `bringup_basis`
 
 以及 compare 模式下的：
 
+- `formation_drift`
 - `binding_drift`
 - `bringup_drift`
 
@@ -320,6 +375,65 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 > **这组系统实例的 binding 为什么能成立，bringup 主要落在哪些 phase，又是沿着哪些 dependency node 展开的。**
 
+而现在 `formation / binding / bringup` 三段也已经在同一份 root 结果里都拥有正式 block，
+这让 `system_compiler_summary` 更接近一个真正的 `system compiler v0 result object`，
+而不再只是“若干热点矩阵并排摆放”。
+
+同时，`result_map` 现在也开始把这些 block 和分阶段 summary 的对应关系正式机器可读化。
+而 `system_compiler_summary` 自身的 schema 也会继续直接引用这份 relation language，
+让“总结果物”与“结果物内部关系图”留在同一个协议边界内：
+
+如果外部工具要直接消费这份关系语言，当前最小 schema 锚点见
+[`../../schemas/system_compiler_result_map.v0.schema.json`](../../schemas/system_compiler_result_map.v0.schema.json)。
+
+- 哪个 stage 对应 `cases[*]` 里的哪个 case projection 字段
+- `cases[*]` 里的 projection 内部字段到底来自哪一个 stage case summary，是否存在 fallback source
+- 哪个 stage 对应 root 里的哪个 block
+- 哪个 stage 对应 artifact_root 里的哪个分阶段 summary
+- 哪些 root 级矩阵仍然属于 input bridge，而不是 formation / binding / bringup block 本体
+- 每个 root field 在 field-level 上到底是直接复用分阶段 summary 字段、只是 block 内部别名，还是当前没有 direct mirror
+
+这样 `system_compiler_summary` 不只是“有块”，
+而是已经开始带出“这些块之间如何组成 result object”的语言。
+
+其中这层 field-level 关系现在会继续收进：
+
+- `input_bridge.field_relations[*]`
+- `case_projection_field_relations.<stage>[*]`
+- `stage_blocks[*].field_relations[*]`
+
+每条 relation 至少会带出：
+
+- `projection_field`
+- `source_candidates[*].stage / field_path / relation`
+- `root_field`
+- `block_field_path`
+- `block_relation`
+- `summary_field_path`
+- `summary_relation`
+
+当前 `block_relation / summary_relation` 只使用三种最小语义：
+
+- `same_field`
+- `field_alias`
+- `none`
+
+而 `case_projection_field_relations.<stage>[*].source_candidates[*].relation`
+当前则会使用：
+
+- `same_field`
+- `field_alias`
+
+也就是说，调用方现在不只能知道
+“`binding` 这段对应 `binding_basis` 和 `binding_result_summary`”，
+还可以继续知道：
+
+- `binding_reason_matrix` 在 root 上属于 `binding`，但在 block 内对应 `binding_basis.reason_matrix`
+- `bringup_phase_matrix` 在 root 上属于 `bringup`，但当前没有 direct summary field mirror
+- `unresolved_capability_matrix` 这类字段则既能在 root 上看，也能在 block 和部分分阶段 summary 上按同一字段名看到
+- `cases[*].formation_basis.declared_fact_count` 优先来自 `system_formation_summary.cases[*].declared_fact_count`，缺位时再退回到 `system_input_summary.cases[*].declared_fact_count`
+- `cases[*].binding_summary.resolved_capabilities` 当前来自 `binding_result_summary.cases[*].resolved_capabilities`，并不要求 `system_formation_summary.cases[*]` 也同名提供
+
 与此同时，artifact_root 默认总览顶层现在也会继续显式带出一份
 `system_input_summary`，至少包括：
 
@@ -331,6 +445,19 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `resolved_active_facet_matrix`
 - `declared_fact_matrix / declared_contract_matrix / subject_fact_matrix`
 
+现在这份 input-side summary object 也已经被提升成独立协议对象：
+
+- summary 模式显式带出 `kind = system_input_summary/v0` 与 `mode = summary`
+- comparison 模式显式带出 `kind = system_input_summary/v0` 与 `mode = comparison`
+- 对应 schema 入口见 [`../../schemas/system_input_summary.v0.schema.json`](../../schemas/system_input_summary.v0.schema.json)
+- 对应最小样例见 [`../../schemas/examples/system_input_summary.summary.v0.sample.json`](../../schemas/examples/system_input_summary.summary.v0.sample.json)
+- comparison 样例见 [`../../schemas/examples/system_input_summary.comparison.v0.sample.json`](../../schemas/examples/system_input_summary.comparison.v0.sample.json)
+
+这样外部脚本与 CI 如果直接消费 artifact_root 默认总览里的
+`system_input_summary` 或 `comparison.system_input_summary`，
+就不必再依赖“当前字段名碰巧叫这个”来识别对象语义，
+而可以直接通过 `kind / mode` 把它当作正式的 input-side result object。
+
 并继续显式带出一份
 `binding_result_summary`，至少包括：
 
@@ -339,6 +466,19 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `capability_matrix`
 - `resolved_capability_matrix / unresolved_capability_matrix`
 
+现在这份 binding-side summary object 也已经被提升成独立协议对象：
+
+- summary 模式显式带出 `kind = binding_result_summary/v0` 与 `mode = summary`
+- comparison 模式显式带出 `kind = binding_result_summary/v0` 与 `mode = comparison`
+- 对应 schema 入口见 [`../../schemas/binding_result_summary.v0.schema.json`](../../schemas/binding_result_summary.v0.schema.json)
+- 对应最小样例见 [`../../schemas/examples/binding_result_summary.summary.v0.sample.json`](../../schemas/examples/binding_result_summary.summary.v0.sample.json)
+- comparison 样例见 [`../../schemas/examples/binding_result_summary.comparison.v0.sample.json`](../../schemas/examples/binding_result_summary.comparison.v0.sample.json)
+
+这样外部脚本与 CI 如果直接消费 artifact_root 默认总览里的
+`binding_result_summary` 或 `comparison.binding_result_summary`，
+就不必再依赖外围上下文去猜“这是不是 binding 热区汇总对象”，
+而可以直接通过 `kind / mode` 把它当作正式的 binding-side result object。
+
 并显式带出一份 `bringup_order_summary`，
 至少包括：
 
@@ -346,6 +486,19 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `totals.ordered_node_count / totals.blocked_node_count`
 - `phase_counts`
 - `node_matrix / blocked_node_matrix`
+
+现在这份 bringup-side summary object 也已经被提升成独立协议对象：
+
+- summary 模式显式带出 `kind = bringup_order_summary/v0` 与 `mode = summary`
+- comparison 模式显式带出 `kind = bringup_order_summary/v0` 与 `mode = comparison`
+- 对应 schema 入口见 [`../../schemas/bringup_order_summary.v0.schema.json`](../../schemas/bringup_order_summary.v0.schema.json)
+- 对应最小样例见 [`../../schemas/examples/bringup_order_summary.summary.v0.sample.json`](../../schemas/examples/bringup_order_summary.summary.v0.sample.json)
+- comparison 样例见 [`../../schemas/examples/bringup_order_summary.comparison.v0.sample.json`](../../schemas/examples/bringup_order_summary.comparison.v0.sample.json)
+
+这样外部脚本与 CI 如果直接消费 artifact_root 默认总览里的
+`bringup_order_summary` 或 `comparison.bringup_order_summary`，
+就不必再依赖外围上下文去猜“这是不是 bringup 顺序与阻塞热区汇总对象”，
+而可以直接通过 `kind / mode` 把它当作正式的 bringup-side result object。
 
 并继续显式带出一份
 `system_formation_summary`，至少包括：
@@ -357,6 +510,19 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `blocked_node_matrix`
 - `blocker_matrix`
 
+现在这份 formation-side summary object 也已经被提升成独立协议对象：
+
+- summary 模式显式带出 `kind = system_formation_summary/v0` 与 `mode = summary`
+- comparison 模式显式带出 `kind = system_formation_summary/v0` 与 `mode = comparison`
+- 对应 schema 入口见 [`../../schemas/system_formation_summary.v0.schema.json`](../../schemas/system_formation_summary.v0.schema.json)
+- 对应最小样例见 [`../../schemas/examples/system_formation_summary.summary.v0.sample.json`](../../schemas/examples/system_formation_summary.summary.v0.sample.json)
+- comparison 样例见 [`../../schemas/examples/system_formation_summary.comparison.v0.sample.json`](../../schemas/examples/system_formation_summary.comparison.v0.sample.json)
+
+这样外部脚本与 CI 如果直接消费 artifact_root 默认总览里的
+`system_formation_summary` 或 `comparison.system_formation_summary`，
+就不必再依赖外围上下文去猜“这是不是 formation 结果与 formation drift 汇总对象”，
+而可以直接通过 `kind / mode` 把它当作正式的 formation-side result object。
+
 并继续显式带出一份 `fact_resolution_summary`，
 至少包括：
 
@@ -365,6 +531,12 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `required_fact_matrix / provided_fact_matrix`
 - `contract_matrix`
 - `resource_hotspot_matrix`
+
+对应 schema 入口见 [`../../schemas/fact_resolution_summary.v0.schema.json`](../../schemas/fact_resolution_summary.v0.schema.json)，
+最小样例见 [`../../schemas/examples/fact_resolution_summary.summary.v0.sample.json`](../../schemas/examples/fact_resolution_summary.summary.v0.sample.json)，
+comparison 样例见 [`../../schemas/examples/fact_resolution_summary.comparison.v0.sample.json`](../../schemas/examples/fact_resolution_summary.comparison.v0.sample.json)。
+现在外部脚本也可以直接通过 `kind = fact_resolution_summary/v0` 与 `mode = summary | comparison`
+把它当作独立的 fact-resolution-side result object 识别。
 
 这意味着 inspector 已经不只会逐 case 地回答
 “系统是否 formed / blocked”，

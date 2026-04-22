@@ -832,7 +832,8 @@
                 }
                 if (row.current_row) {
                     append_library_status_suffix(buf, buf_size, library_current_group_state_text());
-                } else {
+                }
+                if (row.selected_row) {
                     append_library_status_suffix(buf, buf_size, library_group_primary_action_label());
                 }
                 return true;

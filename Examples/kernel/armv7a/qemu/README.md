@@ -257,8 +257,8 @@ synthetic next-stage entry with the inherited `r0/sp` shape, completes the
 `handoff-launch` phase from the landing side, reports one
 `ARMv7-A handoff live, ... live=yes` line, then proves the handed-over runtime
 package can be re-armed in place and directly re-consumed from the landing
-side via one `ARMv7-A handoff runtime, ... payload=yes, ... landed=yes` line
-before idling forever.
+side via one `ARMv7-A runtime handoff landing, ... rearm=yes, payload=yes,
+... landed=yes` line before idling forever.
 
 For a shorter failure loop around the runtime-facing binding bundle, use:
 
@@ -772,6 +772,11 @@ continue
   branch-state, helper return-link, and post-return state all still match it.
   This keeps the seam honest without pretending we already jump into the real
   next image.
+- The landing side now also prints one `runtime handoff landing` line that
+  turns the post-branch runtime consumer into its own seam instead of leaving
+  it buried inside `handoff_live.cpp`: the re-armed leaf ports, the handed-over
+  runtime package payload, the recaptured binding slice, and the re-consumed
+  live runtime all have to line up before the landing side counts as ready.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

@@ -132,8 +132,11 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
     const auto rearmed_ports = package_ready
         ? armv7a_prepare_runtime_leaf_ports()
         : Armv7aRuntimeLeafPortsContract{};
+    const auto rearmed_leaf_ready =
+        armv7a_runtime_leaf_ports_ready(rearmed_ports);
     const auto payload_ready =
         package_ready &&
+        rearmed_leaf_ready &&
         armv7a_runtime_leaf_bundle_matches_leaf_ports(
             handoff->runtime.leaf,
             rearmed_ports,
@@ -148,53 +151,13 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
     const auto runtime_package = payload_ready
         ? armv7a_capture_runtime_package_observation()
         : Armv7aRuntimePackageObservation{};
-    const auto binding_ready =
-        payload_ready &&
-        armv7a_runtime_leaf_bundle_equal(
-            handoff->runtime.leaf,
-            runtime_package.contract.leaf) &&
-        armv7a_runtime_binding_bundle_equal(
-            handoff->runtime.binding,
-            runtime_package.contract.binding);
-    const auto current_ready =
-        payload_ready &&
-        armv7a_runtime_package_current_ready(runtime_package.contract);
-    const auto trap_ready =
-        payload_ready &&
-        armv7a_runtime_package_trap_ready(runtime_package.contract);
-    const auto thread_ready =
-        payload_ready &&
-        armv7a_runtime_package_thread_ready(runtime_package.contract);
-    const auto loop_ready =
-        payload_ready &&
-        armv7a_runtime_package_loop_ready(runtime_package.contract);
-    const auto live_runtime_ready =
-        payload_ready &&
-        armv7a_runtime_package_live_ready(runtime_package.contract) &&
-        armv7a_runtime_live_ready(runtime_live);
-    const auto landed_ready = package_ready && payload_ready && binding_ready &&
-        current_ready && trap_ready &&
-        thread_ready && loop_ready && live_runtime_ready;
-
-    armv7a_platform_early_console_puts("ARMv7-A handoff runtime, package=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(package_ready));
-    armv7a_platform_early_console_puts(", payload=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(payload_ready));
-    armv7a_platform_early_console_puts(", binding=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(binding_ready));
-    armv7a_platform_early_console_puts(", current=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(current_ready));
-    armv7a_platform_early_console_puts(", trap=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(trap_ready));
-    armv7a_platform_early_console_puts(", thread=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(thread_ready));
-    armv7a_platform_early_console_puts(", loop=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(loop_ready));
-    armv7a_platform_early_console_puts(", live=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(live_runtime_ready));
-    armv7a_platform_early_console_puts(", landed=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(landed_ready));
-    armv7a_platform_early_console_puts("\r\n");
+    const auto& landing =
+        armv7a_make_runtime_handoff_landing_observation(handoff,
+                                                        rearmed_leaf_ready,
+                                                        payload_ready,
+                                                        runtime_package,
+                                                        runtime_live);
+    armv7a_print_runtime_handoff_landing_observation(landing);
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffRuntime);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);

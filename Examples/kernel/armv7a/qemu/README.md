@@ -259,8 +259,9 @@ synthetic next-stage entry with the inherited `r0/sp` shape, completes the
 package can be re-armed in place and directly re-consumed from the landing
 side via one `ARMv7-A runtime handoff landing, ... rearm=yes, payload=yes,
 ... landed=yes` line, one `ARMv7-A runtime handoff package landing, ...
-landing=yes` line, plus one `ARMv7-A runtime handoff path, ... path=yes` line
-before idling forever.
+landing=yes` line, one `ARMv7-A runtime handoff consumer, ... consumer=yes`
+line, plus one `ARMv7-A runtime handoff path, ... path=yes` line before
+idling forever.
 
 For a shorter failure loop around the runtime-facing binding bundle, use:
 
@@ -784,6 +785,11 @@ continue
   and the re-consumed live bit, then requires that rebuilt package to match
   both the handed-over payload and the recaptured local package before the
   landing-side consumer seam counts as ready.
+- The same landing path now also prints one `runtime handoff consumer` line
+  that lifts the whole re-entry sequence into one reusable seam: re-armed
+  ports, recaptured package observation, rebuilt package landing, live runtime,
+  and the full handoff path now have to line up together before the runtime
+  consumer counts as ready.
 - The same live preset now also prints one `runtime handoff path` line that
   closes the whole handoff route into one continuity check: exported handoff
   payload, prepared entry seam, forwarded transfer payload, live launch

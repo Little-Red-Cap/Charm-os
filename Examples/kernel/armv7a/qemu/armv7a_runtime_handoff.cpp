@@ -7,6 +7,7 @@
 #include "armv7a_diag_console.hpp"
 #include "armv7a_handoff_prepare.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_runtime_leaf_ports.hpp"
 
 namespace {
 Armv7aRuntimeHandoffContract g_last_runtime_handoff{};
@@ -14,6 +15,7 @@ bool g_last_runtime_handoff_valid = false;
 Armv7aRuntimeHandoffLandingObservation g_last_runtime_handoff_landing{};
 Armv7aRuntimeHandoffPackageLandingObservation
     g_last_runtime_handoff_package_landing{};
+Armv7aRuntimeHandoffConsumerObservation g_last_runtime_handoff_consumer{};
 Armv7aRuntimeHandoffPathObservation g_last_runtime_handoff_path{};
 }
 
@@ -168,6 +170,106 @@ void armv7a_print_runtime_handoff_package_landing_observation(
     armv7a_platform_early_console_puts(", landing=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(
         armv7a_runtime_handoff_package_landing_ready(observation)));
+    armv7a_platform_early_console_puts("\r\n");
+}
+
+const Armv7aRuntimeHandoffConsumerObservation&
+armv7a_make_runtime_handoff_consumer_observation(
+    const Armv7aRuntimeLeafPortsContract& rearmed_ports,
+    const Armv7aRuntimePackageObservation& runtime_package,
+    const Armv7aRuntimeLiveObservation& runtime_live,
+    const Armv7aRuntimeHandoffPackageLandingObservation& package_landing,
+    const Armv7aRuntimeHandoffLandingObservation& landing,
+    const Armv7aRuntimeHandoffPathObservation& path,
+    bool handoff_present) noexcept
+{
+    g_last_runtime_handoff_consumer = Armv7aRuntimeHandoffConsumerObservation{
+        .rearmed_ports = rearmed_ports,
+        .runtime_package = runtime_package,
+        .runtime_live = runtime_live,
+        .package_landing = package_landing,
+        .landing = landing,
+        .path = path,
+        .handoff_present = handoff_present,
+    };
+    return g_last_runtime_handoff_consumer;
+}
+
+const Armv7aRuntimeHandoffConsumerObservation&
+armv7a_capture_runtime_handoff_consumer_observation(
+    const Armv7aRuntimeHandoffContract* handoff) noexcept
+{
+    const auto package_ready =
+        handoff != nullptr &&
+        armv7a_runtime_package_ready(handoff->runtime);
+    const auto rearmed_ports = package_ready
+        ? armv7a_prepare_runtime_leaf_ports()
+        : Armv7aRuntimeLeafPortsContract{};
+    const auto rearmed_leaf_ready =
+        armv7a_runtime_leaf_ports_ready(rearmed_ports);
+    const auto payload_ready =
+        package_ready &&
+        rearmed_leaf_ready &&
+        armv7a_runtime_leaf_bundle_matches_leaf_ports(
+            handoff->runtime.leaf,
+            rearmed_ports,
+            handoff->runtime.leaf.runtime_live_ready) &&
+        armv7a_runtime_binding_bundle_matches_leaf_ports(
+            handoff->runtime.binding,
+            rearmed_ports,
+            handoff->runtime.leaf.runtime_live_ready);
+    const auto runtime_live = payload_ready
+        ? armv7a_run_runtime_live_observation(handoff->runtime)
+        : Armv7aRuntimeLiveObservation{};
+    const auto runtime_package = payload_ready
+        ? armv7a_capture_runtime_package_observation()
+        : Armv7aRuntimePackageObservation{};
+    const auto& package_landing =
+        armv7a_make_runtime_handoff_package_landing_observation(handoff,
+                                                                rearmed_ports,
+                                                                runtime_package,
+                                                                runtime_live);
+    const auto& landing =
+        armv7a_make_runtime_handoff_landing_observation(handoff,
+                                                        rearmed_leaf_ready,
+                                                        payload_ready,
+                                                        runtime_package,
+                                                        runtime_live);
+    const auto& path =
+        armv7a_make_runtime_handoff_path_observation(handoff,
+                                                     package_landing,
+                                                     landing);
+    return armv7a_make_runtime_handoff_consumer_observation(rearmed_ports,
+                                                            runtime_package,
+                                                            runtime_live,
+                                                            package_landing,
+                                                            landing,
+                                                            path,
+                                                            handoff != nullptr);
+}
+
+void armv7a_print_runtime_handoff_consumer_observation(
+    const Armv7aRuntimeHandoffConsumerObservation& observation)
+{
+    armv7a_platform_early_console_puts(
+        "ARMv7-A runtime handoff consumer, ports=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_handoff_consumer_ports_ready(observation)));
+    armv7a_platform_early_console_puts(", recaptured=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_handoff_consumer_recaptured_ready(observation)));
+    armv7a_platform_early_console_puts(", package=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_handoff_consumer_package_ready(observation)));
+    armv7a_platform_early_console_puts(", live=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_handoff_consumer_live_ready(observation)));
+    armv7a_platform_early_console_puts(", path=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_handoff_consumer_path_ready(observation)));
+    armv7a_platform_early_console_puts(", consumer=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(
+        armv7a_runtime_handoff_consumer_ready(observation)));
     armv7a_platform_early_console_puts("\r\n");
 }
 

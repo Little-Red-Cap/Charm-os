@@ -160,6 +160,9 @@ if (($handoffLog -notmatch "ARMv7-A runtime handoff package landing, leaf=yes, b
 if (($handoffLog -notmatch "ARMv7-A runtime handoff path, export=yes, entry=yes, transfer=yes, launch=yes, landing=yes, path=yes")) {
     $missing += "ARMv7-A runtime handoff path, export=yes..."
 }
+if (($handoffLog -notmatch "ARMv7-A runtime handoff consumer, ports=yes, recaptured=yes, package=yes, live=yes, path=yes, consumer=yes")) {
+    $missing += "ARMv7-A runtime handoff consumer, ports=yes..."
+}
 
 $unexpected = @()
 if ($handoffLog.Contains("ARMv7-A handoff launch, ")) {

@@ -198,6 +198,15 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
                                                      package_landing,
                                                      landing);
     armv7a_print_runtime_handoff_path_observation(path);
+    const auto& consumer = armv7a_make_runtime_handoff_consumer_observation(
+        rearmed_ports,
+        runtime_package,
+        runtime_live,
+        package_landing,
+        landing,
+        path,
+        handoff != nullptr);
+    armv7a_print_runtime_handoff_consumer_observation(consumer);
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffRuntime);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);

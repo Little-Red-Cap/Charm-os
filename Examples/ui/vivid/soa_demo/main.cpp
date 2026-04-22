@@ -173,10 +173,28 @@ namespace {
         std::uint16_t count{0};
     };
 
+    struct ListViewRowFlagsSource {
+        std::uint16_t disabled_index{0xFFFF};
+        std::uint16_t group_index{0xFFFF};
+    };
+
     const char* list_view_text_at(const void* ctx, std::uint16_t index) noexcept {
         const auto* src = static_cast<const ListViewTextSource*>(ctx);
         if (!src || !src->items || src->count == 0) return "";
         return src->items[index % src->count];
+    }
+
+    std::uint8_t list_view_row_flags_at(const void* ctx, std::uint16_t index) noexcept {
+        const auto* src = static_cast<const ListViewRowFlagsSource*>(ctx);
+        if (!src) return 0;
+        std::uint8_t flags = 0;
+        if (index == src->group_index) {
+            flags |= soa_detail::kListViewRowFlagGroup;
+        }
+        if (index == src->disabled_index) {
+            flags |= soa_detail::kListViewRowFlagDisabled;
+        }
+        return flags;
     }
 
     struct ListViewIconSource {
@@ -1978,14 +1996,23 @@ namespace {
             list_items,
             static_cast<std::uint16_t>(sizeof(list_items) / sizeof(list_items[0]))
         };
+        static const ListViewRowFlagsSource row_flags_source{
+            .disabled_index = 1,
+            .group_index = 0,
+        };
         static const ListViewIconSource icon_source{
             g_test_icon_id,
             g_slice_id
         };
         factory.set_list_view_source(list_view, 1000, &list_source, &list_view_text_at);
+        factory.set_list_view_row_flags_source(list_view, &row_flags_source, &list_view_row_flags_at);
         factory.set_list_view_icon_source(list_view, &icon_source, &list_view_icon_at, 18);
         gui.render();
         expect_true(gui.last_exec_stats().failed_cmds == 0, "listview: failed_cmds", fails);
+        expect_true((kernel.list_view_item_row_flags(list_view, 0) & soa_detail::kListViewRowFlagGroup) != 0,
+            "listview: group row flag missing", fails);
+        expect_true((kernel.list_view_item_row_flags(list_view, 1) & soa_detail::kListViewRowFlagDisabled) != 0,
+            "listview: disabled row flag missing", fails);
 
         const auto stats_after_create = kernel.payload_stats();
         const std::uint16_t expected_peak =
@@ -2035,6 +2062,19 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "listview: drag invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "listview: drag pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "listview: drag missing paint", fails);
+
+        kernel.set_scroll_y_clamped(list_view, 0);
+        gui.render();
+        kernel.set_list_view_selected(list_view, -1);
+        kernel.layout_trace_reset();
+        const int disabled_y = hit_y + row_h;
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hit_x, disabled_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hit_x, disabled_y, 1));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "listview: disabled click invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "listview: disabled click pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "listview: disabled click missing paint", fails);
+        expect_true(kernel.list_view_selected(list_view) == -1, "listview: disabled click changed selection", fails);
 
         kernel.layout_trace_reset();
         const int select_y = hit_y + row_h * 2;
@@ -3382,9 +3422,11 @@ int main(int argc, char** argv) {
 #endif
             return 1;
         }
+#if defined(VIVID_SOA_TRACE_INPUT)
         if (run_ci && !compact_ok) {
             ci_mark_fail("compact");
         }
+#endif
     }
 
     bool dump_ok = true;

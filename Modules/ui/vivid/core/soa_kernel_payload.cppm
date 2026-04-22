@@ -1328,8 +1328,12 @@ import alg_list_scroll;
         }
         auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
         if (!payload) return;
-        if (payload->count == 0) return;
-        if (index < 0) index = 0;
+        if (payload->count == 0 || index < 0) {
+            if (payload->selected == -1) return;
+            payload->selected = -1;
+            mark_paint_dirty();
+            return;
+        }
         if (index >= payload->count) index = payload->count - 1;
         if (payload->selected == index) return;
         payload->selected = index;

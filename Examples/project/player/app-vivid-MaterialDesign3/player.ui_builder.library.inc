@@ -97,7 +97,13 @@
                 .corner_radius = 34,
             });
             patch.has_gradient_enabled = true;
-            patch.gradient_enabled = false;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = kUiLibraryControlsTop;
+            patch.has_gradient_end = true;
+            patch.gradient_end = kUiLibraryControlsBottom;
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
             builder.set_style_override(library_controls, patch);
             builder.set_hit_testable(library_controls, false);
         }
@@ -202,7 +208,13 @@
                 .corner_radius = 26,
             });
             patch.has_gradient_enabled = true;
-            patch.gradient_enabled = false;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = {44, 52, 72, 176};
+            patch.has_gradient_end = true;
+            patch.gradient_end = {28, 33, 46, 170};
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
             builder.set_style_override(action_row_plate, patch);
             builder.set_hit_testable(action_row_plate, false);
         }
@@ -266,7 +278,13 @@
                 .corner_radius = 24,
             });
             patch.has_gradient_enabled = true;
-            patch.gradient_enabled = false;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = {42, 50, 69, 222};
+            patch.has_gradient_end = true;
+            patch.gradient_end = {28, 33, 46, 214};
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
             builder.set_style_override(list_header_plate, patch);
             builder.set_hit_testable(list_header_plate, false);
         }
@@ -286,7 +304,13 @@
                 .corner_radius = 22,
             });
             patch.has_gradient_enabled = true;
-            patch.gradient_enabled = false;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = {25, 30, 43, 238};
+            patch.has_gradient_end = true;
+            patch.gradient_end = {15, 19, 28, 232};
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
             builder.set_style_override(list_body_plate, patch);
             builder.set_hit_testable(list_body_plate, false);
         }

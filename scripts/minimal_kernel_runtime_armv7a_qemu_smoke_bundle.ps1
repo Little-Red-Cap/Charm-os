@@ -15,7 +15,7 @@ param(
     [switch]$StopOnFailure,
     [int]$MaxFailures = 0,
     [int]$MaxOtherResults = 0,
-    [int]$RequireCaseCount = 3
+    [int]$RequireCaseCount = -1
 )
 
 $ErrorActionPreference = "Stop"

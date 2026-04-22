@@ -143,6 +143,24 @@ foreach ($entry in @($results | Select-Object -First $Top)) {
     [void]$builder.AppendLine(("{0} | {1} | {2}ms | {3}" -f [string]$entry.Label, [string]$entry.Status, [int64]$entry.ElapsedMs, [string]$entry.Script))
 }
 
+$highlightResults = @(
+    $results | Where-Object {
+        $null -ne $_.Highlights -and (@($_.Highlights)).Count -gt 0
+    }
+)
+
+if ($highlightResults.Count -gt 0) {
+    [void]$builder.AppendLine("")
+    [void]$builder.AppendLine("## Evidence Highlights")
+    foreach ($entry in @($highlightResults)) {
+        [void]$builder.AppendLine(("### {0}" -f [string]$entry.Label))
+        foreach ($highlight in @($entry.Highlights)) {
+            [void]$builder.AppendLine(('- `{0}`' -f [string]$highlight))
+        }
+        [void]$builder.AppendLine("")
+    }
+}
+
 if ($null -ne $summaryData.fatal_failure) {
     [void]$builder.AppendLine("")
     [void]$builder.AppendLine("## Fatal Failure")

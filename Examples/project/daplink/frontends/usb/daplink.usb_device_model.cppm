@@ -37,6 +37,13 @@ export namespace daplink::usb_device_model {
     constexpr std::uint8_t kStringDescriptorType = 0x03;
     constexpr std::uint8_t kHidDescriptorType = 0x21;
     constexpr std::uint8_t kReportDescriptorType = 0x22;
+    constexpr std::uint8_t kManufacturerStringIndex = 0x01;
+    constexpr std::uint8_t kProductStringIndex = 0x02;
+    constexpr std::uint8_t kSerialStringIndex = 0x03;
+    constexpr std::uint8_t kHidInterfaceStringIndex = 0x04;
+    constexpr std::uint8_t kCdcFunctionStringIndex = 0x05;
+    constexpr std::uint8_t kCdcControlStringIndex = 0x06;
+    constexpr std::uint8_t kCdcDataStringIndex = 0x07;
 
     constexpr std::uint8_t kCdcCommInterface = 0;
     constexpr std::uint8_t kCdcDataInterface = 1;
@@ -55,8 +62,8 @@ export namespace daplink::usb_device_model {
         static_cast<std::uint8_t>((kConfig.usb.vid >> 8) & 0xFFU),
         static_cast<std::uint8_t>(kConfig.usb.pid & 0xFFU),
         static_cast<std::uint8_t>((kConfig.usb.pid >> 8) & 0xFFU),
-        0x00, 0x01, 0x01, 0x02,
-        0x03, 0x01
+        0x00, 0x01, kManufacturerStringIndex, kProductStringIndex,
+        kSerialStringIndex, 0x01
     };
 
     constexpr std::array<std::uint8_t, 27> hid_report_descriptor = {
@@ -79,17 +86,17 @@ export namespace daplink::usb_device_model {
         if constexpr (kUsbProfile == UsbProfile::composite) {
             return std::array<std::uint8_t, 0x6B>{
                 0x09, 0x02, 0x6B, 0x00, 0x03, 0x01, 0x00, 0x80, 0x32,
-                0x08, 0x0B, 0x00, 0x02, 0x02, 0x02, 0x01, 0x00,
-                0x09, 0x04, 0x00, 0x00, 0x01, 0x02, 0x02, 0x01, 0x00,
+                0x08, 0x0B, 0x00, 0x02, 0x02, 0x02, 0x01, kCdcFunctionStringIndex,
+                0x09, 0x04, 0x00, 0x00, 0x01, 0x02, 0x02, 0x01, kCdcControlStringIndex,
                 0x05, 0x24, 0x00, 0x10, 0x01,
                 0x05, 0x24, 0x01, 0x03, 0x01,
                 0x04, 0x24, 0x02, 0x06,
                 0x05, 0x24, 0x06, 0x00, 0x01,
                 0x07, 0x05, kCdcEpCmd, 0x03, 0x08, 0x00, 0x10,
-                0x09, 0x04, 0x01, 0x00, 0x02, 0x0A, 0x00, 0x00, 0x00,
+                0x09, 0x04, 0x01, 0x00, 0x02, 0x0A, 0x00, 0x00, kCdcDataStringIndex,
                 0x07, 0x05, kCdcEpOut, 0x02, 0x40, 0x00, 0x00,
                 0x07, 0x05, kCdcEpIn, 0x02, 0x40, 0x00, 0x00,
-                0x09, 0x04, 0x02, 0x00, 0x02, 0x03, 0x00, 0x00, 0x00,
+                0x09, 0x04, 0x02, 0x00, 0x02, 0x03, 0x00, 0x00, kHidInterfaceStringIndex,
                 0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22,
                 static_cast<std::uint8_t>(hid_report_descriptor.size()), 0x00,
                 0x07, 0x05, kHidEpIn, 0x03, 0x40, 0x00, 0x01,
@@ -98,21 +105,21 @@ export namespace daplink::usb_device_model {
         } else if constexpr (kUsbProfile == UsbProfile::cdc) {
             return std::array<std::uint8_t, 0x4B>{
                 0x09, 0x02, 0x4B, 0x00, 0x02, 0x01, 0x00, 0x80, 0x32,
-                0x08, 0x0B, 0x00, 0x02, 0x02, 0x02, 0x01, 0x00,
-                0x09, 0x04, 0x00, 0x00, 0x01, 0x02, 0x02, 0x01, 0x00,
+                0x08, 0x0B, 0x00, 0x02, 0x02, 0x02, 0x01, kCdcFunctionStringIndex,
+                0x09, 0x04, 0x00, 0x00, 0x01, 0x02, 0x02, 0x01, kCdcControlStringIndex,
                 0x05, 0x24, 0x00, 0x10, 0x01,
                 0x05, 0x24, 0x01, 0x03, 0x01,
                 0x04, 0x24, 0x02, 0x06,
                 0x05, 0x24, 0x06, 0x00, 0x01,
                 0x07, 0x05, kCdcEpCmd, 0x03, 0x08, 0x00, 0x10,
-                0x09, 0x04, 0x01, 0x00, 0x02, 0x0A, 0x00, 0x00, 0x00,
+                0x09, 0x04, 0x01, 0x00, 0x02, 0x0A, 0x00, 0x00, kCdcDataStringIndex,
                 0x07, 0x05, kCdcEpOut, 0x02, 0x40, 0x00, 0x00,
                 0x07, 0x05, kCdcEpIn, 0x02, 0x40, 0x00, 0x00
             };
         } else {
             return std::array<std::uint8_t, 0x29>{
                 0x09, 0x02, 0x29, 0x00, 0x01, 0x01, 0x00, 0x80, 0x32,
-                0x09, 0x04, 0x00, 0x00, 0x02, 0x03, 0x00, 0x00, 0x00,
+                0x09, 0x04, 0x00, 0x00, 0x02, 0x03, 0x00, 0x00, kHidInterfaceStringIndex,
                 0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22,
                 static_cast<std::uint8_t>(hid_report_descriptor.size()), 0x00,
                 0x07, 0x05, kHidEpIn, 0x03, 0x40, 0x00, 0x01,
@@ -145,6 +152,10 @@ export namespace daplink::usb_device_model {
     constexpr auto manufacturer_string = make_string_descriptor(daplink::app_config::kUsbManufacturer);
     constexpr auto product_string = make_string_descriptor(daplink::app_config::kUsbProduct);
     constexpr auto serial_string = make_string_descriptor(daplink::app_config::kUsbSerial);
+    constexpr auto hid_interface_string = make_string_descriptor(daplink::app_config::kUsbHidInterface);
+    constexpr auto cdc_function_string = make_string_descriptor(daplink::app_config::kUsbCdcFunction);
+    constexpr auto cdc_control_string = make_string_descriptor(daplink::app_config::kUsbCdcControlInterface);
+    constexpr auto cdc_data_string = make_string_descriptor(daplink::app_config::kUsbCdcDataInterface);
 
     constexpr std::size_t kInvalidDescriptorOffset = static_cast<std::size_t>(-1);
 
@@ -192,6 +203,14 @@ export namespace daplink::usb_device_model {
                 return std::span<const std::uint8_t>(product_string);
             case 3:
                 return std::span<const std::uint8_t>(serial_string);
+            case 4:
+                return std::span<const std::uint8_t>(hid_interface_string);
+            case 5:
+                return std::span<const std::uint8_t>(cdc_function_string);
+            case 6:
+                return std::span<const std::uint8_t>(cdc_control_string);
+            case 7:
+                return std::span<const std::uint8_t>(cdc_data_string);
             default:
                 return {};
         }

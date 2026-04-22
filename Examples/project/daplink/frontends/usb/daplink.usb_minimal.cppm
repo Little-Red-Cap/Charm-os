@@ -6,7 +6,6 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <span>
-#include <type_traits>
 export module daplink.usb_minimal;
 
 import daplink.usb_device_model;
@@ -90,8 +89,6 @@ namespace daplink::usb_minimal::detail {
         std::uint8_t bDataBits = 8;
     };
 
-    struct empty_state {};
-
     struct hid_state {
         std::uint8_t hid_out[2][kHidPacketSize] = {};
         std::uint16_t hid_out_len[2] = {};
@@ -134,8 +131,8 @@ namespace daplink::usb_minimal::detail {
         std::uint8_t ep0_out[kEp0Mps] = {};
         std::uint8_t ep0_in_zlp[1] = {};
         std::uint8_t ep0_in_data[2] = {};
-        [[no_unique_address]] std::conditional_t<kEnableHid, hid_state, empty_state> hid{};
-        [[no_unique_address]] std::conditional_t<kEnableCdc, cdc_state, empty_state> cdc{};
+        hid_state hid{};
+        cdc_state cdc{};
         volatile bool reset_pending = false;
         UsbPcdHandle* hpcd = nullptr;
     };

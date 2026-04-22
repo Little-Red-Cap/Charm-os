@@ -105,7 +105,8 @@ int main()
         daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbManufacturer),
         daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbProduct),
         daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbSerial),
-        daplink::cmsis_dap::make_info_field(daplink::app_config::kFwVersion)
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kCmsisDapProtocolVersion),
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kProductFwVersion)
     };
 
     UartRing uart_tx{};

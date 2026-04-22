@@ -22,6 +22,14 @@ constexpr Armv7aRuntimePackageContract armv7a_make_runtime_package(
     };
 }
 
+constexpr bool armv7a_runtime_package_equal(
+    const Armv7aRuntimePackageContract& lhs,
+    const Armv7aRuntimePackageContract& rhs) noexcept
+{
+    return armv7a_runtime_leaf_bundle_equal(lhs.leaf, rhs.leaf) &&
+           armv7a_runtime_binding_bundle_equal(lhs.binding, rhs.binding);
+}
+
 constexpr bool armv7a_runtime_package_leaf_ready(
     const Armv7aRuntimePackageContract& contract) noexcept
 {

@@ -180,6 +180,12 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
     const auto runtime_package = payload_ready
         ? armv7a_capture_runtime_package_observation()
         : Armv7aRuntimePackageObservation{};
+    const auto& package_landing =
+        armv7a_make_runtime_handoff_package_landing_observation(handoff,
+                                                                rearmed_ports,
+                                                                runtime_package,
+                                                                runtime_live);
+    armv7a_print_runtime_handoff_package_landing_observation(package_landing);
     const auto& landing =
         armv7a_make_runtime_handoff_landing_observation(handoff,
                                                         rearmed_leaf_ready,
@@ -188,7 +194,9 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
                                                         runtime_live);
     armv7a_print_runtime_handoff_landing_observation(landing);
     const auto& path =
-        armv7a_make_runtime_handoff_path_observation(handoff, landing);
+        armv7a_make_runtime_handoff_path_observation(handoff,
+                                                     package_landing,
+                                                     landing);
     armv7a_print_runtime_handoff_path_observation(path);
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffRuntime);

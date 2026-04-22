@@ -258,7 +258,8 @@ synthetic next-stage entry with the inherited `r0/sp` shape, completes the
 `ARMv7-A handoff live, ... live=yes` line, then proves the handed-over runtime
 package can be re-armed in place and directly re-consumed from the landing
 side via one `ARMv7-A runtime handoff landing, ... rearm=yes, payload=yes,
-... landed=yes` line before idling forever.
+... landed=yes` line, plus one `ARMv7-A runtime handoff path, ... path=yes`
+line before idling forever.
 
 For a shorter failure loop around the runtime-facing binding bundle, use:
 
@@ -777,6 +778,11 @@ continue
   it buried inside `handoff_live.cpp`: the re-armed leaf ports, the handed-over
   runtime package payload, the recaptured binding slice, and the re-consumed
   live runtime all have to line up before the landing side counts as ready.
+- The same live preset now also prints one `runtime handoff path` line that
+  closes the whole handoff route into one continuity check: exported handoff
+  payload, prepared entry seam, forwarded transfer payload, live launch
+  landing, and post-landing runtime consumer all have to point at the same
+  runtime handoff object before the path counts as ready.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

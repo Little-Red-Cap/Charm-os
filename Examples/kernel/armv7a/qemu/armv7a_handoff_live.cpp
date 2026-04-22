@@ -19,12 +19,58 @@ extern "C" [[noreturn]] void armv7a_invoke_handoff_launch_live_trampoline(
     std::uintptr_t stack_pointer) noexcept;
 extern "C" [[noreturn]] void armv7a_handoff_live_reinit_stacks(
     const Armv7aRuntimeHandoffContract* handoff) noexcept;
+Armv7aHandoffLiveObservation g_last_handoff_live{};
 
 const char* armv7a_branch_state_name(bool arm_state) noexcept
 {
     return arm_state ? "arm" : "thumb";
 }
 } // namespace
+
+const Armv7aHandoffLiveObservation& armv7a_last_handoff_live_observation()
+    noexcept
+{
+    return g_last_handoff_live;
+}
+
+void armv7a_print_handoff_live_observation(
+    const Armv7aHandoffLiveObservation& observation)
+{
+    armv7a_platform_early_console_puts("ARMv7-A handoff live, target=0x");
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(observation.branch_target));
+    armv7a_platform_early_console_puts(", arg0=0x");
+    armv7a_diag_put_hex(static_cast<std::uint32_t>(observation.arg0_handoff));
+    armv7a_platform_early_console_puts(", mode=");
+    armv7a_platform_early_console_puts(armv7a_mode_name(observation.entry_cpsr));
+    armv7a_platform_early_console_puts(", state=");
+    armv7a_platform_early_console_puts(armv7a_branch_state_name(
+        !armv7a_thumb_enabled(observation.entry_cpsr)));
+    armv7a_platform_early_console_puts(", transfer=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(observation.transfer_ready));
+    armv7a_platform_early_console_puts(", route=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(observation.route_ready));
+    armv7a_platform_early_console_puts(", target=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(observation.target_ready));
+    armv7a_platform_early_console_puts(", arg0=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(observation.arg0_ready));
+    armv7a_platform_early_console_puts(", stack=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(observation.stack_ready));
+    armv7a_platform_early_console_puts(", mode=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(observation.mode_ready));
+    armv7a_platform_early_console_puts(", state=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(observation.state_ready));
+    armv7a_platform_early_console_puts(", live=");
+    armv7a_platform_early_console_puts(
+        armv7a_diag_yes_no(armv7a_handoff_live_ready(observation)));
+    armv7a_platform_early_console_puts("\r\n");
+}
 
 extern "C" [[noreturn]] void armv7a_handoff_live_stage_main(
     const Armv7aRuntimeHandoffContract* handoff,
@@ -81,41 +127,24 @@ extern "C" [[noreturn]] void armv7a_handoff_live_stage_main(
         contract.transfer.arg0_handoff == transfer.arg0_handoff &&
         contract.transfer.arg0_size == transfer.arg0_size &&
         contract.transfer.expect_arm_state == transfer.expect_arm_state;
-    const auto live_ready =
-        transfer_ready && route_ready && target_ready && arg0_ready &&
-        stack_ready && mode_ready && state_ready;
+    g_last_handoff_live = Armv7aHandoffLiveObservation{
+        .branch_target = contract.transfer.entry.branch_target,
+        .arg0_handoff = contract.transfer.arg0_handoff,
+        .entry_stack = entry_sp,
+        .entry_cpsr = entry_cpsr,
+        .transfer_ready = transfer_ready,
+        .route_ready = route_ready,
+        .target_ready = target_ready,
+        .arg0_ready = arg0_ready,
+        .stack_ready = stack_ready,
+        .mode_ready = mode_ready,
+        .state_ready = state_ready,
+    };
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffLaunch);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kHandoffLive);
 
-    armv7a_platform_early_console_puts("ARMv7-A handoff live, target=0x");
-    armv7a_diag_put_hex(
-        static_cast<std::uint32_t>(contract.transfer.entry.branch_target));
-    armv7a_platform_early_console_puts(", arg0=0x");
-    armv7a_diag_put_hex(
-        static_cast<std::uint32_t>(contract.transfer.arg0_handoff));
-    armv7a_platform_early_console_puts(", mode=");
-    armv7a_platform_early_console_puts(armv7a_mode_name(entry_cpsr));
-    armv7a_platform_early_console_puts(", state=");
-    armv7a_platform_early_console_puts(armv7a_branch_state_name(
-        !armv7a_thumb_enabled(entry_cpsr)));
-    armv7a_platform_early_console_puts(", transfer=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(transfer_ready));
-    armv7a_platform_early_console_puts(", route=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(route_ready));
-    armv7a_platform_early_console_puts(", target=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(target_ready));
-    armv7a_platform_early_console_puts(", arg0=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(arg0_ready));
-    armv7a_platform_early_console_puts(", stack=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(stack_ready));
-    armv7a_platform_early_console_puts(", mode=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(mode_ready));
-    armv7a_platform_early_console_puts(", state=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(state_ready));
-    armv7a_platform_early_console_puts(", live=");
-    armv7a_platform_early_console_puts(armv7a_diag_yes_no(live_ready));
-    armv7a_platform_early_console_puts("\r\n");
+    armv7a_print_handoff_live_observation(g_last_handoff_live);
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffLive);
     armv7a_handoff_live_reinit_stacks(handoff);
@@ -158,6 +187,9 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
                                                         runtime_package,
                                                         runtime_live);
     armv7a_print_runtime_handoff_landing_observation(landing);
+    const auto& path =
+        armv7a_make_runtime_handoff_path_observation(handoff, landing);
+    armv7a_print_runtime_handoff_path_observation(path);
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffRuntime);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);

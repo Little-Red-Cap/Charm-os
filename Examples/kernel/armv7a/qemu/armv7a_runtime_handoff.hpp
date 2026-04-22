@@ -42,6 +42,14 @@ struct Armv7aRuntimeHandoffLandingObservation {
     bool runtime_live_consumed = false;
 };
 
+struct Armv7aRuntimeHandoffPathObservation {
+    bool export_ready = false;
+    bool entry_ready = false;
+    bool transfer_ready = false;
+    bool launch_ready = false;
+    bool landing_ready = false;
+};
+
 constexpr bool armv7a_runtime_handoff_landing_package_ready(
     const Armv7aRuntimeHandoffLandingObservation& observation) noexcept
 {
@@ -126,6 +134,14 @@ constexpr bool armv7a_runtime_handoff_landing_ready(
            armv7a_runtime_handoff_landing_live_ready(observation);
 }
 
+constexpr bool armv7a_runtime_handoff_path_ready(
+    const Armv7aRuntimeHandoffPathObservation& observation) noexcept
+{
+    return observation.export_ready && observation.entry_ready &&
+           observation.transfer_ready && observation.launch_ready &&
+           observation.landing_ready;
+}
+
 Armv7aRuntimeHandoffContract armv7a_prepare_runtime_handoff() noexcept;
 Armv7aRuntimeHandoffContract armv7a_last_runtime_handoff() noexcept;
 const Armv7aRuntimeHandoffContract* armv7a_runtime_handoff_export() noexcept;
@@ -143,3 +159,9 @@ armv7a_make_runtime_handoff_landing_observation(
     const Armv7aRuntimeLiveObservation& runtime_live) noexcept;
 void armv7a_print_runtime_handoff_landing_observation(
     const Armv7aRuntimeHandoffLandingObservation& observation);
+const Armv7aRuntimeHandoffPathObservation&
+armv7a_make_runtime_handoff_path_observation(
+    const Armv7aRuntimeHandoffContract* handoff,
+    const Armv7aRuntimeHandoffLandingObservation& landing) noexcept;
+void armv7a_print_runtime_handoff_path_observation(
+    const Armv7aRuntimeHandoffPathObservation& observation);

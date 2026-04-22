@@ -798,6 +798,10 @@
             if (list_shuffle_enabled) {
                 append_library_status_suffix(buf, sizeof(buf), "Shuffled");
             }
+            char back_hint_buf[80]{};
+            if (format_library_back_status_hint(back_hint_buf, sizeof(back_hint_buf))) {
+                append_library_status_suffix(buf, sizeof(buf), back_hint_buf);
+            }
             set_status(buf);
         }
 
@@ -1283,7 +1287,11 @@
                                              std::size_t buf_size) const noexcept {
             if (!buf || buf_size == 0) return false;
             buf[0] = '\0';
-            if (!library_has_context()) return false;
+            if (!library_can_step_back()) return false;
+            if (list_shuffle_enabled && !library_has_context()) {
+                std::snprintf(buf, buf_size, "Back turns shuffle off");
+                return buf[0] != '\0';
+            }
             const std::string_view back_target = library_back_target_label();
             if (back_target.empty()) return false;
             std::snprintf(buf, buf_size, "Back to %.*s",

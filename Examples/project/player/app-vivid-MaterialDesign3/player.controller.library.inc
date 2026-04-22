@@ -2074,21 +2074,11 @@
             if (!access.valid() || !handles.list_path) return;
             FixedString<256> path;
             const bool can_step_back = library_can_step_back();
-            const std::string_view back_target = library_back_target_label();
-            const std::string_view current_tab = library_tab_title(library_tab);
             if (can_step_back) {
                 path.assign("< ");
-                path.append(back_target);
+                path.append(library_back_target_label());
             } else {
                 path.assign("Library");
-            }
-            if (!can_step_back || compare_ci(back_target, current_tab) != 0) {
-                path.append(" / ");
-                path.append(current_tab);
-            }
-            if (library_has_context()) {
-                path.append(" / ");
-                path.append(library_context_key.view());
             }
             set_label_slot(handles.list_path, text_slots.list_path, path.c_str());
         }

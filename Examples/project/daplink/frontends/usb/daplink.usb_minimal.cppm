@@ -1,7 +1,6 @@
 module;
 
-#include "daplink_backend.hpp"
-#include "usb.h"
+#include "daplink_port_api.hpp"
 
 #include <array>
 #include <cstddef>
@@ -10,36 +9,34 @@ module;
 #include <type_traits>
 export module daplink.usb_minimal;
 
-import daplink.app_config;
+import daplink.usb_device_model;
 
 namespace daplink::usb_minimal::detail {
-    using UsbProfile = daplink::app_config::UsbProfile;
-    constexpr auto& kConfig = daplink::app_config::kConfig;
-    constexpr UsbProfile kUsbProfile = kConfig.usb.profile;
-    constexpr bool kEnableHid =
-        (kUsbProfile == UsbProfile::hid) || (kUsbProfile == UsbProfile::composite);
-    constexpr bool kEnableCdc =
-        (kUsbProfile == UsbProfile::cdc) || (kUsbProfile == UsbProfile::composite);
-    constexpr bool kCdcHasCmdEp = kEnableCdc && kConfig.usb.cdc_has_cmd_ep;
+    namespace model = daplink::usb_device_model;
+    using UsbPcdHandle = daplink::port::UsbPcdHandle;
+    using UsbEndpointType = daplink::port::UsbEndpointType;
+    constexpr bool kEnableHid = model::kEnableHid;
+    constexpr bool kEnableCdc = model::kEnableCdc;
+    constexpr bool kCdcHasCmdEp = model::kCdcHasCmdEp;
 
-    constexpr std::uint8_t kEp0Mps = kConfig.usb.ep0_mps;
-    constexpr std::uint8_t kHidEpOut = kConfig.usb.hid_ep_out;
-    constexpr std::uint8_t kHidEpIn = kConfig.usb.hid_ep_in;
-    constexpr std::uint16_t kHidEpMps = kConfig.usb.hid_ep_mps;
-    constexpr std::size_t kHidPacketSize = kConfig.usb.hid_packet_size;
-    constexpr std::uint8_t kCdcEpCmd = kConfig.usb.cdc_ep_cmd;
-    constexpr std::uint8_t kCdcEpOut = kConfig.usb.cdc_ep_out;
-    constexpr std::uint8_t kCdcEpIn = kConfig.usb.cdc_ep_in;
-    constexpr std::uint16_t kCdcEpCmdMps = kConfig.usb.cdc_ep_cmd_mps;
-    constexpr std::uint16_t kCdcEpMps = kConfig.usb.cdc_ep_mps;
+    constexpr std::uint8_t kEp0Mps = model::kEp0Mps;
+    constexpr std::uint8_t kHidEpOut = model::kHidEpOut;
+    constexpr std::uint8_t kHidEpIn = model::kHidEpIn;
+    constexpr std::uint16_t kHidEpMps = model::kHidEpMps;
+    constexpr std::size_t kHidPacketSize = model::kHidPacketSize;
+    constexpr std::uint8_t kCdcEpCmd = model::kCdcEpCmd;
+    constexpr std::uint8_t kCdcEpOut = model::kCdcEpOut;
+    constexpr std::uint8_t kCdcEpIn = model::kCdcEpIn;
+    constexpr std::uint16_t kCdcEpCmdMps = model::kCdcEpCmdMps;
+    constexpr std::uint16_t kCdcEpMps = model::kCdcEpMps;
 
-    constexpr std::uint16_t kPmaEp0Out = daplink::backend::kUsbPmaEp0Out;
-    constexpr std::uint16_t kPmaEp0In = daplink::backend::kUsbPmaEp0In;
-    constexpr std::uint16_t kPmaHidIn = daplink::backend::kUsbPmaHidIn;
-    constexpr std::uint16_t kPmaHidOut = daplink::backend::kUsbPmaHidOut;
-    constexpr std::uint16_t kPmaCdcCmd = daplink::backend::kUsbPmaCdcCmd;
-    constexpr std::uint16_t kPmaCdcOut = daplink::backend::kUsbPmaCdcOut;
-    constexpr std::uint16_t kPmaCdcIn = daplink::backend::kUsbPmaCdcIn;
+    constexpr std::uint16_t kPmaEp0Out = daplink::port::kUsbPmaEp0Out;
+    constexpr std::uint16_t kPmaEp0In = daplink::port::kUsbPmaEp0In;
+    constexpr std::uint16_t kPmaHidIn = daplink::port::kUsbPmaHidIn;
+    constexpr std::uint16_t kPmaHidOut = daplink::port::kUsbPmaHidOut;
+    constexpr std::uint16_t kPmaCdcCmd = daplink::port::kUsbPmaCdcCmd;
+    constexpr std::uint16_t kPmaCdcOut = daplink::port::kUsbPmaCdcOut;
+    constexpr std::uint16_t kPmaCdcIn = daplink::port::kUsbPmaCdcIn;
     constexpr std::uint8_t kReqGetStatus = 0x00;
     constexpr std::uint8_t kReqClearFeature = 0x01;
     constexpr std::uint8_t kReqSetFeature = 0x03;
@@ -67,9 +64,8 @@ namespace daplink::usb_minimal::detail {
     constexpr std::uint8_t kTypeClass = 0x20;
     constexpr std::uint8_t kDirIn = 0x80;
     constexpr std::uint8_t kRecipientInterface = 0x01;
-    constexpr std::uint8_t kCdcCommInterface = 0;
-    constexpr std::uint8_t kCdcDataInterface = 1;
-    constexpr std::uint8_t kHidInterface = kEnableCdc ? 2 : 0;
+    constexpr std::uint8_t kCdcCommInterface = model::kCdcCommInterface;
+    constexpr std::uint8_t kHidInterface = model::kHidInterface;
 
     struct setup_packet {
         std::uint8_t bm_request_type;
@@ -141,113 +137,11 @@ namespace daplink::usb_minimal::detail {
         [[no_unique_address]] std::conditional_t<kEnableHid, hid_state, empty_state> hid{};
         [[no_unique_address]] std::conditional_t<kEnableCdc, cdc_state, empty_state> cdc{};
         volatile bool reset_pending = false;
-        PCD_HandleTypeDef* hpcd = nullptr;
+        UsbPcdHandle* hpcd = nullptr;
     };
 
     inline usb_state g_state{};
-    constexpr std::uint32_t kCdcInTimeoutMs = kConfig.cdc.in_timeout_ms;
-
-    constexpr std::uint8_t kDeviceClass =
-        (kUsbProfile == UsbProfile::composite) ? 0xEF : 0x00;
-    constexpr std::uint8_t kDeviceSubClass =
-        (kUsbProfile == UsbProfile::composite) ? 0x02 : 0x00;
-    constexpr std::uint8_t kDeviceProtocol =
-        (kUsbProfile == UsbProfile::composite) ? 0x01 : 0x00;
-
-    constexpr std::uint8_t device_descriptor[] = {
-        0x12, 0x01, 0x00, 0x02, kDeviceClass, kDeviceSubClass, kDeviceProtocol, kEp0Mps,
-        static_cast<std::uint8_t>(kConfig.usb.vid & 0xFFU),
-        static_cast<std::uint8_t>((kConfig.usb.vid >> 8) & 0xFFU),
-        static_cast<std::uint8_t>(kConfig.usb.pid & 0xFFU),
-        static_cast<std::uint8_t>((kConfig.usb.pid >> 8) & 0xFFU),
-        0x00, 0x01, 0x01, 0x02,
-        0x03, 0x01
-    };
-
-    constexpr std::uint8_t hid_report_descriptor[] = {
-        0x06, 0x00, 0xFF,
-        0x09, 0x01,
-        0xA1, 0x01,
-        0x09, 0x02,
-        0x15, 0x00,
-        0x26, 0xFF, 0x00,
-        0x75, 0x08,
-        0x95, 0x40,
-        0x81, 0x02,
-        0x09, 0x03,
-        0x95, 0x40,
-        0x91, 0x02,
-        0xC0
-    };
-
-    consteval auto make_configuration_descriptor() {
-        if constexpr (kUsbProfile == UsbProfile::composite) {
-            return std::array<std::uint8_t, 0x6B>{
-        0x09, 0x02, 0x6B, 0x00, 0x03, 0x01, 0x00, 0x80, 0x32,
-        0x08, 0x0B, 0x00, 0x02, 0x02, 0x02, 0x01, 0x00,
-        0x09, 0x04, 0x00, 0x00, 0x01, 0x02, 0x02, 0x01, 0x00,
-        0x05, 0x24, 0x00, 0x10, 0x01,
-        0x05, 0x24, 0x01, 0x03, 0x01,
-        0x04, 0x24, 0x02, 0x06,
-        0x05, 0x24, 0x06, 0x00, 0x01,
-        0x07, 0x05, kCdcEpCmd, 0x03, 0x08, 0x00, 0x10,
-        0x09, 0x04, 0x01, 0x00, 0x02, 0x0A, 0x00, 0x00, 0x00,
-        0x07, 0x05, kCdcEpOut, 0x02, 0x40, 0x00, 0x00,
-        0x07, 0x05, kCdcEpIn, 0x02, 0x40, 0x00, 0x00,
-        0x09, 0x04, 0x02, 0x00, 0x02, 0x03, 0x00, 0x00, 0x00,
-        0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22, static_cast<std::uint8_t>(sizeof(hid_report_descriptor)), 0x00,
-        0x07, 0x05, kHidEpIn, 0x03, 0x40, 0x00, 0x01,
-        0x07, 0x05, kHidEpOut, 0x03, 0x40, 0x00, 0x01
-            };
-        } else if constexpr (kUsbProfile == UsbProfile::cdc) {
-            return std::array<std::uint8_t, 0x4B>{
-        0x09, 0x02, 0x4B, 0x00, 0x02, 0x01, 0x00, 0x80, 0x32,
-        0x08, 0x0B, 0x00, 0x02, 0x02, 0x02, 0x01, 0x00,
-        0x09, 0x04, 0x00, 0x00, 0x01, 0x02, 0x02, 0x01, 0x00,
-        0x05, 0x24, 0x00, 0x10, 0x01,
-        0x05, 0x24, 0x01, 0x03, 0x01,
-        0x04, 0x24, 0x02, 0x06,
-        0x05, 0x24, 0x06, 0x00, 0x01,
-        0x07, 0x05, kCdcEpCmd, 0x03, 0x08, 0x00, 0x10,
-        0x09, 0x04, 0x01, 0x00, 0x02, 0x0A, 0x00, 0x00, 0x00,
-        0x07, 0x05, kCdcEpOut, 0x02, 0x40, 0x00, 0x00,
-        0x07, 0x05, kCdcEpIn, 0x02, 0x40, 0x00, 0x00
-            };
-        } else {
-            return std::array<std::uint8_t, 0x29>{
-        0x09, 0x02, 0x29, 0x00, 0x01, 0x01, 0x00, 0x80, 0x32,
-        0x09, 0x04, 0x00, 0x00, 0x02, 0x03, 0x00, 0x00, 0x00,
-        0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22, static_cast<std::uint8_t>(sizeof(hid_report_descriptor)), 0x00,
-        0x07, 0x05, kHidEpIn, 0x03, 0x40, 0x00, 0x01,
-        0x07, 0x05, kHidEpOut, 0x03, 0x40, 0x00, 0x01
-            };
-        }
-    }
-
-    constexpr auto configuration_descriptor = make_configuration_descriptor();
-    static_assert((kUsbProfile == UsbProfile::composite && configuration_descriptor.size() == 0x6B) ||
-                  (kUsbProfile == UsbProfile::cdc && configuration_descriptor.size() == 0x4B) ||
-                  (kUsbProfile == UsbProfile::hid && configuration_descriptor.size() == 0x29));
-
-    constexpr std::uint8_t lang_id_descriptor[] = {0x04, 0x03, 0x09, 0x04};
-
-    template <std::size_t N>
-    consteval auto make_string_descriptor(const char (&text)[N]) {
-        static_assert(N > 0);
-        constexpr std::size_t kLen = 2 + (N - 1) * 2;
-        std::array<std::uint8_t, kLen> desc{};
-        desc[0] = static_cast<std::uint8_t>(kLen);
-        desc[1] = 0x03;
-        for (std::size_t i = 0; i < N - 1; ++i) {
-            desc[2 + i * 2] = static_cast<std::uint8_t>(text[i]);
-            desc[3 + i * 2] = 0;
-        }
-        return desc;
-    }
-
-    constexpr auto manufacturer_string = make_string_descriptor(daplink::app_config::kUsbManufacturer);
-    constexpr auto product_string = make_string_descriptor(daplink::app_config::kUsbProduct);
-    constexpr auto serial_string = make_string_descriptor(daplink::app_config::kUsbSerial);
+    constexpr std::uint32_t kCdcInTimeoutMs = model::kCdcInTimeoutMs;
     inline constexpr std::array<std::uint8_t, kHidPacketSize> kEmptyHidPacket = {};
     inline std::array<std::uint8_t, kHidPacketSize> kHidScratch = {};
 
@@ -255,8 +149,9 @@ namespace daplink::usb_minimal::detail {
         return (a < b) ? a : b;
     }
 
-    inline setup_packet parse_setup(const PCD_HandleTypeDef& hpcd) noexcept {
-        const auto* b = reinterpret_cast<const std::uint8_t*>(hpcd.Setup);
+    inline setup_packet parse_setup(const UsbPcdHandle& hpcd) noexcept {
+        std::uint8_t b[8] = {};
+        daplink::port::usb_copy_setup_packet(hpcd, b);
         return {
             b[0],
             b[1],
@@ -266,12 +161,12 @@ namespace daplink::usb_minimal::detail {
         };
     }
 
-    inline void ep0_stall(PCD_HandleTypeDef& hpcd) noexcept {
-        (void)HAL_PCD_EP_SetStall(&hpcd, 0x00);
-        (void)HAL_PCD_EP_SetStall(&hpcd, 0x80);
+    inline void ep0_stall(UsbPcdHandle& hpcd) noexcept {
+        (void)daplink::port::usb_ep_set_stall(hpcd, 0x00);
+        (void)daplink::port::usb_ep_set_stall(hpcd, 0x80);
     }
 
-    inline void ep0_send(PCD_HandleTypeDef& hpcd,
+    inline void ep0_send(UsbPcdHandle& hpcd,
                          const std::uint8_t* data,
                          std::uint16_t len,
                          std::uint16_t req_len) noexcept {
@@ -281,7 +176,7 @@ namespace daplink::usb_minimal::detail {
             g_state.ep0_in_req_len = req_len;
             g_state.ep0_in_active = false;
             g_state.ep0_in_need_zlp = false;
-            (void)HAL_PCD_EP_Transmit(&hpcd, 0x80, g_state.ep0_in_zlp, 0);
+            (void)daplink::port::usb_ep_transmit(hpcd, 0x80, g_state.ep0_in_zlp, 0);
             return;
         }
 
@@ -292,32 +187,33 @@ namespace daplink::usb_minimal::detail {
         g_state.ep0_in_need_zlp = (g_state.ep0_in_remaining == 0) && (len < req_len) &&
                                   ((len % kEp0Mps) == 0);
         g_state.ep0_in_active = g_state.ep0_in_remaining > 0 || g_state.ep0_in_need_zlp;
-        (void)HAL_PCD_EP_Transmit(&hpcd, 0x80, const_cast<std::uint8_t*>(data), send_len);
+        (void)daplink::port::usb_ep_transmit(
+            hpcd, 0x80, const_cast<std::uint8_t*>(data), send_len);
     }
 
-    inline void ep0_status_in(PCD_HandleTypeDef& hpcd) noexcept {
-        (void)HAL_PCD_EP_Transmit(&hpcd, 0x80, g_state.ep0_in_zlp, 0);
+    inline void ep0_status_in(UsbPcdHandle& hpcd) noexcept {
+        (void)daplink::port::usb_ep_transmit(hpcd, 0x80, g_state.ep0_in_zlp, 0);
     }
 
-    inline void ep0_prepare_out(PCD_HandleTypeDef& hpcd, std::uint16_t len, const ep0_out_kind kind) noexcept {
+    inline void ep0_prepare_out(UsbPcdHandle& hpcd, std::uint16_t len, const ep0_out_kind kind) noexcept {
         g_state.pending_ep0_out = true;
         g_state.pending_ep0_kind = kind;
         g_state.pending_out_length = min_u16(len, kEp0Mps);
-        (void)HAL_PCD_EP_Receive(&hpcd, 0x00, g_state.ep0_out, g_state.pending_out_length);
+        (void)daplink::port::usb_ep_receive(hpcd, 0x00, g_state.ep0_out, g_state.pending_out_length);
     }
 
-    inline void hid_arm_out(PCD_HandleTypeDef& hpcd, const std::uint8_t index) noexcept {
+    inline void hid_arm_out(UsbPcdHandle& hpcd, const std::uint8_t index) noexcept {
         if constexpr (!kEnableHid) {
             (void)hpcd;
             (void)index;
         } else {
             g_state.hid.hid_out_active_index = index;
             g_state.hid.hid_out_armed = true;
-            (void)HAL_PCD_EP_Receive(&hpcd, kHidEpOut, g_state.hid.hid_out[index], kHidEpMps);
+            (void)daplink::port::usb_ep_receive(hpcd, kHidEpOut, g_state.hid.hid_out[index], kHidEpMps);
         }
     }
 
-    inline void hid_try_rearm(PCD_HandleTypeDef& hpcd) noexcept {
+    inline void hid_try_rearm(UsbPcdHandle& hpcd) noexcept {
         if constexpr (!kEnableHid) {
             (void)hpcd;
         } else {
@@ -332,7 +228,7 @@ namespace daplink::usb_minimal::detail {
         }
     }
 
-    inline bool hid_in_send(PCD_HandleTypeDef& hpcd, const std::uint16_t len) noexcept {
+    inline bool hid_in_send(UsbPcdHandle& hpcd, const std::uint16_t len) noexcept {
         if constexpr (!kEnableHid) {
             (void)hpcd;
             (void)len;
@@ -343,23 +239,23 @@ namespace daplink::usb_minimal::detail {
             }
             const std::uint16_t send_len = (len > kHidEpMps) ? kHidEpMps : len;
             g_state.hid.hid_in_busy = true;
-            (void)HAL_PCD_EP_Transmit(&hpcd, kHidEpIn, g_state.hid.hid_in, send_len);
+            (void)daplink::port::usb_ep_transmit(hpcd, kHidEpIn, g_state.hid.hid_in, send_len);
             return true;
         }
     }
 
-    inline void cdc_arm_out(PCD_HandleTypeDef& hpcd, const std::uint8_t index) noexcept {
+    inline void cdc_arm_out(UsbPcdHandle& hpcd, const std::uint8_t index) noexcept {
         if constexpr (!kEnableCdc) {
             (void)hpcd;
             (void)index;
         } else {
             g_state.cdc.cdc_out_active_index = index;
             g_state.cdc.cdc_out_armed = true;
-            (void)HAL_PCD_EP_Receive(&hpcd, kCdcEpOut, g_state.cdc.cdc_out[index], kCdcEpMps);
+            (void)daplink::port::usb_ep_receive(hpcd, kCdcEpOut, g_state.cdc.cdc_out[index], kCdcEpMps);
         }
     }
 
-    inline void cdc_try_rearm(PCD_HandleTypeDef& hpcd) noexcept {
+    inline void cdc_try_rearm(UsbPcdHandle& hpcd) noexcept {
         if constexpr (!kEnableCdc) {
             (void)hpcd;
         } else {
@@ -374,7 +270,7 @@ namespace daplink::usb_minimal::detail {
         }
     }
 
-    inline bool cdc_in_send(PCD_HandleTypeDef& hpcd, const std::uint8_t* data, const std::uint16_t len) noexcept {
+    inline bool cdc_in_send(UsbPcdHandle& hpcd, const std::uint8_t* data, const std::uint16_t len) noexcept {
         if constexpr (!kEnableCdc) {
             (void)hpcd;
             (void)data;
@@ -389,83 +285,25 @@ namespace daplink::usb_minimal::detail {
                 g_state.cdc.cdc_in[i] = data[i];
             }
             g_state.cdc.cdc_in_busy = true;
-            g_state.cdc.cdc_in_last_ms = HAL_GetTick();
-            (void)HAL_PCD_EP_Transmit(&hpcd, kCdcEpIn, g_state.cdc.cdc_in, send_len);
+            g_state.cdc.cdc_in_last_ms = daplink::port::tick_ms();
+            (void)daplink::port::usb_ep_transmit(hpcd, kCdcEpIn, g_state.cdc.cdc_in, send_len);
             return true;
         }
     }
 
-    inline void handle_get_descriptor(PCD_HandleTypeDef& hpcd, const setup_packet& s) noexcept {
-        const std::uint8_t desc_type = static_cast<std::uint8_t>(s.w_value >> 8);
-        const std::uint8_t desc_index = static_cast<std::uint8_t>(s.w_value & 0xFF);
-        const std::uint8_t* data = nullptr;
-        std::uint16_t len = 0;
-
-        switch (desc_type) {
-            case kDescTypeDevice:
-                data = device_descriptor;
-                len = static_cast<std::uint16_t>(sizeof(device_descriptor));
-                break;
-            case kDescTypeConfiguration:
-                data = configuration_descriptor.data();
-                len = static_cast<std::uint16_t>(configuration_descriptor.size());
-                break;
-            case kDescTypeString:
-                if (desc_index == 0) {
-                    data = lang_id_descriptor;
-                    len = static_cast<std::uint16_t>(sizeof(lang_id_descriptor));
-                } else if (desc_index == 1) {
-                    data = manufacturer_string.data();
-                    len = static_cast<std::uint16_t>(manufacturer_string.size());
-                } else if (desc_index == 2) {
-                    data = product_string.data();
-                    len = static_cast<std::uint16_t>(product_string.size());
-                } else if (desc_index == 3) {
-                    data = serial_string.data();
-                    len = static_cast<std::uint16_t>(serial_string.size());
-                }
-                break;
-            case kDescTypeReport:
-                if constexpr (!kEnableHid) {
-                    ep0_stall(hpcd);
-                    return;
-                } else {
-                    data = hid_report_descriptor;
-                    len = static_cast<std::uint16_t>(sizeof(hid_report_descriptor));
-                }
-                break;
-            case kDescTypeHid:
-                if constexpr (!kEnableHid) {
-                    ep0_stall(hpcd);
-                    return;
-                } else {
-                    for (std::size_t offset = 0; offset + 1 < configuration_descriptor.size(); ) {
-                        const std::uint8_t dlen = configuration_descriptor[offset];
-                        const std::uint8_t dtype = configuration_descriptor[offset + 1];
-                        if (dlen == 0) {
-                            break;
-                        }
-                        if (dtype == kDescTypeHid) {
-                            data = configuration_descriptor.data() + offset;
-                            len = dlen;
-                            break;
-                        }
-                        offset += dlen;
-                    }
-                }
-                break;
-            default:
-                break;
-        }
-
-        if (data == nullptr) {
+    inline void handle_get_descriptor(UsbPcdHandle& hpcd, const setup_packet& s) noexcept {
+        const auto descriptor = model::descriptor(
+            static_cast<std::uint8_t>(s.w_value >> 8),
+            static_cast<std::uint8_t>(s.w_value & 0xFFU));
+        if (descriptor.empty()) {
             ep0_stall(hpcd);
             return;
         }
+        std::uint16_t len = static_cast<std::uint16_t>(descriptor.size());
         if (len > s.w_length) {
             len = s.w_length;
         }
-        ep0_send(hpcd, data, len, s.w_length);
+        ep0_send(hpcd, descriptor.data(), len, s.w_length);
     }
 } // namespace daplink::usb_minimal::detail
 
@@ -481,52 +319,53 @@ export namespace daplink::usb_minimal {
         std::uint8_t data_bits = 8;
     };
 
-    inline bool attach(PCD_HandleTypeDef& hpcd) noexcept {
+    inline bool attach(UsbPcdHandle& hpcd) noexcept {
         g_state.hpcd = &hpcd;
-        const auto r0 = HAL_PCDEx_PMAConfig(&hpcd, 0x00, PCD_SNG_BUF, kPmaEp0Out);
-        const auto r1 = HAL_PCDEx_PMAConfig(&hpcd, 0x80, PCD_SNG_BUF, kPmaEp0In);
-        const bool base_ok = (r0 == HAL_OK) && (r1 == HAL_OK);
+        const bool base_ok =
+            daplink::port::usb_pma_config_single_buffer(hpcd, 0x00, kPmaEp0Out) &&
+            daplink::port::usb_pma_config_single_buffer(hpcd, 0x80, kPmaEp0In);
         bool hid_ok = true;
         if constexpr (kEnableHid) {
-            const auto r2 = HAL_PCDEx_PMAConfig(&hpcd, kHidEpIn, PCD_SNG_BUF, kPmaHidIn);
-            const auto r3 = HAL_PCDEx_PMAConfig(&hpcd, kHidEpOut, PCD_SNG_BUF, kPmaHidOut);
-            hid_ok = (r2 == HAL_OK) && (r3 == HAL_OK);
+            hid_ok =
+                daplink::port::usb_pma_config_single_buffer(hpcd, kHidEpIn, kPmaHidIn) &&
+                daplink::port::usb_pma_config_single_buffer(hpcd, kHidEpOut, kPmaHidOut);
         }
         bool cdc_ok = true;
         if constexpr (kEnableCdc) {
             if constexpr (kCdcHasCmdEp) {
-                const auto r4 = HAL_PCDEx_PMAConfig(&hpcd, kCdcEpCmd, PCD_SNG_BUF, kPmaCdcCmd);
-                const auto r5 = HAL_PCDEx_PMAConfig(&hpcd, kCdcEpOut, PCD_SNG_BUF, kPmaCdcOut);
-                const auto r6 = HAL_PCDEx_PMAConfig(&hpcd, kCdcEpIn, PCD_SNG_BUF, kPmaCdcIn);
-                cdc_ok = (r4 == HAL_OK) && (r5 == HAL_OK) && (r6 == HAL_OK);
+                cdc_ok =
+                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpCmd, kPmaCdcCmd) &&
+                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpOut, kPmaCdcOut) &&
+                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpIn, kPmaCdcIn);
             } else {
-                const auto r5 = HAL_PCDEx_PMAConfig(&hpcd, kCdcEpOut, PCD_SNG_BUF, kPmaCdcOut);
-                const auto r6 = HAL_PCDEx_PMAConfig(&hpcd, kCdcEpIn, PCD_SNG_BUF, kPmaCdcIn);
-                cdc_ok = (r5 == HAL_OK) && (r6 == HAL_OK);
+                cdc_ok =
+                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpOut, kPmaCdcOut) &&
+                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpIn, kPmaCdcIn);
             }
         }
         return base_ok && hid_ok && cdc_ok;
     }
 
-    inline void on_reset(PCD_HandleTypeDef& hpcd) noexcept {
+    inline void on_reset(UsbPcdHandle& hpcd) noexcept {
         g_state = {};
         g_state.hpcd = &hpcd;
         g_state.reset_pending = true;
-        (void)HAL_PCD_SetAddress(&hpcd, 0);
-        (void)HAL_PCD_EP_Open(&hpcd, 0x00, kEp0Mps, EP_TYPE_CTRL);
-        (void)HAL_PCD_EP_Open(&hpcd, 0x80, kEp0Mps, EP_TYPE_CTRL);
+        (void)daplink::port::usb_set_address(hpcd, 0);
+        (void)daplink::port::usb_ep_open(hpcd, 0x00, kEp0Mps, UsbEndpointType::control);
+        (void)daplink::port::usb_ep_open(hpcd, 0x80, kEp0Mps, UsbEndpointType::control);
         if constexpr (kEnableHid) {
-            (void)HAL_PCD_EP_Open(&hpcd, kHidEpIn, kHidEpMps, EP_TYPE_INTR);
-            (void)HAL_PCD_EP_Open(&hpcd, kHidEpOut, kHidEpMps, EP_TYPE_INTR);
+            (void)daplink::port::usb_ep_open(hpcd, kHidEpIn, kHidEpMps, UsbEndpointType::interrupt);
+            (void)daplink::port::usb_ep_open(hpcd, kHidEpOut, kHidEpMps, UsbEndpointType::interrupt);
         }
         if constexpr (kEnableCdc) {
             if constexpr (kCdcHasCmdEp) {
-                (void)HAL_PCD_EP_Open(&hpcd, kCdcEpCmd, kCdcEpCmdMps, EP_TYPE_INTR);
+                (void)daplink::port::usb_ep_open(
+                    hpcd, kCdcEpCmd, kCdcEpCmdMps, UsbEndpointType::interrupt);
             }
-            (void)HAL_PCD_EP_Open(&hpcd, kCdcEpIn, kCdcEpMps, EP_TYPE_BULK);
-            (void)HAL_PCD_EP_Open(&hpcd, kCdcEpOut, kCdcEpMps, EP_TYPE_BULK);
+            (void)daplink::port::usb_ep_open(hpcd, kCdcEpIn, kCdcEpMps, UsbEndpointType::bulk);
+            (void)daplink::port::usb_ep_open(hpcd, kCdcEpOut, kCdcEpMps, UsbEndpointType::bulk);
         }
-        (void)HAL_PCD_EP_Receive(&hpcd, 0x00, g_state.ep0_out, kEp0Mps);
+        (void)daplink::port::usb_ep_receive(hpcd, 0x00, g_state.ep0_out, kEp0Mps);
         if constexpr (kEnableHid) {
             hid_arm_out(hpcd, 0);
         }
@@ -535,7 +374,7 @@ export namespace daplink::usb_minimal {
         }
     }
 
-    inline void on_setup_stage(PCD_HandleTypeDef& hpcd) noexcept {
+    inline void on_setup_stage(UsbPcdHandle& hpcd) noexcept {
         const auto s = parse_setup(hpcd);
         const auto req_type = static_cast<std::uint8_t>(s.bm_request_type & 0x60);
         const bool dir_in = (s.bm_request_type & kDirIn) != 0;
@@ -734,7 +573,7 @@ export namespace daplink::usb_minimal {
         ep0_stall(hpcd);
     }
 
-    inline void on_data_out_stage(PCD_HandleTypeDef& hpcd, std::uint8_t epnum) noexcept {
+    inline void on_data_out_stage(UsbPcdHandle& hpcd, std::uint8_t epnum) noexcept {
         if (epnum == 0 && g_state.pending_ep0_out) {
             g_state.pending_ep0_out = false;
             if constexpr (kEnableCdc) {
@@ -762,7 +601,7 @@ export namespace daplink::usb_minimal {
         if (epnum == 1) {
             if constexpr (kEnableHid) {
                 const std::uint8_t index = g_state.hid.hid_out_active_index;
-                g_state.hid.hid_out_len[index] = static_cast<std::uint16_t>(HAL_PCD_EP_GetRxCount(&hpcd, kHidEpOut));
+                g_state.hid.hid_out_len[index] = daplink::port::usb_ep_rx_count(hpcd, kHidEpOut);
                 const bool was_empty = (g_state.hid.hid_out_full_mask == 0U);
                 g_state.hid.hid_out_full_mask = static_cast<std::uint8_t>(g_state.hid.hid_out_full_mask | (1U << index));
                 if (was_empty) {
@@ -775,7 +614,7 @@ export namespace daplink::usb_minimal {
         if (epnum == (kCdcEpOut & 0x7FU)) {
             if constexpr (kEnableCdc) {
                 const std::uint8_t index = g_state.cdc.cdc_out_active_index;
-                g_state.cdc.cdc_out_len[index] = static_cast<std::uint16_t>(HAL_PCD_EP_GetRxCount(&hpcd, kCdcEpOut));
+                g_state.cdc.cdc_out_len[index] = daplink::port::usb_ep_rx_count(hpcd, kCdcEpOut);
                 const bool was_empty = (g_state.cdc.cdc_out_full_mask == 0U);
                 g_state.cdc.cdc_out_full_mask = static_cast<std::uint8_t>(g_state.cdc.cdc_out_full_mask | (1U << index));
                 if (was_empty) {
@@ -787,7 +626,7 @@ export namespace daplink::usb_minimal {
         }
     }
 
-    inline void on_data_in_stage(PCD_HandleTypeDef& hpcd, std::uint8_t epnum) noexcept {
+    inline void on_data_in_stage(UsbPcdHandle& hpcd, std::uint8_t epnum) noexcept {
         if (epnum == 0) {
             if (g_state.ep0_in_active) {
                 if (g_state.ep0_in_remaining > 0) {
@@ -803,23 +642,23 @@ export namespace daplink::usb_minimal {
                     } else if (g_state.ep0_in_remaining == 0) {
                         g_state.ep0_in_active = false;
                     }
-                    (void)HAL_PCD_EP_Transmit(&hpcd, 0x80,
-                                              const_cast<std::uint8_t*>(send_ptr), send_len);
+                    (void)daplink::port::usb_ep_transmit(
+                        hpcd, 0x80, const_cast<std::uint8_t*>(send_ptr), send_len);
                     return;
                 }
                 if (g_state.ep0_in_need_zlp) {
                     g_state.ep0_in_need_zlp = false;
                     g_state.ep0_in_active = false;
-                    (void)HAL_PCD_EP_Transmit(&hpcd, 0x80, g_state.ep0_in_zlp, 0);
+                    (void)daplink::port::usb_ep_transmit(hpcd, 0x80, g_state.ep0_in_zlp, 0);
                     return;
                 }
                 g_state.ep0_in_active = false;
             }
             if (g_state.address_pending) {
                 g_state.address_pending = false;
-                (void)HAL_PCD_SetAddress(&hpcd, g_state.pending_address);
+                (void)daplink::port::usb_set_address(hpcd, g_state.pending_address);
             }
-            (void)HAL_PCD_EP_Receive(&hpcd, 0x00, g_state.ep0_out, kEp0Mps);
+            (void)daplink::port::usb_ep_receive(hpcd, 0x00, g_state.ep0_out, kEp0Mps);
         }
         if (epnum == (kHidEpIn & 0x7FU)) {
             if constexpr (kEnableHid) {
@@ -964,7 +803,7 @@ export namespace daplink::usb_minimal {
         if (!g_state.cdc.cdc_in_busy) {
             return;
         }
-        const std::uint32_t now = HAL_GetTick();
+        const std::uint32_t now = daplink::port::tick_ms();
         if ((now - g_state.cdc.cdc_in_last_ms) > kCdcInTimeoutMs) {
             g_state.cdc.cdc_in_busy = false;
         }

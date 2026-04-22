@@ -1,14 +1,22 @@
 #include "armv7a_bringup_phase.hpp"
 #include "armv7a_boot_diagnostics.hpp"
 #include "armv7a_context_smoke.hpp"
+#include "armv7a_handoff_launch.hpp"
+#include "armv7a_handoff_live.hpp"
 #include "armv7a_handoff_prepare.hpp"
+#include "armv7a_handoff_transfer.hpp"
 #include "armv7a_interrupt_observation_sequence.hpp"
 #include "armv7a_kernel_port.hpp"
 #include "armv7a_memory_probe_sequence.hpp"
 #include "armv7a_platform.hpp"
 #include "armv7a_runtime_bridge.hpp"
 #include "armv7a_runtime_live.hpp"
+#include "armv7a_runtime_binding_bundle.hpp"
+#include "armv7a_runtime_leaf_bundle.hpp"
+#include "armv7a_runtime_package.hpp"
+#include "armv7a_runtime_leaf_ports.hpp"
 #include "armv7a_runtime_loop.hpp"
+#include "armv7a_runtime_thread.hpp"
 #include "armv7a_runtime_trap_frame.hpp"
 #include "armv7a_runtime_trap.hpp"
 #include "armv7a_runtime_trap_adapter.hpp"
@@ -111,9 +119,24 @@ int main()
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeLoopIngress);
     armv7a_print_runtime_loop_ingress();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeLoopIngress);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeLeafPorts);
+    armv7a_print_runtime_leaf_ports_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeLeafPorts);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeThreadPort);
+    armv7a_print_runtime_thread_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeThreadPort);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeLive);
     armv7a_print_runtime_live_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeLive);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeBindingBundle);
+    armv7a_print_runtime_binding_bundle_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeBindingBundle);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimeLeafBundle);
+    armv7a_print_runtime_leaf_bundle_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimeLeafBundle);
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kRuntimePackage);
+    armv7a_print_runtime_package_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kRuntimePackage);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kTaskSyscallFrame);
     armv7a_print_task_syscall_frame_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallFrame);
@@ -141,6 +164,16 @@ int main()
     armv7a_print_task_syscall_failure_observation();
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kTaskSyscallFailure);
     armv7a_run_handoff_prepare_dry_run();
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kHandoffTransfer);
+    armv7a_print_handoff_transfer_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffTransfer);
+#if defined(CHARM_ARMV7A_HANDOFF_SMOKE_LIVE)
+    armv7a_run_handoff_live_smoke();
+#else
+    armv7a_enter_bringup_phase(Armv7aBringupPhase::kHandoffLaunch);
+    armv7a_print_handoff_launch_observation();
+    armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffLaunch);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);
     armv7a_platform_idle_forever();
+#endif
 }

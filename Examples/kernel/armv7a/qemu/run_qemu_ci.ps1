@@ -160,8 +160,16 @@ $expected = @(
     "ARMv7-A phase complete, stage=runtime-bridge",
     "ARMv7-A phase, stage=runtime-loop-ingress",
     "ARMv7-A phase complete, stage=runtime-loop-ingress",
+    "ARMv7-A phase, stage=runtime-leaf-ports",
+    "ARMv7-A phase complete, stage=runtime-leaf-ports",
+    "ARMv7-A phase, stage=runtime-thread-port",
+    "ARMv7-A phase complete, stage=runtime-thread-port",
     "ARMv7-A phase, stage=runtime-live",
     "ARMv7-A phase complete, stage=runtime-live",
+    "ARMv7-A phase, stage=runtime-binding-bundle",
+    "ARMv7-A phase complete, stage=runtime-binding-bundle",
+    "ARMv7-A phase, stage=runtime-leaf-bundle",
+    "ARMv7-A phase complete, stage=runtime-leaf-bundle",
     "ARMv7-A phase, stage=task-syscall-frame",
     "ARMv7-A phase complete, stage=task-syscall-frame",
     "ARMv7-A phase, stage=task-syscall-dispatch",
@@ -180,6 +188,10 @@ $expected = @(
     "ARMv7-A phase complete, stage=task-syscall-failure",
     "ARMv7-A phase, stage=handoff-prepare",
     "ARMv7-A phase complete, stage=handoff-prepare",
+    "ARMv7-A phase, stage=handoff-transfer",
+    "ARMv7-A phase complete, stage=handoff-transfer",
+    "ARMv7-A phase, stage=handoff-launch",
+    "ARMv7-A phase complete, stage=handoff-launch",
     "ARMv7-A phase, stage=idle",
     "ARMv7-A SVC vector active, imm=0x000043",
     "ARMv7-A SVC vector active, imm=0x000044"
@@ -383,6 +395,21 @@ if (($log -notmatch "ARMv7-A runtime loop ingress, mode=oneshot, route=irq, hz=[
 if (($log -notmatch "ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=yes, idle=yes, worker=yes, live=yes, resumes=3, idle-runs=[0-9]+, wake-due=0x[0-9A-F]{16}, tick-now=0x[0-9A-F]{16}")) {
     $missing += "ARMv7-A runtime live, task=yes..."
 }
+if (($log -notmatch "ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, shared=yes, ports=yes")) {
+    $missing += "ARMv7-A runtime leaf ports, tick-mode=oneshot..."
+}
+if (($log -notmatch "ARMv7-A runtime thread port, yield-path=svc-call-frame, yield-ready=yes, sleep-path=svc-call-frame, sleep-ready=yes, trap-call=yes, thread-runtime=yes, port=yes, bridge=yes, thread=yes")) {
+    $missing += "ARMv7-A runtime thread port, yield-path=svc-call-frame..."
+}
+if (($log -notmatch "ARMv7-A runtime binding bundle, current=yes, trap=yes, thread=yes, loop=yes, live=yes, export=yes, binding=yes")) {
+    $missing += "ARMv7-A runtime binding bundle, current=yes..."
+}
+if (($log -notmatch "ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, export=yes, ports=yes, bundle=yes")) {
+    $missing += "ARMv7-A runtime leaf bundle, tick-mode=oneshot..."
+}
+if (($log -notmatch "ARMv7-A runtime package, leaf=yes, binding=yes, current=yes, trap=yes, call=yes, thread=yes, loop=yes, live=yes, derived=yes, export=yes, package=yes")) {
+    $missing += "ARMv7-A runtime package, leaf=yes..."
+}
 if (($log -notmatch "ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes")) {
     $missing += "ARMv7-A task syscall frame, debug-path=svc-frame..."
 }
@@ -451,6 +478,18 @@ if (($log -notmatch "ARMv7-A handoff quiesced, cntp_ctl=0x00000002, secure-line=
 }
 if (($log -notmatch "ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, tlb=yes, vectors=yes, sync=yes")) {
     $missing += "ARMv7-A handoff steps, mask=yes..."
+}
+if (($log -notmatch "ARMv7-A runtime handoff, runtime=yes, context=yes, hooks=yes, vector=yes, report=yes, export=yes, handoff=yes")) {
+    $missing += "ARMv7-A runtime handoff, runtime=yes..."
+}
+if (($log -notmatch "ARMv7-A handoff entry, target=0x[0-9A-F]{8}, request=yes, offset=yes, mode=sys, vector=yes, translation=yes, cache=yes, masks=yes, export=yes, entry=yes")) {
+    $missing += "ARMv7-A handoff entry, target=0x..."
+}
+if (($log -notmatch "ARMv7-A handoff transfer, target=0x[0-9A-F]{8}, arg0=0x[0-9A-F]{8}, size=0x[0-9A-F]{8}, mode=sys, state=arm, entry=yes, payload=yes, stack=yes, export=yes, transfer=yes")) {
+    $missing += "ARMv7-A handoff transfer, target=0x..."
+}
+if (($log -notmatch "ARMv7-A handoff launch, target=0x[0-9A-F]{8}, arg0=0x[0-9A-F]{8}, mode=sys, state=arm, transfer=yes, hook=yes, route=yes, probe=yes, arg0=yes, next=yes, stack=yes, branch=yes, link=yes, return=yes, invoke=yes, launch=yes")) {
+    $missing += "ARMv7-A handoff launch, target=0x..."
 }
 if (($log -notmatch "ARMv7-A handoff ready, result=yes, vbar=0x[0-9A-F]{8}, ttbr0=0x[0-9A-F]{8}, ttbcr=0x[0-9A-F]{8}, dacr=0x[0-9A-F]{8}, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked")) {
     $missing += "ARMv7-A handoff ready, result=yes..."

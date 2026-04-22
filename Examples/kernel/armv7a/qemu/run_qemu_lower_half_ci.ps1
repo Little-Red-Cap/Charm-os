@@ -45,7 +45,12 @@ try {
 
 $scripts = @(
     "run_qemu_runtime_trap_ci.ps1",
+    "run_qemu_runtime_leaf_ports_ci.ps1",
+    "run_qemu_runtime_thread_ci.ps1",
     "run_qemu_runtime_live_ci.ps1",
+    "run_qemu_runtime_binding_bundle_ci.ps1",
+    "run_qemu_runtime_leaf_bundle_ci.ps1",
+    "run_qemu_runtime_package_ci.ps1",
     "run_qemu_task_syscall_ci.ps1"
 )
 
@@ -61,6 +66,18 @@ foreach ($scriptName in $scripts) {
     if ($LASTEXITCODE -ne 0) {
         throw "lower-half smoke failed: $scriptName"
     }
+
+    Start-Sleep -Milliseconds 750
+}
+
+& (Join-Path $PSScriptRoot "run_qemu_handoff_live_ci.ps1") `
+    -CMakeExe $cmake `
+    -QemuExe $qemu `
+    -BuildJobs $BuildJobs `
+    -TimeoutSec $TimeoutSec `
+    -TailLines $TailLines
+if ($LASTEXITCODE -ne 0) {
+    throw "lower-half smoke failed: run_qemu_handoff_live_ci.ps1"
 }
 
 Write-Output "[ok] armv7a qemu lower-half smoke detected"

@@ -223,7 +223,6 @@ int main() {
     constexpr auto peer_ip = net::IpAddress::ipv4(10, 0, 0, 9);
     static constexpr util::u8 request_payload[]{'p', 'i', 'n', 'g'};
     static constexpr util::u8 reply_payload[]{'p', 'o', 'n', 'g'};
-    static constexpr util::u8 unsupported_payload[]{0x00u, 0x00u, 0x00u, 0x00u};
     static constexpr util::u8 egress_payload[]{'e', 'c', 'h', 'o'};
     static constexpr util::u8 ether_padding[]{0x00u, 0x00u, 0x00u, 0x00u};
 
@@ -390,20 +389,64 @@ int main() {
         return 13;
     }
 
-    net::PacketBuffer<128> unsupported_packet{};
-    auto encoded_unsupported = net::write_icmp_packet(
-        unsupported_packet,
-        3u,
-        0u,
-        net::ByteView{unsupported_payload, sizeof(unsupported_payload)});
-    if (!encoded_unsupported) {
-        std::fputs("icmp smoke unsupported encode failed\n", stderr);
+    net::PacketBuffer<128> quoted_ipv4_packet{};
+    auto encoded_quoted_ipv4 = net::write_ipv4_packet(
+        quoted_ipv4_packet,
+        net::Ipv4PacketSpec{
+            .identification = 0x9999u,
+            .flags_fragment = net::ipv4_do_not_fragment_flag(),
+            .ttl = 1,
+            .protocol = net::Ipv4Protocol::icmp,
+            .source = local_ip,
+            .destination = peer_ip,
+        },
+        request_packet.view().payload);
+    if (!encoded_quoted_ipv4) {
+        std::fputs("icmp smoke quoted ipv4 encode failed\n", stderr);
         return 14;
     }
 
-    net::PacketBuffer<128> unsupported_frame{};
-    auto wrote_unsupported_frame = write_ipv4_ether_frame(
-        unsupported_frame,
+    const auto quoted_prefix = quoted_ipv4_packet.view().payload.subspan(
+        0,
+        net::ipv4_min_header_size() + 8u);
+
+    net::PacketBuffer<128> time_exceeded_packet{};
+    auto encoded_time_exceeded = net::write_icmp_time_exceeded_packet(
+        time_exceeded_packet,
+        0u,
+        quoted_prefix);
+    if (!encoded_time_exceeded) {
+        std::fputs("icmp smoke time exceeded encode failed\n", stderr);
+        return 15;
+    }
+
+    auto parsed_time_exceeded = net::parse_icmp_error_quote_packet(time_exceeded_packet.view());
+    if (!parsed_time_exceeded
+        || parsed_time_exceeded.value().type != net::IcmpType::time_exceeded
+        || parsed_time_exceeded.value().code != 0u
+        || parsed_time_exceeded.value().reserved != 0u
+        || parsed_time_exceeded.value().quoted_ipv4.identification != 0x9999u
+        || parsed_time_exceeded.value().quoted_ipv4.ttl != 1u
+        || parsed_time_exceeded.value().quoted_ipv4.protocol != net::Ipv4Protocol::icmp
+        || !same_ipv4(parsed_time_exceeded.value().quoted_ipv4.source, local_ip)
+        || !same_ipv4(parsed_time_exceeded.value().quoted_ipv4.destination, peer_ip)
+        || parsed_time_exceeded.value().quoted_ipv4.total_length != quoted_ipv4_packet.view().size()
+        || parsed_time_exceeded.value().quoted_ipv4.payload.size() != 8u
+        || parsed_time_exceeded.value().quoted_ipv4.payload[0] != request_packet.view()[0]
+        || parsed_time_exceeded.value().quoted_ipv4.payload[1] != request_packet.view()[1]
+        || parsed_time_exceeded.value().quoted_ipv4.payload[2] != request_packet.view()[2]
+        || parsed_time_exceeded.value().quoted_ipv4.payload[3] != request_packet.view()[3]
+        || parsed_time_exceeded.value().quoted_ipv4.payload[4] != request_packet.view()[4]
+        || parsed_time_exceeded.value().quoted_ipv4.payload[5] != request_packet.view()[5]
+        || parsed_time_exceeded.value().quoted_ipv4.payload[6] != request_packet.view()[6]
+        || parsed_time_exceeded.value().quoted_ipv4.payload[7] != request_packet.view()[7]) {
+        std::fputs("icmp smoke time exceeded parse mismatch\n", stderr);
+        return 16;
+    }
+
+    net::PacketBuffer<128> time_exceeded_frame{};
+    auto wrote_time_exceeded_frame = write_ipv4_ether_frame(
+        time_exceeded_frame,
         local_mac,
         peer_mac,
         net::Ipv4PacketSpec{
@@ -414,13 +457,13 @@ int main() {
             .source = peer_ip,
             .destination = local_ip,
         },
-        unsupported_packet.view().payload);
-    if (!wrote_unsupported_frame) {
-        std::fputs("icmp smoke unsupported frame encode failed\n", stderr);
-        return 15;
+        time_exceeded_packet.view().payload);
+    if (!wrote_time_exceeded_frame) {
+        std::fputs("icmp smoke time exceeded frame encode failed\n", stderr);
+        return 17;
     }
 
-    link.queue_rx(unsupported_frame.view().payload);
+    link.queue_rx(time_exceeded_frame.view().payload);
     polled = stack.poll_links();
     if (!polled
         || ipv4.packet_count() != 3
@@ -430,8 +473,8 @@ int main() {
         || icmp.drop_count() != 1
         || probe.calls != 2
         || link.rx_pool.in_use_count() != 0) {
-        std::fputs("icmp smoke unsupported drop failed\n", stderr);
-        return 16;
+        std::fputs("icmp smoke time exceeded drop failed\n", stderr);
+        return 18;
     }
 
     net::PacketBuffer<128> invalid_packet{};
@@ -462,7 +505,7 @@ int main() {
         invalid_packet.view().payload);
     if (!wrote_invalid_frame) {
         std::fputs("icmp smoke invalid frame encode failed\n", stderr);
-        return 18;
+        return 19;
     }
 
     link.queue_rx(invalid_frame.view().payload);
@@ -475,7 +518,7 @@ int main() {
         || probe.calls != 2
         || link.rx_pool.in_use_count() != 0) {
         std::fputs("icmp smoke invalid checksum failed\n", stderr);
-        return 19;
+        return 20;
     }
 
     auto unresolved = net::send_icmp_echo_request<128>(
@@ -495,7 +538,7 @@ int main() {
         || arp.request_count() != 1
         || arp.pending_count() != 1) {
         std::fputs("icmp smoke unresolved egress failed\n", stderr);
-        return 20;
+        return 21;
     }
 
     auto arp_request_frame = net::parse_ether_frame(net::PacketView{
@@ -508,7 +551,7 @@ int main() {
         || !same_mac(arp_request_frame.value().destination, net::MacAddress::broadcast())
         || !same_mac(arp_request_frame.value().source, local_mac)) {
         std::fputs("icmp smoke arp request ether parse failed\n", stderr);
-        return 21;
+        return 22;
     }
 
     auto arp_request = net::parse_arp_ipv4_ethernet(arp_request_frame.value().payload);
@@ -518,7 +561,7 @@ int main() {
         || !same_ipv4(arp_request.value().sender_ip, local_ip)
         || !same_ipv4(arp_request.value().target_ip, peer_ip)) {
         std::fputs("icmp smoke arp request payload failed\n", stderr);
-        return 22;
+        return 23;
     }
 
     net::PacketBuffer<128> arp_reply{};
@@ -531,7 +574,7 @@ int main() {
         local_ip);
     if (!wrote_arp_reply) {
         std::fputs("icmp smoke arp reply encode failed\n", stderr);
-        return 23;
+        return 24;
     }
 
     link.queue_rx(arp_reply.view().payload);
@@ -545,7 +588,7 @@ int main() {
         || link.tx_calls != 1
         || link.rx_pool.in_use_count() != 0) {
         std::fputs("icmp smoke arp resolution failed\n", stderr);
-        return 24;
+        return 25;
     }
 
     auto sent = net::send_icmp_echo_request<128>(
@@ -564,7 +607,7 @@ int main() {
         || arp.request_count() != 1
         || arp.pending_count() != 0) {
         std::fputs("icmp smoke resolved egress failed\n", stderr);
-        return 25;
+        return 26;
     }
 
     auto egress_frame = net::parse_ether_frame(net::PacketView{
@@ -577,7 +620,7 @@ int main() {
         || !same_mac(egress_frame.value().destination, peer_mac)
         || !same_mac(egress_frame.value().source, local_mac)) {
         std::fputs("icmp smoke egress ether parse failed\n", stderr);
-        return 26;
+        return 27;
     }
 
     auto egress_ipv4 = net::parse_ipv4_packet(egress_frame.value().payload);
@@ -589,7 +632,7 @@ int main() {
         || !same_ipv4(egress_ipv4.value().source, local_ip)
         || !same_ipv4(egress_ipv4.value().destination, peer_ip)) {
         std::fputs("icmp smoke egress ipv4 payload failed\n", stderr);
-        return 27;
+        return 28;
     }
 
     auto egress_icmp = net::parse_icmp_echo_packet(egress_ipv4.value().payload);
@@ -599,7 +642,7 @@ int main() {
         || egress_icmp.value().sequence != 0x0007u
         || !bytes_eq(egress_payload, sizeof(egress_payload), egress_icmp.value().payload)) {
         std::fputs("icmp smoke egress icmp payload failed\n", stderr);
-        return 28;
+        return 29;
     }
 
     std::puts("net icmp smoke: ok");

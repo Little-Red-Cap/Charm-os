@@ -29,6 +29,25 @@
 - [`net_icmp_protocol_smoke/`](net_icmp_protocol_smoke/)
 - [`net_icmp_roundtrip_smoke/`](net_icmp_roundtrip_smoke/)
 
+### 我想看 forwarding / route 语义
+
+先看：
+
+- [`net_lab_smoke/`](net_lab_smoke/)
+- [`net_lab_trace_smoke/`](net_lab_trace_smoke/)
+- [`net_lab_forward_trace_smoke/`](net_lab_forward_trace_smoke/)
+- [`net_lab_route_precedence_smoke/`](net_lab_route_precedence_smoke/)
+- [`net_lab_route_metric_smoke/`](net_lab_route_metric_smoke/)
+- [`net_lab_route_table_mutation_smoke/`](net_lab_route_table_mutation_smoke/)
+- [`net_lab_route_delete_smoke/`](net_lab_route_delete_smoke/)
+- [`net_lab_route_precise_delete_smoke/`](net_lab_route_precise_delete_smoke/)
+- [`net_lab_route_introspection_smoke/`](net_lab_route_introspection_smoke/)
+- [`net_lab_udp_diag_forward_smoke/`](net_lab_udp_diag_forward_smoke/)
+- [`net_lab_udp_diag_forward_failure_smoke/`](net_lab_udp_diag_forward_failure_smoke/)
+- [`net_lab_udp_diag_forward_late_reply_smoke/`](net_lab_udp_diag_forward_late_reply_smoke/)
+- [`net_lab_udp_diag_forward_route_churn_smoke/`](net_lab_udp_diag_forward_route_churn_smoke/)
+- [`net_lab_udp_diag_forward_proxy_arp_churn_smoke/`](net_lab_udp_diag_forward_proxy_arp_churn_smoke/)
+
 ### 我想看 UDP / 诊断链路
 
 先看：
@@ -39,6 +58,11 @@
 - [`net_udp_diag_roundtrip_smoke/`](net_udp_diag_roundtrip_smoke/)
 - [`net_udp_diag_client_smoke/`](net_udp_diag_client_smoke/)
 - [`net_udp_service_codec_smoke/`](net_udp_service_codec_smoke/)
+- [`net_lab_udp_diag_forward_smoke/`](net_lab_udp_diag_forward_smoke/)
+- [`net_lab_udp_diag_forward_failure_smoke/`](net_lab_udp_diag_forward_failure_smoke/)
+- [`net_lab_udp_diag_forward_late_reply_smoke/`](net_lab_udp_diag_forward_late_reply_smoke/)
+- [`net_lab_udp_diag_forward_route_churn_smoke/`](net_lab_udp_diag_forward_route_churn_smoke/)
+- [`net_lab_udp_diag_forward_proxy_arp_churn_smoke/`](net_lab_udp_diag_forward_proxy_arp_churn_smoke/)
 
 ### 我想看 reactor / service / socket 行为
 

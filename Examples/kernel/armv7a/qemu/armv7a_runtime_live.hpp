@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "targets/armv7a/common/armv7a_runtime_package_contract.hpp"
+
 struct Armv7aRuntimeLiveObservation {
     bool task_ready = false;
     bool trap_ready = false;
@@ -62,5 +64,7 @@ constexpr bool armv7a_runtime_live_ready(
 }
 
 Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept;
+Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation(
+    const Armv7aRuntimePackageContract& package) noexcept;
 Armv7aRuntimeLiveObservation armv7a_last_runtime_live_observation() noexcept;
 void armv7a_print_runtime_live_observation();

@@ -256,8 +256,9 @@ green once QEMU really branches through the explicit launch route, lands in the
 synthetic next-stage entry with the inherited `r0/sp` shape, completes the
 `handoff-launch` phase from the landing side, reports one
 `ARMv7-A handoff live, ... live=yes` line, then proves the handed-over runtime
-package can re-run the minimal live runtime from the landing side via one
-`ARMv7-A handoff runtime, ... landed=yes` line before idling forever.
+package can be re-armed in place and directly re-consumed from the landing
+side via one `ARMv7-A handoff runtime, ... payload=yes, ... landed=yes` line
+before idling forever.
 
 For a shorter failure loop around the runtime-facing binding bundle, use:
 

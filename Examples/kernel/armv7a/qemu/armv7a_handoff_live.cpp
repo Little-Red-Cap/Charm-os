@@ -7,6 +7,7 @@
 #include "armv7a_handoff_transfer.hpp"
 #include "armv7a_platform.hpp"
 #include "armv7a_runtime_handoff.hpp"
+#include "armv7a_runtime_leaf_ports.hpp"
 #include "armv7a_runtime_live.hpp"
 #include "armv7a_runtime_package.hpp"
 
@@ -125,14 +126,30 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
 {
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kHandoffRuntime);
 
-    const auto runtime_live = armv7a_run_runtime_live_observation();
-    const auto runtime_package = armv7a_capture_runtime_package_observation();
     const auto package_ready =
         handoff != nullptr &&
-        armv7a_runtime_package_ready(handoff->runtime) &&
-        armv7a_runtime_package_observation_ready(runtime_package);
+        armv7a_runtime_package_ready(handoff->runtime);
+    const auto rearmed_ports = package_ready
+        ? armv7a_prepare_runtime_leaf_ports()
+        : Armv7aRuntimeLeafPortsContract{};
+    const auto payload_ready =
+        package_ready &&
+        armv7a_runtime_leaf_bundle_matches_leaf_ports(
+            handoff->runtime.leaf,
+            rearmed_ports,
+            handoff->runtime.leaf.runtime_live_ready) &&
+        armv7a_runtime_binding_bundle_matches_leaf_ports(
+            handoff->runtime.binding,
+            rearmed_ports,
+            handoff->runtime.leaf.runtime_live_ready);
+    const auto runtime_live = payload_ready
+        ? armv7a_run_runtime_live_observation(handoff->runtime)
+        : Armv7aRuntimeLiveObservation{};
+    const auto runtime_package = payload_ready
+        ? armv7a_capture_runtime_package_observation()
+        : Armv7aRuntimePackageObservation{};
     const auto binding_ready =
-        handoff != nullptr &&
+        payload_ready &&
         armv7a_runtime_leaf_bundle_equal(
             handoff->runtime.leaf,
             runtime_package.contract.leaf) &&
@@ -140,27 +157,29 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
             handoff->runtime.binding,
             runtime_package.contract.binding);
     const auto current_ready =
-        package_ready &&
+        payload_ready &&
         armv7a_runtime_package_current_ready(runtime_package.contract);
     const auto trap_ready =
-        package_ready &&
+        payload_ready &&
         armv7a_runtime_package_trap_ready(runtime_package.contract);
     const auto thread_ready =
-        package_ready &&
+        payload_ready &&
         armv7a_runtime_package_thread_ready(runtime_package.contract);
     const auto loop_ready =
-        package_ready &&
+        payload_ready &&
         armv7a_runtime_package_loop_ready(runtime_package.contract);
     const auto live_runtime_ready =
-        handoff != nullptr &&
-        armv7a_runtime_package_live_ready(handoff->runtime) &&
+        payload_ready &&
+        armv7a_runtime_package_live_ready(runtime_package.contract) &&
         armv7a_runtime_live_ready(runtime_live);
-    const auto landed_ready =
-        package_ready && binding_ready && current_ready && trap_ready &&
+    const auto landed_ready = package_ready && payload_ready && binding_ready &&
+        current_ready && trap_ready &&
         thread_ready && loop_ready && live_runtime_ready;
 
     armv7a_platform_early_console_puts("ARMv7-A handoff runtime, package=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(package_ready));
+    armv7a_platform_early_console_puts(", payload=");
+    armv7a_platform_early_console_puts(armv7a_diag_yes_no(payload_ready));
     armv7a_platform_early_console_puts(", binding=");
     armv7a_platform_early_console_puts(armv7a_diag_yes_no(binding_ready));
     armv7a_platform_early_console_puts(", current=");

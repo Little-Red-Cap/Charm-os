@@ -16,6 +16,7 @@
 #include "armv7a_runtime_trap_dispatch.hpp"
 #include "targets/armv7a/common/armv7a_psr_contract.hpp"
 #include "targets/armv7a/common/armv7a_runtime_bridge_contract.hpp"
+#include "targets/armv7a/common/armv7a_runtime_package_contract.hpp"
 #include "targets/armv7a/common/armv7a_runtime_trap_frame_adapter_contract.hpp"
 
 import kernel.capabilities;
@@ -905,49 +906,44 @@ void armv7a_inspect_live_trap_trace(const TraceBuffer& trace,
         }
     }
 }
-} // namespace
 
-Armv7aRuntimeLeafPortsContract armv7a_prepare_runtime_leaf_ports() noexcept
+[[nodiscard]] bool armv7a_runtime_live_execution_ready(
+    const Armv7aRuntimeLeafPortsContract& ports,
+    const Armv7aRuntimeCurrentContextPort& current,
+    const Armv7aRuntimeThreadPortContract& runtime_thread,
+    const Armv7aRuntimeLoopPortContract& runtime_loop) noexcept
 {
-    auto& session = armv7a_prepare_live_session();
-    const auto contract = armv7a_make_live_runtime_leaf_ports(session);
-    g_armv7a_last_runtime_leaf_ports = contract;
+    return armv7a_runtime_leaf_ports_ready(ports) &&
+           armv7a_runtime_current_context_port_ready(current) &&
+           armv7a_runtime_thread_port_ready(runtime_thread) &&
+           armv7a_runtime_loop_port_ready(runtime_loop);
+}
+
+Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation_core(
+    const Armv7aRuntimeLeafPortsContract& ports,
+    const Armv7aRuntimeCurrentContextPort& current,
+    const Armv7aRuntimeThreadPortContract& runtime_thread,
+    const Armv7aRuntimeLoopPortContract& runtime_loop) noexcept
+{
+    if (!armv7a_runtime_live_execution_ready(
+            ports,
+            current,
+            runtime_thread,
+            runtime_loop)) {
+        return {};
+    }
+
+    g_armv7a_last_runtime_leaf_ports = ports;
     g_armv7a_last_runtime_leaf_ports_valid = true;
-    return contract;
-}
 
-Armv7aRuntimeLeafPortsContract armv7a_last_runtime_leaf_ports() noexcept
-{
-    return g_armv7a_last_runtime_leaf_ports_valid
-        ? g_armv7a_last_runtime_leaf_ports
-        : Armv7aRuntimeLeafPortsContract{};
-}
-
-void armv7a_bind_runtime_leaf_ports(
-    const Armv7aRuntimeLeafPortsContract& contract) noexcept
-{
-    armv7a_bind_runtime_current_context_port(contract.kernel.current);
-    armv7a_bind_runtime_trap_dispatch_port(contract.trap_dispatch);
-    armv7a_bind_interrupt_runtime_hook(contract.interrupt_hook);
-}
-
-void armv7a_unbind_runtime_leaf_ports() noexcept
-{
-    armv7a_unbind_interrupt_runtime_hook();
-    armv7a_unbind_runtime_trap_dispatch_port();
-    armv7a_unbind_runtime_current_context_port();
-}
-
-Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept
-{
-    const auto ports = armv7a_prepare_runtime_leaf_ports();
-    auto* runtime_context =
-        static_cast<Armv7aLiveRuntimeContext*>(ports.kernel.current.ctx);
+    auto* runtime_context = static_cast<Armv7aLiveRuntimeContext*>(current.ctx);
     if (runtime_context == nullptr || runtime_context->session == nullptr) {
         return {};
     }
 
     auto& session = *runtime_context->session;
+    auto& worker = session.registry.get<Armv7aLiveWorkerTask>();
+    worker.context.runtime_thread = runtime_thread;
 
     const auto saved_psr = armv7a_read_cpsr();
     armv7a_bind_runtime_leaf_ports(ports);
@@ -961,7 +957,7 @@ Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept
     session.shared.cpsr_before_bootstrap = armv7a_read_cpsr();
 
     const auto worker_bootstrapped = armv7a_runtime_loop_port_bootstrap_worker(
-        ports.runtime_loop,
+        runtime_loop,
         session.worker_id.value,
         armv7a_make_runtime_loop_event_u32(
             static_cast<std::uint32_t>(kernel::EventId::user0),
@@ -976,7 +972,7 @@ Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept
         armv7a_arm_live_runtime_timer(session.shared);
         armv7a_wait_for_live_runtime_timer(session.shared);
         (void)armv7a_runtime_loop_port_run_once_or_idle(
-            ports.runtime_loop,
+            runtime_loop,
             Armv7aPlatformTimeSource::now());
         ++loops;
     }
@@ -1069,6 +1065,61 @@ Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept
     g_armv7a_last_runtime_live_observation = observation;
     g_armv7a_last_runtime_live_observation_valid = true;
     return observation;
+}
+} // namespace
+
+Armv7aRuntimeLeafPortsContract armv7a_prepare_runtime_leaf_ports() noexcept
+{
+    auto& session = armv7a_prepare_live_session();
+    const auto contract = armv7a_make_live_runtime_leaf_ports(session);
+    g_armv7a_last_runtime_leaf_ports = contract;
+    g_armv7a_last_runtime_leaf_ports_valid = true;
+    return contract;
+}
+
+Armv7aRuntimeLeafPortsContract armv7a_last_runtime_leaf_ports() noexcept
+{
+    return g_armv7a_last_runtime_leaf_ports_valid
+        ? g_armv7a_last_runtime_leaf_ports
+        : Armv7aRuntimeLeafPortsContract{};
+}
+
+void armv7a_bind_runtime_leaf_ports(
+    const Armv7aRuntimeLeafPortsContract& contract) noexcept
+{
+    armv7a_bind_runtime_current_context_port(contract.kernel.current);
+    armv7a_bind_runtime_trap_dispatch_port(contract.trap_dispatch);
+    armv7a_bind_interrupt_runtime_hook(contract.interrupt_hook);
+}
+
+void armv7a_unbind_runtime_leaf_ports() noexcept
+{
+    armv7a_unbind_interrupt_runtime_hook();
+    armv7a_unbind_runtime_trap_dispatch_port();
+    armv7a_unbind_runtime_current_context_port();
+}
+
+Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept
+{
+    const auto ports = armv7a_prepare_runtime_leaf_ports();
+    return armv7a_run_runtime_live_observation_core(ports,
+                                                    ports.kernel.current,
+                                                    ports.runtime_thread,
+                                                    ports.runtime_loop);
+}
+
+Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation(
+    const Armv7aRuntimePackageContract& package) noexcept
+{
+    if (!armv7a_runtime_package_ready(package)) {
+        return {};
+    }
+
+    return armv7a_run_runtime_live_observation_core(
+        package.leaf.ports,
+        package.binding.current,
+        package.binding.runtime_thread,
+        package.binding.runtime_loop);
 }
 
 Armv7aRuntimeLiveObservation armv7a_last_runtime_live_observation() noexcept

@@ -2209,22 +2209,32 @@
                                  14);
                 if (!fs_ready) {
                     hint = "FS not ready";
-                } else if (library_has_context()) {
-                    hint = (library_tab == LibraryTab::Albums)
-                        ? "No tracks in this album"
-                        : "No tracks by this artist";
                 } else {
-                    switch (library_tab) {
-                    case LibraryTab::Albums:
-                        hint = "No albums in library";
-                        break;
-                    case LibraryTab::Artists:
-                        hint = "No artists in library";
-                        break;
-                    case LibraryTab::Songs:
-                    default:
-                        hint = "No tracks in library";
-                        break;
+                    const char* empty_hint = "";
+                    if (library_has_context()) {
+                        empty_hint = (library_tab == LibraryTab::Albums)
+                            ? "No tracks in this album"
+                            : "No tracks by this artist";
+                    } else {
+                        switch (library_tab) {
+                        case LibraryTab::Albums:
+                            empty_hint = "No albums in library";
+                            break;
+                        case LibraryTab::Artists:
+                            empty_hint = "No artists in library";
+                            break;
+                        case LibraryTab::Songs:
+                        default:
+                            empty_hint = "No tracks in library";
+                            break;
+                        }
+                    }
+                    char path_hint_buf[80]{};
+                    if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
+                        std::snprintf(buf, sizeof(buf), "%s | %s", empty_hint, path_hint_buf);
+                        hint = buf;
+                    } else {
+                        hint = empty_hint;
                     }
                 }
             }

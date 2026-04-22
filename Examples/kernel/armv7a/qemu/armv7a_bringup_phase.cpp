@@ -128,6 +128,8 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "handoff-launch";
     case Armv7aBringupPhase::kHandoffLive:
         return "handoff-live";
+    case Armv7aBringupPhase::kHandoffRuntime:
+        return "handoff-runtime";
     case Armv7aBringupPhase::kIdle:
         return "idle";
     default:

@@ -124,6 +124,8 @@ $expected = @(
     "ARMv7-A phase complete, stage=handoff-launch",
     "ARMv7-A phase, stage=handoff-live",
     "ARMv7-A phase complete, stage=handoff-live",
+    "ARMv7-A phase, stage=handoff-runtime",
+    "ARMv7-A phase complete, stage=handoff-runtime",
     "ARMv7-A phase, stage=idle"
 )
 $missing = $expected | Where-Object { -not $log.Contains($_) }
@@ -148,6 +150,9 @@ $handoffLog = if ($phaseIndex -ge 0) {
 
 if (($handoffLog -notmatch "ARMv7-A handoff live, target=0x[0-9A-F]{8}, arg0=0x[0-9A-F]{8}, mode=sys, state=arm, transfer=yes, route=yes, target=yes, arg0=yes, stack=yes, mode=yes, state=yes, live=yes")) {
     $missing += "ARMv7-A handoff live, target=0x..."
+}
+if (($handoffLog -notmatch "ARMv7-A handoff runtime, package=yes, binding=yes, current=yes, trap=yes, thread=yes, loop=yes, live=yes, landed=yes")) {
+    $missing += "ARMv7-A handoff runtime, package=yes..."
 }
 
 $unexpected = @()

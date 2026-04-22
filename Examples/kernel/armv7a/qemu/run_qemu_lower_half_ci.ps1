@@ -66,6 +66,18 @@ foreach ($scriptName in $scripts) {
     if ($LASTEXITCODE -ne 0) {
         throw "lower-half smoke failed: $scriptName"
     }
+
+    Start-Sleep -Milliseconds 750
+}
+
+& (Join-Path $PSScriptRoot "run_qemu_handoff_live_ci.ps1") `
+    -CMakeExe $cmake `
+    -QemuExe $qemu `
+    -BuildJobs $BuildJobs `
+    -TimeoutSec $TimeoutSec `
+    -TailLines $TailLines
+if ($LASTEXITCODE -ne 0) {
+    throw "lower-half smoke failed: run_qemu_handoff_live_ci.ps1"
 }
 
 Write-Output "[ok] armv7a qemu lower-half smoke detected"

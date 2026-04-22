@@ -877,9 +877,6 @@
                                   static_cast<int>(primary.size()), primary.data(),
                                   static_cast<int>(secondary.size()), secondary.data());
                 }
-                if (row.current_row) {
-                    append_library_status_suffix(buf, buf_size, library_current_group_state_text());
-                }
                 return true;
             }
             if (row.track_path.empty()) {
@@ -960,6 +957,18 @@
             case LibraryTab::Songs:
             default:
                 return "Group";
+            }
+        }
+
+        const char* library_group_object_label() const noexcept {
+            switch (library_tab) {
+            case LibraryTab::Albums:
+                return "album";
+            case LibraryTab::Artists:
+                return "artist";
+            case LibraryTab::Songs:
+            default:
+                return "group";
             }
         }
 
@@ -2122,8 +2131,8 @@
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
-                std::snprintf(buf, sizeof(buf), "%d %s available | open an %s to browse tracks",
-                              count, label, (library_tab == LibraryTab::Albums) ? "album" : "artist");
+                std::snprintf(buf, sizeof(buf), "%d %s available | Select an %s to browse tracks",
+                              count, label, library_group_object_label());
                 if (list_shuffle_enabled) {
                     append_library_status_suffix(buf, sizeof(buf), "Shuffled");
                 }

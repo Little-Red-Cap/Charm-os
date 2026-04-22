@@ -36,6 +36,7 @@
 - [`net_lab_smoke/`](net_lab_smoke/)
 - [`net_lab_trace_smoke/`](net_lab_trace_smoke/)
 - [`net_lab_forward_trace_smoke/`](net_lab_forward_trace_smoke/)
+- [`net_lab_route_default_precedence_smoke/`](net_lab_route_default_precedence_smoke/)
 - [`net_lab_route_precedence_smoke/`](net_lab_route_precedence_smoke/)
 - [`net_lab_route_metric_smoke/`](net_lab_route_metric_smoke/)
 - [`net_lab_route_table_mutation_smoke/`](net_lab_route_table_mutation_smoke/)

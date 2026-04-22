@@ -399,6 +399,10 @@ report / system 侧的现实载体包括：
 - artifact_root 默认总览中的 `comparison.fact_resolution_summary`
 - report 级 `resource summary` explain 结果
 
+当前 root 级 `fact_resolution_summary` 也已经开始显式带出
+`kind = fact_resolution_summary/v0` 与 `mode = summary | comparison`，
+把 fact inventory / contract drift 的聚合对象正式锚定成独立协议。
+
 它最适合回答这类问题：
 
 - 当前有哪些 `declared / subject / required / graph_provided / audit_provided` facts
@@ -531,12 +535,12 @@ report / system 侧的现实载体包括：
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
-| `SystemCompilerSummary` | `system_compiler_summary`、`comparison.system_compiler_summary`、artifact_root 默认总览、`cases[*].formation_basis / binding_summary / bringup_summary`、`blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`、`binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`、`binding_basis / bringup_basis / binding_drift / bringup_drift` | root 级跨阶段总结果物已经出现，并开始携带单 case 成立 basis、blocker 热点，以及 binding / bringup 成立热区与 drift 热区 | 单个阶段摘要或单条 compare 统计 |
-| `SystemInput` | `artifact report.system_input`、`comparison.system_input`、`system_input_summary`、`comparison.system_input_summary`、默认总览 `InpCmp` | 已有正式输入侧结果物载体，并开始进入 root 级聚合摘要 | 单个 subject 字段或 metadata diff |
-| `BindingResult` | `artifact report.binding_result`、`binding_result_summary`、`comparison.binding_result_summary`、`required_facts / unresolved_bindings` | 已有正式结果物载体 | 图本身或单条 explain query |
-| `FactResolution` | `artifact report.fact_resolution`、`comparison.fact_resolution`、`fact_resolution_summary`、`resource summary` | 已有正式结果物载体 | 只等于 `resource_contract` 审计层 |
-| `BringupOrder` | `artifact report.bringup_order`、`bringup_order_summary`、`comparison.bringup_order_summary`、materialized graph 节点顺序 | 已有正式结果物载体 | 仅仅等于 DOT 展示顺序 |
-| `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、默认总览 `Formation / FormCmp` | 已有正式结果物载体 | 单纯等于 `binding_result` 或 `bringup_order` |
+| `SystemCompilerSummary` | `system_compiler_summary`、`comparison.system_compiler_summary`、artifact_root 默认总览、[`../../schemas/system_compiler_summary.v0.schema.json`](../../schemas/system_compiler_summary.v0.schema.json)、`cases[*].formation_basis / binding_summary / bringup_summary`、`blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`、`binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`、`formation_basis / binding_basis / bringup_basis / formation_drift / binding_drift / bringup_drift / result_map` | root 级跨阶段总结果物已经出现，并开始携带单 case 成立 basis、formation/binding/bringup 三段 stage block，以及这些 block 与分阶段 summary 的 machine-readable 对应关系；现在对象本身也会显式带出 `kind = system_compiler_summary/v0` 与 `mode = summary | comparison` 两个自描述字段。其中 `result_map.stage_blocks[*].root_fields` 用来标出 `system_compiler_summary` 根上的 stage 归属字段，`result_map.*.field_relations[*]` 继续把 root field 到 block 字段、summary 字段之间的 `same_field / field_alias / none` 关系正式导出，而 `result_map.case_projection_field_relations.<stage>[*]` 则把单 case projection 字段到 stage case summary 字段之间的 `same_field / field_alias` 关系与 fallback source 一并导出 | 单个阶段摘要或单条 compare 统计 |
+| `SystemInput` | `artifact report.system_input`、`comparison.system_input`、`system_input_summary`、`comparison.system_input_summary`、[`../../schemas/system_input_summary.v0.schema.json`](../../schemas/system_input_summary.v0.schema.json)、默认总览 `InpCmp` | 已有正式输入侧结果物载体，并开始进入 root 级聚合摘要；其中 input-side summary object 现在也会显式带出 `kind = system_input_summary/v0` 与 `mode = summary | comparison`，把 normalized input 与 input drift 汇总对象正式锚定为独立协议 | 单个 subject 字段或 metadata diff |
+| `BindingResult` | `artifact report.binding_result`、`binding_result_summary`、`comparison.binding_result_summary`、[`../../schemas/binding_result_summary.v0.schema.json`](../../schemas/binding_result_summary.v0.schema.json)、`required_facts / unresolved_bindings` | 已有正式结果物载体；其中 binding-side summary object 现在也会显式带出 `kind = binding_result_summary/v0` 与 `mode = summary | comparison`，把 binding hotspot 与 binding drift 汇总对象正式锚定为独立协议 | 图本身或单条 explain query |
+| `FactResolution` | `artifact report.fact_resolution`、`comparison.fact_resolution`、`fact_resolution_summary`、[`../../schemas/fact_resolution_summary.v0.schema.json`](../../schemas/fact_resolution_summary.v0.schema.json)、`resource summary` | 已有正式结果物载体；其中 fact-resolution-side summary object 现在也会显式带出 `kind = fact_resolution_summary/v0` 与 `mode = summary | comparison`，把 fact inventory / contract drift 汇总对象正式锚定为独立协议 | 只等于 `resource_contract` 审计层 |
+| `BringupOrder` | `artifact report.bringup_order`、`bringup_order_summary`、`comparison.bringup_order_summary`、[`../../schemas/bringup_order_summary.v0.schema.json`](../../schemas/bringup_order_summary.v0.schema.json)、materialized graph 节点顺序 | 已有正式结果物载体；其中 bringup-side summary object 现在也会显式带出 `kind = bringup_order_summary/v0` 与 `mode = summary | comparison`，把 bringup 顺序热点与 bringup drift 汇总对象正式锚定为独立协议 | 仅仅等于 DOT 展示顺序 |
+| `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、`system_formation_summary`、`comparison.system_formation_summary`、[`../../schemas/system_formation_summary.v0.schema.json`](../../schemas/system_formation_summary.v0.schema.json)、默认总览 `Formation / FormCmp` | 已有正式结果物载体；其中 formation-side summary object 现在也会显式带出 `kind = system_formation_summary/v0` 与 `mode = summary | comparison`，把 formation 结果与 formation drift 汇总对象正式锚定为独立协议 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
 
 ## 6. 一个最小 worked example

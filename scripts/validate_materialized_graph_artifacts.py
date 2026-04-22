@@ -13,6 +13,13 @@ SCHEMA_FILES = {
     "materialized_graph.report_manifest/v1": "schemas/materialized_graph.report_manifest.v1.schema.json",
     "system_compiler.artifact_report/v0": "schemas/system_compiler.artifact_report.v0.schema.json",
     "system_compiler.runtime_observe_snapshot/v0": "schemas/system_compiler.runtime_observe_snapshot.v0.schema.json",
+    "system_compiler_result_map/v0": "schemas/system_compiler_result_map.v0.schema.json",
+    "system_compiler_summary/v0": "schemas/system_compiler_summary.v0.schema.json",
+    "system_input_summary/v0": "schemas/system_input_summary.v0.schema.json",
+    "binding_result_summary/v0": "schemas/binding_result_summary.v0.schema.json",
+    "bringup_order_summary/v0": "schemas/bringup_order_summary.v0.schema.json",
+    "system_formation_summary/v0": "schemas/system_formation_summary.v0.schema.json",
+    "fact_resolution_summary/v0": "schemas/fact_resolution_summary.v0.schema.json",
 }
 
 
@@ -34,16 +41,29 @@ def load_schema(repo_root: Path, schema_name: str):
     return load_json(repo_root / schema_rel)
 
 
+def build_schema_store(repo_root: Path):
+    store = {}
+    for schema_rel in sorted(set(SCHEMA_FILES.values())):
+        schema = load_json(repo_root / schema_rel)
+        schema_id = schema.get("$id")
+        if isinstance(schema_id, str) and schema_id:
+            store[schema_id] = schema
+    return store
+
+
 def validate_file(path: Path, repo_root: Path):
     import jsonschema
 
     data = load_json(path)
     schema_name = data.get("schema")
     if not isinstance(schema_name, str) or not schema_name:
-        raise RuntimeError(f"schema field missing: {path}")
+        schema_name = data.get("kind")
+    if not isinstance(schema_name, str) or not schema_name:
+        raise RuntimeError(f"schema/kind field missing: {path}")
 
     schema = load_schema(repo_root, schema_name)
-    jsonschema.validate(data, schema)
+    resolver = jsonschema.RefResolver.from_schema(schema, store=build_schema_store(repo_root))
+    jsonschema.validate(data, schema, resolver=resolver)
     print(f"[OK] {schema_name} -> {path}")
     return data
 
@@ -109,6 +129,8 @@ def validate_once(path: Path, repo_root: Path, visited: set[Path]):
     data = validate_file(resolved, repo_root)
     visited.add(resolved)
     schema_name = data.get("schema")
+    if not isinstance(schema_name, str) or not schema_name:
+        schema_name = data.get("kind")
 
     if schema_name == "materialized_graph.export_bundle/v1":
         bundle_root = resolved.parent

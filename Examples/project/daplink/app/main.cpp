@@ -1,14 +1,13 @@
-#include "main.h"
-
 #include <array>
 #include <cstdint>
 
 import daplink.board;
-import daplink.board_ops;
 import daplink.usb_minimal;
+import daplink.port_runtime;
 import daplink.cmsis_dap;
 import daplink.app_config;
 import daplink.dap_init;
+import daplink.dap_ops;
 import daplink.ring_buffer;
 import daplink.dap_transport;
 import daplink.dap_policy;
@@ -28,13 +27,11 @@ namespace {
     static_assert(!kEnableHid || (daplink::usb_minimal::hid_packet_size == daplink::cmsis_dap::kPacketSize));
 }
 
-extern "C" void SystemClock_Config(void);
-extern "C" void MPU_Config(void);
-
 namespace {
     constexpr std::size_t kUartBufSize = 256;
     using UartRing = daplink::ring_buffer::Buffer<kUartBufSize>;
     constexpr std::size_t kIoChunk = 64;
+    constexpr std::size_t kUartTxBurstLimit = 8;
 
     io::result uart_read(void*, io::MutByteView buf) noexcept {
         std::size_t count = 0;
@@ -49,10 +46,17 @@ namespace {
     }
 
     io::result uart_write(void*, io::ByteView buf) noexcept {
+        const std::size_t limit = (buf.size() < kUartTxBurstLimit) ? buf.size() : kUartTxBurstLimit;
+        if (limit == 0) {
+            return io::fail(io::errc::would_block);
+        }
         std::size_t count = 0;
-        while (count < buf.size() && daplink::board::cdc_uart_tx_ready()) {
+        while (count < limit && daplink::board::cdc_uart_tx_ready()) {
             daplink::board::cdc_uart_write(static_cast<std::uint8_t>(buf[count]));
             ++count;
+            if (daplink::board::cdc_uart_rx_pending()) {
+                break;
+            }
         }
         if (count == 0) {
             return io::fail(io::errc::would_block);
@@ -89,11 +93,10 @@ namespace {
 
 int main()
 {
-    HAL_Init();
-    SystemClock_Config();
+    daplink::port_runtime::init();
 
     if (!daplink::board::init_peripherals()) {
-        Error_Handler();
+        daplink::port_runtime::fail_fast();
     }
     daplink::board::configure_debug_pins_hi_z();
 
@@ -110,7 +113,7 @@ int main()
     daplink::dap_policy::UsbScheduler scheduler{};
     scheduler.cdc_policy = static_cast<daplink::dap_policy::CdcPolicy>(
         daplink::app_config::kConfig.cdc.policy);
-    using DapOps = daplink::board::BoardOps;
+    using DapOps = daplink::cmsis_dap::DefaultOps<daplink::board::SwdBackend>;
     using DapPolicy = daplink::dap_strategy::DefaultTransferPolicy<daplink::cmsis_dap::State>;
     daplink::dap_transport::HidTransport<
         daplink::board::SwdBackend,

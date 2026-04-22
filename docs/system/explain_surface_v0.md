@@ -385,7 +385,8 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `system_compiler_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `system_compiler_summary.blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`
 - `system_compiler_summary.binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`
-- `system_compiler_summary.binding_basis / bringup_basis`
+- `system_compiler_summary.formation_basis / binding_basis / bringup_basis`
+- `system_compiler_summary.result_map`
 - `system_compiler_summary.cases[*].formation_basis / binding_summary / bringup_summary`
 - `system_input_summary.case_count`
 - `system_input_summary.case_kind_matrix`
@@ -399,6 +400,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `system_formation_summary.unresolved_capability_matrix / blocked_node_matrix / blocker_matrix`
 - `fact_resolution_summary.case_count`
 - `fact_resolution_summary.required_fact_matrix / provided_fact_matrix`
+- `fact_resolution_summary.kind / mode`
 - `comparison.system_compiler_summary.changed_case_count`
 - `comparison.system_compiler_summary.stage_change_matrix / status_change_matrix`
 - `comparison.system_compiler_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -406,7 +408,8 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_compiler_summary.unresolved_capability_change_matrix / blocked_node_change_matrix / blocker_change_matrix`
 - `comparison.system_compiler_summary.blocker_reason_change_matrix / blocker_missing_requires_change_matrix / blocker_depends_on_change_matrix`
 - `comparison.system_compiler_summary.binding_reason_change_matrix / bringup_phase_change_matrix / bringup_dependency_change_matrix`
-- `comparison.system_compiler_summary.binding_drift / bringup_drift`
+- `comparison.system_compiler_summary.formation_drift / binding_drift / bringup_drift`
+- `comparison.system_compiler_summary.result_map`
 - `comparison.system_compiler_summary.cases[*].formation_basis_changes / binding_summary_changes / bringup_summary_changes`
 - `comparison.system_input_summary.changed_case_count`
 - `comparison.system_input_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -420,11 +423,120 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_formation_summary.status_change_matrix / blocker_change_matrix`
 - `comparison.fact_resolution_summary.changed_case_count`
 - `comparison.fact_resolution_summary.fact_inventory_change_matrix`
+- `comparison.fact_resolution_summary.kind / mode`
 - `cases[*].Formation`
 - `cases[*].InpCmp`
 - `cases[*].FormCmp`
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
+
+对机器消费者来说，`system_compiler_summary` 现在也不再只是
+artifact_root 默认总览里的匿名嵌套块。
+无论 summary 还是 comparison 形态，它都会显式带出：
+
+- `kind = system_compiler_summary/v0`
+- `mode = summary | comparison`
+
+对应 schema 与样例入口见：
+
+- [`../../schemas/system_compiler_summary.v0.schema.json`](../../schemas/system_compiler_summary.v0.schema.json)
+- [`../../schemas/examples/system_compiler_summary.summary.v0.sample.json`](../../schemas/examples/system_compiler_summary.summary.v0.sample.json)
+- [`../../schemas/examples/system_compiler_summary.comparison.v0.sample.json`](../../schemas/examples/system_compiler_summary.comparison.v0.sample.json)
+
+同样，artifact_root 默认总览里的 `system_input_summary`
+与 `comparison.system_input_summary` 现在也会显式带出：
+
+- `kind = system_input_summary/v0`
+- `mode = summary | comparison`
+
+对应 schema 与样例入口见：
+
+- [`../../schemas/system_input_summary.v0.schema.json`](../../schemas/system_input_summary.v0.schema.json)
+- [`../../schemas/examples/system_input_summary.summary.v0.sample.json`](../../schemas/examples/system_input_summary.summary.v0.sample.json)
+- [`../../schemas/examples/system_input_summary.comparison.v0.sample.json`](../../schemas/examples/system_input_summary.comparison.v0.sample.json)
+
+而 `binding_result_summary` 与 `comparison.binding_result_summary`
+现在也会显式带出：
+
+- `kind = binding_result_summary/v0`
+- `mode = summary | comparison`
+
+对应 schema 与样例入口见：
+
+- [`../../schemas/binding_result_summary.v0.schema.json`](../../schemas/binding_result_summary.v0.schema.json)
+- [`../../schemas/examples/binding_result_summary.summary.v0.sample.json`](../../schemas/examples/binding_result_summary.summary.v0.sample.json)
+- [`../../schemas/examples/binding_result_summary.comparison.v0.sample.json`](../../schemas/examples/binding_result_summary.comparison.v0.sample.json)
+
+而 `bringup_order_summary` 与 `comparison.bringup_order_summary`
+现在也会显式带出：
+
+- `kind = bringup_order_summary/v0`
+- `mode = summary | comparison`
+
+对应 schema 与样例入口见：
+
+- [`../../schemas/bringup_order_summary.v0.schema.json`](../../schemas/bringup_order_summary.v0.schema.json)
+- [`../../schemas/examples/bringup_order_summary.summary.v0.sample.json`](../../schemas/examples/bringup_order_summary.summary.v0.sample.json)
+- [`../../schemas/examples/bringup_order_summary.comparison.v0.sample.json`](../../schemas/examples/bringup_order_summary.comparison.v0.sample.json)
+
+而 `system_formation_summary` 与 `comparison.system_formation_summary`
+现在也会显式带出：
+
+- `kind = system_formation_summary/v0`
+- `mode = summary | comparison`
+
+对应 schema 与样例入口见：
+
+- [`../../schemas/system_formation_summary.v0.schema.json`](../../schemas/system_formation_summary.v0.schema.json)
+- [`../../schemas/examples/system_formation_summary.summary.v0.sample.json`](../../schemas/examples/system_formation_summary.summary.v0.sample.json)
+- [`../../schemas/examples/system_formation_summary.comparison.v0.sample.json`](../../schemas/examples/system_formation_summary.comparison.v0.sample.json)
+
+补充一点，`system_compiler_summary.result_map.stage_blocks[*].root_fields`
+表示的是 `system_compiler_summary` 根上的 stage 归属字段；
+它们用于说明这些 root field 该和哪个 stage block、哪个分阶段 summary 一起解释，
+但不等于要求 `system_formation_summary`、`binding_result_summary`、
+`bringup_order_summary` 都逐字段同名复制一份。
+
+在这个基础上，`result_map` 现在还会继续显式带出 field-level relation：
+
+如果要把这份 relation language 单独交给外部脚本或 CI 消费，
+当前最小 schema 锚点见
+[`../../schemas/system_compiler_result_map.v0.schema.json`](../../schemas/system_compiler_result_map.v0.schema.json)。
+
+而如果外部调用方想直接把整个 root-level summary object 当成 explain surface 的稳定输入，
+就应该优先以 `system_compiler_summary/v0` 作为识别锚点，
+再通过它内部的 `result_map` 进入 relation language。
+
+- `input_bridge.field_relations[*]`
+- `case_projection_field_relations.<stage>[*]`
+- `stage_blocks[*].field_relations[*]`
+
+每条 relation 会用：
+
+- `projection_field`
+- `source_candidates[*].stage / field_path / relation`
+- `root_field`
+- `block_field_path / block_relation`
+- `summary_field_path / summary_relation`
+
+把 root field 和 block 内部字段、分阶段 summary 字段之间的关系正式写出来。
+当前 `block_relation / summary_relation` 只冻结为：
+
+- `same_field`
+- `field_alias`
+- `none`
+
+所以 explain 调用方现在能区分三种情况：
+
+- 这个 root field 在 block 或 summary 侧有同名 direct mirror
+- 这个 root field 在 block 里只是别名，比如 `binding_reason_matrix -> reason_matrix`
+- 这个 root field 目前只有 stage ownership，没有 direct summary field mirror
+
+与此同时，case projection 侧也开始能区分：
+
+- 这个 projection field 直接来自哪一个 stage case summary
+- 这个 projection field 是否存在 fallback source
+- 这个 fallback 是同名 direct mirror，还是需要经过 alias
 
 也就是说，artifact_root 默认总览现在不只会说
 “有多少 case 发生了 system formation 漂移”，
@@ -433,10 +545,13 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - 这一组 case 的 system compiler 总结果当前是怎样收口的
 - 这一组 case 当前有哪些 `case_kind / resolved profile / resolved board / active facet`
 - 单个 case 的 `formation_basis / binding_summary / bringup_summary` 是怎样收口的
+- 单个 case 的 projection 字段到底来自哪条 stage case summary，是否经过 alias 或 fallback 收口
 - 这一组 case 在 binding / bringup / formation 上的阻塞面主要集中在哪里
 - blocker reasons / missing requires / dependency nodes 在多 case 之间如何聚集
 - binding reasons / bringup phases / bringup dependency nodes 在多 case 之间如何聚集
 - declared fact / declared contract / subject fact 在多 case 之间如何聚集
+- `formation / binding / bringup` 三段 basis 与 drift 是否都已经进入正式结果块
+- 这些 stage block 与 `system_input_summary / system_formation_summary / binding_result_summary / bringup_order_summary` 之间到底如何对应
 - 这一组 case 当前整体有多少已经 `formed`、多少已经 `blocked`
 - binding result 在多 case 之间是如何收口的，哪些 capability 仍然 unresolved
 - bringup order 在多 case 之间是如何展开的，哪些节点已经进入 blocked

@@ -1081,7 +1081,7 @@ namespace {
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 6200;
+    constexpr std::size_t kMaxStyleTableBytes = 10u * 1024u;
     std::FILE* g_regress_log = nullptr;
     bool g_payload_stats_dumped = false;
 
@@ -2163,7 +2163,7 @@ namespace {
         kernel.set_rect(table_scroll_x, {0, 184, 200, 16});
         kernel.set_scrollbar_orientation(table_scroll_x, ScrollBarOrientation::Horizontal);
         kernel.set_scrollbar_page_size(table_scroll_x, 200);
-        kernel.set_rect(tree_root, {screen_width - 260, 500, 220, 200});
+        kernel.set_rect(tree_root, {screen_width - 520, 280, 220, 200});
         kernel.set_rect(tree_view, {0, 0, 200, 200});
         kernel.set_list_row_height(table_view, 24);
         kernel.set_list_row_height(tree_view, 24);
@@ -3048,17 +3048,28 @@ int main(int argc, char** argv) {
     bool table_tree_ok = true;
     bool table_tree_ran = false;
     bool ui_ok = true;
+    auto trace_regress_stage = [&](const char* stage) noexcept {
+        (void)out::println<"[soa] regress stage={}">(g_console, stage);
+        if (!g_regress_log) return;
+        std::fprintf(g_regress_log, "[soa] regress_stage=%s\n", stage);
+        std::fflush(g_regress_log);
+    };
 #endif
 
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress) {
         bool regress_ok = true;
+        trace_regress_stage("input.begin");
         if (!run_input_regression(gui, kernel, factory, root)) {
             regress_ok = false;
         }
+        trace_regress_stage("input.end");
+        trace_regress_stage("style.begin");
         if (!run_style_regression(gui)) {
             regress_ok = false;
         }
+        trace_regress_stage("style.end");
+        trace_regress_stage("listview.begin");
         if (!run_list_view_regression(gui, kernel, factory, root, fb, canvas, tile_backend, tile_view, tile_config)) {
             regress_ok = false;
             list_peak_ok = false;
@@ -3068,6 +3079,8 @@ int main(int argc, char** argv) {
             }
 #endif
         }
+        trace_regress_stage("listview.end");
+        trace_regress_stage("table_tree.begin");
         if (!run_table_tree_regression(gui, kernel, factory, root)) {
             regress_ok = false;
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -3077,6 +3090,7 @@ int main(int argc, char** argv) {
             }
 #endif
         }
+        trace_regress_stage("table_tree.end");
 #if defined(VIVID_SOA_TRACE_INPUT)
         table_tree_ran = true;
 #endif
@@ -3095,6 +3109,9 @@ int main(int argc, char** argv) {
         }
     }
     if (run_regress_layout) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("layout.begin");
+#endif
         const bool ok = run_layout_regression(gui, kernel, factory, root);
         if (!ok) {
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -3109,8 +3126,14 @@ int main(int argc, char** argv) {
             return 1;
 #endif
         }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("layout.end");
+#endif
     }
     if (run_regress_ui) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("ui.begin");
+#endif
         const bool ok = run_ui_regression(gui, kernel, factory, root);
         if (!ok) {
             ui_ok = false;
@@ -3140,6 +3163,7 @@ int main(int argc, char** argv) {
                 }
             }
         }
+        trace_regress_stage("ui.end");
 #endif
     }
 #endif
@@ -3298,6 +3322,9 @@ int main(int argc, char** argv) {
     std::size_t compact_saved = 0;
 
     if (run_compare) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("compare.begin");
+#endif
         {
             ui::draw_cmd::DefaultDrawCmdBuffer compact_probe{};
             compact_probe.fill_rect({8, 8, 24, 6}, kDemoPanel);
@@ -3427,10 +3454,16 @@ int main(int argc, char** argv) {
             ci_mark_fail("compact");
         }
 #endif
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("compare.end");
+#endif
     }
 
     bool dump_ok = true;
     if (run_dump) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("dump.begin");
+#endif
         if (!has_recorded) {
             gui.record_commands(compare_buf);
             append_path_icon(compare_buf, screen_width);
@@ -3456,9 +3489,13 @@ int main(int argc, char** argv) {
 #endif
             return 1;
         }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("dump.end");
+#endif
     }
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_ci) {
+        trace_regress_stage("replay.begin");
         std::uint32_t replay_full = 0;
         std::uint32_t replay_tile = 0;
         bool replay_ok = false;
@@ -3485,6 +3522,7 @@ int main(int argc, char** argv) {
         if (!replay_ok) {
             ci_mark_fail("replay");
         }
+        trace_regress_stage("replay.end");
 
         const bool payload_ok = !kernel.payload_overflowed();
         const bool text_ok = !kernel.text_overflowed();

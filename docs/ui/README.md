@@ -24,6 +24,7 @@
 
 - [`structured_view_model_v1.md`](structured_view_model_v1.md)
 - [`vivid_widget_state_observe.md`](vivid_widget_state_observe.md)
+- `Examples/ui/vivid/list_row_flags_demo`
 
 ### 我想看 Vivid 这条线
 

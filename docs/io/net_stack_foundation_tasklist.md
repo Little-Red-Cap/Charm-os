@@ -26,9 +26,10 @@
 - `posix_socket_bridge_smoke` 已可作为一条直接回归路径
 - host 侧 smoke 已经形成矩阵
 - `net.pump` 已开始把 `ARP / IPv4 / UDP ingress/egress` 收口到统一推进面，`net_pump_smoke` 可覆盖最小闭环
-- `net.protocol.diagnostic_udp` 已把最小 UDP 诊断协议的服务端 / 客户端一起挂到 `UdpStackPump` 数据面上，`net_udp_diag_smoke` 可覆盖服务端 `ping / count / slow_count / meta` 回复以及 `unsupported / bad_request` 错误回复，`net_udp_diag_client_smoke` 可覆盖客户端请求发送、响应分发、错误回复、超时与取消后 stray reply 丢弃，`net_udp_diag_roundtrip_smoke` 可覆盖双端 `client -> ARP -> server -> reply` 真实往返闭环
+- `net.protocol.diagnostic_udp` 已把最小 UDP 诊断协议的服务端 / 客户端一起挂到 `UdpStackPump` 数据面上，`net_udp_diag_smoke` 可覆盖服务端 `ping / count / slow_count / meta` 回复以及 `unsupported / bad_request` 错误回复，`net_udp_diag_client_smoke` 可覆盖客户端请求发送、响应分发、错误回复、超时与取消后 stray reply 丢弃，`net_udp_diag_roundtrip_smoke` 可覆盖双端 `client -> ARP -> server -> reply` 真实往返闭环，`net_lab_udp_diag_forward_smoke` 则进一步把这条应用层 UDP 往返闭环推进到 `client -> router1 -> router2 -> server -> reply` 的自研 forwarding 数据面上，覆盖 proxy ARP、跨子网转发与 unsupported error reply 的真实穿越路径，`net_lab_udp_diag_forward_failure_smoke` 则把 routed timeout、cancel request 与 late/stray reply drop 这组失败路径也钉到同一条 forwarding 数据面上，`net_lab_udp_diag_forward_late_reply_smoke` 则进一步补齐“真实服务端已回复、跨路由最后一跳延迟把 reply 拖过 deadline、客户端 timeout 后再丢弃 late reply、随后恢复继续成功往返”这组更贴近真实链路抖动的语义，`net_lab_udp_diag_forward_route_churn_smoke` 则继续补上“请求已送达 server、reply 正在返程、router2 热删除 client route 后转为 ICMP destination unreachable 回 server，而 client 只观察到 timeout；恢复路由后下一次往返重新成功”这组 in-flight route churn 语义，`net_lab_udp_diag_forward_proxy_arp_churn_smoke` 则再补上“新目标 IP 上 proxy ARP 会随 route presence 动态出现/消失，且恢复显式 route 后真实 server 往返重新成功”这组 ARP 与 forwarding 叠加语义
 - IPv4 / UDP 数据面已补上 limited broadcast 的 ingress/egress：接收侧可接受 `255.255.255.255` 目标地址的 IPv4/UDP 包，发送侧对 UDP broadcast 不再依赖 ARP，`net_udp_smoke` 与 `net_udp_egress_smoke` 可直接回归这条能力
 - `net.icmp` 已补上最小 echo codec/service/egress，并接入 `IcmpStackPump`、`bind_icmp_protocol` 与最小 ping facade：`Stack -> Ipv4Service -> IcmpEchoService` ingress 可解析 echo request/reply，ARP 解析后可完成 ICMP echo request 发送，`net_icmp_smoke` 可回归 codec、unsupported drop、checksum 校验与 ARP 后发送成功，`net_icmp_roundtrip_smoke` 可回归 `ARP -> echo request -> echo reply` 的最小真实往返闭环，`net_icmp_protocol_smoke` 可回归 `echo::Probe` 的对象级轮询辅助与结果视图/状态快照调用面、`pending()` / `ready()` / `ok()` / `timed_out()` / `cancelled()` / `failed()` 以及 `has_value()` / `identifier()` / `sequence()` / `payload_size()` / `value_payload()` 这组更贴近用户语言的状态/结果摘要辅助、单飞行 `Probe` 的无参 `cancel()` / `cancel_all()` 这组更轻的取消调用面、`Client/Probe` 对 `util::u8[N]` payload 的直传 `ping()` 重载、`Client/Probe` 默认 `ipv4_any()` 的 peer-only 构造 / `configure()` / `bind()` 这组更轻的配置调用面、protocol binding、`echo::Client::bind()` / `echo::AutoReplyServer::bind()` 这层更顺手的调用面，并覆盖 echo client 的自动编号、请求级 reply/timeout hook、pending 清理、取消、超时、late reply 丢弃与 `Probe` 的 cancelled/failed 结果语义
+- `net.ipv4` 已补上原始 IPv4 datagram 的通用 egress / TTL 重写 / 挂起队列，`net.forward` 已提供最小双口 IPv4 forwarding hop，并已从固定对穿推进到“最小静态路由语义 + connected subnet 语义”：支持 prefix route / optional next hop / connected prefix 直连判定 / on-link gateway 校验 / route miss -> `ICMP destination unreachable` / proxy ARP 仅对跨口可转发目标应答；进一步补上 `set_route/set_direct_route/set_gateway_route` 这组最小 overwrite 语义，用于按 `network + prefix_length` 覆盖既有 route，同时保留 `add_route` 的 append 语义，并补上 `remove_route(network, prefix_length)` 与 `remove_route_at(index)` 这组最小删除语义，分别用于按相同 key 删除既有 route，以及在保留其余同前缀候选项顺序的前提下精确删除指定表项；同时补上 `route_at()` 与 `inspect_forwarding_decision()` 这组只读观测接口，用于直接观察显式 route table 与最终 forwarding 选择；显式 route 的决策规则现已明确为“先看最长前缀，再看更低 metric，同 prefix + 同 metric 保持先插入者生效”。`net_lab_forward_trace_smoke` 可覆盖 `client -> router1 -> router2 -> destination` 的真实转发、TTL 递减、`ICMP time exceeded`、`destination unreachable` 与最终 `echo reply` 闭环，`net_lab_route_precedence_smoke` 进一步钉住 default route、生效中的坏更具体前缀，以及更具体 host-route 抢回流量这组 longest-prefix precedence 语义，`net_lab_route_default_precedence_smoke` 则把“default route -> 坏的 /24 -> 正确的 /32 -> 删除 /32 回落到 /24 -> 再删除 /24 回落到 default route”这整条 precedence/fallback 链做成专门 smoke，`net_lab_route_metric_smoke` 则专门钉住同 prefix 下 low-metric 胜出、同 metric 保持插入顺序，以及更长 host-route 继续压过 metric 这组三层优先级语义，`net_lab_route_table_mutation_smoke` 则补齐 route overwrite / clear / re-add 与 connected prefix 保持不变这组路由表演进语义，`net_lab_route_delete_smoke` 则专门钉住 delete 后回落 default route、delete front entry 后 host-route 仍保持生效，以及 delete 到空表后的 `destination unreachable` 语义，`net_lab_route_introspection_smoke` 则专门钉住 canonical route snapshot、front delete 后 table 压缩，以及 explicit route / connected prefix 最终选路观测语义，`net_lab_route_precise_delete_smoke` 则进一步钉住“最长前缀优先不变、同 prefix 先按 metric 取胜，再允许按 index 精确移除当前赢家并回退到剩余候选项”这组 precise delete 语义
 - `reactor_listener_close_smoke` 已锁住 accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭会向 reactor 收口为 `closed`
 - `reactor_listener_win_close_smoke` 已把这条 listener / accept / watch 语义扩展到真实 WinProvider：accepted socket 会继承请求的 persistent events，且 watched listener 的本地关闭仍会向 reactor 收口为 `closed`
 - `reactor_write_close_smoke` 已锁住 transport 进入终态后 sender 不再继续排队
@@ -390,3 +391,28 @@
 当前阶段的执行口径可以压缩成一句话：
 
 > **先把网络底座做成 Charm 主线里稳定、可回归、可承载上层协议的公共 I/O 能力，再谈协议铺开。**
+
+---
+
+## 实验场骨架（2026-04-20）
+
+- 已新增 `Modules/io/net/net.lab.cppm`，作为网络实验场的最小公共骨架。
+- `net::lab::DuplexLink` 提供双端虚拟链路、双向独立时延、单次丢包注入与方向统计，方便做可重复的协议回归。
+- `net::lab::StackNode<Pump>` 收口 `NetIf / NetDriver / Stack / Pump` 的宿主节点装配，减少每个 smoke 重复搭线。
+- `Examples/io/net/net_lab_smoke` 现覆盖“延迟链路 ICMP 往返 + 丢弃回复触发 timeout + 一次性故障恢复”这一条实验场闭环。
+- 这条线的目标不是立刻扩 API，而是先把后续 traceroute、故障注入、协议回放所需的试验底座搭稳。
+
+## ICMP 控制面前置（2026-04-20）
+
+- `net.ipv4` 已补上 IPv4 前缀解析能力，可解析 ICMP 引用报文中“不完整但头部合法”的原始 IPv4 片段。
+- `net.icmp` 已补上 `time_exceeded / destination_unreachable` 这类 error quote 的最小编解码能力。
+- `net_icmp_smoke` 现可验证 `ICMP Time Exceeded + quoted IPv4 prefix` 的解析，这一步是 traceroute 控制面的直接前置能力。
+- 当前 `IcmpEchoService` 已同时支持 echo 与 error quote 分发；`IcmpStackPump` / `bind_icmp_protocol()` 已把这条控制面接到更高层协议语义面。
+
+## traceroute 风格闭环（2026-04-20）
+
+- 已新增 `Modules/io/net/net.protocol.trace_icmp.cppm`，提供最小 `net::icmp::trace::Probe` 协议面：可发带 TTL 的 ICMP echo probe，并统一收敛 `time_exceeded / destination_unreachable / echo_reply / timeout` 结果。
+- `net.icmp` 已新增 `IcmpErrorQuoteSink`、`parse_icmp_echo_packet_prefix()` 与 `parse_icmp_error_quote_echo_info()`，把 quoted echo 重新关联回原始 probe。
+- `net.icmp_protocol_binding` 已扩成同时支持 echo sink / error quote sink / full send trampoline；`IcmpStackPump` 也已补上 `set_error_quote_sink()` 与对应统计出口。
+- 已新增 `Examples/io/net/net_lab_trace_smoke`，用脚本化多跳 peer 覆盖“TTL=1 -> hop1 time exceeded、TTL=2 -> hop2 time exceeded、终点 destination unreachable、终点 echo reply、静默 timeout、恢复后再次 reach”这条 traceroute 风格控制面闭环。
+- 这一步的意义是：在路由 / 转发数据面尚未完全展开前，先把 traceroute 所需的 ICMP 控制面观测、匹配与实验回归链路打通。

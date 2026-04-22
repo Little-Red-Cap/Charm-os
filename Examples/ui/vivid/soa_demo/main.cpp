@@ -173,10 +173,28 @@ namespace {
         std::uint16_t count{0};
     };
 
+    struct ListViewRowFlagsSource {
+        std::uint16_t disabled_index{0xFFFF};
+        std::uint16_t group_index{0xFFFF};
+    };
+
     const char* list_view_text_at(const void* ctx, std::uint16_t index) noexcept {
         const auto* src = static_cast<const ListViewTextSource*>(ctx);
         if (!src || !src->items || src->count == 0) return "";
         return src->items[index % src->count];
+    }
+
+    std::uint8_t list_view_row_flags_at(const void* ctx, std::uint16_t index) noexcept {
+        const auto* src = static_cast<const ListViewRowFlagsSource*>(ctx);
+        if (!src) return 0;
+        std::uint8_t flags = 0;
+        if (index == src->group_index) {
+            flags |= soa_detail::kListViewRowFlagGroup;
+        }
+        if (index == src->disabled_index) {
+            flags |= soa_detail::kListViewRowFlagDisabled;
+        }
+        return flags;
     }
 
     struct ListViewIconSource {
@@ -1063,7 +1081,7 @@ namespace {
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 6200;
+    constexpr std::size_t kMaxStyleTableBytes = 10u * 1024u;
     std::FILE* g_regress_log = nullptr;
     bool g_payload_stats_dumped = false;
 
@@ -1978,14 +1996,23 @@ namespace {
             list_items,
             static_cast<std::uint16_t>(sizeof(list_items) / sizeof(list_items[0]))
         };
+        static const ListViewRowFlagsSource row_flags_source{
+            .disabled_index = 1,
+            .group_index = 0,
+        };
         static const ListViewIconSource icon_source{
             g_test_icon_id,
             g_slice_id
         };
         factory.set_list_view_source(list_view, 1000, &list_source, &list_view_text_at);
+        factory.set_list_view_row_flags_source(list_view, &row_flags_source, &list_view_row_flags_at);
         factory.set_list_view_icon_source(list_view, &icon_source, &list_view_icon_at, 18);
         gui.render();
         expect_true(gui.last_exec_stats().failed_cmds == 0, "listview: failed_cmds", fails);
+        expect_true((kernel.list_view_item_row_flags(list_view, 0) & soa_detail::kListViewRowFlagGroup) != 0,
+            "listview: group row flag missing", fails);
+        expect_true((kernel.list_view_item_row_flags(list_view, 1) & soa_detail::kListViewRowFlagDisabled) != 0,
+            "listview: disabled row flag missing", fails);
 
         const auto stats_after_create = kernel.payload_stats();
         const std::uint16_t expected_peak =
@@ -2035,6 +2062,19 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "listview: drag invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "listview: drag pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "listview: drag missing paint", fails);
+
+        kernel.set_scroll_y_clamped(list_view, 0);
+        gui.render();
+        kernel.set_list_view_selected(list_view, -1);
+        kernel.layout_trace_reset();
+        const int disabled_y = hit_y + row_h;
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hit_x, disabled_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hit_x, disabled_y, 1));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "listview: disabled click invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "listview: disabled click pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "listview: disabled click missing paint", fails);
+        expect_true(kernel.list_view_selected(list_view) == -1, "listview: disabled click changed selection", fails);
 
         kernel.layout_trace_reset();
         const int select_y = hit_y + row_h * 2;
@@ -2123,7 +2163,7 @@ namespace {
         kernel.set_rect(table_scroll_x, {0, 184, 200, 16});
         kernel.set_scrollbar_orientation(table_scroll_x, ScrollBarOrientation::Horizontal);
         kernel.set_scrollbar_page_size(table_scroll_x, 200);
-        kernel.set_rect(tree_root, {screen_width - 260, 500, 220, 200});
+        kernel.set_rect(tree_root, {screen_width - 520, 280, 220, 200});
         kernel.set_rect(tree_view, {0, 0, 200, 200});
         kernel.set_list_row_height(table_view, 24);
         kernel.set_list_row_height(tree_view, 24);
@@ -3008,17 +3048,28 @@ int main(int argc, char** argv) {
     bool table_tree_ok = true;
     bool table_tree_ran = false;
     bool ui_ok = true;
+    auto trace_regress_stage = [&](const char* stage) noexcept {
+        (void)out::println<"[soa] regress stage={}">(g_console, stage);
+        if (!g_regress_log) return;
+        std::fprintf(g_regress_log, "[soa] regress_stage=%s\n", stage);
+        std::fflush(g_regress_log);
+    };
 #endif
 
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress) {
         bool regress_ok = true;
+        trace_regress_stage("input.begin");
         if (!run_input_regression(gui, kernel, factory, root)) {
             regress_ok = false;
         }
+        trace_regress_stage("input.end");
+        trace_regress_stage("style.begin");
         if (!run_style_regression(gui)) {
             regress_ok = false;
         }
+        trace_regress_stage("style.end");
+        trace_regress_stage("listview.begin");
         if (!run_list_view_regression(gui, kernel, factory, root, fb, canvas, tile_backend, tile_view, tile_config)) {
             regress_ok = false;
             list_peak_ok = false;
@@ -3028,6 +3079,8 @@ int main(int argc, char** argv) {
             }
 #endif
         }
+        trace_regress_stage("listview.end");
+        trace_regress_stage("table_tree.begin");
         if (!run_table_tree_regression(gui, kernel, factory, root)) {
             regress_ok = false;
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -3037,6 +3090,7 @@ int main(int argc, char** argv) {
             }
 #endif
         }
+        trace_regress_stage("table_tree.end");
 #if defined(VIVID_SOA_TRACE_INPUT)
         table_tree_ran = true;
 #endif
@@ -3055,6 +3109,9 @@ int main(int argc, char** argv) {
         }
     }
     if (run_regress_layout) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("layout.begin");
+#endif
         const bool ok = run_layout_regression(gui, kernel, factory, root);
         if (!ok) {
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -3069,8 +3126,14 @@ int main(int argc, char** argv) {
             return 1;
 #endif
         }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("layout.end");
+#endif
     }
     if (run_regress_ui) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("ui.begin");
+#endif
         const bool ok = run_ui_regression(gui, kernel, factory, root);
         if (!ok) {
             ui_ok = false;
@@ -3100,6 +3163,7 @@ int main(int argc, char** argv) {
                 }
             }
         }
+        trace_regress_stage("ui.end");
 #endif
     }
 #endif
@@ -3258,6 +3322,9 @@ int main(int argc, char** argv) {
     std::size_t compact_saved = 0;
 
     if (run_compare) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("compare.begin");
+#endif
         {
             ui::draw_cmd::DefaultDrawCmdBuffer compact_probe{};
             compact_probe.fill_rect({8, 8, 24, 6}, kDemoPanel);
@@ -3382,13 +3449,21 @@ int main(int argc, char** argv) {
 #endif
             return 1;
         }
+#if defined(VIVID_SOA_TRACE_INPUT)
         if (run_ci && !compact_ok) {
             ci_mark_fail("compact");
         }
+#endif
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("compare.end");
+#endif
     }
 
     bool dump_ok = true;
     if (run_dump) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("dump.begin");
+#endif
         if (!has_recorded) {
             gui.record_commands(compare_buf);
             append_path_icon(compare_buf, screen_width);
@@ -3414,9 +3489,13 @@ int main(int argc, char** argv) {
 #endif
             return 1;
         }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        trace_regress_stage("dump.end");
+#endif
     }
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_ci) {
+        trace_regress_stage("replay.begin");
         std::uint32_t replay_full = 0;
         std::uint32_t replay_tile = 0;
         bool replay_ok = false;
@@ -3443,6 +3522,7 @@ int main(int argc, char** argv) {
         if (!replay_ok) {
             ci_mark_fail("replay");
         }
+        trace_regress_stage("replay.end");
 
         const bool payload_ok = !kernel.payload_overflowed();
         const bool text_ok = !kernel.text_overflowed();

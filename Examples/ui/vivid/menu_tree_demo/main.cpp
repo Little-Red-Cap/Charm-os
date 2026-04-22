@@ -3,6 +3,7 @@
 
 import charm.core.event;
 import charm.core.soa_factory;
+import charm.core.structured_view;
 import charm.widgets.menu_tree;
 
 namespace {
@@ -117,20 +118,47 @@ int main() {
     menu.init(factory, root);
     menu.set_root_menu(0);
     menu.set_item_height(kItemH);
-    menu.set_provider(MenuTree::MenuProvider{
+    const MenuTree::MenuProvider provider{
         &selection,
         &MenuData::count,
         &MenuData::label,
         &MenuData::enabled,
         &MenuData::has_children,
         &MenuData::child_menu,
-    });
+    };
+    menu.set_provider(provider);
     menu.set_selection_model(MenuTree::MenuSelectionModel{
         &selection,
         &MenuSelection::get_selected,
         &MenuSelection::set_selected,
         &MenuSelection::clear,
     });
+    const StructuredMenuView root_view{&provider, 0};
+    const StructuredMenuView file_view{&provider, 1};
+    if (!expect((StructuredMenuView::row_flags(&root_view, 0) & kStructuredListRowFlagGroup) != 0,
+                "root branch exposes shared group row flag")) {
+        return 1;
+    }
+    if (!expect((StructuredMenuView::row_flags(&root_view, 0) & kStructuredListRowFlagDisabled) == 0,
+                "enabled root branch does not expose disabled row flag")) {
+        return 1;
+    }
+    if (!expect((StructuredMenuView::row_flags(&root_view, 1) & kStructuredListRowFlagGroup) == 0,
+                "disabled root leaf does not expose group row flag")) {
+        return 1;
+    }
+    if (!expect((StructuredMenuView::row_flags(&root_view, 1) & kStructuredListRowFlagDisabled) != 0,
+                "disabled root leaf exposes shared disabled row flag")) {
+        return 1;
+    }
+    if (!expect((StructuredMenuView::row_flags(&file_view, 0) & kStructuredListRowFlagGroup) == 0,
+                "submenu leaf keeps leaf row flag semantics")) {
+        return 1;
+    }
+    if (!expect((StructuredMenuView::row_flags(&file_view, 0) & kStructuredListRowFlagDisabled) != 0,
+                "disabled submenu leaf also exposes shared disabled row flag")) {
+        return 1;
+    }
 
     Probe probe{};
     menu.set_on_select(Callback::bind<&on_legacy_select>());

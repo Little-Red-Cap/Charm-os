@@ -393,16 +393,17 @@ Modules/
 - CI 证明“这不是一次性的偶然成功”
 
 其中 `scripts/minimal_kernel_runtime_host_smoke.ps1` 当前会批量回归上半层 `runtime_*_host` verifier，默认不把 lower-half 认领的 `runtime_task_syscall_frame_armv7a_host` 纳入同一批次，避免两条并行线重新耦合。
+日常本地回归优先直接走 `scripts/minimal_kernel_runtime_host_smoke_daily.ps1`，它会配合 `-KeepBuildDirs` 复用 `cmake-build-verify-*` 构建目录，并在 generator 与 sourceDir 匹配时跳过显式 `configure`；如果要确认冷启动路径或清理缓存，则走 `scripts/minimal_kernel_runtime_host_smoke_ci.ps1`，它会固定使用 `-Fresh`。如果只想缩小回归范围，也可以在这两个入口后面继续加 `-Examples runtime_minimal_host,runtime_binding_chain_host -Jobs 8` 只跑局部批次；如果需要把结果沉淀成工件，则继续加 `-SummaryPath ...` 输出 `summary.json`，再用 `scripts/inspect_minimal_kernel_runtime_host_smoke.ps1 -Summary ...` 看慢项、回归，以及 `configure / build / run` 三段耗时分布。
 而 `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1` 则把 QEMU 叶子里的 `runtime-trap / runtime-live / task-syscall` 聚焦 smoke 收成一条共享 `debug` 构建的 lower-half 回归入口。
 `scripts/minimal_kernel_runtime_smoke.ps1` 则把这两条线串成一条仓库级总入口，方便一次性回归上半层 host 证据和下半层 ARMv7-A 叶子证据。
 
 如果以后线程、调度器、syscall、页表操作都能保持这个节奏，我们会比很多“先把功能糊上去”的内核项目更稳。
 
-## 7. 两人协作时，怎么分工最不容易互相踩
+## 7. 两人协作时，怎样分工更不容易互相踩
 
-如果后面开始并行推进，我更推荐下面这种分法。
+如果后面开始并行推进，更推荐下面这种分法。
 
-### 7.1 一个人负责平台叶子与板级映射
+### 7.1 平台叶子与板级映射
 
 适合负责的内容：
 
@@ -419,7 +420,7 @@ Modules/
 - 和 CMake / target 边界更近
 - 对 kernel core 的直接改动相对少
 
-### 7.2 一个人负责公共契约与内核核心承接
+### 7.2 公共契约与内核核心承接
 
 适合负责的内容：
 
@@ -446,12 +447,12 @@ Modules/
 
 因为这些接口一旦定型，后面会影响很多年。
 
-## 8. 如果现在就开始分工，我建议先这样配合
+## 8. 并行推进时的推荐组合
 
-如果要尽快进入并行推进，我更推荐下面这个组合：
+如果要尽快进入并行推进，较推荐下面这个组合：
 
-- 我继续主攻 `targets/armv7a/common/`、QEMU 证据层、arch ingress seam
-- 你优先主攻 CMake/target 组织、board leaf 边界、RK3506 映射、以及和现有仓库主线的对齐
+- 一条线主攻 `targets/armv7a/common/`、QEMU 证据层、arch ingress seam
+- 另一条线优先主攻 CMake/target 组织、board leaf 边界、RK3506 映射，以及和现有仓库主线的对齐
 
 这样分的好处是：
 
@@ -459,7 +460,7 @@ Modules/
 - 不容易在同一批文件里反复打架
 - 我们仍然通过 contract 和 CI 汇合，而不是通过“谁先改完某个大文件”汇合
 
-如果你后面想再多接一点裸机代码，最适合并行切入的子题目通常是：
+如果后续还需要再增加一部分裸机侧并行任务，较适合的切入点通常是：
 
 - 新增一个 leaf target 的最小串口/中断接线
 - 给某个已有 contract 补 host 验证

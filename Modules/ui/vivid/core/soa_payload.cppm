@@ -11,6 +11,7 @@ export module charm.core.soa_payload;
 
 export import charm.core.handle;
 export import charm.gfx.draw_cmd;
+import charm.core.structured_view;
 import charm.core.soa_pool_caps;
 
 export namespace soa_detail {
@@ -273,7 +274,7 @@ export namespace soa_detail {
     using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewTailFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = ImageId (*)(const void*, std::uint16_t) noexcept;
-    using ListViewRowFlagsFn = std::uint8_t (*)(const void*, std::uint16_t) noexcept;
+    using ListViewRowFlagsFn = StructuredListRowFlagsFn;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
     using TableViewHeaderFn = const char* (*)(const void*, std::uint8_t) noexcept;
     using TableViewColWidthFn = int (*)(const void*, std::uint8_t) noexcept;
@@ -281,7 +282,8 @@ export namespace soa_detail {
     using TreeViewIndentFn = std::uint8_t (*)(const void*, std::uint16_t) noexcept;
     using RollerTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
 
-    constexpr std::uint8_t kListViewRowFlagGroup = 0x01;
+    constexpr std::uint8_t kListViewRowFlagGroup = kStructuredListRowFlagGroup;
+    constexpr std::uint8_t kListViewRowFlagDisabled = kStructuredListRowFlagDisabled;
 
     struct ListViewPayload {
         const void* text_ctx{nullptr};

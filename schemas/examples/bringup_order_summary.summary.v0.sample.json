@@ -1,0 +1,173 @@
+{
+  "kind": "bringup_order_summary/v0",
+  "mode": "summary",
+  "case_count": 1,
+  "totals": {
+    "ordered_node_count": 2,
+    "blocked_node_count": 1
+  },
+  "phase_counts": {
+    "core": 1,
+    "early": 1
+  },
+  "cases": [
+    {
+      "case": "demo-case",
+      "board": "win_stub",
+      "profile": "",
+      "active_facets": [
+        "runtime",
+        "input"
+      ],
+      "ordered_node_count": 2,
+      "blocked_node_count": 1,
+      "blocked_nodes": [
+        "hal.uart1"
+      ],
+      "phase_counts": {
+        "core": 1,
+        "early": 1
+      }
+    }
+  ],
+  "node_matrix": [
+    {
+      "node": "io.registry",
+      "case_count": 1,
+      "ready_case_count": 1,
+      "blocked_case_count": 0,
+      "orders": [
+        1
+      ],
+      "kinds": [
+        "binding"
+      ],
+      "phases": [
+        "core"
+      ],
+      "runlevels": [
+        "all"
+      ],
+      "provides": "io.registry",
+      "requires": {},
+      "dependency_nodes": {},
+      "missing_requires": {},
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "order": 1,
+          "kind": "binding",
+          "phase": "core",
+          "runlevel_text": "all",
+          "state": "ready",
+          "provides": [
+            "io.registry"
+          ],
+          "requires": [],
+          "dependency_nodes": [],
+          "missing_requires": []
+        }
+      ]
+    },
+    {
+      "node": "hal.uart1",
+      "case_count": 1,
+      "ready_case_count": 0,
+      "blocked_case_count": 1,
+      "orders": [
+        2
+      ],
+      "kinds": [
+        "binding"
+      ],
+      "phases": [
+        "core"
+      ],
+      "runlevels": [
+        "all"
+      ],
+      "provides": "hal.uart1",
+      "requires": "platform.irq",
+      "dependency_nodes": "demo-case:platform.irq",
+      "missing_requires": [
+        "platform.irq"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "order": 2,
+          "kind": "binding",
+          "phase": "core",
+          "runlevel_text": "all",
+          "state": "blocked",
+          "provides": [
+            "hal.uart1"
+          ],
+          "requires": [
+            "platform.irq"
+          ],
+          "dependency_nodes": [
+            "platform.irq"
+          ],
+          "missing_requires": [
+            "platform.irq"
+          ]
+        }
+      ]
+    }
+  ],
+  "blocked_node_matrix": [
+    {
+      "node": "hal.uart1",
+      "case_count": 1,
+      "ready_case_count": 0,
+      "blocked_case_count": 1,
+      "orders": [
+        2
+      ],
+      "kinds": [
+        "binding"
+      ],
+      "phases": [
+        "core"
+      ],
+      "runlevels": [
+        "all"
+      ],
+      "provides": "hal.uart1",
+      "requires": "platform.irq",
+      "dependency_nodes": "demo-case:platform.irq",
+      "missing_requires": [
+        "platform.irq"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "order": 2,
+          "kind": "binding",
+          "phase": "core",
+          "runlevel_text": "all",
+          "state": "blocked",
+          "provides": [
+            "hal.uart1"
+          ],
+          "requires": [
+            "platform.irq"
+          ],
+          "dependency_nodes": [
+            "platform.irq"
+          ],
+          "missing_requires": [
+            "platform.irq"
+          ]
+        }
+      ]
+    }
+  ]
+}

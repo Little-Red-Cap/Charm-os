@@ -429,41 +429,46 @@ import charm.core.soa_registry;
                     if (desc.payload == soa_detail::PayloadKind::ListView) {
                         auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
                         if (payload) {
-                            const bool row_group = payload->row_flags_fn
-                                ? ((payload->row_flags_fn(payload->row_flags_ctx,
-                                                          static_cast<std::uint16_t>(click_index))
-                                    & soa_detail::kListViewRowFlagGroup) != 0)
-                                : false;
-                            if (payload->tail_action_icon_fn) {
-                                const auto action_icon = payload->tail_action_icon_fn(
-                                    payload->tail_action_icon_ctx,
-                                    static_cast<std::uint16_t>(click_index));
-                                if (soa_detail::image_id_valid(action_icon)) {
-                                    int hit_w = static_cast<int>(payload->tail_action_icon_size);
-                                    if (hit_w <= 0) hit_w = 18;
-                                    hit_w += 12;
-                                    if (hit_w < 24) hit_w = 24;
-                                    const Rect r = input_world_rect(h);
-                                    if (x >= r.x + r.w - hit_w && x < r.x + r.w) {
-                                        payload->pending_tail_action = static_cast<std::int16_t>(click_index);
-                                        handled = true;
+                            const std::uint8_t row_flags = payload->row_flags_fn
+                                ? payload->row_flags_fn(payload->row_flags_ctx,
+                                                        static_cast<std::uint16_t>(click_index))
+                                : 0;
+                            const bool row_group = (row_flags & soa_detail::kListViewRowFlagGroup) != 0;
+                            const bool row_disabled = (row_flags & soa_detail::kListViewRowFlagDisabled) != 0;
+                            if (row_disabled) {
+                                handled = true;
+                            } else {
+                                if (payload->tail_action_icon_fn) {
+                                    const auto action_icon = payload->tail_action_icon_fn(
+                                        payload->tail_action_icon_ctx,
+                                        static_cast<std::uint16_t>(click_index));
+                                    if (soa_detail::image_id_valid(action_icon)) {
+                                        int hit_w = static_cast<int>(payload->tail_action_icon_size);
+                                        if (hit_w <= 0) hit_w = 18;
+                                        hit_w += 12;
+                                        if (hit_w < 24) hit_w = 24;
+                                        const Rect r = input_world_rect(h);
+                                        if (x >= r.x + r.w - hit_w && x < r.x + r.w) {
+                                            payload->pending_tail_action = static_cast<std::int16_t>(click_index);
+                                            handled = true;
+                                        }
                                     }
                                 }
-                            }
-                            if (!handled && row_group && payload->tail_icon_fn) {
-                                const auto tail_icon = payload->tail_icon_fn(
-                                    payload->tail_icon_ctx,
-                                    static_cast<std::uint16_t>(click_index));
-                                if (soa_detail::image_id_valid(tail_icon)) {
-                                    int hit_w = static_cast<int>(payload->tail_icon_size);
-                                    if (hit_w <= 0) hit_w = 18;
-                                    hit_w += (hit_w >= 18) ? 12 : 10;
-                                    hit_w += 44;
-                                    if (hit_w < 56) hit_w = 56;
-                                    const Rect r = input_world_rect(h);
-                                    if (x >= r.x + r.w - hit_w && x < r.x + r.w) {
-                                        payload->pending_tail_action = static_cast<std::int16_t>(click_index);
-                                        handled = true;
+                                if (!handled && row_group && payload->tail_icon_fn) {
+                                    const auto tail_icon = payload->tail_icon_fn(
+                                        payload->tail_icon_ctx,
+                                        static_cast<std::uint16_t>(click_index));
+                                    if (soa_detail::image_id_valid(tail_icon)) {
+                                        int hit_w = static_cast<int>(payload->tail_icon_size);
+                                        if (hit_w <= 0) hit_w = 18;
+                                        hit_w += (hit_w >= 18) ? 12 : 10;
+                                        hit_w += 44;
+                                        if (hit_w < 56) hit_w = 56;
+                                        const Rect r = input_world_rect(h);
+                                        if (x >= r.x + r.w - hit_w && x < r.x + r.w) {
+                                            payload->pending_tail_action = static_cast<std::int16_t>(click_index);
+                                            handled = true;
+                                        }
                                     }
                                 }
                             }

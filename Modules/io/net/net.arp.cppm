@@ -295,6 +295,19 @@ export namespace net {
             return table_;
         }
 
+        [[nodiscard]] Result<void> remember(IpAddress ip, MacAddress mac) noexcept {
+            auto remembered = table_.remember(ip, mac);
+            if (!remembered) {
+                return util::unexpected(remembered.error());
+            }
+            clear_resolution(ip);
+            return {};
+        }
+
+        [[nodiscard]] Result<void> remember(const ArpPacketView& packet) noexcept {
+            return remember(packet.sender_ip, packet.sender_mac);
+        }
+
         [[nodiscard]] util::usize pending_count() const noexcept {
             util::usize count = 0;
             for (const auto& pending : pending_) {
@@ -449,11 +462,10 @@ export namespace net {
                 return util::unexpected(parsed.error());
             }
 
-            auto remembered = table_.remember(parsed.value().sender_ip, parsed.value().sender_mac);
+            auto remembered = remember(parsed.value());
             if (!remembered) {
                 return util::unexpected(remembered.error());
             }
-            clear_resolution(parsed.value().sender_ip);
 
             if (parsed.value().operation != ArpOperation::request) {
                 return {};

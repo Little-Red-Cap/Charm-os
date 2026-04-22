@@ -1,0 +1,157 @@
+{
+  "kind": "system_formation_summary/v0",
+  "mode": "summary",
+  "case_count": 1,
+  "status_counts": {
+    "formed": 0,
+    "blocked": 1
+  },
+  "formed_case_count": 0,
+  "blocked_case_count": 1,
+  "formed_cases": [],
+  "blocked_cases": [
+    "demo-case"
+  ],
+  "totals": {
+    "required_binding_count": 9,
+    "resolved_binding_count": 8,
+    "unresolved_binding_count": 1,
+    "ordered_node_count": 14,
+    "blocked_node_count": 1,
+    "blocker_count": 2
+  },
+  "cases": [
+    {
+      "case": "demo-case",
+      "board": "win_stub",
+      "profile": "",
+      "active_facets": [
+        "runtime",
+        "input"
+      ],
+      "status": "blocked",
+      "case_kind": "materialized_graph",
+      "declared_fact_count": 1,
+      "declared_contract_count": 1,
+      "subject_fact_count": 3,
+      "required_binding_count": 9,
+      "resolved_binding_count": 8,
+      "unresolved_binding_count": 1,
+      "unresolved_capabilities": "platform.irq",
+      "ordered_node_count": 14,
+      "blocked_node_count": 1,
+      "blocked_nodes": "hal.uart1",
+      "blocker_count": 2,
+      "blockers": [
+        {
+          "kind": "node",
+          "name": "hal.uart1",
+          "state": "blocked",
+          "reason": "missing requires [platform.irq]",
+          "missing_requires": [
+            "platform.irq"
+          ],
+          "dependency_nodes": []
+        },
+        {
+          "kind": "binding",
+          "name": "platform.irq",
+          "state": "unresolved",
+          "reason": "required capability was not provided by any materialized node",
+          "missing_requires": [],
+          "dependency_nodes": [
+            "hal.uart1"
+          ]
+        }
+      ]
+    }
+  ],
+  "unresolved_capability_matrix": [
+    {
+      "capability": "platform.irq",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "status": "blocked"
+        }
+      ]
+    }
+  ],
+  "blocked_node_matrix": [
+    {
+      "node": "hal.uart1",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "status": "blocked"
+        }
+      ]
+    }
+  ],
+  "blocker_matrix": [
+    {
+      "kind": "node",
+      "name": "hal.uart1",
+      "case_count": 1,
+      "states": [
+        "blocked"
+      ],
+      "missing_requires": [
+        "platform.irq"
+      ],
+      "depends_on": [],
+      "reasons": [
+        "missing requires [platform.irq]"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "status": "blocked",
+          "state": "blocked",
+          "missing_requires": [
+            "platform.irq"
+          ],
+          "depends_on": [],
+          "reason": "missing requires [platform.irq]"
+        }
+      ]
+    },
+    {
+      "kind": "binding",
+      "name": "platform.irq",
+      "case_count": 1,
+      "states": [
+        "unresolved"
+      ],
+      "missing_requires": [],
+      "depends_on": [
+        "hal.uart1"
+      ],
+      "reasons": [
+        "required capability was not provided by any materialized node"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "status": "blocked",
+          "state": "unresolved",
+          "missing_requires": [],
+          "depends_on": [
+            "hal.uart1"
+          ],
+          "reason": "required capability was not provided by any materialized node"
+        }
+      ]
+    }
+  ]
+}

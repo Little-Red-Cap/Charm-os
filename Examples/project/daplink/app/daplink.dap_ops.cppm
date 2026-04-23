@@ -25,11 +25,11 @@ export namespace daplink::cmsis_dap {
             return Backend::swj_pins(value, mask);
         }
 
-        static bool reset_target() noexcept {
+        static auto reset_target() noexcept -> std::uint8_t {
             if constexpr (requires { Backend::reset_target(); }) {
                 return Backend::reset_target();
             }
-            return false;
+            return 0U;
         }
 
         static void set_connected_led(const bool on) noexcept {

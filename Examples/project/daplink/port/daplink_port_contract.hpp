@@ -93,6 +93,15 @@ namespace daplink::port_contract {
         requires std::same_as<std::remove_cvref_t<decltype(Traits::kSwclkIdleState)>, daplink::port::PinState>;
         requires std::same_as<std::remove_cvref_t<decltype(Traits::kSwdioIdleState)>, daplink::port::PinState>;
         requires std::same_as<std::remove_cvref_t<decltype(Traits::kResetIdleState)>, daplink::port::PinState>;
+        requires std::convertible_to<decltype(Traits::kPreserveResetStateOnReconnect), bool>;
+        requires std::convertible_to<decltype(Traits::kHasCustomResetTarget), bool>;
+        requires std::convertible_to<decltype(Traits::kHasConnectLed), bool>;
+        requires std::convertible_to<decltype(Traits::kHasDbgLed), bool>;
+        requires std::convertible_to<decltype(Traits::kHasUsbConnectSwitch), bool>;
+        requires (!static_cast<bool>(Traits::kHasCustomResetTarget) ||
+                  requires {
+                      { Traits::reset_target() } noexcept -> std::convertible_to<std::uint8_t>;
+                  });
     };
 
     static_assert(PortApi<>, "daplink::port API is incomplete for the selected port.");

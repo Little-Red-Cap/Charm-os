@@ -1,49 +1,12 @@
 #ifndef DAPLINK_BOARD_SUPPORT_HPP
 #define DAPLINK_BOARD_SUPPORT_HPP
 
+#include "daplink_board_caps.hpp"
 #include "daplink_port_contract.hpp"
-#include "daplink_port_api.hpp"
 
 #include <cstdint>
 
 namespace daplink::board_support {
-    struct DefaultTraits {
-        static constexpr std::uint32_t kSwclkActiveMode = daplink::port::kGpioModeOutputPushPull;
-        static constexpr std::uint32_t kSwclkActivePull = daplink::port::kGpioPullNone;
-        static constexpr std::uint32_t kSwclkActiveSpeed = daplink::port::kGpioSpeedHigh;
-        static constexpr daplink::port::PinState kSwclkIdleState = daplink::port::PinState::high;
-
-        static constexpr std::uint32_t kSwdioOutputMode = daplink::port::kGpioModeOutputPushPull;
-        static constexpr std::uint32_t kSwdioOutputPull = daplink::port::kGpioPullNone;
-        static constexpr std::uint32_t kSwdioOutputSpeed = daplink::port::kGpioSpeedHigh;
-        static constexpr daplink::port::PinState kSwdioIdleState = daplink::port::PinState::high;
-
-        static constexpr std::uint32_t kSwdioInputMode = daplink::port::kGpioModeInput;
-        static constexpr std::uint32_t kSwdioInputPull = daplink::port::kGpioPullNone;
-        static constexpr std::uint32_t kSwdioInputSpeed = daplink::port::kGpioSpeedLow;
-
-        static constexpr std::uint32_t kResetActiveMode = daplink::port::kGpioModeOutputOpenDrain;
-        static constexpr std::uint32_t kResetActivePull = daplink::port::kGpioPullUp;
-        static constexpr std::uint32_t kResetActiveSpeed = daplink::port::kGpioSpeedLow;
-        static constexpr daplink::port::PinState kResetIdleState = daplink::port::PinState::high;
-        static constexpr std::uint32_t kResetPulseMs = 10;
-
-        static constexpr std::uint32_t kHiZMode = daplink::port::kGpioModeAnalog;
-        static constexpr std::uint32_t kHiZPull = daplink::port::kGpioPullNone;
-        static constexpr std::uint32_t kHiZSpeed = daplink::port::kGpioSpeedLow;
-
-        static constexpr bool kHasConnectLed = false;
-        static constexpr bool kHasDbgLed = false;
-        static constexpr std::uint32_t kIndicatorMode = daplink::port::kGpioModeOutputOpenDrain;
-        static constexpr std::uint32_t kIndicatorPull = daplink::port::kGpioPullNone;
-        static constexpr std::uint32_t kIndicatorSpeed = daplink::port::kGpioSpeedLow;
-
-        static constexpr bool kHasUsbConnectSwitch = false;
-        static constexpr std::uint32_t kUsbConnectMode = daplink::port::kGpioModeOutputPushPull;
-        static constexpr std::uint32_t kUsbConnectPull = daplink::port::kGpioPullNone;
-        static constexpr std::uint32_t kUsbConnectSpeed = daplink::port::kGpioSpeedLow;
-    };
-
     template <typename Traits>
     struct BasicBoardOps {
         static_assert(daplink::port_contract::BoardTraits<Traits>,
@@ -61,7 +24,7 @@ namespace daplink::board_support {
             daplink::port::gpio_init(port, pin, daplink::port::GpioConfig{mode, pull, speed});
         }
 
-        static void setup_swd_pins_active() noexcept {
+        static void configure_swd_pins_active() noexcept {
             init_gpio(Traits::kSwclkPort,
                       Traits::kSwclkPin,
                       Traits::kSwclkActiveMode,
@@ -77,15 +40,37 @@ namespace daplink::board_support {
                       Traits::kSwdioInputMode,
                       Traits::kSwdioInputPull,
                       Traits::kSwdioInputSpeed);
+        }
+
+        static void configure_reset_pin_active() noexcept {
             init_gpio(Traits::kResetPort,
                       Traits::kResetPin,
                       Traits::kResetActiveMode,
                       Traits::kResetActivePull,
                       Traits::kResetActiveSpeed);
+        }
 
+        static auto reset_level_on_activate() noexcept -> bool {
+            if constexpr (Traits::kPreserveResetStateOnReconnect) {
+                return read_reset();
+            } else {
+                return Traits::kResetIdleState == daplink::port::PinState::high;
+            }
+        }
+
+        static void apply_active_pin_levels(const bool reset_high) noexcept {
             set_swclk(Traits::kSwclkIdleState == daplink::port::PinState::high);
             write_swdio(Traits::kSwdioIdleState == daplink::port::PinState::high);
-            write_reset(Traits::kResetIdleState == daplink::port::PinState::high);
+            write_reset(reset_high);
+        }
+
+        static void setup_swd_pins_active() noexcept {
+            const auto reset_high = reset_level_on_activate();
+            configure_swd_pins_active();
+            configure_reset_pin_active();
+            // Preserve the host-controlled nRESET level so connect-under-reset is not broken
+            // by a later SWD reconnect.
+            apply_active_pin_levels(reset_high);
         }
 
         static void setup_swd_pins_hi_z() noexcept {
@@ -155,11 +140,19 @@ namespace daplink::board_support {
             return daplink::port::gpio_read(Traits::kResetPort, Traits::kResetPin);
         }
 
-        static std::uint8_t reset_target() noexcept {
+        static void pulse_reset_line(const std::uint32_t pulse_ms = Traits::kResetPulseMs) noexcept {
+            configure_reset_pin_active();
             write_reset(false);
-            daplink::port::delay_ms(Traits::kResetPulseMs);
+            daplink::port::delay_ms(pulse_ms);
             write_reset(true);
-            return 1U;
+        }
+
+        static std::uint8_t reset_target() noexcept {
+            if constexpr (Traits::kHasCustomResetTarget) {
+                return Traits::reset_target();
+            } else {
+                return 0U;
+            }
         }
 
         static void configure_indicator_pins() noexcept {

@@ -455,11 +455,31 @@ export namespace net::diag::udp {
                 on_timeout,
                 user);
         }
+
+        [[nodiscard]] Result<util::u16> query_forward_explain(
+            const Endpoint& local,
+            const Endpoint& peer,
+            const ForwardExplainRequest& request,
+            util::u32 now_ms,
+            util::u32 timeout_ms,
+            ResponseFn<ForwardExplainOp> on_response = nullptr,
+            TimeoutFn<ForwardExplainOp> on_timeout = nullptr,
+            void* user = nullptr) noexcept {
+            return this->template send_request<ForwardExplainOp>(
+                local,
+                peer,
+                request,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
     };
 
     template <util::usize MaxPayload = 64>
-    class Server : private net::udp::service::Server<detail::WireTraits, MaxPayload, 4> {
-        using Base = net::udp::service::Server<detail::WireTraits, MaxPayload, 4>;
+    class Server : private net::udp::service::Server<detail::WireTraits, MaxPayload, 8> {
+        using Base = net::udp::service::Server<detail::WireTraits, MaxPayload, 8>;
 
     public:
         using SendFn = typename Base::SendFn;
@@ -467,6 +487,7 @@ export namespace net::diag::udp {
         using PingHandler = typename Base::template RouteFn<PingOp>;
         using CountHandler = typename Base::template RouteFn<CountOp>;
         using MetaHandler = typename Base::template RouteFn<MetaOp>;
+        using ForwardExplainHandler = typename Base::template RouteFn<ForwardExplainOp>;
         using SlowCountHandler = typename Base::template RouteFn<SlowCountOp>;
 
         static_assert(PingOp::RequestCodec::max_size() <= MaxPayload);
@@ -501,6 +522,11 @@ export namespace net::diag::udp {
             return this->template set_route<MetaOp>(fn, ctx);
         }
 
+        [[nodiscard]] Result<void> on_forward_explain(ForwardExplainHandler fn,
+                                                      void* ctx = nullptr) noexcept {
+            return this->template set_route<ForwardExplainOp>(fn, ctx);
+        }
+
         [[nodiscard]] Result<void> on_slow_count(SlowCountHandler fn,
                                                  void* ctx = nullptr) noexcept {
             return this->template set_route<SlowCountOp>(fn, ctx);
@@ -516,6 +542,10 @@ export namespace net::diag::udp {
 
         [[nodiscard]] bool has_meta() const noexcept {
             return this->template has_route<MetaOp>();
+        }
+
+        [[nodiscard]] bool has_forward_explain() const noexcept {
+            return this->template has_route<ForwardExplainOp>();
         }
 
         [[nodiscard]] bool has_slow_count() const noexcept {
@@ -537,6 +567,7 @@ export namespace net::diag::udp {
 
         using Base::ping;
         using Base::query_count;
+        using Base::query_forward_explain;
         using Base::query_meta;
         using Base::query_slow_count;
 
@@ -642,6 +673,27 @@ export namespace net::diag::udp {
                 return util::unexpected(errc::bad_state);
             }
             return static_cast<Base&>(*this).query_meta(
+                local_,
+                peer_,
+                request,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
+
+        [[nodiscard]] Result<util::u16> query_forward_explain(
+            const ForwardExplainRequest& request,
+            util::u32 now_ms,
+            util::u32 timeout_ms,
+            typename Base::template ResponseFn<ForwardExplainOp> on_response = nullptr,
+            typename Base::template TimeoutFn<ForwardExplainOp> on_timeout = nullptr,
+            void* user = nullptr) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return static_cast<Base&>(*this).query_forward_explain(
                 local_,
                 peer_,
                 request,

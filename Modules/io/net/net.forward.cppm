@@ -68,6 +68,69 @@ export namespace net {
         bool from_connected_prefix{false};
     };
 
+    enum class Ipv4ForwardingDisposition : util::u8 {
+        forwarded = 0u,
+        ttl_expired = 1u,
+        destination_unreachable = 2u,
+        local_dropped = 3u,
+    };
+
+    enum class Ipv4ForwardingReason : util::u8 {
+        none = 0u,
+        explicit_route = 1u,
+        connected_prefix = 2u,
+        opposite_port_fallback = 3u,
+        local_address = 4u,
+        limited_broadcast = 5u,
+        ttl_exhausted = 6u,
+        no_route = 7u,
+    };
+
+    struct Ipv4ForwardingExplanationSnapshot {
+        Ipv4ForwardingDisposition disposition{Ipv4ForwardingDisposition::forwarded};
+        Ipv4ForwardingReason reason{Ipv4ForwardingReason::none};
+        Ipv4ForwardingPort ingress_port{Ipv4ForwardingPort::a};
+        Ipv4ForwardingPort egress_port{Ipv4ForwardingPort::a};
+        bool has_egress{false};
+        bool has_decision{false};
+        bool routing_configured{false};
+        IpAddress destination{};
+        util::u8 ttl{0};
+        Ipv4ForwardingDecisionSnapshot decision{};
+
+        [[nodiscard]] constexpr bool forwarded() const noexcept {
+            return disposition == Ipv4ForwardingDisposition::forwarded;
+        }
+
+        [[nodiscard]] constexpr bool ttl_expired() const noexcept {
+            return disposition == Ipv4ForwardingDisposition::ttl_expired;
+        }
+
+        [[nodiscard]] constexpr bool destination_unreachable() const noexcept {
+            return disposition == Ipv4ForwardingDisposition::destination_unreachable;
+        }
+
+        [[nodiscard]] constexpr bool local_dropped() const noexcept {
+            return disposition == Ipv4ForwardingDisposition::local_dropped;
+        }
+
+        [[nodiscard]] constexpr bool emits_icmp_error() const noexcept {
+            return ttl_expired() || destination_unreachable();
+        }
+
+        [[nodiscard]] constexpr bool uses_explicit_route() const noexcept {
+            return has_decision && reason == Ipv4ForwardingReason::explicit_route;
+        }
+
+        [[nodiscard]] constexpr bool uses_connected_prefix() const noexcept {
+            return has_decision && reason == Ipv4ForwardingReason::connected_prefix;
+        }
+
+        [[nodiscard]] constexpr bool uses_opposite_port_fallback() const noexcept {
+            return reason == Ipv4ForwardingReason::opposite_port_fallback;
+        }
+    };
+
     template <util::usize TxCapacity,
               util::usize ArpCapacity,
               util::usize ArpTxCapacity,
@@ -98,6 +161,33 @@ export namespace net {
             IpAddress next_hop{};
             util::u16 metric{0};
             bool from_connected_prefix{false};
+        };
+
+        struct ForwardExplanation {
+            bool valid{false};
+            Ipv4ForwardingDisposition disposition{Ipv4ForwardingDisposition::forwarded};
+            Ipv4ForwardingReason reason{Ipv4ForwardingReason::none};
+            util::usize ingress{0};
+            util::usize egress{0};
+            bool has_egress{false};
+            bool routing_configured{false};
+            ForwardDecision decision{};
+
+            [[nodiscard]] constexpr bool forwarded() const noexcept {
+                return disposition == Ipv4ForwardingDisposition::forwarded;
+            }
+
+            [[nodiscard]] constexpr bool ttl_expired() const noexcept {
+                return disposition == Ipv4ForwardingDisposition::ttl_expired;
+            }
+
+            [[nodiscard]] constexpr bool destination_unreachable() const noexcept {
+                return disposition == Ipv4ForwardingDisposition::destination_unreachable;
+            }
+
+            [[nodiscard]] constexpr bool local_dropped() const noexcept {
+                return disposition == Ipv4ForwardingDisposition::local_dropped;
+            }
         };
 
         struct IngressPath {
@@ -252,6 +342,53 @@ export namespace net {
         inspect_forwarding_decision(IpAddress destination) const noexcept {
             Ipv4ForwardingDecisionSnapshot snapshot{};
             if (!inspect_forwarding_decision(destination, snapshot)) {
+                return util::nullopt;
+            }
+            return snapshot;
+        }
+
+        [[nodiscard]] bool inspect_forwarding_explanation(
+            Ipv4ForwardingPort ingress_port,
+            IpAddress destination,
+            util::u8 ttl,
+            Ipv4ForwardingExplanationSnapshot& out) const noexcept {
+            const auto explanation = explain_forwarding(
+                port_index(ingress_port),
+                destination,
+                ttl);
+            if (!explanation.valid) {
+                return false;
+            }
+
+            out = Ipv4ForwardingExplanationSnapshot{
+                .disposition = explanation.disposition,
+                .reason = explanation.reason,
+                .ingress_port = ingress_port,
+                .egress_port = static_cast<Ipv4ForwardingPort>(explanation.egress),
+                .has_egress = explanation.has_egress,
+                .has_decision = explanation.decision.valid,
+                .routing_configured = explanation.routing_configured,
+                .destination = destination,
+                .ttl = ttl,
+                .decision = Ipv4ForwardingDecisionSnapshot{
+                    .network = explanation.decision.network,
+                    .prefix_length = explanation.decision.prefix_length,
+                    .egress_port = static_cast<Ipv4ForwardingPort>(explanation.decision.egress),
+                    .has_next_hop = explanation.decision.has_next_hop,
+                    .next_hop = explanation.decision.next_hop,
+                    .metric = explanation.decision.metric,
+                    .from_connected_prefix = explanation.decision.from_connected_prefix,
+                },
+            };
+            return true;
+        }
+
+        [[nodiscard]] util::optional<Ipv4ForwardingExplanationSnapshot>
+        inspect_forwarding_explanation(Ipv4ForwardingPort ingress_port,
+                                       IpAddress destination,
+                                       util::u8 ttl) const noexcept {
+            Ipv4ForwardingExplanationSnapshot snapshot{};
+            if (!inspect_forwarding_explanation(ingress_port, destination, ttl, snapshot)) {
                 return util::nullopt;
             }
             return snapshot;
@@ -793,8 +930,11 @@ export namespace net {
                 return true;
             }
 
-            const auto decision = select_forwarding_decision(destination);
-            return decision.valid && decision.egress != ingress;
+            const auto explanation = explain_forwarding(ingress, destination, 64u);
+            return explanation.valid
+                && explanation.forwarded()
+                && explanation.has_egress
+                && explanation.egress != ingress;
         }
 
         [[nodiscard]] Result<void> consume_port(util::usize ingress,
@@ -895,19 +1035,26 @@ export namespace net {
                 }
             }
 
-            if (is_local_address(datagram.value().destination)
-                || datagram.value().destination.is_ipv4_limited_broadcast()) {
-                ++local_drop_count_;
-                return {};
-            }
-
             auto quoted_size = datagram.value().header_length;
             const auto quoted_payload_size = datagram.value().payload.size() < 8u
                 ? datagram.value().payload.size()
                 : 8u;
             quoted_size += quoted_payload_size;
 
-            if (datagram.value().ttl <= 1u) {
+            const auto explanation = explain_forwarding(
+                ingress,
+                datagram.value().destination,
+                datagram.value().ttl);
+            if (!explanation.valid) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            if (explanation.local_dropped()) {
+                ++local_drop_count_;
+                return {};
+            }
+
+            if (explanation.ttl_expired()) {
                 auto emitted = emit_time_exceeded(
                     ingress_port,
                     datagram.value().source,
@@ -920,13 +1067,7 @@ export namespace net {
                 return {};
             }
 
-            IpAddress next_hop{};
-            util::usize egress = egress_index(ingress);
-            const auto decision = select_forwarding_decision(datagram.value().destination);
-            if (decision.valid) {
-                egress = decision.egress;
-                next_hop = decision.next_hop;
-            } else if (routing_configured()) {
+            if (explanation.destination_unreachable()) {
                 auto emitted = emit_destination_unreachable(
                     ingress_port,
                     datagram.value().source,
@@ -938,6 +1079,12 @@ export namespace net {
 
                 ++destination_unreachable_count_;
                 return {};
+            }
+
+            IpAddress next_hop{};
+            auto egress = explanation.egress;
+            if (explanation.decision.valid && explanation.decision.has_next_hop) {
+                next_hop = explanation.decision.next_hop;
             }
 
             auto& egress_port = ports_[egress];
@@ -971,6 +1118,60 @@ export namespace net {
 
             ++forwarded_count_;
             return {};
+        }
+
+        [[nodiscard]] ForwardExplanation explain_forwarding(util::usize ingress,
+                                                            IpAddress destination,
+                                                            util::u8 ttl) const noexcept {
+            ForwardExplanation explanation{};
+            if (ingress >= ports_.size() || !destination.is_ipv4()) {
+                return explanation;
+            }
+
+            explanation.valid = true;
+            explanation.ingress = ingress;
+            explanation.routing_configured = routing_configured();
+
+            if (is_local_address(destination)) {
+                explanation.disposition = Ipv4ForwardingDisposition::local_dropped;
+                explanation.reason = Ipv4ForwardingReason::local_address;
+                return explanation;
+            }
+
+            if (destination.is_ipv4_limited_broadcast()) {
+                explanation.disposition = Ipv4ForwardingDisposition::local_dropped;
+                explanation.reason = Ipv4ForwardingReason::limited_broadcast;
+                return explanation;
+            }
+
+            if (ttl <= 1u) {
+                explanation.disposition = Ipv4ForwardingDisposition::ttl_expired;
+                explanation.reason = Ipv4ForwardingReason::ttl_exhausted;
+                return explanation;
+            }
+
+            explanation.decision = select_forwarding_decision(destination);
+            if (explanation.decision.valid) {
+                explanation.disposition = Ipv4ForwardingDisposition::forwarded;
+                explanation.reason = explanation.decision.from_connected_prefix
+                    ? Ipv4ForwardingReason::connected_prefix
+                    : Ipv4ForwardingReason::explicit_route;
+                explanation.egress = explanation.decision.egress;
+                explanation.has_egress = true;
+                return explanation;
+            }
+
+            if (explanation.routing_configured) {
+                explanation.disposition = Ipv4ForwardingDisposition::destination_unreachable;
+                explanation.reason = Ipv4ForwardingReason::no_route;
+                return explanation;
+            }
+
+            explanation.disposition = Ipv4ForwardingDisposition::forwarded;
+            explanation.reason = Ipv4ForwardingReason::opposite_port_fallback;
+            explanation.egress = egress_index(ingress);
+            explanation.has_egress = true;
+            return explanation;
         }
 
         [[nodiscard]] Result<void> emit_time_exceeded(Port& port,

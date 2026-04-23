@@ -49,7 +49,12 @@ namespace daplink::cmsis_dap::detail {
     constexpr std::uint8_t kDapInfoVendor = 1;
     constexpr std::uint8_t kDapInfoProduct = 2;
     constexpr std::uint8_t kDapInfoSerial = 3;
-    constexpr std::uint8_t kDapInfoFwVersion = 4;
+    constexpr std::uint8_t kDapInfoProtocolVersion = 4;
+    constexpr std::uint8_t kDapInfoTargetDeviceVendor = 5;
+    constexpr std::uint8_t kDapInfoTargetDeviceName = 6;
+    constexpr std::uint8_t kDapInfoTargetBoardVendor = 7;
+    constexpr std::uint8_t kDapInfoTargetBoardName = 8;
+    constexpr std::uint8_t kDapInfoProductFwVersion = 9;
     constexpr std::uint8_t kDapInfoCapabilities = 0xF0;
     constexpr std::uint8_t kDapInfoUartRxBufferSize = 0xFB;
     constexpr std::uint8_t kDapInfoUartTxBufferSize = 0xFC;

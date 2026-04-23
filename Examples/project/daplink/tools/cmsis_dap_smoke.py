@@ -22,7 +22,8 @@ CMD_DAP_SWJ_CLOCK = 0x11
 DAP_INFO_VENDOR = 0x01
 DAP_INFO_PRODUCT = 0x02
 DAP_INFO_SERIAL = 0x03
-DAP_INFO_FW = 0x04
+DAP_INFO_PROTOCOL_VERSION = 0x04
+DAP_INFO_FW_VERSION = 0x09
 
 TRANSFER_REQ_DP_IDCODE_READ = 0x02  # APnDP=0,RnW=1,A2=0,A3=0
 
@@ -79,7 +80,8 @@ def run(vid: int, pid: int, timeout_ms: int, swj_clock_hz: int, skip_reset: bool
             (DAP_INFO_VENDOR, "Vendor"),
             (DAP_INFO_PRODUCT, "Product"),
             (DAP_INFO_SERIAL, "Serial"),
-            (DAP_INFO_FW, "Firmware"),
+            (DAP_INFO_PROTOCOL_VERSION, "ProtocolVersion"),
+            (DAP_INFO_FW_VERSION, "FirmwareVersion"),
         ]:
             resp = send_recv(dev, [CMD_DAP_INFO, info_id], timeout_ms)
             print(f"{name}: {parse_info(resp)}")

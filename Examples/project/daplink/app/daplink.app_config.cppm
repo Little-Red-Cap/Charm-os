@@ -15,7 +15,12 @@ export namespace daplink::app_config {
     inline constexpr char kUsbManufacturer[] = "Charm";
     inline constexpr char kUsbProduct[] = "Charm CMSIS-DAP";
     inline constexpr char kUsbSerial[] = "0001";
-    inline constexpr char kFwVersion[] = "0.1.0";
+    inline constexpr char kUsbHidInterface[] = "CMSIS-DAP v1";
+    inline constexpr char kUsbCdcFunction[] = "Charm CDC Bridge";
+    inline constexpr char kUsbCdcControlInterface[] = "Charm CDC Control";
+    inline constexpr char kUsbCdcDataInterface[] = "Charm CDC Data";
+    inline constexpr char kCmsisDapProtocolVersion[] = "1.3.0";
+    inline constexpr char kProductFwVersion[] = "0.1.0";
 
     constexpr std::uint16_t kUsbVid = 0xCAFE;
     constexpr std::uint16_t kUsbPid = 0x4001;
@@ -121,7 +126,6 @@ export namespace daplink::app_config {
         SwdConfig swd;
         DapConfig dap;
         CdcConfig cdc;
-        const char* fw_version;
     };
 
     static_assert(kUsbProfileValue <= static_cast<std::uint8_t>(UsbProfile::composite));
@@ -156,7 +160,6 @@ export namespace daplink::app_config {
         },
         DapConfig{kDapBurstLimitValue},
         CdcConfig{kCdcUartIndex, kCdcInTimeoutMsValue, kCdcPolicyValue},
-        kFwVersion,
     };
 
 }

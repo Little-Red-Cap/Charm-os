@@ -4,7 +4,7 @@
 
 最小 CMSIS-DAP HID 联调脚本，覆盖：
 
-1. `DAP_Info`（Vendor/Product/Serial/FW）
+1. `DAP_Info`（Vendor/Product/Serial/ProtocolVersion/FirmwareVersion）
 2. `DAP_Connect`
 3. `DAP_HostStatus`（Connected/Running LED）
 4. `DAP_SWJ_Clock`

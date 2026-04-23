@@ -96,4 +96,6 @@ Armv7aRuntimeTrapDispatchObservation armv7a_capture_runtime_trap_dispatch_for_im
     std::uint32_t immediate) noexcept;
 Armv7aRuntimeTrapDispatchPairObservation
 armv7a_capture_runtime_trap_dispatch_observation() noexcept;
+Armv7aRuntimeTrapDispatchPairObservation
+armv7a_last_runtime_trap_dispatch_observation() noexcept;
 void armv7a_print_runtime_trap_dispatch_observation();

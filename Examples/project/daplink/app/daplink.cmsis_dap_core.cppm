@@ -18,14 +18,15 @@ export namespace daplink::cmsis_dap {
         InfoField vendor;
         InfoField product;
         InfoField serial;
-        InfoField fw_version;
+        InfoField protocol_version;
+        InfoField product_fw_version;
     };
 
     template <std::size_t N>
     constexpr InfoField make_info_field(const char (&text)[N]) noexcept {
         static_assert(N > 0);
-        static_assert((N - 1) <= 255);
-        return {text, static_cast<std::uint8_t>(N - 1)};
+        static_assert(N <= 255);
+        return {text, static_cast<std::uint8_t>(N)};
     }
 
 }

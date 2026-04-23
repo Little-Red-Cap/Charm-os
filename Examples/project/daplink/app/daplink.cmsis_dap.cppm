@@ -97,8 +97,11 @@ export namespace daplink::cmsis_dap {
                         case kDapInfoSerial:
                             len = fill_info(info.serial, &out[2]);
                             break;
-                        case kDapInfoFwVersion:
-                            len = fill_info(info.fw_version, &out[2]);
+                        case kDapInfoProtocolVersion:
+                            len = fill_info(info.protocol_version, &out[2]);
+                            break;
+                        case kDapInfoProductFwVersion:
+                            len = fill_info(info.product_fw_version, &out[2]);
                             break;
                         case kDapInfoCapabilities:
                             out[2] = kCapabilities;

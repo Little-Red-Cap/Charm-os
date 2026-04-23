@@ -77,6 +77,9 @@ cmake --build out\build\debug-interrupt-unexpected-irq --verbose
 
 cmake --preset debug-interrupt-sgi-fiq-timeout
 cmake --build out\build\debug-interrupt-sgi-fiq-timeout --verbose
+
+cmake --preset debug-handoff-live
+cmake --build out\build\debug-handoff-live --verbose
 ```
 
 ## Run
@@ -169,7 +172,12 @@ ARMv7-A thread runtime, kind=cooperative-sys, task=0x0000000059537001, current-s
 ARMv7-A scheduler dispatch, task=svc-trap, isr=timer-tick, task-ready=yes, isr-ready=yes, context-ready=yes, round-trip=yes, current=yes, dispatch=yes
 ARMv7-A runtime bridge, tick=yes, isr-defer=yes, yield-svc=0x000043, yield-event=0x00000001, yield-payload=0x00000001, yield-ready=yes, sleep-svc=0x000044, sleep-due=0x0000000000000005, sleep-event=0x00000001, sleep-payload=0x00000005, sleep-ready=yes, dispatch=yes, bridge=yes
 ARMv7-A runtime loop ingress, mode=oneshot, route=irq, hz=62500000, tick-runtime=yes, thread=yes, tick=yes, isr-defer=yes, idle=yes, worker=yes, run=yes, loop=yes
+ARMv7-A runtime leaf ports, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, shared=yes, ports=yes
+ARMv7-A runtime thread port, yield-path=svc-call-frame, yield-ready=yes, sleep-path=svc-call-frame, sleep-ready=yes, trap-call=yes, thread-runtime=yes, port=yes, bridge=yes, thread=yes
 ARMv7-A runtime live, task=yes, trap=yes, timer=yes, tick=yes, idle=yes, worker=yes, live=yes, resumes=3, idle-runs=1, wake-due=0x000000000000...., tick-now=0x000000000000....
+ARMv7-A runtime binding bundle, current=yes, trap=yes, thread=yes, loop=yes, live=yes, export=yes, binding=yes
+ARMv7-A runtime leaf bundle, tick-mode=oneshot, tick-route=irq, exception=yes, interrupt=yes, timer=yes, context=yes, current=yes, hook=yes, loop=yes, trap=yes, call=yes, thread=yes, live=yes, export=yes, ports=yes, bundle=yes
+ARMv7-A runtime package, leaf=yes, binding=yes, current=yes, trap=yes, call=yes, thread=yes, loop=yes, live=yes, derived=yes, export=yes, package=yes
 ARMv7-A task syscall frame, debug-path=svc-frame, debug-svc=0x000045, debug-generic=0x0003, debug-task=0x0000000059532001, debug-ready=yes, capability-path=svc-frame, capability-svc=0x000046, capability-generic=0x0004, capability-task=0x0000000059532001, capability-ready=yes, frame=yes
 ARMv7-A task syscall dispatch, debug-path=dispatch-port, debug-generic=0x0003, debug-task=0x0000000059533001, debug-r0=0x00000044, debug-ready=yes, capability-path=dispatch-port, capability-generic=0x0004, capability-task=0x0000000059533001, capability-r0=0x0000002A, capability-ready=yes, dispatch=yes
 ARMv7-A task syscall surface, debug-path=live-svc-dispatch, debug-svc=0x000045, debug-generic=0x0003, debug-r0=0x00000044, debug-ready=yes, capability-path=live-svc-dispatch, capability-svc=0x000046, capability-generic=0x0004, capability-r0=0x0000002A, capability-ready=yes, surface=yes
@@ -183,7 +191,11 @@ ARMv7-A handoff request, kind=copy, payload-base=0x40200000, entry=0x40200000, s
 ARMv7-A handoff masked, cpsr=0x........, irq=masked, fiq=masked
 ARMv7-A handoff quiesced, cntp_ctl=0x00000002, secure-line=group0/no/no/no, nonsecure-line=group1/no/no/no, sgi-line=group0/yes/no/no, gicd=0x00000000, gicc=0x00000000, hppir=0x000003FF, spurious=yes
 ARMv7-A handoff steps, mask=yes, quiesce=yes, map=yes, dcache=yes, icache=yes, tlb=yes, vectors=yes, sync=yes
+ARMv7-A runtime handoff, runtime=yes, context=yes, hooks=yes, vector=yes, report=yes, export=yes, handoff=yes
+ARMv7-A handoff entry, target=0x40200000, request=yes, offset=yes, mode=sys, vector=yes, translation=yes, cache=yes, masks=yes, export=yes, entry=yes
 ARMv7-A handoff ready, result=yes, vbar=0x40200000, ttbr0=0x4021...., ttbcr=0x00000000, dacr=0x00000001, mmu=on, dcache=on, icache=on, irq=masked, fiq=masked
+ARMv7-A handoff transfer, target=0x40200000, arg0=0x4023...., size=0x00000138, mode=sys, state=arm, entry=yes, payload=yes, stack=yes, export=yes, transfer=yes
+ARMv7-A handoff launch, target=0x40200000, arg0=0x4023...., mode=sys, state=arm, transfer=yes, hook=yes, route=yes, probe=yes, arg0=yes, next=yes, stack=yes, branch=yes, link=yes, return=yes, invoke=yes, launch=yes
 ```
 
 ## CI smoke
@@ -197,15 +209,81 @@ before launching QEMU, so the smoke log stays aligned with the current source
 instead of whatever ELF happened to be left in `out\build\debug`. The default
 build leg now also uses `--parallel 1`, which keeps the ARM bare-metal GCC
 modules output stable during CI smoke runs. The same smoke now also gates the
-`runtime-live` phase markers plus the `ARMv7-A runtime live, ... live=yes`
-summary, and treats `ARMv7-A runtime live debug` as unexpected output so the
-mainline log only stays green once the live path is fully closed.
+`runtime-leaf-ports`, `runtime-live`, `runtime-binding-bundle`, and
+`runtime-leaf-bundle` phase markers, plus the
+`ARMv7-A runtime leaf ports, ... call=yes, thread=yes, ... ports=yes`,
+the `ARMv7-A runtime thread port, ... thread=yes` summary,
+the `ARMv7-A runtime binding bundle, ... export=yes, binding=yes` summary,
+`ARMv7-A runtime live, ... live=yes`, and
+the `ARMv7-A runtime leaf bundle, ... export=yes, ... bundle=yes` summary,
+the `ARMv7-A runtime package, leaf=yes, binding=yes, ... package=yes` summary,
+the `ARMv7-A runtime handoff, runtime=yes, ... handoff=yes` summary, and
+the `ARMv7-A handoff entry, target=0x..., ... entry=yes` summary, and
+the `ARMv7-A handoff transfer, target=0x..., ... transfer=yes` summary, and
+the `ARMv7-A handoff launch, target=0x..., ... launch=yes` summary, and
+treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
+only stays green once the live path is fully closed.
 
 For a shorter failure loop around just this lower-half seam, use the focused
 runtime-live smoke:
 
 ```powershell
 .\run_qemu_runtime_live_ci.ps1
+```
+
+For a shorter failure loop around the exported live-session leaf ports, use:
+
+```powershell
+.\run_qemu_runtime_leaf_ports_ci.ps1
+```
+
+For a shorter failure loop around the exported runtime-thread egress seam, use:
+
+```powershell
+.\run_qemu_runtime_thread_ci.ps1
+```
+
+For a dedicated real non-returning handoff landing smoke, use:
+
+```powershell
+.\run_qemu_handoff_live_ci.ps1
+```
+
+That live handoff preset keeps the default returnable `handoff launch` probe
+untouched in the main `debug` smoke, but swaps in one separate synthetic
+next-stage landing path for the dedicated smoke build. The live path only goes
+green once QEMU really branches through the explicit launch route, lands in the
+synthetic next-stage entry with the inherited `r0/sp` shape, completes the
+`handoff-launch` phase from the landing side, reports one
+`ARMv7-A handoff live, ... live=yes` line, then proves the handed-over runtime
+package can be re-armed in place and directly re-consumed from the landing
+side via one `ARMv7-A runtime handoff landing, ... rearm=yes, payload=yes,
+... landed=yes` line, one `ARMv7-A runtime handoff package landing, ...
+landing=yes` line, plus one `ARMv7-A runtime handoff path, ... path=yes` line
+before idling forever.
+
+For a shorter failure loop around the runtime-facing binding bundle, use:
+
+```powershell
+.\run_qemu_runtime_binding_bundle_ci.ps1
+```
+
+For a shorter failure loop around the board-facing runtime package, use:
+
+```powershell
+.\run_qemu_runtime_package_ci.ps1
+```
+
+For a shorter failure loop around the board-facing handoff seam, use:
+
+```powershell
+.\run_qemu_handoff_ci.ps1
+```
+
+For a shorter failure loop around the exported lower-half leaf payload, use:
+
+```powershell
+.\run_qemu_runtime_leaf_bundle_ci.ps1
 ```
 
 For a shorter failure loop around the runtime-trap ingress/capture/writeback
@@ -632,6 +710,85 @@ continue
   run-once-or-idle` can now be discussed as one `RuntimeLoopPort`-shaped
   ingress seam, while still keeping the generic runtime semantics verified
   separately on the host side.
+- The same leaf now also prints one `runtime leaf ports` line that turns the
+  live QEMU session into a real reusable lower-half package instead of only a
+  read-only summary: one shared session-local bundle now carries
+  exception/interrupt/timer/context/current ingress, the interrupt hook, the
+  trap dispatch port, the task-side trap-call port, one
+  `RuntimeThreadPort`-shaped thread egress seam, and the
+  `RuntimeLoopPort`-shaped runtime loop contract through one explicit
+  leaf-owned surface before we ask any later board port to bind against it.
+- The same leaf now also prints one `runtime leaf bundle` line that finally
+  collects the target-side payload we want future Cortex-A leaves to hand
+  upward: exception/interrupt/timer/context/current ingress, one runnable
+  `RuntimeLoopPort`-shaped lower-half seam, one proven trap dispatch seam,
+  one task-side trap-call seam, one `RuntimeThreadPort`-shaped thread egress,
+  and one already-live runtime path. That line now also proves the bundle is
+  exported straight from the live leaf-owned ports/runtime state instead of
+  being rebuilt locally. That gives us a single QEMU-visible bundle shape to
+  preserve when we later swap `virt` out for RK3506.
+- The same leaf now also prints one dedicated `runtime thread port` line that
+  separates this thread-side egress seam from the wider leaf package: we can
+  now see directly that the exported `RuntimeThreadPort`-shaped surface is
+  backed by the proven SVC caller path, shares the same leaf context as the
+  lower trap-call seam, and stays regression-testable on its own.
+- The same leaf now also prints one `runtime binding bundle` line that turns
+  the upper-runtime-facing subset into an explicit contract: `current`,
+  `trap dispatch`, `runtime thread`, and `runtime loop` now exist as one
+  smaller bindable package, with the already-live QEMU runtime path folded in
+  as the final readiness gate before any future upper runtime glue binds to it,
+  while also proving that this smaller package is exported straight from the
+  leaf-owned ports/live state instead of being another hand-written summary.
+- The same leaf now also prints one `runtime package` line that puts the two
+  previous layers together into one board-facing payload: the wider leaf
+  bundle and the smaller runtime-facing binding slice now have to be ready at
+  the same time, and the binding slice has to prove it is derived from the
+  exported leaf bundle instead of drifting into a second independent shape.
+- The same handoff phase now also prints one `runtime handoff` line that
+  proves the board-facing payload survives into the actual prepare stage:
+  exported runtime package, handoff context, and handoff hook table now have
+  to line up as one seam before the prepare report is allowed to count as
+  ready.
+- The same handoff phase now also prints one `handoff entry` line that proves
+  the next-image entry seam is no longer just an implied branch target:
+  exported runtime handoff payload, entry address, current branch mode, low
+  vectors, translation state, cache state, and masked IRQ/FIQ state now have
+  to line up together before this entry surface counts as ready. On the
+  current QEMU leaf that branch mode is still the live `sys` mode we are
+  running in today, which keeps the log honest until a later real branch shim
+  deliberately normalizes it to something else such as `svc`.
+- A second handoff-side `handoff transfer` line now pushes that proof one step
+  closer to a real branch shim: the exported runtime handoff payload is now
+  shaped as the `arg0` value we would actually pass forward, the inherited
+  stack pointer is checked at the live transfer site, and the current branch
+  state is forced to stay honest about still being `arm/sys` on this QEMU
+  leaf. That gives us one explicit pre-branch seam to preserve when we later
+  replace this pre-launch proof with a real jump/relocation path.
+- A third handoff-side `handoff launch` line now turns that pre-branch seam
+  into a real returnable branch probe: the ready transfer payload is handed to
+  one explicit launch hook, a tiny assembly shim really enters a trampoline
+  dispatch target with the inherited `r0/sp` shape, and the contract now says
+  out loud which dispatch target and return site belong to that route. The log
+  only goes green once that full launch contract is the one the hook actually
+  consumed, and once route-shape, forwarded next-image target, probe capture,
+  branch-state, helper return-link, and post-return state all still match it.
+  This keeps the seam honest without pretending we already jump into the real
+  next image.
+- The landing side now also prints one `runtime handoff landing` line that
+  turns the post-branch runtime consumer into its own seam instead of leaving
+  it buried inside `handoff_live.cpp`: the re-armed leaf ports, the handed-over
+  runtime package payload, the recaptured binding slice, and the re-consumed
+  live runtime all have to line up before the landing side counts as ready.
+- The same landing path now also prints one `runtime handoff package landing`
+  line that rebuilds the runtime package directly from the re-armed leaf ports
+  and the re-consumed live bit, then requires that rebuilt package to match
+  both the handed-over payload and the recaptured local package before the
+  landing-side consumer seam counts as ready.
+- The same live preset now also prints one `runtime handoff path` line that
+  closes the whole handoff route into one continuity check: exported handoff
+  payload, prepared entry seam, forwarded transfer payload, live launch
+  landing, rebuilt post-landing package seam, and runtime consumer all have to
+  point at the same runtime handoff object before the path counts as ready.
 - The same leaf now also prints one `task syscall frame` line that proves the
   real live `SVC #0x45/#0x46` frame already carries a stable capture-side
   boundary: raw service id, mapped generic service, and current task/stack

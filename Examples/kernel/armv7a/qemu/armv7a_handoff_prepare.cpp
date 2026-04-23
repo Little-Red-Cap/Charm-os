@@ -6,8 +6,11 @@
 #include "armv7a_cpu.hpp"
 #include "armv7a_diag_console.hpp"
 #include "armv7a_interrupt_diagnostics.hpp"
+#include "armv7a_handoff_live.hpp"
 #include "armv7a_mmu.hpp"
 #include "armv7a_platform.hpp"
+#include "armv7a_handoff_entry.hpp"
+#include "armv7a_runtime_handoff.hpp"
 
 extern "C" void armv7a_vector_table();
 
@@ -166,12 +169,24 @@ void print_handoff_ready_state(const Armv7aHandoffPrepareReport& report)
 Armv7aHandoffPrepareContext armv7a_current_handoff_prepare_context()
 {
     const auto& address_space = armv7a_platform_address_space();
+#if defined(CHARM_ARMV7A_HANDOFF_SMOKE_LIVE)
+    const auto entry_addr =
+        reinterpret_cast<std::uintptr_t>(&armv7a_handoff_live_stage_entry);
+    const auto entry_offset = static_cast<std::uint32_t>(
+        entry_addr - address_space.image_load_base);
+#else
+    const auto entry_addr =
+        reinterpret_cast<std::uintptr_t>(&armv7a_vector_table);
+    const auto entry_offset = 0u;
+#endif
+
     return Armv7aHandoffPrepareContext{
         .exec =
             Armv7aHandoffExecRequest{
                 .kind = Armv7aHandoffLoadKind::copy_to_ram,
                 .payload_base = address_space.image_load_base,
-                .entry_addr = reinterpret_cast<std::uintptr_t>(&armv7a_vector_table),
+                .entry_addr = entry_addr,
+                .entry_offset = entry_offset,
             },
         .vector_base = reinterpret_cast<std::uintptr_t>(&armv7a_vector_table),
         .translation_table_base = armv7a_boot_l1_table_base(),
@@ -305,6 +320,8 @@ void armv7a_run_handoff_prepare_dry_run()
     print_handoff_masked_state();
     print_handoff_quiesced_state();
     print_handoff_step_report(report);
+    armv7a_print_runtime_handoff_observation(report);
+    armv7a_print_handoff_entry_observation(report);
     print_handoff_ready_state(report);
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffPrepare);

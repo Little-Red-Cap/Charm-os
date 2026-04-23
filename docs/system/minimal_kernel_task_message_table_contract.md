@@ -168,12 +168,18 @@
    - current-task message entry points
 3. `kernel.task_message_table`
    - server-side `label -> handler` routing
+4. `kernel.task_message_dispatch`
+   - `receive -> dispatch -> reply` bridge
 
 这三层现在分别证明：
 
 - 任务之间的 stateful object 语义
 - 当前任务如何用统一名字收发消息
 - server 如何把 request 稳定分发到 handler
+
+如果下一步要继续长最小 server-side bridge，当前更推荐在这层之上新增独立的：
+
+- `kernel.task_message_dispatch`
 
 这比让 `TaskMessageApi` 直接长成一个“大而全 dispatcher facade”更干净。
 

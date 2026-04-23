@@ -89,6 +89,111 @@ struct Armv7aHandoffPrepareReport {
     }
 };
 
+constexpr bool armv7a_handoff_exec_request_equal(
+    const Armv7aHandoffExecRequest& lhs,
+    const Armv7aHandoffExecRequest& rhs) noexcept
+{
+    return lhs.kind == rhs.kind && lhs.payload_base == rhs.payload_base &&
+           lhs.entry_addr == rhs.entry_addr &&
+           lhs.storage_payload_offset == rhs.storage_payload_offset &&
+           lhs.storage_entry_offset == rhs.storage_entry_offset &&
+           lhs.entry_offset == rhs.entry_offset &&
+           lhs.payload_size == rhs.payload_size &&
+           lhs.image_size == rhs.image_size &&
+           lhs.image_flags == rhs.image_flags;
+}
+
+constexpr bool armv7a_handoff_exec_request_ready(
+    const Armv7aHandoffExecRequest& request) noexcept
+{
+    return request.payload_base != 0u && request.entry_addr != 0u;
+}
+
+constexpr bool armv7a_handoff_prepare_context_equal(
+    const Armv7aHandoffPrepareContext& lhs,
+    const Armv7aHandoffPrepareContext& rhs) noexcept
+{
+    return armv7a_handoff_exec_request_equal(lhs.exec, rhs.exec) &&
+           lhs.vector_base == rhs.vector_base &&
+           lhs.translation_table_base == rhs.translation_table_base &&
+           lhs.image_load_base == rhs.image_load_base;
+}
+
+constexpr bool armv7a_handoff_prepare_context_ready(
+    const Armv7aHandoffPrepareContext& context) noexcept
+{
+    return armv7a_handoff_exec_request_ready(context.exec) &&
+           context.vector_base != 0u &&
+           context.translation_table_base != 0u &&
+           context.image_load_base != 0u;
+}
+
+constexpr bool armv7a_handoff_prepare_hooks_equal(
+    const Armv7aHandoffPrepareHooks& lhs,
+    const Armv7aHandoffPrepareHooks& rhs) noexcept
+{
+    return lhs.ctx == rhs.ctx &&
+           lhs.mask_cpu_exceptions == rhs.mask_cpu_exceptions &&
+           lhs.quiesce_interrupt_controller ==
+               rhs.quiesce_interrupt_controller &&
+           lhs.activate_payload_mapping == rhs.activate_payload_mapping &&
+           lhs.clean_data_cache == rhs.clean_data_cache &&
+           lhs.invalidate_instruction_cache ==
+               rhs.invalidate_instruction_cache &&
+           lhs.invalidate_tlb == rhs.invalidate_tlb &&
+           lhs.switch_exception_vectors == rhs.switch_exception_vectors &&
+           lhs.sync_context == rhs.sync_context;
+}
+
+constexpr bool armv7a_handoff_prepare_hooks_ready(
+    const Armv7aHandoffPrepareHooks& hooks) noexcept
+{
+    return hooks.mask_cpu_exceptions != nullptr &&
+           hooks.quiesce_interrupt_controller != nullptr &&
+           hooks.activate_payload_mapping != nullptr &&
+           hooks.clean_data_cache != nullptr &&
+           hooks.invalidate_instruction_cache != nullptr &&
+           hooks.invalidate_tlb != nullptr &&
+           hooks.switch_exception_vectors != nullptr &&
+           hooks.sync_context != nullptr;
+}
+
+constexpr bool armv7a_handoff_prepare_policy_equal(
+    const Armv7aHandoffPreparePolicy& lhs,
+    const Armv7aHandoffPreparePolicy& rhs) noexcept
+{
+    return lhs.mask_cpu_exceptions == rhs.mask_cpu_exceptions &&
+           lhs.quiesce_interrupt_controller ==
+               rhs.quiesce_interrupt_controller &&
+           lhs.activate_payload_mapping == rhs.activate_payload_mapping &&
+           lhs.clean_data_cache == rhs.clean_data_cache &&
+           lhs.invalidate_instruction_cache ==
+               rhs.invalidate_instruction_cache &&
+           lhs.invalidate_tlb == rhs.invalidate_tlb &&
+           lhs.switch_exception_vectors == rhs.switch_exception_vectors &&
+           lhs.sync_context == rhs.sync_context;
+}
+
+constexpr bool armv7a_handoff_prepare_contract_equal(
+    const Armv7aHandoffPrepareContract& lhs,
+    const Armv7aHandoffPrepareContract& rhs) noexcept
+{
+    return armv7a_handoff_prepare_hooks_equal(lhs.hooks, rhs.hooks) &&
+           armv7a_handoff_prepare_policy_equal(lhs.policy, rhs.policy);
+}
+
+constexpr bool armv7a_handoff_prepare_contract_ready(
+    const Armv7aHandoffPrepareContract& contract) noexcept
+{
+    return armv7a_handoff_prepare_hooks_ready(contract.hooks);
+}
+
+constexpr bool armv7a_handoff_prepare_report_ready(
+    const Armv7aHandoffPrepareReport& report) noexcept
+{
+    return static_cast<bool>(report);
+}
+
 Armv7aHandoffPrepareReport armv7a_run_handoff_prepare(
     const Armv7aHandoffPrepareContext& context,
     const Armv7aHandoffPrepareContract& contract) noexcept;

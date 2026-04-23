@@ -33,6 +33,8 @@ Armv7aRuntimeTrapDispatchSlot g_runtime_trap_dispatch_yield{};
 Armv7aRuntimeTrapDispatchSlot g_runtime_trap_dispatch_sleep{};
 Armv7aRuntimeTrapDispatchSlot g_runtime_trap_dispatch_debug{};
 Armv7aRuntimeTrapDispatchSlot g_runtime_trap_dispatch_capability{};
+Armv7aRuntimeTrapDispatchPairObservation g_last_runtime_trap_dispatch{};
+bool g_last_runtime_trap_dispatch_valid = false;
 
 Armv7aRuntimeTrapIngressResult armv7a_qemu_runtime_trap_dispatch_stub(
     void*,
@@ -344,9 +346,19 @@ armv7a_capture_runtime_trap_dispatch_for_immediate(
     return armv7a_observe_runtime_trap_dispatch_for_immediate(immediate);
 }
 
+Armv7aRuntimeTrapDispatchPairObservation
+armv7a_last_runtime_trap_dispatch_observation() noexcept
+{
+    return g_last_runtime_trap_dispatch_valid
+        ? g_last_runtime_trap_dispatch
+        : Armv7aRuntimeTrapDispatchPairObservation{};
+}
+
 void armv7a_print_runtime_trap_dispatch_observation()
 {
     const auto observation = armv7a_capture_runtime_trap_dispatch_observation();
+    g_last_runtime_trap_dispatch = observation;
+    g_last_runtime_trap_dispatch_valid = true;
 
     armv7a_platform_early_console_puts("ARMv7-A runtime trap dispatch, yield-path=");
     armv7a_platform_early_console_puts(

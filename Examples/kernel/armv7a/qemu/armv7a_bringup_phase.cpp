@@ -92,8 +92,18 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "runtime-bridge";
     case Armv7aBringupPhase::kRuntimeLoopIngress:
         return "runtime-loop-ingress";
+    case Armv7aBringupPhase::kRuntimeLeafPorts:
+        return "runtime-leaf-ports";
+    case Armv7aBringupPhase::kRuntimeThreadPort:
+        return "runtime-thread-port";
     case Armv7aBringupPhase::kRuntimeLive:
         return "runtime-live";
+    case Armv7aBringupPhase::kRuntimeBindingBundle:
+        return "runtime-binding-bundle";
+    case Armv7aBringupPhase::kRuntimeLeafBundle:
+        return "runtime-leaf-bundle";
+    case Armv7aBringupPhase::kRuntimePackage:
+        return "runtime-package";
     case Armv7aBringupPhase::kTaskSyscallFrame:
         return "task-syscall-frame";
     case Armv7aBringupPhase::kTaskSyscallDispatch:
@@ -112,6 +122,14 @@ const char* armv7a_bringup_phase_name(Armv7aBringupPhase phase)
         return "task-syscall-failure";
     case Armv7aBringupPhase::kHandoffPrepare:
         return "handoff-prepare";
+    case Armv7aBringupPhase::kHandoffTransfer:
+        return "handoff-transfer";
+    case Armv7aBringupPhase::kHandoffLaunch:
+        return "handoff-launch";
+    case Armv7aBringupPhase::kHandoffLive:
+        return "handoff-live";
+    case Armv7aBringupPhase::kHandoffRuntime:
+        return "handoff-runtime";
     case Armv7aBringupPhase::kIdle:
         return "idle";
     default:

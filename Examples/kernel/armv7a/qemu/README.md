@@ -258,7 +258,9 @@ synthetic next-stage entry with the inherited `r0/sp` shape, completes the
 `ARMv7-A handoff live, ... live=yes` line, then proves the handed-over runtime
 package can be re-armed in place and directly re-consumed from the landing
 side via one `ARMv7-A runtime handoff landing, ... rearm=yes, payload=yes,
-... landed=yes` line, one `ARMv7-A runtime handoff package landing, ...
+... landed=yes` line, one `ARMv7-A runtime handoff leaf landing, ...
+leaf=yes` line, one `ARMv7-A runtime handoff binding landing, ...
+binding=yes` line, one `ARMv7-A runtime handoff package landing, ...
 landing=yes` line, one `ARMv7-A runtime handoff consumer, ... consumer=yes`
 line, plus one `ARMv7-A runtime handoff path, ... path=yes` line before
 idling forever.
@@ -785,6 +787,16 @@ continue
   and the re-consumed live bit, then requires that rebuilt package to match
   both the handed-over payload and the recaptured local package before the
   landing-side consumer seam counts as ready.
+- The same landing path now also prints one `runtime handoff leaf landing`
+  line that isolates the wide lower-half bundle seam: the re-armed leaf ports,
+  the re-consumed live bit, the handed-over leaf payload, and the recaptured
+  local leaf bundle all have to line up before the landed leaf counts as ready.
+- The same landing path now also prints one `runtime handoff binding landing`
+  line that isolates the smaller runtime-facing binding slice: current/trap/
+  thread/loop ports must stay live, point at the same runtime context, still
+  derive from the trap-call surface, and match both the handed-over binding
+  payload and the recaptured local binding before the landed binding counts as
+  ready.
 - The same landing path now also prints one `runtime handoff consumer` line
   that lifts the whole re-entry sequence into one reusable seam: re-armed
   ports, recaptured package observation, rebuilt package landing, live runtime,

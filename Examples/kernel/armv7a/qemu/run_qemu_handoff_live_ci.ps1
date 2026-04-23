@@ -154,6 +154,12 @@ if (($handoffLog -notmatch "ARMv7-A handoff live, target=0x[0-9A-F]{8}, arg0=0x[
 if (($handoffLog -notmatch "ARMv7-A runtime handoff landing, package=yes, rearm=yes, payload=yes, binding=yes, current=yes, trap=yes, thread=yes, loop=yes, live=yes, landed=yes")) {
     $missing += "ARMv7-A runtime handoff landing, package=yes..."
 }
+if (($handoffLog -notmatch "ARMv7-A runtime handoff leaf landing, ports=yes, live=yes, handoff=yes, recaptured=yes, leaf=yes")) {
+    $missing += "ARMv7-A runtime handoff leaf landing, ports=yes..."
+}
+if (($handoffLog -notmatch "ARMv7-A runtime handoff binding landing, current=yes, trap=yes, thread=yes, loop=yes, shared=yes, handoff=yes, recaptured=yes, binding=yes")) {
+    $missing += "ARMv7-A runtime handoff binding landing, current=yes..."
+}
 if (($handoffLog -notmatch "ARMv7-A runtime handoff package landing, leaf=yes, binding=yes, package=yes, live=yes, consumer=yes, landing=yes")) {
     $missing += "ARMv7-A runtime handoff package landing, leaf=yes..."
 }

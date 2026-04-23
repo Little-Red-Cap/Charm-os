@@ -43,13 +43,34 @@ struct Armv7aRuntimeHandoffLandingObservation {
     bool runtime_live_consumed = false;
 };
 
+struct Armv7aRuntimeHandoffLeafLandingObservation {
+    Armv7aRuntimeLeafBundleContract contract{};
+    Armv7aRuntimeLiveObservation runtime_live{};
+    bool handoff_present = false;
+    bool leaf_from_rearmed_ports = false;
+    bool live_from_runtime = false;
+    bool leaf_from_handoff = false;
+    bool leaf_recaptured = false;
+};
+
+struct Armv7aRuntimeHandoffBindingLandingObservation {
+    Armv7aRuntimeBindingBundleContract contract{};
+    Armv7aRuntimeLiveObservation runtime_live{};
+    bool handoff_present = false;
+    bool binding_from_rearmed_ports = false;
+    bool shared_runtime_context = false;
+    bool thread_from_trap_call = false;
+    bool binding_from_handoff = false;
+    bool binding_recaptured = false;
+};
+
 struct Armv7aRuntimeHandoffPackageLandingObservation {
     Armv7aRuntimePackageContract contract{};
     Armv7aRuntimePackageObservation runtime_package{};
     Armv7aRuntimeLiveObservation runtime_live{};
+    Armv7aRuntimeHandoffLeafLandingObservation leaf_landing{};
+    Armv7aRuntimeHandoffBindingLandingObservation binding_landing{};
     bool handoff_present = false;
-    bool leaf_from_rearmed_ports = false;
-    bool binding_from_rearmed_ports = false;
     bool package_from_handoff = false;
     bool package_recaptured = false;
     bool runtime_live_consumed = false;
@@ -157,20 +178,127 @@ constexpr bool armv7a_runtime_handoff_landing_ready(
            armv7a_runtime_handoff_landing_live_ready(observation);
 }
 
+constexpr bool armv7a_runtime_handoff_leaf_landing_ports_ready(
+    const Armv7aRuntimeHandoffLeafLandingObservation& observation) noexcept
+{
+    return observation.handoff_present &&
+           armv7a_runtime_leaf_bundle_ports_ready(observation.contract) &&
+           observation.leaf_from_rearmed_ports;
+}
+
+constexpr bool armv7a_runtime_handoff_leaf_landing_live_ready(
+    const Armv7aRuntimeHandoffLeafLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_leaf_landing_ports_ready(observation) &&
+           armv7a_runtime_leaf_bundle_live_ready(observation.contract) &&
+           observation.live_from_runtime &&
+           armv7a_runtime_live_ready(observation.runtime_live);
+}
+
+constexpr bool armv7a_runtime_handoff_leaf_landing_ready(
+    const Armv7aRuntimeHandoffLeafLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_leaf_landing_ports_ready(observation) &&
+           armv7a_runtime_handoff_leaf_landing_live_ready(observation) &&
+           armv7a_runtime_leaf_bundle_ready(observation.contract) &&
+           observation.leaf_from_handoff && observation.leaf_recaptured;
+}
+
+constexpr bool armv7a_runtime_handoff_binding_thread_from_trap_call(
+    const Armv7aRuntimeBindingBundleContract& contract,
+    const Armv7aRuntimeLeafPortsContract& rearmed_ports) noexcept
+{
+    return contract.runtime_thread.ctx == rearmed_ports.trap_call.ctx &&
+           contract.runtime_thread.yield_current ==
+               rearmed_ports.trap_call.yield_current &&
+           contract.runtime_thread.sleep_current_until ==
+               rearmed_ports.trap_call.sleep_current_until;
+}
+
+constexpr bool armv7a_runtime_handoff_binding_shared_runtime_context(
+    const Armv7aRuntimeBindingBundleContract& contract,
+    const Armv7aRuntimeLeafPortsContract& rearmed_ports) noexcept
+{
+    const auto ctx = rearmed_ports.kernel.current.ctx;
+    return ctx != nullptr && contract.current.ctx == ctx &&
+           rearmed_ports.interrupt_hook.ctx == ctx &&
+           contract.trap_dispatch.ctx == ctx &&
+           rearmed_ports.trap_call.ctx == ctx &&
+           contract.runtime_thread.ctx == ctx &&
+           contract.runtime_loop.ctx == ctx;
+}
+
+constexpr bool armv7a_runtime_handoff_binding_landing_current_ready(
+    const Armv7aRuntimeHandoffBindingLandingObservation& observation) noexcept
+{
+    return observation.handoff_present &&
+           armv7a_runtime_binding_bundle_current_ready(observation.contract);
+}
+
+constexpr bool armv7a_runtime_handoff_binding_landing_trap_ready(
+    const Armv7aRuntimeHandoffBindingLandingObservation& observation) noexcept
+{
+    return observation.handoff_present &&
+           armv7a_runtime_binding_bundle_trap_ready(observation.contract);
+}
+
+constexpr bool armv7a_runtime_handoff_binding_landing_thread_ready(
+    const Armv7aRuntimeHandoffBindingLandingObservation& observation) noexcept
+{
+    return observation.handoff_present &&
+           armv7a_runtime_binding_bundle_thread_ready(observation.contract) &&
+           observation.thread_from_trap_call;
+}
+
+constexpr bool armv7a_runtime_handoff_binding_landing_loop_ready(
+    const Armv7aRuntimeHandoffBindingLandingObservation& observation) noexcept
+{
+    return observation.handoff_present &&
+           armv7a_runtime_binding_bundle_loop_ready(observation.contract);
+}
+
+constexpr bool armv7a_runtime_handoff_binding_landing_shared_ready(
+    const Armv7aRuntimeHandoffBindingLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_binding_landing_current_ready(observation) &&
+           armv7a_runtime_handoff_binding_landing_trap_ready(observation) &&
+           armv7a_runtime_handoff_binding_landing_thread_ready(observation) &&
+           armv7a_runtime_handoff_binding_landing_loop_ready(observation) &&
+           observation.shared_runtime_context;
+}
+
+constexpr bool armv7a_runtime_handoff_binding_landing_live_ready(
+    const Armv7aRuntimeHandoffBindingLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_binding_landing_shared_ready(observation) &&
+           armv7a_runtime_binding_bundle_live_ready(observation.contract) &&
+           armv7a_runtime_live_ready(observation.runtime_live);
+}
+
+constexpr bool armv7a_runtime_handoff_binding_landing_ready(
+    const Armv7aRuntimeHandoffBindingLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_binding_landing_shared_ready(observation) &&
+           armv7a_runtime_handoff_binding_landing_live_ready(observation) &&
+           armv7a_runtime_binding_bundle_ready(observation.contract) &&
+           observation.binding_from_rearmed_ports &&
+           observation.binding_from_handoff &&
+           observation.binding_recaptured;
+}
+
 constexpr bool armv7a_runtime_handoff_package_landing_leaf_ready(
     const Armv7aRuntimeHandoffPackageLandingObservation& observation) noexcept
 {
-    return observation.handoff_present &&
-           armv7a_runtime_package_leaf_ready(observation.contract) &&
-           observation.leaf_from_rearmed_ports;
+    return armv7a_runtime_handoff_leaf_landing_ready(observation.leaf_landing) &&
+           armv7a_runtime_package_leaf_ready(observation.contract);
 }
 
 constexpr bool armv7a_runtime_handoff_package_landing_binding_ready(
     const Armv7aRuntimeHandoffPackageLandingObservation& observation) noexcept
 {
-    return observation.handoff_present &&
-           armv7a_runtime_package_binding_ready(observation.contract) &&
-           observation.binding_from_rearmed_ports;
+    return armv7a_runtime_handoff_binding_landing_ready(
+               observation.binding_landing) &&
+           armv7a_runtime_package_binding_ready(observation.contract);
 }
 
 constexpr bool armv7a_runtime_handoff_package_landing_package_ready(
@@ -287,6 +415,22 @@ armv7a_make_runtime_handoff_landing_observation(
     const Armv7aRuntimeLiveObservation& runtime_live) noexcept;
 void armv7a_print_runtime_handoff_landing_observation(
     const Armv7aRuntimeHandoffLandingObservation& observation);
+const Armv7aRuntimeHandoffLeafLandingObservation&
+armv7a_make_runtime_handoff_leaf_landing_observation(
+    const Armv7aRuntimeHandoffContract* handoff,
+    const Armv7aRuntimeLeafPortsContract& rearmed_ports,
+    const Armv7aRuntimePackageObservation& runtime_package,
+    const Armv7aRuntimeLiveObservation& runtime_live) noexcept;
+void armv7a_print_runtime_handoff_leaf_landing_observation(
+    const Armv7aRuntimeHandoffLeafLandingObservation& observation);
+const Armv7aRuntimeHandoffBindingLandingObservation&
+armv7a_make_runtime_handoff_binding_landing_observation(
+    const Armv7aRuntimeHandoffContract* handoff,
+    const Armv7aRuntimeLeafPortsContract& rearmed_ports,
+    const Armv7aRuntimePackageObservation& runtime_package,
+    const Armv7aRuntimeLiveObservation& runtime_live) noexcept;
+void armv7a_print_runtime_handoff_binding_landing_observation(
+    const Armv7aRuntimeHandoffBindingLandingObservation& observation);
 const Armv7aRuntimeHandoffPackageLandingObservation&
 armv7a_make_runtime_handoff_package_landing_observation(
     const Armv7aRuntimeHandoffContract* handoff,

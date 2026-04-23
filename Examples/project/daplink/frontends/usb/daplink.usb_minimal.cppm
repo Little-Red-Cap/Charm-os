@@ -596,7 +596,7 @@ export namespace daplink::usb_minimal {
             ep0_status_in(hpcd);
             return;
         }
-        if (epnum == 1) {
+        if (epnum == (kHidEpOut & 0x7FU)) {
             if constexpr (kEnableHid) {
                 const std::uint8_t index = g_state.hid.hid_out_active_index;
                 g_state.hid.hid_out_len[index] = daplink::port::usb_ep_rx_count(hpcd, kHidEpOut);

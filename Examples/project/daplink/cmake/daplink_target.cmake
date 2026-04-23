@@ -14,6 +14,9 @@ endif()
 set(CMAKE_PROJECT_NAME daplink)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
+set(DAPLINK_USB_PROFILE "composite" CACHE STRING "USB profile to build for DAPLink")
+set_property(CACHE DAPLINK_USB_PROFILE PROPERTY STRINGS hid cdc composite)
+
 function(daplink_configure_target)
     set(options)
     set(oneValueArgs TARGET LOCAL_ROOT APP_ROOT STM32CUBEMX_DIR STM32_DEVICE CHARM_ROOT)
@@ -27,13 +30,25 @@ function(daplink_configure_target)
     endforeach()
 
     set(_module_base_dir "${DAPLINK_APP_ROOT}/..")
+    if(DAPLINK_USB_PROFILE STREQUAL "hid")
+        set(_usb_profile_value 0)
+    elseif(DAPLINK_USB_PROFILE STREQUAL "cdc")
+        set(_usb_profile_value 1)
+    elseif(DAPLINK_USB_PROFILE STREQUAL "composite")
+        set(_usb_profile_value 2)
+    else()
+        message(FATAL_ERROR
+            "Unsupported DAPLINK_USB_PROFILE='${DAPLINK_USB_PROFILE}'. "
+            "Supported profiles: hid, cdc, composite.")
+    endif()
+
     set(_compile_definitions
         CHARM_VIVID_ENABLE_LAYER_CACHE=0
         CHARM_DAP_ENABLE_SWO=0
         CHARM_DAP_ENABLE_SWO_STREAM=0
         CHARM_DAP_ENABLE_DAP_UART=0
         CHARM_DAP_CDC_UART=2
-        CHARM_DAP_USB_PROFILE=2
+        CHARM_DAP_USB_PROFILE=${_usb_profile_value}
         ${DAPLINK_STM32_DEVICE}
         USE_HAL_DRIVER
         CHARM_KERNEL_REQUIRE_SSU_META=1

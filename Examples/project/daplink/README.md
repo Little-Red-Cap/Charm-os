@@ -61,3 +61,22 @@ cmake -S G:\Project\Codex\Charm-os-Project\Examples\project\daplink `
 ```powershell
 .\scripts\daplink_flash.ps1 -Port h503 -Probe cmsis-dap
 ```
+
+## HID Only 验证
+
+如果需要优先排查 `Keil / MDK` 这类更依赖标准 HID CMSIS-DAP 识别的上位机，
+可以先使用根级 `hid-only` 预设，把 `CDC` 暂时从 USB 复合设备里拿掉：
+
+```powershell
+cmake --preset g431-hid-debug -S G:\Project\Codex\Charm-os-Project\Examples\project\daplink
+cmake --build G:\Project\Codex\Charm-os-Project\Examples\project\daplink\cmake-build-daplink-g431-hid-debug --target daplink -j 22
+```
+
+当前已提供：
+
+- `f103-hid-debug`
+- `g431-hid-debug`
+- `h503-hid-debug`
+
+兼容性约束、官方参考与当前策略见：
+[docs/cmsis_dap_compatibility_notes.md](/G:/Project/Codex/Charm-os-Project/Examples/project/daplink/docs/cmsis_dap_compatibility_notes.md)

@@ -19,12 +19,32 @@
             }
         },
         {
+            "name": "f103-hid-debug",
+            "inherits": "base",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/daplink-f103-gcc-arm-none-eabi.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "DAPLINK_PORT": "f103",
+                "DAPLINK_USB_PROFILE": "hid"
+            }
+        },
+        {
             "name": "g431-debug",
             "inherits": "base",
             "toolchainFile": "${sourceDir}/cmake/toolchains/daplink-g431-gcc-arm-none-eabi.cmake",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "DAPLINK_PORT": "g431"
+            }
+        },
+        {
+            "name": "g431-hid-debug",
+            "inherits": "base",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/daplink-g431-gcc-arm-none-eabi.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "DAPLINK_PORT": "g431",
+                "DAPLINK_USB_PROFILE": "hid"
             }
         },
         {
@@ -35,6 +55,16 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "DAPLINK_PORT": "h503"
             }
+        },
+        {
+            "name": "h503-hid-debug",
+            "inherits": "base",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/daplink-h503-gcc-arm-none-eabi.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "DAPLINK_PORT": "h503",
+                "DAPLINK_USB_PROFILE": "hid"
+            }
         }
     ],
     "buildPresets": [
@@ -43,12 +73,24 @@
             "configurePreset": "f103-debug"
         },
         {
+            "name": "f103-hid-debug",
+            "configurePreset": "f103-hid-debug"
+        },
+        {
             "name": "g431-debug",
             "configurePreset": "g431-debug"
         },
         {
+            "name": "g431-hid-debug",
+            "configurePreset": "g431-hid-debug"
+        },
+        {
             "name": "h503-debug",
             "configurePreset": "h503-debug"
+        },
+        {
+            "name": "h503-hid-debug",
+            "configurePreset": "h503-hid-debug"
         }
     ]
 }

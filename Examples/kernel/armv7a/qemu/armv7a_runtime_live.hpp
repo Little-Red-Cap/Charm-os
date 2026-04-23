@@ -50,10 +50,21 @@ struct Armv7aRuntimeLiveObservation {
     std::uint32_t yield_handler_psr = 0u;
     std::uint32_t sleep_origin_psr = 0u;
     std::uint32_t sleep_handler_psr = 0u;
+    std::uintptr_t runtime_context = 0u;
+    std::uintptr_t session = 0u;
+    std::uintptr_t shared = 0u;
+    std::uintptr_t trap = 0u;
     std::uint64_t wake_due = 0u;
     std::uint64_t last_tick_now = 0u;
     std::uint64_t last_trap_value = 0u;
 };
+
+constexpr bool armv7a_runtime_live_identity_ready(
+    const Armv7aRuntimeLiveObservation& observation) noexcept
+{
+    return observation.runtime_context != 0u && observation.session != 0u &&
+           observation.shared != 0u && observation.trap != 0u;
+}
 
 constexpr bool armv7a_runtime_live_ready(
     const Armv7aRuntimeLiveObservation& observation) noexcept

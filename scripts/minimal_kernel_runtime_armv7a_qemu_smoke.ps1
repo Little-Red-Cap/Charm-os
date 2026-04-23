@@ -164,6 +164,8 @@ $caseSpecs = @(
         Script = "run_qemu_runtime_trap_ci.ps1"
         StdoutLog = "qemu-runtime-trap.log"
         StderrLog = "qemu-runtime-trap.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
         HighlightPatterns = @(
             'ARMv7-A runtime trap seam, .* seam=yes',
             'ARMv7-A runtime trap roundtrip, .* roundtrip=yes'
@@ -175,6 +177,8 @@ $caseSpecs = @(
         Script = "run_qemu_runtime_leaf_ports_ci.ps1"
         StdoutLog = "qemu-runtime-leaf-ports.log"
         StderrLog = "qemu-runtime-leaf-ports.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
         HighlightPatterns = @(
             'ARMv7-A runtime leaf ports, .* ports=yes'
         )
@@ -185,6 +189,8 @@ $caseSpecs = @(
         Script = "run_qemu_runtime_thread_ci.ps1"
         StdoutLog = "qemu-runtime-thread.log"
         StderrLog = "qemu-runtime-thread.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
         HighlightPatterns = @(
             'ARMv7-A runtime thread port, .* thread=yes'
         )
@@ -195,6 +201,8 @@ $caseSpecs = @(
         Script = "run_qemu_runtime_live_ci.ps1"
         StdoutLog = "qemu-runtime-live.log"
         StderrLog = "qemu-runtime-live.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
         HighlightPatterns = @(
             'ARMv7-A runtime live, .* live=yes, resumes=[0-9]+, idle-runs=[0-9]+, wake-due=0x[0-9A-F]{16}, tick-now=0x[0-9A-F]{16}'
         )
@@ -205,6 +213,8 @@ $caseSpecs = @(
         Script = "run_qemu_runtime_binding_bundle_ci.ps1"
         StdoutLog = "qemu-runtime-binding-bundle.log"
         StderrLog = "qemu-runtime-binding-bundle.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
         HighlightPatterns = @(
             'ARMv7-A runtime binding bundle, .* binding=yes'
         )
@@ -215,6 +225,8 @@ $caseSpecs = @(
         Script = "run_qemu_runtime_leaf_bundle_ci.ps1"
         StdoutLog = "qemu-runtime-leaf-bundle.log"
         StderrLog = "qemu-runtime-leaf-bundle.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
         HighlightPatterns = @(
             'ARMv7-A runtime leaf bundle, .* bundle=yes'
         )
@@ -225,6 +237,8 @@ $caseSpecs = @(
         Script = "run_qemu_runtime_package_ci.ps1"
         StdoutLog = "qemu-runtime-package.log"
         StderrLog = "qemu-runtime-package.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
         HighlightPatterns = @(
             'ARMv7-A runtime package, .* package=yes'
         )
@@ -235,6 +249,8 @@ $caseSpecs = @(
         Script = "run_qemu_task_syscall_ci.ps1"
         StdoutLog = "qemu-task-syscall.log"
         StderrLog = "qemu-task-syscall.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
         HighlightPatterns = @(
             'ARMv7-A task syscall roundtrip, .* roundtrip=yes',
             'ARMv7-A task syscall glue, .* glue=yes'
@@ -246,10 +262,13 @@ $caseSpecs = @(
         Script = "run_qemu_handoff_live_ci.ps1"
         StdoutLog = "qemu-handoff-live.log"
         StderrLog = "qemu-handoff-live.err.log"
+        SkipBuild = $false
+        CleanBuild = $true
         HighlightPatterns = @(
             'ARMv7-A handoff live, .* live=yes',
             'ARMv7-A runtime handoff leaf landing, .* leaf=yes',
             'ARMv7-A runtime handoff binding landing, .* binding=yes',
+            'ARMv7-A runtime handoff session landing, .* session=yes',
             'ARMv7-A runtime handoff package landing, .* landing=yes',
             'ARMv7-A runtime handoff landing, .* landed=yes',
             'ARMv7-A runtime handoff path, .* path=yes',
@@ -284,7 +303,7 @@ try {
         $currentPhase = "build"
         $buildStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
-            & $cmake --build --preset $buildPreset --parallel $BuildJobs
+            & $cmake --build --preset $buildPreset --clean-first --parallel $BuildJobs
             if ($LASTEXITCODE -ne 0) {
                 throw "cmake build failed for preset: $buildPreset"
             }
@@ -309,13 +328,39 @@ try {
                     throw "missing lower-half smoke case script: $caseScriptPath"
                 }
 
-                & $caseScriptPath `
-                    -CMakeExe $cmake `
-                    -QemuExe $qemu `
-                    -BuildJobs $BuildJobs `
-                    -TimeoutSec $TimeoutSec `
-                    -TailLines $TailLines `
-                    -SkipBuild
+                if ($caseSpec.SkipBuild -and $caseSpec.CleanBuild) {
+                    & $caseScriptPath `
+                        -CMakeExe $cmake `
+                        -QemuExe $qemu `
+                        -BuildJobs $BuildJobs `
+                        -TimeoutSec $TimeoutSec `
+                        -TailLines $TailLines `
+                        -SkipBuild `
+                        -CleanBuild
+                } elseif ($caseSpec.SkipBuild) {
+                    & $caseScriptPath `
+                        -CMakeExe $cmake `
+                        -QemuExe $qemu `
+                        -BuildJobs $BuildJobs `
+                        -TimeoutSec $TimeoutSec `
+                        -TailLines $TailLines `
+                        -SkipBuild
+                } elseif ($caseSpec.CleanBuild) {
+                    & $caseScriptPath `
+                        -CMakeExe $cmake `
+                        -QemuExe $qemu `
+                        -BuildJobs $BuildJobs `
+                        -TimeoutSec $TimeoutSec `
+                        -TailLines $TailLines `
+                        -CleanBuild
+                } else {
+                    & $caseScriptPath `
+                        -CMakeExe $cmake `
+                        -QemuExe $qemu `
+                        -BuildJobs $BuildJobs `
+                        -TimeoutSec $TimeoutSec `
+                        -TailLines $TailLines
+                }
 
                 if ($LASTEXITCODE -ne 0) {
                     throw ("lower-half smoke failed: {0} (exit code {1})" -f $caseSpec.Script, $LASTEXITCODE)

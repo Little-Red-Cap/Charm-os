@@ -64,12 +64,25 @@ struct Armv7aRuntimeHandoffBindingLandingObservation {
     bool binding_recaptured = false;
 };
 
+struct Armv7aRuntimeHandoffSessionLandingObservation {
+    std::uintptr_t runtime_context = 0u;
+    std::uintptr_t session = 0u;
+    std::uintptr_t shared = 0u;
+    std::uintptr_t trap = 0u;
+    bool handoff_present = false;
+    bool live_identity_ready = false;
+    bool ports_from_runtime_context = false;
+    bool binding_from_runtime_context = false;
+    bool package_from_runtime_context = false;
+};
+
 struct Armv7aRuntimeHandoffPackageLandingObservation {
     Armv7aRuntimePackageContract contract{};
     Armv7aRuntimePackageObservation runtime_package{};
     Armv7aRuntimeLiveObservation runtime_live{};
     Armv7aRuntimeHandoffLeafLandingObservation leaf_landing{};
     Armv7aRuntimeHandoffBindingLandingObservation binding_landing{};
+    Armv7aRuntimeHandoffSessionLandingObservation session_landing{};
     bool handoff_present = false;
     bool package_from_handoff = false;
     bool package_recaptured = false;
@@ -228,6 +241,52 @@ constexpr bool armv7a_runtime_handoff_binding_shared_runtime_context(
            contract.runtime_loop.ctx == ctx;
 }
 
+inline bool armv7a_runtime_handoff_runtime_context_matches_leaf_ports(
+    std::uintptr_t runtime_context,
+    const Armv7aRuntimeLeafPortsContract& ports) noexcept
+{
+    return runtime_context != 0u &&
+           reinterpret_cast<std::uintptr_t>(ports.kernel.current.ctx) ==
+               runtime_context &&
+           reinterpret_cast<std::uintptr_t>(ports.interrupt_hook.ctx) ==
+               runtime_context &&
+           reinterpret_cast<std::uintptr_t>(ports.trap_dispatch.ctx) ==
+               runtime_context &&
+           reinterpret_cast<std::uintptr_t>(ports.trap_call.ctx) ==
+               runtime_context &&
+           reinterpret_cast<std::uintptr_t>(ports.runtime_thread.ctx) ==
+               runtime_context &&
+           reinterpret_cast<std::uintptr_t>(ports.runtime_loop.ctx) ==
+               runtime_context;
+}
+
+inline bool armv7a_runtime_handoff_runtime_context_matches_binding(
+    std::uintptr_t runtime_context,
+    const Armv7aRuntimeBindingBundleContract& contract) noexcept
+{
+    return runtime_context != 0u &&
+           reinterpret_cast<std::uintptr_t>(contract.current.ctx) ==
+               runtime_context &&
+           reinterpret_cast<std::uintptr_t>(contract.trap_dispatch.ctx) ==
+               runtime_context &&
+           reinterpret_cast<std::uintptr_t>(contract.runtime_thread.ctx) ==
+               runtime_context &&
+           reinterpret_cast<std::uintptr_t>(contract.runtime_loop.ctx) ==
+               runtime_context;
+}
+
+inline bool armv7a_runtime_handoff_runtime_context_matches_package(
+    std::uintptr_t runtime_context,
+    const Armv7aRuntimePackageContract& contract) noexcept
+{
+    return armv7a_runtime_handoff_runtime_context_matches_leaf_ports(
+               runtime_context,
+               contract.leaf.ports) &&
+           armv7a_runtime_handoff_runtime_context_matches_binding(
+               runtime_context,
+               contract.binding);
+}
+
 constexpr bool armv7a_runtime_handoff_binding_landing_current_ready(
     const Armv7aRuntimeHandoffBindingLandingObservation& observation) noexcept
 {
@@ -286,6 +345,42 @@ constexpr bool armv7a_runtime_handoff_binding_landing_ready(
            observation.binding_recaptured;
 }
 
+constexpr bool armv7a_runtime_handoff_session_landing_live_ready(
+    const Armv7aRuntimeHandoffSessionLandingObservation& observation) noexcept
+{
+    return observation.handoff_present && observation.live_identity_ready;
+}
+
+constexpr bool armv7a_runtime_handoff_session_landing_ports_ready(
+    const Armv7aRuntimeHandoffSessionLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_session_landing_live_ready(observation) &&
+           observation.ports_from_runtime_context;
+}
+
+constexpr bool armv7a_runtime_handoff_session_landing_binding_ready(
+    const Armv7aRuntimeHandoffSessionLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_session_landing_live_ready(observation) &&
+           observation.binding_from_runtime_context;
+}
+
+constexpr bool armv7a_runtime_handoff_session_landing_package_ready(
+    const Armv7aRuntimeHandoffSessionLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_session_landing_live_ready(observation) &&
+           observation.package_from_runtime_context;
+}
+
+constexpr bool armv7a_runtime_handoff_session_landing_ready(
+    const Armv7aRuntimeHandoffSessionLandingObservation& observation) noexcept
+{
+    return armv7a_runtime_handoff_session_landing_live_ready(observation) &&
+           armv7a_runtime_handoff_session_landing_ports_ready(observation) &&
+           armv7a_runtime_handoff_session_landing_binding_ready(observation) &&
+           armv7a_runtime_handoff_session_landing_package_ready(observation);
+}
+
 constexpr bool armv7a_runtime_handoff_package_landing_leaf_ready(
     const Armv7aRuntimeHandoffPackageLandingObservation& observation) noexcept
 {
@@ -326,6 +421,8 @@ constexpr bool armv7a_runtime_handoff_package_landing_consumer_ready(
     const Armv7aRuntimeHandoffPackageLandingObservation& observation) noexcept
 {
     return armv7a_runtime_handoff_package_landing_package_ready(observation) &&
+           armv7a_runtime_handoff_session_landing_ready(
+               observation.session_landing) &&
            armv7a_runtime_package_current_ready(observation.contract) &&
            armv7a_runtime_package_trap_ready(observation.contract) &&
            armv7a_runtime_package_thread_ready(observation.contract) &&
@@ -431,6 +528,15 @@ armv7a_make_runtime_handoff_binding_landing_observation(
     const Armv7aRuntimeLiveObservation& runtime_live) noexcept;
 void armv7a_print_runtime_handoff_binding_landing_observation(
     const Armv7aRuntimeHandoffBindingLandingObservation& observation);
+const Armv7aRuntimeHandoffSessionLandingObservation&
+armv7a_make_runtime_handoff_session_landing_observation(
+    const Armv7aRuntimeHandoffContract* handoff,
+    const Armv7aRuntimeLeafPortsContract& rearmed_ports,
+    const Armv7aRuntimePackageObservation& runtime_package,
+    const Armv7aRuntimeHandoffBindingLandingObservation& binding_landing,
+    const Armv7aRuntimeLiveObservation& runtime_live) noexcept;
+void armv7a_print_runtime_handoff_session_landing_observation(
+    const Armv7aRuntimeHandoffSessionLandingObservation& observation);
 const Armv7aRuntimeHandoffPackageLandingObservation&
 armv7a_make_runtime_handoff_package_landing_observation(
     const Armv7aRuntimeHandoffContract* handoff,

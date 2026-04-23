@@ -204,11 +204,12 @@ ARMv7-A handoff launch, target=0x40200000, arg0=0x4023...., mode=sys, state=arm,
 .\run_qemu_ci.ps1
 ```
 
-`run_qemu_ci.ps1` now configures and rebuilds the default `debug` preset
-before launching QEMU, so the smoke log stays aligned with the current source
-instead of whatever ELF happened to be left in `out\build\debug`. The default
-build leg now also uses `--parallel 1`, which keeps the ARM bare-metal GCC
-modules output stable during CI smoke runs. The same smoke now also gates the
+`run_qemu_ci.ps1` now configures and clean-rebuilds the default `debug`
+preset before launching QEMU, so the smoke log stays aligned with the current
+source instead of whatever ELF or stale object graph happened to be left in
+`out\build\debug`. The default build leg now also uses `--parallel 1`, which
+keeps the ARM bare-metal GCC modules output stable during CI smoke runs. The
+same smoke now also gates the
 `runtime-leaf-ports`, `runtime-live`, `runtime-binding-bundle`, and
 `runtime-leaf-bundle` phase markers, plus the
 `ARMv7-A runtime leaf ports, ... call=yes, thread=yes, ... ports=yes`,
@@ -260,7 +261,8 @@ package can be re-armed in place and directly re-consumed from the landing
 side via one `ARMv7-A runtime handoff landing, ... rearm=yes, payload=yes,
 ... landed=yes` line, one `ARMv7-A runtime handoff leaf landing, ...
 leaf=yes` line, one `ARMv7-A runtime handoff binding landing, ...
-binding=yes` line, one `ARMv7-A runtime handoff package landing, ...
+binding=yes` line, one `ARMv7-A runtime handoff session landing, ...
+session=yes` line, one `ARMv7-A runtime handoff package landing, ...
 landing=yes` line, one `ARMv7-A runtime handoff consumer, ... consumer=yes`
 line, plus one `ARMv7-A runtime handoff path, ... path=yes` line before
 idling forever.
@@ -302,11 +304,18 @@ For a shorter failure loop around the live task-syscall seam, use:
 .\run_qemu_task_syscall_ci.ps1
 ```
 
-To run the lower-half focused bundle after one shared `debug` build, use:
+To run the lower-half focused bundle with one clean shared `debug` rebuild,
+use:
 
 ```powershell
 .\run_qemu_lower_half_ci.ps1
 ```
+
+That aggregate lower-half smoke now clean-rebuilds the shared `debug` preset
+before fanning out into the focused runtime/task-syscall cases, and also asks
+the dedicated `handoff-live` smoke to clean-rebuild `debug-handoff-live`.
+This keeps wide lower-half regressions from being masked or invented by stale
+object files after contract/header layout changes.
 
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:
@@ -797,6 +806,13 @@ continue
   derive from the trap-call surface, and match both the handed-over binding
   payload and the recaptured local binding before the landed binding counts as
   ready.
+- The same landing path now also prints one `runtime handoff session landing`
+  line that finally makes the landed runtime identity explicit: the live
+  runtime must expose one non-null `runtime_context/session/shared/trap`
+  identity, the re-armed leaf ports must still point at that same runtime
+  context, the rebuilt binding slice must still point at that same runtime
+  context, and the recaptured local runtime package must agree with it too
+  before the landed session counts as ready.
 - The same landing path now also prints one `runtime handoff consumer` line
   that lifts the whole re-entry sequence into one reusable seam: re-armed
   ports, recaptured package observation, rebuilt package landing, live runtime,

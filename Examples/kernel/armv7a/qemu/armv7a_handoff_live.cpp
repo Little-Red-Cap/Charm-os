@@ -189,6 +189,8 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
         package_landing.leaf_landing);
     armv7a_print_runtime_handoff_binding_landing_observation(
         package_landing.binding_landing);
+    armv7a_print_runtime_handoff_session_landing_observation(
+        package_landing.session_landing);
     armv7a_print_runtime_handoff_package_landing_observation(package_landing);
     const auto& landing =
         armv7a_make_runtime_handoff_landing_observation(handoff,

@@ -4,7 +4,8 @@ param(
     [int]$BuildJobs = 1,
     [int]$TimeoutSec = 10,
     [int]$TailLines = 40,
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$CleanBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,7 +79,13 @@ if (-not $SkipBuild) {
             throw "cmake configure failed for preset: $configurePreset"
         }
 
-        & $cmake --build --preset $buildPreset --parallel $BuildJobs
+        $buildArgs = @("--build", "--preset", $buildPreset)
+        if ($CleanBuild) {
+            $buildArgs += "--clean-first"
+        }
+        $buildArgs += @("--parallel", $BuildJobs)
+
+        & $cmake @buildArgs
         if ($LASTEXITCODE -ne 0) {
             throw "cmake build failed for preset: $buildPreset"
         }
@@ -159,6 +166,9 @@ if (($handoffLog -notmatch "ARMv7-A runtime handoff leaf landing, ports=yes, liv
 }
 if (($handoffLog -notmatch "ARMv7-A runtime handoff binding landing, current=yes, trap=yes, thread=yes, loop=yes, shared=yes, handoff=yes, recaptured=yes, binding=yes")) {
     $missing += "ARMv7-A runtime handoff binding landing, current=yes..."
+}
+if (($handoffLog -notmatch "ARMv7-A runtime handoff session landing, live=yes, ports=yes, binding=yes, package=yes, session=yes")) {
+    $missing += "ARMv7-A runtime handoff session landing, live=yes..."
 }
 if (($handoffLog -notmatch "ARMv7-A runtime handoff package landing, leaf=yes, binding=yes, package=yes, live=yes, consumer=yes, landing=yes")) {
     $missing += "ARMv7-A runtime handoff package landing, leaf=yes..."

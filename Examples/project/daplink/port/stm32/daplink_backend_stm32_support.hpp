@@ -2,6 +2,9 @@
 #define DAPLINK_BACKEND_STM32_SUPPORT_HPP
 
 #include "port/daplink_backend_support.hpp"
+#if __has_include("dma.h")
+#include "dma.h"
+#endif
 
 namespace daplink::backend_support::stm32 {
     template <
@@ -43,6 +46,15 @@ namespace daplink::backend_support::stm32 {
             return UsbPcdHandle;
         }
     };
+
+    template <typename BaseTraits = daplink::backend_support::DefaultTraits>
+    using CubeMxUart12Backend =
+        BasicUartBackend<MX_USART1_UART_Init, MX_USART2_UART_Init, huart1, huart2, BaseTraits>;
+
+#if __has_include("dma.h")
+    template <typename BaseTraits = CubeMxUart12Backend<>>
+    using CubeMxDmaBeforeUart2Backend = DmaBeforeUart2<MX_DMA_Init, BaseTraits>;
+#endif
 }
 
 #endif

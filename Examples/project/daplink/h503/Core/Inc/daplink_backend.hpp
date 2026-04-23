@@ -4,14 +4,10 @@
 #include "port/stm32/daplink_backend_stm32_support.hpp"
 
 namespace daplink::backend_target {
-    using UartBackend =
-        daplink::backend_support::stm32::BasicUartBackend<
-            MX_USART1_UART_Init,
-            MX_USART2_UART_Init,
-            huart1,
-            huart2>;
-
-    struct Traits : daplink::backend_support::stm32::UsbPcdBackend<hpcd_USB_DRD_FS, UartBackend> {};
+    struct Traits
+        : daplink::backend_support::stm32::UsbPcdBackend<
+              hpcd_USB_DRD_FS,
+              daplink::backend_support::stm32::CubeMxUart12Backend<>> {};
 
     using Support = daplink::backend_support::BasicBackendOps<Traits>;
 }

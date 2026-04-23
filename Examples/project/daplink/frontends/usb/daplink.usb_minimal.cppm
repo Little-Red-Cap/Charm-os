@@ -14,6 +14,7 @@ namespace daplink::usb_minimal::detail {
     namespace model = daplink::usb_device_model;
     using UsbPcdHandle = daplink::port::UsbPcdHandle;
     using UsbEndpointType = daplink::port::UsbEndpointType;
+    using UsbLayout = daplink::port::UsbLayout;
     constexpr bool kEnableHid = model::kEnableHid;
     constexpr bool kEnableCdc = model::kEnableCdc;
     constexpr bool kCdcHasCmdEp = model::kCdcHasCmdEp;
@@ -29,13 +30,13 @@ namespace daplink::usb_minimal::detail {
     constexpr std::uint16_t kCdcEpCmdMps = model::kCdcEpCmdMps;
     constexpr std::uint16_t kCdcEpMps = model::kCdcEpMps;
 
-    constexpr std::uint16_t kPmaEp0Out = daplink::port::kUsbPmaEp0Out;
-    constexpr std::uint16_t kPmaEp0In = daplink::port::kUsbPmaEp0In;
-    constexpr std::uint16_t kPmaHidIn = daplink::port::kUsbPmaHidIn;
-    constexpr std::uint16_t kPmaHidOut = daplink::port::kUsbPmaHidOut;
-    constexpr std::uint16_t kPmaCdcCmd = daplink::port::kUsbPmaCdcCmd;
-    constexpr std::uint16_t kPmaCdcOut = daplink::port::kUsbPmaCdcOut;
-    constexpr std::uint16_t kPmaCdcIn = daplink::port::kUsbPmaCdcIn;
+    constexpr std::uint16_t kPmaEp0Out = UsbLayout::kUsbPmaEp0Out;
+    constexpr std::uint16_t kPmaEp0In = UsbLayout::kUsbPmaEp0In;
+    constexpr std::uint16_t kPmaHidIn = UsbLayout::kUsbPmaHidIn;
+    constexpr std::uint16_t kPmaHidOut = UsbLayout::kUsbPmaHidOut;
+    constexpr std::uint16_t kPmaCdcCmd = UsbLayout::kUsbPmaCdcCmd;
+    constexpr std::uint16_t kPmaCdcOut = UsbLayout::kUsbPmaCdcOut;
+    constexpr std::uint16_t kPmaCdcIn = UsbLayout::kUsbPmaCdcIn;
     constexpr std::uint8_t kReqGetStatus = 0x00;
     constexpr std::uint8_t kReqClearFeature = 0x01;
     constexpr std::uint8_t kReqSetFeature = 0x03;

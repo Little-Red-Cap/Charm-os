@@ -184,6 +184,203 @@ export namespace net::diag {
         }
     };
 
+    using ForwardInspectRequest = ForwardExplainRequest;
+
+    struct ForwardInspectReply {
+        Ipv4ForwardingDisposition disposition{Ipv4ForwardingDisposition::forwarded};
+        Ipv4ForwardingReason reason{Ipv4ForwardingReason::none};
+        Ipv4ForwardingPort egress_port{Ipv4ForwardingPort::a};
+        util::u8 has_egress{0};
+        util::u8 has_decision{0};
+        util::u8 routing_configured{0};
+        std::array<util::u8, 4> network{};
+        util::u8 prefix_length{0};
+        util::u8 has_next_hop{0};
+        std::array<util::u8, 4> next_hop{};
+        util::u16 metric{0};
+        util::u8 from_connected_prefix{0};
+        util::u8 route_count{0};
+        util::u8 has_selected_route{0};
+        util::u8 selected_route_index{0};
+        std::array<util::u8, 4> selected_network{};
+        util::u8 selected_prefix_length{0};
+        Ipv4ForwardingPort selected_egress_port{Ipv4ForwardingPort::a};
+        util::u8 selected_has_next_hop{0};
+        std::array<util::u8, 4> selected_next_hop{};
+        util::u16 selected_metric{0};
+
+        [[nodiscard]] constexpr bool forwarded() const noexcept {
+            return disposition == Ipv4ForwardingDisposition::forwarded;
+        }
+
+        [[nodiscard]] constexpr bool ttl_expired() const noexcept {
+            return disposition == Ipv4ForwardingDisposition::ttl_expired;
+        }
+
+        [[nodiscard]] constexpr bool destination_unreachable() const noexcept {
+            return disposition == Ipv4ForwardingDisposition::destination_unreachable;
+        }
+
+        [[nodiscard]] constexpr bool local_dropped() const noexcept {
+            return disposition == Ipv4ForwardingDisposition::local_dropped;
+        }
+
+        [[nodiscard]] constexpr bool emits_icmp_error() const noexcept {
+            return ttl_expired() || destination_unreachable();
+        }
+
+        [[nodiscard]] constexpr bool has_egress_port() const noexcept {
+            return has_egress != 0u;
+        }
+
+        [[nodiscard]] constexpr bool has_decision_snapshot() const noexcept {
+            return has_decision != 0u;
+        }
+
+        [[nodiscard]] constexpr bool routing_is_configured() const noexcept {
+            return routing_configured != 0u;
+        }
+
+        [[nodiscard]] constexpr bool has_next_hop_address() const noexcept {
+            return has_next_hop != 0u;
+        }
+
+        [[nodiscard]] constexpr bool is_from_connected_prefix() const noexcept {
+            return from_connected_prefix != 0u;
+        }
+
+        [[nodiscard]] constexpr bool uses_explicit_route() const noexcept {
+            return has_decision_snapshot()
+                && reason == Ipv4ForwardingReason::explicit_route;
+        }
+
+        [[nodiscard]] constexpr bool uses_connected_prefix() const noexcept {
+            return has_decision_snapshot()
+                && reason == Ipv4ForwardingReason::connected_prefix;
+        }
+
+        [[nodiscard]] constexpr bool uses_opposite_port_fallback() const noexcept {
+            return reason == Ipv4ForwardingReason::opposite_port_fallback;
+        }
+
+        [[nodiscard]] constexpr bool has_selected_route_entry() const noexcept {
+            return has_selected_route != 0u;
+        }
+
+        [[nodiscard]] constexpr util::usize route_total() const noexcept {
+            return static_cast<util::usize>(route_count);
+        }
+
+        [[nodiscard]] constexpr IpAddress network_address() const noexcept {
+            return detail::ipv4_from_bytes(network);
+        }
+
+        [[nodiscard]] constexpr IpAddress next_hop_address() const noexcept {
+            return has_next_hop_address()
+                ? detail::ipv4_from_bytes(next_hop)
+                : IpAddress{};
+        }
+
+        [[nodiscard]] constexpr IpAddress selected_network_address() const noexcept {
+            return detail::ipv4_from_bytes(selected_network);
+        }
+
+        [[nodiscard]] constexpr bool selected_route_has_next_hop_address() const noexcept {
+            return selected_has_next_hop != 0u;
+        }
+
+        [[nodiscard]] constexpr IpAddress selected_next_hop_address() const noexcept {
+            return selected_route_has_next_hop_address()
+                ? detail::ipv4_from_bytes(selected_next_hop)
+                : IpAddress{};
+        }
+
+        [[nodiscard]] constexpr Ipv4ForwardingDecisionSnapshot decision() const noexcept {
+            return Ipv4ForwardingDecisionSnapshot{
+                .network = network_address(),
+                .prefix_length = prefix_length,
+                .egress_port = egress_port,
+                .has_next_hop = has_next_hop_address(),
+                .next_hop = next_hop_address(),
+                .metric = metric,
+                .from_connected_prefix = is_from_connected_prefix(),
+            };
+        }
+
+        [[nodiscard]] constexpr Ipv4ForwardingRoute selected_route() const noexcept {
+            return Ipv4ForwardingRoute{
+                .network = selected_network_address(),
+                .prefix_length = selected_prefix_length,
+                .egress_port = selected_egress_port,
+                .has_next_hop = selected_route_has_next_hop_address(),
+                .next_hop = selected_next_hop_address(),
+                .metric = selected_metric,
+            };
+        }
+
+        [[nodiscard]] constexpr ForwardExplainReply explanation() const noexcept {
+            return ForwardExplainReply{
+                .disposition = disposition,
+                .reason = reason,
+                .egress_port = egress_port,
+                .has_egress = has_egress,
+                .has_decision = has_decision,
+                .routing_configured = routing_configured,
+                .network = network,
+                .prefix_length = prefix_length,
+                .has_next_hop = has_next_hop,
+                .next_hop = next_hop,
+                .metric = metric,
+                .from_connected_prefix = from_connected_prefix,
+            };
+        }
+
+        [[nodiscard]] static constexpr ForwardInspectReply from_explain(
+            const ForwardExplainReply& explain,
+            util::u8 total_routes = 0u,
+            bool has_selected = false,
+            util::u8 selected_index = 0u,
+            Ipv4ForwardingRoute selected_route_value = {}) noexcept {
+            return ForwardInspectReply{
+                .disposition = explain.disposition,
+                .reason = explain.reason,
+                .egress_port = explain.egress_port,
+                .has_egress = explain.has_egress,
+                .has_decision = explain.has_decision,
+                .routing_configured = explain.routing_configured,
+                .network = explain.network,
+                .prefix_length = explain.prefix_length,
+                .has_next_hop = explain.has_next_hop,
+                .next_hop = explain.next_hop,
+                .metric = explain.metric,
+                .from_connected_prefix = explain.from_connected_prefix,
+                .route_count = total_routes,
+                .has_selected_route = static_cast<util::u8>(has_selected),
+                .selected_route_index = selected_index,
+                .selected_network = detail::ipv4_bytes(selected_route_value.network),
+                .selected_prefix_length = selected_route_value.prefix_length,
+                .selected_egress_port = selected_route_value.egress_port,
+                .selected_has_next_hop = static_cast<util::u8>(selected_route_value.has_next_hop),
+                .selected_next_hop = detail::ipv4_bytes(selected_route_value.next_hop),
+                .selected_metric = selected_route_value.metric,
+            };
+        }
+
+        [[nodiscard]] static constexpr ForwardInspectReply from_snapshot(
+            const Ipv4ForwardingExplanationSnapshot& snapshot,
+            util::u8 total_routes = 0u,
+            bool has_selected = false,
+            util::u8 selected_index = 0u,
+            Ipv4ForwardingRoute selected_route_value = {}) noexcept {
+            return from_explain(
+                ForwardExplainReply::from_snapshot(snapshot),
+                total_routes,
+                has_selected,
+                selected_index,
+                selected_route_value);
+        }
+    };
+
     using PingOp = TrivialServiceOp<0x60u, PingRequest, PingReply>;
 
     using CountOp = WireServiceOp<
@@ -235,6 +432,37 @@ export namespace net::diag {
             &ForwardExplainReply::metric,
             &ForwardExplainReply::from_connected_prefix>>;
 
+    using ForwardInspectOp = WireServiceOp<
+        0x65u,
+        ForwardInspectRequest,
+        ForwardInspectReply,
+        WireMembers<
+            &ForwardInspectRequest::ingress_port,
+            &ForwardInspectRequest::ttl,
+            &ForwardInspectRequest::destination>,
+        WireMembers<
+            &ForwardInspectReply::disposition,
+            &ForwardInspectReply::reason,
+            &ForwardInspectReply::egress_port,
+            &ForwardInspectReply::has_egress,
+            &ForwardInspectReply::has_decision,
+            &ForwardInspectReply::routing_configured,
+            &ForwardInspectReply::network,
+            &ForwardInspectReply::prefix_length,
+            &ForwardInspectReply::has_next_hop,
+            &ForwardInspectReply::next_hop,
+            &ForwardInspectReply::metric,
+            &ForwardInspectReply::from_connected_prefix,
+            &ForwardInspectReply::route_count,
+            &ForwardInspectReply::has_selected_route,
+            &ForwardInspectReply::selected_route_index,
+            &ForwardInspectReply::selected_network,
+            &ForwardInspectReply::selected_prefix_length,
+            &ForwardInspectReply::selected_egress_port,
+            &ForwardInspectReply::selected_has_next_hop,
+            &ForwardInspectReply::selected_next_hop,
+            &ForwardInspectReply::selected_metric>>;
+
     template <util::usize MaxPayload = 64,
               util::usize MaxPending = 4,
               util::usize MaxRoutes = 8,
@@ -248,11 +476,13 @@ export namespace net::diag {
         using SlowCountResponseFn = typename Session::template ResponseFn<SlowCountOp>;
         using MetaResponseFn = typename Session::template ResponseFn<MetaOp>;
         using ForwardExplainResponseFn = typename Session::template ResponseFn<ForwardExplainOp>;
+        using ForwardInspectResponseFn = typename Session::template ResponseFn<ForwardInspectOp>;
         using PingTimeoutFn = typename Session::template TimeoutFn<PingOp>;
         using CountTimeoutFn = typename Session::template TimeoutFn<CountOp>;
         using SlowCountTimeoutFn = typename Session::template TimeoutFn<SlowCountOp>;
         using MetaTimeoutFn = typename Session::template TimeoutFn<MetaOp>;
         using ForwardExplainTimeoutFn = typename Session::template TimeoutFn<ForwardExplainOp>;
+        using ForwardInspectTimeoutFn = typename Session::template TimeoutFn<ForwardInspectOp>;
 
         void set_sender(FrameSendFn fn, void* ctx) noexcept {
             session_.set_sender(fn, ctx);
@@ -389,6 +619,22 @@ export namespace net::diag {
                 user);
         }
 
+        [[nodiscard]] Result<util::u16> query_forward_inspect(
+            const ForwardInspectRequest& request,
+            util::u32 now_ms,
+            util::u32 timeout_ms,
+            ForwardInspectResponseFn on_response = nullptr,
+            ForwardInspectTimeoutFn on_timeout = nullptr,
+            void* user = nullptr) noexcept {
+            return session_.template send_request<ForwardInspectOp>(
+                request,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
+
     private:
         Session session_{};
     };
@@ -405,6 +651,7 @@ export namespace net::diag {
         using CountHandler = typename Session::template RouteFn<CountOp>;
         using MetaHandler = typename Session::template RouteFn<MetaOp>;
         using ForwardExplainHandler = typename Session::template RouteFn<ForwardExplainOp>;
+        using ForwardInspectHandler = typename Session::template RouteFn<ForwardInspectOp>;
         using SlowCountHandler = void (*)(void* ctx,
                                           Server& server,
                                           ServiceReplyToken token,
@@ -494,6 +741,11 @@ export namespace net::diag {
             return session_.template set_route<ForwardExplainOp>(fn, ctx);
         }
 
+        [[nodiscard]] Result<void> on_forward_inspect(ForwardInspectHandler fn,
+                                                      void* ctx = nullptr) noexcept {
+            return session_.template set_route<ForwardInspectOp>(fn, ctx);
+        }
+
         [[nodiscard]] Result<void> on_slow_count(SlowCountHandler fn,
                                                  void* ctx = nullptr) noexcept {
             if (!fn) {
@@ -532,6 +784,10 @@ export namespace net::diag {
             return session_.template clear_route<ForwardExplainOp>();
         }
 
+        [[nodiscard]] bool clear_forward_inspect() noexcept {
+            return session_.template clear_route<ForwardInspectOp>();
+        }
+
         [[nodiscard]] bool clear_slow_count() noexcept {
             slow_count_handler_ = nullptr;
             slow_count_ctx_ = nullptr;
@@ -552,6 +808,10 @@ export namespace net::diag {
 
         [[nodiscard]] bool has_forward_explain() const noexcept {
             return session_.template has_route<ForwardExplainOp>();
+        }
+
+        [[nodiscard]] bool has_forward_inspect() const noexcept {
+            return session_.template has_route<ForwardInspectOp>();
         }
 
         [[nodiscard]] bool has_slow_count() const noexcept {

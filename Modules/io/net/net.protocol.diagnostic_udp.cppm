@@ -475,6 +475,26 @@ export namespace net::diag::udp {
                 on_timeout,
                 user);
         }
+
+        [[nodiscard]] Result<util::u16> query_forward_inspect(
+            const Endpoint& local,
+            const Endpoint& peer,
+            const ForwardInspectRequest& request,
+            util::u32 now_ms,
+            util::u32 timeout_ms,
+            ResponseFn<ForwardInspectOp> on_response = nullptr,
+            TimeoutFn<ForwardInspectOp> on_timeout = nullptr,
+            void* user = nullptr) noexcept {
+            return this->template send_request<ForwardInspectOp>(
+                local,
+                peer,
+                request,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
     };
 
     template <util::usize MaxPayload = 64>
@@ -488,6 +508,7 @@ export namespace net::diag::udp {
         using CountHandler = typename Base::template RouteFn<CountOp>;
         using MetaHandler = typename Base::template RouteFn<MetaOp>;
         using ForwardExplainHandler = typename Base::template RouteFn<ForwardExplainOp>;
+        using ForwardInspectHandler = typename Base::template RouteFn<ForwardInspectOp>;
         using SlowCountHandler = typename Base::template RouteFn<SlowCountOp>;
 
         static_assert(PingOp::RequestCodec::max_size() <= MaxPayload);
@@ -527,6 +548,11 @@ export namespace net::diag::udp {
             return this->template set_route<ForwardExplainOp>(fn, ctx);
         }
 
+        [[nodiscard]] Result<void> on_forward_inspect(ForwardInspectHandler fn,
+                                                      void* ctx = nullptr) noexcept {
+            return this->template set_route<ForwardInspectOp>(fn, ctx);
+        }
+
         [[nodiscard]] Result<void> on_slow_count(SlowCountHandler fn,
                                                  void* ctx = nullptr) noexcept {
             return this->template set_route<SlowCountOp>(fn, ctx);
@@ -546,6 +572,10 @@ export namespace net::diag::udp {
 
         [[nodiscard]] bool has_forward_explain() const noexcept {
             return this->template has_route<ForwardExplainOp>();
+        }
+
+        [[nodiscard]] bool has_forward_inspect() const noexcept {
+            return this->template has_route<ForwardInspectOp>();
         }
 
         [[nodiscard]] bool has_slow_count() const noexcept {
@@ -568,6 +598,7 @@ export namespace net::diag::udp {
         using Base::ping;
         using Base::query_count;
         using Base::query_forward_explain;
+        using Base::query_forward_inspect;
         using Base::query_meta;
         using Base::query_slow_count;
 
@@ -694,6 +725,27 @@ export namespace net::diag::udp {
                 return util::unexpected(errc::bad_state);
             }
             return static_cast<Base&>(*this).query_forward_explain(
+                local_,
+                peer_,
+                request,
+                now_ms,
+                timeout_ms,
+                on_response,
+                on_timeout,
+                user);
+        }
+
+        [[nodiscard]] Result<util::u16> query_forward_inspect(
+            const ForwardInspectRequest& request,
+            util::u32 now_ms,
+            util::u32 timeout_ms,
+            typename Base::template ResponseFn<ForwardInspectOp> on_response = nullptr,
+            typename Base::template TimeoutFn<ForwardInspectOp> on_timeout = nullptr,
+            void* user = nullptr) noexcept {
+            if (!configured_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return static_cast<Base&>(*this).query_forward_inspect(
                 local_,
                 peer_,
                 request,

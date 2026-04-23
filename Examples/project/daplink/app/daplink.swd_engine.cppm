@@ -62,6 +62,7 @@ export namespace daplink::swd {
             swd_write_bit(1U);
 
             B::swdio_set_input();
+            B::pin_delay();
             for (std::uint8_t i = 0; i < cfg.turnaround; ++i) {
                 swd_cycle();
             }
@@ -91,12 +92,14 @@ export namespace daplink::swd {
                         swd_cycle();
                     }
                     B::swdio_set_output();
+                    B::pin_delay();
                     B::swdio_write(1U);
                 } else {
                     for (std::uint8_t i = 0; i < cfg.turnaround; ++i) {
                         swd_cycle();
                     }
                     B::swdio_set_output();
+                    B::pin_delay();
                     const auto p = parity32(data);
                     for (std::uint8_t i = 0; i < 32; ++i) {
                         swd_write_bit(static_cast<std::uint8_t>((data >> i) & 1U));
@@ -114,6 +117,7 @@ export namespace daplink::swd {
                     swd_cycle();
                 }
                 B::swdio_set_output();
+                B::pin_delay();
                 if (cfg.data_phase && (req_rnw == 0U)) {
                     B::swdio_write(0U);
                     for (int i = 0; i < (32 + 1); ++i) {
@@ -122,11 +126,11 @@ export namespace daplink::swd {
                 }
                 B::swdio_write(1U);
             } else {
-                ack = kAckError;
                 for (int i = 0; i < (static_cast<int>(cfg.turnaround) + 32 + 1); ++i) {
                     swd_cycle();
                 }
                 B::swdio_set_output();
+                B::pin_delay();
                 B::swdio_write(1U);
             }
 
@@ -151,7 +155,6 @@ export namespace daplink::swd {
                     return ack;
                 }
                 if (retry == 0U) {
-                    line_reset();
                     return ack;
                 }
                 --retry;

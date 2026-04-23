@@ -76,7 +76,6 @@ namespace daplink::swd_backend_support {
         }
 
         static std::uint8_t swj_pins(const std::uint8_t value, const std::uint8_t select) noexcept {
-            swdio_set_output();
             if ((select & (1U << 0)) != 0U) {
                 if ((value & (1U << 0)) != 0U) {
                     swclk_high();
@@ -85,6 +84,7 @@ namespace daplink::swd_backend_support {
                 }
             }
             if ((select & (1U << 1)) != 0U) {
+                swdio_set_output();
                 swdio_write((value >> 1) & 1U);
             }
             if ((select & (1U << 7)) != 0U) {

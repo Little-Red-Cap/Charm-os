@@ -83,6 +83,8 @@ namespace daplink::cmsis_dap::detail {
     constexpr std::uint8_t kDapPortDisabled = 0x00;
     constexpr std::uint8_t kDapPortSwd = 0x01;
     constexpr std::uint8_t kDapTransferOk = 0x01;
+    constexpr std::uint8_t kDapTransferWait = 0x02;
+    constexpr std::uint8_t kDapTransferFault = 0x04;
     constexpr std::uint8_t kDapTransferError = 0x08;
     constexpr std::uint8_t kDapTransferMismatch = 0x10;
     constexpr std::uint8_t kReqApndp = 1U << 0;

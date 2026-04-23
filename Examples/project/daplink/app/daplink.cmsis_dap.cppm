@@ -1,5 +1,7 @@
 module;
 
+#include "daplink_port_api.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -26,16 +28,29 @@ import daplink.dap_backend;
 export namespace daplink::cmsis_dap {
     namespace detail {
         template <daplink::dap_backend::SwdBackend Backend>
-        inline std::uint8_t dap_transfer_once(const State& state, const std::uint8_t request, std::uint32_t& data) noexcept {
-            if ((request & kReqRnw) != 0U && (request & kReqApndp) != 0U) {
-                std::uint32_t posted_dummy = 0;
-                auto ack = swd::Engine<Backend>::transfer(state.config.swd, request, posted_dummy);
-                if (ack != kDapTransferOk) {
-                    return ack;
-                }
-                return swd::Engine<Backend>::transfer(state.config.swd, kReqDpRdbuff, data);
+        inline std::uint8_t dap_transfer_once(const State& state,
+                                              const std::uint8_t request,
+                                              std::uint32_t& data) noexcept {
+            return swd::Engine<Backend>::transfer_once(state.config.swd, request, data);
+        }
+
+        template <daplink::dap_backend::SwdBackend Backend>
+        inline std::uint8_t dap_transfer_retry(const State& state,
+                                               const std::uint8_t request,
+                                               std::uint32_t* data) noexcept {
+            std::uint32_t dummy = 0;
+            auto* value = (data != nullptr) ? data : &dummy;
+            auto ack = dap_transfer_once<Backend>(state, request, *value);
+            std::uint16_t retry = state.config.swd.retry_count;
+            while (ack == kDapTransferWait && retry-- != 0U) {
+                ack = dap_transfer_once<Backend>(state, request, *value);
             }
-            return swd::Engine<Backend>::transfer(state.config.swd, request, data);
+            return ack;
+        }
+
+        template <daplink::dap_backend::SwdBackend Backend>
+        inline std::uint8_t dap_check_last_write(const State& state) noexcept {
+            return dap_transfer_retry<Backend>(state, kReqDpRdbuff, nullptr);
         }
 
         template <daplink::dap_backend::SwdBackend Backend, typename Ops>
@@ -56,6 +71,88 @@ export namespace daplink::cmsis_dap {
         inline void disconnect_swd(State& state) noexcept {
             state.runtime.dap_port = kDapPortDisabled;
             Ops::setup_swd_pins_hi_z();
+        }
+
+        constexpr std::uint8_t kSupportedSwjPinMask = (1U << 0) | (1U << 1) | (1U << 7);
+
+        inline void busy_wait_us(std::uint32_t delay_us) noexcept {
+            if (delay_us == 0U) {
+                return;
+            }
+
+            const auto delay_ms = delay_us / 1000U;
+            if (delay_ms != 0U) {
+                daplink::port::delay_ms(delay_ms);
+                delay_us -= delay_ms * 1000U;
+            }
+
+            if (delay_us == 0U) {
+                return;
+            }
+
+            auto cycles_per_us = daplink::port::system_core_clock_hz() / 1000000U;
+            if (cycles_per_us == 0U) {
+                cycles_per_us = 1U;
+            }
+
+            auto wait_cycles = delay_us * cycles_per_us;
+            while (wait_cycles-- != 0U) {
+                daplink::port::nop();
+            }
+        }
+
+        template <typename Ops>
+        inline std::uint8_t swj_pins_wait(const std::uint8_t value,
+                                          const std::uint8_t select,
+                                          std::uint32_t wait_us) noexcept {
+            auto pin_state = Ops::swj_pins(value, select);
+            const auto match_mask = static_cast<std::uint8_t>(select & kSupportedSwjPinMask);
+            if (wait_us == 0U || match_mask == 0U) {
+                return pin_state;
+            }
+
+            if (((pin_state ^ value) & match_mask) == 0U) {
+                return pin_state;
+            }
+
+            if (wait_us > 3000000U) {
+                wait_us = 3000000U;
+            }
+            const auto deadline = daplink::port::tick_ms() + ((wait_us + 999U) / 1000U);
+
+            while (true) {
+                pin_state = Ops::swj_pins(0U, 0U);
+                if (((pin_state ^ value) & match_mask) == 0U) {
+                    break;
+                }
+                if (static_cast<std::int32_t>(daplink::port::tick_ms() - deadline) >= 0) {
+                    break;
+                }
+                busy_wait_us(1U);
+            }
+
+            return pin_state;
+        }
+
+        inline std::uint16_t skip_transfer_requests(std::span<const std::uint8_t> in,
+                                                    const std::uint16_t start_idx,
+                                                    const std::uint8_t transfer_count) noexcept {
+            std::uint16_t idx = start_idx;
+            const auto in_size = static_cast<std::uint16_t>(in.size());
+            for (std::uint8_t i = 0; i < transfer_count && idx < in_size; ++i) {
+                const auto request = in[idx++];
+                const bool needs_data =
+                    ((request & kReqRnw) == 0U) ||
+                    ((request & kReqMatchValue) != 0U) ||
+                    ((request & kReqMatchMask) != 0U);
+                if (!needs_data) {
+                    continue;
+                }
+                const auto remaining = static_cast<std::uint16_t>(in_size - idx);
+                const auto advance = static_cast<std::uint16_t>(remaining >= 4U ? 4U : remaining);
+                idx = static_cast<std::uint16_t>(idx + advance);
+            }
+            return idx;
         }
 
         struct CmdResult {
@@ -193,22 +290,39 @@ export namespace daplink::cmsis_dap {
                     state.config.match_retry = static_cast<std::uint16_t>(in[4] | (in[5] << 8));
                     out[1] = kDapOk;
                     return {6, 2, true};
-                case kCmsisDapWriteAbort:
+                case kCmsisDapWriteAbort: {
+                    if (in_size < 6 || out_size < 2) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    if (state.runtime.dap_port != kDapPortSwd) {
+                        out[1] = kDapError;
+                        return {6, 2, false};
+                    }
+                    auto data = read_le32(&in[2]);
+                    (void)in[1];
+                    const auto ack = swd::Engine<Backend>::transfer(state.config.swd, 0U, data);
+                    Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                    out[1] = (ack == kDapTransferOk) ? kDapOk : kDapError;
+                    return {6, 2, ack == kDapTransferOk};
+                }
                 case kCmsisDapDelay:
-                    if ((cmd == kCmsisDapWriteAbort && in_size < 5) || (cmd == kCmsisDapDelay && in_size < 3) || out_size < 2) {
+                    if (in_size < 3 || out_size < 2) {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
+                    busy_wait_us(static_cast<std::uint32_t>(in[1] | (in[2] << 8)));
                     out[1] = kDapOk;
-                    return {static_cast<std::uint16_t>(cmd == kCmsisDapWriteAbort ? 5 : 3), 2, true};
+                    return {3, 2, true};
                 case kCmsisDapResetTarget: {
-                    if (out_size < 2) {
+                    if (out_size < 3) {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    const std::uint8_t done = static_cast<std::uint8_t>(Ops::reset_target());
-                    out[1] = done;
-                    return {1, 2, true};
+                    const std::uint8_t executed = static_cast<std::uint8_t>(Ops::reset_target());
+                    out[1] = kDapOk;
+                    out[2] = executed;
+                    return {1, 3, true};
                 }
                 case kCmsisDapSwjClock: {
                     if (in_size < 5 || out_size < 2) {
@@ -221,13 +335,15 @@ export namespace daplink::cmsis_dap {
                     out[1] = kDapOk;
                     return {5, 2, true};
                 }
-                case kCmsisDapSwjPins:
-                    if (in_size < 3 || out_size < 2) {
+                case kCmsisDapSwjPins: {
+                    if (in_size < 7 || out_size < 2) {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    out[1] = Ops::swj_pins(in[1], in[2]);
-                    return {3, 2, true};
+                    const auto wait_us = read_le32(&in[3]);
+                    out[1] = swj_pins_wait<Ops>(in[1], in[2], wait_us);
+                    return {7, 2, true};
+                }
                 case kCmsisDapSwjSequence: {
                     if (in_size < 2 || out_size < 2) {
                         out[0] = kCmsisDapInvalid;
@@ -393,15 +509,21 @@ export namespace daplink::cmsis_dap {
                         return {1, 1, false};
                     }
                     std::uint8_t response_count = 0;
-                    std::uint8_t response_value = kDapTransferOk;
+                    std::uint8_t response_value = 0;
                     std::uint16_t in_idx = 3;
                     std::uint16_t out_idx = 3;
-                    const auto transfer_count = in[2];
+                    std::uint8_t remaining = in[2];
+                    bool post_read = false;
+                    bool check_write = false;
 
                     if (state.runtime.dap_port != kDapPortSwd) {
-                        response_value = kDapTransferError;
+                        in_idx = skip_transfer_requests(in, in_idx, remaining);
                     } else {
-                        for (std::uint8_t i = 0; i < transfer_count; ++i) {
+                        if (remaining != 0U) {
+                            response_value = kDapTransferOk;
+                        }
+                        while (remaining != 0U) {
+                            --remaining;
                             if (in_idx >= in_size) {
                                 response_value = kDapTransferError;
                                 break;
@@ -409,141 +531,254 @@ export namespace daplink::cmsis_dap {
                             const auto request = in[in_idx++];
                             std::uint32_t data = 0;
                             const bool is_read = (request & kReqRnw) != 0U;
+                            const bool is_ap = (request & kReqApndp) != 0U;
                             const bool is_match_value = (request & kReqMatchValue) != 0U;
                             const bool is_match_mask = (request & kReqMatchMask) != 0U;
 
-                            if (!is_read || is_match_value || is_match_mask) {
+                            if (is_read) {
+                                if (post_read) {
+                                    const std::uint8_t posted_request =
+                                        (is_ap && !is_match_value) ? request : kReqDpRdbuff;
+                                    auto ack = dap_transfer_retry<Backend>(state, posted_request, &data);
+                                    Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                    if (ack != kDapTransferOk) {
+                                        response_value = ack;
+                                        break;
+                                    }
+                                    if ((out_idx + 3U) >= out_size) {
+                                        response_value = kDapTransferError;
+                                        break;
+                                    }
+                                    write_le32(&out[out_idx], data);
+                                    out_idx = static_cast<std::uint16_t>(out_idx + 4U);
+                                    if (!(is_ap && !is_match_value)) {
+                                        post_read = false;
+                                    }
+                                }
+
+                                if (is_match_value) {
+                                    if ((in_idx + 3U) >= in_size) {
+                                        response_value = kDapTransferError;
+                                        break;
+                                    }
+                                    const auto match_value = read_le32(&in[in_idx]);
+                                    in_idx = static_cast<std::uint16_t>(in_idx + 4U);
+                                    std::uint16_t match_retry = state.config.match_retry;
+
+                                    if (is_ap) {
+                                        auto ack = dap_transfer_retry<Backend>(state, request, nullptr);
+                                        Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                        if (ack != kDapTransferOk) {
+                                            response_value = ack;
+                                            break;
+                                        }
+                                    }
+
+                                    auto ack = kDapTransferError;
+                                    do {
+                                        ack = dap_transfer_retry<Backend>(state, request, &data);
+                                        Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                        if (ack != kDapTransferOk) {
+                                            break;
+                                        }
+                                        if ((data & state.config.match_mask) == match_value) {
+                                            break;
+                                        }
+                                    } while (match_retry-- != 0U);
+
+                                    if (ack == kDapTransferOk &&
+                                        ((data & state.config.match_mask) != match_value)) {
+                                        ack = static_cast<std::uint8_t>(kDapTransferOk | kDapTransferMismatch);
+                                    }
+                                    if (ack != kDapTransferOk) {
+                                        response_value = ack;
+                                        break;
+                                    }
+                                } else {
+                                    if (is_ap) {
+                                        if (!post_read) {
+                                            auto ack = dap_transfer_retry<Backend>(state, request, nullptr);
+                                            Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                            if (ack != kDapTransferOk) {
+                                                response_value = ack;
+                                                break;
+                                            }
+                                            post_read = true;
+                                        }
+                                    } else {
+                                        auto ack = dap_transfer_retry<Backend>(state, request, &data);
+                                        Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                        if (ack != kDapTransferOk) {
+                                            response_value = ack;
+                                            break;
+                                        }
+                                        if ((out_idx + 3U) >= out_size) {
+                                            response_value = kDapTransferError;
+                                            break;
+                                        }
+                                        write_le32(&out[out_idx], data);
+                                        out_idx = static_cast<std::uint16_t>(out_idx + 4U);
+                                    }
+                                }
+                                check_write = false;
+                            } else {
+                                if (post_read) {
+                                    auto ack = dap_transfer_retry<Backend>(state, kReqDpRdbuff, &data);
+                                    Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                    if (ack != kDapTransferOk) {
+                                        response_value = ack;
+                                        break;
+                                    }
+                                    if ((out_idx + 3U) >= out_size) {
+                                        response_value = kDapTransferError;
+                                        break;
+                                    }
+                                    write_le32(&out[out_idx], data);
+                                    out_idx = static_cast<std::uint16_t>(out_idx + 4U);
+                                    post_read = false;
+                                }
+
                                 if ((in_idx + 3U) >= in_size) {
                                     response_value = kDapTransferError;
                                     break;
                                 }
                                 data = read_le32(&in[in_idx]);
                                 in_idx = static_cast<std::uint16_t>(in_idx + 4U);
-                            }
 
-                            if (is_match_mask) {
-                                state.config.match_mask = data;
-                                response_count = static_cast<std::uint8_t>(response_count + 1);
-                                continue;
-                            }
-
-                            if (is_match_value) {
-                                std::uint32_t sampled = 0;
-                                std::uint8_t ack = kDapTransferError;
-                                std::uint16_t retries = state.config.match_retry;
-                                while (true) {
-                                    ack = dap_transfer_once<Backend>(state, request, sampled);
+                                if (is_match_mask) {
+                                    state.config.match_mask = data;
+                                    response_value = kDapTransferOk;
+                                } else {
+                                    auto ack = dap_transfer_retry<Backend>(state, request, &data);
+                                    Policy::template on_transfer_result<Backend, Ops>(state, ack);
                                     if (ack != kDapTransferOk) {
+                                        response_value = ack;
                                         break;
                                     }
-                                    if ((sampled & state.config.match_mask) == data) {
-                                        break;
-                                    }
-                                    if (retries == 0U) {
-                                        ack = static_cast<std::uint8_t>(kDapTransferOk | kDapTransferMismatch);
-                                        break;
-                                    }
-                                    --retries;
+                                    check_write = true;
                                 }
+                            }
+
+                            ++response_count;
+                        }
+
+                        if (remaining != 0U) {
+                            in_idx = skip_transfer_requests(in, in_idx, remaining);
+                        }
+
+                        if (response_value == kDapTransferOk) {
+                            if (post_read) {
+                                std::uint32_t data = 0;
+                                auto ack = dap_transfer_retry<Backend>(state, kReqDpRdbuff, &data);
+                                Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                if (ack == kDapTransferOk) {
+                                    if ((out_idx + 3U) >= out_size) {
+                                        response_value = kDapTransferError;
+                                    } else {
+                                        write_le32(&out[out_idx], data);
+                                        out_idx = static_cast<std::uint16_t>(out_idx + 4U);
+                                    }
+                                } else {
+                                    response_value = ack;
+                                }
+                            } else if (check_write) {
+                                const auto ack = dap_check_last_write<Backend>(state);
                                 Policy::template on_transfer_result<Backend, Ops>(state, ack);
                                 if (ack != kDapTransferOk) {
                                     response_value = ack;
-                                    break;
                                 }
-                                response_count = static_cast<std::uint8_t>(response_count + 1);
-                                continue;
-                            }
-
-                            const auto ack = dap_transfer_once<Backend>(state, request, data);
-                            Policy::template on_transfer_result<Backend, Ops>(state, ack);
-                            if (ack != kDapTransferOk) {
-                                response_value = ack;
-                                break;
-                            }
-
-                            response_count = static_cast<std::uint8_t>(response_count + 1);
-                            if (is_read) {
-                                if ((out_idx + 3U) >= out_size) {
-                                    response_value = kDapTransferError;
-                                    break;
-                                }
-                                write_le32(&out[out_idx], data);
-                                out_idx = static_cast<std::uint16_t>(out_idx + 4U);
                             }
                         }
                     }
-
                     out[1] = response_count;
                     out[2] = response_value;
                     return {in_idx, out_idx, response_value == kDapTransferOk};
                 }
                 case kCmsisDapTransferBlock: {
-                    if (in_size < 4 || out_size < 4) {
+                    if (in_size < 5 || out_size < 4) {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
                     std::uint16_t response_count = 0;
                     std::uint8_t response_value = kDapTransferOk;
-                    std::uint16_t in_idx = 4;
+                    std::uint16_t in_idx = 5;
                     std::uint16_t out_idx = 4;
-                    const auto transfer_count = static_cast<std::uint16_t>(in[1] | (in[2] << 8));
-                    const auto request = in[3];
+                    const auto transfer_count = static_cast<std::uint16_t>(in[2] | (in[3] << 8));
+                    const auto request = in[4];
                     const bool is_read = (request & kReqRnw) != 0U;
                     const bool is_ap = (request & kReqApndp) != 0U;
-                    const std::uint16_t max_read_words = static_cast<std::uint16_t>((out_size - 4U) / 4U);
-                    const std::uint16_t max_write_words =
-                        static_cast<std::uint16_t>((in_size > in_idx) ? ((in_size - in_idx) / 4U) : 0U);
-                    std::uint16_t max_words = is_read ? max_read_words : max_write_words;
-                    std::uint16_t exec_words = transfer_count;
-
+                    const std::uint16_t expected_in =
+                        static_cast<std::uint16_t>(5U + (is_read ? 0U : (static_cast<std::uint32_t>(transfer_count) * 4U)));
                     if (state.runtime.dap_port != kDapPortSwd) {
-                        response_value = kDapTransferError;
+                        response_value = 0;
                     } else if ((request & (kReqMatchValue | kReqMatchMask)) != 0U) {
                         response_value = kDapTransferError;
                     } else {
-                        if (exec_words > max_words) {
-                            exec_words = max_words;
-                            response_value = kDapTransferError;
-                        }
-
-                        for (std::uint16_t i = 0; i < exec_words; ++i) {
-                            std::uint32_t data = 0;
-                            if (!is_read) {
-                                if ((in_idx + 3U) >= in_size) {
-                                    response_value = kDapTransferError;
-                                    break;
-                                }
-                                data = read_le32(&in[in_idx]);
-                                in_idx = static_cast<std::uint16_t>(in_idx + 4U);
-                            }
-
-                            const auto ack = dap_transfer_once<Backend>(state, request, data);
-                            Policy::template on_transfer_result<Backend, Ops>(state, ack);
-                            if (ack != kDapTransferOk) {
-                                response_value = ack;
-                                break;
-                            }
-
-                            ++response_count;
+                        response_value = kDapTransferOk;
+                        if (transfer_count != 0U) {
                             if (is_read) {
-                                if ((out_idx + 3U) >= out_size) {
-                                    response_value = kDapTransferError;
-                                    break;
+                                if (is_ap) {
+                                    auto ack = dap_transfer_retry<Backend>(state, request, nullptr);
+                                    Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                    if (ack != kDapTransferOk) {
+                                        response_value = ack;
+                                    }
                                 }
-                                write_le32(&out[out_idx], data);
-                                out_idx = static_cast<std::uint16_t>(out_idx + 4U);
+                                for (std::uint16_t i = 0; i < transfer_count && response_value == kDapTransferOk; ++i) {
+                                    auto read_request = request;
+                                    if (is_ap && (i + 1U == transfer_count)) {
+                                        read_request = kReqDpRdbuff;
+                                    }
+                                    std::uint32_t data = 0;
+                                    auto ack = dap_transfer_retry<Backend>(state, read_request, &data);
+                                    Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                    if (ack != kDapTransferOk) {
+                                        response_value = ack;
+                                        break;
+                                    }
+                                    if ((out_idx + 3U) >= out_size) {
+                                        response_value = kDapTransferError;
+                                        break;
+                                    }
+                                    write_le32(&out[out_idx], data);
+                                    out_idx = static_cast<std::uint16_t>(out_idx + 4U);
+                                    ++response_count;
+                                }
+                            } else {
+                                for (std::uint16_t i = 0; i < transfer_count; ++i) {
+                                    if ((in_idx + 3U) >= in_size) {
+                                        response_value = kDapTransferError;
+                                        break;
+                                    }
+                                    std::uint32_t data = read_le32(&in[in_idx]);
+                                    in_idx = static_cast<std::uint16_t>(in_idx + 4U);
+                                    auto ack = dap_transfer_retry<Backend>(state, request, &data);
+                                    Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                    if (ack != kDapTransferOk) {
+                                        response_value = ack;
+                                        break;
+                                    }
+                                    ++response_count;
+                                }
+                                if (response_value == kDapTransferOk) {
+                                    const auto ack = dap_check_last_write<Backend>(state);
+                                    Policy::template on_transfer_result<Backend, Ops>(state, ack);
+                                    if (ack != kDapTransferOk) {
+                                        response_value = ack;
+                                    }
+                                }
                             }
-                        }
-
-                        if (is_ap && is_read && response_count != exec_words && response_value == kDapTransferOk) {
-                            response_value = kDapTransferError;
                         }
                     }
 
                     out[1] = static_cast<std::uint8_t>(response_count & 0xFFU);
                     out[2] = static_cast<std::uint8_t>((response_count >> 8) & 0xFFU);
                     out[3] = response_value;
-                    return {in_idx, out_idx, response_value == kDapTransferOk};
+                    return {
+                        static_cast<std::uint16_t>(expected_in <= in_size ? expected_in : in_idx),
+                        out_idx,
+                        response_value == kDapTransferOk
+                    };
                 }
                 default:
                     out[0] = kCmsisDapInvalid;

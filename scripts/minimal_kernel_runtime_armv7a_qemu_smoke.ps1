@@ -270,6 +270,7 @@ $caseSpecs = @(
             'ARMv7-A runtime handoff binding landing, .* binding=yes',
             'ARMv7-A runtime handoff session landing, .* session=yes',
             'ARMv7-A runtime handoff package landing, .* landing=yes',
+            'ARMv7-A runtime handoff landing bundle, .* bundle=yes',
             'ARMv7-A runtime handoff landing, .* landed=yes',
             'ARMv7-A runtime handoff path, .* path=yes',
             'ARMv7-A runtime handoff consumer, .* consumer=yes'

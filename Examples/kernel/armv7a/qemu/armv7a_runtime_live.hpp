@@ -74,6 +74,25 @@ constexpr bool armv7a_runtime_live_ready(
            observation.idle_ready && observation.worker_ready;
 }
 
+constexpr bool armv7a_runtime_live_equal(
+    const Armv7aRuntimeLiveObservation& lhs,
+    const Armv7aRuntimeLiveObservation& rhs) noexcept
+{
+    return lhs.task_ready == rhs.task_ready &&
+           lhs.trap_ready == rhs.trap_ready &&
+           lhs.timer_ready == rhs.timer_ready &&
+           lhs.tick_ready == rhs.tick_ready &&
+           lhs.idle_ready == rhs.idle_ready &&
+           lhs.worker_ready == rhs.worker_ready &&
+           lhs.worker_resumes == rhs.worker_resumes &&
+           lhs.idle_runs == rhs.idle_runs &&
+           lhs.runtime_context == rhs.runtime_context &&
+           lhs.session == rhs.session && lhs.shared == rhs.shared &&
+           lhs.trap == rhs.trap && lhs.wake_due == rhs.wake_due &&
+           lhs.last_tick_now == rhs.last_tick_now &&
+           lhs.last_trap_value == rhs.last_trap_value;
+}
+
 Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation() noexcept;
 Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation(
     const Armv7aRuntimePackageContract& package) noexcept;

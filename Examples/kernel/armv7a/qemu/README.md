@@ -263,7 +263,8 @@ side via one `ARMv7-A runtime handoff landing, ... rearm=yes, payload=yes,
 leaf=yes` line, one `ARMv7-A runtime handoff binding landing, ...
 binding=yes` line, one `ARMv7-A runtime handoff session landing, ...
 session=yes` line, one `ARMv7-A runtime handoff package landing, ...
-landing=yes` line, one `ARMv7-A runtime handoff consumer, ... consumer=yes`
+landing=yes` line, one `ARMv7-A runtime handoff landing bundle, ...
+bundle=yes` line, one `ARMv7-A runtime handoff consumer, ... consumer=yes`
 line, plus one `ARMv7-A runtime handoff path, ... path=yes` line before
 idling forever.
 
@@ -813,11 +814,19 @@ continue
   context, the rebuilt binding slice must still point at that same runtime
   context, and the recaptured local runtime package must agree with it too
   before the landed session counts as ready.
+- The same landing path now also prints one `runtime handoff landing bundle`
+  line that lifts the whole landed leaf/package slice into one reusable seam:
+  landed leaf, landed binding, landed session, rebuilt landed package, and
+  the top-level landing observation must all agree on the same recaptured
+  payload and re-consumed live runtime before the bundle counts as ready.
 - The same landing path now also prints one `runtime handoff consumer` line
   that lifts the whole re-entry sequence into one reusable seam: re-armed
-  ports, recaptured package observation, rebuilt package landing, live runtime,
-  and the full handoff path now have to line up together before the runtime
-  consumer counts as ready.
+  ports, recaptured package observation, landed bundle seam, live runtime, and
+  the full handoff path now have to line up together before the runtime
+  consumer counts as ready. The consumer keeps only a compact readiness summary
+  of the landed bundle instead of embedding the full nested landing evidence
+  again, so the QEMU leaf stays honest about bare-metal stack pressure while
+  the detailed bundle line remains available for diagnosis.
 - The same live preset now also prints one `runtime handoff path` line that
   closes the whole handoff route into one continuity check: exported handoff
   payload, prepared entry seam, forwarded transfer payload, live launch

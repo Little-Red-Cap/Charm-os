@@ -18,6 +18,7 @@ export namespace daplink::dap_transport {
     namespace detail {
         constexpr std::uint8_t kCmsisDapQueueCommands = 0x7E;
         constexpr std::uint8_t kCmsisDapExecuteCommands = 0x7F;
+        constexpr std::uint8_t kCmsisDapTransferAbort = 0x07;
     }
 
     template <daplink::dap_backend::SwdBackend Backend,
@@ -38,6 +39,7 @@ export namespace daplink::dap_transport {
         void reset() noexcept {
             queue.reset();
             queued_packet_count = 0;
+            daplink::cmsis_dap::clear_transfer_abort(state);
         }
 
         bool busy() const noexcept {
@@ -80,6 +82,16 @@ export namespace daplink::dap_transport {
             std::uint8_t processed = 0;
             while (daplink::usb_minimal::out_ready() && processed < burst_limit) {
                 auto in = daplink::usb_minimal::out_packet();
+                if (in[0] == detail::kCmsisDapTransferAbort) {
+                    // CMSIS-DAP TransferAbort is an out-of-band signal and does not
+                    // produce a response packet. Drop any locally buffered atomic
+                    // packets so a later flush does not execute a canceled sequence.
+                    daplink::cmsis_dap::request_transfer_abort(state);
+                    queued_packet_count = 0;
+                    daplink::usb_minimal::consume_out();
+                    ++processed;
+                    continue;
+                }
                 if (in[0] == detail::kCmsisDapQueueCommands) {
                     if (!queue_atomic_packet(in)) {
                         break;

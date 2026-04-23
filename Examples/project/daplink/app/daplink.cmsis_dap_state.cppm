@@ -21,6 +21,7 @@ export namespace daplink::cmsis_dap {
     struct RuntimeState {
         std::uint8_t dap_port = 0;
         std::uint8_t error_streak = 0;
+        std::uint8_t transfer_abort = 0;
 #if CHARM_DAP_ENABLE_SWO
         std::uint32_t swo_baudrate = 0;
         std::uint8_t swo_mode = 0;
@@ -33,4 +34,16 @@ export namespace daplink::cmsis_dap {
         Config config{};
         RuntimeState runtime{};
     };
+
+    inline bool transfer_abort_requested(const State& state) noexcept {
+        return state.runtime.transfer_abort != 0U;
+    }
+
+    inline void request_transfer_abort(State& state) noexcept {
+        state.runtime.transfer_abort = 1U;
+    }
+
+    inline void clear_transfer_abort(State& state) noexcept {
+        state.runtime.transfer_abort = 0U;
+    }
 }

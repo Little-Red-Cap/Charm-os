@@ -42,7 +42,9 @@ export namespace daplink::cmsis_dap {
             auto* value = (data != nullptr) ? data : &dummy;
             auto ack = dap_transfer_once<Backend>(state, request, *value);
             std::uint16_t retry = state.config.swd.retry_count;
-            while (ack == kDapTransferWait && retry-- != 0U) {
+            while (ack == kDapTransferWait &&
+                   retry-- != 0U &&
+                   !transfer_abort_requested(state)) {
                 ack = dap_transfer_once<Backend>(state, request, *value);
             }
             return ack;
@@ -508,6 +510,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
+                    clear_transfer_abort(state);
                     std::uint8_t response_count = 0;
                     std::uint8_t response_value = 0;
                     std::uint16_t in_idx = 3;
@@ -584,7 +587,8 @@ export namespace daplink::cmsis_dap {
                                         if ((data & state.config.match_mask) == match_value) {
                                             break;
                                         }
-                                    } while (match_retry-- != 0U);
+                                    } while (match_retry-- != 0U &&
+                                             !transfer_abort_requested(state));
 
                                     if (ack == kDapTransferOk &&
                                         ((data & state.config.match_mask) != match_value)) {
@@ -660,13 +664,17 @@ export namespace daplink::cmsis_dap {
                             }
 
                             ++response_count;
+                            if (transfer_abort_requested(state)) {
+                                break;
+                            }
                         }
 
                         if (remaining != 0U) {
                             in_idx = skip_transfer_requests(in, in_idx, remaining);
                         }
 
-                        if (response_value == kDapTransferOk) {
+                        if (response_value == kDapTransferOk &&
+                            !transfer_abort_requested(state)) {
                             if (post_read) {
                                 std::uint32_t data = 0;
                                 auto ack = dap_transfer_retry<Backend>(state, kReqDpRdbuff, &data);
@@ -699,6 +707,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
+                    clear_transfer_abort(state);
                     std::uint16_t response_count = 0;
                     std::uint8_t response_value = kDapTransferOk;
                     std::uint16_t in_idx = 5;
@@ -743,6 +752,9 @@ export namespace daplink::cmsis_dap {
                                     write_le32(&out[out_idx], data);
                                     out_idx = static_cast<std::uint16_t>(out_idx + 4U);
                                     ++response_count;
+                                    if (transfer_abort_requested(state)) {
+                                        break;
+                                    }
                                 }
                             } else {
                                 for (std::uint16_t i = 0; i < transfer_count; ++i) {
@@ -759,8 +771,12 @@ export namespace daplink::cmsis_dap {
                                         break;
                                     }
                                     ++response_count;
+                                    if (transfer_abort_requested(state)) {
+                                        break;
+                                    }
                                 }
-                                if (response_value == kDapTransferOk) {
+                                if (response_value == kDapTransferOk &&
+                                    !transfer_abort_requested(state)) {
                                     const auto ack = dap_check_last_write<Backend>(state);
                                     Policy::template on_transfer_result<Backend, Ops>(state, ack);
                                     if (ack != kDapTransferOk) {

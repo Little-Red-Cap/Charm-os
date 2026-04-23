@@ -23,6 +23,7 @@ namespace daplink::cmsis_dap::detail {
     constexpr std::uint8_t kCmsisDapTransferConfigure = 0x04;
     constexpr std::uint8_t kCmsisDapTransfer = 0x05;
     constexpr std::uint8_t kCmsisDapTransferBlock = 0x06;
+    constexpr std::uint8_t kCmsisDapTransferAbort = 0x07;
     constexpr std::uint8_t kCmsisDapWriteAbort = 0x08;
     constexpr std::uint8_t kCmsisDapDelay = 0x09;
     constexpr std::uint8_t kCmsisDapResetTarget = 0x0A;

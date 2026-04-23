@@ -27,6 +27,13 @@
 - 根 CMake 入口支持 `DAPLINK_USB_PROFILE=hid|cdc|composite`。
 - 默认仍保留 `composite`，但新增 `<port>-hid-debug` 预设用于 IDE 兼容性排查。
 
+## TransferAbort 处理
+
+- `ID_DAP_TransferAbort(0x07)` 是 HID OUT 方向的带外中止信号，不产生响应包。
+- HID transport 在普通命令入队前会优先消费 `TransferAbort`，避免它落入常规命令处理后变成 `DAP_Invalid`。
+- CMSIS-DAP 状态层只保存 abort latch 与可选前端探针；具体 USB HID 包如何被发现仍属于 `frontends/usb` 与 transport 的职责。
+- transfer / transfer block / WAIT retry / match retry 循环都会检查 abort 状态，从而更接近官方 DAPLink 的异常收尾行为。
+
 ## 适合优先做的验证
 
 1. 先用 `*-hid-debug` 构建并验证 Keil/MDK 是否能稳定识别 HID 调试接口。

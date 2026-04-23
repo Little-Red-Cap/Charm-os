@@ -19,6 +19,18 @@ export namespace daplink::dap_transport {
         constexpr std::uint8_t kCmsisDapQueueCommands = 0x7E;
         constexpr std::uint8_t kCmsisDapExecuteCommands = 0x7F;
         constexpr std::uint8_t kCmsisDapTransferAbort = 0x07;
+
+        inline bool take_transfer_abort_packet() noexcept {
+            if (!daplink::usb_minimal::out_ready()) {
+                return false;
+            }
+            const auto in = daplink::usb_minimal::out_packet();
+            if (in[0] != kCmsisDapTransferAbort) {
+                return false;
+            }
+            daplink::usb_minimal::consume_out();
+            return true;
+        }
     }
 
     template <daplink::dap_backend::SwdBackend Backend,
@@ -34,12 +46,15 @@ export namespace daplink::dap_transport {
         std::uint8_t queued_packet_count = 0;
 
         HidTransport(daplink::cmsis_dap::State& s, daplink::cmsis_dap::DeviceInfo i) noexcept
-            : state(s), info(i) {}
+            : state(s), info(i) {
+            daplink::cmsis_dap::set_transfer_abort_probe(state, detail::take_transfer_abort_packet);
+        }
 
         void reset() noexcept {
             queue.reset();
             queued_packet_count = 0;
             daplink::cmsis_dap::clear_transfer_abort(state);
+            daplink::cmsis_dap::set_transfer_abort_probe(state, detail::take_transfer_abort_packet);
         }
 
         bool busy() const noexcept {
@@ -88,7 +103,7 @@ export namespace daplink::dap_transport {
                     // packets so a later flush does not execute a canceled sequence.
                     daplink::cmsis_dap::request_transfer_abort(state);
                     queued_packet_count = 0;
-                    daplink::usb_minimal::consume_out();
+                    (void)detail::take_transfer_abort_packet();
                     ++processed;
                     continue;
                 }

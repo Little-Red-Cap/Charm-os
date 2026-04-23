@@ -35,7 +35,7 @@ export namespace daplink::cmsis_dap {
         }
 
         template <daplink::dap_backend::SwdBackend Backend>
-        inline std::uint8_t dap_transfer_retry(const State& state,
+        inline std::uint8_t dap_transfer_retry(State& state,
                                                const std::uint8_t request,
                                                std::uint32_t* data) noexcept {
             std::uint32_t dummy = 0;
@@ -51,7 +51,7 @@ export namespace daplink::cmsis_dap {
         }
 
         template <daplink::dap_backend::SwdBackend Backend>
-        inline std::uint8_t dap_check_last_write(const State& state) noexcept {
+        inline std::uint8_t dap_check_last_write(State& state) noexcept {
             return dap_transfer_retry<Backend>(state, kReqDpRdbuff, nullptr);
         }
 

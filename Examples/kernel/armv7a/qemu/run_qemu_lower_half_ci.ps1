@@ -35,7 +35,7 @@ try {
         throw "cmake configure failed for preset: $configurePreset"
     }
 
-    & $cmake --build --preset $buildPreset --parallel $BuildJobs
+    & $cmake --build --preset $buildPreset --clean-first --parallel $BuildJobs
     if ($LASTEXITCODE -ne 0) {
         throw "cmake build failed for preset: $buildPreset"
     }
@@ -75,7 +75,8 @@ foreach ($scriptName in $scripts) {
     -QemuExe $qemu `
     -BuildJobs $BuildJobs `
     -TimeoutSec $TimeoutSec `
-    -TailLines $TailLines
+    -TailLines $TailLines `
+    -CleanBuild
 if ($LASTEXITCODE -ne 0) {
     throw "lower-half smoke failed: run_qemu_handoff_live_ci.ps1"
 }

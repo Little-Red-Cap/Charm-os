@@ -16,27 +16,14 @@ export namespace daplink::dap_strategy {
     struct DefaultTransferPolicy {
         template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         static void on_transfer_result(StateT& state, const std::uint8_t ack) noexcept {
+            (void)sizeof(Backend);
+            (void)sizeof(Ops);
             if (ack == kDapTransferOk || ack == (kDapTransferOk | kDapTransferMismatch)) {
                 state.runtime.error_streak = 0;
                 return;
             }
             if (state.runtime.error_streak < kTransferErrorResetThreshold) {
                 ++state.runtime.error_streak;
-            }
-            if (state.runtime.error_streak >= kTransferErrorResetThreshold) {
-                if (state.config.current_hz != 0U &&
-                    state.config.min_hz != 0U &&
-                    state.config.current_hz > state.config.min_hz) {
-                    const std::uint32_t next =
-                        (state.config.current_hz / 2U < state.config.min_hz)
-                            ? state.config.min_hz
-                            : (state.config.current_hz / 2U);
-                    state.config.current_hz = next;
-                    Ops::set_swj_clock_hz(state.config.current_hz);
-                } else {
-                    swd::Engine<Backend>::line_reset();
-                }
-                state.runtime.error_streak = 0;
             }
         }
     };

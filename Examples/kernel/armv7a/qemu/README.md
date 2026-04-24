@@ -204,11 +204,12 @@ ARMv7-A handoff launch, target=0x40200000, arg0=0x4023...., mode=sys, state=arm,
 .\run_qemu_ci.ps1
 ```
 
-`run_qemu_ci.ps1` now configures and rebuilds the default `debug` preset
-before launching QEMU, so the smoke log stays aligned with the current source
-instead of whatever ELF happened to be left in `out\build\debug`. The default
-build leg now also uses `--parallel 1`, which keeps the ARM bare-metal GCC
-modules output stable during CI smoke runs. The same smoke now also gates the
+`run_qemu_ci.ps1` now configures and clean-rebuilds the default `debug`
+preset before launching QEMU, so the smoke log stays aligned with the current
+source instead of whatever ELF or stale object graph happened to be left in
+`out\build\debug`. The default build leg now also uses `--parallel 1`, which
+keeps the ARM bare-metal GCC modules output stable during CI smoke runs. The
+same smoke now also gates the
 `runtime-leaf-ports`, `runtime-live`, `runtime-binding-bundle`, and
 `runtime-leaf-bundle` phase markers, plus the
 `ARMv7-A runtime leaf ports, ... call=yes, thread=yes, ... ports=yes`,
@@ -258,9 +259,14 @@ synthetic next-stage entry with the inherited `r0/sp` shape, completes the
 `ARMv7-A handoff live, ... live=yes` line, then proves the handed-over runtime
 package can be re-armed in place and directly re-consumed from the landing
 side via one `ARMv7-A runtime handoff landing, ... rearm=yes, payload=yes,
-... landed=yes` line, one `ARMv7-A runtime handoff package landing, ...
-landing=yes` line, plus one `ARMv7-A runtime handoff path, ... path=yes` line
-before idling forever.
+... landed=yes` line, one `ARMv7-A runtime handoff leaf landing, ...
+leaf=yes` line, one `ARMv7-A runtime handoff binding landing, ...
+binding=yes` line, one `ARMv7-A runtime handoff session landing, ...
+session=yes` line, one `ARMv7-A runtime handoff package landing, ...
+landing=yes` line, one `ARMv7-A runtime handoff landing bundle, ...
+bundle=yes` line, one `ARMv7-A runtime handoff consumer, ... consumer=yes`
+line, plus one `ARMv7-A runtime handoff path, ... path=yes` line before
+idling forever.
 
 For a shorter failure loop around the runtime-facing binding bundle, use:
 
@@ -299,11 +305,18 @@ For a shorter failure loop around the live task-syscall seam, use:
 .\run_qemu_task_syscall_ci.ps1
 ```
 
-To run the lower-half focused bundle after one shared `debug` build, use:
+To run the lower-half focused bundle with one clean shared `debug` rebuild,
+use:
 
 ```powershell
 .\run_qemu_lower_half_ci.ps1
 ```
+
+That aggregate lower-half smoke now clean-rebuilds the shared `debug` preset
+before fanning out into the focused runtime/task-syscall cases, and also asks
+the dedicated `handoff-live` smoke to clean-rebuild `debug-handoff-live`.
+This keeps wide lower-half regressions from being masked or invented by stale
+object files after contract/header layout changes.
 
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:
@@ -784,6 +797,36 @@ continue
   and the re-consumed live bit, then requires that rebuilt package to match
   both the handed-over payload and the recaptured local package before the
   landing-side consumer seam counts as ready.
+- The same landing path now also prints one `runtime handoff leaf landing`
+  line that isolates the wide lower-half bundle seam: the re-armed leaf ports,
+  the re-consumed live bit, the handed-over leaf payload, and the recaptured
+  local leaf bundle all have to line up before the landed leaf counts as ready.
+- The same landing path now also prints one `runtime handoff binding landing`
+  line that isolates the smaller runtime-facing binding slice: current/trap/
+  thread/loop ports must stay live, point at the same runtime context, still
+  derive from the trap-call surface, and match both the handed-over binding
+  payload and the recaptured local binding before the landed binding counts as
+  ready.
+- The same landing path now also prints one `runtime handoff session landing`
+  line that finally makes the landed runtime identity explicit: the live
+  runtime must expose one non-null `runtime_context/session/shared/trap`
+  identity, the re-armed leaf ports must still point at that same runtime
+  context, the rebuilt binding slice must still point at that same runtime
+  context, and the recaptured local runtime package must agree with it too
+  before the landed session counts as ready.
+- The same landing path now also prints one `runtime handoff landing bundle`
+  line that lifts the whole landed leaf/package slice into one reusable seam:
+  landed leaf, landed binding, landed session, rebuilt landed package, and
+  the top-level landing observation must all agree on the same recaptured
+  payload and re-consumed live runtime before the bundle counts as ready.
+- The same landing path now also prints one `runtime handoff consumer` line
+  that lifts the whole re-entry sequence into one reusable seam: re-armed
+  ports, recaptured package observation, landed bundle seam, live runtime, and
+  the full handoff path now have to line up together before the runtime
+  consumer counts as ready. The consumer keeps only a compact readiness summary
+  of the landed bundle instead of embedding the full nested landing evidence
+  again, so the QEMU leaf stays honest about bare-metal stack pressure while
+  the detailed bundle line remains available for diagnosis.
 - The same live preset now also prints one `runtime handoff path` line that
   closes the whole handoff route into one continuity check: exported handoff
   payload, prepared entry seam, forwarded transfer payload, live launch

@@ -36,8 +36,16 @@ export namespace daplink::dap_queue {
             return free_count != 0;
         }
 
+        bool can_accept(const std::uint8_t count) const noexcept {
+            return free_count >= count;
+        }
+
         bool has_pending() const noexcept {
             return send_count != 0;
+        }
+
+        std::uint8_t free_slots() const noexcept {
+            return free_count;
         }
 
         template <daplink::dap_backend::SwdBackend Backend,

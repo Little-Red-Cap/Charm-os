@@ -19,6 +19,7 @@ namespace daplink::port_contract {
         typename daplink::port::UartHandle;
         typename daplink::port::UsbPcdHandle;
         typename daplink::port::GpioPort;
+        typename daplink::port::UsbLayout;
         typename daplink::port::PinState;
         typename daplink::port::UsbEndpointType;
         typename daplink::port::GpioConfig;
@@ -31,13 +32,13 @@ namespace daplink::port_contract {
         { daplink::port::kGpioPullUp } -> std::convertible_to<std::uint32_t>;
         { daplink::port::kGpioSpeedLow } -> std::convertible_to<std::uint32_t>;
         { daplink::port::kGpioSpeedHigh } -> std::convertible_to<std::uint32_t>;
-        { daplink::port::kUsbPmaEp0Out } -> std::convertible_to<std::uint16_t>;
-        { daplink::port::kUsbPmaEp0In } -> std::convertible_to<std::uint16_t>;
-        { daplink::port::kUsbPmaHidIn } -> std::convertible_to<std::uint16_t>;
-        { daplink::port::kUsbPmaHidOut } -> std::convertible_to<std::uint16_t>;
-        { daplink::port::kUsbPmaCdcCmd } -> std::convertible_to<std::uint16_t>;
-        { daplink::port::kUsbPmaCdcOut } -> std::convertible_to<std::uint16_t>;
-        { daplink::port::kUsbPmaCdcIn } -> std::convertible_to<std::uint16_t>;
+        { daplink::port::UsbLayout::kUsbPmaEp0Out } -> std::convertible_to<std::uint16_t>;
+        { daplink::port::UsbLayout::kUsbPmaEp0In } -> std::convertible_to<std::uint16_t>;
+        { daplink::port::UsbLayout::kUsbPmaHidIn } -> std::convertible_to<std::uint16_t>;
+        { daplink::port::UsbLayout::kUsbPmaHidOut } -> std::convertible_to<std::uint16_t>;
+        { daplink::port::UsbLayout::kUsbPmaCdcCmd } -> std::convertible_to<std::uint16_t>;
+        { daplink::port::UsbLayout::kUsbPmaCdcOut } -> std::convertible_to<std::uint16_t>;
+        { daplink::port::UsbLayout::kUsbPmaCdcIn } -> std::convertible_to<std::uint16_t>;
 
         { daplink::port::gpio_init(gpio, 0U, daplink::port::GpioConfig{}) } noexcept -> std::same_as<void>;
         { daplink::port::gpio_write(gpio, 0U, daplink::port::PinState::high) } noexcept -> std::same_as<void>;
@@ -93,6 +94,15 @@ namespace daplink::port_contract {
         requires std::same_as<std::remove_cvref_t<decltype(Traits::kSwclkIdleState)>, daplink::port::PinState>;
         requires std::same_as<std::remove_cvref_t<decltype(Traits::kSwdioIdleState)>, daplink::port::PinState>;
         requires std::same_as<std::remove_cvref_t<decltype(Traits::kResetIdleState)>, daplink::port::PinState>;
+        requires std::convertible_to<decltype(Traits::kPreserveResetStateOnReconnect), bool>;
+        requires std::convertible_to<decltype(Traits::kHasCustomResetTarget), bool>;
+        requires std::convertible_to<decltype(Traits::kHasConnectLed), bool>;
+        requires std::convertible_to<decltype(Traits::kHasDbgLed), bool>;
+        requires std::convertible_to<decltype(Traits::kHasUsbConnectSwitch), bool>;
+        requires (!static_cast<bool>(Traits::kHasCustomResetTarget) ||
+                  requires {
+                      { Traits::reset_target() } noexcept -> std::convertible_to<std::uint8_t>;
+                  });
     };
 
     static_assert(PortApi<>, "daplink::port API is incomplete for the selected port.");

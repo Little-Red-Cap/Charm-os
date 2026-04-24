@@ -38,7 +38,7 @@ export namespace daplink::app_config {
     constexpr std::uint16_t kUsbCdcEpMps = 64;
     constexpr bool kUsbCdcHasCmdEp = true;
 
-    constexpr std::uint32_t kSwdDefaultHz = 5000000U;
+    constexpr std::uint32_t kSwdDefaultHz = 1000000U;
     constexpr std::uint32_t kSwdMinHz = 200000U;
     constexpr std::uint8_t kSwdTurnaround = 1;
     constexpr std::uint8_t kSwdIdleCycles = 0;

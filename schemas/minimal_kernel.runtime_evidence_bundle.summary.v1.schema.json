@@ -318,6 +318,12 @@
         "stderr_log_path": {
           "type": "string"
         },
+        "highlights": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "detail": {
           "type": "string"
         }

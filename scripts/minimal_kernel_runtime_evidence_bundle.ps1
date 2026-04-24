@@ -342,6 +342,7 @@ function Get-QemuSummaryView {
                         elapsed_ms = [int64]$_.ElapsedMs
                         stdout_log_path = [string]$_.StdoutLogPath
                         stderr_log_path = [string]$_.StderrLogPath
+                        highlights = @($_.Highlights)
                         detail = [string]$_.Detail
                     }
                 }
@@ -545,6 +546,22 @@ if ($null -ne $qemuView.lower_half) {
     [void]$reportBuilder.AppendLine("--- | --- | ---")
     foreach ($entry in @($qemuView.lower_half.results)) {
         [void]$reportBuilder.AppendLine(("{0} | {1} | {2}ms" -f [string]$entry.label, [string]$entry.status, [int64]$entry.elapsed_ms))
+    }
+
+    $qemuHighlightResults = @(
+        $qemuView.lower_half.results | Where-Object {
+            $null -ne $_.highlights -and (@($_.highlights)).Count -gt 0
+        }
+    )
+    if ($qemuHighlightResults.Count -gt 0) {
+        [void]$reportBuilder.AppendLine("")
+        [void]$reportBuilder.AppendLine("### QEMU Highlights")
+        foreach ($entry in @($qemuHighlightResults)) {
+            [void]$reportBuilder.AppendLine(('- `{0}`' -f [string]$entry.label))
+            foreach ($highlight in @($entry.highlights)) {
+                [void]$reportBuilder.AppendLine(('  `{0}`' -f [string]$highlight))
+            }
+        }
     }
 }
 

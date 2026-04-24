@@ -27,7 +27,7 @@ export namespace daplink::dap_backend {
         { B::setup_swd_pins_hi_z() } noexcept;
         { B::set_swj_clock_hz(std::uint32_t{}) } noexcept;
         { B::swj_pins(value, select) } noexcept -> std::same_as<std::uint8_t>;
-        { B::reset_target() } noexcept -> std::same_as<bool>;
+        { B::reset_target() } noexcept -> std::convertible_to<std::uint8_t>;
         { B::set_connected_led(on) } noexcept;
         { B::set_running_led(on) } noexcept;
     };

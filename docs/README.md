@@ -88,6 +88,26 @@
 - 最小内核 task message API 契约：`docs/system/minimal_kernel_task_message_api_contract.md`
 - 最小内核 task message table 契约：`docs/system/minimal_kernel_task_message_table_contract.md`
 - 最小内核 task message dispatch 契约：`docs/system/minimal_kernel_task_message_dispatch_contract.md`
+- 最小内核 task message service loop 契约：`docs/system/minimal_kernel_task_message_service_loop_contract.md`
+- 最小内核 task message service drain 契约：`docs/system/minimal_kernel_task_message_service_drain_contract.md`
+- 最小内核 task message service pump 契约：`docs/system/minimal_kernel_task_message_service_pump_contract.md`
+- 最小内核 task message syscall bridge 契约：`docs/system/minimal_kernel_task_message_syscall_bridge_contract.md`
+- 最小内核 task message syscall frame transport 契约：`docs/system/minimal_kernel_task_message_syscall_frame_contract.md`
+- 最小内核 task message syscall frame caller 契约：`docs/system/minimal_kernel_task_message_syscall_frame_caller_contract.md`
+- 最小内核 task message syscall client 契约：`docs/system/minimal_kernel_task_message_syscall_client_contract.md`
+- 最小内核 task message syscall pump 契约：`docs/system/minimal_kernel_task_message_syscall_pump_contract.md`
+- 最小内核 task message runtime service 契约：`docs/system/minimal_kernel_task_message_runtime_service_contract.md`
+- 最小内核 task message runtime API 契约：`docs/system/minimal_kernel_task_message_runtime_api_contract.md`
+- 最小内核 task message syscall API 契约：`docs/system/minimal_kernel_task_message_syscall_api_contract.md`
+- 最小内核 task message session API 契约：`docs/system/minimal_kernel_task_message_session_api_contract.md`
+- 最小内核 task message session dispatch 契约：`docs/system/minimal_kernel_task_message_session_dispatch_contract.md`
+- 最小内核 task message session acceptor / channel facade 契约：`docs/system/minimal_kernel_task_message_session_acceptor_contract.md`
+- 最小内核 task message session endpoint facade 契约：`docs/system/minimal_kernel_task_message_session_endpoint_contract.md`
+- 最小内核 task message session protocol surface 契约：`docs/system/minimal_kernel_task_message_session_protocol_contract.md`
+- 最小内核 task message session protocol schema 契约：`docs/system/minimal_kernel_task_message_session_protocol_schema_contract.md`
+- 最小内核 task message session service facade 契约：`docs/system/minimal_kernel_task_message_session_service_contract.md`
+- 最小内核 task message session service loop 证据契约：`docs/system/minimal_kernel_task_message_session_service_loop_contract.md`
+- 最小内核 task message session roundtrip 证据契约：`docs/system/minimal_kernel_task_message_session_roundtrip_contract.md`
 - 最小内核 task-side runtime service 契约：`docs/system/minimal_kernel_runtime_service_contract.md`
 - 最小内核 task runtime API 契约：`docs/system/minimal_kernel_task_runtime_api_contract.md`
 - 最小内核 task syscall API 契约：`docs/system/minimal_kernel_task_syscall_api_contract.md`
@@ -166,6 +186,26 @@ flowchart TD
 | 推进 task-facing message surface / current-task mailbox facade | `docs/system/minimal_kernel_task_message_api_contract.md` → `docs/system/minimal_kernel_runtime_mailbox_contract.md` |
 | 推进 server-side task message routing / label table | `docs/system/minimal_kernel_task_message_table_contract.md` → `docs/system/minimal_kernel_task_message_api_contract.md` |
 | 推进 task message dispatch / receive-reply bridge | `docs/system/minimal_kernel_task_message_dispatch_contract.md` → `docs/system/minimal_kernel_task_message_table_contract.md` |
+| 推进 task message service loop / wait-timeout bridge | `docs/system/minimal_kernel_task_message_service_loop_contract.md` → `docs/system/minimal_kernel_task_message_dispatch_contract.md` |
+| 推进 task message budgeted drain / 单次唤醒多请求进展 | `docs/system/minimal_kernel_task_message_service_drain_contract.md` → `docs/system/minimal_kernel_task_message_service_loop_contract.md` |
+| 推进 task message service pump / bootstrap-rearm-hold 编排 | `docs/system/minimal_kernel_task_message_service_pump_contract.md` → `docs/system/minimal_kernel_task_message_service_drain_contract.md` |
+| 推进 task message -> syscall bridge / 单字 message ingress v0 | `docs/system/minimal_kernel_task_message_syscall_bridge_contract.md` → `docs/system/minimal_kernel_task_message_service_pump_contract.md` → `docs/system/minimal_kernel_task_syscall_table_contract.md` |
+| 推进 task message -> syscall frame transport / tokenized multi-arg ingress v1 | `docs/system/minimal_kernel_task_message_syscall_frame_contract.md` → `docs/system/minimal_kernel_task_message_syscall_bridge_contract.md` → `docs/system/minimal_kernel_task_syscall_frame_contract.md` |
+| 推进 task message -> syscall frame caller / client-side publish-reply glue | `docs/system/minimal_kernel_task_message_syscall_frame_caller_contract.md` → `docs/system/minimal_kernel_task_message_syscall_frame_contract.md` → `docs/system/minimal_kernel_task_syscall_api_contract.md` |
+| 推进 task message -> syscall client / async `sys_* + step(event)` seam | `docs/system/minimal_kernel_task_message_syscall_client_contract.md` → `docs/system/minimal_kernel_task_message_syscall_frame_caller_contract.md` → `docs/system/minimal_kernel_task_syscall_api_contract.md` |
+| 推进 task message -> syscall pump / queued client orchestration seam | `docs/system/minimal_kernel_task_message_syscall_pump_contract.md` → `docs/system/minimal_kernel_task_message_syscall_client_contract.md` → `docs/system/minimal_kernel_task_syscall_api_contract.md` |
+| 推进 task message -> runtime service / queued remote service facade | `docs/system/minimal_kernel_task_message_runtime_service_contract.md` → `docs/system/minimal_kernel_task_message_syscall_pump_contract.md` → `docs/system/minimal_kernel_runtime_service_contract.md` |
+| 推进 task message -> task runtime API / current-task async runtime facade | `docs/system/minimal_kernel_task_message_runtime_api_contract.md` → `docs/system/minimal_kernel_task_message_runtime_service_contract.md` → `docs/system/minimal_kernel_task_runtime_api_contract.md` |
+| 推进 task message -> task syscall API / async `sys_*` facade | `docs/system/minimal_kernel_task_message_syscall_api_contract.md` → `docs/system/minimal_kernel_task_message_runtime_api_contract.md` → `docs/system/minimal_kernel_task_syscall_api_contract.md` |
+| 推进 task message -> session API / single in-flight async session facade | `docs/system/minimal_kernel_task_message_session_api_contract.md` → `docs/system/minimal_kernel_task_message_syscall_api_contract.md` → `docs/system/minimal_kernel_task_message_runtime_api_contract.md` |
+| 推进 task message -> session dispatch / server-side `accept-serve-close` seam | `docs/system/minimal_kernel_task_message_session_dispatch_contract.md` → `docs/system/minimal_kernel_task_message_session_api_contract.md` → `docs/system/minimal_kernel_task_syscall_table_contract.md` |
+| 推进 task message -> session acceptor / server-side accepted channel facade | `docs/system/minimal_kernel_task_message_session_acceptor_contract.md` → `docs/system/minimal_kernel_task_message_session_dispatch_contract.md` → `docs/system/minimal_kernel_task_message_session_roundtrip_contract.md` |
+| 推进 task message -> session endpoint / server-side endpoint semantic facade | `docs/system/minimal_kernel_task_message_session_endpoint_contract.md` → `docs/system/minimal_kernel_task_message_session_acceptor_contract.md` → `docs/system/minimal_kernel_task_message_session_service_loop_contract.md` |
+| 推进 task message -> session protocol / server-side operation surface | `docs/system/minimal_kernel_task_message_session_protocol_contract.md` → `docs/system/minimal_kernel_task_message_session_endpoint_contract.md` → `docs/system/minimal_kernel_task_message_session_roundtrip_contract.md` |
+| 推进 task message -> session protocol schema / typed operation facade | `docs/system/minimal_kernel_task_message_session_protocol_schema_contract.md` → `docs/system/minimal_kernel_task_message_session_protocol_contract.md` → `docs/system/minimal_kernel_task_message_session_service_loop_contract.md` |
+| 推进 task message -> session service / server-side service ownership facade | `docs/system/minimal_kernel_task_message_session_service_contract.md` → `docs/system/minimal_kernel_task_message_session_acceptor_contract.md` → `docs/system/minimal_kernel_task_message_service_pump_contract.md` |
+| 推进 task message -> session service loop / server-side ownership live weld | `docs/system/minimal_kernel_task_message_session_service_loop_contract.md` → `docs/system/minimal_kernel_task_message_session_service_contract.md` → `docs/system/minimal_kernel_task_message_syscall_api_contract.md` |
+| 推进 task message session roundtrip / first live client-server accepted-channel weld | `docs/system/minimal_kernel_task_message_session_roundtrip_contract.md` → `docs/system/minimal_kernel_task_message_session_protocol_contract.md` → `docs/system/minimal_kernel_task_message_session_api_contract.md` |
 | 推进 task-side runtime service / syscall facade | `docs/system/minimal_kernel_runtime_service_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` |
 | 推进 task runtime API / future current-task syscall facade | `docs/system/minimal_kernel_task_runtime_api_contract.md` → `docs/system/minimal_kernel_runtime_service_contract.md` |
 | 推进 task syscall API / future syscall surface naming | `docs/system/minimal_kernel_task_syscall_api_contract.md` → `docs/system/minimal_kernel_task_runtime_api_contract.md` |
@@ -300,6 +340,25 @@ docs/
 - `docs/system/minimal_kernel_task_message_api_contract.md`
 - `docs/system/minimal_kernel_task_message_table_contract.md`
 - `docs/system/minimal_kernel_task_message_dispatch_contract.md`
+- `docs/system/minimal_kernel_task_message_service_loop_contract.md`
+- `docs/system/minimal_kernel_task_message_service_drain_contract.md`
+- `docs/system/minimal_kernel_task_message_service_pump_contract.md`
+- `docs/system/minimal_kernel_task_message_syscall_bridge_contract.md`
+- `docs/system/minimal_kernel_task_message_syscall_frame_contract.md`
+- `docs/system/minimal_kernel_task_message_syscall_frame_caller_contract.md`
+- `docs/system/minimal_kernel_task_message_syscall_client_contract.md`
+- `docs/system/minimal_kernel_task_message_syscall_pump_contract.md`
+- `docs/system/minimal_kernel_task_message_runtime_service_contract.md`
+- `docs/system/minimal_kernel_task_message_runtime_api_contract.md`
+- `docs/system/minimal_kernel_task_message_syscall_api_contract.md`
+- `docs/system/minimal_kernel_task_message_session_api_contract.md`
+- `docs/system/minimal_kernel_task_message_session_dispatch_contract.md`
+- `docs/system/minimal_kernel_task_message_session_acceptor_contract.md`
+- `docs/system/minimal_kernel_task_message_session_endpoint_contract.md`
+- `docs/system/minimal_kernel_task_message_session_protocol_contract.md`
+- `docs/system/minimal_kernel_task_message_session_service_contract.md`
+- `docs/system/minimal_kernel_task_message_session_service_loop_contract.md`
+- `docs/system/minimal_kernel_task_message_session_roundtrip_contract.md`
 - `docs/system/minimal_kernel_runtime_service_contract.md`
 - `docs/system/minimal_kernel_task_runtime_api_contract.md`
 - `docs/system/minimal_kernel_task_syscall_api_contract.md`

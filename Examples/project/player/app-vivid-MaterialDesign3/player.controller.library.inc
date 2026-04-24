@@ -759,6 +759,10 @@
             if (list_shuffle_enabled) {
                 append_library_status_suffix(buf, sizeof(buf), "Shuffled");
             }
+            char back_hint_buf[80]{};
+            if (format_library_back_status_hint(back_hint_buf, sizeof(back_hint_buf))) {
+                append_library_status_suffix(buf, sizeof(buf), back_hint_buf);
+            }
             set_status(buf);
         }
 
@@ -793,6 +797,10 @@
             }
             if (list_shuffle_enabled) {
                 append_library_status_suffix(buf, sizeof(buf), "Shuffled");
+            }
+            char back_hint_buf[80]{};
+            if (format_library_back_status_hint(back_hint_buf, sizeof(back_hint_buf))) {
+                append_library_status_suffix(buf, sizeof(buf), back_hint_buf);
             }
             set_status(buf);
         }
@@ -1271,6 +1279,22 @@
             const std::string_view back_target = library_back_target_label();
             if (back_target.empty()) return false;
             std::snprintf(buf, buf_size, "Path bar returns to %.*s",
+                          static_cast<int>(back_target.size()), back_target.data());
+            return buf[0] != '\0';
+        }
+
+        bool format_library_back_status_hint(char* buf,
+                                             std::size_t buf_size) const noexcept {
+            if (!buf || buf_size == 0) return false;
+            buf[0] = '\0';
+            if (!library_can_step_back()) return false;
+            if (list_shuffle_enabled && !library_has_context()) {
+                std::snprintf(buf, buf_size, "Back turns shuffle off");
+                return buf[0] != '\0';
+            }
+            const std::string_view back_target = library_back_target_label();
+            if (back_target.empty()) return false;
+            std::snprintf(buf, buf_size, "Back to %.*s",
                           static_cast<int>(back_target.size()), back_target.data());
             return buf[0] != '\0';
         }
@@ -2185,22 +2209,32 @@
                                  14);
                 if (!fs_ready) {
                     hint = "FS not ready";
-                } else if (library_has_context()) {
-                    hint = (library_tab == LibraryTab::Albums)
-                        ? "No tracks in this album"
-                        : "No tracks by this artist";
                 } else {
-                    switch (library_tab) {
-                    case LibraryTab::Albums:
-                        hint = "No albums in library";
-                        break;
-                    case LibraryTab::Artists:
-                        hint = "No artists in library";
-                        break;
-                    case LibraryTab::Songs:
-                    default:
-                        hint = "No tracks in library";
-                        break;
+                    const char* empty_hint = "";
+                    if (library_has_context()) {
+                        empty_hint = (library_tab == LibraryTab::Albums)
+                            ? "No tracks in this album"
+                            : "No tracks by this artist";
+                    } else {
+                        switch (library_tab) {
+                        case LibraryTab::Albums:
+                            empty_hint = "No albums in library";
+                            break;
+                        case LibraryTab::Artists:
+                            empty_hint = "No artists in library";
+                            break;
+                        case LibraryTab::Songs:
+                        default:
+                            empty_hint = "No tracks in library";
+                            break;
+                        }
+                    }
+                    char path_hint_buf[80]{};
+                    if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
+                        std::snprintf(buf, sizeof(buf), "%s | %s", empty_hint, path_hint_buf);
+                        hint = buf;
+                    } else {
+                        hint = empty_hint;
                     }
                 }
             }

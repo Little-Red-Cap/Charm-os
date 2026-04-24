@@ -165,13 +165,22 @@
    - server-side `label -> handler` routing
 4. `kernel.task_message_dispatch`
    - `receive -> dispatch -> reply` bridge
+5. `kernel.task_message_service_loop`
+   - `wait -> timeout -> rearm -> dispatch`
+6. `kernel.task_message_service_drain`
+   - bounded `dispatch -> drain -> stop(boundary)`
+7. `kernel.task_message_service_pump`
+   - `bootstrap wait -> timeout rearm -> drain hold/rearm`
 
-这四层现在分别证明：
+这七层现在分别证明：
 
 - transport/object semantics
 - current-task naming
 - server-side label routing
 - server-side dispatch/reply bridge
+- server-side service loop 装配
+- 单次唤醒内的 bounded drain 边界
+- service task body 级别的 bootstrap/rearm/hold orchestration
 
 ## 当前证据路径
 
@@ -187,12 +196,19 @@
 - `minimal_kernel_runtime_host_smoke.ps1`
   - 把这层纳入 runtime host smoke，保证它与现有消息/runtime 证据网保持对齐
 
+更上一层的 wait/timeout/service loop/budgeted drain/service pump 装配，当前已经单独上移到：
+
+- `kernel.task_message_service_loop`
+- `kernel.task_message_service_drain`
+- `kernel.task_message_service_pump`
+
 ## 当前非目标
 
 当前这层仍然不处理：
 
 - 多 request drain loop
 - receive timeout / wait policy 装配
+- bootstrap/rearm/hold orchestration
 - service discovery
 - higher-level message catalog/schema
 - trap/syscall ingress

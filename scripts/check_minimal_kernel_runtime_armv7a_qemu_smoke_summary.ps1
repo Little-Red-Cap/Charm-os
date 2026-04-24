@@ -58,6 +58,12 @@ if ($failCount -gt $MaxFailures) {
 if ($otherCount -gt $MaxOtherResults) {
     Add-Violation -Violations $violations -Message ("other results {0} exceed allowed {1}" -f $otherCount, $MaxOtherResults)
 }
+if ([int]$summaryData.completed_case_count -ne [int]$summaryData.case_count) {
+    Add-Violation -Violations $violations -Message ("completed cases {0} do not match summary case_count {1}" -f [int]$summaryData.completed_case_count, [int]$summaryData.case_count)
+}
+if (@($results).Count -ne [int]$summaryData.completed_case_count) {
+    Add-Violation -Violations $violations -Message ("result entries {0} do not match completed_case_count {1}" -f @($results).Count, [int]$summaryData.completed_case_count)
+}
 if ($RequireCaseCount -ge 0 -and @($results).Count -ne $RequireCaseCount) {
     Add-Violation -Violations $violations -Message ("completed cases {0} do not match required {1}" -f @($results).Count, $RequireCaseCount)
 }

@@ -185,6 +185,12 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
                                                                 rearmed_ports,
                                                                 runtime_package,
                                                                 runtime_live);
+    armv7a_print_runtime_handoff_leaf_landing_observation(
+        package_landing.leaf_landing);
+    armv7a_print_runtime_handoff_binding_landing_observation(
+        package_landing.binding_landing);
+    armv7a_print_runtime_handoff_session_landing_observation(
+        package_landing.session_landing);
     armv7a_print_runtime_handoff_package_landing_observation(package_landing);
     const auto& landing =
         armv7a_make_runtime_handoff_landing_observation(handoff,
@@ -193,11 +199,22 @@ extern "C" [[noreturn]] void armv7a_handoff_runtime_stage_main(
                                                         runtime_package,
                                                         runtime_live);
     armv7a_print_runtime_handoff_landing_observation(landing);
+    const auto& landing_bundle =
+        armv7a_make_runtime_handoff_landing_bundle_observation(handoff,
+                                                               package_landing,
+                                                               landing);
+    armv7a_print_runtime_handoff_landing_bundle_observation(landing_bundle);
     const auto& path =
-        armv7a_make_runtime_handoff_path_observation(handoff,
-                                                     package_landing,
-                                                     landing);
+        armv7a_make_runtime_handoff_path_observation(handoff, landing_bundle);
     armv7a_print_runtime_handoff_path_observation(path);
+    const auto& consumer = armv7a_make_runtime_handoff_consumer_observation(
+        rearmed_ports,
+        runtime_package,
+        runtime_live,
+        landing_bundle,
+        path,
+        handoff != nullptr);
+    armv7a_print_runtime_handoff_consumer_observation(consumer);
 
     armv7a_complete_bringup_phase(Armv7aBringupPhase::kHandoffRuntime);
     armv7a_enter_bringup_phase(Armv7aBringupPhase::kIdle);

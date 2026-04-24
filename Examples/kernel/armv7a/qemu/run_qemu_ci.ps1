@@ -58,7 +58,7 @@ try {
         throw "cmake configure failed for preset: debug"
     }
 
-    & $cmake --build --preset debug --parallel $BuildJobs
+    & $cmake --build --preset debug --clean-first --parallel $BuildJobs
     if ($LASTEXITCODE -ne 0) {
         throw "cmake build failed for preset: debug"
     }

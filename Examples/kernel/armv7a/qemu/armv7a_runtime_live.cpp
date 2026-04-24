@@ -1057,6 +1057,12 @@ Armv7aRuntimeLiveObservation armv7a_run_runtime_live_observation_core(
         .yield_handler_psr = session.shared.yield_handler_psr,
         .sleep_origin_psr = session.shared.sleep_origin_psr,
         .sleep_handler_psr = session.shared.sleep_handler_psr,
+        .runtime_context =
+            reinterpret_cast<std::uintptr_t>(runtime_context),
+        .session = reinterpret_cast<std::uintptr_t>(&session),
+        .shared =
+            reinterpret_cast<std::uintptr_t>(runtime_context->shared),
+        .trap = reinterpret_cast<std::uintptr_t>(runtime_context->trap),
         .wake_due = session.shared.wake_due,
         .last_tick_now = session.shared.last_tick_now,
         .last_trap_value = session.shared.last_trap_value,

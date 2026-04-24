@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/materialized_graph.export_bundle.v1.schema.json",
+  "title": "materialized_graph.export_bundle/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "case_count",
+    "cases"
+  ],
+  "properties": {
+    "schema": {
+      "const": "materialized_graph.export_bundle/v1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "input_manifest": {
+      "$ref": "#/$defs/inputManifest"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/caseEntry"
+      }
+    }
+  },
+  "$defs": {
+    "nodeKinds": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "graphSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "node_count",
+        "edge_count",
+        "effective_max_phase",
+        "effective_runlevel_mask",
+        "effective_runlevel_text"
+      ],
+      "properties": {
+        "schema": {
+          "const": "materialized_graph.sample/v2"
+        },
+        "node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edge_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "effective_max_phase": {
+          "type": "string"
+        },
+        "effective_runlevel_mask": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "effective_runlevel_text": {
+          "type": "string"
+        },
+        "node_kinds": {
+          "$ref": "#/$defs/nodeKinds"
+        },
+        "connection_modes": {
+          "$ref": "#/$defs/nodeKinds"
+        }
+      }
+    },
+    "subjectSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "board": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active_facets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "resourceContractClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "inputManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "caseEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "source",
+        "build_dir",
+        "build_target",
+        "case_kind",
+        "export_target",
+        "dot",
+        "json"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "build_dir": {
+          "type": "string"
+        },
+        "build_target": {
+          "type": "string"
+        },
+        "case_kind": {
+          "type": "string",
+          "enum": [
+            "materialized_graph",
+            "runtime_only"
+          ]
+        },
+        "export_target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dot": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "json": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime_observe": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/subjectSummary"
+        },
+        "declared_facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "declared_contracts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractClause"
+          }
+        },
+        "graph": {
+          "$ref": "#/$defs/graphSummary"
+        }
+      }
+    }
+  }
+}

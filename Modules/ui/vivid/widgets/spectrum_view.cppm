@@ -1,22 +1,25 @@
 module;
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include "vivid_features.generated.hpp"
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.spectrum_view;
 
 import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 
 using namespace ui::render;
 
 // Spectrum view with multiple render modes.
 export
-class SpectrumView : public ObjectBase {
+class SpectrumView : public WidgetBase<SpectrumView> {
 public:
     static constexpr std::size_t kMax = 32;
 
@@ -54,17 +57,29 @@ public:
 
     void set_peak_decay(float v) noexcept { peak_decay_ = (v > 0.0f) ? v : 0.0f; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<SpectrumView>();
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        const int pad = 8;
+        return Rect{r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2};
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<SpectrumView>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::SpectrumView, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::SpectrumView, state, st);
+
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        (void)accent;
+        return;
+#endif
         if (count_ <= 0) return;
         ++frame_;
         switch (mode_) {
@@ -112,6 +127,7 @@ private:
         };
     }
 
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
     void draw_bars(CanvasBase& cvs, const Rect& r, const Style& st, const rgba& accent, const rgba& font) {
         const int left = r.x + 4;
         const int right = r.x + r.w - 4;
@@ -121,7 +137,7 @@ private:
         const int inner_h = bottom - top;
         if (inner_w <= 0 || inner_h <= 0) return;
 
-        const rgba glow = st.border_focus.a ? st.border_focus : accent;
+        const rgba glow = st.colors.border_focus.a ? st.colors.border_focus : accent;
         const rgba core = accent;
         const rgba peak = font.a ? font : core;
         const rgba bright = lift_color(core, 0.35f);
@@ -169,7 +185,7 @@ private:
         const float step = 360.0f / static_cast<float>(count_);
         const float start = -90.0f;
         const rgba core = accent;
-        const rgba peak = st.border_focus.a ? st.border_focus : font;
+        const rgba peak = st.colors.border_focus.a ? st.colors.border_focus : font;
         const rgba bright = lift_color(core, 0.35f);
         const rgba dim = scale_color(core, 0.65f);
 
@@ -206,7 +222,7 @@ private:
         if (inner_w <= 0 || inner_h <= 0) return;
 
         const rgba line = accent;
-        const rgba peak = st.border_focus.a ? st.border_focus : font;
+        const rgba peak = st.colors.border_focus.a ? st.colors.border_focus : font;
         const rgba bright = lift_color(line, 0.35f);
         const rgba dim = scale_color(line, 0.65f);
         if (count_ < 2) {
@@ -238,6 +254,9 @@ private:
             }
         }
     }
+#endif
 };
+
+
 
 

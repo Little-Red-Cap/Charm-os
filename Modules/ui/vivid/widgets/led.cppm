@@ -4,14 +4,14 @@ export module charm.widgets.led;
 
 import charm.core.object;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.style;
 import charm.core.style_sheet;
 
 using namespace ui::render;
 
 export
-class Led final : public ObjectBase {
+class Led final : public WidgetBase<Led> {
 public:
     Led() {
         set_size(14, 14);
@@ -23,15 +23,17 @@ public:
     void set_on_color(const rgba& c) noexcept { on_color_ = c; }
     void set_off_color(const rgba& c) noexcept { off_color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         const auto r = get_rect();
         if (r.w <= 0 || r.h <= 0) return;
-        Style st = Theme::instance().get<Led>();
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<Led>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Led, state, base, st_scratch);
         rgba bg{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Led, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
         const rgba fill = on_ ? (on_color_.a ? on_color_ : border)
@@ -52,5 +54,7 @@ private:
     rgba on_color_{0, 0, 0, 0};
     rgba off_color_{0, 0, 0, 0};
 };
+
+
 
 

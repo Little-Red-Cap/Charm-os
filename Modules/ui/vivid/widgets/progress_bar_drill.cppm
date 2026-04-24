@@ -1,20 +1,26 @@
 module;
 #include <cstddef>
+#include <cstdint>
 export module charm.widgets.progress_bar_drill;
 
 import charm.core.object;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import alg_arc;
 
 using namespace ui::render;
 
 // Drill progress bar (ARM-2D progress_bar_drill inspired)
 export
-class ProgressBarDrill : public ObjectBase {
+class ProgressBarDrill : public WidgetBase<ProgressBarDrill> {
 public:
+    using value_state_type = service::state<int, 4>;
+    using value_slot_type = typename value_state_type::slot_type;
+    using value_connection = typename value_state_type::connection;
+
     ProgressBarDrill() {
         set_size(200, 18);
     }
@@ -27,18 +33,18 @@ public:
             min_ = min_v;
             max_ = max_v;
         }
-        set_value(value_);
+        set_value(value());
     }
 
     void set_value(int v) noexcept {
-        value_ = alg::arc::clamp_to_range(v, min_, max_);
+        (void)value_.set(alg::arc::clamp_to_range(v, min_, max_));
         indeterminate_ = false;
     }
 
-    int value() const noexcept { return value_; }
+    [[nodiscard]] int value() const noexcept { return value_.get(); }
 
     void set_indeterminate(bool on) noexcept { indeterminate_ = on; }
-    bool is_indeterminate() const noexcept { return indeterminate_; }
+    [[nodiscard]] bool is_indeterminate() const noexcept { return indeterminate_; }
 
     void set_animation_enabled(bool on) noexcept { anim_enabled_ = on; }
     void set_animation_speed(float px) noexcept { set_flow_speed(static_cast<int>(px)); }
@@ -51,19 +57,29 @@ public:
     void set_track_color(const rgba& c) noexcept { track_color_ = c; }
     void set_hole_color(const rgba& c) noexcept { hole_color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<ProgressBarDrill>();
+    // observe_value() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
+        return value_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
+        return value_.disconnect(c);
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ProgressBarDrill>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ProgressBarDrill, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ProgressBarDrill, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         Rect inner{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
         if (inner.w <= 0 || inner.h <= 0) return;
 
@@ -71,7 +87,7 @@ public:
         const rgba fill = fill_color_.a ? fill_color_ : accent;
         const rgba hole = hole_color_.a ? hole_color_ : bg;
 
-        draw_round_rect(cvs, inner.x, inner.y, inner.w, inner.h, st.corner_radius, track, true);
+        draw_round_rect(cvs, inner.x, inner.y, inner.w, inner.h, st.metrics.corner_radius, track, true);
 
         int fill_x = inner.x;
         int fill_w = inner.w;
@@ -91,14 +107,20 @@ public:
             fill_x = start;
             fill_w = end - start;
         } else {
-            const float ratio = alg::arc::ratio_from_range(value_, min_, max_);
-            fill_w = static_cast<int>(inner.w * ratio);
+            const int range = max_ - min_;
+            if (range > 0) {
+                const int clamped = alg::arc::clamp_to_range(value(), min_, max_);
+                const std::int64_t num = static_cast<std::int64_t>(inner.w) * (clamped - min_);
+                fill_w = static_cast<int>(num / range);
+            } else {
+                fill_w = 0;
+            }
             if (fill_w < 0) fill_w = 0;
             if (fill_w > inner.w) fill_w = inner.w;
             if (fill_w == 0) return;
         }
 
-        draw_round_rect(cvs, fill_x, inner.y, fill_w, inner.h, st.corner_radius, fill, true);
+        draw_round_rect(cvs, fill_x, inner.y, fill_w, inner.h, st.metrics.corner_radius, fill, true);
 
         const int hole_step = hole_spacing_ + hole_radius_ * 2;
         if (hole_step <= 0 || hole_radius_ <= 0) return;
@@ -123,7 +145,7 @@ public:
 private:
     int min_{0};
     int max_{100};
-    int value_{0};
+    value_state_type value_{0};
     bool indeterminate_{false};
     bool anim_enabled_{true};
     int flow_speed_{2};
@@ -135,5 +157,7 @@ private:
     rgba track_color_{0, 0, 0, 0};
     rgba hole_color_{0, 0, 0, 0};
 };
+
+
 
 

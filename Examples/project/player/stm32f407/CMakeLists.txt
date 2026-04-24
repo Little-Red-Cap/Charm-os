@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+﻿cmake_minimum_required(VERSION 4.0)
 
 #
 # This file is generated only once,
@@ -53,12 +53,18 @@ file(GLOB_RECURSE MODULE_INTERFACE_UNITS
         "../app/*.cppm"
         "./*.cppm"
 )
+list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio_player_demo.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio_demo.cppm"
+)
+list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "audio_player_demo\\.cppm$")
+list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "audio_demo\\.cppm$")
+list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "ui_tile_backend\\.cppm$")
 
 target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
     # Add user sources here
         Core/Src/main.cpp
-        Core/Src/out.port.stm32.cpp
 
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES
@@ -86,6 +92,9 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     CHARM_AUDIO_SINK_I2S=1
     CHARM_AUDIO_USE_VFS=1
     CHARM_AUDIO_ENABLE_STRESS=0
+    CHARM_AUDIO_MAX_PERIOD_FRAMES=256
+    CHARM_AUDIO_MAX_CHUNK_MULT=4
+    CHARM_AUDIO_MAX_FIFO_MS=70
 )
 
 # Ensure Charm-os is built with the same feature flags.
@@ -93,19 +102,24 @@ add_compile_definitions(CHARM_VIVID_ENABLE_LAYER_CACHE=0)
 add_compile_definitions(CHARM_AUDIO_SINK_I2S=1)
 add_compile_definitions(CHARM_AUDIO_USE_VFS=1)
 add_compile_definitions(CHARM_AUDIO_ENABLE_STRESS=0)
+add_compile_definitions(CHARM_AUDIO_MAX_PERIOD_FRAMES=256)
+add_compile_definitions(CHARM_AUDIO_MAX_CHUNK_MULT=4)
+add_compile_definitions(CHARM_AUDIO_MAX_FIFO_MS=70)
 add_compile_definitions(STM32F407xx)
 add_compile_definitions(USE_HAL_DRIVER)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
-set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
+charm_add_config_interface(charm_cfg_player_stm32f407
+    INCLUDE_DIRECTORIES
+        $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>)
+set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
+set(CHARM_AUDIO_SINK_I2S ON CACHE BOOL "" FORCE)
 set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
-
-# Provide CubeMX headers to Charm-os so I2S sink can include i2s.h/main.h.
-target_include_directories(Charm-os PRIVATE
-    $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>
-)
+charm_apply_config_targets(Charm-build-config charm_cfg_player_stm32f407)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}

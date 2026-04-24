@@ -3,6 +3,8 @@
 > 目标：**PC/MCU 同构行为** + **实时路径最短**。  
 > 约束：**pipeline 内部使用 S32**，**FIFO 存 S16**，量化点固定在写入 FIFO 之前。
 
+> v1 可落地设计：`docs/audio/audio_design_v1.md`
+
 ---
 
 ## L1 接口签名（稳定 API）
@@ -10,24 +12,9 @@
 ### 1) 基础类型
 
 ```cpp
-enum class Errc : uint16_t {
-  ok = 0,
-  invalid_arg,
-  not_supported,
-  io_error,
-  decode_error,
-  end_of_stream,
-  bad_state,
-  timeout,
-};
-
-struct Err {
-  Errc code{};
-  uint16_t ext{};        // 模块内扩展码（SDL/decoder/driver 等）
-};
-
 template<class T>
-using Result = std::expected<T, Err>;
+using Result = util::Result<T>;
+// 错误码直接使用 util::Errc。
 
 enum class SampleType : uint8_t { s16, s24_in_32, s32, f32 };
 
@@ -55,7 +42,7 @@ struct IDataSource {
 
   // 可选：并行预读/索引查表
   virtual Result<size_t> read_at(int64_t offset, std::span<std::byte> out) {
-    return std::unexpected(Err{Errc::not_supported, 0});
+    return std::unexpected(Errc::not_supported);
   }
 };
 ```
@@ -95,6 +82,7 @@ using FillCallback = size_t(*)(std::span<std::byte> dst, void* user) noexcept;
 - `filled_bytes % frame_size == 0`
 - `dst.size()` 由 sink 保证是 `frame_size` 的整数倍
 - 若 FIFO 数据不足，只读取“最后一个完整 frame”，其余交给补零
+- 回调可能运行在 ISR/实时线程：禁止调用 decoder/graph/storage、禁止分配与加锁
 
 struct SinkConfig {
   AudioFormat fmt;
@@ -252,6 +240,380 @@ size_t audio_fill(std::span<std::byte> dst, void* user) noexcept {
   return filled; // 仅返回实际从 FIFO 读取的字节数
 }
 ```
+
+---
+
+## L2.5 Pull-Sim（PC 无硬件拉取仿真）
+
+> 目标：在 **不依赖硬件/SDL 实际音频输出** 的情况下，复现 I2S DMA 的 pull 语义，
+> 观察水位与 underrun 行为，并做可复现的压力测试。
+
+### 1) 入口与用法
+
+使用 `AudioPullSimulator` 替代真实 Sink，调用同一套 `FillCallback`：
+
+```
+AudioPullSimulator sim;
+sim.open(cfg);
+sim.set_fill_callback(pump.fill_callback(), &pump);
+sim.start();
+sim.step_once(); // 模拟一次 period 拉取
+```
+
+示例（SDL3 demo）：
+
+```
+sdl3-wav-demo --pull-sim --pull-jitter-ms=5 --pull-jitter-seed=1 --pull-jitter-pattern=burst --tone=440 --seconds=10
+```
+
+### 2) 观测指标（与真实路径对齐）
+
+建议关注三类指标（与 Player 调试面板口径一致）：
+
+- `water(ms)`：FIFO 水位的 now/min/max
+- `underrun`：sink 侧与 pump 侧计数
+- `cb_dt(ms)`：回调间隔的 min/avg/max
+
+### 3) Jitter 注入（压力测试）
+
+`pull-jitter-ms` 用于注入回调抖动（0..N ms），
+并支持 **seed / pattern** 以便可复现：
+
+- `pull-jitter-seed`：固定随机序列
+- `pull-jitter-pattern`：`uniform` / `burst`
+
+> Pull‑Sim 不替代真实硬件，只用于 **水位策略/underrun 行为** 的快速回归验证。
+
+---
+
+## L2.6 DSP Graph 骨架合同（Pull 语义 + 固定块）
+
+### 1) 外部语义：Pull 驱动
+
+系统唯一入口保持：
+
+```
+device.pull(period_frames)
+```
+
+Graph 对外只承诺：
+
+```
+graph.pull(frames)
+```
+
+> 设备时钟域驱动，避免 producer runaway，天然支持 zero-copy。
+
+### 2) 内部执行：固定块 + topo 顺序
+
+Graph 内部使用固定 block 处理（Push 执行），避免递归：
+
+```
+graph_block_frames = min(period_frames, 128)
+```
+
+建议：
+- `graph_block_frames` 优先取 2 的幂（64/128），便于 SIMD / resampler。  
+- 若 `period_frames` 小于 128，则保持 `period_frames`，避免额外拆分。
+- 若 `graph_block_frames < period_frames`，必须保持 **2 的幂**（64/128/256）。
+
+执行模型：
+
+```
+while (queue < frames) {
+  run_graph_block(graph_block_frames); // topo order
+}
+```
+
+> Pull 语义 + Push 执行，保证 MCU 友好与 DSP 友好。
+
+### 2.1) 输出写入策略（v1/v1.5 预留）
+
+v1 使用 **BufferWriter**（写入临时 S16 输出缓冲）：
+
+```
+Graph → BufferWriter → s16_out_ → PCM FIFO
+```
+
+v1.5 预留 **FifoWriter**（直接量化写入 FIFO span）：
+
+```
+Graph → FifoWriter → PCM FIFO
+```
+
+要求：Graph API 不绑定 FIFO 布局，输出方式由 Writer 适配，避免污染 DSP contract。
+
+### 2.2) Writer 适配接口（草图）
+
+```cpp
+struct FrameWriter {
+  // 返回可写 span（S16 interleaved），按 frames 申请
+  // 若返回空，表示当前不可写（例如 FIFO 满）
+  std::span<std::int16_t> writable(std::uint32_t frames) noexcept;
+  void commit(std::uint32_t frames) noexcept;
+};
+
+// v1: BufferWriter → s16_out_
+// v1.5: FifoWriter  → PCM FIFO span(A/B)
+```
+
+约束：
+- Writer 不暴露 FIFO A/B 细节给 Graph  
+- Graph 仍只处理 S32，量化写入由 Writer 统一完成  
+- Writer 必须保证 frame 对齐与有界时间
+
+### 3) FrameSpan（v1 最小形态）
+
+```cpp
+struct FrameSpan {
+  std::int32_t* data;   // interleaved S32
+  std::uint32_t frames;
+  std::uint16_t channels;
+  std::uint16_t stride; // sample stride, v1 默认 = channels
+};
+```
+
+约定：
+- DMA/I2S buffer 使用 **interleaved LRLR**。  
+- `stride` 默认等于 `channels`，如需 planar/对齐，使用节点内部 scratch。
+
+### 4) Node 接口（去 virtual）
+
+v1 采用 type-erased 函数表，避免虚函数：
+
+```cpp
+struct NodeApi {
+  void (*pull)(void* ctx, FrameSpan out) noexcept;
+  void (*reset)(void* ctx, std::uint16_t channels) noexcept;
+};
+
+struct NodeRef {
+  void* ctx;
+  const NodeApi* api;
+};
+```
+
+### 5) 节点约束（强规则）
+
+- 节点必须 deterministic：同样输入 → 同样输出  
+- 节点不得分配内存（no malloc/new），只允许栈或预分配  
+- 节点不得阻塞、不得锁等待、不得进行 IO  
+- 节点必须在有界时间内完成  
+- 节点默认假定 `frames == graph_block_frames`  
+- 支持 in-place（输入输出可重叠）
+- 节点不得改变 frame count（输入帧数必须等于输出帧数）  
+  变速/重采样属于专用节点，不得混入普通 DSP 节点
+
+### 5.1) In-place 约束（v1）
+
+v1 采用 **in-place 线性 pipeline**：
+
+```
+buffer → node1 → node2 → node3
+```
+
+若节点不支持 in-place，**必须在节点内部使用 scratch 并写回**，  
+不得把 ping-pong 传导到 Graph 层。  
+Node 可使用内部 scratch memory，但 **Graph 逻辑仍然是 in-place**。
+
+---
+
+## L2.7 PCMFrameQueue（时钟域桥接）
+
+### 1) 角色定位
+
+PCMFrameQueue 不是“普通 buffer”，而是 **clock domain bridge**：
+
+```
+IO/Compute domain (Decoder burst)
+          ↓
+     PCMFrameQueue
+          ↓
+Realtime/Device domain (fixed block)
+```
+
+它负责把 **burst 解码** 与 **固定 block DSP** 解耦。
+
+### 2) 数据结构
+
+- **frame-aligned ringbuffer**  
+- **contiguous storage + head/tail**  
+- **A/B 双 span 视图**（零拷贝）
+
+访问形态：
+
+```
+read/write -> span A + span B
+```
+
+### 3) 核心契约（必须满足）
+
+1) **frame 对齐**  
+   存储单位为 frame，禁止半个 frame 读写。
+
+2) **固定容量**  
+   `reset()` 时一次性分配，运行期 **不允许动态扩容**。
+
+3) **零拷贝视图**  
+   所有读写都通过 span A/B 暴露连续内存。
+
+### 4) 容量建议
+
+推荐：
+
+```
+capacity_frames >= 2 * period_frames
+```
+
+更稳的下限：
+
+```
+capacity_frames >= 4 * graph_block_frames
+```
+
+用于吸收 decoder burst（如 MP3 1152 frames）。
+
+### 5) 并发语义（v1 / v2）
+
+v1：单线程 data-plane 内部使用。  
+v2：可升级为 **SPSC ringbuffer**（head/tail 原子 + acq/rel）。
+
+### 5.1) 双队列并发模型（必须区分）
+
+```
+PCMFrameQueue  → compute-domain transport（单线程，无原子）
+PCM FIFO       → realtime-domain transport（SPSC atomic）
+```
+
+PCMFrameQueue 只服务 Decoder/DSP，不与 ISR 并发。  
+PCM FIFO 负责 task ↔ ISR 的实时交互。
+
+### 6) 数据格式约束
+
+v1 仅承载 **S32 interleaved PCM**，用于：
+
+```
+Decoder → PCMFrameQueue → DSP Graph
+```
+
+未来如需 DSD/float，可引入 **AudioFrameQueue** 或在队列上层加 format tag，  
+但 v1 不扩展格式，避免污染实时域契约。
+
+**PCMFrameQueue 是实时域 PCM 传输组件，而不是通用音频帧队列。**  
+原则：**不要过早泛化实时数据通道。**
+
+---
+
+## L2.8 Realtime ISR 约束与水位策略
+
+### 1) ISR 约束（必须遵守）
+
+DMA ISR **不得**：
+- 运行 DSP Graph / Decoder  
+- 进行存储 IO  
+- 分配内存（malloc/new）  
+
+DMA ISR **只允许**：
+- 从 PCM FIFO 读取  
+- 拷贝到 DMA buffer  
+- 不足补零  
+- 计数/标志位更新
+
+### 2) 生产/消费模型
+
+```
+ISR（消费） ← PCM FIFO ← Audio Task（生产）
+```
+
+PCMFrameQueue 仍在 data-plane 内部使用，不与 ISR 并发。  
+
+### 3) 水位策略（推荐）
+
+```
+capacity_frames >= 2 * period_frames
+low_water  < high_water
+```
+
+Audio Task 逻辑：
+
+```
+if queue < high_water:
+  run_graph_block(...)
+```
+
+目的：Graph 批量运行，提升 cache locality，降低调度开销。
+
+---
+
+## L2.9 输出格式策略（v1/v2）
+
+### v1：S16 输出（稳定优先）
+
+当前默认链路：
+
+```
+DSP(S32) → quantize → S16 FIFO → I2S/SDL
+```
+
+理由：
+- v1 优先稳态与兼容性  
+- FIFO/带宽/缓存成本更可控  
+- sink/I2S 配置成本更低  
+
+### v2：S32 输出（高动态范围）
+
+目标链路：
+
+```
+DSP(S32) → S32 FIFO → I2S 32bit
+```
+
+适用：ES9039Q2M 等支持 32bit I2S 的场景。  
+
+落地前置条件：
+- PCM FIFO 支持 32bit 样本  
+- sink/I2S 支持 `SampleType::s32`  
+- Writer/量化路径可切换  
+
+---
+
+## L2.10 PCM FIFO 与 Sink 的格式协商
+
+### 1) 协商原则
+
+- **输出格式由 Sink 能力决定**，Graph 不做格式协商  
+- Data-plane 负责 **量化/格式转换**，保证 FIFO 与 Sink 匹配  
+- v1 仅支持 `S16 interleaved`，v2 才引入 `S32`
+
+### 2) v1 协商流程（S16 固定）
+
+```
+InputFmt → (Decode/Resample/EQ) → S32 DSP
+S32 → quantize → S16 FIFO
+Sink.open(S16)
+```
+
+### 3) v2 协商流程（S16/S32 可切换）
+
+```
+Sink.capabilities() → choose SampleType
+DSP outputs S32
+
+if SampleType == s16:
+    quantize → S16 FIFO
+else if SampleType == s32:
+    direct → S32 FIFO
+```
+
+### 4) 量化点归属
+
+**量化只允许发生在 realtime 输出边界**（FIFO 写入前）。  
+禁止在 Graph 节点内部做量化，以免污染 DSP contract。
+
+### 5) 失败策略
+
+- Sink 不支持请求格式 → 回退至 S16  
+- FIFO 不支持请求格式 → 回退至 S16  
 
 ---
 
@@ -1079,6 +1441,25 @@ Decoder(S32 @ in_rate, in_ch)
 
 注：MVP 先固定此顺序，避免组合爆炸；未来引入 Mixer 后再讨论放置位置。
 
+#### FixedRate 的 chunk 策略（v1 规则）
+
+- 目标：在 `in_rate > out_rate` 时保证 resample 缓冲不越界，同时不改变外部水位策略。
+- 计算：
+  - `chunk_frames = period_frames * chunk_mult`
+  - 当 `fixed_rate` 且 `in_rate > out_rate` 时，做上限收敛：
+    - `max_input_frames = kMaxChunkFrames + 2`
+    - `max_out_frames = floor((max_input_frames - 2) * out_rate / in_rate)`
+    - `chunk_frames = min(chunk_frames, max_out_frames)`
+- 结果：高采样率（如 96k）会自动缩小单次补给尺寸，但水位与 period 仍然按输出侧计算。
+
+#### Resample 缓冲策略（v1 规则）
+
+- resample 内部允许缓存少量残留帧（cache），以适配分数步长。
+- 若 `s32_work` 临时缓冲因缓存叠加超出容量：
+  - 先清空 cache 再重试；
+  - 若仍失败则停止输出并返回错误。
+- 该策略仅影响 resample 内部，不改变外部 FIFO/水位契约。
+
 ---
 
 ### 最小实现规则（S32 interleaved）
@@ -1103,7 +1484,7 @@ Downmix（2→1）：
 1) 进入重配事务（非实时线程）
 2) sink.stop()（确保回调停止）
 3) fifo.clear()，清 underrun 标志
-4) 返回 Errc::not_supported（可带 ext=channels）
+4) 返回 Errc::not_supported（需要上下文时用 stage 字段）
 5) state = Error（或回到 Idle，由上层策略决定）
 
 关键：失败也必须安全停输出，禁止“半重配”后继续播放。

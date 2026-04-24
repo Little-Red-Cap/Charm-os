@@ -8,19 +8,20 @@ export
 class ScrollDirtyAccumulator {
 public:
     void add(const Rect& r) noexcept {
-        if (r.w <= 0 || r.h <= 0) return;
+        const Rect nr = rect_normalized(r);
+        if (!rect_valid(nr)) return;
         if (!valid_) {
-            accum_ = r;
+            accum_ = nr;
             valid_ = true;
             return;
         }
-        const int left = (r.x < accum_.x) ? r.x : accum_.x;
-        const int top = (r.y < accum_.y) ? r.y : accum_.y;
-        const int right = ((r.x + r.w) > (accum_.x + accum_.w))
-            ? (r.x + r.w)
+        const int left = (nr.x < accum_.x) ? nr.x : accum_.x;
+        const int top = (nr.y < accum_.y) ? nr.y : accum_.y;
+        const int right = ((nr.x + nr.w) > (accum_.x + accum_.w))
+            ? (nr.x + nr.w)
             : (accum_.x + accum_.w);
-        const int bottom = ((r.y + r.h) > (accum_.y + accum_.h))
-            ? (r.y + r.h)
+        const int bottom = ((nr.y + nr.h) > (accum_.y + accum_.h))
+            ? (nr.y + nr.h)
             : (accum_.y + accum_.h);
         accum_.x = left;
         accum_.y = top;

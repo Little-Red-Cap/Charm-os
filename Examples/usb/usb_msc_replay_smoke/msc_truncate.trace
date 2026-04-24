@@ -1,0 +1,12 @@
+trace usb.replay.v1
+# usb-msc-replay-smoke truncate fixture
+reset
+control_in bm=80 b=06 wv=0300 wi=0000 wl=0002 zlp=0 data=0403
+control_in bm=80 b=06 wv=0302 wi=0409 wl=0008 zlp=0 data=2203430068006100
+control_in bm=80 b=06 wv=0100 wi=0000 wl=0008 zlp=0 data=1201000200000040
+control_out bm=00 b=05 wv=0007 wi=0000 wl=0000 zlp=1 data=-
+control_in bm=80 b=06 wv=0200 wi=0000 wl=0008 zlp=0 data=0902200001010080
+control_out bm=00 b=09 wv=0001 wi=0000 wl=0000 zlp=1 data=-
+control_in bm=A1 b=FE wv=0000 wi=0000 wl=0004 zlp=0 data=00
+out ep=01 zlp=0 data=55534243010000002400000080000612000000240000000000000000000000
+in ep=81 zlp=0 data=008002021F000000436861726D2020204D6F636B4469736B2020202020202020312E303055534253010000000000000000

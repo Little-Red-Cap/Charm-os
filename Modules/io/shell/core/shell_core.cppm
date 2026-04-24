@@ -7,26 +7,18 @@
 export module shell_core;
 
 import util.core;
+import util.error;
 
 export namespace shell {
-    enum class Errno : util::u8 {
-        ok = 0,
-        perm,
-        noent,
-        io,
-        busy,
-        inval,
-        nomem,
-        nosys
-    };
+    typedef util::Errc Errc;
 
     struct Result {
-        Errno err{Errno::ok};
-        constexpr explicit operator bool() const noexcept { return err == Errno::ok; }
+        Errc err{Errc::ok};
+        constexpr explicit operator bool() const noexcept { return err == Errc::ok; }
     };
 
-    constexpr Result ok() noexcept { return Result{Errno::ok}; }
-    constexpr Result err(Errno e) noexcept { return Result{e}; }
+    constexpr Result ok() noexcept { return Result{Errc::ok}; }
+    constexpr Result err(Errc e) noexcept { return Result{e}; }
 
     struct Buffer {
         const char* data{nullptr};

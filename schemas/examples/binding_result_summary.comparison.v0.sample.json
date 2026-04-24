@@ -1,0 +1,133 @@
+{
+  "kind": "binding_result_summary/v0",
+  "mode": "comparison",
+  "compared_case_count": 1,
+  "changed_case_count": 1,
+  "unchanged_case_count": 0,
+  "changed_cases": [
+    "demo-case"
+  ],
+  "unchanged_cases": [],
+  "binding_change_count": 1,
+  "cases": [
+    {
+      "case": "demo-case",
+      "profile": "",
+      "board": "win_stub",
+      "active_facets": [
+        "runtime",
+        "input"
+      ],
+      "changed": true,
+      "summary_changes": [
+        "unresolved_binding_count:0->1"
+      ],
+      "binding_change_count": 1,
+      "capabilities_changed": [
+        "platform.irq"
+      ],
+      "resolved_capability_changes": {
+        "added": [],
+        "removed": []
+      },
+      "unresolved_capability_changes": {
+        "added": [
+          "platform.irq"
+        ],
+        "removed": []
+      },
+      "binding_changes": [
+        {
+          "capability": "platform.irq",
+          "change_kind": "changed",
+          "left_state": "resolved",
+          "right_state": "unresolved",
+          "left_provider_nodes": [
+            "platform.irq"
+          ],
+          "right_provider_nodes": [],
+          "left_consumer_nodes": [
+            "hal.uart1"
+          ],
+          "right_consumer_nodes": [
+            "hal.uart1"
+          ],
+          "left_reason": "required capability is provided by at least one materialized node",
+          "right_reason": "required capability was not provided by any materialized node"
+        }
+      ]
+    }
+  ],
+  "summary_change_matrix": [
+    {
+      "change": "unresolved_binding_count:0->1",
+      "case_count": 1,
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub"
+        }
+      ]
+    }
+  ],
+  "capability_change_matrix": [
+    {
+      "capability": "platform.irq",
+      "case_count": 1,
+      "change_kinds": [
+        "changed"
+      ],
+      "states": [
+        "resolved",
+        "unresolved"
+      ],
+      "reasons": [
+        "required capability is provided by at least one materialized node",
+        "required capability was not provided by any materialized node"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "change_kind": "changed",
+          "left_state": "resolved",
+          "right_state": "unresolved",
+          "left_provider_nodes": [
+            "platform.irq"
+          ],
+          "right_provider_nodes": [],
+          "left_consumer_nodes": [
+            "hal.uart1"
+          ],
+          "right_consumer_nodes": [
+            "hal.uart1"
+          ],
+          "left_reason": "required capability is provided by at least one materialized node",
+          "right_reason": "required capability was not provided by any materialized node"
+        }
+      ]
+    }
+  ],
+  "resolved_capability_change_matrix": [],
+  "unresolved_capability_change_matrix": [
+    {
+      "capability": "platform.irq",
+      "case_count": 1,
+      "change_kinds": [
+        "added"
+      ],
+      "cases": [
+        {
+          "case": "demo-case",
+          "profile": "",
+          "board": "win_stub",
+          "change_kinds": [
+            "added"
+          ]
+        }
+      ]
+    }
+  ]
+}

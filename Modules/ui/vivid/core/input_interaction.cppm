@@ -1,16 +1,16 @@
 module;
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <concepts>
 export module charm.core.input_interaction;
 
 export import charm.core.event;
+export import util.delegate;
 
 export
-class InteractionStrategy {
-public:
-    virtual ~InteractionStrategy() = default;
-    virtual bool on_event(const Event& e) = 0;
+template<typename T>
+concept InteractionHandler = requires(T& t, const Event& e) {
+    { t.on_event(e) } -> std::convertible_to<bool>;
 };
 
 export
@@ -27,26 +27,37 @@ public:
             : EventMask{0};
     }
 
-    bool add(InteractionStrategy* strategy, EventMask mask = kAll) noexcept {
+    struct Slot {
+        void* self{nullptr};
+        bool (*on_event)(void*, const Event&){nullptr};
+        EventMask mask{0};
+    };
+
+    template<InteractionHandler Strategy>
+    bool add(Strategy* strategy, EventMask mask = kAll) noexcept {
         if (!strategy) return false;
         for (std::size_t i = 0; i < count_; ++i) {
-            if (items_[i] == strategy) return true;
+            if (items_[i].self == strategy) return true;
         }
         if (count_ >= kMax) return false;
-        items_[count_++] = strategy;
-        masks_[count_ - 1] = mask;
+        items_[count_++] = Slot{
+            strategy,
+            +[](void* self, const Event& e) {
+                return static_cast<Strategy*>(self)->on_event(e);
+            },
+            mask
+        };
         return true;
     }
 
-    bool remove(InteractionStrategy* strategy) noexcept {
+    template<InteractionHandler Strategy>
+    bool remove(Strategy* strategy) noexcept {
         for (std::size_t i = 0; i < count_; ++i) {
-            if (items_[i] == strategy) {
+            if (items_[i].self == strategy) {
                 for (std::size_t j = i + 1; j < count_; ++j) {
                     items_[j - 1] = items_[j];
-                    masks_[j - 1] = masks_[j];
                 }
-                items_[count_ - 1] = nullptr;
-                masks_[count_ - 1] = 0;
+                items_[count_ - 1] = Slot{};
                 --count_;
                 return true;
             }
@@ -57,10 +68,10 @@ public:
     bool on_event(const Event& e) {
         const auto event_mask = mask(e.type);
         for (std::size_t i = 0; i < count_; ++i) {
-            auto* strategy = items_[i];
-            if (!strategy) continue;
-            if ((masks_[i] & event_mask) == 0) continue;
-            if (strategy->on_event(e)) {
+            const auto& slot = items_[i];
+            if (!slot.self || !slot.on_event) continue;
+            if ((slot.mask & event_mask) == 0) continue;
+            if (slot.on_event(slot.self, e)) {
                 return true;
             }
         }
@@ -68,19 +79,27 @@ public:
     }
 
 private:
-    InteractionStrategy* items_[kMax]{};
-    EventMask masks_[kMax]{};
+    Slot items_[kMax]{};
     std::size_t count_{0};
 };
 
 export
-class DoubleTapRestoreStrategy : public InteractionStrategy {
+class DoubleTapRestoreStrategy {
 public:
     using Callback = void(*)(void*);
+    // Prefer util::delegate for same-domain UI binding; keep fn+ctx for legacy call sites.
+    using callback_delegate = util::delegate<>;
+
+    void set_callback(callback_delegate callback) noexcept {
+        callback_ = callback;
+        legacy_callback_ = nullptr;
+        legacy_ctx_ = nullptr;
+    }
 
     void set_callback(Callback fn, void* ctx) noexcept {
-        callback_ = fn;
-        ctx_ = ctx;
+        callback_ = {};
+        legacy_callback_ = fn;
+        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -92,130 +111,208 @@ public:
         double_tap_dist_sq_ = radius_px * radius_px;
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type != Event::Type::Click) return false;
-        if (!is_double_tap(e.x, e.y)) return false;
-        if (callback_) callback_(ctx_);
+        if (!is_double_tap(e.x, e.y, e.ms)) return false;
+        if (callback_) {
+            callback_();
+        } else if (legacy_callback_) {
+            legacy_callback_(legacy_ctx_);
+        }
         return true;
     }
 
 private:
-    bool is_double_tap(int x, int y) {
-        const auto now = std::chrono::steady_clock::now();
+    bool is_double_tap(int x, int y, std::uint32_t now_ms) {
         bool is_double = false;
         if (double_tap_ms_ > 0) {
-            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now - last_tap_time_).count();
+            const auto elapsed = (now_ms >= last_tap_time_) ? (now_ms - last_tap_time_) : 0;
             const int dx = x - last_tap_x_;
             const int dy = y - last_tap_y_;
             const int dist_sq = dx * dx + dy * dy;
-            if (elapsed >= 0 && elapsed <= double_tap_ms_ && dist_sq <= double_tap_dist_sq_) {
+            if (elapsed <= static_cast<std::uint32_t>(double_tap_ms_) &&
+                dist_sq <= double_tap_dist_sq_) {
                 is_double = true;
             }
         }
-        last_tap_time_ = now;
+        last_tap_time_ = now_ms;
         last_tap_x_ = x;
         last_tap_y_ = y;
         return is_double;
     }
 
-    Callback callback_{nullptr};
-    void* ctx_{nullptr};
+    callback_delegate callback_{};
+    Callback legacy_callback_{nullptr};
+    void* legacy_ctx_{nullptr};
     bool enabled_{true};
     int double_tap_ms_{300};
     int double_tap_dist_sq_{144};
     int last_tap_x_{0};
     int last_tap_y_{0};
-    std::chrono::steady_clock::time_point last_tap_time_{};
+    std::uint32_t last_tap_time_{0};
 };
 
 export
-class PinchScrollStrategy : public InteractionStrategy {
+class PinchScrollStrategy {
 public:
     using BeginFn = void(*)(void*);
     using UpdateFn = void(*)(void*, int);
     using EndFn = void(*)(void*);
+    using begin_delegate = util::delegate<>;
+    using update_delegate = util::delegate<int>;
+    using end_delegate = util::delegate<>;
+
+    void set_callbacks(begin_delegate begin_cb,
+                       update_delegate update_cb,
+                       end_delegate end_cb) noexcept {
+        begin_ = begin_cb;
+        update_ = update_cb;
+        end_ = end_cb;
+        legacy_begin_ = nullptr;
+        legacy_update_ = nullptr;
+        legacy_end_ = nullptr;
+        legacy_ctx_ = nullptr;
+    }
 
     void set_callbacks(BeginFn begin_fn, UpdateFn update_fn, EndFn end_fn, void* ctx) noexcept {
-        begin_ = begin_fn;
-        update_ = update_fn;
-        end_ = end_fn;
-        ctx_ = ctx;
+        begin_ = {};
+        update_ = {};
+        end_ = {};
+        legacy_begin_ = begin_fn;
+        legacy_update_ = update_fn;
+        legacy_end_ = end_fn;
+        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
         if (e.gesture_phase == Event::GesturePhase::Begin) {
-            if (begin_) begin_(ctx_);
+            if (begin_) {
+                begin_();
+            } else if (legacy_begin_) {
+                legacy_begin_(legacy_ctx_);
+            }
         } else if (e.gesture_phase == Event::GesturePhase::Update) {
-            if (update_) update_(ctx_, e.dy);
+            if (update_) {
+                update_(e.dy);
+            } else if (legacy_update_) {
+                legacy_update_(legacy_ctx_, e.dy);
+            }
         } else if (e.gesture_phase == Event::GesturePhase::End) {
-            if (end_) end_(ctx_);
+            if (end_) {
+                end_();
+            } else if (legacy_end_) {
+                legacy_end_(legacy_ctx_);
+            }
         }
         return true;
     }
 
 private:
-    BeginFn begin_{nullptr};
-    UpdateFn update_{nullptr};
-    EndFn end_{nullptr};
-    void* ctx_{nullptr};
+    begin_delegate begin_{};
+    update_delegate update_{};
+    end_delegate end_{};
+    BeginFn legacy_begin_{nullptr};
+    UpdateFn legacy_update_{nullptr};
+    EndFn legacy_end_{nullptr};
+    void* legacy_ctx_{nullptr};
     bool enabled_{true};
 };
 
 export
-class DragStrategy : public InteractionStrategy {
+class DragStrategy {
 public:
     using BeginFn = void(*)(void*, int, int);
     using UpdateFn = void(*)(void*, int, int, int, int);
     using EndFn = void(*)(void*, int, int);
+    using begin_delegate = util::delegate<int, int>;
+    using update_delegate = util::delegate<int, int, int, int>;
+    using end_delegate = util::delegate<int, int>;
+
+    void set_callbacks(begin_delegate begin_cb,
+                       update_delegate update_cb,
+                       end_delegate end_cb) noexcept {
+        begin_ = begin_cb;
+        update_ = update_cb;
+        end_ = end_cb;
+        legacy_begin_ = nullptr;
+        legacy_update_ = nullptr;
+        legacy_end_ = nullptr;
+        legacy_ctx_ = nullptr;
+    }
 
     void set_callbacks(BeginFn begin_fn, UpdateFn update_fn, EndFn end_fn, void* ctx) noexcept {
-        begin_ = begin_fn;
-        update_ = update_fn;
-        end_ = end_fn;
-        ctx_ = ctx;
+        begin_ = {};
+        update_ = {};
+        end_ = {};
+        legacy_begin_ = begin_fn;
+        legacy_update_ = update_fn;
+        legacy_end_ = end_fn;
+        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type == Event::Type::DragStart) {
-            if (begin_) begin_(ctx_, e.x, e.y);
+            if (begin_) {
+                begin_(e.x, e.y);
+            } else if (legacy_begin_) {
+                legacy_begin_(legacy_ctx_, e.x, e.y);
+            }
             return true;
         }
         if (e.type == Event::Type::DragMove) {
-            if (update_) update_(ctx_, e.x, e.y, e.dx, e.dy);
+            if (update_) {
+                update_(e.x, e.y, e.dx, e.dy);
+            } else if (legacy_update_) {
+                legacy_update_(legacy_ctx_, e.x, e.y, e.dx, e.dy);
+            }
             return true;
         }
         if (e.type == Event::Type::DragEnd) {
-            if (end_) end_(ctx_, e.x, e.y);
+            if (end_) {
+                end_(e.x, e.y);
+            } else if (legacy_end_) {
+                legacy_end_(legacy_ctx_, e.x, e.y);
+            }
             return true;
         }
         return false;
     }
 
 private:
-    BeginFn begin_{nullptr};
-    UpdateFn update_{nullptr};
-    EndFn end_{nullptr};
-    void* ctx_{nullptr};
+    begin_delegate begin_{};
+    update_delegate update_{};
+    end_delegate end_{};
+    BeginFn legacy_begin_{nullptr};
+    UpdateFn legacy_update_{nullptr};
+    EndFn legacy_end_{nullptr};
+    void* legacy_ctx_{nullptr};
     bool enabled_{true};
 };
 
 export
-class LongPressStrategy : public InteractionStrategy {
+class LongPressStrategy {
 public:
     using Callback = void(*)(void*);
+    using callback_delegate = util::delegate<>;
+
+    void set_callback(callback_delegate callback) noexcept {
+        callback_ = callback;
+        legacy_callback_ = nullptr;
+        legacy_ctx_ = nullptr;
+    }
 
     void set_callback(Callback fn, void* ctx) noexcept {
-        callback_ = fn;
-        ctx_ = ctx;
+        callback_ = {};
+        legacy_callback_ = fn;
+        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -227,14 +324,14 @@ public:
         move_threshold_sq_ = move_px * move_px;
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type == Event::Type::MouseDown) {
             pressed_ = true;
             canceled_ = false;
             start_x_ = e.x;
             start_y_ = e.y;
-            start_time_ = std::chrono::steady_clock::now();
+            start_time_ = e.ms;
             return false;
         }
         if (!pressed_) return false;
@@ -253,15 +350,21 @@ public:
             return false;
         }
         if (e.type == Event::Type::MouseUp || e.type == Event::Type::DragEnd) {
-            const auto now = std::chrono::steady_clock::now();
-            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now - start_time_).count();
-            const bool fire = !canceled_ && elapsed >= threshold_ms_;
+            const auto now = e.ms;
+            const auto elapsed = (now >= start_time_) ? (now - start_time_) : 0;
+            const bool fire = !canceled_ &&
+                elapsed >= static_cast<std::uint32_t>(threshold_ms_);
             pressed_ = false;
             canceled_ = false;
-            if (fire && callback_) {
-                callback_(ctx_);
-                return true;
+            if (fire) {
+                if (callback_) {
+                    callback_();
+                    return true;
+                }
+                if (legacy_callback_) {
+                    legacy_callback_(legacy_ctx_);
+                    return true;
+                }
             }
             return false;
         }
@@ -269,8 +372,9 @@ public:
     }
 
 private:
-    Callback callback_{nullptr};
-    void* ctx_{nullptr};
+    callback_delegate callback_{};
+    Callback legacy_callback_{nullptr};
+    void* legacy_ctx_{nullptr};
     bool enabled_{true};
     bool pressed_{false};
     bool canceled_{false};
@@ -278,5 +382,5 @@ private:
     int move_threshold_sq_{36};
     int start_x_{0};
     int start_y_{0};
-    std::chrono::steady_clock::time_point start_time_{};
+    std::uint32_t start_time_{0};
 };

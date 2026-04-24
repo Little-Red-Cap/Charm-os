@@ -8,13 +8,13 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.image;
-import charm.gfx.render;
+import charm.gfx.render_style;
 
 using namespace ui::render;
 
 // CRT screen effect (ARM-2D crt_screen inspired)
 export
-class CrtScreen : public ObjectBase {
+class CrtScreen : public WidgetBase<CrtScreen> {
 public:
     CrtScreen() {
         set_size(220, 160);
@@ -41,12 +41,27 @@ public:
         scan_opacity1_ = a1;
     }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<CrtScreen>();
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        int pad = 0;
+        if (scan_enabled_) {
+            int h0 = scan_bar_h0_;
+            int h1 = scan_bar_h1_;
+            if (h0 < 0) h0 = 0;
+            if (h1 < 0) h1 = 0;
+            pad = (h0 > h1) ? h0 : h1;
+        }
+        return Rect{r.x, r.y - pad, r.w, r.h + pad * 2};
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<CrtScreen>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::CrtScreen, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::CrtScreen, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
@@ -112,5 +127,7 @@ private:
     int scan_pos1_{0};
     std::uint32_t rng_{0x87654321u};
 };
+
+
 
 

@@ -1,0 +1,439 @@
+#ifndef VIVID_WIDGET_DEFAULT
+#define VIVID_WIDGET_DEFAULT 1
+#endif
+#ifndef VIVID_WIDGET_REGISTRY
+#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, factory_fn, factory_pool, factory_create, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Container
+#define CHARM_VIVID_ENABLE_WIDGET_Container VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Container
+VIVID_WIDGET_REGISTRY(Container, charm.core.container, Container, None, container, containers_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
+#define CHARM_VIVID_ENABLE_WIDGET_ScrollContainer VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
+VIVID_WIDGET_REGISTRY(ScrollContainer, charm.widgets.scroll_container, ScrollContainer, ScrollContainer, scroll_container, scrolls_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 1, SelfIfScrollableElseAncestor, ScrollDrag, 0, None, 0, None, 1, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Dial
+#define CHARM_VIVID_ENABLE_WIDGET_Dial VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Dial
+VIVID_WIDGET_REGISTRY(Dial, charm.widgets.dial, Dial, Dial, dial, dials_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Arc
+#define CHARM_VIVID_ENABLE_WIDGET_Arc VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Arc
+VIVID_WIDGET_REGISTRY(Arc, charm.widgets.arc, Arc, Arc, arc, arcs_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Image
+#define CHARM_VIVID_ENABLE_WIDGET_Image VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Image
+VIVID_WIDGET_REGISTRY(Image, charm.widgets.image, Image, Image, image, images_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Label
+#define CHARM_VIVID_ENABLE_WIDGET_Label VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Label
+VIVID_WIDGET_REGISTRY(Label, charm.widgets.label, Label, Label, label, labels_, Text, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Button
+#define CHARM_VIVID_ENABLE_WIDGET_Button VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Button
+VIVID_WIDGET_REGISTRY(Button, charm.widgets.button, Button, Button, button, buttons_, Text, 0, None, Interactive, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_IconButton
+#define CHARM_VIVID_ENABLE_WIDGET_IconButton VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_IconButton
+VIVID_WIDGET_REGISTRY(IconButton, charm.widgets.button, Button, IconButton, icon_button, buttons_, None, 0, None, Interactive, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Checkbox
+#define CHARM_VIVID_ENABLE_WIDGET_Checkbox VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
+VIVID_WIDGET_REGISTRY(Checkbox, charm.widgets.checkbox, Checkbox, Checkbox, checkbox, checkboxes_, Text, 0, None, Readonly, 0, 1, 0, 0, 1, Toggle, None, None, true, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Led
+#define CHARM_VIVID_ENABLE_WIDGET_Led VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Led
+VIVID_WIDGET_REGISTRY(Led, charm.widgets.led, Led, Led, led, leds_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Slider
+#define CHARM_VIVID_ENABLE_WIDGET_Slider VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Slider
+VIVID_WIDGET_REGISTRY(Slider, charm.widgets.slider, Slider, Slider, slider, sliders_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 1, UpdateValueFromPos, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Switch
+#define CHARM_VIVID_ENABLE_WIDGET_Switch VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Switch
+VIVID_WIDGET_REGISTRY(Switch, charm.widgets.switcher, Switch, Switch, switch, switches_, None, 0, None, Readonly, 0, 0, 0, 0, 1, Toggle, None, None, true, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Progress
+#define CHARM_VIVID_ENABLE_WIDGET_Progress VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Progress
+VIVID_WIDGET_REGISTRY(Progress, charm.widgets.progress, Progress, Progress, progress, progresses_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_List
+#define CHARM_VIVID_ENABLE_WIDGET_List VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_List
+VIVID_WIDGET_REGISTRY(List, charm.widgets.list, List, List, list, lists_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 1, SelfIfScrollableElseAncestor, ScrollDrag, 0, None, 0, None, 1, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ListItem
+#define CHARM_VIVID_ENABLE_WIDGET_ListItem VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ListItem
+VIVID_WIDGET_REGISTRY(ListItem, charm.widgets.list, ListItem, ListItem, list_item, list_items_, Text, 0, None, Readonly, 0, 0, 0, 0, 1, ListItemGroup, None, ListItem, true, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ListView
+#define CHARM_VIVID_ENABLE_WIDGET_ListView VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ListView
+VIVID_WIDGET_REGISTRY(ListView, charm.widgets.list_view, ListView, ListView, list_view, list_views_, None, 0, None, Readonly, 0, 0, 0, 0, 1, ListView, ListViewY, None, false, 1, SelfIfScrollableElseAncestor, ScrollDrag, 0, None, 0, None, 1, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_IconList
+#define CHARM_VIVID_ENABLE_WIDGET_IconList VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_IconList
+VIVID_WIDGET_REGISTRY(IconList, charm.widgets.icon_list, IconList, IconList, icon_list, icon_lists_, None, 0, None, Readonly, 0, 0, 0, 0, 1, ListView, ListViewY, None, false, 1, SelfIfScrollableElseAncestor, ScrollDrag, 0, None, 0, None, 1, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_TextTrackingList
+#define CHARM_VIVID_ENABLE_WIDGET_TextTrackingList VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TextTrackingList
+VIVID_WIDGET_REGISTRY(TextTrackingList, charm.widgets.text_tracking_list, TextTrackingList, TextTrackingList, text_tracking_list, text_tracking_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_TextList
+#define CHARM_VIVID_ENABLE_WIDGET_TextList VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TextList
+VIVID_WIDGET_REGISTRY(TextList, charm.widgets.text_list, TextList, TextList, text_list, text_lists_, None, 0, None, Readonly, 0, 0, 0, 0, 1, TextList, TextListY, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ModalDialog
+#define CHARM_VIVID_ENABLE_WIDGET_ModalDialog VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ModalDialog
+VIVID_WIDGET_REGISTRY(ModalDialog, charm.widgets.modal_dialog, ModalDialog, ModalDialog, modal_dialog, modals_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ProgressBarSimple
+#define CHARM_VIVID_ENABLE_WIDGET_ProgressBarSimple VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ProgressBarSimple
+VIVID_WIDGET_REGISTRY(ProgressBarSimple, charm.widgets.progress_bar_simple, ProgressBarSimple, ProgressBarSimple, progress_bar_simple, progress_simple_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_DynamicNebula
+#define CHARM_VIVID_ENABLE_WIDGET_DynamicNebula VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_DynamicNebula
+VIVID_WIDGET_REGISTRY(DynamicNebula, charm.widgets.dynamic_nebula, DynamicNebula, DynamicNebula, dynamic_nebula, nebula_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_CrtScreen
+#define CHARM_VIVID_ENABLE_WIDGET_CrtScreen VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_CrtScreen
+VIVID_WIDGET_REGISTRY(CrtScreen, charm.widgets.crt_screen, CrtScreen, CrtScreen, crt_screen, crt_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ScrollBar
+#define CHARM_VIVID_ENABLE_WIDGET_ScrollBar VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollBar
+VIVID_WIDGET_REGISTRY(ScrollBar, charm.widgets.scrollbar, ScrollBar, ScrollBar, scroll_bar, scroll_bars_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 1, ScrollBarTrack, 1, BoundTarget, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_SegmentedControl
+#define CHARM_VIVID_ENABLE_WIDGET_SegmentedControl VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_SegmentedControl
+VIVID_WIDGET_REGISTRY(SegmentedControl, charm.widgets.segmented_control, SegmentedControl, SegmentedControl, segmented_control, segments_, None, 0, None, Readonly, 0, 1, 0, 0, 1, SegmentedControl, SegmentedX, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_TextArea
+#define CHARM_VIVID_ENABLE_WIDGET_TextArea VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TextArea
+VIVID_WIDGET_REGISTRY(TextArea, charm.widgets.text_area, TextArea, TextArea, text_area, text_areas_, Text, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_TextInput
+#define CHARM_VIVID_ENABLE_WIDGET_TextInput VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TextInput
+VIVID_WIDGET_REGISTRY(TextInput, charm.widgets.text_input, TextInput, TextInput, text_input, text_inputs_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_NumberInput
+#define CHARM_VIVID_ENABLE_WIDGET_NumberInput VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_NumberInput
+VIVID_WIDGET_REGISTRY(NumberInput, charm.widgets.number_input, NumberInput, NumberInput, number_input, number_inputs_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ToggleGroup
+#define CHARM_VIVID_ENABLE_WIDGET_ToggleGroup VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ToggleGroup
+VIVID_WIDGET_REGISTRY(ToggleGroup, charm.widgets.toggle_group, ToggleGroup, ToggleGroup, toggle_group, toggles_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_TableView
+#define CHARM_VIVID_ENABLE_WIDGET_TableView VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TableView
+VIVID_WIDGET_REGISTRY(TableView, charm.widgets.table_view, TableView, TableView, table_view, tables_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 1, SelfIfScrollableElseAncestor, ScrollDrag, 0, None, 0, None, 1, Both, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_TreeView
+#define CHARM_VIVID_ENABLE_WIDGET_TreeView VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TreeView
+VIVID_WIDGET_REGISTRY(TreeView, charm.widgets.tree_view, TreeView, TreeView, tree_view, trees_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 1, SelfIfScrollableElseAncestor, ScrollDrag, 0, None, 0, None, 1, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Dropdown
+#define CHARM_VIVID_ENABLE_WIDGET_Dropdown VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Dropdown
+VIVID_WIDGET_REGISTRY(Dropdown, charm.widgets.dropdown, Dropdown, Dropdown, dropdown, dropdowns_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_TabView
+#define CHARM_VIVID_ENABLE_WIDGET_TabView VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TabView
+VIVID_WIDGET_REGISTRY(TabView, charm.widgets.tabview, TabView, TabView, tabview, tabviews_, None, 0, None, Readonly, 0, 1, 0, 0, 1, SegmentedControl, SegmentedX, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Roller
+#define CHARM_VIVID_ENABLE_WIDGET_Roller VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Roller
+VIVID_WIDGET_REGISTRY(Roller, charm.widgets.roller, Roller, Roller, roller, rollers_, None, 0, None, Readonly, 0, 0, 0, 0, 1, Roller, RollerY, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Spinner
+#define CHARM_VIVID_ENABLE_WIDGET_Spinner VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Spinner
+VIVID_WIDGET_REGISTRY(Spinner, charm.widgets.spinner, Spinner, Spinner, spinner, spinners_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Bar
+#define CHARM_VIVID_ENABLE_WIDGET_Bar VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Bar
+VIVID_WIDGET_REGISTRY(Bar, charm.widgets.bar, Bar, Bar, bar, bars_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_PopupLayer
+#define CHARM_VIVID_ENABLE_WIDGET_PopupLayer VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_PopupLayer
+VIVID_WIDGET_REGISTRY(PopupLayer, charm.widgets.popup_layer, PopupLayer, PopupLayer, popup_layer, popups_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_MessageBox
+#define CHARM_VIVID_ENABLE_WIDGET_MessageBox VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_MessageBox
+VIVID_WIDGET_REGISTRY(MessageBox, charm.widgets.message_box, MessageBox, MessageBox, message_box, message_boxes_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Menu
+#define CHARM_VIVID_ENABLE_WIDGET_Menu VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Menu
+VIVID_WIDGET_REGISTRY(Menu, charm.widgets.menu, Menu, Menu, menu, menus_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_MenuItem
+#define CHARM_VIVID_ENABLE_WIDGET_MenuItem VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_MenuItem
+VIVID_WIDGET_REGISTRY(MenuItem, charm.widgets.menu_item, MenuItem, MenuItem, menu_item, menu_items_, Text, 0, None, Readonly, 0, 0, 0, 0, 1, ListItemGroup, None, MenuItem, true, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Radio
+#define CHARM_VIVID_ENABLE_WIDGET_Radio VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Radio
+VIVID_WIDGET_REGISTRY(Radio, charm.widgets.radio, Radio, Radio, radio, radios_, Text, 0, None, Readonly, 0, 1, 0, 0, 1, RadioGroup, None, Radio, true, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_RadioGroup
+#define CHARM_VIVID_ENABLE_WIDGET_RadioGroup VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_RadioGroup
+VIVID_WIDGET_REGISTRY(RadioGroup, charm.widgets.radio_group, RadioGroup, RadioGroup, radio_group, radio_groups_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Chart
+#define CHARM_VIVID_ENABLE_WIDGET_Chart VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Chart
+VIVID_WIDGET_REGISTRY(Chart, charm.widgets.chart, Chart, Chart, chart, charts_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Waveform
+#define CHARM_VIVID_ENABLE_WIDGET_Waveform VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Waveform
+VIVID_WIDGET_REGISTRY(Waveform, charm.widgets.waveform, Waveform, Waveform, waveform, waveforms_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Gauge
+#define CHARM_VIVID_ENABLE_WIDGET_Gauge VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Gauge
+VIVID_WIDGET_REGISTRY(Gauge, charm.widgets.gauge, Gauge, Gauge, gauge, gauges_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_PrimitivesCanvas
+#define CHARM_VIVID_ENABLE_WIDGET_PrimitivesCanvas VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_PrimitivesCanvas
+VIVID_WIDGET_REGISTRY(PrimitivesCanvas, charm.widgets.primitives_canvas, PrimitivesCanvas, PrimitivesCanvas, primitives_canvas, prim_canvas_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_PerfOverlay
+#define CHARM_VIVID_ENABLE_WIDGET_PerfOverlay VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_PerfOverlay
+VIVID_WIDGET_REGISTRY(PerfOverlay, charm.widgets.perf_overlay, PerfOverlay, PerfOverlay, perf_overlay, perf_overlays_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Stepper
+#define CHARM_VIVID_ENABLE_WIDGET_Stepper VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Stepper
+VIVID_WIDGET_REGISTRY(Stepper, charm.widgets.stepper, Stepper, Stepper, stepper, steppers_, None, 0, None, Readonly, 0, 0, 0, 0, 1, Stepper, StepperX, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Timeline
+#define CHARM_VIVID_ENABLE_WIDGET_Timeline VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Timeline
+VIVID_WIDGET_REGISTRY(Timeline, charm.widgets.timeline, Timeline, Timeline, timeline, timelines_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_RichText
+#define CHARM_VIVID_ENABLE_WIDGET_RichText VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_RichText
+VIVID_WIDGET_REGISTRY(RichText, charm.widgets.rich_text, RichText, RichText, rich_text, rich_texts_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_CodeBlock
+#define CHARM_VIVID_ENABLE_WIDGET_CodeBlock VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_CodeBlock
+VIVID_WIDGET_REGISTRY(CodeBlock, charm.widgets.code_block, CodeBlock, CodeBlock, code_block, code_blocks_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ProgressWheel
+#define CHARM_VIVID_ENABLE_WIDGET_ProgressWheel VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ProgressWheel
+VIVID_WIDGET_REGISTRY(ProgressWheel, charm.widgets.progress_wheel, ProgressWheel, ProgressWheel, progress_wheel, progress_wheels_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_WaveformView
+#define CHARM_VIVID_ENABLE_WIDGET_WaveformView VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_WaveformView
+VIVID_WIDGET_REGISTRY(WaveformView, charm.widgets.waveform_view, WaveformView, WaveformView, waveform_view, waveform_views_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_BatteryGauge
+#define CHARM_VIVID_ENABLE_WIDGET_BatteryGauge VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_BatteryGauge
+VIVID_WIDGET_REGISTRY(BatteryGauge, charm.widgets.battery_gauge, BatteryGauge, BatteryGauge, battery_gauge, batteries_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_HistogramView
+#define CHARM_VIVID_ENABLE_WIDGET_HistogramView VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_HistogramView
+VIVID_WIDGET_REGISTRY(HistogramView, charm.widgets.histogram_view, HistogramView, HistogramView, histogram_view, histograms_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_RingIndication
+#define CHARM_VIVID_ENABLE_WIDGET_RingIndication VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_RingIndication
+VIVID_WIDGET_REGISTRY(RingIndication, charm.widgets.ring_indication, RingIndication, RingIndication, ring_indication, rings_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_TextBox
+#define CHARM_VIVID_ENABLE_WIDGET_TextBox VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TextBox
+VIVID_WIDGET_REGISTRY(TextBox, charm.widgets.text_box, TextBox, TextBox, text_box, text_boxes_, Text, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_FoldablePanel
+#define CHARM_VIVID_ENABLE_WIDGET_FoldablePanel VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_FoldablePanel
+VIVID_WIDGET_REGISTRY(FoldablePanel, charm.widgets.foldable_panel, FoldablePanel, FoldablePanel, foldable_panel, fold_panels_, Text, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ProgressFlowing
+#define CHARM_VIVID_ENABLE_WIDGET_ProgressFlowing VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ProgressFlowing
+VIVID_WIDGET_REGISTRY(ProgressFlowing, charm.widgets.progress_flowing, ProgressFlowing, ProgressFlowing, progress_flowing, progress_flow_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_CloudyGlass
+#define CHARM_VIVID_ENABLE_WIDGET_CloudyGlass VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_CloudyGlass
+VIVID_WIDGET_REGISTRY(CloudyGlass, charm.widgets.cloudy_glass, CloudyGlass, CloudyGlass, cloudy_glass, glass_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_NumberList
+#define CHARM_VIVID_ENABLE_WIDGET_NumberList VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_NumberList
+VIVID_WIDGET_REGISTRY(NumberList, charm.widgets.number_list, NumberList, NumberList, number_list, number_lists_, None, 0, None, Readonly, 0, 0, 0, 0, 1, NumberList, NumberListY, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ProgressBarRound
+#define CHARM_VIVID_ENABLE_WIDGET_ProgressBarRound VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ProgressBarRound
+VIVID_WIDGET_REGISTRY(ProgressBarRound, charm.widgets.progress_bar_round, ProgressBarRound, ProgressBarRound, progress_bar_round, progress_round_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_SpinZoomWidget
+#define CHARM_VIVID_ENABLE_WIDGET_SpinZoomWidget VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_SpinZoomWidget
+VIVID_WIDGET_REGISTRY(SpinZoomWidget, charm.widgets.spin_zoom_widget, SpinZoomWidget, SpinZoomWidget, spin_zoom_widget, spin_zoom_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_SpinningWheel
+#define CHARM_VIVID_ENABLE_WIDGET_SpinningWheel VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_SpinningWheel
+VIVID_WIDGET_REGISTRY(SpinningWheel, charm.widgets.spinning_wheel, SpinningWheel, SpinningWheel, spinning_wheel, spinning_wheel_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ImageBox
+#define CHARM_VIVID_ENABLE_WIDGET_ImageBox VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ImageBox
+VIVID_WIDGET_REGISTRY(ImageBox, charm.widgets.image_box, ImageBox, ImageBox, image_box, image_boxes_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_MeterPointer
+#define CHARM_VIVID_ENABLE_WIDGET_MeterPointer VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_MeterPointer
+VIVID_WIDGET_REGISTRY(MeterPointer, charm.widgets.meter_pointer, MeterPointer, MeterPointer, meter_pointer, meters_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ProgressBarDrill
+#define CHARM_VIVID_ENABLE_WIDGET_ProgressBarDrill VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ProgressBarDrill
+VIVID_WIDGET_REGISTRY(ProgressBarDrill, charm.widgets.progress_bar_drill, ProgressBarDrill, ProgressBarDrill, progress_bar_drill, progress_drill_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_SpectrumView
+#define CHARM_VIVID_ENABLE_WIDGET_SpectrumView VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_SpectrumView
+VIVID_WIDGET_REGISTRY(SpectrumView, charm.widgets.spectrum_view, SpectrumView, SpectrumView, spectrum_view, spectrum_views_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_BusyWheel
+#define CHARM_VIVID_ENABLE_WIDGET_BusyWheel VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_BusyWheel
+VIVID_WIDGET_REGISTRY(BusyWheel, charm.widgets.busy_wheel, BusyWheel, BusyWheel, busy_wheel, busy_wheels_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_ConsoleBox
+#define CHARM_VIVID_ENABLE_WIDGET_ConsoleBox VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ConsoleBox
+VIVID_WIDGET_REGISTRY(ConsoleBox, charm.widgets.console_box, ConsoleBox, ConsoleBox, console_box, console_boxes_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_BatteryGasGauge
+#define CHARM_VIVID_ENABLE_WIDGET_BatteryGasGauge VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_BatteryGasGauge
+VIVID_WIDGET_REGISTRY(BatteryGasGauge, charm.widgets.battery_gasgauge, BatteryGasGauge, BatteryGasGauge, battery_gasgauge, battery_gasgauge_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_Histogram
+#define CHARM_VIVID_ENABLE_WIDGET_Histogram VIVID_WIDGET_DEFAULT
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Histogram
+VIVID_WIDGET_REGISTRY(Histogram, charm.widgets.histogram, Histogram, Histogram, histogram, histogram_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+#endif
+#undef VIVID_WIDGET_REGISTRY

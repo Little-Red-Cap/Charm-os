@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json",
+  "title": "minimal_kernel.runtime_evidence_bundle.summary/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at",
+    "result",
+    "output_root",
+    "report_markdown_path",
+    "check_text_path",
+    "host",
+    "qemu",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "minimal_kernel.runtime_evidence_bundle.summary/v1"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "output_root": {
+      "type": "string"
+    },
+    "report_markdown_path": {
+      "type": "string"
+    },
+    "check_text_path": {
+      "type": "string"
+    },
+    "host": {
+      "$ref": "#/$defs/hostBundle"
+    },
+    "qemu": {
+      "$ref": "#/$defs/qemuBundle"
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "statusCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ok",
+        "fail",
+        "other"
+      ],
+      "properties": {
+        "ok": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fail": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "other": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "elapsedStats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "average",
+        "median",
+        "min",
+        "max"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "average": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "median": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "hostConfigure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "executed"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "executed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reused": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "hostComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_summary_path",
+        "matched_examples",
+        "regressions",
+        "improvements",
+        "added_examples",
+        "removed_examples"
+      ],
+      "properties": {
+        "baseline_summary_path": {
+          "type": "string"
+        },
+        "matched_examples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "regressions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "improvements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_examples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_examples": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "hostInspectView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_path",
+        "inspect_json_path",
+        "report_markdown_path",
+        "check_text_path",
+        "profile",
+        "example_count",
+        "status",
+        "elapsed_ms"
+      ],
+      "properties": {
+        "summary_path": {
+          "type": "string"
+        },
+        "inspect_json_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "example_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "$ref": "#/$defs/statusCount"
+        },
+        "elapsed_ms": {
+          "$ref": "#/$defs/elapsedStats"
+        },
+        "configure": {
+          "$ref": "#/$defs/hostConfigure"
+        },
+        "comparison": {
+          "$ref": "#/$defs/hostComparison"
+        }
+      }
+    },
+    "hostBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "output_root",
+        "bundle_log_path",
+        "bundle_exit_code",
+        "cold",
+        "warm"
+      ],
+      "properties": {
+        "output_root": {
+          "type": "string"
+        },
+        "bundle_log_path": {
+          "type": "string"
+        },
+        "bundle_exit_code": {
+          "type": "integer"
+        },
+        "cold": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/hostInspectView"
+              }
+            }
+          ]
+        },
+        "warm": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/hostInspectView"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "qemuPhaseElapsed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configure",
+        "build"
+      ],
+      "properties": {
+        "configure": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "build": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "qemuResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case",
+        "label",
+        "status",
+        "elapsed_ms",
+        "stdout_log_path",
+        "stderr_log_path",
+        "detail"
+      ],
+      "properties": {
+        "case": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "elapsed_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stdout_log_path": {
+          "type": "string"
+        },
+        "stderr_log_path": {
+          "type": "string"
+        },
+        "highlights": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "detail": {
+          "type": "string"
+        }
+      }
+    },
+    "qemuFatalFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "message"
+      ],
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "qemuSummaryView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "case_count",
+        "completed_case_count",
+        "status",
+        "elapsed_ms",
+        "phase_elapsed_ms",
+        "results"
+      ],
+      "properties": {
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "$ref": "#/$defs/statusCount"
+        },
+        "elapsed_ms": {
+          "$ref": "#/$defs/elapsedStats"
+        },
+        "phase_elapsed_ms": {
+          "$ref": "#/$defs/qemuPhaseElapsed"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qemuResult"
+          }
+        },
+        "fatal_failure": {
+          "$ref": "#/$defs/qemuFatalFailure"
+        }
+      }
+    },
+    "qemuBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "output_root",
+        "bundle_log_path",
+        "bundle_exit_code",
+        "lower_half"
+      ],
+      "properties": {
+        "output_root": {
+          "type": "string"
+        },
+        "bundle_log_path": {
+          "type": "string"
+        },
+        "bundle_exit_code": {
+          "type": "integer"
+        },
+        "lower_half": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/qemuSummaryView"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

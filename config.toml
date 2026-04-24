@@ -1,0 +1,72 @@
+[project]
+name = "charm"
+docs_root = "./docs/agent"
+
+[language]
+default_human_language = "zh-CN"
+default_doc_language = "zh-CN"
+code_style = "ascii"
+indent = 4
+
+[agent]
+entry = "./docs/agent/README.md"
+prefer_rules_first = true
+prefer_skill_when_task_is_clear = true
+allow_incremental_loading = true
+
+[rules]
+entry = "./docs/agent/rules/README.md"
+default_load_order = [
+    "collaboration",
+    "embedded-modern-cpp",
+    "charm-architecture"
+]
+
+[[rules.files]]
+name = "collaboration"
+path = "./docs/agent/rules/collaboration.md"
+priority = 1
+enabled = true
+
+[[rules.files]]
+name = "embedded-modern-cpp"
+path = "./docs/agent/rules/embedded-modern-cpp.md"
+priority = 2
+enabled = true
+
+[[rules.files]]
+name = "charm-architecture"
+path = "./docs/agent/rules/charm-architecture.md"
+priority = 3
+enabled = true
+
+[skills]
+entry = "./docs/agent/skills/README.md"
+auto_select = true
+max_active_skills = 2
+
+[[skills.files]]
+name = "code-review"
+path = "./docs/agent/skills/code-review/SKILL.md"
+enabled = true
+
+[[skills.files]]
+name = "codegen"
+path = "./docs/agent/skills/codegen/SKILL.md"
+enabled = false
+
+[[skills.files]]
+name = "architect-review"
+path = "./docs/agent/skills/architect-review/SKILL.md"
+enabled = false
+
+[routing]
+discussion_tasks = ["collaboration"]
+design_tasks = ["embedded-modern-cpp", "collaboration"]
+implementation_tasks = ["charm-architecture", "embedded-modern-cpp"]
+review_tasks = ["code-review", "charm-architecture", "embedded-modern-cpp"]
+
+[conflict_resolution]
+collaboration_first_for_process = true
+architecture_first_for_project_constraints = true
+skill_must_not_override_rules = true

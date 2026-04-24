@@ -7,14 +7,14 @@ import charm.core.string;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.render_style;
+import charm.gfx.text_box;
 import charm.font.typography;
 
 using namespace ui::render;
 
 export
-class Timeline : public ObjectBase {
+class Timeline : public WidgetBase<Timeline> {
 public:
     static constexpr std::size_t kMaxItems = 16;
 
@@ -44,12 +44,13 @@ public:
 
     void set_row_height(int h) noexcept { row_h_ = (h > 0) ? h : row_h_; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<Timeline>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<Timeline>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Timeline, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Timeline, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
@@ -57,7 +58,7 @@ public:
 
         if (count_ <= 0) return;
         const Font& ft = resolve_font(st);
-        const int padding = st.padding;
+        const int padding = st.metrics.padding;
         const int radius = (row_h_ / 2) - 2;
         const int line_x = r.x + padding + radius;
         const int top_y = r.y + padding + row_h_ / 2;
@@ -86,5 +87,7 @@ private:
     int row_h_{24};
     StaticString<32> items_[kMaxItems]{};
 };
+
+
 
 

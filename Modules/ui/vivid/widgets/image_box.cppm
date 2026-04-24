@@ -8,13 +8,13 @@ import charm.core.style_sheet;
 import charm.core.geometry;
 import charm.gfx.color;
 import charm.gfx.image;
-import charm.gfx.render;
+import charm.gfx.render_style;
 
 using namespace ui::render;
 
 // Simple image box (ARM-2D image_box inspired)
 export
-class ImageBox : public ObjectBase {
+class ImageBox : public WidgetBase<ImageBox> {
 public:
     enum class ScaleMode {
         None,
@@ -50,18 +50,20 @@ public:
         align_v_ = v;
     }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<ImageBox>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ImageBox>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ImageBox, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ImageBox, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         Rect inner{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
         if (inner.w <= 0 || inner.h <= 0) return;
         if (!image_) return;
@@ -109,5 +111,7 @@ private:
     AlignH align_h_{AlignH::Center};
     AlignV align_v_{AlignV::Center};
 };
+
+
 
 

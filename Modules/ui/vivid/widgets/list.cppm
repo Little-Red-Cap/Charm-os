@@ -3,22 +3,25 @@ export module charm.widgets.list;
 
 import charm.core.object;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.event;
 import charm.core.style;
 import charm.core.style_sheet;
+import service.signal;
 import charm.widgets.label;
 
 using namespace ui::render;
 
 export
-class ListItem : public ObjectBase {
+class ListItem : public WidgetBase<ListItem> {
 public:
+    using click_signal_type = service::signal<void(), 4>;
+    using click_slot_type = typename click_signal_type::slot_type;
+    using click_connection = typename click_signal_type::connection;
+
     explicit ListItem(const char* text = "") : label_(text) {
         const Style& st = Theme::instance().get<ListItem>();
-        if (st.font) {
-            label_.set_font(*st.font);
-        }
+        label_.set_font(resolve_font(st));
         set_focusable(true);
         update_size();
     }
@@ -30,15 +33,27 @@ public:
 
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<ListItem>();
+    // observe_click() is a same-domain synchronous edge surface.
+    // It does not create a truth cell and only fires for accepted click events.
+    [[nodiscard]] auto observe_click(click_slot_type slot) noexcept {
+        return clicked_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_click(click_connection c) noexcept {
+        return clicked_.disconnect(c);
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ListItem>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ListItem, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ListItem, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
@@ -46,16 +61,17 @@ public:
 
         const int baseline_y = r.y + (r.h - label_.line_height()) / 2 + label_.baseline();
         label_.set_color(font);
-        label_.set_baseline_pos(r.x + st.padding, baseline_y);
+        label_.set_baseline_pos(r.x + st.metrics.padding, baseline_y);
         label_.draw(cvs);
 
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
+                (void)clicked_.emit();
                 if (callback_) callback_();
                 return true;
             }
@@ -73,34 +89,39 @@ public:
 private:
     void update_size() {
         const Style& st = Theme::instance().get<ListItem>();
+        label_.set_font(resolve_font(st));
         const auto lr = label_.get_rect();
-        set_size(lr.w + st.padding * 2, lr.h + st.padding * 2);
+        set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
     }
 
+    click_signal_type clicked_{};
     Label label_;
     Callback callback_{};
 };
 
 export
-class List : public ObjectBase {
+class List : public WidgetBase<List> {
 public:
     List() {
         set_size(200, 160);
         set_flex_layout(1, 0, 0, 6, 6);
     }
 
-    void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<List>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<List>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::List, state, base, st_scratch);
         const auto r = get_rect();
-        rgba bg = st.bg_color;
-        rgba border = st.border_color;
-        if (!is_enabled()) {
-            bg = st.bg_disabled;
-            border = st.border_disabled;
-        }
+        rgba bg{};
+        rgba border{};
+        rgba font{};
+        resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
     }
 };
+
+
 
 

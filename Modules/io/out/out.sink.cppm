@@ -1,4 +1,4 @@
-module;
+﻿module;
 #include <span>
 #include <array>
 #include <string_view>
@@ -8,11 +8,12 @@ module;
 export module out.sink;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core
-// Forbidden out.* imports: out.format, out.ansi, out.logger, out.api, out.port, out.print
+// Forbidden out.* imports: out.format, out.ansi, out.logger, out.api
 // Rationale: low-level I/O concept + basic sinks. Must stay formatting-agnostic.
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 
 import out.core;
+import util.expected;
 // TODO: add compile-time endian conversion helpers.
 export namespace out {
 
@@ -48,7 +49,7 @@ export namespace out {
         std::size_t pos = 0;
 
         result<std::size_t> write(bytes b) noexcept {
-            if (pos + b.size() > N) return std::unexpected(errc::buffer_overflow);
+            if (pos + b.size() > N) return util::unexpected(errc::buffer_overflow);
             std::memcpy(buf.data() + pos, b.data(), b.size());
             pos += b.size();
             return ok(b.size());
@@ -102,7 +103,7 @@ export namespace out {
         result<std::size_t> write_bytes(bytes b) noexcept {
             if (pos + b.size() > N) {
                 last_err = errc::buffer_overflow;
-                return std::unexpected(errc::buffer_overflow);
+                return util::unexpected(errc::buffer_overflow);
             }
             std::memcpy(buf.data() + pos, b.data(), b.size());
             pos += b.size();
@@ -130,14 +131,14 @@ export namespace out {
             for (std::size_t i = 0; i < b.size(); ++i) {
                 if (pos >= BufSize) {
                     auto r = flush();
-                    if (!r) return std::unexpected(r.error());
+                    if (!r) return util::unexpected(r.error());
                 }
 
                 buf[pos++] = data[i];
 
                 if (data[i] == '\n') {
                     auto r = flush();
-                    if (!r) return std::unexpected(r.error());
+                    if (!r) return util::unexpected(r.error());
                 }
             }
             return ok(b.size());

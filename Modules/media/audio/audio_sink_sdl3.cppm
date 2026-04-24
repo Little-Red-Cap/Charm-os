@@ -6,7 +6,6 @@ module;
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -15,6 +14,8 @@ export module audio.sink.sdl3;
 
 import audio.format;
 import audio.result;
+import audio.sink.common;
+import charm.system.clock;
 import media.stream.sink;
 import media.stream.types;
 export namespace audio {
@@ -43,20 +44,22 @@ export namespace audio {
 
     class Sdl3AudioSink {
     public:
+        void set_clock(charm::system::Clock& clock) noexcept {
+            clock_.reset(clock);
+        }
+
         Result<void> open(const SinkConfig& cfg) noexcept {
             fmt_ = from_stream_format(cfg.format);
-            const std::uint32_t period = cfg.period_frames != 0
-                ? cfg.period_frames
-                : (fmt_.rate / 100);
-            callback_bytes_ = static_cast<std::size_t>(period) * fmt_.frame_size();
-            period_frames_ = period;
+            const auto pull = resolve_pull_spec(cfg, fmt_.frame_size());
+            callback_bytes_ = pull.period_bytes;
+            period_frames_ = pull.period_frames;
             if (callback_bytes_ > scratch_.size()) {
-                return unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Errc::invalid_arg);
             }
             scratch_size_ = callback_bytes_;
 
             if (!SDL_Init(SDL_INIT_AUDIO)) {
-                return unexpected(Err{Errc::io_error, 1});
+                return unexpected(Errc::io_error);
             }
 
             spec_.freq = static_cast<int>(fmt_.rate);
@@ -65,7 +68,7 @@ export namespace audio {
 
             stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, &Sdl3AudioSink::sdl_audio_callback, this);
             if (!stream_) {
-                return unexpected(Err{Errc::io_error, 2});
+                return unexpected(Errc::io_error);
             }
 
             if (spec_.freq > 0) {
@@ -83,13 +86,13 @@ export namespace audio {
         }
 
         Result<void> start() noexcept {
-            if (!stream_) return unexpected(Err{Errc::io_error, 3});
+            if (!stream_) return unexpected(Errc::io_error);
             SDL_ResumeAudioStreamDevice(stream_);
             return {};
         }
 
         Result<void> stop() noexcept {
-            if (!stream_) return unexpected(Err{Errc::io_error, 3});
+            if (!stream_) return unexpected(Errc::io_error);
             SDL_PauseAudioStreamDevice(stream_);
             return {};
         }
@@ -136,10 +139,9 @@ export namespace audio {
         }
 
     private:
-        static std::uint64_t now_ns() {
-            return static_cast<std::uint64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch()).count());
+        std::uint64_t now_ns() const noexcept {
+            const auto now_us = clock_.now_us();
+            return static_cast<std::uint64_t>(now_us) * 1000u;
         }
 
         static void update_min(std::atomic<std::uint64_t>& dst, std::uint64_t value) {
@@ -162,7 +164,7 @@ export namespace audio {
 
         static void sdl_audio_callback(void* userdata, SDL_AudioStream* stream, int additional_amount, int) {
             auto* self = static_cast<Sdl3AudioSink*>(userdata);
-            const auto now = now_ns();
+            const auto now = self->now_ns();
             const auto last = self->cb_last_ns_.exchange(now, std::memory_order_relaxed);
             if (last != 0) {
                 const auto dt = now - last;
@@ -185,13 +187,11 @@ export namespace audio {
             while (remaining > 0) {
                 const std::size_t chunk = std::min(remaining, self->scratch_size_);
                 if (chunk == 0) break;
-                std::size_t written = 0;
-                if (self->fill_cb_) {
-                    written = self->fill_cb_(std::span<std::byte>(self->scratch_.data(), chunk), self->fill_user_);
-                }
-
-                if (written < chunk) {
-                    std::memset(self->scratch_.data() + written, 0, chunk - written);
+                const auto res = fill_and_pad(
+                    self->fill_cb_,
+                    self->fill_user_,
+                    std::span<std::byte>(self->scratch_.data(), chunk));
+                if (res.underrun) {
                     self->underrun_flag_.store(1, std::memory_order_relaxed);
                     self->underrun_count_.fetch_add(1, std::memory_order_relaxed);
                 }
@@ -223,6 +223,7 @@ export namespace audio {
         std::atomic<std::uint64_t> cb_dt_sum_ns_{0};
         std::atomic<std::uint64_t> cb_last_ns_{0};
         std::atomic<std::uint32_t> cb_last_request_frames_{0};
+        charm::system::ClockRef clock_{};
 
         static AudioFormat from_stream_format(const media::StreamFormat& fmt) {
             AudioFormat out{};

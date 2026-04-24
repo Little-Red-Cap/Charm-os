@@ -19,24 +19,24 @@ import fs_block;
 export namespace fs {
     class BlockFile {
     public:
-        BlockFile() = default;
+        BlockFile() noexcept = default;
         BlockFile(const BlockFile&) = delete;
         BlockFile& operator=(const BlockFile&) = delete;
 
         ~BlockFile() { close(); }
 
         Status open(const char* path, util::u64 block_size) noexcept {
-            if (!path || !*path || block_size == 0) return Status{Err::inval};
+            if (!path || !*path || block_size == 0) return Status{Errc::inval};
             close();
             file_ = std::fopen(path, "r+b");
             if (!file_) {
                 file_ = std::fopen(path, "w+b");
-                if (!file_) return Status{Err::io};
+                if (!file_) return Status{Errc::io};
             }
             block_size_ = block_size;
             if (!refresh_size()) {
                 close();
-                return Status{Err::inval};
+                return Status{Errc::inval};
             }
             device_.ctx = this;
             device_.read = &BlockFile::read_impl;
@@ -45,7 +45,7 @@ export namespace fs {
             device_.flush = &BlockFile::flush_impl;
             device_.block_size = block_size_;
             device_.block_count = block_count_;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         void close() noexcept {
@@ -112,55 +112,55 @@ export namespace fs {
 
         static Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> out) noexcept {
             auto* self = static_cast<BlockFile*>(ctx);
-            if (!self || !self->file_) return Status{Err::io};
-            if (self->block_size_ == 0) return Status{Err::inval};
-            if ((out.size() % self->block_size_) != 0) return Status{Err::inval};
+            if (!self || !self->file_) return Status{Errc::io};
+            if (self->block_size_ == 0) return Status{Errc::inval};
+            if ((out.size() % self->block_size_) != 0) return Status{Errc::inval};
             const util::u64 blocks = out.size() / self->block_size_;
-            if (lba + blocks > self->block_count_) return Status{Err::inval};
+            if (lba + blocks > self->block_count_) return Status{Errc::inval};
             const util::u64 offset = lba * self->block_size_;
-            if (!seek64(self->file_, offset)) return Status{Err::io};
+            if (!seek64(self->file_, offset)) return Status{Errc::io};
             const std::size_t read = std::fread(out.data(), 1, out.size(), self->file_);
-            if (read != out.size()) return Status{Err::io};
-            return Status{Err::ok};
+            if (read != out.size()) return Status{Errc::io};
+            return Status{Errc::ok};
         }
 
         static Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> in) noexcept {
             auto* self = static_cast<BlockFile*>(ctx);
-            if (!self || !self->file_) return Status{Err::io};
-            if (self->block_size_ == 0) return Status{Err::inval};
-            if ((in.size() % self->block_size_) != 0) return Status{Err::inval};
+            if (!self || !self->file_) return Status{Errc::io};
+            if (self->block_size_ == 0) return Status{Errc::inval};
+            if ((in.size() % self->block_size_) != 0) return Status{Errc::inval};
             const util::u64 blocks = in.size() / self->block_size_;
-            if (lba + blocks > self->block_count_) return Status{Err::inval};
+            if (lba + blocks > self->block_count_) return Status{Errc::inval};
             const util::u64 offset = lba * self->block_size_;
-            if (!seek64(self->file_, offset)) return Status{Err::io};
+            if (!seek64(self->file_, offset)) return Status{Errc::io};
             const std::size_t written = std::fwrite(in.data(), 1, in.size(), self->file_);
-            if (written != in.size()) return Status{Err::io};
-            return Status{Err::ok};
+            if (written != in.size()) return Status{Errc::io};
+            return Status{Errc::ok};
         }
 
         static Status erase_impl(void* ctx, util::u64 lba, util::u64 count) noexcept {
             auto* self = static_cast<BlockFile*>(ctx);
-            if (!self || !self->file_) return Status{Err::io};
-            if (self->block_size_ == 0) return Status{Err::inval};
-            if (lba + count > self->block_count_) return Status{Err::inval};
+            if (!self || !self->file_) return Status{Errc::io};
+            if (self->block_size_ == 0) return Status{Errc::inval};
+            if (lba + count > self->block_count_) return Status{Errc::inval};
             const util::u64 offset = lba * self->block_size_;
-            if (!seek64(self->file_, offset)) return Status{Err::io};
+            if (!seek64(self->file_, offset)) return Status{Errc::io};
             std::array<util::u8, 512> zeros{};
             util::u64 remaining = count * self->block_size_;
             while (remaining > 0) {
                 const std::size_t chunk = static_cast<std::size_t>(
                     remaining > zeros.size() ? zeros.size() : remaining);
-                if (std::fwrite(zeros.data(), 1, chunk, self->file_) != chunk) return Status{Err::io};
+                if (std::fwrite(zeros.data(), 1, chunk, self->file_) != chunk) return Status{Errc::io};
                 remaining -= chunk;
             }
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status flush_impl(void* ctx) noexcept {
             auto* self = static_cast<BlockFile*>(ctx);
-            if (!self || !self->file_) return Status{Err::io};
-            if (std::fflush(self->file_) != 0) return Status{Err::io};
-            return Status{Err::ok};
+            if (!self || !self->file_) return Status{Errc::io};
+            if (std::fflush(self->file_) != 0) return Status{Errc::io};
+            return Status{Errc::ok};
         }
 
         std::FILE* file_{nullptr};

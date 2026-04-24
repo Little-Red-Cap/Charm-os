@@ -125,6 +125,11 @@ void HAL_SD_MspInit(SD_HandleTypeDef* sdHandle)
     __HAL_LINKDMA(sdHandle,hdmatx,hdma_sdio);
 
   /* USER CODE BEGIN SDIO_MspInit 1 */
+    __HAL_DMA_ENABLE_IT(&hdma_sdio, DMA_IT_TC | DMA_IT_HT | DMA_IT_TE);
+    HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
+    HAL_NVIC_SetPriority(SDIO_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(SDIO_IRQn);
 
   /* USER CODE END SDIO_MspInit 1 */
   }

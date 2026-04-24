@@ -6,14 +6,14 @@ import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.render_style;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 
 // Simple read-only text box
 export
-class TextBox : public ObjectBase {
+class TextBox : public WidgetBase<TextBox> {
 public:
     explicit TextBox(const char* text = "") {
         set_size(200, 80);
@@ -30,19 +30,21 @@ public:
     void set_align(TextAlignH h, TextAlignV v) noexcept { align_h_ = h; align_v_ = v; }
     void set_ellipsis(TextEllipsis e) noexcept { ellipsis_ = e; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<TextBox>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<TextBox>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::TextBox, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::TextBox, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const Rect inner{r.x + st.padding, r.y + st.padding,
-                         r.w - st.padding * 2, r.h - st.padding * 2};
+        const Rect inner{r.x + st.metrics.padding, r.y + st.metrics.padding,
+                         r.w - st.metrics.padding * 2, r.h - st.metrics.padding * 2};
         draw_text_box(cvs, inner, buf_, font, resolve_font(st),
                       align_h_, align_v_, wrap_, ellipsis_);
     }
@@ -66,5 +68,7 @@ private:
         buf_[len_] = '\0';
     }
 };
+
+
 
 

@@ -3,8 +3,9 @@ export module charm.widgets.button;
 
 import charm.core.object;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.event;
+import service.signal;
 import charm.widgets.label;
 import charm.core.style;
 import charm.core.style_sheet;
@@ -14,8 +15,12 @@ import charm.gfx.image;
 using namespace ui::render;
 
 export
-class Button : public ObjectBase {
+class Button : public WidgetBase<Button> {
 public:
+    using click_signal_type = service::signal<void(), 4>;
+    using click_slot_type = typename click_signal_type::slot_type;
+    using click_connection = typename click_signal_type::connection;
+
     explicit Button(const char* txt = "") : label_(txt) {
         const Style& st = Theme::instance().get<Button>();
         label_.set_font(resolve_font(st));
@@ -25,8 +30,19 @@ public:
 
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
 
+    // observe_click() is a same-domain synchronous edge surface.
+    // It does not create a truth cell and only fires for accepted click events.
+    [[nodiscard]] auto observe_click(click_slot_type slot) noexcept {
+        return clicked_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_click(click_connection c) noexcept {
+        return clicked_.disconnect(c);
+    }
+
     void set_text(const char* text) noexcept {
         label_.set_text(text);
+        update_size();
     }
 
     void set_icon(const ImageView& img, int w = 0, int h = 0) noexcept {
@@ -52,36 +68,37 @@ public:
         has_skin_ = true;
     }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = has_local_style_ ? style_ : Theme::instance().get<Button>();
+    void draw(CanvasBase& cvs) {
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Button, state, st);
+        const Style& base = has_local_style_ ? style_ : Theme::instance().get<Button>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Button, state, base, st_scratch);
         resolve_colors(st, state,
                        bg, border, font);
 
         if (has_skin_) {
             draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
                                   slice_left_, slice_top_, slice_right_, slice_bottom_);
-            for (int i = 0; i < st.border_width; ++i) {
+            for (int i = 0; i < st.metrics.border_width; ++i) {
                 draw_rect(cvs, r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i, border, false);
             }
         } else {
-            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-            for (int i = 0; i < st.border_width; ++i) {
+            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+            for (int i = 0; i < st.metrics.border_width; ++i) {
                 draw_round_rect(cvs,
                                 r.x + i, r.y + i,
                                 r.w - 2 * i, r.h - 2 * i,
-                                st.corner_radius,
+                                st.metrics.corner_radius,
                                 border,
                                 false);
             }
         }
-        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.corner_radius);
+        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.metrics.corner_radius);
 
         const auto lr = label_.get_rect();
         const int lx = r.x + (r.w - lr.w) / 2;
@@ -105,10 +122,11 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
+                (void)clicked_.emit();
                 if (callback_) callback_();
                 return true;
             }
@@ -119,10 +137,12 @@ public:
 private:
     void update_size() {
         const Style& st = has_local_style_ ? style_ : Theme::instance().get<Button>();
+        label_.set_font(resolve_font(st));
         const auto lr = label_.get_rect();
-        set_size(lr.w + st.padding * 2, lr.h + st.padding * 2);
+        set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
     }
 
+    click_signal_type clicked_{};
     Label label_;
     Callback callback_{};
     Style style_{};
@@ -138,5 +158,7 @@ private:
     int icon_w_{0};
     int icon_h_{0};
 };
+
+
 
 

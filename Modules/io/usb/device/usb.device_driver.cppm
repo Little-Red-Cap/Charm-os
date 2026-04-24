@@ -7,6 +7,7 @@ export module usb.device_driver;
 
 import usb.common;
 import usb.class_cdc;
+import usb.class_msc;
 import usb.device;
 import usb.driver;
 import usb.ep0_driver;
@@ -14,6 +15,7 @@ import usb.dsl;
 import device.desc;
 import device.types;
 import util.core;
+import util.error;
 
 export namespace usb::device {
     class DeviceDriver;
@@ -29,6 +31,7 @@ export namespace usb::device {
                                              const ::device::DeviceDesc& match,
                                              const char* name,
                                              util::u32 priority) noexcept {
+        (void)hook;
         ::device::Driver drv{};
         drv.name = name;
         drv.match = match;
@@ -37,12 +40,28 @@ export namespace usb::device {
             auto* h = static_cast<DeviceModelHook*>(dev.ctx);
             return h && h->driver != nullptr;
         };
+        drv.ops.try_probe = [](::device::Device& dev) noexcept -> util::Result<void> {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (h && h->driver != nullptr) {
+                return {};
+            }
+            return util::unexpected(util::Errc::bad_state);
+        };
         drv.ops.init = [](::device::Device& dev) noexcept -> bool {
             auto* h = static_cast<DeviceModelHook*>(dev.ctx);
             if (!h || !h->driver) return false;
             if (h->dev) h->dev->reset();
             if (h->start) h->start(*h->driver);
             return true;
+        };
+        drv.ops.try_init = [](::device::Device& dev) noexcept -> util::Result<void> {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            if (h->dev) h->dev->reset();
+            if (h->start) h->start(*h->driver);
+            return {};
         };
         drv.ops.shutdown = [](::device::Device& dev) noexcept {
             auto* h = static_cast<DeviceModelHook*>(dev.ctx);
@@ -56,11 +75,27 @@ export namespace usb::device {
             if (h->stop) h->stop(*h->driver);
             return true;
         };
+        drv.ops.try_suspend = [](::device::Device& dev) noexcept -> util::Result<void> {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            if (h->stop) h->stop(*h->driver);
+            return {};
+        };
         drv.ops.resume = [](::device::Device& dev) noexcept -> bool {
             auto* h = static_cast<DeviceModelHook*>(dev.ctx);
             if (!h || !h->driver) return false;
             if (h->start) h->start(*h->driver);
             return true;
+        };
+        drv.ops.try_resume = [](::device::Device& dev) noexcept -> util::Result<void> {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            if (h->start) h->start(*h->driver);
+            return {};
         };
         return drv;
     }
@@ -76,12 +111,20 @@ export namespace usb::device {
                   &DeviceDriver::ep0_send_zlp,
                   &DeviceDriver::ep0_stall}) {}
 
+        void bind_cdc(class_driver::CdcAcm& cdc) noexcept;
+
+        void bind_msc(class_driver::MscDevice& msc,
+                      class_driver::MscBot& bot) noexcept;
+
+        void stop_class_endpoints() noexcept;
+
         void on_setup(const SetupPacket& setup) noexcept {
             ControlResponse resp{};
             set_pending(setup);
             const auto result = ep0_.on_setup(setup, resp);
             if (result != Ep0Result::ok) {
                 clear_pending();
+                return;
             }
         }
 
@@ -91,14 +134,16 @@ export namespace usb::device {
             if (result != Ep0Result::ok) {
                 clear_pending();
             }
+            apply_pending_if_ready(true);
         }
 
         void on_in_complete(std::size_t sent, bool sent_zlp = false) noexcept {
             ep0_.on_in_complete(sent, sent_zlp);
-            apply_pending_if_ready();
+            apply_pending_if_ready(sent_zlp);
         }
 
         void on_reset() noexcept {
+            stop_class_endpoints();
             clear_pending();
             dev_.reset();
             if (dcd_ops_.set_address) {
@@ -200,44 +245,74 @@ export namespace usb::device {
                 break;
             case StandardRequest::set_configuration:
                 pending_config_valid_ = true;
-                pending_configured_ = (static_cast<u8>(setup.w_value & 0xFF) != 0);
+                pending_config_ = static_cast<u8>(setup.w_value & 0xFF);
+                pending_configured_ = (pending_config_ != 0);
+                break;
+            case StandardRequest::set_interface:
+                pending_interface_valid_ = true;
+                pending_interface_ = static_cast<u8>(setup.w_value & 0xFF);
                 break;
             default:
                 break;
             }
         }
 
-        void apply_pending_if_ready() noexcept {
-            if (dev_.stage() != Ep0Stage::status_out) {
+        void apply_pending_if_ready(bool sent_zlp) noexcept {
+            if (dev_.stage() != Ep0Stage::setup) {
                 return;
             }
             if (pending_address_valid_) {
+                if (!sent_zlp) {
+                    return;
+                }
                 if (dcd_ops_.set_address) {
                     dcd_ops_.set_address(dcd_ctx_, pending_address_);
                 }
+                dev_.apply_address(pending_address_);
                 pending_address_valid_ = false;
             }
             if (pending_config_valid_) {
-                if (dcd_ops_.set_configured) {
-                    dcd_ops_.set_configured(dcd_ctx_, pending_configured_);
+                bool configured_ok = true;
+                if (pending_configured_) {
+                    configured_ok = activate_class_endpoints();
+                } else {
+                    stop_class_endpoints();
                 }
+                if (dcd_ops_.set_configured) {
+                    dcd_ops_.set_configured(dcd_ctx_, configured_ok && pending_configured_);
+                }
+                dev_.apply_configuration(configured_ok ? pending_config_ : 0);
                 pending_config_valid_ = false;
+            }
+            if (pending_interface_valid_) {
+                dev_.apply_interface(pending_interface_);
+                pending_interface_valid_ = false;
             }
         }
 
         void clear_pending() noexcept {
             pending_address_valid_ = false;
             pending_config_valid_ = false;
+            pending_interface_valid_ = false;
         }
+
+        bool activate_class_endpoints() noexcept;
 
         Device& dev_;
         void* dcd_ctx_{nullptr};
         driver::DcdOps dcd_ops_{};
         Ep0Driver ep0_;
+        class_driver::CdcAcm* cdc_{nullptr};
+        class_driver::MscDevice* msc_{nullptr};
+        class_driver::MscBot* msc_bot_{nullptr};
+        bool class_endpoints_active_{false};
         bool pending_address_valid_{false};
         u8 pending_address_{0};
         bool pending_config_valid_{false};
         bool pending_configured_{false};
+        u8 pending_config_{0};
+        bool pending_interface_valid_{false};
+        u8 pending_interface_{0};
     };
 
     namespace examples {
@@ -248,6 +323,8 @@ export namespace usb::device {
 
         inline CdcEndpointCallbacks make_cdc_ep_callbacks(class_driver::CdcAcm& cdc) noexcept {
             CdcEndpointCallbacks cb{};
+            cb.out.ctx = &cdc;
+            cb.in.ctx = &cdc;
             cb.out.on_out = [] (void* ctx, std::span<const u8> data) noexcept {
                 auto* self = static_cast<class_driver::CdcAcm*>(ctx);
                 if (self) self->on_out_packet(data);
@@ -294,8 +371,8 @@ export namespace usb::device {
             notify.address = cfg.ep_notify;
             notify.direction = driver::EpDirection::in;
             notify.type = driver::EpType::interrupt;
-            notify.max_packet_size = cfg.ep_mps;
-            notify.interval = 10;
+            notify.max_packet_size = 8;
+            notify.interval = 16;
 
             driver::EpConfig out{};
             out.address = cfg.ep_out;
@@ -311,8 +388,17 @@ export namespace usb::device {
 
             driver::EpCallbacks notify_cb = cb.in;
             if (!dcd.ep.open(dcd_ctx, notify, notify_cb)) return false;
-            if (!dcd.ep.open(dcd_ctx, out, cb.out)) return false;
-            if (!dcd.ep.open(dcd_ctx, in, cb.in)) return false;
+            if (!dcd.ep.open(dcd_ctx, out, cb.out)) {
+                if (dcd.ep.close) dcd.ep.close(dcd_ctx, notify.address);
+                return false;
+            }
+            if (!dcd.ep.open(dcd_ctx, in, cb.in)) {
+                if (dcd.ep.close) {
+                    dcd.ep.close(dcd_ctx, out.address);
+                    dcd.ep.close(dcd_ctx, notify.address);
+                }
+                return false;
+            }
             return true;
         }
 
@@ -349,6 +435,7 @@ export namespace usb::device {
                                              std::span<const u8> class_desc,
                                              const std::span<const u8>* strings,
                                              std::size_t string_count) noexcept {
+            cdc.set_config(cdc_cfg);
             if (!dsl::build_cdc_acm_device(build_ctx,
                                            dev_info,
                                            cfg_info,
@@ -379,5 +466,184 @@ export namespace usb::device {
             }
             return open_cdc_endpoints(dcd, dcd_ctx, cdc, cb);
         }
+
+        struct MscEndpointCallbacks {
+            driver::EpCallbacks out{};
+            driver::EpCallbacks in{};
+        };
+
+        inline MscEndpointCallbacks make_msc_ep_callbacks(class_driver::MscBot& bot) noexcept {
+            MscEndpointCallbacks cb{};
+            cb.out.ctx = &bot;
+            cb.in.ctx = &bot;
+            cb.out.on_out = [] (void* ctx, std::span<const u8> data) noexcept {
+                auto* self = static_cast<class_driver::MscBot*>(ctx);
+                if (self) self->on_out_packet(data);
+            };
+            cb.in.on_in_complete = nullptr;
+            cb.out.on_stall = nullptr;
+            cb.in.on_stall = nullptr;
+            cb.out.on_in_complete = nullptr;
+            return cb;
+        }
+
+        inline bool send_msc_in_packet(const driver::DcdOps& dcd,
+                                       void* dcd_ctx,
+                                       class_driver::MscBot& bot,
+                                       const class_driver::MscConfig& cfg) noexcept {
+            if (!dcd.ep.send) return false;
+            if (!bot.has_in_data()) return false;
+            auto data = bot.on_in_request(cfg.ep_mps);
+            if (data.empty()) return false;
+            return dcd.ep.send(dcd_ctx, cfg.ep_in, data, false);
+        }
+
+        inline bool open_msc_endpoints(const driver::DcdOps& dcd,
+                                       void* dcd_ctx,
+                                       class_driver::MscDevice& msc,
+                                       const MscEndpointCallbacks& cb) noexcept {
+            (void)msc;
+            if (!dcd.ep.open) return false;
+
+            const auto cfg = msc.config();
+            driver::EpConfig out{};
+            out.address = cfg.ep_out;
+            out.direction = driver::EpDirection::out;
+            out.type = driver::EpType::bulk;
+            out.max_packet_size = cfg.ep_mps;
+
+            driver::EpConfig in{};
+            in.address = cfg.ep_in;
+            in.direction = driver::EpDirection::in;
+            in.type = driver::EpType::bulk;
+            in.max_packet_size = cfg.ep_mps;
+
+            if (!dcd.ep.open(dcd_ctx, out, cb.out)) return false;
+            if (!dcd.ep.open(dcd_ctx, in, cb.in)) {
+                if (dcd.ep.close) dcd.ep.close(dcd_ctx, out.address);
+                return false;
+            }
+            return true;
+        }
+
+        inline void close_msc_endpoints(const driver::DcdOps& dcd,
+                                        void* dcd_ctx,
+                                        class_driver::MscDevice& msc) noexcept {
+            if (!dcd.ep.close) return;
+            const auto cfg = msc.config();
+            dcd.ep.close(dcd_ctx, cfg.ep_out);
+            dcd.ep.close(dcd_ctx, cfg.ep_in);
+        }
+
+        inline bool attach_msc_device(Device& dev,
+                                      class_driver::MscDevice& msc,
+                                      DescriptorTable& table,
+                                      ConfigTree& config_tree) noexcept {
+            if (table.device.size() >= sizeof(DeviceDescriptor)) {
+                const auto* desc = reinterpret_cast<const DeviceDescriptor*>(table.device.data());
+                dev.set_max_packet_size0(desc->max_packet_size0);
+            }
+            dev.set_class(&msc, msc.class_ops());
+            table.configuration = config_tree.view;
+            dev.set_descriptor_provider(make_descriptor_provider(table));
+            return !table.configuration.empty();
+        }
+
+        inline bool build_and_attach_msc(Device& dev,
+                                         class_driver::MscDevice& msc,
+                                         dsl::DeviceBuildContext& build_ctx,
+                                         const dsl::DeviceInfo& dev_info,
+                                         const dsl::ConfigInfo& cfg_info,
+                                         const class_driver::MscConfig& msc_cfg,
+                                         std::span<const u8> class_desc,
+                                         const std::span<const u8>* strings,
+                                         std::size_t string_count) noexcept {
+            msc.set_config(msc_cfg);
+            if (!dsl::build_msc_device(build_ctx,
+                                       dev_info,
+                                       cfg_info,
+                                       msc_cfg,
+                                       class_desc,
+                                       strings,
+                                       string_count)) {
+                return false;
+            }
+            return attach_msc_device(dev, msc, *build_ctx.table, *build_ctx.tree);
+        }
+
+        inline bool build_attach_open_msc(Device& dev,
+                                          class_driver::MscDevice& msc,
+                                          dsl::DeviceBuildContext& build_ctx,
+                                          const dsl::DeviceInfo& dev_info,
+                                          const dsl::ConfigInfo& cfg_info,
+                                          const class_driver::MscConfig& msc_cfg,
+                                          std::span<const u8> class_desc,
+                                          const std::span<const u8>* strings,
+                                          std::size_t string_count,
+                                          const driver::DcdOps& dcd,
+                                          void* dcd_ctx,
+                                          const MscEndpointCallbacks& cb) noexcept {
+            if (!build_and_attach_msc(dev, msc, build_ctx,
+                                      dev_info, cfg_info, msc_cfg,
+                                      class_desc, strings, string_count)) {
+                return false;
+            }
+            return open_msc_endpoints(dcd, dcd_ctx, msc, cb);
+        }
+    }
+
+    inline void DeviceDriver::bind_cdc(class_driver::CdcAcm& cdc) noexcept {
+        cdc_ = &cdc;
+    }
+
+    inline void DeviceDriver::bind_msc(class_driver::MscDevice& msc,
+                                       class_driver::MscBot& bot) noexcept {
+        msc_ = &msc;
+        msc_bot_ = &bot;
+    }
+
+    inline bool DeviceDriver::activate_class_endpoints() noexcept {
+        if (class_endpoints_active_) {
+            return true;
+        }
+
+        if (cdc_) {
+            if (!examples::open_cdc_endpoints(
+                    dcd_ops_,
+                    dcd_ctx_,
+                    *cdc_,
+                    examples::make_cdc_ep_callbacks(*cdc_))) {
+                return false;
+            }
+        }
+
+        if (msc_ && msc_bot_) {
+            if (!examples::open_msc_endpoints(
+                    dcd_ops_,
+                    dcd_ctx_,
+                    *msc_,
+                    examples::make_msc_ep_callbacks(*msc_bot_))) {
+                if (cdc_) {
+                    examples::close_cdc_endpoints(dcd_ops_, dcd_ctx_, *cdc_);
+                }
+                return false;
+            }
+        }
+
+        class_endpoints_active_ = true;
+        return true;
+    }
+
+    inline void DeviceDriver::stop_class_endpoints() noexcept {
+        if (!class_endpoints_active_) {
+            return;
+        }
+        if (msc_) {
+            examples::close_msc_endpoints(dcd_ops_, dcd_ctx_, *msc_);
+        }
+        if (cdc_) {
+            examples::close_cdc_endpoints(dcd_ops_, dcd_ctx_, *cdc_);
+        }
+        class_endpoints_active_ = false;
     }
 }

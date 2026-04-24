@@ -6,11 +6,12 @@ module;
 export module charm.widgets.progress_bar_round;
 
 import charm.core.object;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.render_style;
+import charm.gfx.text_box;
 import out.core;
 import out.format;
 import out.sink;
@@ -38,7 +39,8 @@ namespace {
     };
 
     inline void append_sv(trunc_sink& sink, std::string_view sv) noexcept {
-        (void)out::write(sink, sv);
+        const auto b = out::bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+        (void)sink.write(b);
     }
 
     inline void append_int(trunc_sink& sink, int value) noexcept {
@@ -89,17 +91,21 @@ namespace {
 
 // Round progress bar (ARM-2D progress_bar_round inspired)
 export
-class ProgressBarRound : public ObjectBase {
+class ProgressBarRound : public WidgetBase<ProgressBarRound> {
 public:
+    using value_state_type = service::state<int, 4>;
+    using value_slot_type = typename value_state_type::slot_type;
+    using value_connection = typename value_state_type::connection;
+
     ProgressBarRound() {
         set_size(120, 120);
     }
 
     void set_value(int v) noexcept {
-        value_ = alg::arc::clamp_to_range(v, 0, 100);
+        (void)value_.set(alg::arc::clamp_to_range(v, 0, 100));
     }
 
-    int value() const noexcept { return value_; }
+    [[nodiscard]] int value() const noexcept { return value_.get(); }
 
     void set_thickness(int t) noexcept { thickness_ = (t > 0) ? t : 1; }
     void set_start_angle(int deg) noexcept { start_deg_ = deg; }
@@ -109,12 +115,23 @@ public:
     void set_show_value(bool on) noexcept { show_value_ = on; }
     void set_value_format(const char* fmt) noexcept { value_format_ = (fmt && *fmt) ? fmt : "%d"; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<ProgressBarRound>();
+    // observe_value() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
+        return value_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
+        return value_.disconnect(c);
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ProgressBarRound>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ProgressBarRound, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ProgressBarRound, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
@@ -135,7 +152,7 @@ public:
 
         const float sweep = alg::arc::sweep_deg_from_value(static_cast<float>(start),
                                                            static_cast<float>(end),
-                                                           alg::arc::ratio_from_range(value_, 0, 100));
+                                                           alg::arc::ratio_from_range(value(), 0, 100));
         draw_arc(cvs, cx, cy, radius, thickness_, start, sweep, fill);
 
         const float rad_start = alg::arc::deg_to_rad(static_cast<float>(start));
@@ -148,7 +165,7 @@ public:
 
         if (show_value_) {
             char buf[16]{};
-            (void)format_value(buf, sizeof(buf), value_format_, value_);
+            (void)format_value(buf, sizeof(buf), value_format_, value());
             draw_text_box(cvs, r, buf, font, resolve_font(st),
                           TextAlignH::Center, TextAlignV::Center,
                           TextWrap::None, TextEllipsis::None);
@@ -156,7 +173,7 @@ public:
     }
 
 private:
-    int value_{0};
+    value_state_type value_{0};
     int thickness_{6};
     int start_deg_{-90};
     bool show_track_{true};
@@ -165,5 +182,7 @@ private:
     rgba fill_color_{0, 0, 0, 0};
     rgba track_color_{0, 0, 0, 0};
 };
+
+
 
 

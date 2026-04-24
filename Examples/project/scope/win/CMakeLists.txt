@@ -10,8 +10,6 @@ add_executable(${target_name}
 
 target_compile_definitions(${target_name} PRIVATE
     OUT_ENABLE_FLOAT
-    CHARM_VIVID_SCREEN_WIDTH=800
-    CHARM_VIVID_SCREEN_HEIGHT=480
 )
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
@@ -22,6 +20,8 @@ set(SDL_AUDIO OFF)
 
 set(CHARM_ENABLE_SDL3 ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+set(CHARM_VIVID_SCREEN_WIDTH 800 CACHE STRING "" FORCE)
+set(CHARM_VIVID_SCREEN_HEIGHT 480 CACHE STRING "" FORCE)
 
 charm_example_sources(${target_name} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/project/scope/*.cppm"
@@ -29,8 +29,8 @@ charm_example_sources(${target_name} "${CHARM_ROOT}"
 charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 
 target_sources(${target_name} PRIVATE
-    "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"
-    "${CHARM_ROOT}/Modules/io/out/out.port.template.cpp"
 )
 
 charm_example_link_sdl3(${target_name} "${CHARM_ROOT}")
+
+

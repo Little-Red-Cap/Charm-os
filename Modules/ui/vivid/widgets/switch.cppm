@@ -4,48 +4,63 @@ export module charm.widgets.switcher;
 
 import charm.core.object;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.event;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 
 using namespace ui::render;
 
 export
-class Switch : public ObjectBase {
+class Switch : public WidgetBase<Switch> {
 public:
+    using on_state_type = service::state<bool, 4>;
+    using on_slot_type = typename on_state_type::slot_type;
+    using on_connection = typename on_state_type::connection;
+
     Switch() {
         set_focusable(true);
         set_size(44, 24);
     }
 
-    void set_on(bool on) noexcept { on_ = on; }
-    bool is_on() const noexcept { return on_; }
+    void set_on(bool on) noexcept { apply_on(on, false); }
+    [[nodiscard]] bool is_on() const noexcept { return on_.get(); }
 
     void toggle() noexcept {
-        on_ = !on_;
-        if (on_change_) on_change_();
+        apply_on(!is_on(), true);
     }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<Switch>();
+    // observe_on() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_on(on_slot_type slot) noexcept {
+        return on_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_on(on_connection c) noexcept {
+        return on_.disconnect(c);
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<Switch>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Switch, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba track{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Switch, state, st);
+
         resolve_colors(st, state, track, border, font);
         const rgba accent = resolve_accent(st, state);
 
-        rgba knob = st.on_accent;
+        rgba knob = st.colors.on_accent;
         if (!is_enabled()) {
-            knob = st.font_color_disabled;
+            knob = st.colors.font_color_disabled;
         }
-        if (on_) {
+        if (is_on()) {
             track = accent;
             border = accent;
         }
@@ -57,7 +72,7 @@ public:
         draw_round_rect(cvs, r.x, r.y, r.w, track_h, radius, track, true);
         draw_round_rect(cvs, r.x, r.y, r.w, track_h, radius, border, false);
 
-        int inset = st.padding / 2;
+        int inset = st.metrics.padding / 2;
         if (inset < 1) inset = 1;
         int knob_size = track_h - inset * 2;
         const int max_knob = r.w - inset * 2;
@@ -76,14 +91,14 @@ public:
             knob_cx_min = r.x + r.w / 2;
             knob_cx_max = knob_cx_min;
         }
-        const int knob_cx = on_ ? knob_cx_max : knob_cx_min;
+        const int knob_cx = is_on() ? knob_cx_max : knob_cx_min;
         draw_circle(cvs, knob_cx, knob_cy, knob_radius, knob, true);
         draw_circle(cvs, knob_cx, knob_cy, knob_radius, border, false);
 
         draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, radius);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -100,8 +115,16 @@ public:
     }
 
 private:
-    bool on_{false};
+    void apply_on(bool on, bool notify_callback) noexcept {
+        if (on_.set(on) && notify_callback && on_change_) {
+            on_change_();
+        }
+    }
+
+    on_state_type on_{false};
     Callback on_change_{};
 };
+
+
 
 

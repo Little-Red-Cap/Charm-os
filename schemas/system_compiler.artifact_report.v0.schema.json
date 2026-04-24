@@ -1,0 +1,2312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.artifact_report.v0.schema.json",
+  "title": "system_compiler.artifact_report/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "generator",
+    "report_kind",
+    "mode",
+    "subject",
+    "system_input",
+    "structure",
+    "binding_result",
+    "bringup_order",
+    "system_formation",
+    "bringup_evidence",
+    "resource_contract",
+    "fact_resolution",
+    "runtime_observe",
+    "artifacts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.artifact_report/v0"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "report_kind": {
+      "const": "system_compiler.artifact_report"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "export_only",
+        "compare"
+      ]
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "system_input": {
+      "$ref": "#/$defs/systemInput"
+    },
+    "structure": {
+      "$ref": "#/$defs/structure"
+    },
+    "binding_result": {
+      "$ref": "#/$defs/bindingResult"
+    },
+    "bringup_order": {
+      "$ref": "#/$defs/bringupOrder"
+    },
+    "system_formation": {
+      "$ref": "#/$defs/systemFormation"
+    },
+    "connection_summary": {
+      "$ref": "#/$defs/connectionSummary"
+    },
+    "bringup_evidence": {
+      "$ref": "#/$defs/bringupEvidence"
+    },
+    "resource_contract": {
+      "$ref": "#/$defs/resourceContract"
+    },
+    "fact_resolution": {
+      "$ref": "#/$defs/factResolution"
+    },
+    "runtime_observe": {
+      "$ref": "#/$defs/runtimeObserve"
+    },
+    "comparison": {
+      "$ref": "#/$defs/comparisonSummary"
+    },
+    "artifacts": {
+      "$ref": "#/$defs/artifacts"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nullableInteger": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "countMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "stringCountMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missing",
+        "published"
+      ],
+      "properties": {
+        "missing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "exportStateCountMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missing",
+        "detached",
+        "attached"
+      ],
+      "properties": {
+        "missing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "detached": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attached": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "resourceContractClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "subjectSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "board": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "active_facets": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case",
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "case": {
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "board": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "active_facets": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "subjectResolutionSource": {
+      "type": "string",
+      "enum": [
+        "explicit_argument",
+        "subject_default",
+        "case_subject",
+        "missing"
+      ]
+    },
+    "nullableCaseKind": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "materialized_graph",
+        "runtime_only",
+        null
+      ]
+    },
+    "resolvedScalarInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "source": {
+          "$ref": "#/$defs/subjectResolutionSource"
+        }
+      }
+    },
+    "resolvedFacetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "values",
+        "source"
+      ],
+      "properties": {
+        "values": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "source": {
+          "$ref": "#/$defs/subjectResolutionSource"
+        }
+      }
+    },
+    "systemSpecInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_name",
+        "case_kind",
+        "source",
+        "build_dir",
+        "build_target",
+        "export_target"
+      ],
+      "properties": {
+        "case_name": {
+          "type": "string"
+        },
+        "case_kind": {
+          "type": "string",
+          "enum": [
+            "materialized_graph",
+            "runtime_only"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "build_dir": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "build_target": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "export_target": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "declaredInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "declared_facts",
+        "declared_contract_entries"
+      ],
+      "properties": {
+        "subject": {
+          "$ref": "#/$defs/subjectSummary"
+        },
+        "declared_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "declared_contract_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractClause"
+          }
+        }
+      }
+    },
+    "resolvedInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets",
+        "subject_facts"
+      ],
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/resolvedScalarInput"
+        },
+        "board": {
+          "$ref": "#/$defs/resolvedScalarInput"
+        },
+        "active_facets": {
+          "$ref": "#/$defs/resolvedFacetInput"
+        },
+        "subject_facts": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system_spec",
+        "declared_input",
+        "resolved_input"
+      ],
+      "properties": {
+        "system_spec": {
+          "$ref": "#/$defs/systemSpecInput"
+        },
+        "declared_input": {
+          "$ref": "#/$defs/declaredInput"
+        },
+        "resolved_input": {
+          "$ref": "#/$defs/resolvedInput"
+        }
+      }
+    },
+    "systemInputComparisonSystemSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_name",
+        "case_kind",
+        "source",
+        "build_dir",
+        "build_target",
+        "export_target"
+      ],
+      "properties": {
+        "case_name": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "case_kind": {
+          "$ref": "#/$defs/nullableCaseKind"
+        },
+        "source": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "build_dir": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "build_target": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "export_target": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "systemInputComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system_spec",
+        "declared_input",
+        "resolved_input"
+      ],
+      "properties": {
+        "system_spec": {
+          "$ref": "#/$defs/systemInputComparisonSystemSpec"
+        },
+        "declared_input": {
+          "$ref": "#/$defs/declaredInput"
+        },
+        "resolved_input": {
+          "$ref": "#/$defs/resolvedInput"
+        }
+      }
+    },
+    "structure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_count",
+        "node_count",
+        "edge_count",
+        "declared_facts",
+        "required_facts",
+        "unresolved_bindings"
+      ],
+      "properties": {
+        "capability_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edge_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "materialized_order": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "declared_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "required_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unresolved_bindings": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bindingEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "state",
+        "provider_nodes",
+        "consumer_nodes",
+        "reason"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "resolved",
+            "unresolved"
+          ]
+        },
+        "provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "bindingResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_binding_count",
+        "resolved_binding_count",
+        "unresolved_binding_count",
+        "resolved_capabilities",
+        "unresolved_capabilities",
+        "binding_entries"
+      ],
+      "properties": {
+        "required_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unresolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "binding_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bindingEntry"
+          }
+        }
+      }
+    },
+    "bringupOrderEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "node",
+        "kind",
+        "phase",
+        "runlevel_text",
+        "provides",
+        "requires",
+        "dependency_nodes",
+        "resolved_requires",
+        "missing_requires",
+        "state"
+      ],
+      "properties": {
+        "order": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "node": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "runlevel_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "provides": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "resolved_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "blocked"
+          ]
+        }
+      }
+    },
+    "bringupOrder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordered_node_count",
+        "blocked_node_count",
+        "phase_counts",
+        "entries"
+      ],
+      "properties": {
+        "ordered_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phase_counts": {
+          "$ref": "#/$defs/countMap"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bringupOrderEntry"
+          }
+        }
+      }
+    },
+    "systemFormationStatus": {
+      "type": "string",
+      "enum": [
+        "formed",
+        "blocked"
+      ]
+    },
+    "systemFormationComparisonStatus": {
+      "type": "string",
+      "enum": [
+        "missing",
+        "formed",
+        "blocked"
+      ]
+    },
+    "systemFormationBasis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_kind",
+        "declared_fact_count",
+        "declared_contract_count",
+        "subject_fact_count"
+      ],
+      "properties": {
+        "case_kind": {
+          "$ref": "#/$defs/nullableCaseKind"
+        },
+        "declared_fact_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declared_contract_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "subject_fact_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "systemFormationBindingSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_binding_count",
+        "resolved_binding_count",
+        "unresolved_binding_count",
+        "unresolved_capabilities"
+      ],
+      "properties": {
+        "required_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemFormationBringupSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordered_node_count",
+        "blocked_node_count",
+        "blocked_nodes"
+      ],
+      "properties": {
+        "ordered_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemFormationBlocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "state",
+        "reason",
+        "missing_requires",
+        "dependency_nodes"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "binding",
+            "node"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "unresolved",
+            "blocked"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemFormation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "formation_basis",
+        "binding_summary",
+        "bringup_summary",
+        "blocker_count",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/systemFormationStatus"
+        },
+        "formation_basis": {
+          "$ref": "#/$defs/systemFormationBasis"
+        },
+        "binding_summary": {
+          "$ref": "#/$defs/systemFormationBindingSummary"
+        },
+        "bringup_summary": {
+          "$ref": "#/$defs/systemFormationBringupSummary"
+        },
+        "blocker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/systemFormationBlocker"
+          }
+        }
+      }
+    },
+    "connectionSummaryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "phase",
+        "runlevel_text",
+        "source",
+        "sink",
+        "mode",
+        "requires"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "runlevel_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "source": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "sink": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "mode": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "connectionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connection_node_count",
+        "connection_modes",
+        "connections"
+      ],
+      "properties": {
+        "connection_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "connection_modes": {
+          "$ref": "#/$defs/countMap"
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/connectionSummaryEntry"
+          }
+        }
+      }
+    },
+    "bringupEvidenceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "declared",
+        "materialized",
+        "published",
+        "observed",
+        "blocked",
+        "failed",
+        "provider_nodes",
+        "consumer_nodes",
+        "blocked_reasons",
+        "failed_reasons"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "declared": {
+          "type": "boolean"
+        },
+        "materialized": {
+          "type": "boolean"
+        },
+        "published": {
+          "type": "boolean"
+        },
+        "observed": {
+          "type": "boolean"
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "failed": {
+          "type": "boolean"
+        },
+        "publish_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "export_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "failed_reasons": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_count",
+        "materialized_count",
+        "published_count",
+        "observed_count",
+        "blocked_count",
+        "failed_count"
+      ],
+      "properties": {
+        "declared_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "materialized_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "failed_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "evidence_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bringupEvidenceEntry"
+          }
+        }
+      }
+    },
+    "resourceContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_contracts",
+        "declared_contract_entries",
+        "provided_facts",
+        "audited_count",
+        "satisfied_count",
+        "violated_count",
+        "unknown_count",
+        "satisfied_contracts"
+      ],
+      "properties": {
+        "declared_contracts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declared_contract_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractClause"
+          }
+        },
+        "provided_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "audited_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "satisfied_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "satisfied_contracts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "violations": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unknown_contracts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "resource_hotspots": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "factSourceMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/stringArray"
+      }
+    },
+    "factInventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_facts",
+        "subject_facts",
+        "required_facts",
+        "graph_provided_facts",
+        "audit_provided_facts",
+        "all_available_facts"
+      ],
+      "properties": {
+        "declared_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "subject_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "required_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "graph_provided_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "audit_provided_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "all_available_facts": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "factResolutionContractEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "state",
+        "requires",
+        "present_facts",
+        "missing_facts",
+        "fact_sources",
+        "status_text"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "satisfied",
+            "violated",
+            "unknown"
+          ]
+        },
+        "requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "present_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "missing_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "fact_sources": {
+          "$ref": "#/$defs/factSourceMap"
+        },
+        "status_text": {
+          "type": "string"
+        }
+      }
+    },
+    "factResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_contracts",
+        "audited_count",
+        "satisfied_count",
+        "violated_count",
+        "unknown_count",
+        "fact_inventory",
+        "contracts",
+        "satisfied_contracts",
+        "violations",
+        "unknown_contracts",
+        "resource_hotspots"
+      ],
+      "properties": {
+        "declared_contracts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "audited_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "satisfied_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fact_inventory": {
+          "$ref": "#/$defs/factInventory"
+        },
+        "contracts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/factResolutionContractEntry"
+          }
+        },
+        "satisfied_contracts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "violations": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unknown_contracts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "resource_hotspots": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "transitionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "action",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "before": {
+          "type": "string"
+        },
+        "after": {
+          "type": "string"
+        }
+      }
+    },
+    "runtimeObserve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publish_state_summary",
+        "export_state_summary"
+      ],
+      "properties": {
+        "observed_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "publish_state_summary": {
+          "$ref": "#/$defs/stringCountMap"
+        },
+        "export_state_summary": {
+          "$ref": "#/$defs/exportStateCountMap"
+        },
+        "recent_transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transitionSummary"
+          }
+        }
+      }
+    },
+    "changeCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "stringArrayChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemInputComparisonContractChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "change_kind",
+        "left_requires",
+        "right_requires"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_requires": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemInputComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "system_spec_changes",
+        "declared_subject_changes",
+        "declared_fact_changes",
+        "declared_contract_changes",
+        "resolved_input_changes",
+        "subject_fact_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/systemInputComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/systemInputComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "system_spec_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "declared_subject_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "declared_fact_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "declared_contract_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/systemInputComparisonContractChange"
+          }
+        },
+        "resolved_input_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "subject_fact_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "systemFormationComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "formation_basis",
+        "binding_summary",
+        "bringup_summary",
+        "blocker_count",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/systemFormationComparisonStatus"
+        },
+        "formation_basis": {
+          "$ref": "#/$defs/systemFormationBasis"
+        },
+        "binding_summary": {
+          "$ref": "#/$defs/systemFormationBindingSummary"
+        },
+        "bringup_summary": {
+          "$ref": "#/$defs/systemFormationBringupSummary"
+        },
+        "blocker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/systemFormationBlocker"
+          }
+        }
+      }
+    },
+    "systemFormationComparisonBlockerChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_reason",
+        "right_reason",
+        "left_missing_requires",
+        "right_missing_requires",
+        "left_dependency_nodes",
+        "right_dependency_nodes"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "binding",
+            "node"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "unresolved",
+            "blocked"
+          ]
+        },
+        "right_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "unresolved",
+            "blocked"
+          ]
+        },
+        "left_reason": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_reason": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "systemFormationComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "blocker_changes",
+        "unresolved_capability_changes",
+        "blocked_node_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/systemFormationComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/systemFormationComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocker_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/systemFormationComparisonBlockerChange"
+          }
+        },
+        "unresolved_capability_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "blocked_node_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "bindingResultComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_binding_count",
+        "resolved_binding_count",
+        "unresolved_binding_count",
+        "resolved_capabilities",
+        "unresolved_capabilities"
+      ],
+      "properties": {
+        "required_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unresolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bindingResultComparisonBindingChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_provider_nodes",
+        "right_provider_nodes",
+        "left_consumer_nodes",
+        "right_consumer_nodes",
+        "left_reason",
+        "right_reason"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "resolved",
+            "unresolved"
+          ]
+        },
+        "right_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "resolved",
+            "unresolved"
+          ]
+        },
+        "left_provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_reason": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_reason": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "bindingResultComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "binding_changes",
+        "resolved_capability_changes",
+        "unresolved_capability_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/bindingResultComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/bindingResultComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "binding_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bindingResultComparisonBindingChange"
+          }
+        },
+        "resolved_capability_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "unresolved_capability_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "bringupOrderComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordered_node_count",
+        "blocked_node_count",
+        "phase_counts",
+        "blocked_nodes"
+      ],
+      "properties": {
+        "ordered_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phase_counts": {
+          "$ref": "#/$defs/countMap"
+        },
+        "blocked_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupOrderComparisonEntryChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node",
+        "change_kind",
+        "left_order",
+        "right_order",
+        "left_kind",
+        "right_kind",
+        "left_phase",
+        "right_phase",
+        "left_runlevel_text",
+        "right_runlevel_text",
+        "left_state",
+        "right_state",
+        "left_provides",
+        "right_provides",
+        "left_requires",
+        "right_requires",
+        "left_dependency_nodes",
+        "right_dependency_nodes",
+        "left_missing_requires",
+        "right_missing_requires"
+      ],
+      "properties": {
+        "node": {
+          "type": "string"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_order": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "right_order": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "left_kind": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_kind": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_phase": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_phase": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_runlevel_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_runlevel_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "ready",
+            "blocked"
+          ]
+        },
+        "right_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "ready",
+            "blocked"
+          ]
+        },
+        "left_provides": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_provides": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_dependency_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_missing_requires": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupOrderComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "entry_changes",
+        "blocked_node_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/bringupOrderComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/bringupOrderComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "entry_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bringupOrderComparisonEntryChange"
+          }
+        },
+        "blocked_node_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "bringupEvidenceComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_count",
+        "materialized_count",
+        "published_count",
+        "observed_count",
+        "blocked_count",
+        "failed_count",
+        "published_capabilities",
+        "blocked_reasons",
+        "failed_reasons"
+      ],
+      "properties": {
+        "declared_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "materialized_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "published_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "failed_reasons": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupEvidenceComparisonCapabilityChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "change_kind",
+        "left_declared",
+        "right_declared",
+        "left_materialized",
+        "right_materialized",
+        "left_published",
+        "right_published",
+        "left_observed",
+        "right_observed",
+        "left_blocked",
+        "right_blocked",
+        "left_failed",
+        "right_failed",
+        "left_publish_state",
+        "right_publish_state",
+        "left_export_state",
+        "right_export_state",
+        "left_provider_nodes",
+        "right_provider_nodes",
+        "left_consumer_nodes",
+        "right_consumer_nodes",
+        "left_blocked_reasons",
+        "right_blocked_reasons",
+        "left_failed_reasons",
+        "right_failed_reasons"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_declared": {
+          "type": "boolean"
+        },
+        "right_declared": {
+          "type": "boolean"
+        },
+        "left_materialized": {
+          "type": "boolean"
+        },
+        "right_materialized": {
+          "type": "boolean"
+        },
+        "left_published": {
+          "type": "boolean"
+        },
+        "right_published": {
+          "type": "boolean"
+        },
+        "left_observed": {
+          "type": "boolean"
+        },
+        "right_observed": {
+          "type": "boolean"
+        },
+        "left_blocked": {
+          "type": "boolean"
+        },
+        "right_blocked": {
+          "type": "boolean"
+        },
+        "left_failed": {
+          "type": "boolean"
+        },
+        "right_failed": {
+          "type": "boolean"
+        },
+        "left_publish_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_publish_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_export_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_export_state": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "left_provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_provider_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_consumer_nodes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_blocked_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_failed_reasons": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_failed_reasons": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "bringupEvidenceComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "capability_changes",
+        "published_capability_changes",
+        "blocked_reason_changes",
+        "failed_reason_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/bringupEvidenceComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/bringupEvidenceComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "capability_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bringupEvidenceComparisonCapabilityChange"
+          }
+        },
+        "published_capability_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "blocked_reason_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "failed_reason_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "resourceContractComparisonSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_contracts",
+        "audited_count",
+        "satisfied_count",
+        "violated_count",
+        "unknown_count",
+        "provided_facts",
+        "resource_hotspots"
+      ],
+      "properties": {
+        "declared_contracts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "audited_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "satisfied_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provided_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "resource_hotspots": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "resourceContractComparisonContractChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_requires",
+        "right_requires",
+        "left_status_text",
+        "right_status_text"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "enum": [
+            "may_block",
+            "needs_heap",
+            "needs_reactor",
+            "needs_monotonic_clock",
+            "irq_safe"
+          ]
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "left_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "declared",
+            "satisfied",
+            "violated",
+            "unknown"
+          ]
+        },
+        "right_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "declared",
+            "satisfied",
+            "violated",
+            "unknown"
+          ]
+        },
+        "left_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_requires": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_status_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_status_text": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "resourceContractComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "contract_changes",
+        "provided_fact_changes",
+        "hotspot_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/resourceContractComparisonSide"
+        },
+        "right": {
+          "$ref": "#/$defs/resourceContractComparisonSide"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "contract_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractComparisonContractChange"
+          }
+        },
+        "provided_fact_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "hotspot_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "factInventoryChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_facts",
+        "subject_facts",
+        "required_facts",
+        "graph_provided_facts",
+        "audit_provided_facts",
+        "all_available_facts"
+      ],
+      "properties": {
+        "declared_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "subject_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "required_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "graph_provided_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "audit_provided_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        },
+        "all_available_facts": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "factResolutionComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "left",
+        "right",
+        "summary_changes",
+        "fact_inventory_changes",
+        "contract_changes",
+        "hotspot_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "left": {
+          "$ref": "#/$defs/factResolution"
+        },
+        "right": {
+          "$ref": "#/$defs/factResolution"
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "fact_inventory_changes": {
+          "$ref": "#/$defs/factInventoryChanges"
+        },
+        "contract_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resourceContractComparisonContractChange"
+          }
+        },
+        "hotspot_changes": {
+          "$ref": "#/$defs/stringArrayChanges"
+        }
+      }
+    },
+    "comparisonSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "summary_changes",
+        "metadata_changes",
+        "node_changes",
+        "edge_changes"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "changed",
+            "added",
+            "removed",
+            "unchanged"
+          ]
+        },
+        "summary_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "metadata_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "node_changes": {
+          "$ref": "#/$defs/changeCounts"
+        },
+        "edge_changes": {
+          "$ref": "#/$defs/changeCounts"
+        },
+        "system_input": {
+          "$ref": "#/$defs/systemInputComparison"
+        },
+        "system_formation": {
+          "$ref": "#/$defs/systemFormationComparison"
+        },
+        "binding_result": {
+          "$ref": "#/$defs/bindingResultComparison"
+        },
+        "bringup_order": {
+          "$ref": "#/$defs/bringupOrderComparison"
+        },
+        "bringup_evidence": {
+          "$ref": "#/$defs/bringupEvidenceComparison"
+        },
+        "resource_contract": {
+          "$ref": "#/$defs/resourceContractComparison"
+        },
+        "fact_resolution": {
+          "$ref": "#/$defs/factResolutionComparison"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle",
+        "input_manifest",
+        "dot",
+        "sample_json",
+        "diff",
+        "ci_summary",
+        "report_manifest"
+      ],
+      "properties": {
+        "bundle": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "input_manifest": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "dot": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "sample_json": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "runtime_observe": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "diff": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "ci_summary": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "report_manifest": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "report_markdown": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "report_html": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    }
+  }
+}

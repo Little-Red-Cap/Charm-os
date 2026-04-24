@@ -1,4 +1,5 @@
 module;
+#include <array>
 #include <cstdint>
 #include <type_traits>
 export module charm.core.style;
@@ -7,43 +8,79 @@ export import charm.gfx.color;
 export import charm.font.typography;
 
 export
+struct StyleColors {
+    rgba bg_color{240, 240, 240, 255};
+    rgba border_color{180, 180, 180, 255};
+    rgba font_color{0, 0, 0, 255};
+
+    rgba bg_hover{230, 230, 230, 255};
+    rgba bg_pressed{210, 210, 210, 255};
+    rgba bg_disabled{220, 220, 220, 255};
+    rgba border_hover{120, 120, 120, 255};
+    rgba border_pressed{80, 80, 80, 255};
+    rgba border_disabled{160, 160, 160, 255};
+    rgba border_focus{80, 120, 200, 255};
+    rgba font_color_disabled{120, 120, 120, 255};
+
+    rgba accent_color{80, 120, 200, 255};
+    rgba accent_hover{0, 0, 0, 0}; // 0 alpha = derive from accent_color
+    rgba accent_pressed{0, 0, 0, 0}; // 0 alpha = derive from accent_color
+    rgba accent_disabled{0, 0, 0, 0}; // 0 alpha = derive from accent_color
+    rgba on_accent{255, 255, 255, 255};
+};
+
+export
+struct StyleMetrics {
+    int border_width{1};
+    int corner_radius{4};
+    int padding{4};
+    int header_padding{4};
+    int content_padding{8};
+    int scrollbar_margin{2};
+    int scrollbar_thumb_min{12};
+    int glass_highlight_pos{10};
+    int glass_highlight_alpha{70};
+    int glass_shadow_alpha{40};
+    int glass_opacity_min{40};
+    int glass_opacity_max{200};
+};
+
+export
+struct StyleDecoration {
+    bool shadow_enabled{false};
+    rgba shadow_color{0, 0, 0, 0};
+    std::int16_t shadow_offset_x{0};
+    std::int16_t shadow_offset_y{0};
+    std::int16_t shadow_spread{0};
+    std::int16_t shadow_radius{0};
+
+    bool inner_stroke_enabled{false};
+    rgba inner_stroke_color{0, 0, 0, 0};
+    std::int16_t inner_stroke_width{0};
+
+    bool outline_enabled{false};
+    rgba outline_color{0, 0, 0, 0};
+    std::int16_t outline_width{0};
+
+    bool gradient_enabled{false};
+    rgba gradient_start{0, 0, 0, 0};
+    rgba gradient_end{0, 0, 0, 0};
+    std::uint8_t gradient_direction{0};
+};
+
+export
 struct Style {
-    rgba      bg_color      = {240,240,240,255};
-    rgba      border_color  = {180,180,180,255};
-    int       border_width  = 1;
-    int       corner_radius = 4;
-    int       padding       = 4;
-    int       header_padding = 4;
-    int       content_padding = 8;
-    int       scrollbar_margin = 2;
-    int       scrollbar_thumb_min = 12;
-    int       glass_highlight_pos = 10;
-    int       glass_highlight_alpha = 70;
-    int       glass_shadow_alpha = 40;
-    int       glass_opacity_min = 40;
-    int       glass_opacity_max = 200;
-
-    const Font* font         = nullptr;
-    rgba        font_color   = {  0,  0,  0,255};
-
-    rgba      bg_hover      = {230,230,230,255};
-    rgba      bg_pressed    = {210,210,210,255};
-    rgba      bg_disabled   = {220,220,220,255};
-    rgba      border_hover  = {120,120,120,255};
-    rgba      border_pressed= { 80, 80, 80,255};
-    rgba      border_disabled= {160,160,160,255};
-    rgba      border_focus  = { 80,120,200,255};
-    rgba      font_color_disabled = {120,120,120,255};
-
-    rgba      accent_color  = { 80,120,200,255};
-    rgba      accent_hover  = {  0,  0,  0,  0}; // 0 alpha = derive from accent_color
-    rgba      accent_pressed= {  0,  0,  0,  0}; // 0 alpha = derive from accent_color
-    rgba      accent_disabled= { 0,  0,  0,  0}; // 0 alpha = derive from accent_color
-    rgba      on_accent     = {255,255,255,255};
+    StyleColors colors{};
+    StyleMetrics metrics{};
+    StyleDecoration decoration{};
+    const Font* font{nullptr};
+    FontId font_role{FontId::Normal};
+    FontWeight font_weight{FontWeight::Regular};
 };
 
 export
 struct ThemeTokens {
+    std::uint32_t version{0};
     rgba surface{240, 240, 240, 255};
     rgba surface_variant{255, 255, 255, 255};
     rgba on_surface{0, 0, 0, 255};
@@ -55,6 +92,8 @@ struct ThemeTokens {
     rgba on_danger{255, 255, 255, 255};
     rgba focus_ring{80, 120, 200, 255};
 };
+
+export rgba adjust_by_luma(const rgba& c, int delta) noexcept;
 
 export
 struct StylePatch {
@@ -73,6 +112,8 @@ struct StylePatch {
     bool has_glass_opacity_min{false};
     bool has_glass_opacity_max{false};
     bool has_font{false};
+    bool has_font_role{false};
+    bool has_font_weight{false};
     bool has_font_color{false};
     bool has_bg_hover{false};
     bool has_bg_pressed{false};
@@ -87,6 +128,22 @@ struct StylePatch {
     bool has_accent_pressed{false};
     bool has_accent_disabled{false};
     bool has_on_accent{false};
+    bool has_shadow_enabled{false};
+    bool has_shadow_color{false};
+    bool has_shadow_offset_x{false};
+    bool has_shadow_offset_y{false};
+    bool has_shadow_spread{false};
+    bool has_shadow_radius{false};
+    bool has_inner_stroke_enabled{false};
+    bool has_inner_stroke_color{false};
+    bool has_inner_stroke_width{false};
+    bool has_outline_enabled{false};
+    bool has_outline_color{false};
+    bool has_outline_width{false};
+    bool has_gradient_enabled{false};
+    bool has_gradient_start{false};
+    bool has_gradient_end{false};
+    bool has_gradient_direction{false};
 
     rgba bg_color{};
     rgba border_color{};
@@ -103,6 +160,8 @@ struct StylePatch {
     int  glass_opacity_min{0};
     int  glass_opacity_max{0};
     const Font* font{nullptr};
+    FontId font_role{FontId::Normal};
+    FontWeight font_weight{FontWeight::Regular};
     rgba font_color{};
     rgba bg_hover{};
     rgba bg_pressed{};
@@ -117,39 +176,161 @@ struct StylePatch {
     rgba accent_pressed{};
     rgba accent_disabled{};
     rgba on_accent{};
+    bool shadow_enabled{false};
+    rgba shadow_color{};
+    std::int16_t shadow_offset_x{0};
+    std::int16_t shadow_offset_y{0};
+    std::int16_t shadow_spread{0};
+    std::int16_t shadow_radius{0};
+    bool inner_stroke_enabled{false};
+    rgba inner_stroke_color{};
+    std::int16_t inner_stroke_width{0};
+    bool outline_enabled{false};
+    rgba outline_color{};
+    std::int16_t outline_width{0};
+    bool gradient_enabled{false};
+    rgba gradient_start{};
+    rgba gradient_end{};
+    std::uint8_t gradient_direction{0};
 
     void apply_to(Style& s) const noexcept {
-        if (has_bg_color) s.bg_color = bg_color;
-        if (has_border_color) s.border_color = border_color;
-        if (has_border_width) s.border_width = border_width;
-        if (has_corner_radius) s.corner_radius = corner_radius;
-        if (has_padding) s.padding = padding;
-        if (has_header_padding) s.header_padding = header_padding;
-        if (has_content_padding) s.content_padding = content_padding;
-        if (has_scrollbar_margin) s.scrollbar_margin = scrollbar_margin;
-        if (has_scrollbar_thumb_min) s.scrollbar_thumb_min = scrollbar_thumb_min;
-        if (has_glass_highlight_pos) s.glass_highlight_pos = glass_highlight_pos;
-        if (has_glass_highlight_alpha) s.glass_highlight_alpha = glass_highlight_alpha;
-        if (has_glass_shadow_alpha) s.glass_shadow_alpha = glass_shadow_alpha;
-        if (has_glass_opacity_min) s.glass_opacity_min = glass_opacity_min;
-        if (has_glass_opacity_max) s.glass_opacity_max = glass_opacity_max;
+        if (has_bg_color) s.colors.bg_color = bg_color;
+        if (has_border_color) s.colors.border_color = border_color;
+        if (has_border_width) s.metrics.border_width = border_width;
+        if (has_corner_radius) s.metrics.corner_radius = corner_radius;
+        if (has_padding) s.metrics.padding = padding;
+        if (has_header_padding) s.metrics.header_padding = header_padding;
+        if (has_content_padding) s.metrics.content_padding = content_padding;
+        if (has_scrollbar_margin) s.metrics.scrollbar_margin = scrollbar_margin;
+        if (has_scrollbar_thumb_min) s.metrics.scrollbar_thumb_min = scrollbar_thumb_min;
+        if (has_glass_highlight_pos) s.metrics.glass_highlight_pos = glass_highlight_pos;
+        if (has_glass_highlight_alpha) s.metrics.glass_highlight_alpha = glass_highlight_alpha;
+        if (has_glass_shadow_alpha) s.metrics.glass_shadow_alpha = glass_shadow_alpha;
+        if (has_glass_opacity_min) s.metrics.glass_opacity_min = glass_opacity_min;
+        if (has_glass_opacity_max) s.metrics.glass_opacity_max = glass_opacity_max;
         if (has_font) s.font = font;
-        if (has_font_color) s.font_color = font_color;
-        if (has_bg_hover) s.bg_hover = bg_hover;
-        if (has_bg_pressed) s.bg_pressed = bg_pressed;
-        if (has_bg_disabled) s.bg_disabled = bg_disabled;
-        if (has_border_hover) s.border_hover = border_hover;
-        if (has_border_pressed) s.border_pressed = border_pressed;
-        if (has_border_disabled) s.border_disabled = border_disabled;
-        if (has_border_focus) s.border_focus = border_focus;
-        if (has_font_color_disabled) s.font_color_disabled = font_color_disabled;
-        if (has_accent_color) s.accent_color = accent_color;
-        if (has_accent_hover) s.accent_hover = accent_hover;
-        if (has_accent_pressed) s.accent_pressed = accent_pressed;
-        if (has_accent_disabled) s.accent_disabled = accent_disabled;
-        if (has_on_accent) s.on_accent = on_accent;
+        if (has_font_role) {
+            s.font_role = font_role;
+            if (!has_font) {
+                s.font = nullptr;
+            }
+        }
+        if (has_font_weight) s.font_weight = font_weight;
+        if (has_font_color) s.colors.font_color = font_color;
+        if (has_bg_hover) s.colors.bg_hover = bg_hover;
+        if (has_bg_pressed) s.colors.bg_pressed = bg_pressed;
+        if (has_bg_disabled) s.colors.bg_disabled = bg_disabled;
+        if (has_border_hover) s.colors.border_hover = border_hover;
+        if (has_border_pressed) s.colors.border_pressed = border_pressed;
+        if (has_border_disabled) s.colors.border_disabled = border_disabled;
+        if (has_border_focus) s.colors.border_focus = border_focus;
+        if (has_font_color_disabled) s.colors.font_color_disabled = font_color_disabled;
+    if (has_accent_color) {
+        s.colors.accent_color = accent_color;
+        if (!has_accent_hover) {
+            s.colors.accent_hover = adjust_by_luma(accent_color, 12);
+        }
+        if (!has_accent_pressed) {
+            s.colors.accent_pressed = adjust_by_luma(accent_color, 24);
+        }
+        if (!has_accent_disabled) {
+            s.colors.accent_disabled = adjust_by_luma(accent_color, 40);
+        }
+    }
+        if (has_accent_hover) s.colors.accent_hover = accent_hover;
+        if (has_accent_pressed) s.colors.accent_pressed = accent_pressed;
+        if (has_accent_disabled) s.colors.accent_disabled = accent_disabled;
+        if (has_on_accent) s.colors.on_accent = on_accent;
+        if (has_shadow_enabled) s.decoration.shadow_enabled = shadow_enabled;
+        if (has_shadow_color) s.decoration.shadow_color = shadow_color;
+        if (has_shadow_offset_x) s.decoration.shadow_offset_x = shadow_offset_x;
+        if (has_shadow_offset_y) s.decoration.shadow_offset_y = shadow_offset_y;
+        if (has_shadow_spread) s.decoration.shadow_spread = shadow_spread;
+        if (has_shadow_radius) s.decoration.shadow_radius = shadow_radius;
+        if (has_inner_stroke_enabled) s.decoration.inner_stroke_enabled = inner_stroke_enabled;
+        if (has_inner_stroke_color) s.decoration.inner_stroke_color = inner_stroke_color;
+        if (has_inner_stroke_width) s.decoration.inner_stroke_width = inner_stroke_width;
+        if (has_outline_enabled) s.decoration.outline_enabled = outline_enabled;
+        if (has_outline_color) s.decoration.outline_color = outline_color;
+        if (has_outline_width) s.decoration.outline_width = outline_width;
+        if (has_gradient_enabled) s.decoration.gradient_enabled = gradient_enabled;
+        if (has_gradient_start) s.decoration.gradient_start = gradient_start;
+        if (has_gradient_end) s.decoration.gradient_end = gradient_end;
+        if (has_gradient_direction) s.decoration.gradient_direction = gradient_direction;
     }
 };
+
+export
+enum class StylePatchKind : std::uint8_t {
+    None = 0,
+    Adjust = 1,
+    Override = 2
+};
+
+export
+struct StyleToken {
+    StylePatch patch{};
+};
+
+export
+using StyleClassId = std::uint16_t;
+
+export
+inline constexpr StyleClassId kStyleClassInvalid = 0;
+
+export
+inline constexpr std::size_t kStyleClassMax = 256;
+
+export
+inline void merge_style_patch(StylePatch& dst, const StylePatch& src) noexcept {
+    if (src.has_bg_color) { dst.has_bg_color = true; dst.bg_color = src.bg_color; }
+    if (src.has_border_color) { dst.has_border_color = true; dst.border_color = src.border_color; }
+    if (src.has_border_width) { dst.has_border_width = true; dst.border_width = src.border_width; }
+    if (src.has_corner_radius) { dst.has_corner_radius = true; dst.corner_radius = src.corner_radius; }
+    if (src.has_padding) { dst.has_padding = true; dst.padding = src.padding; }
+    if (src.has_header_padding) { dst.has_header_padding = true; dst.header_padding = src.header_padding; }
+    if (src.has_content_padding) { dst.has_content_padding = true; dst.content_padding = src.content_padding; }
+    if (src.has_scrollbar_margin) { dst.has_scrollbar_margin = true; dst.scrollbar_margin = src.scrollbar_margin; }
+    if (src.has_scrollbar_thumb_min) { dst.has_scrollbar_thumb_min = true; dst.scrollbar_thumb_min = src.scrollbar_thumb_min; }
+    if (src.has_glass_highlight_pos) { dst.has_glass_highlight_pos = true; dst.glass_highlight_pos = src.glass_highlight_pos; }
+    if (src.has_glass_highlight_alpha) { dst.has_glass_highlight_alpha = true; dst.glass_highlight_alpha = src.glass_highlight_alpha; }
+    if (src.has_glass_shadow_alpha) { dst.has_glass_shadow_alpha = true; dst.glass_shadow_alpha = src.glass_shadow_alpha; }
+    if (src.has_glass_opacity_min) { dst.has_glass_opacity_min = true; dst.glass_opacity_min = src.glass_opacity_min; }
+    if (src.has_glass_opacity_max) { dst.has_glass_opacity_max = true; dst.glass_opacity_max = src.glass_opacity_max; }
+    if (src.has_font) { dst.has_font = true; dst.font = src.font; }
+    if (src.has_font_role) { dst.has_font_role = true; dst.font_role = src.font_role; }
+    if (src.has_font_weight) { dst.has_font_weight = true; dst.font_weight = src.font_weight; }
+    if (src.has_font_color) { dst.has_font_color = true; dst.font_color = src.font_color; }
+    if (src.has_bg_hover) { dst.has_bg_hover = true; dst.bg_hover = src.bg_hover; }
+    if (src.has_bg_pressed) { dst.has_bg_pressed = true; dst.bg_pressed = src.bg_pressed; }
+    if (src.has_bg_disabled) { dst.has_bg_disabled = true; dst.bg_disabled = src.bg_disabled; }
+    if (src.has_border_hover) { dst.has_border_hover = true; dst.border_hover = src.border_hover; }
+    if (src.has_border_pressed) { dst.has_border_pressed = true; dst.border_pressed = src.border_pressed; }
+    if (src.has_border_disabled) { dst.has_border_disabled = true; dst.border_disabled = src.border_disabled; }
+    if (src.has_border_focus) { dst.has_border_focus = true; dst.border_focus = src.border_focus; }
+    if (src.has_font_color_disabled) { dst.has_font_color_disabled = true; dst.font_color_disabled = src.font_color_disabled; }
+    if (src.has_accent_color) { dst.has_accent_color = true; dst.accent_color = src.accent_color; }
+    if (src.has_accent_hover) { dst.has_accent_hover = true; dst.accent_hover = src.accent_hover; }
+    if (src.has_accent_pressed) { dst.has_accent_pressed = true; dst.accent_pressed = src.accent_pressed; }
+    if (src.has_accent_disabled) { dst.has_accent_disabled = true; dst.accent_disabled = src.accent_disabled; }
+    if (src.has_on_accent) { dst.has_on_accent = true; dst.on_accent = src.on_accent; }
+    if (src.has_shadow_enabled) { dst.has_shadow_enabled = true; dst.shadow_enabled = src.shadow_enabled; }
+    if (src.has_shadow_color) { dst.has_shadow_color = true; dst.shadow_color = src.shadow_color; }
+    if (src.has_shadow_offset_x) { dst.has_shadow_offset_x = true; dst.shadow_offset_x = src.shadow_offset_x; }
+    if (src.has_shadow_offset_y) { dst.has_shadow_offset_y = true; dst.shadow_offset_y = src.shadow_offset_y; }
+    if (src.has_shadow_spread) { dst.has_shadow_spread = true; dst.shadow_spread = src.shadow_spread; }
+    if (src.has_shadow_radius) { dst.has_shadow_radius = true; dst.shadow_radius = src.shadow_radius; }
+    if (src.has_inner_stroke_enabled) { dst.has_inner_stroke_enabled = true; dst.inner_stroke_enabled = src.inner_stroke_enabled; }
+    if (src.has_inner_stroke_color) { dst.has_inner_stroke_color = true; dst.inner_stroke_color = src.inner_stroke_color; }
+    if (src.has_inner_stroke_width) { dst.has_inner_stroke_width = true; dst.inner_stroke_width = src.inner_stroke_width; }
+    if (src.has_outline_enabled) { dst.has_outline_enabled = true; dst.outline_enabled = src.outline_enabled; }
+    if (src.has_outline_color) { dst.has_outline_color = true; dst.outline_color = src.outline_color; }
+    if (src.has_outline_width) { dst.has_outline_width = true; dst.outline_width = src.outline_width; }
+    if (src.has_gradient_enabled) { dst.has_gradient_enabled = true; dst.gradient_enabled = src.gradient_enabled; }
+    if (src.has_gradient_start) { dst.has_gradient_start = true; dst.gradient_start = src.gradient_start; }
+    if (src.has_gradient_end) { dst.has_gradient_end = true; dst.gradient_end = src.gradient_end; }
+    if (src.has_gradient_direction) { dst.has_gradient_direction = true; dst.gradient_direction = src.gradient_direction; }
+  }
 
 export
 struct StyleState {
@@ -171,7 +352,7 @@ inline StyleState make_style_state(bool enabled,
 
 export
 inline const Font& resolve_font(const Style& st) noexcept {
-    return st.font ? *st.font : get_font(FontId::Normal);
+    return st.font ? *st.font : get_font_weighted(st.font_role, st.font_weight);
 }
 
 inline int luma(const rgba& c) noexcept {
@@ -193,58 +374,58 @@ export inline rgba adjust_by_luma(const rgba& c, int delta) noexcept {
 export
 inline void resolve_colors(const Style& st, const StyleState& state,
                            rgba& bg, rgba& border, rgba& font) noexcept {
-    bg = st.bg_color;
-    border = st.border_color;
-    font = st.font_color;
+    bg = st.colors.bg_color;
+    border = st.colors.border_color;
+    font = st.colors.font_color;
     if (!state.enabled) {
-        bg = st.bg_disabled;
-        border = st.border_disabled;
-        font = st.font_color_disabled;
+        bg = st.colors.bg_disabled;
+        border = st.colors.border_disabled;
+        font = st.colors.font_color_disabled;
         return;
     }
     if (state.pressed) {
-        bg = st.bg_pressed;
-        border = st.border_pressed;
+        bg = st.colors.bg_pressed;
+        border = st.colors.border_pressed;
     } else if (state.hovered) {
-        bg = st.bg_hover;
-        border = st.border_hover;
+        bg = st.colors.bg_hover;
+        border = st.colors.border_hover;
     }
 }
 
 export inline rgba resolve_accent(const Style& st, const StyleState& state) noexcept {
     if (!state.enabled) {
-        return st.accent_disabled.a ? st.accent_disabled : adjust_by_luma(st.accent_color, 40);
+        return st.colors.accent_disabled.a ? st.colors.accent_disabled : st.colors.accent_color;
     }
     if (state.pressed) {
-        return st.accent_pressed.a ? st.accent_pressed : adjust_by_luma(st.accent_color, 24);
+        return st.colors.accent_pressed.a ? st.colors.accent_pressed : st.colors.accent_color;
     }
     if (state.hovered) {
-        return st.accent_hover.a ? st.accent_hover : adjust_by_luma(st.accent_color, 12);
+        return st.colors.accent_hover.a ? st.colors.accent_hover : st.colors.accent_color;
     }
-    return st.accent_color;
+    return st.colors.accent_color;
 }
 
 export
 inline void apply_tokens_to_style(Style& s, const ThemeTokens& t) noexcept {
-    s.bg_color = t.surface;
-    s.bg_hover = adjust_by_luma(t.surface, 8);
-    s.bg_pressed = adjust_by_luma(t.surface, 20);
-    s.bg_disabled = adjust_by_luma(t.surface, 6);
+    s.colors.bg_color = t.surface;
+    s.colors.bg_hover = adjust_by_luma(t.surface, 8);
+    s.colors.bg_pressed = adjust_by_luma(t.surface, 20);
+    s.colors.bg_disabled = adjust_by_luma(t.surface, 6);
 
-    s.border_color = t.outline;
-    s.border_hover = adjust_by_luma(t.outline, 20);
-    s.border_pressed = adjust_by_luma(t.outline, 40);
-    s.border_disabled = adjust_by_luma(t.outline, 16);
-    s.border_focus = t.focus_ring;
+    s.colors.border_color = t.outline;
+    s.colors.border_hover = adjust_by_luma(t.outline, 20);
+    s.colors.border_pressed = adjust_by_luma(t.outline, 40);
+    s.colors.border_disabled = adjust_by_luma(t.outline, 16);
+    s.colors.border_focus = t.focus_ring;
 
-    s.font_color = t.on_surface;
-    s.font_color_disabled = t.on_surface_muted;
+    s.colors.font_color = t.on_surface;
+    s.colors.font_color_disabled = t.on_surface_muted;
 
-    s.accent_color = t.accent;
-    s.accent_hover = {0, 0, 0, 0};
-    s.accent_pressed = {0, 0, 0, 0};
-    s.accent_disabled = {0, 0, 0, 0};
-    s.on_accent = t.on_accent;
+    s.colors.accent_color = t.accent;
+    s.colors.accent_hover = adjust_by_luma(t.accent, 12);
+    s.colors.accent_pressed = adjust_by_luma(t.accent, 24);
+    s.colors.accent_disabled = adjust_by_luma(t.accent, 40);
+    s.colors.on_accent = t.on_accent;
 }
 
 export
@@ -275,11 +456,7 @@ public:
 
     template<typename Widget>
     void set(const Style& s) noexcept {
-        Style copy = s;
-        if (!copy.font) {
-            copy.font = default_font();
-        }
-        style_slot<Widget>::value = copy;
+        style_slot<Widget>::value = s;
     }
 
     template<typename Child, typename Parent>
@@ -292,8 +469,11 @@ public:
         patch.apply_to(style_slot<Widget>::value);
     }
 
-    void set_tokens(const ThemeTokens& t) noexcept {
-        tokens() = t;
+    // Raw setter; prefer apply_theme_tokens (tokens + style slots).
+    void set_tokens_unsafe(const ThemeTokens& t) noexcept {
+        ThemeTokens next = t;
+        next.version = tokens().version + 1;
+        tokens() = next;
     }
 
     [[nodiscard]] const ThemeTokens& get_tokens() const noexcept {
@@ -302,6 +482,31 @@ public:
 
     void set_default_font(const Font& f) noexcept {
         default_font_ptr() = &f;
+    }
+
+    void set_style_class(StyleClassId id, const StylePatch& patch) noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return;
+        class_patch_[id] = patch;
+        class_on_[id] = 1;
+        class_version_++;
+    }
+
+    void clear_style_class(StyleClassId id) noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return;
+        if (class_on_[id] == 0) return;
+        class_patch_[id] = StylePatch{};
+        class_on_[id] = 0;
+        class_version_++;
+    }
+
+    [[nodiscard]] const StylePatch* style_class(StyleClassId id) const noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return nullptr;
+        if (class_on_[id] == 0) return nullptr;
+        return &class_patch_[id];
+    }
+
+    [[nodiscard]] std::uint32_t style_class_version() const noexcept {
+        return class_version_;
     }
 
 private:
@@ -326,4 +531,8 @@ private:
         }
         return &get_font(FontId::Normal);
     }
+
+    std::array<StylePatch, kStyleClassMax> class_patch_{};
+    std::array<std::uint8_t, kStyleClassMax> class_on_{};
+    std::uint32_t class_version_{0};
 };

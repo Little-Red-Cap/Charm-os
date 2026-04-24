@@ -1,29 +1,37 @@
 module;
+#include "vivid_features.generated.hpp"
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
 #include <cmath>
+#endif
 export module charm.widgets.ring_indication;
 
 import charm.core.object;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import alg_arc;
 
 using namespace ui::render;
 
 // Simple ring indication (0..100)
 export
-class RingIndication : public ObjectBase {
+class RingIndication : public WidgetBase<RingIndication> {
 public:
+    using value_state_type = service::state<int, 4>;
+    using value_slot_type = typename value_state_type::slot_type;
+    using value_connection = typename value_state_type::connection;
+
     RingIndication() {
         set_size(120, 120);
     }
 
     void set_value(int v) noexcept {
-        value_ = alg::arc::clamp_to_range(v, 0, 100);
+        (void)value_.set(alg::arc::clamp_to_range(v, 0, 100));
     }
 
-    int value() const noexcept { return value_; }
+    [[nodiscard]] int value() const noexcept { return value_.get(); }
 
     void set_thickness(int t) noexcept {
         thickness_ = (t > 0) ? t : 1;
@@ -39,12 +47,44 @@ public:
     void set_major_tick_length(int px) noexcept { major_len_ = (px > 0) ? px : 1; }
     void set_show_shadow(bool on) noexcept { show_shadow_ = on; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<RingIndication>();
+    // observe_value() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
+        return value_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
+        return value_.disconnect(c);
+    }
+
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        const int pad = show_shadow_ ? 2 : 1;
+        return Rect{r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2};
+    }
+
+    void draw(CanvasBase& cvs) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
+                                                  has_state(State::Pressed), has_state(State::Focused),
+                                                  style_variant());
+        const Style& base = Theme::instance().get<RingIndication>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::RingIndication, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
+        resolve_colors(st, state, bg, border, font);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
+        return;
+#else
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::RingIndication, state, st);
+        const Style& base = Theme::instance().get<RingIndication>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::RingIndication, state, base, st_scratch);
+        const auto r = get_rect();
+        rgba bg{}, border{}, font{};
+
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -64,7 +104,7 @@ public:
         }
         const float sweep = alg::arc::sweep_deg_from_value(static_cast<float>(start),
                                                            static_cast<float>(end),
-                                                           alg::arc::ratio_from_range(value_, 0, 100));
+                                                           alg::arc::ratio_from_range(value(), 0, 100));
         draw_arc(cvs, cx, cy, radius, thickness_, start, sweep, font);
 
         if (show_ticks_ && tick_count_ > 0) {
@@ -84,10 +124,11 @@ public:
                 draw_line(cvs, x0, y0, x1, y1, border);
             }
         }
+#endif
     }
 
 private:
-    int value_{0};
+    value_state_type value_{0};
     int thickness_{6};
     int start_deg_{-90};
     int end_deg_{270};
@@ -99,5 +140,7 @@ private:
     int major_len_{10};
     bool show_shadow_{true};
 };
+
+
 
 

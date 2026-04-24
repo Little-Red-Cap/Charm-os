@@ -1,9 +1,7 @@
 ﻿module;
 
-#include <cstddef>
-#include <cstdint>
-#include <concepts>
 #include <span>
+#include <type_traits>
 
 export module fs_stream;
 
@@ -12,15 +10,18 @@ import fs_errno;
 
 export namespace fs {
     struct Status {
-        Err err{Err::ok};
-        constexpr explicit operator bool() const noexcept { return err == Err::ok; }
+        Errc err{Errc::ok};
+        constexpr explicit operator bool() const noexcept { return err == Errc::ok; }
     };
+
+    template <class A, class B>
+    concept SameAs = std::is_same_v<A, B> && std::is_same_v<B, A>;
 
     template <typename T>
     concept Stream = requires(T& s, std::span<util::u8> out, std::span<const util::u8> in, util::i64 off) {
-        { s.read(out) } -> std::same_as<Status>;
-        { s.write(in) } -> std::same_as<Status>;
-        { s.flush() } -> std::same_as<Status>;
-        { s.seek(off) } -> std::same_as<Status>;
+        { s.read(out) } -> SameAs<Status>;
+        { s.write(in) } -> SameAs<Status>;
+        { s.flush() } -> SameAs<Status>;
+        { s.seek(off) } -> SameAs<Status>;
     };
 }

@@ -1,21 +1,24 @@
 module;
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include "vivid_features.generated.hpp"
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.dynamic_nebula;
 
 import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 
 using namespace ui::render;
 
 // Dynamic nebula (ARM-2D dynamic_nebula inspired)
 export
-class DynamicNebula : public ObjectBase {
+class DynamicNebula : public WidgetBase<DynamicNebula> {
 public:
     DynamicNebula() {
         set_size(160, 160);
@@ -48,12 +51,17 @@ public:
     void set_color(const rgba& c) noexcept { color_ = c; }
     void set_particle_size(int px) noexcept { particle_size_ = (px > 0) ? px : 1; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<DynamicNebula>();
+    void draw(CanvasBase& cvs) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        (void)cvs;
+        return;
+#else
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<DynamicNebula>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::DynamicNebula, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::DynamicNebula, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
         const int cx = r.x + r.w / 2;
@@ -104,6 +112,7 @@ public:
             draw.a = static_cast<std::uint8_t>((draw.a * alpha) / 255);
             draw_circle(cvs, px, py, particle_size_, draw, true);
         }
+#endif
     }
 
 private:
@@ -146,3 +155,5 @@ private:
     rgba color_{0, 0, 0, 0};
     std::uint32_t rng_{0x12345678u};
 };
+
+

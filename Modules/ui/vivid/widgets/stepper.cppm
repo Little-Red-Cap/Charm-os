@@ -4,19 +4,23 @@ export module charm.widgets.stepper;
 
 import charm.core.object;
 import charm.core.string;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.render_style;
+import charm.gfx.text_box;
 import charm.font.typography;
 
 using namespace ui::render;
 
 export
-class Stepper : public ObjectBase {
+class Stepper : public WidgetBase<Stepper> {
 public:
     static constexpr std::size_t kMaxSteps = 8;
+    using current_state_type = service::state<int, 4>;
+    using current_slot_type = typename current_state_type::slot_type;
+    using current_connection = typename current_state_type::connection;
 
     Stepper() {
         set_size(240, 48);
@@ -27,38 +31,50 @@ public:
         if (count < 1) count = 1;
         if (count > static_cast<int>(kMaxSteps)) count = static_cast<int>(kMaxSteps);
         count_ = count;
-        if (current_ >= count_) current_ = count_ - 1;
+        if (current() >= count_) (void)current_.set(count_ - 1);
     }
 
     void set_current(int index) noexcept {
         if (count_ <= 0) return;
         if (index < 0) index = 0;
         if (index >= count_) index = count_ - 1;
-        current_ = index;
+        (void)current_.set(index);
     }
+
+    [[nodiscard]] int current() const noexcept { return current_.get(); }
 
     void set_label(int index, const char* text) {
         if (index < 0 || index >= static_cast<int>(kMaxSteps)) return;
         labels_[index].assign(text ? text : "");
     }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<Stepper>();
+    // observe_current() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_current(current_slot_type slot) noexcept {
+        return current_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_current(current_connection c) noexcept {
+        return current_.disconnect(c);
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<Stepper>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Stepper, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Stepper, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
         if (count_ <= 0) return;
-        const int left = r.x + st.padding;
-        const int right = r.x + r.w - st.padding;
+        const int left = r.x + st.metrics.padding;
+        const int right = r.x + r.w - st.metrics.padding;
         const int center_y = r.y + r.h / 2;
         const int span = right - left;
-        const int radius = (r.h / 2) - st.padding;
+        const int radius = (r.h / 2) - st.metrics.padding;
         const int draw_r = (radius > 2) ? radius : 2;
         if (count_ > 1) {
             draw_line(cvs, left, center_y, right, center_y, border);
@@ -70,11 +86,11 @@ public:
             const int cx = (count_ == 1)
                 ? (left + right) / 2
                 : left + (span * i) / (count_ - 1);
-            const bool done = i < current_;
-            const bool current = i == current_;
-            const rgba fill = current ? accent : (done ? border : bg);
+            const bool done = i < current();
+            const bool is_current = i == current();
+            const rgba fill = is_current ? accent : (done ? border : bg);
             draw_circle(cvs, cx, center_y, draw_r, fill, true);
-            draw_circle(cvs, cx, center_y, draw_r, current ? accent : border, false);
+            draw_circle(cvs, cx, center_y, draw_r, is_current ? accent : border, false);
 
             if (labels_[i].size() > 0) {
                 const char* text = labels_[i].c_str();
@@ -87,8 +103,10 @@ public:
 
 private:
     int count_{3};
-    int current_{0};
+    current_state_type current_{0};
     StaticString<16> labels_[kMaxSteps]{};
 };
+
+
 
 

@@ -8,10 +8,14 @@ module;
 
 export module gui.ui_input_policy;
 
-import gui.input;
 import gui.ui_input_adapter;
 import gui.trace;
+import input.intent;
+import input.queue;
+import input.raw_event;
+import input.router;
 import util.core;
+import util.error;
 
 export namespace gui::ui {
     enum class InputPolicyId : std::uint8_t {
@@ -24,12 +28,12 @@ export namespace gui::ui {
     };
 
     struct InputPolicy {
-        using PollFn = std::optional<gui::input::Intent> (*)(void*, std::uint32_t) noexcept;
+        using PollFn = std::optional<::input::Intent> (*)(void*, std::uint32_t) noexcept;
 
         PollFn poll{nullptr};
         void*  ctx{nullptr};
 
-        [[nodiscard]] std::optional<gui::input::Intent> poll_intent(std::uint32_t now_ms) const noexcept {
+        [[nodiscard]] std::optional<::input::Intent> poll_intent(std::uint32_t now_ms) const noexcept {
             if (!poll) return std::nullopt;
             auto it = poll(ctx, now_ms);
             if (it) {
@@ -38,18 +42,6 @@ export namespace gui::ui {
                 gui::trace::trace_counter_delta(static_cast<gui::trace::TraceId>(id), 1);
             }
             return it;
-        }
-    };
-
-    struct RawEventPolicy {
-        using PollFn = std::optional<gui::input::RawInputEvent> (*)(void*, std::uint32_t) noexcept;
-
-        PollFn poll{nullptr};
-        void*  ctx{nullptr};
-
-        [[nodiscard]] std::optional<gui::input::RawInputEvent> poll_raw(std::uint32_t now_ms) const noexcept {
-            if (!poll) return std::nullopt;
-            return poll(ctx, now_ms);
         }
     };
 
@@ -87,7 +79,7 @@ export namespace gui::ui {
     };
 
     template <std::uint8_t MaxPolicies>
-    std::optional<gui::input::Intent> chain_poll(void* ctx, std::uint32_t now_ms) noexcept {
+    std::optional<::input::Intent> chain_poll(void* ctx, std::uint32_t now_ms) noexcept {
         auto* c = static_cast<PolicyChain<MaxPolicies>*>(ctx);
         if (!c) return std::nullopt;
         for (std::uint8_t i = 0; i < c->count; ++i) {
@@ -102,54 +94,66 @@ export namespace gui::ui {
         return InputPolicy{&chain_poll<MaxPolicies>, &chain};
     }
 
-    inline std::optional<gui::input::Intent> raw_event_poll(void* ctx, std::uint32_t now_ms) noexcept {
-        auto* c = static_cast<RawEventPolicy*>(ctx);
-        if (!c) return std::nullopt;
-        const auto ev = c->poll_raw(now_ms);
-        if (!ev) return std::nullopt;
-        return intent_from_raw(*ev);
-    }
-
-    [[nodiscard]] inline InputPolicy make_raw_event_policy(RawEventPolicy& policy) noexcept {
-        return InputPolicy{&raw_event_poll, &policy};
-    }
-
-    template <class RawSource>
-    struct SamplerPolicyContext {
-        RawSource*         src{nullptr};
-        gui::input::Sampler* sampler{nullptr};
-    };
-
-    template <class RawSource>
-    std::optional<gui::input::Intent> sampler_poll(void* ctx, std::uint32_t now_ms) noexcept {
-        auto* c = static_cast<SamplerPolicyContext<RawSource>*>(ctx);
-        if (!c || !c->src || !c->sampler) return std::nullopt;
-        return c->sampler->poll(*c->src, now_ms);
-    }
-
-    template <class RawSource>
-    [[nodiscard]] inline InputPolicy make_sampler_policy(SamplerPolicyContext<RawSource>& ctx) noexcept {
-        return InputPolicy{&sampler_poll<RawSource>, &ctx};
-    }
-
-    template <class RawSource>
-    struct RawSamplerPolicyContext {
-        RawSource*            src{nullptr};
-        gui::input::RawSampler* sampler{nullptr};
-    };
-
-    template <class RawSource>
-    std::optional<gui::input::Intent> raw_sampler_poll(void* ctx, std::uint32_t now_ms) noexcept {
-        auto* c = static_cast<RawSamplerPolicyContext<RawSource>*>(ctx);
-        if (!c || !c->src || !c->sampler) return std::nullopt;
-        if (auto ev = c->sampler->poll(*c->src, now_ms)) {
-            return intent_from_raw(*ev);
+    template <std::uint16_t Capacity = 32>
+    class RouterIntentQueue {
+    public:
+        util::Result<void> start(::input::Router& router,
+                                 ::input::EventMask mask = ::input::kAll) noexcept {
+            if (sub_.id != 0) {
+                return {};
+            }
+            router_ = &router;
+            auto r = router.subscribe(&RouterIntentQueue::on_raw, this, mask);
+            if (!r) {
+                return util::unexpected(r.error());
+            }
+            sub_ = r.value();
+            return {};
         }
-        return std::nullopt;
-    }
 
-    template <class RawSource>
-    [[nodiscard]] inline InputPolicy make_raw_sampler_policy(RawSamplerPolicyContext<RawSource>& ctx) noexcept {
-        return InputPolicy{&raw_sampler_poll<RawSource>, &ctx};
-    }
+        void stop() noexcept {
+            if (!router_ || sub_.id == 0) return;
+            (void)router_->unsubscribe(sub_);
+            sub_ = {};
+        }
+
+        void set_consume(bool on) noexcept { consume_ = on; }
+
+        InputPolicy policy() noexcept {
+            return InputPolicy{&RouterIntentQueue::poll_trampoline, this};
+        }
+
+        std::optional<::input::Intent> poll(std::uint32_t) noexcept {
+            return queue_.pop();
+        }
+
+        util::u32 dropped() const noexcept { return dropped_; }
+
+    private:
+        static bool on_raw(void* ctx, const ::input::RawInputEvent& raw) noexcept {
+            auto* self = static_cast<RouterIntentQueue*>(ctx);
+            if (!self) return false;
+            auto it = intent_from_raw(raw);
+            if (it) {
+                if (!self->queue_.push(*it)) {
+                    ++self->dropped_;
+                }
+                return self->consume_;
+            }
+            return false;
+        }
+
+        static std::optional<::input::Intent> poll_trampoline(void* ctx,
+                                                              std::uint32_t now_ms) noexcept {
+            auto* self = static_cast<RouterIntentQueue*>(ctx);
+            if (!self) return std::nullopt;
+            return self->poll(now_ms);
+        }
+
+        ::input::Router* router_{nullptr};
+        ::input::Subscription sub_{};
+        ::input::RingQueue<::input::Intent, Capacity> queue_{};
+        util::u32 dropped_{0};
+        bool consume_{true};
+    };
 } // namespace gui::ui

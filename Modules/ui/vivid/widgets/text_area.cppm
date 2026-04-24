@@ -5,11 +5,11 @@ export module charm.widgets.text_area;
 
 import charm.core.object;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.event;
 import charm.core.style;
 import charm.core.style_sheet;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import charm.core.string;
 import alg_scroll_bounds;
 import alg_text_scroll;
@@ -17,7 +17,7 @@ import alg_text_scroll;
 using namespace ui::render;
 
 export
-class TextArea : public ObjectBase {
+class TextArea : public WidgetBase<TextArea> {
 public:
     explicit TextArea(const char* text = "") {
         set_focusable(true);
@@ -36,22 +36,24 @@ public:
     void set_readonly(bool on) noexcept { readonly_ = on; }
     bool is_readonly() const noexcept { return readonly_; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<TextArea>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<TextArea>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::TextArea, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::TextArea, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const Rect inner{r.x + st.padding, r.y + st.padding,
-                         r.w - st.padding * 2, r.h - st.padding * 2};
+        const Rect inner{r.x + st.metrics.padding, r.y + st.metrics.padding,
+                         r.w - st.metrics.padding * 2, r.h - st.metrics.padding * 2};
         auto clip_state = cvs.save_clip();
         cvs.set_clip(inner);
         Rect draw_box{inner.x, inner.y - scroll_y_px_, inner.w, inner.h + scroll_y_px_};
@@ -69,13 +71,13 @@ public:
             const int min_x = static_cast<int>(inner.x + 1);
             const int max_x = static_cast<int>(inner.x + inner.w - 2);
             caret_x = std::min(max_x, std::max(min_x, caret_x));
-            draw_line(cvs, caret_x, caret_y1, caret_x, caret_y2, st.border_focus);
+            draw_line(cvs, caret_x, caret_y1, caret_x, caret_y2, st.colors.border_focus);
             draw_focus_ring(cvs, r, st, true);
         }
         cvs.restore_clip(clip_state);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -141,6 +143,16 @@ private:
     int cursor_{0};
     int scroll_y_px_{0};
     int desired_col_{0};
+
+    StyleState current_style_state() const noexcept {
+        return make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
+                                has_state(State::Focused), style_variant());
+    }
+
+    const Style& resolve_style_for_state(Style& scratch) const noexcept {
+        const Style& base = Theme::instance().get<TextArea>();
+        return resolve_style(WidgetKind::TextArea, current_style_state(), base, scratch);
+    }
 
     void assign(const char* s) {
         len_ = 0;
@@ -225,11 +237,12 @@ private:
     }
 
     void ensure_caret_visible() {
-        const Style& st = Theme::instance().get<TextArea>();
+        Style st_scratch;
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto fnt = resolve_font(st);
         const int line_h = fnt.line_height;
         const auto r = get_rect();
-        const int inner_h = r.h - st.padding * 2;
+        const int inner_h = r.h - st.metrics.padding * 2;
         const int caret_y = cursor_row() * line_h;
         const int margin = line_h / 2;
         const int max_scroll = alg::text_scroll::max_scroll_px(buf_, len_, line_h, inner_h);
@@ -241,5 +254,7 @@ private:
         scroll_y_px_ = alg::scroll_bounds::clamp(scroll_y_px_, max_scroll);
     }
 };
+
+
 
 

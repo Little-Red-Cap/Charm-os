@@ -6,14 +6,14 @@ import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.event;
 
 using namespace ui::render;
 
 // Simple line chart (fixed buffer, no dynamic allocation)
 export
-class Chart : public ObjectBase {
+class Chart : public WidgetBase<Chart> {
 public:
     static constexpr std::size_t kMax = 32;
     using GetPointFn = int (*)(void* ctx, int index) noexcept;
@@ -128,12 +128,14 @@ public:
         }
     }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<Chart>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<Chart>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Chart, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Chart, state, st);
+
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -214,5 +216,7 @@ private:
         dirty.h = bottom_d - top_d;
     }
 };
+
+
 
 

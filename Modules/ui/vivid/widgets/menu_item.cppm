@@ -6,33 +6,51 @@ import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.event;
+import service.signal;
 import charm.widgets.label;
 
 using namespace ui::render;
 
 export
-class MenuItem : public ObjectBase {
+class MenuItem : public WidgetBase<MenuItem> {
 public:
+    using click_signal_type = service::signal<void(), 4>;
+    using click_slot_type = typename click_signal_type::slot_type;
+    using click_connection = typename click_signal_type::connection;
+
     explicit MenuItem(const char* text = "") : label_(text) {
+        const Style& st = Theme::instance().get<MenuItem>();
+        label_.set_font(resolve_font(st));
         set_focusable(true);
         update_size();
     }
 
     void set_text(const char* t) { label_.set_text(t); update_size(); }
     void set_on_click(Callback cb) noexcept { on_click_ = cb; }
+
+    // observe_click() is a same-domain synchronous edge surface.
+    // It does not create a truth cell and only fires for accepted click events.
+    [[nodiscard]] auto observe_click(click_slot_type slot) noexcept {
+        return clicked_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_click(click_connection c) noexcept {
+        return clicked_.disconnect(c);
+    }
     void set_indent(int px) noexcept { indent_ = (px > 0) ? px : 0; }
     void set_has_children(bool on) noexcept { has_children_ = on; }
     void set_expanded(bool on) noexcept { expanded_ = on; }
     void set_selected(bool on) noexcept { selected_ = on; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<MenuItem>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<MenuItem>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::MenuItem, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::MenuItem, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
         if (selected_) {
@@ -44,11 +62,11 @@ public:
         label_.set_color(font);
         label_.set_font(resolve_font(st));
         const int baseline_y = r.y + (r.h - label_.line_height()) / 2 + label_.baseline();
-        label_.set_baseline_pos(r.x + st.padding + indent_, baseline_y);
+        label_.set_baseline_pos(r.x + st.metrics.padding + indent_, baseline_y);
         label_.draw(cvs);
 
         if (has_children_) {
-            const int cx = r.x + r.w - st.padding - 6;
+            const int cx = r.x + r.w - st.metrics.padding - 6;
             const int cy = r.y + r.h / 2;
             if (expanded_) {
                 draw_line(cvs, cx - 3, cy - 2, cx + 3, cy - 2, font);
@@ -64,10 +82,11 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
+                (void)clicked_.emit();
                 if (on_click_) on_click_();
                 return true;
             }
@@ -82,9 +101,10 @@ private:
         const Style& st = Theme::instance().get<MenuItem>();
         label_.set_font(resolve_font(st));
         const auto lr = label_.get_rect();
-        set_size(lr.w + st.padding * 2, lr.h + st.padding * 2);
+        set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
     }
 
+    click_signal_type clicked_{};
     Label label_;
     Callback on_click_{};
     int indent_{0};
@@ -92,5 +112,7 @@ private:
     bool expanded_{false};
     bool selected_{false};
 };
+
+
 
 

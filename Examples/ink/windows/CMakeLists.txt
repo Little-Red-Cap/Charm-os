@@ -34,6 +34,8 @@ add_executable(${target_name}
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS
         "../app/*.cppm"
         "./*.cppm"
+        "../../common/sdl3/*.cppm"
+        "../../common/pc/*.cppm"
 )
 set(FLIP_DEMO_CPPM "${CMAKE_CURRENT_SOURCE_DIR}/flip.demo.cppm")
 list(REMOVE_ITEM MODULE_INTERFACE_UNITS "${FLIP_DEMO_CPPM}")
@@ -41,14 +43,18 @@ target_sources(${target_name}
         PRIVATE
         FILE_SET modules TYPE CXX_MODULES
         BASE_DIRS
-            "${CMAKE_CURRENT_SOURCE_DIR}/../"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../.."
         FILES
             ${MODULE_INTERFACE_UNITS}
 )
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
+charm_add_config_interface(charm_cfg_ink_windows
+    COMPILE_DEFINITIONS OUT_ENABLE_FLOAT)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
-target_compile_definitions(Charm-os PRIVATE OUT_ENABLE_FLOAT)
+charm_apply_config_targets(Charm-build-config charm_cfg_ink_windows)
+charm_apply_config_targets(${target_name} charm_cfg_ink_windows)
 
 
 

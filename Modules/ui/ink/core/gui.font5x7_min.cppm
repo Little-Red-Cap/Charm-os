@@ -13,12 +13,12 @@ import gui.font;
 
 export namespace gui {
 
-// 5x7：每列低 7bit 有效（LSB=上/下你可自定，这里用 bit0 = row0）
+// 5x7: each column uses 7 bits (bit0=row0; adjust if needed).
 struct Glyph5x7 { std::uint8_t col[5]; };
 
 [[nodiscard]] constexpr Glyph5x7 glyph5x7(char c) noexcept {
-  // 只实现一小撮：空格、数字、部分字母、冒号、连字符
-  // 不够就逐步扩充，或用脚本生成完整表。
+  // Minimal set: space, digits, some letters, colon, dash.
+  // Extend as needed or generate a full table via script.
   switch (c) {
     case ' ': return {{0,0,0,0,0}};
     case '!': return {{0x00,0x00,0x5F,0x00,0x00}};

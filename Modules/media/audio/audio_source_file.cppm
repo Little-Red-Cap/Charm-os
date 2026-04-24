@@ -32,18 +32,18 @@ export namespace audio {
         ~FileDataSource() { close(); }
 
         Result<std::size_t> read(std::span<std::byte> out) noexcept {
-            if (!file_) return unexpected(Err{Errc::bad_state, 0});
+            if (!file_) return unexpected(Errc::bad_state);
             const auto n = std::fread(out.data(), 1, out.size(), file_);
             if (n == 0 && std::ferror(file_)) {
-                return unexpected(Err{Errc::io_error, 0});
+                return unexpected(Errc::io_error);
             }
             return n;
         }
 
         Result<std::int64_t> seek(std::int64_t offset, int whence) {
-            if (!file_) return unexpected(Err{Errc::bad_state, 0});
+            if (!file_) return unexpected(Errc::bad_state);
             if (!seek_impl(file_, offset, whence)) {
-                return unexpected(Err{Errc::io_error, 0});
+                return unexpected(Errc::io_error);
             }
             return tell();
         }
@@ -65,18 +65,18 @@ export namespace audio {
         }
 
         Result<std::int64_t> tell() noexcept {
-            if (!file_) return unexpected(Err{Errc::bad_state, 0});
+            if (!file_) return unexpected(Errc::bad_state);
             const auto pos = tell_impl(file_);
-            if (pos < 0) return unexpected(Err{Errc::io_error, 0});
+            if (pos < 0) return unexpected(Errc::io_error);
             return static_cast<std::int64_t>(pos);
         }
 
         Result<std::int64_t> size() noexcept {
-            if (!file_) return unexpected(Err{Errc::bad_state, 0});
+            if (!file_) return unexpected(Errc::bad_state);
             const auto cur = tell();
             if (!cur) return unexpected(cur.error());
             if (!seek_impl(file_, 0, SEEK_END)) {
-                return unexpected(Err{Errc::io_error, 0});
+                return unexpected(Errc::io_error);
             }
             const auto end = tell();
             if (!end) return unexpected(end.error());

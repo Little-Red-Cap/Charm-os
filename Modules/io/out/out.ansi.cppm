@@ -1,18 +1,19 @@
-module;
-#include <charconv>
+﻿module;
 #include <cstdint>
 #include <expected>
 #include <string_view>
+#include "out_digits_compat.h"
 
 export module out.ansi;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink, out.format
-// Forbidden out.* imports: out.logger, out.api, out.port, out.print, out.domain
+// Forbidden out.* imports: out.logger, out.api, out.domain
 // Rationale: ANSI tokens are just formattable values; keep logger/ports out.
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 
 import out.core;
 import out.sink;
+import util.expected;
 import out.format; // fmt_spec + write_one protocol
 
 export namespace out {
@@ -56,7 +57,8 @@ export namespace out::ansi {
                 }) {
                     return base->write_ansi(sv);
                 } else {
-                    return out::write(*base, sv);
+                    const auto b = bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+                    return base->write(b);
                 }
             } else {
                 return out::ok<std::size_t>(0u);
@@ -69,7 +71,8 @@ export namespace out::ansi {
                 }) {
                     return base->write_ansi(sv);
                 } else {
-                    return out::write(*base, sv);
+                    const auto b = bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+                    return base->write(b);
                 }
             } else {
                 return out::ok<std::size_t>(0u);
@@ -120,8 +123,12 @@ export namespace out::ansi {
             *p++ = '\x1b';
             *p++ = '[';
 
-            auto [ptr, ec] = std::to_chars(p, buf + sizeof(buf), code);
-            if (ec != std::errc{}) return std::unexpected(errc::buffer_overflow);
+            if (code < 0) return util::unexpected(errc::invalid_arg);
+            char* ptr = out::detail::append_unsigned_decimal(
+                p,
+                buf + sizeof(buf),
+                static_cast<unsigned>(code));
+            if (!ptr) return util::unexpected(errc::buffer_overflow);
 
             *ptr++ = 'm';
             return s.write_ansi(std::string_view{buf, static_cast<std::size_t>(ptr - buf)});

@@ -13,7 +13,7 @@ public:
     void set_allow_decimal(bool on) noexcept { allow_decimal_ = on; }
     void set_allow_negative(bool on) noexcept { allow_negative_ = on; }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (e.type == Event::Type::KeyDown && !is_readonly()) {
             if (e.ch >= 32 && e.ch <= 126) {
                 const char c = static_cast<char>(e.ch);
@@ -45,3 +45,4 @@ private:
         return false;
     }
 };
+

@@ -1,22 +1,24 @@
 module;
 #include <algorithm>
+#include <cstdint>
 export module charm.widgets.tree_view;
 
 import charm.core.object;
 import charm.core.event;
+import charm.core.structured_view;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.virtual_list;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import alg_scroll_bounds;
 import alg_list_scroll;
 
 using namespace ui::render;
 
 export
-class TreeView : public ObjectBase {
+class TreeView : public WidgetBase<TreeView> {
 public:
     struct NodeInfo {
         int depth{0};
@@ -95,19 +97,22 @@ public:
     }
 
     void set_selected(int index) noexcept {
+        const int count = item_count();
+        if (index < 0 || index >= count) return;
         selected_ = index;
         if (select_fn_) select_fn_(select_ctx_, index);
     }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<TreeView>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<TreeView>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::TreeView, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::TreeView, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
 
@@ -126,28 +131,46 @@ public:
         int visible = 0;
         int y = r.y;
         if (!variable_height) {
-            const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y, prefetch_rows_);
-            start = window.start;
-            visible = window.visible;
-            y = window.offset_y;
+            StructuredViewportMapper mapper{};
+            mapper.rect = r;
+            mapper.row_height = row_height_;
+            mapper.scroll_y = scroll_.scroll_y;
+            const StructuredVisibleRange range = mapper.visible_range(count);
+            start = range.first;
+            visible = (range.last >= range.first) ? (range.last - range.first + 1) : 0;
+            const int row_offset = scroll_.scroll_y - start * row_height_;
+            y = r.y - row_offset;
+            if (prefetch_rows_ > 0 && count > 0) {
+                int pref = prefetch_rows_;
+                int pref_start = start - pref;
+                if (pref_start < 0) pref_start = 0;
+                const int actual_pref = start - pref_start;
+                start = pref_start;
+                y -= actual_pref * row_height_;
+                visible += actual_pref;
+                int extra = pref;
+                const int max_extra = count - (start + visible);
+                if (extra > max_extra) extra = max_extra;
+                if (extra > 0) visible += extra;
+            }
         } else {
             int acc = 0;
             for (int i = 0; i < count; ++i) {
                 const int h = row_height_for_index(i);
-                if (acc + h > scroll_y_) {
-                    start = i;
-                    break;
-                }
-                acc += h;
-                start = i + 1;
+            if (acc + h > scroll_.scroll_y) {
+                start = i;
+                break;
             }
+            acc += h;
+            start = i + 1;
+        }
             if (prefetch_rows_ > 0) {
                 for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
                     --start;
                     acc -= row_height_for_index(start);
                 }
             }
-            y = r.y - (scroll_y_ - acc);
+            y = r.y - (scroll_.scroll_y - acc);
             int temp_y = y;
             for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
                 temp_y += row_height_for_index(i);
@@ -161,12 +184,14 @@ public:
             if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
         };
         cache_.begin_frame();
+        const StructuredSelectionModel selection = make_selection_model();
+        const int selected = selection.current();
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             NodeInfo info = node_fn_ ? node_fn_(data_ctx_, i) : NodeInfo{};
             const int row_h = variable_height ? row_height_for_index(i, info) : row_height_;
             Rect row{r.x, y, r.w, row_h};
-            const bool selected = (i == selected_);
-            if (selected) {
+            const bool is_selected = (i == selected);
+            if (is_selected) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, accent, true);
             }
             int slot = -1;
@@ -183,11 +208,11 @@ public:
                     slot = -1;
                 }
             }
-            draw_node_glyphs(cvs, row, info, border);
+            draw_node_glyphs(cvs, row, st.metrics.padding, info, border);
             if (draw_fn_) {
-                draw_fn_(data_ctx_, cvs, DrawInfo{row, i, selected, info, slot});
+                draw_fn_(data_ctx_, cvs, DrawInfo{row, i, is_selected, info, slot});
             } else if (info.label) {
-                Rect label_box{row.x + st.padding + info.depth * indent_w_, row.y, row.w, row.h};
+                Rect label_box{row.x + st.metrics.padding + info.depth * indent_w_, row.y, row.w, row.h};
                 draw_text_box(cvs, label_box, info.label, font, resolve_font(st),
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             }
@@ -201,23 +226,30 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseWheel) {
             if (!r.contains(e.x, e.y)) return false;
-            add_scroll_y(-e.wheel_y * wheel_step_);
+            add_scroll_y(-e.wheel_y * scroll_.wheel_step);
             return true;
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
             const int index = index_from_y(e.y);
             if (index >= 0 && index < item_count()) {
+                const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
+                                                          has_state(State::Pressed), has_state(State::Focused),
+                                                          style_variant());
+                const Style& base = Theme::instance().get<TreeView>();
+                Style st_scratch;
+                const Style& st = resolve_style(WidgetKind::TreeView, state, base, st_scratch);
                 const NodeInfo info = node_fn_ ? node_fn_(data_ctx_, index) : NodeInfo{};
-                const int toggle_x = r.x + info.depth * indent_w_;
+                const int toggle_x = r.x + st.metrics.padding + info.depth * indent_w_;
                 if (info.has_children && e.x >= toggle_x && e.x < toggle_x + indent_w_) {
                     if (toggle_fn_) toggle_fn_(data_ctx_, index);
                 }
-                set_selected(index);
+                auto selection = make_selection_model();
+                selection.set(index);
                 return true;
             }
         }
@@ -226,9 +258,9 @@ public:
 
 private:
     int item_count() const noexcept {
-        if (count_fn_) {
-            const int v = count_fn_(data_ctx_);
-            return (v > 0) ? v : 0;
+        const StructuredDataProvider provider = make_provider();
+        if (provider.count) {
+            return provider.size();
         }
         return 0;
     }
@@ -237,9 +269,13 @@ private:
         const auto r = get_rect();
         if (row_height_ <= 0) return -1;
         if (!row_height_fn_) {
-            return alg::list_scroll::index_from_y(y, r.y, scroll_y_, 0, row_height_, item_count());
+            StructuredViewportMapper mapper{};
+            mapper.rect = r;
+            mapper.row_height = row_height_;
+            mapper.scroll_y = scroll_.scroll_y;
+            return mapper.index_at(y, item_count());
         }
-        const int local = y - r.y + scroll_y_;
+        const int local = y - r.y + scroll_.scroll_y;
         if (local < 0) return -1;
         int acc = 0;
         const int count = item_count();
@@ -253,26 +289,70 @@ private:
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         if (!row_height_fn_) {
-            const auto bounds = alg::list_scroll::compute_bounds(item_count(), row_height_, 0, r.h);
-            max_scroll_y_ = bounds.max_scroll;
+            const int content_h = item_count() * row_height_;
+            scroll_.set_content(content_h, r.h);
         } else {
             int total_h = 0;
             const int count = item_count();
             for (int i = 0; i < count; ++i) {
                 total_h += row_height_for_index(i);
             }
-            max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
+            scroll_.set_content(total_h, r.h);
         }
-        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
-        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_ + dy, max_scroll_y_);
+        scroll_.add_scroll(dy);
     }
 
-    void draw_node_glyphs(CanvasBase& cvs, const Rect& row, const NodeInfo& info, const rgba& color) const noexcept {
+    StructuredDataProvider make_provider() const noexcept {
+        return StructuredDataProvider{
+            this,
+            &TreeView::provider_count,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr
+        };
+    }
+
+    StructuredSelectionModel make_selection_model() noexcept {
+        return StructuredSelectionModel{
+            this,
+            &TreeView::selection_current,
+            &TreeView::selection_set,
+            &TreeView::selection_clear
+        };
+    }
+
+    static std::uint16_t provider_count(const void* ctx) noexcept {
+        const auto* self = static_cast<const TreeView*>(ctx);
+        if (!self || !self->count_fn_) return 0;
+        const int v = self->count_fn_(self->data_ctx_);
+        if (v <= 0) return 0;
+        const int capped = (v > 0xFFFF) ? 0xFFFF : v;
+        return static_cast<std::uint16_t>(capped);
+    }
+
+    static int selection_current(const void* ctx) noexcept {
+        const auto* self = static_cast<const TreeView*>(ctx);
+        return self ? self->selected_ : -1;
+    }
+
+    static void selection_set(const void* ctx, int index) noexcept {
+        auto* self = static_cast<TreeView*>(const_cast<void*>(ctx));
+        if (self) self->set_selected(index);
+    }
+
+    static void selection_clear(const void* ctx) noexcept {
+        auto* self = static_cast<TreeView*>(const_cast<void*>(ctx));
+        if (self) self->selected_ = -1;
+    }
+
+    void draw_node_glyphs(CanvasBase& cvs, const Rect& row, int pad,
+                          const NodeInfo& info, const rgba& color) const noexcept {
         if (!info.has_children) return;
-        const int cx = row.x + info.depth * indent_w_ + indent_w_ / 2;
+        const int cx = row.x + pad + info.depth * indent_w_ + indent_w_ / 2;
         const int cy = row.y + row.h / 2;
         const int s = 4;
         draw_line(cvs, cx - s, cy, cx + s, cy, color);
@@ -302,9 +382,7 @@ private:
     void* data_ctx_{nullptr};
     void* select_ctx_{nullptr};
     int row_height_{20};
-    int scroll_y_{0};
-    int max_scroll_y_{0};
-    int wheel_step_{24};
+    StructuredScrollModel scroll_{};
     int selected_{-1};
     int prefetch_rows_{1};
 
@@ -323,5 +401,7 @@ private:
         return (h > 6) ? h : 6;
     }
 };
+
+
 
 

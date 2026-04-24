@@ -5,15 +5,15 @@ export module charm.widgets.toggle_group;
 import charm.core.object;
 import charm.core.event;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.style;
 import charm.core.style_sheet;
-import charm.widgets.text;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 
 export
-class ToggleGroup : public ObjectBase {
+class ToggleGroup : public WidgetBase<ToggleGroup> {
 public:
     ToggleGroup() {
         set_focusable(true);
@@ -51,15 +51,17 @@ public:
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<ToggleGroup>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ToggleGroup>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ToggleGroup, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ToggleGroup, state, st);
+
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
 
@@ -93,7 +95,7 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::Click) {
@@ -138,5 +140,7 @@ private:
     bool single_select_{false};
     Callback on_change_{};
 };
+
+
 
 

@@ -1,0 +1,12 @@
+manifest usb.fixture.v1
+case name=msc-basic trace=msc.trace
+case name=msc-invalid-cbw trace=msc_invalid_cbw.trace
+case name=msc-read-capacity-residue trace=msc_read_capacity_residue.trace
+case name=msc-read10-overrun trace=msc_read10_overrun.trace
+case name=msc-read10-short trace=msc_read10_short.trace
+case name=msc-read10-zero-len trace=msc_read10_zero_len.trace
+case name=msc-recovery trace=msc_recovery.trace
+case name=msc-strings trace=msc_strings.trace
+case name=msc-truncate trace=msc_truncate.trace
+case name=msc-write10-overrun trace=msc_write10_overrun.trace
+case name=msc-write10-short trace=msc_write10_short.trace

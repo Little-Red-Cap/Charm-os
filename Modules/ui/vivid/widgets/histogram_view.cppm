@@ -6,13 +6,13 @@ import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 
 using namespace ui::render;
 
 // Simple histogram view (fixed buffer)
 export
-class HistogramView : public ObjectBase {
+class HistogramView : public WidgetBase<HistogramView> {
 public:
     static constexpr std::size_t kMax = 32;
 
@@ -40,12 +40,13 @@ public:
 
     void clear_range() noexcept { has_range_ = false; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<HistogramView>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<HistogramView>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::HistogramView, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::HistogramView, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
@@ -88,5 +89,7 @@ private:
     int max_v_{0};
     bool has_range_{false};
 };
+
+
 
 

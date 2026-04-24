@@ -1,0 +1,100 @@
+module;
+
+#include <cstddef>
+#include <cstdint>
+
+export module player.stm32h7.board_config.generated;
+
+export namespace player::stm32h7::board {
+    struct SdramConfig {
+        std::uintptr_t base;
+        std::size_t test_words;
+        std::uint32_t test_pattern;
+        std::uint32_t refresh_rate;
+    };
+
+    enum class SdmmcCard : std::uint8_t {
+        mmc,
+        sd
+    };
+
+    struct SdmmcConfig {
+        SdmmcCard card;
+        std::uint32_t init_clock_div;
+        std::uint32_t xfer_clock_div;
+        std::uint8_t bus_width;
+        bool use_dma;
+        bool try_4bit;
+        bool probe_read;
+        bool verbose;
+        bool verbose_gpio;
+        std::uint32_t partition_lba;
+    };
+
+    struct KeyConfig {
+        bool active_high;
+    };
+
+    struct BoardConfig {
+        SdramConfig sdram;
+        SdmmcConfig sdmmc;
+        KeyConfig key;
+    };
+
+    inline constexpr BoardConfig kConfig{
+        SdramConfig{
+            @PLAYER_BOARD_SDRAM_BASE@,
+            @PLAYER_BOARD_SDRAM_TEST_WORDS@,
+            @PLAYER_BOARD_SDRAM_TEST_PATTERN@,
+            @PLAYER_BOARD_SDRAM_REFRESH_RATE@
+        },
+        SdmmcConfig{
+            SdmmcCard::@PLAYER_BOARD_SDMMC_CARD_ENUM@,
+            @PLAYER_BOARD_SDMMC_INIT_CLOCK_DIV@,
+            @PLAYER_BOARD_SDMMC_XFER_CLOCK_DIV@,
+            @PLAYER_BOARD_SDMMC_BUS_WIDTH@,
+            @PLAYER_BOARD_SDMMC_USE_DMA@,
+            @PLAYER_BOARD_SDMMC_TRY_4BIT@,
+            @PLAYER_BOARD_SDMMC_PROBE_READ@,
+            @PLAYER_BOARD_SDMMC_VERBOSE@,
+            @PLAYER_BOARD_SDMMC_VERBOSE_GPIO@,
+            @PLAYER_BOARD_SDMMC_PARTITION_LBA@
+        },
+        KeyConfig{
+            @PLAYER_BOARD_KEY_ACTIVE_HIGH@
+        }
+    };
+
+    inline constexpr SdramConfig kSdram = kConfig.sdram;
+    inline constexpr SdmmcConfig kSdmmc = kConfig.sdmmc;
+    inline constexpr KeyConfig kKey = kConfig.key;
+
+    [[deprecated("改用 kSdmmc.card")]]
+    inline constexpr SdmmcCard kSdmmcCard = kConfig.sdmmc.card;
+    [[deprecated("改用 kSdmmc.init_clock_div")]]
+    inline constexpr std::uint32_t kSdmmcInitClockDiv = kConfig.sdmmc.init_clock_div;
+    [[deprecated("改用 kSdmmc.xfer_clock_div")]]
+    inline constexpr std::uint32_t kSdmmcXferClockDiv = kConfig.sdmmc.xfer_clock_div;
+    [[deprecated("改用 kSdmmc.bus_width")]]
+    inline constexpr std::uint8_t kSdmmcBusWidth = kConfig.sdmmc.bus_width;
+    [[deprecated("改用 kSdmmc.use_dma")]]
+    inline constexpr bool kSdmmcUseDma = kConfig.sdmmc.use_dma;
+    [[deprecated("改用 kSdmmc.try_4bit")]]
+    inline constexpr bool kSdmmcTry4Bit = kConfig.sdmmc.try_4bit;
+    [[deprecated("改用 kSdmmc.probe_read")]]
+    inline constexpr bool kSdmmcProbeRead = kConfig.sdmmc.probe_read;
+    [[deprecated("改用 kSdmmc.verbose")]]
+    inline constexpr bool kSdmmcVerbose = kConfig.sdmmc.verbose;
+    [[deprecated("改用 kSdmmc.verbose_gpio")]]
+    inline constexpr bool kSdmmcVerboseGpio = kConfig.sdmmc.verbose_gpio;
+    [[deprecated("改用 kSdmmc.partition_lba")]]
+    inline constexpr std::uint32_t kSdmmcPartitionLba = kConfig.sdmmc.partition_lba;
+
+    [[deprecated("改用 kKey.active_high")]]
+    inline constexpr bool kKeyActiveHigh = kConfig.key.active_high;
+
+    static_assert(kSdram.test_words > 0);
+    static_assert(kSdmmc.init_clock_div > 0);
+    static_assert(kSdmmc.xfer_clock_div > 0);
+    static_assert(kSdmmc.bus_width == 1u || kSdmmc.bus_width == 4u || kSdmmc.bus_width == 8u);
+}

@@ -11,11 +11,10 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.style;
 import charm.core.style_sheet;
-import charm.core.virtual_list;
-import alg_list_scroll;
+import charm.core.structured_view;
 import charm.gfx.color;
-import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.render_style;
+import charm.gfx.text_box;
 import out.core;
 import out.format;
 import out.sink;
@@ -42,7 +41,8 @@ namespace {
     };
 
     inline void append_sv(trunc_sink& sink, std::string_view sv) noexcept {
-        (void)out::write(sink, sv);
+        const auto b = out::bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+        (void)sink.write(b);
     }
 
     inline std::string_view format_label(char* buf, std::size_t size,
@@ -83,13 +83,14 @@ namespace {
 
 // Simple text list (ARM-2D text_list inspired)
 export
-class TextList : public ObjectBase {
+class TextList : public WidgetBase<TextList> {
 public:
     using SelectFn = void(*)(void* ctx, int index) noexcept;
 
     TextList() {
         set_size(220, 160);
         set_focusable(true);
+        scroll_.wheel_step = 1;
     }
 
     void set_items(const char** items, int count) noexcept {
@@ -122,22 +123,23 @@ public:
 
     int selected() const noexcept { return selected_; }
 
-    void set_wheel_step(int step) noexcept { wheel_step_ = (step > 0) ? step : 1; }
+    void set_wheel_step(int step) noexcept { scroll_.wheel_step = (step > 0) ? step : 1; }
 
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
         select_fn_ = fn;
         select_ctx_ = ctx;
     }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<TextList>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<TextList>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::TextList, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::TextList, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
 
@@ -149,15 +151,28 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int content_x = r.x + pad;
-        const int content_w = r.w - pad * 2;
-        const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y + pad, 1);
-        int y = window.offset_y;
+        int content_w = r.w - pad * 2;
+        if (content_w < 0) content_w = 0;
+        int view_h = r.h - pad * 2;
+        if (view_h < 0) view_h = 0;
+        const Rect view_rect{
+            r.x + pad,
+            r.y + pad,
+            content_w,
+            view_h
+        };
+        StructuredViewportMapper mapper{};
+        mapper.rect = view_rect;
+        mapper.row_height = row_height_;
+        mapper.scroll_y = scroll_.scroll_y;
+        const StructuredVisibleRange range = mapper.visible_range(item_count_);
+        int y = view_rect.y + range.first * row_height_ - mapper.scroll_y;
         const int count = item_count_;
-        const int end = (window.start + window.visible < count) ? (window.start + window.visible) : count;
+        const int end = (range.last + 1 < count) ? (range.last + 1) : count;
 
-        for (int i = window.start; i < end; ++i) {
+        for (int i = range.first; i < end; ++i) {
             Rect row{content_x, y, content_w, row_height_};
             if (i == selected_) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, accent, true);
@@ -176,7 +191,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
@@ -197,7 +212,7 @@ public:
         }
         if (e.type == Event::Type::MouseWheel) {
             if (!r.contains(e.x, e.y)) return false;
-            add_scroll_y(-e.wheel_y * wheel_step_ * row_height_);
+            add_scroll_y(-e.wheel_y * scroll_.wheel_step * row_height_);
             return true;
         }
         if (e.type == Event::Type::Click) {
@@ -219,48 +234,67 @@ public:
     }
 
 private:
-    void update_scroll_bounds() noexcept {
-        const auto r = get_rect();
-        const Style& st = Theme::instance().get<TextList>();
-        const auto bounds = alg::list_scroll::compute_bounds(item_count_, row_height_, st.padding, r.h);
-        content_height_ = bounds.content_h;
-        max_scroll_ = bounds.max_scroll;
-        scroll_y_ = alg::list_scroll::clamp_scroll(scroll_y_, max_scroll_);
+    StyleState current_style_state() const noexcept {
+        return make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
+                                has_state(State::Focused), style_variant());
     }
 
-    int clamp_scroll(int y) const noexcept {
-        return alg::list_scroll::clamp_scroll(y, max_scroll_);
+    const Style& resolve_style_for_state(Style& scratch) const noexcept {
+        const Style& base = Theme::instance().get<TextList>();
+        return resolve_style(WidgetKind::TextList, current_style_state(), base, scratch);
+    }
+
+    void update_scroll_bounds() noexcept {
+        const auto r = get_rect();
+        Style st_scratch;
+        const Style& st = resolve_style_for_state(st_scratch);
+        const int pad = st.metrics.padding;
+        const int view_h = (r.h > pad * 2) ? (r.h - pad * 2) : 0;
+        scroll_.set_content(item_count_ * row_height_, view_h);
     }
 
     void add_scroll_y(int dy) noexcept {
-        scroll_y_ = clamp_scroll(scroll_y_ + dy);
+        scroll_.add_scroll(dy);
     }
 
     int index_from_y(int y) const noexcept {
-        const Style& st = Theme::instance().get<TextList>();
+        Style st_scratch;
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
-        return alg::list_scroll::index_from_y(y, r.y, scroll_y_, st.padding, row_height_, item_count_);
+        const int pad = st.metrics.padding;
+        int content_w = r.w - pad * 2;
+        if (content_w < 0) content_w = 0;
+        int view_h = r.h - pad * 2;
+        if (view_h < 0) view_h = 0;
+        StructuredViewportMapper mapper{};
+        mapper.rect = Rect{r.x + pad, r.y + pad, content_w, view_h};
+        mapper.row_height = row_height_;
+        mapper.scroll_y = scroll_.scroll_y;
+        return mapper.index_at(y, item_count_);
     }
 
     void ensure_visible(int index) noexcept {
-        const Style& st = Theme::instance().get<TextList>();
+        Style st_scratch;
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
-        scroll_y_ = alg::list_scroll::ensure_visible(index,
-                                                     row_height_,
-                                                     r.h,
-                                                     st.padding,
-                                                     scroll_y_,
-                                                     max_scroll_);
+        const int pad = st.metrics.padding;
+        const int view_h = (r.h > pad * 2) ? (r.h - pad * 2) : 0;
+        const int row_top = index * row_height_;
+        const int row_bottom = row_top + row_height_;
+        int scroll = scroll_.scroll_y;
+        if (row_top < scroll) {
+            scroll = row_top;
+        } else if (row_bottom > scroll + view_h) {
+            scroll = row_bottom - view_h;
+        }
+        scroll_.set_scroll(scroll);
     }
 
     const char** items_{nullptr};
     int item_count_{0};
     int row_height_{28};
     int selected_{0};
-    int scroll_y_{0};
-    int max_scroll_{0};
-    int content_height_{0};
-    int wheel_step_{1};
+    StructuredScrollModel scroll_{};
     bool dragging_{false};
     int last_y_{0};
     const char* format_{"%s"};
@@ -268,5 +302,7 @@ private:
     SelectFn select_fn_{nullptr};
     void* select_ctx_{nullptr};
 };
+
+
 
 

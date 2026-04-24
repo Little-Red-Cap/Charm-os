@@ -48,7 +48,7 @@ export namespace kernel {
             if (!queue_->push(value)) {
                 return false;
             }
-            return scheduler_->post(task, make_event(EventId::message, util::u32(1)));
+            return scheduler_->post_demand(task, make_event(EventId::message, util::u32(1)));
         }
 
         [[nodiscard]] bool recv(T& out) noexcept {

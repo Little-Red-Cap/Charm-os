@@ -8,12 +8,12 @@ import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 
 using namespace ui::render;
 
 export
-class Waveform : public ObjectBase {
+class Waveform : public WidgetBase<Waveform> {
 public:
     Waveform() {
         set_focusable(false);
@@ -70,13 +70,21 @@ public:
     void set_trigger_color(const rgba& c) noexcept { trigger_color_ = c; mark_dirty_trigger(); }
     void set_center_color(const rgba& c) noexcept { center_color_ = c; mark_dirty_hint(get_rect()); }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<Waveform>();
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        const int pad = glow_ ? 3 : 1;
+        return Rect{r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2};
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<Waveform>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Waveform, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Waveform, state, st);
+
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -246,5 +254,7 @@ private:
     rgba trigger_color_{220, 120, 120, 255};
     rgba center_color_{80, 100, 130, 255};
 };
+
+
 
 

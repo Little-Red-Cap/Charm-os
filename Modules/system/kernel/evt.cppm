@@ -17,8 +17,11 @@ export namespace kernel {
         sync,
         message,
         terminate,
+        reactor_drain,
         user0,
         user1,
+        input_pump,
+        canopen_pump,
         count
     };
 
@@ -57,6 +60,9 @@ export namespace kernel {
     inline util::u64 payload_u64(const Event& evt, util::u64 fallback = 0) {
         if (auto value = util::get_if<util::u64>(&evt.payload)) {
             return *value;
+        }
+        if (auto value = util::get_if<util::u32>(&evt.payload)) {
+            return static_cast<util::u64>(*value);
         }
         return fallback;
     }

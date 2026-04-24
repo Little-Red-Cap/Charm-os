@@ -10,7 +10,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.canvas;
 import charm.gfx.color;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import charm.font;
 import charm.font.typography;
 import alg_text_layout;
@@ -27,7 +27,7 @@ namespace {
 }
 
 export
-class RichText : public ObjectBase {
+class RichText : public WidgetBase<RichText> {
 public:
     RichText() {
         set_focusable(false);
@@ -36,19 +36,20 @@ public:
 
     void set_text(const char* text) { text_.assign(text ? text : ""); }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<RichText>();
+    void draw(CanvasBase& cvs) {
+        const StyleState st_state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<RichText>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::RichText, st_state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font_color{};
-        const StyleState st_state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::RichText, st_state, st);
         resolve_colors(st, st_state, bg, border, font_color);
         const Font& normal = resolve_font(st);
         const Font& mono = get_font(FontId::Mono);
         const int line_height = (normal.line_height > mono.line_height) ? normal.line_height : mono.line_height;
 
-        int x = r.x + st.padding;
-        int y = r.y + st.padding;
+        int x = r.x + st.metrics.padding;
+        int y = r.y + st.metrics.padding;
         if (line_height <= 0) return;
 
         RunState state{};
@@ -101,7 +102,7 @@ public:
                                 }
                                 break;
                             case alg::text_parse::TagKind::LineBreak:
-                                x = r.x + st.padding;
+                                x = r.x + st.metrics.padding;
                                 y += line_height;
                                 prev_gid = 0;
                                 prev_font = nullptr;
@@ -116,10 +117,16 @@ public:
                 }
             }
 
+            const char* glyph_start = p;
             std::uint32_t cp = 0;
             if (!alg::text_layout::next_codepoint(p, end, cp)) break;
+            if (cp == 0) {
+                prev_gid = 0;
+                prev_font = nullptr;
+                continue;
+            }
             if (cp == '\n') {
-                x = r.x + st.padding;
+                x = r.x + st.metrics.padding;
                 y += line_height;
                 prev_gid = 0;
                 prev_font = nullptr;
@@ -129,37 +136,19 @@ public:
 
             const Font& font = *state.font;
             const int adv = alg::text_layout::glyph_advance(font, cp, prev_gid, prev_font);
-            if (alg::text_layout::should_wrap(x, adv, r.x + r.w - st.padding)) {
-                x = r.x + st.padding;
+            if (alg::text_layout::should_wrap(x, adv, r.x + r.w - st.metrics.padding)) {
+                x = r.x + st.metrics.padding;
                 y += line_height;
                 prev_gid = 0;
                 prev_font = nullptr;
                 if (y + line_height > r.y + r.h) break;
             }
 
-            char glyph[5]{};
-            int len = 0;
-            if (cp <= 0x7F) {
-                glyph[len++] = static_cast<char>(cp);
-            } else if (cp <= 0x7FF) {
-                glyph[len++] = static_cast<char>(0xC0 | ((cp >> 6) & 0x1F));
-                glyph[len++] = static_cast<char>(0x80 | (cp & 0x3F));
-            } else if (cp <= 0xFFFF) {
-                glyph[len++] = static_cast<char>(0xE0 | ((cp >> 12) & 0x0F));
-                glyph[len++] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-                glyph[len++] = static_cast<char>(0x80 | (cp & 0x3F));
-            } else {
-                glyph[len++] = static_cast<char>(0xF0 | ((cp >> 18) & 0x07));
-                glyph[len++] = static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
-                glyph[len++] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-                glyph[len++] = static_cast<char>(0x80 | (cp & 0x3F));
-            }
-            glyph[len] = '\0';
-
             const int baseline_y = y + font.baseline;
-            draw_text_baseline(cvs, x, baseline_y, glyph, state.color, font);
+            const int glyph_len = static_cast<int>(p - glyph_start);
+            draw_text_baseline_range(cvs, x, baseline_y, glyph_start, glyph_len, state.color, font);
             if (state.bold) {
-                draw_text_baseline(cvs, x + 1, baseline_y, glyph, state.color, font);
+                draw_text_baseline_range(cvs, x + 1, baseline_y, glyph_start, glyph_len, state.color, font);
             }
             x += adv;
         }
@@ -168,3 +157,5 @@ public:
 private:
     StaticString<256> text_{};
 };
+
+

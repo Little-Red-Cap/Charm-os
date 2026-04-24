@@ -38,7 +38,7 @@ export namespace kernel {
             if (timeout.value != 0) {
                 (void)scheduler_->cancel_event(timeout);
             }
-            return scheduler_->post(task, make_event(EventId::sync, util::u32(result)));
+            return scheduler_->post_demand(task, make_event(EventId::sync, util::u32(result)));
         }
 
         [[nodiscard]] bool notify_all(WaitResult result = WaitResult::ok) noexcept {
@@ -50,7 +50,7 @@ export namespace kernel {
                 if (timeout.value != 0) {
                     (void)scheduler_->cancel_event(timeout);
                 }
-                (void)scheduler_->post(task, make_event(EventId::sync, util::u32(result)));
+                (void)scheduler_->post_demand(task, make_event(EventId::sync, util::u32(result)));
                 any = true;
             }
             return any;
@@ -65,7 +65,7 @@ export namespace kernel {
             if (timeout.value != 0) {
                 (void)scheduler_->cancel_event(timeout);
             }
-            return scheduler_->post(task, make_event(EventId::sync, util::u32(WaitResult::canceled)));
+            return scheduler_->post_demand(task, make_event(EventId::sync, util::u32(WaitResult::canceled)));
         }
 
         [[nodiscard]] bool on_timeout(WaitToken token) noexcept {
@@ -74,7 +74,10 @@ export namespace kernel {
             if (!waiters_.erase(token, task, timeout)) {
                 return false;
             }
-            return scheduler_->post(task, make_event(EventId::sync, util::u32(WaitResult::timeout)));
+            if (timeout.value != 0) {
+                (void)scheduler_->cancel_event(timeout);
+            }
+            return scheduler_->post_demand(task, make_event(EventId::sync, util::u32(WaitResult::timeout)));
         }
 
     private:

@@ -1,26 +1,26 @@
-# HAL ф╫л╗╟С╤╗ж╦до (Draft)
+О╩©# HAL ф╫л╗О©╫О©╫ж╦О©╫О©╫ (Draft)
 
-## д©╠Й
-н╙ц©╦Жф╫л╗лА╧╘вНп║ HAL ╟С╤╗ё╛й╣ож hal_* ╫с©зё╛╡╩ншх╬╨кпддё©И║ё
+## д©О©╫О©╫
+н╙ц©О©╫О©╫ф╫л╗О©╫А╧╘О©╫О©╫п║ HAL О©╫С╤╗ёО©╫й╣О©╫О©╫ hal_* О©╫с©зёО©╫О©╫О©╫О©╫О©╫х╬О©╫О©╫О©╫О©╫дёО©╫И║ё
 
-## ╟С╤╗н╩жц
-- ф╫л╗й╣ож╥етз Draft/Examples/targets ╩Рн╢ю╢ charm-hal вс╡ж©Бжп║ё
-- ╨кпд Modules жпж╩╠ёаТ╫с©зсК╦едН║ё
+## О©╫О©╫н╩О©╫О©╫
+- ф╫л╗й╣О©╫ж╥О©╫О©╫О©╫ Draft/Examples/targets О©╫О©╫н╢О©╫О©╫ charm-hal О©╫с╡ж©О©╫О©╫п║О©╫
+- О©╫О©╫О©╫О©╫ Modules О©╫О©╫ж╩О©╫О©╫О©╫О©╫с©О©╫О©╫О©╫О©╫О©╫Н║ё
 
-## пХр╙й╣ож╣д╫с©зё╗MVPё╘
-- hal_time: TimeSource / DelayProvider
+## О©╫О©╫р╙й╣О©╫ж╣д╫с©зёО©╫MVPО©╫О©╫
+- system.clock: TimeSource (board_caps)
 - hal_irq: IrqGuard / IrqController
 - hal_gpio: GpioDriver
 - hal_uart: UartDriver
 - hal_timer: TimerDriver
-- hal_clock: ClockProviderё╗©ия║ё╘
 
-## т╪╤╗
-- вХхШ/Ё╛й╠сОрЕпХнд╣╣╩╞║ё
-- ISR иообндсКоъЁлиообнд╣д╣Всцт╪йЬ╠ьпКцВх╥║ё
-- хТ╡╩ж╖Ёж╧╕дэё╛гК╥╣╩ь Status::unsupported║ё
+## т╪О©╫О©╫
+- О©╫О©╫О©╫О©╫/О©╫О©╫й╠О©╫О©╫О©╫О©╫О©╫О©╫О©╫д╣О©╫О©╫О©╫О©╫О©╫
+- ISR О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫ъЁО©╫О©╫О©╫О©╫О©╫О©╫д╣д╣О©╫О©╫О©╫т╪О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫х╥О©╫О©╫
+- О©╫О©╫О©╫ж╖О©╫ж╧О©╫О©╫эёО©╫О©╫К╥╣О©╫О©╫ Status::unsupportedО©╫О©╫
 
-## й╬юЩ
+## й╬О©╫О©╫
 - Windows stub: Draft/Examples/hal_demo/main.cpp
-- STM32 stub: мф╪Ж╥е Draft/Examples/stm32f103c8/Core/Src/hal_*.cpp
+- STM32 stub: О©╫ф╪О©╫О©╫О©╫ Draft/Examples/stm32f103c8/Core/Src/hal_*.cpp
+
 

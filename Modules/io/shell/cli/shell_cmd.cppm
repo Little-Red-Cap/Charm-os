@@ -129,7 +129,7 @@ export namespace shell {
             if (cmd.name != name) continue;
             if (!has_caps(cmd.caps_required, caps)) {
                 (void)write(con, "permission denied\n");
-                return err(Errno::perm);
+                return err(Errc::perm);
             }
             if (cmd.children && cmd.child_count > 0) {
                 if (argv.size() <= 1) {
@@ -145,7 +145,7 @@ export namespace shell {
             break;
         }
         (void)write(con, "unknown command\n");
-        return err(Errno::noent);
+        return err(Errc::noent);
     }
 
     template <util::usize MaxArgs>
@@ -213,7 +213,7 @@ export namespace shell {
         std::array<char, 384> next_buf{};
         for (std::size_t i = 0; i < part_count; ++i) {
             if (current.empty()) {
-                return err(Errno::inval);
+                return err(Errc::inval);
             }
             if (i + 1 == part_count) {
                 return run_line<MaxArgs>(con, cmds, current, caps);

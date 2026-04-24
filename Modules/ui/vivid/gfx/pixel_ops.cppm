@@ -21,7 +21,7 @@ constexpr rgb unpack_rgb565(uint16_t px) noexcept {
     };
 }
 
-// ARGB8888 直接打包为 0xAARRGGBB
+// ARGB8888 packs directly to 0xAARRGGBB.
 export
 constexpr uint32_t pack_argb8888(const rgba& c) noexcept {
     return (uint32_t(c.a) << 24)

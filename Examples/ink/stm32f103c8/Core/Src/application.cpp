@@ -225,9 +225,11 @@ import app.state;
 import app.ui;
 import app.logic_intent;
 
-import gui.input;
+import input.raw;
+import input.router;
+import input.raw_sampler;
 
-namespace input = gui::input;
+namespace gui_input = ::input;
 
 
 struct RawSourceSTM32 {
@@ -280,15 +282,15 @@ struct RawSourceSTM32 {
     }
 
 
-    input::PointerRaw read_pointer() const noexcept { return input::PointerRaw{}; }
-    input::AxisRaw    read_axis() const noexcept { return input::AxisRaw{0, 0}; }
+    gui_input::PointerRaw read_pointer() const noexcept { return gui_input::PointerRaw{}; }
+    gui_input::AxisRaw    read_axis() const noexcept { return gui_input::AxisRaw{0, 0}; }
 
     // --- RawSource 契约：每帧 update() 一次 ---
     void update(std::uint32_t now_ms) noexcept {
         (void)now_ms;
         // ---- Enter 键 ----
         bool down = (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET);
-        key_down_[static_cast<size_t>(input::Button::Enter)] = down;
+        key_down_[static_cast<size_t>(gui_input::Button::Enter)] = down;
 
         int32_t step = Encoder_GetStep();   // 这里是“菜单步进”，已经把 4 折算掉了
         if (step == 0) return;
@@ -311,8 +313,8 @@ struct RawSourceSTM32 {
     }
 
     // --- Buttons ---
-    bool is_down(input::Button b) const noexcept {
-        const int idx = (b == input::Button::Up) ? 0 : (b == input::Button::Down) ? 1 : (b == input::Button::Enter) ? 2 : 3;
+    bool is_down(gui_input::Button b) const noexcept {
+        const int idx = (b == gui_input::Button::Up) ? 0 : (b == gui_input::Button::Down) ? 1 : (b == gui_input::Button::Enter) ? 2 : 3;
         return key_down_[idx];
         return false;
     }
@@ -413,14 +415,16 @@ extern "C" void application()
     state.ui.fps_overlay = gui::ui::Toggle::On;
 
     RawSourceSTM32 raw(128, 64);
-    input::Sampler sampler; // 可传配置：SamplerCfg{...}
-    gui::ui::SamplerPolicyContext<RawSourceSTM32> input_ctx{&raw, &sampler};
-    const auto sampler_policy = gui::ui::make_sampler_policy(input_ctx);
-    state.input_policies.set(gui::ui::InputPolicyId::Default, sampler_policy);
-    state.input_policies.set(gui::ui::InputPolicyId::Encoder, sampler_policy);
+    ::gui_input::Router router{};
+    gui_input::RawSampler raw_sampler{};
+    gui::ui::RouterIntentQueue<> router_queue{};
+    (void)router_queue.start(router);
+    const auto router_policy = router_queue.policy();
+    state.input_policies.set(gui::ui::InputPolicyId::Default, router_policy);
+    state.input_policies.set(gui::ui::InputPolicyId::Encoder, router_policy);
     static gui::ui::PolicyChain<2> policy_chain{};
     policy_chain.clear();
-    policy_chain.add(sampler_policy);
+    policy_chain.add(router_policy);
     state.input_policies.set(gui::ui::InputPolicyId::Custom, gui::ui::make_policy_chain(policy_chain));
     state.input_policy_id = gui::ui::InputPolicyId::Default;
     state.input_policy = state.input_policies.get(state.input_policy_id);
@@ -433,6 +437,9 @@ extern "C" void application()
         state.now_ms = ms;
         state.fps_ui.update(state.tick);
         raw.update(ms);
+        while (auto ev = raw_sampler.poll(raw, ms)) {
+            router.dispatch(*ev);
+        }
 
         // 3) 消费意图
         app::pump_input(state, ms);

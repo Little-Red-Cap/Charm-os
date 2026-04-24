@@ -60,7 +60,7 @@ export namespace media {
         }
 
         Result<util::usize> read_at(util::i64 offset, std::span<std::byte> out) noexcept {
-            if (!ops->read_at) return util::unexpected(Error{Errc::not_supported, 0});
+            if (!ops->read_at) return util::unexpected(Errc::not_supported);
             return ops->read_at(self, offset, out);
         }
     };
@@ -84,7 +84,7 @@ export namespace media {
                 if constexpr (requires(T& t) { t.read_at(offset, out); }) {
                     return static_cast<T*>(self)->read_at(offset, out);
                 } else {
-                    return util::unexpected(Error{Errc::not_supported, 0});
+                    return util::unexpected(Errc::not_supported);
                 }
             }
         };

@@ -2,25 +2,16 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 
-import charm.core.gui;
-import charm.core.factory;
 import charm.core.event;
 import charm.core.handle;
-import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.core.config;
 import charm.gfx.canvas;
-import charm.widgets.button;
-import charm.widgets.checkbox;
-import charm.widgets.label;
-import charm.widgets.list;
-import charm.widgets.progress;
-import charm.widgets.radio;
-import charm.widgets.slider;
-import charm.widgets.switcher;
+import charm.ui.scene;
 
 namespace {
     struct ThemeEntry {
@@ -63,6 +54,73 @@ namespace {
         out_y = static_cast<int>((wy - vp.y) / vp.scale);
         return true;
     }
+
+    bool style_sheet_selftest() {
+        auto& sheet = StyleSheet::instance();
+        sheet.clear();
+
+        const Style base = make_style_from_tokens(Theme::instance().get_tokens());
+        Style out{};
+
+        auto mk = [](std::uint8_t r, std::uint8_t g, std::uint8_t b) noexcept {
+            return rgba{r, g, b, 255};
+        };
+        auto add_bg_rule = [&](StyleSelector sel, rgba c) {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = c;
+            sheet.add_rule(sel, patch);
+        };
+        auto eq = [](const rgba& a, const rgba& b) noexcept {
+            return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+        };
+        auto check = [&](WidgetKind kind, const StyleState& state, rgba expected, const char* label) {
+            if (!sheet.apply(kind, state, out, base)) {
+                std::fprintf(stderr, "StyleSheet selftest no match: %s\n", label);
+                return false;
+            }
+            if (!eq(out.colors.bg_color, expected)) {
+                std::fprintf(stderr, "StyleSheet selftest mismatch: %s\n", label);
+                return false;
+            }
+            return true;
+        };
+
+        const std::uint8_t hover = mask_hover();
+        const std::uint8_t pressed = mask_pressed();
+        add_bg_rule(StyleSelector{WidgetKind::None, hover}, mk(1, 2, 3));
+        add_bg_rule(StyleSelector{WidgetKind::Button, hover}, mk(4, 5, 6));
+        add_bg_rule(StyleSelector{WidgetKind::Button, static_cast<std::uint8_t>(hover | pressed)}, mk(7, 8, 9));
+        add_bg_rule(StyleSelector{WidgetKind::Button, hover, kVariantSecondary}, mk(10, 11, 12));
+
+        bool ok = true;
+        ok = check(WidgetKind::Button,
+                   make_style_state(true, true, true, false, 0),
+                   mk(7, 8, 9),
+                   "button hover+pressed") && ok;
+        ok = check(WidgetKind::Button,
+                   make_style_state(true, true, false, false, 0),
+                   mk(4, 5, 6),
+                   "button hover") && ok;
+        ok = check(WidgetKind::Button,
+                   make_style_state(true, true, false, false, kVariantSecondary),
+                   mk(10, 11, 12),
+                   "button variant hover") && ok;
+        ok = check(WidgetKind::Checkbox,
+                   make_style_state(true, true, false, false, 0),
+                   mk(1, 2, 3),
+                   "generic hover") && ok;
+
+        sheet.clear();
+        return ok;
+    }
+
+    void apply_theme_tokens(const ThemeTokens& tokens) noexcept {
+        Theme::instance().set_tokens_unsafe(tokens);
+        auto& sheet = StyleSheet::instance();
+        sheet.notify_base_style_changed();
+        sheet.rebuild_if_needed();
+    }
 }
 
 int main() {
@@ -98,88 +156,70 @@ int main() {
 
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
+    ::ui::scene::Scene scene{canvas};
+    scene.build([&](::ui::scene::SceneBuilder& builder) {
+        auto root = builder.create_container();
+        builder.set_rect(root, {0, 0, screen_width, screen_height});
 
-    UiFactory factory{};
-    auto root = factory.create_container();
-    if (auto* root_obj = factory.get(root)) {
-        root_obj->set_rect({0, 0, screen_width, screen_height});
-    }
+        auto title = builder.create_label_static("Theme: Light");
+        auto subtitle = builder.create_label_static("Keys: 1 Light  2 Dark  3 High Contrast");
 
-    auto title = factory.create_label("Theme: Light");
-    auto subtitle = factory.create_label("Keys: 1 Light  2 Dark  3 High Contrast");
+        auto btn_primary = builder.create_button_static("Primary");
+        auto btn_secondary = builder.create_button_static("Secondary");
+        auto sw = builder.create_switch();
+        auto cb = builder.create_checkbox("Enable feature");
+        auto radio = builder.create_radio("Radio option");
+        auto slider = builder.create_slider();
+        auto progress = builder.create_progress();
+        auto list_item = builder.create_list_item("List item");
 
-    auto btn_primary = factory.create_button("Primary");
-    auto btn_secondary = factory.create_button("Secondary");
-    auto sw = factory.create_switch();
-    auto cb = factory.create_checkbox("Enable feature");
-    auto radio = factory.create_radio("Radio option");
-    auto slider = factory.create_slider();
-    auto progress = factory.create_progress();
-    auto list_item = factory.create_list_item("List item");
+        builder.link(root, title);
+        builder.link(root, subtitle);
+        builder.link(root, btn_primary);
+        builder.link(root, btn_secondary);
+        builder.link(root, sw);
+        builder.link(root, cb);
+        builder.link(root, radio);
+        builder.link(root, slider);
+        builder.link(root, progress);
+        builder.link(root, list_item);
 
-    factory.link(root, title);
-    factory.link(root, subtitle);
-    factory.link(root, btn_primary);
-    factory.link(root, btn_secondary);
-    factory.link(root, sw);
-    factory.link(root, cb);
-    factory.link(root, radio);
-    factory.link(root, slider);
-    factory.link(root, progress);
-    factory.link(root, list_item);
+        const int col_x = 24;
+        const int col_w = 280;
+        int y = 20;
+        const int row_h = 36;
+        const int gap = 12;
 
-    const int col_x = 24;
-    const int col_w = 280;
-    int y = 20;
-    const int row_h = 36;
-    const int gap = 12;
+        builder.set_rect(title, {col_x, y, screen_width - col_x * 2, 24});
+        y += 28;
+        builder.set_rect(subtitle, {col_x, y, screen_width - col_x * 2, 20});
+        y += 36;
 
-    if (auto* lbl = factory.get_label(title)) {
-        lbl->set_rect({col_x, y, screen_width - col_x * 2, 24});
-    }
-    y += 28;
-    if (auto* lbl = factory.get_label(subtitle)) {
-        lbl->set_rect({col_x, y, screen_width - col_x * 2, 20});
-    }
-    y += 36;
+        builder.set_rect(btn_primary, {col_x, y, col_w, row_h});
+        y += row_h + gap;
+        builder.set_rect(btn_secondary, {col_x, y, col_w, row_h});
+        builder.set_variant(btn_secondary, kVariantSecondary);
+        y += row_h + gap;
+        builder.set_rect(sw, {col_x, y, 64, 28});
+        builder.set_checked(sw, true);
+        builder.set_rect(cb, {col_x + 90, y, col_w, 28});
+        builder.set_checked(cb, true);
+        y += 40;
+        builder.set_rect(radio, {col_x, y, col_w, 28});
+        builder.set_checked(radio, true);
+        y += 40;
+        builder.set_rect(slider, {col_x, y, col_w, 24});
+        builder.set_range(slider, 0, 100);
+        builder.set_value(slider, 60);
+        y += 40;
+        builder.set_rect(progress, {col_x, y, col_w, 16});
+        builder.set_value(progress, 30);
+        y += 32;
+        builder.set_rect(list_item, {col_x, y, col_w, 28});
 
-    if (auto* btn = factory.get_button(btn_primary)) {
-        btn->set_rect({col_x, y, col_w, row_h});
-    }
-    y += row_h + gap;
-    if (auto* btn = factory.get_button(btn_secondary)) {
-        btn->set_rect({col_x, y, col_w, row_h});
-        btn->set_style_variant(kVariantSecondary);
-    }
-    y += row_h + gap;
-    if (auto* s = factory.get_switch(sw)) {
-        s->set_rect({col_x, y, 64, 28});
-        s->set_on(true);
-    }
-    if (auto* c = factory.get_checkbox(cb)) {
-        c->set_rect({col_x + 90, y, col_w, 28});
-        c->set_checked(true);
-    }
-    y += 40;
-    if (auto* r = factory.get_radio(radio)) {
-        r->set_rect({col_x, y, col_w, 28});
-        r->set_checked(true);
-    }
-    y += 40;
-    if (auto* s = factory.get_slider(slider)) {
-        s->set_rect({col_x, y, col_w, 24});
-        s->set_range(0, 100);
-        s->set_value(60);
-    }
-    y += 40;
-    if (auto* p = factory.get_progress(progress)) {
-        p->set_rect({col_x, y, col_w, 16});
-        p->set_value(30);
-    }
-    y += 32;
-    if (auto* li = factory.get_list_item(list_item)) {
-        li->set_rect({col_x, y, col_w, 28});
-    }
+        builder.set_root(root);
+    });
+    auto access = scene.access();
 
     ThemeEntry themes[] = {
         {"Light", ThemeTokens{
@@ -219,6 +259,10 @@ int main() {
             .focus_ring = {255, 196, 0, 255},
         }},
     };
+
+    if (!style_sheet_selftest()) {
+        std::fprintf(stderr, "StyleSheet selftest failed; rule priority may be incorrect.\n");
+    }
 
     auto apply_demo_theme = [&](int index) {
         const int count = static_cast<int>(sizeof(themes) / sizeof(themes[0]));
@@ -264,17 +308,13 @@ int main() {
         list_pressed.font_color = StyleRole::OnAccent;
         sheet.add_role_rule(StyleSelector{WidgetKind::ListItem, mask_pressed()}, list_pressed);
 
-        if (auto* lbl = factory.get_label(title)) {
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "Theme: %s", themes[index].name);
-            lbl->set_text(buf);
-        }
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "Theme: %s", themes[index].name);
+        access.set_text(title, buf);
     };
 
     int theme_index = 0;
     apply_demo_theme(theme_index);
-
-    Gui gui{canvas, factory, root};
 
     auto t0 = std::chrono::steady_clock::now();
     bool running = true;
@@ -303,7 +343,7 @@ int main() {
                 else if (evt.key.key == SDLK_RETURN) key = Event::Key::Enter;
                 else if (evt.key.key == SDLK_SPACE) key = Event::Key::Space;
                 if (key != Event::Key::Unknown) {
-                    gui.dispatch_event(Event::key(Event::Type::KeyDown, key));
+                    scene.dispatch_event(Event::key(Event::Type::KeyDown, key));
                 }
             } else if (evt.type == SDL_EVENT_KEY_UP) {
                 Event::Key key = Event::Key::Unknown;
@@ -314,20 +354,20 @@ int main() {
                 else if (evt.key.key == SDLK_RETURN) key = Event::Key::Enter;
                 else if (evt.key.key == SDLK_SPACE) key = Event::Key::Space;
                 if (key != Event::Key::Unknown) {
-                    gui.dispatch_event(Event::key(Event::Type::KeyUp, key));
+                    scene.dispatch_event(Event::key(Event::Type::KeyUp, key));
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_MOTION) {
                 int x = 0;
                 int y = 0;
                 if (map_mouse(vp, evt.motion.x, evt.motion.y, x, y)) {
-                    gui.dispatch_event(Event::mouse(Event::Type::MouseMove, x, y, 0));
+                    scene.dispatch_event(Event::mouse(Event::Type::MouseMove, x, y, 0));
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
                 if (evt.button.button == SDL_BUTTON_LEFT) {
                     int x = 0;
                     int y = 0;
                     if (map_mouse(vp, evt.button.x, evt.button.y, x, y)) {
-                        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1));
+                        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1));
                     }
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_BUTTON_UP) {
@@ -335,26 +375,24 @@ int main() {
                     int x = 0;
                     int y = 0;
                     if (map_mouse(vp, evt.button.x, evt.button.y, x, y)) {
-                        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1));
+                        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1));
                     }
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_WHEEL) {
                 int x = 0;
                 int y = 0;
                 if (map_mouse(vp, evt.wheel.mouse_x, evt.wheel.mouse_y, x, y)) {
-                    gui.dispatch_event(Event::wheel(x, y, static_cast<int>(evt.wheel.y)));
+                    scene.dispatch_event(Event::wheel(x, y, static_cast<int>(evt.wheel.y)));
                 }
             }
         }
 
         const auto now = std::chrono::steady_clock::now();
         const float t = std::chrono::duration<float>(now - t0).count();
-        if (auto* p = factory.get_progress(progress)) {
-            const int value = static_cast<int>((std::sin(t) * 0.5f + 0.5f) * 100.0f);
-            p->set_value(value);
-        }
+        const int value = static_cast<int>((std::sin(t) * 0.5f + 0.5f) * 100.0f);
+        access.set_value(progress, value);
 
-        gui.render();
+        scene.render();
 
         SDL_UpdateTexture(texture, nullptr, canvas.data(), screen_width * 3);
         SDL_SetRenderDrawColor(renderer, 12, 12, 12, 255);

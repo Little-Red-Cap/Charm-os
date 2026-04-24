@@ -11,7 +11,7 @@
 - optional later: flash, entropy, pwm, adc, watchdog.
 
 ## Shape
-- Module: port.kernel keeps KernelCaps for scheduler (time/irq/wakeup/swi).
+- System clock + platform irq are capabilities owned by CoreSystemChain (not HAL).
 - Module: charm-hal.gpio etc. Each module defines:
   - lightweight handle (struct Handle { platform ptr/id })
   - cfg struct (constexpr defaults)
@@ -22,7 +22,7 @@
 
 ## Platform binding
 - For each target: targets/<vendor>/<board>/hal_<periph>.cpp implements the concepts.
-- Provide template file Modules/port/port.kernel.template.cpp as quick start; similar templates for gpio/uart.
+- Use board_caps to centralize clock/irq/uart descriptors; periph impls only bind ops.
 
 ## Unified API routing (VSF-aligned)
 - A single hal::<periph> API should target multiple backends:
@@ -52,42 +52,9 @@
 - For each periph: table of required/optional behaviors (blocking/async, timeout units, ISR context rules).
 - Example usage snippets per module; platform notes (e.g., STM32 requires clock enable before gpio_cfg).
 - Ops binding templates: `Modules/io/hal/hal_ops_template_guide.md`.
-- Registry wiring example: `Modules/io/hal/hal_device_examples.cppm`.
 
 ## Phasing
-- Phase A (current): port.kernel + minimal time/irq for PC/STM32.
+- Phase A (current): system.clock + platform.irq + minimal uart/gpio for PC/STM32.
 - Phase B: add gpio/uart/timer, publish concepts and template impl.
 - Phase C: spi/i2c/flash + shim time/sleep; start RT facade design.
 - Phase D: entropy/pwm/adc/watchdog + richer shim (POSIX subset).
-
-## HAL + Device Registry (Wiring)
-
-```mermaid
-flowchart LR
-  App[Platform Init] --> Reg[device::Registry]
-  Reg --> Driver[device::Driver]
-  Reg --> Dev[device::Device]
-  Driver --> Hook[hal::HalDeviceHook]
-  Hook --> Ops[hal::*Ops vtable]
-  Dev --> Handle[hal::*Handle]
-```
-
-### Example (SPI)
-
-```cpp
-device::Registry<8, 8> reg{};
-
-hal::HalDeviceHook spi_hook{};
-spi_hook.ctx = &spi_backend_state;
-spi_hook.probe = &spi_probe;
-spi_hook.init = &spi_init;
-
-auto desc = hal::make_hal_desc("spi");
-auto drv = hal::make_hal_driver(&spi_hook, desc, "spi.hw", 10);
-
-reg.add_device(desc, &spi_hook);
-reg.add_driver(drv);
-reg.init_all();
-```
-
-> The registry drives probe/init/suspend/resume; HAL handles only backend logic.

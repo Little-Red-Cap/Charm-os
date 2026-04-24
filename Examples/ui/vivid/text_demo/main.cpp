@@ -4,7 +4,7 @@
 import charm.core.config;
 import charm.gfx.canvas;
 import charm.gfx.color;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;

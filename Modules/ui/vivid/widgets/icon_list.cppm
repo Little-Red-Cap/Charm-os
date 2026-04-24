@@ -2,10 +2,11 @@ module;
 export module charm.widgets.icon_list;
 
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.widgets.list_view;
-import charm.widgets.text;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 
@@ -45,8 +46,9 @@ private:
         if (info.index < 0 || info.index >= self->item_count_) return;
 
         const auto& item = self->items_[info.index];
-        const auto& st = Theme::instance().get<ListView>();
-        const int pad = st.padding;
+        Style st_scratch;
+        const auto& st = self->resolve_list_style(st_scratch);
+        const int pad = st.metrics.padding;
         const int icon_size = self->icon_size_;
         const int icon_x = info.rect.x + pad + self->icon_pad_;
         const int icon_y = info.rect.y + (info.rect.h - icon_size) / 2;
@@ -55,9 +57,9 @@ private:
         if (item.icon) {
             draw_image_scaled(cvs, icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, *item.icon);
         } else {
-            const rgba fill = item.accent.a ? item.accent : st.border_color;
+            const rgba fill = item.accent.a ? item.accent : st.colors.border_color;
             draw_round_rect(cvs, icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, 4, fill, true);
-            draw_round_rect(cvs, icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, 4, st.border_color, false);
+            draw_round_rect(cvs, icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, 4, st.colors.border_color, false);
         }
 
         Rect text_rect = info.rect;
@@ -66,9 +68,16 @@ private:
         text_rect.w = info.rect.x + info.rect.w - text_x - pad;
         if (text_rect.w <= 0) return;
         draw_text_box(cvs, text_rect, item.label ? item.label : "",
-                      st.font_color, resolve_font(st),
+                      st.colors.font_color, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center,
                       TextWrap::None, TextEllipsis::End);
+    }
+
+    const Style& resolve_list_style(Style& scratch) const noexcept {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
+                                                  has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ListView>();
+        return resolve_style(WidgetKind::ListView, state, base, scratch);
     }
 
     const IconListItem* items_{nullptr};

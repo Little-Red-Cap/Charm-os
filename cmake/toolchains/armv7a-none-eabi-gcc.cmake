@@ -1,0 +1,35 @@
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR arm)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+set(CHARM_ARMV7A_TRIPLE "arm-none-eabi" CACHE STRING "ARMv7-A bare-metal toolchain triple")
+set(CHARM_ARMV7A_CPU "cortex-a7" CACHE STRING "ARMv7-A CPU for bare-metal builds")
+set(CHARM_ARMV7A_ISA_MODE "arm" CACHE STRING "ARMv7-A ISA mode for bare-metal builds")
+set_property(CACHE CHARM_ARMV7A_ISA_MODE PROPERTY STRINGS arm thumb)
+
+set(CMAKE_C_COMPILER   "${CHARM_ARMV7A_TRIPLE}-gcc")
+set(CMAKE_CXX_COMPILER "${CHARM_ARMV7A_TRIPLE}-g++")
+set(CMAKE_ASM_COMPILER "${CHARM_ARMV7A_TRIPLE}-gcc")
+set(CMAKE_AR           "${CHARM_ARMV7A_TRIPLE}-ar")
+set(CMAKE_OBJCOPY      "${CHARM_ARMV7A_TRIPLE}-objcopy")
+set(CMAKE_OBJDUMP      "${CHARM_ARMV7A_TRIPLE}-objdump")
+set(CMAKE_RANLIB       "${CHARM_ARMV7A_TRIPLE}-ranlib")
+set(CMAKE_STRIP        "${CHARM_ARMV7A_TRIPLE}-strip")
+
+set(_CHARM_ARMV7A_ISA_FLAG "-marm")
+if (CHARM_ARMV7A_ISA_MODE STREQUAL "thumb")
+    set(_CHARM_ARMV7A_ISA_FLAG "-mthumb")
+endif()
+
+set(CHARM_ARMV7A_ARCH_FLAGS
+    "-mcpu=${CHARM_ARMV7A_CPU} ${_CHARM_ARMV7A_ISA_FLAG}")
+set(CHARM_ARMV7A_COMMON_FLAGS
+    "${CHARM_ARMV7A_ARCH_FLAGS} -ffreestanding -fdata-sections -ffunction-sections -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-use-cxa-atexit")
+
+set(CMAKE_C_FLAGS_INIT "${CHARM_ARMV7A_COMMON_FLAGS}")
+set(CMAKE_CXX_FLAGS_INIT "${CHARM_ARMV7A_COMMON_FLAGS}")
+set(CMAKE_ASM_FLAGS_INIT "${CHARM_ARMV7A_ARCH_FLAGS}")
+
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-nostdlib -nostartfiles")
+
+unset(_CHARM_ARMV7A_ISA_FLAG)

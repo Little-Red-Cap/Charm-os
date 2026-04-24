@@ -3,27 +3,41 @@ module;
 export module charm.widgets.progress_wheel;
 
 import charm.core.object;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import alg_arc;
 
 using namespace ui::render;
 
 // Circular progress indicator (0..100)
 export
-class ProgressWheel : public ObjectBase {
+class ProgressWheel : public WidgetBase<ProgressWheel> {
 public:
+    using value_state_type = service::state<int, 4>;
+    using value_slot_type = typename value_state_type::slot_type;
+    using value_connection = typename value_state_type::connection;
+
     ProgressWheel() {
         set_size(120, 120);
     }
 
     void set_value(int v) noexcept {
-        value_ = alg::arc::clamp_to_range(v, 0, 100);
+        (void)value_.set(alg::arc::clamp_to_range(v, 0, 100));
     }
 
-    int value() const noexcept { return value_; }
+    [[nodiscard]] int value() const noexcept { return value_.get(); }
+
+    // observe_value() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
+        return value_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
+        return value_.disconnect(c);
+    }
 
     void set_thickness(int t) noexcept {
         thickness_ = (t > 0) ? t : 1;
@@ -32,12 +46,14 @@ public:
     void set_start_angle(int deg) noexcept { start_deg_ = deg; }
     void set_show_track(bool on) noexcept { show_track_ = on; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<ProgressWheel>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ProgressWheel>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ProgressWheel, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ProgressWheel, state, st);
+
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -53,15 +69,17 @@ public:
         }
         const float sweep = alg::arc::sweep_deg_from_value(static_cast<float>(start),
                                                            static_cast<float>(end),
-                                                           alg::arc::ratio_from_range(value_, 0, 100));
+                                                           alg::arc::ratio_from_range(value(), 0, 100));
         draw_arc(cvs, cx, cy, radius, thickness_, start, sweep, font);
     }
 
 private:
-    int value_{0};
+    value_state_type value_{0};
     int thickness_{6};
     int start_deg_{-90};
     bool show_track_{true};
 };
+
+
 
 

@@ -18,7 +18,7 @@ import media.stream.source;
 export namespace audio {
     class FsDataSource {
     public:
-        FsDataSource() = default;
+        FsDataSource() noexcept { }
         explicit FsDataSource(const char* path) { (void)open(path); }
 
         bool open(const char* path) {
@@ -41,7 +41,7 @@ export namespace audio {
         ~FsDataSource() { close(); }
 
         Result<std::size_t> read(std::span<std::byte> out) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             std::size_t to_read = out.size();
             if (file_.node.size > 0 && file_.node.offset >= 0) {
                 const auto remaining = static_cast<std::int64_t>(file_.node.size - file_.node.offset);
@@ -55,7 +55,7 @@ export namespace audio {
             const auto before = file_.node.offset;
             const auto st = fs::read(file_, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(out.data()), to_read));
-            if (!st) return unexpected(Err{Errc::io_error, 0});
+            if (!st) return unexpected(Errc::io_error);
             const auto after = file_.node.offset;
             if (after >= before) {
                 const auto delta = static_cast<std::size_t>(after - before);
@@ -65,7 +65,7 @@ export namespace audio {
         }
 
         Result<std::int64_t> seek(std::int64_t offset, int whence) {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             std::int64_t target = offset;
             const auto cur = static_cast<std::int64_t>(file_.node.offset);
             const auto size = static_cast<std::int64_t>(file_.node.size);
@@ -74,9 +74,9 @@ export namespace audio {
             } else if (whence == SEEK_END) {
                 target = size + offset;
             }
-            if (target < 0) return unexpected(Err{Errc::io_error, 0});
+            if (target < 0) return unexpected(Errc::io_error);
             const auto st = fs::seek(file_, static_cast<util::i64>(target));
-            if (!st) return unexpected(Err{Errc::io_error, 0});
+            if (!st) return unexpected(Errc::io_error);
             return tell();
         }
 
@@ -97,12 +97,12 @@ export namespace audio {
         }
 
         Result<std::int64_t> tell() noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return static_cast<std::int64_t>(file_.node.offset);
         }
 
         Result<std::int64_t> size() noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return static_cast<std::int64_t>(file_.node.size);
         }
 

@@ -1,0 +1,59 @@
+﻿Demo entry scan
+Root: G:\Project\Charm-os
+Generated: 2026-03-14 00:08:39
+
+Entry rules (minimal)
+- console-only demo: import charm.system.bringup.console
+- app/demo runtime: import charm.system.app_host
+- full bringup: import charm.system.bringup
+
+Examples\fs\fs_block_vfs_demo\main.cpp
+  import charm.system.app_host;
+  import charm.system.bringup.block;
+
+Examples\ink\stn32h747xi\CM7\app\main.cpp
+  import charm.system.bringup;
+
+Examples\io\input_pump_win_demo\main.cpp
+  import charm.system.app_host;
+  import charm.system.bringup.input;
+
+Examples\io\out\windows\main.cpp
+  import charm.system.bringup.console;
+
+Examples\project\player\stn32h747_HQZY\CM7\app\main.cpp
+  import charm.system.bringup;
+
+Examples\usb\usb_msc_block_demo\main.cpp
+  import charm.system.app_host;
+  import charm.system.bringup.block;
+
+Aggregate entry exports (charm.system.cppm)
+  export import charm.system.clock;
+  export import charm.system.caps;
+  export import charm.system.init_core;
+  export import charm.system.init_block;
+  export import charm.system.init_usb;
+  export import charm.system.init_input;
+  export import charm.system.init_usart;
+  export import charm.system.bringup;
+  export import charm.system.bringup.stm32_stub;
+  export import charm.system.bringup.win_stub;
+  export import charm.system.reactor_pump;
+  export import device.desc;
+  export import device.bus;
+  export import device.manager;
+  export import device.registry;
+  export import device.types;
+
+BoardCaps usage in Examples (should be empty for demos)
+  Examples\ink\stn32h747xi\CM7\app\board_caps.cppm
+  Examples\ink\stn32h747xi\CM7\app\main.cpp
+  Examples\project\player\stn32h747_HQZY\CM7\app\board_caps.cppm
+  Examples\project\player\stn32h747_HQZY\CM7\app\main.cpp
+
+Baseline metrics (imports)
+  Examples\\io\\out\\windows\\main.cpp: imports=5 charm.system=1
+  Examples\\io\\input_pump_win_demo\\main.cpp: imports=12 charm.system=3
+  Examples\\fs\\fs_block_vfs_demo\\main.cpp: imports=16 charm.system=4
+  Examples\\usb\\usb_msc_block_demo\\main.cpp: imports=20 charm.system=4

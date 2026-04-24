@@ -1,8 +1,11 @@
 module;
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include "vivid_features.generated.hpp"
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.spin_zoom_widget;
 
 import charm.core.object;
@@ -12,19 +15,19 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.image;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.gfx.pixel_ops;
 
 using namespace ui::render;
 
 // Spin/zoom image widget (ARM-2D spin_zoom_widget inspired)
 export
-class SpinZoomWidget : public ObjectBase {
+class SpinZoomWidget : public WidgetBase<SpinZoomWidget> {
 public:
     SpinZoomWidget() {
         set_size(180, 180);
         set_focusable(true);
-        double_tap_.set_callback(&SpinZoomWidget::on_double_tap, this);
+        double_tap_.set_callback(DoubleTapRestoreStrategy::callback_delegate::bind<&SpinZoomWidget::on_double_tap>(*this));
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
         enable_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
     }
@@ -76,7 +79,11 @@ public:
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        (void)e;
+        return false;
+#else
         if (dispatch_interactions(e)) return true;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
@@ -121,15 +128,33 @@ public:
             return true;
         }
         return false;
+#endif
     }
 
-    void draw(CanvasBase& cvs) override {
-        if (!image_) return;
-        Style st = Theme::instance().get<SpinZoomWidget>();
+    void draw(CanvasBase& cvs) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
+                                                  has_state(State::Pressed), has_state(State::Focused),
+                                                  style_variant());
+        const Style& base = Theme::instance().get<SpinZoomWidget>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::SpinZoomWidget, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
+        resolve_colors(st, state, bg, border, font);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
+        return;
+#else
+        if (!image_) return;
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::SpinZoomWidget, state, st);
+        const Style& base = Theme::instance().get<SpinZoomWidget>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::SpinZoomWidget, state, base, st_scratch);
+        const auto r = get_rect();
+        rgba bg{}, border{}, font{};
+
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -151,6 +176,7 @@ public:
 
         draw_image_rotated(cvs, r, image_, zoom_, rotation_deg_);
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
+#endif
     }
 
 private:
@@ -294,10 +320,11 @@ private:
     int double_tap_radius_{12};
     DoubleTapRestoreStrategy double_tap_{};
 
-    static void on_double_tap(void* ctx) {
-        auto* self = static_cast<SpinZoomWidget*>(ctx);
-        if (self) self->reset_transform();
+    void on_double_tap() noexcept {
+        reset_transform();
     }
 };
+
+
 
 

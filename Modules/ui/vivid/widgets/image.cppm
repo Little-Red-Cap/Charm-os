@@ -1,8 +1,11 @@
 module;
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include "vivid_features.generated.hpp"
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.image;
 
 import charm.core.object;
@@ -10,13 +13,13 @@ import charm.core.geometry;
 import charm.core.event;
 import charm.core.input_interaction;
 import charm.gfx.image;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.gfx.pixel_ops;
 
 using namespace ui::render;
 
 export
-class Image : public ObjectBase {
+class Image : public WidgetBase<Image> {
 public:
     enum class AlignH {
         Left,
@@ -60,7 +63,7 @@ public:
     };
 
     Image() {
-        double_tap_.set_callback(&Image::on_double_tap, this);
+        double_tap_.set_callback(DoubleTapRestoreStrategy::callback_delegate::bind<&Image::on_double_tap>(*this));
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
         enable_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
     }
@@ -142,7 +145,77 @@ public:
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
     }
 
-    bool on_event(const Event& e) override {
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        if (!image_) return Rect{};
+        if (edge_mode_ == EdgeMode::KeepInside) return r;
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        Rect src{0, 0, image_.w, image_.h};
+        if (has_crop_) {
+            src.x = (crop_.x < 0) ? 0 : crop_.x;
+            src.y = (crop_.y < 0) ? 0 : crop_.y;
+            src.w = crop_.w;
+            src.h = crop_.h;
+            if (src.x + src.w > image_.w) src.w = image_.w - src.x;
+            if (src.y + src.h > image_.h) src.h = image_.h - src.y;
+            if (src.w <= 0 || src.h <= 0) return Rect{};
+        }
+        const int dst_w = (scale_mode_ == ScaleMode::Stretch) ? r.w : src.w;
+        const int dst_h = (scale_mode_ == ScaleMode::Stretch) ? r.h : src.h;
+        if (dst_w <= 0 || dst_h <= 0) return Rect{};
+        return Rect{r.x, r.y, dst_w, dst_h};
+#else
+        Rect src{0, 0, image_.w, image_.h};
+        if (has_crop_) {
+            src.x = (crop_.x < 0) ? 0 : crop_.x;
+            src.y = (crop_.y < 0) ? 0 : crop_.y;
+            src.w = crop_.w;
+            src.h = crop_.h;
+            if (src.x + src.w > image_.w) src.w = image_.w - src.x;
+            if (src.y + src.h > image_.h) src.h = image_.h - src.y;
+            if (src.w <= 0 || src.h <= 0) return Rect{};
+        }
+        const ImageView src_view = make_subview(image_, src);
+        if (!src_view) return Rect{};
+        const bool swap = (rotation_ == Rotation::Rotate90 || rotation_ == Rotation::Rotate270);
+        const int src_w = swap ? src_view.h : src_view.w;
+        const int src_h = swap ? src_view.w : src_view.h;
+        int dst_w = src_w;
+        int dst_h = src_h;
+        if (scale_mode_ == ScaleMode::Stretch) {
+            dst_w = r.w;
+            dst_h = r.h;
+        } else if (scale_mode_ == ScaleMode::Fit) {
+            if (src_w <= 0 || src_h <= 0) return Rect{};
+            const float sx = static_cast<float>(r.w) / static_cast<float>(src_w);
+            const float sy = static_cast<float>(r.h) / static_cast<float>(src_h);
+            const float s = (sx < sy) ? sx : sy;
+            dst_w = static_cast<int>(src_w * s);
+            dst_h = static_cast<int>(src_h * s);
+        } else if (scale_mode_ == ScaleMode::Fill) {
+            if (src_w <= 0 || src_h <= 0) return Rect{};
+            const float sx = static_cast<float>(r.w) / static_cast<float>(src_w);
+            const float sy = static_cast<float>(r.h) / static_cast<float>(src_h);
+            const float s = (sx > sy) ? sx : sy;
+            dst_w = static_cast<int>(src_w * s);
+            dst_h = static_cast<int>(src_h * s);
+        }
+        if (zoom_ != 1.0f) {
+            dst_w = static_cast<int>(static_cast<float>(dst_w) * zoom_);
+            dst_h = static_cast<int>(static_cast<float>(dst_h) * zoom_);
+        }
+        if (dst_w <= 0 || dst_h <= 0) return Rect{};
+        const int dst_x = r.x + static_cast<int>((r.w - dst_w) * anchor_x_);
+        const int dst_y = r.y + static_cast<int>((r.h - dst_h) * anchor_y_);
+        return Rect{dst_x, dst_y, dst_w, dst_h};
+#endif
+    }
+
+    bool on_event(const Event& e) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        (void)e;
+        return false;
+#else
         if (dispatch_interactions(e)) return true;
         if (!pinch_enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
@@ -159,10 +232,38 @@ public:
             pinch_active_ = false;
         }
         return true;
+#endif
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
+        // Intentional: image widget bypasses theme/style rendering; container handles background/border.
         if (!image_) return;
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const auto r = get_rect();
+        Rect src{0, 0, image_.w, image_.h};
+        if (has_crop_) {
+            src.x = (crop_.x < 0) ? 0 : crop_.x;
+            src.y = (crop_.y < 0) ? 0 : crop_.y;
+            src.w = crop_.w;
+            src.h = crop_.h;
+            if (src.x + src.w > image_.w) src.w = image_.w - src.x;
+            if (src.y + src.h > image_.h) src.h = image_.h - src.y;
+            if (src.w <= 0 || src.h <= 0) return;
+        }
+        const ImageView src_view = make_subview(image_, src);
+        if (!src_view) return;
+        auto clip_state = cvs.save_clip();
+        if (edge_mode_ == EdgeMode::KeepInside) {
+            cvs.set_clip(r);
+        }
+        if (scale_mode_ == ScaleMode::Stretch) {
+            draw_image_scaled(cvs, r.x, r.y, r.w, r.h, src_view);
+        } else {
+            draw_image(cvs, r.x, r.y, src_view);
+        }
+        cvs.restore_clip(clip_state);
+        return;
+#else
         if (!pinch_active_ && inertia_enabled_ && std::fabs(zoom_velocity_) > 0.0001f) {
             zoom_ = clamp_zoom(zoom_ + zoom_velocity_);
             zoom_velocity_ *= inertia_decay_;
@@ -232,6 +333,7 @@ public:
             draw_image_transformed(cvs, dst_x, dst_y, dst_w, dst_h, src_view, rotation_, sampling_, crop_mode_);
         }
         cvs.restore_clip(clip_state);
+#endif
     }
 
 private:
@@ -409,7 +511,8 @@ private:
         if (w <= 0 || h <= 0) return {};
         const int bpp = bytes_per_pixel(img.format);
         const std::byte* data = img.data + y * img.stride_bytes + x * bpp;
-        return make_image_view(img.format, w, h, img.stride_bytes, data, img.premultiplied_alpha, img.force_opaque);
+        return make_image_view(img.format, w, h, img.stride_bytes, data,
+                               img.premultiplied_alpha, img.force_opaque, img.sample_inset_px);
     }
 
     void reset_zoom() noexcept {
@@ -449,8 +552,9 @@ private:
     int double_tap_radius_{12};
     DoubleTapRestoreStrategy double_tap_{};
 
-    static void on_double_tap(void* ctx) {
-        auto* self = static_cast<Image*>(ctx);
-        if (self) self->reset_zoom();
+    void on_double_tap() noexcept {
+        reset_zoom();
     }
 };
+
+

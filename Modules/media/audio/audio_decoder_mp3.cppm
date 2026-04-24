@@ -14,20 +14,117 @@ import audio.result;
 import media.stream.source;
 import media.stream.filter;
 import media.stream.types;
+import out.api;
+import out.channel;
+
+namespace audio::mp3_debug {
+    inline out::channel_sink* sink = nullptr;
+    template <out::fixed_string Fmt, typename... Args>
+    inline void log(Args&&... args) noexcept {
+        if (!sink) return;
+        (void)out::try_println<Fmt>(*sink, std::forward<Args>(args)...);
+    }
+}
 
 export namespace audio {
+    namespace mp3_detail {
+        struct Arena {
+            std::uint8_t* base{nullptr};
+            std::size_t size{0};
+            void* block{nullptr};
+            std::size_t block_size{0};
+        };
+
+        constexpr std::size_t kArenaAlign = 32;
+
+        inline std::uintptr_t align_up(std::uintptr_t value, std::size_t align) noexcept {
+            return (value + (align - 1)) & ~(align - 1);
+        }
+
+        inline bool arena_get_aligned(Arena* arena, void** out_ptr, std::size_t* out_size) noexcept {
+            if (!arena || !arena->base || arena->size == 0) return false;
+            const auto base = reinterpret_cast<std::uintptr_t>(arena->base);
+            const auto aligned = align_up(base, kArenaAlign);
+            const auto padding = static_cast<std::size_t>(aligned - base);
+            if (padding >= arena->size) return false;
+            if (out_ptr) *out_ptr = reinterpret_cast<void*>(aligned);
+            if (out_size) *out_size = arena->size - padding;
+            return true;
+        }
+
+        inline Arena g_arena{};
+
+        inline void* arena_malloc(std::size_t sz, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (arena->block) return nullptr;
+            void* aligned = nullptr;
+            std::size_t avail = 0;
+            if (!arena_get_aligned(arena, &aligned, &avail)) return nullptr;
+            if (sz > avail) return nullptr;
+            arena->block = aligned;
+            arena->block_size = sz;
+            return arena->block;
+        }
+
+        inline void* arena_realloc(void* p, std::size_t sz, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!p) return arena_malloc(sz, user);
+            void* aligned = nullptr;
+            std::size_t avail = 0;
+            if (!arena_get_aligned(arena, &aligned, &avail)) return nullptr;
+            if (p != arena->block || p != aligned) return nullptr;
+            if (sz > avail) return nullptr;
+            arena->block_size = sz;
+            return p;
+        }
+
+        inline void arena_free(void* p, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!arena || !arena->base) return;
+            if (p != arena->block) return;
+            arena->block = nullptr;
+            arena->block_size = 0;
+        }
+
+        inline drmp3_allocation_callbacks g_alloc{
+            &g_arena,
+            arena_malloc,
+            arena_realloc,
+            arena_free
+        };
+    }
+
     struct Mp3Info {
         std::uint32_t sample_rate{0};
         std::uint16_t channels{0};
     };
+
+    inline void mp3_set_debug_sink(out::channel_sink& sink) noexcept {
+        mp3_debug::sink = &sink;
+    }
+
+    inline void mp3_set_arena(void* buffer, std::size_t size) noexcept {
+        mp3_detail::g_arena.base = static_cast<std::uint8_t*>(buffer);
+        mp3_detail::g_arena.size = size;
+        mp3_detail::g_arena.block = nullptr;
+        mp3_detail::g_arena.block_size = 0;
+    }
 
     namespace mp3_detail {
         template <typename Source>
         struct SourceOps {
             static std::size_t on_read(void* user, void* buffer_out, std::size_t bytes_to_read) {
                 auto* src = static_cast<Source*>(user);
+                static std::uint32_t calls = 0;
+                if (calls < 4 || (calls % 256) == 0) {
+                    mp3_debug::log<"mp3 dec: on_read#{} req={}">(calls, bytes_to_read);
+                }
                 auto res = src->read(std::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
                 if (!res) return 0;
+                if (calls < 4 || (calls % 256) == 0) {
+                    mp3_debug::log<"mp3 dec: on_read#{} got={}">(calls, *res);
+                }
+                ++calls;
                 return *res;
             }
 
@@ -36,17 +133,33 @@ export namespace audio {
                 int whence = SEEK_SET;
                 if (origin == DRMP3_SEEK_CUR) whence = SEEK_CUR;
                 if (origin == DRMP3_SEEK_END) whence = SEEK_END;
+                static std::uint32_t calls = 0;
+                if (calls < 6) {
+                    mp3_debug::log<"mp3 dec: on_seek#{} off={} whence={}">(
+                        calls, offset, whence);
+                }
                 auto res = src->seek(static_cast<std::int64_t>(offset), whence);
+                if (calls < 6) {
+                    mp3_debug::log<"mp3 dec: on_seek#{} ok={}">(
+                        calls, res.has_value() ? 1 : 0);
+                }
+                ++calls;
                 return res.has_value() ? DRMP3_TRUE : DRMP3_FALSE;
             }
 
             static drmp3_bool32 on_tell(void* user, drmp3_int64* cursor) {
                 auto* src = static_cast<Source*>(user);
+                static std::uint32_t calls = 0;
                 auto res = src->tell();
                 if (!res) return DRMP3_FALSE;
                 if (cursor) {
                     *cursor = static_cast<drmp3_int64>(*res);
                 }
+                if (calls < 6) {
+                    mp3_debug::log<"mp3 dec: on_tell#{} pos={}">(
+                        calls, static_cast<std::int64_t>(*res));
+                }
+                ++calls;
                 return DRMP3_TRUE;
             }
         };
@@ -64,29 +177,37 @@ export namespace audio {
         Result<Mp3Info> open(Source& src) {
             close();
             src_ = &src;
+            mp3_debug::log<"mp3 dec: open begin">();
+            const drmp3_allocation_callbacks* alloc = nullptr;
+            if (mp3_detail::g_arena.base && mp3_detail::g_arena.size) {
+                alloc = &mp3_detail::g_alloc;
+            }
             if (!drmp3_init(&mp3_,
                 mp3_detail::SourceOps<Source>::on_read,
                 mp3_detail::SourceOps<Source>::on_seek,
                 mp3_detail::SourceOps<Source>::on_tell,
-                nullptr, src_, nullptr)) {
-                return unexpected(Err{Errc::invalid_arg, 0});
+                nullptr, src_, alloc)) {
+                mp3_debug::log<"mp3 dec: open failed">();
+                return unexpected(Errc::invalid_arg);
             }
             Mp3Info info{};
             info.sample_rate = mp3_.sampleRate;
             info.channels = static_cast<std::uint16_t>(mp3_.channels);
+            mp3_debug::log<"mp3 dec: open ok rate={} ch={}">(
+                info.sample_rate, static_cast<std::uint32_t>(info.channels));
             return info;
         }
 
         Result<std::size_t> read_s16(std::int16_t* out, std::size_t frames) {
-            if (!src_) return unexpected(Err{Errc::bad_state, 0});
+            if (!src_) return unexpected(Errc::bad_state);
             const auto read = drmp3_read_pcm_frames_s16(&mp3_, frames, out);
             return static_cast<std::size_t>(read);
         }
 
         Result<void> seek_pcm_frame(std::uint64_t frame) {
-            if (!src_) return unexpected(Err{Errc::bad_state, 0});
+            if (!src_) return unexpected(Errc::bad_state);
             const auto ok = drmp3_seek_to_pcm_frame(&mp3_, static_cast<drmp3_uint64>(frame));
-            return ok ? Result<void>{} : unexpected(Err{Errc::invalid_arg, 0});
+            return ok ? Result<void>{} : unexpected(Errc::invalid_arg);
         }
 
         std::uint64_t total_frames() const noexcept {
@@ -125,15 +246,15 @@ export namespace audio {
         }
 
         Result<void> reset() noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return decoder_.seek_pcm_frame(0);
         }
 
         Result<media::FilterResult> process(std::span<const std::byte>,
                                             std::span<std::byte> out) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             const std::size_t frame_bytes = static_cast<std::size_t>(info_.channels) * sizeof(std::int16_t);
-            if (frame_bytes == 0) return unexpected(Err{Errc::bad_state, 0});
+            if (frame_bytes == 0) return unexpected(Errc::bad_state);
             const std::size_t frames = out.size() / frame_bytes;
             if (frames == 0) return media::FilterResult{};
             auto* pcm = reinterpret_cast<std::int16_t*>(out.data());
@@ -153,7 +274,7 @@ export namespace audio {
         }
 
         Result<void> seek_pcm_frame(std::uint64_t frame) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return decoder_.seek_pcm_frame(frame);
         }
 

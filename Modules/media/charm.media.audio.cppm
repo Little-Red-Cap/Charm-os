@@ -6,6 +6,7 @@ export import audio.decoder.mp3;
 export import audio.decoder.wav;
 export import audio.fifo;
 export import audio.format;
+export import audio.pull_sim;
 export import audio.resampler.linear;
 export import audio.result;
 export import audio.source.file;

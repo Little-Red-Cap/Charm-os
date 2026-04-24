@@ -7,14 +7,14 @@ import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.render_style;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 
 // Simple console box (ARM-2D console_box inspired)
 export
-class ConsoleBox : public ObjectBase {
+class ConsoleBox : public WidgetBase<ConsoleBox> {
 public:
     ConsoleBox() {
         set_size(260, 140);
@@ -59,19 +59,21 @@ public:
         max_lines_ = (max_lines == 0) ? 1 : max_lines;
     }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<ConsoleBox>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ConsoleBox>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ConsoleBox, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ConsoleBox, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const Rect inner{r.x + st.padding, r.y + st.padding,
-                         r.w - st.padding * 2, r.h - st.padding * 2};
+        const Rect inner{r.x + st.metrics.padding, r.y + st.metrics.padding,
+                         r.w - st.metrics.padding * 2, r.h - st.metrics.padding * 2};
         if (inner.w <= 0 || inner.h <= 0) return;
 
         const Font& font_ref = resolve_font(st);
@@ -129,5 +131,7 @@ private:
         return (start_ + i) % max_lines_;
     }
 };
+
+
 
 

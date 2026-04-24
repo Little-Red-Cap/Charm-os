@@ -3,17 +3,23 @@
 #include <thread>
 #include <chrono>
 
+import charm.system.clock;
 import hal_input;
 import hal_win;
-import input.sampler;
+import input.raw_sampler;
 import input.raw_event;
-import out.print;
+import out.api;
+import platform.win.time_source;
 
 namespace {
     struct ScriptedInput {
         std::uint32_t now_ms{0};
         int last_phase{-1};
     };
+
+    charm::system::ClockTick now_us(void*) noexcept {
+        return platform::win::SteadyClock::now();
+    }
 
     bool is_down(void* ctx, input::Button b) noexcept {
         auto* s = static_cast<ScriptedInput*>(ctx);
@@ -58,6 +64,9 @@ namespace {
 }
 
 int main() {
+    charm::system::Clock clock{nullptr, {.now_us = &now_us}};
+    charm::system::ClockRef clock_ref{clock};
+
     ScriptedInput state{};
     hal::RawInputDriver drv{
         .ctx = &state,
@@ -70,9 +79,9 @@ int main() {
     input::RawSampler sampler{};
 
     (void)out::println<"[raw_input_demo] start">();
-    const auto start = hal::win::Time::now();
-    while (hal::win::Time::now() - start < 2000) {
-        state.now_ms = static_cast<std::uint32_t>(hal::win::Time::now());
+    const auto start = clock_ref.now_ms();
+    while (clock_ref.now_ms() - start < 2000) {
+        state.now_ms = static_cast<std::uint32_t>(clock_ref.now_ms());
         if (auto ev = sampler.poll(source, state.now_ms)) {
             (void)out::println<"[raw] t={} type={}">(
                 ev->ms,

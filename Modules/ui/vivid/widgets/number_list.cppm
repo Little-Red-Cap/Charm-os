@@ -1,20 +1,24 @@
 module;
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <expected>
 #include <string_view>
+#include "vivid_features.generated.hpp"
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.number_list;
 
 import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.render_style;
+import charm.gfx.text_box;
 import out.core;
 import out.format;
 import out.sink;
@@ -42,7 +46,8 @@ namespace {
     };
 
     inline void append_sv(trunc_sink& sink, std::string_view sv) noexcept {
-        (void)out::write(sink, sv);
+        const auto b = out::bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+        (void)sink.write(b);
     }
 
     inline void append_int(trunc_sink& sink, int value) noexcept {
@@ -93,9 +98,12 @@ namespace {
 
 // Number wheel list (ARM-2D number_list inspired)
 export
-class NumberList : public ObjectBase {
+class NumberList : public WidgetBase<NumberList> {
 public:
     using ChangeFn = void(*)(void* ctx, int index, int value) noexcept;
+    using selected_state_type = service::state<int, 4>;
+    using selected_slot_type = typename selected_state_type::slot_type;
+    using selected_connection = typename selected_state_type::connection;
 
     NumberList() {
         set_size(140, 160);
@@ -105,16 +113,22 @@ public:
     void set_item_count(int count) noexcept {
         item_count_ = (count > 0) ? count : 0;
         if (item_count_ == 0) {
-            selected_ = 0;
             scroll_offset_ = 0.0f;
             target_scroll_ = 0.0f;
+            (void)selected_.set(0);
             return;
         }
-        if (selected_ >= item_count_) selected_ = item_count_ - 1;
+        if (selected() >= item_count_) {
+            target_scroll_ = scroll_target_for_index(item_count_ - 1);
+            if (!smooth_scroll_) {
+                scroll_offset_ = target_scroll_;
+            }
+            (void)selected_.set(item_count_ - 1);
+        }
         snap_to_selected();
     }
 
-    int item_count() const noexcept { return item_count_; }
+    [[nodiscard]] int item_count() const noexcept { return item_count_; }
 
     void set_range(int start, int delta) noexcept {
         start_ = start;
@@ -130,25 +144,29 @@ public:
         snap_to_selected();
     }
 
-    int item_height() const noexcept { return item_h_; }
+    [[nodiscard]] int item_height() const noexcept { return item_h_; }
 
     void set_selected(int index) noexcept {
         if (item_count_ == 0) return;
         if (index < 0) index = 0;
         if (index >= item_count_) index = item_count_ - 1;
-        if (selected_ == index && target_scroll_ == index * item_h_) return;
-        selected_ = index;
-        target_scroll_ = static_cast<float>(selected_ * item_h_);
+        const float target = scroll_target_for_index(index);
+        if (selected() == index && target_scroll_ == target) return;
+        target_scroll_ = target;
         if (!smooth_scroll_) {
             scroll_offset_ = target_scroll_;
         }
-        notify_change();
+        const bool changed = selected_.set(index);
+        if (changed) {
+            notify_change();
+        }
     }
 
-    int selected() const noexcept { return selected_; }
+    [[nodiscard]] int selected() const noexcept { return selected_.get(); }
 
-    int value() const noexcept {
-        return start_ + selected_ * delta_;
+    // value() is derived from the selected truth cell plus range config.
+    [[nodiscard]] int value() const noexcept {
+        return value_for_index(selected());
     }
 
     void set_on_change(ChangeFn fn, void* ctx = nullptr) noexcept {
@@ -156,18 +174,62 @@ public:
         change_ctx_ = ctx;
     }
 
+    // observe_selected() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_selected(selected_slot_type slot) noexcept {
+        return selected_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_selected(selected_connection c) noexcept {
+        return selected_.disconnect(c);
+    }
+
     void set_smooth_scroll(bool on) noexcept { smooth_scroll_ = on; }
     void set_wheel_step(int step) noexcept { wheel_step_ = (step > 0) ? step : 1; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<NumberList>();
+    void draw(CanvasBase& cvs) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
+                                                  has_state(State::Pressed), has_state(State::Focused),
+                                                  style_variant());
+        const Style& base = Theme::instance().get<NumberList>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::NumberList, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
+
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+
+        const int pad = st.metrics.padding;
+        Rect row{r.x + pad, r.y + r.h / 2 - item_h_ / 2, r.w - pad * 2, item_h_};
+        rgba select_bg = accent;
+        select_bg.a = static_cast<std::uint8_t>(std::min(255, accent.a + 40));
+        draw_round_rect(cvs, row.x, row.y, row.w, row.h,
+                        st.metrics.corner_radius, select_bg, true);
+
+        char buf[32]{};
+        const int value = this->value();
+        (void)format_value(buf, sizeof(buf), format_, value);
+        draw_text_box(cvs, row, buf, font, resolve_font(st),
+                      TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
+        return;
+#else
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::NumberList, state, st);
+        const Style& base = Theme::instance().get<NumberList>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::NumberList, state, base, st_scratch);
+        const auto r = get_rect();
+
+        rgba bg{};
+        rgba border{};
+        rgba font{};
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
 
@@ -176,11 +238,11 @@ public:
 
         update_scroll_animation();
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int center_y = r.y + r.h / 2;
         const int visible = (item_h_ > 0) ? (r.h / item_h_ + 4) : 0;
-        int first = selected_ - visible / 2 - 2;
-        int last = selected_ + visible / 2 + 2;
+        int first = selected() - visible / 2 - 2;
+        int last = selected() + visible / 2 + 2;
         if (first < 0) first = 0;
         if (last >= item_count_) last = item_count_ - 1;
 
@@ -191,7 +253,7 @@ public:
         rgba select_bg = accent;
         select_bg.a = static_cast<std::uint8_t>(std::min(255, accent.a + 40));
         draw_round_rect(cvs, select_rect.x, select_rect.y, select_rect.w, select_rect.h,
-                        st.corner_radius, select_bg, true);
+                        st.metrics.corner_radius, select_bg, true);
 
         for (int i = first; i <= last; ++i) {
             const float item_center = center_y + (static_cast<float>(i * item_h_) - scroll_offset_);
@@ -205,12 +267,12 @@ public:
             const float fade = 1.0f - std::min(dist / (r.h * 0.5f), 1.0f);
             rgba text_col = font;
             text_col.a = static_cast<std::uint8_t>(static_cast<int>(text_col.a * (0.35f + 0.65f * fade)));
-            if (i == selected_) {
+            if (i == selected()) {
                 text_col.a = font.a;
             }
 
             char buf[32]{};
-            const int value = start_ + i * delta_;
+            const int value = value_for_index(i);
             (void)format_value(buf, sizeof(buf), format_, value);
 
             draw_text_box(cvs, row, buf, text_col, resolve_font(st),
@@ -220,9 +282,29 @@ public:
         cvs.restore_clip(clip_state);
 
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
+#endif
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const auto r = get_rect();
+        if (e.type == Event::Type::MouseWheel) {
+            if (!r.contains(e.x, e.y)) return false;
+            set_selected(selected() - e.wheel_y * wheel_step_);
+            return true;
+        }
+        if (e.type == Event::Type::Click) {
+            if (!r.contains(e.x, e.y)) return false;
+            const int center = r.y + r.h / 2;
+            if (e.y < center) {
+                set_selected(selected() - 1);
+            } else if (e.y > center) {
+                set_selected(selected() + 1);
+            }
+            return true;
+        }
+        return false;
+#else
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
@@ -236,8 +318,8 @@ public:
             const int dy = (e.dy != 0) ? e.dy : (e.y - drag_start_y_);
             scroll_offset_ = drag_start_scroll_ - static_cast<float>(dy);
             clamp_scroll();
-            update_selected_from_scroll();
             target_scroll_ = scroll_offset_;
+            update_selected_from_scroll();
             return true;
         }
         if (e.type == Event::Type::DragEnd || e.type == Event::Type::MouseUp) {
@@ -248,7 +330,7 @@ public:
         }
         if (e.type == Event::Type::MouseWheel) {
             if (!r.contains(e.x, e.y)) return false;
-            set_selected(selected_ - e.wheel_y * wheel_step_);
+            set_selected(selected() - e.wheel_y * wheel_step_);
             return true;
         }
         if (e.type == Event::Type::Click) {
@@ -259,18 +341,20 @@ public:
         }
         if (e.type == Event::Type::KeyDown) {
             if (e.key_code == Event::Key::Up) {
-                set_selected(selected_ - 1);
+                set_selected(selected() - 1);
                 return true;
             }
             if (e.key_code == Event::Key::Down) {
-                set_selected(selected_ + 1);
+                set_selected(selected() + 1);
                 return true;
             }
         }
         return false;
+#endif
     }
 
 private:
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
     void clamp_scroll() noexcept {
         const float max_scroll = (item_count_ > 0) ? static_cast<float>((item_count_ - 1) * item_h_) : 0.0f;
         scroll_offset_ = alg::scroll_bounds::clampf(scroll_offset_, max_scroll);
@@ -280,8 +364,7 @@ private:
         if (item_count_ == 0 || item_h_ <= 0) return;
         const int idx = static_cast<int>(std::lround(scroll_offset_ / static_cast<float>(item_h_)));
         const int clamped = (idx < 0) ? 0 : (idx >= item_count_ ? item_count_ - 1 : idx);
-        if (clamped != selected_) {
-            selected_ = clamped;
+        if (selected_.set(clamped)) {
             notify_change();
         }
     }
@@ -299,7 +382,7 @@ private:
 
     void snap_to_selected() noexcept {
         if (item_count_ == 0) return;
-        target_scroll_ = static_cast<float>(selected_ * item_h_);
+        target_scroll_ = scroll_target_for_index(selected());
         if (!smooth_scroll_) {
             scroll_offset_ = target_scroll_;
         }
@@ -315,15 +398,56 @@ private:
         if (idx >= item_count_) idx = item_count_ - 1;
         return idx;
     }
+#else
+    void clamp_scroll() noexcept {}
+
+    void update_selected_from_scroll() noexcept {}
+
+    void update_scroll_animation() noexcept {}
+
+    void snap_to_selected() noexcept {
+        target_scroll_ = 0.0f;
+        scroll_offset_ = 0.0f;
+    }
+
+    int index_from_y(int y) const noexcept {
+        if (item_count_ == 0 || item_h_ <= 0) return 0;
+        const auto r = get_rect();
+        int idx = selected();
+        const int center_y = r.y + r.h / 2;
+        if (y < center_y) {
+            idx -= 1;
+        } else if (y > center_y) {
+            idx += 1;
+        }
+        if (idx < 0) idx = 0;
+        if (idx >= item_count_) idx = item_count_ - 1;
+        return idx;
+    }
+#endif
+
+    [[nodiscard]] int value_for_index(int index) const noexcept {
+        return start_ + index * delta_;
+    }
+
+    [[nodiscard]] float scroll_target_for_index(int index) const noexcept {
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        return static_cast<float>(index * item_h_);
+#else
+        (void)index;
+        return 0.0f;
+#endif
+    }
 
     void notify_change() noexcept {
         if (!change_fn_) return;
-        change_fn_(change_ctx_, selected_, value());
+        // Legacy ChangeFn stays as a derived-value compatibility callback.
+        change_fn_(change_ctx_, selected(), value());
     }
 
     int item_count_{0};
     int item_h_{28};
-    int selected_{0};
+    selected_state_type selected_{0};
     int start_{0};
     int delta_{1};
     const char* format_{"%d"};
@@ -339,5 +463,7 @@ private:
     ChangeFn change_fn_{nullptr};
     void* change_ctx_{nullptr};
 };
+
+
 
 

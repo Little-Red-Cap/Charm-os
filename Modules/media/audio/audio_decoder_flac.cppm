@@ -16,10 +16,63 @@ import media.stream.filter;
 import media.stream.types;
 
 export namespace audio {
+    namespace flac_detail {
+        struct Arena {
+            std::uint8_t* base{nullptr};
+            std::size_t size{0};
+            void* block{nullptr};
+            std::size_t block_size{0};
+        };
+
+        inline Arena g_arena{};
+
+        inline void* arena_malloc(std::size_t sz, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!arena || !arena->base || arena->size == 0) return nullptr;
+            if (arena->block) return nullptr;
+            if (sz > arena->size) return nullptr;
+            arena->block = arena->base;
+            arena->block_size = sz;
+            return arena->block;
+        }
+
+        inline void* arena_realloc(void* p, std::size_t sz, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!arena || !arena->base || arena->size == 0) return nullptr;
+            if (!p) return arena_malloc(sz, user);
+            if (p != arena->block) return nullptr;
+            if (sz > arena->size) return nullptr;
+            arena->block_size = sz;
+            return p;
+        }
+
+        inline void arena_free(void* p, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!arena || !arena->base) return;
+            if (p != arena->block) return;
+            arena->block = nullptr;
+            arena->block_size = 0;
+        }
+
+        inline drflac_allocation_callbacks g_alloc{
+            &g_arena,
+            arena_malloc,
+            arena_realloc,
+            arena_free
+        };
+    }
+
     struct FlacInfo {
         std::uint32_t sample_rate{0};
         std::uint16_t channels{0};
     };
+
+    inline void flac_set_arena(void* buffer, std::size_t size) noexcept {
+        flac_detail::g_arena.base = static_cast<std::uint8_t*>(buffer);
+        flac_detail::g_arena.size = size;
+        flac_detail::g_arena.block = nullptr;
+        flac_detail::g_arena.block_size = 0;
+    }
 
     namespace detail {
         template <typename Source>
@@ -64,13 +117,17 @@ export namespace audio {
         Result<FlacInfo> open(Source& src) {
             close();
             src_ = &src;
+            const drflac_allocation_callbacks* alloc = nullptr;
+            if (flac_detail::g_arena.base && flac_detail::g_arena.size) {
+                alloc = &flac_detail::g_alloc;
+            }
             flac_ = drflac_open(
                 detail::SourceOps<Source>::on_read,
                 detail::SourceOps<Source>::on_seek,
                 detail::SourceOps<Source>::on_tell,
-                src_, nullptr);
+                src_, alloc);
             if (!flac_) {
-                return unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Errc::invalid_arg);
             }
             flac_->_noSeekTableSeek = DRFLAC_TRUE;
             flac_->_noBinarySearchSeek = DRFLAC_TRUE;
@@ -81,22 +138,22 @@ export namespace audio {
         }
 
         Result<std::size_t> read_s32(std::int32_t* out, std::size_t frames) {
-            if (!flac_) return unexpected(Err{Errc::bad_state, 0});
+            if (!flac_) return unexpected(Errc::bad_state);
             const auto read = drflac_read_pcm_frames_s32(
                 flac_, frames, reinterpret_cast<drflac_int32*>(out));
             return static_cast<std::size_t>(read);
         }
 
         Result<void> seek_pcm_frame(std::uint64_t frame) {
-            if (!flac_) return unexpected(Err{Errc::bad_state, 0});
+            if (!flac_) return unexpected(Errc::bad_state);
             const auto total = static_cast<std::uint64_t>(flac_->totalPCMFrameCount);
-            if (total == 0) return unexpected(Err{Errc::not_supported, 0});
+            if (total == 0) return unexpected(Errc::not_supported);
             if (frame >= total) frame = total - 1;
             flac_->_noSeekTableSeek = DRFLAC_TRUE;
             flac_->_noBinarySearchSeek = DRFLAC_TRUE;
             flac_->_noBruteForceSeek = DRFLAC_FALSE;
             const auto ok = drflac_seek_to_pcm_frame(flac_, static_cast<drflac_uint64>(frame));
-            return ok ? Result<void>{} : unexpected(Err{Errc::invalid_arg, 0});
+            return ok ? Result<void>{} : unexpected(Errc::invalid_arg);
         }
 
         std::uint64_t total_frames() const noexcept {
@@ -135,15 +192,15 @@ export namespace audio {
         }
 
         Result<void> reset() noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return decoder_.seek_pcm_frame(0);
         }
 
         Result<media::FilterResult> process(std::span<const std::byte>,
                                             std::span<std::byte> out) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             const std::size_t frame_bytes = static_cast<std::size_t>(info_.channels) * sizeof(std::int32_t);
-            if (frame_bytes == 0) return unexpected(Err{Errc::bad_state, 0});
+            if (frame_bytes == 0) return unexpected(Errc::bad_state);
             const std::size_t frames = out.size() / frame_bytes;
             if (frames == 0) return media::FilterResult{};
             auto* pcm = reinterpret_cast<std::int32_t*>(out.data());
@@ -163,7 +220,7 @@ export namespace audio {
         }
 
         Result<void> seek_pcm_frame(std::uint64_t frame) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return decoder_.seek_pcm_frame(frame);
         }
 

@@ -71,13 +71,13 @@ export namespace fs {
         explicit BlockFs(BlockDevice& dev) : dev_(&dev) {}
 
         Status mount() noexcept {
-            if (!dev_ || dev_->block_size != BlockSize || dev_->block_count < data_start + 1) return Status{Err::inval};
+            if (!dev_ || dev_->block_size != BlockSize || dev_->block_count < data_start + 1) return Status{Errc::inval};
             std::array<util::u8, BlockSize> buf{};
             auto st = dev_->read(dev_->ctx, 0, std::span<util::u8>(buf.data(), buf.size()));
             if (!st) return st;
             const auto* sup = reinterpret_cast<const Super*>(buf.data());
             if (sup->magic != Super{}.magic || sup->block_size != BlockSize || sup->map_blocks != map_blocks) {
-                return Status{Err::noent};
+                return Status{Errc::noent};
             }
             super_ = *sup;
             const auto* ent = reinterpret_cast<const DiskEntry*>(buf.data() + sizeof(Super));
@@ -95,11 +95,11 @@ export namespace fs {
             if (!st) return st;
             dirty_ = false;
             mounted_ = true;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Status format() noexcept {
-            if (!dev_ || dev_->block_size != BlockSize || dev_->block_count < data_start + 1) return Status{Err::inval};
+            if (!dev_ || dev_->block_size != BlockSize || dev_->block_count < data_start + 1) return Status{Errc::inval};
             super_ = Super{};
             super_.map_blocks = map_blocks;
             super_.data_start = data_start;
@@ -119,45 +119,48 @@ export namespace fs {
         }
 
         Status unmount(bool force) noexcept {
-            if (!mounted_) return Status{Err::ok};
+            if (!mounted_) return Status{Errc::ok};
             if (dirty_) {
                 if (force) {
                     dirty_ = false;
                     mounted_ = false;
-                    return Status{Err::ok};
+                    return Status{Errc::ok};
                 }
                 auto st = flush_meta();
                 if (!st) return st;
             }
             mounted_ = false;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Status open(std::string_view path, File& out, OpenFlags flags) noexcept {
             auto norm = normalize(path);
             auto trimmed = rstrip_seps(norm);
             PathView pv{trimmed.data, trimmed.size};
-            if (pv.size == 0) return Status{Err::inval};
+            if (pv.size == 0) return Status{Errc::inval};
             const bool want_write = has_flag(flags, OpenFlags::write);
             const bool want_create = has_flag(flags, OpenFlags::create);
             const bool want_trunc = has_flag(flags, OpenFlags::trunc);
-            if ((want_create || want_trunc) && !want_write) return Status{Err::perm};
+            const bool want_excl = has_flag(flags, OpenFlags::excl);
+            if (want_trunc && !want_write) return Status{Errc::perm};
             util::usize cur_idx = root_index;
             while (true) {
                 auto [head, rest] = split_first(pv);
-                if (head.size == 0) return Status{Err::inval};
+                if (head.size == 0) return Status{Errc::inval};
                 const bool last = (rest.size == 0);
                 auto* e = find_child(cur_idx, head);
+                const bool existed = e != nullptr;
                 if (!e) {
                     if (last && want_create) {
                         e = create_entry(cur_idx, head, false);
-                        if (!e) return Status{Err::nomem};
+                        if (!e) return Status{Errc::nomem};
                     } else {
-                        return Status{Err::noent};
+                        return Status{Errc::noent};
                     }
                 }
                 if (last) {
-                    if (e->is_dir) return Status{Err::inval};
+                    if (want_create && want_excl && existed) return Status{Errc::exist};
+                    if (e->is_dir) return Status{Errc::inval};
                     if (want_trunc) {
                         auto st = truncate(path, 0);
                         if (!st) return st;
@@ -168,9 +171,9 @@ export namespace fs {
                     out.node.data = e;
                     out.node.size = e->size;
                     out.node.offset = 0;
-                    return Status{Err::ok};
+                    return Status{Errc::ok};
                 }
-                if (!e->is_dir) return Status{Err::inval};
+                if (!e->is_dir) return Status{Errc::inval};
                 cur_idx = static_cast<util::usize>(e - entries_.data());
                 pv = rest;
             }
@@ -182,11 +185,11 @@ export namespace fs {
             auto st = resolve_parent(path, parent, leaf);
             if (!st) return st;
             auto* e = find_child(parent, leaf);
-            if (!e || !e->used) return Status{Err::noent};
+            if (!e || !e->used) return Status{Errc::noent};
             if (e->is_dir) {
                 const util::usize idx = static_cast<util::usize>(e - entries_.data());
                 for (const auto& child : entries_) {
-                    if (child.used && child.parent == idx) return Status{Err::busy};
+                    if (child.used && child.parent == idx) return Status{Errc::busy};
                 }
             }
             if (!e->is_dir) {
@@ -195,7 +198,7 @@ export namespace fs {
             *e = Entry{};
             e->owner = this;
             dirty_ = true;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Status truncate(std::string_view path, util::u64 size) noexcept {
@@ -204,20 +207,20 @@ export namespace fs {
             auto st = resolve_parent(path, parent, leaf);
             if (!st) return st;
             auto* e = find_child(parent, leaf);
-            if (!e || !e->used) return Status{Err::noent};
-            if (e->is_dir) return Status{Err::inval};
+            if (!e || !e->used) return Status{Errc::noent};
+            if (e->is_dir) return Status{Errc::inval};
             const util::usize new_size = static_cast<util::usize>(size);
             const util::usize new_blocks = (new_size + BlockSize - 1) / BlockSize;
             if (new_blocks == 0) {
                 free_chain(e->block);
                 e->block = 0;
             } else {
-                if (!ensure_blocks(e, new_blocks)) return Status{Err::nomem};
+                if (!ensure_blocks(e, new_blocks)) return Status{Errc::nomem};
                 trim_chain(e->block, new_blocks);
             }
             e->size = static_cast<util::u32>(new_size);
             dirty_ = true;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Status rename(std::string_view from, std::string_view to) noexcept {
@@ -230,8 +233,8 @@ export namespace fs {
             st = resolve_parent(to, parent_to, leaf_to);
             if (!st) return st;
             auto* e = find_child(parent_from, leaf_from);
-            if (!e || !e->used) return Status{Err::noent};
-            if (find_child(parent_to, leaf_to)) return Status{Err::busy};
+            if (!e || !e->used) return Status{Errc::noent};
+            if (find_child(parent_to, leaf_to)) return Status{Errc::busy};
             const util::usize n = (leaf_to.size < Entry::name_cap - 1) ? leaf_to.size : (Entry::name_cap - 1);
             std::memset(e->name_buf.data(), 0, Entry::name_cap);
             if (n > 0) {
@@ -239,7 +242,7 @@ export namespace fs {
             }
             e->parent = static_cast<util::u16>(parent_to);
             dirty_ = true;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static NodeOps node_ops;
@@ -270,24 +273,24 @@ export namespace fs {
             auto norm = normalize(path);
             auto trimmed = rstrip_seps(norm);
             PathView pv{trimmed.data, trimmed.size};
-            if (pv.size == 0) return Status{Err::inval};
+            if (pv.size == 0) return Status{Errc::inval};
             auto [dir, base] = split_last(pv);
-            if (base.size == 0) return Status{Err::inval};
+            if (base.size == 0) return Status{Errc::inval};
             util::usize cur_idx = root_index;
             if (dir.size > 0) {
                 PathView dv{dir.data, dir.size};
                 while (dv.size > 0) {
                     auto [head, rest] = split_first(dv);
-                    if (head.size == 0) return Status{Err::inval};
+                    if (head.size == 0) return Status{Errc::inval};
                     auto* fe = find_child(cur_idx, head);
-                    if (!fe || !fe->is_dir) return Status{Err::noent};
+                    if (!fe || !fe->is_dir) return Status{Errc::noent};
                     cur_idx = static_cast<util::usize>(fe - entries_.data());
                     dv = rest;
                 }
             }
             parent_out = cur_idx;
             leaf_out = base;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Entry* create_entry(util::usize parent, PathView name, bool dir) noexcept {
@@ -311,7 +314,7 @@ export namespace fs {
         }
 
         Status flush_meta() noexcept {
-            if (!dirty_) return Status{Err::ok};
+            if (!dirty_) return Status{Errc::ok};
             std::array<util::u8, BlockSize> buf{};
             std::memcpy(buf.data(), &super_, sizeof(Super));
             for (util::usize i = 0; i < MaxFiles; ++i) {
@@ -332,7 +335,7 @@ export namespace fs {
         }
 
         Status flush_fat() noexcept {
-            if (!dev_) return Status{Err::noent};
+            if (!dev_) return Status{Errc::noent};
             const util::u8* src = reinterpret_cast<const util::u8*>(fat_.data());
             util::usize remaining = map_bytes;
             util::u32 block = 1;
@@ -346,11 +349,11 @@ export namespace fs {
                 remaining -= chunk;
                 ++block;
             }
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Status load_fat() noexcept {
-            if (!dev_) return Status{Err::noent};
+            if (!dev_) return Status{Errc::noent};
             util::u8* dst = reinterpret_cast<util::u8*>(fat_.data());
             util::usize remaining = map_bytes;
             util::u32 block = 1;
@@ -364,7 +367,7 @@ export namespace fs {
                 remaining -= chunk;
                 ++block;
             }
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         util::u32 alloc_block() noexcept {
@@ -464,12 +467,12 @@ export namespace fs {
         }
 
         Status read_entry(Entry* e, Node& n, std::span<util::u8> buf) noexcept {
-            if (!e || !e->used || !dev_) return Status{Err::noent};
-            if (e->is_dir) return Status{Err::inval};
+            if (!e || !e->used || !dev_) return Status{Errc::noent};
+            if (e->is_dir) return Status{Errc::inval};
             const util::usize off = static_cast<util::usize>(n.offset < 0 ? 0 : n.offset);
             if (off >= e->size) {
                 n.offset = static_cast<util::i64>(off);
-                return Status{Err::ok};
+                return Status{Errc::ok};
             }
             util::usize to_copy = buf.size();
             if (off + to_copy > e->size) to_copy = e->size - off;
@@ -491,23 +494,23 @@ export namespace fs {
                 block_off = 0;
             }
             n.offset = static_cast<util::i64>(off + to_copy);
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Status write_entry(Entry* e, Node& n, std::span<const util::u8> buf) noexcept {
-            if (!e || !e->used || !dev_) return Status{Err::noent};
-            if (e->is_dir) return Status{Err::inval};
+            if (!e || !e->used || !dev_) return Status{Errc::noent};
+            if (e->is_dir) return Status{Errc::inval};
             const util::usize off = static_cast<util::usize>(n.offset < 0 ? 0 : n.offset);
             const util::usize end = off + buf.size();
             const util::usize blocks_needed = (end + BlockSize - 1) / BlockSize;
-            if (!ensure_blocks(e, blocks_needed)) return Status{Err::nomem};
+            if (!ensure_blocks(e, blocks_needed)) return Status{Errc::nomem};
             std::array<util::u8, BlockSize> block{};
             util::usize remaining = buf.size();
             util::usize in_pos = 0;
             util::u32 block_idx = find_block(e->block, off / BlockSize);
             util::usize block_off = off % BlockSize;
             while (remaining > 0) {
-                if (block_idx == invalid_block) return Status{Err::io};
+                if (block_idx == invalid_block) return Status{Errc::io};
                 (void)dev_->read(dev_->ctx, block_idx, std::span<util::u8>(block.data(), block.size()));
                 const util::usize chunk = (block_off + remaining > BlockSize) ? (BlockSize - block_off) : remaining;
                 std::memcpy(block.data() + block_off, buf.data() + in_pos, chunk);
@@ -516,7 +519,7 @@ export namespace fs {
                 in_pos += chunk;
                 remaining -= chunk;
                 if (remaining > 0) {
-                    if (fat_[block_idx] == fat_end) return Status{Err::io};
+                    if (fat_[block_idx] == fat_end) return Status{Errc::io};
                     block_idx = fat_[block_idx];
                 }
                 block_off = 0;
@@ -525,7 +528,7 @@ export namespace fs {
             n.size = e->size;
             n.offset = static_cast<util::i64>(end);
             dirty_ = true;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         BlockDevice* dev_{nullptr};
@@ -540,19 +543,19 @@ export namespace fs {
     NodeOps BlockFs<BlockSize, MaxFiles, BlockCount>::node_ops{
         .read = [](Node& n, std::span<util::u8> buf) noexcept {
             auto* e = static_cast<Entry*>(n.data);
-            if (!e || !e->owner) return Status{Err::noent};
+            if (!e || !e->owner) return Status{Errc::noent};
             return e->owner->read_entry(e, n, buf);
         },
         .write = [](Node& n, std::span<const util::u8> buf) noexcept {
             auto* e = static_cast<Entry*>(n.data);
-            if (!e || !e->owner) return Status{Err::noent};
+            if (!e || !e->owner) return Status{Errc::noent};
             return e->owner->write_entry(e, n, buf);
         },
         .seek = [](Node& n, util::i64 off) noexcept {
             n.offset = off;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         },
-        .flush = [](Node&) noexcept { return Status{Err::ok}; },
-        .close = [](Node&) noexcept { return Status{Err::ok}; }
+        .flush = [](Node&) noexcept { return Status{Errc::ok}; },
+        .close = [](Node&) noexcept { return Status{Errc::ok}; }
     };
 }

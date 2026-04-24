@@ -304,47 +304,38 @@ namespace {
             std::snprintf(volt_text.data(), volt_text.size(), "V/DIV %.2f V", value);
         }
 
-        static void on_reset_clicked(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (!self || !self->app) return;
-            self->app->reset_single();
+        void on_reset_clicked() noexcept {
+            if (!app) return;
+            app->reset_single();
         }
 
-        static void on_time_dec(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self) self->adjust_time_scale(-1);
+        void on_time_dec() noexcept {
+            adjust_time_scale(-1);
         }
-        static void on_time_inc(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self) self->adjust_time_scale(1);
+        void on_time_inc() noexcept {
+            adjust_time_scale(1);
         }
-        static void on_volt_dec(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self) self->adjust_vertical_scale(-1);
+        void on_volt_dec() noexcept {
+            adjust_vertical_scale(-1);
         }
-        static void on_volt_inc(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self) self->adjust_vertical_scale(1);
+        void on_volt_inc() noexcept {
+            adjust_vertical_scale(1);
         }
-        static void on_win_dec(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self) self->adjust_trigger_window(-1);
+        void on_win_dec() noexcept {
+            adjust_trigger_window(-1);
         }
-        static void on_win_inc(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self) self->adjust_trigger_window(1);
+        void on_win_inc() noexcept {
+            adjust_trigger_window(1);
         }
-        static void on_edge(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self) self->toggle_edge();
+        void on_edge() noexcept {
+            toggle_edge();
         }
-        static void on_trig_mode(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self && self->app) self->app->cycle_trigger_mode();
+        void on_trig_mode() noexcept {
+            if (!app) return;
+            app->cycle_trigger_mode();
         }
-        static void on_roll(void* ctx) noexcept {
-            auto* self = static_cast<ScopeUiContext*>(ctx);
-            if (self) self->toggle_mode();
+        void on_roll() noexcept {
+            toggle_mode();
         }
     };
 
@@ -593,7 +584,7 @@ namespace {
         h.trig_reset = factory.create_button("ARM");
         if (auto* reset = factory.get_button(h.trig_reset)) {
             reset->set_size(48, 20);
-            reset->set_on_click(Callback{&ScopeUiContext::on_reset_clicked, &ctx});
+            reset->set_on_click(Callback::bind<&ScopeUiContext::on_reset_clicked>(ctx));
             reset->set_pos(kPadding + 578, kPadding + 32);
         }
 
@@ -622,47 +613,47 @@ namespace {
         h.btn_time_dec = factory.create_button("T-");
         if (auto* btn = factory.get_button(h.btn_time_dec)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_time_dec, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_time_dec>(ctx));
         }
         h.btn_time_inc = factory.create_button("T+");
         if (auto* btn = factory.get_button(h.btn_time_inc)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_time_inc, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_time_inc>(ctx));
         }
         h.btn_volt_dec = factory.create_button("V-");
         if (auto* btn = factory.get_button(h.btn_volt_dec)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_volt_dec, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_volt_dec>(ctx));
         }
         h.btn_volt_inc = factory.create_button("V+");
         if (auto* btn = factory.get_button(h.btn_volt_inc)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_volt_inc, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_volt_inc>(ctx));
         }
         h.btn_win_dec = factory.create_button("W-");
         if (auto* btn = factory.get_button(h.btn_win_dec)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_win_dec, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_win_dec>(ctx));
         }
         h.btn_win_inc = factory.create_button("W+");
         if (auto* btn = factory.get_button(h.btn_win_inc)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_win_inc, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_win_inc>(ctx));
         }
         h.btn_edge = factory.create_button("EDGE");
         if (auto* btn = factory.get_button(h.btn_edge)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_edge, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_edge>(ctx));
         }
         h.btn_trig_mode = factory.create_button("AUTO");
         if (auto* btn = factory.get_button(h.btn_trig_mode)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_trig_mode, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_trig_mode>(ctx));
         }
         h.btn_roll = factory.create_button("ROLL");
         if (auto* btn = factory.get_button(h.btn_roll)) {
             btn->set_size(56, 24);
-            btn->set_on_click(Callback{&ScopeUiContext::on_roll, &ctx});
+            btn->set_on_click(Callback::bind<&ScopeUiContext::on_roll>(ctx));
         }
 
         factory.link(h.root, h.top_left);
@@ -749,7 +740,7 @@ int main(int argc, char** argv) {
     ThemePreset preset{};
     preset.has_label = true;
     preset.label = theme.get<Label>();
-    preset.label.font_color = {220, 224, 240, 255};
+    preset.label.colors.font_color = {220, 224, 240, 255};
     apply_theme_preset(preset);
 
     StylePatch waveform_patch{};

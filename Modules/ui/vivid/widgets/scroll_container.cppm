@@ -9,9 +9,9 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.input_interaction;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.gfx.image;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import charm.font.typography;
 import charm.core.style;
 import charm.core.style_sheet;
@@ -23,7 +23,7 @@ import alg_scroll_thumb;
 using namespace ui::render;
 
 export
-class ScrollContainer : public ObjectBase {
+class ScrollContainer : public WidgetBase<ScrollContainer> {
 public:
     static constexpr int kLayoutId = 1;
 
@@ -31,10 +31,9 @@ public:
         set_focusable(true);
         set_clip_policy(ClipPolicy::Custom);
         set_custom_layout(kLayoutId);
-        pinch_strategy_.set_callbacks(&ScrollContainer::on_pinch_begin,
-                                      &ScrollContainer::on_pinch_update,
-                                      &ScrollContainer::on_pinch_end,
-                                      this);
+        pinch_strategy_.set_callbacks(PinchScrollStrategy::begin_delegate::bind<&ScrollContainer::on_pinch_begin>(*this),
+                                      PinchScrollStrategy::update_delegate::bind<&ScrollContainer::on_pinch_update>(*this),
+                                      PinchScrollStrategy::end_delegate::bind<&ScrollContainer::on_pinch_end>(*this));
         enable_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
@@ -88,14 +87,15 @@ public:
         apply_scroll(resolve);
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         const auto r = get_rect();
-        Style st = has_local_style_ ? style_ : Theme::instance().get<ScrollContainer>();
         rgba bg{};
         rgba border{};
         rgba font{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ScrollContainer, state, st);
+        const Style& base = has_local_style_ ? style_ : Theme::instance().get<ScrollContainer>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ScrollContainer, state, base, st_scratch);
         resolve_colors(st, state, bg, border, font);
 
         flush_scroll_dirty();
@@ -112,15 +112,15 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
 
         if (max_scroll_ > 0) {
-            const int margin = (st.scrollbar_margin >= 0) ? st.scrollbar_margin : 0;
+            const int margin = (st.metrics.scrollbar_margin >= 0) ? st.metrics.scrollbar_margin : 0;
             const int track_w = 6;
             const int track_x = r.x + r.w - track_w - margin;
             const int track_y = r.y + margin;
             const int track_h = r.h - margin * 2;
             const auto thumb = alg::scroll_thumb::vertical_from_maxscroll(
-                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.scrollbar_thumb_min);
+                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.metrics.scrollbar_thumb_min);
             if (thumb.visible && thumb.thumb_h > 0) {
-                rgba thumb_col = st.border_focus;
+                rgba thumb_col = st.colors.border_focus;
                 thumb_col.a = 180;
                 draw_rect(cvs, track_x, track_y, track_w, track_h, rgba{0,0,0,0}, false);
                 draw_rect(cvs, thumb.thumb_x, thumb.thumb_y, thumb.thumb_w, thumb.thumb_h, thumb_col, true);
@@ -136,7 +136,7 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
@@ -221,8 +221,8 @@ public:
     }
 
     void set_style(rgba bg, rgba border) noexcept {
-        style_.bg_color = bg;
-        style_.border_color = border;
+        style_.colors.bg_color = bg;
+        style_.colors.border_color = border;
         has_local_style_ = true;
         if (has_skin_) {
             update_clip_insets_for_skin();
@@ -239,14 +239,14 @@ public:
         update_clip_insets_for_skin();
     }
 
-    bool should_draw_child(const ObjectBase& ch) const noexcept override {
+    bool should_draw_child(const ObjectBase& ch) const noexcept {
         const auto r = children_clip_rect();
         const auto c = ch.get_rect();
         return !(c.x + c.w <= r.x || c.x >= r.x + r.w ||
                  c.y + c.h <= r.y || c.y >= r.y + r.h);
     }
 
-    Rect children_clip_rect() const noexcept override {
+    Rect children_clip_rect() const noexcept {
         const auto r = get_rect();
         int left = clip_inset_left_;
         int top = clip_inset_top_;
@@ -317,24 +317,18 @@ private:
         }
     }
 
-    static void on_pinch_begin(void* ctx) {
-        auto* self = static_cast<ScrollContainer*>(ctx);
-        if (!self) return;
-        self->pinch_active_ = true;
-        self->velocity_ = 0;
+    void on_pinch_begin() noexcept {
+        pinch_active_ = true;
+        velocity_ = 0;
     }
 
-    static void on_pinch_update(void* ctx, int dy) {
-        auto* self = static_cast<ScrollContainer*>(ctx);
-        if (!self) return;
-        self->add_scroll_y(-dy);
-        self->velocity_ = -dy;
+    void on_pinch_update(int dy) noexcept {
+        add_scroll_y(-dy);
+        velocity_ = -dy;
     }
 
-    static void on_pinch_end(void* ctx) {
-        auto* self = static_cast<ScrollContainer*>(ctx);
-        if (!self) return;
-        self->pinch_active_ = false;
+    void on_pinch_end() noexcept {
+        pinch_active_ = false;
     }
 
     int clamp_scroll(int y) const noexcept {
@@ -384,7 +378,7 @@ private:
 
     void update_clip_insets_for_skin() noexcept {
         if (!has_skin_) return;
-        const int b = style_.border_width;
+        const int b = style_.metrics.border_width;
         clip_inset_left_ = (slice_left_ > b) ? slice_left_ : b;
         clip_inset_top_ = (slice_top_ > b) ? slice_top_ : b;
         clip_inset_right_ = (slice_right_ > b) ? slice_right_ : b;
@@ -397,5 +391,7 @@ private:
         return v;
     }
 };
+
+
 
 

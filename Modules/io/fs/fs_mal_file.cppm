@@ -24,7 +24,7 @@ export namespace fs {
             const auto st = file_.open(path, block_size);
             if (!st) return st;
             mal_ = make_mal_from_block(file_.device(), MalKind::file);
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         void close() noexcept {
@@ -37,7 +37,7 @@ export namespace fs {
         [[nodiscard]] BlockFile& block_file() noexcept { return file_; }
 
     private:
-        BlockFile file_{};
+        BlockFile file_;
         MalDevice mal_{};
     };
 }

@@ -17,14 +17,14 @@ export namespace fs {
 
     constexpr bool is_sep(char c) noexcept { return c == '/' || c == '\\'; }
 
-    // Strip前导分隔符，返回视图
+    // Strip leading separators, return view.
     inline PathView normalize(std::string_view path) noexcept {
         util::usize i = 0;
         while (i < path.size() && is_sep(path[i])) ++i;
         return PathView{path.data() + i, static_cast<util::usize>(path.size() - i)};
     }
 
-    // 从尾部移除分隔符
+    // Strip trailing separators.
     inline PathView rstrip_seps(PathView p) noexcept {
         if (!p.data) return {nullptr, 0};
         util::usize end = p.size;
@@ -32,7 +32,7 @@ export namespace fs {
         return {p.data, end};
     }
 
-    // 返回首个组件与剩余部分
+    // Return the first component and the remainder.
     inline std::pair<PathView, PathView> split_first(PathView p) noexcept {
         if (!p.data || p.size == 0) return {{nullptr, 0}, {nullptr, 0}};
         util::usize i = 0;
@@ -45,7 +45,7 @@ export namespace fs {
         return {{p.data + start, len}, {p.data + rem, p.size - rem}};
     }
 
-    // 返回目录部分与最后一个组件
+    // Return directory part and last component.
     inline std::pair<PathView, PathView> split_last(PathView p) noexcept {
         if (!p.data || p.size == 0) return {{nullptr, 0}, {nullptr, 0}};
         util::usize end = p.size;

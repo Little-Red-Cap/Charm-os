@@ -1,21 +1,30 @@
 module;
-#include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include "vivid_features.generated.hpp"
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.battery_gasgauge;
 
 import charm.core.object;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import alg_arc;
 
 using namespace ui::render;
 
 // Battery gas gauge (ARM-2D battery_gasgauge inspired)
 export
-class BatteryGasGauge : public ObjectBase {
+class BatteryGasGauge : public WidgetBase<BatteryGasGauge> {
 public:
+    using value_state_type = service::state<int, 4>;
+    using value_slot_type = typename value_state_type::slot_type;
+    using value_connection = typename value_state_type::connection;
+
     enum class Status {
         Discharging = -1,
         Idle = 0,
@@ -32,16 +41,16 @@ public:
     }
 
     void set_value(int v) noexcept {
-        value_ = alg::arc::clamp_to_range(v, 0, 100);
+        (void)value_.set(alg::arc::clamp_to_range(v, 0, 100));
     }
 
-    int value() const noexcept { return value_; }
+    [[nodiscard]] int value() const noexcept { return value_.get(); }
 
     void set_status(Status s) noexcept { status_ = s; }
-    Status status() const noexcept { return status_; }
+    [[nodiscard]] Status status() const noexcept { return status_; }
 
     void set_style_mode(StyleMode m) noexcept { mode_ = m; }
-    StyleMode style_mode() const noexcept { return mode_; }
+    [[nodiscard]] StyleMode style_mode() const noexcept { return mode_; }
 
     void set_animation_enabled(bool on) noexcept { anim_enabled_ = on; }
     void set_animation_speed(float s) noexcept { set_wave_speed(s); }
@@ -49,15 +58,25 @@ public:
     void set_wave_speed(float s) noexcept { wave_speed_ = s; }
     void set_wave_amplitude(int a) noexcept { wave_amplitude_ = (a >= 0) ? a : 0; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<BatteryGasGauge>();
+    // observe_value() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
+        return value_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
+        return value_.disconnect(c);
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<BatteryGasGauge>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::BatteryGasGauge, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::BatteryGasGauge, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
-        const rgba on_accent = st.on_accent.a ? st.on_accent : font;
+        const rgba on_accent = st.colors.on_accent.a ? st.colors.on_accent : font;
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
 
@@ -83,8 +102,12 @@ public:
         const int inner_h = body_h - 4;
         if (inner_w <= 0 || inner_h <= 0) return;
 
-        const float ratio = alg::arc::ratio_from_range(value_, 0, 100);
-        const int fill_h = static_cast<int>(inner_h * ratio);
+        int fill_h = 0;
+        const int clamped = alg::arc::clamp_to_range(value(), 0, 100);
+        const std::int64_t num = static_cast<std::int64_t>(inner_h) * clamped;
+        fill_h = static_cast<int>(num / 100);
+        if (fill_h < 0) fill_h = 0;
+        if (fill_h > inner_h) fill_h = inner_h;
         if (fill_h <= 0) return;
 
         const rgba fill = accent;
@@ -95,6 +118,14 @@ public:
             }
             return;
         }
+
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        draw_rect(cvs, inner_x, inner_y + (inner_h - fill_h), inner_w, fill_h, fill, true);
+        if (status_ == Status::Charging) {
+            draw_bolt(cvs, inner_x, inner_y, inner_w, inner_h, on_accent);
+        }
+        return;
+#endif
 
         if (anim_enabled_) {
             wave_phase_ += wave_speed_;
@@ -118,7 +149,7 @@ public:
     }
 
 private:
-    int value_{60};
+    value_state_type value_{60};
     Status status_{Status::Idle};
     StyleMode mode_{StyleMode::Liquid};
     bool anim_enabled_{true};
@@ -136,5 +167,7 @@ private:
         draw_line(cvs, cx - 2, mid, cx + 4, bot, col);
     }
 };
+
+
 
 

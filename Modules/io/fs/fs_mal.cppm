@@ -58,22 +58,22 @@ export namespace fs {
     }
 
     inline Status mal_read(MalDevice& dev, util::u64 lba, std::span<util::u8> out) noexcept {
-        if (!dev.ops.read) return Status{Err::nosys};
+        if (!dev.ops.read) return Status{Errc::nosys};
         return dev.ops.read(dev.ctx, lba, out);
     }
 
     inline Status mal_write(MalDevice& dev, util::u64 lba, std::span<const util::u8> in) noexcept {
-        if (!dev.ops.write) return Status{Err::nosys};
+        if (!dev.ops.write) return Status{Errc::nosys};
         return dev.ops.write(dev.ctx, lba, in);
     }
 
     inline Status mal_erase(MalDevice& dev, util::u64 lba, util::u64 count) noexcept {
-        if (!dev.ops.erase) return Status{Err::nosys};
+        if (!dev.ops.erase) return Status{Errc::nosys};
         return dev.ops.erase(dev.ctx, lba, count);
     }
 
     inline Status mal_flush(MalDevice& dev) noexcept {
-        if (!dev.ops.flush) return Status{Err::nosys};
+        if (!dev.ops.flush) return Status{Errc::nosys};
         return dev.ops.flush(dev.ctx);
     }
 }

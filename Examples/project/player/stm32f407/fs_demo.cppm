@@ -93,6 +93,54 @@ namespace {
         uart_write(buf);
     }
 
+    void uart_write_hex_byte(util::u8 value) noexcept {
+        constexpr char kHex[] = "0123456789ABCDEF";
+        char buf[3]{};
+        buf[0] = kHex[(value >> 4) & 0x0F];
+        buf[1] = kHex[value & 0x0F];
+        buf[2] = '\0';
+        uart_write(buf);
+    }
+
+    void uart_write_hex_u32(util::u32 value) noexcept {
+        constexpr char kHex[] = "0123456789ABCDEF";
+        char buf[9]{};
+        for (int i = 0; i < 8; ++i) {
+            const int shift = (7 - i) * 4;
+            buf[i] = kHex[(value >> shift) & 0x0F];
+        }
+        buf[8] = '\0';
+        uart_write(buf);
+    }
+
+    void dump_block_head(util::u32 lba) noexcept {
+        std::array<util::u8, kBlockSize> buf{};
+        if (HAL_SD_ReadBlocks(&hsd, buf.data(), lba, 1, kTimeoutMs) != HAL_OK) {
+            uart_write("sdio: lba read failed\r\n");
+            return;
+        }
+        const util::u32 start = HAL_GetTick();
+        while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
+            if ((HAL_GetTick() - start) > kTimeoutMs) {
+                uart_write("sdio: lba read timeout\r\n");
+                return;
+            }
+        }
+        uart_write("sdio: lba ");
+        uart_write_uint(lba);
+        uart_write("sdio: head ");
+        for (std::size_t i = 0; i < 16; ++i) {
+            uart_write_hex_byte(buf[i]);
+            uart_write(" ");
+        }
+        uart_write("\r\n");
+        uart_write("sdio: tail ");
+        uart_write_hex_byte(buf[510]);
+        uart_write(" ");
+        uart_write_hex_byte(buf[511]);
+        uart_write("\r\n");
+    }
+
     struct SdBlockDevice {
         bool init() noexcept {
             uart_write("sdio: init begin\r\n");
@@ -102,7 +150,9 @@ namespace {
             hsd.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
             hsd.Init.BusWide = SDIO_BUS_WIDE_1B;
             hsd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
-            hsd.Init.ClockDiv = 118;
+            constexpr std::uint32_t kSdioInitDiv = 118;
+            constexpr std::uint32_t kSdioXferDiv = 4;
+            hsd.Init.ClockDiv = kSdioInitDiv;
 
             auto st = HAL_SD_Init(&hsd);
             if (st != HAL_OK) {
@@ -110,18 +160,37 @@ namespace {
                 uart_write_uint(static_cast<util::u32>(st));
                 return false;
             }
-            st = HAL_SD_ConfigWideBusOperation(&hsd, SDIO_BUS_WIDE_1B);
+            st = HAL_SD_ConfigWideBusOperation(&hsd, SDIO_BUS_WIDE_4B);
             if (st != HAL_OK) {
                 uart_write("sdio: bus width failed\r\n");
                 uart_write_uint(static_cast<util::u32>(st));
                 return false;
             }
+            MODIFY_REG(hsd.Instance->CLKCR, SDIO_CLKCR_CLKDIV, kSdioXferDiv);
+            hsd.Init.ClockDiv = kSdioXferDiv;
             uart_write("sdio: init ok\r\n");
 
             if (HAL_SD_GetCardInfo(&hsd, &info_) != HAL_OK) {
                 uart_write("sdio: card info failed\r\n");
                 return false;
             }
+            uart_write("sdio: block size ");
+            uart_write_uint(info_.LogBlockSize);
+            uart_write("sdio: block count ");
+            uart_write_uint(info_.LogBlockNbr);
+            uart_write("sdio: capacity bytes ");
+            uart_write_uint(static_cast<util::u64>(info_.LogBlockSize) * info_.LogBlockNbr);
+            uart_write("sdio: pclk2 ");
+            uart_write_uint(HAL_RCC_GetPCLK2Freq());
+            uart_write("sdio: clkdiv ");
+            uart_write_uint(hsd.Init.ClockDiv);
+            if (hsd.Init.ClockDiv != 0) {
+                const util::u32 sdclk = HAL_RCC_GetPCLK2Freq() / (2u * hsd.Init.ClockDiv);
+                uart_write("sdio: sdclk ");
+                uart_write_uint(sdclk);
+            }
+            dump_block_head(0);
+            dump_block_head(2048);
             block_size_ = info_.LogBlockSize;
             block_count_ = info_.LogBlockNbr;
             device_.ctx = this;
@@ -144,57 +213,69 @@ namespace {
         static fs::Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> data) noexcept {
             auto* self = static_cast<SdBlockDevice*>(ctx);
             if (!self || data.empty() || (data.size() % self->block_size_) != 0) {
-                return fs::Status{fs::Err::inval};
+                return fs::Status{fs::Errc::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
-            const bool use_dma = can_dma(data.data(), data.size());
-            if (use_dma) {
-                if (HAL_SD_ReadBlocks_DMA(&hsd, data.data(), static_cast<uint32_t>(lba), count) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+            for (util::u32 i = 0; i < count; ++i) {
+                auto* dst = data.data() + (static_cast<std::size_t>(i) * self->block_size_);
+                const bool use_dma = false;
+                if (use_dma) {
+                    if (HAL_SD_ReadBlocks_DMA(&hsd, dst, static_cast<uint32_t>(lba + i), 1) != HAL_OK) {
+                        if (HAL_SD_ReadBlocks(&hsd, dst, static_cast<uint32_t>(lba + i), 1, kTimeoutMs) != HAL_OK) {
+                            uart_write("sdio: read failed\r\n");
+                            uart_write_uint(HAL_SD_GetError(&hsd));
+                            return fs::Status{fs::Errc::io};
+                        }
+                    }
+                } else {
+                    if (HAL_SD_ReadBlocks(&hsd, dst, static_cast<uint32_t>(lba + i), 1, kTimeoutMs) != HAL_OK) {
+                        uart_write("sdio: read failed\r\n");
+                        uart_write_uint(HAL_SD_GetError(&hsd));
+                        return fs::Status{fs::Errc::io};
+                    }
                 }
-            } else {
-                if (HAL_SD_ReadBlocks(&hsd, data.data(), static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+                const util::u32 start = HAL_GetTick();
+                while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
+                    if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Errc::timeout};
                 }
             }
-            const util::u32 start = HAL_GetTick();
-            while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
-                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
-            }
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         static fs::Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> data) noexcept {
             auto* self = static_cast<SdBlockDevice*>(ctx);
             if (!self || data.empty() || (data.size() % self->block_size_) != 0) {
-                return fs::Status{fs::Err::inval};
+                return fs::Status{fs::Errc::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
-            const bool use_dma = can_dma(data.data(), data.size());
+            const bool use_dma = can_dma(data.data(), data.size()) && (count == 1);
             if (use_dma) {
                 if (HAL_SD_WriteBlocks_DMA(&hsd, const_cast<uint8_t*>(data.data()),
                         static_cast<uint32_t>(lba), count) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+                    if (HAL_SD_WriteBlocks(&hsd, const_cast<uint8_t*>(data.data()),
+                            static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
+                        return fs::Status{fs::Errc::io};
+                    }
                 }
             } else {
                 if (HAL_SD_WriteBlocks(&hsd, const_cast<uint8_t*>(data.data()),
                         static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+                    return fs::Status{fs::Errc::io};
                 }
             }
             const util::u32 start = HAL_GetTick();
             while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
-                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
+                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Errc::timeout};
             }
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         static fs::Status erase_impl(void*, util::u64, util::u64) noexcept {
-            return fs::Status{fs::Err::nosys};
+            return fs::Status{fs::Errc::nosys};
         }
 
         static fs::Status flush_impl(void*) noexcept {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         fs::BlockDevice device_{};
@@ -203,6 +284,25 @@ namespace {
         util::u32 block_count_{0};
     };
 
+    bool sdio_dma_read_block(util::u32 lba, std::span<util::u32> out) noexcept {
+        if (HAL_SD_ReadBlocks_DMA(&hsd,
+                reinterpret_cast<std::uint8_t*>(out.data()),
+                lba, 1) != HAL_OK) {
+            uart_write("sdio: dma read failed\r\n");
+            uart_write_uint(HAL_SD_GetError(&hsd));
+            return false;
+        }
+        const util::u32 start = HAL_GetTick();
+        while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
+            if ((HAL_GetTick() - start) > kTimeoutMs) {
+                uart_write("sdio: dma read timeout\r\n");
+                uart_write_uint(HAL_SD_GetError(&hsd));
+                return false;
+            }
+        }
+        return true;
+    }
+
     fs::Status list_cb(void*, const fs::MountOps::ListEntry& entry) noexcept {
         const auto len = name_len(entry.name);
         uart_write_span(entry.name.data(), len);
@@ -210,7 +310,7 @@ namespace {
         uart_write(entry.type == fs::NodeType::dir ? "dir" : "file");
         uart_write(") ");
         uart_write_uint(entry.size);
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     struct FirstFileCtx {
@@ -244,7 +344,7 @@ namespace {
 
     fs::Status list_first_file(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* out = static_cast<FirstFileCtx*>(ctx);
-        if (!out) return fs::Status{fs::Err::inval};
+        if (!out) return fs::Status{fs::Errc::inval};
         out->count++;
         const auto len = name_len(entry.name);
         uart_write_span(entry.name.data(), len);
@@ -253,7 +353,7 @@ namespace {
         uart_write(") ");
         uart_write_uint(entry.size);
         if (entry.type != fs::NodeType::file || out->found || len == 0) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         constexpr const char prefix[] = "/PICTURE/";
         std::size_t pos = 0;
@@ -265,18 +365,18 @@ namespace {
         }
         out->path[pos] = '\0';
         out->found = true;
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     fs::Status list_first_bmp(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* out = static_cast<BmpFileCtx*>(ctx);
-        if (!out) return fs::Status{fs::Err::inval};
+        if (!out) return fs::Status{fs::Errc::inval};
         out->count++;
         if (entry.type != fs::NodeType::file || out->found) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         if (!is_bmp_name(entry.name)) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         const auto len = name_len(entry.name);
         std::size_t pos = 0;
@@ -288,7 +388,7 @@ namespace {
         }
         out->path[pos] = '\0';
         out->found = true;
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     util::u16 read_u16_le(const util::u8* data) noexcept {
@@ -379,12 +479,30 @@ namespace {
         }
     }
 
+    bool is_dot_dir(std::string_view name) noexcept {
+        if (name.size() == 1 && name[0] == '.') return true;
+        if (name.size() == 2 && name[0] == '.' && name[1] == '.') return true;
+        return false;
+    }
+
+    bool is_system_volume_info(std::string_view name) noexcept {
+        constexpr std::string_view target = "System Volume Information";
+        if (name.size() != target.size()) return false;
+        for (std::size_t i = 0; i < target.size(); ++i) {
+            const char a = ascii_lower(name[i]);
+            const char b = ascii_lower(target[i]);
+            if (a != b) return false;
+        }
+        return true;
+    }
+
     fs::Status list_recursive(const char* path, int depth) noexcept;
 
     fs::Status list_recursive_cb(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* info = static_cast<ListCtx*>(ctx);
-        if (!info || !info->base) return fs::Status{fs::Err::inval};
+        if (!info || !info->base) return fs::Status{fs::Errc::inval};
         const auto len = name_len(entry.name);
+        const std::string_view name{entry.name.data(), len};
 
         uart_write_indent(info->depth);
         uart_write_span(entry.name.data(), len);
@@ -394,14 +512,17 @@ namespace {
         uart_write_uint(entry.size);
 
         if (entry.type != fs::NodeType::dir || info->depth >= kMaxListDepth) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
+        }
+        if (is_dot_dir(name) || is_system_volume_info(name)) {
+            return fs::Status{fs::Errc::ok};
         }
 
         char child[256]{};
         std::size_t pos = 0;
         const auto base_len = std::strlen(info->base);
         if (base_len + 1 + len + 1 >= sizeof(child)) {
-            return fs::Status{fs::Err::nametoolong};
+            return fs::Status{fs::Errc::nametoolong};
         }
         std::memcpy(child, info->base, base_len);
         pos = base_len;
@@ -416,7 +537,10 @@ namespace {
     }
 
     fs::Status list_recursive(const char* path, int depth) noexcept {
-        if (!path) return fs::Status{fs::Err::inval};
+        if (!path) return fs::Status{fs::Errc::inval};
+        uart_write("fs demo: list ");
+        uart_write(path);
+        uart_write("\r\n");
         ListCtx ctx{path, depth};
         return fs::vfs_list(path, &ctx, &list_recursive_cb);
     }
@@ -439,7 +563,8 @@ export void fs_demo_run() noexcept {
         uart_write_int(static_cast<util::i32>(st.err));
         return;
     }
-    fs::set_mount(mount.mount_point());
+    fs::clear_mounts();
+    (void)fs::add_mount("/", mount.mount_point());
 
     uart_write("fs demo: list /\r\n");
     st = list_recursive("/", 0);
@@ -460,15 +585,10 @@ export void fs_demo_run() noexcept {
         uart_write("fs demo: /PICTURE empty\r\n");
     }
 
-    BmpFileCtx bmp{};
-    st = fs::vfs_list("/PICTURE", &bmp, &list_first_bmp);
-    if (!st) {
-        uart_write("fs demo: list /PICTURE (bmp) failed\r\n");
-        uart_write_int(static_cast<util::i32>(st.err));
-    }
+    uart_write("fs demo: bmp demo disabled\r\n");
 
     fs::File f{};
-    const char* target = bmp.found ? bmp.path : (first.found ? first.path : "/readme.txt");
+    const char* target = first.found ? first.path : "/readme.txt";
     uart_write("fs demo: open ");
     uart_write(target);
     uart_write("\r\n");
@@ -476,21 +596,6 @@ export void fs_demo_run() noexcept {
     if (st) {
         std::array<util::u8, 64> buf{};
         st = fs::vfs_read(f, std::span<util::u8>{buf});
-        if (bmp.found) {
-            dump_bmp_header(buf.data(), buf.size());
-            if (st) {
-                const util::u32 pixel_off = read_u32_le(buf.data() + 10);
-                const util::u32 dib_size = read_u32_le(buf.data() + 14);
-                const util::i32 width = read_i32_le(buf.data() + 18);
-                const util::i32 height = read_i32_le(buf.data() + 22);
-                const util::u16 bpp = read_u16_le(buf.data() + 28);
-                if (dib_size >= 40 && bpp == 24 && width > 0 && height != 0) {
-                    (void)render_bmp_24(f, static_cast<util::u32>(width), height, pixel_off);
-                } else {
-                    uart_write("bmp: unsupported format\r\n");
-                }
-            }
-        }
         (void)fs::vfs_close(f);
         if (st) {
             uart_write("fs demo: read ok\r\n");
@@ -502,4 +607,58 @@ export void fs_demo_run() noexcept {
         uart_write("fs demo: open failed\r\n");
         uart_write_int(static_cast<util::i32>(st.err));
     }
+}
+
+export bool fs_boot_init() noexcept {
+    static SdBlockDevice sd{};
+    if (!sd.init()) {
+        return false;
+    }
+    uart_write("fs boot: mount begin\r\n");
+    static fs::FatFsMount mount{};
+    static std::array<util::u8, 4096> cache{};
+    auto st = mount.mount(sd.device(), std::span<util::u8>{cache}, false, 0);
+    if (!st) {
+        uart_write("fs boot: mount failed\r\n");
+        return false;
+    }
+    fs::clear_mounts();
+    (void)fs::add_mount("/", mount.mount_point());
+    uart_write("fs boot: mount ok\r\n");
+    return true;
+}
+
+export void sdio_dma_selftest() noexcept {
+    SdBlockDevice dev{};
+    if (!dev.init()) {
+        uart_write("sdio: selftest init failed\r\n");
+        return;
+    }
+    constexpr util::u32 kBlocksPerRound = 32;
+    constexpr util::u32 kRounds = 32;
+    alignas(4) static std::array<util::u32, kBlocksPerRound * 128> buf{};
+    uart_write("sdio: selftest begin\r\n");
+    uart_write("sdio: rounds ");
+    uart_write_uint(kRounds);
+    uart_write("sdio: blocks ");
+    uart_write_uint(kBlocksPerRound);
+    util::u32 lba = 0;
+    for (util::u32 i = 0; i < kRounds; ++i) {
+        util::u32 xor_sum = 0;
+        for (util::u32 b = 0; b < kBlocksPerRound; ++b) {
+            auto block = std::span<util::u32>(
+                buf.data() + static_cast<std::size_t>(b) * 128u, 128u);
+            if (!sdio_dma_read_block(lba + b, block)) {
+                uart_write("sdio: dma read failed\r\n");
+                return;
+            }
+            for (auto v : block) xor_sum ^= v;
+        }
+        uart_write("sdio: dma read ok lba ");
+        uart_write_uint(lba);
+        uart_write("sdio: dma xor ");
+        uart_write_uint(xor_sum);
+        lba += kBlocksPerRound;
+    }
+    uart_write("sdio: selftest end\r\n");
 }

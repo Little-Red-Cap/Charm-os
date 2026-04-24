@@ -14,9 +14,10 @@ export namespace audio {
         std::span<std::byte> b;
     };
 
+    // Single-producer/single-consumer ring buffer. Keep producer/consumer roles explicit.
     class PcmFifo {
     public:
-        PcmFifo() = default;
+        PcmFifo() noexcept { }
 
         explicit PcmFifo(std::size_t capacity_bytes)
             : owned_(capacity_bytes) {
@@ -44,6 +45,14 @@ export namespace audio {
         std::size_t free_bytes() const noexcept {
             return capacity_bytes() - size_bytes();
         }
+
+        std::size_t producer_free_bytes() const noexcept { return free_bytes(); }
+        PcmFifoView producer_writable_view() noexcept { return writable_view(); }
+        void producer_commit_write(std::size_t bytes) noexcept { commit_write(bytes); }
+
+        std::size_t consumer_size_bytes() const noexcept { return size_bytes(); }
+        PcmFifoView consumer_readable_view() noexcept { return readable_view(); }
+        void consumer_commit_read(std::size_t bytes) noexcept { commit_read(bytes); }
 
         PcmFifoView writable_view() noexcept {
             const std::size_t cap = capacity_;

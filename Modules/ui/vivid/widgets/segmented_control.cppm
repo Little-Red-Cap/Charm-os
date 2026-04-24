@@ -4,17 +4,22 @@ export module charm.widgets.segmented_control;
 
 import charm.core.object;
 import charm.core.event;
+import service.state;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.style;
 import charm.core.style_sheet;
-import charm.widgets.text;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 
 export
-class SegmentedControl : public ObjectBase {
+class SegmentedControl : public WidgetBase<SegmentedControl> {
 public:
+    using selected_state_type = service::state<int, 4>;
+    using selected_slot_type = typename selected_state_type::slot_type;
+    using selected_connection = typename selected_state_type::connection;
+
     SegmentedControl() {
         set_focusable(true);
         set_size(220, 28);
@@ -24,7 +29,9 @@ public:
         count_ = (count > kMax) ? kMax : (count < 0 ? 0 : count);
         for (int i = 0; i < count_; ++i) labels_[i] = items[i];
         for (int i = count_; i < kMax; ++i) labels_[i] = nullptr;
-        if (selected_ >= count_) selected_ = (count_ > 0) ? (count_ - 1) : 0;
+        if (selected() >= count_) {
+            apply_selected((count_ > 0) ? (count_ - 1) : 0, false);
+        }
     }
 
     void set_item(int index, const char* label) noexcept {
@@ -35,29 +42,38 @@ public:
 
     void set_selected(int index) noexcept {
         if (index < 0 || index >= count_) return;
-        if (selected_ == index) return;
-        selected_ = index;
-        if (on_change_) on_change_();
+        apply_selected(index, true);
     }
 
-    int selected() const noexcept { return selected_; }
+    [[nodiscard]] int selected() const noexcept { return selected_.get(); }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<SegmentedControl>();
+    // observe_selected() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_selected(selected_slot_type slot) noexcept {
+        return selected_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_selected(selected_connection c) noexcept {
+        return selected_.disconnect(c);
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<SegmentedControl>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::SegmentedControl, state, base, st_scratch);
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::SegmentedControl, state, st);
+
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
 
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
 
         if (count_ <= 0) return;
 
@@ -68,8 +84,8 @@ public:
                 seg.w = r.x + r.w - seg.x;
             }
 
-            if (i == selected_) {
-                const int radius = (i == 0 || i == count_ - 1) ? st.corner_radius : 0;
+            if (i == selected()) {
+                const int radius = (i == 0 || i == count_ - 1) ? st.metrics.corner_radius : 0;
                 if (radius > 0) {
                     draw_round_rect(cvs, seg.x, seg.y, seg.w, seg.h, radius, accent, true);
                 } else {
@@ -85,10 +101,10 @@ public:
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         }
 
-        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.corner_radius);
+        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.metrics.corner_radius);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::Click) {
@@ -97,12 +113,12 @@ public:
             set_selected(idx);
             return true;
         } else if (e.type == Event::Type::KeyDown) {
-            if (e.key_code == Event::Key::Left && selected_ > 0) {
-                set_selected(selected_ - 1);
+            if (e.key_code == Event::Key::Left && selected() > 0) {
+                set_selected(selected() - 1);
                 return true;
             }
-            if (e.key_code == Event::Key::Right && selected_ + 1 < count_) {
-                set_selected(selected_ + 1);
+            if (e.key_code == Event::Key::Right && selected() + 1 < count_) {
+                set_selected(selected() + 1);
                 return true;
             }
         }
@@ -110,11 +126,19 @@ public:
     }
 
 private:
+    void apply_selected(int index, bool notify_callback) noexcept {
+        if (selected_.set(index) && notify_callback && on_change_) {
+            on_change_();
+        }
+    }
+
     static constexpr int kMax = 8;
     const char* labels_[kMax]{};
     int count_{0};
-    int selected_{0};
+    selected_state_type selected_{0};
     Callback on_change_{};
 };
+
+
 
 

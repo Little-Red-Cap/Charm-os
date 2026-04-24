@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD 26)
 
 add_executable(${target_name}
     main.cpp
-    ../../kernel/windows/port.kernel.windows.cpp
 )
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
@@ -16,3 +15,5 @@ set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
+
+

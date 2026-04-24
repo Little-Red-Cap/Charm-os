@@ -19,5 +19,6 @@ export namespace fs {
         Status (*flush)(void* ctx) noexcept { nullptr };
         util::u64 block_size{0};
         util::u64 block_count{0};
+        util::u32 caps{0};
     };
 }

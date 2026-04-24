@@ -7,14 +7,14 @@ import charm.core.string;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.render_style;
+import charm.gfx.text_box;
 import charm.font.typography;
 
 using namespace ui::render;
 
 export
-class CodeBlock : public ObjectBase {
+class CodeBlock : public WidgetBase<CodeBlock> {
 public:
     CodeBlock() {
         set_focusable(false);
@@ -24,12 +24,14 @@ public:
     void set_text(const char* text) { text_.assign(text ? text : ""); }
     void set_wrap(TextWrap wrap) noexcept { wrap_ = wrap; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<CodeBlock>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<CodeBlock>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::CodeBlock, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::CodeBlock, state, st);
+
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -43,5 +45,7 @@ private:
     StaticString<256> text_{};
     TextWrap wrap_{TextWrap::None};
 };
+
+
 
 

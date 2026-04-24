@@ -1,246 +1,356 @@
-﻿<div align="center">
+## POSIX Sample Notes
 
-# ✨ Charm ✨
+- `fd_probe`: probes fd kinds/errno paths for stdin/stdout/stderr and a file fd; runs in the QEMU posix smoke set.
+
+<div align="center">
+
+# Charm
 
 **C++26 Modules · Zero-alloc · constexpr config · Type-level FSM**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
 <br>
-[![CLang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
-[![CLang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
+[![Clang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
+[![ARM Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 
-> 统一的模块化架构拼图：核心/系统/IO/媒体/UI 一体化组织，随取随插。
+> 面向 MCU / PC 的统一能力图系统：IO / 系统 / 媒体 / UI **可装配、可裁剪、可验证**。
+
+了解项目 推荐阅读顺序：
+[本文章](README.md) →
+[文档索引](docs/README.md) →
+[入门指南](docs/overview.md) →
+[架构能力](docs/capability_map.md) →
+[架构总览](docs/architecture_overview.md) 
+
+参与项目 or 开发者 推荐阅读顺序：
+[Agent 启动页](AGENTS.md) →
+[架构能力](docs/capability_map.md) →
+[架构总览](docs/architecture_overview.md) →
+[协作文档](docs/agent/README.md)
 
 </div>
 
 ---
 
-## 🌌 为什么是 Charm？
-- **模块化极致**：全程 C++ Modules，边界清晰，可组合、可裁剪。
-- **零堆内存**：std::array/std::span + 编译期规划，嵌入式友好。
-- **类型驱动**：constexpr/consteval + concepts，配置即校验，能力即约束。
-- **可选增强**：事件去重/防抖/合并、优先级提升、trace/alert/stats，按需点亮。
+## 从零进入这个仓库
 
-## 🗂 目录导览
-- `Modules/core/` —— util/trace/service/alg
-- `Modules/system/` —— kernel/modulex/boot
-- `Modules/io/` —— hal/port/fs/shell/out
-- `Modules/media/` —— audio
-- `Modules/ui/ink/` —— Charm-ink UI
-- `Modules/ui/vivid/` —— Charm-vivid UI
-- `Modules/platform/` —— 平台适配（win/未来 MCU）
-- `Modules/io/usb/` —— USB 设备端骨架与类草案
-- `Examples/` —— 示例工程（内核/boot/audio/fs/shell/service/alg/hal）
-- `docs/` —— 架构与协作文档
-- `Draft/` —— 计划/草案（可变动）
+如果你是第一次接触 Charm，建议不要直接在 `docs/` 里漫游，而是先按下面这条最短路径建立整体认知：
 
-## 🧩 现有拼图（按层级）
+1. [`docs/overview.md`](docs/overview.md)：10 分钟入门，先知道项目在解决什么问题
+2. [`docs/architecture_overview.md`](docs/architecture_overview.md)：看全局分层、依赖红线和公开入口
+3. [`docs/README.md`](docs/README.md)：按任务和专题继续往下钻
+4. [`docs/board/README.md`](docs/board/README.md) / [`targets/rk3506/README.md`](targets/rk3506/README.md)：如果你当前在做板级 bring-up
+5. [`docs/system/posix_support_overview.md`](docs/system/posix_support_overview.md)：如果你当前关心 Linux 用户态兼容
 
-**Foundation**
-- util/expected/units
-- service：ring_buffer/pool/trace/stream/json
-- out：格式化与日志统一通路
+## 当前最重要的几个入口
 
-**IO / HAL**
-- hal：UART/SPI/I2C/GPIO/IRQ/Timer/Clock
-- input：RawInputEvent/Sampler/Intent/导航
-- fs：VFS + RamFs + BlockFs + FatFs + MAL + POSIX facade
-- usb：common/device/driver + CDC/UAC/MSC 骨架
-- proto：X/YModem（含最小 demo）
+- `Modules/`：主代码目录，按 `core / system / io / media / ui / platform` 分层
+- `targets/`：板级叶子 target 与启动相关实现，当前 RK3506 路径最活跃
+- `docs/`：现行入口、契约、专题设计与推进材料
+- `schemas/`：Artifact / Explain Surface 等结构化输出相关材料
+- `CMakePresets.json`：当前权威构建入口，优先通过 preset 配置和构建
 
-**Kernel / System**
-- EDA 事件队列与调度骨架
-- 设备模型/registry/driver 生命周期
-- Power/Low-Power 基础框架
+## 构建入口
 
-**Domains**
-- Audio：sink/pipeline/player + SDL3 验证链路
-- UI：Ink/Vivid 能力迁移与统一（容器/trace/算法复用）
-- Bootloader：分层/阶段文档 + 传输协议落点
+当前建议优先使用 CMake Presets，而不是手写本地构建目录。
 
-## 🎯 参与入口（按方向快速上手）
+- 主机调试：`cmake --preset host-debug`
+- 主机构建：`cmake --build --preset host-debug`
+- RK3506 最小镜像：`cmake --preset rk3506-baremetal-image-uart0-minimal-debug`
+- RK3506 最小镜像构建：`cmake --build --preset rk3506-baremetal-image-uart0-minimal-debug`
 
-### Audio
-1. 读文档：`Modules/media/audio/audio_design.md`
-2. 看实现：`Modules/media/audio/`（player/sink/decoder/fifo/src/convert）
-3. 跑示例：`Examples/audio/sdl3_wav_demo`
+如果你需要继续维护文档本身，请先看 [`docs/documentation_maintenance.md`](docs/documentation_maintenance.md)。
 
-### Kernel
-1. 读文档：`Modules/system/kernel/docs/`
-2. 看实现：`Modules/system/kernel/`
-3. 跑示例：`Examples/kernel/windows`
+## 宣言
+Charm 的目标，不是成为一个嵌入式框架，而是通过一套编译期可验证、运行期开销极低的系统协作模型，为嵌入式领域提供一种可被生态吸纳的软件结构标准。
 
-### FS/VFS
-1. 读文档：`Modules/io/fs/fs_migration_notes.md`
-2. 看实现：`Modules/io/fs/`
-3. 跑示例：`Examples/fs/`
+[//]: # (Charm 的目标不是聚合可复用库，而是为嵌入式软件提供稳定的系统级协作语义。)
 
-### HAL/Port
-1. 读文档：`Modules/io/hal/charm_hal_design.md`、`Modules/io/hal/hal_platform_binding_guide.md`
-2. 看实现：`Modules/io/hal/`、`Modules/io/port/`
-3. 跑示例：`Examples/hal/hal_demo`
+[//]: # (Charm 不是为了减少移植工作量而存在，而是为了终结“每次换平台就重写系统秩序”的宿命。)
 
-### Shell/Service
-1. 读文档：`Modules/io/shell/vsf_migration_service_shell_module.md`、`Modules/core/service/vsf_migration_service_detail.md`
-2. 看实现：`Modules/io/shell/`、`Modules/core/service/`
-3. 跑示例：`Examples/shell/`、`Examples/service/`
+## 为何诞生
+在一个天然碎片化、平台变化剧烈、依赖质量不齐的领域里，怎样才能让软件不因为环境变化而不断失去自我？
 
-### ModuleX
-1. 读文档：`Modules/system/modulex/ModuleX_格式草案.md`
-2. 看实现：`Modules/system/modulex/`
-3. 跑示例：`Examples/shell/vsf_shell_fs_module`
+**Charm** 是一个面向 **嵌入式** 的软件系统框架。 它尝试解决嵌入式开发中的一个常见问题：
 
-### USB
-1. 读文档：`docs/usb_arch_plan.md`
-2. 看实现：`Modules/io/usb/`
-3. 跑示例：`Examples/usb/usb_cdc_minimal`
+> 每个项目都在重复实现 IO、调度、日志、文件系统、UI 等基础设施。
 
-### UI/Vivid
-1. 读文档：`Modules/ui/vivid/ARCHITECTURE.md`、`Modules/ui/vivid/FEATURES.md`
-2. 看实现：`Modules/ui/vivid/`
-3. 跑示例：`Examples/project/scope`
+Charm 的做法是：
 
-## 🚀 主线 Demos（Windows）
-- **M0** `Examples/kernel/windows/main.cpp` ：kernel + timer + event queue
-- **M1** `Examples/kernel/windows/main_m1.cpp` ：sync + IPC
-- **M2** `Examples/kernel/windows/main_m2.cpp` ：thread + blocking
-- **M3** `Examples/kernel/windows/main_m3.cpp` ：trace + stats
-> 实验性 demo 故意不进主线，保持核心纯净。
+**把这些能力统一为可复用的 Capability，并通过能力图进行装配。**
 
-### ⚡ 快速构建（Windows）
-```bash
-cmake -S Examples/kernel/windows -B Examples/kernel/windows/build -G Ninja
-cmake --build Examples/kernel/windows/build
-Examples/kernel/windows/build/os-example-win.exe
+核心思想：
+
 ```
 
-## 🧩 可选模块（默认关闭）
-- 动态注册：`kernel.dynamic_registry` / `kernel.task_pool` / `kernel.task_auto`
-- 动态优先队列：`kernel.event_queue_list`
-- 可观测性：`kernel.trace`、alert/replay、JSON 诊断
-- 事件策略：dedup / debounce / coalesce / boost，丢弃策略
+Capability Graph
 
-## 🛰 MCU Demo
-- 位置：`Draft/Examples/stm32f103c8`（待迁移）
-- 开关：`-DCHARM_MCU_KERNEL_DEMO=ON`（preset 默认开启）
-- 入口：`main_mcu_stub.cpp`（`application()` -> `run_auto`）
-- 平台绑定：`Core/Src/kernel.port.stm32.cpp`
+* Non-blocking IO
+* Deterministic Assembly
 
-### 🔧 MCU 构建示例
-```bash
-cmake --preset Release -S Draft/Examples/stm32f103c8 -B Draft/Examples/stm32f103c8/build
-cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
-```
-> 烧录按板级工具链流程执行。
-
-## 🌉 Port 层（平台无关）
-- 接口：`Modules/io/port/port.kernel.cppm`
-- 模板：`Modules/io/port/port.kernel.template.cpp`
-- Windows：`Examples/kernel/windows/port.kernel.windows.cpp`
-- STM32：`Draft/Examples/stm32f103c8/Core/Src/kernel.port.stm32.cpp`
-
-## 🧰 VSF 迁移模块
-- HAL：`Modules/io/hal/*`
-- Service：`Modules/core/service/*`
-- Shell：`Modules/io/shell/*`
-- Module/XIP：`Modules/system/modulex/*`
-- FS：`Modules/io/fs/*`
-
-独立示例（Examples）：
-- `Examples/hal/hal_demo`：HAL 接口最小示例
-- `Examples/shell/vsf_service_shell`：Service + Shell + Module 示例
-- `Examples/service/vsf_service_core`：Service 基础示例
-- `Examples/service/service_ds_demo`：Service DS 示例
-- `Examples/fs/vsf_fs_demo`：VFS + RAMFS 试验
-- `Examples/fs/vsf_fs_block_demo`：BlockFS 试验
-- `Examples/fs/vsf_fs_vfs_demo`：VFS 组合示例
-- `Examples/fs/vsf_fs_posix`：POSIX 封装示例
-- `Examples/shell/vsf_shell_fs_module`：Shell + FS + ModuleX 示例
-- `Examples/alg/alg_demo`：算法/压缩示例
-- `Examples/boot/bootloader_demo`：bootloader 示例
-- `Examples/audio/sdl3_wav_demo`：SDL3 音频示例
-- `Examples/usb/usb_cdc_minimal`：CDC 最小枚举示例
-
-### 示例构建
-```bash
-# HAL demo
-cmake -S Examples/hal/hal_demo -B Examples/hal/hal_demo/build -G Ninja
-cmake --build Examples/hal/hal_demo/build
-Examples/hal/hal_demo/build/hal-demo
-
-# Service/Shell/Module demo
-cmake -S Examples/shell/vsf_service_shell -B Examples/shell/vsf_service_shell/build -G Ninja
-cmake --build Examples/shell/vsf_service_shell/build
-Examples/shell/vsf_service_shell/build/vsf-service-shell-demo
-
-# Service core demo
-cmake -S Examples/service/vsf_service_core -B Examples/service/vsf_service_core/build -G Ninja
-cmake --build Examples/service/vsf_service_core/build
-Examples/service/vsf_service_core/build/vsf-service-core-demo
-
-# FS demo
-cmake -S Examples/fs/vsf_fs_demo -B Examples/fs/vsf_fs_demo/build -G Ninja
-cmake --build Examples/fs/vsf_fs_demo/build
-Examples/fs/vsf_fs_demo/build/vsf-fs-demo
-
-# Alg demo
-cmake -S Examples/alg/alg_demo -B Examples/alg/alg_demo/build -G Ninja
-cmake --build Examples/alg/alg_demo/build
-Examples/alg/alg_demo/build/alg-demo
-
-# Service DS demo
-cmake -S Examples/service/service_ds_demo -B Examples/service/service_ds_demo/build -G Ninja
-cmake --build Examples/service/service_ds_demo/build
-Examples/service/service_ds_demo/build/service-ds-demo
-
-# Bootloader demo
-cmake -S Examples/boot/bootloader_demo -B Examples/boot/bootloader_demo/build -G Ninja
-cmake --build Examples/boot/bootloader_demo/build
-Examples/boot/bootloader_demo/build/bootloader-demo
-
-# SDL3 WAV demo
-cmake -S Examples/audio/sdl3_wav_demo -B Examples/audio/sdl3_wav_demo/build -G Ninja
-cmake --build Examples/audio/sdl3_wav_demo/build
-Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 ```
 
-## ✅ 收敛状态
-- Windows 主线 M0–M3：已通过
-- HAL demo：已通过（[hal_demo] ok）
-- Service/Shell/Module demo：已通过（[shell] / [shell_time] / [module_demo]）
-- Service core demo：已通过（[distbus] / [service_core] ok）
-- FS demo：已构建（待运行验证）
-- STM32：编译通过（待烧录验证）
+---
 
-## 📚 文档
-- 架构总览：`docs/architecture_overview.md`
-- 输入分层：`docs/input_layering_decision.md`
-- 协作规范：`docs/《协作期待与规范》.md`
-- 协作认知：`docs/《现代 C++ 单片机代码协作认知》.md`
-- 推进与分工：`docs/推进TODO与分工.md`、`docs/refactor_todo_ownership.md`
-- 组件文档：Audio=`Modules/media/audio/audio_design.md`、HAL=`Modules/io/hal/charm_hal_design.md`、FS=`Modules/io/fs/fs_migration_notes.md`、Shell=`Modules/io/shell/vsf_migration_service_shell_module.md`、Service=`Modules/core/service/vsf_migration_service_detail.md`、ModuleX=`Modules/system/modulex/ModuleX_格式草案.md`、Kernel=`Modules/system/kernel/docs/`
+## Capability Overview
 
-## 🧰 新示例模板（CMake）
+Charm 提供一组可组合的系统能力。
 
-快速创建新示例工程：
-- 模板：`Examples/cmake/ExampleTemplate.cmake`
-- 推荐用法：在新示例 `CMakeLists.txt` 中 `include(...)`，然后调用 `charm_example_*` 系列函数
-- SDL3 统一入口：`cmake/SDL3.cmake`（优先 `find_package`，回退到 `Examples/ThirdParty/SDL3`）
+| Domain         | Key Capabilities                            |
+|----------------|---------------------------------------------|
+| System         | InitGraph · EDA Scheduler · Sync primitives |
+| IO             | Channel · Reactor · Registry                |
+| Debug / Output | Out formatting · Logging                    |
+| Storage        | VFS                                         |
+| USB            | USB Device framework                        |
+| UI             | Ink (lightweight UI) · Vivid (rich UI)      |
+| Media          | Audio pipeline                              |
+| Platform       | HAL drivers                                 |
 
-## 🗺 路线图（摘要）
-- **近期**：MCU 运行验证、HAL MVP（GPIO/UART/Timer）、shim 最小 POSIX time/sleep
-- **中期**：module loader/XIP 草案、RT facade（线程 API 包装）、VFS 完善（目录/多块）
-- **远期**：POSIX/Arduino 更丰富、模块热插拔/签名、USB/TCPIP/FS 组件按需引入、FatFS/FlashFS 适配
+* 完整能力列表 → **[Capability Map](docs/capability_map.md)**
 
-## ✅ 未来 TODO（主线闭环）
-- **升级闭环**：固件签名/密钥管理、版本治理、回滚策略、A/B 分区策略、OTA/下载通道
-- **平台闭环**：统一驱动模型、BSP 组织结构、板级模板、移植指南、最小可跑清单
-- **运行闭环**：监控/诊断/异常恢复、崩溃转储、健康度指标与故障归因
-- **存储闭环**：VFS 挂载策略、缓存/一致性、轻量日志或事务
-- **通信闭环**：统一 IO/transport 抽象、RPC/消息协议、调试通道
-- **安全闭环**：只读区验证、最小信任链、密钥封装接口
-- **工程化**：脚手架/模板工程、依赖图与生成文档、PC/MCU smoke 测试
 
-## 📜 许可
-MIT（见 LICENSE）。
+
+
+## ✨ 核心特性
+
+<table>
+<tr>
+<td width="50%">
+
+### 🚀 零成本抽象
+- 编译期格式化解析
+- 未启用的日志完全消失
+- 域过滤编译期决定
+- 可选功能按需编译
+
+</td>
+<td width="50%">
+
+### 🛡️ 类型安全
+- 编译期类型检查
+- 参数数量验证
+- 无隐式转换陷阱
+- 格式字符串验证
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🔒 嵌入式友好
+- 无异常（`std::expected`）
+- 无堆分配
+- 无虚函数
+- C++ Modules
+
+</td>
+<td width="50%">
+
+### 🎨 功能丰富
+- 事件驱动内核
+- IPC 工具
+- UI 系统
+- USB / FileSystem
+
+</td>
+</tr>
+</table>
+
+---
+
+
+开发友好：可在PC上运行
+全部采用C++ Module组织代码
+事件驱动型内核
+提供IPC工具
+组件丰富
+
+## 设计关键词
+- **能力图装配**：所有底层能力通过 `init.graph` 注册与启动
+- **非阻塞 IO**：`Channel + Reactor + Registry` 三件套统一入口
+- **兼容入口 + 子系统入口**：保留 `charm.foundation / charm.runtime` 兼容面；新代码优先使用 `charm.system / charm.io / charm.media / charm.ui.*`
+- **零动态内存**：默认固定容量与零分配策略
+- **可观测**：统一 trace/诊断入口
+
+
+---
+
+## 设计关键词
+
+Charm 的系统设计围绕以下几个原则：
+
+### 能力图装配
+
+所有系统能力通过 `init.graph` 注册并统一启动。
+
+系统初始化过程由能力依赖图驱动。
+
+---
+
+
+### 非阻塞 IO
+
+统一 IO 模型：
+
+```
+
+Channel
+↓
+Reactor
+↓
+Registry
+
+```
+
+所有 IO 组件通过 Reactor 事件分发。
+
+---
+
+### 兼容入口模块
+
+历史上仓库曾使用三层入口来表达依赖方向；当前保留的兼容入口只有：
+
+```
+
+charm.foundation
+↓
+charm.runtime
+
+```
+
+其中：
+
+- `charm.foundation`：兼容 facade，对应 `charm.core`
+- `charm.runtime`：兼容 facade，对应 `charm.system + charm.io + charm.net`
+- Domain 层不再提供单独的 `charm.domain` 入口；请直接使用 `charm.media`、`charm.ui.ink`、`charm.ui.vivid`
+
+`Modules/*` 新代码禁止继续依赖这些兼容入口，应优先使用更窄的子系统入口。
+
+---
+
+### 零动态内存
+
+默认策略：
+
+- 固定容量
+- 无动态分配
+- 可选 constexpr 配置
+
+---
+
+### 可观测
+
+系统统一提供：
+
+- trace
+- 统计
+- 诊断接口
+
+---
+
+## 快速上手
+
+Charm 可以在 PC 与 MCU 上运行。
+
+<details>
+<summary><b>运行环境</b></summary>
+
+* [CMake 4.1.2]() （CMake版本会影响构建行为，过低版本对C++ Module支持不好）
+* [Ninja]()
+* [PC 编译器 Clang/MinGW]() （未测试MSVC）
+* [MCU 编译器 arm-none-ebi 15.2](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads) （若只运行PC端可不用）
+* 代码依赖：无第三方依赖，已集成到源码
+
+</details>
+
+## 推荐验证链
+
+Charm 提供一个最小验证链，用于验证 block.device → VFS → out 的完整能力路径：
+
+```
+Win file image → block.file → block.registry
+→ FatFsMount → VFS → out
+```
+
+运行 demo：
+
+```
+fs-block-vfs-demo <disk.img>
+```
+
+镜像中需包含一个 FAT 分区与 `hello.txt` 文件。
+
+另一个最小验证链用于验证输入泵链路（RawInput → input.pump/EDA → out）：
+
+```
+hal_input / RawInputSource → input.pump / EDA → out
+```
+
+运行 demo：
+
+```
+input-pump-win-demo
+```
+
+
+
+最小示例：MCU接入UART/PC接入Stdio
+
+### PC (Windows)
+
+<details>
+<summary><b>示例</b></summary>
+
+```cpp
+// TODO
+````
+
+* 构建命令
+```shell
+// TODO
+````
+
+
+
+</details>
+
+
+### MCU (STM32)
+
+<details>
+<summary><b>示例</b></summary>
+
+```cpp
+// TODO
+```
+
+</details>
+
+---
+
+
+## 第三方
+本项目中使用了一些开源项目，感谢以下项目：
+
+| 名字       | 路径                         | 许可       | 链接                                         |
+|----------|----------------------------|----------|--------------------------------------------|
+| etl      |                            |          |                                            |
+| freetype |                            | FreeType | https://freetype.org/                      |
+| lua      |                            | MIT      | https://www.lua.org/                       |
+| lwip     |                            | BSD      | https://savannah.nongnu.org/projects/lwip/ |
+| dr_libs  | Modules/thirdparty/dr_libs |          |                                            |
+| fatfs    | Modules/thirdparty/fatfs   |          |                                            |
+
+---
+
+<div align="center">
+
+问题反馈：[GitHub Issues](https://github.com/Little-Red-Cap/Charm-os/issues)
+<br>
+**⭐ 如果这个项目对你有帮助，请给个 Star！**
+
+[回到顶部](#charm)
+
+</div>

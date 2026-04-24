@@ -8,15 +8,15 @@ import charm.core.geometry;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.widgets.button;
-import charm.widgets.text;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 
 // Simple modal dialog (PopupLayer is recommended as background overlay)
 export
-class ModalDialog : public ObjectBase {
+class ModalDialog : public WidgetBase<ModalDialog> {
 public:
     ModalDialog() {
         set_size(320, 200);
@@ -38,39 +38,39 @@ public:
     void set_on_ok(Callback cb) noexcept { on_ok_ = cb; }
     void set_on_cancel(Callback cb) noexcept { on_cancel_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         if (!is_visible()) return;
-        Style st = Theme::instance().get<ModalDialog>();
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ModalDialog>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ModalDialog, state, base, st_scratch);
         const auto layout = compute_layout(st);
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::ModalDialog, state, st);
         resolve_colors(st, state, bg, border, font);
-
         draw_round_rect(cvs, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h,
-                        st.corner_radius, bg, true);
+                        st.metrics.corner_radius, bg, true);
         draw_round_rect(cvs, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h,
-                        st.corner_radius, border, false);
-
+                        st.metrics.corner_radius, border, false);
         draw_text_box(cvs, layout.title, title_ ? title_ : "",
                       font, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center,
                       TextWrap::None, TextEllipsis::End);
-
         draw_text_box(cvs, layout.body, message_ ? message_ : "",
                       font, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Top,
                       TextWrap::Word, TextEllipsis::End);
-
         draw_button(cvs, layout.ok, ok_label_, hot_button_ == ButtonId::Ok, pressed_button_ == ButtonId::Ok);
         if (layout.has_cancel) {
             draw_button(cvs, layout.cancel, cancel_label_, hot_button_ == ButtonId::Cancel, pressed_button_ == ButtonId::Cancel);
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_visible()) return false;
-        const Style& st = Theme::instance().get<ModalDialog>();
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ModalDialog>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::ModalDialog, state, base, st_scratch);
         const auto layout = compute_layout(st);
         const bool inside_panel = layout.panel.contains(e.x, e.y);
 
@@ -131,7 +131,7 @@ private:
     Layout compute_layout(const Style& st) const noexcept {
         Layout out{};
         out.panel = get_rect();
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int title_h = resolve_font(st).line_height + pad;
         const int button_h = button_h_;
         const int button_w = button_w_;
@@ -166,13 +166,14 @@ private:
 
     void draw_button(CanvasBase& cvs, const Rect& r,
                      const char* label, bool hot, bool pressed) noexcept {
-        Style st = Theme::instance().get<Button>();
         const StyleState state = make_style_state(is_enabled(), hot, pressed, false, style_variant());
-        apply_style_sheet(WidgetKind::Button, state, st);
+        const Style& base = Theme::instance().get<Button>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Button, state, base, st_scratch);
         rgba bg{}, border{}, font{};
         resolve_colors(st, state, bg, border, font);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
         draw_text_box(cvs, r, label ? label : "",
                       font, resolve_font(st),
                       TextAlignH::Center, TextAlignV::Center,
@@ -192,3 +193,5 @@ private:
     Callback on_ok_{};
     Callback on_cancel_{};
 };
+
+

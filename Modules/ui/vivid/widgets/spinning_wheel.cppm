@@ -7,14 +7,14 @@ import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import alg_arc;
 
 using namespace ui::render;
 
 // Spinning wheel indicator (ARM-2D spinning_wheel inspired)
 export
-class SpinningWheel : public ObjectBase {
+class SpinningWheel : public WidgetBase<SpinningWheel> {
 public:
     SpinningWheel() {
         set_size(80, 80);
@@ -25,15 +25,15 @@ public:
     void set_speed(float deg_per_frame) noexcept { speed_ = deg_per_frame; }
     void set_color(const rgba& c) noexcept { color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<SpinningWheel>();
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<SpinningWheel>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::SpinningWheel, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::SpinningWheel, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
-
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;
         const int radius = (radius_ > 0) ? radius_ : (r.w < r.h ? r.w : r.h) / 2 - thickness_;
@@ -60,3 +60,5 @@ private:
     float phase_{0.0f};
     rgba color_{0, 0, 0, 0};
 };
+
+

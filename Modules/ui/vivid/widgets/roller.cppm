@@ -1,22 +1,26 @@
 module;
-#include <cmath>
 #include <cstdint>
 export module charm.widgets.roller;
 
 import charm.core.object;
 import charm.core.event;
+import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.string;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.widgets.label;
 
 using namespace ui::render;
 
 export
-class Roller : public ObjectBase {
+class Roller : public WidgetBase<Roller> {
 public:
+    using selected_state_type = service::state<int, 4>;
+    using selected_slot_type = typename selected_state_type::slot_type;
+    using selected_connection = typename selected_state_type::connection;
+
     Roller() {
         set_size(140, 80);
         set_focusable(true);
@@ -32,44 +36,57 @@ public:
 
     void set_selected(int idx) noexcept {
         if (idx < 0 || idx >= option_count_) return;
-        selected_ = idx;
+        (void)selected_.set(idx);
+        // Legacy on_change is a roller command callback, not a pure state-change signal.
         if (on_change_) on_change_();
     }
 
-    int selected() const noexcept { return selected_; }
+    [[nodiscard]] int selected() const noexcept { return selected_.get(); }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
-        Style st = Theme::instance().get<Roller>();
+    // observe_selected() keeps the same-domain synchronous rules of service::state.
+    [[nodiscard]] auto observe_selected(selected_slot_type slot) noexcept {
+        return selected_.connect(slot);
+    }
+
+    [[nodiscard]] bool unobserve_selected(selected_connection c) noexcept {
+        return selected_.disconnect(c);
+    }
+
+    void draw(CanvasBase& cvs) {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<Roller>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::Roller, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{};
         rgba border{};
         rgba font{};
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Roller, state, st);
+
         resolve_colors(st, state, bg, border, font);
 
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
 
         const int line_h = resolve_font(st).line_height;
         const int center_y = r.y + r.h / 2;
         const int visible = 2; // above and below
         for (int i = -visible; i <= visible; ++i) {
-            int idx = wrap_index(selected_ + i);
+            const int idx = wrap_index(selected() + i);
             if (idx < 0) continue;
             Label lbl{options_[idx].c_str()};
             lbl.set_font(resolve_font(st));
             lbl.set_color(font);
             const int alpha_step = 60;
-            int alpha = 255 - std::abs(i) * alpha_step;
+            const int dist = (i < 0) ? -i : i;
+            int alpha = 255 - dist * alpha_step;
             if (alpha < 60) alpha = 60;
             rgba col = font;
             col.a = static_cast<std::uint8_t>(alpha);
             lbl.set_color(col);
             const int baseline_y = center_y + i * line_h + lbl.baseline() - line_h / 2;
-            lbl.set_baseline_pos(r.x + st.padding, baseline_y);
+            lbl.set_baseline_pos(r.x + st.metrics.padding, baseline_y);
             lbl.draw(cvs);
         }
 
@@ -77,7 +94,7 @@ public:
         draw_rect(cvs, r.x + 2, center_y - line_h / 2, r.w - 4, line_h, border, false);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::KeyDown) {
             if (e.key_code == Event::Key::Up) {
@@ -102,8 +119,7 @@ public:
 private:
     void step(int delta) {
         if (option_count_ == 0) return;
-        selected_ = wrap_index(selected_ + delta);
-        if (on_change_) on_change_();
+        set_selected(wrap_index(selected() + delta));
     }
 
     int wrap_index(int idx) const noexcept {
@@ -116,9 +132,11 @@ private:
     static constexpr int max_options = 16;
     StaticString<32> options_[max_options]{};
     int option_count_{0};
-    int selected_{0};
+    selected_state_type selected_{0};
     Callback on_change_{};
 };
+
+
 
 
 

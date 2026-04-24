@@ -69,7 +69,7 @@ struct State {
 	bool auto_extent{false};
 	int masking_no{0};
 };
-inline thread_local State* current_state = nullptr;
+inline State* current_state = nullptr;
 
 inline State& state() noexcept { return *current_state; }
 inline State* set_current(State* st) noexcept { State* prev = current_state; current_state = st; return prev; }

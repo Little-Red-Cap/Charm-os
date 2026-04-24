@@ -1,0 +1,751 @@
+//
+// Minimal smoke tests for posix.proc (no framework).
+//
+
+module;
+#include <array>
+#include <cstdio>
+#include <cstdlib>
+#include <span>
+#include <string_view>
+#include <type_traits>
+
+export module posix.proc.tests;
+
+#if defined(POSIX_PROC_SMOKE_TEST) && POSIX_PROC_SMOKE_TEST
+
+import posix.proc;
+import posix.fd_table;
+import posix.file;
+import posix.env;
+import posix.program_image;
+import posix.spawn_fds;
+import posix.user_context;
+import fs_core;
+import fs_errno;
+import fs_stream;
+import fs_vfs;
+import util.core;
+import util.error;
+
+namespace {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+    extern "C" void posix_smoke_emit(const char* msg) noexcept;
+#endif
+    [[noreturn]] inline void fail() noexcept { std::abort(); }
+    inline void log_line(const char* msg) noexcept {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+        posix_smoke_emit(msg);
+#else
+        std::printf("%s\n", msg);
+#endif
+    }
+    inline void log_step(const char* label, bool ok) noexcept {
+        char buf[96]{};
+        std::snprintf(buf, sizeof(buf), "[posix-smoke] proc %s %s", label, ok ? "ok" : "fail");
+        log_line(buf);
+    }
+    template <class T>
+    inline long long to_ll(const T& v) noexcept {
+        if constexpr (std::is_enum_v<T>) {
+            return static_cast<long long>(static_cast<std::underlying_type_t<T>>(v));
+        } else {
+            return static_cast<long long>(v);
+        }
+    }
+    template <class T>
+    inline void check_true(const char* label, const T& v) noexcept {
+        if (!static_cast<bool>(v)) {
+            log_step(label, false);
+            fail();
+        }
+        log_step(label, true);
+    }
+    template <class A, class B>
+    inline void check_eq(const char* label, const A& a, const B& b) noexcept {
+        if (!(a == b)) {
+            char buf[128]{};
+            std::snprintf(buf, sizeof(buf),
+                "[posix-smoke] proc %s fail: expected=%lld actual=%lld",
+                label, to_ll(b), to_ll(a));
+            log_line(buf);
+            fail();
+        }
+        log_step(label, true);
+    }
+
+    int demo_main(int argc, char** argv, char**) {
+        if (argc < 1 || argv == nullptr) return 7;
+        return 42;
+    }
+
+    int env_demo_main(int argc, char** argv, char** envp) {
+        if (argc != 1 || argv == nullptr || argv[0] == nullptr) return 11;
+        if (std::string_view{argv[0]} != "env-demo") return 12;
+        if (argv[1] != nullptr) return 13;
+        if (envp == nullptr || envp[0] == nullptr || envp[1] == nullptr) return 14;
+        if (std::string_view{envp[0]} != "FOO=BAR") return 15;
+        if (std::string_view{envp[1]} != "BAZ=QUX") return 16;
+        if (envp[2] != nullptr) return 17;
+        if (!posix::user::has_startup_context()) return 18;
+        if (posix::user::argc() != argc) return 19;
+        if (posix::user::argv() != argv) return 20;
+        if (posix::user::envp() != envp) return 21;
+        if (std::string_view{posix::user::argv0()} != "env-demo") return 22;
+        if (posix::user::getenv("FOO") != std::string_view{"BAR"}) return 23;
+        if (posix::user::getenv("BAZ") != std::string_view{"QUX"}) return 24;
+        if (posix::user::arg(1) != nullptr) return 25;
+        if (std::string_view{posix::user::env_entry(0)} != "FOO=BAR") return 26;
+        return 0;
+    }
+
+    int legacy_demo_main(int argc, char** argv) {
+        if (argc < 1 || argv == nullptr || argv[0] == nullptr) return 18;
+        if (std::string_view{argv[0]} != "legacy-demo") return 19;
+        if (!posix::user::has_startup_context()) return 20;
+        if (posix::user::argc() != argc) return 21;
+        if (posix::user::argv() != argv) return 22;
+        if (std::string_view{posix::user::argv0()} != "legacy-demo") return 23;
+        if (posix::user::getenv("LEGACY") != std::string_view{"YES"}) return 24;
+        return 43;
+    }
+
+    int g_kill_target_runs = 0;
+
+    int kill_target_main(int argc, char** argv, char**) {
+        if (argc < 1 || argv == nullptr) return 7;
+        ++g_kill_target_runs;
+        return 99;
+    }
+
+    util::Result<util::usize> dummy_read(void*, posix::MutByteView) noexcept {
+        return util::unexpected(util::Errc::not_supported);
+    }
+    util::Result<util::usize> dummy_write(void*, posix::ByteView) noexcept {
+        return util::unexpected(util::Errc::not_supported);
+    }
+    util::Result<void> dummy_close(void*) noexcept { return {}; }
+    util::Result<void> dummy_stat(void*, posix::PosixStat&) noexcept { return {}; }
+    util::Result<void> dummy_dup(void*) noexcept { return {}; }
+
+    struct CountedFdCtx {
+        int dup_calls{0};
+        int close_calls{0};
+    };
+
+    util::Result<void> counted_close(void* ctx) noexcept {
+        auto* state = static_cast<CountedFdCtx*>(ctx);
+        if (!state) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        ++state->close_calls;
+        return {};
+    }
+
+    util::Result<void> counted_dup(void* ctx) noexcept {
+        auto* state = static_cast<CountedFdCtx*>(ctx);
+        if (!state) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        ++state->dup_calls;
+        return {};
+    }
+
+    fs::Status dummy_node_read(fs::Node&, std::span<util::u8>) noexcept { return fs::Status{fs::Errc::ok}; }
+    fs::Status dummy_node_write(fs::Node&, std::span<const util::u8>) noexcept { return fs::Status{fs::Errc::ok}; }
+    fs::Status dummy_node_seek(fs::Node&, util::i64) noexcept { return fs::Status{fs::Errc::ok}; }
+    fs::Status dummy_node_flush(fs::Node&) noexcept { return fs::Status{fs::Errc::ok}; }
+    fs::Status dummy_node_close(fs::Node&) noexcept { return fs::Status{fs::Errc::ok}; }
+
+    fs::NodeOps dummy_node_ops{
+        &dummy_node_read,
+        &dummy_node_write,
+        &dummy_node_seek,
+        &dummy_node_flush,
+        &dummy_node_close
+    };
+
+    fs::Status dummy_mount_open(fs::Mount*, std::string_view, fs::File& out, fs::OpenFlags) noexcept {
+        out.node.type = fs::NodeType::file;
+        out.node.ops = &dummy_node_ops;
+        out.node.data = nullptr;
+        out.node.size = 0;
+        out.node.offset = 0;
+        return fs::Status{fs::Errc::ok};
+    }
+
+    fs::MountOps dummy_mount_ops{
+        &dummy_mount_open,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
+    };
+
+    struct OpenTraceMount {
+        fs::Mount mount{};
+        std::array<char, 64> last_path{};
+
+        OpenTraceMount() noexcept {
+            mount.ops = &ops;
+            mount.data = this;
+        }
+
+        static fs::Status open_impl(fs::Mount* m, std::string_view path, fs::File& out, fs::OpenFlags) noexcept {
+            auto* self = static_cast<OpenTraceMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            self->last_path = {};
+            const auto n = path.size() < (self->last_path.size() - 1) ? path.size() : (self->last_path.size() - 1);
+            for (util::usize i = 0; i < n; ++i) {
+                self->last_path[i] = path[i];
+            }
+            self->last_path[n] = '\0';
+            out.node.type = fs::NodeType::file;
+            out.node.ops = &dummy_node_ops;
+            out.node.data = nullptr;
+            out.node.size = 0;
+            out.node.offset = 0;
+            return fs::Status{fs::Errc::ok};
+        }
+
+        inline static fs::MountOps ops{
+            &OpenTraceMount::open_impl,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr
+        };
+    };
+
+    using KillProcService = posix::ProcService<4, 4, 8, 4>;
+
+    struct KillOnEnterCtx {
+        KillProcService* procs{nullptr};
+        posix::ProcessId seen_pid{};
+        bool fired{false};
+        bool kill_ok{false};
+        util::Errc kill_err{util::Errc::ok};
+        int sig{posix::SIGTERM};
+    };
+
+    void kill_on_enter(posix::ProcessId pid, void* ctx) noexcept {
+        auto* state = static_cast<KillOnEnterCtx*>(ctx);
+        if (!state || !state->procs) {
+            return;
+        }
+        state->seen_pid = pid;
+        state->fired = true;
+        auto killed = state->procs->kill(pid, state->sig);
+        state->kill_ok = static_cast<bool>(killed);
+        if (!killed) {
+            state->kill_err = killed.error();
+        }
+    }
+
+    void test_spawn_wait() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        auto rreg = procs.register_executable("demo", &demo_main);
+        check_true("spawn-register", rreg);
+
+        const char* argv[] = {"demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("spawn-basic", spawn);
+        const auto pid = spawn.value().pid;
+
+        auto st = procs.waitpid(pid, 0);
+        check_true("wait-basic", st);
+        check_eq("wait-pid", st.value().pid.value, pid.value);
+        check_eq("wait-code", st.value().code, 42);
+        check_eq("wait-kind", st.value().kind, posix::WaitKind::exited);
+    }
+
+    void test_spawn_wait_envp_v1() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        auto rreg = procs.register_executable("env-demo", &env_demo_main);
+        check_true("spawn-v1-register", rreg);
+
+        const char* argv[] = {"env-demo", nullptr};
+        const char* envp[] = {"FOO=BAR", "BAZ=QUX", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "env-demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 2);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("spawn-v1-basic", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("wait-v1-basic", st);
+        check_eq("wait-v1-kind", st.value().kind, posix::WaitKind::exited);
+        check_eq("wait-v1-code", st.value().code, 0);
+    }
+
+    void test_spawn_wait_legacy_v0() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        auto rreg = procs.register_executable("legacy-demo", &legacy_demo_main);
+        check_true("spawn-v0-register", rreg);
+
+        const char* argv[] = {"legacy-demo", nullptr};
+        const char* envp[] = {"LEGACY=YES", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "legacy-demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("spawn-v0-basic", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("wait-v0-basic", st);
+        check_eq("wait-v0-kind", st.value().kind, posix::WaitKind::exited);
+        check_eq("wait-v0-code", st.value().code, 43);
+    }
+
+    void test_register_image_rejects_ambiguous_abi() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto image = posix::make_registered_image("ambiguous-demo", &env_demo_main);
+        image.entry_v0 = &legacy_demo_main;
+
+        auto rreg = procs.register_image(image);
+        check_true("ambiguous-register-fail", !rreg);
+        check_eq("ambiguous-register-err", rreg.error(), util::Errc::invalid_arg);
+    }
+
+    void test_search_path_argv0() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        auto rreg = procs.register_executable("/bin/hello", &demo_main);
+        check_true("search-register", rreg);
+
+        const char* argv[] = {"hello", nullptr};
+        const char* envp[] = {"PATH=/bin:/usr/bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.path_mode = posix::PathMode::search_path;
+
+        const auto path_list = posix::envp_get(cfg.envp, posix::kPathKey);
+        check_true("search-envp-path", !path_list.empty());
+
+        auto spawn = procs.spawn(cfg);
+        if (!spawn) {
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "[posix-smoke] proc search-spawn err=%lld", to_ll(spawn.error()));
+            log_line(buf);
+        }
+        check_true("search-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("search-wait", st);
+    }
+
+    void test_search_path_requires_match_in_path() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("hello", &demo_main);
+        check_true("search-miss-register", rreg);
+
+        const char* argv[] = {"hello", nullptr};
+        const char* envp[] = {"PATH=/bin:/usr/bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.path_mode = posix::PathMode::search_path;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("search-miss-spawn", !spawn);
+        check_eq("search-miss-err", spawn.error(), util::Errc::noent);
+    }
+
+    void test_search_path_honors_slash_path() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("/bin/hello", &demo_main);
+        check_true("search-slash-register", rreg);
+
+        const char* argv[] = {"/bin/hello", nullptr};
+        const char* envp[] = {"PATH=/usr/bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "/bin/hello";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.path_mode = posix::PathMode::search_path;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("search-slash-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("search-slash-wait", st);
+    }
+
+    void test_exact_mode_falls_back_to_argv0() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("demo", &demo_main);
+        check_true("exact-argv0-register", rreg);
+
+        const char* argv[] = {"demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("exact-argv0-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("exact-argv0-wait", st);
+    }
+
+    void test_stdio_and_actions() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("demo", &demo_main);
+        check_true("stdio-register", rreg);
+
+        static const posix::FdOps kOps{
+            &dummy_read,
+            &dummy_write,
+            &dummy_close,
+            &dummy_stat,
+            &dummy_dup,
+            nullptr
+        };
+
+        posix::FdEntry entry{};
+        entry.kind = posix::FdKind::file;
+        entry.flags = posix::FdFlags::read_write;
+        entry.ops = &kOps;
+        entry.ctx = nullptr;
+
+        auto rfd3 = table.attach(entry, 3);
+        check_true("stdio-attach-3", rfd3);
+        auto rfd4 = table.attach(entry, 4);
+        check_true("stdio-attach-4", rfd4);
+
+        posix::FileActions<16> actions{};
+        check_true("stdio-action-dup2", actions.add_dup2(3, 1));
+        check_true("stdio-action-close", actions.add_close(4));
+
+        const char* argv[] = {"demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.file_actions = &actions;
+        cfg.stdio_in = 3;
+        cfg.stdio_out = 4;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("stdio-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("stdio-wait", st);
+
+        // parent table should remain unchanged after spawn
+        auto entry1 = table.get(1);
+        check_true("stdio-parent-1", !entry1);
+        auto entry4 = table.get(4);
+        check_true("stdio-parent-4", entry4);
+        check_eq("stdio-parent-4-id", entry4.value()->id, 4);
+
+        posix::FileActions<16> open_actions{};
+        check_true("stdio-open-action", open_actions.add_open(5, "/tmp/x", 0, 0));
+        cfg.file_actions = &open_actions;
+        auto spawn_open = procs.spawn(cfg);
+        check_true("stdio-open-fail", !spawn_open);
+        check_eq("stdio-open-err", spawn_open.error(), util::Errc::not_supported);
+    }
+
+    void test_open_action() noexcept {
+        fs::clear_mounts();
+        fs::Mount mount{};
+        mount.ops = &dummy_mount_ops;
+        mount.data = nullptr;
+        auto st = fs::add_mount("", &mount);
+        check_true("open-mount", st);
+
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        posix::FileService<4> files{};
+        table.init();
+        files.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        procs.bind_file_service(files);
+
+        auto rreg = procs.register_executable("demo", &demo_main);
+        check_true("open-register", rreg);
+
+        posix::FileActions<16> actions{};
+        check_true("open-action", actions.add_open(3, "/tmp/x", posix::O_WRONLY | posix::O_CREAT, 0));
+
+        const char* argv[] = {"demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.file_actions = &actions;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("open-spawn", spawn);
+        auto fd_entry = table.get(3);
+        check_true("open-parent-unchanged", !fd_entry);
+    }
+
+    void test_spawn_cloexec_source_dup2() noexcept {
+        posix::FdTable<8> table{};
+        table.init();
+
+        CountedFdCtx tracked{};
+        static const posix::FdOps kTrackedOps{
+            &dummy_read,
+            &dummy_write,
+            &counted_close,
+            &dummy_stat,
+            &counted_dup,
+            nullptr
+        };
+
+        posix::FdEntry entry{};
+        entry.kind = posix::FdKind::file;
+        entry.flags = posix::FdFlags::read_write;
+        entry.ops = &kTrackedOps;
+        entry.ctx = &tracked;
+        entry.inheritable = false;
+
+        auto attached = table.attach(entry, 3);
+        check_true("cloexec-source-attach", attached);
+
+        posix::FileActions<16> actions{};
+        check_true("cloexec-source-action-dup2", actions.add_dup2(3, 5));
+
+        posix::SpawnConfig cfg{};
+        cfg.stdio_in = 3;
+        cfg.stdio_out = 3;
+        cfg.file_actions = &actions;
+
+        auto built = posix::build_spawn_fd_table<8, 4>(&table, static_cast<posix::FileService<4>*>(nullptr), cfg);
+        check_true("cloexec-source-build", built);
+        auto& child = built.value();
+
+        auto child_source = child.get(3);
+        check_true("cloexec-source-pruned", !child_source);
+        auto child_stdin = child.get(0);
+        check_true("cloexec-source-stdin", child_stdin);
+        check_eq("cloexec-source-stdin-inheritable", child_stdin.value()->inheritable, true);
+        auto child_stdout = child.get(1);
+        check_true("cloexec-source-stdout", child_stdout);
+        check_eq("cloexec-source-stdout-inheritable", child_stdout.value()->inheritable, true);
+        auto child_dup = child.get(5);
+        check_true("cloexec-source-file-action", child_dup);
+        check_eq("cloexec-source-file-action-inheritable", child_dup.value()->inheritable, true);
+        check_eq("cloexec-source-parent-stays-cloexec", table.get(3).value()->inheritable, false);
+        check_eq("cloexec-source-dup-calls", tracked.dup_calls, 4);
+
+        child.close_all();
+        check_eq("cloexec-source-child-close-calls", tracked.close_calls, 4);
+        table.close_all();
+        check_eq("cloexec-source-parent-close-calls", tracked.close_calls, 5);
+    }
+
+    void test_exact_path_resolves_against_cwd() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("/work/demo", &demo_main);
+        check_true("cwd-exact-register", rreg);
+
+        const char* argv[] = {"./demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "./demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.cwd = "/work";
+
+        auto spawn = procs.spawn(cfg);
+        check_true("cwd-exact-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("cwd-exact-wait", st);
+        check_eq("cwd-exact-code", st.value().code, 42);
+    }
+
+    void test_search_path_relative_entries_use_cwd() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("/work/bin/demo", &demo_main);
+        check_true("cwd-path-register", rreg);
+
+        const char* argv[] = {"demo", nullptr};
+        const char* envp[] = {"PATH=./bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.cwd = "/work";
+        cfg.path_mode = posix::PathMode::search_path;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("cwd-path-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("cwd-path-wait", st);
+        check_eq("cwd-path-code", st.value().code, 42);
+    }
+
+    void test_open_action_resolves_against_cwd() noexcept {
+        fs::clear_mounts();
+        OpenTraceMount mount{};
+        auto st = fs::add_mount("", &mount.mount);
+        check_true("cwd-open-mount", st);
+
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        posix::FileService<4> files{};
+        table.init();
+        files.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        procs.bind_file_service(files);
+
+        auto rreg = procs.register_executable("demo", &demo_main);
+        check_true("cwd-open-register", rreg);
+
+        posix::FileActions<16> actions{};
+        check_true("cwd-open-action-add", actions.add_open(3, "../trace.txt", posix::O_WRONLY | posix::O_CREAT, 0));
+
+        const char* argv[] = {"demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.cwd = "/work/sub";
+        cfg.file_actions = &actions;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("cwd-open-action-spawn", spawn);
+        auto wait = procs.waitpid(spawn.value().pid, 0);
+        check_true("cwd-open-action-wait", wait);
+        check_true("cwd-open-action-path",
+                   std::string_view{mount.last_path.data()} == std::string_view{"work/trace.txt"});
+    }
+
+    void test_kill_wait_signaled() noexcept {
+        KillProcService procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        KillOnEnterCtx ctx{};
+        ctx.procs = &procs;
+        procs.bind_process_hooks(&kill_on_enter, nullptr, &ctx);
+
+        auto rreg = procs.register_executable("kill-target", &kill_target_main);
+        check_true("kill-register", rreg);
+
+        const auto run_case = [&](const char* prefix, int sig) noexcept {
+            ctx.seen_pid = {};
+            ctx.fired = false;
+            ctx.kill_ok = false;
+            ctx.kill_err = util::Errc::ok;
+            ctx.sig = sig;
+            g_kill_target_runs = 0;
+
+            const char* argv[] = {"kill-target", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "kill-target";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.path_mode = posix::PathMode::exact;
+
+            std::array<char, 64> label_buf{};
+            const auto label = [&](const char* suffix) noexcept -> const char* {
+                std::snprintf(label_buf.data(), label_buf.size(), "%s-%s", prefix, suffix);
+                return label_buf.data();
+            };
+
+            auto spawn = procs.spawn(cfg);
+            check_true(label("spawn"), spawn);
+            check_true(label("hook-fired"), ctx.fired);
+            check_true(label("hook-ok"), ctx.kill_ok);
+            check_eq(label("hook-pid"), ctx.seen_pid.value, spawn.value().pid.value);
+            check_eq(label("target-not-run"), g_kill_target_runs, 0);
+
+            auto st = procs.waitpid(spawn.value().pid, 0);
+            check_true(label("wait"), st);
+            check_eq(label("wait-pid"), st.value().pid.value, spawn.value().pid.value);
+            check_eq(label("wait-kind"), st.value().kind, posix::WaitKind::signaled);
+            check_eq(label("wait-code"), st.value().code, sig);
+        };
+
+        run_case("kill-term", posix::SIGTERM);
+        run_case("kill-int", posix::SIGINT);
+        run_case("kill-kill", posix::SIGKILL);
+    }
+} // namespace
+
+export void run_posix_proc_smoke_tests() noexcept {
+    log_line("[posix-smoke] proc begin");
+    test_spawn_wait();
+    test_spawn_wait_envp_v1();
+    test_spawn_wait_legacy_v0();
+    test_register_image_rejects_ambiguous_abi();
+    test_search_path_argv0();
+    test_search_path_requires_match_in_path();
+    test_search_path_honors_slash_path();
+    test_exact_mode_falls_back_to_argv0();
+    test_stdio_and_actions();
+    test_open_action();
+    test_spawn_cloexec_source_dup2();
+    test_exact_path_resolves_against_cwd();
+    test_search_path_relative_entries_use_cwd();
+    test_open_action_resolves_against_cwd();
+    test_kill_wait_signaled();
+    log_line("[posix-smoke] proc end ok");
+}
+
+#endif

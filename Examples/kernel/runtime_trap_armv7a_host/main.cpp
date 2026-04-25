@@ -399,8 +399,9 @@ namespace demo {
     {
         const auto projection = kernel::trap_semantic_projection(record);
         const auto& descriptor = projection.descriptor;
-        std::printf("[trap-ingress-trace] t=%llu stage=%s service=%s origin=%s ",
+        std::printf("[trap-ingress-trace] t=%llu seq=%llu stage=%s service=%s origin=%s ",
                     static_cast<unsigned long long>(record.stamp),
+                    static_cast<unsigned long long>(record.sequence),
                     kernel::trap_ingress_stage_name(record.stage),
                     descriptor.service_name,
                     kernel::trap_origin_name(record.origin));
@@ -694,6 +695,25 @@ int main()
     char scheduler_trace[4096]{};
     (void)running.format_snapshot(snapshot, sizeof(snapshot));
     (void)running.format_trace_csv(scheduler_trace, sizeof(scheduler_trace));
+    const auto ingress_forensics =
+        kernel::trap_ingress_forensic_snapshot(trap_ingress_trace);
+    const bool ingress_forensics_ok =
+        ingress_forensics.has_terminal && ingress_forensics.has_decode &&
+        ingress_forensics.has_dispatch && ingress_forensics.has_writeback &&
+        ingress_forensics.ok() &&
+        ingress_forensics.terminal_stage() ==
+            kernel::TrapIngressStage::writeback &&
+        ingress_forensics.terminal.service ==
+            kernel::TrapService::sleep_until &&
+        ingress_forensics.terminal.origin ==
+            kernel::TrapOrigin::user_task &&
+        ingress_forensics.has_last_failure &&
+        ingress_forensics.last_failure.stage ==
+            kernel::TrapIngressStage::decode &&
+        ingress_forensics.last_failure.error ==
+            kernel::TrapError::decode_failed &&
+        ingress_forensics.last_failure.sequence !=
+            ingress_forensics.sequence();
 
     const bool ok = shared.task_syscall_valid &&
                     shared.worker_bootstrapped && shared.worker_deferred &&
@@ -708,6 +728,7 @@ int main()
                     shared.armv7a_supervisor_origin_sample_ok &&
                     shared.armv7a_invalid_mode_rejected &&
                     shared.armv7a_invalid_mode_decode_failed &&
+                    ingress_forensics_ok &&
                     shared.last_trap_error == kernel::TrapError::none &&
                     shared.last_armv7a_service_id ==
                         kArmv7aRuntimeBridgeSleepServiceId &&
@@ -741,6 +762,24 @@ int main()
         static_cast<unsigned long long>(shared.last_return_pc),
         kernel::trap_error_name(shared.last_trap_error));
     std::printf("[armv7a-runtime.snapshot] %s\n", snapshot);
+    std::printf(
+        "[trap-ingress.forensics] ok=%d seq=%llu terminal=%s/%s/%s last_failure=%s/%s/%s\n",
+        ingress_forensics_ok ? 1 : 0,
+        static_cast<unsigned long long>(ingress_forensics.sequence()),
+        kernel::trap_ingress_stage_name(ingress_forensics.terminal_stage()),
+        kernel::trap_service_name(ingress_forensics.terminal.service),
+        kernel::trap_origin_name(ingress_forensics.terminal.origin),
+        ingress_forensics.has_last_failure
+            ? kernel::trap_ingress_stage_name(
+                  ingress_forensics.last_failure.stage)
+            : "none",
+        ingress_forensics.has_last_failure
+            ? kernel::trap_error_name(ingress_forensics.last_failure.error)
+            : "none",
+        ingress_forensics.has_last_failure
+            ? kernel::trap_service_name(
+                  ingress_forensics.last_failure.service)
+            : "invalid");
 
     for (std::size_t i = 0; i < runtime_trace.size(); ++i) {
         const auto* record = runtime_trace.at(i);

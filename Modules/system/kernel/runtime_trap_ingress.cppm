@@ -33,6 +33,7 @@ export namespace kernel {
     template <typename Tick>
     struct RuntimeTrapIngressTraceEvent {
         Tick stamp{};
+        util::u64 sequence{0};
         TrapIngressStage stage{TrapIngressStage::decode};
         TrapService service{TrapService::invalid};
         TrapOrigin origin{TrapOrigin::kernel_thread};
@@ -46,6 +47,51 @@ export namespace kernel {
         util::u64 arg3{0};
         util::u64 value{0};
         bool ok{false};
+    };
+
+    template <typename Tick>
+    struct RuntimeTrapIngressForensicSnapshot {
+        using value_type = RuntimeTrapIngressTraceEvent<Tick>;
+
+        bool has_terminal{false};
+        value_type terminal{};
+        bool has_decode{false};
+        value_type decode{};
+        bool has_dispatch{false};
+        value_type dispatch{};
+        bool has_writeback{false};
+        value_type writeback{};
+        bool has_last_failure{false};
+        value_type last_failure{};
+
+        [[nodiscard]] constexpr util::u64 sequence() const noexcept
+        {
+            return has_terminal ? terminal.sequence : 0u;
+        }
+
+        [[nodiscard]] constexpr TrapIngressStage terminal_stage() const noexcept
+        {
+            return has_terminal ? terminal.stage : TrapIngressStage::decode;
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return has_terminal && terminal.ok;
+        }
+
+        [[nodiscard]] constexpr bool decode_failed() const noexcept
+        {
+            return has_terminal &&
+                   terminal.stage == TrapIngressStage::decode &&
+                   terminal.error == TrapError::decode_failed;
+        }
+
+        [[nodiscard]] constexpr bool writeback_failed() const noexcept
+        {
+            return has_terminal &&
+                   terminal.stage == TrapIngressStage::writeback &&
+                   terminal.error == TrapError::writeback_failed;
+        }
     };
 
     template <typename Tick>
@@ -112,6 +158,14 @@ export namespace kernel {
             trap_request_from_ingress_trace_event(event));
     }
 
+    template <typename Tick>
+    [[nodiscard]] constexpr bool same_trap_ingress_attempt(
+        const RuntimeTrapIngressTraceEvent<Tick>& lhs,
+        const RuntimeTrapIngressTraceEvent<Tick>& rhs) noexcept
+    {
+        return lhs.sequence != 0u && lhs.sequence == rhs.sequence;
+    }
+
     template <typename Tick, std::size_t Capacity>
     class RuntimeTrapIngressTraceBuffer {
     public:
@@ -150,6 +204,64 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    template <typename Tick, std::size_t Capacity>
+    [[nodiscard]] RuntimeTrapIngressForensicSnapshot<Tick>
+    trap_ingress_forensic_snapshot(
+        const RuntimeTrapIngressTraceBuffer<Tick, Capacity>& trace) noexcept
+    {
+        RuntimeTrapIngressForensicSnapshot<Tick> snapshot{};
+        if (trace.size() == 0u) {
+            return snapshot;
+        }
+
+        const auto* terminal = trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return snapshot;
+        }
+
+        snapshot.has_terminal = true;
+        snapshot.terminal = *terminal;
+
+        for (std::size_t index = trace.size(); index > 0u; --index) {
+            const auto* event = trace.at(index - 1u);
+            if (event == nullptr) {
+                continue;
+            }
+
+            if (!snapshot.has_last_failure && !event->ok) {
+                snapshot.has_last_failure = true;
+                snapshot.last_failure = *event;
+            }
+
+            if (!same_trap_ingress_attempt(*event, snapshot.terminal)) {
+                continue;
+            }
+
+            switch (event->stage) {
+            case TrapIngressStage::decode:
+                if (!snapshot.has_decode) {
+                    snapshot.has_decode = true;
+                    snapshot.decode = *event;
+                }
+                break;
+            case TrapIngressStage::dispatch:
+                if (!snapshot.has_dispatch) {
+                    snapshot.has_dispatch = true;
+                    snapshot.dispatch = *event;
+                }
+                break;
+            case TrapIngressStage::writeback:
+                if (!snapshot.has_writeback) {
+                    snapshot.has_writeback = true;
+                    snapshot.writeback = *event;
+                }
+                break;
+            }
+        }
+
+        return snapshot;
+    }
 
     template <typename Frame>
     struct RuntimeTrapFrameAdapter {
@@ -218,6 +330,7 @@ export namespace kernel {
             using time_source =
                 typename TrapBridge::runtime_type::scheduler_type::TimeSource;
             const auto now = time_source::now();
+            const auto sequence = next_sequence_++;
 
             TrapFrameView view{};
             if (!runtime_trap_frame_adapter_ready(adapter_)) {
@@ -226,7 +339,8 @@ export namespace kernel {
                     .error = TrapError::unbound_adapter,
                     .value = 0,
                 };
-                trace_push(now, TrapIngressStage::decode, view, result, false);
+                trace_push(
+                    now, sequence, TrapIngressStage::decode, view, result, false);
                 return result;
             }
 
@@ -236,7 +350,8 @@ export namespace kernel {
                     .error = TrapError::decode_failed,
                     .value = 0,
                 };
-                trace_push(now, TrapIngressStage::decode, view, result, false);
+                trace_push(
+                    now, sequence, TrapIngressStage::decode, view, result, false);
                 return result;
             }
 
@@ -246,10 +361,11 @@ export namespace kernel {
                 .value = 0,
             };
             trace_push(
-                now, TrapIngressStage::decode, view, decode_ok, true);
+                now, sequence, TrapIngressStage::decode, view, decode_ok, true);
 
             const auto result = trap_->dispatch_frame(view);
             trace_push(now,
+                       sequence,
                        TrapIngressStage::dispatch,
                        view,
                        result,
@@ -262,6 +378,7 @@ export namespace kernel {
                     .value = result.value,
                 };
                 trace_push(now,
+                           sequence,
                            TrapIngressStage::writeback,
                            view,
                            writeback_failed,
@@ -269,12 +386,14 @@ export namespace kernel {
                 return writeback_failed;
             }
 
-            trace_push(now, TrapIngressStage::writeback, view, result, true);
+            trace_push(
+                now, sequence, TrapIngressStage::writeback, view, result, true);
             return result;
         }
 
     private:
         void trace_push(tick_type stamp,
+                        util::u64 sequence,
                         TrapIngressStage stage,
                         const TrapFrameView& view,
                         const TrapResult& result,
@@ -286,6 +405,7 @@ export namespace kernel {
 
             (void)trace_->push(typename TraceBuffer::value_type{
                 .stamp = stamp,
+                .sequence = sequence,
                 .stage = stage,
                 .service = static_cast<TrapService>(view.service_id),
                 .origin = view.origin,
@@ -305,6 +425,7 @@ export namespace kernel {
         TrapBridge* trap_{nullptr};
         adapter_type adapter_{};
         TraceBuffer* trace_{nullptr};
+        util::u64 next_sequence_{1u};
     };
 
     template <typename Frame>

@@ -415,8 +415,9 @@ namespace demo {
     {
         const auto projection = kernel::trap_semantic_projection(record);
         const auto& descriptor = projection.descriptor;
-        std::printf("[trap-ingress-trace] t=%llu stage=%s service=%s origin=%s ",
+        std::printf("[trap-ingress-trace] t=%llu seq=%llu stage=%s service=%s origin=%s ",
                     static_cast<unsigned long long>(record.stamp),
+                    static_cast<unsigned long long>(record.sequence),
                     kernel::trap_ingress_stage_name(record.stage),
                     descriptor.service_name,
                     kernel::trap_origin_name(record.origin));
@@ -896,6 +897,25 @@ int main()
     (void)running.format_trace_csv(scheduler_trace, sizeof(scheduler_trace));
     const auto capability_view = capability_sink.view();
     const auto debug_view = debug_sink.view();
+    const auto ingress_forensics =
+        kernel::trap_ingress_forensic_snapshot(trap_ingress_trace);
+    const bool ingress_forensics_ok =
+        ingress_forensics.has_terminal && ingress_forensics.has_decode &&
+        ingress_forensics.has_dispatch && ingress_forensics.has_writeback &&
+        ingress_forensics.ok() &&
+        ingress_forensics.terminal_stage() ==
+            kernel::TrapIngressStage::writeback &&
+        ingress_forensics.terminal.service ==
+            kernel::TrapService::sleep_until &&
+        ingress_forensics.terminal.origin ==
+            kernel::TrapOrigin::kernel_thread &&
+        ingress_forensics.has_last_failure &&
+        ingress_forensics.last_failure.stage ==
+            kernel::TrapIngressStage::writeback &&
+        ingress_forensics.last_failure.error ==
+            kernel::TrapError::writeback_failed &&
+        ingress_forensics.last_failure.sequence !=
+            ingress_forensics.sequence();
     shared.capability_output_seen =
         !capability_view.empty() && shared.last_capability_id == 7u &&
         shared.last_capability_operation == 2u &&
@@ -923,6 +943,7 @@ int main()
                     shared.negative_writeback_failed_ok &&
                     shared.negative_unbound_bridge_ok &&
                     shared.negative_unbound_adapter_ok &&
+                    ingress_forensics_ok &&
                     shared.trap_catalog_ok &&
                     shared.last_trap_error == kernel::TrapError::none;
 
@@ -981,6 +1002,24 @@ int main()
                 static_cast<int>(debug_view.size()),
                 debug_view.data());
     std::printf("[runtime-demo.snapshot] %s\n", snapshot);
+    std::printf(
+        "[trap-ingress.forensics] ok=%d seq=%llu terminal=%s/%s/%s last_failure=%s/%s/%s\n",
+        ingress_forensics_ok ? 1 : 0,
+        static_cast<unsigned long long>(ingress_forensics.sequence()),
+        kernel::trap_ingress_stage_name(ingress_forensics.terminal_stage()),
+        kernel::trap_service_name(ingress_forensics.terminal.service),
+        kernel::trap_origin_name(ingress_forensics.terminal.origin),
+        ingress_forensics.has_last_failure
+            ? kernel::trap_ingress_stage_name(
+                  ingress_forensics.last_failure.stage)
+            : "none",
+        ingress_forensics.has_last_failure
+            ? kernel::trap_error_name(ingress_forensics.last_failure.error)
+            : "none",
+        ingress_forensics.has_last_failure
+            ? kernel::trap_service_name(
+                  ingress_forensics.last_failure.service)
+            : "invalid");
 
     for (std::size_t i = 0; i < runtime_trace.size(); ++i) {
         const auto* record = runtime_trace.at(i);

@@ -693,10 +693,15 @@ int main()
 
     char snapshot[512]{};
     char scheduler_trace[4096]{};
+    char ingress_witness_json[512]{};
     (void)running.format_snapshot(snapshot, sizeof(snapshot));
     (void)running.format_trace_csv(scheduler_trace, sizeof(scheduler_trace));
     const auto ingress_forensics =
         kernel::trap_ingress_forensic_snapshot(trap_ingress_trace);
+    const auto ingress_witness =
+        kernel::trap_ingress_forensic_witness(trap_ingress_trace);
+    (void)kernel::format_trap_ingress_forensic_witness_json(
+        ingress_witness_json, sizeof(ingress_witness_json), ingress_witness);
     const bool ingress_forensics_ok =
         ingress_forensics.has_terminal && ingress_forensics.has_decode &&
         ingress_forensics.has_dispatch && ingress_forensics.has_writeback &&
@@ -714,6 +719,16 @@ int main()
             kernel::TrapError::decode_failed &&
         ingress_forensics.last_failure.sequence !=
             ingress_forensics.sequence();
+    const bool ingress_witness_ok =
+        kernel::trap_ingress_forensic_witness_ready(ingress_witness) &&
+        ingress_witness.ok() &&
+        ingress_witness.sequence == ingress_forensics.sequence() &&
+        ingress_witness.terminal_service == kernel::TrapService::sleep_until &&
+        ingress_witness.terminal_origin == kernel::TrapOrigin::user_task &&
+        ingress_witness.last_failure_error ==
+            kernel::TrapError::decode_failed &&
+        ingress_witness.last_failure_is_prior_attempt() &&
+        ingress_witness_json[0] != '\0';
 
     const bool ok = shared.task_syscall_valid &&
                     shared.worker_bootstrapped && shared.worker_deferred &&
@@ -729,6 +744,7 @@ int main()
                     shared.armv7a_invalid_mode_rejected &&
                     shared.armv7a_invalid_mode_decode_failed &&
                     ingress_forensics_ok &&
+                    ingress_witness_ok &&
                     shared.last_trap_error == kernel::TrapError::none &&
                     shared.last_armv7a_service_id ==
                         kArmv7aRuntimeBridgeSleepServiceId &&
@@ -780,6 +796,7 @@ int main()
             ? kernel::trap_service_name(
                   ingress_forensics.last_failure.service)
             : "invalid");
+    std::printf("[trap-ingress.witness] %s\n", ingress_witness_json);
 
     for (std::size_t i = 0; i < runtime_trace.size(); ++i) {
         const auto* record = runtime_trace.at(i);

@@ -157,6 +157,25 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedCaseOutputRoot)) {
     Ensure-Directory -Path $resolvedCaseOutputRoot
 }
 
+$canonicalWorld = [ordered]@{
+    id = "armv7a-qemu-lower-half"
+    label = "ARMv7-A QEMU Lower-Half"
+    subject = "minimal-kernel-runtime"
+    environment = "qemu-virt-cortex-a7"
+    profile = "debug"
+    focus = @(
+        "runtime-trap",
+        "runtime-leaf-ports",
+        "runtime-thread",
+        "runtime-live",
+        "runtime-binding-bundle",
+        "runtime-leaf-bundle",
+        "runtime-package",
+        "task-syscall",
+        "handoff-live"
+    )
+}
+
 $caseSpecs = @(
     [pscustomobject]@{
         Name = "runtime_trap"
@@ -170,6 +189,10 @@ $caseSpecs = @(
             'ARMv7-A runtime trap seam, .* seam=yes',
             'ARMv7-A runtime trap roundtrip, .* roundtrip=yes'
         )
+        Seam = "trap-ingress"
+        WorldState = "svc-frame-dispatch"
+        WitnessClaim = "The lower-half trap seam still closes from live SVC frame capture through generic dispatch and roundtrip."
+        WitnessQuestion = "Can this world still prove that SVC-origin trap ingress survives as a live lower-half seam?"
     },
     [pscustomobject]@{
         Name = "runtime_leaf_ports"
@@ -182,6 +205,10 @@ $caseSpecs = @(
         HighlightPatterns = @(
             'ARMv7-A runtime leaf ports, .* ports=yes'
         )
+        Seam = "leaf-ports"
+        WorldState = "runtime-loop-export"
+        WitnessClaim = "The exported leaf-owned lower-half ports still line up as one coherent runtime-facing surface."
+        WitnessQuestion = "Can this world still prove that the leaf exports one valid lower-half port package?"
     },
     [pscustomobject]@{
         Name = "runtime_thread"
@@ -194,6 +221,10 @@ $caseSpecs = @(
         HighlightPatterns = @(
             'ARMv7-A runtime thread port, .* thread=yes'
         )
+        Seam = "thread-egress"
+        WorldState = "svc-caller-thread-port"
+        WitnessClaim = "The task-side thread egress still reaches the live SVC caller path without drifting away from the leaf contract."
+        WitnessQuestion = "Can this world still prove that runtime-thread egress remains bound to the live trap-call seam?"
     },
     [pscustomobject]@{
         Name = "runtime_live"
@@ -206,6 +237,10 @@ $caseSpecs = @(
         HighlightPatterns = @(
             'ARMv7-A runtime live, .* live=yes, resumes=[0-9]+, idle-runs=[0-9]+, wake-due=0x[0-9A-F]{16}, tick-now=0x[0-9A-F]{16}'
         )
+        Seam = "live-runtime"
+        WorldState = "idle-worker-timer-loop"
+        WitnessClaim = "Idle, worker, timer tick, and wakeup still form one live runtime loop inside the ARMv7-A world."
+        WitnessQuestion = "Can this world still prove that a real live runtime loop survives on the Cortex-A lower half?"
     },
     [pscustomobject]@{
         Name = "runtime_binding_bundle"
@@ -218,6 +253,10 @@ $caseSpecs = @(
         HighlightPatterns = @(
             'ARMv7-A runtime binding bundle, .* binding=yes'
         )
+        Seam = "binding-bundle"
+        WorldState = "runtime-facing-binding"
+        WitnessClaim = "Current, trap, thread, and loop ports still collapse into one runtime-facing binding bundle."
+        WitnessQuestion = "Can this world still prove that the runtime-facing binding slice stays coherent after lower-half changes?"
     },
     [pscustomobject]@{
         Name = "runtime_leaf_bundle"
@@ -230,6 +269,10 @@ $caseSpecs = @(
         HighlightPatterns = @(
             'ARMv7-A runtime leaf bundle, .* bundle=yes'
         )
+        Seam = "leaf-bundle"
+        WorldState = "leaf-owned-export"
+        WitnessClaim = "The leaf-owned bundle still exports lower-half exception, interrupt, timer, trap-call, thread, and live state as one payload."
+        WitnessQuestion = "Can this world still prove that the wide lower-half leaf bundle remains one stable export?"
     },
     [pscustomobject]@{
         Name = "runtime_package"
@@ -242,6 +285,10 @@ $caseSpecs = @(
         HighlightPatterns = @(
             'ARMv7-A runtime package, .* package=yes'
         )
+        Seam = "runtime-package"
+        WorldState = "board-facing-runtime-package"
+        WitnessClaim = "The board-facing runtime package still derives from the leaf bundle and runtime binding slice without divergence."
+        WitnessQuestion = "Can this world still prove that the board-facing runtime package is still a lawful composition?"
     },
     [pscustomobject]@{
         Name = "task_syscall"
@@ -255,6 +302,10 @@ $caseSpecs = @(
             'ARMv7-A task syscall roundtrip, .* roundtrip=yes',
             'ARMv7-A task syscall glue, .* glue=yes'
         )
+        Seam = "task-syscall"
+        WorldState = "svc-syscall-roundtrip"
+        WitnessClaim = "Task-side syscall capture, dispatch, writeback, and caller roundtrip still survive as one live surface."
+        WitnessQuestion = "Can this world still prove that task syscall semantics remain intact across live SVC entry and return?"
     },
     [pscustomobject]@{
         Name = "handoff_live"
@@ -275,6 +326,10 @@ $caseSpecs = @(
             'ARMv7-A runtime handoff path, .* path=yes',
             'ARMv7-A runtime handoff consumer, .* consumer=yes'
         )
+        Seam = "handoff-landing"
+        WorldState = "post-branch-runtime-consumer"
+        WitnessClaim = "The handed-off runtime still lands, recaptures, and reconsumes as one continuous lower-half path."
+        WitnessQuestion = "Can this world still prove that runtime handoff continuity survives launch, landing, and consumer re-entry?"
     }
 )
 
@@ -406,6 +461,15 @@ try {
                     StdoutLogPath = $stdoutArtifactPath
                     StderrLogPath = $stderrArtifactPath
                     Highlights = @($caseHighlights)
+                    CanonicalCase = [ordered]@{
+                        world = [string]$canonicalWorld.id
+                        seam = [string]$caseSpec.Seam
+                        world_state = [string]$caseSpec.WorldState
+                    }
+                    Witness = [ordered]@{
+                        claim = [string]$caseSpec.WitnessClaim
+                        question = [string]$caseSpec.WitnessQuestion
+                    }
                     Detail = $caseDetail
                 }) | Out-Null
             }
@@ -428,10 +492,39 @@ try {
 if (-not [string]::IsNullOrWhiteSpace($resolvedSummaryPath)) {
     Ensure-ParentDirectory -Path $resolvedSummaryPath
 
+    $standingCases = @(
+        @($results) |
+            Where-Object { [string]$_.Status -eq "ok" } |
+            ForEach-Object { [string]$_.Case }
+    )
+    $regressedCases = @(
+        @($results) |
+            Where-Object { [string]$_.Status -ne "ok" } |
+            ForEach-Object { [string]$_.Case }
+    )
+
     $summary = [ordered]@{
         schema = "minimal_kernel.runtime_armv7a_qemu_smoke.summary/v1"
         generated_at = (Get-Date).ToString("o")
         smoke = "armv7a_qemu_lower_half"
+        canonical_world = $canonicalWorld
+        witness_bundle = [ordered]@{
+            subject = "minimal-kernel-runtime"
+            question = "Can the ARMv7-A QEMU lower-half still prove trap, runtime, syscall, and handoff continuity inside one canonical world?"
+            conclusion = if ($hasFailure) { "regressed" } else { "standing" }
+            standing_cases = @($standingCases)
+            regressed_cases = @($regressedCases)
+        }
+        biography = [ordered]@{
+            identity = "The ARMv7-A QEMU lower-half world is the canonical bare-metal runtime witness for Cortex-A bringup inside Charm."
+            thesis = "This world stands when trap ingress, live runtime, task syscall, and handoff continuity all remain jointly observable."
+            evidence_path = @(@($caseSpecs) | ForEach-Object { [string]$_.Name })
+            next_questions = @(
+                "Which witness disappeared first?",
+                "Which seam regressed: trap, runtime, task-syscall, or handoff?",
+                "Do the per-case logs still preserve the proving lines we expect to interrogate?"
+            )
+        }
         case_count = @($caseSpecs).Count
         completed_case_count = @($results).Count
         has_failure = [bool]$hasFailure

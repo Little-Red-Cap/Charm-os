@@ -135,12 +135,75 @@ $builder = [System.Text.StringBuilder]::new()
 if (-not [string]::IsNullOrWhiteSpace([string]$summaryData.case_artifacts_root)) {
     [void]$builder.AppendLine(('- Case artifacts: `{0}`' -f [string]$summaryData.case_artifacts_root))
 }
+
+if ($null -ne $summaryData.canonical_world) {
+    [void]$builder.AppendLine("")
+    [void]$builder.AppendLine("## Canonical World")
+    [void]$builder.AppendLine(('- ID: `{0}`' -f [string]$summaryData.canonical_world.id))
+    [void]$builder.AppendLine(('- Label: `{0}`' -f [string]$summaryData.canonical_world.label))
+    [void]$builder.AppendLine(('- Subject: `{0}`' -f [string]$summaryData.canonical_world.subject))
+    [void]$builder.AppendLine(('- Environment: `{0}`' -f [string]$summaryData.canonical_world.environment))
+    [void]$builder.AppendLine(('- Profile: `{0}`' -f [string]$summaryData.canonical_world.profile))
+    if ($null -ne $summaryData.canonical_world.focus) {
+        [void]$builder.AppendLine(('- Focus: `{0}`' -f ((@($summaryData.canonical_world.focus) | ForEach-Object { [string]$_ }) -join ", ")))
+    }
+}
+
+if ($null -ne $summaryData.witness_bundle) {
+    [void]$builder.AppendLine("")
+    [void]$builder.AppendLine("## Witness Bundle")
+    [void]$builder.AppendLine(('- Subject: `{0}`' -f [string]$summaryData.witness_bundle.subject))
+    [void]$builder.AppendLine(('- Question: `{0}`' -f [string]$summaryData.witness_bundle.question))
+    [void]$builder.AppendLine(('- Conclusion: `{0}`' -f [string]$summaryData.witness_bundle.conclusion))
+    [void]$builder.AppendLine(('- Standing cases: `{0}`' -f ((@($summaryData.witness_bundle.standing_cases) | ForEach-Object { [string]$_ }) -join ", ")))
+    [void]$builder.AppendLine(('- Regressed cases: `{0}`' -f ((@($summaryData.witness_bundle.regressed_cases) | ForEach-Object { [string]$_ }) -join ", ")))
+}
+
+if ($null -ne $summaryData.biography) {
+    [void]$builder.AppendLine("")
+    [void]$builder.AppendLine("## Biography")
+    [void]$builder.AppendLine(('- Identity: `{0}`' -f [string]$summaryData.biography.identity))
+    [void]$builder.AppendLine(('- Thesis: `{0}`' -f [string]$summaryData.biography.thesis))
+    if ($null -ne $summaryData.biography.evidence_path) {
+        [void]$builder.AppendLine(('- Evidence path: `{0}`' -f ((@($summaryData.biography.evidence_path) | ForEach-Object { [string]$_ }) -join " -> ")))
+    }
+    if ($null -ne $summaryData.biography.next_questions) {
+        [void]$builder.AppendLine("  Next questions:")
+        foreach ($question in @($summaryData.biography.next_questions)) {
+            [void]$builder.AppendLine(('  - `{0}`' -f [string]$question))
+        }
+    }
+}
+
 [void]$builder.AppendLine("")
 [void]$builder.AppendLine("## Cases")
-[void]$builder.AppendLine("Case | Status | Elapsed | Script")
-[void]$builder.AppendLine("--- | --- | --- | ---")
+[void]$builder.AppendLine("Case | Status | Elapsed | Seam | Script")
+[void]$builder.AppendLine("--- | --- | --- | --- | ---")
 foreach ($entry in @($results | Select-Object -First $Top)) {
-    [void]$builder.AppendLine(("{0} | {1} | {2}ms | {3}" -f [string]$entry.Label, [string]$entry.Status, [int64]$entry.ElapsedMs, [string]$entry.Script))
+    $seam = ""
+    if ($null -ne $entry.CanonicalCase) {
+        $seam = [string]$entry.CanonicalCase.seam
+    }
+    [void]$builder.AppendLine(("{0} | {1} | {2}ms | {3} | {4}" -f [string]$entry.Label, [string]$entry.Status, [int64]$entry.ElapsedMs, $seam, [string]$entry.Script))
+}
+
+$witnessResults = @(
+    $results | Where-Object {
+        $null -ne $_.Witness
+    }
+)
+if ($witnessResults.Count -gt 0) {
+    [void]$builder.AppendLine("")
+    [void]$builder.AppendLine("## Witness Questions")
+    foreach ($entry in @($witnessResults)) {
+        [void]$builder.AppendLine(("### {0}" -f [string]$entry.Label))
+        [void]$builder.AppendLine(('- Claim: `{0}`' -f [string]$entry.Witness.claim))
+        [void]$builder.AppendLine(('- Question: `{0}`' -f [string]$entry.Witness.question))
+        if ($null -ne $entry.CanonicalCase) {
+            [void]$builder.AppendLine(('- World state: `{0}`' -f [string]$entry.CanonicalCase.world_state))
+        }
+        [void]$builder.AppendLine("")
+    }
 }
 
 $highlightResults = @(

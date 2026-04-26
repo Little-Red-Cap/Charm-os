@@ -70,6 +70,42 @@ if ($RequireCaseCount -ge 0 -and @($results).Count -ne $RequireCaseCount) {
 if ($null -ne $summaryData.fatal_failure) {
     Add-Violation -Violations $violations -Message ("fatal failure phase={0}: {1}" -f [string]$summaryData.fatal_failure.phase, [string]$summaryData.fatal_failure.message)
 }
+if ($null -eq $summaryData.canonical_world) {
+    Add-Violation -Violations $violations -Message "missing canonical_world"
+} elseif ([string]::IsNullOrWhiteSpace([string]$summaryData.canonical_world.id) -or
+          [string]::IsNullOrWhiteSpace([string]$summaryData.canonical_world.subject)) {
+    Add-Violation -Violations $violations -Message "canonical_world is missing id or subject"
+}
+if ($null -eq $summaryData.witness_bundle) {
+    Add-Violation -Violations $violations -Message "missing witness_bundle"
+} elseif ([string]::IsNullOrWhiteSpace([string]$summaryData.witness_bundle.question) -or
+          [string]::IsNullOrWhiteSpace([string]$summaryData.witness_bundle.conclusion)) {
+    Add-Violation -Violations $violations -Message "witness_bundle is missing question or conclusion"
+}
+if ($null -eq $summaryData.biography) {
+    Add-Violation -Violations $violations -Message "missing biography"
+} elseif ([string]::IsNullOrWhiteSpace([string]$summaryData.biography.identity) -or
+          [string]::IsNullOrWhiteSpace([string]$summaryData.biography.thesis)) {
+    Add-Violation -Violations $violations -Message "biography is missing identity or thesis"
+}
+foreach ($entry in @($results)) {
+    if ($null -eq $entry.CanonicalCase) {
+        Add-Violation -Violations $violations -Message ("case {0} is missing canonical_case" -f [string]$entry.Case)
+        continue
+    }
+    if ($null -eq $entry.Witness) {
+        Add-Violation -Violations $violations -Message ("case {0} is missing witness" -f [string]$entry.Case)
+        continue
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$entry.CanonicalCase.seam) -or
+        [string]::IsNullOrWhiteSpace([string]$entry.CanonicalCase.world_state)) {
+        Add-Violation -Violations $violations -Message ("case {0} canonical_case is missing seam or world_state" -f [string]$entry.Case)
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$entry.Witness.claim) -or
+        [string]::IsNullOrWhiteSpace([string]$entry.Witness.question)) {
+        Add-Violation -Violations $violations -Message ("case {0} witness is missing claim or question" -f [string]$entry.Case)
+    }
+}
 
 Write-Output ("summary: {0}" -f $summaryPath)
 Write-Output "profile: armv7a-qemu-lower-half"

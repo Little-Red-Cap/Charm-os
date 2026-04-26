@@ -322,6 +322,39 @@ function Get-QemuSummaryView {
         check_text_path = $CheckPath
         case_count = [int]$SummaryData.case_count
         completed_case_count = [int]$SummaryData.completed_case_count
+        canonical_world = if ($null -ne $SummaryData.canonical_world) {
+            [ordered]@{
+                id = [string]$SummaryData.canonical_world.id
+                label = [string]$SummaryData.canonical_world.label
+                subject = [string]$SummaryData.canonical_world.subject
+                environment = [string]$SummaryData.canonical_world.environment
+                profile = [string]$SummaryData.canonical_world.profile
+                focus = @($SummaryData.canonical_world.focus)
+            }
+        } else {
+            $null
+        }
+        witness_bundle = if ($null -ne $SummaryData.witness_bundle) {
+            [ordered]@{
+                subject = [string]$SummaryData.witness_bundle.subject
+                question = [string]$SummaryData.witness_bundle.question
+                conclusion = [string]$SummaryData.witness_bundle.conclusion
+                standing_cases = @($SummaryData.witness_bundle.standing_cases)
+                regressed_cases = @($SummaryData.witness_bundle.regressed_cases)
+            }
+        } else {
+            $null
+        }
+        biography = if ($null -ne $SummaryData.biography) {
+            [ordered]@{
+                identity = [string]$SummaryData.biography.identity
+                thesis = [string]$SummaryData.biography.thesis
+                evidence_path = @($SummaryData.biography.evidence_path)
+                next_questions = @($SummaryData.biography.next_questions)
+            }
+        } else {
+            $null
+        }
         status = [ordered]@{
             ok = $okCount
             fail = $failCount
@@ -343,6 +376,23 @@ function Get-QemuSummaryView {
                         stdout_log_path = [string]$_.StdoutLogPath
                         stderr_log_path = [string]$_.StderrLogPath
                         highlights = @($_.Highlights)
+                        canonical_case = if ($null -ne $_.CanonicalCase) {
+                            [ordered]@{
+                                world = [string]$_.CanonicalCase.world
+                                seam = [string]$_.CanonicalCase.seam
+                                world_state = [string]$_.CanonicalCase.world_state
+                            }
+                        } else {
+                            $null
+                        }
+                        witness = if ($null -ne $_.Witness) {
+                            [ordered]@{
+                                claim = [string]$_.Witness.claim
+                                question = [string]$_.Witness.question
+                            }
+                        } else {
+                            $null
+                        }
                         detail = [string]$_.Detail
                     }
                 }
@@ -535,17 +585,65 @@ if ($null -ne $hostView.warm) {
 [void]$reportBuilder.AppendLine("## Lower-Half QEMU Evidence")
 [void]$reportBuilder.AppendLine(('- Bundle log: `{0}`' -f $qemuBundleLogPathResolved))
 if ($null -ne $qemuView.lower_half) {
+    if ($null -ne $qemuView.lower_half.canonical_world) {
+        [void]$reportBuilder.AppendLine(('- Canonical world: `{0}` (`{1}`)' -f $qemuView.lower_half.canonical_world.id, $qemuView.lower_half.canonical_world.label))
+        [void]$reportBuilder.AppendLine(('- Canonical subject: `{0}` in `{1}`' -f $qemuView.lower_half.canonical_world.subject, $qemuView.lower_half.canonical_world.environment))
+    }
+    if ($null -ne $qemuView.lower_half.witness_bundle) {
+        [void]$reportBuilder.AppendLine(('- Witness question: `{0}`' -f $qemuView.lower_half.witness_bundle.question))
+        [void]$reportBuilder.AppendLine(('- Witness conclusion: `{0}`' -f $qemuView.lower_half.witness_bundle.conclusion))
+    }
+    if ($null -ne $qemuView.lower_half.biography) {
+        [void]$reportBuilder.AppendLine(('- Biography identity: `{0}`' -f $qemuView.lower_half.biography.identity))
+        [void]$reportBuilder.AppendLine(('- Biography thesis: `{0}`' -f $qemuView.lower_half.biography.thesis))
+    }
     [void]$reportBuilder.AppendLine(('- Lower-half status: `ok={0} fail={1} other={2}`' -f $qemuView.lower_half.status.ok, $qemuView.lower_half.status.fail, $qemuView.lower_half.status.other))
     [void]$reportBuilder.AppendLine(('- Cases: `completed={0} expected={1}`' -f $qemuView.lower_half.completed_case_count, $qemuView.lower_half.case_count))
     [void]$reportBuilder.AppendLine(('- Elapsed: `total={0}ms avg={1}ms max={2}ms`' -f $qemuView.lower_half.elapsed_ms.total, $qemuView.lower_half.elapsed_ms.average, $qemuView.lower_half.elapsed_ms.max))
     [void]$reportBuilder.AppendLine(('- Build phases: `configure={0}ms build={1}ms`' -f $qemuView.lower_half.phase_elapsed_ms.configure, $qemuView.lower_half.phase_elapsed_ms.build))
     [void]$reportBuilder.AppendLine(('- QEMU report: `{0}`' -f $qemuView.lower_half.report_markdown_path))
     [void]$reportBuilder.AppendLine("")
+    if ($null -ne $qemuView.lower_half.biography -and $null -ne $qemuView.lower_half.biography.evidence_path) {
+        $biographyPath = ((@($qemuView.lower_half.biography.evidence_path) | ForEach-Object { [string]$_ }) -join " -> ")
+        [void]$reportBuilder.AppendLine("### QEMU Biography Path")
+        [void]$reportBuilder.AppendLine($biographyPath)
+        [void]$reportBuilder.AppendLine("")
+    }
+    if ($null -ne $qemuView.lower_half.biography -and $null -ne $qemuView.lower_half.biography.next_questions) {
+        [void]$reportBuilder.AppendLine("### QEMU Next Questions")
+        foreach ($question in @($qemuView.lower_half.biography.next_questions)) {
+            $questionLine = ('- `{0}`' -f [string]$question)
+            [void]$reportBuilder.AppendLine($questionLine)
+        }
+        [void]$reportBuilder.AppendLine("")
+    }
     [void]$reportBuilder.AppendLine("### QEMU Cases")
-    [void]$reportBuilder.AppendLine("Case | Status | Elapsed")
-    [void]$reportBuilder.AppendLine("--- | --- | ---")
+    [void]$reportBuilder.AppendLine("Case | Status | Elapsed | Seam")
+    [void]$reportBuilder.AppendLine("--- | --- | --- | ---")
     foreach ($entry in @($qemuView.lower_half.results)) {
-        [void]$reportBuilder.AppendLine(("{0} | {1} | {2}ms" -f [string]$entry.label, [string]$entry.status, [int64]$entry.elapsed_ms))
+        $seam = ""
+        if ($null -ne $entry.canonical_case) {
+            $seam = [string]$entry.canonical_case.seam
+        }
+        [void]$reportBuilder.AppendLine(("{0} | {1} | {2}ms | {3}" -f [string]$entry.label, [string]$entry.status, [int64]$entry.elapsed_ms, $seam))
+    }
+
+    $qemuWitnessResults = @(
+        $qemuView.lower_half.results | Where-Object {
+            $null -ne $_.witness
+        }
+    )
+    if ($qemuWitnessResults.Count -gt 0) {
+        [void]$reportBuilder.AppendLine("")
+        [void]$reportBuilder.AppendLine("### QEMU Witness Questions")
+        foreach ($entry in @($qemuWitnessResults)) {
+            [void]$reportBuilder.AppendLine(('- `{0}`' -f [string]$entry.label))
+            [void]$reportBuilder.AppendLine(('  claim: `{0}`' -f [string]$entry.witness.claim))
+            [void]$reportBuilder.AppendLine(('  question: `{0}`' -f [string]$entry.witness.question))
+            if ($null -ne $entry.canonical_case) {
+                [void]$reportBuilder.AppendLine(('  world-state: `{0}`' -f [string]$entry.canonical_case.world_state))
+            }
+        }
     }
 
     $qemuHighlightResults = @(

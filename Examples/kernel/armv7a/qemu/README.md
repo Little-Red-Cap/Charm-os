@@ -317,6 +317,10 @@ before fanning out into the focused runtime/task-syscall cases, and also asks
 the dedicated `handoff-live` smoke to clean-rebuild `debug-handoff-live`.
 This keeps wide lower-half regressions from being masked or invented by stale
 object files after contract/header layout changes.
+The same bundle output now also carries one explicit `canonical world`,
+`witness bundle`, and short runtime `biography`, so the lower-half artifact can
+say what world it represents, what question it is answering, and which witness
+cases currently keep that world standing.
 
 Abort smoke CI is intentionally separate because these runs end in the fatal
 exception path instead of returning to the regular SVC/IRQ smoke:

@@ -286,6 +286,141 @@
         }
       }
     },
+    "qemuCanonicalWorld": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "subject",
+        "environment",
+        "profile",
+        "focus"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "focus": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "qemuWitnessBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "question",
+        "conclusion",
+        "standing_cases",
+        "regressed_cases"
+      ],
+      "properties": {
+        "subject": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "conclusion": {
+          "type": "string"
+        },
+        "standing_cases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "regressed_cases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "qemuBiography": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "thesis",
+        "evidence_path",
+        "next_questions"
+      ],
+      "properties": {
+        "identity": {
+          "type": "string"
+        },
+        "thesis": {
+          "type": "string"
+        },
+        "evidence_path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_questions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "qemuCanonicalCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "world",
+        "seam",
+        "world_state"
+      ],
+      "properties": {
+        "world": {
+          "type": "string"
+        },
+        "seam": {
+          "type": "string"
+        },
+        "world_state": {
+          "type": "string"
+        }
+      }
+    },
+    "qemuWitness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim",
+        "question"
+      ],
+      "properties": {
+        "claim": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        }
+      }
+    },
     "qemuResult": {
       "type": "object",
       "additionalProperties": false,
@@ -296,6 +431,8 @@
         "elapsed_ms",
         "stdout_log_path",
         "stderr_log_path",
+        "canonical_case",
+        "witness",
         "detail"
       ],
       "properties": {
@@ -323,6 +460,38 @@
           "items": {
             "type": "string"
           }
+        },
+        "canonical_case": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/qemuCanonicalCase"
+              }
+            }
+          ]
+        },
+        "witness": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/qemuWitness"
+              }
+            }
+          ]
         },
         "detail": {
           "type": "string"
@@ -354,6 +523,9 @@
         "check_text_path",
         "case_count",
         "completed_case_count",
+        "canonical_world",
+        "witness_bundle",
+        "biography",
         "status",
         "elapsed_ms",
         "phase_elapsed_ms",
@@ -376,6 +548,54 @@
         "completed_case_count": {
           "type": "integer",
           "minimum": 0
+        },
+        "canonical_world": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/qemuCanonicalWorld"
+              }
+            }
+          ]
+        },
+        "witness_bundle": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/qemuWitnessBundle"
+              }
+            }
+          ]
+        },
+        "biography": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/qemuBiography"
+              }
+            }
+          ]
         },
         "status": {
           "$ref": "#/$defs/statusCount"

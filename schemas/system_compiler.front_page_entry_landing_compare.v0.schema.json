@@ -1,0 +1,819 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.front_page_entry_landing_compare.v0.schema.json",
+  "title": "system_compiler.front_page_entry_landing_compare/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "generated_at_utc",
+    "generator",
+    "result",
+    "landing_compare",
+    "front_page",
+    "landing_provenance",
+    "artifact_context",
+    "landing_verdict",
+    "landing_status",
+    "landing_changes",
+    "tab_summary",
+    "tab_changes",
+    "landing_regression_surface",
+    "questions",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.front_page_entry_landing_compare/v0"
+    },
+    "kind": {
+      "const": "system_compiler.front_page_entry_landing_compare"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "landing_compare": {
+      "$ref": "#/$defs/titleBlock"
+    },
+    "front_page": {
+      "$ref": "#/$defs/frontPage"
+    },
+    "landing_provenance": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/landingProvenanceEntry"
+      }
+    },
+    "artifact_context": {
+      "$ref": "#/$defs/artifactContext"
+    },
+    "landing_verdict": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed"
+      ]
+    },
+    "landing_status": {
+      "$ref": "#/$defs/landingStatus"
+    },
+    "landing_changes": {
+      "$ref": "#/$defs/landingChanges"
+    },
+    "tab_summary": {
+      "$ref": "#/$defs/tabSummary"
+    },
+    "tab_changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/tabChange"
+      }
+    },
+    "landing_regression_surface": {
+      "$ref": "#/$defs/landingRegressionSurface"
+    },
+    "questions": {
+      "$ref": "#/$defs/questionBlock"
+    },
+    "violations": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nullableInteger": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "nullableBoolean": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "arrayChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "titleBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "frontPageSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "role",
+        "summary_schema",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "frontPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "supporting_surfaces"
+      ],
+      "properties": {
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "supporting_surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/frontPageSurface"
+          }
+        }
+      }
+    },
+    "landingProvenanceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "landing_role",
+        "source_summary_schema",
+        "source_summary_path",
+        "source_input_capability_summary_path",
+        "source_root_summary_path",
+        "source_report_markdown_path",
+        "source_check_text_path",
+        "primary_tab_id",
+        "available_tab_ids",
+        "provenance_root_count",
+        "route_provenance_entry_count"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "landing_role": {
+          "type": "string",
+          "enum": [
+            "baseline_landing",
+            "candidate_landing"
+          ]
+        },
+        "source_summary_schema": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "source_input_capability_summary_path": {
+          "type": "string"
+        },
+        "source_root_summary_path": {
+          "type": "string"
+        },
+        "source_report_markdown_path": {
+          "type": "string"
+        },
+        "source_check_text_path": {
+          "type": "string"
+        },
+        "primary_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "available_tab_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "provenance_root_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "route_provenance_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "artifactContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_landing_summary_path",
+        "candidate_landing_summary_path",
+        "output_root",
+        "compare_summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "baseline_landing_summary_path": {
+          "type": "string"
+        },
+        "candidate_landing_summary_path": {
+          "type": "string"
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "compare_summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "landingStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_result",
+        "candidate_result",
+        "baseline_root_label",
+        "candidate_root_label",
+        "baseline_root_summary_schema",
+        "candidate_root_summary_schema",
+        "baseline_root_summary_kind",
+        "candidate_root_summary_kind",
+        "baseline_recommended_entry_mode",
+        "candidate_recommended_entry_mode",
+        "baseline_entry_tier",
+        "candidate_entry_tier",
+        "baseline_primary_tab_id",
+        "candidate_primary_tab_id",
+        "baseline_primary_anchor",
+        "candidate_primary_anchor",
+        "baseline_available_tab_ids",
+        "candidate_available_tab_ids",
+        "baseline_fallback_mode_order",
+        "candidate_fallback_mode_order",
+        "baseline_tab_count",
+        "candidate_tab_count",
+        "baseline_provenance_root_count",
+        "candidate_provenance_root_count",
+        "baseline_route_provenance_entry_count",
+        "candidate_route_provenance_entry_count",
+        "baseline_direct_review_available",
+        "candidate_direct_review_available",
+        "baseline_direct_compare_available",
+        "candidate_direct_compare_available",
+        "baseline_direct_biography_available",
+        "candidate_direct_biography_available",
+        "baseline_direct_evidence_available",
+        "candidate_direct_evidence_available"
+      ],
+      "properties": {
+        "baseline_result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "candidate_result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "baseline_root_label": {
+          "type": "string"
+        },
+        "candidate_root_label": {
+          "type": "string"
+        },
+        "baseline_root_summary_schema": {
+          "type": "string"
+        },
+        "candidate_root_summary_schema": {
+          "type": "string"
+        },
+        "baseline_root_summary_kind": {
+          "type": "string"
+        },
+        "candidate_root_summary_kind": {
+          "type": "string"
+        },
+        "baseline_recommended_entry_mode": {
+          "type": "string",
+          "enum": [
+            "review",
+            "compare",
+            "biography",
+            "evidence",
+            "route"
+          ]
+        },
+        "candidate_recommended_entry_mode": {
+          "type": "string",
+          "enum": [
+            "review",
+            "compare",
+            "biography",
+            "evidence",
+            "route"
+          ]
+        },
+        "baseline_entry_tier": {
+          "type": "string",
+          "enum": [
+            "review_ready",
+            "compare_ready",
+            "biography_ready",
+            "evidence_only",
+            "route_only"
+          ]
+        },
+        "candidate_entry_tier": {
+          "type": "string",
+          "enum": [
+            "review_ready",
+            "compare_ready",
+            "biography_ready",
+            "evidence_only",
+            "route_only"
+          ]
+        },
+        "baseline_primary_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_primary_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_primary_anchor": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_primary_anchor": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_available_tab_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "candidate_available_tab_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "baseline_fallback_mode_order": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "candidate_fallback_mode_order": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "baseline_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_provenance_root_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_provenance_root_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_route_provenance_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_route_provenance_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_direct_review_available": {
+          "type": "boolean"
+        },
+        "candidate_direct_review_available": {
+          "type": "boolean"
+        },
+        "baseline_direct_compare_available": {
+          "type": "boolean"
+        },
+        "candidate_direct_compare_available": {
+          "type": "boolean"
+        },
+        "baseline_direct_biography_available": {
+          "type": "boolean"
+        },
+        "candidate_direct_biography_available": {
+          "type": "boolean"
+        },
+        "baseline_direct_evidence_available": {
+          "type": "boolean"
+        },
+        "candidate_direct_evidence_available": {
+          "type": "boolean"
+        }
+      }
+    },
+    "landingChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_label_changed",
+        "root_schema_changed",
+        "root_kind_changed",
+        "recommended_mode_changed",
+        "entry_tier_changed",
+        "primary_tab_changed",
+        "primary_anchor_changed",
+        "fallback_mode_order_changed",
+        "tab_order_changed",
+        "available_tab_changes",
+        "direct_capability_changes",
+        "provenance_root_changes",
+        "changed"
+      ],
+      "properties": {
+        "root_label_changed": {
+          "type": "boolean"
+        },
+        "root_schema_changed": {
+          "type": "boolean"
+        },
+        "root_kind_changed": {
+          "type": "boolean"
+        },
+        "recommended_mode_changed": {
+          "type": "boolean"
+        },
+        "entry_tier_changed": {
+          "type": "boolean"
+        },
+        "primary_tab_changed": {
+          "type": "boolean"
+        },
+        "primary_anchor_changed": {
+          "type": "boolean"
+        },
+        "fallback_mode_order_changed": {
+          "type": "boolean"
+        },
+        "tab_order_changed": {
+          "type": "boolean"
+        },
+        "available_tab_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "direct_capability_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "provenance_root_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "changed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tabSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_tab_count",
+        "candidate_tab_count",
+        "changed_tab_count",
+        "added_tab_count",
+        "removed_tab_count",
+        "unchanged_tab_count",
+        "regression_count",
+        "improvement_count",
+        "neutral_change_count",
+        "order_changed_count",
+        "capability_alias_changed_count",
+        "primary_flag_changed_count",
+        "path_changed_count"
+      ],
+      "properties": {
+        "baseline_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchanged_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "regression_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "improvement_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "neutral_change_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "order_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "capability_alias_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "primary_flag_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "path_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "tabChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchor_id",
+        "baseline_tab_id",
+        "candidate_tab_id",
+        "change_kind",
+        "impact",
+        "surface_id",
+        "role",
+        "baseline_title",
+        "candidate_title",
+        "baseline_summary_schema",
+        "candidate_summary_schema",
+        "baseline_summary_kind",
+        "candidate_summary_kind",
+        "baseline_summary_path",
+        "candidate_summary_path",
+        "baseline_order_index",
+        "candidate_order_index",
+        "baseline_capability_ids",
+        "candidate_capability_ids",
+        "baseline_route_id",
+        "candidate_route_id",
+        "baseline_primary",
+        "candidate_primary",
+        "baseline_route_provenance_count",
+        "candidate_route_provenance_count",
+        "baseline_supporting_surface_count",
+        "candidate_supporting_surface_count",
+        "metadata_changes",
+        "path_changes"
+      ],
+      "properties": {
+        "anchor_id": {
+          "type": "string"
+        },
+        "baseline_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "enum": [
+            "regression",
+            "improvement",
+            "neutral"
+          ]
+        },
+        "surface_id": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "baseline_title": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_title": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_summary_schema": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_summary_schema": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_summary_kind": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_summary_kind": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_summary_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_summary_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_order_index": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "candidate_order_index": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "baseline_capability_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "candidate_capability_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "baseline_route_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_route_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_primary": {
+          "$ref": "#/$defs/nullableBoolean"
+        },
+        "candidate_primary": {
+          "$ref": "#/$defs/nullableBoolean"
+        },
+        "baseline_route_provenance_count": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "candidate_route_provenance_count": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "baseline_supporting_surface_count": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "candidate_supporting_surface_count": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "metadata_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "path_changes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "landingRegressionSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "removed_tab_ids",
+        "lost_direct_modes",
+        "missing_primary_tab_id",
+        "downgraded_tier",
+        "regressed_tabs",
+        "affected_tab_ids",
+        "narratives"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "removed_tab_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "lost_direct_modes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "missing_primary_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "downgraded_tier": {
+          "type": "boolean"
+        },
+        "regressed_tabs": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "affected_tab_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "narratives": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "questionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compare_questions",
+        "next_questions"
+      ],
+      "properties": {
+        "compare_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "next_questions": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    }
+  }
+}

@@ -22,6 +22,11 @@ param(
     [string]$BiographyReportMarkdownPath = "",
     [string]$BiographyCheckTextPath = "",
     [string]$BiographyValidationLogPath = "",
+    [string]$FrontPageRouteOutputRoot = "",
+    [string]$FrontPageRouteSummaryPath = "",
+    [string]$FrontPageRouteReportMarkdownPath = "",
+    [string]$FrontPageRouteCheckTextPath = "",
+    [string]$FrontPageRouteValidationLogPath = "",
     [string]$WorldCompareOutputRoot = "",
     [string]$WorldCompareSummaryPath = "",
     [string]$WorldCompareReportMarkdownPath = "",
@@ -277,6 +282,50 @@ function Append-Utf8Text {
     Set-Content -LiteralPath $Path -Encoding utf8 -Value ($existing + $Text)
 }
 
+function Export-FrontPageRouteArtifacts {
+    param(
+        [string]$PythonExe,
+        [string]$ExportScript,
+        [string]$ValidateScript,
+        [string]$InputSummaryPath,
+        [string]$OutputRootPath,
+        [string]$SummaryPath,
+        [string]$ReportMarkdownPath,
+        [string]$CheckTextPath,
+        [string]$ValidationLogPath,
+        [string]$FailurePrefix
+    )
+
+    $exportLogPath = Join-Path $OutputRootPath "front-page.route.export.log"
+    $null = Invoke-ExternalTool `
+        -Executable $PythonExe `
+        -ArgumentList @(
+            $ExportScript,
+            "--summary",
+            $InputSummaryPath,
+            "--output-root",
+            $OutputRootPath,
+            "--route-summary",
+            $SummaryPath,
+            "--report-markdown",
+            $ReportMarkdownPath,
+            "--check-text",
+            $CheckTextPath
+        ) `
+        -LogPath $exportLogPath `
+        -FailureMessage ("{0} front page route export failed" -f $FailurePrefix)
+
+    $null = Invoke-ExternalTool `
+        -Executable $PythonExe `
+        -ArgumentList @(
+            $ValidateScript,
+            "--summary",
+            $SummaryPath
+        ) `
+        -LogPath $ValidationLogPath `
+        -FailureMessage ("{0} front page route validation failed" -f $FailurePrefix)
+}
+
 function Append-WorldCompareOverlay {
     param(
         [string]$ReportPath,
@@ -385,6 +434,15 @@ $biographySummaryPathResolved = Get-OutputPath -ExplicitPath $BiographySummaryPa
 $biographyReportMarkdownPathResolved = Get-OutputPath -ExplicitPath $BiographyReportMarkdownPath -OutputRootPath $outputRootPath -DefaultFileName "biography.report.md"
 $biographyCheckTextPathResolved = Get-OutputPath -ExplicitPath $BiographyCheckTextPath -OutputRootPath $outputRootPath -DefaultFileName "biography.check.txt"
 $biographyValidationLogPathResolved = Get-OutputPath -ExplicitPath $BiographyValidationLogPath -OutputRootPath $outputRootPath -DefaultFileName "biography.validate.log"
+$resolvedFrontPageRouteOutputRoot = if ([string]::IsNullOrWhiteSpace($FrontPageRouteOutputRoot)) {
+    Join-Path $outputRootPath "front_page_route"
+} else {
+    Resolve-FullPath -Path $FrontPageRouteOutputRoot
+}
+$frontPageRouteSummaryPathResolved = Get-OutputPath -ExplicitPath $FrontPageRouteSummaryPath -OutputRootPath $resolvedFrontPageRouteOutputRoot -DefaultFileName "front-page.route.summary.json"
+$frontPageRouteReportMarkdownPathResolved = Get-OutputPath -ExplicitPath $FrontPageRouteReportMarkdownPath -OutputRootPath $resolvedFrontPageRouteOutputRoot -DefaultFileName "front-page.route.report.md"
+$frontPageRouteCheckTextPathResolved = Get-OutputPath -ExplicitPath $FrontPageRouteCheckTextPath -OutputRootPath $resolvedFrontPageRouteOutputRoot -DefaultFileName "front-page.route.check.txt"
+$frontPageRouteValidationLogPathResolved = Get-OutputPath -ExplicitPath $FrontPageRouteValidationLogPath -OutputRootPath $resolvedFrontPageRouteOutputRoot -DefaultFileName "front-page.route.validate.log"
 $runtimeEvidenceValidationLogPathResolved = Get-OutputPath -ExplicitPath $RuntimeEvidenceValidationLogPath -OutputRootPath $outputRootPath -DefaultFileName "runtime_evidence_validate.log"
 $runtimeBundleLogPathResolved = Join-Path $outputRootPath "runtime_evidence_bundle.log"
 $exportLogPathResolved = Join-Path $outputRootPath "export.log"
@@ -471,8 +529,11 @@ $runtimeEvidenceScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_evidenc
 $validateRuntimeEvidenceScript = Join-Path $PSScriptRoot "validate_minimal_kernel_runtime_evidence.py"
 $exportWitnessScript = Join-Path $PSScriptRoot "export_system_compiler_witness_bundle.ps1"
 $validateWitnessScript = Join-Path $PSScriptRoot "validate_system_compiler_witness_bundle.py"
+$updateWitnessFrontPageScript = Join-Path $PSScriptRoot "update_system_compiler_witness_bundle_front_page.ps1"
 $exportBiographyScript = Join-Path $PSScriptRoot "export_system_compiler_biography.py"
 $validateBiographyScript = Join-Path $PSScriptRoot "validate_system_compiler_biography.py"
+$exportFrontPageRouteScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_route.py"
+$validateFrontPageRouteScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_route.py"
 $worldCompareScript = Join-Path $PSScriptRoot "compare_system_compiler_world.py"
 $validateWorldCompareScript = Join-Path $PSScriptRoot "validate_system_compiler_world_compare.py"
 $runtimeEvidenceSupportsSkipWitnessBundle = $false
@@ -482,8 +543,11 @@ $requiredPaths.Add($runtimeEvidenceScript) | Out-Null
 $requiredPaths.Add($validateRuntimeEvidenceScript) | Out-Null
 $requiredPaths.Add($exportWitnessScript) | Out-Null
 $requiredPaths.Add($validateWitnessScript) | Out-Null
+$requiredPaths.Add($updateWitnessFrontPageScript) | Out-Null
 $requiredPaths.Add($exportBiographyScript) | Out-Null
 $requiredPaths.Add($validateBiographyScript) | Out-Null
+$requiredPaths.Add($exportFrontPageRouteScript) | Out-Null
+$requiredPaths.Add($validateFrontPageRouteScript) | Out-Null
 $requiredPaths.Add($resolvedCanonicalWorld) | Out-Null
 if ($shouldRunWorldCompare) {
     $requiredPaths.Add($worldCompareScript) | Out-Null
@@ -723,6 +787,35 @@ try {
         -LogPath $biographyValidationLogPathResolved `
         -FailureMessage "system compiler biography validation failed"
 
+    $updateFrontPageArgs = @{
+        SummaryPath = $summaryPathResolved
+        RuntimeEvidenceSummary = $resolvedRuntimeEvidenceSummary
+        BiographySummary = $biographySummaryPathResolved
+    }
+    if ($shouldRunWorldCompare) {
+        $updateFrontPageArgs.WorldCompareSummary = $worldCompareSummaryPathResolved
+    }
+
+    & $updateWitnessFrontPageScript @updateFrontPageArgs
+
+    $null = Invoke-ExternalTool `
+        -Executable $resolvedPythonExe `
+        -ArgumentList $validateArgs `
+        -LogPath $validationLogPathResolved `
+        -FailureMessage "system compiler witness validation failed after front_page update"
+
+    Export-FrontPageRouteArtifacts `
+        -PythonExe $resolvedPythonExe `
+        -ExportScript $exportFrontPageRouteScript `
+        -ValidateScript $validateFrontPageRouteScript `
+        -InputSummaryPath $summaryPathResolved `
+        -OutputRootPath $resolvedFrontPageRouteOutputRoot `
+        -SummaryPath $frontPageRouteSummaryPathResolved `
+        -ReportMarkdownPath $frontPageRouteReportMarkdownPathResolved `
+        -CheckTextPath $frontPageRouteCheckTextPathResolved `
+        -ValidationLogPath $frontPageRouteValidationLogPathResolved `
+        -FailurePrefix "system compiler witness"
+
     Write-Host "==> system compiler witness bundle"
     Write-Host "profile=minimal-kernel-runtime-system-compiler-witness"
     Write-Host ("canonical_world={0}" -f $resolvedCanonicalWorld)
@@ -737,6 +830,11 @@ try {
     Write-Host ("biography_report_markdown={0}" -f $biographyReportMarkdownPathResolved)
     Write-Host ("biography_check_text={0}" -f $biographyCheckTextPathResolved)
     Write-Host ("biography_validation_log={0}" -f $biographyValidationLogPathResolved)
+    Write-Host ("front_page_route_output_root={0}" -f $resolvedFrontPageRouteOutputRoot)
+    Write-Host ("front_page_route_summary={0}" -f $frontPageRouteSummaryPathResolved)
+    Write-Host ("front_page_route_report_markdown={0}" -f $frontPageRouteReportMarkdownPathResolved)
+    Write-Host ("front_page_route_check_text={0}" -f $frontPageRouteCheckTextPathResolved)
+    Write-Host ("front_page_route_validation_log={0}" -f $frontPageRouteValidationLogPathResolved)
     if ($shouldRunWorldCompare) {
         Write-Host ("baseline_witness_summary={0}" -f $resolvedBaselineWitnessSummary)
         if ([string]::IsNullOrWhiteSpace($BaselineWitnessSummary)) {

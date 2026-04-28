@@ -22,6 +22,11 @@ param(
     [string]$BiographyReportMarkdownPath = "",
     [string]$BiographyCheckTextPath = "",
     [string]$BiographyValidationLogPath = "",
+    [string]$FrontPageRouteOutputRoot = "",
+    [string]$FrontPageRouteSummaryPath = "",
+    [string]$FrontPageRouteReportMarkdownPath = "",
+    [string]$FrontPageRouteCheckTextPath = "",
+    [string]$FrontPageRouteValidationLogPath = "",
     [string]$WorldCompareOutputRoot = "",
     [string]$WorldCompareSummaryPath = "",
     [string]$WorldCompareReportMarkdownPath = "",
@@ -133,6 +138,90 @@ function Load-JsonObject {
     return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
 }
 
+function Resolve-ToolPath {
+    param(
+        [string[]]$Candidates
+    )
+
+    foreach ($candidate in $Candidates) {
+        $command = Get-Command $candidate -ErrorAction SilentlyContinue
+        if ($null -ne $command) {
+            return $command.Source
+        }
+    }
+
+    throw "tool not found: $($Candidates -join ', ')"
+}
+
+function Invoke-ExternalTool {
+    param(
+        [string]$Executable,
+        [string[]]$ArgumentList,
+        [string]$LogPath,
+        [string]$FailureMessage
+    )
+
+    Ensure-ParentDirectory -Path $LogPath
+    Write-Host ("==> {0}" -f [System.IO.Path]::GetFileName($Executable))
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $Executable @ArgumentList 2>&1 | Tee-Object -FilePath $LogPath | Out-Host
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($exitCode -ne 0) {
+        throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
+    }
+}
+
+function Export-FrontPageRouteArtifacts {
+    param(
+        [string]$PythonExe,
+        [string]$ExportScript,
+        [string]$ValidateScript,
+        [string]$InputSummaryPath,
+        [string]$OutputRootPath,
+        [string]$SummaryPath,
+        [string]$ReportMarkdownPath,
+        [string]$CheckTextPath,
+        [string]$ValidationLogPath,
+        [string]$FailurePrefix
+    )
+
+    $exportLogPath = Join-Path $OutputRootPath "front-page.route.export.log"
+    Invoke-ExternalTool `
+        -Executable $PythonExe `
+        -ArgumentList @(
+            $ExportScript,
+            "--summary",
+            $InputSummaryPath,
+            "--output-root",
+            $OutputRootPath,
+            "--route-summary",
+            $SummaryPath,
+            "--report-markdown",
+            $ReportMarkdownPath,
+            "--check-text",
+            $CheckTextPath
+        ) `
+        -LogPath $exportLogPath `
+        -FailureMessage ("{0} front page route export failed" -f $FailurePrefix)
+
+    Invoke-ExternalTool `
+        -Executable $PythonExe `
+        -ArgumentList @(
+            $ValidateScript,
+            "--summary",
+            $SummaryPath
+        ) `
+        -LogPath $ValidationLogPath `
+        -FailureMessage ("{0} front page route validation failed" -f $FailurePrefix)
+}
+
 function Append-WorldShelfReviewOverlay {
     param(
         [string]$ReportPath,
@@ -205,8 +294,12 @@ function Append-WorldShelfReviewOverlay {
 
 $rootScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_system_compiler_witness_bundle.ps1"
 $reviewShelfScript = Join-Path $PSScriptRoot "review_system_compiler_world_shelf.ps1"
+$updateWitnessFrontPageScript = Join-Path $PSScriptRoot "update_system_compiler_witness_bundle_front_page.ps1"
+$validateWitnessScript = Join-Path $PSScriptRoot "validate_system_compiler_witness_bundle.py"
+$exportFrontPageRouteScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_route.py"
+$validateFrontPageRouteScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_route.py"
 
-foreach ($requiredPath in @($rootScript, $reviewShelfScript)) {
+foreach ($requiredPath in @($rootScript, $reviewShelfScript, $updateWitnessFrontPageScript, $validateWitnessScript, $exportFrontPageRouteScript, $validateFrontPageRouteScript)) {
     if (-not (Test-Path $requiredPath)) {
         throw "missing script: $requiredPath"
     }
@@ -219,6 +312,10 @@ $effectiveOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
 }
 
 $resolvedOutputRoot = Resolve-FullPath -Path $effectiveOutputRoot
+$resolvedSummaryPath = Get-OutputPath `
+    -ExplicitPath $SummaryPath `
+    -OutputRootPath $resolvedOutputRoot `
+    -DefaultFileName "summary.json"
 $resolvedReportMarkdownPath = Get-OutputPath `
     -ExplicitPath $ReportMarkdownPath `
     -OutputRootPath $resolvedOutputRoot `
@@ -227,10 +324,19 @@ $resolvedCheckTextPath = Get-OutputPath `
     -ExplicitPath $CheckTextPath `
     -OutputRootPath $resolvedOutputRoot `
     -DefaultFileName "check.txt"
+$resolvedValidationLogPath = Get-OutputPath `
+    -ExplicitPath $ValidationLogPath `
+    -OutputRootPath $resolvedOutputRoot `
+    -DefaultFileName "validate.log"
 $resolvedRuntimeEvidenceOutputRoot = if ([string]::IsNullOrWhiteSpace($RuntimeEvidenceOutputRoot)) {
     Resolve-FullPath -Path (Join-Path $resolvedOutputRoot "runtime_evidence")
 } else {
     Resolve-FullPath -Path $RuntimeEvidenceOutputRoot
+}
+$resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
+    Resolve-ToolPath -Candidates @("python.exe", "python")
+} else {
+    Resolve-FullPath -Path $PythonExe
 }
 $resolvedPrimaryRuntimeEvidenceSummary = if ([string]::IsNullOrWhiteSpace($RuntimeEvidenceSummary)) {
     Resolve-FullPath -Path (Join-Path $resolvedRuntimeEvidenceOutputRoot "summary.json")
@@ -241,6 +347,27 @@ $resolvedPrimaryBiographySummary = Get-OutputPath `
     -ExplicitPath $BiographySummaryPath `
     -OutputRootPath $resolvedOutputRoot `
     -DefaultFileName "biography.summary.json"
+$resolvedFrontPageRouteOutputRoot = if ([string]::IsNullOrWhiteSpace($FrontPageRouteOutputRoot)) {
+    Resolve-FullPath -Path (Join-Path $resolvedOutputRoot "front_page_route")
+} else {
+    Resolve-FullPath -Path $FrontPageRouteOutputRoot
+}
+$resolvedFrontPageRouteSummaryPath = Get-OutputPath `
+    -ExplicitPath $FrontPageRouteSummaryPath `
+    -OutputRootPath $resolvedFrontPageRouteOutputRoot `
+    -DefaultFileName "front-page.route.summary.json"
+$resolvedFrontPageRouteReportMarkdownPath = Get-OutputPath `
+    -ExplicitPath $FrontPageRouteReportMarkdownPath `
+    -OutputRootPath $resolvedFrontPageRouteOutputRoot `
+    -DefaultFileName "front-page.route.report.md"
+$resolvedFrontPageRouteCheckTextPath = Get-OutputPath `
+    -ExplicitPath $FrontPageRouteCheckTextPath `
+    -OutputRootPath $resolvedFrontPageRouteOutputRoot `
+    -DefaultFileName "front-page.route.check.txt"
+$resolvedFrontPageRouteValidationLogPath = Get-OutputPath `
+    -ExplicitPath $FrontPageRouteValidationLogPath `
+    -OutputRootPath $resolvedFrontPageRouteOutputRoot `
+    -DefaultFileName "front-page.route.validate.log"
 
 $commonArgs = @{
     CMakeExe       = $CMakeExe
@@ -308,6 +435,21 @@ if ($PSBoundParameters.ContainsKey("HostExamples")) {
 $primaryArgs = Copy-Hashtable -Source $commonArgs
 if ($Clean) {
     $primaryArgs.Clean = $true
+}
+if (-not [string]::IsNullOrWhiteSpace($FrontPageRouteOutputRoot)) {
+    $primaryArgs.FrontPageRouteOutputRoot = $FrontPageRouteOutputRoot
+}
+if (-not [string]::IsNullOrWhiteSpace($FrontPageRouteSummaryPath)) {
+    $primaryArgs.FrontPageRouteSummaryPath = $FrontPageRouteSummaryPath
+}
+if (-not [string]::IsNullOrWhiteSpace($FrontPageRouteReportMarkdownPath)) {
+    $primaryArgs.FrontPageRouteReportMarkdownPath = $FrontPageRouteReportMarkdownPath
+}
+if (-not [string]::IsNullOrWhiteSpace($FrontPageRouteCheckTextPath)) {
+    $primaryArgs.FrontPageRouteCheckTextPath = $FrontPageRouteCheckTextPath
+}
+if (-not [string]::IsNullOrWhiteSpace($FrontPageRouteValidationLogPath)) {
+    $primaryArgs.FrontPageRouteValidationLogPath = $FrontPageRouteValidationLogPath
 }
 
 if ($RunWorldShelfFlow) {
@@ -455,6 +597,38 @@ Append-WorldShelfReviewOverlay `
     -BaselineShelfSummaryPath (Join-Path $resolvedWorldShelfBaselineOutputRoot "biography.index.summary.json") `
     -CompareSummaryPath (Join-Path $resolvedWorldShelfCompareOutputRoot "summary.json")
 
+& $updateWitnessFrontPageScript `
+    -SummaryPath $resolvedSummaryPath `
+    -RuntimeEvidenceSummary $resolvedPrimaryRuntimeEvidenceSummary `
+    -BiographySummary $resolvedPrimaryBiographySummary `
+    -WorldShelfReviewSummary $resolvedWorldShelfReviewSummaryPath
+
+Ensure-ParentDirectory -Path $resolvedValidationLogPath
+$previousErrorActionPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "Continue"
+    & $resolvedPythonExe $validateWitnessScript --summary $resolvedSummaryPath 2>&1 | Tee-Object -FilePath $resolvedValidationLogPath | Out-Host
+    $exitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}
+
+if ($exitCode -ne 0) {
+    throw ("system compiler witness validation failed after world shelf front_page update (exit code {0})" -f $exitCode)
+}
+
+Export-FrontPageRouteArtifacts `
+    -PythonExe $resolvedPythonExe `
+    -ExportScript $exportFrontPageRouteScript `
+    -ValidateScript $validateFrontPageRouteScript `
+    -InputSummaryPath $resolvedSummaryPath `
+    -OutputRootPath $resolvedFrontPageRouteOutputRoot `
+    -SummaryPath $resolvedFrontPageRouteSummaryPath `
+    -ReportMarkdownPath $resolvedFrontPageRouteReportMarkdownPath `
+    -CheckTextPath $resolvedFrontPageRouteCheckTextPath `
+    -ValidationLogPath $resolvedFrontPageRouteValidationLogPath `
+    -FailurePrefix "system compiler witness"
+
 Write-Host "==> minimal kernel runtime system compiler witness shelf flow"
 Write-Host ("primary_biography={0}" -f $resolvedPrimaryBiographySummary)
 Write-Host ("self_compare_biography={0}" -f $resolvedSelfCompareBiographySummary)
@@ -464,3 +638,8 @@ Write-Host ("world_shelf_compare_output_root={0}" -f $resolvedWorldShelfCompareO
 Write-Host ("world_shelf_review_summary={0}" -f $resolvedWorldShelfReviewSummaryPath)
 Write-Host ("world_shelf_review_report={0}" -f $resolvedWorldShelfReviewReportPath)
 Write-Host ("world_shelf_review_check={0}" -f $resolvedWorldShelfReviewCheckPath)
+Write-Host ("front_page_route_output_root={0}" -f $resolvedFrontPageRouteOutputRoot)
+Write-Host ("front_page_route_summary={0}" -f $resolvedFrontPageRouteSummaryPath)
+Write-Host ("front_page_route_report={0}" -f $resolvedFrontPageRouteReportMarkdownPath)
+Write-Host ("front_page_route_check={0}" -f $resolvedFrontPageRouteCheckTextPath)
+Write-Host ("front_page_route_validation_log={0}" -f $resolvedFrontPageRouteValidationLogPath)

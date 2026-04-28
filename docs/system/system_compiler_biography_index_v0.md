@@ -44,6 +44,8 @@ Current `system compiler biography index` includes:
   - `scripts/export_system_compiler_biography_index.py`
 - assembly wrapper
   - `scripts/assemble_system_compiler_world_shelf.ps1`
+- review wrapper
+  - `scripts/review_system_compiler_world_shelf.ps1`
 - validate script
   - `scripts/validate_system_compiler_biography_index.py`
 - gate script
@@ -153,6 +155,49 @@ This wrapper does four things in one pass:
 It also leaves behind the discovered biography list and the export / validate /
 gate logs so the shelf itself can explain how it was assembled.
 
+### Review a candidate shelf against a baseline from one wrapper
+
+If the caller starts from biographies rather than from already-built shelves,
+the next recommended path is the review wrapper:
+
+```powershell
+./scripts/review_system_compiler_world_shelf.ps1 `
+  -SearchRoot out/minimal-kernel-runtime-system-compiler-witness `
+  -BaselineBiographySummary out/minimal-kernel-runtime-system-compiler-witness/biography.summary.json `
+  -OutputRoot out/minimal-kernel-runtime-system-compiler-witness `
+  -CandidateProfile minimal-kernel-runtime-system-compiler-witness-shelf `
+  -CandidateRequireBiographyCount 2 `
+  -CandidateRequireCompareAttachedCount 1 `
+  -BaselineProfile minimal-kernel-runtime-system-compiler-witness-shelf-baseline `
+  -BaselineRequireBiographyCount 1 `
+  -CompareRequireVerdict improved `
+  -CompareMaxRegressions 0
+```
+
+This wrapper keeps the same stable shelf outputs:
+
+- `world-shelf/`
+- `world-shelf-baseline/`
+- `world-shelf-compare/`
+
+and also emits a thin review front page:
+
+- `world-shelf.review.md`
+- `world-shelf.check.txt`
+
+The minimal-kernel witness CI wrapper now lands on this same seam directly:
+
+```powershell
+./scripts/ci_minimal_kernel_runtime_system_compiler_witness_bundle.ps1 `
+  -OutputRoot out/minimal-kernel-runtime-system-compiler-witness `
+  -RunWorldShelfFlow `
+  -Clean
+```
+
+That flow keeps the root witness export and the self-compare export in the CI
+wrapper, then hands the biography-level shelf review to
+`review_system_compiler_world_shelf.ps1`.
+
 ### Build a shelf from root + self-compare biographies manually
 
 ```powershell
@@ -259,6 +304,10 @@ biography that already compressed them.
 
 If two shelves need to be reviewed as baseline vs candidate, that compare
 belongs in `docs/system/system_compiler_biography_index_compare_v0.md`.
+
+If the caller wants one wrapper that starts from biographies and lands on both
+shelves plus the shelf compare handoff, use
+`scripts/review_system_compiler_world_shelf.ps1`.
 
 ## Current non-goals
 

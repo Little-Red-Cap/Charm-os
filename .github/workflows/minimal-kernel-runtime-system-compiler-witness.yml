@@ -12,6 +12,7 @@ on:
       - scripts/check_system_compiler_biography_index_summary.ps1
       - scripts/assemble_system_compiler_world_shelf.ps1
       - scripts/compare_system_compiler_world_shelf.ps1
+      - scripts/review_system_compiler_world_shelf.ps1
       - scripts/export_system_compiler_biography_index.py
       - scripts/compare_system_compiler_biography_index.py
       - scripts/validate_system_compiler_biography.py
@@ -125,6 +126,7 @@ jobs:
           ./scripts/ci_minimal_kernel_runtime_system_compiler_witness_bundle.ps1 `
             -OutputRoot out/minimal-kernel-runtime-system-compiler-witness `
             -Clean `
+            -RunWorldShelfFlow `
             -HostExamples runtime_minimal_host `
             -HostJobs 8 `
             -QemuBuildJobs 8 `
@@ -138,15 +140,6 @@ jobs:
             -RequireVerdict not-attached `
             -MaxRequiredMissing 0
 
-      - name: Run runtime witness self compare smoke
-        shell: pwsh
-        run: |
-          ./scripts/ci_minimal_kernel_runtime_system_compiler_witness_bundle.ps1 `
-            -RuntimeEvidenceSummary out/minimal-kernel-runtime-system-compiler-witness/runtime_evidence/summary.json `
-            -BaselineRuntimeEvidenceSummary out/minimal-kernel-runtime-system-compiler-witness/runtime_evidence/summary.json `
-            -OutputRoot out/minimal-kernel-runtime-system-compiler-witness/self-compare `
-            -Clean
-
       - name: Check witness self compare biography
         shell: pwsh
         run: |
@@ -158,59 +151,6 @@ jobs:
             -MaxRegressions 0 `
             -MaxRequiredRegressions 0 `
             -RequireCollapseSurfaceUnchanged
-
-      - name: Assemble witness world shelf
-        shell: pwsh
-        run: |
-          ./scripts/assemble_system_compiler_world_shelf.ps1 `
-            -SearchRoot out/minimal-kernel-runtime-system-compiler-witness `
-            -OutputRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf `
-            -Profile minimal-kernel-runtime-system-compiler-witness-shelf `
-            -RequireBiographyCount 2 `
-            -RequireUniqueWorldCount 1 `
-            -RequireOkCount 2 `
-            -MaxFailCount 0 `
-            -RequireCompareAttachedCount 1 `
-            -RequireNotAttachedCount 1 `
-            -RequireStandingCount 1 `
-            -RequireImprovedCount 0 `
-            -RequireDriftedCount 0 `
-            -RequireCollapsedCount 0
-
-      - name: Assemble witness baseline shelf
-        shell: pwsh
-        run: |
-          ./scripts/assemble_system_compiler_world_shelf.ps1 `
-            -BiographySummary out/minimal-kernel-runtime-system-compiler-witness/biography.summary.json `
-            -OutputRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf-baseline `
-            -Profile minimal-kernel-runtime-system-compiler-witness-shelf `
-            -RequireBiographyCount 1 `
-            -RequireUniqueWorldCount 1 `
-            -RequireOkCount 1 `
-            -MaxFailCount 0 `
-            -RequireCompareAttachedCount 0 `
-            -RequireNotAttachedCount 1 `
-            -RequireStandingCount 0 `
-            -RequireImprovedCount 0 `
-            -RequireDriftedCount 0 `
-            -RequireCollapsedCount 0
-
-      - name: Compare witness shelves
-        shell: pwsh
-        run: |
-          ./scripts/compare_system_compiler_world_shelf.ps1 `
-            -BaselineShelfRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf-baseline `
-            -CandidateShelfRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf `
-            -OutputRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf-compare `
-            -RequireVerdict improved `
-            -MaxRegressions 0 `
-            -RequireAddedEntries 1 `
-            -RequireRemovedEntries 0 `
-            -RequireChangedEntries 1 `
-            -RequireImprovementCount 1 `
-            -RequireAddedWorlds 0 `
-            -RequireRemovedWorlds 0 `
-            -MaxAddedFailedEntries 0
 
       - name: Run sample world compare smoke
         shell: pwsh
@@ -228,6 +168,7 @@ jobs:
         shell: pwsh
         run: |
           $reportCandidates = @(
+            "out/minimal-kernel-runtime-system-compiler-witness/world-shelf.review.md",
             "out/minimal-kernel-runtime-system-compiler-witness/world-shelf-compare/report.md",
             "out/minimal-kernel-runtime-system-compiler-witness/world-shelf/biography.index.report.md",
             "out/minimal-kernel-runtime-system-compiler-witness/self-compare/biography.report.md",
@@ -236,6 +177,7 @@ jobs:
             "out/minimal-kernel-runtime-system-compiler-witness/report.md"
           )
           $checkCandidates = @(
+            "out/minimal-kernel-runtime-system-compiler-witness/world-shelf.check.txt",
             "out/minimal-kernel-runtime-system-compiler-witness/world-shelf-compare/check.txt",
             "out/minimal-kernel-runtime-system-compiler-witness/world-shelf/biography.index.check.txt",
             "out/minimal-kernel-runtime-system-compiler-witness/self-compare/biography.check.txt",

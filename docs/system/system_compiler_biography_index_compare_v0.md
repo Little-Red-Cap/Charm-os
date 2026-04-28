@@ -44,6 +44,8 @@ Current `system compiler biography index compare` includes:
   - `scripts/compare_system_compiler_biography_index.py`
 - compare wrapper
   - `scripts/compare_system_compiler_world_shelf.ps1`
+- review wrapper
+  - `scripts/review_system_compiler_world_shelf.ps1`
 - validate script
   - `scripts/validate_system_compiler_biography_index_compare.py`
 - gate script
@@ -170,6 +172,20 @@ It also leaves behind the resolved baseline / candidate shelf paths plus the
 compare / validate / gate logs so the shelf diff can explain how it was
 assembled.
 
+If the caller starts one layer lower from biographies, rather than from ready
+shelves, the handoff should go through
+`scripts/review_system_compiler_world_shelf.ps1`.
+
+The minimal-kernel world-compare CI wrapper now lands on that same review seam
+with:
+
+```powershell
+./scripts/ci_minimal_kernel_runtime_system_compiler_world_compare.ps1 `
+  -OutputRoot out/minimal-kernel-runtime-system-compiler-world-compare `
+  -RunWorldShelfFlow `
+  -Clean
+```
+
 ### Compare a one-entry witness shelf to a two-entry compare-attached shelf manually
 
 ```powershell
@@ -245,6 +261,10 @@ the next question up: how the grouped world shelf moved as one delivery.
 `compare_system_compiler_world_shelf.ps1` is the next wrapper layer above that:
 it reopens both existing shelves, exports the shelf diff, validates it, and can
 gate it in one pass.
+
+`review_system_compiler_world_shelf.ps1` sits one workflow layer above both:
+it starts from biographies, assembles the shelves, and then lands on the same
+shelf compare object.
 
 ## Current non-goals
 

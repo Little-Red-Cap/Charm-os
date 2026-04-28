@@ -3,6 +3,9 @@
 `system_compiler.biography_index/v0` is the next directory layer above a single
 `system_compiler.biography/v0`.
 
+If two shelves later need to be compared as one grouped delivery object, the
+next layer up is `system_compiler.biography_index_compare/v0`.
+
 It does not replace:
 
 - `runtime evidence bundle`
@@ -39,6 +42,8 @@ Current `system compiler biography index` includes:
   - `schemas/system_compiler.biography_index.v0.schema.json`
 - export script
   - `scripts/export_system_compiler_biography_index.py`
+- assembly wrapper
+  - `scripts/assemble_system_compiler_world_shelf.ps1`
 - validate script
   - `scripts/validate_system_compiler_biography_index.py`
 - gate script
@@ -53,6 +58,13 @@ Current outputs:
 - `biography.index.summary.json`
 - `biography.index.report.md`
 - `biography.index.check.txt`
+
+When the assembly wrapper is used, the delivery root also gets sidecars such as:
+
+- `discovered_biographies.txt`
+- `biography.index.export.log`
+- `biography.index.validate.log`
+- `biography.index.gate.log`
 
 ## Current export semantics
 
@@ -112,7 +124,36 @@ So the shelf itself can be:
 
 ## Recommended usage
 
-### Build a shelf from root + self-compare biographies
+### Assemble a shelf by recursive discovery
+
+If a delivery root already contains one or more `biography.summary.json` files,
+the recommended path is to let the assembler discover them:
+
+```powershell
+./scripts/assemble_system_compiler_world_shelf.ps1 `
+  -SearchRoot out/minimal-kernel-runtime-system-compiler-witness `
+  -OutputRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf `
+  -Profile minimal-kernel-runtime-system-compiler-witness-shelf `
+  -RequireBiographyCount 2 `
+  -RequireUniqueWorldCount 1 `
+  -RequireOkCount 2 `
+  -MaxFailCount 0 `
+  -RequireCompareAttachedCount 1 `
+  -RequireNotAttachedCount 1 `
+  -RequireStandingCount 1
+```
+
+This wrapper does four things in one pass:
+
+- discover biography summaries
+- validate each discovered biography
+- export and validate the shelf
+- run the shelf gate
+
+It also leaves behind the discovered biography list and the export / validate /
+gate logs so the shelf itself can explain how it was assembled.
+
+### Build a shelf from root + self-compare biographies manually
 
 ```powershell
 python ./scripts/export_system_compiler_biography_index.py `
@@ -172,6 +213,19 @@ Then gate the one-entry compare shelf:
   -RequireCollapsedCount 0
 ```
 
+The same case can also be assembled by discovery:
+
+```powershell
+./scripts/assemble_system_compiler_world_shelf.ps1 `
+  -SearchRoot out/minimal-kernel-runtime-system-compiler-world-compare `
+  -OutputRoot out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf `
+  -Profile minimal-kernel-runtime-system-compiler-world-compare-shelf `
+  -RequireBiographyCount 1 `
+  -RequireCompareAttachedCount 1 `
+  -RequireStandingCount 1 `
+  -MaxFailCount 0
+```
+
 ## Relationship to existing objects
 
 ### 1. Versus `system compiler biography`
@@ -198,6 +252,13 @@ where the underlying compare artifact lives.
 
 The shelf never tries to restate witness entries in full; it only points to the
 biography that already compressed them.
+
+### 4. Versus `system compiler biography index compare`
+
+`biography index` is still the shelf itself.
+
+If two shelves need to be reviewed as baseline vs candidate, that compare
+belongs in `docs/system/system_compiler_biography_index_compare_v0.md`.
 
 ## Current non-goals
 

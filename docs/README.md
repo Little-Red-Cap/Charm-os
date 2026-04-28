@@ -137,6 +137,7 @@
 - World Compare v0：`docs/system/world_compare_v0.md`
 - System Compiler Biography v0：`docs/system/system_compiler_biography_v0.md`
 - System Compiler Biography Index v0：`docs/system/system_compiler_biography_index_v0.md`
+- System Compiler Biography Index Compare v0：`docs/system/system_compiler_biography_index_compare_v0.md`
 - Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
 - 资源契约 v0：`docs/system/resource_contract_v0.md`
 - bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
@@ -181,6 +182,7 @@ flowchart TD
 | 看 canonical world / witness bundle 怎么组织一组证据世界 | `docs/system/canonical_world_v0.md` → `docs/system/witness_bundle_v0.md` → `Examples/kernel/canonical_worlds/README.md` |
 | 看一个 world 相对基线如何 drift / collapse | `docs/system/world_compare_v0.md` → `docs/system/witness_bundle_v0.md` → `schemas/README.md` |
 | 看 system compiler 如何把证据世界压成顶层交付封面 | `docs/system/system_compiler_biography_v0.md` → `docs/system/world_compare_v0.md` → `schemas/README.md` |
+| 看多个 biography shelf 如何作为一组交付物做 compare | `docs/system/system_compiler_biography_index_v0.md` → `docs/system/system_compiler_biography_index_compare_v0.md` → `schemas/README.md` |
 | 看 system compiler 如何对外解释自己 | `docs/system/explain_surface_v0.md` → `docs/system/init_materialized_graph_observe.md` → `schemas/README.md` |
 | 看资源边界如何进入系统语言 | `docs/system/resource_contract_v0.md` → `docs/system/ssu_contract.md` → `docs/system/init_graph_contract.md` |
 | 看 bringup 如何从装配图变成证据 | `docs/system/bringup_evidence_pipeline_v0.md` → `docs/system/init_materialized_graph_observe.md` → `docs/system/init_graph_contract.md` |
@@ -337,6 +339,8 @@ docs/
 - `docs/system/witness_bundle_v0.md`
 - `docs/system/world_compare_v0.md`
 - `docs/system/system_compiler_biography_v0.md`
+- `docs/system/system_compiler_biography_index_v0.md`
+- `docs/system/system_compiler_biography_index_compare_v0.md`
 - `docs/system/explain_surface_v0.md`
 - `docs/system/resource_contract_v0.md`
 - `docs/system/bringup_evidence_pipeline_v0.md`

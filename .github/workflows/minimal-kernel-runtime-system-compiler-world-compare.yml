@@ -13,14 +13,18 @@ on:
       - scripts/validate_minimal_kernel_runtime_evidence.py
       - scripts/export_system_compiler_biography.py
       - scripts/check_system_compiler_biography_index_summary.ps1
+      - scripts/assemble_system_compiler_world_shelf.ps1
       - scripts/export_system_compiler_biography_index.py
+      - scripts/compare_system_compiler_biography_index.py
       - scripts/export_system_compiler_witness_bundle.ps1
       - scripts/check_system_compiler_biography_summary.ps1
       - scripts/validate_system_compiler_biography.py
       - scripts/validate_system_compiler_biography_index.py
+      - scripts/validate_system_compiler_biography_index_compare.py
       - scripts/validate_system_compiler_witness_bundle.py
       - scripts/compare_system_compiler_world.py
       - scripts/validate_system_compiler_world_compare.py
+      - scripts/check_system_compiler_biography_index_compare_summary.ps1
       - scripts/check_system_compiler_world_compare_summary.ps1
       - scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1
       - scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1
@@ -48,10 +52,12 @@ on:
       - schemas/system_compiler.canonical_world.v0.schema.json
       - schemas/system_compiler.biography.v0.schema.json
       - schemas/system_compiler.biography_index.v0.schema.json
+      - schemas/system_compiler.biography_index_compare.v0.schema.json
       - schemas/system_compiler.witness_bundle.v0.schema.json
       - schemas/system_compiler.world_compare.v0.schema.json
       - docs/system/system_compiler_biography_v0.md
       - docs/system/system_compiler_biography_index_v0.md
+      - docs/system/system_compiler_biography_index_compare_v0.md
 
 permissions:
   contents: read
@@ -146,22 +152,13 @@ jobs:
             -MaxRequiredRegressions 0 `
             -RequireCollapseSurfaceUnchanged
 
-      - name: Export world compare shelf
+      - name: Assemble world compare shelf
         shell: pwsh
         run: |
-          python ./scripts/export_system_compiler_biography_index.py `
-            --biography out/minimal-kernel-runtime-system-compiler-world-compare/biography.summary.json `
-            --output-root out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf `
-            --profile minimal-kernel-runtime-system-compiler-world-compare-shelf
-
-          python ./scripts/validate_system_compiler_biography_index.py `
-            --bundle-root out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf
-
-      - name: Check world compare shelf
-        shell: pwsh
-        run: |
-          ./scripts/check_system_compiler_biography_index_summary.ps1 `
-            -Summary out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf/biography.index.summary.json `
+          ./scripts/assemble_system_compiler_world_shelf.ps1 `
+            -SearchRoot out/minimal-kernel-runtime-system-compiler-world-compare `
+            -OutputRoot out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf `
+            -Profile minimal-kernel-runtime-system-compiler-world-compare-shelf `
             -RequireBiographyCount 1 `
             -RequireUniqueWorldCount 1 `
             -RequireOkCount 1 `
@@ -173,10 +170,38 @@ jobs:
             -RequireDriftedCount 0 `
             -RequireCollapsedCount 0
 
+      - name: Compare world compare shelf against itself
+        shell: pwsh
+        run: |
+          python ./scripts/compare_system_compiler_biography_index.py `
+            --baseline out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf/biography.index.summary.json `
+            --candidate out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf/biography.index.summary.json `
+            --output-root out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf-compare
+
+          python ./scripts/validate_system_compiler_biography_index_compare.py `
+            --bundle-root out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf-compare
+
+      - name: Check world compare shelf compare
+        shell: pwsh
+        run: |
+          ./scripts/check_system_compiler_biography_index_compare_summary.ps1 `
+            -Summary out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf-compare/summary.json `
+            -RequireVerdict standing `
+            -MaxRegressions 0 `
+            -RequireAddedEntries 0 `
+            -RequireRemovedEntries 0 `
+            -RequireChangedEntries 0 `
+            -RequireImprovementCount 0 `
+            -RequireAddedWorlds 0 `
+            -RequireRemovedWorlds 0 `
+            -MaxAddedFailedEntries 0
+
       - name: Publish minimal kernel runtime system compiler world compare report
         if: always()
         shell: pwsh
         run: |
+          $shelfCompareReportPath = "out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf-compare/report.md"
+          $shelfCompareCheckPath = "out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf-compare/check.txt"
           $shelfReportPath = "out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf/biography.index.report.md"
           $shelfCheckPath = "out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf/biography.index.check.txt"
           $biographyReportPath = "out/minimal-kernel-runtime-system-compiler-world-compare/biography.report.md"
@@ -184,6 +209,19 @@ jobs:
           $compareReportPath = "out/minimal-kernel-runtime-system-compiler-world-compare/world_compare/report.md"
           $compareCheckPath = "out/minimal-kernel-runtime-system-compiler-world-compare/world_compare/check.txt"
           $rootReportPath = "out/minimal-kernel-runtime-system-compiler-world-compare/report.md"
+
+          if (Test-Path $shelfCompareReportPath) {
+            Get-Content -LiteralPath $shelfCompareReportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            if (Test-Path $shelfReportPath) {
+              "`n---`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+              Get-Content -LiteralPath $shelfReportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+            if (Test-Path $compareReportPath) {
+              "`n---`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+              Get-Content -LiteralPath $compareReportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+            return
+          }
 
           if (Test-Path $shelfReportPath) {
             Get-Content -LiteralPath $shelfReportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
@@ -209,6 +247,19 @@ jobs:
               "`n---`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
               Get-Content -LiteralPath $rootReportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
             }
+            return
+          }
+
+          if (Test-Path $shelfCompareCheckPath) {
+            @(
+              "## Minimal Kernel Runtime System Compiler World Shelf Compare"
+              ""
+              "Shelf compare report was not generated. Fallback check output:"
+              ""
+              "```text"
+              (Get-Content -LiteralPath $shelfCompareCheckPath -Raw -Encoding utf8)
+              "```"
+            ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
             return
           }
 

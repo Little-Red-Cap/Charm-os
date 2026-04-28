@@ -1,0 +1,515 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.biography_index_compare.v0.schema.json",
+  "title": "system_compiler.biography_index_compare/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "generated_at_utc",
+    "generator",
+    "result",
+    "shelf_verdict",
+    "shelf",
+    "artifact_context",
+    "shelf_status",
+    "shelf_changes",
+    "entry_summary",
+    "entry_changes",
+    "collapse_surface",
+    "questions",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.biography_index_compare/v0"
+    },
+    "kind": {
+      "const": "system_compiler.biography_index_compare"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "shelf_verdict": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed"
+      ]
+    },
+    "shelf": {
+      "$ref": "#/$defs/shelfBlock"
+    },
+    "artifact_context": {
+      "$ref": "#/$defs/artifactContext"
+    },
+    "shelf_status": {
+      "$ref": "#/$defs/shelfStatus"
+    },
+    "shelf_changes": {
+      "$ref": "#/$defs/shelfChanges"
+    },
+    "entry_summary": {
+      "$ref": "#/$defs/entrySummary"
+    },
+    "entry_changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entryChange"
+      }
+    },
+    "collapse_surface": {
+      "$ref": "#/$defs/collapseSurface"
+    },
+    "questions": {
+      "$ref": "#/$defs/questionBlock"
+    },
+    "violations": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "arrayChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "shelfBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "artifactContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_biography_index",
+        "candidate_biography_index",
+        "output_root",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "baseline_biography_index": {
+          "type": "string"
+        },
+        "candidate_biography_index": {
+          "type": "string"
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "shelfStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_result",
+        "candidate_result",
+        "baseline_profile",
+        "candidate_profile",
+        "baseline_biography_count",
+        "candidate_biography_count",
+        "baseline_unique_world_count",
+        "candidate_unique_world_count",
+        "baseline_compare_attached_count",
+        "candidate_compare_attached_count",
+        "baseline_not_attached_count",
+        "candidate_not_attached_count"
+      ],
+      "properties": {
+        "baseline_result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "candidate_result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "baseline_profile": {
+          "type": "string"
+        },
+        "candidate_profile": {
+          "type": "string"
+        },
+        "baseline_biography_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_biography_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_unique_world_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_unique_world_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_compare_attached_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_compare_attached_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_not_attached_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_not_attached_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "questionChangeBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "core_question_changes",
+        "compare_question_changes",
+        "next_question_changes"
+      ],
+      "properties": {
+        "core_question_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "compare_question_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "next_question_changes": {
+          "$ref": "#/$defs/arrayChange"
+        }
+      }
+    },
+    "shelfChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "title_changed",
+        "summary_changed",
+        "profile_changed",
+        "question_changes",
+        "world_name_changes"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "title_changed": {
+          "type": "boolean"
+        },
+        "summary_changed": {
+          "type": "boolean"
+        },
+        "profile_changed": {
+          "type": "boolean"
+        },
+        "question_changes": {
+          "$ref": "#/$defs/questionChangeBlock"
+        },
+        "world_name_changes": {
+          "$ref": "#/$defs/arrayChange"
+        }
+      }
+    },
+    "entrySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_entry_count",
+        "candidate_entry_count",
+        "changed_entry_count",
+        "added_entry_count",
+        "removed_entry_count",
+        "unchanged_entry_count",
+        "regression_count",
+        "improvement_count",
+        "neutral_change_count"
+      ],
+      "properties": {
+        "baseline_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchanged_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "regression_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "improvement_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "neutral_change_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "entryChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchor_id",
+        "baseline_entry_id",
+        "candidate_entry_id",
+        "change_kind",
+        "impact",
+        "world_name",
+        "profile",
+        "compare_attached",
+        "left_result",
+        "right_result",
+        "left_world_verdict",
+        "right_world_verdict",
+        "left_summary_path",
+        "right_summary_path",
+        "metadata_changes",
+        "path_changes",
+        "evidence_path_added",
+        "evidence_path_removed",
+        "next_questions_added",
+        "next_questions_removed"
+      ],
+      "properties": {
+        "anchor_id": {
+          "type": "string"
+        },
+        "baseline_entry_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_entry_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "enum": [
+            "regression",
+            "improvement",
+            "neutral"
+          ]
+        },
+        "world_name": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "compare_attached": {
+          "type": "boolean"
+        },
+        "left_result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail",
+            "absent"
+          ]
+        },
+        "right_result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail",
+            "absent"
+          ]
+        },
+        "left_world_verdict": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "standing",
+            "improved",
+            "drifted",
+            "collapsed",
+            null
+          ]
+        },
+        "right_world_verdict": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "standing",
+            "improved",
+            "drifted",
+            "collapsed",
+            null
+          ]
+        },
+        "left_summary_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_summary_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "metadata_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "path_changes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "evidence_path_added": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "evidence_path_removed": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "next_questions_added": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "next_questions_removed": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "collapseSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "regressed_entries",
+        "removed_worlds",
+        "added_failed_entries",
+        "affected_worlds",
+        "affected_profiles",
+        "narratives"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "regressed_entries": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed_worlds": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "added_failed_entries": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "affected_worlds": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "affected_profiles": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "narratives": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "questionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compare_questions",
+        "next_questions"
+      ],
+      "properties": {
+        "compare_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "next_questions": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    }
+  }
+}

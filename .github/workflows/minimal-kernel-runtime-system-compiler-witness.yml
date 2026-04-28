@@ -9,7 +9,10 @@ on:
       - scripts/ci_minimal_kernel_runtime_system_compiler_witness_bundle.ps1
       - scripts/compare_system_compiler_world.py
       - scripts/export_system_compiler_biography.py
+      - scripts/check_system_compiler_biography_index_summary.ps1
+      - scripts/export_system_compiler_biography_index.py
       - scripts/validate_system_compiler_biography.py
+      - scripts/validate_system_compiler_biography_index.py
       - scripts/check_system_compiler_biography_summary.ps1
       - scripts/export_system_compiler_witness_bundle.ps1
       - scripts/validate_system_compiler_witness_bundle.py
@@ -41,11 +44,13 @@ on:
       - schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json
       - schemas/system_compiler.canonical_world.v0.schema.json
       - schemas/system_compiler.biography.v0.schema.json
+      - schemas/system_compiler.biography_index.v0.schema.json
       - schemas/system_compiler.witness_bundle.v0.schema.json
       - schemas/system_compiler.world_compare.v0.schema.json
       - schemas/examples/system_compiler.witness_bundle.v0*.json
       - schemas/examples/system_compiler.world_compare.v0.sample.json
       - docs/system/system_compiler_biography_v0.md
+      - docs/system/system_compiler_biography_index_v0.md
 
 permissions:
   contents: read
@@ -147,6 +152,34 @@ jobs:
             -MaxRequiredRegressions 0 `
             -RequireCollapseSurfaceUnchanged
 
+      - name: Export witness world shelf
+        shell: pwsh
+        run: |
+          python ./scripts/export_system_compiler_biography_index.py `
+            --biography out/minimal-kernel-runtime-system-compiler-witness/biography.summary.json `
+            --biography out/minimal-kernel-runtime-system-compiler-witness/self-compare/biography.summary.json `
+            --output-root out/minimal-kernel-runtime-system-compiler-witness/world-shelf `
+            --profile minimal-kernel-runtime-system-compiler-witness-shelf
+
+          python ./scripts/validate_system_compiler_biography_index.py `
+            --bundle-root out/minimal-kernel-runtime-system-compiler-witness/world-shelf
+
+      - name: Check witness world shelf
+        shell: pwsh
+        run: |
+          ./scripts/check_system_compiler_biography_index_summary.ps1 `
+            -Summary out/minimal-kernel-runtime-system-compiler-witness/world-shelf/biography.index.summary.json `
+            -RequireBiographyCount 2 `
+            -RequireUniqueWorldCount 1 `
+            -RequireOkCount 2 `
+            -MaxFailCount 0 `
+            -RequireCompareAttachedCount 1 `
+            -RequireNotAttachedCount 1 `
+            -RequireStandingCount 1 `
+            -RequireImprovedCount 0 `
+            -RequireDriftedCount 0 `
+            -RequireCollapsedCount 0
+
       - name: Run sample world compare smoke
         shell: pwsh
         run: |
@@ -163,12 +196,14 @@ jobs:
         shell: pwsh
         run: |
           $reportCandidates = @(
+            "out/minimal-kernel-runtime-system-compiler-witness/world-shelf/biography.index.report.md",
             "out/minimal-kernel-runtime-system-compiler-witness/self-compare/biography.report.md",
             "out/minimal-kernel-runtime-system-compiler-witness/self-compare/report.md",
             "out/minimal-kernel-runtime-system-compiler-witness/biography.report.md",
             "out/minimal-kernel-runtime-system-compiler-witness/report.md"
           )
           $checkCandidates = @(
+            "out/minimal-kernel-runtime-system-compiler-witness/world-shelf/biography.index.check.txt",
             "out/minimal-kernel-runtime-system-compiler-witness/self-compare/biography.check.txt",
             "out/minimal-kernel-runtime-system-compiler-witness/self-compare/check.txt",
             "out/minimal-kernel-runtime-system-compiler-witness/biography.check.txt",

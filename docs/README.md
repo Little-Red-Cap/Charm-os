@@ -136,6 +136,7 @@
 - Witness Bundle v0：`docs/system/witness_bundle_v0.md`
 - World Compare v0：`docs/system/world_compare_v0.md`
 - System Compiler Biography v0：`docs/system/system_compiler_biography_v0.md`
+- System Compiler Biography Index v0：`docs/system/system_compiler_biography_index_v0.md`
 - Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
 - 资源契约 v0：`docs/system/resource_contract_v0.md`
 - bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`

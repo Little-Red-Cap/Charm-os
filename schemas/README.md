@@ -94,6 +94,10 @@
   - 用途偏向把 runtime evidence、witness bundle 与可选的 world compare 压成一个更适合交付与追问的顶层 biography 对象
   - 它当前关注的是“这个世界是谁、为什么成立、现在站不站得住、下一步该追问什么”，而不是替代下层 witness / compare 细节
 
+- `system_compiler.biography_index.v0.schema.json`
+  - 对应 `docs/system/system_compiler_biography_index_v0.md` 与 `scripts/export_system_compiler_biography_index.py`
+  - 用途偏向把一个或多个 biography summary 收拢成可验证、可发布、可审阅的 world shelf 目录对象
+
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点
@@ -228,6 +232,7 @@
 - `system_compiler.witness_bundle/v0`：当前“这次交付拿什么作证”的交付对象锚点
 - `system_compiler.world_compare/v0`：当前“这个世界相对基线还站不站得住”的 compare verdict 对象锚点
 - `system_compiler.biography/v0`：当前“如何把证据世界压成顶层交付封面并留下继续追问入口”的 biography 对象锚点
+- `system_compiler.biography_index/v0`：当前“如何把多个 biography 摆成一个可交付、可审阅的 world shelf”的 directory object 锚点
 - `system_compiler_summary/v0`：当前 artifact_root 默认总览里的 root-level system compiler result object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_input_summary/v0`：当前 artifact_root 默认总览里的 input-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `binding_result_summary/v0`：当前 artifact_root 默认总览里的 binding-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义

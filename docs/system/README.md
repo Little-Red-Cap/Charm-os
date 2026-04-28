@@ -119,6 +119,7 @@
 - [`witness_bundle_v0.md`](witness_bundle_v0.md)
 - [`world_compare_v0.md`](world_compare_v0.md)
 - [`system_compiler_biography_v0.md`](system_compiler_biography_v0.md)
+- [`system_compiler_biography_index_v0.md`](system_compiler_biography_index_v0.md)
 - [`explain_surface_v0.md`](explain_surface_v0.md)
 - [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)
 

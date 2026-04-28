@@ -42,6 +42,8 @@ Current `system compiler biography index compare` includes:
   - `schemas/system_compiler.biography_index_compare.v0.schema.json`
 - compare script
   - `scripts/compare_system_compiler_biography_index.py`
+- compare wrapper
+  - `scripts/compare_system_compiler_world_shelf.ps1`
 - validate script
   - `scripts/validate_system_compiler_biography_index_compare.py`
 - gate script
@@ -57,6 +59,14 @@ Current outputs:
 - `summary.json`
 - `report.md`
 - `check.txt`
+
+When the wrapper is used, the delivery root also gets sidecars such as:
+
+- `baseline_biography_index.txt`
+- `candidate_biography_index.txt`
+- `compare.log`
+- `validate.log`
+- `gate.log`
 
 ## Current compare semantics
 
@@ -129,7 +139,38 @@ So grouped shelf compare can become:
 
 ## Recommended usage
 
-### Compare a one-entry witness shelf to a two-entry compare-attached shelf
+### Compare shelves through the wrapper
+
+The recommended path is to compare two already-built shelves through the wrapper:
+
+```powershell
+./scripts/compare_system_compiler_world_shelf.ps1 `
+  -BaselineShelfRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf-baseline `
+  -CandidateShelfRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf `
+  -OutputRoot out/minimal-kernel-runtime-system-compiler-witness/world-shelf-compare `
+  -RequireVerdict improved `
+  -MaxRegressions 0 `
+  -RequireAddedEntries 1 `
+  -RequireRemovedEntries 0 `
+  -RequireChangedEntries 1 `
+  -RequireImprovementCount 1 `
+  -RequireAddedWorlds 0 `
+  -RequireRemovedWorlds 0 `
+  -MaxAddedFailedEntries 0
+```
+
+This wrapper does four things in one pass:
+
+- validate the baseline and candidate shelves
+- export the shelf compare summary
+- validate the compare object
+- run the compare gate
+
+It also leaves behind the resolved baseline / candidate shelf paths plus the
+compare / validate / gate logs so the shelf diff can explain how it was
+assembled.
+
+### Compare a one-entry witness shelf to a two-entry compare-attached shelf manually
 
 ```powershell
 python ./scripts/compare_system_compiler_biography_index.py `
@@ -164,17 +205,10 @@ If this compare should become a CI gate, check the exported summary directly:
 ### Compare a one-entry shelf against itself
 
 ```powershell
-python ./scripts/compare_system_compiler_biography_index.py `
-  --baseline out/minimal-kernel-runtime-system-compiler-biography-index-single-smoke/biography.index.summary.json `
-  --candidate out/minimal-kernel-runtime-system-compiler-biography-index-single-smoke/biography.index.summary.json `
-  --output-root out/minimal-kernel-runtime-system-compiler-biography-index-self-compare-smoke
-```
-
-Then gate the standing result:
-
-```powershell
-./scripts/check_system_compiler_biography_index_compare_summary.ps1 `
-  -Summary out/minimal-kernel-runtime-system-compiler-biography-index-self-compare-smoke/summary.json `
+./scripts/compare_system_compiler_world_shelf.ps1 `
+  -BaselineShelfRoot out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf `
+  -CandidateShelfRoot out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf `
+  -OutputRoot out/minimal-kernel-runtime-system-compiler-world-compare/world-shelf-compare `
   -RequireVerdict standing `
   -MaxRegressions 0 `
   -RequireAddedEntries 0 `
@@ -207,6 +241,10 @@ the next question up: how the grouped world shelf moved as one delivery.
 `assemble_system_compiler_world_shelf.ps1` is a producer convenience wrapper.
 
 `biography index compare` starts only after both shelves already exist.
+
+`compare_system_compiler_world_shelf.ps1` is the next wrapper layer above that:
+it reopens both existing shelves, exports the shelf diff, validates it, and can
+gate it in one pass.
 
 ## Current non-goals
 

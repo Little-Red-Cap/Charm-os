@@ -127,6 +127,59 @@ function ConvertTo-OrderedCountMap {
     return $result
 }
 
+function New-FrontPageSurface {
+    param(
+        [string]$Id,
+        [string]$Label,
+        [string]$Role,
+        [string]$SummarySchema,
+        [string]$SummaryPath,
+        [string]$ReportMarkdownPath,
+        [string]$CheckTextPath
+    )
+
+    return [ordered]@{
+        id = $Id
+        label = $Label
+        role = $Role
+        summary_schema = $SummarySchema
+        summary_path = $SummaryPath
+        report_markdown_path = $ReportMarkdownPath
+        check_text_path = $CheckTextPath
+    }
+}
+
+function New-WitnessBundleFrontPage {
+    param(
+        [string]$SummaryPath,
+        [string]$ReportMarkdownPath,
+        [string]$CheckTextPath,
+        $RuntimeEvidenceSummaryInfo
+    )
+
+    $supportingSurfaces = [System.Collections.Generic.List[object]]::new()
+    if ($null -ne $RuntimeEvidenceSummaryInfo) {
+        $supportingSurfaces.Add(
+            (New-FrontPageSurface `
+                -Id "runtime_evidence" `
+                -Label "runtime evidence bundle" `
+                -Role "supporting_evidence" `
+                -SummarySchema ([string]$RuntimeEvidenceSummaryInfo.Data.schema) `
+                -SummaryPath $RuntimeEvidenceSummaryInfo.Path `
+                -ReportMarkdownPath (Resolve-RelativeToBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value ([string]$RuntimeEvidenceSummaryInfo.Data.report_markdown_path)) `
+                -CheckTextPath (Resolve-RelativeToBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value ([string]$RuntimeEvidenceSummaryInfo.Data.check_text_path))
+            )
+        ) | Out-Null
+    }
+
+    return [ordered]@{
+        summary_path = $SummaryPath
+        report_markdown_path = $ReportMarkdownPath
+        check_text_path = $CheckTextPath
+        supporting_surfaces = @($supportingSurfaces)
+    }
+}
+
 function New-EntrySubject {
     param(
         [AllowNull()]
@@ -778,6 +831,11 @@ $bundleObject = [ordered]@{
     generator = "scripts/export_system_compiler_witness_bundle.ps1"
     result = if ($violations.Count -eq 0) { "ok" } else { "fail" }
     world = $resolvedWorld
+    front_page = New-WitnessBundleFrontPage `
+        -SummaryPath $summaryPathResolved `
+        -ReportMarkdownPath $reportMarkdownPathResolved `
+        -CheckTextPath $checkTextPathResolved `
+        -RuntimeEvidenceSummaryInfo $runtimeEvidenceSummaryInfo
     artifact_context = [ordered]@{
         canonical_world = if ($null -eq $canonicalWorldInfo) { $null } else { $canonicalWorldInfo.Path }
         artifact_root = if ([string]::IsNullOrWhiteSpace($ArtifactRoot)) { $null } else { Resolve-FullPath -Path $ArtifactRoot }

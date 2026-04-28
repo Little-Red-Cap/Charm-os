@@ -57,6 +57,35 @@ def require_schema(path: Path, data: dict, expected_schema: str, expected_kind: 
         raise ValueError(f"unsupported kind for {path}: {data.get('kind')}")
 
 
+def build_surface_ref(
+    surface_id: str,
+    summary_schema: str,
+    label: str,
+    role: str,
+    summary_path: str,
+    report_markdown_path: str,
+    check_text_path: str,
+):
+    return {
+        "id": surface_id,
+        "label": label,
+        "role": role,
+        "summary_schema": summary_schema,
+        "summary_path": str(Path(summary_path).resolve()),
+        "report_markdown_path": str(Path(report_markdown_path).resolve()),
+        "check_text_path": str(Path(check_text_path).resolve()),
+    }
+
+
+def build_front_page(summary_path: Path, report_path: Path, check_path: Path, supporting_surfaces: list[dict]):
+    return {
+        "summary_path": str(summary_path.resolve()),
+        "report_markdown_path": str(report_path.resolve()),
+        "check_text_path": str(check_path.resolve()),
+        "supporting_surfaces": supporting_surfaces,
+    }
+
+
 def build_world_view(witness_bundle: dict):
     world = witness_bundle["world"]
     subject = world.get("subject", {})
@@ -128,11 +157,14 @@ def build_runtime_view(runtime_summary: dict, runtime_path: Path):
 def build_witness_view(witness_bundle: dict, witness_path: Path):
     summary = witness_bundle.get("witness_summary", {})
     artifact_context = witness_bundle.get("artifact_context", {})
+    front_page = witness_bundle.get("front_page", {})
+    report_markdown_path = front_page.get("report_markdown_path") or artifact_context["report_markdown_path"]
+    check_text_path = front_page.get("check_text_path") or artifact_context["check_text_path"]
     return {
         "result": str(witness_bundle.get("result", "fail")),
         "summary_path": str(witness_path),
-        "report_markdown_path": str(Path(artifact_context["report_markdown_path"]).resolve()),
-        "check_text_path": str(Path(artifact_context["check_text_path"]).resolve()),
+        "report_markdown_path": str(Path(report_markdown_path).resolve()),
+        "check_text_path": str(Path(check_text_path).resolve()),
         "entry_count": int(summary.get("entry_count", 0)),
         "ok_count": int(summary.get("ok_count", 0)),
         "missing_count": int(summary.get("missing_count", 0)),
@@ -392,8 +424,44 @@ def build_summary(args):
     if world_compare is not None:
         evidence_path.append("system_compiler_world_compare")
 
+    runtime_view = build_runtime_view(runtime_summary, runtime_path)
+    witness_view = build_witness_view(witness_bundle, witness_path)
+    compare_view = build_compare_view(world_compare, compare_path) if world_compare is not None else None
+
     witness_artifact_context = witness_bundle.get("artifact_context", {})
     compare_artifact_context = world_compare.get("artifact_context", {}) if world_compare else {}
+    supporting_surfaces = [
+        build_surface_ref(
+            surface_id="runtime_evidence",
+            summary_schema=RUNTIME_EVIDENCE_SCHEMA,
+            label="runtime evidence bundle",
+            role="supporting_evidence",
+            summary_path=runtime_view["summary_path"],
+            report_markdown_path=runtime_view["report_markdown_path"],
+            check_text_path=runtime_view["check_text_path"],
+        ),
+        build_surface_ref(
+            surface_id="witness_bundle",
+            summary_schema=WITNESS_BUNDLE_SCHEMA,
+            label="witness bundle",
+            role="supporting_testimony",
+            summary_path=witness_view["summary_path"],
+            report_markdown_path=witness_view["report_markdown_path"],
+            check_text_path=witness_view["check_text_path"],
+        ),
+    ]
+    if compare_view is not None:
+        supporting_surfaces.append(
+            build_surface_ref(
+                surface_id="world_compare",
+                summary_schema=WORLD_COMPARE_SCHEMA,
+                label="world compare",
+                role="counterfactual_verdict",
+                summary_path=compare_view["summary_path"],
+                report_markdown_path=compare_view["report_markdown_path"],
+                check_text_path=compare_view["check_text_path"],
+            )
+        )
 
     summary = {
         "schema": "system_compiler.biography/v0",
@@ -410,6 +478,12 @@ def build_summary(args):
             "evidence_path": evidence_path,
             "next_questions": next_questions,
         },
+        "front_page": build_front_page(
+            summary_path=summary_path,
+            report_path=report_path,
+            check_path=check_path,
+            supporting_surfaces=supporting_surfaces,
+        ),
         "delivery": {
             "output_root": str(output_root),
             "summary_path": str(summary_path),
@@ -437,9 +511,9 @@ def build_summary(args):
                 else None
             ),
         },
-        "runtime_evidence": build_runtime_view(runtime_summary, runtime_path),
-        "witness_bundle": build_witness_view(witness_bundle, witness_path),
-        "world_compare": build_compare_view(world_compare, compare_path) if world_compare is not None else None,
+        "runtime_evidence": runtime_view,
+        "witness_bundle": witness_view,
+        "world_compare": compare_view,
         "questions": {
             "core_questions": world_view["core_questions"],
             "compare_questions": world_view["compare_questions"],

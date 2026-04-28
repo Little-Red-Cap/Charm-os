@@ -71,6 +71,7 @@
 当前导出的 `witness bundle` 会稳定收这些对象：
 
 - `world`
+- `front_page`
 - `artifact_context`
 - `contract_status`
 - `witness_summary`
@@ -94,6 +95,18 @@
 - 这份 bundle 从哪里导出
 - 用了哪些 artifact report
 - 是否接了 runtime evidence summary
+
+### `front_page`
+
+回答：
+
+- 这份 witness bundle 自己的 machine-readable front page 路径是什么
+- 如果上层 router 要继续追问，它应该先顺着哪些 supporting surfaces 进入 runtime evidence
+
+它不替代 `artifact_context`。
+
+- `artifact_context` 更偏导出上下文与来源
+- `front_page` 更偏“交付封面现在该先看谁”
 
 ### `contract_status`
 

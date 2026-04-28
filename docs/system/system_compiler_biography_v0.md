@@ -55,6 +55,7 @@
 - `world_verdict`
 - `world`
 - `biography`
+- `front_page`
 - `delivery`
 - `artifact_context`
 - `runtime_evidence`
@@ -87,6 +88,18 @@
 
 - 这份顶层自证对象自己的落点在哪里
 - 哪个 `summary/report/check` 才是推荐优先阅读的首页
+
+### `front_page`
+
+回答：
+
+- 这份 biography 自己的 machine-readable front page 路径是什么
+- 如果 explain surface / report router 不想硬编码内部结构，它下一步应先跟到哪些 supporting surfaces
+
+它不替代 `delivery`。
+
+- `delivery` 更偏“这份对象导出到了哪里”
+- `front_page` 更偏“工具应该先看谁，再顺着谁继续追问”
 
 ### `artifact_context`
 

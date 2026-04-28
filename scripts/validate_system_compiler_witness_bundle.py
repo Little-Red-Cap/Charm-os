@@ -22,8 +22,35 @@ def ensure_exists(path_value: str | None, label: str, errors: list[str]):
         errors.append(f"{label}: not found -> {path_value}")
 
 
+def validate_front_page(front_page: dict, label: str, errors: list[str]):
+    ensure_exists(front_page.get("summary_path"), f"{label}.summary_path", errors)
+    ensure_exists(front_page.get("report_markdown_path"), f"{label}.report_markdown_path", errors)
+    ensure_exists(front_page.get("check_text_path"), f"{label}.check_text_path", errors)
+
+    for index, surface in enumerate(front_page.get("supporting_surfaces", [])):
+        if not isinstance(surface, dict):
+            errors.append(f"{label}.supporting_surfaces[{index}]: invalid surface")
+            continue
+
+        ensure_exists(surface.get("summary_path"), f"{label}.supporting_surfaces[{index}].summary_path", errors)
+        ensure_exists(
+            surface.get("report_markdown_path"),
+            f"{label}.supporting_surfaces[{index}].report_markdown_path",
+            errors,
+        )
+        ensure_exists(
+            surface.get("check_text_path"),
+            f"{label}.supporting_surfaces[{index}].check_text_path",
+            errors,
+        )
+
+
 def validate_references(summary: dict):
     errors: list[str] = []
+
+    front_page = summary.get("front_page", {})
+    if isinstance(front_page, dict):
+        validate_front_page(front_page, "front_page", errors)
 
     artifact_context = summary.get("artifact_context", {})
     if isinstance(artifact_context, dict):

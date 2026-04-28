@@ -198,6 +198,15 @@ That flow keeps the root witness export and the self-compare export in the CI
 wrapper, then hands the biography-level shelf review to
 `review_system_compiler_world_shelf.ps1`.
 
+With `-RunWorldShelfFlow`, the CI wrapper also appends a short `World Shelf
+Review` overlay back into the root `report.md` and `check.txt`, so the delivery
+front page can expose the shelf verdict without a manual jump into
+`world-shelf/`.
+
+When calling the review wrapper directly from raw PowerShell, prefer
+`-SearchRoot` or a splatted hashtable for multi-biography inputs. That is more
+reliable than relaying nested array literals through another script layer.
+
 ### Build a shelf from root + self-compare biographies manually
 
 ```powershell

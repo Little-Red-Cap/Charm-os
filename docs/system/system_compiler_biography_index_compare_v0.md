@@ -266,6 +266,11 @@ gate it in one pass.
 it starts from biographies, assembles the shelves, and then lands on the same
 shelf compare object.
 
+When the minimal-kernel witness or world-compare CI wrappers enable
+`-RunWorldShelfFlow`, this compare still lands in `world-shelf-compare/`, but a
+short overlay is also appended to the root `report.md` and `check.txt` so the
+bundle front page can point at the shelf verdict directly.
+
 ## Current non-goals
 
 This v0 still does not try to solve:

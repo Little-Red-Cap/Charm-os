@@ -1,0 +1,221 @@
+{
+  "schema": "minimal_kernel.runtime_evidence_bundle.summary/v1",
+  "generated_at": "2026-04-26T10:30:00Z",
+  "result": "ok",
+  "output_root": "out/minimal-kernel-runtime-evidence",
+  "report_markdown_path": "out/minimal-kernel-runtime-evidence/report.md",
+  "check_text_path": "out/minimal-kernel-runtime-evidence/check.txt",
+  "host": {
+    "output_root": "out/minimal-kernel-runtime-evidence/host",
+    "bundle_log_path": "out/minimal-kernel-runtime-evidence/host.bundle.log",
+    "bundle_exit_code": 0,
+    "cold": {
+      "summary_path": "out/minimal-kernel-runtime-evidence/host/ci/summary.json",
+      "inspect_json_path": "out/minimal-kernel-runtime-evidence/host/ci/inspect.json",
+      "report_markdown_path": "out/minimal-kernel-runtime-evidence/host/ci/report.md",
+      "check_text_path": "out/minimal-kernel-runtime-evidence/host/ci/check.txt",
+      "profile": "ci",
+      "example_count": 11,
+      "status": {
+        "ok": 11,
+        "fail": 0,
+        "other": 0
+      },
+      "elapsed_ms": {
+        "total": 2400,
+        "average": 218,
+        "median": 205,
+        "min": 122,
+        "max": 401
+      },
+      "configure": {
+        "total": 800,
+        "executed": 11
+      }
+    },
+    "warm": {
+      "summary_path": "out/minimal-kernel-runtime-evidence/host/daily/summary.json",
+      "inspect_json_path": "out/minimal-kernel-runtime-evidence/host/daily/inspect.json",
+      "report_markdown_path": "out/minimal-kernel-runtime-evidence/host/daily/report.md",
+      "check_text_path": "out/minimal-kernel-runtime-evidence/host/daily/check.txt",
+      "profile": "daily",
+      "example_count": 11,
+      "status": {
+        "ok": 11,
+        "fail": 0,
+        "other": 0
+      },
+      "elapsed_ms": {
+        "total": 1400,
+        "average": 127,
+        "median": 118,
+        "min": 77,
+        "max": 265
+      },
+      "configure": {
+        "total": 0,
+        "executed": 0,
+        "reused": 11
+      },
+      "comparison": {
+        "baseline_summary_path": "out/minimal-kernel-runtime-evidence/host/ci/summary.json",
+        "matched_examples": 11,
+        "regressions": 0,
+        "improvements": 3,
+        "added_examples": 0,
+        "removed_examples": 0
+      }
+    }
+  },
+  "qemu": {
+    "output_root": "out/minimal-kernel-runtime-evidence/qemu",
+    "bundle_log_path": "out/minimal-kernel-runtime-evidence/qemu.bundle.log",
+    "bundle_exit_code": 0,
+    "lower_half": {
+      "summary_path": "out/minimal-kernel-runtime-evidence/qemu/summary.json",
+      "report_markdown_path": "out/minimal-kernel-runtime-evidence/qemu/report.md",
+      "check_text_path": "out/minimal-kernel-runtime-evidence/qemu/check.txt",
+      "case_count": 3,
+      "completed_case_count": 3,
+      "canonical_world": {
+        "id": "minimal_kernel_runtime",
+        "label": "Minimal Kernel Runtime Witness World",
+        "subject": "minimal-kernel-runtime",
+        "environment": "armv7a-qemu",
+        "profile": "runtime-lower-half",
+        "focus": [
+          "trap",
+          "syscall",
+          "runtime-live"
+        ]
+      },
+      "witness_bundle": {
+        "subject": "minimal-kernel-runtime",
+        "question": "Does the lower-half runtime still stand as a witness-bearing world when grouped with host evidence?",
+        "conclusion": "standing",
+        "standing_cases": [
+          "runtime-live",
+          "runtime-trap",
+          "task-syscall"
+        ],
+        "regressed_cases": []
+      },
+      "biography": {
+        "identity": "armv7a qemu lower-half runtime bundle",
+        "thesis": "This bundle proves that runtime-live, runtime-trap, and task-syscall still compose a standing lower-half witness line.",
+        "evidence_path": [
+          "runtime-live",
+          "runtime-trap",
+          "task-syscall"
+        ],
+        "next_questions": [
+          "Which case fails first if trap ingress drifts?",
+          "Which standing case should be promoted into a richer witness bundle next?"
+        ]
+      },
+      "status": {
+        "ok": 3,
+        "fail": 0,
+        "other": 0
+      },
+      "elapsed_ms": {
+        "total": 18000,
+        "average": 6000,
+        "median": 5700,
+        "min": 5100,
+        "max": 7200
+      },
+      "phase_elapsed_ms": {
+        "configure": 2200,
+        "build": 4800
+      },
+      "results": [
+        {
+          "case": "runtime-live",
+          "label": "runtime-live",
+          "status": "ok",
+          "elapsed_ms": 5100,
+          "stdout_log_path": "out/minimal-kernel-runtime-evidence/qemu/cases/runtime-live.stdout.log",
+          "stderr_log_path": "out/minimal-kernel-runtime-evidence/qemu/cases/runtime-live.stderr.log",
+          "highlights": [
+            "[runtime-live] ok=1"
+          ],
+          "canonical_case": {
+            "world": "minimal_kernel_runtime",
+            "seam": "runtime-live",
+            "world_state": "standing"
+          },
+          "witness": {
+            "claim": "runtime-live still proves lower-half runtime progress under QEMU",
+            "question": "Does the lower-half runtime loop still stand?"
+          },
+          "detail": "runtime live lower-half smoke passed"
+        },
+        {
+          "case": "runtime-trap",
+          "label": "runtime-trap",
+          "status": "ok",
+          "elapsed_ms": 5700,
+          "stdout_log_path": "out/minimal-kernel-runtime-evidence/qemu/cases/runtime-trap.stdout.log",
+          "stderr_log_path": "out/minimal-kernel-runtime-evidence/qemu/cases/runtime-trap.stderr.log",
+          "highlights": [
+            "[runtime-trap] ok=1"
+          ],
+          "canonical_case": {
+            "world": "minimal_kernel_runtime",
+            "seam": "runtime-trap",
+            "world_state": "standing"
+          },
+          "witness": {
+            "claim": "runtime-trap still proves lower-half trap ingress behavior under QEMU",
+            "question": "Does trap ingress still stand as a lower-half witness?"
+          },
+          "detail": "runtime trap lower-half smoke passed"
+        },
+        {
+          "case": "task-syscall",
+          "label": "task-syscall",
+          "status": "ok",
+          "elapsed_ms": 7200,
+          "stdout_log_path": "out/minimal-kernel-runtime-evidence/qemu/cases/task-syscall.stdout.log",
+          "stderr_log_path": "out/minimal-kernel-runtime-evidence/qemu/cases/task-syscall.stderr.log",
+          "highlights": [
+            "[task-syscall] ok=1"
+          ],
+          "canonical_case": {
+            "world": "minimal_kernel_runtime",
+            "seam": "task-syscall",
+            "world_state": "standing"
+          },
+          "witness": {
+            "claim": "task-syscall still proves the lower-half syscall ingress line under QEMU",
+            "question": "Does task-syscall still keep the lower-half syscall witness standing?"
+          },
+          "detail": "task syscall lower-half smoke passed"
+        }
+      ]
+    }
+  },
+  "witness_bundle": {
+    "canonical_world_path": "Examples/kernel/canonical_worlds/minimal_kernel_runtime.world.json",
+    "output_root": "out/minimal-kernel-runtime-evidence/witness",
+    "bundle_log_path": "out/minimal-kernel-runtime-evidence/witness.bundle.log",
+    "bundle_exit_code": 0,
+    "summary_path": "out/minimal-kernel-runtime-evidence/witness/summary.json",
+    "report_markdown_path": "out/minimal-kernel-runtime-evidence/witness/report.md",
+    "check_text_path": "out/minimal-kernel-runtime-evidence/witness/check.txt",
+    "result": "ok",
+    "world": {
+      "name": "minimal_kernel_runtime",
+      "title": "Minimal Kernel Runtime Witness World"
+    },
+    "witness_summary": {
+      "entry_count": 4,
+      "ok_count": 4,
+      "missing_count": 0,
+      "fail_count": 0,
+      "required_missing_count": 0
+    }
+  },
+  "violations": []
+}

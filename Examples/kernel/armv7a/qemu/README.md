@@ -244,6 +244,42 @@ For a shorter failure loop around the exported runtime-thread egress seam, use:
 .\run_qemu_runtime_thread_ci.ps1
 ```
 
+For a dedicated top-level witness re-export that lifts the real runtime bundle
+into the shared `system_compiler.witness_bundle/v0` surface, use:
+
+```powershell
+..\..\..\..\scripts\minimal_kernel_runtime_system_compiler_witness_bundle.ps1 `
+  -OutputRoot out\minimal-kernel-runtime-system-compiler-witness `
+  -HostExamples runtime_minimal_host `
+  -HostJobs 1 `
+  -QemuBuildJobs 1
+```
+
+That wrapper keeps the existing host and QEMU bundle flow intact, then
+re-exports the result through
+`Examples/kernel/canonical_worlds/minimal_kernel_runtime.world.json` and
+validates the final witness bundle references with
+`scripts/validate_system_compiler_witness_bundle.py`. When the intermediate
+runtime bundle already supports `-SkipWitnessBundle`, this wrapper also asks
+it to suppress the nested witness export so this command stays the single
+top-level witness outlet.
+
+For a dedicated self-compare smoke that proves the current runtime world still
+stands against itself, use:
+
+```powershell
+..\..\..\..\scripts\ci_minimal_kernel_runtime_system_compiler_world_compare.ps1 `
+  -OutputRoot out\minimal-kernel-runtime-system-compiler-world-compare `
+  -HostExamples runtime_minimal_host `
+  -HostJobs 1 `
+  -QemuBuildJobs 1
+```
+
+That entry runs the same top-level witness export, but if no explicit baseline
+is provided it reuses the current runtime-evidence path as both baseline and
+candidate, then asks `world_compare/summary.json` to stay at
+`world_verdict=standing`.
+
 For a dedicated real non-returning handoff landing smoke, use:
 
 ```powershell

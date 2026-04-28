@@ -44,6 +44,22 @@
     "qemu": {
       "$ref": "#/$defs/qemuBundle"
     },
+    "witness_bundle": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/witnessBundleView"
+          }
+        }
+      ]
+    },
     "violations": {
       "type": "array",
       "items": {
@@ -648,6 +664,136 @@
               },
               "then": {
                 "$ref": "#/$defs/qemuSummaryView"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "witnessBundleWorld": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "title"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "witnessBundleSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_count",
+        "ok_count",
+        "missing_count",
+        "fail_count",
+        "required_missing_count"
+      ],
+      "properties": {
+        "entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ok_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fail_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required_missing_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "witnessBundleView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_world_path",
+        "output_root",
+        "bundle_log_path",
+        "bundle_exit_code",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "result",
+        "world",
+        "witness_summary"
+      ],
+      "properties": {
+        "canonical_world_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "bundle_log_path": {
+          "type": "string"
+        },
+        "bundle_exit_code": {
+          "type": "integer"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "world": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/witnessBundleWorld"
+              }
+            }
+          ]
+        },
+        "witness_summary": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/witnessBundleSummary"
               }
             }
           ]

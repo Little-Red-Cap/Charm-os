@@ -1,0 +1,203 @@
+# Witness Bundle v0
+
+这份文档不是要替代：
+
+- `artifact report`
+- `runtime evidence bundle`
+- `compare`
+
+它要做的是把这些东西提升到同一个交付语言里。
+
+## 一句话版本
+
+- `artifact report` 是 case 级结论页。
+- `runtime evidence bundle` 是某条 runtime 主线的总证词。
+- `witness bundle` 则是把一个 canonical world 需要的 witness 收成同一个对象。
+
+如果说 `artifact report` 更像单案卷宗，
+那么 `witness bundle` 更像这次交付的整套作证材料。
+
+## 为什么需要单独收一层
+
+如果只有：
+
+- binary
+- 零散 report
+- 零散 smoke log
+
+那么系统即使能跑，也还停留在：
+
+- 作者知道怎么解释
+- 机器知道怎么跑
+- 但交付物本身还不会“组织自己的证词”
+
+`witness bundle` 的目标，是让交付物开始显式带着：
+
+- 世界名
+- 法律锚点
+- witness 清单
+- witness 状态
+- 缺失点
+- 汇总检查面
+
+## 当前对象边界
+
+当前 `witness bundle` 对应：
+
+- schema：
+  - `schemas/system_compiler.witness_bundle.v0.schema.json`
+- sample：
+  - `schemas/examples/system_compiler.witness_bundle.v0.sample.json`
+- 导出脚本：
+  - `scripts/export_system_compiler_witness_bundle.ps1`
+- 校验脚本：
+  - `scripts/validate_system_compiler_witness_bundle.py`
+
+它当前可以组合三类输入：
+
+- `canonical world`
+- `artifact report`
+- `minimal kernel runtime evidence bundle summary`
+
+并可附带：
+
+- `example_ref`
+
+这意味着 v0 先不追求“世界里的所有证据都必须是结构化 summary”，
+而是允许代表性样本目录先进入 witness 面。
+
+## 当前输出语义
+
+当前导出的 `witness bundle` 会稳定收这些对象：
+
+- `world`
+- `artifact_context`
+- `contract_status`
+- `witness_summary`
+- `witness_entries`
+- `violations`
+
+其中：
+
+### `world`
+
+回答：
+
+- 这次交付的是哪个世界
+- 它的核心问题是什么
+- compare 时优先追问什么
+
+### `artifact_context`
+
+回答：
+
+- 这份 bundle 从哪里导出
+- 用了哪些 artifact report
+- 是否接了 runtime evidence summary
+
+### `contract_status`
+
+回答：
+
+- 这个世界宣称依赖的法律锚点是否都还在
+
+也就是说，当前 bundle 至少会诚实地区分：
+
+- contract 存在
+- contract 丢失
+
+### `witness_summary`
+
+回答：
+
+- witness 总数
+- `ok / missing / fail`
+- required witness 缺了多少
+- 各 kind 分布
+
+### `witness_entries`
+
+回答：
+
+- 每个 witness 是什么
+- 它负责证明哪一层
+- 当前状态如何
+- 来源路径在哪
+- 附带哪些最小观察行
+
+这里要特别注意：
+
+当前 `witness bundle` 的 `status`
+表达的是“作证材料是否到场、是否通过自身结果面”，
+而不是替代更细粒度的 runtime / formation / compare 语义。
+
+例如：
+
+- `artifact_report` witness 到场，`status` 可以是 `ok`
+- 但它内部仍可能证明的是一个 `blocked` 系统
+
+这是健康的。
+
+因为 witness bundle 回答的是：
+
+> 证词有没有、是否可引用
+
+而不是粗暴地把所有下层语义再压平成一个全局 bool。
+
+## 与现有对象的关系
+
+### 1. 与 `artifact report`
+
+`artifact report` 是单 case 的结论对象。
+
+`witness bundle` 不重写它，
+而是引用它、总结它在这个 world 里的角色。
+
+### 2. 与 `minimal kernel runtime evidence bundle`
+
+当前最小内核这条线已经有自己的 host + QEMU 总证据包。
+
+`witness bundle` 不替代这条 bundle，
+而是把它当成某个 canonical world 的一名正式 witness。
+
+### 3. 与 `compare`
+
+当前 `witness bundle` 还不是最终的反事实审判器。
+
+但它已经为后续 compare 提供了更健康的落点：
+
+- compare 不是对散文件 diff
+- compare 是对一个 world 的 witness 面做漂移追问
+
+### 4. 与 `world compare`
+
+当前 `world compare`
+
+- 不直接绕过 witness bundle 去读散工件
+- 而是把 baseline / candidate witness bundle 当成世界级 compare 的正式输入
+
+也就是说：
+
+- `witness bundle` 负责收证词
+- `world compare` 负责比较证词并产出 `standing / improved / drifted / collapsed` verdict
+
+## 当前推荐工作流
+
+1. 先定义 canonical world。
+2. 再把相关 `artifact report / runtime evidence bundle / example_ref` 填进 witness plan。
+3. 再导出 `witness bundle`。
+4. 如需比较世界漂移，再导出 `world compare`。
+5. 最后把它和 binary、report、check 一起视作完整交付。
+
+## 当前非目标
+
+当前这层仍然不处理：
+
+- 自动拉起构建
+- 自动运行所有 smoke
+- 全自动 compare 诊断
+- 完整死亡法医报告
+
+v0 的目标更克制：
+
+> 先把“系统要拿什么作证自己为何成立”收成一个正式可交付对象。

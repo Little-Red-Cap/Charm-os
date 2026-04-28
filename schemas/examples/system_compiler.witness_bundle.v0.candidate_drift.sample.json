@@ -1,0 +1,224 @@
+{
+  "schema": "system_compiler.witness_bundle/v0",
+  "kind": "system_compiler.witness_bundle",
+  "generated_at_utc": "2026-04-26T11:05:00Z",
+  "generator": "scripts/export_system_compiler_witness_bundle.ps1",
+  "result": "fail",
+  "world": {
+    "name": "minimal_kernel_runtime",
+    "title": "Minimal Kernel Runtime Witness World",
+    "summary": "A canonical witness surface that gathers artifact report, runtime evidence bundle, and representative host examples into one verifiable world.",
+    "subject": {
+      "profile": "MCU_MIN",
+      "board": "armv7a_qemu",
+      "active_facets": [
+        "runtime",
+        "trap",
+        "syscall",
+        "message"
+      ]
+    },
+    "first_class_terms": [
+      "subject",
+      "case",
+      "fact",
+      "contract",
+      "witness",
+      "transition"
+    ],
+    "core_questions": [
+      "What system fact is this world trying to prove?",
+      "Which witness closes the upper-half and lower-half loop?",
+      "Which contracts explain why this world is allowed to exist?"
+    ],
+    "compare_questions": [
+      "If this world drifts, which witness breaks first?",
+      "If a contract tightens, which witness becomes invalid?",
+      "If a capability disappears, what is the smallest collapse surface?"
+    ],
+    "contract_refs": [
+      "docs/system/artifact_report_v0.md",
+      "docs/system/minimal_kernel_runtime_evidence_bundle_contract.md",
+      "docs/system/minimal_kernel_trap_ingress_contract.md"
+    ],
+    "witness_plan": [
+      {
+        "id": "artifact_report_sample",
+        "kind": "artifact_report",
+        "label": "bringup-minimal-observe-demo",
+        "role": "system compiler artifact report sample",
+        "layer": "system_compiler",
+        "required": true,
+        "witness_focus": [
+          "artifact",
+          "bringup",
+          "resource-contract"
+        ],
+        "case": "bringup-minimal-observe-demo",
+        "path": null
+      },
+      {
+        "id": "runtime_bundle_sample",
+        "kind": "runtime_evidence_bundle",
+        "label": "minimal-kernel-runtime-evidence",
+        "role": "upper-half and lower-half runtime evidence aggregation",
+        "layer": "bundle",
+        "required": true,
+        "witness_focus": [
+          "upper-half",
+          "lower-half",
+          "bundle"
+        ],
+        "case": null,
+        "path": null
+      },
+      {
+        "id": "session_roundtrip_example",
+        "kind": "example_ref",
+        "label": "runtime_task_message_session_roundtrip_host",
+        "role": "representative host-side live roundtrip sample",
+        "layer": "upper_half",
+        "required": true,
+        "witness_focus": [
+          "message",
+          "session",
+          "roundtrip"
+        ],
+        "case": null,
+        "path": "Examples/kernel/runtime_task_message_session_roundtrip_host"
+      }
+    ]
+  },
+  "artifact_context": {
+    "canonical_world": "schemas/examples/system_compiler.canonical_world.v0.sample.json",
+    "artifact_root": null,
+    "artifact_reports": [
+      "schemas/examples/system_compiler.artifact_report.v0.sample.json"
+    ],
+    "runtime_evidence_summary": "schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json",
+    "output_root": "out/system-compiler-witness-bundle-candidate-drift-sample",
+    "report_markdown_path": "out/system-compiler-witness-bundle-candidate-drift-sample/report.md",
+    "check_text_path": "out/system-compiler-witness-bundle-candidate-drift-sample/check.txt"
+  },
+  "contract_status": {
+    "declared_count": 3,
+    "present_count": 2,
+    "missing_count": 1,
+    "present_refs": [
+      "docs/system/artifact_report_v0.md",
+      "docs/system/minimal_kernel_runtime_evidence_bundle_contract.md"
+    ],
+    "missing_refs": [
+      "docs/system/minimal_kernel_trap_ingress_contract.md"
+    ]
+  },
+  "witness_summary": {
+    "entry_count": 3,
+    "ok_count": 2,
+    "missing_count": 0,
+    "fail_count": 1,
+    "required_missing_count": 0,
+    "kind_counts": {
+      "artifact_report": 1,
+      "runtime_evidence_bundle": 1,
+      "example_ref": 1
+    }
+  },
+  "witness_entries": [
+    {
+      "id": "artifact_report_sample",
+      "kind": "artifact_report",
+      "label": "bringup-minimal-observe-demo",
+      "role": "system compiler artifact report sample",
+      "layer": "system_compiler",
+      "required": true,
+      "status": "ok",
+      "witness_focus": [
+        "artifact",
+        "bringup",
+        "resource-contract"
+      ],
+      "case": "bringup-minimal-observe-demo",
+      "source_path": "schemas/examples/system_compiler.artifact_report.v0.sample.json",
+      "subject": {
+        "case": "bringup-minimal-observe-demo",
+        "profile": "MCU_MIN",
+        "board": "stm32_stub",
+        "active_facets": [
+          "runtime",
+          "input"
+        ]
+      },
+      "observations": [
+        "mode=export_only",
+        "formation=formed",
+        "bindings=resolved:2 unresolved:0",
+        "bringup=published:3 observed:12 blocked:0 failed:0"
+      ],
+      "artifact_refs": [
+        "schemas/examples/system_compiler.artifact_report.v0.sample.json"
+      ]
+    },
+    {
+      "id": "runtime_bundle_sample",
+      "kind": "runtime_evidence_bundle",
+      "label": "minimal-kernel-runtime-evidence",
+      "role": "upper-half and lower-half runtime evidence aggregation",
+      "layer": "bundle",
+      "required": true,
+      "status": "fail",
+      "witness_focus": [
+        "upper-half",
+        "lower-half",
+        "bundle"
+      ],
+      "case": "minimal-kernel-runtime-evidence",
+      "source_path": "schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json",
+      "subject": {
+        "case": "minimal-kernel-runtime-evidence",
+        "profile": null,
+        "board": null,
+        "active_facets": []
+      },
+      "observations": [
+        "result=fail",
+        "host_cold=ok:11 fail:0 other:0",
+        "host_warm=ok:11 fail:0 other:0",
+        "qemu=ok:8 fail:1 other:0"
+      ],
+      "artifact_refs": [
+        "schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json"
+      ]
+    },
+    {
+      "id": "session_roundtrip_example",
+      "kind": "example_ref",
+      "label": "runtime_task_message_session_roundtrip_host",
+      "role": "representative host-side live roundtrip sample",
+      "layer": "upper_half",
+      "required": true,
+      "status": "ok",
+      "witness_focus": [
+        "message",
+        "session",
+        "roundtrip"
+      ],
+      "case": null,
+      "source_path": "Examples/kernel/runtime_task_message_session_roundtrip_host",
+      "subject": {
+        "case": null,
+        "profile": null,
+        "board": null,
+        "active_facets": []
+      },
+      "observations": [
+        "path=Examples/kernel/runtime_task_message_session_roundtrip_host"
+      ],
+      "artifact_refs": []
+    }
+  ],
+  "violations": [
+    "failed witness: runtime_bundle_sample",
+    "missing contract ref: docs/system/minimal_kernel_trap_ingress_contract.md"
+  ]
+}

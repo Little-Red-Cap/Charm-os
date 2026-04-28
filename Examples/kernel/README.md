@@ -70,6 +70,15 @@
 - `runtime_trap_armv7a_host`
 - `runtime_isr_defer_host`
 
+如果你现在看的不是单点 seam，而是“哪些样例共同组成一个世界”，再读：
+
+- [`canonical_worlds/README.md`](canonical_worlds/README.md)
+- `canonical_worlds/minimal_kernel_runtime.world.json`
+
+如果你现在看的不是“这个世界是什么”，而是“这个世界相对基线哪里漂了、哪里塌了”，再读：
+
+- [`../../docs/system/world_compare_v0.md`](../../docs/system/world_compare_v0.md)
+
 这批目录当前大多没有自己的 README，适合配合下面这些系统文档一起看：
 
 - [`../../docs/system/minimal_kernel_runtime_bridge_contract.md`](../../docs/system/minimal_kernel_runtime_bridge_contract.md)

@@ -58,6 +58,41 @@
   - 对应 `system_compiler.artifact_report/v0` 的最小机器可验样例
   - 用途偏向 schema 自检、字段讨论与后续脚本接入前的样例锚点
 
+- `system_compiler.canonical_world.v0.schema.json`
+  - 对应 `docs/system/canonical_world_v0.md` 里定义的 canonical world 对象
+  - 用途偏向把一组 case / contract / witness plan 收成“这个世界想证明什么”的正式声明对象
+  - 它当前刻意只覆盖 `artifact_report / runtime_evidence_bundle / example_ref` 三类 witness plan
+
+- `examples/system_compiler.canonical_world.v0.sample.json`
+  - 对应 `system_compiler.canonical_world/v0` 的最小样例
+  - 用途偏向 schema 自检，以及 witness bundle 脚本的 sample 输入
+
+- `system_compiler.witness_bundle.v0.schema.json`
+  - 对应 `docs/system/witness_bundle_v0.md` 与 `scripts/export_system_compiler_witness_bundle.ps1`
+  - 用途偏向把 canonical world、artifact report、runtime evidence bundle 与 example refs 收成正式交付对象
+  - 它当前关注的是“证词是否齐、来源在哪里、缺口是什么”，而不是替代下层更细的 runtime / compare 语义
+
+- `examples/system_compiler.witness_bundle.v0.sample.json`
+  - 对应 `system_compiler.witness_bundle/v0` 的最小样例
+  - 用途偏向 schema 自检、脚本输出锚点和后续 CI / IDE 原型消费
+
+- `examples/system_compiler.witness_bundle.v0.candidate_drift.sample.json`
+  - 对应 `system_compiler.witness_bundle/v0` 的 candidate drift 样例
+  - 用途偏向 `world compare` 脚本和 sample 输出的最小基线/候选输入对
+
+- `system_compiler.world_compare.v0.schema.json`
+  - 对应 `docs/system/world_compare_v0.md` 与 `scripts/compare_system_compiler_world.py`
+  - 用途偏向把 baseline / candidate witness bundle 提升成一个世界级 drift / collapse verdict 对象
+  - 它当前关注的是“世界是否还站住、哪条 witness 先坏、最小塌陷面落在哪”，而不是替代下层 case compare
+
+- `examples/system_compiler.world_compare.v0.sample.json`
+  - 对应 `system_compiler.world_compare/v0` 的最小样例
+  - 用途偏向 schema 自检、world compare 输出锚点与后续 CI / IDE 原型消费
+
+- `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
+  - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
+  - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点
+
 - `system_compiler.runtime_observe_snapshot.v0.schema.json`
   - 对应 per-case runtime observe sidecar 的最小机器可读协议
   - 用途偏向把 `PublishState / ExportState / recent_transitions` 从示例内存里的瞬时数据，提升成可引用、可验证的独立工件
@@ -184,6 +219,9 @@
 - `report_manifest/v1`：当前报告层稳定依赖的工件元数据协议
 - `runtime_observe_snapshot/v0`：当前 runtime 观察输入 sidecar 的最小协议，用于把动态观察事实稳定挂接到 bundle / report 链
 - `system_compiler.artifact_report/v0`：当前 system compiler 输出面的对象草案锚点，字段仍允许继续收敛
+- `system_compiler.canonical_world/v0`：当前“一个世界想证明什么、依赖哪些 witness / contracts”的声明对象锚点
+- `system_compiler.witness_bundle/v0`：当前“这次交付拿什么作证”的交付对象锚点
+- `system_compiler.world_compare/v0`：当前“这个世界相对基线还站不站得住”的 compare verdict 对象锚点
 - `system_compiler_summary/v0`：当前 artifact_root 默认总览里的 root-level system compiler result object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_input_summary/v0`：当前 artifact_root 默认总览里的 input-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `binding_result_summary/v0`：当前 artifact_root 默认总览里的 binding-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义

@@ -3,6 +3,11 @@ param(
     [string]$SummaryPath = "",
     [string]$ReportMarkdownPath = "",
     [string]$CheckTextPath = "",
+    [string]$CanonicalWorld = "",
+    [string]$WitnessBundleOutputRoot = "",
+    [string]$WitnessBundleSummaryPath = "",
+    [string]$WitnessBundleReportMarkdownPath = "",
+    [string]$WitnessBundleCheckTextPath = "",
     [string]$HostOutputRoot = "",
     [string]$QemuOutputRoot = "",
     [string]$CMakeExe = "cmake",
@@ -13,6 +18,7 @@ param(
     [int]$QemuTimeoutSec = 30,
     [int]$QemuTailLines = 40,
     [switch]$Clean,
+    [switch]$SkipWitnessBundle,
     [string[]]$HostExamples
 )
 
@@ -409,27 +415,106 @@ function Get-QemuSummaryView {
     return $view
 }
 
+function Get-WitnessBundleView {
+    param(
+        $SummaryData,
+        [string]$CanonicalWorldPath,
+        [string]$OutputRootPath,
+        [string]$SummaryPath,
+        [string]$ReportPath,
+        [string]$CheckPath,
+        [string]$LogPath,
+        [int]$ExitCode
+    )
+
+    if ($null -eq $SummaryData) {
+        return $null
+    }
+
+    $resolvedCanonicalWorldPath = $CanonicalWorldPath
+    if ([string]::IsNullOrWhiteSpace($resolvedCanonicalWorldPath) -and
+        $null -ne $SummaryData.artifact_context -and
+        $null -ne $SummaryData.artifact_context.canonical_world) {
+        $resolvedCanonicalWorldPath = [string]$SummaryData.artifact_context.canonical_world
+    }
+
+    return [ordered]@{
+        canonical_world_path = if ([string]::IsNullOrWhiteSpace($resolvedCanonicalWorldPath)) {
+            $null
+        } else {
+            $resolvedCanonicalWorldPath
+        }
+        output_root = $OutputRootPath
+        bundle_log_path = $LogPath
+        bundle_exit_code = $ExitCode
+        summary_path = $SummaryPath
+        report_markdown_path = $ReportPath
+        check_text_path = $CheckPath
+        result = [string]$SummaryData.result
+        world = if ($null -ne $SummaryData.world) {
+            [ordered]@{
+                name = [string]$SummaryData.world.name
+                title = [string]$SummaryData.world.title
+            }
+        } else {
+            $null
+        }
+        witness_summary = if ($null -ne $SummaryData.witness_summary) {
+            [ordered]@{
+                entry_count = [int]$SummaryData.witness_summary.entry_count
+                ok_count = [int]$SummaryData.witness_summary.ok_count
+                missing_count = [int]$SummaryData.witness_summary.missing_count
+                fail_count = [int]$SummaryData.witness_summary.fail_count
+                required_missing_count = [int]$SummaryData.witness_summary.required_missing_count
+            }
+        } else {
+            $null
+        }
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $resolvedOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) { "out/minimal-kernel-runtime-evidence" } else { $OutputRoot }
 $outputRootPath = Resolve-FullPath -Path $resolvedOutputRoot
 $resolvedHostOutputRoot = if ([string]::IsNullOrWhiteSpace($HostOutputRoot)) { Join-Path $outputRootPath "host" } else { Resolve-FullPath -Path $HostOutputRoot }
 $resolvedQemuOutputRoot = if ([string]::IsNullOrWhiteSpace($QemuOutputRoot)) { Join-Path $outputRootPath "qemu" } else { Resolve-FullPath -Path $QemuOutputRoot }
+$resolvedWitnessBundleOutputRoot = if ([string]::IsNullOrWhiteSpace($WitnessBundleOutputRoot)) { Join-Path $outputRootPath "witness" } else { Resolve-FullPath -Path $WitnessBundleOutputRoot }
 
 if ($Clean) {
     Remove-PathIfExists -Path $outputRootPath
 }
 Ensure-Directory -Path $outputRootPath
 
+$defaultCanonicalWorldPath = Join-Path $repoRoot "Examples\kernel\canonical_worlds\minimal_kernel_runtime.world.json"
+$resolvedCanonicalWorld = if (-not [string]::IsNullOrWhiteSpace($CanonicalWorld)) {
+    Resolve-FullPath -Path $CanonicalWorld
+} elseif (Test-Path $defaultCanonicalWorldPath) {
+    Resolve-FullPath -Path $defaultCanonicalWorldPath
+} else {
+    ""
+}
+
 $summaryPathResolved = Get-OutputPath -ExplicitPath $SummaryPath -OutputRootPath $outputRootPath -DefaultFileName "summary.json"
 $reportMarkdownPathResolved = Get-OutputPath -ExplicitPath $ReportMarkdownPath -OutputRootPath $outputRootPath -DefaultFileName "report.md"
 $checkTextPathResolved = Get-OutputPath -ExplicitPath $CheckTextPath -OutputRootPath $outputRootPath -DefaultFileName "check.txt"
 $hostBundleLogPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $outputRootPath -DefaultFileName "host.bundle.log"
 $qemuBundleLogPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $outputRootPath -DefaultFileName "qemu.bundle.log"
+$witnessBundleSummaryPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleSummaryPath -OutputRootPath $resolvedWitnessBundleOutputRoot -DefaultFileName "summary.json"
+$witnessBundleReportMarkdownPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleReportMarkdownPath -OutputRootPath $resolvedWitnessBundleOutputRoot -DefaultFileName "report.md"
+$witnessBundleCheckTextPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleCheckTextPath -OutputRootPath $resolvedWitnessBundleOutputRoot -DefaultFileName "check.txt"
+$witnessBundleLogPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $outputRootPath -DefaultFileName "witness.bundle.log"
 
 $powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
 $hostBundleScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_host_smoke_dual_bundle.ps1"
 $qemuBundleScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_armv7a_qemu_smoke_bundle.ps1"
-foreach ($scriptPath in @($hostBundleScript, $qemuBundleScript)) {
+$witnessBundleScript = Join-Path $PSScriptRoot "export_system_compiler_witness_bundle.ps1"
+$requiredScripts = [System.Collections.Generic.List[string]]::new()
+$requiredScripts.Add($hostBundleScript) | Out-Null
+$requiredScripts.Add($qemuBundleScript) | Out-Null
+if (-not $SkipWitnessBundle) {
+    $requiredScripts.Add($witnessBundleScript) | Out-Null
+}
+foreach ($scriptPath in $requiredScripts) {
     if (-not (Test-Path $scriptPath)) {
         throw "missing script: $scriptPath"
     }
@@ -470,6 +555,7 @@ $qemuCheckPath = Join-Path $resolvedQemuOutputRoot "check.txt"
 
 $hostBundleExitCode = 0
 $qemuBundleExitCode = 0
+$witnessBundleExitCode = 0
 $violations = [System.Collections.Generic.List[string]]::new()
 
 Push-Location $repoRoot
@@ -551,11 +637,63 @@ $summaryObject = [ordered]@{
     check_text_path = $checkTextPathResolved
     host = $hostView
     qemu = $qemuView
-    violations = @($violations)
 }
+if (-not $SkipWitnessBundle) {
+    $summaryObject.witness_bundle = $null
+}
+$summaryObject.violations = @($violations)
 
 Ensure-ParentDirectory -Path $summaryPathResolved
 $summaryObject | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPathResolved -Encoding utf8
+
+$witnessBundleView = $null
+if (-not $SkipWitnessBundle) {
+    $witnessArgs = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($resolvedCanonicalWorld)) {
+        Add-ScriptArgument -Arguments $witnessArgs -Name "-CanonicalWorld" -Value $resolvedCanonicalWorld
+    }
+    Add-ScriptArgument -Arguments $witnessArgs -Name "-RuntimeEvidenceSummary" -Value $summaryPathResolved
+    Add-ScriptArgument -Arguments $witnessArgs -Name "-OutputRoot" -Value $resolvedWitnessBundleOutputRoot
+    Add-ScriptArgument -Arguments $witnessArgs -Name "-OutputPath" -Value $witnessBundleSummaryPathResolved
+    Add-ScriptArgument -Arguments $witnessArgs -Name "-ReportMarkdownPath" -Value $witnessBundleReportMarkdownPathResolved
+    Add-ScriptArgument -Arguments $witnessArgs -Name "-CheckTextPath" -Value $witnessBundleCheckTextPathResolved
+
+    Push-Location $repoRoot
+    try {
+        $witnessBundleExitCode = Invoke-PowerShellFile `
+            -PowerShellExe $powerShellExe `
+            -ScriptPath $witnessBundleScript `
+            -ArgumentList $witnessArgs.ToArray() `
+            -LogPath $witnessBundleLogPathResolved `
+            -FailureMessage "system compiler witness bundle export failed" `
+            -AllowFailure
+    } finally {
+        Pop-Location
+    }
+
+    $witnessBundleSummaryData = Load-JsonFile -Path $witnessBundleSummaryPathResolved
+    if ($null -eq $witnessBundleSummaryData) {
+        $violations.Add("missing witness bundle summary json") | Out-Null
+    }
+    if ($witnessBundleExitCode -ne 0) {
+        $violations.Add(("witness bundle exit code {0}" -f $witnessBundleExitCode)) | Out-Null
+    }
+
+    $witnessBundleView = Get-WitnessBundleView `
+        -SummaryData $witnessBundleSummaryData `
+        -CanonicalWorldPath $resolvedCanonicalWorld `
+        -OutputRootPath $resolvedWitnessBundleOutputRoot `
+        -SummaryPath $witnessBundleSummaryPathResolved `
+        -ReportPath $witnessBundleReportMarkdownPathResolved `
+        -CheckPath $witnessBundleCheckTextPathResolved `
+        -LogPath $witnessBundleLogPathResolved `
+        -ExitCode $witnessBundleExitCode
+
+    $summaryObject.witness_bundle = $witnessBundleView
+    $summaryObject.result = if ($violations.Count -eq 0) { "ok" } else { "fail" }
+    $summaryObject.violations = @($violations)
+    $summaryObject | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPathResolved -Encoding utf8
+}
 
 $reportBuilder = [System.Text.StringBuilder]::new()
 [void]$reportBuilder.AppendLine("# Minimal Kernel Runtime Evidence Bundle Report")
@@ -564,6 +702,9 @@ $reportBuilder = [System.Text.StringBuilder]::new()
 [void]$reportBuilder.AppendLine(('- Result: `{0}`' -f [string]$summaryObject.result))
 [void]$reportBuilder.AppendLine(('- Summary JSON: `{0}`' -f $summaryPathResolved))
 [void]$reportBuilder.AppendLine(('- Output root: `{0}`' -f $outputRootPath))
+if ($null -ne $summaryObject.witness_bundle) {
+    [void]$reportBuilder.AppendLine(('- Witness bundle: `{0}`' -f [string]$summaryObject.witness_bundle.summary_path))
+}
 
 [void]$reportBuilder.AppendLine("")
 [void]$reportBuilder.AppendLine("## Upper-Half Host Evidence")
@@ -663,6 +804,23 @@ if ($null -ne $qemuView.lower_half) {
     }
 }
 
+if ($null -ne $summaryObject.witness_bundle) {
+    [void]$reportBuilder.AppendLine("")
+    [void]$reportBuilder.AppendLine("## System Compiler Witness Bundle")
+    [void]$reportBuilder.AppendLine(('- Bundle log: `{0}`' -f [string]$summaryObject.witness_bundle.bundle_log_path))
+    if (-not [string]::IsNullOrWhiteSpace([string]$summaryObject.witness_bundle.canonical_world_path)) {
+        [void]$reportBuilder.AppendLine(('- Canonical world file: `{0}`' -f [string]$summaryObject.witness_bundle.canonical_world_path))
+    }
+    if ($null -ne $summaryObject.witness_bundle.world) {
+        [void]$reportBuilder.AppendLine(('- World: `{0}` (`{1}`)' -f [string]$summaryObject.witness_bundle.world.name, [string]$summaryObject.witness_bundle.world.title))
+    }
+    [void]$reportBuilder.AppendLine(('- Witness result: `{0}` (exit={1})' -f [string]$summaryObject.witness_bundle.result, [int]$summaryObject.witness_bundle.bundle_exit_code))
+    if ($null -ne $summaryObject.witness_bundle.witness_summary) {
+        [void]$reportBuilder.AppendLine(('- Witness entries: `total={0} ok={1} missing={2} fail={3} required_missing={4}`' -f $summaryObject.witness_bundle.witness_summary.entry_count, $summaryObject.witness_bundle.witness_summary.ok_count, $summaryObject.witness_bundle.witness_summary.missing_count, $summaryObject.witness_bundle.witness_summary.fail_count, $summaryObject.witness_bundle.witness_summary.required_missing_count))
+    }
+    [void]$reportBuilder.AppendLine(('- Witness report: `{0}`' -f [string]$summaryObject.witness_bundle.report_markdown_path))
+}
+
 if ($violations.Count -gt 0) {
     [void]$reportBuilder.AppendLine("")
     [void]$reportBuilder.AppendLine("## Violations")
@@ -679,6 +837,13 @@ $checkBuilder = [System.Text.StringBuilder]::new()
 [void]$checkBuilder.AppendLine(("result: {0}" -f [string]$summaryObject.result))
 [void]$checkBuilder.AppendLine(("host_bundle_exit_code: {0}" -f $hostBundleExitCode))
 [void]$checkBuilder.AppendLine(("qemu_bundle_exit_code: {0}" -f $qemuBundleExitCode))
+if ($null -ne $summaryObject.witness_bundle) {
+    [void]$checkBuilder.AppendLine(("witness_bundle_exit_code: {0}" -f [int]$summaryObject.witness_bundle.bundle_exit_code))
+    [void]$checkBuilder.AppendLine(("witness_bundle_result: {0}" -f [string]$summaryObject.witness_bundle.result))
+    if ($null -ne $summaryObject.witness_bundle.witness_summary) {
+        [void]$checkBuilder.AppendLine(("witness_bundle_entries: total={0} required_missing={1}" -f $summaryObject.witness_bundle.witness_summary.entry_count, $summaryObject.witness_bundle.witness_summary.required_missing_count))
+    }
+}
 if ($null -ne $hostView.warm -and $null -ne $hostView.warm.comparison) {
     [void]$checkBuilder.AppendLine(("host_warm_compare: regressions={0} improvements={1}" -f $hostView.warm.comparison.regressions, $hostView.warm.comparison.improvements))
 }
@@ -701,6 +866,10 @@ Write-Host ("report_markdown={0}" -f $reportMarkdownPathResolved)
 Write-Host ("check_text={0}" -f $checkTextPathResolved)
 Write-Host ("host_output_root={0}" -f $resolvedHostOutputRoot)
 Write-Host ("qemu_output_root={0}" -f $resolvedQemuOutputRoot)
+if (-not $SkipWitnessBundle) {
+    Write-Host ("witness_output_root={0}" -f $resolvedWitnessBundleOutputRoot)
+    Write-Host ("witness_summary={0}" -f $witnessBundleSummaryPathResolved)
+}
 
 if ($violations.Count -gt 0) {
     throw "minimal kernel runtime evidence bundle failed"

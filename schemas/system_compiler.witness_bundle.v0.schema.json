@@ -1,0 +1,401 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.witness_bundle.v0.schema.json",
+  "title": "system_compiler.witness_bundle/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "generated_at_utc",
+    "generator",
+    "result",
+    "world",
+    "artifact_context",
+    "contract_status",
+    "witness_summary",
+    "witness_entries",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.witness_bundle/v0"
+    },
+    "kind": {
+      "const": "system_compiler.witness_bundle"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "world": {
+      "$ref": "#/$defs/world"
+    },
+    "artifact_context": {
+      "$ref": "#/$defs/artifactContext"
+    },
+    "contract_status": {
+      "$ref": "#/$defs/contractStatus"
+    },
+    "witness_summary": {
+      "$ref": "#/$defs/witnessSummary"
+    },
+    "witness_entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/witnessEntry"
+      }
+    },
+    "violations": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "countMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "subjectSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "board": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "active_facets": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "witnessKind": {
+      "type": "string",
+      "enum": [
+        "artifact_report",
+        "runtime_evidence_bundle",
+        "example_ref"
+      ]
+    },
+    "worldWitnessPlanEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "role",
+        "layer",
+        "required",
+        "witness_focus",
+        "case",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/witnessKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "witness_focus": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "case": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "path": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "world": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "title",
+        "summary",
+        "subject",
+        "first_class_terms",
+        "core_questions",
+        "compare_questions",
+        "contract_refs",
+        "witness_plan"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/subjectSummary"
+        },
+        "first_class_terms": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "core_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "compare_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "contract_refs": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "witness_plan": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/worldWitnessPlanEntry"
+          }
+        }
+      }
+    },
+    "entrySubject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case",
+        "profile",
+        "board",
+        "active_facets"
+      ],
+      "properties": {
+        "case": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "profile": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "board": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "active_facets": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "artifactContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_world",
+        "artifact_root",
+        "artifact_reports",
+        "runtime_evidence_summary",
+        "output_root",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "canonical_world": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "artifact_root": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "artifact_reports": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "runtime_evidence_summary": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "contractStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_count",
+        "present_count",
+        "missing_count",
+        "present_refs",
+        "missing_refs"
+      ],
+      "properties": {
+        "declared_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "present_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "present_refs": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "missing_refs": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "witnessSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_count",
+        "ok_count",
+        "missing_count",
+        "fail_count",
+        "required_missing_count",
+        "kind_counts"
+      ],
+      "properties": {
+        "entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ok_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fail_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required_missing_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind_counts": {
+          "$ref": "#/$defs/countMap"
+        }
+      }
+    },
+    "witnessStatus": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "missing",
+        "fail"
+      ]
+    },
+    "witnessEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "role",
+        "layer",
+        "required",
+        "status",
+        "witness_focus",
+        "case",
+        "source_path",
+        "subject",
+        "observations",
+        "artifact_refs"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/witnessKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/witnessStatus"
+        },
+        "witness_focus": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "case": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "source_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "subject": {
+          "$ref": "#/$defs/entrySubject"
+        },
+        "observations": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "artifact_refs": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    }
+  }
+}

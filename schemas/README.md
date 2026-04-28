@@ -118,6 +118,12 @@
   - 用途偏向比较两份 `front_page route` 总结对象，回答消费路径如何变化、哪些 level-1
     surface 出现或消失，以及候选 route 是否更丰富还是发生了 consumer-facing drift
 
+- `system_compiler.front_page_entry_capability.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_capability_v0.md`、`scripts/export_system_compiler_front_page_entry_capability.py`
+    与 `scripts/validate_system_compiler_front_page_entry_capability.py`
+  - 用途偏向把一份 `front_page route` 总结对象收成“这个入口已经具备哪些 explain 能力”的能力表，
+    明确推荐默认 landing mode、能力 tier、首选入口与 provenance hints
+
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点

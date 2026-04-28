@@ -141,6 +141,7 @@
 - System Compiler World Shelf Review v0：`docs/system/system_compiler_world_shelf_review_v0.md`
 - System Compiler Front Page Route v0：`docs/system/system_compiler_front_page_route_v0.md`
 - System Compiler Front Page Route Compare v0：`docs/system/system_compiler_front_page_route_compare_v0.md`
+- System Compiler Front Page Entry Capability v0：`docs/system/system_compiler_front_page_entry_capability_v0.md`
 - Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
 - 资源契约 v0：`docs/system/resource_contract_v0.md`
 - bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
@@ -347,6 +348,7 @@ docs/
 - `docs/system/system_compiler_world_shelf_review_v0.md`
 - `docs/system/system_compiler_front_page_route_v0.md`
 - `docs/system/system_compiler_front_page_route_compare_v0.md`
+- `docs/system/system_compiler_front_page_entry_capability_v0.md`
 - `docs/system/explain_surface_v0.md`
 - `docs/system/resource_contract_v0.md`
 - `docs/system/bringup_evidence_pipeline_v0.md`

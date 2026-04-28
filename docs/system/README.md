@@ -125,6 +125,7 @@
 - [`system_compiler_front_page_route_v0.md`](system_compiler_front_page_route_v0.md)
 - [`system_compiler_front_page_route_compare_v0.md`](system_compiler_front_page_route_compare_v0.md)
 - [`system_compiler_front_page_entry_capability_v0.md`](system_compiler_front_page_entry_capability_v0.md)
+- [`system_compiler_front_page_entry_landing_v0.md`](system_compiler_front_page_entry_landing_v0.md)
 - [`explain_surface_v0.md`](explain_surface_v0.md)
 - [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)
 

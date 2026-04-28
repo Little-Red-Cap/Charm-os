@@ -123,6 +123,7 @@
 - [`system_compiler_biography_index_compare_v0.md`](system_compiler_biography_index_compare_v0.md)
 - [`system_compiler_world_shelf_review_v0.md`](system_compiler_world_shelf_review_v0.md)
 - [`system_compiler_front_page_route_v0.md`](system_compiler_front_page_route_v0.md)
+- [`system_compiler_front_page_route_compare_v0.md`](system_compiler_front_page_route_compare_v0.md)
 - [`explain_surface_v0.md`](explain_surface_v0.md)
 - [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)
 

@@ -112,6 +112,12 @@
   - 用途偏向把一个 root summary 的 `front_page` 消费路径收成可验证的 route 对象，
     明确记录 supporting surface 展开、revisit 与 cycle
 
+- `system_compiler.front_page_route_compare.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_route_compare_v0.md`、`scripts/compare_system_compiler_front_page_route.py`
+    与 `scripts/validate_system_compiler_front_page_route_compare.py`
+  - 用途偏向比较两份 `front_page route` 总结对象，回答消费路径如何变化、哪些 level-1
+    surface 出现或消失，以及候选 route 是否更丰富还是发生了 consumer-facing drift
+
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点

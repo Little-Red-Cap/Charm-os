@@ -56,6 +56,13 @@ def get_artifact_context(summary: dict[str, Any]) -> dict[str, Any]:
     return get_mapping(summary.get("artifact_context"))
 
 
+def get_route_provenance(summary: dict[str, Any]) -> list[Any]:
+    route_provenance = summary.get("route_provenance", [])
+    if isinstance(route_provenance, list):
+        return route_provenance
+    return []
+
+
 def build_root_label(summary: dict[str, Any]) -> str:
     kind = choose_text(summary.get("kind"))
     if kind == "system_compiler.witness_bundle":
@@ -140,11 +147,60 @@ def build_child_surface(surface: dict[str, Any]) -> OrderedDict[str, Any]:
     )
 
 
+def build_route_provenance_entry(
+    owner_route_id: str,
+    owner_surface: OrderedDict[str, Any],
+    owner_depth: int,
+    owner_summary_schema: str,
+    owner_summary_kind: str,
+    provenance_index: int,
+    provenance_value: Any,
+) -> OrderedDict[str, Any]:
+    provenance = get_mapping(provenance_value)
+    available_supporting_surface_ids: list[str] = []
+    for surface_id_value in provenance.get("available_supporting_surface_ids", []):
+        surface_id = choose_text(surface_id_value)
+        if not surface_id or surface_id in available_supporting_surface_ids:
+            continue
+        available_supporting_surface_ids.append(surface_id)
+
+    return OrderedDict(
+        [
+            ("owner_route_id", owner_route_id),
+            ("owner_surface_id", owner_surface["surface_id"]),
+            ("owner_surface_role", owner_surface["role"]),
+            ("owner_depth", owner_depth),
+            ("owner_summary_schema", owner_summary_schema),
+            ("owner_summary_kind", owner_summary_kind),
+            ("owner_summary_path", owner_surface["summary_path"]),
+            ("provenance_index", provenance_index),
+            ("provenance_id", choose_text(provenance.get("id")) or f"{owner_route_id}:{provenance_index}"),
+            ("provenance_route_kind", choose_text(provenance.get("route_kind"))),
+            ("source_summary_schema", choose_text(provenance.get("source_summary_schema"))),
+            ("source_summary_path", normalize_optional_path(provenance.get("source_summary_path"))),
+            (
+                "source_front_page_summary_path",
+                normalize_optional_path(provenance.get("source_front_page_summary_path")),
+            ),
+            (
+                "source_front_page_report_markdown_path",
+                normalize_optional_path(provenance.get("source_front_page_report_markdown_path")),
+            ),
+            (
+                "source_front_page_check_text_path",
+                normalize_optional_path(provenance.get("source_front_page_check_text_path")),
+            ),
+            ("available_supporting_surface_ids", available_supporting_surface_ids),
+        ]
+    )
+
+
 class _RouteState:
     def __init__(self) -> None:
         self.summary_cache: dict[str, dict[str, Any]] = {}
         self.first_route_id_by_path: dict[str, str] = {}
         self.route_entries: list[OrderedDict[str, Any]] = []
+        self.route_provenance_entries: list[OrderedDict[str, Any]] = []
         self.active_path_set: set[str] = set()
 
     def load_summary(self, summary_path: str) -> dict[str, Any]:
@@ -170,6 +226,7 @@ def _walk_surface(
     supporting_surfaces = front_page.get("supporting_surfaces", [])
     if not isinstance(supporting_surfaces, list):
         supporting_surfaces = []
+    route_provenance = get_route_provenance(summary)
 
     actual_schema = choose_text(summary.get("schema")) or surface.get("declared_summary_schema", "")
     actual_kind = choose_text(summary.get("kind"))
@@ -197,6 +254,7 @@ def _walk_surface(
                 ("summary_path", summary_path),
                 ("report_markdown_path", surface["report_markdown_path"]),
                 ("check_text_path", surface["check_text_path"]),
+                ("route_provenance_count", len(route_provenance)),
                 ("supporting_surface_count", len(supporting_surfaces)),
                 ("revisit", revisit),
                 ("cycle", cycle),
@@ -205,6 +263,19 @@ def _walk_surface(
             ]
         )
     )
+
+    for provenance_index, provenance_value in enumerate(route_provenance):
+        state.route_provenance_entries.append(
+            build_route_provenance_entry(
+                owner_route_id=route_id,
+                owner_surface=surface,
+                owner_depth=depth,
+                owner_summary_schema=actual_schema,
+                owner_summary_kind=actual_kind,
+                provenance_index=provenance_index,
+                provenance_value=provenance_value,
+            )
+        )
 
     if not expanded:
         return
@@ -227,8 +298,10 @@ def _walk_surface(
 def build_route_model(root_summary_path: Path) -> tuple[
     OrderedDict[str, Any],
     OrderedDict[str, Any],
+    OrderedDict[str, Any],
     OrderedDict[str, int],
     OrderedDict[str, int],
+    list[OrderedDict[str, Any]],
     list[OrderedDict[str, Any]],
 ]:
     resolved_root_path = Path(root_summary_path).resolve()
@@ -264,7 +337,38 @@ def build_route_model(root_summary_path: Path) -> tuple[
         ]
     )
 
+    provenance_owner_count = len({entry["owner_route_id"] for entry in state.route_provenance_entries})
+    unique_source_summary_count = len(
+        {
+            entry["source_summary_path"]
+            for entry in state.route_provenance_entries
+            if choose_text(entry["source_summary_path"])
+        }
+    )
+    unique_front_page_summary_count = len(
+        {
+            entry["source_front_page_summary_path"]
+            for entry in state.route_provenance_entries
+            if choose_text(entry["source_front_page_summary_path"])
+        }
+    )
+    route_provenance_summary = OrderedDict(
+        [
+            ("entry_count", len(state.route_provenance_entries)),
+            ("owner_count", provenance_owner_count),
+            ("unique_source_summary_count", unique_source_summary_count),
+            ("unique_front_page_summary_count", unique_front_page_summary_count),
+        ]
+    )
+
     ordered_schema_counts = OrderedDict((key, int(schema_counts[key])) for key in sorted(schema_counts))
     ordered_role_counts = OrderedDict((key, int(role_counts[key])) for key in sorted(role_counts))
-    return route_summary, ordered_schema_counts, ordered_role_counts, root_surface, state.route_entries
-
+    return (
+        route_summary,
+        route_provenance_summary,
+        ordered_schema_counts,
+        ordered_role_counts,
+        root_surface,
+        state.route_entries,
+        state.route_provenance_entries,
+    )

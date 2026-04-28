@@ -91,6 +91,40 @@ def load_biography(path: Path):
     return data
 
 
+def get_front_page_surface(biography: dict, surface_id: str):
+    front_page = biography.get("front_page", {}) or {}
+    supporting_surfaces = front_page.get("supporting_surfaces", []) or []
+    for surface in supporting_surfaces:
+        if not isinstance(surface, dict):
+            continue
+        if str(surface.get("id", "")).strip() != surface_id:
+            continue
+        return surface
+    return None
+
+
+def resolve_summary_route(
+    biography: dict,
+    artifact_context: dict,
+    *,
+    surface_id: str,
+    artifact_key: str,
+    fallback_value=None,
+):
+    surface = get_front_page_surface(biography, surface_id)
+    if surface is not None and surface.get("summary_path"):
+        return str(Path(surface["summary_path"]).resolve())
+
+    artifact_value = artifact_context.get(artifact_key)
+    if artifact_value:
+        return str(Path(artifact_value).resolve())
+
+    if fallback_value:
+        return str(Path(fallback_value).resolve())
+
+    return None
+
+
 def make_entry_id(world_name: str, verdict: str, compare_attached: bool, seen: dict[str, int]) -> str:
     base = f"{world_name}:{verdict}:{'compare' if compare_attached else 'witness'}"
     seen[base] = seen.get(base, 0) + 1
@@ -108,9 +142,32 @@ def build_entry(biography: dict, biography_path: Path, seen: dict[str, int]):
     compare_attached = biography.get("world_compare") is not None
     verdict = nullable_text(biography.get("world_verdict"))
 
-    world_compare_summary = artifact_context.get("world_compare_summary")
-    if not world_compare_summary and world_compare_block:
-        world_compare_summary = world_compare_block.get("summary_path")
+    runtime_evidence_summary = resolve_summary_route(
+        biography,
+        artifact_context,
+        surface_id="runtime_evidence",
+        artifact_key="runtime_evidence_summary",
+    )
+    witness_bundle_summary = resolve_summary_route(
+        biography,
+        artifact_context,
+        surface_id="witness_bundle",
+        artifact_key="witness_bundle_summary",
+    )
+    world_compare_summary = resolve_summary_route(
+        biography,
+        artifact_context,
+        surface_id="world_compare",
+        artifact_key="world_compare_summary",
+        fallback_value=world_compare_block.get("summary_path"),
+    )
+
+    if runtime_evidence_summary is None:
+        raise ValueError(f"biography is missing runtime evidence route: {biography_path}")
+    if witness_bundle_summary is None:
+        raise ValueError(f"biography is missing witness bundle route: {biography_path}")
+    if compare_attached and world_compare_summary is None:
+        raise ValueError(f"compare-attached biography is missing world compare route: {biography_path}")
 
     return {
         "id": make_entry_id(
@@ -134,13 +191,9 @@ def build_entry(biography: dict, biography_path: Path, seen: dict[str, int]):
         "summary_path": str(biography_path),
         "report_markdown_path": str(Path(biography["delivery"]["report_markdown_path"]).resolve()),
         "check_text_path": str(Path(biography["delivery"]["check_text_path"]).resolve()),
-        "runtime_evidence_summary": str(Path(artifact_context["runtime_evidence_summary"]).resolve()),
-        "witness_bundle_summary": str(Path(artifact_context["witness_bundle_summary"]).resolve()),
-        "world_compare_summary": (
-            str(Path(world_compare_summary).resolve())
-            if world_compare_summary
-            else None
-        ),
+        "runtime_evidence_summary": runtime_evidence_summary,
+        "witness_bundle_summary": witness_bundle_summary,
+        "world_compare_summary": world_compare_summary,
     }
 
 

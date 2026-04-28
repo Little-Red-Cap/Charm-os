@@ -80,6 +80,34 @@ def expected_index_surface(index_summary: dict, index_path: str, surface_id: str
     }
 
 
+def expected_route_provenance_entry(index_summary: dict, index_path: str, route_id: str):
+    front_page = index_summary.get("front_page", {}) or {}
+    delivery = index_summary.get("delivery", {}) or {}
+    supporting_surface_ids = []
+    for surface in front_page.get("supporting_surfaces", []):
+        if not isinstance(surface, dict):
+            continue
+        surface_id = str(surface.get("id", "")).strip()
+        if not surface_id or surface_id in supporting_surface_ids:
+            continue
+        supporting_surface_ids.append(surface_id)
+
+    return {
+        "id": route_id,
+        "route_kind": "front_page_root",
+        "source_summary_schema": INDEX_SCHEMA,
+        "source_summary_path": normalize_path(index_path),
+        "source_front_page_summary_path": normalize_path(front_page.get("summary_path"))
+        or normalize_path(delivery.get("summary_path"))
+        or normalize_path(index_path),
+        "source_front_page_report_markdown_path": normalize_path(front_page.get("report_markdown_path"))
+        or normalize_path(delivery.get("report_markdown_path")),
+        "source_front_page_check_text_path": normalize_path(front_page.get("check_text_path"))
+        or normalize_path(delivery.get("check_text_path")),
+        "available_supporting_surface_ids": supporting_surface_ids,
+    }
+
+
 def validate_summary_counts(summary: dict, errors: list[str]):
     entry_changes = summary.get("entry_changes", [])
     change_count = len(entry_changes)
@@ -279,6 +307,62 @@ def validate_references(summary: dict, index_schema: dict, summary_path: Path, e
                 f"{prefix}.check_text_path",
                 errors,
             )
+
+    route_provenance = summary.get("route_provenance", [])
+    expected_route_provenance = [
+        expected_route_provenance_entry(baseline_summary, baseline_path, "baseline_shelf"),
+        expected_route_provenance_entry(candidate_summary, candidate_path, "candidate_shelf"),
+    ]
+    if len(route_provenance) != len(expected_route_provenance):
+        errors.append(
+            "route_provenance: expected {0} entries but got {1}".format(
+                len(expected_route_provenance),
+                len(route_provenance),
+            )
+        )
+    for index, expected_entry in enumerate(expected_route_provenance):
+        if index >= len(route_provenance) or not isinstance(route_provenance[index], dict):
+            continue
+        route_entry = route_provenance[index]
+        prefix = f"route_provenance[{index}]"
+        compare_scalar_field(route_entry.get("id"), expected_entry["id"], f"{prefix}.id", errors)
+        compare_scalar_field(route_entry.get("route_kind"), expected_entry["route_kind"], f"{prefix}.route_kind", errors)
+        compare_scalar_field(
+            route_entry.get("source_summary_schema"),
+            expected_entry["source_summary_schema"],
+            f"{prefix}.source_summary_schema",
+            errors,
+        )
+        compare_scalar_field(
+            normalize_path(route_entry.get("source_summary_path")),
+            expected_entry["source_summary_path"],
+            f"{prefix}.source_summary_path",
+            errors,
+        )
+        compare_scalar_field(
+            normalize_path(route_entry.get("source_front_page_summary_path")),
+            expected_entry["source_front_page_summary_path"],
+            f"{prefix}.source_front_page_summary_path",
+            errors,
+        )
+        compare_scalar_field(
+            normalize_path(route_entry.get("source_front_page_report_markdown_path")),
+            expected_entry["source_front_page_report_markdown_path"],
+            f"{prefix}.source_front_page_report_markdown_path",
+            errors,
+        )
+        compare_scalar_field(
+            normalize_path(route_entry.get("source_front_page_check_text_path")),
+            expected_entry["source_front_page_check_text_path"],
+            f"{prefix}.source_front_page_check_text_path",
+            errors,
+        )
+        compare_scalar_field(
+            route_entry.get("available_supporting_surface_ids"),
+            expected_entry["available_supporting_surface_ids"],
+            f"{prefix}.available_supporting_surface_ids",
+            errors,
+        )
 
     for index, change in enumerate(summary.get("entry_changes", [])):
         prefix = f"entry_changes[{index}]"

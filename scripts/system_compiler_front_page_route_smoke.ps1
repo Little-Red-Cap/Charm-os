@@ -129,11 +129,52 @@ $resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
 
 $exportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_route.py"
 $validateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_route.py"
-foreach ($requiredPath in @($exportScript, $validateScript)) {
+$reviewShelfScript = Join-Path $PSScriptRoot "review_system_compiler_world_shelf.ps1"
+foreach ($requiredPath in @($exportScript, $validateScript, $reviewShelfScript)) {
     if (-not (Test-Path $requiredPath)) {
         throw "missing path: $requiredPath"
     }
 }
+
+$routeProvenanceReviewRoot = Join-Path $outputRootPath "_route_provenance_review"
+$routeProvenanceReviewSummary = Join-Path $routeProvenanceReviewRoot "world-shelf.review.summary.json"
+$routeProvenanceCandidateBiography = Join-Path $inputRootPath "witness-ci-shelf\biography.summary.json"
+$routeProvenanceCompareBiography = Join-Path $inputRootPath "witness-ci-shelf\self-compare\biography.summary.json"
+foreach ($requiredPath in @($routeProvenanceCandidateBiography, $routeProvenanceCompareBiography)) {
+    if (-not (Test-Path $requiredPath)) {
+        throw "route provenance smoke input not found: $requiredPath"
+    }
+}
+
+& $reviewShelfScript `
+    -BiographySummary @($routeProvenanceCandidateBiography, $routeProvenanceCompareBiography) `
+    -BaselineBiographySummary @($routeProvenanceCandidateBiography) `
+    -OutputRoot $routeProvenanceReviewRoot `
+    -CandidateShelfOutputRoot (Join-Path $routeProvenanceReviewRoot "world-shelf") `
+    -BaselineShelfOutputRoot (Join-Path $routeProvenanceReviewRoot "world-shelf-baseline") `
+    -CompareOutputRoot (Join-Path $routeProvenanceReviewRoot "world-shelf-compare") `
+    -ReviewSummaryPath $routeProvenanceReviewSummary `
+    -ReviewReportMarkdownPath (Join-Path $routeProvenanceReviewRoot "world-shelf.review.md") `
+    -ReviewCheckTextPath (Join-Path $routeProvenanceReviewRoot "world-shelf.check.txt") `
+    -PythonExe $resolvedPythonExe `
+    -CandidateProfile "front-page-route-smoke-candidate" `
+    -BaselineProfile "front-page-route-smoke-baseline" `
+    -CandidateRequireBiographyCount 2 `
+    -CandidateRequireCompareAttachedCount 1 `
+    -CandidateRequireNotAttachedCount 1 `
+    -BaselineRequireBiographyCount 1 `
+    -BaselineRequireCompareAttachedCount 0 `
+    -BaselineRequireNotAttachedCount 1 `
+    -CompareRequireVerdict improved `
+    -CompareMaxRegressions 0 `
+    -CompareRequireAddedEntries 1 `
+    -CompareRequireRemovedEntries 0 `
+    -CompareRequireChangedEntries 1 `
+    -CompareRequireImprovementCount 1 `
+    -CompareRequireAddedWorlds 0 `
+    -CompareRequireRemovedWorlds 0 `
+    -CompareMaxAddedFailedEntries 0 `
+    -Clean
 
 $cases = @(
     [ordered]@{
@@ -141,24 +182,40 @@ $cases = @(
         SummaryPath = Join-Path $inputRootPath "root-witness\summary.json"
         ExpectedLevel1 = "biography,runtime_evidence"
         RequiredSurfaces = @("biography", "runtime_evidence", "witness_bundle")
+        ExpectedMinRouteProvenanceEntryCount = 0
+        RequiredRouteProvenanceIds = @()
     },
     [ordered]@{
         Name = "root-world-compare"
         SummaryPath = Join-Path $inputRootPath "root-world-compare\summary.json"
         ExpectedLevel1 = "biography,world_compare,runtime_evidence"
         RequiredSurfaces = @("biography", "world_compare", "runtime_evidence", "witness_bundle")
+        ExpectedMinRouteProvenanceEntryCount = 0
+        RequiredRouteProvenanceIds = @()
     },
     [ordered]@{
         Name = "witness-ci-shelf"
         SummaryPath = Join-Path $inputRootPath "witness-ci-shelf\summary.json"
         ExpectedLevel1 = "world_shelf_review,biography,runtime_evidence"
         RequiredSurfaces = @("world_shelf_review", "candidate_shelf", "shelf_compare", "baseline_shelf")
+        ExpectedMinRouteProvenanceEntryCount = 0
+        RequiredRouteProvenanceIds = @()
     },
     [ordered]@{
         Name = "world-compare-ci-shelf"
         SummaryPath = Join-Path $inputRootPath "world-compare-ci-shelf\summary.json"
         ExpectedLevel1 = "world_shelf_review,biography,world_compare,runtime_evidence"
         RequiredSurfaces = @("world_shelf_review", "candidate_shelf", "shelf_compare", "baseline_shelf")
+        ExpectedMinRouteProvenanceEntryCount = 0
+        RequiredRouteProvenanceIds = @()
+    },
+    [ordered]@{
+        Name = "review-provenance"
+        SummaryPath = $routeProvenanceReviewSummary
+        ExpectedLevel1 = "candidate_shelf,shelf_compare,baseline_shelf"
+        RequiredSurfaces = @("candidate_shelf", "shelf_compare", "baseline_shelf")
+        ExpectedMinRouteProvenanceEntryCount = 5
+        RequiredRouteProvenanceIds = @("candidate_shelf", "shelf_compare", "baseline_shelf")
     }
 )
 
@@ -202,11 +259,26 @@ try {
                 -Message ("case '{0}' is missing route surface '{1}'" -f $case.Name, $requiredSurfaceId)
         }
 
+        $routeProvenanceEntries = @($routeSummary.route_provenance_entries)
+        Assert-Condition `
+            -Condition ([int]$routeSummary.route_provenance_summary.entry_count -ge [int]$case.ExpectedMinRouteProvenanceEntryCount) `
+            -Message ("case '{0}' expected at least {1} route provenance entries but got {2}" -f $case.Name, $case.ExpectedMinRouteProvenanceEntryCount, [int]$routeSummary.route_provenance_summary.entry_count)
+
+        $routeProvenanceIds = @(
+            $routeProvenanceEntries |
+                ForEach-Object { [string]$_.provenance_id }
+        )
+        foreach ($requiredRouteProvenanceId in @($case.RequiredRouteProvenanceIds)) {
+            Assert-Condition `
+                -Condition ($routeProvenanceIds -contains [string]$requiredRouteProvenanceId) `
+                -Message ("case '{0}' is missing route provenance id '{1}'" -f $case.Name, $requiredRouteProvenanceId)
+        }
+
         Assert-Condition `
             -Condition ([int]$routeSummary.route_summary.cycle_entry_count -ge 1) `
             -Message ("case '{0}' expected at least one route cycle" -f $case.Name)
 
-        Write-Host ("[FRONT-PAGE-ROUTE-SMOKE] case={0} level1={1}" -f $case.Name, $level1Joined)
+        Write-Host ("[FRONT-PAGE-ROUTE-SMOKE] case={0} level1={1} route_provenance={2}" -f $case.Name, $level1Joined, [int]$routeSummary.route_provenance_summary.entry_count)
     }
 } finally {
     Pop-Location

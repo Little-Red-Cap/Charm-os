@@ -37,6 +37,12 @@ This is intentionally narrower than `artifact_context`.
 - `front_page` answers which concrete lower surfaces a router or reviewer
   should open next after landing on the review summary itself
 
+`world shelf review` also emits `route_provenance`.
+
+That block keeps the machine-readable evidence of which lower front-page roots
+were actually consumed, and which supporting surface ids were exposed there for
+the next question hop.
+
 In other words, `world shelf review` is no longer only a wrapper object.
 It can now route the next read without forcing higher layers to rediscover the
 candidate shelf, compare seam, or baseline shelf on their own.

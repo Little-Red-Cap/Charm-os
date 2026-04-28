@@ -15,11 +15,12 @@ from system_compiler_front_page_route_lib import (
 
 
 def build_report(summary: dict) -> str:
-    root_surface = summary["root_surface"]
     route_summary = summary["route_summary"]
+    route_provenance_summary = summary["route_provenance_summary"]
     schema_counts = summary["schema_counts"]
     role_counts = summary["role_counts"]
     route_entries = summary["route_entries"]
+    route_provenance_entries = summary["route_provenance_entries"]
 
     lines: list[str] = [
         "# System Compiler Front Page Route",
@@ -32,6 +33,8 @@ def build_report(summary: dict) -> str:
         f"- Repeated entries: `{route_summary['repeated_entry_count']}`",
         f"- Cycle entries: `{route_summary['cycle_entry_count']}`",
         f"- Max depth: `{route_summary['max_depth']}`",
+        f"- Route provenance entries: `{route_provenance_summary['entry_count']}`",
+        f"- Route provenance owners: `{route_provenance_summary['owner_count']}`",
         "",
         "## Route Tree",
     ]
@@ -59,6 +62,8 @@ def build_report(summary: dict) -> str:
             )
         )
         lines.append(f"{indent}  path: `{entry['summary_path']}`")
+        if int(entry["route_provenance_count"]) > 0:
+            lines.append(f"{indent}  route_provenance: `{entry['route_provenance_count']}`")
 
     lines.extend(["", "## Schema Counts"])
     for schema_name, count in schema_counts.items():
@@ -68,18 +73,58 @@ def build_report(summary: dict) -> str:
     for role_name, count in role_counts.items():
         lines.append(f"- `{role_name}`: `{count}`")
 
+    lines.extend(
+        [
+            "",
+            "## Route Provenance",
+            "- Entries: `entry_count={0} owner_count={1} unique_sources={2} unique_front_page_roots={3}`".format(
+                route_provenance_summary["entry_count"],
+                route_provenance_summary["owner_count"],
+                route_provenance_summary["unique_source_summary_count"],
+                route_provenance_summary["unique_front_page_summary_count"],
+            ),
+        ]
+    )
+    if route_provenance_entries:
+        for entry in route_provenance_entries:
+            lines.append(
+                "- owner=`{0}` surface=`{1}` provenance=`{2}` kind=`{3}`".format(
+                    entry["owner_route_id"],
+                    entry["owner_surface_id"],
+                    entry["provenance_id"],
+                    entry["provenance_route_kind"],
+                )
+            )
+            lines.append(f"  source_summary: `{entry['source_summary_path']}`")
+            lines.append(f"  front_page_summary: `{entry['source_front_page_summary_path']}`")
+            if entry["available_supporting_surface_ids"]:
+                lines.append(
+                    "  available_supporting_surfaces: `{0}`".format(
+                        "`, `".join(entry["available_supporting_surface_ids"])
+                    )
+                )
+            else:
+                lines.append("  available_supporting_surfaces: none")
+    else:
+        lines.append("- none")
+
     return "\n".join(lines) + "\n"
 
 
 def build_check(summary: dict) -> str:
-    root_surface = summary["root_surface"]
     route_summary = summary["route_summary"]
+    route_provenance_summary = summary["route_provenance_summary"]
     route_entries = summary["route_entries"]
+    route_provenance_entries = summary["route_provenance_entries"]
     level1_surface_ids = ",".join(entry["surface_id"] for entry in route_entries if int(entry["depth"]) == 1)
+    provenance_owner_route_ids = ",".join(
+        sorted({entry["owner_route_id"] for entry in route_provenance_entries})
+    )
+    provenance_ids = ",".join(entry["provenance_id"] for entry in route_provenance_entries)
     return "\n".join(
         [
             f"input_summary_path: {summary['artifact_context']['input_summary_path']}",
-            f"root_summary_path: {root_surface['summary_path']}",
+            f"root_summary_path: {summary['root_surface']['summary_path']}",
             f"entry_count: {route_summary['entry_count']}",
             f"unique_summary_count: {route_summary['unique_summary_count']}",
             f"repeated_entry_count: {route_summary['repeated_entry_count']}",
@@ -88,6 +133,12 @@ def build_check(summary: dict) -> str:
             f"expanded_entry_count: {route_summary['expanded_entry_count']}",
             f"max_depth: {route_summary['max_depth']}",
             f"level1_surface_ids: {level1_surface_ids}",
+            f"route_provenance_entry_count: {route_provenance_summary['entry_count']}",
+            f"route_provenance_owner_count: {route_provenance_summary['owner_count']}",
+            f"route_provenance_unique_source_summary_count: {route_provenance_summary['unique_source_summary_count']}",
+            f"route_provenance_unique_front_page_summary_count: {route_provenance_summary['unique_front_page_summary_count']}",
+            f"route_provenance_owner_route_ids: {provenance_owner_route_ids}",
+            f"route_provenance_ids: {provenance_ids}",
         ]
     ) + "\n"
 
@@ -111,7 +162,15 @@ def main() -> int:
     report_markdown_path = resolve_output_path(args.report_markdown, output_root, "front-page.route.report.md")
     check_text_path = resolve_output_path(args.check_text, output_root, "front-page.route.check.txt")
 
-    route_summary, schema_counts, role_counts, root_surface, route_entries = build_route_model(input_summary_path)
+    (
+        route_summary,
+        route_provenance_summary,
+        schema_counts,
+        role_counts,
+        root_surface,
+        route_entries,
+        route_provenance_entries,
+    ) = build_route_model(input_summary_path)
     summary = OrderedDict(
         [
             ("schema", "system_compiler.front_page_route/v0"),
@@ -145,9 +204,11 @@ def main() -> int:
             ),
             ("root_surface", root_surface),
             ("route_summary", route_summary),
+            ("route_provenance_summary", route_provenance_summary),
             ("schema_counts", schema_counts),
             ("role_counts", role_counts),
             ("route_entries", route_entries),
+            ("route_provenance_entries", route_provenance_entries),
             ("violations", []),
         ]
     )

@@ -54,6 +54,39 @@ def nullable_text(value):
     return text if text else None
 
 
+def get_front_page_surface(biography: dict, surface_id: str):
+    front_page = biography.get("front_page", {}) or {}
+    supporting_surfaces = front_page.get("supporting_surfaces", []) or []
+    for surface in supporting_surfaces:
+        if not isinstance(surface, dict):
+            continue
+        if str(surface.get("id", "")).strip() != surface_id:
+            continue
+        return surface
+    return None
+
+
+def expected_summary_route(
+    biography: dict,
+    artifact_context: dict,
+    *,
+    surface_id: str,
+    artifact_key: str,
+    fallback_value=None,
+):
+    surface = get_front_page_surface(biography, surface_id)
+    if surface is not None:
+        normalized_surface_path = normalize_path(surface.get("summary_path"))
+        if normalized_surface_path is not None:
+            return normalized_surface_path
+
+    normalized_artifact_path = normalize_path(artifact_context.get(artifact_key))
+    if normalized_artifact_path is not None:
+        return normalized_artifact_path
+
+    return normalize_path(fallback_value)
+
+
 def validate_summary_counts(summary: dict, errors: list[str]):
     entries = summary.get("entries", [])
     expected = {
@@ -161,6 +194,25 @@ def validate_entry(entry: dict, biography: dict, errors: list[str]):
     artifact_context = biography.get("artifact_context", {})
     world_compare = biography.get("world_compare")
     compare_attached = world_compare is not None
+    expected_runtime_evidence_summary = expected_summary_route(
+        biography,
+        artifact_context,
+        surface_id="runtime_evidence",
+        artifact_key="runtime_evidence_summary",
+    )
+    expected_witness_bundle_summary = expected_summary_route(
+        biography,
+        artifact_context,
+        surface_id="witness_bundle",
+        artifact_key="witness_bundle_summary",
+    )
+    expected_world_compare_summary = expected_summary_route(
+        biography,
+        artifact_context,
+        surface_id="world_compare",
+        artifact_key="world_compare_summary",
+        fallback_value=(world_compare or {}).get("summary_path"),
+    )
 
     compare_scalar_field(entry.get("profile"), str(biography.get("profile", "")), "entry.profile", errors)
     compare_scalar_field(entry.get("world_name"), str(world.get("name", "")), "entry.world_name", errors)
@@ -188,19 +240,19 @@ def validate_entry(entry: dict, biography: dict, errors: list[str]):
     )
     compare_scalar_field(
         normalize_path(entry.get("runtime_evidence_summary")),
-        normalize_path(artifact_context.get("runtime_evidence_summary")),
+        expected_runtime_evidence_summary,
         "entry.runtime_evidence_summary",
         errors,
     )
     compare_scalar_field(
         normalize_path(entry.get("witness_bundle_summary")),
-        normalize_path(artifact_context.get("witness_bundle_summary")),
+        expected_witness_bundle_summary,
         "entry.witness_bundle_summary",
         errors,
     )
     compare_scalar_field(
         normalize_path(entry.get("world_compare_summary")),
-        normalize_path(artifact_context.get("world_compare_summary")),
+        expected_world_compare_summary,
         "entry.world_compare_summary",
         errors,
     )

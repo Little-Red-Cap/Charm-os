@@ -52,6 +52,32 @@ def build_front_page(summary_path: Path, report_path: Path, check_path: Path, su
     }
 
 
+def build_route_provenance_entry(index_summary: dict, index_path: Path, route_id: str):
+    front_page = index_summary.get("front_page", {})
+    delivery = index_summary.get("delivery", {})
+    supporting_surface_ids = ordered_unique(
+        str(surface.get("id", "")).strip()
+        for surface in front_page.get("supporting_surfaces", [])
+        if isinstance(surface, dict) and str(surface.get("id", "")).strip()
+    )
+    return {
+        "id": route_id,
+        "route_kind": "front_page_root",
+        "source_summary_schema": BIOGRAPHY_INDEX_SCHEMA,
+        "source_summary_path": str(index_path.resolve()),
+        "source_front_page_summary_path": str(
+            Path(front_page.get("summary_path") or delivery.get("summary_path") or index_path).resolve()
+        ),
+        "source_front_page_report_markdown_path": str(
+            Path(front_page.get("report_markdown_path") or delivery["report_markdown_path"]).resolve()
+        ),
+        "source_front_page_check_text_path": str(
+            Path(front_page.get("check_text_path") or delivery["check_text_path"]).resolve()
+        ),
+        "available_supporting_surface_ids": supporting_surface_ids,
+    }
+
+
 def ordered_unique(values):
     seen = set()
     result = []
@@ -565,6 +591,18 @@ def build_summary(args):
             role="candidate_shelf",
         ),
     ]
+    route_provenance = [
+        build_route_provenance_entry(
+            index_summary=baseline_index,
+            index_path=baseline_path,
+            route_id="baseline_shelf",
+        ),
+        build_route_provenance_entry(
+            index_summary=candidate_index,
+            index_path=candidate_path,
+            route_id="candidate_shelf",
+        ),
+    ]
 
     summary = {
         "schema": "system_compiler.biography_index_compare/v0",
@@ -580,6 +618,7 @@ def build_summary(args):
             check_path=check_path,
             supporting_surfaces=supporting_surfaces,
         ),
+        "route_provenance": route_provenance,
         "artifact_context": {
             "baseline_biography_index": str(baseline_path),
             "candidate_biography_index": str(candidate_path),
@@ -634,6 +673,24 @@ def build_summary(args):
             entry_summary["neutral_change_count"],
         ),
     ]
+
+    report_lines.extend(["", "## Route Provenance"])
+    for route in route_provenance:
+        report_lines.append(
+            "- `{0}` via `{1}` -> `{2}`".format(
+                route["id"],
+                route["route_kind"],
+                route["source_front_page_summary_path"],
+            )
+        )
+        if route["available_supporting_surface_ids"]:
+            report_lines.append(
+                "  - supporting surfaces: `{0}`".format(
+                    "`, `".join(route["available_supporting_surface_ids"])
+                )
+            )
+        else:
+            report_lines.append("  - supporting surfaces: none")
 
     if shelf_changes["changed"]:
         report_lines.extend(["", "## Shelf Drift"])

@@ -97,6 +97,10 @@ Each entry keeps only the minimal fields needed to reopen the underlying world:
 - next questions
 - paths back to biography / runtime / witness / compare summaries
 
+Those routed paths should prefer the underlying `system_compiler.biography/v0`
+`front_page.supporting_surfaces` and only fall back to older `artifact_context`
+summary fields when needed.
+
 The shelf is intentionally not a second full copy of the biography body.
 
 ### 3. Aggregated questions

@@ -502,6 +502,47 @@ function New-FrontPageSurfaceFromSummary {
         -CheckTextPath $checkTextPath
 }
 
+function New-RouteProvenanceEntryFromSummary {
+    param(
+        $Summary,
+        [string]$FallbackSummaryPath,
+        [string]$FallbackReportMarkdownPath,
+        [string]$FallbackCheckTextPath,
+        [string]$RouteId,
+        [string]$SummarySchema
+    )
+
+    $summaryPath = Resolve-SurfacePathValue `
+        -PrimaryValue $Summary.front_page.summary_path `
+        -SecondaryValue $Summary.delivery.summary_path `
+        -FallbackValue $FallbackSummaryPath
+    $reportMarkdownPath = Resolve-SurfacePathValue `
+        -PrimaryValue $Summary.front_page.report_markdown_path `
+        -SecondaryValue $Summary.delivery.report_markdown_path `
+        -FallbackValue $FallbackReportMarkdownPath
+    $checkTextPath = Resolve-SurfacePathValue `
+        -PrimaryValue $Summary.front_page.check_text_path `
+        -SecondaryValue $Summary.delivery.check_text_path `
+        -FallbackValue $FallbackCheckTextPath
+    $availableSupportingSurfaceIds = To-StringArray -Values @(
+        @($Summary.front_page.supporting_surfaces) |
+            Where-Object { $null -ne $_ } |
+            ForEach-Object { Get-TextValue -Value $_.id } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+
+    return [ordered]@{
+        id = $RouteId
+        route_kind = "front_page_root"
+        source_summary_schema = $SummarySchema
+        source_summary_path = $FallbackSummaryPath
+        source_front_page_summary_path = $summaryPath
+        source_front_page_report_markdown_path = $reportMarkdownPath
+        source_front_page_check_text_path = $checkTextPath
+        available_supporting_surface_ids = $availableSupportingSurfaceIds
+    }
+}
+
 function Add-ShelfAssemblyArguments {
     param(
         [hashtable]$Arguments,
@@ -921,6 +962,39 @@ try {
         )) | Out-Null
     }
 
+    $routeProvenance = [System.Collections.Generic.List[object]]::new()
+    $routeProvenance.Add((
+        New-RouteProvenanceEntryFromSummary `
+            -Summary $candidateSummary `
+            -FallbackSummaryPath $candidateSummaryPath `
+            -FallbackReportMarkdownPath (Join-Path $candidateShelfOutputRootResolved "biography.index.report.md") `
+            -FallbackCheckTextPath (Join-Path $candidateShelfOutputRootResolved "biography.index.check.txt") `
+            -RouteId "candidate_shelf" `
+            -SummarySchema "system_compiler.biography_index/v0"
+    )) | Out-Null
+    if ($null -ne $compareSummary) {
+        $routeProvenance.Add((
+            New-RouteProvenanceEntryFromSummary `
+                -Summary $compareSummary `
+                -FallbackSummaryPath $compareSummaryPathForReport `
+                -FallbackReportMarkdownPath (Join-Path $compareOutputRootResolved "report.md") `
+                -FallbackCheckTextPath (Join-Path $compareOutputRootResolved "check.txt") `
+                -RouteId "shelf_compare" `
+                -SummarySchema "system_compiler.biography_index_compare/v0"
+        )) | Out-Null
+    }
+    if ($null -ne $baselineSummary) {
+        $routeProvenance.Add((
+            New-RouteProvenanceEntryFromSummary `
+                -Summary $baselineSummary `
+                -FallbackSummaryPath $baselineSummaryPathForReport `
+                -FallbackReportMarkdownPath (Join-Path $baselineShelfRootForReview "biography.index.report.md") `
+                -FallbackCheckTextPath (Join-Path $baselineShelfRootForReview "biography.index.check.txt") `
+                -RouteId "baseline_shelf" `
+                -SummarySchema "system_compiler.biography_index/v0"
+        )) | Out-Null
+    }
+
     $reportLines = [System.Collections.Generic.List[string]]::new()
     $reportLines.Add("# System Compiler World Shelf Review") | Out-Null
     $reportLines.Add("") | Out-Null
@@ -945,6 +1019,18 @@ try {
         $reportLines.Add("- Shelf compare summary: ``$compareSummaryPathForReport``") | Out-Null
         $reportLines.Add("- Shelf compare verdict: ``$([string]$compareSummary.shelf_verdict)``") | Out-Null
         $reportLines.Add("- Shelf compare changes: ``changed=$([int]$compareSummary.entry_summary.changed_entry_count) added=$([int]$compareSummary.entry_summary.added_entry_count) removed=$([int]$compareSummary.entry_summary.removed_entry_count) regressions=$([int]$compareSummary.entry_summary.regression_count) improvements=$([int]$compareSummary.entry_summary.improvement_count)``") | Out-Null
+    }
+
+    $reportLines.Add("") | Out-Null
+    $reportLines.Add("## Route Provenance") | Out-Null
+    foreach ($routeEntry in @($routeProvenance)) {
+        $reportLines.Add(("- ``{0}`` via ``{1}`` -> ``{2}``" -f [string]$routeEntry.id, [string]$routeEntry.route_kind, [string]$routeEntry.source_front_page_summary_path)) | Out-Null
+        $availableSurfaceIds = To-StringArray -Values $routeEntry.available_supporting_surface_ids
+        if ($availableSurfaceIds.Count -gt 0) {
+            $reportLines.Add(("- supporting surfaces: ``{0}``" -f ($availableSurfaceIds -join ", "))) | Out-Null
+        } else {
+            $reportLines.Add("- supporting surfaces: none") | Out-Null
+        }
     }
 
     $reportLines.Add("") | Out-Null
@@ -1003,6 +1089,7 @@ try {
             -ReportMarkdownPath $reviewReportMarkdownPathResolved `
             -CheckTextPath $reviewCheckTextPathResolved `
             -SupportingSurfaces $frontPageSupportingSurfaces.ToArray()
+        route_provenance = $routeProvenance.ToArray()
         artifact_context = [ordered]@{
             output_root = $outputRootPath
             review_summary_path = $reviewSummaryPathResolved

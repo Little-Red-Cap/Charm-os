@@ -13,6 +13,7 @@
     "shelf_verdict",
     "shelf",
     "front_page",
+    "route_provenance",
     "artifact_context",
     "shelf_status",
     "shelf_changes",
@@ -56,6 +57,12 @@
     },
     "front_page": {
       "$ref": "#/$defs/frontPage"
+    },
+    "route_provenance": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/routeProvenanceEntry"
+      }
     },
     "artifact_context": {
       "$ref": "#/$defs/artifactContext"
@@ -218,6 +225,49 @@
         },
         "check_text_path": {
           "type": "string"
+        }
+      }
+    },
+    "routeProvenanceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "route_kind",
+        "source_summary_schema",
+        "source_summary_path",
+        "source_front_page_summary_path",
+        "source_front_page_report_markdown_path",
+        "source_front_page_check_text_path",
+        "available_supporting_surface_ids"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "route_kind": {
+          "type": "string",
+          "enum": [
+            "front_page_root"
+          ]
+        },
+        "source_summary_schema": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "source_front_page_summary_path": {
+          "type": "string"
+        },
+        "source_front_page_report_markdown_path": {
+          "type": "string"
+        },
+        "source_front_page_check_text_path": {
+          "type": "string"
+        },
+        "available_supporting_surface_ids": {
+          "$ref": "#/$defs/stringArray"
         }
       }
     },

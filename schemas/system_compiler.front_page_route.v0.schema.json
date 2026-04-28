@@ -14,9 +14,11 @@
     "artifact_context",
     "root_surface",
     "route_summary",
+    "route_provenance_summary",
     "schema_counts",
     "role_counts",
     "route_entries",
+    "route_provenance_entries",
     "violations"
   ],
   "properties": {
@@ -51,6 +53,9 @@
     "route_summary": {
       "$ref": "#/$defs/routeSummary"
     },
+    "route_provenance_summary": {
+      "$ref": "#/$defs/routeProvenanceSummary"
+    },
     "schema_counts": {
       "$ref": "#/$defs/countMap"
     },
@@ -61,6 +66,12 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/routeEntry"
+      }
+    },
+    "route_provenance_entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/routeProvenanceEntry"
       }
     },
     "violations": {
@@ -221,6 +232,34 @@
         }
       }
     },
+    "routeProvenanceSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_count",
+        "owner_count",
+        "unique_source_summary_count",
+        "unique_front_page_summary_count"
+      ],
+      "properties": {
+        "entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "owner_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unique_source_summary_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unique_front_page_summary_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "routeEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -237,6 +276,7 @@
         "summary_path",
         "report_markdown_path",
         "check_text_path",
+        "route_provenance_count",
         "supporting_surface_count",
         "revisit",
         "cycle",
@@ -281,6 +321,10 @@
         "check_text_path": {
           "type": "string"
         },
+        "route_provenance_count": {
+          "type": "integer",
+          "minimum": 0
+        },
         "supporting_surface_count": {
           "type": "integer",
           "minimum": 0
@@ -296,6 +340,80 @@
         },
         "expanded": {
           "type": "boolean"
+        }
+      }
+    },
+    "routeProvenanceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_route_id",
+        "owner_surface_id",
+        "owner_surface_role",
+        "owner_depth",
+        "owner_summary_schema",
+        "owner_summary_kind",
+        "owner_summary_path",
+        "provenance_index",
+        "provenance_id",
+        "provenance_route_kind",
+        "source_summary_schema",
+        "source_summary_path",
+        "source_front_page_summary_path",
+        "source_front_page_report_markdown_path",
+        "source_front_page_check_text_path",
+        "available_supporting_surface_ids"
+      ],
+      "properties": {
+        "owner_route_id": {
+          "type": "string"
+        },
+        "owner_surface_id": {
+          "type": "string"
+        },
+        "owner_surface_role": {
+          "type": "string"
+        },
+        "owner_depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "owner_summary_schema": {
+          "type": "string"
+        },
+        "owner_summary_kind": {
+          "type": "string"
+        },
+        "owner_summary_path": {
+          "type": "string"
+        },
+        "provenance_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provenance_id": {
+          "type": "string"
+        },
+        "provenance_route_kind": {
+          "type": "string"
+        },
+        "source_summary_schema": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "source_front_page_summary_path": {
+          "type": "string"
+        },
+        "source_front_page_report_markdown_path": {
+          "type": "string"
+        },
+        "source_front_page_check_text_path": {
+          "type": "string"
+        },
+        "available_supporting_surface_ids": {
+          "$ref": "#/$defs/stringArray"
         }
       }
     }

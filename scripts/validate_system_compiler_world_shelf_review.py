@@ -121,6 +121,43 @@ def build_front_page_surface(
     )
 
 
+def build_route_provenance_entry(
+    summary: dict,
+    fallback_summary_path: str,
+    fallback_report_markdown_path: str,
+    fallback_check_text_path: str,
+    route_id: str,
+    summary_schema: str,
+):
+    front_page = summary.get("front_page", {}) or {}
+    delivery = summary.get("delivery", {}) or {}
+    available_supporting_surface_ids = []
+    for surface in front_page.get("supporting_surfaces", []):
+        if not isinstance(surface, dict):
+            continue
+        surface_id = str(surface.get("id", "")).strip()
+        if not surface_id or surface_id in available_supporting_surface_ids:
+            continue
+        available_supporting_surface_ids.append(surface_id)
+
+    return {
+        "id": route_id,
+        "route_kind": "front_page_root",
+        "source_summary_schema": summary_schema,
+        "source_summary_path": normalize_path(fallback_summary_path),
+        "source_front_page_summary_path": normalize_path(front_page.get("summary_path"))
+        or normalize_path(delivery.get("summary_path"))
+        or normalize_path(fallback_summary_path),
+        "source_front_page_report_markdown_path": normalize_path(front_page.get("report_markdown_path"))
+        or normalize_path(delivery.get("report_markdown_path"))
+        or normalize_path(fallback_report_markdown_path),
+        "source_front_page_check_text_path": normalize_path(front_page.get("check_text_path"))
+        or normalize_path(delivery.get("check_text_path"))
+        or normalize_path(fallback_check_text_path),
+        "available_supporting_surface_ids": available_supporting_surface_ids,
+    }
+
+
 def validate_references(summary: dict, index_schema: dict, compare_schema: dict, errors: list[str]):
     front_page = summary.get("front_page", {})
     artifact_context = summary.get("artifact_context", {})
@@ -244,6 +281,17 @@ def validate_references(summary: dict, index_schema: dict, compare_schema: dict,
         expect_equal(summary.get("questions", {}).get("compare_questions"), [], "questions.compare_questions", errors)
         expect_equal(summary.get("questions", {}).get("next_questions"), candidate_questions, "questions.next_questions", errors)
         expect_equal(front_page.get("supporting_surfaces"), expected_supporting_surfaces, "front_page.supporting_surfaces", errors)
+        expected_route_provenance = [
+            build_route_provenance_entry(
+                summary=candidate_summary,
+                fallback_summary_path=candidate_summary_path,
+                fallback_report_markdown_path=str(Path(artifact_context.get("candidate_shelf_root", "")) / "biography.index.report.md"),
+                fallback_check_text_path=str(Path(artifact_context.get("candidate_shelf_root", "")) / "biography.index.check.txt"),
+                route_id="candidate_shelf",
+                summary_schema="system_compiler.biography_index/v0",
+            )
+        ]
+        expect_equal(summary.get("route_provenance"), expected_route_provenance, "route_provenance", errors)
         collapse_surface = summary.get("collapse_surface", {})
         expect_equal(collapse_surface.get("changed"), False, "collapse_surface.changed", errors)
         for key in (
@@ -285,6 +333,32 @@ def validate_references(summary: dict, index_schema: dict, compare_schema: dict,
             summary_schema="system_compiler.biography_index/v0",
         )
     )
+    expected_route_provenance = [
+        build_route_provenance_entry(
+            summary=candidate_summary,
+            fallback_summary_path=candidate_summary_path,
+            fallback_report_markdown_path=str(Path(artifact_context.get("candidate_shelf_root", "")) / "biography.index.report.md"),
+            fallback_check_text_path=str(Path(artifact_context.get("candidate_shelf_root", "")) / "biography.index.check.txt"),
+            route_id="candidate_shelf",
+            summary_schema="system_compiler.biography_index/v0",
+        ),
+        build_route_provenance_entry(
+            summary=compare_summary,
+            fallback_summary_path=compare_summary_path,
+            fallback_report_markdown_path=str(Path(compare_output_root) / "report.md"),
+            fallback_check_text_path=str(Path(compare_output_root) / "check.txt"),
+            route_id="shelf_compare",
+            summary_schema="system_compiler.biography_index_compare/v0",
+        ),
+        build_route_provenance_entry(
+            summary=baseline_summary,
+            fallback_summary_path=baseline_summary_path,
+            fallback_report_markdown_path=str(Path(baseline_shelf_root) / "biography.index.report.md"),
+            fallback_check_text_path=str(Path(baseline_shelf_root) / "biography.index.check.txt"),
+            route_id="baseline_shelf",
+            summary_schema="system_compiler.biography_index/v0",
+        ),
+    ]
 
     compare_mode = review_status.get("compare_mode")
     if compare_mode not in ("self-compare", "baseline-compare"):
@@ -332,6 +406,7 @@ def validate_references(summary: dict, index_schema: dict, compare_schema: dict,
         errors,
     )
     expect_equal(front_page.get("supporting_surfaces"), expected_supporting_surfaces, "front_page.supporting_surfaces", errors)
+    expect_equal(summary.get("route_provenance"), expected_route_provenance, "route_provenance", errors)
     expect_equal(summary.get("collapse_surface"), compare_summary.get("collapse_surface"), "collapse_surface", errors)
 
 

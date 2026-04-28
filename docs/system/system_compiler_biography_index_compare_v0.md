@@ -158,6 +158,11 @@ This keeps shelf compare thin:
   used
 - `front_page` answers which surfaces a router should open first
 
+The compare object also emits `route_provenance`.
+
+That block records which lower shelf front-page roots were actually consumed,
+and which supporting surface ids were visible there for the next drill-down hop.
+
 ## Recommended usage
 
 ### Compare shelves through the wrapper

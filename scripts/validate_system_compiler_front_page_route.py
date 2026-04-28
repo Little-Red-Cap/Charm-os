@@ -54,6 +54,29 @@ def validate_references(summary: dict, errors: list[str]) -> None:
         ensure_exists(entry.get("report_markdown_path"), f"route_entries[{index}].report_markdown_path", errors)
         ensure_exists(entry.get("check_text_path"), f"route_entries[{index}].check_text_path", errors)
 
+    for index, entry in enumerate(summary.get("route_provenance_entries", [])):
+        if not isinstance(entry, dict):
+            errors.append(f"route_provenance_entries[{index}]: invalid entry")
+            continue
+
+        ensure_exists(entry.get("owner_summary_path"), f"route_provenance_entries[{index}].owner_summary_path", errors)
+        ensure_exists(entry.get("source_summary_path"), f"route_provenance_entries[{index}].source_summary_path", errors)
+        ensure_exists(
+            entry.get("source_front_page_summary_path"),
+            f"route_provenance_entries[{index}].source_front_page_summary_path",
+            errors,
+        )
+        ensure_exists(
+            entry.get("source_front_page_report_markdown_path"),
+            f"route_provenance_entries[{index}].source_front_page_report_markdown_path",
+            errors,
+        )
+        ensure_exists(
+            entry.get("source_front_page_check_text_path"),
+            f"route_provenance_entries[{index}].source_front_page_check_text_path",
+            errors,
+        )
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -97,7 +120,15 @@ def main() -> int:
 
         artifact_context = summary.get("artifact_context", {})
         input_summary_path = Path(artifact_context.get("input_summary_path", "")).resolve()
-        route_summary, schema_counts, role_counts, root_surface, route_entries = build_route_model(input_summary_path)
+        (
+            route_summary,
+            route_provenance_summary,
+            schema_counts,
+            role_counts,
+            root_surface,
+            route_entries,
+            route_provenance_entries,
+        ) = build_route_model(input_summary_path)
 
         expect_equal(
             normalize_path(summary_path),
@@ -107,9 +138,21 @@ def main() -> int:
         )
         expect_equal(summary.get("root_surface"), root_surface, "root_surface", errors)
         expect_equal(summary.get("route_summary"), route_summary, "route_summary", errors)
+        expect_equal(
+            summary.get("route_provenance_summary"),
+            route_provenance_summary,
+            "route_provenance_summary",
+            errors,
+        )
         expect_equal(summary.get("schema_counts"), schema_counts, "schema_counts", errors)
         expect_equal(summary.get("role_counts"), role_counts, "role_counts", errors)
         expect_equal(summary.get("route_entries"), route_entries, "route_entries", errors)
+        expect_equal(
+            summary.get("route_provenance_entries"),
+            route_provenance_entries,
+            "route_provenance_entries",
+            errors,
+        )
         expect_equal(summary.get("result"), "ok", "result", errors)
         expect_equal(summary.get("violations"), [], "violations", errors)
     except Exception as exc:
@@ -124,6 +167,7 @@ def main() -> int:
     print(f"[OK] schema -> {summary_path}")
     print(f"[OK] input summary -> {artifact_context.get('input_summary_path', '')}")
     print(f"[OK] route entries -> {route_summary['entry_count']}")
+    print(f"[OK] route provenance entries -> {route_provenance_summary['entry_count']}")
     return 0
 
 

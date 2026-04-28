@@ -13,6 +13,7 @@ on:
       - scripts/validate_minimal_kernel_runtime_evidence.py
       - scripts/export_system_compiler_biography.py
       - scripts/export_system_compiler_witness_bundle.ps1
+      - scripts/check_system_compiler_biography_summary.ps1
       - scripts/validate_system_compiler_biography.py
       - scripts/validate_system_compiler_witness_bundle.py
       - scripts/compare_system_compiler_world.py
@@ -127,6 +128,18 @@ jobs:
             -MaxRegressions 0 `
             -MaxRequiredRegressions 0 `
             -MaxAddedMissingContractRefs 0
+
+      - name: Check world compare biography
+        shell: pwsh
+        run: |
+          ./scripts/check_system_compiler_biography_summary.ps1 `
+            -Summary out/minimal-kernel-runtime-system-compiler-world-compare/biography.summary.json `
+            -RequireWorldCompareResult ok `
+            -RequireVerdict standing `
+            -MaxRequiredMissing 0 `
+            -MaxRegressions 0 `
+            -MaxRequiredRegressions 0 `
+            -RequireCollapseSurfaceUnchanged
 
       - name: Publish minimal kernel runtime system compiler world compare report
         if: always()

@@ -10,6 +10,7 @@ on:
       - scripts/compare_system_compiler_world.py
       - scripts/export_system_compiler_biography.py
       - scripts/validate_system_compiler_biography.py
+      - scripts/check_system_compiler_biography_summary.ps1
       - scripts/export_system_compiler_witness_bundle.ps1
       - scripts/validate_system_compiler_witness_bundle.py
       - scripts/validate_system_compiler_world_compare.py
@@ -117,6 +118,14 @@ jobs:
             -QemuBuildJobs 8 `
             -QemuTailLines 20
 
+      - name: Check witness biography without compare
+        shell: pwsh
+        run: |
+          ./scripts/check_system_compiler_biography_summary.ps1 `
+            -Summary out/minimal-kernel-runtime-system-compiler-witness/biography.summary.json `
+            -RequireVerdict not-attached `
+            -MaxRequiredMissing 0
+
       - name: Run runtime witness self compare smoke
         shell: pwsh
         run: |
@@ -125,6 +134,18 @@ jobs:
             -BaselineRuntimeEvidenceSummary out/minimal-kernel-runtime-system-compiler-witness/runtime_evidence/summary.json `
             -OutputRoot out/minimal-kernel-runtime-system-compiler-witness/self-compare `
             -Clean
+
+      - name: Check witness self compare biography
+        shell: pwsh
+        run: |
+          ./scripts/check_system_compiler_biography_summary.ps1 `
+            -Summary out/minimal-kernel-runtime-system-compiler-witness/self-compare/biography.summary.json `
+            -RequireWorldCompareResult ok `
+            -RequireVerdict standing `
+            -MaxRequiredMissing 0 `
+            -MaxRegressions 0 `
+            -MaxRequiredRegressions 0 `
+            -RequireCollapseSurfaceUnchanged
 
       - name: Run sample world compare smoke
         shell: pwsh

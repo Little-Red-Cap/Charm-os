@@ -106,6 +106,12 @@
   - 对应 `docs/system/system_compiler_world_shelf_review_v0.md` 与 `scripts/review_system_compiler_world_shelf.ps1`
   - 用途偏向把 candidate shelf、baseline shelf 与 shelf compare verdict 收成一个可验证的 review envelope 对象
 
+- `system_compiler.front_page_route.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_route_v0.md`、`scripts/export_system_compiler_front_page_route.py`
+    与 `scripts/validate_system_compiler_front_page_route.py`
+  - 用途偏向把一个 root summary 的 `front_page` 消费路径收成可验证的 route 对象，
+    明确记录 supporting surface 展开、revisit 与 cycle
+
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点

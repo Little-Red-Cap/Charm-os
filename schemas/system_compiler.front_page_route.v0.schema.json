@@ -1,0 +1,303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.front_page_route.v0.schema.json",
+  "title": "system_compiler.front_page_route/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "generated_at_utc",
+    "generator",
+    "result",
+    "route",
+    "artifact_context",
+    "root_surface",
+    "route_summary",
+    "schema_counts",
+    "role_counts",
+    "route_entries",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.front_page_route/v0"
+    },
+    "kind": {
+      "const": "system_compiler.front_page_route"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "route": {
+      "$ref": "#/$defs/routeBlock"
+    },
+    "artifact_context": {
+      "$ref": "#/$defs/artifactContext"
+    },
+    "root_surface": {
+      "$ref": "#/$defs/routeSurface"
+    },
+    "route_summary": {
+      "$ref": "#/$defs/routeSummary"
+    },
+    "schema_counts": {
+      "$ref": "#/$defs/countMap"
+    },
+    "role_counts": {
+      "$ref": "#/$defs/countMap"
+    },
+    "route_entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/routeEntry"
+      }
+    },
+    "violations": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "countMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "routeBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "artifactContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_summary_path",
+        "output_root",
+        "route_summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "input_summary_path": {
+          "type": "string"
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "route_summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "routeSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface_id",
+        "label",
+        "role",
+        "declared_summary_schema",
+        "summary_schema",
+        "summary_kind",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "surface_id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "declared_summary_schema": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_kind": {
+          "type": "string"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "routeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_count",
+        "unique_summary_count",
+        "repeated_entry_count",
+        "cycle_entry_count",
+        "leaf_entry_count",
+        "expanded_entry_count",
+        "max_depth"
+      ],
+      "properties": {
+        "entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unique_summary_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "repeated_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cycle_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "leaf_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expanded_entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_depth": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "routeEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "route_id",
+        "parent_route_id",
+        "depth",
+        "surface_id",
+        "label",
+        "role",
+        "declared_summary_schema",
+        "summary_schema",
+        "summary_kind",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "supporting_surface_count",
+        "revisit",
+        "cycle",
+        "first_route_id",
+        "expanded"
+      ],
+      "properties": {
+        "route_id": {
+          "type": "string"
+        },
+        "parent_route_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "surface_id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "declared_summary_schema": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_kind": {
+          "type": "string"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "supporting_surface_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "revisit": {
+          "type": "boolean"
+        },
+        "cycle": {
+          "type": "boolean"
+        },
+        "first_route_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "expanded": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

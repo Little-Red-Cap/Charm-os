@@ -72,7 +72,7 @@ When the wrapper is used, the delivery root also gets sidecars such as:
 
 ## Current compare semantics
 
-The current compare object keeps five responsibilities stable.
+The current compare object keeps six responsibilities stable.
 
 ### 1. Shelf verdict
 
@@ -138,6 +138,25 @@ So grouped shelf compare can become:
 - a CI gate
 - a step-summary front page
 - a review handoff object
+
+### 6. Machine front page
+
+The compare object now also emits a machine-readable `front_page`.
+
+That front page keeps:
+
+- the compare object's own `summary / report / check`
+- a `baseline_shelf` supporting surface
+- a `candidate_shelf` supporting surface
+
+Those surfaces route back to the lower `system_compiler.biography_index/v0`
+shelves, which can then route further down to the biographies they contain.
+
+This keeps shelf compare thin:
+
+- `artifact_context` still records which baseline and candidate shelves were
+  used
+- `front_page` answers which surfaces a router should open first
 
 ## Recommended usage
 
@@ -265,6 +284,10 @@ gate it in one pass.
 `review_system_compiler_world_shelf.ps1` sits one workflow layer above both:
 it starts from biographies, assembles the shelves, and then lands on the same
 shelf compare object.
+
+If the caller wants the review envelope itself, rather than only the lower
+compare object, continue with
+`docs/system/system_compiler_world_shelf_review_v0.md`.
 
 When the minimal-kernel witness or world-compare CI wrappers enable
 `-RunWorldShelfFlow`, this compare still lands in `world-shelf-compare/`, but a

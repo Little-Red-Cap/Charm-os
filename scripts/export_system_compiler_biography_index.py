@@ -23,6 +23,35 @@ def resolve_output_path(explicit: str, output_root: Path, default_name: str) -> 
     return (output_root / default_name).resolve()
 
 
+def build_surface_ref(
+    surface_id: str,
+    summary_schema: str,
+    label: str,
+    role: str,
+    summary_path: str,
+    report_markdown_path: str,
+    check_text_path: str,
+):
+    return {
+        "id": surface_id,
+        "label": label,
+        "role": role,
+        "summary_schema": summary_schema,
+        "summary_path": str(Path(summary_path).resolve()),
+        "report_markdown_path": str(Path(report_markdown_path).resolve()),
+        "check_text_path": str(Path(check_text_path).resolve()),
+    }
+
+
+def build_front_page(summary_path: Path, report_path: Path, check_path: Path, supporting_surfaces: list[dict]):
+    return {
+        "summary_path": str(summary_path.resolve()),
+        "report_markdown_path": str(report_path.resolve()),
+        "check_text_path": str(check_path.resolve()),
+        "supporting_surfaces": supporting_surfaces,
+    }
+
+
 def ordered_unique(values):
     seen = set()
     result = []
@@ -113,6 +142,24 @@ def build_entry(biography: dict, biography_path: Path, seen: dict[str, int]):
             else None
         ),
     }
+
+
+def build_biography_surface(entry: dict, biography: dict, biography_path: Path):
+    front_page = biography.get("front_page", {})
+    delivery = biography.get("delivery", {})
+    world = biography.get("world", {})
+    world_name = str(world.get("name", "")).strip()
+    world_title = str(world.get("title", "")).strip()
+    label_anchor = world_name or world_title or entry["id"]
+    return build_surface_ref(
+        surface_id=entry["id"],
+        summary_schema=BIOGRAPHY_SCHEMA,
+        label=f"world biography: {label_anchor}",
+        role="shelf_entry",
+        summary_path=front_page.get("summary_path") or delivery.get("summary_path") or str(biography_path),
+        report_markdown_path=front_page.get("report_markdown_path") or delivery["report_markdown_path"],
+        check_text_path=front_page.get("check_text_path") or delivery["check_text_path"],
+    )
 
 
 def build_index_summary(entries):
@@ -272,6 +319,10 @@ def build_summary(args):
 
     seen_ids: dict[str, int] = {}
     entries = [build_entry(biography, path, seen_ids) for biography, path in zip(biographies, biography_paths)]
+    supporting_surfaces = [
+        build_biography_surface(entry, biography, biography_path)
+        for entry, biography, biography_path in zip(entries, biographies, biography_paths)
+    ]
     index_summary = build_index_summary(entries)
     questions = build_questions(biographies)
 
@@ -289,6 +340,12 @@ def build_summary(args):
                 "world shelf for browsing, compare, and review."
             ),
         },
+        "front_page": build_front_page(
+            summary_path=summary_path,
+            report_path=report_path,
+            check_path=check_path,
+            supporting_surfaces=supporting_surfaces,
+        ),
         "delivery": {
             "output_root": str(output_root),
             "summary_path": str(summary_path),

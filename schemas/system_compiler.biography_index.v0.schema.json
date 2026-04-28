@@ -12,6 +12,7 @@
     "result",
     "profile",
     "shelf",
+    "front_page",
     "delivery",
     "artifact_context",
     "summary",
@@ -44,6 +45,9 @@
     },
     "shelf": {
       "$ref": "#/$defs/shelfBlock"
+    },
+    "front_page": {
+      "$ref": "#/$defs/frontPage"
     },
     "delivery": {
       "$ref": "#/$defs/deliveryBlock"
@@ -107,6 +111,69 @@
         },
         "summary": {
           "type": "string"
+        }
+      }
+    },
+    "frontPageSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "role",
+        "summary_schema",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "frontPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "supporting_surfaces"
+      ],
+      "properties": {
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "supporting_surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/frontPageSurface"
+          }
         }
       }
     },

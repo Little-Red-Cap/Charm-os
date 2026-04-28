@@ -11,8 +11,10 @@ param(
     [string]$CandidateShelfOutputRoot = "",
     [string]$BaselineShelfOutputRoot = "",
     [string]$CompareOutputRoot = "",
+    [string]$ReviewSummaryPath = "",
     [string]$ReviewReportMarkdownPath = "",
     [string]$ReviewCheckTextPath = "",
+    [string]$ReviewValidationLogPath = "",
     [string]$PythonExe = "",
     [switch]$Clean,
     [switch]$CompareAgainstSelf,
@@ -234,6 +236,129 @@ function Write-Utf8Text {
     Set-Content -LiteralPath $Path -Encoding utf8 $Text
 }
 
+function ConvertTo-PlainJsonValue {
+    param(
+        $Value
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    if (
+        $Value -is [string] -or
+        $Value -is [char] -or
+        $Value -is [bool] -or
+        $Value -is [byte] -or
+        $Value -is [sbyte] -or
+        $Value -is [int16] -or
+        $Value -is [uint16] -or
+        $Value -is [int32] -or
+        $Value -is [uint32] -or
+        $Value -is [int64] -or
+        $Value -is [uint64] -or
+        $Value -is [single] -or
+        $Value -is [double] -or
+        $Value -is [decimal]
+    ) {
+        return $Value
+    }
+
+    if ($Value -is [datetime]) {
+        return $Value.ToString("o")
+    }
+
+    if ($Value -is [guid] -or $Value -is [uri]) {
+        return [string]$Value
+    }
+
+    if ($Value -is [System.Collections.IDictionary]) {
+        $plainMap = [ordered]@{}
+        foreach ($key in $Value.Keys) {
+            $plainMap[[string]$key] = ConvertTo-PlainJsonValue -Value $Value[$key]
+        }
+        return $plainMap
+    }
+
+    if ($Value -is [System.Array]) {
+        $plainItems = [System.Collections.Generic.List[object]]::new()
+        foreach ($item in $Value) {
+            $plainItems.Add((ConvertTo-PlainJsonValue -Value $item)) | Out-Null
+        }
+        return ,([object[]]$plainItems.ToArray())
+    }
+
+    if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
+        $plainItems = [System.Collections.Generic.List[object]]::new()
+        foreach ($item in $Value) {
+            $plainItems.Add((ConvertTo-PlainJsonValue -Value $item)) | Out-Null
+        }
+        return ,([object[]]$plainItems.ToArray())
+    }
+
+    if ($Value -is [psobject]) {
+        $baseObject = $Value.PSObject.BaseObject
+        if ($null -ne $baseObject -and $baseObject -ne $Value) {
+            return ConvertTo-PlainJsonValue -Value $baseObject
+        }
+
+        $plainObject = [ordered]@{}
+        foreach ($property in $Value.PSObject.Properties) {
+            if (-not $property.IsGettable) {
+                continue
+            }
+
+            if ($property.MemberType -ne [System.Management.Automation.PSMemberTypes]::NoteProperty -and
+                $property.MemberType -ne [System.Management.Automation.PSMemberTypes]::AliasProperty -and
+                $property.MemberType -ne [System.Management.Automation.PSMemberTypes]::ScriptProperty) {
+                continue
+            }
+
+            $plainObject[$property.Name] = ConvertTo-PlainJsonValue -Value $property.Value
+        }
+        return $plainObject
+    }
+
+    return [string]$Value
+}
+
+function Write-JsonFile {
+    param(
+        [string]$Path,
+        $Value
+    )
+
+    Ensure-ParentDirectory -Path $Path
+    $plainValue = ConvertTo-PlainJsonValue -Value $Value
+    $json = ConvertTo-Json -InputObject $plainValue -Depth 64 -Compress
+    Set-Content -LiteralPath $Path -Encoding utf8 $json
+}
+
+function Invoke-ExternalTool {
+    param(
+        [string]$Executable,
+        [string[]]$ArgumentList,
+        [string]$LogPath,
+        [string]$FailureMessage
+    )
+
+    Ensure-ParentDirectory -Path $LogPath
+    Write-Host ("==> {0}" -f [System.IO.Path]::GetFileName($Executable))
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $Executable @ArgumentList 2>&1 | Tee-Object -FilePath $LogPath | Out-Host
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($exitCode -ne 0) {
+        throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
+    }
+}
+
 function Load-JsonObject {
     param(
         [string]$Path
@@ -252,6 +377,129 @@ function Get-StringValues {
             Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_) } |
             ForEach-Object { [string]$_ }
     )
+}
+
+function To-StringArray {
+    param(
+        $Values
+    )
+
+    return ,([string[]]@(Get-StringValues -Values $Values))
+}
+
+function Get-TextValue {
+    param(
+        $Value
+    )
+
+    if ($null -eq $Value) {
+        return ""
+    }
+
+    $text = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return ""
+    }
+
+    return $text
+}
+
+function Resolve-SurfacePathValue {
+    param(
+        $PrimaryValue,
+        $SecondaryValue,
+        $FallbackValue
+    )
+
+    $primaryText = Get-TextValue -Value $PrimaryValue
+    if (-not [string]::IsNullOrWhiteSpace($primaryText)) {
+        return $primaryText
+    }
+
+    $secondaryText = Get-TextValue -Value $SecondaryValue
+    if (-not [string]::IsNullOrWhiteSpace($secondaryText)) {
+        return $secondaryText
+    }
+
+    return Get-TextValue -Value $FallbackValue
+}
+
+function New-FrontPageSurface {
+    param(
+        [string]$Id,
+        [string]$Label,
+        [string]$Role,
+        [string]$SummarySchema,
+        [string]$SummaryPath,
+        [string]$ReportMarkdownPath,
+        [string]$CheckTextPath
+    )
+
+    return [ordered]@{
+        id = $Id
+        label = $Label
+        role = $Role
+        summary_schema = $SummarySchema
+        summary_path = $SummaryPath
+        report_markdown_path = $ReportMarkdownPath
+        check_text_path = $CheckTextPath
+    }
+}
+
+function New-FrontPage {
+    param(
+        [string]$SummaryPath,
+        [string]$ReportMarkdownPath,
+        [string]$CheckTextPath,
+        [object[]]$SupportingSurfaces = @()
+    )
+
+    return [ordered]@{
+        summary_path = $SummaryPath
+        report_markdown_path = $ReportMarkdownPath
+        check_text_path = $CheckTextPath
+        supporting_surfaces = [object[]]@($SupportingSurfaces)
+    }
+}
+
+function New-FrontPageSurfaceFromSummary {
+    param(
+        $Summary,
+        [string]$FallbackSummaryPath,
+        [string]$FallbackReportMarkdownPath,
+        [string]$FallbackCheckTextPath,
+        [string]$SurfaceId,
+        [string]$Role,
+        [string]$SummarySchema,
+        [string]$LabelPrefix
+    )
+
+    $surfaceTitle = Get-TextValue -Value $Summary.shelf.title
+    if ([string]::IsNullOrWhiteSpace($surfaceTitle)) {
+        $surfaceTitle = "System Compiler World Shelf"
+    }
+
+    $summaryPath = Resolve-SurfacePathValue `
+        -PrimaryValue $Summary.front_page.summary_path `
+        -SecondaryValue $Summary.delivery.summary_path `
+        -FallbackValue $FallbackSummaryPath
+    $reportMarkdownPath = Resolve-SurfacePathValue `
+        -PrimaryValue $Summary.front_page.report_markdown_path `
+        -SecondaryValue $Summary.delivery.report_markdown_path `
+        -FallbackValue $FallbackReportMarkdownPath
+    $checkTextPath = Resolve-SurfacePathValue `
+        -PrimaryValue $Summary.front_page.check_text_path `
+        -SecondaryValue $Summary.delivery.check_text_path `
+        -FallbackValue $FallbackCheckTextPath
+
+    return New-FrontPageSurface `
+        -Id $SurfaceId `
+        -Label ("{0}: {1}" -f $LabelPrefix, $surfaceTitle) `
+        -Role $Role `
+        -SummarySchema $SummarySchema `
+        -SummaryPath $summaryPath `
+        -ReportMarkdownPath $reportMarkdownPath `
+        -CheckTextPath $checkTextPath
 }
 
 function Add-ShelfAssemblyArguments {
@@ -426,12 +674,15 @@ $compareOutputRootResolved = if ([string]::IsNullOrWhiteSpace($CompareOutputRoot
 } else {
     Resolve-FullPath -Path $CompareOutputRoot
 }
+$reviewSummaryPathResolved = Get-OutputPath -ExplicitPath $ReviewSummaryPath -OutputRootPath $outputRootPath -DefaultFileName "world-shelf.review.summary.json"
 $reviewReportMarkdownPathResolved = Get-OutputPath -ExplicitPath $ReviewReportMarkdownPath -OutputRootPath $outputRootPath -DefaultFileName "world-shelf.review.md"
 $reviewCheckTextPathResolved = Get-OutputPath -ExplicitPath $ReviewCheckTextPath -OutputRootPath $outputRootPath -DefaultFileName "world-shelf.check.txt"
+$reviewValidationLogPathResolved = Get-OutputPath -ExplicitPath $ReviewValidationLogPath -OutputRootPath $outputRootPath -DefaultFileName "world-shelf.review.validate.log"
 
 $assembleShelfScript = Join-Path $PSScriptRoot "assemble_system_compiler_world_shelf.ps1"
 $compareShelfScript = Join-Path $PSScriptRoot "compare_system_compiler_world_shelf.ps1"
-foreach ($requiredPath in @($assembleShelfScript, $compareShelfScript)) {
+$validateReviewScript = Join-Path $PSScriptRoot "validate_system_compiler_world_shelf_review.py"
+foreach ($requiredPath in @($assembleShelfScript, $compareShelfScript, $validateReviewScript)) {
     if (-not (Test-Path $requiredPath)) {
         throw "missing path: $requiredPath"
     }
@@ -575,16 +826,108 @@ try {
     }
 
     $candidateQuestions = Get-StringValues -Values $candidateSummary.questions.next_questions
-    $compareQuestions = if ($null -ne $compareSummary) {
-        Get-StringValues -Values $compareSummary.questions.next_questions
+    $compareSurfaceQuestions = if ($null -ne $compareSummary) {
+        Get-StringValues -Values $compareSummary.questions.compare_questions
     } else {
         @()
+    }
+    $nextQuestions = if ($null -ne $compareSummary) {
+        Get-StringValues -Values $compareSummary.questions.next_questions
+    } else {
+        $candidateQuestions
+    }
+    $reviewMode = if ($SkipCompare) {
+        "candidate-only"
+    } elseif ($CompareAgainstSelf) {
+        "self-compare"
+    } else {
+        "baseline-compare"
+    }
+    $reviewVerdict = if ($null -ne $compareSummary) {
+        [string]$compareSummary.shelf_verdict
+    } else {
+        "candidate-only"
+    }
+    $compareSummaryPathForReport = if ($null -ne $compareSummary) {
+        Join-Path $compareOutputRootResolved "summary.json"
+    } else {
+        ""
+    }
+    $baselineShelfRootForReview = if (-not [string]::IsNullOrWhiteSpace($baselineReferenceRoot)) {
+        $baselineReferenceRoot
+    } elseif (-not [string]::IsNullOrWhiteSpace($baselineSummaryPathForReport)) {
+        Split-Path -Parent $baselineSummaryPathForReport
+    } else {
+        ""
+    }
+    $compareCollapseSurface = if ($null -ne $compareSummary -and $null -ne $compareSummary.collapse_surface) {
+        [ordered]@{
+            changed = [bool]$compareSummary.collapse_surface.changed
+            regressed_entries = To-StringArray -Values $compareSummary.collapse_surface.regressed_entries
+            removed_worlds = To-StringArray -Values $compareSummary.collapse_surface.removed_worlds
+            added_failed_entries = To-StringArray -Values $compareSummary.collapse_surface.added_failed_entries
+            affected_worlds = To-StringArray -Values $compareSummary.collapse_surface.affected_worlds
+            affected_profiles = To-StringArray -Values $compareSummary.collapse_surface.affected_profiles
+            narratives = To-StringArray -Values $compareSummary.collapse_surface.narratives
+        }
+    } else {
+        [ordered]@{
+            changed = $false
+            regressed_entries = [string[]]@()
+            removed_worlds = [string[]]@()
+            added_failed_entries = [string[]]@()
+            affected_worlds = [string[]]@()
+            affected_profiles = [string[]]@()
+            narratives = [string[]]@()
+        }
+    }
+
+    $frontPageSupportingSurfaces = [System.Collections.Generic.List[object]]::new()
+    $frontPageSupportingSurfaces.Add((
+        New-FrontPageSurfaceFromSummary `
+            -Summary $candidateSummary `
+            -FallbackSummaryPath $candidateSummaryPath `
+            -FallbackReportMarkdownPath (Join-Path $candidateShelfOutputRootResolved "biography.index.report.md") `
+            -FallbackCheckTextPath (Join-Path $candidateShelfOutputRootResolved "biography.index.check.txt") `
+            -SurfaceId "candidate_shelf" `
+            -Role "candidate_shelf" `
+            -SummarySchema "system_compiler.biography_index/v0" `
+            -LabelPrefix "candidate shelf"
+    )) | Out-Null
+    if ($null -ne $compareSummary) {
+        $frontPageSupportingSurfaces.Add((
+            New-FrontPageSurfaceFromSummary `
+                -Summary $compareSummary `
+                -FallbackSummaryPath $compareSummaryPathForReport `
+                -FallbackReportMarkdownPath (Join-Path $compareOutputRootResolved "report.md") `
+                -FallbackCheckTextPath (Join-Path $compareOutputRootResolved "check.txt") `
+                -SurfaceId "shelf_compare" `
+                -Role "shelf_compare" `
+                -SummarySchema "system_compiler.biography_index_compare/v0" `
+                -LabelPrefix "shelf compare"
+        )) | Out-Null
+    }
+    if ($null -ne $baselineSummary) {
+        $frontPageSupportingSurfaces.Add((
+            New-FrontPageSurfaceFromSummary `
+                -Summary $baselineSummary `
+                -FallbackSummaryPath $baselineSummaryPathForReport `
+                -FallbackReportMarkdownPath (Join-Path $baselineShelfRootForReview "biography.index.report.md") `
+                -FallbackCheckTextPath (Join-Path $baselineShelfRootForReview "biography.index.check.txt") `
+                -SurfaceId "baseline_shelf" `
+                -Role "baseline_shelf" `
+                -SummarySchema "system_compiler.biography_index/v0" `
+                -LabelPrefix "baseline shelf"
+        )) | Out-Null
     }
 
     $reportLines = [System.Collections.Generic.List[string]]::new()
     $reportLines.Add("# System Compiler World Shelf Review") | Out-Null
     $reportLines.Add("") | Out-Null
+    $reportLines.Add("- Review summary: ``$reviewSummaryPathResolved``") | Out-Null
     $reportLines.Add("- Output root: ``$outputRootPath``") | Out-Null
+    $reportLines.Add("- Review mode: ``$reviewMode``") | Out-Null
+    $reportLines.Add("- Review verdict: ``$reviewVerdict``") | Out-Null
     $reportLines.Add("- Candidate shelf root: ``$candidateShelfOutputRootResolved``") | Out-Null
     $reportLines.Add("- Candidate shelf summary: ``$candidateSummaryPath``") | Out-Null
     $reportLines.Add("- Candidate shelf result: ``$([string]$candidateSummary.result)``") | Out-Null
@@ -599,18 +942,17 @@ try {
     }
 
     if ($null -ne $compareSummary) {
-        $reportLines.Add("- Shelf compare summary: ``$(Join-Path $compareOutputRootResolved 'summary.json')``") | Out-Null
+        $reportLines.Add("- Shelf compare summary: ``$compareSummaryPathForReport``") | Out-Null
         $reportLines.Add("- Shelf compare verdict: ``$([string]$compareSummary.shelf_verdict)``") | Out-Null
         $reportLines.Add("- Shelf compare changes: ``changed=$([int]$compareSummary.entry_summary.changed_entry_count) added=$([int]$compareSummary.entry_summary.added_entry_count) removed=$([int]$compareSummary.entry_summary.removed_entry_count) regressions=$([int]$compareSummary.entry_summary.regression_count) improvements=$([int]$compareSummary.entry_summary.improvement_count)``") | Out-Null
     }
 
     $reportLines.Add("") | Out-Null
     $reportLines.Add("## Next Questions") | Out-Null
-    $reviewQuestions = if ($compareQuestions.Count -gt 0) { $compareQuestions } else { $candidateQuestions }
-    if ($reviewQuestions.Count -eq 0) {
+    if ($nextQuestions.Count -eq 0) {
         $reportLines.Add("- none") | Out-Null
     } else {
-        foreach ($question in $reviewQuestions) {
+        foreach ($question in $nextQuestions) {
             $reportLines.Add("- $question") | Out-Null
         }
     }
@@ -618,7 +960,10 @@ try {
     Write-Utf8Text -Path $reviewReportMarkdownPathResolved -Text (($reportLines -join [Environment]::NewLine) + [Environment]::NewLine)
 
     $checkLines = [System.Collections.Generic.List[string]]::new()
+    $checkLines.Add(("review_summary: {0}" -f $reviewSummaryPathResolved)) | Out-Null
     $checkLines.Add(("output_root: {0}" -f $outputRootPath)) | Out-Null
+    $checkLines.Add(("review_mode: {0}" -f $reviewMode)) | Out-Null
+    $checkLines.Add(("review_verdict: {0}" -f $reviewVerdict)) | Out-Null
     $checkLines.Add(("candidate_shelf_summary: {0}" -f $candidateSummaryPath)) | Out-Null
     $checkLines.Add(("candidate_shelf_result: {0}" -f [string]$candidateSummary.result)) | Out-Null
     $checkLines.Add(("candidate_shelf_biography_count: {0}" -f [int]$candidateSummary.summary.biography_count)) | Out-Null
@@ -635,11 +980,77 @@ try {
     } else {
         $checkLines.Add("shelf_compare: skipped") | Out-Null
     }
-    $checkLines.Add(("review_question_count: {0}" -f $reviewQuestions.Count)) | Out-Null
+    $checkLines.Add(("review_question_count: {0}" -f $nextQuestions.Count)) | Out-Null
     Write-Utf8Text -Path $reviewCheckTextPathResolved -Text (($checkLines -join [Environment]::NewLine) + [Environment]::NewLine)
+
+    $reviewSummary = [ordered]@{
+        schema = "system_compiler.world_shelf_review/v0"
+        kind = "system_compiler.world_shelf_review"
+        generated_at_utc = [DateTime]::UtcNow.ToString("o")
+        generator = "scripts/review_system_compiler_world_shelf.ps1"
+        result = "ok"
+        review_verdict = $reviewVerdict
+        review = [ordered]@{
+            title = "System Compiler World Shelf Review"
+            summary = if ($null -ne $compareSummary) {
+                "Candidate shelf review completed with compare verdict '$reviewVerdict'."
+            } else {
+                "Candidate shelf review completed without baseline compare."
+            }
+        }
+        front_page = New-FrontPage `
+            -SummaryPath $reviewSummaryPathResolved `
+            -ReportMarkdownPath $reviewReportMarkdownPathResolved `
+            -CheckTextPath $reviewCheckTextPathResolved `
+            -SupportingSurfaces $frontPageSupportingSurfaces.ToArray()
+        artifact_context = [ordered]@{
+            output_root = $outputRootPath
+            review_summary_path = $reviewSummaryPathResolved
+            review_report_markdown_path = $reviewReportMarkdownPathResolved
+            review_check_text_path = $reviewCheckTextPathResolved
+            candidate_shelf_root = $candidateShelfOutputRootResolved
+            candidate_shelf_summary = $candidateSummaryPath
+            baseline_shelf_root = if (-not [string]::IsNullOrWhiteSpace($baselineShelfRootForReview)) { $baselineShelfRootForReview } else { $null }
+            baseline_shelf_summary = if (-not [string]::IsNullOrWhiteSpace($baselineSummaryPathForReport)) { $baselineSummaryPathForReport } else { $null }
+            compare_output_root = if ($null -ne $compareSummary) { $compareOutputRootResolved } else { $null }
+            compare_summary_path = if (-not [string]::IsNullOrWhiteSpace($compareSummaryPathForReport)) { $compareSummaryPathForReport } else { $null }
+        }
+        review_status = [ordered]@{
+            compare_mode = $reviewMode
+            compare_enabled = ($null -ne $compareSummary)
+            candidate_result = [string]$candidateSummary.result
+            baseline_result = if ($null -ne $baselineSummary) { [string]$baselineSummary.result } else { $null }
+            compare_result = if ($null -ne $compareSummary) { [string]$compareSummary.result } else { $null }
+            candidate_profile = [string]$candidateSummary.profile
+            baseline_profile = if ($null -ne $baselineSummary) { [string]$baselineSummary.profile } else { $null }
+            candidate_biography_count = [int]$candidateSummary.summary.biography_count
+            baseline_biography_count = if ($null -ne $baselineSummary) { [int]$baselineSummary.summary.biography_count } else { $null }
+            candidate_unique_world_count = [int]$candidateSummary.summary.unique_world_count
+            baseline_unique_world_count = if ($null -ne $baselineSummary) { [int]$baselineSummary.summary.unique_world_count } else { $null }
+            candidate_compare_attached_count = [int]$candidateSummary.summary.compare_attached_count
+            baseline_compare_attached_count = if ($null -ne $baselineSummary) { [int]$baselineSummary.summary.compare_attached_count } else { $null }
+            candidate_not_attached_count = [int]$candidateSummary.summary.not_attached_count
+            baseline_not_attached_count = if ($null -ne $baselineSummary) { [int]$baselineSummary.summary.not_attached_count } else { $null }
+        }
+        questions = [ordered]@{
+            candidate_questions = To-StringArray -Values $candidateQuestions
+            compare_questions = To-StringArray -Values $compareSurfaceQuestions
+            next_questions = To-StringArray -Values $nextQuestions
+        }
+        collapse_surface = $compareCollapseSurface
+        violations = To-StringArray -Values @()
+    }
+
+    Write-JsonFile -Path $reviewSummaryPathResolved -Value $reviewSummary
+    Invoke-ExternalTool `
+        -Executable $resolvedPythonExe `
+        -ArgumentList @($validateReviewScript, "--summary", $reviewSummaryPathResolved) `
+        -LogPath $reviewValidationLogPathResolved `
+        -FailureMessage "world shelf review validation failed"
 
     Write-Host "==> system compiler world shelf review"
     Write-Host ("output_root={0}" -f $outputRootPath)
+    Write-Host ("review_summary={0}" -f $reviewSummaryPathResolved)
     Write-Host ("candidate_shelf_root={0}" -f $candidateShelfOutputRootResolved)
     if (-not [string]::IsNullOrWhiteSpace($baselineSummaryPathForReport)) {
         Write-Host ("baseline_shelf_summary={0}" -f $baselineSummaryPathForReport)
@@ -650,6 +1061,7 @@ try {
     }
     Write-Host ("review_report={0}" -f $reviewReportMarkdownPathResolved)
     Write-Host ("review_check={0}" -f $reviewCheckTextPathResolved)
+    Write-Host ("review_validation_log={0}" -f $reviewValidationLogPathResolved)
 } finally {
     Pop-Location
 }

@@ -23,6 +23,35 @@ def resolve_output_path(explicit: str, output_root: Path, default_name: str) -> 
     return (output_root / default_name).resolve()
 
 
+def build_surface_ref(
+    surface_id: str,
+    summary_schema: str,
+    label: str,
+    role: str,
+    summary_path: str,
+    report_markdown_path: str,
+    check_text_path: str,
+):
+    return {
+        "id": surface_id,
+        "label": label,
+        "role": role,
+        "summary_schema": summary_schema,
+        "summary_path": str(Path(summary_path).resolve()),
+        "report_markdown_path": str(Path(report_markdown_path).resolve()),
+        "check_text_path": str(Path(check_text_path).resolve()),
+    }
+
+
+def build_front_page(summary_path: Path, report_path: Path, check_path: Path, supporting_surfaces: list[dict]):
+    return {
+        "summary_path": str(summary_path.resolve()),
+        "report_markdown_path": str(report_path.resolve()),
+        "check_text_path": str(check_path.resolve()),
+        "supporting_surfaces": supporting_surfaces,
+    }
+
+
 def ordered_unique(values):
     seen = set()
     result = []
@@ -75,6 +104,22 @@ def load_biography_index(path: Path):
     if data.get("kind") != BIOGRAPHY_INDEX_KIND:
         raise ValueError(f"unsupported biography index kind: {path}")
     return data
+
+
+def build_index_surface(index_summary: dict, index_path: Path, surface_id: str, role: str):
+    front_page = index_summary.get("front_page", {})
+    delivery = index_summary.get("delivery", {})
+    shelf = index_summary.get("shelf", {})
+    shelf_title = str(shelf.get("title", "")).strip() or "System Compiler World Shelf"
+    return build_surface_ref(
+        surface_id=surface_id,
+        summary_schema=BIOGRAPHY_INDEX_SCHEMA,
+        label=f"{role.replace('_', ' ')}: {shelf_title}",
+        role=role,
+        summary_path=front_page.get("summary_path") or delivery.get("summary_path") or str(index_path),
+        report_markdown_path=front_page.get("report_markdown_path") or delivery["report_markdown_path"],
+        check_text_path=front_page.get("check_text_path") or delivery["check_text_path"],
+    )
 
 
 def entry_anchor_base(entry: dict):
@@ -506,6 +551,20 @@ def build_summary(args):
     shelf_changes = build_shelf_changes(baseline_index, candidate_index)
     collapse_surface = build_collapse_surface(entry_changes, shelf_changes, candidate_index)
     questions = build_next_questions(candidate_index, entry_changes, shelf_changes, entry_summary, collapse_surface)
+    supporting_surfaces = [
+        build_index_surface(
+            index_summary=baseline_index,
+            index_path=baseline_path,
+            surface_id="baseline_shelf",
+            role="baseline_shelf",
+        ),
+        build_index_surface(
+            index_summary=candidate_index,
+            index_path=candidate_path,
+            surface_id="candidate_shelf",
+            role="candidate_shelf",
+        ),
+    ]
 
     summary = {
         "schema": "system_compiler.biography_index_compare/v0",
@@ -515,6 +574,12 @@ def build_summary(args):
         "result": "ok",
         "shelf_verdict": determine_shelf_verdict(candidate_index, shelf_changes, entry_summary),
         "shelf": shelf_view,
+        "front_page": build_front_page(
+            summary_path=summary_path,
+            report_path=report_path,
+            check_path=check_path,
+            supporting_surfaces=supporting_surfaces,
+        ),
         "artifact_context": {
             "baseline_biography_index": str(baseline_path),
             "candidate_biography_index": str(candidate_path),

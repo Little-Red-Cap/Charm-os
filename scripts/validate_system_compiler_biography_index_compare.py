@@ -6,6 +6,7 @@ from pathlib import Path
 
 COMPARE_SCHEMA_PATH = "schemas/system_compiler.biography_index_compare.v0.schema.json"
 INDEX_SCHEMA_PATH = "schemas/system_compiler.biography_index.v0.schema.json"
+INDEX_SCHEMA = "system_compiler.biography_index/v0"
 
 
 def load_json(path: Path):
@@ -29,6 +30,54 @@ def ensure_exists(path_value: str | None, label: str, errors: list[str]):
     if not Path(normalized).exists():
         errors.append(f"{label}: not found -> {normalized}")
     return normalized
+
+
+def compare_scalar_field(actual, expected, label: str, errors: list[str]):
+    if actual != expected:
+        errors.append(f"{label}: expected {expected!r} but got {actual!r}")
+
+
+def validate_front_page(front_page: dict, label: str, errors: list[str]):
+    ensure_exists(front_page.get("summary_path"), f"{label}.summary_path", errors)
+    ensure_exists(front_page.get("report_markdown_path"), f"{label}.report_markdown_path", errors)
+    ensure_exists(front_page.get("check_text_path"), f"{label}.check_text_path", errors)
+
+    for index, surface in enumerate(front_page.get("supporting_surfaces", [])):
+        if not isinstance(surface, dict):
+            errors.append(f"{label}.supporting_surfaces[{index}]: invalid surface")
+            continue
+
+        ensure_exists(surface.get("summary_path"), f"{label}.supporting_surfaces[{index}].summary_path", errors)
+        ensure_exists(
+            surface.get("report_markdown_path"),
+            f"{label}.supporting_surfaces[{index}].report_markdown_path",
+            errors,
+        )
+        ensure_exists(
+            surface.get("check_text_path"),
+            f"{label}.supporting_surfaces[{index}].check_text_path",
+            errors,
+        )
+
+
+def expected_index_surface(index_summary: dict, index_path: str, surface_id: str, role: str):
+    front_page = index_summary.get("front_page", {})
+    delivery = index_summary.get("delivery", {})
+    shelf = index_summary.get("shelf", {})
+    shelf_title = str(shelf.get("title", "")).strip() or "System Compiler World Shelf"
+    return {
+        "id": surface_id,
+        "label": f"{role.replace('_', ' ')}: {shelf_title}",
+        "role": role,
+        "summary_schema": INDEX_SCHEMA,
+        "summary_path": normalize_path(front_page.get("summary_path"))
+        or normalize_path(delivery.get("summary_path"))
+        or normalize_path(index_path),
+        "report_markdown_path": normalize_path(front_page.get("report_markdown_path"))
+        or normalize_path(delivery.get("report_markdown_path")),
+        "check_text_path": normalize_path(front_page.get("check_text_path"))
+        or normalize_path(delivery.get("check_text_path")),
+    }
 
 
 def validate_summary_counts(summary: dict, errors: list[str]):
@@ -78,16 +127,42 @@ def validate_summary_counts(summary: dict, errors: list[str]):
         )
 
 
-def validate_references(summary: dict, index_schema: dict, errors: list[str]):
+def validate_references(summary: dict, index_schema: dict, summary_path: Path, errors: list[str]):
     delivery_context = summary.get("artifact_context", {})
+    front_page = summary.get("front_page", {})
+    if isinstance(front_page, dict):
+        validate_front_page(front_page, "front_page", errors)
+
     baseline_path = None
     candidate_path = None
+    artifact_report_path = None
+    artifact_check_path = None
     if isinstance(delivery_context, dict):
         baseline_path = ensure_exists(delivery_context.get("baseline_biography_index"), "artifact_context.baseline_biography_index", errors)
         candidate_path = ensure_exists(delivery_context.get("candidate_biography_index"), "artifact_context.candidate_biography_index", errors)
         ensure_exists(delivery_context.get("output_root"), "artifact_context.output_root", errors)
-        ensure_exists(delivery_context.get("report_markdown_path"), "artifact_context.report_markdown_path", errors)
-        ensure_exists(delivery_context.get("check_text_path"), "artifact_context.check_text_path", errors)
+        artifact_report_path = ensure_exists(delivery_context.get("report_markdown_path"), "artifact_context.report_markdown_path", errors)
+        artifact_check_path = ensure_exists(delivery_context.get("check_text_path"), "artifact_context.check_text_path", errors)
+
+    if isinstance(front_page, dict):
+        compare_scalar_field(
+            normalize_path(front_page.get("summary_path")),
+            normalize_path(str(summary_path)),
+            "front_page.summary_path",
+            errors,
+        )
+        compare_scalar_field(
+            normalize_path(front_page.get("report_markdown_path")),
+            artifact_report_path,
+            "front_page.report_markdown_path",
+            errors,
+        )
+        compare_scalar_field(
+            normalize_path(front_page.get("check_text_path")),
+            artifact_check_path,
+            "front_page.check_text_path",
+            errors,
+        )
 
     if baseline_path is None or candidate_path is None:
         return
@@ -159,6 +234,52 @@ def validate_references(summary: dict, index_schema: dict, errors: list[str]):
             )
         )
 
+    if isinstance(front_page, dict):
+        surfaces = front_page.get("supporting_surfaces", [])
+        expected_surfaces = [
+            expected_index_surface(baseline_summary, baseline_path, "baseline_shelf", "baseline_shelf"),
+            expected_index_surface(candidate_summary, candidate_path, "candidate_shelf", "candidate_shelf"),
+        ]
+        if len(surfaces) != len(expected_surfaces):
+            errors.append(
+                "front_page.supporting_surfaces: expected {0} surfaces but got {1}".format(
+                    len(expected_surfaces),
+                    len(surfaces),
+                )
+            )
+        for index, expected_surface in enumerate(expected_surfaces):
+            if index >= len(surfaces) or not isinstance(surfaces[index], dict):
+                continue
+            surface = surfaces[index]
+            prefix = f"front_page.supporting_surfaces[{index}]"
+            compare_scalar_field(surface.get("id"), expected_surface["id"], f"{prefix}.id", errors)
+            compare_scalar_field(surface.get("label"), expected_surface["label"], f"{prefix}.label", errors)
+            compare_scalar_field(surface.get("role"), expected_surface["role"], f"{prefix}.role", errors)
+            compare_scalar_field(
+                surface.get("summary_schema"),
+                expected_surface["summary_schema"],
+                f"{prefix}.summary_schema",
+                errors,
+            )
+            compare_scalar_field(
+                normalize_path(surface.get("summary_path")),
+                expected_surface["summary_path"],
+                f"{prefix}.summary_path",
+                errors,
+            )
+            compare_scalar_field(
+                normalize_path(surface.get("report_markdown_path")),
+                expected_surface["report_markdown_path"],
+                f"{prefix}.report_markdown_path",
+                errors,
+            )
+            compare_scalar_field(
+                normalize_path(surface.get("check_text_path")),
+                expected_surface["check_text_path"],
+                f"{prefix}.check_text_path",
+                errors,
+            )
+
     for index, change in enumerate(summary.get("entry_changes", [])):
         prefix = f"entry_changes[{index}]"
         left_summary_path = ensure_exists(change.get("left_summary_path"), f"{prefix}.left_summary_path", errors) if change.get("left_summary_path") is not None else None
@@ -228,7 +349,7 @@ def main() -> int:
         jsonschema.validate(summary, compare_schema)
         errors: list[str] = []
         validate_summary_counts(summary, errors)
-        validate_references(summary, index_schema, errors)
+        validate_references(summary, index_schema, summary_path, errors)
     except Exception as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 1

@@ -16,6 +16,7 @@ on:
       - scripts/assemble_system_compiler_world_shelf.ps1
       - scripts/compare_system_compiler_world_shelf.ps1
       - scripts/review_system_compiler_world_shelf.ps1
+      - scripts/validate_system_compiler_world_shelf_review.py
       - scripts/export_system_compiler_biography_index.py
       - scripts/compare_system_compiler_biography_index.py
       - scripts/export_system_compiler_witness_bundle.ps1
@@ -55,11 +56,13 @@ on:
       - schemas/system_compiler.biography.v0.schema.json
       - schemas/system_compiler.biography_index.v0.schema.json
       - schemas/system_compiler.biography_index_compare.v0.schema.json
+      - schemas/system_compiler.world_shelf_review.v0.schema.json
       - schemas/system_compiler.witness_bundle.v0.schema.json
       - schemas/system_compiler.world_compare.v0.schema.json
       - docs/system/system_compiler_biography_v0.md
       - docs/system/system_compiler_biography_index_v0.md
       - docs/system/system_compiler_biography_index_compare_v0.md
+      - docs/system/system_compiler_world_shelf_review_v0.md
 
 permissions:
   contents: read

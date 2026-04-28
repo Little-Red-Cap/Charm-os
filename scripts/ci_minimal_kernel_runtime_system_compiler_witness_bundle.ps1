@@ -137,6 +137,7 @@ function Append-WorldShelfReviewOverlay {
     param(
         [string]$ReportPath,
         [string]$CheckTextPath,
+        [string]$ReviewSummaryPath,
         [string]$ReviewReportPath,
         [string]$ReviewCheckPath,
         [string]$CandidateShelfSummaryPath,
@@ -144,12 +145,13 @@ function Append-WorldShelfReviewOverlay {
         [string]$CompareSummaryPath
     )
 
-    foreach ($requiredPath in @($CandidateShelfSummaryPath, $ReviewReportPath, $ReviewCheckPath, $CompareSummaryPath)) {
+    foreach ($requiredPath in @($ReviewSummaryPath, $CandidateShelfSummaryPath, $ReviewReportPath, $ReviewCheckPath, $CompareSummaryPath)) {
         if (-not (Test-Path $requiredPath)) {
             throw "world shelf overlay input not found: $requiredPath"
         }
     }
 
+    $reviewSummary = Load-JsonObject -Path $ReviewSummaryPath
     $candidateSummary = Load-JsonObject -Path $CandidateShelfSummaryPath
     $baselineSummary = if ([string]::IsNullOrWhiteSpace($BaselineShelfSummaryPath) -or -not (Test-Path $BaselineShelfSummaryPath)) {
         $null
@@ -161,8 +163,11 @@ function Append-WorldShelfReviewOverlay {
     $reportBuilder = [System.Text.StringBuilder]::new()
     [void]$reportBuilder.AppendLine("")
     [void]$reportBuilder.AppendLine("## World Shelf Review")
+    [void]$reportBuilder.AppendLine(("- Review summary: {0}" -f $ReviewSummaryPath))
     [void]$reportBuilder.AppendLine(("- Review report: {0}" -f $ReviewReportPath))
     [void]$reportBuilder.AppendLine(("- Review check: {0}" -f $ReviewCheckPath))
+    [void]$reportBuilder.AppendLine(("- Review mode: {0}" -f [string]$reviewSummary.review_status.compare_mode))
+    [void]$reportBuilder.AppendLine(("- Review verdict: {0}" -f [string]$reviewSummary.review_verdict))
     [void]$reportBuilder.AppendLine(("- Candidate shelf summary: {0}" -f $CandidateShelfSummaryPath))
     [void]$reportBuilder.AppendLine(("- Candidate shelf result: {0}" -f [string]$candidateSummary.result))
     [void]$reportBuilder.AppendLine(("- Candidate shelf counts: biographies={0} worlds={1} compare_attached={2} not_attached={3}" -f [int]$candidateSummary.summary.biography_count, [int]$candidateSummary.summary.unique_world_count, [int]$candidateSummary.summary.compare_attached_count, [int]$candidateSummary.summary.not_attached_count))
@@ -177,8 +182,11 @@ function Append-WorldShelfReviewOverlay {
     Append-Utf8Text -Path $ReportPath -Text $reportBuilder.ToString()
 
     $checkBuilder = [System.Text.StringBuilder]::new()
+    [void]$checkBuilder.AppendLine(("world_shelf_review_summary: {0}" -f $ReviewSummaryPath))
     [void]$checkBuilder.AppendLine(("world_shelf_review_report: {0}" -f $ReviewReportPath))
     [void]$checkBuilder.AppendLine(("world_shelf_review_check: {0}" -f $ReviewCheckPath))
+    [void]$checkBuilder.AppendLine(("world_shelf_review_mode: {0}" -f [string]$reviewSummary.review_status.compare_mode))
+    [void]$checkBuilder.AppendLine(("world_shelf_review_verdict: {0}" -f [string]$reviewSummary.review_verdict))
     [void]$checkBuilder.AppendLine(("world_shelf_candidate_summary: {0}" -f $CandidateShelfSummaryPath))
     [void]$checkBuilder.AppendLine(("world_shelf_candidate_result: {0}" -f [string]$candidateSummary.result))
     [void]$checkBuilder.AppendLine(("world_shelf_candidate_biography_count: {0}" -f [int]$candidateSummary.summary.biography_count))
@@ -373,6 +381,7 @@ $resolvedWorldShelfCompareOutputRoot = if ([string]::IsNullOrWhiteSpace($WorldSh
 } else {
     Resolve-FullPath -Path $WorldShelfCompareOutputRoot
 }
+$resolvedWorldShelfReviewSummaryPath = Resolve-FullPath -Path (Join-Path $resolvedOutputRoot "world-shelf.review.summary.json")
 $resolvedWorldShelfReviewReportPath = Resolve-FullPath -Path (Join-Path $resolvedOutputRoot "world-shelf.review.md")
 $resolvedWorldShelfReviewCheckPath = Resolve-FullPath -Path (Join-Path $resolvedOutputRoot "world-shelf.check.txt")
 
@@ -397,6 +406,7 @@ $reviewArgs = @{
     CandidateShelfOutputRoot            = $resolvedWorldShelfOutputRoot
     BaselineShelfOutputRoot             = $resolvedWorldShelfBaselineOutputRoot
     CompareOutputRoot                   = $resolvedWorldShelfCompareOutputRoot
+    ReviewSummaryPath                   = $resolvedWorldShelfReviewSummaryPath
     ReviewReportMarkdownPath            = $resolvedWorldShelfReviewReportPath
     ReviewCheckTextPath                 = $resolvedWorldShelfReviewCheckPath
     PythonExe                           = $PythonExe
@@ -438,6 +448,7 @@ $reviewArgs = @{
 Append-WorldShelfReviewOverlay `
     -ReportPath $resolvedReportMarkdownPath `
     -CheckTextPath $resolvedCheckTextPath `
+    -ReviewSummaryPath $resolvedWorldShelfReviewSummaryPath `
     -ReviewReportPath $resolvedWorldShelfReviewReportPath `
     -ReviewCheckPath $resolvedWorldShelfReviewCheckPath `
     -CandidateShelfSummaryPath (Join-Path $resolvedWorldShelfOutputRoot "biography.index.summary.json") `
@@ -450,5 +461,6 @@ Write-Host ("self_compare_biography={0}" -f $resolvedSelfCompareBiographySummary
 Write-Host ("world_shelf_output_root={0}" -f $resolvedWorldShelfOutputRoot)
 Write-Host ("world_shelf_baseline_output_root={0}" -f $resolvedWorldShelfBaselineOutputRoot)
 Write-Host ("world_shelf_compare_output_root={0}" -f $resolvedWorldShelfCompareOutputRoot)
+Write-Host ("world_shelf_review_summary={0}" -f $resolvedWorldShelfReviewSummaryPath)
 Write-Host ("world_shelf_review_report={0}" -f $resolvedWorldShelfReviewReportPath)
 Write-Host ("world_shelf_review_check={0}" -f $resolvedWorldShelfReviewCheckPath)

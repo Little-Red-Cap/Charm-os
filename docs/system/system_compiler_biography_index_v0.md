@@ -70,7 +70,7 @@ When the assembly wrapper is used, the delivery root also gets sidecars such as:
 
 ## Current export semantics
 
-The current shelf keeps four responsibilities stable:
+The current shelf keeps five responsibilities stable:
 
 ### 1. Shelf summary
 
@@ -123,6 +123,31 @@ So the shelf itself can be:
 - attached to CI artifacts
 - rendered into step summaries
 - handed over as a first read for reviewers
+
+### 5. Machine front page
+
+The shelf now also emits a machine-readable `front_page`.
+
+That front page keeps:
+
+- the shelf's own `summary / report / check`
+- one supporting surface per biography on the shelf
+
+Each supporting surface routes back to the underlying
+`system_compiler.biography/v0` front page instead of copying the whole
+biography body upward again.
+
+This is intentionally different from:
+
+- `delivery`
+  - where this shelf landed
+- `artifact_context`
+  - which biographies were assembled to make it
+
+`front_page` is the answer to a narrower routing question:
+
+> If a tool or reviewer opens this shelf first, which concrete surfaces should
+> it follow next?
 
 ## Recommended usage
 
@@ -317,6 +342,10 @@ belongs in `docs/system/system_compiler_biography_index_compare_v0.md`.
 If the caller wants one wrapper that starts from biographies and lands on both
 shelves plus the shelf compare handoff, use
 `scripts/review_system_compiler_world_shelf.ps1`.
+
+If the caller also wants the machine-readable review envelope that wraps that
+handoff, continue with
+`docs/system/system_compiler_world_shelf_review_v0.md`.
 
 ## Current non-goals
 

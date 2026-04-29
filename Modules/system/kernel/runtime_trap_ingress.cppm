@@ -2,12 +2,47 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <cstdio>
 
 export module kernel.runtime_trap_ingress;
 
 export import kernel.runtime_trap;
 import kernel.eda;
 import util.core;
+
+namespace kernel::detail {
+    template <typename... Args>
+    [[nodiscard]] inline std::size_t append_fmt(
+        char* out,
+        std::size_t max,
+        std::size_t offset,
+        const char* fmt,
+        Args... args) noexcept
+    {
+        if (out == nullptr || max == 0u || offset >= max) {
+            return offset;
+        }
+
+        const int written =
+            std::snprintf(out + offset, max - offset, fmt, args...);
+        if (written <= 0) {
+            out[offset] = '\0';
+            return offset;
+        }
+
+        const auto size = static_cast<std::size_t>(written);
+        if (size >= (max - offset)) {
+            return max - 1u;
+        }
+
+        return offset + size;
+    }
+
+    [[nodiscard]] constexpr const char* json_bool(bool value) noexcept
+    {
+        return value ? "true" : "false";
+    }
+}
 
 export namespace kernel {
     enum class TrapIngressStage : util::u8 {
@@ -33,6 +68,7 @@ export namespace kernel {
     template <typename Tick>
     struct RuntimeTrapIngressTraceEvent {
         Tick stamp{};
+        util::u64 sequence{0};
         TrapIngressStage stage{TrapIngressStage::decode};
         TrapService service{TrapService::invalid};
         TrapOrigin origin{TrapOrigin::kernel_thread};
@@ -46,6 +82,86 @@ export namespace kernel {
         util::u64 arg3{0};
         util::u64 value{0};
         bool ok{false};
+    };
+
+    template <typename Tick>
+    struct RuntimeTrapIngressForensicSnapshot {
+        using value_type = RuntimeTrapIngressTraceEvent<Tick>;
+
+        bool has_terminal{false};
+        value_type terminal{};
+        bool has_decode{false};
+        value_type decode{};
+        bool has_dispatch{false};
+        value_type dispatch{};
+        bool has_writeback{false};
+        value_type writeback{};
+        bool has_last_failure{false};
+        value_type last_failure{};
+
+        [[nodiscard]] constexpr util::u64 sequence() const noexcept
+        {
+            return has_terminal ? terminal.sequence : 0u;
+        }
+
+        [[nodiscard]] constexpr TrapIngressStage terminal_stage() const noexcept
+        {
+            return has_terminal ? terminal.stage : TrapIngressStage::decode;
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return has_terminal && terminal.ok;
+        }
+
+        [[nodiscard]] constexpr bool decode_failed() const noexcept
+        {
+            return has_terminal &&
+                   terminal.stage == TrapIngressStage::decode &&
+                   terminal.error == TrapError::decode_failed;
+        }
+
+        [[nodiscard]] constexpr bool writeback_failed() const noexcept
+        {
+            return has_terminal &&
+                   terminal.stage == TrapIngressStage::writeback &&
+                   terminal.error == TrapError::writeback_failed;
+        }
+    };
+
+    template <typename Tick>
+    struct RuntimeTrapIngressForensicWitness {
+        Tick terminal_stamp{};
+        util::u64 sequence{0};
+        bool ready{false};
+        bool terminal_ok{false};
+        bool has_decode{false};
+        bool has_dispatch{false};
+        bool has_writeback{false};
+        TrapIngressStage terminal_stage{TrapIngressStage::decode};
+        TrapService terminal_service{TrapService::invalid};
+        TrapOrigin terminal_origin{TrapOrigin::kernel_thread};
+        TrapDisposition terminal_disposition{TrapDisposition::rejected};
+        TrapError terminal_error{TrapError::none};
+        bool has_last_failure{false};
+        util::u64 last_failure_sequence{0};
+        TrapIngressStage last_failure_stage{TrapIngressStage::decode};
+        TrapService last_failure_service{TrapService::invalid};
+        TrapOrigin last_failure_origin{TrapOrigin::kernel_thread};
+        TrapDisposition last_failure_disposition{TrapDisposition::rejected};
+        TrapError last_failure_error{TrapError::none};
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return ready && terminal_ok;
+        }
+
+        [[nodiscard]] constexpr bool last_failure_is_prior_attempt()
+            const noexcept
+        {
+            return has_last_failure && last_failure_sequence != 0u &&
+                   last_failure_sequence != sequence;
+        }
     };
 
     template <typename Tick>
@@ -112,6 +228,14 @@ export namespace kernel {
             trap_request_from_ingress_trace_event(event));
     }
 
+    template <typename Tick>
+    [[nodiscard]] constexpr bool same_trap_ingress_attempt(
+        const RuntimeTrapIngressTraceEvent<Tick>& lhs,
+        const RuntimeTrapIngressTraceEvent<Tick>& rhs) noexcept
+    {
+        return lhs.sequence != 0u && lhs.sequence == rhs.sequence;
+    }
+
     template <typename Tick, std::size_t Capacity>
     class RuntimeTrapIngressTraceBuffer {
     public:
@@ -150,6 +274,176 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    template <typename Tick, std::size_t Capacity>
+    [[nodiscard]] RuntimeTrapIngressForensicSnapshot<Tick>
+    trap_ingress_forensic_snapshot(
+        const RuntimeTrapIngressTraceBuffer<Tick, Capacity>& trace) noexcept
+    {
+        RuntimeTrapIngressForensicSnapshot<Tick> snapshot{};
+        if (trace.size() == 0u) {
+            return snapshot;
+        }
+
+        const auto* terminal = trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return snapshot;
+        }
+
+        snapshot.has_terminal = true;
+        snapshot.terminal = *terminal;
+
+        for (std::size_t index = trace.size(); index > 0u; --index) {
+            const auto* event = trace.at(index - 1u);
+            if (event == nullptr) {
+                continue;
+            }
+
+            if (!snapshot.has_last_failure && !event->ok) {
+                snapshot.has_last_failure = true;
+                snapshot.last_failure = *event;
+            }
+
+            if (!same_trap_ingress_attempt(*event, snapshot.terminal)) {
+                continue;
+            }
+
+            switch (event->stage) {
+            case TrapIngressStage::decode:
+                if (!snapshot.has_decode) {
+                    snapshot.has_decode = true;
+                    snapshot.decode = *event;
+                }
+                break;
+            case TrapIngressStage::dispatch:
+                if (!snapshot.has_dispatch) {
+                    snapshot.has_dispatch = true;
+                    snapshot.dispatch = *event;
+                }
+                break;
+            case TrapIngressStage::writeback:
+                if (!snapshot.has_writeback) {
+                    snapshot.has_writeback = true;
+                    snapshot.writeback = *event;
+                }
+                break;
+            }
+        }
+
+        return snapshot;
+    }
+
+    template <typename Tick>
+    [[nodiscard]] constexpr RuntimeTrapIngressForensicWitness<Tick>
+    trap_ingress_forensic_witness(
+        const RuntimeTrapIngressForensicSnapshot<Tick>& snapshot) noexcept
+    {
+        RuntimeTrapIngressForensicWitness<Tick> witness{};
+        if (!snapshot.has_terminal) {
+            return witness;
+        }
+
+        witness.terminal_stamp = snapshot.terminal.stamp;
+        witness.sequence = snapshot.terminal.sequence;
+        witness.ready = snapshot.has_decode && snapshot.has_dispatch &&
+                        snapshot.has_writeback;
+        witness.terminal_ok = snapshot.terminal.ok;
+        witness.has_decode = snapshot.has_decode;
+        witness.has_dispatch = snapshot.has_dispatch;
+        witness.has_writeback = snapshot.has_writeback;
+        witness.terminal_stage = snapshot.terminal.stage;
+        witness.terminal_service = snapshot.terminal.service;
+        witness.terminal_origin = snapshot.terminal.origin;
+        witness.terminal_disposition = snapshot.terminal.disposition;
+        witness.terminal_error = snapshot.terminal.error;
+        witness.has_last_failure = snapshot.has_last_failure;
+
+        if (snapshot.has_last_failure) {
+            witness.last_failure_sequence = snapshot.last_failure.sequence;
+            witness.last_failure_stage = snapshot.last_failure.stage;
+            witness.last_failure_service = snapshot.last_failure.service;
+            witness.last_failure_origin = snapshot.last_failure.origin;
+            witness.last_failure_disposition =
+                snapshot.last_failure.disposition;
+            witness.last_failure_error = snapshot.last_failure.error;
+        }
+
+        return witness;
+    }
+
+    template <typename Tick, std::size_t Capacity>
+    [[nodiscard]] RuntimeTrapIngressForensicWitness<Tick>
+    trap_ingress_forensic_witness(
+        const RuntimeTrapIngressTraceBuffer<Tick, Capacity>& trace) noexcept
+    {
+        return trap_ingress_forensic_witness(
+            trap_ingress_forensic_snapshot(trace));
+    }
+
+    template <typename Tick>
+    [[nodiscard]] constexpr bool trap_ingress_forensic_witness_ready(
+        const RuntimeTrapIngressForensicWitness<Tick>& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    template <typename Tick>
+    [[nodiscard]] std::size_t format_trap_ingress_forensic_witness_json(
+        char* out,
+        std::size_t max,
+        const RuntimeTrapIngressForensicWitness<Tick>& witness) noexcept
+    {
+        if (out == nullptr || max == 0u) {
+            return 0u;
+        }
+
+        out[0] = '\0';
+        std::size_t offset = 0;
+        offset = detail::append_fmt(
+            out,
+            max,
+            offset,
+            "{\"ready\":%s,\"ok\":%s,\"sequence\":%llu,\"stamp\":%llu,",
+            detail::json_bool(witness.ready),
+            detail::json_bool(witness.ok()),
+            static_cast<unsigned long long>(witness.sequence),
+            static_cast<unsigned long long>(witness.terminal_stamp));
+        offset = detail::append_fmt(
+            out,
+            max,
+            offset,
+            "\"stages\":{\"decode\":%s,\"dispatch\":%s,\"writeback\":%s},",
+            detail::json_bool(witness.has_decode),
+            detail::json_bool(witness.has_dispatch),
+            detail::json_bool(witness.has_writeback));
+        offset = detail::append_fmt(
+            out,
+            max,
+            offset,
+            "\"terminal\":{\"stage\":\"%s\",\"service\":\"%s\",\"origin\":\"%s\","
+            "\"disposition\":\"%s\",\"error\":\"%s\"},",
+            trap_ingress_stage_name(witness.terminal_stage),
+            trap_service_name(witness.terminal_service),
+            trap_origin_name(witness.terminal_origin),
+            trap_disposition_name(witness.terminal_disposition),
+            trap_error_name(witness.terminal_error));
+        offset = detail::append_fmt(
+            out,
+            max,
+            offset,
+            "\"last_failure\":{\"present\":%s,\"prior_attempt\":%s,"
+            "\"sequence\":%llu,\"stage\":\"%s\",\"service\":\"%s\","
+            "\"origin\":\"%s\",\"disposition\":\"%s\",\"error\":\"%s\"}}",
+            detail::json_bool(witness.has_last_failure),
+            detail::json_bool(witness.last_failure_is_prior_attempt()),
+            static_cast<unsigned long long>(witness.last_failure_sequence),
+            trap_ingress_stage_name(witness.last_failure_stage),
+            trap_service_name(witness.last_failure_service),
+            trap_origin_name(witness.last_failure_origin),
+            trap_disposition_name(witness.last_failure_disposition),
+            trap_error_name(witness.last_failure_error));
+        return offset;
+    }
 
     template <typename Frame>
     struct RuntimeTrapFrameAdapter {
@@ -218,6 +512,7 @@ export namespace kernel {
             using time_source =
                 typename TrapBridge::runtime_type::scheduler_type::TimeSource;
             const auto now = time_source::now();
+            const auto sequence = next_sequence_++;
 
             TrapFrameView view{};
             if (!runtime_trap_frame_adapter_ready(adapter_)) {
@@ -226,7 +521,8 @@ export namespace kernel {
                     .error = TrapError::unbound_adapter,
                     .value = 0,
                 };
-                trace_push(now, TrapIngressStage::decode, view, result, false);
+                trace_push(
+                    now, sequence, TrapIngressStage::decode, view, result, false);
                 return result;
             }
 
@@ -236,7 +532,8 @@ export namespace kernel {
                     .error = TrapError::decode_failed,
                     .value = 0,
                 };
-                trace_push(now, TrapIngressStage::decode, view, result, false);
+                trace_push(
+                    now, sequence, TrapIngressStage::decode, view, result, false);
                 return result;
             }
 
@@ -246,10 +543,11 @@ export namespace kernel {
                 .value = 0,
             };
             trace_push(
-                now, TrapIngressStage::decode, view, decode_ok, true);
+                now, sequence, TrapIngressStage::decode, view, decode_ok, true);
 
             const auto result = trap_->dispatch_frame(view);
             trace_push(now,
+                       sequence,
                        TrapIngressStage::dispatch,
                        view,
                        result,
@@ -262,6 +560,7 @@ export namespace kernel {
                     .value = result.value,
                 };
                 trace_push(now,
+                           sequence,
                            TrapIngressStage::writeback,
                            view,
                            writeback_failed,
@@ -269,12 +568,14 @@ export namespace kernel {
                 return writeback_failed;
             }
 
-            trace_push(now, TrapIngressStage::writeback, view, result, true);
+            trace_push(
+                now, sequence, TrapIngressStage::writeback, view, result, true);
             return result;
         }
 
     private:
         void trace_push(tick_type stamp,
+                        util::u64 sequence,
                         TrapIngressStage stage,
                         const TrapFrameView& view,
                         const TrapResult& result,
@@ -286,6 +587,7 @@ export namespace kernel {
 
             (void)trace_->push(typename TraceBuffer::value_type{
                 .stamp = stamp,
+                .sequence = sequence,
                 .stage = stage,
                 .service = static_cast<TrapService>(view.service_id),
                 .origin = view.origin,
@@ -305,6 +607,7 @@ export namespace kernel {
         TrapBridge* trap_{nullptr};
         adapter_type adapter_{};
         TraceBuffer* trace_{nullptr};
+        util::u64 next_sequence_{1u};
     };
 
     template <typename Frame>

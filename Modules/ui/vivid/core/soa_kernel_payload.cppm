@@ -361,6 +361,80 @@ import alg_list_scroll;
         return payload ? payload->image : soa_detail::invalid_image_id();
     }
 
+    void SoaKernel::set_image_shape(WidgetHandle h,
+                                    soa_detail::ImageShapeKind kind,
+                                    std::uint8_t extent) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Image) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ImagePayload>(idx);
+        if (!payload) return;
+        const auto kind_u8 = static_cast<std::uint8_t>(kind);
+        if (payload->shape_kind != kind_u8 || payload->shape_extent != extent) {
+            payload->shape_kind = kind_u8;
+            payload->shape_extent = extent;
+            mark_paint_dirty();
+        }
+    }
+
+    soa_detail::ImageShapeKind SoaKernel::image_shape_kind(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return soa_detail::ImageShapeKind::Auto;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Image) {
+            unsupported_kind(common_.kind[idx]);
+            return soa_detail::ImageShapeKind::Auto;
+        }
+        const auto* payload = payload_get<soa_detail::ImagePayload>(idx);
+        return payload
+            ? static_cast<soa_detail::ImageShapeKind>(payload->shape_kind)
+            : soa_detail::ImageShapeKind::Auto;
+    }
+
+    std::uint8_t SoaKernel::image_shape_extent(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Image) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ImagePayload>(idx);
+        return payload ? payload->shape_extent : 0;
+    }
+
+    void SoaKernel::set_image_rotation_deg(WidgetHandle h, std::int16_t degrees) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Image) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ImagePayload>(idx);
+        if (!payload) return;
+        if (payload->rotation_deg != degrees) {
+            payload->rotation_deg = degrees;
+            mark_paint_dirty();
+        }
+    }
+
+    std::int16_t SoaKernel::image_rotation_deg(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Image) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ImagePayload>(idx);
+        return payload ? payload->rotation_deg : 0;
+    }
+
     void SoaKernel::set_button_icon(WidgetHandle h, soa_detail::ImageId icon) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;

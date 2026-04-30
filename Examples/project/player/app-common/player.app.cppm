@@ -72,8 +72,12 @@ export namespace player {
         bool bootstrap_player(Controller& controller,
                               int initial_index,
                               bool auto_start) {
-            auto storage = scan_storage();
-            controller.apply_storage_view(storage_view());
+            (void)scan_storage();
+            if constexpr (requires { controller.apply_storage_view(storage_view(), false); }) {
+                controller.apply_storage_view(storage_view(), false);
+            } else {
+                controller.apply_storage_view(storage_view());
+            }
             if constexpr (requires { controller.load_weekly_listening_stats_history(); }) {
                 controller.load_weekly_listening_stats_history();
             }

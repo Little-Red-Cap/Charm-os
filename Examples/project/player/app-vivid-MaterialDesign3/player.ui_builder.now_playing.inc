@@ -72,19 +72,20 @@
             progress_section_h,
         };
 
-        const int small_btn = now_layout.control_side;
-        const int play_btn = now_layout.control_play;
-        const int controls_w = small_btn * 2 + play_btn + now_layout.control_gap * 2;
+        const int small_btn = std::max(78, now_layout.control_side - 8);
+        const int play_btn = std::max(96, now_layout.control_play - 8);
+        const int controls_gap = std::max(10, now_layout.control_gap - 2);
+        const int controls_w = small_btn * 2 + play_btn + controls_gap * 2;
         const int controls_x = (screen_width - controls_w) / 2;
         const int controls_y = progress_section_y + progress_section_h + 34;
         const Rect controls_rect{controls_x, controls_y, controls_w, play_btn};
 
-        const int aux_panel_w = 224;
-        const int aux_panel_h = 68;
-        const int aux_button = 52;
-        const int aux_gap = 12;
+        const int aux_panel_w = 208;
+        const int aux_panel_h = 60;
+        const int aux_button = 44;
+        const int aux_gap = 10;
         const int aux_panel_x = (screen_width - aux_panel_w) / 2;
-        const int aux_panel_y = controls_y + play_btn + 30;
+        const int aux_panel_y = controls_y + play_btn + 26;
         const Rect aux_panel_rect{aux_panel_x, aux_panel_y, aux_panel_w, aux_panel_h};
 
         const Rect top_bar_rect{0, top_bar_y - 4, screen_width, top_button + 8};
@@ -261,7 +262,7 @@
 
         h.cover = builder.create_image();
         anchor_rect(builder, h.cover, metrics.cover_rect);
-        apply_now_cover_style(builder, h.cover, metrics.cover_radius, false, 0, 0, 0, 0);
+        ::ui::scene::configure_image_surface(builder, h.cover, metrics.cover_radius);
         builder.link(now_playing, h.cover);
     }
 
@@ -310,67 +311,23 @@
         builder.set_range(h.progress_visual, 0, 100);
         builder.set_value(h.progress_visual, 0);
         builder.set_hit_testable(h.progress_visual, false);
-        {
-            StylePatch patch = ::ui::scene::make_seek_bar_style_patch({
-                .bg_color = kUiProgressBg,
-                .track_color = kUiProgressBorder,
-                .fill_color = kUiSwitchOn,
-                .padding = 3,
-                .corner_radius = 9,
-            });
-            builder.set_style_override(h.progress_visual, patch);
-        }
+        apply_now_progress_visual_style(builder, h.progress_visual);
 
         h.progress = builder.create_container();
         builder.set_hit_testable(h.progress, true);
 
         h.time_left = builder.create_label_static("");
         h.time_right = builder.create_label_static("");
-        {
-            StylePatch patch = make_player_text_patch(PlayerTextRole::MetaText, kUiTime);
-            patch.has_font = true;
-            patch.font = &get_player_font_px(18, FontWeight::Medium);
-            patch.has_padding = true;
-            patch.padding = now_layout.time_label_inner_pad + 2;
-            builder.set_style_override(h.time_left, patch);
-            builder.set_style_override(h.time_right, patch);
-        }
-        builder.set_label_align(h.time_left, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        builder.set_label_align(h.time_right, ::ui::scene::TextAlignH::Right, ::ui::scene::TextAlignV::Center);
+        apply_now_time_side_style(builder, h.time_left, now_layout, false);
+        apply_now_time_side_style(builder, h.time_right, now_layout, true);
 
         h.info_tag = builder.create_button_static("");
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 255},
-                .border_color = {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 0},
-                .corner_radius = now_layout.info_tag_radius,
-            });
-            patch.has_font = true;
-            patch.font = &get_player_font_px(18, FontWeight::Medium);
-            patch.has_font_color = true;
-            patch.font_color = kUiTitle;
-            patch.has_padding = true;
-            patch.padding = 8;
-            builder.set_style_override(h.info_tag, patch);
-        }
+        apply_now_info_tag_style(builder, h.info_tag, now_layout);
         builder.set_hit_testable(h.info_tag, false);
 
         h.now_progress_group = builder.create_container();
         anchor_rect(builder, h.now_progress_group, metrics.progress_section_rect);
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 54},
-                .border_color = {kUiInfoTagBorderSoft.r, kUiInfoTagBorderSoft.g, kUiInfoTagBorderSoft.b, 0},
-                .corner_radius = now_layout.progress_section_radius + 4,
-            });
-            builder.set_style_override(h.now_progress_group, patch);
-        }
+        apply_now_progress_section_style(builder, h.now_progress_group, now_layout);
 
         anchor_rect(builder, h.progress_visual,
                     {metrics.progress_pad_x,
@@ -403,17 +360,7 @@
                                          row_pad + now_layout.time_padding,
                                          ::ui::scene::LayoutAlign::Center};
         const WidgetHandle time_row_root = time_row.root();
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiProgressBg.r, kUiProgressBg.g, kUiProgressBg.b, 46},
-                .border_color = {kUiInfoTagBorderSoft.r, kUiInfoTagBorderSoft.g, kUiInfoTagBorderSoft.b, 0},
-                .corner_radius = now_layout.time_row_radius,
-            });
-            builder.set_style_override(time_row_root, patch);
-        }
+        apply_now_time_row_style(builder, time_row_root, now_layout);
         time_row.add(h.time_left, time_side_w, metrics.time_row_h);
         time_row.add(h.info_tag, info_w, metrics.time_row_h);
         time_row.add(h.time_right, time_side_w, metrics.time_row_h);
@@ -422,42 +369,98 @@
         builder.link(now_playing, h.now_progress_group);
     }
 
+    static WidgetHandle add_now_control_side_button(::ui::scene::SceneBuilder& builder,
+                                                    ::ui::scene::RowBuilder& row,
+                                                    int button_size,
+                                                    ::ui::gfx::ImageId icon,
+                                                    int icon_px) {
+        const WidgetHandle button = builder.create_button_static("");
+        row.add(button, button_size, button_size);
+        builder.set_button_icon(button, icon);
+        builder.set_button_icon_size(button, icon_px);
+        apply_control_side_shell_style(builder, button, button_size, icon_px, button_size / 2);
+        return button;
+    }
+
+    static WidgetHandle add_now_control_play_button(::ui::scene::SceneBuilder& builder,
+                                                    ::ui::scene::RowBuilder& row,
+                                                    int button_size,
+                                                    ::ui::gfx::ImageId icon,
+                                                    int icon_px) {
+        const WidgetHandle button = builder.create_button_static("");
+        row.add(button, button_size, button_size);
+        builder.set_button_icon(button, icon);
+        builder.set_button_icon_size(button, icon_px);
+        apply_control_play_shell_style(builder, button, button_size, icon_px, button_size / 2);
+        return button;
+    }
+
+    static WidgetHandle add_now_aux_button(::ui::scene::SceneBuilder& builder,
+                                           ::ui::scene::RowBuilder& row,
+                                           int button_size,
+                                           ::ui::gfx::ImageId icon,
+                                           int icon_px,
+                                           bool interactive) {
+        const WidgetHandle button = builder.create_button_static("");
+        row.add(button, button_size, button_size);
+        builder.set_button_icon(button, icon);
+        builder.set_button_icon_size(button, icon_px);
+        apply_icon_button_shell_style(builder, button, PlayerStyleClass::ControlSide, 12, button_size / 2);
+        builder.set_hit_testable(button, interactive);
+        return button;
+    }
+
+    static WidgetHandle create_now_top_icon_button(::ui::scene::SceneBuilder& builder,
+                                                   const Rect& rect,
+                                                   ::ui::gfx::ImageId icon,
+                                                   int icon_px,
+                                                   int padding) {
+        const WidgetHandle button = builder.create_button_static("");
+        anchor_rect(builder, button, rect);
+        builder.set_button_icon(button, icon);
+        builder.set_button_icon_size(button, icon_px);
+        apply_top_icon_button_shell_style(builder, button, padding, rect.h / 2);
+        return button;
+    }
+
+    static WidgetHandle create_now_top_text_button(::ui::scene::SceneBuilder& builder,
+                                                   const Rect& rect,
+                                                   const char* text,
+                                                   int padding,
+                                                   int font_px) {
+        const WidgetHandle button = builder.create_button_static(text);
+        anchor_rect(builder, button, rect);
+        builder.set_label_align(button, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+        apply_top_icon_button_shell_style(builder, button, padding, rect.h / 2);
+        {
+            StylePatch patch{};
+            patch.has_font = true;
+            patch.font = &get_player_font_px(font_px, FontWeight::Medium);
+            builder.set_style_patch(button, patch);
+        }
+        return button;
+    }
+
     static void build_now_playing_controls_area(::ui::scene::SceneBuilder& builder,
                                                 WidgetHandle now_playing,
                                                 UiHandles& h,
                                                 const NowPlayingLayout& now_layout,
                                                 const NowPlayingBuildMetrics& metrics,
                                                 const PlayerIconIds& icons) {
+        const int controls_gap = std::max(10, now_layout.control_gap - 2);
         ::ui::scene::RowBuilder controls_row{builder,
                                              metrics.controls_rect,
-                                             now_layout.control_gap,
+                                             controls_gap,
                                              now_layout.controls_padding,
                                              ::ui::scene::LayoutAlign::Center};
         h.controls = controls_row.root();
 
-        h.btn_prev = builder.create_button_static("");
-        controls_row.add(h.btn_prev, metrics.small_btn, metrics.small_btn);
-        builder.set_button_icon(h.btn_prev, icons.prev);
-        builder.set_button_icon_size(h.btn_prev, now_layout.control_side_icon + 2);
-        apply_control_side_style(builder, h.btn_prev, metrics.small_btn, now_layout.control_side_icon + 2);
-        apply_clean_button_shell_style(builder, h.btn_prev,
-                                       (metrics.small_btn - (now_layout.control_side_icon + 2)) / 2, 30);
-
-        h.btn_pause = builder.create_button_static("");
-        controls_row.add(h.btn_pause, metrics.play_btn, metrics.play_btn);
-        builder.set_button_icon(h.btn_pause, icons.play);
-        builder.set_button_icon_size(h.btn_pause, now_layout.control_play_icon + 2);
-        apply_control_play_style(builder, h.btn_pause, metrics.play_btn, now_layout.control_play_icon + 2);
-        apply_clean_button_shell_style(builder, h.btn_pause,
-                                       (metrics.play_btn - (now_layout.control_play_icon + 2)) / 2, 34);
-
-        h.btn_next = builder.create_button_static("");
-        controls_row.add(h.btn_next, metrics.small_btn, metrics.small_btn);
-        builder.set_button_icon(h.btn_next, icons.next);
-        builder.set_button_icon_size(h.btn_next, now_layout.control_side_icon + 2);
-        apply_control_side_style(builder, h.btn_next, metrics.small_btn, now_layout.control_side_icon + 2);
-        apply_clean_button_shell_style(builder, h.btn_next,
-                                       (metrics.small_btn - (now_layout.control_side_icon + 2)) / 2, 30);
+        h.btn_prev = add_now_control_side_button(
+            builder, controls_row, metrics.small_btn, icons.prev, now_layout.control_side_icon + 2);
+        h.btn_pause = add_now_control_play_button(
+            builder, controls_row, metrics.play_btn, icons.play, now_layout.control_play_icon + 2);
+        h.btn_next = add_now_control_side_button(
+            builder, controls_row, metrics.small_btn, icons.next, now_layout.control_side_icon + 2);
 
         constexpr bool kShowModeButton = false;
         if constexpr (kShowModeButton) {
@@ -481,8 +484,8 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 58},
-                .border_color = {kUiInfoTagBorderSoft.r, kUiInfoTagBorderSoft.g, kUiInfoTagBorderSoft.b, 0},
+                .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 28},
+                .border_color = {kUiInfoTagBorderSoft.r, kUiInfoTagBorderSoft.g, kUiInfoTagBorderSoft.b, 18},
                 .corner_radius = metrics.aux_panel_rect.h / 2,
             });
             builder.set_style_override(h.now_aux_group, patch);
@@ -496,30 +499,12 @@
                                         ::ui::scene::LayoutAlign::Center};
         const WidgetHandle aux_actions_root = aux_row.root();
 
-        const auto style_aux_button = [&](WidgetHandle button, int icon_px, bool interactive) {
-            apply_control_side_style(builder, button, metrics.aux_button, icon_px);
-            apply_clean_button_shell_style(builder, button, 12, 18);
-            builder.set_hit_testable(button, interactive);
-        };
-
         const int aux_icon = 22;
-        const WidgetHandle aux_shuffle = builder.create_button_static("");
-        aux_row.add(aux_shuffle, metrics.aux_button, metrics.aux_button);
-        builder.set_button_icon(aux_shuffle, icons.shuffle);
-        builder.set_button_icon_size(aux_shuffle, aux_icon);
-        style_aux_button(aux_shuffle, aux_icon, false);
-
-        h.btn_mode = builder.create_button_static("");
-        aux_row.add(h.btn_mode, metrics.aux_button, metrics.aux_button);
-        builder.set_button_icon(h.btn_mode, icons.loop);
-        builder.set_button_icon_size(h.btn_mode, aux_icon);
-        style_aux_button(h.btn_mode, aux_icon, true);
-
-        const WidgetHandle aux_more = builder.create_button_static("");
-        aux_row.add(aux_more, metrics.aux_button, metrics.aux_button);
-        builder.set_button_icon(aux_more, icons.more);
-        builder.set_button_icon_size(aux_more, aux_icon);
-        style_aux_button(aux_more, aux_icon, false);
+        const WidgetHandle aux_shuffle =
+            add_now_aux_button(builder, aux_row, metrics.aux_button, icons.shuffle, aux_icon, false);
+        h.btn_mode = add_now_aux_button(builder, aux_row, metrics.aux_button, icons.loop, aux_icon, true);
+        const WidgetHandle aux_more =
+            add_now_aux_button(builder, aux_row, metrics.aux_button, icons.more, aux_icon, false);
 
         builder.link(now_playing, h.now_aux_group);
         builder.link(h.now_aux_group, aux_actions_root);
@@ -534,12 +519,8 @@
         h.now_top_bar = builder.create_container();
         anchor_rect(builder, h.now_top_bar, metrics.top_bar_rect);
 
-        h.now_back = builder.create_button_static("");
-        anchor_rect(builder, h.now_back, metrics.now_back_rect);
-        builder.set_button_icon(h.now_back, icons.down);
-        builder.set_button_icon_size(h.now_back, now_layout.top_back_icon + 2);
-        apply_top_bar_button_style(builder, h.now_back);
-        apply_clean_button_shell_style(builder, h.now_back, 9, 20);
+        h.now_back = create_now_top_icon_button(
+            builder, metrics.now_back_rect, icons.down, now_layout.top_back_icon + 2, 9);
 
         const WidgetHandle top_title = builder.create_label_static("Now Playing");
         anchor_rect(builder, top_title, metrics.top_title_rect);
@@ -552,24 +533,9 @@
         builder.set_label_align(top_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(top_title, false);
 
-        h.now_more = builder.create_button_static("");
-        anchor_rect(builder, h.now_more, metrics.now_more_rect);
-        builder.set_button_icon(h.now_more, icons.more);
-        builder.set_button_icon_size(h.now_more, now_layout.top_more_icon + 2);
-        apply_top_bar_button_style(builder, h.now_more);
-        apply_clean_button_shell_style(builder, h.now_more, 11, 20);
-
-        h.now_lyrics = builder.create_button_static("Lyrics");
-        anchor_rect(builder, h.now_lyrics, metrics.now_lyrics_rect);
-        builder.set_label_align(h.now_lyrics, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
-        apply_top_bar_button_style(builder, h.now_lyrics);
-        apply_clean_button_shell_style(builder, h.now_lyrics, 10, 20);
-        {
-            StylePatch patch{};
-            patch.has_font = true;
-            patch.font = &get_player_font_px(16, FontWeight::Medium);
-            builder.set_style_patch(h.now_lyrics, patch);
-        }
+        h.now_more = create_now_top_icon_button(
+            builder, metrics.now_more_rect, icons.more, now_layout.top_more_icon + 2, 11);
+        h.now_lyrics = create_now_top_text_button(builder, metrics.now_lyrics_rect, "Lyrics", 10, 16);
 
         builder.link(now_playing, h.now_top_bar);
         builder.link(h.now_top_bar, h.now_back);

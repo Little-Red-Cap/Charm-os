@@ -43,8 +43,6 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
     endif()
     if (CHARM_PLAYER_COVER_DEBUG)
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_COVER_DEBUG=1)
-    else()
-        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_COVER_DEBUG=0)
     endif()
 endforeach()
 

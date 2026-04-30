@@ -13,6 +13,7 @@ Examples/project/player/Hardware/*/*.PrjPcbStructure
 Examples/project/player/Hardware/*/*.Harness
 Examples/project/player/Hardware/*/History/*
 Examples/project/player/Hardware/*/__Previews
+Examples/project/player/Hardware/*/PnPout/*
 Examples/project/player/Hardware/*/Project Logs for *
 Examples/kernel/rtos/qemu/build-*/
 Examples/kernel/rtos/qemu/qemu-ci.log

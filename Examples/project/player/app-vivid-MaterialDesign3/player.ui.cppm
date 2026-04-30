@@ -398,6 +398,14 @@ export namespace player::ui {
             std::string ttf_normal{};
             std::string ttf_large{};
             std::string ttf_mono{};
+            std::string ttf_small_medium{};
+            std::string ttf_normal_medium{};
+            std::string ttf_large_medium{};
+            std::string ttf_mono_medium{};
+            std::string ttf_small_bold{};
+            std::string ttf_normal_bold{};
+            std::string ttf_large_bold{};
+            std::string ttf_mono_bold{};
             std::string ttf_fallback{};
             std::array<ExactFontSlot, kPlayerExactFontCacheSlots> exact_fonts{};
             std::uint64_t exact_font_use_tick{0};
@@ -866,6 +874,14 @@ export namespace player::ui {
         state.ttf_normal = state.ttf_path + "#normal";
         state.ttf_large = state.ttf_path + "#large";
         state.ttf_mono = state.ttf_path + "#mono";
+        state.ttf_small_medium = state.ttf_path + "#small_medium";
+        state.ttf_normal_medium = state.ttf_path + "#normal_medium";
+        state.ttf_large_medium = state.ttf_path + "#large_medium";
+        state.ttf_mono_medium = state.ttf_path + "#mono_medium";
+        state.ttf_small_bold = state.ttf_path + "#small_bold";
+        state.ttf_normal_bold = state.ttf_path + "#normal_bold";
+        state.ttf_large_bold = state.ttf_path + "#large_bold";
+        state.ttf_mono_bold = state.ttf_path + "#mono_bold";
         state.ttf_fallback.clear();
         if (!state.ttf_fallback_path.empty()) {
             state.ttf_fallback = state.ttf_fallback_path + "#normal";
@@ -874,6 +890,14 @@ export namespace player::ui {
         const char* path_normal = state.ttf_normal.c_str();
         const char* path_large = state.ttf_large.c_str();
         const char* path_mono = state.ttf_mono.c_str();
+        const char* path_small_medium = state.ttf_small_medium.c_str();
+        const char* path_normal_medium = state.ttf_normal_medium.c_str();
+        const char* path_large_medium = state.ttf_large_medium.c_str();
+        const char* path_mono_medium = state.ttf_mono_medium.c_str();
+        const char* path_small_bold = state.ttf_small_bold.c_str();
+        const char* path_normal_bold = state.ttf_normal_bold.c_str();
+        const char* path_large_bold = state.ttf_large_bold.c_str();
+        const char* path_mono_bold = state.ttf_mono_bold.c_str();
         const char* path_fallback = state.ttf_fallback.empty() ? nullptr : state.ttf_fallback.c_str();
 
         charm::font::FontPackageConfig pkg{};
@@ -881,8 +905,14 @@ export namespace player::ui {
         pkg.regular.normal_path = path_normal;
         pkg.regular.large_path = path_large;
         pkg.regular.mono_path = path_mono;
-        pkg.medium = pkg.regular;
-        pkg.bold = pkg.regular;
+        pkg.medium.small_path = path_small_medium;
+        pkg.medium.normal_path = path_normal_medium;
+        pkg.medium.large_path = path_large_medium;
+        pkg.medium.mono_path = path_mono_medium;
+        pkg.bold.small_path = path_small_bold;
+        pkg.bold.normal_path = path_normal_bold;
+        pkg.bold.large_path = path_large_bold;
+        pkg.bold.mono_path = path_mono_bold;
         pkg.fallback_path = path_fallback;
 
         charm::font::FreetypeFontLoaderConfig loader_cfg{};
@@ -890,8 +920,14 @@ export namespace player::ui {
         loader_cfg.regular.normal_path = path_normal;
         loader_cfg.regular.large_path = path_large;
         loader_cfg.regular.mono_path = path_mono;
-        loader_cfg.medium = loader_cfg.regular;
-        loader_cfg.bold = loader_cfg.regular;
+        loader_cfg.medium.small_path = path_small_medium;
+        loader_cfg.medium.normal_path = path_normal_medium;
+        loader_cfg.medium.large_path = path_large_medium;
+        loader_cfg.medium.mono_path = path_mono_medium;
+        loader_cfg.bold.small_path = path_small_bold;
+        loader_cfg.bold.normal_path = path_normal_bold;
+        loader_cfg.bold.large_path = path_large_bold;
+        loader_cfg.bold.mono_path = path_mono_bold;
         loader_cfg.small_px = small_px;
         loader_cfg.normal_px = normal_px;
         loader_cfg.large_px = large_px;
@@ -943,57 +979,88 @@ export namespace player::ui {
         auto& theme = Theme::instance();
         theme.set_default_font(player_default_font());
 
-        {
-            StylePatch side{};
-            side.has_corner_radius = true;
-            side.corner_radius = 24;
-            side.has_bg_color = true;
-            side.bg_color = kUiControlSideBg;
-            side.has_border_color = true;
-            side.border_color = kUiControlSideBorder;
-            side.has_shadow_enabled = true;
-            side.shadow_enabled = true;
-            side.has_shadow_color = true;
-            side.shadow_color = kUiCardShadow;
-            side.has_shadow_offset_x = true;
-            side.shadow_offset_x = 0;
-            side.has_shadow_offset_y = true;
-            side.shadow_offset_y = 2;
-            side.has_shadow_spread = true;
-            side.shadow_spread = 0;
-            side.has_shadow_radius = true;
-            side.shadow_radius = 8;
-            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ControlSide), side);
+        auto set_player_style_class = [&](PlayerStyleClass style_class, const StylePatch& patch) {
+            theme.set_style_class(static_cast<StyleClassId>(style_class), patch);
+        };
+        auto make_control_button_patch = [](rgba bg_color,
+                                            rgba border_color,
+                                            int corner_radius,
+                                            rgba shadow_color,
+                                            int shadow_offset_y,
+                                            int shadow_radius) {
+            StylePatch patch{};
+            patch.has_corner_radius = true;
+            patch.corner_radius = corner_radius;
+            patch.has_bg_color = true;
+            patch.bg_color = bg_color;
+            patch.has_border_color = true;
+            patch.border_color = border_color;
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = shadow_color.a > 0 && shadow_radius > 0;
+            if (patch.shadow_enabled) {
+                patch.has_shadow_color = true;
+                patch.shadow_color = shadow_color;
+                patch.has_shadow_offset_x = true;
+                patch.shadow_offset_x = 0;
+                patch.has_shadow_offset_y = true;
+                patch.shadow_offset_y = shadow_offset_y;
+                patch.has_shadow_spread = true;
+                patch.shadow_spread = 0;
+                patch.has_shadow_radius = true;
+                patch.shadow_radius = shadow_radius;
+            }
+            return patch;
+        };
+        auto make_flat_button_patch = [](rgba bg_color, rgba font_color, int corner_radius) {
+            StylePatch patch{};
+            patch.has_corner_radius = true;
+            patch.corner_radius = corner_radius;
+            patch.has_bg_color = true;
+            patch.bg_color = bg_color;
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_font_color = true;
+            patch.font_color = font_color;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+            return patch;
+        };
 
-            StylePatch play{};
-            play.has_corner_radius = true;
-            play.corner_radius = 24;
-            play.has_bg_color = true;
-            play.bg_color = kUiPlayBg;
-            play.has_border_color = true;
-            play.border_color = kUiButtonBorder;
-            play.has_shadow_enabled = true;
-            play.shadow_enabled = true;
-            play.has_shadow_color = true;
-            play.shadow_color = kUiPlayShadow;
-            play.has_shadow_offset_x = true;
-            play.shadow_offset_x = 0;
-            play.has_shadow_offset_y = true;
-            play.shadow_offset_y = 8;
-            play.has_shadow_spread = true;
-            play.shadow_spread = 0;
-            play.has_shadow_radius = true;
-            play.shadow_radius = 22;
-            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ControlPlay), play);
+        {
+            set_player_style_class(PlayerStyleClass::ControlSide,
+                                   make_control_button_patch({kUiControlSideBg.r,
+                                                              kUiControlSideBg.g,
+                                                              kUiControlSideBg.b,
+                                                              188},
+                                                             {0, 0, 0, 0},
+                                                             28,
+                                                             {0, 0, 0, 0},
+                                                             0,
+                                                             0));
+
+            set_player_style_class(PlayerStyleClass::ControlPlay,
+                                   make_control_button_patch({kUiPlayBg.r,
+                                                              kUiPlayBg.g,
+                                                              kUiPlayBg.b,
+                                                              236},
+                                                             {0, 0, 0, 0},
+                                                             28,
+                                                             {0, 0, 0, 0},
+                                                             0,
+                                                             0));
         }
 
         {
             StylePatch patch = ::ui::scene::make_pill_surface_patch({
                 .bg_color = kUiButtonBg,
                 .border_color = kUiButtonBorder,
-                .corner_radius = 12,
+                .corner_radius = 16,
             });
-            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::TopBarButton), patch);
+            set_player_style_class(PlayerStyleClass::TopBarButton, patch);
         }
 
         {
@@ -1021,21 +1088,13 @@ export namespace player::ui {
             patch.has_bg_color = true;
             patch.bg_color = kUiListBg;
             patch.has_border_color = true;
-            patch.border_color = kUiListBorder;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
             patch.has_corner_radius = true;
             patch.corner_radius = 16;
             patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = kUiCardShadow;
-            patch.has_shadow_offset_x = true;
-            patch.shadow_offset_x = 0;
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 4;
-            patch.has_shadow_spread = true;
-            patch.shadow_spread = 4;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = 18;
+            patch.shadow_enabled = false;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ListCard), patch);
         }
 
@@ -1084,26 +1143,15 @@ export namespace player::ui {
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomBar), patch);
         }
         {
-            StylePatch patch{};
-            patch.has_corner_radius = true;
-            patch.corner_radius = 16;
-            patch.has_bg_color = true;
-            patch.bg_color = kUiBottomButtonBg;
-            patch.has_border_color = true;
-            patch.border_color = {0, 0, 0, 0};
-            patch.has_border_width = true;
-            patch.border_width = 0;
-            patch.has_font_color = true;
-            patch.font_color = kUiBottomButtonFg;
-            patch.has_shadow_enabled = true;
-            patch.shadow_enabled = false;
-            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomButton), patch);
+            set_player_style_class(PlayerStyleClass::BottomButton,
+                                   make_flat_button_patch(kUiBottomButtonBg,
+                                                          kUiBottomButtonFg,
+                                                          20));
 
-            StylePatch play = patch;
-            play.corner_radius = 18;
-            play.bg_color = kUiBottomPlayBg;
-            play.font_color = kUiBottomPlayFg;
-            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomPlay), play);
+            set_player_style_class(PlayerStyleClass::BottomPlay,
+                                   make_flat_button_patch(kUiBottomPlayBg,
+                                                          kUiBottomPlayFg,
+                                                          22));
         }
         Style baseline = theme.get<Button>();
         baseline.font = &player_default_font();

@@ -349,7 +349,11 @@ private:
                               const StyleState& state, const char* text,
                               ui::draw_cmd::ImageId icon, std::uint8_t icon_size);
     static void record_image(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
-                             ui::draw_cmd::ImageId image, int corner_radius);
+                             ui::draw_cmd::ImageId image,
+                             int corner_radius,
+                             ui::render::ImageShapeKind shape_kind,
+                             std::uint8_t shape_extent,
+                             std::int16_t rotation_deg);
     static void record_text_box(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                                 const ResolvedMetrics& metrics, const StyleState& state, const char* text,
                                 TextAlignV align_v, TextWrap wrap);
@@ -686,7 +690,13 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::Image:
-        record_image(out, world_rect, kernel_.image(h), metrics->corner_radius);
+        record_image(out,
+                     world_rect,
+                     kernel_.image(h),
+                     metrics->corner_radius,
+                     kernel_.image_shape_kind(h),
+                     kernel_.image_shape_extent(h),
+                     kernel_.image_rotation_deg(h));
         break;
       case WidgetKind::Label:
           record_label(out, world_rect, *colors, *metrics, state, kernel_.text(h),
@@ -1006,13 +1016,31 @@ void SoaGui::record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& 
 }
 
 void SoaGui::record_image(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
-                          ui::draw_cmd::ImageId image, int corner_radius) {
+                          ui::draw_cmd::ImageId image,
+                          int corner_radius,
+                          ui::render::ImageShapeKind shape_kind,
+                          std::uint8_t shape_extent,
+                          std::int16_t rotation_deg) {
     if (!ui::draw_cmd::image_id_valid(image)) return;
-    if (corner_radius > 0) {
-        out.draw_image_round_rect(r, image, corner_radius);
+    auto effective_shape = shape_kind;
+    if (effective_shape == ui::render::ImageShapeKind::Auto) {
+        effective_shape = (corner_radius > 0)
+            ? ui::render::ImageShapeKind::RoundRect
+            : ui::render::ImageShapeKind::Rect;
+    }
+    const int extent = (shape_extent > 0) ? static_cast<int>(shape_extent) : corner_radius;
+    if (effective_shape == ui::render::ImageShapeKind::RoundRect && extent <= 0) {
+        effective_shape = ui::render::ImageShapeKind::Rect;
+    }
+    if (rotation_deg == 0 && effective_shape == ui::render::ImageShapeKind::Rect) {
+        out.draw_image(r, image);
         return;
     }
-    out.draw_image(r, image);
+    if (rotation_deg == 0 && effective_shape == ui::render::ImageShapeKind::RoundRect) {
+        out.draw_image_round_rect(r, image, extent);
+        return;
+    }
+    out.draw_image_shaped(r, image, extent, effective_shape, rotation_deg);
 }
 
 void SoaGui::record_text_box(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,

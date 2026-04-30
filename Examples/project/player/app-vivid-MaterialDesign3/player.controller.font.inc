@@ -58,14 +58,16 @@
             if (font_ttf_path.empty()) return;
             reset_player_font_package_cache();
             bind_player_freetype_font(font_ttf_path,
-                                      font_fallback_ttf_path,
-                                      font_small_px,
-                                      font_normal_px,
-                                      font_large_px);
+                                     font_fallback_ttf_path,
+                                     font_small_px,
+                                     font_normal_px,
+                                     font_large_px);
             apply_player_theme();
             refresh_exact_font_styles();
+            refresh_now_playing_visual_content();
+            refresh_home_visual_if_active();
             invalidate_library_visual_state();
-            update_library_state_visuals();
+            refresh_library_visual_if_active();
         }
 
         void set_font_config(std::string_view path,
@@ -79,7 +81,8 @@
             font_normal_px = normal_px;
             font_large_px = large_px;
             font_retry_done = false;
-            if (!font_ttf_path.empty()) {
+            const bool ui_built = handles.root && handles.home_title_top;
+            if (!font_ttf_path.empty() && ui_built) {
                 rebind_player_fonts();
                 if (fs_ready) {
                     font_retry_done = true;

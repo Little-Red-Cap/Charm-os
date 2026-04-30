@@ -11,6 +11,7 @@ export import charm.core.geometry;
 export import charm.core.handle;
 import charm.core.structured_view;
 export import charm.core.style;
+export import charm.ui.scene.pill_surface;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
@@ -33,6 +34,7 @@ export namespace ui::scene {
     using ImageId = ui::gfx::ImageId;
     constexpr ImageId invalid_image_id() noexcept { return ui::gfx::invalid_image_id(); }
     constexpr bool image_id_valid(ImageId id) noexcept { return ui::gfx::image_id_valid(id); }
+    using ImageShapeKind = ui::render::ImageShapeKind;
 
     using ScrollBarOrientation = ::ScrollBarOrientation;
     using TableViewHeaderStyle = ::TableViewHeaderStyle;
@@ -144,6 +146,23 @@ export namespace ui::scene {
         bool clear_tile{true};
     };
 
+    struct ImageSlotSpec {
+        Rect image_rect{};
+        int image_corner_radius{0};
+        int plate_pad{0};
+        ImageShapeKind image_shape{ImageShapeKind::RoundRect};
+        std::uint8_t shape_extent{0};
+        std::int16_t rotation_deg{0};
+        bool create_plate{true};
+        bool image_hit_testable{false};
+        bool plate_hit_testable{false};
+    };
+
+    struct ImageSlotHandles {
+        WidgetHandle image{};
+        WidgetHandle plate{};
+    };
+
     class SceneAccess {
     public:
         SceneAccess() noexcept = default;
@@ -163,6 +182,28 @@ export namespace ui::scene {
         }
 
         void set_image(WidgetHandle h, ImageId image) noexcept { kernel_->set_image(h, image); }
+        void set_image_slot(const ImageSlotHandles& slot,
+                            ImageId image,
+                            bool show_plate_when_empty = true) noexcept {
+            if (!kernel_) return;
+            if (slot.image) kernel_->set_image(slot.image, image);
+            if (slot.plate) {
+                kernel_->set_visible(slot.plate,
+                                     show_plate_when_empty && !ui::gfx::image_id_valid(image));
+            }
+        }
+        void clear_image_slot(const ImageSlotHandles& slot,
+                              bool show_plate_when_empty = true) noexcept {
+            set_image_slot(slot, invalid_image_id(), show_plate_when_empty);
+        }
+        void set_image_shape(WidgetHandle h,
+                             ImageShapeKind kind,
+                             std::uint8_t extent = 0) noexcept {
+            kernel_->set_image_shape(h, kind, extent);
+        }
+        void set_image_rotation_deg(WidgetHandle h, std::int16_t degrees) noexcept {
+            kernel_->set_image_rotation_deg(h, degrees);
+        }
         void set_button_icon(WidgetHandle h, ImageId icon) noexcept { kernel_->set_button_icon(h, icon); }
 
         void set_list_view_source(WidgetHandle h,
@@ -224,6 +265,40 @@ export namespace ui::scene {
         void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_adjust(h, patch); }
         void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_override(h, patch); }
         void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_->set_style_override(h, token.patch); }
+        void set_text_color(WidgetHandle h, const rgba& color) noexcept {
+            if (!kernel_ || !h) return;
+            StylePatch patch{};
+            patch.has_font_color = true;
+            patch.font_color = color;
+            patch.has_font_color_disabled = true;
+            patch.font_color_disabled = color;
+            kernel_->set_style_override(h, patch);
+        }
+        void recolor_surface(WidgetHandle h, const SurfaceRecolorSpec& spec) noexcept {
+            if (!kernel_ || !h) return;
+            kernel_->set_style_override(h, make_surface_recolor_patch(spec));
+        }
+        void recolor_surface(WidgetHandle h, const rgba& bg, const rgba& border) noexcept {
+            recolor_surface(h, {
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .bg_color = bg,
+                .border_color = border,
+            });
+        }
+        void recolor_surface(WidgetHandle h,
+                             const rgba& bg,
+                             const rgba& border,
+                             const rgba& font_color) noexcept {
+            recolor_surface(h, {
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_font_color = true,
+                .bg_color = bg,
+                .border_color = border,
+                .font_color = font_color,
+            });
+        }
         void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_->set_style_class(h, id); }
         void clear_style_class(WidgetHandle h) noexcept { kernel_->clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
@@ -272,6 +347,14 @@ export namespace ui::scene {
         void set_button_icon_size(WidgetHandle h, std::uint8_t size) noexcept {
             factory_.set_button_icon_size(h, size);
         }
+        void set_image_shape(WidgetHandle h,
+                             ImageShapeKind kind,
+                             std::uint8_t extent = 0) noexcept {
+            kernel_.set_image_shape(h, kind, extent);
+        }
+        void set_image_rotation_deg(WidgetHandle h, std::int16_t degrees) noexcept {
+            kernel_.set_image_rotation_deg(h, degrees);
+        }
 
         void link(WidgetHandle parent, WidgetHandle child) noexcept { factory_.link(parent, child); }
 
@@ -296,6 +379,38 @@ export namespace ui::scene {
         void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_adjust(h, patch); }
         void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_override(h, patch); }
         void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_.set_style_override(h, token.patch); }
+        void set_text_color(WidgetHandle h, const rgba& color) noexcept {
+            if (!h) return;
+            StylePatch patch{};
+            patch.has_font_color = true;
+            patch.font_color = color;
+            kernel_.set_style_override(h, patch);
+        }
+        void recolor_surface(WidgetHandle h, const SurfaceRecolorSpec& spec) noexcept {
+            if (!h) return;
+            kernel_.set_style_override(h, make_surface_recolor_patch(spec));
+        }
+        void recolor_surface(WidgetHandle h, const rgba& bg, const rgba& border) noexcept {
+            recolor_surface(h, {
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .bg_color = bg,
+                .border_color = border,
+            });
+        }
+        void recolor_surface(WidgetHandle h,
+                             const rgba& bg,
+                             const rgba& border,
+                             const rgba& font_color) noexcept {
+            recolor_surface(h, {
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_font_color = true,
+                .bg_color = bg,
+                .border_color = border,
+                .font_color = font_color,
+            });
+        }
         void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_.set_style_class(h, id); }
         void clear_style_class(WidgetHandle h) noexcept { kernel_.clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_.clear_style_patch(h); }
@@ -586,6 +701,61 @@ export namespace ui::scene {
         WidgetHandle root_{};
         LayoutCursor cursor_;
     };
+
+    inline void configure_image_surface(SceneBuilder& builder,
+                                        WidgetHandle image,
+                                        int corner_radius,
+                                        ImageShapeKind image_shape = ImageShapeKind::RoundRect,
+                                        std::uint8_t shape_extent = 0,
+                                        std::int16_t rotation_deg = 0,
+                                        bool hit_testable = false) noexcept {
+        if (!image) return;
+        const auto clamp_u8 = [](int value) noexcept -> std::uint8_t {
+            if (value <= 0) return 0;
+            if (value >= 255) return 255;
+            return static_cast<std::uint8_t>(value);
+        };
+        StylePatch patch{};
+        patch.has_corner_radius = true;
+        patch.corner_radius = corner_radius;
+        builder.set_style_override(image, patch);
+        builder.set_image_shape(image,
+                                image_shape,
+                                (shape_extent != 0) ? shape_extent : clamp_u8(corner_radius));
+        builder.set_image_rotation_deg(image, rotation_deg);
+        builder.set_hit_testable(image, hit_testable);
+    }
+
+    template<typename PlateStyleFn>
+    inline ImageSlotHandles create_image_slot(SceneBuilder& builder,
+                                              WidgetHandle parent,
+                                              const ImageSlotSpec& spec,
+                                              PlateStyleFn apply_plate_style) noexcept {
+        const auto expand_rect = [](const Rect& rect, int pad) noexcept -> Rect {
+            return {rect.x - pad, rect.y - pad, rect.w + pad * 2, rect.h + pad * 2};
+        };
+
+        ImageSlotHandles handles{};
+        if (spec.create_plate) {
+            handles.plate = builder.create_container();
+            builder.set_rect(handles.plate, expand_rect(spec.image_rect, spec.plate_pad));
+            apply_plate_style(builder, handles.plate);
+            builder.set_hit_testable(handles.plate, spec.plate_hit_testable);
+            builder.link(parent, handles.plate);
+        }
+
+        handles.image = builder.create_image();
+        builder.set_rect(handles.image, spec.image_rect);
+        configure_image_surface(builder,
+                                handles.image,
+                                spec.image_corner_radius,
+                                spec.image_shape,
+                                spec.shape_extent,
+                                spec.rotation_deg,
+                                spec.image_hit_testable);
+        builder.link(parent, handles.image);
+        return handles;
+    }
 
     class TileBuilder {
     public:

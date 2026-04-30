@@ -166,6 +166,20 @@ export namespace ui::draw_cmd {
         std::int16_t pad{0};
     };
 
+    struct CmdImageP0P1 {
+        ImageId image{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+    };
+
+    struct CmdImageP0P1P2 {
+        ImageId image{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+        std::int16_t p2{0};
+        std::int16_t pad{0};
+    };
+
     struct CmdImageP0P1P2P3 {
         ImageId image{};
         std::int16_t p0{0};
@@ -238,6 +252,24 @@ export namespace ui::draw_cmd {
         std::int16_t count{0};
     };
 
+    struct CmdImageBatchP0P1 {
+        ImageId image{};
+        BlobRef blob{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+        std::int16_t count{0};
+        std::int16_t pad{0};
+    };
+
+    struct CmdImageBatchP0P1P2 {
+        ImageId image{};
+        BlobRef blob{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+        std::int16_t p2{0};
+        std::int16_t count{0};
+    };
+
     struct CmdImageBatchP0P1P2P3 {
         ImageId image{};
         BlobRef blob{};
@@ -270,7 +302,7 @@ export namespace ui::draw_cmd {
     constexpr std::size_t kCmdAlign = alignof(std::uint32_t);
     static_assert(sizeof(CmdHeader) % kCmdAlign == 0);
 
-    constexpr std::uint32_t kDrawCmdBinaryVersion = 2;
+    constexpr std::uint32_t kDrawCmdBinaryVersion = 4;
 
     constexpr std::uint32_t draw_cmd_binary_size() noexcept {
         return static_cast<std::uint32_t>(sizeof(CmdHeader));
@@ -515,10 +547,12 @@ export namespace ui::draw_cmd {
             return true;
         }
         case CmdType::DrawImageRoundRect: {
-            if (!payload_fits(header, sizeof(CmdImageP0))) return false;
-            const auto payload = read_payload<CmdImageP0>(header);
+            if (!payload_fits(header, sizeof(CmdImageP0P1P2))) return false;
+            const auto payload = read_payload<CmdImageP0P1P2>(header);
             out.image = payload.image;
             out.p0 = payload.p0;
+            out.p1 = payload.p1;
+            out.p2 = payload.p2;
             return true;
         }
         case CmdType::DrawImageNineSlice: {
@@ -624,12 +658,14 @@ export namespace ui::draw_cmd {
             return true;
         }
         case CmdType::DrawImageRoundRectBatch: {
-            if (!payload_fits(header, sizeof(CmdImageBatchP0))) return false;
-            const auto payload = read_payload<CmdImageBatchP0>(header);
+            if (!payload_fits(header, sizeof(CmdImageBatchP0P1P2))) return false;
+            const auto payload = read_payload<CmdImageBatchP0P1P2>(header);
             out.image = payload.image;
             out.blob = payload.blob;
             out.p0 = payload.p0;
-            out.p1 = payload.count;
+            out.p1 = payload.p1;
+            out.p2 = payload.p2;
+            out.p3 = payload.count;
             return true;
         }
         case CmdType::DrawImageNineSliceBatch: {
@@ -942,10 +978,19 @@ export namespace ui::draw_cmd {
             return push_cmd(cmd);
         }
         bool draw_image_round_rect(const Rect& rect, ImageId image, int corner_radius) noexcept {
+            return draw_image_shaped(rect, image, corner_radius, ui::render::ImageShapeKind::RoundRect);
+        }
+        bool draw_image_shaped(const Rect& rect,
+                               ImageId image,
+                               int extent,
+                               ui::render::ImageShapeKind shape,
+                               int rotation_deg = 0) noexcept {
             if (!image_id_valid(image)) return false;
             auto cmd = make_cmd(CmdType::DrawImageRoundRect, rect);
             cmd.image = image;
-            cmd.p0 = static_cast<std::int16_t>(corner_radius);
+            cmd.p0 = static_cast<std::int16_t>(extent);
+            cmd.p1 = static_cast<std::int16_t>(shape);
+            cmd.p2 = static_cast<std::int16_t>(rotation_deg);
             return push_cmd(cmd);
         }
 
@@ -1578,6 +1623,8 @@ export namespace ui::draw_cmd {
                         if (next.type != CmdType::DrawImageRoundRect) break;
                         if (next.image != cmd.image) break;
                         if (next.p0 != cmd.p0) break;
+                        if (next.p1 != cmd.p1) break;
+                        if (next.p2 != cmd.p2) break;
                         scan_offset += next_stride;
                         ++run;
                     }
@@ -1626,7 +1673,9 @@ export namespace ui::draw_cmd {
                                 batch_cmd.image = cmd.image;
                                 batch_cmd.blob = blob;
                                 batch_cmd.p0 = cmd.p0;
-                                batch_cmd.p1 = static_cast<std::int16_t>(batch);
+                                batch_cmd.p1 = cmd.p1;
+                                batch_cmd.p2 = cmd.p2;
+                                batch_cmd.p3 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
                                 offset = item_offset;
                                 merged = true;
@@ -1974,9 +2023,11 @@ export namespace ui::draw_cmd {
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
             case CmdType::DrawImageRoundRect: {
-                CmdImageP0 payload{};
+                CmdImageP0P1P2 payload{};
                 payload.image = cmd.image;
                 payload.p0 = cmd.p0;
+                payload.p1 = cmd.p1;
+                payload.p2 = cmd.p2;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
@@ -2083,11 +2134,13 @@ export namespace ui::draw_cmd {
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
             case CmdType::DrawImageRoundRectBatch: {
-                CmdImageBatchP0 payload{};
+                CmdImageBatchP0P1P2 payload{};
                 payload.image = cmd.image;
                 payload.blob = cmd.blob;
                 payload.p0 = cmd.p0;
-                payload.count = cmd.p1;
+                payload.p1 = cmd.p1;
+                payload.p2 = cmd.p2;
+                payload.count = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
@@ -2388,11 +2441,25 @@ export namespace ui::draw_cmd {
                         break;
                     }
                     if (cur.rect.w > 0 && cur.rect.h > 0) {
-                        ui::render::draw_image_scaled_round_rect(canvas, cur.rect.x, cur.rect.y,
-                                                                  cur.rect.w, cur.rect.h, *image, cur.p0);
+                        ui::render::draw_image_scaled_shaped(
+                            canvas,
+                            cur.rect.x,
+                            cur.rect.y,
+                            cur.rect.w,
+                            cur.rect.h,
+                            *image,
+                            cur.p0,
+                            static_cast<ui::render::ImageShapeKind>(cur.p1),
+                            cur.p2);
                     } else {
-                        ui::render::draw_image_round_rect(canvas, cur.rect.x, cur.rect.y,
-                                                          *image, cur.p0);
+                        ui::render::draw_image_shaped(
+                            canvas,
+                            cur.rect.x,
+                            cur.rect.y,
+                            *image,
+                            cur.p0,
+                            static_cast<ui::render::ImageShapeKind>(cur.p1),
+                            cur.p2);
                     }
                     break;
                 }
@@ -2430,7 +2497,7 @@ export namespace ui::draw_cmd {
                 case CmdType::DrawImage:
                     return true;
                 case CmdType::DrawImageRoundRect:
-                    return a.p0 == b.p0;
+                    return a.p0 == b.p0 && a.p1 == b.p1 && a.p2 == b.p2;
                 case CmdType::DrawImageNineSlice:
                     return a.p0 == b.p0 && a.p1 == b.p1 && a.p2 == b.p2 && a.p3 == b.p3;
                 default:
@@ -2459,11 +2526,25 @@ export namespace ui::draw_cmd {
                         break;
                     }
                     if (rect.w > 0 && rect.h > 0) {
-                        ui::render::draw_image_scaled_round_rect(canvas, rect.x, rect.y,
-                                                                  rect.w, rect.h, *image, cur.p0);
+                        ui::render::draw_image_scaled_shaped(
+                            canvas,
+                            rect.x,
+                            rect.y,
+                            rect.w,
+                            rect.h,
+                            *image,
+                            cur.p0,
+                            static_cast<ui::render::ImageShapeKind>(cur.p1),
+                            cur.p2);
                     } else {
-                        ui::render::draw_image_round_rect(canvas, rect.x, rect.y,
-                                                          *image, cur.p0);
+                        ui::render::draw_image_shaped(
+                            canvas,
+                            rect.x,
+                            rect.y,
+                            *image,
+                            cur.p0,
+                            static_cast<ui::render::ImageShapeKind>(cur.p1),
+                            cur.p2);
                     }
                     break;
                 }
@@ -2694,7 +2775,7 @@ export namespace ui::draw_cmd {
             };
 
             auto exec_image_round_batch = [&](const DrawCmd& cur) noexcept {
-                const int count = cur.p1;
+                const int count = cur.p3;
                 if (count <= 0) {
                     fail_other();
                     return;
@@ -2713,11 +2794,25 @@ export namespace ui::draw_cmd {
                     reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
                 for (const auto& item : items) {
                     if (item.rect.w > 0 && item.rect.h > 0) {
-                        ui::render::draw_image_scaled_round_rect(canvas, item.rect.x, item.rect.y,
-                                                                 item.rect.w, item.rect.h, *image, cur.p0);
+                        ui::render::draw_image_scaled_shaped(
+                            canvas,
+                            item.rect.x,
+                            item.rect.y,
+                            item.rect.w,
+                            item.rect.h,
+                            *image,
+                            cur.p0,
+                            static_cast<ui::render::ImageShapeKind>(cur.p1),
+                            cur.p2);
                     } else {
-                        ui::render::draw_image_round_rect(canvas, item.rect.x, item.rect.y,
-                                                          *image, cur.p0);
+                        ui::render::draw_image_shaped(
+                            canvas,
+                            item.rect.x,
+                            item.rect.y,
+                            *image,
+                            cur.p0,
+                            static_cast<ui::render::ImageShapeKind>(cur.p1),
+                            cur.p2);
                     }
                 }
             };

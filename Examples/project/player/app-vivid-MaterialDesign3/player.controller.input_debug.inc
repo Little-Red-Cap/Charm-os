@@ -141,9 +141,133 @@
             }
         }
 
+        static bool is_probe_dismiss_input(Event::Type type) noexcept {
+            return type == Event::Type::MouseDown || type == Event::Type::MouseUp
+                || type == Event::Type::DragStart || type == Event::Type::DragEnd;
+        }
+
+        bool handle_now_playing_progress_input(WidgetHandle target,
+                                               Event::Type type,
+                                               int pointer_x,
+                                               PendingActions& actions) {
+            if (target != handles.progress) return false;
+            if (type == Event::Type::MouseDown) {
+                progress_dragging = true;
+                update_progress_drag(pointer_x);
+            } else if (type == Event::Type::DragStart || type == Event::Type::DragMove
+                       || type == Event::Type::MouseMove) {
+                if (progress_dragging) {
+                    update_progress_drag(pointer_x);
+                }
+            } else if (type == Event::Type::MouseUp || type == Event::Type::DragEnd) {
+                if (progress_dragging) {
+                    update_progress_drag(pointer_x);
+                    end_progress_drag(true, actions);
+                }
+            } else if (type == Event::Type::Cancel) {
+                end_progress_drag(false, actions);
+            }
+            return true;
+        }
+
+        void handle_now_playing_mouse_up(WidgetHandle target, PendingActions& actions) {
+            if (target == handles.now_back) {
+                close_now_playing_page();
+            } else if (target == handles.btn_prev) {
+                actions.prev = true;
+            } else if (target == handles.btn_next) {
+                actions.next = true;
+            } else if (target == handles.btn_pause) {
+                actions.toggle_play = true;
+            } else if (target == handles.btn_mode) {
+                actions.cycle_mode = true;
+#if defined(CHARM_PLAYER_DEBUG_UI)
+            } else if (target == handles.cover) {
+                cycle_palette_style();
+            } else if (target == handles.now_backdrop) {
+                cycle_cover_theme();
+#endif
+            }
+        }
+
+        bool is_mini_bar_open_target(WidgetHandle target) const noexcept {
+            return target == handles.bottom_hit || target == handles.bottom_bar
+                || target == handles.bottom_cover || target == handles.bottom_title
+                || target == handles.bottom_subtitle;
+        }
+
+        bool page_from_nav_target(WidgetHandle target, PlayerPage& page) const noexcept {
+            if (target == handles.nav_home) {
+                page = PlayerPage::Home;
+                return true;
+            }
+            if (target == handles.nav_library) {
+                page = PlayerPage::Library;
+                return true;
+            }
+            return false;
+        }
+
+        bool library_tab_from_target(WidgetHandle target, LibraryTab& tab) const noexcept {
+            if (target == handles.list_tab_songs) {
+                tab = LibraryTab::Songs;
+                return true;
+            }
+            if (target == handles.list_tab_albums) {
+                tab = LibraryTab::Albums;
+                return true;
+            }
+            if (target == handles.list_tab_artist) {
+                tab = LibraryTab::Artists;
+                return true;
+            }
+            return false;
+        }
+
+        void open_now_playing_from_mini_bar() {
+            close_list_action_menu();
+            close_list_info_popup();
+            open_now_playing_page();
+        }
+
+        void navigate_from_mini_bar(PlayerPage page) {
+            close_list_action_menu();
+            close_list_info_popup();
+            set_page(page);
+        }
+
+        void handle_mini_bar_mouse_up(WidgetHandle target, PendingActions& actions) {
+            if (target == handles.list_info_scrim || target == handles.list_info_close) {
+                close_list_info_popup();
+            } else if (target == handles.list_action_scrim) {
+                close_list_action_menu();
+            } else if (const int menu_item = ::ui::scene::anchored_menu_item_index(
+                           list_action_menu_handles(), target);
+                       menu_item >= 0) {
+                invoke_list_action_item(menu_item);
+            } else if (target == handles.bottom_play) {
+                actions.toggle_play = true;
+            } else if (target == handles.bottom_next) {
+                actions.next = true;
+            } else if (is_mini_bar_open_target(target)) {
+                open_now_playing_from_mini_bar();
+            } else if (PlayerPage page{}; page_from_nav_target(target, page)) {
+                navigate_from_mini_bar(page);
+            } else if (LibraryTab tab{}; library_tab_from_target(target, tab)) {
+                set_library_tab(tab);
+            } else if (target == handles.list_shuffle) {
+                toggle_library_shuffle();
+            } else if (target == handles.list_path_hit) {
+                reset_library_context();
+            } else if (target == handles.list_sort) {
+                cycle_list_sort();
+            }
+        }
+
         #include "player.controller.playback.inc"
         void cycle_list_sort() {
             close_list_action_menu();
+            close_list_info_popup();
             if (list_shuffle_enabled) {
                 list_shuffle_enabled = false;
             }
@@ -200,10 +324,9 @@
                 eq_config.bands[i].gain_db = static_cast<float>(eq_values[i]);
                 eq_config.bands[i].q = 1.0f;
             }
-            FixedString<128> status;
-            if (!playback.set_eq(eq_config, status) && !status.empty()) {
-                set_status(status.c_str());
-            }
+            (void)set_status_on_failure([&](auto& status) {
+                return playback.set_eq(eq_config, status);
+            });
         }
 
         void sync_volume_value() {
@@ -214,10 +337,9 @@
             char buf[16]{};
             std::snprintf(buf, sizeof(buf), "%d", value);
             set_label_slot(handles.volume_value, text_slots.volume_value, buf);
-            FixedString<128> status;
-            if (!playback.set_volume(value, status) && !status.empty()) {
-                set_status(status.c_str());
-            }
+            (void)set_status_on_failure([&](auto& status) {
+                return playback.set_volume(value, status);
+            });
         }
 
         void sync_dsp_controls() {
@@ -226,10 +348,9 @@
                 const int enabled = access.checked(handles.dc_switch) ? 1 : 0;
                 if (enabled != last_dc_enabled) {
                     last_dc_enabled = enabled;
-                    FixedString<128> status;
-                    if (!playback.set_dc_block(enabled != 0, status) && !status.empty()) {
-                        set_status(status.c_str());
-                    }
+                    (void)set_status_on_failure([&](auto& status) {
+                        return playback.set_dc_block(enabled != 0, status);
+                    });
                 }
             }
             if (!handles.clip_switch || !handles.clip_slider || !handles.clip_value) return;
@@ -248,10 +369,57 @@
                 changed = true;
             }
             if (!changed) return;
-            FixedString<128> status;
-            if (!playback.set_soft_clip(enabled != 0, threshold, status) && !status.empty()) {
-                set_status(status.c_str());
+            (void)set_status_on_failure([&](auto& status) {
+                return playback.set_soft_clip(enabled != 0, threshold, status);
+            });
+        }
+
+        void handle_page_input_event(WidgetHandle target,
+                                     Event::Type type,
+                                     int pointer_x,
+                                     PendingActions& actions) {
+            if (current_page == PlayerPage::Probe) {
+                if (is_probe_dismiss_input(type)) {
+                    dismiss_probe();
+                }
+                return;
             }
+            if (current_page == PlayerPage::NowPlaying) {
+                if (handle_now_playing_progress_input(target, type, pointer_x, actions)) {
+                    return;
+                }
+                if (type == Event::Type::MouseUp) {
+                    handle_now_playing_mouse_up(target, actions);
+                }
+                return;
+            }
+            if (type == Event::Type::MouseUp) {
+                handle_mini_bar_mouse_up(target, actions);
+            }
+        }
+
+        void collect_list_view_actions(PendingActions& actions) {
+            if (!handles.list) return;
+            const int selected = access.list_view_selected(handles.list);
+            if (selected >= 0 && selected != last_list_selected) {
+                last_list_selected = selected;
+                update_library_context_watermark();
+                if (!ignore_list_select) {
+                    actions.select = true;
+                    actions.select_index = selected;
+                }
+            }
+            const int action_index = access.consume_list_view_tail_action(handles.list);
+            if (action_index >= 0) {
+                actions.list_action = true;
+                actions.list_action_index = action_index;
+            }
+        }
+
+        void sync_live_controls_after_input() {
+            sync_eq_values();
+            sync_volume_value();
+            sync_dsp_controls();
         }
 
         void process_input_events() {
@@ -261,117 +429,12 @@
             const std::size_t count = access.input_event_count();
             for (std::size_t i = 0; i < count; ++i) {
                 const auto& item = access.input_event(i);
-                const auto target = item.target;
-                const auto type = item.event.type;
-                if (current_page == PlayerPage::Probe) {
-                    if (type == Event::Type::MouseDown || type == Event::Type::MouseUp
-                        || type == Event::Type::DragStart || type == Event::Type::DragEnd) {
-                        dismiss_probe();
-                    }
-                    continue;
-                }
-                if (current_page == PlayerPage::NowPlaying) {
-                    if (target == handles.progress) {
-                        if (type == Event::Type::MouseDown) {
-                            progress_dragging = true;
-                            update_progress_drag(item.event.x);
-                        } else if (type == Event::Type::DragStart || type == Event::Type::DragMove
-                                   || type == Event::Type::MouseMove) {
-                            if (progress_dragging) {
-                                update_progress_drag(item.event.x);
-                            }
-                        } else if (type == Event::Type::MouseUp || type == Event::Type::DragEnd) {
-                            if (progress_dragging) {
-                                update_progress_drag(item.event.x);
-                                end_progress_drag(true, actions);
-                            }
-                        } else if (type == Event::Type::Cancel) {
-                            end_progress_drag(false, actions);
-                        }
-                        continue;
-                    }
-                if (type == Event::Type::MouseUp) {
-                    if (target == handles.now_back) {
-                        if (!begin_now_playing_collapse_transition()) {
-                            set_page(return_page);
-                        }
-                    } else if (target == handles.btn_prev) {
-                        actions.prev = true;
-                    } else if (target == handles.btn_next) {
-                        actions.next = true;
-                    } else if (target == handles.btn_pause) {
-                        actions.toggle_play = true;
-                    } else if (target == handles.btn_mode) {
-                        actions.cycle_mode = true;
-#if defined(CHARM_PLAYER_DEBUG_UI)
-                    } else if (target == handles.cover) {
-                        cycle_palette_style();
-                    } else if (target == handles.now_backdrop) {
-                        cycle_cover_theme();
-#endif
-                    }
-                }
-                } else {
-                    if (type == Event::Type::MouseUp) {
-                        if (target == handles.list_action_scrim) {
-                            close_list_action_menu();
-                        } else if (const int menu_item = ::ui::scene::anchored_menu_item_index(
-                                       list_action_menu_handles(), target);
-                                   menu_item >= 0) {
-                            invoke_list_action_item(menu_item);
-                        } else if (target == handles.bottom_play) {
-                            actions.toggle_play = true;
-                        } else if (target == handles.bottom_next) {
-                            actions.next = true;
-                        } else if (target == handles.bottom_hit || target == handles.bottom_bar
-                                   || target == handles.bottom_cover
-                                   || target == handles.bottom_title || target == handles.bottom_subtitle) {
-                            close_list_action_menu();
-                            if (!begin_now_playing_expand_transition()) {
-                                set_page(PlayerPage::NowPlaying);
-                            }
-                        } else if (target == handles.nav_home) {
-                            close_list_action_menu();
-                            set_page(PlayerPage::Home);
-                        } else if (target == handles.nav_library) {
-                            close_list_action_menu();
-                            set_page(PlayerPage::Library);
-                        } else if (target == handles.list_tab_songs) {
-                            set_library_tab(LibraryTab::Songs);
-                        } else if (target == handles.list_tab_albums) {
-                            set_library_tab(LibraryTab::Albums);
-                        } else if (target == handles.list_tab_artist) {
-                            set_library_tab(LibraryTab::Artists);
-                        } else if (target == handles.list_shuffle) {
-                            toggle_library_shuffle();
-                        } else if (target == handles.list_path_hit) {
-                            reset_library_context();
-                        } else if (target == handles.list_sort) {
-                            cycle_list_sort();
-                        }
-                    }
-                }
+                handle_page_input_event(item.target, item.event.type, item.event.x, actions);
             }
 
-            if (handles.list) {
-                const int selected = access.list_view_selected(handles.list);
-                if (selected >= 0 && selected != last_list_selected) {
-                    last_list_selected = selected;
-                    if (!ignore_list_select) {
-                        actions.select = true;
-                        actions.select_index = selected;
-                    }
-                }
-                const int action_index = access.consume_list_view_tail_action(handles.list);
-                if (action_index >= 0) {
-                    actions.list_action = true;
-                    actions.list_action_index = action_index;
-                }
-            }
+            collect_list_view_actions(actions);
 
             apply_actions(actions);
-            sync_eq_values();
-            sync_volume_value();
-            sync_dsp_controls();
+            sync_live_controls_after_input();
         }
 

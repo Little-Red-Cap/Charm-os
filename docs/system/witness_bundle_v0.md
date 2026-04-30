@@ -103,6 +103,11 @@
 - 这份 witness bundle 自己的 machine-readable front page 路径是什么
 - 如果上层 router 要继续追问，它应该先顺着哪些 supporting surfaces 进入 runtime evidence
 
+对于 root `witness bundle` 来说，`front_page.supporting_surfaces` 允许被更上层 workflow 继续补强。
+
+- 基础导出至少应能路由到 `runtime_evidence`
+- 当同轮交付已经生成 `biography`、`world_compare`、`world_shelf_review` 时，wrapper 可以把这些上层 surface 一并挂回 root `front_page`
+
 它不替代 `artifact_context`。
 
 - `artifact_context` 更偏导出上下文与来源

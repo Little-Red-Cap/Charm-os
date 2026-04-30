@@ -4,6 +4,7 @@
         }
 
         void set_page(PlayerPage page) noexcept {
+            const bool page_changed = current_page != page;
             if (page == PlayerPage::NowPlaying && current_page != PlayerPage::NowPlaying) {
                 return_page = current_page;
             } else if (page != PlayerPage::NowPlaying) {
@@ -11,51 +12,12 @@
             }
             current_page = page;
             if (!access.valid()) return;
-            if (page_probe_layer.root()) {
-                if (page == PlayerPage::Probe) page_probe_layer.show(access);
-                else page_probe_layer.hide(access);
-            } else if (handles.page_probe) {
-                access.set_visible(handles.page_probe, page == PlayerPage::Probe);
-            }
-            if (page_home_layer.root()) {
-                if (page == PlayerPage::Home) page_home_layer.show(access);
-                else page_home_layer.hide(access);
-            } else if (handles.page_home) {
-                access.set_visible(handles.page_home, page == PlayerPage::Home);
-            }
-            if (page_now_layer.root()) {
-                if (page == PlayerPage::NowPlaying) page_now_layer.show(access);
-                else page_now_layer.hide(access);
-            } else if (handles.page_now_playing) {
-                access.set_visible(handles.page_now_playing, page == PlayerPage::NowPlaying);
-            }
-            if (page_library_layer.root()) {
-                if (page == PlayerPage::Library) page_library_layer.show(access);
-                else page_library_layer.hide(access);
-            } else if (handles.page_library) {
-                access.set_visible(handles.page_library, page == PlayerPage::Library);
-            }
-            if (handles.debug_text) {
-                access.set_visible(handles.debug_text, false);
-            }
-            if (handles.bottom_bar) {
-                const bool show_bottom = (page == PlayerPage::Home || page == PlayerPage::Library);
-                access.set_visible(handles.bottom_bar, show_bottom);
-            }
-            if (handles.nav_bar) {
-                const bool show_nav = (page == PlayerPage::Home || page == PlayerPage::Library);
-                access.set_visible(handles.nav_bar, show_nav);
-            }
-            if (handles.transition_root) {
-                access.set_visible(handles.transition_root, false);
-            }
-            update_nav_page_indicator();
-            if (page == PlayerPage::Library) {
-                refresh_library();
-            } else if (page == PlayerPage::Home) {
-                refresh_home();
-            } else if (page == PlayerPage::NowPlaying) {
-                refresh_now_playing();
+            sync_page_root_visibility(page);
+            set_handle_visible(handles.debug_text, false);
+            sync_page_chrome(page);
+            set_now_playing_transition_root_visible(false);
+            if (!page_changed || !page_has_show_refresh_hook(page)) {
+                refresh_page(page);
             }
         }
 
@@ -93,69 +55,45 @@
             set_nav_icon(handles.nav_library_icon, library_active, icons.folder, icons.folder_active);
         }
 
-        void update_nav_page_indicator() {
-            update_nav_page_indicator_for(current_page);
-        }
-
-        static void on_show_home(::ui::scene::SceneAccess& access,
+        static void on_show_page(::ui::scene::SceneAccess& access,
                                  WidgetHandle root,
                                  void* ctx) noexcept {
             (void)access;
             (void)root;
-            auto* self = static_cast<PlayerController*>(ctx);
-            if (!self) return;
-            self->refresh_home();
+            auto* hook = static_cast<PageRefreshHookContext*>(ctx);
+            if (!hook || !hook->self) return;
+            hook->self->refresh_page(hook->page);
         }
 
-        static void on_show_now_playing(::ui::scene::SceneAccess& access,
-                                        WidgetHandle root,
-                                        void* ctx) noexcept {
-            (void)access;
-            (void)root;
-            auto* self = static_cast<PlayerController*>(ctx);
-            if (!self) return;
-            self->refresh_now_playing();
-            self->set_time_label(self->playback.current_sec());
+        void init_page_layer(::ui::scene::PageLayer& layer,
+                             WidgetHandle root,
+                             void (*on_show)(::ui::scene::SceneAccess&, WidgetHandle, void*) noexcept = nullptr,
+                             void* hook_ctx = nullptr) noexcept {
+            if (!root) return;
+            layer.set_root(root);
+            layer.set_hooks(::ui::scene::PageHooks{
+                .on_show = on_show,
+                .ctx = hook_ctx,
+            });
+            layer.set_visible(access, false);
         }
 
-        static void on_show_library(::ui::scene::SceneAccess& access,
-                                    WidgetHandle root,
-                                    void* ctx) noexcept {
-            (void)access;
-            (void)root;
-            auto* self = static_cast<PlayerController*>(ctx);
-            if (!self) return;
-            self->refresh_library();
+        void init_page_binding(PageBinding binding) noexcept {
+            if (!binding.layer) return;
+            if (binding.show_ctx) {
+                *binding.show_ctx = PageRefreshHookContext{this, binding.page};
+                init_page_layer(*binding.layer,
+                                binding.root_handle(),
+                                &PlayerController::on_show_page,
+                                binding.show_ctx);
+                return;
+            }
+            init_page_layer(*binding.layer, binding.root_handle());
         }
 
         void init_pages() noexcept {
-            if (handles.page_probe) {
-                page_probe_layer.set_root(handles.page_probe);
-                page_probe_layer.set_visible(access, false);
-            }
-            if (handles.page_home) {
-                page_home_layer.set_root(handles.page_home);
-                page_home_layer.set_hooks(::ui::scene::PageHooks{
-                    .on_show = &PlayerController::on_show_home,
-                    .ctx = this,
-                });
-                page_home_layer.set_visible(access, false);
-            }
-            if (handles.page_now_playing) {
-                page_now_layer.set_root(handles.page_now_playing);
-                page_now_layer.set_hooks(::ui::scene::PageHooks{
-                    .on_show = &PlayerController::on_show_now_playing,
-                    .ctx = this,
-                });
-                page_now_layer.set_visible(access, false);
-            }
-            if (handles.page_library) {
-                page_library_layer.set_root(handles.page_library);
-                page_library_layer.set_hooks(::ui::scene::PageHooks{
-                    .on_show = &PlayerController::on_show_library,
-                    .ctx = this,
-                });
-                page_library_layer.set_visible(access, false);
+            for (const auto page : kManagedPages) {
+                init_page_binding(page_binding_for(page));
             }
             set_page(start_page);
         }

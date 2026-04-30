@@ -130,9 +130,34 @@ namespace {
         UiCiResult res{};
         auto& scene = platform.scene_ref();
 
-        platform.begin_frame();
-        platform.render();
-        platform.end_frame();
+        auto pump_frame = [&]() {
+            app.tick();
+            ctx.tick_player(app.player());
+            platform.begin_frame();
+            platform.render();
+            platform.end_frame();
+        };
+        auto wait_for_page = [&](player::PlayerPage expected_page, int max_frames = 36) {
+            if (ctx.current_page == expected_page) return true;
+            for (int i = 0; i < max_frames; ++i) {
+                SDL_Delay(16);
+                pump_frame();
+                if (ctx.current_page == expected_page) {
+                    return true;
+                }
+            }
+            return ctx.current_page == expected_page;
+        };
+        auto settle_now_playing_transition = [&](player::PlayerPage expected_page) {
+            if (!ctx.now_playing_transition.active) {
+                return ctx.current_page == expected_page;
+            }
+            ctx.finish_now_playing_transition();
+            pump_frame();
+            return ctx.current_page == expected_page;
+        };
+
+        pump_frame();
 
         {
             const auto cmd_stats = scene.last_cmd_stats();
@@ -174,8 +199,9 @@ namespace {
         };
 
         ctx.set_page(player::PlayerPage::Library);
+        pump_frame();
         if (click_handle(ctx.handles.nav_home, "library_to_home")) {
-            if (ctx.current_page == player::PlayerPage::Home) {
+            if (wait_for_page(player::PlayerPage::Home)) {
                 ui_ci_emit("library_to_home", true, nullptr);
             } else {
                 ui_ci_emit("library_to_home", false, "page_not_home");
@@ -185,8 +211,10 @@ namespace {
         }
 
         ctx.set_page(player::PlayerPage::Home);
+        pump_frame();
         if (click_handle(ctx.handles.bottom_hit, "home_to_now")) {
-            if (ctx.current_page == player::PlayerPage::NowPlaying) {
+            if (wait_for_page(player::PlayerPage::NowPlaying)
+                || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
                 ui_ci_emit("home_to_now", true, nullptr);
             } else {
                 ui_ci_emit("home_to_now", false, "page_not_now");
@@ -195,8 +223,10 @@ namespace {
             }
         }
 
+        pump_frame();
         if (click_handle(ctx.handles.now_back, "now_back_to_home")) {
-            if (ctx.current_page == player::PlayerPage::Home) {
+            if (wait_for_page(player::PlayerPage::Home)
+                || settle_now_playing_transition(player::PlayerPage::Home)) {
                 ui_ci_emit("now_back_to_home", true, nullptr);
             } else {
                 ui_ci_emit("now_back_to_home", false, "page_not_home");
@@ -208,10 +238,12 @@ namespace {
         const auto* tracks = ctx.storage.tracks;
         if (tracks && tracks->size() > 0) {
             ctx.set_page(player::PlayerPage::Library);
+            pump_frame();
             const Rect list = scene.world_rect(ctx.handles.list);
             if (list.w > 0 && list.h > 0) {
                 const int before = ctx.last_list_selected;
                 ui_ci_click(app, ctx, scene, list.x + 12, list.y + 12);
+                pump_frame();
                 const int after = ctx.last_list_selected;
                 if (after >= 0) {
                     ui_ci_emit("list_select", true, nullptr);
@@ -424,6 +456,10 @@ int main(int argc, char** argv) {
     std::string library_context_override{};
     bool library_open_first_group = false;
     int library_select_index = -1;
+    bool library_open_info = false;
+    int library_open_info_index = -1;
+    bool library_open_action_menu = false;
+    int library_open_action_menu_index = -1;
     int track_index_override = 0;
     bool ui_ci = false;
     std::string font_ttf_path{};
@@ -484,6 +520,16 @@ int main(int argc, char** argv) {
             library_open_first_group = true;
         } else if (arg.rfind("--library-select-index=", 0) == 0) {
             library_select_index = std::atoi(std::string(arg.substr(23)).c_str());
+        } else if (arg == "--library-open-info") {
+            library_open_info = true;
+        } else if (arg.rfind("--library-open-info-index=", 0) == 0) {
+            library_open_info = true;
+            library_open_info_index = std::atoi(std::string(arg.substr(26)).c_str());
+        } else if (arg == "--library-open-action-menu") {
+            library_open_action_menu = true;
+        } else if (arg.rfind("--library-open-action-menu-index=", 0) == 0) {
+            library_open_action_menu = true;
+            library_open_action_menu_index = std::atoi(std::string(arg.substr(33)).c_str());
         } else if (arg.rfind("--track-index=", 0) == 0) {
             track_index_override = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
         } else if (arg == "--screenshot-verbose") {
@@ -571,7 +617,7 @@ int main(int argc, char** argv) {
     g_ctx.bind_scene(g_platform.scene_ref());
     g_ctx.set_start_page(start_page);
     (void)g_app->scan_storage();
-    g_ctx.apply_storage_view(g_app->storage_view());
+    g_ctx.apply_storage_view(g_app->storage_view(), false);
     g_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
         g_app->bind_ui(builder, g_ctx);
     });
@@ -588,6 +634,67 @@ int main(int argc, char** argv) {
     }
     if (library_select_index >= 0) {
         (void)g_ctx.set_library_selected_index_for_preview(library_select_index);
+    }
+        if (library_open_info) {
+            const bool opened = g_ctx.open_library_info_popup_for_preview(library_open_info_index);
+            if (screenshot_verbose) {
+                const char* info_title = g_platform.scene_ref().text(g_ctx.handles.list_info_title);
+                const char* info_subtitle = g_platform.scene_ref().text(g_ctx.handles.list_info_subtitle);
+                const char* info_meta = g_platform.scene_ref().text(g_ctx.handles.list_info_meta);
+                const char* info_path_title =
+                    g_platform.scene_ref().text(g_ctx.handles.list_info_path_title);
+                const char* info_path = g_platform.scene_ref().text(g_ctx.handles.list_info_path);
+                const char* info_path_detail =
+                    g_platform.scene_ref().text(g_ctx.handles.list_info_path_detail);
+                const char* info_hint = g_platform.scene_ref().text(g_ctx.handles.list_info_hint);
+                const Rect scrim_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_scrim);
+                const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_card);
+                std::fprintf(stderr,
+                             "[preview] library_open_info flag=1 opened=%d selected=%d request=%d title=%s subtitle=%s meta=%s path_title=%s path=%s detail=%s hint=%s scrim=%d,%d,%d,%d card=%d,%d,%d,%d\n",
+                         opened ? 1 : 0,
+                         g_ctx.last_list_selected,
+                         library_open_info_index,
+                         info_title ? info_title : "",
+                         info_subtitle ? info_subtitle : "",
+                         info_meta ? info_meta : "",
+                         info_path_title ? info_path_title : "",
+                         info_path ? info_path : "",
+                         info_path_detail ? info_path_detail : "",
+                         info_hint ? info_hint : "",
+                         scrim_rect.x, scrim_rect.y, scrim_rect.w, scrim_rect.h,
+                         card_rect.x, card_rect.y, card_rect.w, card_rect.h);
+        }
+    } else if (screenshot_verbose) {
+        std::fprintf(stderr,
+                     "[preview] library_open_info flag=0 selected=%d request=%d\n",
+                     g_ctx.last_list_selected,
+                     library_open_info_index);
+    }
+    if (library_open_action_menu) {
+        const bool opened =
+            g_ctx.open_library_action_menu_for_preview(library_open_action_menu_index);
+        if (screenshot_verbose) {
+            const char* menu_title = g_platform.scene_ref().text(g_ctx.handles.list_action_title);
+            const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_action_card);
+            const char* item0 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[0]);
+            const char* item1 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[1]);
+            const char* item2 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[2]);
+            std::fprintf(stderr,
+                         "[preview] library_open_action_menu flag=1 opened=%d selected=%d request=%d title=%s items=[%s|%s|%s] card=%d,%d,%d,%d\n",
+                         opened ? 1 : 0,
+                         g_ctx.last_list_selected,
+                         library_open_action_menu_index,
+                         menu_title ? menu_title : "",
+                         item0 ? item0 : "",
+                         item1 ? item1 : "",
+                         item2 ? item2 : "",
+                         card_rect.x, card_rect.y, card_rect.w, card_rect.h);
+        }
+    } else if (screenshot_verbose) {
+        std::fprintf(stderr,
+                     "[preview] library_open_action_menu flag=0 selected=%d request=%d\n",
+                     g_ctx.last_list_selected,
+                     library_open_action_menu_index);
     }
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");

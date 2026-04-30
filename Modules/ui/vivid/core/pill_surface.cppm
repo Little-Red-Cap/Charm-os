@@ -42,8 +42,10 @@ export namespace ui::scene {
         bool apply_bg_color{false};
         bool apply_border_color{false};
         bool apply_border_width{true};
+        bool apply_font_color{false};
         rgba bg_color{};
         rgba border_color{};
+        rgba font_color{};
         int border_width{};
     };
 
@@ -131,7 +133,13 @@ export namespace ui::scene {
             patch.has_border_width = true;
             patch.border_width = spec.border_width;
         }
-        // Recoloring should not accidentally flatten corner radius or re-enable old chrome.
+        if (spec.apply_font_color) {
+            patch.has_font_color = true;
+            patch.font_color = spec.font_color;
+        }
+        // Recoloring should preserve geometry but fully take over old visual chrome.
+        patch.has_gradient_enabled = true;
+        patch.gradient_enabled = false;
         patch.has_shadow_enabled = true;
         patch.shadow_enabled = false;
         patch.has_inner_stroke_enabled = true;

@@ -32,6 +32,23 @@ function(_charm_detect_freetype_dir out_var)
         "${_charm_freetype_repo_dir}"
         "${_charm_freetype_repo_dir}/freetype2")
 
+    # Prefer nearby full FreeType checkouts before falling back to Cargo cache copies.
+    # Some host builds keep third-party sources outside the repo tree, and those copies
+    # are more reliable than the freetype-sys snapshot for our current Windows flow.
+    set(_nearby_roots
+        "${CMAKE_CURRENT_LIST_DIR}"
+        "${CMAKE_CURRENT_LIST_DIR}/.."
+        "${CMAKE_CURRENT_LIST_DIR}/../.."
+        "${CMAKE_CURRENT_LIST_DIR}/../../.."
+        "${CMAKE_CURRENT_LIST_DIR}/../../../..")
+    foreach(_root IN LISTS _nearby_roots)
+        file(TO_CMAKE_PATH "${_root}" _root_norm)
+        list(APPEND _candidates
+            "${_root_norm}/Third_Party/freetype"
+            "${_root_norm}/third_party/freetype"
+            "${_root_norm}/thirdparty/freetype")
+    endforeach()
+
     set(_cargo_roots)
     if (DEFINED ENV{CARGO_HOME} AND NOT "$ENV{CARGO_HOME}" STREQUAL "")
         list(APPEND _cargo_roots "$ENV{CARGO_HOME}")
@@ -129,6 +146,15 @@ function(charm_link_freetype target_name)
         set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
         set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
         _charm_add_freetype_subdirectory(${CHARM_FREETYPE_DIR} ${CMAKE_BINARY_DIR}/freetype)
+        if (WIN32)
+            get_target_property(_charm_freetype_sources freetype SOURCES)
+            if (_charm_freetype_sources)
+                list(REMOVE_ITEM _charm_freetype_sources
+                    "src/base/ftver.rc"
+                    "${CHARM_FREETYPE_DIR}/src/base/ftver.rc")
+                set_property(TARGET freetype PROPERTY SOURCES "${_charm_freetype_sources}")
+            endif()
+        endif()
         target_compile_definitions(freetype PRIVATE CHARM_LIB_BUILD=1)
         target_link_libraries(${target_name} PRIVATE freetype)
         target_include_directories(${target_name} PRIVATE ${CHARM_FREETYPE_DIR}/include)

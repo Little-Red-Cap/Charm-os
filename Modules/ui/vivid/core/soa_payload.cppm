@@ -3,6 +3,7 @@ module;
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <span>
 #include <type_traits>
@@ -30,6 +31,7 @@ export namespace soa_detail {
     using TextSlotId = std::uint16_t;
 
     using ImageId = ui::draw_cmd::ImageId;
+    using ImageShapeKind = ui::render::ImageShapeKind;
 
     constexpr ImageId invalid_image_id() noexcept {
         return ui::draw_cmd::invalid_image_id();
@@ -208,6 +210,9 @@ export namespace soa_detail {
 
     struct ImagePayload {
         ImageId image{invalid_image_id()};
+        std::uint8_t shape_kind{static_cast<std::uint8_t>(ImageShapeKind::Auto)};
+        std::uint8_t shape_extent{0};
+        std::int16_t rotation_deg{0};
     };
 
     struct TextInputPayload {
@@ -556,6 +561,18 @@ export namespace soa_detail {
 #endif
             return out;
         }
+
+#ifndef NDEBUG
+        std::uint16_t debug_live_count() const noexcept {
+            std::uint16_t out = 0;
+            for (std::size_t i = 0; i < N; ++i) {
+                if (owner[i] != kInvalidPayloadSlot) {
+                    out = static_cast<std::uint16_t>(out + 1u);
+                }
+            }
+            return out;
+        }
+#endif
     };
 
     struct PayloadManager {
@@ -585,7 +602,7 @@ export namespace soa_detail {
                     return invalid_payload_handle();
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
                 case PayloadKind::name: \
-                    return handle_or_overflow(member.alloc(owner_idx, kind), payload);
+                    return handle_or_overflow(member.alloc(owner_idx, kind), payload, kind, owner_idx);
 #include "widgets.payload.kinds.def"
 #undef VIVID_PAYLOAD_KIND
             }
@@ -762,10 +779,64 @@ export namespace soa_detail {
         template <typename T>
         static constexpr bool always_false_v = false;
 
-        PayloadHandle handle_or_overflow(PayloadHandle handle, PayloadKind payload) noexcept {
+        static const char* payload_kind_name(PayloadKind payload) noexcept {
+            switch (payload) {
+                case PayloadKind::None:
+                    return "None";
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+                case PayloadKind::name: \
+                    return #name;
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
+            }
+            return "Unknown";
+        }
+
+        PayloadPoolStats pool_stats_for(PayloadKind payload) const noexcept {
+            switch (payload) {
+                case PayloadKind::None:
+                    return {};
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+                case PayloadKind::name: \
+                    return member.stats();
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
+            }
+            return {};
+        }
+
+#ifndef NDEBUG
+        std::uint16_t debug_live_count_for(PayloadKind payload) const noexcept {
+            switch (payload) {
+                case PayloadKind::None:
+                    return 0;
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+                case PayloadKind::name: \
+                    return member.debug_live_count();
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
+            }
+            return 0;
+        }
+#endif
+
+        PayloadHandle handle_or_overflow(PayloadHandle handle,
+                                         PayloadKind payload,
+                                         WidgetKind kind,
+                                         std::uint16_t owner_idx) noexcept {
             if (payload != PayloadKind::None && !payload_valid(handle)) {
                 overflowed_ = true;
 #ifndef NDEBUG
+                const auto stats = pool_stats_for(payload);
+                const auto live = debug_live_count_for(payload);
+                std::fprintf(stderr,
+                             "[vivid][payload] overflow payload=%s widget=%s owner=%u cap=%u live=%u\n",
+                             payload_kind_name(payload),
+                             widget_kind_name(kind),
+                             static_cast<unsigned>(owner_idx),
+                             static_cast<unsigned>(stats.cap),
+                             static_cast<unsigned>(live));
+                std::fflush(stderr);
                 assert(false && "PayloadPool capacity exceeded");
 #endif
             }

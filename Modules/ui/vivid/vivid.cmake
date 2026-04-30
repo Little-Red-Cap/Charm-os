@@ -69,11 +69,13 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         set(${out_var} ${_cap_raw} PARENT_SCOPE)
     endfunction()
 
-    set(SOA_POOL_PEAK_LABEL 56)
-    set(SOA_POOL_PEAK_BUTTON 32)
+    # Desktop demo scenes now include more static chrome and popup content at once.
+    # Keep a little extra headroom for the highest-churn payload kinds in FULL builds.
+    set(SOA_POOL_PEAK_LABEL 72)
+    set(SOA_POOL_PEAK_BUTTON 40)
     # TODO(player-vivid-md3): 将 Label/Button/Image 等关键 SoA pool cap 做成更显式的产品级可调配置或 profile。
     # 当前估算已经被 Player 的 Home + Now Playing 实页验证过会逼近甚至打满默认容量，后续移植 MCU 前应收敛这套机制。
-    set(SOA_POOL_PEAK_IMAGE 12)
+    set(SOA_POOL_PEAK_IMAGE 16)
     set(SOA_POOL_PEAK_TEXT_INPUT 1)
     set(SOA_POOL_PEAK_TEXT_AREA 1)
     set(SOA_POOL_PEAK_NUMBER_INPUT 1)
@@ -176,6 +178,15 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         soa_compute_cap(SOA_POOL_CAP_LIST "${SOA_POOL_PEAK_LIST}" "${SOA_POOL_FLOOR_LIST}" 5 4 2)
         soa_compute_cap(SOA_POOL_CAP_SCROLL_CONTAINER "${SOA_POOL_PEAK_SCROLL_CONTAINER}" "${SOA_POOL_FLOOR_SCROLL_CONTAINER}" 5 4 2)
         soa_compute_cap(SOA_POOL_CAP_SPINNER "${SOA_POOL_PEAK_SPINNER}" "${SOA_POOL_FLOOR_SPINNER}" 5 4 2)
+        if (SOA_POOL_CAP_LABEL LESS 96)
+            set(SOA_POOL_CAP_LABEL 96)
+        endif()
+        if (SOA_POOL_CAP_BUTTON LESS 56)
+            set(SOA_POOL_CAP_BUTTON 56)
+        endif()
+        if (SOA_POOL_CAP_IMAGE LESS 24)
+            set(SOA_POOL_CAP_IMAGE 24)
+        endif()
     endif()
 
     set(vivid_pool_caps_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")

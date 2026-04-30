@@ -24,6 +24,7 @@ import charm.core.handle;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.ui.scene;
+import charm.ui.scene.text_style;
 import charm.ui.scene.anchored_menu;
 import charm.ui.scene.pill_surface;
 import charm.font.typography;
@@ -109,6 +110,24 @@ export namespace player {
         WidgetHandle home_title_bottom{};
         WidgetHandle home_subtitle{};
         WidgetHandle home_play{};
+        WidgetHandle home_daily_mix_card{};
+        WidgetHandle home_daily_mix_header_band{};
+        WidgetHandle home_daily_mix_title{};
+        WidgetHandle home_daily_mix_subtitle{};
+        WidgetHandle home_daily_mix_body{};
+        WidgetHandle home_daily_mix_chip{};
+        WidgetHandle home_recently_played_card{};
+        WidgetHandle home_recently_played_title{};
+        WidgetHandle home_recently_played_body{};
+        WidgetHandle home_recently_played_chip{};
+        WidgetHandle home_recently_played_action{};
+        WidgetHandle home_stats_probe_card{};
+        WidgetHandle home_stats_header_band{};
+        WidgetHandle home_stats_title{};
+        WidgetHandle home_stats_subtitle{};
+        WidgetHandle home_stats_plays_label{};
+        WidgetHandle home_stats_avg_label{};
+        WidgetHandle home_stats_action{};
         WidgetHandle home_cover_big{};
         WidgetHandle home_cover_left{};
         WidgetHandle home_cover_right{};
@@ -120,7 +139,9 @@ export namespace player {
         WidgetHandle home_stats_avg{};
         std::array<WidgetHandle, 7> home_stats_bars{};
         std::array<Rect, 7> home_stats_bar_slots{};
+        std::array<WidgetHandle, 3> home_daily_mix_preview_plates{};
         std::array<WidgetHandle, 3> home_daily_mix_covers{};
+        std::array<WidgetHandle, 3> home_recently_played_preview_plates{};
         std::array<WidgetHandle, 3> home_recently_played_covers{};
         WidgetHandle now_back{};
         WidgetHandle now_more{};
@@ -169,12 +190,30 @@ export namespace player {
         WidgetHandle list_sort{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
+        WidgetHandle list_context_root{};
         WidgetHandle list_context_cover{};
         WidgetHandle list_context_cover_scrim{};
+        WidgetHandle list_context_cover_placeholder{};
+        WidgetHandle list_context_title{};
+        WidgetHandle list_context_subtitle{};
         WidgetHandle list_action_scrim{};
         WidgetHandle list_action_card{};
         WidgetHandle list_action_title{};
         std::array<WidgetHandle, 3> list_action_items{};
+        WidgetHandle list_info_scrim{};
+        WidgetHandle list_info_card{};
+        WidgetHandle list_info_cover_plate{};
+        WidgetHandle list_info_cover{};
+        WidgetHandle list_info_eyebrow{};
+        WidgetHandle list_info_title{};
+        WidgetHandle list_info_subtitle{};
+        WidgetHandle list_info_meta{};
+        WidgetHandle list_info_path_plate{};
+        WidgetHandle list_info_path_title{};
+        WidgetHandle list_info_path{};
+        WidgetHandle list_info_path_detail{};
+        WidgetHandle list_info_hint{};
+        WidgetHandle list_info_close{};
         WidgetHandle mode_hint{};
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};
@@ -275,6 +314,8 @@ export namespace player {
         FixedString<260> cover_path{};
         FixedString<260> cover_embedded_path{};
         FixedString<260> cover_folder_path{};
+        FixedString<260> cover_failed_embedded_path{};
+        FixedString<260> cover_failed_folder_path{};
         FixedString<260> cover_tint_path{};
         FixedString<12> track_format_text{};
         FixedString<128> last_status_text{};
@@ -289,6 +330,9 @@ export namespace player {
         std::uint64_t track_size_bytes{0};
         CoverImage cover_image{};
         cover_theme::CoverTheme cover_theme{};
+        cover_theme::NowPlayingColorRoles now_playing_roles{
+            cover_theme::derive_now_playing_color_roles(cover_theme::CoverTheme{})
+        };
         bool cover_ready{false};
         CoverStrategy cover_strategy{CoverStrategy::embedded_first};
         cover_theme::CoverThemeMode cover_theme_mode{cover_theme::CoverThemeMode::primary_container};
@@ -302,6 +346,7 @@ export namespace player {
         bool ignore_list_select{false};
         int last_list_selected{-1};
         int list_action_menu_index{-1};
+        int list_info_popup_track_index{-1};
         LibraryTab library_tab{LibraryTab::Songs};
         FixedString<192> library_context_key{};
         ListSort list_sort{ListSort::NameAsc};
@@ -327,12 +372,12 @@ export namespace player {
         struct ListCoverCacheEntry {
             FixedString<260> path{};
             CoverImage image{};
+            bool missing{false};
         };
         static constexpr std::size_t kHomeCollageSlots = 6;
         static constexpr std::size_t kListCoverCache = 12;
         std::array<ListCoverCacheEntry, kListCoverCache> list_cover_cache{};
         std::size_t list_cover_next{0};
-        std::array<int, kHomeCollageSlots> home_collage_track_indices{{-1, -1, -1, -1, -1, -1}};
         std::array<int, kHomeCollageSlots> last_home_collage_track_indices{{-2, -2, -2, -2, -2, -2}};
         bool progress_dragging{false};
         int progress_drag_value{0};
@@ -393,6 +438,35 @@ export namespace player {
             config.palette_style = cover_palette_style;
             config.fallback = kUiBackdropBase;
             return cover_theme::compute_cover_theme(img, config);
+        }
+
+        void sync_now_playing_color_roles() noexcept {
+            now_playing_roles = cover_theme::derive_now_playing_color_roles(cover_theme);
+        }
+
+        void refresh_cover_theme_dependent_visuals() noexcept {
+            sync_now_playing_color_roles();
+            refresh_now_playing_visual_content();
+            refresh_home_visual_if_active();
+            refresh_library_visual_if_active(true);
+        }
+
+        void set_cover_theme_tint_source(std::string_view path) noexcept {
+            if (path.empty()) {
+                cover_tint_path.clear();
+                return;
+            }
+            cover_tint_path.assign(path);
+        }
+
+        bool cover_theme_tint_source_matches(std::string_view path) const noexcept {
+            return !path.empty() && cover_tint_path.view() == path;
+        }
+
+        void apply_cover_theme_from_current_image(std::string_view tint_path = {}) noexcept {
+            cover_theme = derive_cover_theme(cover_image);
+            set_cover_theme_tint_source(tint_path);
+            refresh_cover_theme_dependent_visuals();
         }
 
         static const char* palette_style_name(alg::PaletteStyle style) noexcept {
@@ -477,9 +551,7 @@ export namespace player {
                 break;
             }
             if (!cover_image.path.empty()) {
-                cover_theme = derive_cover_theme(cover_image);
-                cover_tint_path.assign(cover_image.path);
-                apply_now_theme(cover_theme);
+                apply_cover_theme_from_current_image(cover_image.path);
             }
         }
 
@@ -499,11 +571,8 @@ export namespace player {
                 cover_palette_style = alg::PaletteStyle::tonal_spot;
                 break;
             }
-            cover_tint_path.clear();
             if (!cover_image.path.empty()) {
-                cover_theme = derive_cover_theme(cover_image);
-                cover_tint_path.assign(cover_image.path);
-                apply_now_theme(cover_theme);
+                apply_cover_theme_from_current_image(cover_image.path);
             }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] palette=%s\n", palette_style_name(cover_palette_style));
@@ -514,21 +583,47 @@ export namespace player {
         PlayerPage start_page{PlayerPage::Home};
         PlayerPage default_page{PlayerPage::Home};
         PlayerPage return_page{PlayerPage::Home};
+        static constexpr std::array<PlayerPage, 4> kManagedPages{
+            PlayerPage::Probe,
+            PlayerPage::Home,
+            PlayerPage::NowPlaying,
+            PlayerPage::Library,
+        };
+        struct PageRefreshHookContext {
+            PlayerController* self{};
+            PlayerPage page{PlayerPage::Probe};
+        };
+        struct PageBinding {
+            PlayerPage page{PlayerPage::Probe};
+            ::ui::scene::PageLayer* layer{};
+            WidgetHandle* root{};
+            PageRefreshHookContext* show_ctx{};
+
+            WidgetHandle root_handle() const noexcept {
+                return root ? *root : WidgetHandle{};
+            }
+        };
         ::ui::scene::PageLayer page_probe_layer{};
         ::ui::scene::PageLayer page_now_layer{};
         ::ui::scene::PageLayer page_library_layer{};
         ::ui::scene::PageLayer page_home_layer{};
+        PageRefreshHookContext page_home_show_ctx{};
+        PageRefreshHookContext page_now_show_ctx{};
+        PageRefreshHookContext page_library_show_ctx{};
         static constexpr std::uint64_t kNowPlayingExpandDurationMs = 360;
         enum class NowPlayingTransitionDirection : std::uint8_t {
             Expand,
             Collapse,
         };
+        struct NowPlayingTransitionEndpoints {
+            PlayerPage source_page{PlayerPage::Home};
+            PlayerPage destination_page{PlayerPage::NowPlaying};
+            bool expanding{false};
+        };
         struct NowPlayingExpandTransition {
             bool active{false};
             bool reveal_started{false};
-            NowPlayingTransitionDirection direction{NowPlayingTransitionDirection::Expand};
-            PlayerPage source_page{PlayerPage::Home};
-            PlayerPage destination_page{PlayerPage::NowPlaying};
+            NowPlayingTransitionEndpoints route{};
             std::uint64_t start_ms{0};
             Rect shell_from{};
             Rect shell_to{};
@@ -715,25 +810,39 @@ export namespace player {
             };
         }
 
-        void set_page_root_visible(PlayerPage page, bool visible) noexcept {
-            if (!access.valid()) return;
+        void set_handle_visible(WidgetHandle handle, bool visible) noexcept {
+            if (!access.valid() || !handle) return;
+            access.set_visible(handle, visible);
+        }
+
+        PageBinding page_binding_for(PlayerPage page) noexcept {
             switch (page) {
             case PlayerPage::Home:
-                if (page_home_layer.root()) page_home_layer.set_visible(access, visible);
-                else if (handles.page_home) access.set_visible(handles.page_home, visible);
-                break;
+                return PageBinding{page, &page_home_layer, &handles.page_home, &page_home_show_ctx};
             case PlayerPage::NowPlaying:
-                if (page_now_layer.root()) page_now_layer.set_visible(access, visible);
-                else if (handles.page_now_playing) access.set_visible(handles.page_now_playing, visible);
-                break;
+                return PageBinding{page, &page_now_layer, &handles.page_now_playing, &page_now_show_ctx};
             case PlayerPage::Library:
-                if (page_library_layer.root()) page_library_layer.set_visible(access, visible);
-                else if (handles.page_library) access.set_visible(handles.page_library, visible);
-                break;
+                return PageBinding{page, &page_library_layer, &handles.page_library, &page_library_show_ctx};
             case PlayerPage::Probe:
-                if (page_probe_layer.root()) page_probe_layer.set_visible(access, visible);
-                else if (handles.page_probe) access.set_visible(handles.page_probe, visible);
-                break;
+                return PageBinding{page, &page_probe_layer, &handles.page_probe, nullptr};
+            default:
+                return {};
+            }
+        }
+
+        void set_page_root_visible(PlayerPage page, bool visible) noexcept {
+            if (!access.valid()) return;
+            const auto binding = page_binding_for(page);
+            if (binding.layer && binding.layer->root()) {
+                binding.layer->set_visible(access, visible);
+                return;
+            }
+            set_handle_visible(binding.root_handle(), visible);
+        }
+
+        void sync_page_root_visibility(PlayerPage page) noexcept {
+            for (const auto candidate : kManagedPages) {
+                set_page_root_visible(candidate, candidate == page);
             }
         }
 
@@ -741,25 +850,38 @@ export namespace player {
             return page == PlayerPage::Home || page == PlayerPage::Library;
         }
 
-        void refresh_page_for_transition(PlayerPage page) {
+        void set_mini_bar_chrome_visible(bool visible) noexcept {
+            set_handle_visible(handles.bottom_bar, visible);
+            set_handle_visible(handles.nav_bar, visible);
+        }
+
+        void sync_page_chrome(PlayerPage page) noexcept {
+            set_mini_bar_chrome_visible(is_mini_bar_page(page));
+            update_nav_page_indicator_for(page);
+        }
+
+        bool page_has_show_refresh_hook(PlayerPage page) noexcept {
+            const auto binding = page_binding_for(page);
+            return binding.show_ctx && binding.layer && binding.layer->root();
+        }
+
+        void refresh_page(PlayerPage page) {
             switch (page) {
             case PlayerPage::Home:
                 refresh_home();
-                update_nav_page_indicator_for(PlayerPage::Home);
                 break;
             case PlayerPage::Library:
                 refresh_library();
-                update_nav_page_indicator_for(PlayerPage::Library);
                 break;
             case PlayerPage::NowPlaying:
                 refresh_now_playing();
-                set_time_label(playback.current_sec());
                 break;
             case PlayerPage::Probe:
             default:
                 break;
             }
         }
+
         #include "player.controller.now_playing.inc"
 
         #include "player.controller.pages.inc"
@@ -811,6 +933,9 @@ export namespace player {
             text_slots.home_stats_total = alloc();
             text_slots.home_stats_plays = alloc();
             text_slots.home_stats_avg = alloc();
+            set_handle_visible(handles.list_info_scrim, false);
+            set_handle_visible(handles.list_info_card, false);
+            clear_image_slot_if_present(library_info_cover_slot(), false);
         }
 
         void set_label(WidgetHandle h, const char* text) {
@@ -836,6 +961,40 @@ export namespace player {
             set_label_slot(handles.status, text_slots.status, value);
         }
 
+        const char* mount_not_ready_status_text() const noexcept {
+            return mount_status.empty() ? "Mount not ready" : mount_status.c_str();
+        }
+
+        bool ensure_playback_fs_ready() {
+            if (fs_ready) return true;
+            set_status(mount_not_ready_status_text());
+            return false;
+        }
+
+        int available_track_count() const noexcept {
+            const auto* tracks = storage.tracks;
+            return tracks ? static_cast<int>(tracks->size()) : 0;
+        }
+
+        bool has_available_tracks() const noexcept {
+            return available_track_count() > 0;
+        }
+
+        template <std::size_t N>
+        void set_status_if_present(const FixedString<N>& status) {
+            if (!status.empty()) set_status(status.c_str());
+        }
+
+        template <typename Fn>
+        bool set_status_on_failure(Fn&& fn) {
+            FixedString<128> status;
+            const bool ok = fn(status);
+            if (!ok) {
+                set_status_if_present(status);
+            }
+            return ok;
+        }
+
         void set_info_label(std::string_view value) {
             if (!access.valid() || !handles.info_tag) return;
             if (last_info_text.view() == value) return;
@@ -845,6 +1004,24 @@ export namespace player {
 
         bool is_playing() const noexcept { return playback.playing(); }
         bool is_paused() const noexcept { return playback.paused(); }
+        bool has_active_playback() const noexcept { return is_playing() || is_paused(); }
+        void sync_active_playback_ui(bool count_play, bool reset_progress = false) {
+            set_play_button_text(true);
+            if (reset_progress) {
+                sync_progress_value(0);
+            }
+            begin_weekly_listening_session(count_play);
+        }
+
+        void sync_inactive_playback_ui(bool reset_timeline = false) {
+            end_weekly_listening_session();
+            set_play_button_text(false);
+            if (reset_timeline) {
+                set_time_label(0);
+                sync_progress_value(0);
+            }
+        }
+
         bool has_cover_image() const noexcept { return ::ui::scene::image_id_valid(cover_image.image_id); }
         void sync_now_cover_plate_surface() noexcept {
             if (!access.valid() || !handles.now_cover_plate) return;
@@ -854,11 +1031,82 @@ export namespace player {
                 .apply_border_color = true,
                 .apply_corner_radius = true,
                 .bg_color = has_cover ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 0}
-                                      : cover_theme.primary_container,
+                                      : now_playing_roles.cover_plate.bg,
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 42,
             });
             access.set_style_override(handles.now_cover_plate, patch);
+        }
+
+        void apply_surface_role(WidgetHandle h, const player::cover_theme::SurfaceRole& role) noexcept {
+            if (!access.valid() || !h) return;
+            access.set_style_override(h, ::ui::scene::make_surface_recolor_patch({
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_font_color = true,
+                .bg_color = role.bg,
+                .border_color = role.border,
+                .font_color = role.fg,
+            }));
+        }
+
+        void apply_text_color(WidgetHandle h, const rgba& color) noexcept {
+            if (!access.valid() || !h) return;
+            StylePatch patch{};
+            patch.has_font_color = true;
+            patch.font_color = color;
+            access.set_style_override(h, patch);
+        }
+
+        static ::ui::scene::ImageSlotHandles make_image_slot_handles(WidgetHandle image,
+                                                                      WidgetHandle plate = {}) noexcept {
+            return ::ui::scene::ImageSlotHandles{image, plate};
+        }
+
+        auto current_track_cover_slots() const noexcept {
+            return std::array<::ui::scene::ImageSlotHandles, 3>{
+                make_image_slot_handles(handles.cover),
+                make_image_slot_handles(handles.bottom_cover),
+                make_image_slot_handles(handles.transition_cover),
+            };
+        }
+
+        ::ui::scene::ImageSlotHandles library_context_cover_slot() const noexcept {
+            return make_image_slot_handles(handles.list_context_cover);
+        }
+
+        ::ui::scene::ImageSlotHandles library_info_cover_slot() const noexcept {
+            return make_image_slot_handles(handles.list_info_cover);
+        }
+
+        void clear_image_slot_if_present(const ::ui::scene::ImageSlotHandles& slot,
+                                         bool show_plate_when_empty = false) noexcept {
+            if (!access.valid() || !slot.image || access.kind(slot.image) != WidgetKind::Image) return;
+            access.clear_image_slot(slot, show_plate_when_empty);
+        }
+
+        void set_image_slot_if_present(const ::ui::scene::ImageSlotHandles& slot,
+                                       ::ui::scene::ImageId image,
+                                       bool show_plate_when_empty = false) noexcept {
+            if (!access.valid() || !slot.image || access.kind(slot.image) != WidgetKind::Image) return;
+            access.set_image_slot(slot, image, show_plate_when_empty);
+        }
+
+        template <std::size_t N>
+        void clear_image_slot_range(const std::array<::ui::scene::ImageSlotHandles, N>& slots,
+                                    bool show_plate_when_empty = false) noexcept {
+            for (const auto& slot : slots) {
+                clear_image_slot_if_present(slot, show_plate_when_empty);
+            }
+        }
+
+        template <std::size_t N>
+        void set_image_slot_range(const std::array<::ui::scene::ImageSlotHandles, N>& slots,
+                                  ::ui::scene::ImageId image,
+                                  bool show_plate_when_empty = false) noexcept {
+            for (const auto& slot : slots) {
+                set_image_slot_if_present(slot, image, show_plate_when_empty);
+            }
         }
 
         void reset_cover_image() noexcept {
@@ -866,33 +1114,18 @@ export namespace player {
             cover_path.clear();
             cover_embedded_path.clear();
             cover_folder_path.clear();
+            cover_failed_embedded_path.clear();
+            cover_failed_folder_path.clear();
             release_cover_image(cover_image);
-            if (!access.valid()) return;
-            const auto clear_image = [&](WidgetHandle handle) {
-                if (handle && access.kind(handle) == WidgetKind::Image) {
-                    access.set_image(handle, ::ui::scene::invalid_image_id());
-                }
-            };
-            clear_image(handles.cover);
-            clear_image(handles.bottom_cover);
-            clear_image(handles.transition_cover);
+            clear_image_slot_range(current_track_cover_slots(), false);
         }
 
         void update_cover_image() {
             if (!access.valid()) return;
             if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
                 release_cover_image(cover_image);
-                cover_tint_path.clear();
-                cover_theme = derive_cover_theme(cover_image);
-                apply_now_theme(cover_theme);
-                const auto clear_image = [&](WidgetHandle handle) {
-                    if (handle && access.kind(handle) == WidgetKind::Image) {
-                        access.set_image(handle, ::ui::scene::invalid_image_id());
-                    }
-                };
-                clear_image(handles.cover);
-                clear_image(handles.bottom_cover);
-                clear_image(handles.transition_cover);
+                apply_cover_theme_from_current_image();
+                clear_image_slot_range(current_track_cover_slots(), false);
                 restore_now_playing_group_visibility();
                 restore_bottom_bar_content_visibility();
                 sync_now_playing_transition_overlay();
@@ -903,50 +1136,44 @@ export namespace player {
             }
             auto try_load = [&](std::string_view candidate) -> bool {
                 if (candidate.empty()) return false;
+                const bool embedded_candidate = candidate == cover_embedded_path.view();
+                const bool folder_candidate = candidate == cover_folder_path.view();
+                if ((embedded_candidate && cover_failed_embedded_path.view() == candidate)
+                    || (folder_candidate && cover_failed_folder_path.view() == candidate)) {
+                    return false;
+                }
                 if (cover_image.path == candidate && ::ui::scene::image_id_valid(cover_image.image_id)) {
-                    const auto set_image = [&](WidgetHandle handle) {
-                        if (handle && access.kind(handle) == WidgetKind::Image) {
-                            access.set_image(handle, cover_image.image_id);
-                        }
-                    };
-                    set_image(handles.cover);
-                    set_image(handles.bottom_cover);
-                    set_image(handles.transition_cover);
+                    set_image_slot_range(current_track_cover_slots(), cover_image.image_id, false);
                     cover_path.assign(candidate);
                     restore_now_playing_group_visibility();
                     restore_bottom_bar_content_visibility();
                     sync_now_playing_transition_overlay();
-                    if (cover_tint_path.view() != cover_image.path) {
-                        cover_theme = derive_cover_theme(cover_image);
-                        cover_tint_path.assign(cover_image.path);
-                        apply_now_theme(cover_theme);
+                    if (!cover_theme_tint_source_matches(cover_image.path)) {
+                        apply_cover_theme_from_current_image(cover_image.path);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                         debug_cover_theme(cover_theme, cover_image.path);
 #endif
                     }
+                    if (embedded_candidate) cover_failed_embedded_path.clear();
+                    if (folder_candidate) cover_failed_folder_path.clear();
                     return true;
                 }
                 if (load_cover_image(candidate, cover_image)) {
-                    const auto set_image = [&](WidgetHandle handle) {
-                        if (handle && access.kind(handle) == WidgetKind::Image) {
-                            access.set_image(handle, cover_image.image_id);
-                        }
-                    };
-                    set_image(handles.cover);
-                    set_image(handles.bottom_cover);
-                    set_image(handles.transition_cover);
+                    set_image_slot_range(current_track_cover_slots(), cover_image.image_id, false);
                     cover_path.assign(candidate);
                     restore_now_playing_group_visibility();
                     restore_bottom_bar_content_visibility();
                     sync_now_playing_transition_overlay();
-                    cover_theme = derive_cover_theme(cover_image);
-                    cover_tint_path.assign(cover_image.path);
-                    apply_now_theme(cover_theme);
+                    apply_cover_theme_from_current_image(cover_image.path);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                     debug_cover_theme(cover_theme, cover_image.path);
 #endif
+                    if (embedded_candidate) cover_failed_embedded_path.clear();
+                    if (folder_candidate) cover_failed_folder_path.clear();
                     return true;
                 }
+                if (embedded_candidate) cover_failed_embedded_path.assign(candidate);
+                if (folder_candidate) cover_failed_folder_path.assign(candidate);
                 return false;
             };
 
@@ -970,17 +1197,8 @@ export namespace player {
             }
 
             if (loaded) return;
-            const auto clear_image = [&](WidgetHandle handle) {
-                if (handle && access.kind(handle) == WidgetKind::Image) {
-                    access.set_image(handle, ::ui::scene::invalid_image_id());
-                }
-            };
-            clear_image(handles.cover);
-            clear_image(handles.bottom_cover);
-            clear_image(handles.transition_cover);
-            cover_tint_path.clear();
-            cover_theme = derive_cover_theme(cover_image);
-            apply_now_theme(cover_theme);
+            clear_image_slot_range(current_track_cover_slots(), false);
+            apply_cover_theme_from_current_image();
             restore_now_playing_group_visibility();
             restore_bottom_bar_content_visibility();
             sync_now_playing_transition_overlay();
@@ -989,40 +1207,41 @@ export namespace player {
 #endif
         }
 
-        void on_player_stopped() {
-            end_weekly_listening_session();
-            playback.stop_playback();
-            set_status("Stopped");
-            set_play_button_text(false);
+        void on_player_error(const char* text) {
+            finish_player_shutdown(text);
         }
 
-        void on_player_error(const char* text) {
-            end_weekly_listening_session();
+        void finish_player_shutdown(const char* text) {
             playback.stop_playback();
             set_status(text);
-            set_play_button_text(false);
+            sync_inactive_playback_ui();
+        }
+
+        void handle_player_run_state_drop(const audio::AudioPlayer& player) {
+            if (player.state() != audio::PlayerState::error && has_active_playback()) {
+                handle_track_end();
+            }
+        }
+
+        void sync_player_runtime_status(const audio::AudioPlayer& player) {
+            if (is_paused()) return;
+            const auto st = player.state();
+            if (st == audio::PlayerState::opening) {
+                set_status("Opening");
+            } else if (st == audio::PlayerState::buffering) {
+                set_status("Buffering");
+            } else if (st == audio::PlayerState::playing) {
+                set_status("Playing");
+            }
         }
 
         void tick_player(const audio::AudioPlayer& player) {
             const bool running_now = player.is_running();
             if (last_running && !running_now) {
-                if (player.state() == audio::PlayerState::error) {
-                    on_player_stopped();
-                } else if (playback.playing() || playback.paused()) {
-                    handle_track_end();
-                }
+                handle_player_run_state_drop(player);
             }
             last_running = running_now;
-            if (!playback.paused()) {
-                const auto st = player.state();
-                if (st == audio::PlayerState::opening) {
-                    set_status("Opening");
-                } else if (st == audio::PlayerState::buffering) {
-                    set_status("Buffering");
-                } else if (st == audio::PlayerState::playing) {
-                    set_status("Playing");
-                }
-            }
+            sync_player_runtime_status(player);
             if (player.state() == audio::PlayerState::error) {
                 const auto err = player.last_error();
                 const auto stage = player.last_error_stage();
@@ -1036,75 +1255,90 @@ export namespace player {
                 tick_now_playing_transition(charm::system::ClockCaps::TimeSource::now());
                 return;
             }
-            if (current_page == PlayerPage::Library) {
-                refresh_library();
-            } else if (current_page == PlayerPage::Home) {
-                refresh_home();
-            } else {
-                refresh_now_playing();
-            }
+            refresh_page(current_page);
         }
 
         void refresh_home() {
-            if (handles.nav_bar) {
-                access.set_visible(handles.nav_bar, true);
-            }
-            if (handles.bottom_bar) {
-                access.set_visible(handles.bottom_bar, true);
-            }
-            update_nav_page_indicator();
-            update_duration_from_player();
-            update_info_label();
-            sync_home_collage_images();
-            sync_weekly_listening_stats_card();
+            sync_page_chrome(PlayerPage::Home);
+            refresh_home_body_content();
             update_debug_overlay();
         }
 
         #include "player.controller.library.inc"
 
-        void handle_key_action(UiKey key) {
-            if (current_page == PlayerPage::Probe) {
-                dismiss_probe();
-                return;
-            }
-            if (current_page == PlayerPage::Library && handle_list_action_menu_key(key)) {
-                return;
-            }
+        bool handle_probe_key_action() {
+            if (current_page != PlayerPage::Probe) return false;
+            dismiss_probe();
+            return true;
+        }
+
+        bool handle_page_modal_key_action(UiKey key) {
+            if (current_page != PlayerPage::Library) return false;
+            if (handle_list_info_popup_key(key)) return true;
+            return handle_list_action_menu_key(key);
+        }
+
+        void nav_list_with_focus(int delta) {
+            focus_list();
+            nav_list(delta);
+        }
+
+        bool handle_list_navigation_key(UiKey key) {
             switch (key) {
             case UiKey::Up:
-                focus_list();
-                nav_list(-1);
-                break;
+                nav_list_with_focus(-1);
+                return true;
             case UiKey::Down:
-                focus_list();
-                nav_list(1);
-                break;
-            case UiKey::Left:
-                if (current_page == PlayerPage::Library) {
-                    reset_library_context();
-                }
-                break;
+                nav_list_with_focus(1);
+                return true;
             case UiKey::Enter:
                 focus_list();
                 nav_list_activate();
-                break;
+                return true;
+            default:
+                return false;
+            }
+        }
+
+        bool handle_page_back_key(UiKey key) {
+            if (key != UiKey::Left) return false;
+            if (current_page == PlayerPage::Library) {
+                reset_library_context();
+            }
+            return true;
+        }
+
+        void toggle_playback_from_key() {
+            if (is_playing()) pause_playback();
+            else if (is_paused()) resume_playback();
+            else start_playback();
+        }
+
+        bool handle_transport_key(UiKey key) {
+            switch (key) {
             case UiKey::PlayToggle:
-                if (is_playing()) pause_playback();
-                else if (is_paused()) resume_playback();
-                else start_playback();
-                break;
+                toggle_playback_from_key();
+                return true;
             case UiKey::Next:
                 switch_track(1);
-                break;
+                return true;
             case UiKey::Prev:
                 switch_track(-1);
-                break;
+                return true;
             case UiKey::Mode:
                 cycle_play_mode();
-                break;
+                return true;
             default:
-                break;
+                return false;
             }
+        }
+
+        void handle_key_action(UiKey key) {
+            if (handle_probe_key_action()) return;
+            if (handle_page_modal_key_action(key)) return;
+            if (handle_list_navigation_key(key)) return;
+            if (handle_page_back_key(key)) return;
+            (void)handle_transport_key(key);
         }
 
         #include "player.controller.progress.inc"

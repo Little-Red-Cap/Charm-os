@@ -675,6 +675,11 @@ public:
     const char* text(WidgetHandle h) const noexcept ;
     void set_image(WidgetHandle h, soa_detail::ImageId image) noexcept ;
     soa_detail::ImageId image(WidgetHandle h) const noexcept ;
+    void set_image_shape(WidgetHandle h, soa_detail::ImageShapeKind kind, std::uint8_t extent) noexcept ;
+    soa_detail::ImageShapeKind image_shape_kind(WidgetHandle h) const noexcept ;
+    std::uint8_t image_shape_extent(WidgetHandle h) const noexcept ;
+    void set_image_rotation_deg(WidgetHandle h, std::int16_t degrees) noexcept ;
+    std::int16_t image_rotation_deg(WidgetHandle h) const noexcept ;
     void set_button_icon(WidgetHandle h, soa_detail::ImageId icon) noexcept ;
     void set_button_icon_size(WidgetHandle h, std::uint8_t size) noexcept ;
     soa_detail::ImageId button_icon(WidgetHandle h) const noexcept ;

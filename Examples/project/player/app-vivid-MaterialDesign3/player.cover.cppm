@@ -31,7 +31,26 @@ export namespace player {
         int height{0};
     };
 
+    enum class DefaultCoverVariant : std::uint8_t {
+        HomeHeroPill = 0,
+        HomeOrbitDisc,
+        HomeOrbitStack,
+        HomeCenterPill,
+        HomeBottomCard,
+        HomeBottomCut,
+    };
+
+    ui::gfx::ImageId default_cover_image_id() noexcept;
+    ui::gfx::ImageId default_cover_image_id(DefaultCoverVariant variant) noexcept;
+    ui::gfx::ImageId default_cover_image_id(std::size_t variant) noexcept;
+
     namespace detail {
+        constexpr std::size_t kPlaceholderCoverVariantCount = 6;
+
+        constexpr std::size_t placeholder_variant_index(DefaultCoverVariant variant) noexcept {
+            return static_cast<std::size_t>(variant);
+        }
+
         inline std::uint8_t alpha_of(std::uint32_t pixel) noexcept {
             return static_cast<std::uint8_t>((pixel >> 24) & 0xFFu);
         }
@@ -115,6 +134,386 @@ export namespace player {
             if (min_side < 192) return 0;
             const int inset = std::clamp(min_side / 96, 2, 12);
             return static_cast<std::uint8_t>(inset);
+        }
+
+        std::uint32_t make_argb(std::uint8_t a, std::uint8_t r, std::uint8_t g, std::uint8_t b) noexcept {
+            return (static_cast<std::uint32_t>(a) << 24)
+                | (static_cast<std::uint32_t>(r) << 16)
+                | (static_cast<std::uint32_t>(g) << 8)
+                | static_cast<std::uint32_t>(b);
+        }
+
+        inline std::uint8_t red_of(std::uint32_t pixel) noexcept {
+            return static_cast<std::uint8_t>((pixel >> 16) & 0xFFu);
+        }
+
+        inline std::uint8_t green_of(std::uint32_t pixel) noexcept {
+            return static_cast<std::uint8_t>((pixel >> 8) & 0xFFu);
+        }
+
+        inline std::uint8_t blue_of(std::uint32_t pixel) noexcept {
+            return static_cast<std::uint8_t>(pixel & 0xFFu);
+        }
+
+        std::uint32_t blend_argb(std::uint32_t dst, std::uint32_t src) noexcept {
+            const std::uint32_t src_alpha = alpha_of(src);
+            if (src_alpha == 0) return dst;
+            if (src_alpha >= 255) return src;
+            const std::uint32_t inv_alpha = 255u - src_alpha;
+            const auto blend_channel = [&](std::uint8_t dst_channel, std::uint8_t src_channel) noexcept {
+                return static_cast<std::uint8_t>(
+                    (static_cast<std::uint32_t>(dst_channel) * inv_alpha
+                     + static_cast<std::uint32_t>(src_channel) * src_alpha
+                     + 127u) / 255u);
+            };
+            return make_argb(255,
+                             blend_channel(red_of(dst), red_of(src)),
+                             blend_channel(green_of(dst), green_of(src)),
+                             blend_channel(blue_of(dst), blue_of(src)));
+        }
+
+        std::uint32_t lerp_argb(std::uint32_t a, std::uint32_t b, int numer, int denom) noexcept {
+            if (denom <= 0) return b;
+            numer = std::clamp(numer, 0, denom);
+            const auto lerp_channel = [&](std::uint8_t lhs, std::uint8_t rhs) noexcept {
+                const int blended = (static_cast<int>(lhs) * (denom - numer)
+                                     + static_cast<int>(rhs) * numer
+                                     + denom / 2) / denom;
+                return static_cast<std::uint8_t>(std::clamp(blended, 0, 255));
+            };
+            return make_argb(
+                lerp_channel(alpha_of(a), alpha_of(b)),
+                lerp_channel(red_of(a), red_of(b)),
+                lerp_channel(green_of(a), green_of(b)),
+                lerp_channel(blue_of(a), blue_of(b)));
+        }
+
+        struct PlaceholderPalette {
+            std::uint32_t bg_a;
+            std::uint32_t bg_b;
+            std::uint32_t accent_a;
+            std::uint32_t accent_b;
+            std::uint32_t accent_c;
+            std::uint32_t highlight;
+        };
+
+        PlaceholderPalette placeholder_palette_for_variant(std::size_t variant) noexcept {
+            switch (variant % kPlaceholderCoverVariantCount) {
+                case 1:
+                    return PlaceholderPalette{
+                        make_argb(255, 229, 240, 236),
+                        make_argb(255, 191, 214, 226),
+                        make_argb(220, 86, 132, 188),
+                        make_argb(220, 244, 176, 120),
+                        make_argb(210, 246, 233, 187),
+                        make_argb(148, 255, 255, 255),
+                    };
+                case 2:
+                    return PlaceholderPalette{
+                        make_argb(255, 247, 233, 225),
+                        make_argb(255, 226, 198, 194),
+                        make_argb(220, 208, 108, 99),
+                        make_argb(220, 116, 145, 198),
+                        make_argb(206, 244, 220, 153),
+                        make_argb(150, 255, 248, 236),
+                    };
+                case 3:
+                    return PlaceholderPalette{
+                        make_argb(255, 235, 239, 228),
+                        make_argb(255, 198, 213, 189),
+                        make_argb(215, 86, 125, 113),
+                        make_argb(220, 242, 154, 112),
+                        make_argb(206, 243, 231, 195),
+                        make_argb(138, 255, 255, 255),
+                    };
+                case 4:
+                    return PlaceholderPalette{
+                        make_argb(255, 247, 237, 221),
+                        make_argb(255, 233, 200, 168),
+                        make_argb(220, 101, 138, 184),
+                        make_argb(215, 228, 122, 92),
+                        make_argb(206, 251, 228, 171),
+                        make_argb(132, 255, 251, 240),
+                    };
+                case 5:
+                    return PlaceholderPalette{
+                        make_argb(255, 234, 236, 242),
+                        make_argb(255, 205, 211, 226),
+                        make_argb(220, 82, 102, 154),
+                        make_argb(218, 244, 164, 118),
+                        make_argb(208, 235, 223, 189),
+                        make_argb(145, 255, 255, 255),
+                    };
+                default:
+                    return PlaceholderPalette{
+                        make_argb(255, 246, 241, 228),
+                        make_argb(255, 227, 203, 184),
+                        make_argb(220, 103, 136, 199),
+                        make_argb(220, 242, 150, 108),
+                        make_argb(206, 250, 229, 177),
+                        make_argb(145, 255, 251, 240),
+                    };
+            }
+        }
+
+        void fill_placeholder_gradient(std::span<std::uint32_t> argb,
+                                       int width,
+                                       int height,
+                                       const PlaceholderPalette& palette,
+                                       std::size_t variant) noexcept {
+            const int weight_x = 7 + static_cast<int>(variant % 3) * 2;
+            const int weight_y = 9 + static_cast<int>((variant + 1) % 3) * 3;
+            const int denom = std::max(1, (width - 1) * weight_x + (height - 1) * weight_y);
+            for (int y = 0; y < height; ++y) {
+                for (int x = 0; x < width; ++x) {
+                    const int numer = x * weight_x + y * weight_y;
+                    argb[static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+                        + static_cast<std::size_t>(x)] = lerp_argb(
+                            palette.bg_a, palette.bg_b, numer, denom);
+                }
+            }
+        }
+
+        void fill_rounded_rect(std::span<std::uint32_t> argb,
+                               int width,
+                               int height,
+                               float left,
+                               float top,
+                               float right,
+                               float bottom,
+                               float radius,
+                               std::uint32_t color) noexcept {
+            if (left >= right || top >= bottom) return;
+            const float clamped_radius = std::min(radius, std::min((right - left) * 0.5f, (bottom - top) * 0.5f));
+            const float rr = clamped_radius * clamped_radius;
+            const int min_x = std::max(0, static_cast<int>(left));
+            const int max_x = std::min(width - 1, static_cast<int>(right));
+            const int min_y = std::max(0, static_cast<int>(top));
+            const int max_y = std::min(height - 1, static_cast<int>(bottom));
+            for (int y = min_y; y <= max_y; ++y) {
+                for (int x = min_x; x <= max_x; ++x) {
+                    const float px = static_cast<float>(x) + 0.5f;
+                    const float py = static_cast<float>(y) + 0.5f;
+                    if (px < left || px > right || py < top || py > bottom) continue;
+                    bool inside = false;
+                    if ((px >= left + clamped_radius && px <= right - clamped_radius)
+                        || (py >= top + clamped_radius && py <= bottom - clamped_radius)) {
+                        inside = true;
+                    } else {
+                        const float cx = (px < left + clamped_radius)
+                            ? left + clamped_radius
+                            : right - clamped_radius;
+                        const float cy = (py < top + clamped_radius)
+                            ? top + clamped_radius
+                            : bottom - clamped_radius;
+                        const float dx = px - cx;
+                        const float dy = py - cy;
+                        inside = (dx * dx + dy * dy) <= rr;
+                    }
+                    if (!inside) continue;
+                    auto& pixel = argb[static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+                                       + static_cast<std::size_t>(x)];
+                    pixel = blend_argb(pixel, color);
+                }
+            }
+        }
+
+        void fill_circle(std::span<std::uint32_t> argb,
+                         int width,
+                         int height,
+                         float cx,
+                         float cy,
+                         float radius,
+                         std::uint32_t color) noexcept {
+            if (radius <= 0.0f) return;
+            const float rr = radius * radius;
+            const int min_x = std::max(0, static_cast<int>(cx - radius));
+            const int max_x = std::min(width - 1, static_cast<int>(cx + radius));
+            const int min_y = std::max(0, static_cast<int>(cy - radius));
+            const int max_y = std::min(height - 1, static_cast<int>(cy + radius));
+            for (int y = min_y; y <= max_y; ++y) {
+                for (int x = min_x; x <= max_x; ++x) {
+                    const float dx = (static_cast<float>(x) + 0.5f) - cx;
+                    const float dy = (static_cast<float>(y) + 0.5f) - cy;
+                    if (dx * dx + dy * dy > rr) continue;
+                    auto& pixel = argb[static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+                                       + static_cast<std::size_t>(x)];
+                    pixel = blend_argb(pixel, color);
+                }
+            }
+        }
+
+        void fill_diagonal_band(std::span<std::uint32_t> argb,
+                                int width,
+                                int height,
+                                float slope,
+                                float offset,
+                                float thickness,
+                                std::uint32_t color) noexcept {
+            if (thickness <= 0.0f) return;
+            for (int y = 0; y < height; ++y) {
+                for (int x = 0; x < width; ++x) {
+                    const float px = static_cast<float>(x) + 0.5f;
+                    const float py = static_cast<float>(y) + 0.5f;
+                    const float center = slope * px + offset;
+                    if (py < center - thickness || py > center + thickness) continue;
+                    auto& pixel = argb[static_cast<std::size_t>(y) * static_cast<std::size_t>(width)
+                                       + static_cast<std::size_t>(x)];
+                    pixel = blend_argb(pixel, color);
+                }
+            }
+        }
+
+        void paint_placeholder_common_highlights(std::span<std::uint32_t> argb,
+                                                 int width,
+                                                 int height,
+                                                 const PlaceholderPalette& palette) noexcept {
+            fill_circle(argb, width, height, width * 0.26f, height * 0.22f, width * 0.11f, palette.highlight);
+            fill_diagonal_band(argb,
+                               width,
+                               height,
+                               -0.22f,
+                               height * 0.84f,
+                               height * 0.018f,
+                               palette.highlight);
+        }
+
+        void paint_placeholder_home_hero_pill(std::span<std::uint32_t> argb,
+                                              int width,
+                                              int height,
+                                              const PlaceholderPalette& palette) noexcept {
+            fill_rounded_rect(argb, width, height,
+                              width * 0.24f, height * 0.08f,
+                              width * 0.60f, height * 0.90f,
+                              width * 0.18f, palette.accent_a);
+            fill_circle(argb, width, height, width * 0.74f, height * 0.29f, width * 0.16f, palette.accent_b);
+            fill_rounded_rect(argb, width, height,
+                              width * 0.18f, height * 0.61f,
+                              width * 0.86f, height * 0.78f,
+                              width * 0.09f, palette.accent_c);
+        }
+
+        void paint_placeholder_home_orbit_disc(std::span<std::uint32_t> argb,
+                                               int width,
+                                               int height,
+                                               const PlaceholderPalette& palette) noexcept {
+            fill_circle(argb, width, height, width * 0.34f, height * 0.64f, width * 0.24f, palette.accent_a);
+            fill_circle(argb, width, height, width * 0.34f, height * 0.64f, width * 0.12f, palette.bg_a);
+            fill_rounded_rect(argb, width, height,
+                              width * 0.51f, height * 0.18f,
+                              width * 0.84f, height * 0.40f,
+                              width * 0.11f, palette.accent_b);
+            fill_rounded_rect(argb, width, height,
+                              width * 0.54f, height * 0.54f,
+                              width * 0.90f, height * 0.76f,
+                              width * 0.08f, palette.accent_c);
+        }
+
+        void paint_placeholder_home_orbit_stack(std::span<std::uint32_t> argb,
+                                                int width,
+                                                int height,
+                                                const PlaceholderPalette& palette) noexcept {
+            fill_rounded_rect(argb, width, height,
+                              width * 0.12f, height * 0.12f,
+                              width * 0.48f, height * 0.52f,
+                              width * 0.11f, palette.accent_a);
+            fill_rounded_rect(argb, width, height,
+                              width * 0.57f, height * 0.18f,
+                              width * 0.88f, height * 0.44f,
+                              width * 0.09f, palette.accent_b);
+            fill_rounded_rect(argb, width, height,
+                              width * 0.18f, height * 0.66f,
+                              width * 0.82f, height * 0.82f,
+                              width * 0.07f, palette.accent_c);
+            fill_diagonal_band(argb, width, height, -0.42f, height * 0.95f, height * 0.045f, palette.highlight);
+        }
+
+        void paint_placeholder_home_center_pill(std::span<std::uint32_t> argb,
+                                                int width,
+                                                int height,
+                                                const PlaceholderPalette& palette) noexcept {
+            fill_circle(argb, width, height, width * 0.34f, height * 0.40f, width * 0.18f, palette.accent_a);
+            fill_circle(argb, width, height, width * 0.65f, height * 0.34f, width * 0.15f, palette.accent_b);
+            fill_circle(argb, width, height, width * 0.53f, height * 0.70f, width * 0.24f, palette.accent_c);
+            fill_circle(argb, width, height, width * 0.53f, height * 0.70f, width * 0.08f, palette.bg_a);
+            fill_circle(argb, width, height, width * 0.65f, height * 0.34f, width * 0.05f, palette.highlight);
+        }
+
+        void paint_placeholder_home_bottom_card(std::span<std::uint32_t> argb,
+                                                int width,
+                                                int height,
+                                                const PlaceholderPalette& palette) noexcept {
+            fill_rounded_rect(argb, width, height,
+                              width * 0.15f, height * 0.58f,
+                              width * 0.84f, height * 0.84f,
+                              width * 0.15f, palette.accent_b);
+            fill_rounded_rect(argb, width, height,
+                              width * 0.50f, height * 0.12f,
+                              width * 0.79f, height * 0.58f,
+                              width * 0.12f, palette.accent_a);
+            fill_circle(argb, width, height, width * 0.26f, height * 0.32f, width * 0.13f, palette.accent_c);
+        }
+
+        void paint_placeholder_home_bottom_cut(std::span<std::uint32_t> argb,
+                                               int width,
+                                               int height,
+                                               const PlaceholderPalette& palette) noexcept {
+            fill_rounded_rect(argb, width, height,
+                              width * 0.14f, height * 0.14f,
+                              width * 0.78f, height * 0.54f,
+                              width * 0.11f, palette.accent_a);
+            fill_diagonal_band(argb, width, height, 0.68f, height * 0.04f, height * 0.07f, palette.accent_b);
+            fill_rounded_rect(argb, width, height,
+                              width * 0.48f, height * 0.60f,
+                              width * 0.86f, height * 0.84f,
+                              width * 0.08f, palette.accent_c);
+        }
+
+        void paint_placeholder_cover_variant(std::span<std::uint32_t> argb,
+                                             int width,
+                                             int height,
+                                             DefaultCoverVariant variant) noexcept {
+            const auto palette = placeholder_palette_for_variant(placeholder_variant_index(variant));
+            fill_placeholder_gradient(argb, width, height, palette, placeholder_variant_index(variant));
+            paint_placeholder_common_highlights(argb, width, height, palette);
+            switch (variant) {
+                case DefaultCoverVariant::HomeOrbitDisc:
+                    paint_placeholder_home_orbit_disc(argb, width, height, palette);
+                    break;
+                case DefaultCoverVariant::HomeOrbitStack:
+                    paint_placeholder_home_orbit_stack(argb, width, height, palette);
+                    break;
+                case DefaultCoverVariant::HomeCenterPill:
+                    paint_placeholder_home_center_pill(argb, width, height, palette);
+                    break;
+                case DefaultCoverVariant::HomeBottomCard:
+                    paint_placeholder_home_bottom_card(argb, width, height, palette);
+                    break;
+                case DefaultCoverVariant::HomeBottomCut:
+                    paint_placeholder_home_bottom_cut(argb, width, height, palette);
+                    break;
+                case DefaultCoverVariant::HomeHeroPill:
+                default:
+                    paint_placeholder_home_hero_pill(argb, width, height, palette);
+                    break;
+            }
+        }
+
+        ui::gfx::ImageId register_placeholder_cover_image(DefaultCoverVariant variant) noexcept {
+            constexpr int kSize = 192;
+            std::array<std::uint32_t, kSize * kSize> argb{};
+            paint_placeholder_cover_variant(argb, kSize, kSize, variant);
+            const auto view = make_image_view(
+                PixelFormat::ARGB8888,
+                kSize,
+                kSize,
+                kSize * 4,
+                reinterpret_cast<const std::byte*>(argb.data()),
+                false,
+                true,
+                0);
+            const auto res = ui::gfx::register_image_dedup(view);
+            return res.ok() ? res.id : ui::gfx::invalid_image_id();
         }
 
         bool is_flac_path(std::string_view path) noexcept {
@@ -903,5 +1302,26 @@ export namespace player {
                     out.image_id.slot, out.image_id.generation);
 #endif
         return true;
+    }
+
+    ui::gfx::ImageId default_cover_image_id() noexcept {
+        return default_cover_image_id(DefaultCoverVariant::HomeHeroPill);
+    }
+
+    ui::gfx::ImageId default_cover_image_id(DefaultCoverVariant variant) noexcept {
+        static const std::array<ui::gfx::ImageId, detail::kPlaceholderCoverVariantCount> ids = [] {
+            std::array<ui::gfx::ImageId, detail::kPlaceholderCoverVariantCount> generated{};
+            for (std::size_t i = 0; i < generated.size(); ++i) {
+                generated[i] = detail::register_placeholder_cover_image(
+                    static_cast<DefaultCoverVariant>(i));
+            }
+            return generated;
+        }();
+        return ids[detail::placeholder_variant_index(variant) % ids.size()];
+    }
+
+    ui::gfx::ImageId default_cover_image_id(std::size_t variant) noexcept {
+        return default_cover_image_id(static_cast<DefaultCoverVariant>(
+            variant % detail::kPlaceholderCoverVariantCount));
     }
 }

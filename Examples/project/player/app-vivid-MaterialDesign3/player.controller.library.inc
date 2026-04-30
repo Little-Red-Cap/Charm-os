@@ -1,18 +1,9 @@
         void refresh_library() {
-            if (handles.nav_bar) {
-                access.set_visible(handles.nav_bar, true);
+            sync_page_chrome(PlayerPage::Library);
+            if (list_info_popup_open()) {
+                set_mini_bar_chrome_visible(false);
             }
-            if (handles.bottom_bar) {
-                access.set_visible(handles.bottom_bar, true);
-            }
-            update_nav_page_indicator();
-            update_library_state_visuals();
-            update_list_title();
-            update_list_path();
-            update_list_sort_label();
-            update_list_shuffle_label();
-            update_list_placeholder();
-            tick_list_duration_probe();
+            refresh_library_body_content();
             update_debug_overlay();
         }
 
@@ -36,6 +27,41 @@
         static constexpr int kTrackDurationUnknown = -1;
         static constexpr int kTrackDurationUnavailable = -2;
         static constexpr std::uint64_t kListDurationProbeIntervalMs = 120;
+
+        enum class LibraryCoverMode : std::uint8_t {
+            ListCovers,
+            FocusedPreviewOnly,
+            IconsOnly,
+        };
+
+        // TODO(player-ui): expose LibraryCoverMode through the future settings page
+        // instead of keeping it as a compile-time page-local switch.
+        static constexpr LibraryCoverMode kLibraryCoverMode =
+            LibraryCoverMode::FocusedPreviewOnly;
+
+        static void format_bytes_compact(std::uint64_t bytes,
+                                         char* out,
+                                         std::size_t out_size) noexcept {
+            if (!out || out_size == 0) return;
+            out[0] = '\0';
+            if (bytes == 0) return;
+            static constexpr const char* kUnits[] = {"B", "KB", "MB", "GB"};
+            double value = static_cast<double>(bytes);
+            std::size_t unit_index = 0;
+            while (value >= 1024.0 && unit_index + 1 < std::size(kUnits)) {
+                value /= 1024.0;
+                ++unit_index;
+            }
+            if (unit_index == 0) {
+                std::snprintf(out, out_size, "%llu %s",
+                              static_cast<unsigned long long>(bytes),
+                              kUnits[unit_index]);
+            } else if (value >= 10.0) {
+                std::snprintf(out, out_size, "%.0f %s", value, kUnits[unit_index]);
+            } else {
+                std::snprintf(out, out_size, "%.1f %s", value, kUnits[unit_index]);
+            }
+        }
 
         struct LibrarySortKey {
             std::string_view primary{};
@@ -64,6 +90,11 @@
             return (prev == std::string_view::npos) ? parent : parent.substr(prev + 1);
         }
 
+        static std::string_view library_directory_path(std::string_view path) noexcept {
+            const auto slash = path.find_last_of("/\\");
+            return (slash == std::string_view::npos) ? std::string_view{} : path.substr(0, slash);
+        }
+
         static std::string_view library_trim_space(std::string_view value) noexcept {
             while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
                 value.remove_prefix(1);
@@ -72,6 +103,192 @@
                 value.remove_suffix(1);
             }
             return value;
+        }
+
+        static std::string_view library_popup_directory_segment_label(
+            std::string_view value) noexcept {
+            value = library_trim_space(value);
+            if (compare_ci(value, "Storage root") == 0) {
+                return "Library root";
+            }
+            return value;
+        }
+
+        static std::size_t utf8_codepoint_span(std::string_view value, std::size_t offset) noexcept {
+            if (offset >= value.size()) return 0;
+            const unsigned char lead = static_cast<unsigned char>(value[offset]);
+            if ((lead & 0x80u) == 0u) return 1;
+            if ((lead & 0xE0u) == 0xC0u && offset + 1 < value.size()) return 2;
+            if ((lead & 0xF0u) == 0xE0u && offset + 2 < value.size()) return 3;
+            if ((lead & 0xF8u) == 0xF0u && offset + 3 < value.size()) return 4;
+            return 1;
+        }
+
+        static std::string utf8_truncate_with_ellipsis(std::string_view value,
+                                                       std::size_t max_codepoints) {
+            value = library_trim_space(value);
+            if (value.empty()) return {};
+            if (max_codepoints == 0) return std::string{value};
+
+            std::size_t offset = 0;
+            std::size_t codepoints = 0;
+            while (offset < value.size() && codepoints < max_codepoints) {
+                offset += utf8_codepoint_span(value, offset);
+                ++codepoints;
+            }
+            if (offset >= value.size()) {
+                return std::string{value};
+            }
+
+            std::string out{};
+            out.reserve(offset + 3);
+            out.append(value.substr(0, offset));
+            out += "...";
+            return out;
+        }
+
+        static void append_library_preview_part(std::string& out,
+                                                std::string_view value,
+                                                std::size_t max_codepoints = 0) {
+            value = library_trim_space(value);
+            if (value.empty()) return;
+            std::string compact = utf8_truncate_with_ellipsis(value, max_codepoints);
+            if (compact.empty()) return;
+            if (!out.empty()) {
+                out += " · ";
+            }
+            out += compact;
+        }
+
+        static std::string library_preview_compact_summary(std::string_view value,
+                                                           std::size_t max_codepoints) {
+            value = library_trim_space(value);
+            if (value.empty()) return {};
+
+            std::string compact{};
+            compact.reserve(value.size());
+            for (std::size_t i = 0; i < value.size();) {
+                if (i + 2 < value.size()
+                    && value[i] == ' '
+                    && (value[i + 1] == '|' || value[i + 1] == '/')
+                    && value[i + 2] == ' ') {
+                    compact += " · ";
+                    i += 3;
+                    continue;
+                }
+                compact.push_back(value[i]);
+                ++i;
+            }
+            return utf8_truncate_with_ellipsis(compact, max_codepoints);
+        }
+
+        static bool library_tail_looks_like_duration(std::string_view tail) noexcept {
+            return tail.find(':') != std::string_view::npos
+                && std::find_if(tail.begin(), tail.end(), [](char ch) {
+                       return std::isdigit(static_cast<unsigned char>(ch)) != 0;
+                   }) != tail.end();
+        }
+
+        static std::string library_compact_popup_directory(std::string_view path,
+                                                           std::size_t keep_segments = 4,
+                                                           std::size_t max_codepoints = 52) {
+            path = library_trim_space(path);
+            if (path.empty()) {
+                return "Library root";
+            }
+
+            std::vector<std::string_view> segments{};
+            segments.reserve(8);
+            std::size_t start = 0;
+            while (start < path.size()) {
+                while (start < path.size() && (path[start] == '/' || path[start] == '\\')) {
+                    ++start;
+                }
+                if (start >= path.size()) break;
+                std::size_t end = start;
+                while (end < path.size() && path[end] != '/' && path[end] != '\\') {
+                    ++end;
+                }
+                segments.push_back(path.substr(start, end - start));
+                start = end;
+            }
+
+            if (segments.empty()) {
+                return utf8_truncate_with_ellipsis(path, max_codepoints);
+            }
+
+            const std::size_t begin =
+                (segments.size() > keep_segments) ? (segments.size() - keep_segments) : 0;
+            std::string out{};
+            if (begin > 0) {
+                out = "...";
+            }
+            for (std::size_t i = begin; i < segments.size(); ++i) {
+                const auto label = library_popup_directory_segment_label(segments[i]);
+                if (!out.empty()) {
+                    out += " / ";
+                }
+                out.append(label.begin(), label.end());
+            }
+            return utf8_truncate_with_ellipsis(out, max_codepoints);
+        }
+
+        static const char* library_popup_eyebrow(LibraryTab tab,
+                                                 bool has_context,
+                                                 bool shuffle_enabled) noexcept {
+            switch (tab) {
+            case LibraryTab::Albums:
+                return has_context ? "Album track" : "Albums";
+            case LibraryTab::Artists:
+                return has_context ? "Artist track" : "Artists";
+            case LibraryTab::Songs:
+            default:
+                return shuffle_enabled ? "Shuffle pick" : "Track info";
+            }
+        }
+
+        static const char* library_track_secondary_action_label() noexcept {
+            return "Track details";
+        }
+
+        static const char* library_popup_path_title() noexcept {
+            return "File location";
+        }
+
+        static const char* library_popup_close_hint() noexcept {
+            return "Tap outside or press Back";
+        }
+
+        static const char* library_action_menu_title(LibraryTab tab,
+                                                     bool has_context) noexcept {
+            switch (tab) {
+            case LibraryTab::Albums:
+                return has_context ? "Album track" : "Albums";
+            case LibraryTab::Artists:
+                return has_context ? "Artist track" : "Artists";
+            case LibraryTab::Songs:
+            default:
+                return "Track actions";
+            }
+        }
+
+        static constexpr ::ui::scene::AnchoredMenuSpec library_action_menu_spec() noexcept {
+            return {
+                .width = 236,
+                .padding_left = 36,
+                .padding_right = 14,
+                .padding_top = 12,
+                .padding_bottom = 14,
+                .title_height = 16,
+                .title_bottom_gap = 10,
+                .item_height = 38,
+                .item_gap = 8,
+                .anchor_right_inset = 10,
+                .anchor_top_offset = 6,
+                .viewport_margin = 12,
+                .card_style_class = static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard),
+                .item_style_class = static_cast<StyleClassId>(PlayerStyleClass::TopBarButton),
+            };
         }
 
         static bool library_split_track_stem(std::string_view stem,
@@ -98,7 +315,7 @@
 
             const auto compact_sep = stem.find_last_of('-');
             if (compact_sep != std::string_view::npos && compact_sep > 0 && compact_sep + 1 < stem.size()) {
-                if (assign_split(stem.substr(0, compact_sep), stem.substr(compact_sep + 1))) {
+                if (assign_split(stem.substr(compact_sep + 1), stem.substr(0, compact_sep))) {
                     return true;
                 }
             }
@@ -185,6 +402,14 @@
 
         bool library_shows_group_rows() const noexcept {
             return !library_has_context() && library_tab != LibraryTab::Songs;
+        }
+
+        static constexpr bool library_list_uses_cover_art() noexcept {
+            return kLibraryCoverMode == LibraryCoverMode::ListCovers;
+        }
+
+        static constexpr bool library_uses_focused_preview_cover() noexcept {
+            return kLibraryCoverMode == LibraryCoverMode::FocusedPreviewOnly;
         }
 
         void reset_track_duration_cache() {
@@ -541,6 +766,9 @@
         }
 
         bool library_shows_context_watermark() const noexcept {
+            if (library_uses_focused_preview_cover()) {
+                return !list_order.empty();
+            }
             return library_has_context()
                 && list_order.size() >= 1
                 && list_order.size() <= 3;
@@ -652,16 +880,165 @@
             append_current_group_state();
         }
 
+        int library_context_preview_list_index() const noexcept {
+            if (list_order.empty()) return -1;
+            if (last_list_selected >= 0 && last_list_selected < static_cast<int>(list_order.size())) {
+                return last_list_selected;
+            }
+            const int current_list_index = track_index_to_list(track_index);
+            if (current_list_index >= 0
+                && current_list_index < static_cast<int>(list_order.size())) {
+                return current_list_index;
+            }
+            return 0;
+        }
+
+        bool format_library_context_preview_text(char* title_buf,
+                                                 std::size_t title_size,
+                                                 char* subtitle_buf,
+                                                 std::size_t subtitle_size) const noexcept {
+            if (!title_buf || title_size == 0 || !subtitle_buf || subtitle_size == 0) return false;
+            title_buf[0] = '\0';
+            subtitle_buf[0] = '\0';
+
+            const int list_index = library_context_preview_list_index();
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return false;
+
+            const auto row = make_library_row_recipe(list_index);
+            auto primary = row.title();
+            auto secondary = row.subtitle();
+            if (primary.empty()) primary = row.detail_primary;
+            if (secondary.empty()) secondary = row.detail_secondary;
+            if (primary.empty()) {
+                primary = std::string_view{library_tab_title(library_tab)};
+            }
+            if (primary.empty()) return false;
+
+            const std::string title_text = utf8_truncate_with_ellipsis(
+                primary, row.group_row ? 24u : 28u);
+            std::snprintf(title_buf, title_size, "%s", title_text.c_str());
+
+            std::string subtitle_text{};
+            if (row.group_row) {
+                subtitle_text = library_preview_compact_summary(secondary, 40);
+                if (row.current_row) {
+                    append_library_preview_part(
+                        subtitle_text,
+                        std::string_view{library_current_group_state_text()},
+                        12);
+                }
+            } else {
+                const auto* tracks = storage.tracks;
+                std::string_view artist{};
+                std::string_view album{};
+                if (tracks
+                    && row.track_index >= 0
+                    && row.track_index < static_cast<int>(tracks->size())) {
+                    const auto path = (*tracks)[static_cast<std::size_t>(row.track_index)].view();
+                    const auto stem = library_track_stem(path);
+                    artist = library_artist_from_stem(stem);
+                    album = library_parent_folder(path);
+                }
+
+                if (!library_looks_like_format(artist)) {
+                    switch (library_tab) {
+                    case LibraryTab::Songs:
+                    case LibraryTab::Albums:
+                        append_library_preview_part(subtitle_text, artist, 16);
+                        break;
+                    case LibraryTab::Artists:
+                        break;
+                    }
+                }
+                if (!library_looks_like_format(album)) {
+                    switch (library_tab) {
+                    case LibraryTab::Songs:
+                    case LibraryTab::Artists:
+                        append_library_preview_part(subtitle_text, album, 18);
+                        break;
+                    case LibraryTab::Albums:
+                        break;
+                    }
+                }
+
+                if (subtitle_text.empty()) {
+                    subtitle_text = library_preview_compact_summary(secondary, 36);
+                }
+
+                const auto tail = row.tail();
+                if (library_tail_looks_like_duration(tail)) {
+                    append_library_preview_part(subtitle_text, tail, 8);
+                }
+                if (row.current_row) {
+                    append_library_preview_part(
+                        subtitle_text,
+                        std::string_view{is_paused() ? "Paused" : "Playing"},
+                        12);
+                }
+            }
+
+            std::snprintf(subtitle_buf, subtitle_size, "%s", subtitle_text.c_str());
+            return true;
+        }
+
+        bool library_cover_request_matches_track(std::string_view request_track_path,
+                                                 std::string_view request_cover_path,
+                                                 int candidate_track_index) const noexcept {
+            const auto* tracks = storage.tracks;
+            if (!tracks) return false;
+            if (candidate_track_index < 0
+                || candidate_track_index >= static_cast<int>(tracks->size())) {
+                return false;
+            }
+            const auto candidate_track_path =
+                (*tracks)[static_cast<std::size_t>(candidate_track_index)].view();
+            std::string_view candidate_cover_path{};
+            if (candidate_track_index < static_cast<int>(list_cover_paths.size())) {
+                candidate_cover_path =
+                    list_cover_paths[static_cast<std::size_t>(candidate_track_index)].view();
+            }
+            if (!request_track_path.empty()) {
+                if (request_track_path == candidate_track_path) return true;
+                if (!candidate_cover_path.empty() && request_track_path == candidate_cover_path) return true;
+            }
+            if (!request_cover_path.empty()) {
+                if (request_cover_path == candidate_track_path) return true;
+                if (!candidate_cover_path.empty() && request_cover_path == candidate_cover_path) return true;
+            }
+            return false;
+        }
+
+        bool library_allows_cover_request(std::string_view request_track_path,
+                                          std::string_view request_cover_path) const noexcept {
+            if (!library_uses_focused_preview_cover()) return true;
+            if (current_page != PlayerPage::Library) return true;
+
+            const int preview_list_index = library_context_preview_list_index();
+            const int preview_track_index = list_index_to_track(preview_list_index);
+            if (library_cover_request_matches_track(
+                    request_track_path, request_cover_path, preview_track_index)) {
+                return true;
+            }
+
+            if (list_info_popup_open()
+                && library_cover_request_matches_track(
+                    request_track_path, request_cover_path, list_info_popup_track_index)) {
+                return true;
+            }
+
+            return false;
+        }
+
         ::ui::scene::ImageId library_context_cover_for_view() {
             const auto* tracks = storage.tracks;
-            if (!library_has_context() || !tracks) {
+            if (!tracks || list_order.empty()) {
                 return ::ui::scene::invalid_image_id();
             }
             const auto try_track = [&](int candidate) -> ::ui::scene::ImageId {
                 if (candidate < 0 || candidate >= static_cast<int>(tracks->size())) {
                     return ::ui::scene::invalid_image_id();
                 }
-                if (!library_context_matches_track(candidate)) {
+                if (library_has_context() && !library_context_matches_track(candidate)) {
                     return ::ui::scene::invalid_image_id();
                 }
                 const auto track_path = (*tracks)[static_cast<std::size_t>(candidate)].view();
@@ -675,6 +1052,12 @@
                 return resolve_list_cover_icon(track_path, cover_path);
             };
 
+            if (library_uses_focused_preview_cover()) {
+                const int preview_list_index = library_context_preview_list_index();
+                const int preview_track = list_index_to_track(preview_list_index);
+                return try_track(preview_track);
+            }
+
             const int selected_track = list_index_to_track(last_list_selected);
             auto image_id = try_track(selected_track);
             if (::ui::scene::image_id_valid(image_id)) {
@@ -686,8 +1069,7 @@
                 return image_id;
             }
 
-            for (std::size_t i = 0; i < tracks->size(); ++i) {
-                const int candidate = static_cast<int>(i);
+            for (const int candidate : list_order) {
                 if (candidate == selected_track || candidate == track_index) {
                     continue;
                 }
@@ -699,36 +1081,103 @@
             return ::ui::scene::invalid_image_id();
         }
 
+        void clear_library_context_summary() noexcept {
+            if (handles.list_context_title) {
+                access.set_text(handles.list_context_title, "");
+                set_handle_visible(handles.list_context_title, false);
+            }
+            if (handles.list_context_subtitle) {
+                access.set_text(handles.list_context_subtitle, "");
+                set_handle_visible(handles.list_context_subtitle, false);
+            }
+        }
+
+        void set_library_context_summary(const char* title, const char* subtitle) noexcept {
+            if (handles.list_context_title) {
+                access.set_text(handles.list_context_title, title ? title : "");
+                set_handle_visible(handles.list_context_title, title && title[0] != '\0');
+            }
+            if (handles.list_context_subtitle) {
+                access.set_text(handles.list_context_subtitle, subtitle ? subtitle : "");
+                set_handle_visible(handles.list_context_subtitle, subtitle && subtitle[0] != '\0');
+            }
+        }
+
+        void hide_library_context_cover_placeholder() noexcept {
+            set_handle_visible(handles.list_context_cover_placeholder, false);
+        }
+
+        void show_library_context_cover_placeholder(::ui::scene::ImageId icon) noexcept {
+            if (handles.list_context_cover_placeholder) {
+                access.set_button_icon(handles.list_context_cover_placeholder,
+                                       ::ui::scene::image_id_valid(icon) ? icon : icons.folder);
+                set_handle_visible(handles.list_context_cover_placeholder, true);
+            }
+            set_handle_visible(handles.list_context_cover, false);
+            clear_image_slot_if_present(library_context_cover_slot(), false);
+            set_handle_visible(handles.list_context_cover_scrim, false);
+        }
+
+        void hide_library_context_cover() noexcept {
+            set_handle_visible(handles.list_context_cover, false);
+            clear_image_slot_if_present(library_context_cover_slot(), false);
+            set_handle_visible(handles.list_context_cover_scrim, false);
+            hide_library_context_cover_placeholder();
+        }
+
+        void show_library_context_cover(::ui::scene::ImageId image_id) noexcept {
+            hide_library_context_cover_placeholder();
+            set_image_slot_if_present(library_context_cover_slot(), image_id, false);
+            set_handle_visible(handles.list_context_cover, true);
+            set_handle_visible(handles.list_context_cover_scrim,
+                               !library_uses_focused_preview_cover());
+        }
+
+        ::ui::scene::ImageId library_context_placeholder_icon() const noexcept {
+            const int list_index = library_context_preview_list_index();
+            if (list_index >= 0 && list_index < static_cast<int>(list_order.size())) {
+                const auto row = make_library_row_recipe(list_index);
+                if (row.group_row) {
+                    return icons.folder_active;
+                }
+                if (::ui::scene::image_id_valid(row.fallback_icon)
+                    && row.fallback_icon != icons.play
+                    && row.fallback_icon != icons.pause) {
+                    return row.fallback_icon;
+                }
+            }
+            return icons.folder_active;
+        }
+
         void update_library_context_watermark() {
             if (!access.valid()) return;
             const auto hide = [&]() {
-                if (handles.list_context_cover) {
-                    access.set_visible(handles.list_context_cover, false);
-                    if (access.kind(handles.list_context_cover) == WidgetKind::Image) {
-                        access.set_image(handles.list_context_cover, ::ui::scene::invalid_image_id());
-                    }
-                }
-                if (handles.list_context_cover_scrim) {
-                    access.set_visible(handles.list_context_cover_scrim, false);
-                }
+                set_handle_visible(handles.list_context_root, false);
+                hide_library_context_cover();
+                clear_library_context_summary();
             };
             if (!library_shows_context_watermark()) {
                 hide();
                 return;
             }
 
+            set_handle_visible(handles.list_context_root, true);
+            char title_buf[192]{};
+            char subtitle_buf[224]{};
+            if (format_library_context_preview_text(
+                    title_buf, sizeof(title_buf),
+                    subtitle_buf, sizeof(subtitle_buf))) {
+                set_library_context_summary(title_buf, subtitle_buf);
+            } else {
+                clear_library_context_summary();
+            }
+
             const auto image_id = library_context_cover_for_view();
             if (!::ui::scene::image_id_valid(image_id)) {
-                hide();
+                show_library_context_cover_placeholder(library_context_placeholder_icon());
                 return;
             }
-            if (handles.list_context_cover && access.kind(handles.list_context_cover) == WidgetKind::Image) {
-                access.set_image(handles.list_context_cover, image_id);
-                access.set_visible(handles.list_context_cover, true);
-            }
-            if (handles.list_context_cover_scrim) {
-                access.set_visible(handles.list_context_cover_scrim, true);
-            }
+            show_library_context_cover(image_id);
         }
 
         void show_library_context_status() {
@@ -907,10 +1356,40 @@
             return out;
         }
 
+        bool list_info_popup_open() const noexcept {
+            return list_info_popup_track_index >= 0;
+        }
+
+        void set_list_info_popup_visible(bool visible) noexcept {
+            set_handle_visible(handles.list_info_scrim, visible);
+            set_handle_visible(handles.list_info_card, visible);
+            if (library_page_active()) {
+                set_mini_bar_chrome_visible(!visible);
+            }
+        }
+
+        void hide_list_info_popup_widgets() {
+            if (!access.valid()) return;
+            set_list_info_popup_visible(false);
+            clear_image_slot_if_present(library_info_cover_slot(), false);
+        }
+
+        void close_list_info_popup() {
+            list_info_popup_track_index = -1;
+            hide_list_info_popup_widgets();
+            if (access.valid() && handles.list) {
+                access.set_focused(handles.list, true);
+            }
+            if (library_page_active()) {
+                sync_page_chrome(PlayerPage::Library);
+            }
+        }
+
         void close_list_action_menu() {
             sync_list_action_menu_focus_visual(-1);
             list_action_menu_index = -1;
-            ::ui::scene::hide_anchored_menu(access, list_action_menu_handles());
+            ::ui::scene::hide_anchored_menu(
+                access, list_action_menu_handles(), library_action_menu_spec());
             if (handles.list) {
                 access.set_focused(handles.list, true);
             }
@@ -996,7 +1475,8 @@
                 .visible = true,
             };
             items[1] = {
-                .text = row.group_row ? library_group_secondary_action_label() : "Show path",
+                .text = row.group_row ? library_group_secondary_action_label()
+                                      : library_track_secondary_action_label(),
                 .visible = true,
             };
 
@@ -1013,18 +1493,22 @@
         }
 
         StylePatch list_action_menu_focus_patch() const noexcept {
+            const auto roles = player::cover_theme::derive_library_action_menu_color_roles(now_playing_roles);
+            const rgba focus_border = roles.item_focus.border.a != 0
+                ? roles.item_focus.border
+                : with_alpha(roles.item_focus.fg, 48);
             StylePatch patch = ::ui::scene::make_pill_surface_patch({
-                .bg_color = kUiLibraryChipActive,
-                .border_color = kUiLibraryPathBorderActive,
+                .bg_color = roles.item_focus.bg,
+                .border_color = focus_border,
                 .corner_radius = 12,
                 .inner_stroke_enabled = true,
-                .inner_stroke_color = with_alpha(kUiLibraryListOnAccent, 56),
+                .inner_stroke_color = with_alpha(roles.item_focus.fg, 40),
                 .inner_stroke_width = 1,
             });
             patch.has_font_color = true;
-            patch.font_color = kUiLibraryChipTextActive;
+            patch.font_color = roles.item_focus.fg;
             patch.has_border_focus = true;
-            patch.border_focus = kUiLibraryPathBorderActive;
+            patch.border_focus = focus_border;
             return patch;
         }
 
@@ -1091,12 +1575,195 @@
             }
         }
 
+        bool populate_list_info_popup_content(int track_idx) {
+            if (!access.valid()) return false;
+            const auto* tracks = storage.tracks;
+            if (!tracks || track_idx < 0 || track_idx >= static_cast<int>(tracks->size())) return false;
+
+            const auto& track = (*tracks)[static_cast<std::size_t>(track_idx)];
+            const auto path = track.view();
+            if (path.empty()) return false;
+
+            FixedString<192> title{};
+            if (const auto* titles = storage.track_titles;
+                titles && track_idx < static_cast<int>(titles->size())) {
+                title.assign((*titles)[static_cast<std::size_t>(track_idx)].view());
+            }
+            if (title.empty()) {
+                title.assign(library_track_stem(path));
+            }
+            strip_audio_extension(title);
+
+            FixedString<96> artist{};
+            std::string_view parsed_title{};
+            std::string_view parsed_artist{};
+            if (library_split_track_stem(title.view(), parsed_title, parsed_artist)) {
+                title.assign(parsed_title);
+                artist.assign(parsed_artist);
+            }
+            if (const auto* subtitles = storage.track_subtitles;
+                subtitles && track_idx < static_cast<int>(subtitles->size())) {
+                const auto subtitle = (*subtitles)[static_cast<std::size_t>(track_idx)].view();
+                if (!subtitle.empty() && !library_looks_like_format(subtitle)) {
+                    artist.assign(subtitle);
+                }
+            }
+            if (artist.empty()) {
+                const auto stem_artist = library_artist_from_stem(library_track_stem(path));
+                if (!stem_artist.empty()) {
+                    artist.assign(stem_artist);
+                }
+            }
+            if (!artist.empty() && compare_ci(artist.view(), title.view()) == 0) {
+                artist.clear();
+            }
+
+            FixedString<96> album{};
+            if (const auto album_name = library_parent_folder(path); !album_name.empty()) {
+                album.assign(album_name);
+            }
+            const auto artist_group =
+                library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Artists);
+
+            FixedString<192> subtitle_line{};
+            const bool album_context = library_tab == LibraryTab::Albums;
+            const bool artist_context = library_tab == LibraryTab::Artists;
+            const bool album_looks_distinct_from_title =
+                !album.empty() && compare_ci(album.view(), title.view()) != 0;
+            const bool artist_looks_distinct_from_title =
+                !artist.empty() && compare_ci(artist.view(), title.view()) != 0;
+            const bool artist_group_looks_distinct_from_title =
+                !artist_group.empty() && compare_ci(artist_group, title.view()) != 0;
+            const bool context_key_looks_distinct_from_title =
+                !library_context_key.empty() && compare_ci(library_context_key.view(), title.view()) != 0;
+            const bool list_title_looks_distinct_from_title =
+                !last_list_title_text.empty()
+                && compare_ci(last_list_title_text.view(), library_tab_title(library_tab)) != 0
+                && compare_ci(last_list_title_text.view(), title.view()) != 0;
+            if (artist_context && album_looks_distinct_from_title) {
+                subtitle_line.assign(album.view());
+            } else if (artist_context && artist_group_looks_distinct_from_title) {
+                subtitle_line.assign(artist_group);
+            } else if (artist_context && context_key_looks_distinct_from_title) {
+                subtitle_line.assign(library_context_key.view());
+            } else if (artist_context && list_title_looks_distinct_from_title) {
+                subtitle_line.assign(last_list_title_text.view());
+            } else if (artist_looks_distinct_from_title) {
+                subtitle_line.assign(artist.view());
+            } else {
+                subtitle_line.assign(artist_context ? "Unknown Album" : "Unknown Artist");
+            }
+
+            FixedString<128> meta_line{};
+            auto append_meta_part = [&](std::string_view value) {
+                if (value.empty()) return;
+                if (!meta_line.empty()) meta_line.append(" · ");
+                meta_line.append(value);
+            };
+            if (!album.empty()
+                && !album_context
+                && !(artist_context && subtitle_line.view() == album.view())) {
+                append_meta_part(album.view());
+            }
+            const auto format = format_from_path(path);
+            append_meta_part(format.empty() ? std::string_view{"Audio"} : format);
+
+            int duration_sec = cached_track_duration(track_idx);
+            if (duration_sec == kTrackDurationUnknown) {
+                int probed_duration = 0;
+                if (player::probe_duration_seconds(track.c_str(), probed_duration) && probed_duration > 0) {
+                    duration_sec = probed_duration;
+                } else {
+                    duration_sec = 0;
+                }
+            } else if (duration_sec < 0) {
+                duration_sec = 0;
+            }
+
+            char duration_buf[16]{};
+            if (duration_sec > 0) {
+                format_duration_compact(duration_sec, duration_buf, sizeof(duration_buf));
+                append_meta_part(duration_buf);
+            }
+
+            char size_buf[24]{};
+            format_bytes_compact(query_track_size(track.c_str()), size_buf, sizeof(size_buf));
+            if (size_buf[0] != '\0') {
+                append_meta_part(size_buf);
+            }
+
+            const std::string file_line = utf8_truncate_with_ellipsis(
+                library_file_name(path), 46);
+            const std::string directory_line = library_compact_popup_directory(
+                library_directory_path(path), 4, 58);
+            const std::string popup_title = utf8_truncate_with_ellipsis(title.view(), 28);
+            const std::string popup_subtitle = utf8_truncate_with_ellipsis(subtitle_line.view(), 24);
+            const std::string popup_meta = utf8_truncate_with_ellipsis(meta_line.view(), 42);
+
+            set_label(handles.list_info_eyebrow,
+                      library_popup_eyebrow(library_tab, library_has_context(), list_shuffle_enabled));
+            set_label(handles.list_info_title,
+                      popup_title.empty() ? title.c_str() : popup_title.c_str());
+            set_label(handles.list_info_subtitle,
+                      popup_subtitle.empty() ? subtitle_line.c_str() : popup_subtitle.c_str());
+            set_label(handles.list_info_meta,
+                      popup_meta.empty() ? meta_line.c_str() : popup_meta.c_str());
+            set_label(handles.list_info_path_title, library_popup_path_title());
+            set_label(handles.list_info_path,
+                      file_line.empty() ? track.c_str() : file_line.c_str());
+            set_label(handles.list_info_path_detail, directory_line.c_str());
+            set_label(handles.list_info_hint, library_popup_close_hint());
+
+            ::ui::scene::ImageId image_id = ::ui::scene::invalid_image_id();
+            std::string_view cover_path{};
+            if (track_idx < static_cast<int>(list_cover_paths.size())) {
+                cover_path = list_cover_paths[static_cast<std::size_t>(track_idx)].view();
+            }
+            image_id = resolve_list_cover_icon(path, cover_path);
+            set_image_slot_if_present(library_info_cover_slot(), image_id, false);
+            return true;
+        }
+
+        bool open_list_info_popup(int list_index) {
+            if (!access.valid()) return false;
+            if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return false;
+            const auto row = make_library_row_recipe(list_index);
+            if (row.group_row) return false;
+
+            const int track_idx = list_index_to_track(list_index);
+            if (track_idx < 0) return false;
+
+            list_info_popup_track_index = track_idx;
+            if (!populate_list_info_popup_content(track_idx)) {
+                close_list_info_popup();
+                return false;
+            }
+            set_list_info_popup_visible(true);
+            return true;
+        }
+
+        bool handle_list_info_popup_key(UiKey key) {
+            if (!list_info_popup_open()) return false;
+            switch (key) {
+            case UiKey::Left:
+            case UiKey::Enter:
+                close_list_info_popup();
+                return true;
+            case UiKey::Up:
+            case UiKey::Down:
+                return true;
+            default:
+                return false;
+            }
+        }
+
         void open_list_action_menu(int list_index) {
             if (!access.valid()) return;
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) {
                 close_list_action_menu();
                 return;
             }
+            close_list_info_popup();
 
             list_action_menu_index = list_index;
 
@@ -1107,7 +1774,8 @@
                 last_list_selected = list_index;
             }
 
-            const auto row = make_library_row_recipe(list_index);
+            const char* menu_title =
+                library_action_menu_title(library_tab, library_has_context());
             ::ui::scene::AnchoredMenuItemSpec items[3]{};
             const std::size_t item_count = build_list_action_menu_items(list_index, items);
 
@@ -1125,10 +1793,12 @@
                 {
                     .anchor = anchor_rect,
                     .viewport = {0, 0, screen_width, screen_height},
-                    .title = row.menu_title_cstr,
+                    .title = menu_title,
                     .items = items,
                     .item_count = item_count,
-                });
+                },
+                library_action_menu_spec());
+            apply_library_action_menu_theme();
             const int initial_focus = ::ui::scene::anchored_menu_first_visible_index(items, item_count);
             if (initial_focus >= 0) {
                 focus_list_action_menu_item(initial_focus);
@@ -1148,6 +1818,12 @@
             const int list_index = list_action_menu_index;
             close_list_action_menu();
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
+
+            const auto row = make_library_row_recipe(list_index);
+            if (!row.group_row) {
+                (void)open_list_info_popup(list_index);
+                return;
+            }
 
             char buf[224]{};
             if (!format_library_row_secondary_status(list_index, buf, sizeof(buf))) return;
@@ -1299,10 +1975,14 @@
             return buf[0] != '\0';
         }
 
-        void apply_library_tab_style(WidgetHandle handle, bool active, int radius) {
+        void apply_library_tab_style(WidgetHandle handle,
+                                     bool active,
+                                     int radius,
+                                     const player::cover_theme::LibraryChromeColorRoles& roles) {
             if (!access.valid() || !handle) return;
+            const auto& role = active ? roles.tab_active : roles.tab_idle;
             ::ui::scene::PillSurfaceSpec spec{};
-            spec.bg_color = active ? kUiLibraryTabActive : kUiLibraryChipIdle;
+            spec.bg_color = role.bg;
             spec.border_color = {0, 0, 0, 0};
             spec.corner_radius = radius;
             StylePatch patch = ::ui::scene::make_pill_surface_patch(spec);
@@ -1317,17 +1997,21 @@
                 ? &get_player_font_px(19, FontWeight::Bold)
                 : &get_player_font_px(18, FontWeight::Medium);
             patch.has_font_color = true;
-            patch.font_color = active ? kUiLibraryTabTextActive : kUiLibraryChipTextMuted;
+            patch.font_color = role.fg;
             patch.has_border_focus = true;
-            patch.border_focus = kUiLibraryTabBorderActive;
+            patch.border_focus = roles.focus_ring;
             access.set_style_override(handle, patch);
         }
 
-        void apply_library_chip_style(WidgetHandle handle, bool active, int radius,
+        void apply_library_chip_style(WidgetHandle handle,
+                                      bool active,
+                                      int radius,
+                                      const player::cover_theme::LibraryChromeColorRoles& roles,
                                       bool elevated = false) {
             if (!access.valid() || !handle) return;
+            const auto& role = active ? roles.chip_active : roles.chip_idle;
             ::ui::scene::PillSurfaceSpec spec{};
-            spec.bg_color = active ? kUiLibraryChipActive : kUiLibraryChipIdle;
+            spec.bg_color = role.bg;
             spec.border_color = {0, 0, 0, 0};
             spec.corner_radius = radius;
             StylePatch patch = ::ui::scene::make_pill_surface_patch(spec);
@@ -1338,20 +2022,104 @@
             patch.has_inner_stroke_enabled = true;
             patch.inner_stroke_enabled = false;
             patch.has_font_color = true;
-            patch.font_color = active
-                ? kUiLibraryChipTextActive
-                : (elevated ? kUiLibraryChipText : kUiLibraryChipTextMuted);
+            patch.font_color = role.fg;
             patch.has_font = true;
             patch.font = active
                 ? &get_player_font_px(elevated ? 17 : 17, FontWeight::Medium)
                 : &get_player_font_px(elevated ? 17 : 16, FontWeight::Regular);
             patch.has_border_focus = true;
-            patch.border_focus = kUiLibraryPathBorderActive;
+            patch.border_focus = roles.focus_ring;
             access.set_style_override(handle, patch);
+        }
+
+        void apply_library_action_menu_theme() noexcept {
+            if (!access.valid()) return;
+            constexpr rgba kTransparent{0, 0, 0, 0};
+            const auto roles = player::cover_theme::derive_library_action_menu_color_roles(now_playing_roles);
+
+            access.recolor_surface(handles.list_action_scrim, roles.scrim, kTransparent, kTransparent);
+            access.recolor_surface(handles.list_action_card,
+                                   roles.card.bg,
+                                   roles.card.border,
+                                   roles.card.fg);
+            access.set_text_color(handles.list_action_title, roles.title);
+            for (const WidgetHandle item : handles.list_action_items) {
+                access.recolor_surface(item, roles.item.bg, roles.item.border, roles.item.fg);
+            }
+        }
+
+        void apply_library_popup_theme() noexcept {
+            if (!access.valid()) return;
+            constexpr rgba kTransparent{0, 0, 0, 0};
+            const auto roles = player::cover_theme::derive_library_popup_color_roles(now_playing_roles);
+
+            access.recolor_surface(handles.list_info_scrim, roles.sheet_scrim, kTransparent, kTransparent);
+            access.recolor_surface(handles.list_info_card,
+                                   roles.sheet_card.bg,
+                                   roles.sheet_card.border,
+                                   roles.sheet_card.fg);
+            access.recolor_surface(handles.list_info_cover_plate,
+                                   roles.sheet_cover_plate.bg,
+                                   roles.sheet_cover_plate.border,
+                                   roles.sheet_cover_plate.fg);
+            access.recolor_surface(handles.list_info_close,
+                                   roles.sheet_close.bg,
+                                   roles.sheet_close.border,
+                                   roles.sheet_close.fg);
+            access.recolor_surface(handles.list_info_path_plate,
+                                   roles.sheet_path_plate.bg,
+                                   roles.sheet_path_plate.border,
+                                   roles.sheet_path_plate.fg);
+
+            access.set_text_color(handles.list_info_eyebrow, roles.sheet_eyebrow);
+            access.set_text_color(handles.list_info_title, roles.sheet_title);
+            access.set_text_color(handles.list_info_subtitle, roles.sheet_subtitle);
+            access.set_text_color(handles.list_info_meta, roles.sheet_meta);
+            access.set_text_color(handles.list_info_path_title, roles.sheet_path_title);
+            access.set_text_color(handles.list_info_path, roles.sheet_path_value);
+            access.set_text_color(handles.list_info_path_detail, roles.sheet_meta);
+            access.set_text_color(handles.list_info_hint, roles.sheet_hint);
+        }
+
+        bool library_page_active() const noexcept {
+            return current_page == PlayerPage::Library;
+        }
+
+        void apply_library_overlay_theme() noexcept {
+            apply_library_action_menu_theme();
+            apply_library_popup_theme();
+        }
+
+        void refresh_library_visual_content(bool invalidate_state = false) noexcept {
+            if (invalidate_state) {
+                invalidate_library_visual_state();
+            }
+            apply_library_overlay_theme();
+            update_library_state_visuals();
+            update_list_placeholder();
+        }
+
+        void refresh_library_visual_if_active(bool invalidate_state = false) noexcept {
+            if (!library_page_active()) return;
+            refresh_library_visual_content(invalidate_state);
+        }
+
+        void refresh_library_runtime_content() {
+            update_list_title();
+            update_list_path();
+            update_list_sort_label();
+            update_list_shuffle_label();
+            tick_list_duration_probe();
+        }
+
+        void refresh_library_body_content() {
+            refresh_library_visual_content();
+            refresh_library_runtime_content();
         }
 
         void update_library_state_visuals() {
             if (!access.valid()) return;
+            const auto roles = player::cover_theme::derive_library_chrome_color_roles(now_playing_roles);
             const bool has_context = library_has_context();
             const bool path_active = library_can_step_back();
             const bool sort_desc = list_sort == ListSort::NameDesc;
@@ -1371,16 +2139,41 @@
                 && library_visual_state.active_tab_rect.h == active_rect.h) {
                 return;
             }
-            apply_library_tab_style(handles.list_tab_songs, library_tab == LibraryTab::Songs, kLibraryTabRadius);
-            apply_library_tab_style(handles.list_tab_albums, library_tab == LibraryTab::Albums, kLibraryTabRadius);
-            apply_library_tab_style(handles.list_tab_artist, library_tab == LibraryTab::Artists, kLibraryTabRadius);
-            apply_library_chip_style(handles.list_shuffle, list_shuffle_enabled, kLibraryTabRadius, true);
-            apply_library_chip_style(handles.list_sort, sort_active, kLibrarySortRadius, true);
+            apply_library_tab_style(handles.list_tab_songs,
+                                    library_tab == LibraryTab::Songs,
+                                    kLibraryTabRadius,
+                                    roles);
+            apply_library_tab_style(handles.list_tab_albums,
+                                    library_tab == LibraryTab::Albums,
+                                    kLibraryTabRadius,
+                                    roles);
+            apply_library_tab_style(handles.list_tab_artist,
+                                    library_tab == LibraryTab::Artists,
+                                    kLibraryTabRadius,
+                                    roles);
+            apply_library_chip_style(handles.list_shuffle,
+                                     list_shuffle_enabled,
+                                     kLibraryTabRadius,
+                                     roles,
+                                     true);
+            apply_library_chip_style(handles.list_sort,
+                                     sort_active,
+                                     kLibrarySortRadius,
+                                     roles,
+                                     true);
             if (handles.list_sort) {
                 access.set_button_icon(handles.list_sort, list_shuffle_enabled ? icons.shuffle : icons.down);
             }
             if (handles.list_tab_indicator) {
                 const int indicator_w = std::max(36, active_rect.w / 4);
+                access.set_style_override(handles.list_tab_indicator, ::ui::scene::make_clean_surface_patch({
+                    .apply_bg_color = true,
+                    .apply_border_color = true,
+                    .apply_corner_radius = true,
+                    .bg_color = roles.indicator,
+                    .border_color = {0, 0, 0, 0},
+                    .corner_radius = 2,
+                }));
                 access.set_rect(handles.list_tab_indicator,
                     {active_rect.x + (active_rect.w - indicator_w) / 2,
                      active_rect.y + active_rect.h + 5,
@@ -1390,9 +2183,7 @@
             if (handles.list_title) {
                 StylePatch patch{};
                 patch.has_font_color = true;
-                patch.font_color = has_context
-                    ? rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 255}
-                    : kUiTitle;
+                patch.font_color = has_context ? roles.title_context : roles.title;
                 patch.has_font = true;
                 patch.font = has_context
                     ? &get_player_font_px(24, FontWeight::Bold)
@@ -1402,16 +2193,16 @@
 
             if (handles.list_path_bg) {
                 const rgba path_bg = has_context
-                    ? with_alpha(kUiLibraryPathIdle, 180)
-                    : (path_active ? kUiLibraryPathActive : kUiLibraryPathIdle);
+                    ? roles.path_bg_context
+                    : (path_active ? roles.path_bg_active : roles.path_bg_idle);
                 const rgba path_gradient_start = has_context
-                    ? with_alpha(kUiLibraryPathActive, 208)
-                    : (path_active ? with_alpha(kUiLibraryPathActive, 248)
-                                   : with_alpha(kUiLibraryPathIdle, 236));
+                    ? roles.path_gradient_start_context
+                    : (path_active ? roles.path_gradient_start_active
+                                   : roles.path_gradient_start_idle);
                 const rgba path_gradient_end = has_context
-                    ? with_alpha(kUiLibraryPathIdle, 168)
-                    : (path_active ? with_alpha(kUiLibraryPathIdle, 224)
-                                   : with_alpha(kUiLibraryPathIdle, 228));
+                    ? roles.path_gradient_end_context
+                    : (path_active ? roles.path_gradient_end_active
+                                   : roles.path_gradient_end_idle);
                 auto patch = ::ui::scene::make_clean_surface_patch({
                     .apply_bg_color = true,
                     .apply_border_color = true,
@@ -1434,10 +2225,10 @@
                 StylePatch patch{};
                 patch.has_font_color = true;
                 patch.font_color = has_context
-                    ? with_alpha(kUiLibraryPathTextActive, 184)
+                    ? roles.path_text_context
                     : path_active
-                    ? kUiLibraryPathTextActive
-                    : with_alpha(kUiLibraryPathText, 236);
+                    ? roles.path_text_active
+                    : roles.path_text_idle;
                 patch.has_font_role = true;
                 patch.font_role = FontId::Small;
                 patch.has_font_weight = true;
@@ -1676,18 +2467,17 @@
             auto* self = static_cast<PlayerController*>(const_cast<void*>(ctx));
             if (!self) return ::ui::scene::invalid_image_id();
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
-            const bool is_active = row.current_row && !row.group_row;
             if (row.track_path.empty()) {
                 return ::ui::scene::invalid_image_id();
+            }
+            if (!library_list_uses_cover_art()) {
+                return row.fallback_icon;
             }
             if (!row.prefer_cover) {
                 return row.fallback_icon;
             }
             const auto cover_id = self->resolve_list_cover_icon(row.track_path, row.cover_path);
             if (::ui::scene::image_id_valid(cover_id)) return cover_id;
-            if (is_active) {
-                return row.tail_icon;
-            }
             return row.fallback_icon;
         }
 
@@ -1697,6 +2487,7 @@
                     release_cover_image(entry.image);
                 }
                 entry.path.clear();
+                entry.missing = false;
             }
             list_cover_next = 0;
         }
@@ -1751,15 +2542,17 @@
             } else {
                 return ::ui::scene::invalid_image_id();
             }
+            if (!library_allows_cover_request(track_path, cover_path.view())) {
+                return ::ui::scene::invalid_image_id();
+            }
             if (cover_image.path == cover_path.view()
                 && ::ui::scene::image_id_valid(cover_image.image_id)) {
                 return cover_image.image_id;
             }
             for (auto& entry : list_cover_cache) {
-                if (entry.path.view() == cover_path.view()
-                    && ::ui::scene::image_id_valid(entry.image.image_id)) {
-                    return entry.image.image_id;
-                }
+                if (entry.path.view() != cover_path.view()) continue;
+                if (entry.missing) return ::ui::scene::invalid_image_id();
+                if (::ui::scene::image_id_valid(entry.image.image_id)) return entry.image.image_id;
             }
             if (::ui::gfx::image_registry_locked()) {
                 return ::ui::scene::invalid_image_id();
@@ -1770,10 +2563,11 @@
                 release_cover_image(slot.image);
             }
             slot.path.assign(cover_path.view());
+            slot.missing = false;
             if (load_cover_image(cover_path.view(), slot.image)) {
                 return slot.image.image_id;
             }
-            slot.path.clear();
+            slot.missing = true;
             return ::ui::scene::invalid_image_id();
         }
 
@@ -1939,6 +2733,7 @@
         }
 
         void set_library_tab(LibraryTab tab) {
+            close_list_info_popup();
             close_list_action_menu();
             if (library_tab == tab) {
                 if (library_has_context()) {
@@ -1958,6 +2753,7 @@
         }
 
         bool set_library_context_for_preview(std::string_view key) {
+            close_list_info_popup();
             close_list_action_menu();
             if (library_tab == LibraryTab::Songs) return false;
             if (key.empty()) return false;
@@ -1976,6 +2772,7 @@
         }
 
         bool open_first_library_group_for_preview() {
+            close_list_info_popup();
             close_list_action_menu();
             if (library_tab == LibraryTab::Songs) return false;
             if (!library_shows_group_rows()) return false;
@@ -1990,6 +2787,7 @@
         }
 
         bool set_library_selected_index_for_preview(int list_index) {
+            close_list_info_popup();
             close_list_action_menu();
             if (!access.valid() || !handles.list) return false;
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return false;
@@ -2007,7 +2805,59 @@
             return true;
         }
 
+        bool open_library_info_popup_for_preview(int list_index = -1) {
+            close_list_action_menu();
+            if (!access.valid()) return false;
+
+            auto try_open = [&](int candidate) {
+                if (candidate < 0 || candidate >= static_cast<int>(list_order.size())) return false;
+                const auto row = make_library_row_recipe(candidate);
+                if (row.group_row) return false;
+                return open_list_info_popup(candidate);
+            };
+
+            if (try_open(list_index)) {
+                return true;
+            }
+            if (try_open(last_list_selected)) {
+                return true;
+            }
+            for (int candidate = 0; candidate < static_cast<int>(list_order.size()); ++candidate) {
+                if (try_open(candidate)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool open_library_action_menu_for_preview(int list_index = -1) {
+            close_list_info_popup();
+            if (!access.valid()) return false;
+
+            auto try_open = [&](int candidate) {
+                if (candidate < 0 || candidate >= static_cast<int>(list_order.size())) return false;
+                const auto row = make_library_row_recipe(candidate);
+                if (row.group_row) return false;
+                open_list_action_menu(candidate);
+                return list_action_menu_index == candidate;
+            };
+
+            if (try_open(list_index)) {
+                return true;
+            }
+            if (try_open(last_list_selected)) {
+                return true;
+            }
+            for (int candidate = 0; candidate < static_cast<int>(list_order.size()); ++candidate) {
+                if (try_open(candidate)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         void toggle_library_shuffle() {
+            close_list_info_popup();
             close_list_action_menu();
             list_shuffle_enabled = !list_shuffle_enabled;
             if (list_shuffle_enabled) {
@@ -2020,6 +2870,7 @@
         }
 
         void reset_library_context() {
+            close_list_info_popup();
             close_list_action_menu();
             if (library_has_context()) {
                 library_context_key.clear();
@@ -2044,7 +2895,8 @@
             show_library_view_status();
         }
 
-        void apply_storage_view(StorageView view) {
+        void apply_storage_view(StorageView view, bool allow_track_preload = true) {
+            close_list_info_popup();
             close_list_action_menu();
             storage = view;
             fs_ready = storage.fs_ready;
@@ -2053,7 +2905,7 @@
             reset_track_duration_cache();
             refresh_track_labels();
             build_list_cover_paths();
-            sync_home_collage_images(true);
+            refresh_home_collage_if_active(true);
             if (fs_ready && !font_retry_done && !font_ttf_path.empty()) {
                 rebind_player_fonts();
                 font_retry_done = true;
@@ -2068,8 +2920,10 @@
 #endif
             refresh_list_view();
             update_list_placeholder();
-            if (fs_ready && storage.tracks && storage.tracks->size() > 0
-                && !playback.playing() && !playback.paused()
+            if (allow_track_preload
+                && fs_ready && storage.tracks && storage.tracks->size() > 0
+                && handles.list
+                && !has_active_playback()
                 && !track_preloaded) {
                 load_track_index(track_index);
             }
@@ -2123,6 +2977,7 @@
 
         void update_list_placeholder() {
             if (!access.valid() || !handles.list_hint) return;
+            const auto roles = player::cover_theme::derive_library_chrome_color_roles(now_playing_roles);
             const int count = static_cast<int>(list_order.size());
             const bool show_empty = (count == 0);
             const bool show_group_hint = !show_empty && library_shows_group_rows();
@@ -2144,7 +2999,7 @@
             access.set_visible(handles.list_hint, show);
             if (!show) return;
             if (show_empty && !mount_status.empty()) {
-                apply_hint_style(with_alpha(kUiSubtitle, 230), FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_default, FontWeight::Medium, 14);
                 if (last_list_hint_text.view() == mount_status.view()) return;
                 last_list_hint_text.assign(mount_status.view());
                 set_label_slot(handles.list_hint, text_slots.list_hint, mount_status.c_str());
@@ -2153,7 +3008,7 @@
             const char* hint = "";
             char buf[160]{};
             if (show_group_hint) {
-                apply_hint_style(with_alpha(kUiLibraryPathTextActive, 214), FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_accent, FontWeight::Medium, 14);
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
@@ -2177,7 +3032,7 @@
                     sizeof(summary_buf));
                 const bool has_path_hint = format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf));
                 if (summary_buf[0] != '\0') {
-                    apply_hint_style(with_alpha(kUiSubtitle, 236), FontWeight::Medium, 14);
+                    apply_hint_style(roles.hint_context, FontWeight::Medium, 14);
                     if (has_path_hint) {
                         std::snprintf(buf, sizeof(buf), "%s | %s", summary_buf, path_hint_buf);
                         hint = buf;
@@ -2185,11 +3040,11 @@
                         hint = summary_buf;
                     }
                 } else if (has_path_hint) {
-                    apply_hint_style(with_alpha(kUiLibraryPathTextActive, 188), FontWeight::Medium, 14);
+                    apply_hint_style(roles.hint_accent, FontWeight::Medium, 14);
                     hint = path_hint_buf;
                 }
             } else if (show_tracks_hint) {
-                apply_hint_style(with_alpha(kUiSubtitle, 230), FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_default, FontWeight::Medium, 14);
                 const char* track_label = (count == 1) ? "track" : "tracks";
                 if (list_shuffle_enabled) {
                     std::snprintf(buf, sizeof(buf), "%d %s available | Shuffled",
@@ -2204,7 +3059,7 @@
                 }
                 hint = buf;
             } else {
-                apply_hint_style(with_alpha(kUiSubtitle, 236),
+                apply_hint_style(roles.hint_default,
                                  !fs_ready ? FontWeight::Medium : FontWeight::Regular,
                                  14);
                 if (!fs_ready) {

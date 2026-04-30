@@ -1,7 +1,6 @@
 ﻿        int resolve_next_track() {
-            const auto* tracks = storage.tracks;
-            if (!tracks || tracks->size() == 0) return -1;
-            const int count = static_cast<int>(tracks->size());
+            const int count = available_track_count();
+            if (count <= 0) return -1;
             if (play_mode == 1) {
                 return track_index;
             }
@@ -22,8 +21,7 @@
         }
 
         void handle_track_end() {
-            const auto* tracks = storage.tracks;
-            if (!fs_ready || !tracks || tracks->size() == 0) {
+            if (!fs_ready || !has_available_tracks()) {
                 stop_playback();
                 return;
             }
@@ -32,10 +30,7 @@
                 stop_playback();
                 return;
             }
-            stop_playback();
-            if (load_track_index(next)) {
-                start_playback();
-            }
+            load_track_with_resume_mode(next, TrackResumeMode::Playing);
         }
 
         void update_duration_from_player() {

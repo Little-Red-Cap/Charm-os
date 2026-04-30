@@ -1,4 +1,5 @@
 module;
+#include <algorithm>
 #include <utility>
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +21,15 @@ import alg_circle;
 import alg_round_rect;
 
 namespace ui::render {
+
+export enum class ImageShapeKind : std::uint8_t {
+    Auto = 0,
+    Rect = 1,
+    RoundRect = 2,
+    Squircle = 3,
+    CutCorner = 4,
+    SoftSquircle = 5,
+};
 
 inline constexpr int abs_int(int v) noexcept {
     return (v < 0) ? -v : v;
@@ -431,6 +441,25 @@ inline int scaled_sample_index(int dst_coord,
     return sample;
 }
 
+inline int scaled_sample_index_float(float dst_local,
+                                     int dst_extent,
+                                     int src_extent,
+                                     int src_inset = 0) noexcept {
+    if (src_extent <= 1 || dst_extent <= 1) return 0;
+    const int max_inset = (src_extent - 1) / 2;
+    if (src_inset < 0) src_inset = 0;
+    if (src_inset > max_inset) src_inset = max_inset;
+    const int sample_extent = src_extent - src_inset * 2;
+    if (sample_extent <= 0) return src_extent / 2;
+    const float normalized = (dst_local + 0.5f) / static_cast<float>(dst_extent);
+    int sample = src_inset + static_cast<int>(normalized * static_cast<float>(sample_extent));
+    const int min_sample = src_inset;
+    const int max_sample_index = src_extent - 1 - src_inset;
+    if (sample < min_sample) return min_sample;
+    if (sample > max_sample_index) return max_sample_index;
+    return sample;
+}
+
 template<PixelFormat PF, std::size_t W, std::size_t H>
 inline void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y, const rgba& src, bool premultiplied) noexcept {
     if (src.a == 255) {
@@ -522,6 +551,30 @@ export inline void draw_image(CanvasBase& cvs,
 }
 
 namespace detail {
+inline float clamp_unit(float value) noexcept {
+    if (value <= 0.0f) return 0.0f;
+    if (value >= 1.0f) return 1.0f;
+    return value;
+}
+
+inline std::uint8_t alpha_from_coverage(float coverage) noexcept {
+    const float clamped = clamp_unit(coverage);
+    if (clamped <= 0.0f) return 0;
+    if (clamped >= 1.0f) return 255;
+    return static_cast<std::uint8_t>(clamped * 255.0f);
+}
+
+inline std::uint8_t alpha_from_signed_edge(float signed_edge) noexcept {
+    return alpha_from_coverage(signed_edge + 0.5f);
+}
+
+inline int clamp_shape_extent(const Rect& r, int extent) noexcept {
+    if (extent <= 0) return 0;
+    const int max_extent = ((r.w < r.h) ? r.w : r.h) / 2;
+    if (max_extent <= 0) return 0;
+    return (extent > max_extent) ? max_extent : extent;
+}
+
 inline std::uint8_t round_rect_alpha(int x, int y, const Rect& r, int radius) noexcept {
     if (radius <= 0) return 255;
     const int rad = (radius * 2 > r.w) ? (r.w / 2) : ((radius * 2 > r.h) ? (r.h / 2) : radius);
@@ -549,16 +602,229 @@ inline std::uint8_t round_rect_alpha(int x, int y, const Rect& r, int radius) no
     if (out >= 255) return 255;
     return static_cast<std::uint8_t>(out);
 }
+
+inline std::uint8_t squircle_alpha(int x,
+                                   int y,
+                                   const Rect& r,
+                                   int extent) noexcept {
+    if (r.w <= 0 || r.h <= 0) return 0;
+    const float half_w = static_cast<float>(r.w) * 0.5f;
+    const float half_h = static_cast<float>(r.h) * 0.5f;
+    if (half_w <= 0.0f || half_h <= 0.0f) return 0;
+    const float cx = static_cast<float>(r.x) + half_w;
+    const float cy = static_cast<float>(r.y) + half_h;
+    const float px = static_cast<float>(x) + 0.5f;
+    const float py = static_cast<float>(y) + 0.5f;
+    const float nx = std::fabs((px - cx) / half_w);
+    const float ny = std::fabs((py - cy) / half_h);
+    const int eff_extent = clamp_shape_extent(r, extent);
+    const float min_half = (half_w < half_h) ? half_w : half_h;
+    float roundness = 0.0f;
+    if (min_half > 0.0f) {
+        roundness = static_cast<float>(eff_extent) / min_half;
+    }
+    roundness = clamp_unit(roundness);
+    const float s = 0.78f + 0.18f * roundness;
+    const float nx2 = nx * nx;
+    const float ny2 = ny * ny;
+    const float value = nx2 + ny2 - (s * s * nx2 * ny2);
+    const float feather = (min_half > 0.0f) ? (1.5f / min_half) : 1.0f;
+    const float signed_edge = (1.0f - value) / feather;
+    return alpha_from_signed_edge(signed_edge);
+}
+
+inline std::uint8_t soft_squircle_alpha(int x,
+                                        int y,
+                                        const Rect& r,
+                                        int extent) noexcept {
+    if (r.w <= 0 || r.h <= 0) return 0;
+    const float half_w = static_cast<float>(r.w) * 0.5f;
+    const float half_h = static_cast<float>(r.h) * 0.5f;
+    if (half_w <= 0.0f || half_h <= 0.0f) return 0;
+    const float cx = static_cast<float>(r.x) + half_w;
+    const float cy = static_cast<float>(r.y) + half_h;
+    const float px = static_cast<float>(x) + 0.5f;
+    const float py = static_cast<float>(y) + 0.5f;
+    const float nx = std::fabs((px - cx) / half_w);
+    const float ny = std::fabs((py - cy) / half_h);
+    const int eff_extent = clamp_shape_extent(r, extent);
+    const float min_half = (half_w < half_h) ? half_w : half_h;
+    float roundness = 0.0f;
+    if (min_half > 0.0f) {
+        roundness = static_cast<float>(eff_extent) / min_half;
+    }
+    roundness = clamp_unit(roundness);
+    const float s = 0.88f + 0.11f * roundness;
+    const float nx2 = nx * nx;
+    const float ny2 = ny * ny;
+    const float value = nx2 + ny2 - (s * s * nx2 * ny2);
+    const float feather = (min_half > 0.0f) ? (1.8f / min_half) : 1.0f;
+    const float signed_edge = (1.0f - value) / feather;
+    return alpha_from_signed_edge(signed_edge);
+}
+
+inline std::uint8_t cut_corner_alpha(int x,
+                                     int y,
+                                     const Rect& r,
+                                     int extent) noexcept {
+    const int cut = clamp_shape_extent(r, extent);
+    if (cut <= 0) return 255;
+    const float left = static_cast<float>(r.x);
+    const float right = static_cast<float>(r.x + r.w);
+    const float top = static_cast<float>(r.y);
+    const float bottom = static_cast<float>(r.y + r.h);
+    const float px = static_cast<float>(x) + 0.5f;
+    const float py = static_cast<float>(y) + 0.5f;
+    const float cut_f = static_cast<float>(cut);
+
+    if (px < left + cut_f && py < top + cut_f) {
+        return alpha_from_signed_edge((px - left) + (py - top) - cut_f);
+    }
+    if (px > right - cut_f && py < top + cut_f) {
+        return alpha_from_signed_edge((right - px) + (py - top) - cut_f);
+    }
+    if (px < left + cut_f && py > bottom - cut_f) {
+        return alpha_from_signed_edge((px - left) + (bottom - py) - cut_f);
+    }
+    if (px > right - cut_f && py > bottom - cut_f) {
+        return alpha_from_signed_edge((right - px) + (bottom - py) - cut_f);
+    }
+    return 255;
+}
+
+inline std::uint8_t image_shape_alpha(int x,
+                                      int y,
+                                      const Rect& r,
+                                      ImageShapeKind kind,
+                                      int extent) noexcept {
+    switch (kind) {
+    case ImageShapeKind::RoundRect:
+        return round_rect_alpha(x, y, r, extent);
+    case ImageShapeKind::Squircle:
+        return squircle_alpha(x, y, r, extent);
+    case ImageShapeKind::CutCorner:
+        return cut_corner_alpha(x, y, r, extent);
+    case ImageShapeKind::SoftSquircle:
+        return soft_squircle_alpha(x, y, r, extent);
+    case ImageShapeKind::Auto:
+    case ImageShapeKind::Rect:
+    default:
+        return 255;
+    }
+}
+
+inline float rotated_image_fit_scale(const Rect& r, float cosv, float sinv) noexcept {
+    if (r.w <= 0 || r.h <= 0) return 0.0f;
+    const float abs_cos = std::fabs(cosv);
+    const float abs_sin = std::fabs(sinv);
+    const float width_extent =
+        static_cast<float>(r.w) * abs_cos + static_cast<float>(r.h) * abs_sin;
+    const float height_extent =
+        static_cast<float>(r.w) * abs_sin + static_cast<float>(r.h) * abs_cos;
+    if (width_extent <= 0.0f || height_extent <= 0.0f) return 0.0f;
+    const float scale_x = static_cast<float>(r.w) / width_extent;
+    const float scale_y = static_cast<float>(r.h) / height_extent;
+    return (scale_x < scale_y) ? scale_x : scale_y;
+}
+
+inline void draw_image_scaled_shaped_rotated(CanvasBase& cvs,
+                                             const Rect& rect,
+                                             const ImageView& img,
+                                             int extent,
+                                             ImageShapeKind shape,
+                                             int rotation_deg) noexcept {
+    if (!img.data || img.w <= 0 || img.h <= 0 || rect.w <= 0 || rect.h <= 0) return;
+    const float angle = static_cast<float>(rotation_deg) * 3.1415926f / 180.0f;
+    const float cosv = std::cos(angle);
+    const float sinv = std::sin(angle);
+    const float fit_scale = rotated_image_fit_scale(rect, cosv, sinv);
+    const float half_w = static_cast<float>(rect.w) * 0.5f * fit_scale;
+    const float half_h = static_cast<float>(rect.h) * 0.5f * fit_scale;
+    if (half_w <= 0.0f || half_h <= 0.0f) return;
+
+    const Rect local_rect{
+        0,
+        0,
+        std::max(1, static_cast<int>(std::lround(half_w * 2.0f))),
+        std::max(1, static_cast<int>(std::lround(half_h * 2.0f)))
+    };
+    const float cx = static_cast<float>(rect.x) + static_cast<float>(rect.w) * 0.5f;
+    const float cy = static_cast<float>(rect.y) + static_cast<float>(rect.h) * 0.5f;
+
+    int x0 = rect.x;
+    int y0 = rect.y;
+    int x1 = rect.x + rect.w;
+    int y1 = rect.y + rect.h;
+    if (x1 <= 0 || y1 <= 0) return;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+
+    for (int y = y0; y < y1; ++y) {
+        for (int x = x0; x < x1; ++x) {
+            if (!cvs.in_clip(x, y)) continue;
+
+            const float px = static_cast<float>(x) + 0.5f;
+            const float py = static_cast<float>(y) + 0.5f;
+            const float dx = px - cx;
+            const float dy = py - cy;
+            const float local_dx = dx * cosv + dy * sinv;
+            const float local_dy = -dx * sinv + dy * cosv;
+            if (local_dx < -half_w || local_dx > half_w || local_dy < -half_h || local_dy > half_h) {
+                continue;
+            }
+
+            const float local_x = (local_dx + half_w) / (half_w * 2.0f);
+            const float local_y = (local_dy + half_h) / (half_h * 2.0f);
+            if (local_x < 0.0f || local_x > 1.0f || local_y < 0.0f || local_y > 1.0f) continue;
+
+            std::uint8_t mask = 255;
+            if (shape != ImageShapeKind::Auto && shape != ImageShapeKind::Rect) {
+                int mask_x = static_cast<int>(local_x * static_cast<float>(local_rect.w));
+                int mask_y = static_cast<int>(local_y * static_cast<float>(local_rect.h));
+                if (mask_x >= local_rect.w) mask_x = local_rect.w - 1;
+                if (mask_y >= local_rect.h) mask_y = local_rect.h - 1;
+                mask = image_shape_alpha(mask_x, mask_y, local_rect, shape, extent);
+                if (mask == 0) continue;
+            }
+
+            const int sx = scaled_sample_index_float(
+                local_x * static_cast<float>(local_rect.w),
+                local_rect.w,
+                img.w,
+                img.sample_inset_px);
+            const int sy = scaled_sample_index_float(
+                local_y * static_cast<float>(local_rect.h),
+                local_rect.h,
+                img.h,
+                img.sample_inset_px);
+            rgba out = decode_pixel(img, sx, sy);
+            if (mask != 255) {
+                out.a = static_cast<std::uint8_t>((static_cast<int>(out.a) * mask) / 255);
+            }
+            blend_pixel(cvs, x, y, out, img.premultiplied_alpha);
+        }
+    }
+}
 } // namespace detail
 
-export inline void draw_image_round_rect(CanvasBase& cvs,
-                                         int dst_x, int dst_y,
-                                         const ImageView& img,
-                                         int radius) noexcept
+export inline void draw_image_shaped(CanvasBase& cvs,
+                                     int dst_x, int dst_y,
+                                     const ImageView& img,
+                                     int extent,
+                                     ImageShapeKind shape,
+                                     int rotation_deg = 0) noexcept
 {
     if (!img.data || img.w <= 0 || img.h <= 0) return;
-    const int eff_radius = (radius > 0) ? radius : 0;
+    const int normalized_rotation = rotation_deg % 360;
+    if (normalized_rotation == 0 && (shape == ImageShapeKind::Auto || shape == ImageShapeKind::Rect)) {
+        draw_image(cvs, dst_x, dst_y, img);
+        return;
+    }
     Rect rect{dst_x, dst_y, img.w, img.h};
+    if (normalized_rotation != 0) {
+        detail::draw_image_scaled_shaped_rotated(cvs, rect, img, extent, shape, normalized_rotation);
+        return;
+    }
     int x0 = rect.x;
     int y0 = rect.y;
     int x1 = rect.x + rect.w;
@@ -573,7 +839,7 @@ export inline void draw_image_round_rect(CanvasBase& cvs,
         for (int x = x0; x < x1; ++x) {
             const int ix = sx + (x - x0);
             if (!cvs.in_clip(x, y)) continue;
-            const std::uint8_t mask = detail::round_rect_alpha(x, y, rect, eff_radius);
+            const std::uint8_t mask = detail::image_shape_alpha(x, y, rect, shape, extent);
             if (mask == 0) continue;
             if (img.format == PixelFormat::RGB565) {
                 const std::byte* p = row + ix * 2;
@@ -607,6 +873,14 @@ export inline void draw_image_round_rect(CanvasBase& cvs,
             }
         }
     }
+}
+
+export inline void draw_image_round_rect(CanvasBase& cvs,
+                                         int dst_x, int dst_y,
+                                         const ImageView& img,
+                                         int radius) noexcept
+{
+    draw_image_shaped(cvs, dst_x, dst_y, img, radius, ImageShapeKind::RoundRect, 0);
 }
 
 export template<PixelFormat PF, std::size_t W, std::size_t H>
@@ -664,15 +938,25 @@ export inline void draw_image_scaled(CanvasBase& cvs,
     }
 }
 
-export inline void draw_image_scaled_round_rect(CanvasBase& cvs,
-                                                int dst_x, int dst_y,
-                                                int dst_w, int dst_h,
-                                                const ImageView& img,
-                                                int radius) noexcept
+export inline void draw_image_scaled_shaped(CanvasBase& cvs,
+                                            int dst_x, int dst_y,
+                                            int dst_w, int dst_h,
+                                            const ImageView& img,
+                                            int extent,
+                                            ImageShapeKind shape,
+                                            int rotation_deg = 0) noexcept
 {
     if (!img.data || img.w <= 0 || img.h <= 0 || dst_w <= 0 || dst_h <= 0) return;
-    const int eff_radius = (radius > 0) ? radius : 0;
+    const int normalized_rotation = rotation_deg % 360;
+    if (normalized_rotation == 0 && (shape == ImageShapeKind::Auto || shape == ImageShapeKind::Rect)) {
+        draw_image_scaled(cvs, dst_x, dst_y, dst_w, dst_h, img);
+        return;
+    }
     Rect rect{dst_x, dst_y, dst_w, dst_h};
+    if (normalized_rotation != 0) {
+        detail::draw_image_scaled_shaped_rotated(cvs, rect, img, extent, shape, normalized_rotation);
+        return;
+    }
     int x0 = rect.x;
     int y0 = rect.y;
     int x1 = rect.x + rect.w;
@@ -684,7 +968,7 @@ export inline void draw_image_scaled_round_rect(CanvasBase& cvs,
         const int sy = detail::scaled_sample_index(y, dst_y, dst_h, img.h, img.sample_inset_px);
         for (int x = x0; x < x1; ++x) {
             if (!cvs.in_clip(x, y)) continue;
-            const std::uint8_t mask = detail::round_rect_alpha(x, y, rect, eff_radius);
+            const std::uint8_t mask = detail::image_shape_alpha(x, y, rect, shape, extent);
             if (mask == 0) continue;
             const int sx = detail::scaled_sample_index(x, dst_x, dst_w, img.w, img.sample_inset_px);
             const rgba src = detail::decode_pixel(img, sx, sy);
@@ -693,6 +977,15 @@ export inline void draw_image_scaled_round_rect(CanvasBase& cvs,
             detail::blend_pixel(cvs, x, y, out, img.premultiplied_alpha);
         }
     }
+}
+
+export inline void draw_image_scaled_round_rect(CanvasBase& cvs,
+                                                int dst_x, int dst_y,
+                                                int dst_w, int dst_h,
+                                                const ImageView& img,
+                                                int radius) noexcept
+{
+    draw_image_scaled_shaped(cvs, dst_x, dst_y, dst_w, dst_h, img, radius, ImageShapeKind::RoundRect, 0);
 }
 
 export template<PixelFormat PF, std::size_t W, std::size_t H>

@@ -1,0 +1,42 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/cmake-build-player-usb-audio-${presetName}",
+            "cacheVariables": {}
+        },
+        {
+            "name": "g431-debug",
+            "inherits": "base",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/player-usb-audio-g431-gcc-arm-none-eabi.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "PLAYER_USB_AUDIO_PORT": "g431",
+                "PLAYER_USB_AUDIO_USB_STACK": "charm_cdc"
+            }
+        },
+        {
+            "name": "g431-uac-st-debug",
+            "inherits": "base",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/player-usb-audio-g431-gcc-arm-none-eabi.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "PLAYER_USB_AUDIO_PORT": "g431",
+                "PLAYER_USB_AUDIO_USB_STACK": "st_uac"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "g431-debug",
+            "configurePreset": "g431-debug"
+        },
+        {
+            "name": "g431-uac-st-debug",
+            "configurePreset": "g431-uac-st-debug"
+        }
+    ]
+}

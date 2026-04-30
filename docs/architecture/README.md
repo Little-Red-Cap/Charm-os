@@ -57,6 +57,12 @@
 - [`../system/README.md`](../system/README.md)
 - [`../../schemas/README.md`](../../schemas/README.md)
 
+### 我想看外部成熟产品对 Charm 机制的启发
+
+读：
+
+- [`tdesktop_mechanism_lessons_for_charm.md`](tdesktop_mechanism_lessons_for_charm.md)
+
 ### 我想看能力回收
 
 读：

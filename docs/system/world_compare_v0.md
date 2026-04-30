@@ -183,6 +183,9 @@ runtime summary 同时作为 current / baseline 输入：
 也会同步带上 world-compare verdict、collapse surface 与 next questions，
 不需要再手工进 `world_compare/` 子目录才能看见世界级结论。
 
+如果想看更像“交付封面页”的上层摘要，
+则继续看 `docs/system/system_compiler_biography_v0.md`。
+
 此时 compare 产物默认落在：
 
 - `out/minimal-kernel-runtime-system-compiler-witness/world_compare/summary.json`

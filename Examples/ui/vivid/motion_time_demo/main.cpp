@@ -112,6 +112,39 @@ int main() {
     if (!expect(none_motion.transform.x == 0, "none motion resolves final transform")) return 1;
     if (!expect(!none_motion.compose, "none motion does not request compose")) return 1;
 
+    const auto fade = ui::scene::sample_motion_recipe(
+        ui::scene::motion_fade(100),
+        ui::scene::LayerProfile::Rich,
+        0,
+        50);
+    if (!expect(fade.transform.x == 0 && fade.transform.y == 0, "fade recipe keeps position")) return 1;
+    if (!expect(fade.transform.opacity == 128, "fade recipe interpolates opacity")) return 1;
+
+    const auto slide = ui::scene::sample_motion_recipe(
+        ui::scene::motion_slide(ui::scene::MotionAxis::X, -120, 100),
+        ui::scene::LayerProfile::Rich,
+        0,
+        50);
+    if (!expect(slide.transform.x == -60, "slide recipe interpolates x")) return 1;
+    if (!expect(slide.transform.opacity == 255, "slide recipe keeps opacity")) return 1;
+
+    const auto fade_slide = ui::scene::sample_motion_recipe(
+        ui::scene::motion_fade_slide(ui::scene::MotionAxis::Y, 80, 100),
+        ui::scene::LayerProfile::Cheap,
+        0,
+        40);
+    if (!expect(fade_slide.tick.sampled_elapsed_ms == 33, "fade slide recipe uses effective profile time")) return 1;
+    if (!expect(fade_slide.transform.y == 54, "fade slide recipe interpolates y with quantized time")) return 1;
+    if (!expect(fade_slide.transform.opacity == 85, "fade slide recipe uses profile opacity law")) return 1;
+
+    const auto cut = ui::scene::sample_motion_recipe(
+        ui::scene::motion_cut(),
+        ui::scene::LayerProfile::Rich,
+        0,
+        0);
+    if (!expect(cut.transform.opacity == 255, "cut recipe resolves final opacity")) return 1;
+    if (!expect(cut.tick.finished && cut.compose, "cut recipe composes final state")) return 1;
+
     std::printf("[motion] rich progress=%.2f sampled=%llu\n",
                 static_cast<double>(rich.progress),
                 static_cast<unsigned long long>(rich.sampled_elapsed_ms));
@@ -124,6 +157,9 @@ int main() {
     std::printf("[motion] layer rich x=%d opacity=%u\n",
                 static_cast<int>(rich_motion.transform.x),
                 static_cast<unsigned>(rich_motion.transform.opacity));
+    std::printf("[motion] recipe fade_slide y=%d opacity=%u\n",
+                static_cast<int>(fade_slide.transform.y),
+                static_cast<unsigned>(fade_slide.transform.opacity));
     std::puts("[motion_time_demo] ok");
     return 0;
 }

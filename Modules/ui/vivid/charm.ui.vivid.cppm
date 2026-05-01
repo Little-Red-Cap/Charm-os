@@ -29,6 +29,7 @@ export import charm.ui.scene.page_layers;
 export import charm.ui.scene.layer_runtime;
 export import charm.ui.scene.motion_time;
 export import charm.ui.scene.motion_plan;
+export import charm.ui.scene.motion_recipe;
 export import charm.ui.scene.seek_bar_style;
 export import charm.ui.scene.text_style;
 

@@ -1,8 +1,10 @@
 module;
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 export module charm.ui.scene;
 
@@ -127,6 +129,87 @@ export namespace ui::scene {
         [[nodiscard]] constexpr bool ok() const noexcept {
             return status == LayerCaptureStatus::Ok;
         }
+    };
+
+    template<std::size_t MaxSlots>
+    class PixelSnapshotPayloadStore {
+    public:
+        [[nodiscard]] std::uint32_t store(CanvasBase& source, Rect bounds) noexcept {
+            if (bounds.w <= 0 || bounds.h <= 0) return kInvalidSnapshotPayloadSlot;
+            if (bounds.w > layer_cache_width || bounds.h > layer_cache_height) {
+                return kInvalidSnapshotPayloadSlot;
+            }
+            if (bounds.x < 0 || bounds.y < 0 ||
+                bounds.x + bounds.w > source.width() ||
+                bounds.y + bounds.h > source.height()) {
+                return kInvalidSnapshotPayloadSlot;
+            }
+            if (source.bytes_per_pixel() != ui::draw_cmd::bytes_per_pixel(screen_pixel_format)) {
+                return kInvalidSnapshotPayloadSlot;
+            }
+            for (std::size_t i = 0; i < occupied_.size(); ++i) {
+                if (occupied_[i]) continue;
+                if (!copy_from_canvas(buffers_[i], source, bounds)) {
+                    return kInvalidSnapshotPayloadSlot;
+                }
+                occupied_[i] = true;
+                widths_[i] = bounds.w;
+                heights_[i] = bounds.h;
+                return static_cast<std::uint32_t>(i);
+            }
+            return kInvalidSnapshotPayloadSlot;
+        }
+
+        [[nodiscard]] bool release(std::uint32_t slot) noexcept {
+            if (slot >= occupied_.size() || !occupied_[slot]) return false;
+            occupied_[slot] = false;
+            widths_[slot] = 0;
+            heights_[slot] = 0;
+            return true;
+        }
+
+        [[nodiscard]] const std::byte* row(std::uint32_t slot, int y) const noexcept {
+            if (slot >= occupied_.size() || !occupied_[slot]) return nullptr;
+            if (y < 0 || y >= heights_[slot]) return nullptr;
+            return buffers_[slot].data() + static_cast<std::size_t>(y) * stride_bytes;
+        }
+
+        [[nodiscard]] int width(std::uint32_t slot) const noexcept {
+            return (slot < widths_.size() && occupied_[slot]) ? widths_[slot] : 0;
+        }
+
+        [[nodiscard]] int height(std::uint32_t slot) const noexcept {
+            return (slot < heights_.size() && occupied_[slot]) ? heights_[slot] : 0;
+        }
+
+        static constexpr std::size_t stride_bytes =
+            static_cast<std::size_t>(layer_cache_width)
+            * ui::draw_cmd::bytes_per_pixel(screen_pixel_format);
+
+    private:
+        static constexpr std::size_t pixel_bytes =
+            static_cast<std::size_t>(layer_cache_width)
+            * static_cast<std::size_t>(layer_cache_height)
+            * ui::draw_cmd::bytes_per_pixel(screen_pixel_format);
+
+        static bool copy_from_canvas(std::array<std::byte, pixel_bytes>& target,
+                                     CanvasBase& source,
+                                     Rect bounds) noexcept {
+            const auto row_bytes = static_cast<std::size_t>(bounds.w) * source.bytes_per_pixel();
+            for (int y = 0; y < bounds.h; ++y) {
+                const auto* src = source.row_ptr(bounds.y + y);
+                if (!src) return false;
+                const auto src_offset = static_cast<std::size_t>(bounds.x) * source.bytes_per_pixel();
+                auto* dst = target.data() + static_cast<std::size_t>(y) * stride_bytes;
+                std::memcpy(dst, src + src_offset, row_bytes);
+            }
+            return true;
+        }
+
+        std::array<std::array<std::byte, pixel_bytes>, MaxSlots> buffers_{};
+        std::array<bool, MaxSlots> occupied_{};
+        std::array<int, MaxSlots> widths_{};
+        std::array<int, MaxSlots> heights_{};
     };
 
     template<std::size_t MaxSlots>
@@ -1009,7 +1092,11 @@ export namespace ui::scene {
         bool release_snapshot(SnapshotHandle handle) noexcept {
             if (const auto* record = snapshot_store_.record(handle);
                 record && record->payload_slot != kInvalidSnapshotPayloadSlot) {
-                (void)command_snapshot_payloads_.release(record->payload_slot);
+                if (record->kind == SnapshotKind::CommandBuffer) {
+                    (void)command_snapshot_payloads_.release(record->payload_slot);
+                } else if (record->kind == SnapshotKind::PixelSurface) {
+                    (void)pixel_snapshot_payloads_.release(record->payload_slot);
+                }
             }
             return snapshot_store_.release(handle);
         }
@@ -1064,6 +1151,38 @@ export namespace ui::scene {
         }
         SnapshotHandle capture_command_snapshot(const SnapshotSpec& spec) noexcept {
             return capture_command_snapshot_result(spec).handle;
+        }
+        LayerCaptureResult capture_pixel_snapshot_result(const SnapshotSpec& spec) noexcept {
+            LayerCaptureResult result{};
+            SnapshotSpec pixel_spec = spec;
+            pixel_spec.preferred_kind = SnapshotKind::PixelSurface;
+            pixel_spec.preferred_format = screen_pixel_format;
+            const auto handle = reserve_snapshot(pixel_spec);
+            if (!handle) return result;
+            result.handle = handle;
+            const auto payload_slot = pixel_snapshot_payloads_.store(canvas_, pixel_spec.bounds);
+            if (payload_slot == kInvalidSnapshotPayloadSlot) {
+                (void)release_snapshot(handle);
+                result.handle = {};
+                result.status = LayerCaptureStatus::StoreFailed;
+                return result;
+            }
+            const auto bytes = static_cast<std::uint32_t>(
+                snapshot_pixel_bytes(screen_pixel_format, pixel_spec.bounds.w, pixel_spec.bounds.h));
+            if (!snapshot_store_.update_pixel_snapshot(handle, screen_pixel_format, bytes)) {
+                (void)release_snapshot(handle);
+                result.handle = {};
+                result.status = LayerCaptureStatus::RecordFailed;
+                return result;
+            }
+            if (auto* record = snapshot_store_.mutable_record(handle)) {
+                record->payload_slot = payload_slot;
+            }
+            result.status = LayerCaptureStatus::Ok;
+            return result;
+        }
+        SnapshotHandle capture_pixel_snapshot(const SnapshotSpec& spec) noexcept {
+            return capture_pixel_snapshot_result(spec).handle;
         }
         bool update_pixel_snapshot(SnapshotHandle handle,
                                    PixelFormat format,
@@ -1124,6 +1243,62 @@ export namespace ui::scene {
             out.status = out.stats.failed_cmds == 0
                 ? LayerReplayStatus::Ok
                 : LayerReplayStatus::ExecuteFailed;
+            return out;
+        }
+        LayerReplayResult compose_pixel_snapshot(const LayerComposePlan& plan) noexcept {
+            LayerReplayResult out{};
+            out.source = plan.source;
+            out.kind = plan.kind;
+            out.target_bounds = plan.target_bounds;
+            if (!plan.valid) return out;
+            if (plan.kind != SnapshotKind::PixelSurface) {
+                out.status = LayerReplayStatus::UnsupportedKind;
+                return out;
+            }
+            const auto* record = snapshot_store_.record(plan.source);
+            if (!record) {
+                out.status = LayerReplayStatus::MissingSnapshot;
+                return out;
+            }
+            if (record->stale || record->epoch != make_layer_epoch()) {
+                (void)snapshot_store_.mark_stale(plan.source);
+                out.status = LayerReplayStatus::StaleSnapshot;
+                return out;
+            }
+            if (record->payload_slot == kInvalidSnapshotPayloadSlot
+                || pixel_snapshot_payloads_.width(record->payload_slot) <= 0
+                || pixel_snapshot_payloads_.height(record->payload_slot) <= 0) {
+                out.status = LayerReplayStatus::MissingPayload;
+                return out;
+            }
+            if (plan.target_bounds.x < 0 || plan.target_bounds.y < 0 ||
+                plan.target_bounds.x + plan.target_bounds.w > canvas_.width() ||
+                plan.target_bounds.y + plan.target_bounds.h > canvas_.height()) {
+                out.status = LayerReplayStatus::ExecuteFailed;
+                return out;
+            }
+            const auto row_bytes =
+                static_cast<std::size_t>(plan.source_visible.w) * canvas_.bytes_per_pixel();
+            for (int y = 0; y < plan.source_visible.h; ++y) {
+                const int source_y = plan.source_visible.y - plan.source_bounds.y + y;
+                const int source_x = plan.source_visible.x - plan.source_bounds.x;
+                const auto* src = pixel_snapshot_payloads_.row(record->payload_slot, source_y);
+                if (!src) {
+                    out.status = LayerReplayStatus::ExecuteFailed;
+                    return out;
+                }
+                const auto src_offset =
+                    static_cast<std::size_t>(source_x) * canvas_.bytes_per_pixel();
+                canvas_.blit_span(plan.target_bounds.x,
+                                  plan.target_bounds.y + y,
+                                  src + src_offset,
+                                  row_bytes);
+            }
+            canvas_.mark_dirty(plan.target_bounds);
+            snapshot_store_.note_pixel_blit(plan.composite_pixels);
+            out.stats.cmd_count = 0;
+            out.stats.cmd_bytes = 0;
+            out.status = LayerReplayStatus::Ok;
             return out;
         }
 
@@ -1254,6 +1429,7 @@ export namespace ui::scene {
         WidgetHandle root_{};
         ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf_{};
         CommandSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)> command_snapshot_payloads_{};
+        PixelSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)> pixel_snapshot_payloads_{};
         ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
         CmdStats last_cmd_stats_{};
         ExecStats last_exec_stats_{};

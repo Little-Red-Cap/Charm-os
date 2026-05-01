@@ -88,6 +88,8 @@ export namespace ui::scene {
         std::uint16_t stale_snapshot_count{0};
         std::uint32_t layer_bytes{0};
         std::uint32_t composite_pixels{0};
+        std::uint32_t pixel_blit_count{0};
+        std::uint32_t pixel_blit_pixels{0};
     };
 
     struct LayerComposeSpec {
@@ -305,6 +307,11 @@ export namespace ui::scene {
             stats_.composite_pixels += pixels;
         }
 
+        void note_pixel_blit(std::uint32_t pixels) noexcept {
+            ++stats_.pixel_blit_count;
+            stats_.pixel_blit_pixels += pixels;
+        }
+
         [[nodiscard]] LayerComposeResult compose_dry_run(const LayerComposeSpec& spec) noexcept {
             LayerComposeResult result{};
             const auto plan = make_compose_plan(spec);
@@ -387,10 +394,14 @@ export namespace ui::scene {
             const auto rebuilds = stats_.snapshot_rebuild_count;
             const auto stale = stats_.stale_snapshot_count;
             const auto composite = stats_.composite_pixels;
+            const auto pixel_blits = stats_.pixel_blit_count;
+            const auto pixel_blit_pixels = stats_.pixel_blit_pixels;
             stats_ = {};
             stats_.snapshot_rebuild_count = rebuilds;
             stats_.stale_snapshot_count = stale;
             stats_.composite_pixels = composite;
+            stats_.pixel_blit_count = pixel_blits;
+            stats_.pixel_blit_pixels = pixel_blit_pixels;
             for (const auto& slot : slots_) {
                 if (!slot.occupied) continue;
                 ++stats_.snapshot_count;

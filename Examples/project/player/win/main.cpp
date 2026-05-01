@@ -464,6 +464,61 @@ namespace {
                 res.failed++;
             }
         }
+        {
+            const Rect pixel_bounds{0, 0, 48, 32};
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = pixel_bounds,
+                .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
+            };
+            const auto capture = scene.capture_pixel_snapshot_result(spec);
+            const auto* record = scene.snapshot_record(capture.handle);
+            const bool captured = capture.ok()
+                && record
+                && record->kind == ::ui::scene::SnapshotKind::PixelSurface
+                && record->bytes == ::ui::scene::snapshot_pixel_bytes(
+                    ::screen_pixel_format, pixel_bounds.w, pixel_bounds.h);
+            const auto plan = scene.make_snapshot_compose_plan({
+                .source = capture.handle,
+                .transform = ::ui::scene::LayerTransform{.x = 8, .y = 6, .opacity = 255},
+                .clip = Rect{0, 0, screen_width, screen_height},
+                .has_clip = true,
+            });
+            const auto before = scene.layer_stats();
+            const auto replay = scene.compose_pixel_snapshot(plan);
+            const auto after = scene.layer_stats();
+            const bool composed = plan.valid
+                && replay.ok()
+                && replay.kind == ::ui::scene::SnapshotKind::PixelSurface
+                && after.pixel_blit_count > before.pixel_blit_count
+                && after.pixel_blit_pixels >= before.pixel_blit_pixels + plan.composite_pixels;
+            const bool released = scene.release_snapshot(capture.handle);
+            if (captured && composed && released) {
+                ui_ci_emit("layer_pixel_snapshot_capture_compose", true, nullptr);
+            } else {
+                ui_ci_emit("layer_pixel_snapshot_capture_compose", false, "pixel_snapshot_capture_compose");
+                res.ok = false;
+                res.failed++;
+            }
+        }
+        {
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{0, 0, screen_width, screen_height},
+                .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
+            };
+            const auto capture = scene.capture_pixel_snapshot_result(spec);
+            const bool rejected = capture.status == ::ui::scene::LayerCaptureStatus::StoreFailed
+                && !capture.handle;
+            if (rejected) {
+                ui_ci_emit("layer_pixel_snapshot_cache_limit", true, nullptr);
+            } else {
+                ui_ci_emit("layer_pixel_snapshot_cache_limit", false, "pixel_snapshot_cache_limit");
+                if (capture.handle) {
+                    (void)scene.release_snapshot(capture.handle);
+                }
+                res.ok = false;
+                res.failed++;
+            }
+        }
 
         auto click_handle = [&](WidgetHandle h, const char* case_name) -> bool {
             if (!h) {

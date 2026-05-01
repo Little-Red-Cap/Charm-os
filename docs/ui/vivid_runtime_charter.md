@@ -240,9 +240,10 @@ Motion recipe 的第一目标不是 API 好看，而是可降级、可审计、�
 - `dry_run_motion_compose()`
 - `decide_motion_compose_profile()`
 - `execute_motion_compose()`
+- `PageMotionTransition`
 - `Examples/ui/vivid/motion_time_demo`
 
-这个核心只回答“时间如何被采样，recipe 如何投影成最小 `LayerTransform`，transition 如何托管 begin/sample/finish/cancel 生命周期，如何留下最小运行证据，如何生成 / dry-run `LayerComposeSpec`，如何把预算证据转成 effective profile，以及如何进入最小 Scene compose 执行”，暂不表达完整页面转场。
+这个核心只回答“时间如何被采样，recipe 如何投影成最小 `LayerTransform`，transition 如何托管 begin/sample/finish/cancel 生命周期，如何留下最小运行证据，如何生成 / dry-run `LayerComposeSpec`，如何把预算证据转成 effective profile，如何进入最小 Scene compose 执行，以及如何串起单页 PageLayer freeze / thaw”，暂不表达完整多页面转场。
 
 阶段性细节见：[`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)。
 

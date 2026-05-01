@@ -320,6 +320,51 @@ int main() {
     });
     if (!expect(!empty_execute.valid, "execute bridge rejects missing source")) return 1;
 
+    static DefaultFrameBuffer page_fb{};
+    static DefaultCanvas page_canvas{page_fb};
+    static ui::scene::Scene page_scene{page_canvas};
+    WidgetHandle page_root{};
+    page_scene.build([&](ui::scene::SceneBuilder& builder) {
+        page_root = builder.create_container();
+        builder.set_rect(page_root, {0, 0, 32, 32});
+        builder.set_input_root(page_root);
+        builder.set_root(page_root);
+    });
+    auto page_access = page_scene.access();
+    page_canvas.clear(rgba{0, 0, 0, 255});
+    page_canvas.set_pixel(2, 2, rgba{20, 220, 80, 255});
+    ui::scene::PageLayer page_layer{page_root};
+    page_layer.show(page_access);
+    ui::scene::PageMotionTransition page_transition{};
+    const auto page_capture = page_transition.begin(page_scene, page_access, page_layer, {
+        .snapshot = {
+            .bounds = {.x = 2, .y = 2, .w = 1, .h = 1},
+            .preferred_kind = ui::scene::SnapshotKind::PixelSurface,
+        },
+        .recipe = ui::scene::motion_slide(ui::scene::MotionAxis::X, 5, 100),
+        .profile = ui::scene::LayerProfile::Rich,
+        .start_ms = 0,
+        .hide_live_root = true,
+    });
+    if (!expect(page_capture.ok(), "page transition captures snapshot")) return 1;
+    if (!expect(page_layer.transitioning(), "page layer enters transitioning state")) return 1;
+    if (!expect(!page_layer.visible(), "page transition hides live root")) return 1;
+    page_canvas.set_pixel(7, 2, rgba{0, 0, 0, 255});
+    const auto page_frame = page_transition.sample(page_scene, 0);
+    if (!expect(page_frame.compose.valid, "page transition executes compose")) return 1;
+    if (!expect(page_frame.compose.plan.composite_pixels == 1, "page transition keeps compose evidence")) return 1;
+    const auto page_pixel = page_canvas.get_pixel(7, 2);
+    if (!expect(page_pixel.g == 220, "page transition blits frozen page pixel")) return 1;
+    const auto page_done = page_transition.sample(page_scene, 120);
+    if (!expect(page_done.transition.state == ui::scene::MotionTransitionState::Finished,
+                "page transition runner finishes")) {
+        return 1;
+    }
+    const auto page_trace = page_transition.trace();
+    page_transition.finish(page_scene, page_access);
+    if (!expect(page_layer.live() && page_layer.visible(), "page transition thaws live page")) return 1;
+    if (!expect(!static_cast<bool>(page_layer.snapshot()), "page transition releases snapshot")) return 1;
+
     runner.reset();
     if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition reset returns idle")) return 1;
     if (!expect(runner.trace().sample_count == 0, "transition reset clears trace")) return 1;
@@ -373,6 +418,10 @@ int main() {
                 static_cast<unsigned>(moved_pixel.r),
                 static_cast<unsigned>(moved_pixel.g),
                 static_cast<unsigned>(moved_pixel.b));
+    std::printf("[motion] page pixels=%u moved_g=%u trace=%u\n",
+                static_cast<unsigned>(page_frame.compose.plan.composite_pixels),
+                static_cast<unsigned>(page_pixel.g),
+                static_cast<unsigned>(page_trace.sample_count));
     std::printf("[motion] profile effective=%s fallback=%s\n",
                 ui::scene::layer_profile_name(over_budget_profile.profile.effective),
                 ui::scene::layer_fallback_reason_name(over_budget_profile.profile.reason));

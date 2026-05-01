@@ -14,6 +14,7 @@ MotionTime
   -> MotionComposeDryRun
   -> MotionComposeProfileDecision
   -> MotionComposeExecute
+  -> PageMotionTransition
 ```
 
 目标是让 motion 在进入真实 Layer compose / backend 前，已经具备：
@@ -26,6 +27,7 @@ MotionTime
 - compose plan dry-run
 - budget 到 effective profile 的裁决
 - 真实 Scene compose 执行入口
+- PageLayer freeze / thaw 过渡桥
 
 ## 非目标
 
@@ -185,6 +187,36 @@ Finished / Canceled -> reset -> Idle
 - `PixelSurface` 走 `Scene::compose_pixel_snapshot()`
 - 返回 replay 结果和 compose pixel 证据
 
+### `motion_page_transition.cppm`
+
+负责把 `PageLayer` 的 snapshot 生命周期接到 motion transition。
+
+核心类型：
+
+- `PageMotionTransitionSpec`
+- `PageMotionTransitionFrame`
+- `PageMotionTransition`
+
+核心流程：
+
+```text
+PageLayer::freeze()
+  -> PageLayer::mark_transitioning()
+  -> MotionTransitionRunner::begin()
+  -> sample()
+  -> execute_motion_compose()
+  -> finish()
+  -> PageLayer::thaw()
+```
+
+关键规则：
+
+- 这一层只做单页 frozen snapshot transition
+- 失败时不启动 runner
+- `hide_live_root` 控制 freeze 后是否隐藏 live root
+- `finish()` 负责 thaw 并释放 snapshot
+- 仍不负责多页面导航或 Player 转场状态机
+
 ## 验证入口
 
 最小验证示例：
@@ -207,6 +239,7 @@ Examples/ui/vivid/motion_time_demo
 - stale snapshot 拒绝
 - budget 到 effective profile / fallback reason 的裁决
 - `Scene` pixel snapshot compose 最小执行路径
+- `PageLayer` freeze / transitioning / execute / thaw 最小路径
 
 构建：
 
@@ -229,6 +262,7 @@ recipe + profile + time
   -> budget result
   -> effective profile decision
   -> optional scene execute
+  -> page layer transition bridge
 ```
 
 这意味着 motion runtime 已经可以在不进入 PageLayer 页面转场的情况下回答：
@@ -240,18 +274,20 @@ recipe + profile + time
 - 当前预算是否允许？
 - 如果预算不允许，effective profile 应降级到哪里？
 - 如果进入最小执行，Scene replay 是否成功？
+- 如果接入 PageLayer，snapshot 是否能被释放并 thaw 回 live？
 
 ## 下一步
 
 下一步不建议继续发明新 recipe。
 
-更值得做的是把这条链接入真实 Layer compose 执行路径的最小闭环：
+更值得做的是把这条链接入多页面 transition runner 的最小闭环：
 
 ```text
-MotionTransitionFrame
-  -> MotionComposeRequest
-  -> LayerComposePlan
-  -> Scene compose execute
+source PageLayer freeze
+  -> destination PageLayer freeze / prepare
+  -> dual compose
+  -> release source
+  -> thaw destination
 ```
 
 第一阶段仍应保持 Vivid-only，优先验证：

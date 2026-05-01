@@ -17,6 +17,7 @@
 - `dry_run_motion_compose()` 验证 transition frame 经 `SnapshotStore` 形成 compose plan 和 budget 证据。
 - `decide_motion_compose_profile()` 验证 dry-run budget 到 effective profile / fallback reason 的裁决桥。
 - `execute_motion_compose()` 验证 transition frame 经 `Scene` 执行 pixel snapshot compose 的最小路径。
+- `PageMotionTransition` 验证 `PageLayer` freeze / transitioning / execute / thaw 的最小路径。
 
 构建：
 

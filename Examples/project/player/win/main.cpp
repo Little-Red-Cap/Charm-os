@@ -707,6 +707,38 @@ namespace {
             res.failed++;
         }
 
+        ctx.set_page(player::PlayerPage::Home);
+        pump_frame();
+        const std::uint32_t aborts_before_interrupt = ctx.layer_transition_abort_count;
+        const std::uint32_t releases_before_interrupt = ctx.layer_transition_release_count;
+        const auto layer_count_before_interrupt = scene.layer_stats().snapshot_count;
+        bool interrupt_started = false;
+        if (ctx.begin_now_playing_expand_transition()) {
+            interrupt_started = ctx.now_playing_transition.active
+                && ctx.now_playing_transition.source_snapshot
+                && scene.layer_stats().snapshot_count > layer_count_before_interrupt;
+            ctx.set_page(player::PlayerPage::Library);
+            pump_frame();
+        }
+        const bool interrupted = interrupt_started
+            && !ctx.now_playing_transition.active
+            && ctx.page_transition_state == player::PlayerController::PageTransitionState::Idle
+            && ctx.layer_transition_abort_count > aborts_before_interrupt
+            && ctx.layer_transition_release_count > releases_before_interrupt
+            && scene.layer_stats().snapshot_count == 0
+            && ctx.current_page == player::PlayerPage::Library
+            && ctx.page_library_layer.visible()
+            && !ctx.page_home_layer.snapshot()
+            && !ctx.page_now_layer.snapshot()
+            && !ctx.page_library_layer.snapshot();
+        if (interrupted) {
+            ui_ci_emit("layer_transition_interrupt_abort", true, nullptr);
+        } else {
+            ui_ci_emit("layer_transition_interrupt_abort", false, "transition_interrupt_abort");
+            res.ok = false;
+            res.failed++;
+        }
+
         const auto* tracks = ctx.storage.tracks;
         if (tracks && tracks->size() > 0) {
             ctx.set_page(player::PlayerPage::Library);

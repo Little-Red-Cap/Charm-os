@@ -35,7 +35,7 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 
 ## 当前实现快照
 
-截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + PageLayer freeze/thaw + 观测链 + 双层最小合成路径”。Player 的 Now Playing 转场已经可以通过 PageLayer 把 source page 与 destination page 都冻结成 PixelSurface，并在真实 render loop 中合成 frozen source / destination，再绘制 transition overlay。
+截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + PageLayer freeze/thaw + transition abort 收尾 + 观测链 + 双层最小合成路径”。Player 的 Now Playing 转场已经可以通过 PageLayer 把 source page 与 destination page 都冻结成 PixelSurface，并在真实 render loop 中合成 frozen source / destination，再绘制 transition overlay。
 
 已实现：
 
@@ -47,15 +47,16 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 - snapshot 已绑定 `LayerEpoch`，当前覆盖 `layout / style / theme`。`CommandBuffer` replay 仍严格拒绝 epoch stale；`PixelSurface` compose 表达 frozen pixel artifact，只在显式 stale 或 payload 缺失时拒绝。
 - `LayerCaptureStatus` 与 `LayerReplayStatus` 已提供失败原因，避免上层只通过空 handle 或空统计猜测问题。
 - Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface 双层路径：转场开始时通过 PageLayer 捕获 source page、隐藏 source live root；render loop 中预渲染 destination page 并通过 PageLayer 捕获 destination snapshot，然后隐藏 destination live root，转场期间合成 frozen source / destination，再绘制 transition overlay。
+- Player 侧已有最小 `PageTransitionState`，外部页面跳转打断 active transition 时会进入 abort 收尾，统一释放 source / destination snapshot、恢复 live root 可见性、清理 transition overlay，并回到 `Idle`。
 - Win Player rich profile 已把全屏 layer cache slot 扩到 2，用于同时持有 source / destination PixelSurface。
-- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/全屏 profile，以及 Player 转场 source / destination PixelSurface capture/compose。
+- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/全屏 profile、Player 转场 source / destination PixelSurface capture/compose，以及 transition interrupt abort。
 
 仍未实现：
 
 - `CommandBuffer` replay 目前只验证回放边界和 clip，尚未支持平移、opacity 或真正 compositor 语义。
 - `PixelSurface` compose 已支持 fixed payload + clip + x/y offset；opacity / alpha composite 仍待后续补齐。
 - `TileSurface` snapshot 尚未落地。
-- 当前 PageLayer 已能拥有一个 snapshot handle；更完整的多 overlay layer、transition recipe 与自动 stale propagation 仍待后续补齐。
+- 当前 PageLayer 已能拥有一个 snapshot handle；更完整的多 overlay layer、transition recipe、取消动画与自动 stale propagation 仍待后续补齐。
 
 ## 核心概念
 

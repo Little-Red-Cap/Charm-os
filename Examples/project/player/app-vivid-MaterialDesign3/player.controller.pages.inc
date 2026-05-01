@@ -4,6 +4,11 @@
         }
 
         void set_page(PlayerPage page) noexcept {
+            if (now_playing_transition.active
+                && page_transition_state != PageTransitionState::Finishing
+                && page_transition_state != PageTransitionState::Aborting) {
+                abort_now_playing_transition(page);
+            }
             const bool page_changed = current_page != page;
             if (page == PlayerPage::NowPlaying && current_page != PlayerPage::NowPlaying) {
                 return_page = current_page;

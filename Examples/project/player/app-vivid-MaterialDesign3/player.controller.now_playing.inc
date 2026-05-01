@@ -671,6 +671,10 @@
             };
         }
 
+        void set_page_transition_state(PageTransitionState state) noexcept {
+            page_transition_state = state;
+        }
+
         void start_now_playing_transition_reveal() noexcept {
             const auto& endpoints = now_playing_transition.route;
             now_playing_transition.reveal_started = true;
@@ -693,6 +697,9 @@
             if (!scene) return {};
             auto binding = page_binding_for(page);
             if (!binding.layer) return {};
+            set_page_transition_state(page == now_playing_transition.route.source_page
+                ? PageTransitionState::CapturingSource
+                : PageTransitionState::CapturingDestination);
             const auto capture = binding.layer->freeze(*scene, make_transition_snapshot_spec());
             last_layer_transition_capture_status = capture.status;
             if (capture.ok()) {
@@ -834,6 +841,7 @@
 
         void compose_now_playing_transition_pixel_layer() noexcept {
             if (!now_playing_transition.active) return;
+            set_page_transition_state(PageTransitionState::Composing);
             const auto now_ms = charm::system::ClockCaps::TimeSource::now();
             const auto tick = sample_now_playing_transition_tick_phase(
                 now_playing_transition, now_ms);
@@ -852,6 +860,7 @@
 
         void prepare_transition_destination_snapshot_scene() noexcept {
             if (!transition_needs_destination_snapshot()) return;
+            set_page_transition_state(PageTransitionState::PreparingDestination);
             const auto destination = now_playing_transition.route.destination_page;
             set_page_root_visible(now_playing_transition.route.source_page, false);
             set_page_root_visible(destination, true);
@@ -862,15 +871,18 @@
 
         void finish_transition_destination_snapshot_capture() noexcept {
             if (!transition_needs_destination_snapshot()) return;
+            set_page_transition_state(PageTransitionState::CapturingDestination);
             now_playing_transition.destination_snapshot = capture_transition_pixel_snapshot();
             if (now_playing_transition.destination_snapshot) {
                 ++layer_transition_capture_count;
                 ++layer_transition_destination_capture_count;
                 set_now_playing_transition_root_visible(true);
+                set_page_transition_state(PageTransitionState::Composing);
             } else {
                 note_transition_capture_failure();
                 set_now_playing_transition_root_visible(true);
                 start_now_playing_transition_reveal();
+                set_page_transition_state(PageTransitionState::Composing);
             }
         }
 
@@ -880,6 +892,7 @@
 
         void begin_now_playing_transition_lifecycle() noexcept {
             const auto& endpoints = now_playing_transition.route;
+            set_page_transition_state(PageTransitionState::CapturingSource);
             now_playing_transition.source_snapshot = capture_transition_source_snapshot();
             if (now_playing_transition.source_snapshot) {
                 ++layer_transition_capture_count;
@@ -899,6 +912,7 @@
             if (endpoints.expanding) {
                 set_mini_bar_chrome_visible(false);
             }
+            set_page_transition_state(PageTransitionState::Composing);
         }
 
         void restore_now_playing_transition_scene_state() noexcept {
@@ -908,6 +922,25 @@
             restore_now_playing_group_visibility();
             restore_bottom_bar_content_visibility();
             set_now_playing_transition_root_visible(false);
+        }
+
+        void restore_now_playing_transition_live_roots(PlayerPage visible_page) noexcept {
+            if (now_playing_transition.active) {
+                set_page_root_visible(now_playing_transition.route.source_page, false);
+                set_page_root_visible(now_playing_transition.route.destination_page, false);
+            }
+            set_page_root_visible(visible_page, true);
+        }
+
+        void abort_now_playing_transition(PlayerPage fallback_page) noexcept {
+            if (!now_playing_transition.active) return;
+            set_page_transition_state(PageTransitionState::Aborting);
+            restore_now_playing_transition_scene_state();
+            restore_now_playing_transition_live_roots(fallback_page);
+            now_playing_transition = {};
+            sync_page_chrome(fallback_page);
+            ++layer_transition_abort_count;
+            set_page_transition_state(PageTransitionState::Idle);
         }
 
         void set_now_playing_group_visibility(bool top_bar,
@@ -1016,9 +1049,11 @@
 
         void finish_now_playing_transition() noexcept {
             if (!now_playing_transition.active) return;
+            set_page_transition_state(PageTransitionState::Finishing);
             set_page(now_playing_transition.route.destination_page);
             restore_now_playing_transition_scene_state();
             now_playing_transition = {};
+            set_page_transition_state(PageTransitionState::Idle);
         }
 
         void tick_now_playing_transition(std::uint64_t now_ms) noexcept {
@@ -1051,6 +1086,7 @@
             if (!prepare_now_playing_transition_state(destination_page, direction, transition_state)) return false;
 
             now_playing_transition = transition_state;
+            set_page_transition_state(PageTransitionState::CapturingSource);
             begin_now_playing_transition_lifecycle();
             return true;
         }

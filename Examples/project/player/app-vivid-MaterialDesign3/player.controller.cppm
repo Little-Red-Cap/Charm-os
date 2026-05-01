@@ -616,6 +616,15 @@ export namespace player {
             Expand,
             Collapse,
         };
+        enum class PageTransitionState : std::uint8_t {
+            Idle,
+            CapturingSource,
+            PreparingDestination,
+            CapturingDestination,
+            Composing,
+            Finishing,
+            Aborting,
+        };
         struct NowPlayingTransitionEndpoints {
             PlayerPage source_page{PlayerPage::Home};
             PlayerPage destination_page{PlayerPage::NowPlaying};
@@ -695,6 +704,8 @@ export namespace player {
         std::uint32_t layer_transition_destination_capture_count{0};
         std::uint32_t layer_transition_destination_compose_count{0};
         std::uint32_t layer_transition_destination_compose_pixels{0};
+        PageTransitionState page_transition_state{PageTransitionState::Idle};
+        std::uint32_t layer_transition_abort_count{0};
         ::ui::scene::LayerCaptureStatus last_layer_transition_capture_status{
             ::ui::scene::LayerCaptureStatus::Ok};
         FixedString<128> mount_status{};

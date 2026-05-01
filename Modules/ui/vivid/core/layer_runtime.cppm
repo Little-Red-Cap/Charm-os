@@ -121,6 +121,7 @@ export namespace ui::scene {
         LayerEpoch epoch{};
         std::uint32_t bytes{0};
         std::uint32_t command_count{0};
+        std::uint32_t payload_slot{0xFFFFFFFFu};
         std::uint16_t generation{0};
         bool occupied{false};
         bool stale{false};

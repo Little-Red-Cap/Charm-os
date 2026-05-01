@@ -975,6 +975,10 @@ export namespace ui::scene {
                 (void)release_snapshot(handle);
                 return {};
             }
+            if (!store_command_snapshot_payload(handle)) {
+                (void)release_snapshot(handle);
+                return {};
+            }
             return handle;
         }
         bool update_pixel_snapshot(SnapshotHandle handle,
@@ -1003,6 +1007,18 @@ export namespace ui::scene {
                                              const LayerBudget& budget) const noexcept {
             return snapshot_store_.check_budget(plan, budget);
         }
+        ExecStats replay_command_snapshot(const LayerComposePlan& plan) noexcept {
+            ExecStats out{};
+            if (!plan.valid || plan.kind != SnapshotKind::CommandBuffer) return out;
+            const auto* record = snapshot_store_.record(plan.source);
+            if (!record || record->payload_slot != 0 || record->stale) return out;
+            reset_alpha_blend_count();
+            out = to_scene_stats(cmd_exec_.execute(canvas_,
+                                                   command_snapshot_buf_,
+                                                   &plan.target_bounds));
+            out.alpha_blend_count = alpha_blend_count();
+            return out;
+        }
 
     private:
         void record_current_scene() noexcept {
@@ -1021,6 +1037,22 @@ export namespace ui::scene {
             epoch.style = StyleSheet::instance().stylesheet_version();
             epoch.theme = tokens.version;
             return epoch;
+        }
+
+        bool store_command_snapshot_payload(SnapshotHandle handle) noexcept {
+            auto* record = snapshot_store_.mutable_record(handle);
+            if (!record) return false;
+            if (!command_snapshot_buf_.load(cmd_buf_.cmd_data(),
+                                            cmd_buf_.cmd_bytes(),
+                                            cmd_buf_.size(),
+                                            cmd_buf_.text_data(),
+                                            cmd_buf_.text_used(),
+                                            cmd_buf_.blob_data(),
+                                            cmd_buf_.blob_used())) {
+                return false;
+            }
+            record->payload_slot = 0;
+            return true;
         }
 
         static CmdStats to_scene_stats(const ui::draw_cmd::DrawCmdStats& stats) noexcept {
@@ -1119,6 +1151,7 @@ export namespace ui::scene {
         SoaGui gui_;
         WidgetHandle root_{};
         ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf_{};
+        ui::draw_cmd::DefaultDrawCmdBuffer command_snapshot_buf_{};
         ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
         CmdStats last_cmd_stats_{};
         ExecStats last_exec_stats_{};

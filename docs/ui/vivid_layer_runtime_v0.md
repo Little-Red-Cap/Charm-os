@@ -35,27 +35,27 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 
 ## 当前实现快照
 
-截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + 观测链 + 双层最小合成路径”。Player 的 Now Playing 转场已经可以把 source page 与 destination page 都冻结成 PixelSurface，并在真实 render loop 中合成 frozen source / destination，再绘制 transition overlay。
+截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + PageLayer freeze/thaw + 观测链 + 双层最小合成路径”。Player 的 Now Playing 转场已经可以通过 PageLayer 把 source page 与 destination page 都冻结成 PixelSurface，并在真实 render loop 中合成 frozen source / destination，再绘制 transition overlay。
 
 已实现：
 
 - `layer_runtime.cppm` 提供 `SnapshotHandle`、`SnapshotRecord`、`SnapshotStore`、`LayerStats`、`LayerComposePlan`、`LayerBudgetResult` 等基础类型。
 - `Scene` 支持 `capture_command_snapshot_result()`、`capture_command_snapshot()`、`capture_pixel_snapshot_result()`、`capture_pixel_snapshot()`、`release_snapshot()`、`validate_snapshot()`、`compose_snapshot_dry_run()`、`make_snapshot_compose_plan()`、`check_layer_budget()`、`replay_command_snapshot()` 与 `compose_pixel_snapshot()`。
+- `PageLayer` 已提供 `state()`、`snapshot()`、`freeze()`、`thaw()`、`release_snapshot()`、`mark_transitioning()` 与 `mark_stale()`，用于把页面 live root 与 frozen artifact 的生命周期绑定起来。
 - `CommandBuffer` snapshot 会复制当前 `DrawCmdBuffer` 到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
 - `PixelSurface` snapshot 会复制当前 canvas 像素到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
 - snapshot 已绑定 `LayerEpoch`，当前覆盖 `layout / style / theme`。`CommandBuffer` replay 仍严格拒绝 epoch stale；`PixelSurface` compose 表达 frozen pixel artifact，只在显式 stale 或 payload 缺失时拒绝。
 - `LayerCaptureStatus` 与 `LayerReplayStatus` 已提供失败原因，避免上层只通过空 handle 或空统计猜测问题。
-- Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface 双层路径：转场开始时捕获 source page、隐藏 source live root；render loop 中预渲染并捕获 destination page，然后隐藏 destination live root，转场期间合成 frozen source / destination，再绘制 transition overlay。
+- Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface 双层路径：转场开始时通过 PageLayer 捕获 source page、隐藏 source live root；render loop 中预渲染 destination page 并通过 PageLayer 捕获 destination snapshot，然后隐藏 destination live root，转场期间合成 frozen source / destination，再绘制 transition overlay。
 - Win Player rich profile 已把全屏 layer cache slot 扩到 2，用于同时持有 source / destination PixelSurface。
-- `--ui-ci` 已覆盖 snapshot 生命周期、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/全屏 profile，以及 Player 转场 source / destination PixelSurface capture/compose。
+- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/全屏 profile，以及 Player 转场 source / destination PixelSurface capture/compose。
 
 仍未实现：
 
-- destination page 已支持预渲染并冻结；下一步是把这套 Player-local 双层路径上收成更正式的 Vivid Layer Runtime / PageLayer freeze-thaw API。
 - `CommandBuffer` replay 目前只验证回放边界和 clip，尚未支持平移、opacity 或真正 compositor 语义。
 - `PixelSurface` compose 已支持 fixed payload + clip + x/y offset；opacity / alpha composite 仍待后续补齐。
 - `TileSurface` snapshot 尚未落地。
-- `PageLayer::freeze/thaw` 仍是设计目标，当前实现入口集中在 `Scene` 与 `SnapshotStore`。
+- 当前 PageLayer 已能拥有一个 snapshot handle；更完整的多 overlay layer、transition recipe 与自动 stale propagation 仍待后续补齐。
 
 ## 核心概念
 
@@ -68,16 +68,18 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 - `hide()` 是可见性语义。
 - `freeze()` 是渲染策略语义。
 
-建议状态：
+当前状态：
 
 ```cpp
-enum class PageLayerState : std::uint8_t {
-    hidden,
-    live,
-    frozen,
-    transitioning,
-    stale_snapshot,
+enum class LayerState : std::uint8_t {
+    Hidden,
+    Live,
+    Frozen,
+    Transitioning,
+    StaleSnapshot,
 };
+
+using PageLayerState = LayerState;
 ```
 
 ### SnapshotLayer
@@ -209,15 +211,22 @@ public:
     void show(SceneAccess& access) noexcept;
     void hide(SceneAccess& access) noexcept;
 
-    SnapshotHandle freeze(SceneAccess& access, const SnapshotSpec& spec) noexcept;
-    void thaw(SceneAccess& access) noexcept;
-    void release_snapshot(SceneAccess& access) noexcept;
+    LayerCaptureResult freeze(Scene& scene, const SnapshotSpec& spec) noexcept;
+    LayerCaptureResult freeze(Scene& scene,
+                              SceneAccess access,
+                              const SnapshotSpec& spec,
+                              bool hide_live_root) noexcept;
+    void thaw(Scene& scene, SceneAccess access, bool show_live_root = true) noexcept;
+    bool release_snapshot(Scene& scene) noexcept;
+    bool mark_stale(Scene& scene) noexcept;
+    void mark_transitioning() noexcept;
 
     PageLayerState state() const noexcept;
+    SnapshotHandle snapshot() const noexcept;
 };
 ```
 
-v0 可以先把 `PixelFormat` 收在后端侧，公共 API 只保留 preferred kind。上面的形态是目标结构，不要求第一笔代码完整暴露。
+v0 里 `freeze()` 会按 `SnapshotSpec::preferred_kind` 选择 `CommandBuffer` 或 `PixelSurface` capture。`freeze()` 只表达渲染策略；是否隐藏 live root 由调用方通过 `hide_live_root` 显式决定。
 
 ## Layer Runtime 最小闭环
 

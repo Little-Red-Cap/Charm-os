@@ -679,15 +679,36 @@
                                   !now_playing_transition.destination_snapshot);
         }
 
-        ::ui::scene::SnapshotHandle capture_transition_source_snapshot() noexcept {
-            last_layer_transition_capture_status = ::ui::scene::LayerCaptureStatus::NoSnapshotSlot;
-            if (!scene) return {};
-            const ::ui::scene::SnapshotSpec spec{
+        static ::ui::scene::SnapshotSpec make_transition_snapshot_spec() noexcept {
+            return ::ui::scene::SnapshotSpec{
                 .bounds = Rect{0, 0, screen_width, screen_height},
                 .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
             };
-            const auto capture = scene->capture_pixel_snapshot_result(spec);
+        }
+
+        ::ui::scene::LayerCaptureResult freeze_transition_page_snapshot(
+            PlayerPage page,
+            bool hide_live_root) noexcept {
+            last_layer_transition_capture_status = ::ui::scene::LayerCaptureStatus::NoSnapshotSlot;
+            if (!scene) return {};
+            auto binding = page_binding_for(page);
+            if (!binding.layer) return {};
+            const auto capture = binding.layer->freeze(*scene, make_transition_snapshot_spec());
             last_layer_transition_capture_status = capture.status;
+            if (capture.ok()) {
+                binding.layer->mark_transitioning();
+                if (hide_live_root) {
+                    binding.layer->hide(access);
+                    binding.layer->mark_transitioning();
+                }
+            }
+            return capture;
+        }
+
+        ::ui::scene::SnapshotHandle capture_transition_source_snapshot() noexcept {
+            const auto capture = freeze_transition_page_snapshot(
+                now_playing_transition.route.source_page,
+                true);
             return capture.handle;
         }
 
@@ -710,7 +731,12 @@
 
         void release_transition_source_snapshot() noexcept {
             if (!scene || !now_playing_transition.source_snapshot) return;
-            if (scene->release_snapshot(now_playing_transition.source_snapshot)) {
+            auto binding = page_binding_for(now_playing_transition.route.source_page);
+            const bool released = binding.layer
+                && binding.layer->snapshot() == now_playing_transition.source_snapshot
+                    ? binding.layer->release_snapshot(*scene)
+                    : scene->release_snapshot(now_playing_transition.source_snapshot);
+            if (released) {
                 ++layer_transition_release_count;
             }
             now_playing_transition.source_snapshot = {};
@@ -718,21 +744,21 @@
 
         void release_transition_destination_snapshot() noexcept {
             if (!scene || !now_playing_transition.destination_snapshot) return;
-            if (scene->release_snapshot(now_playing_transition.destination_snapshot)) {
+            auto binding = page_binding_for(now_playing_transition.route.destination_page);
+            const bool released = binding.layer
+                && binding.layer->snapshot() == now_playing_transition.destination_snapshot
+                    ? binding.layer->release_snapshot(*scene)
+                    : scene->release_snapshot(now_playing_transition.destination_snapshot);
+            if (released) {
                 ++layer_transition_release_count;
             }
             now_playing_transition.destination_snapshot = {};
         }
 
         ::ui::scene::SnapshotHandle capture_transition_pixel_snapshot() noexcept {
-            last_layer_transition_capture_status = ::ui::scene::LayerCaptureStatus::NoSnapshotSlot;
-            if (!scene) return {};
-            const ::ui::scene::SnapshotSpec spec{
-                .bounds = Rect{0, 0, screen_width, screen_height},
-                .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
-            };
-            const auto capture = scene->capture_pixel_snapshot_result(spec);
-            last_layer_transition_capture_status = capture.status;
+            const auto capture = freeze_transition_page_snapshot(
+                now_playing_transition.route.destination_page,
+                true);
             return capture.handle;
         }
 
@@ -840,7 +866,6 @@
             if (now_playing_transition.destination_snapshot) {
                 ++layer_transition_capture_count;
                 ++layer_transition_destination_capture_count;
-                set_page_root_visible(now_playing_transition.route.destination_page, false);
                 set_now_playing_transition_root_visible(true);
             } else {
                 note_transition_capture_failure();

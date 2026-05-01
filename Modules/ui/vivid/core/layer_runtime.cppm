@@ -19,6 +19,8 @@ export namespace ui::scene {
         StaleSnapshot,
     };
 
+    using PageLayerState = LayerState;
+
     enum class SnapshotKind : std::uint8_t {
         CommandBuffer,
         PixelSurface,
@@ -64,6 +66,8 @@ export namespace ui::scene {
         [[nodiscard]] constexpr explicit operator bool() const noexcept {
             return slot != 0xFFFF;
         }
+
+        [[nodiscard]] constexpr bool operator==(const SnapshotHandle&) const noexcept = default;
     };
 
     inline constexpr std::uint32_t kInvalidSnapshotPayloadSlot = 0xFFFFFFFFu;

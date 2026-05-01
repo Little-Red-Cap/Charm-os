@@ -963,39 +963,6 @@ export namespace ui::scene {
         void* ctx{nullptr};
     };
 
-    class PageLayer {
-    public:
-        PageLayer() noexcept = default;
-        explicit PageLayer(WidgetHandle root) noexcept : root_(root) {}
-
-        void set_root(WidgetHandle root) noexcept { root_ = root; }
-        WidgetHandle root() const noexcept { return root_; }
-        void set_hooks(const PageHooks& hooks) noexcept { hooks_ = hooks; }
-        bool visible() const noexcept { return visible_; }
-
-        void show(SceneAccess& access) noexcept { set_visible(access, true); }
-        void hide(SceneAccess& access) noexcept { set_visible(access, false); }
-
-        void set_visible(SceneAccess& access, bool on) noexcept {
-            if (!root_) return;
-            access.set_visible(root_, on);
-            const bool changed = (visible_ != on);
-            visible_ = on;
-            if (changed) {
-                if (on) {
-                    if (hooks_.on_show) hooks_.on_show(access, root_, hooks_.ctx);
-                } else {
-                    if (hooks_.on_hide) hooks_.on_hide(access, root_, hooks_.ctx);
-                }
-            }
-        }
-
-    private:
-        WidgetHandle root_{};
-        bool visible_{false};
-        PageHooks hooks_{};
-    };
-
     class SceneOverlay {
     public:
         explicit SceneOverlay(ui::draw_cmd::DefaultDrawCmdBuffer& buf) noexcept : buf_(buf) {}
@@ -1442,5 +1409,119 @@ export namespace ui::scene {
         DefaultSnapshotStore snapshot_store_{};
         OverlayFn overlay_fn_{nullptr};
         void* overlay_ctx_{nullptr};
+    };
+
+    class PageLayer {
+    public:
+        PageLayer() noexcept = default;
+        explicit PageLayer(WidgetHandle root) noexcept : root_(root) {}
+
+        void set_root(WidgetHandle root) noexcept {
+            root_ = root;
+            if (!root_) {
+                visible_ = false;
+                snapshot_ = {};
+                state_ = LayerState::Hidden;
+            } else if (state_ == LayerState::Hidden || !snapshot_) {
+                state_ = visible_ ? LayerState::Live : LayerState::Hidden;
+            }
+        }
+
+        WidgetHandle root() const noexcept { return root_; }
+        void set_hooks(const PageHooks& hooks) noexcept { hooks_ = hooks; }
+        bool visible() const noexcept { return visible_; }
+        LayerState state() const noexcept { return state_; }
+        bool live() const noexcept { return state_ == LayerState::Live; }
+        bool frozen() const noexcept { return state_ == LayerState::Frozen; }
+        bool transitioning() const noexcept { return state_ == LayerState::Transitioning; }
+        bool stale_snapshot() const noexcept { return state_ == LayerState::StaleSnapshot; }
+        SnapshotHandle snapshot() const noexcept { return snapshot_; }
+
+        void show(SceneAccess& access) noexcept { set_visible(access, true); }
+        void hide(SceneAccess& access) noexcept { set_visible(access, false); }
+
+        void set_visible(SceneAccess& access, bool on) noexcept {
+            if (!root_) return;
+            access.set_visible(root_, on);
+            const bool changed = (visible_ != on);
+            visible_ = on;
+            if (!snapshot_ || state_ == LayerState::Live || state_ == LayerState::Hidden) {
+                state_ = on ? LayerState::Live : LayerState::Hidden;
+            }
+            if (changed) {
+                if (on) {
+                    if (hooks_.on_show) hooks_.on_show(access, root_, hooks_.ctx);
+                } else {
+                    if (hooks_.on_hide) hooks_.on_hide(access, root_, hooks_.ctx);
+                }
+            }
+        }
+
+        [[nodiscard]] LayerCaptureResult freeze(Scene& scene,
+                                                const SnapshotSpec& spec) noexcept {
+            if (!root_) return {};
+            release_snapshot(scene);
+            LayerCaptureResult result = (spec.preferred_kind == SnapshotKind::PixelSurface)
+                ? scene.capture_pixel_snapshot_result(spec)
+                : scene.capture_command_snapshot_result(spec);
+            if (result.ok() && result.handle) {
+                snapshot_ = result.handle;
+                state_ = LayerState::Frozen;
+            }
+            return result;
+        }
+
+        [[nodiscard]] LayerCaptureResult freeze(Scene& scene,
+                                                SceneAccess access,
+                                                const SnapshotSpec& spec,
+                                                bool hide_live_root) noexcept {
+            const auto result = freeze(scene, spec);
+            if (result.ok() && hide_live_root) {
+                set_visible(access, false);
+                state_ = LayerState::Frozen;
+            }
+            return result;
+        }
+
+        void mark_transitioning() noexcept {
+            if (snapshot_) state_ = LayerState::Transitioning;
+        }
+
+        bool mark_stale(Scene& scene) noexcept {
+            if (!snapshot_) return false;
+            const bool marked = scene.mark_snapshot_stale(snapshot_);
+            if (marked) state_ = LayerState::StaleSnapshot;
+            return marked;
+        }
+
+        bool release_snapshot(Scene& scene) noexcept {
+            if (!snapshot_) return false;
+            const auto handle = snapshot_;
+            snapshot_ = {};
+            const bool released = scene.release_snapshot(handle);
+            state_ = visible_ ? LayerState::Live : LayerState::Hidden;
+            return released;
+        }
+
+        void thaw(Scene& scene, SceneAccess access, bool show_live_root = true) noexcept {
+            (void)release_snapshot(scene);
+            if (show_live_root) {
+                set_visible(access, true);
+            } else {
+                state_ = visible_ ? LayerState::Live : LayerState::Hidden;
+            }
+        }
+
+        void reset_snapshot_tracking() noexcept {
+            snapshot_ = {};
+            state_ = visible_ ? LayerState::Live : LayerState::Hidden;
+        }
+
+    private:
+        WidgetHandle root_{};
+        bool visible_{false};
+        LayerState state_{LayerState::Hidden};
+        SnapshotHandle snapshot_{};
+        PageHooks hooks_{};
     };
 }

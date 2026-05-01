@@ -590,6 +590,41 @@ namespace {
             }
         }
         {
+            const ::ui::scene::LayerBudgetResult budget_over{
+                .ok = false,
+                .layer_bytes_over = true,
+            };
+            const auto decision = ::ui::scene::decide_layer_profile(
+                ::ui::scene::LayerProfile::Rich, budget_over);
+            const ::ui::scene::LayerBudgetResult composite_over{
+                .ok = false,
+                .composite_pixels_over = true,
+            };
+            const auto composite_decision = ::ui::scene::decide_layer_profile(
+                ::ui::scene::LayerProfile::Cheap, composite_over);
+            const bool ok = ::ui::scene::resolve_layer_opacity(
+                    ::ui::scene::LayerProfile::Rich, 128) == 128
+                && ::ui::scene::resolve_layer_opacity(
+                    ::ui::scene::LayerProfile::Cheap, 128) == 170
+                && ::ui::scene::resolve_layer_opacity(
+                    ::ui::scene::LayerProfile::Static, 127) == 0
+                && ::ui::scene::resolve_layer_opacity(
+                    ::ui::scene::LayerProfile::Static, 128) == 255
+                && decision.requested == ::ui::scene::LayerProfile::Rich
+                && decision.effective == ::ui::scene::LayerProfile::Cheap
+                && decision.reason == ::ui::scene::LayerFallbackReason::LayerBytesOver
+                && composite_decision.requested == ::ui::scene::LayerProfile::Cheap
+                && composite_decision.effective == ::ui::scene::LayerProfile::Static
+                && composite_decision.reason == ::ui::scene::LayerFallbackReason::CompositePixelsOver;
+            if (ok) {
+                ui_ci_emit("layer_profile_decision", true, nullptr);
+            } else {
+                ui_ci_emit("layer_profile_decision", false, "layer_profile_decision");
+                res.ok = false;
+                res.failed++;
+            }
+        }
+        {
             const ::ui::scene::SnapshotSpec spec{
                 .bounds = Rect{0, 0, screen_width, screen_height},
                 .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
@@ -684,7 +719,14 @@ namespace {
             && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_now
             && ctx.layer_transition_destination_capture_count > destination_captures_before_now
             && ctx.layer_transition_destination_compose_count > destination_composes_before_now
-            && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_now) {
+            && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_now
+            && ctx.effective_layer_profile == ::ui::scene::LayerProfile::Rich
+            && ctx.layer_transition_fallback_reason == ::ui::scene::LayerFallbackReason::None
+            && ctx.layer_transition_last_budget_ok
+            && ctx.layer_transition_last_layer_bytes > 0
+            && ctx.layer_transition_last_layer_bytes_budget > 0
+            && ctx.layer_transition_last_composite_pixels > 0
+            && ctx.layer_transition_last_composite_pixels_budget > 0) {
             ui_ci_emit("layer_transition_home_to_now_compose", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_home_to_now_compose", false, "transition_compose");

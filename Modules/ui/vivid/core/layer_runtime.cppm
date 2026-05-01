@@ -44,6 +44,45 @@ export namespace ui::scene {
         StoreFailed,
     };
 
+    enum class LayerProfile : std::uint8_t {
+        Rich,
+        Cheap,
+        Static,
+        Eink,
+        None,
+    };
+
+    enum class LayerFallbackReason : std::uint8_t {
+        None,
+        LayerBytesOver,
+        CompositePixelsOver,
+        CommandCountOver,
+        AlphaUnsupported,
+        PixelSurfaceUnsupported,
+        DoubleSnapshotUnsupported,
+        Disabled,
+    };
+
+    struct LayerProfileCaps {
+        bool allow_pixel_surface{true};
+        bool allow_command_snapshot{true};
+        bool allow_opacity{true};
+        bool allow_slide{true};
+        bool allow_alpha_blend{true};
+        bool allow_double_snapshot{true};
+        std::uint8_t opacity_steps{255};
+        std::uint16_t target_fps{60};
+        std::uint32_t max_layer_bytes{0};
+        std::uint32_t max_composite_pixels_per_frame{0};
+        std::uint32_t max_command_count{0};
+    };
+
+    struct LayerProfileDecision {
+        LayerProfile requested{LayerProfile::Rich};
+        LayerProfile effective{LayerProfile::Rich};
+        LayerFallbackReason reason{LayerFallbackReason::None};
+    };
+
     struct LayerEpoch {
         std::uint32_t layout{0};
         std::uint32_t style{0};
@@ -138,6 +177,159 @@ export namespace ui::scene {
         bool composite_pixels_over{false};
         bool command_count_over{false};
     };
+
+    constexpr const char* layer_profile_name(LayerProfile profile) noexcept {
+        switch (profile) {
+        case LayerProfile::Rich: return "rich";
+        case LayerProfile::Cheap: return "cheap";
+        case LayerProfile::Static: return "static";
+        case LayerProfile::Eink: return "eink";
+        case LayerProfile::None: return "none";
+        }
+        return "unknown";
+    }
+
+    constexpr const char* layer_fallback_reason_name(LayerFallbackReason reason) noexcept {
+        switch (reason) {
+        case LayerFallbackReason::None: return "none";
+        case LayerFallbackReason::LayerBytesOver: return "layer_bytes";
+        case LayerFallbackReason::CompositePixelsOver: return "composite_pixels";
+        case LayerFallbackReason::CommandCountOver: return "command_count";
+        case LayerFallbackReason::AlphaUnsupported: return "alpha_unsupported";
+        case LayerFallbackReason::PixelSurfaceUnsupported: return "pixel_surface_unsupported";
+        case LayerFallbackReason::DoubleSnapshotUnsupported: return "double_snapshot_unsupported";
+        case LayerFallbackReason::Disabled: return "disabled";
+        }
+        return "unknown";
+    }
+
+    constexpr LayerProfileCaps layer_profile_caps(LayerProfile profile) noexcept {
+        switch (profile) {
+        case LayerProfile::Rich:
+            return {
+                .allow_pixel_surface = true,
+                .allow_command_snapshot = true,
+                .allow_opacity = true,
+                .allow_slide = true,
+                .allow_alpha_blend = true,
+                .allow_double_snapshot = true,
+                .opacity_steps = 255,
+                .target_fps = 60,
+                .max_layer_bytes = 0,
+                .max_composite_pixels_per_frame = 0,
+                .max_command_count = 0,
+            };
+        case LayerProfile::Cheap:
+            return {
+                .allow_pixel_surface = true,
+                .allow_command_snapshot = true,
+                .allow_opacity = true,
+                .allow_slide = true,
+                .allow_alpha_blend = true,
+                .allow_double_snapshot = true,
+                .opacity_steps = 4,
+                .target_fps = 30,
+                .max_layer_bytes = 0,
+                .max_composite_pixels_per_frame = 0,
+                .max_command_count = 0,
+            };
+        case LayerProfile::Static:
+            return {
+                .allow_pixel_surface = true,
+                .allow_command_snapshot = true,
+                .allow_opacity = false,
+                .allow_slide = false,
+                .allow_alpha_blend = false,
+                .allow_double_snapshot = false,
+                .opacity_steps = 2,
+                .target_fps = 1,
+                .max_layer_bytes = 0,
+                .max_composite_pixels_per_frame = 0,
+                .max_command_count = 0,
+            };
+        case LayerProfile::Eink:
+            return {
+                .allow_pixel_surface = false,
+                .allow_command_snapshot = true,
+                .allow_opacity = false,
+                .allow_slide = false,
+                .allow_alpha_blend = false,
+                .allow_double_snapshot = false,
+                .opacity_steps = 2,
+                .target_fps = 1,
+                .max_layer_bytes = 0,
+                .max_composite_pixels_per_frame = 0,
+                .max_command_count = 0,
+            };
+        case LayerProfile::None:
+            return {
+                .allow_pixel_surface = false,
+                .allow_command_snapshot = false,
+                .allow_opacity = false,
+                .allow_slide = false,
+                .allow_alpha_blend = false,
+                .allow_double_snapshot = false,
+                .opacity_steps = 1,
+                .target_fps = 0,
+                .max_layer_bytes = 0,
+                .max_composite_pixels_per_frame = 0,
+                .max_command_count = 0,
+            };
+        }
+        return layer_profile_caps(LayerProfile::None);
+    }
+
+    constexpr LayerProfile degrade_layer_profile(LayerProfile profile) noexcept {
+        switch (profile) {
+        case LayerProfile::Rich: return LayerProfile::Cheap;
+        case LayerProfile::Cheap: return LayerProfile::Static;
+        case LayerProfile::Static: return LayerProfile::Eink;
+        case LayerProfile::Eink: return LayerProfile::None;
+        case LayerProfile::None: return LayerProfile::None;
+        }
+        return LayerProfile::None;
+    }
+
+    constexpr std::uint8_t resolve_layer_opacity(LayerProfile profile,
+                                                std::uint8_t requested) noexcept {
+        switch (profile) {
+        case LayerProfile::Rich:
+            return requested;
+        case LayerProfile::Cheap:
+            if (requested == 0 || requested == 255) return requested;
+            return static_cast<std::uint8_t>(((requested + 42u) / 85u) * 85u);
+        case LayerProfile::Static:
+            return requested >= 128 ? 255 : 0;
+        case LayerProfile::Eink:
+        case LayerProfile::None:
+            return requested == 255 ? 255 : 0;
+        }
+        return 0;
+    }
+
+    constexpr LayerFallbackReason layer_budget_fallback_reason(
+        const LayerBudgetResult& budget) noexcept {
+        if (budget.layer_bytes_over) return LayerFallbackReason::LayerBytesOver;
+        if (budget.composite_pixels_over) return LayerFallbackReason::CompositePixelsOver;
+        if (budget.command_count_over) return LayerFallbackReason::CommandCountOver;
+        return LayerFallbackReason::None;
+    }
+
+    constexpr LayerProfileDecision decide_layer_profile(
+        LayerProfile requested,
+        const LayerBudgetResult& budget) noexcept {
+        LayerProfileDecision decision{
+            .requested = requested,
+            .effective = requested,
+            .reason = LayerFallbackReason::None,
+        };
+        const auto reason = layer_budget_fallback_reason(budget);
+        if (reason != LayerFallbackReason::None) {
+            decision.effective = degrade_layer_profile(requested);
+            decision.reason = reason;
+        }
+        return decision;
+    }
 
     struct SnapshotRecord {
         SnapshotKind kind{SnapshotKind::EmptyFallback};

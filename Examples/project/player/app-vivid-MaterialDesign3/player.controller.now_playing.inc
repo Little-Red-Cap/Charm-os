@@ -769,6 +769,99 @@
             return capture.handle;
         }
 
+        static ::ui::scene::LayerBudget make_transition_layer_budget(
+            ::ui::scene::LayerProfile profile) noexcept {
+            switch (profile) {
+            case ::ui::scene::LayerProfile::Rich:
+                return {
+                    .max_layer_bytes = 4u * 1024u * 1024u,
+                    .max_composite_pixels = static_cast<std::uint32_t>(screen_width * screen_height * 2),
+                    .max_command_count = 0,
+                };
+            case ::ui::scene::LayerProfile::Cheap:
+                return {
+                    .max_layer_bytes = 2u * 1024u * 1024u,
+                    .max_composite_pixels = static_cast<std::uint32_t>(screen_width * screen_height),
+                    .max_command_count = 0,
+                };
+            case ::ui::scene::LayerProfile::Static:
+            case ::ui::scene::LayerProfile::Eink:
+            case ::ui::scene::LayerProfile::None:
+                return {
+                    .max_layer_bytes = 1u * 1024u * 1024u,
+                    .max_composite_pixels = static_cast<std::uint32_t>(screen_width * screen_height),
+                    .max_command_count = 0,
+                };
+            }
+            return {};
+        }
+
+        std::uint32_t estimate_transition_composite_pixels() const noexcept {
+            const auto full_screen_pixels =
+                static_cast<std::uint32_t>(screen_width * screen_height);
+            std::uint32_t layers{0};
+            if (now_playing_transition.source_snapshot) {
+                ++layers;
+            }
+            if (now_playing_transition.destination_snapshot) {
+                ++layers;
+            }
+            return full_screen_pixels * layers;
+        }
+
+        ::ui::scene::LayerBudgetResult check_transition_layer_budget(
+            const ::ui::scene::LayerBudget& budget,
+            std::uint32_t composite_pixels) const noexcept {
+            ::ui::scene::LayerBudgetResult result{};
+            if (!scene) return result;
+            const auto stats = scene->layer_stats();
+            if (budget.max_layer_bytes > 0 && stats.layer_bytes > budget.max_layer_bytes) {
+                result.layer_bytes_over = true;
+            }
+            if (budget.max_composite_pixels > 0 &&
+                composite_pixels > budget.max_composite_pixels) {
+                result.composite_pixels_over = true;
+            }
+            result.ok = !result.layer_bytes_over
+                && !result.composite_pixels_over
+                && !result.command_count_over;
+            return result;
+        }
+
+        void decide_transition_layer_profile() noexcept {
+            const auto budget_caps = make_transition_layer_budget(requested_layer_profile);
+            const auto composite_pixels = estimate_transition_composite_pixels();
+            const auto budget = check_transition_layer_budget(budget_caps, composite_pixels);
+            const auto decision = ::ui::scene::decide_layer_profile(
+                requested_layer_profile, budget);
+            effective_layer_profile = decision.effective;
+            layer_transition_fallback_reason = decision.reason;
+            if (decision.reason != ::ui::scene::LayerFallbackReason::None) {
+                ++layer_transition_budget_fail_count;
+            }
+            if (scene) {
+                layer_transition_last_layer_bytes = scene->layer_stats().layer_bytes;
+            }
+            layer_transition_last_layer_bytes_budget = budget_caps.max_layer_bytes;
+            layer_transition_last_composite_pixels = composite_pixels;
+            layer_transition_last_composite_pixels_budget = budget_caps.max_composite_pixels;
+            layer_transition_last_budget_ok = budget.ok;
+#if CHARM_PLAYER_DEBUG_UI
+            std::printf("[layer] profile requested=%s effective=%s reason=%s bytes=%u\n",
+                        ::ui::scene::layer_profile_name(requested_layer_profile),
+                        ::ui::scene::layer_profile_name(effective_layer_profile),
+                        ::ui::scene::layer_fallback_reason_name(layer_transition_fallback_reason),
+                        static_cast<unsigned>(layer_transition_last_layer_bytes));
+            std::printf("[budget] layer_bytes=%u/%u ok=%d composite_pixels=%u/%u ok=%d\n",
+                        static_cast<unsigned>(layer_transition_last_layer_bytes),
+                        static_cast<unsigned>(layer_transition_last_layer_bytes_budget),
+                        budget.layer_bytes_over ? 0 : 1,
+                        static_cast<unsigned>(composite_pixels),
+                        static_cast<unsigned>(layer_transition_last_composite_pixels_budget),
+                        budget.composite_pixels_over ? 0 : 1);
+#endif
+        }
+
         ::ui::scene::LayerComposePlan make_transition_snapshot_plan(
             ::ui::scene::SnapshotHandle snapshot,
             float progress,
@@ -782,14 +875,18 @@
             const int destination_slide = now_playing_transition.route.expanding
                 ? static_cast<int>((1.0f - phase.toward_destination) * 18.0f)
                 : static_cast<int>(phase.toward_destination * -18.0f);
+            const auto caps = ::ui::scene::layer_profile_caps(effective_layer_profile);
+            const auto requested_opacity = static_cast<std::uint8_t>(
+                destination ? lerp_u8(160, 255, phase.toward_destination)
+                            : lerp_u8(255, 180, phase.toward_destination));
             return scene->make_snapshot_compose_plan({
                 .source = snapshot,
                 .transform = ::ui::scene::LayerTransform{
-                    .x = static_cast<std::int16_t>(destination ? destination_slide : source_slide),
+                    .x = static_cast<std::int16_t>(
+                        caps.allow_slide ? (destination ? destination_slide : source_slide) : 0),
                     .y = 0,
-                    .opacity = static_cast<std::uint8_t>(
-                        destination ? lerp_u8(160, 255, phase.toward_destination)
-                                    : lerp_u8(255, 180, phase.toward_destination)),
+                    .opacity = ::ui::scene::resolve_layer_opacity(
+                        effective_layer_profile, requested_opacity),
                 },
                 .clip = Rect{0, 0, screen_width, screen_height},
                 .has_clip = true,
@@ -829,6 +926,9 @@
             if (!plan.valid) return;
             const auto replay = scene->compose_pixel_snapshot(plan);
             if (replay.ok()) {
+                layer_transition_alpha_blend_pixels += static_cast<std::uint32_t>(
+                    replay.stats.alpha_blend_count);
+                layer_transition_last_composite_pixels = plan.composite_pixels;
                 if (destination) {
                     ++layer_transition_destination_compose_count;
                     layer_transition_destination_compose_pixels += plan.composite_pixels;
@@ -877,6 +977,7 @@
                 ++layer_transition_capture_count;
                 ++layer_transition_destination_capture_count;
                 set_now_playing_transition_root_visible(true);
+                decide_transition_layer_profile();
                 set_page_transition_state(PageTransitionState::Composing);
             } else {
                 note_transition_capture_failure();
@@ -911,6 +1012,9 @@
             apply_now_playing_transition_frame(0.0f);
             if (endpoints.expanding) {
                 set_mini_bar_chrome_visible(false);
+            }
+            if (!transition_needs_destination_snapshot()) {
+                decide_transition_layer_profile();
             }
             set_page_transition_state(PageTransitionState::Composing);
         }

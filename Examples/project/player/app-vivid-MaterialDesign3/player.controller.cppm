@@ -706,6 +706,17 @@ export namespace player {
         std::uint32_t layer_transition_destination_compose_pixels{0};
         PageTransitionState page_transition_state{PageTransitionState::Idle};
         std::uint32_t layer_transition_abort_count{0};
+        ::ui::scene::LayerProfile requested_layer_profile{::ui::scene::LayerProfile::Rich};
+        ::ui::scene::LayerProfile effective_layer_profile{::ui::scene::LayerProfile::Rich};
+        ::ui::scene::LayerFallbackReason layer_transition_fallback_reason{
+            ::ui::scene::LayerFallbackReason::None};
+        std::uint32_t layer_transition_budget_fail_count{0};
+        std::uint32_t layer_transition_alpha_blend_pixels{0};
+        std::uint32_t layer_transition_last_layer_bytes{0};
+        std::uint32_t layer_transition_last_layer_bytes_budget{0};
+        std::uint32_t layer_transition_last_composite_pixels{0};
+        std::uint32_t layer_transition_last_composite_pixels_budget{0};
+        bool layer_transition_last_budget_ok{true};
         ::ui::scene::LayerCaptureStatus last_layer_transition_capture_status{
             ::ui::scene::LayerCaptureStatus::Ok};
         FixedString<128> mount_status{};

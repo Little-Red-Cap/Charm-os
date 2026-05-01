@@ -2,7 +2,7 @@
 
 本文是 Vivid 进入 `Runtime Spine v0` 后的方向宪章。
 
-它不是 API 契约，也不替代 `ui_kernel_contract.md`、`vivid_replay_workflow.md` 或 `vivid_layer_runtime_v0.md`。它负责回答一个更上层的问题：
+它不是 API 契约，也不替代 `ui_kernel_contract.md`、`vivid_replay_workflow.md`、`vivid_layer_runtime_v0.md` 或 `vivid_motion_runtime_v0.md`。它负责回答一个更上层的问题：
 
 > Vivid 为什么不是 widget collection，而是 resource-governed product UI runtime。
 
@@ -242,6 +242,8 @@ Motion recipe 的第一目标不是 API 好看，而是可降级、可审计、�
 - `Examples/ui/vivid/motion_time_demo`
 
 这个核心只回答“时间如何被采样，recipe 如何投影成最小 `LayerTransform`，transition 如何托管 begin/sample/finish/cancel 生命周期，如何留下最小运行证据，如何生成 / dry-run `LayerComposeSpec`，以及如何把预算证据转成 effective profile”，暂不执行真实 layer compose 或页面转场。
+
+阶段性细节见：[`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)。
 
 ## Pattern Layer
 

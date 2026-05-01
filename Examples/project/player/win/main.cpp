@@ -559,6 +559,37 @@ namespace {
             }
         }
         {
+            const Rect pixel_bounds{0, 0, 24, 16};
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = pixel_bounds,
+                .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
+            };
+            const auto capture = scene.capture_pixel_snapshot_result(spec);
+            const auto plan = scene.make_snapshot_compose_plan({
+                .source = capture.handle,
+                .transform = ::ui::scene::LayerTransform{.x = 3, .y = 4, .opacity = 128},
+                .clip = Rect{0, 0, screen_width, screen_height},
+                .has_clip = true,
+            });
+            const auto before = scene.layer_stats();
+            const auto replay = scene.compose_pixel_snapshot(plan);
+            const auto after = scene.layer_stats();
+            const bool composed = capture.ok()
+                && plan.valid
+                && replay.ok()
+                && replay.stats.alpha_blend_count == plan.composite_pixels
+                && after.pixel_blit_count > before.pixel_blit_count
+                && after.pixel_blit_pixels >= before.pixel_blit_pixels + plan.composite_pixels;
+            const bool released = scene.release_snapshot(capture.handle);
+            if (composed && released) {
+                ui_ci_emit("layer_pixel_snapshot_opacity_compose", true, nullptr);
+            } else {
+                ui_ci_emit("layer_pixel_snapshot_opacity_compose", false, "pixel_snapshot_opacity_compose");
+                res.ok = false;
+                res.failed++;
+            }
+        }
+        {
             const ::ui::scene::SnapshotSpec spec{
                 .bounds = Rect{0, 0, screen_width, screen_height},
                 .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,

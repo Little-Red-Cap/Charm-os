@@ -40,7 +40,7 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 已实现：
 
 - `layer_runtime.cppm` 提供 `SnapshotHandle`、`SnapshotRecord`、`SnapshotStore`、`LayerStats`、`LayerComposePlan`、`LayerBudgetResult` 等基础类型。
-- `Scene` 支持 `capture_command_snapshot_result()`、`capture_command_snapshot()`、`capture_pixel_snapshot_result()`、`capture_pixel_snapshot()`、`release_snapshot()`、`validate_snapshot()`、`compose_snapshot_dry_run()`、`make_snapshot_compose_plan()`、`check_layer_budget()`、`replay_command_snapshot()` 与 `compose_pixel_snapshot()`。
+- `Scene` 支持 `capture_command_snapshot_result()`、`capture_command_snapshot()`、`capture_pixel_snapshot_result()`、`capture_pixel_snapshot()`、`release_snapshot()`、`validate_snapshot()`、`compose_snapshot_dry_run()`、`make_snapshot_compose_plan()`、`check_layer_budget()`、`replay_command_snapshot()` 与 `compose_pixel_snapshot()`，其中 PixelSurface compose 已支持 `opacity == 255` fast blit、`opacity == 0` skip，以及中间 opacity 的逐像素 alpha composite。
 - `PageLayer` 已提供 `state()`、`snapshot()`、`freeze()`、`thaw()`、`release_snapshot()`、`mark_transitioning()` 与 `mark_stale()`，用于把页面 live root 与 frozen artifact 的生命周期绑定起来。
 - `CommandBuffer` snapshot 会复制当前 `DrawCmdBuffer` 到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
 - `PixelSurface` snapshot 会复制当前 canvas 像素到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
@@ -49,12 +49,12 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 - Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface 双层路径：转场开始时通过 PageLayer 捕获 source page、隐藏 source live root；render loop 中预渲染 destination page 并通过 PageLayer 捕获 destination snapshot，然后隐藏 destination live root，转场期间合成 frozen source / destination，再绘制 transition overlay。
 - Player 侧已有最小 `PageTransitionState`，外部页面跳转打断 active transition 时会进入 abort 收尾，统一释放 source / destination snapshot、恢复 live root 可见性、清理 transition overlay，并回到 `Idle`。
 - Win Player rich profile 已把全屏 layer cache slot 扩到 2，用于同时持有 source / destination PixelSurface。
-- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/全屏 profile、Player 转场 source / destination PixelSurface capture/compose，以及 transition interrupt abort。
+- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/opacity 合成/全屏 profile、Player 转场 source / destination PixelSurface capture/compose，以及 transition interrupt abort。
 
 仍未实现：
 
 - `CommandBuffer` replay 目前只验证回放边界和 clip，尚未支持平移、opacity 或真正 compositor 语义。
-- `PixelSurface` compose 已支持 fixed payload + clip + x/y offset；opacity / alpha composite 仍待后续补齐。
+- `PixelSurface` compose 已支持 fixed payload + clip + x/y offset + opacity；后续仍需要 profile gate、SIMD/scanline 优化与更完整 alpha format 策略。
 - `TileSurface` snapshot 尚未落地。
 - 当前 PageLayer 已能拥有一个 snapshot handle；更完整的多 overlay layer、transition recipe、取消动画与自动 stale propagation 仍待后续补齐。
 
@@ -145,6 +145,7 @@ v0 语义：
 - `PixelSurface` 是 frozen pixel artifact，不等同于当前 live tree。
 - 捕获后即使 live tree 的 `layout / style / theme` epoch 变化，也可以继续 compose，除非 snapshot 被显式标记 stale 或 payload 丢失。
 - 这与 `CommandBuffer` snapshot 不同；命令快照依赖当前 scene 执行环境，回放仍必须拒绝 epoch stale。
+- compose 支持三条 v0 路径：`opacity == 255` 直接 blit；`opacity == 0` 跳过；中间 opacity 逐像素 alpha composite，并在 replay stats 中记录 alpha blend 像素数。
 
 优点：
 

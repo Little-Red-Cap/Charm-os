@@ -23,6 +23,7 @@ import charm.core.soa_payload;
 export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
+import charm.gfx.pixel_ops;
 export import charm.gfx.render_style;
 export import charm.gfx.text_box;
 import charm.gfx.draw_cmd;
@@ -1250,6 +1251,13 @@ export namespace ui::scene {
                 out.status = LayerReplayStatus::ExecuteFailed;
                 return out;
             }
+            if (plan.transform.opacity == 0) {
+                out.stats.cmd_count = 0;
+                out.stats.cmd_bytes = 0;
+                out.status = LayerReplayStatus::Ok;
+                return out;
+            }
+            std::uint64_t alpha_blend_pixels = 0;
             const auto row_bytes =
                 static_cast<std::size_t>(plan.source_visible.w) * canvas_.bytes_per_pixel();
             for (int y = 0; y < plan.source_visible.h; ++y) {
@@ -1262,15 +1270,25 @@ export namespace ui::scene {
                 }
                 const auto src_offset =
                     static_cast<std::size_t>(source_x) * canvas_.bytes_per_pixel();
-                canvas_.blit_span(plan.target_bounds.x,
-                                  plan.target_bounds.y + y,
-                                  src + src_offset,
-                                  row_bytes);
+                const auto* src_line = src + src_offset;
+                if (plan.transform.opacity == 255) {
+                    canvas_.blit_span(plan.target_bounds.x,
+                                      plan.target_bounds.y + y,
+                                      src_line,
+                                      row_bytes);
+                } else {
+                    alpha_blend_pixels += blend_pixel_snapshot_row(plan.target_bounds.x,
+                                                                   plan.target_bounds.y + y,
+                                                                   src_line,
+                                                                   plan.source_visible.w,
+                                                                   plan.transform.opacity);
+                }
             }
             canvas_.mark_dirty(plan.target_bounds);
             snapshot_store_.note_pixel_blit(plan.composite_pixels);
             out.stats.cmd_count = 0;
             out.stats.cmd_bytes = 0;
+            out.stats.alpha_blend_count = alpha_blend_pixels;
             out.status = LayerReplayStatus::Ok;
             return out;
         }
@@ -1303,6 +1321,47 @@ export namespace ui::scene {
             }
             record->payload_slot = payload_slot;
             return true;
+        }
+
+        static rgba decode_snapshot_pixel(const std::byte* src) noexcept {
+            if (!src) return {};
+            if constexpr (screen_pixel_format == PixelFormat::RGB565) {
+                std::uint16_t packed{};
+                std::memcpy(&packed, src, sizeof(packed));
+                const rgb value = unpack_rgb565(packed);
+                return {value.r, value.g, value.b, 255};
+            } else if constexpr (screen_pixel_format == PixelFormat::RGB888) {
+                return {
+                    static_cast<std::uint8_t>(src[0]),
+                    static_cast<std::uint8_t>(src[1]),
+                    static_cast<std::uint8_t>(src[2]),
+                    255
+                };
+            } else {
+                std::uint32_t packed{};
+                std::memcpy(&packed, src, sizeof(packed));
+                return unpack_argb8888(packed);
+            }
+        }
+
+        std::uint64_t blend_pixel_snapshot_row(int x,
+                                               int y,
+                                               const std::byte* src,
+                                               int width,
+                                               std::uint8_t opacity) noexcept {
+            if (!src || width <= 0 || opacity == 0) return 0;
+            const auto bpp = canvas_.bytes_per_pixel();
+            std::uint64_t blended = 0;
+            for (int i = 0; i < width; ++i) {
+                rgba pixel = decode_snapshot_pixel(src + static_cast<std::size_t>(i) * bpp);
+                pixel.a = static_cast<std::uint8_t>(
+                    (static_cast<std::uint16_t>(pixel.a) * opacity) / 255u);
+                if (pixel.a > 0 && pixel.a < 255) {
+                    ++blended;
+                }
+                canvas_.set_pixel(x + i, y, pixel);
+            }
+            return blended;
         }
 
         static CmdStats to_scene_stats(const ui::draw_cmd::DrawCmdStats& stats) noexcept {

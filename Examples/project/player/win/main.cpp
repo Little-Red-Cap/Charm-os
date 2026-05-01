@@ -501,6 +501,7 @@ namespace {
         pump_frame();
         const std::uint32_t captures_before_now = ctx.layer_transition_capture_count;
         const std::uint32_t releases_before_now = ctx.layer_transition_release_count;
+        const std::uint32_t capture_fails_before_now = ctx.layer_transition_capture_fail_count;
         const std::uint32_t composes_before_now = ctx.layer_transition_compose_count;
         const std::uint32_t compose_pixels_before_now = ctx.layer_transition_composite_pixels;
         if (click_handle(ctx.handles.bottom_hit, "home_to_now")) {
@@ -514,7 +515,9 @@ namespace {
             }
         }
         if (ctx.layer_transition_capture_count > captures_before_now
-            && ctx.layer_transition_release_count > releases_before_now) {
+            && ctx.layer_transition_release_count > releases_before_now
+            && ctx.layer_transition_capture_fail_count == capture_fails_before_now
+            && ctx.last_layer_transition_capture_status == ::ui::scene::LayerCaptureStatus::Ok) {
             ui_ci_emit("layer_transition_home_to_now_snapshot", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_home_to_now_snapshot", false, "transition_snapshot");
@@ -533,6 +536,7 @@ namespace {
         pump_frame();
         const std::uint32_t captures_before_back = ctx.layer_transition_capture_count;
         const std::uint32_t releases_before_back = ctx.layer_transition_release_count;
+        const std::uint32_t capture_fails_before_back = ctx.layer_transition_capture_fail_count;
         const std::uint32_t composes_before_back = ctx.layer_transition_compose_count;
         const std::uint32_t compose_pixels_before_back = ctx.layer_transition_composite_pixels;
         if (click_handle(ctx.handles.now_back, "now_back_to_home")) {
@@ -546,7 +550,9 @@ namespace {
             }
         }
         if (ctx.layer_transition_capture_count > captures_before_back
-            && ctx.layer_transition_release_count > releases_before_back) {
+            && ctx.layer_transition_release_count > releases_before_back
+            && ctx.layer_transition_capture_fail_count == capture_fails_before_back
+            && ctx.last_layer_transition_capture_status == ::ui::scene::LayerCaptureStatus::Ok) {
             ui_ci_emit("layer_transition_now_to_home_snapshot", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_now_to_home_snapshot", false, "transition_snapshot");

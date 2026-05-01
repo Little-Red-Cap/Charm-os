@@ -679,12 +679,32 @@
         }
 
         ::ui::scene::SnapshotHandle capture_transition_source_snapshot() noexcept {
+            last_layer_transition_capture_status = ::ui::scene::LayerCaptureStatus::NoSnapshotSlot;
             if (!scene) return {};
             const ::ui::scene::SnapshotSpec spec{
                 .bounds = Rect{0, 0, screen_width, screen_height},
                 .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
             };
-            return scene->capture_command_snapshot(spec);
+            const auto capture = scene->capture_command_snapshot_result(spec);
+            last_layer_transition_capture_status = capture.status;
+            return capture.handle;
+        }
+
+        void note_transition_capture_failure() noexcept {
+            ++layer_transition_capture_fail_count;
+            switch (last_layer_transition_capture_status) {
+            case ::ui::scene::LayerCaptureStatus::NoSnapshotSlot:
+                ++layer_transition_capture_no_slot_count;
+                break;
+            case ::ui::scene::LayerCaptureStatus::RecordFailed:
+                ++layer_transition_capture_record_fail_count;
+                break;
+            case ::ui::scene::LayerCaptureStatus::StoreFailed:
+                ++layer_transition_capture_store_fail_count;
+                break;
+            case ::ui::scene::LayerCaptureStatus::Ok:
+                break;
+            }
         }
 
         void release_transition_source_snapshot() noexcept {
@@ -731,7 +751,7 @@
             if (now_playing_transition.source_snapshot) {
                 ++layer_transition_capture_count;
             } else {
-                ++layer_transition_capture_fail_count;
+                note_transition_capture_failure();
             }
             sample_transition_source_snapshot_compose(0.0f);
             sync_now_playing_transition_overlay();

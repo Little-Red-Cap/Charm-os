@@ -303,6 +303,7 @@ export namespace player {
         };
 
         PlaybackEngine playback{};
+        ::ui::scene::Scene* scene{nullptr};
         ::ui::scene::SceneAccess access{};
         UiHandles handles{};
         PlayerIconIds icons{};
@@ -624,6 +625,7 @@ export namespace player {
             bool active{false};
             bool reveal_started{false};
             NowPlayingTransitionEndpoints route{};
+            ::ui::scene::SnapshotHandle source_snapshot{};
             std::uint64_t start_ms{0};
             Rect shell_from{};
             Rect shell_to{};
@@ -678,6 +680,9 @@ export namespace player {
             ::ui::scene::TextSlotId home_stats_plays{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId home_stats_avg{::ui::scene::kInvalidTextSlot};
         } text_slots{};
+        std::uint32_t layer_transition_capture_count{0};
+        std::uint32_t layer_transition_release_count{0};
+        std::uint32_t layer_transition_capture_fail_count{0};
         FixedString<128> mount_status{};
         std::uint32_t rng_state{0};
         std::uint64_t last_debug_tick_ms{0};
@@ -750,8 +755,9 @@ export namespace player {
             return static_cast<std::uint64_t>(*size);
         }
 
-        void bind_scene(::ui::scene::Scene& scene) {
-            access = scene.access();
+        void bind_scene(::ui::scene::Scene& scene_ref) {
+            scene = &scene_ref;
+            access = scene_ref.access();
         }
 
         void bind_player(audio::AudioPlayer& p) {

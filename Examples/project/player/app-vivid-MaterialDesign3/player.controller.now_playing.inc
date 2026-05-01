@@ -678,12 +678,35 @@
             set_page_root_visible(endpoints.source_page, false);
         }
 
+        ::ui::scene::SnapshotHandle capture_transition_source_snapshot() noexcept {
+            if (!scene) return {};
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{0, 0, screen_width, screen_height},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            return scene->capture_command_snapshot(spec);
+        }
+
+        void release_transition_source_snapshot() noexcept {
+            if (!scene || !now_playing_transition.source_snapshot) return;
+            if (scene->release_snapshot(now_playing_transition.source_snapshot)) {
+                ++layer_transition_release_count;
+            }
+            now_playing_transition.source_snapshot = {};
+        }
+
         void set_now_playing_transition_root_visible(bool visible) noexcept {
             set_handle_visible(handles.transition_root, visible);
         }
 
         void begin_now_playing_transition_lifecycle() noexcept {
             const auto& endpoints = now_playing_transition.route;
+            now_playing_transition.source_snapshot = capture_transition_source_snapshot();
+            if (now_playing_transition.source_snapshot) {
+                ++layer_transition_capture_count;
+            } else {
+                ++layer_transition_capture_fail_count;
+            }
             sync_now_playing_transition_overlay();
             if (endpoints.expanding) {
                 set_page_root_visible(endpoints.destination_page, false);
@@ -698,6 +721,7 @@
         }
 
         void restore_now_playing_transition_scene_state() noexcept {
+            release_transition_source_snapshot();
             restore_now_playing_group_layout();
             restore_now_playing_group_visibility();
             restore_bottom_bar_content_visibility();

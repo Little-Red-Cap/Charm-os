@@ -683,6 +683,9 @@ export namespace player {
         std::uint32_t layer_transition_capture_count{0};
         std::uint32_t layer_transition_release_count{0};
         std::uint32_t layer_transition_capture_fail_count{0};
+        std::uint32_t layer_transition_compose_count{0};
+        std::uint32_t layer_transition_compose_fail_count{0};
+        std::uint32_t layer_transition_composite_pixels{0};
         FixedString<128> mount_status{};
         std::uint32_t rng_state{0};
         std::uint64_t last_debug_tick_ms{0};

@@ -695,6 +695,32 @@
             now_playing_transition.source_snapshot = {};
         }
 
+        void sample_transition_source_snapshot_compose(float progress) noexcept {
+            if (!scene || !now_playing_transition.source_snapshot) return;
+            const auto phase = sample_now_playing_transition_frame_phase(
+                now_playing_transition, progress);
+            const int slide = now_playing_transition.route.expanding
+                ? static_cast<int>((1.0f - phase.toward_destination) * -18.0f)
+                : static_cast<int>(phase.toward_destination * 18.0f);
+            const auto result = scene->compose_snapshot_dry_run({
+                .source = now_playing_transition.source_snapshot,
+                .transform = ::ui::scene::LayerTransform{
+                    .x = static_cast<std::int16_t>(slide),
+                    .y = 0,
+                    .opacity = static_cast<std::uint8_t>(
+                        lerp_u8(255, 180, phase.toward_destination)),
+                },
+                .clip = Rect{0, 0, screen_width, screen_height},
+                .has_clip = true,
+            });
+            if (result.ok) {
+                ++layer_transition_compose_count;
+                layer_transition_composite_pixels += result.composite_pixels;
+            } else {
+                ++layer_transition_compose_fail_count;
+            }
+        }
+
         void set_now_playing_transition_root_visible(bool visible) noexcept {
             set_handle_visible(handles.transition_root, visible);
         }
@@ -707,6 +733,7 @@
             } else {
                 ++layer_transition_capture_fail_count;
             }
+            sample_transition_source_snapshot_compose(0.0f);
             sync_now_playing_transition_overlay();
             if (endpoints.expanding) {
                 set_page_root_visible(endpoints.destination_page, false);

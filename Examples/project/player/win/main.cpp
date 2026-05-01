@@ -322,6 +322,8 @@ namespace {
         pump_frame();
         const std::uint32_t captures_before_now = ctx.layer_transition_capture_count;
         const std::uint32_t releases_before_now = ctx.layer_transition_release_count;
+        const std::uint32_t composes_before_now = ctx.layer_transition_compose_count;
+        const std::uint32_t compose_pixels_before_now = ctx.layer_transition_composite_pixels;
         if (click_handle(ctx.handles.bottom_hit, "home_to_now")) {
             if (wait_for_page(player::PlayerPage::NowPlaying)
                 || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
@@ -340,10 +342,20 @@ namespace {
             res.ok = false;
             res.failed++;
         }
+        if (ctx.layer_transition_compose_count > composes_before_now
+            && ctx.layer_transition_composite_pixels > compose_pixels_before_now) {
+            ui_ci_emit("layer_transition_home_to_now_compose", true, nullptr);
+        } else {
+            ui_ci_emit("layer_transition_home_to_now_compose", false, "transition_compose");
+            res.ok = false;
+            res.failed++;
+        }
 
         pump_frame();
         const std::uint32_t captures_before_back = ctx.layer_transition_capture_count;
         const std::uint32_t releases_before_back = ctx.layer_transition_release_count;
+        const std::uint32_t composes_before_back = ctx.layer_transition_compose_count;
+        const std::uint32_t compose_pixels_before_back = ctx.layer_transition_composite_pixels;
         if (click_handle(ctx.handles.now_back, "now_back_to_home")) {
             if (wait_for_page(player::PlayerPage::Home)
                 || settle_now_playing_transition(player::PlayerPage::Home)) {
@@ -359,6 +371,14 @@ namespace {
             ui_ci_emit("layer_transition_now_to_home_snapshot", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_now_to_home_snapshot", false, "transition_snapshot");
+            res.ok = false;
+            res.failed++;
+        }
+        if (ctx.layer_transition_compose_count > composes_before_back
+            && ctx.layer_transition_composite_pixels > compose_pixels_before_back) {
+            ui_ci_emit("layer_transition_now_to_home_compose", true, nullptr);
+        } else {
+            ui_ci_emit("layer_transition_now_to_home_compose", false, "transition_compose");
             res.ok = false;
             res.failed++;
         }

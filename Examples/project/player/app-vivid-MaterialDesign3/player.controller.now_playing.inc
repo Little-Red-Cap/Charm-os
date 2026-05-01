@@ -807,6 +807,20 @@
             return budget;
         }
 
+        ::ui::scene::LayerAdmission decide_transition_layer_admission() const noexcept {
+            const auto budget = make_effective_transition_layer_budget(requested_layer_profile);
+            const auto pixel_bytes = static_cast<std::uint32_t>(
+                ::ui::scene::snapshot_pixel_bytes(
+                    screen_pixel_format, screen_width, screen_height));
+            return ::ui::scene::decide_layer_admission({
+                .profile = requested_layer_profile,
+                .budget = budget,
+                .pixel_snapshot_bytes = pixel_bytes,
+                .cache_slots = layer_cache_slots,
+                .need_double_snapshot = true,
+            });
+        }
+
         std::uint32_t estimate_transition_composite_pixels() const noexcept {
             const auto full_screen_pixels =
                 static_cast<std::uint32_t>(screen_width * screen_height);
@@ -877,6 +891,12 @@
             return effective_layer_profile == ::ui::scene::LayerProfile::Static
                 || effective_layer_profile == ::ui::scene::LayerProfile::Eink
                 || effective_layer_profile == ::ui::scene::LayerProfile::None;
+        }
+
+        bool transition_admission_uses_static_cut() const noexcept {
+            return last_layer_admission == ::ui::scene::LayerAdmission::CommandSnapshot
+                || last_layer_admission == ::ui::scene::LayerAdmission::StaticCut
+                || last_layer_admission == ::ui::scene::LayerAdmission::Reject;
         }
 
         ::ui::scene::LayerComposePlan make_transition_snapshot_plan(
@@ -1195,6 +1215,28 @@
             set_page_transition_state(PageTransitionState::Idle);
         }
 
+        void finish_now_playing_transition_admission_static_cut() noexcept {
+            if (!now_playing_transition.active) return;
+            ++layer_admission_static_cut_count;
+            if (requested_layer_profile == ::ui::scene::LayerProfile::Static ||
+                requested_layer_profile == ::ui::scene::LayerProfile::Eink ||
+                requested_layer_profile == ::ui::scene::LayerProfile::None) {
+                effective_layer_profile = requested_layer_profile;
+                layer_transition_fallback_reason = ::ui::scene::LayerFallbackReason::None;
+                layer_transition_last_budget_ok = true;
+            } else {
+                effective_layer_profile = ::ui::scene::LayerProfile::Static;
+                layer_transition_fallback_reason = ::ui::scene::LayerFallbackReason::LayerBytesOver;
+                layer_transition_last_budget_ok = false;
+                ++layer_transition_budget_fail_count;
+            }
+#if CHARM_PLAYER_DEBUG_UI
+            std::printf("[layer] admission=%s action=static_cut\n",
+                        ::ui::scene::layer_admission_name(last_layer_admission));
+#endif
+            finish_now_playing_transition_static_cut();
+        }
+
         void tick_now_playing_transition(std::uint64_t now_ms) noexcept {
             if (!now_playing_transition.active) return;
             const auto tick = sample_now_playing_transition_tick_phase(now_playing_transition, now_ms);
@@ -1225,6 +1267,11 @@
             if (!prepare_now_playing_transition_state(destination_page, direction, transition_state)) return false;
 
             now_playing_transition = transition_state;
+            last_layer_admission = decide_transition_layer_admission();
+            if (transition_admission_uses_static_cut()) {
+                finish_now_playing_transition_admission_static_cut();
+                return true;
+            }
             set_page_transition_state(PageTransitionState::CapturingSource);
             begin_now_playing_transition_lifecycle();
             return true;

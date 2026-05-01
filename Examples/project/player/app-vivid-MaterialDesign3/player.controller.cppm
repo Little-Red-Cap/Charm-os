@@ -708,6 +708,9 @@ export namespace player {
         std::uint32_t layer_transition_abort_count{0};
         bool layer_profile_budget_drill_enabled{false};
         std::uint32_t layer_static_cut_count{0};
+        std::uint32_t layer_admission_static_cut_count{0};
+        ::ui::scene::LayerAdmission last_layer_admission{
+            ::ui::scene::LayerAdmission::PixelDouble};
         ::ui::scene::LayerProfile requested_layer_profile{::ui::scene::LayerProfile::Rich};
         ::ui::scene::LayerProfile effective_layer_profile{::ui::scene::LayerProfile::Rich};
         ::ui::scene::LayerFallbackReason layer_transition_fallback_reason{

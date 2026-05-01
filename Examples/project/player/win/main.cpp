@@ -602,6 +602,37 @@ namespace {
             };
             const auto composite_decision = ::ui::scene::decide_layer_profile(
                 ::ui::scene::LayerProfile::Cheap, composite_over);
+            const auto pixel_bytes = static_cast<std::uint32_t>(
+                ::ui::scene::snapshot_pixel_bytes(screen_pixel_format, screen_width, screen_height));
+            const auto rich_admission = ::ui::scene::decide_layer_admission({
+                .profile = ::ui::scene::LayerProfile::Rich,
+                .budget = ::ui::scene::LayerBudget{
+                    .max_layer_bytes = pixel_bytes * 2u,
+                    .max_composite_pixels = 0,
+                    .max_command_count = 0,
+                },
+                .pixel_snapshot_bytes = pixel_bytes,
+                .cache_slots = layer_cache_slots,
+                .need_double_snapshot = true,
+            });
+            const auto low_budget_admission = ::ui::scene::decide_layer_admission({
+                .profile = ::ui::scene::LayerProfile::Cheap,
+                .budget = ::ui::scene::LayerBudget{
+                    .max_layer_bytes = 1u,
+                    .max_composite_pixels = 0,
+                    .max_command_count = 0,
+                },
+                .pixel_snapshot_bytes = pixel_bytes,
+                .cache_slots = layer_cache_slots,
+                .need_double_snapshot = true,
+            });
+            const auto static_admission = ::ui::scene::decide_layer_admission({
+                .profile = ::ui::scene::LayerProfile::Static,
+                .budget = {},
+                .pixel_snapshot_bytes = pixel_bytes,
+                .cache_slots = layer_cache_slots,
+                .need_double_snapshot = true,
+            });
             const bool ok = ::ui::scene::resolve_layer_opacity(
                     ::ui::scene::LayerProfile::Rich, 128) == 128
                 && ::ui::scene::resolve_layer_opacity(
@@ -615,7 +646,10 @@ namespace {
                 && decision.reason == ::ui::scene::LayerFallbackReason::LayerBytesOver
                 && composite_decision.requested == ::ui::scene::LayerProfile::Cheap
                 && composite_decision.effective == ::ui::scene::LayerProfile::Static
-                && composite_decision.reason == ::ui::scene::LayerFallbackReason::CompositePixelsOver;
+                && composite_decision.reason == ::ui::scene::LayerFallbackReason::CompositePixelsOver
+                && rich_admission == ::ui::scene::LayerAdmission::PixelDouble
+                && low_budget_admission == ::ui::scene::LayerAdmission::CommandSnapshot
+                && static_admission == ::ui::scene::LayerAdmission::StaticCut;
             if (ok) {
                 ui_ci_emit("layer_profile_decision", true, nullptr);
             } else {
@@ -785,7 +819,11 @@ namespace {
         const auto profile_before_drill = ctx.requested_layer_profile;
         const bool drill_before = ctx.layer_profile_budget_drill_enabled;
         const std::uint32_t static_cuts_before = ctx.layer_static_cut_count;
+        const std::uint32_t admission_static_cuts_before = ctx.layer_admission_static_cut_count;
         const std::uint32_t budget_fails_before = ctx.layer_transition_budget_fail_count;
+        const std::uint32_t captures_before_admission_drill = ctx.layer_transition_capture_count;
+        const std::uint32_t destination_captures_before_admission_drill =
+            ctx.layer_transition_destination_capture_count;
         ctx.requested_layer_profile = ::ui::scene::LayerProfile::Cheap;
         ctx.layer_profile_budget_drill_enabled = true;
         if (click_handle(ctx.handles.bottom_hit, "home_to_now_static_cut")) {
@@ -804,8 +842,12 @@ namespace {
             && ctx.effective_layer_profile == ::ui::scene::LayerProfile::Static
             && ctx.layer_transition_fallback_reason != ::ui::scene::LayerFallbackReason::None
             && !ctx.layer_transition_last_budget_ok
+            && ctx.last_layer_admission == ::ui::scene::LayerAdmission::CommandSnapshot
             && ctx.layer_static_cut_count > static_cuts_before
+            && ctx.layer_admission_static_cut_count > admission_static_cuts_before
             && ctx.layer_transition_budget_fail_count > budget_fails_before
+            && ctx.layer_transition_capture_count == captures_before_admission_drill
+            && ctx.layer_transition_destination_capture_count == destination_captures_before_admission_drill
             && scene.layer_stats().snapshot_count == 0;
         if (static_cut) {
             ui_ci_emit("layer_transition_static_cut_drill", true, nullptr);

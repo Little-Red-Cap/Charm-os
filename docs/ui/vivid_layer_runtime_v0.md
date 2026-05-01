@@ -35,11 +35,11 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 
 ## 当前实现快照
 
-截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + PageLayer freeze/thaw + transition abort 收尾 + profile gate + budget 账本 + 观测链 + 双层最小合成路径”。Player 的 Now Playing 转场已经可以通过 PageLayer 把 source page 与 destination page 都冻结成 PixelSurface，并在真实 render loop 中按 LayerProfile 裁决结果合成 frozen source / destination，再绘制 transition overlay。
+截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + PageLayer freeze/thaw + transition abort 收尾 + capture admission + profile gate + budget 账本 + 观测链 + 双层最小合成路径”。Player 的 Now Playing 转场已经可以通过 PageLayer 把 source page 与 destination page 都冻结成 PixelSurface，并在真实 render loop 中按 LayerProfile 裁决结果合成 frozen source / destination，再绘制 transition overlay。
 
 已实现：
 
-- `layer_runtime.cppm` 提供 `SnapshotHandle`、`SnapshotRecord`、`SnapshotStore`、`LayerStats`、`LayerComposePlan`、`LayerBudgetResult`、`LayerProfile`、`LayerProfileCaps` 与 `LayerProfileDecision` 等基础类型。
+- `layer_runtime.cppm` 提供 `SnapshotHandle`、`SnapshotRecord`、`SnapshotStore`、`LayerStats`、`LayerComposePlan`、`LayerBudgetResult`、`LayerProfile`、`LayerProfileCaps`、`LayerProfileDecision` 与 `LayerAdmission` 等基础类型。
 - `Scene` 支持 `capture_command_snapshot_result()`、`capture_command_snapshot()`、`capture_pixel_snapshot_result()`、`capture_pixel_snapshot()`、`release_snapshot()`、`validate_snapshot()`、`compose_snapshot_dry_run()`、`make_snapshot_compose_plan()`、`check_layer_budget()`、`replay_command_snapshot()` 与 `compose_pixel_snapshot()`，其中 PixelSurface compose 已支持 `opacity == 255` fast blit、`opacity == 0` skip，以及中间 opacity 的逐像素 alpha composite。
 - `PageLayer` 已提供 `state()`、`snapshot()`、`freeze()`、`thaw()`、`release_snapshot()`、`mark_transitioning()` 与 `mark_stale()`，用于把页面 live root 与 frozen artifact 的生命周期绑定起来。
 - `CommandBuffer` snapshot 会复制当前 `DrawCmdBuffer` 到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
@@ -49,10 +49,11 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 - Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface 双层路径：转场开始时通过 PageLayer 捕获 source page、隐藏 source live root；render loop 中预渲染 destination page 并通过 PageLayer 捕获 destination snapshot，然后隐藏 destination live root，转场期间合成 frozen source / destination，再绘制 transition overlay。
 - Player 侧已有最小 `PageTransitionState`，外部页面跳转打断 active transition 时会进入 abort 收尾，统一释放 source / destination snapshot、恢复 live root 可见性、清理 transition overlay，并回到 `Idle`。
 - Player 侧已有最小 LayerProfile 裁决链：页面请求 `Rich / Cheap / Static / Eink / None`，转场冻结 source / destination 后按 layer bytes 与 composite pixels 预算生成 effective profile；预算超限时记录 fallback reason，并让 slide / opacity 走 profile caps 与 `resolve_layer_opacity()`。
-- Player 侧已有最小低预算演练链：UI CI 可强制收紧 layer bytes / composite pixels 预算，验证 `Cheap -> Static` fallback，并让 Static profile 跳过连续 compose、直接 cut 到目标页。
+- Player 侧已有最小 capture admission 链：转场开始前先用 profile、预算、全屏 PixelSurface 字节数和 layer cache slot 裁决 `PixelDouble / PixelSingle / CommandSnapshot / StaticCut / Reject`，当准入结果不是当前 Pixel 双层路径可执行形态时，Player 会在捕获前直接 static cut。
+- Player 侧已有最小低预算演练链：UI CI 可强制收紧 layer bytes / composite pixels 预算，验证 `Cheap` 在捕获前得到 `CommandSnapshot` admission，并在当前 Player 缺少命令快照合成路径时降为 static cut，不产生 source / destination PixelSurface capture。
 - Player debug 日志已输出 profile 与 budget 账本，例如 `[layer] profile requested=... effective=... reason=...` 与 `[budget] layer_bytes=.../... composite_pixels=.../...`。
 - Win Player rich profile 已把全屏 layer cache slot 扩到 2，用于同时持有 source / destination PixelSurface。
-- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、LayerProfile 裁决、低预算 static cut drill、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/opacity 合成/全屏 profile、Player 转场 source / destination PixelSurface capture/compose，以及 transition interrupt abort。
+- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、LayerProfile 裁决、capture admission、低预算 static cut drill、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/opacity 合成/全屏 profile、Player 转场 source / destination PixelSurface capture/compose，以及 transition interrupt abort。
 
 仍未实现：
 
@@ -378,7 +379,17 @@ Profile 是裁决
 Backend 是执行
 ```
 
-当前 Player 已有一个最小压力演练：把 requested profile 设为 `Cheap`，同时把预算强制收紧到无法容纳双全屏 PixelSurface。runtime 会得到 `Static` effective profile，记录 fallback reason，然后跳过连续转场 compose，完成一次确定的 cut 收尾。
+当前 Player 已有一个最小压力演练：把 requested profile 设为 `Cheap`，同时把预算强制收紧到无法容纳双全屏 PixelSurface。capture admission 会在捕获前裁决为 `CommandSnapshot`；由于 Player 当前的转场执行器尚未支持命令快照合成，这条路径会被显式降为 static cut，完成一次确定的 cut 收尾，并验证没有新增 snapshot capture。
+
+需要区分两条预算链：
+
+```text
+pre-capture admission:
+  在捕获 PixelSurface 前判断是否允许 PixelDouble / PixelSingle / CommandSnapshot / StaticCut。
+
+post-capture arbitration:
+  在已有 snapshot 后按实际 layer_bytes / composite_pixels 生成 effective profile。
+```
 
 v0 需要新增 layer 维度统计：
 

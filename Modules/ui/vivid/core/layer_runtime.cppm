@@ -35,6 +35,13 @@ export namespace ui::scene {
         ExecuteFailed,
     };
 
+    enum class LayerCaptureStatus : std::uint8_t {
+        Ok,
+        NoSnapshotSlot,
+        RecordFailed,
+        StoreFailed,
+    };
+
     struct LayerEpoch {
         std::uint32_t layout{0};
         std::uint32_t style{0};

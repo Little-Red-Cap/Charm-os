@@ -120,6 +120,15 @@ export namespace ui::scene {
         }
     };
 
+    struct LayerCaptureResult {
+        LayerCaptureStatus status{LayerCaptureStatus::NoSnapshotSlot};
+        SnapshotHandle handle{};
+
+        [[nodiscard]] constexpr bool ok() const noexcept {
+            return status == LayerCaptureStatus::Ok;
+        }
+    };
+
     template<std::size_t MaxSlots>
     class CommandSnapshotPayloadStore {
     public:
@@ -1030,21 +1039,31 @@ export namespace ui::scene {
                 static_cast<std::uint32_t>(last_cmd_stats_.cmd_count),
                 static_cast<std::uint32_t>(last_cmd_stats_.cmd_bytes));
         }
-        SnapshotHandle capture_command_snapshot(const SnapshotSpec& spec) noexcept {
+        LayerCaptureResult capture_command_snapshot_result(const SnapshotSpec& spec) noexcept {
+            LayerCaptureResult result{};
             SnapshotSpec command_spec = spec;
             command_spec.preferred_kind = SnapshotKind::CommandBuffer;
             const auto handle = reserve_snapshot(command_spec);
-            if (!handle) return {};
+            if (!handle) return result;
+            result.handle = handle;
             record_current_scene();
             if (!update_command_snapshot(handle)) {
                 (void)release_snapshot(handle);
-                return {};
+                result.handle = {};
+                result.status = LayerCaptureStatus::RecordFailed;
+                return result;
             }
             if (!store_command_snapshot_payload(handle)) {
                 (void)release_snapshot(handle);
-                return {};
+                result.handle = {};
+                result.status = LayerCaptureStatus::StoreFailed;
+                return result;
             }
-            return handle;
+            result.status = LayerCaptureStatus::Ok;
+            return result;
+        }
+        SnapshotHandle capture_command_snapshot(const SnapshotSpec& spec) noexcept {
+            return capture_command_snapshot_result(spec).handle;
         }
         bool update_pixel_snapshot(SnapshotHandle handle,
                                    PixelFormat format,

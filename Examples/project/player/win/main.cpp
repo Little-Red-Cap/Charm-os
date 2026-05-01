@@ -215,9 +215,11 @@ namespace {
                 .bounds = Rect{0, 0, screen_width, screen_height},
                 .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
             };
-            const auto handle = scene.capture_command_snapshot(spec);
+            const auto capture = scene.capture_command_snapshot_result(spec);
+            const auto handle = capture.handle;
             const auto* record = scene.snapshot_record(handle);
-            const bool captured = static_cast<bool>(handle)
+            const bool captured = capture.ok()
+                && static_cast<bool>(handle)
                 && record
                 && record->kind == ::ui::scene::SnapshotKind::CommandBuffer
                 && record->command_count > 0
@@ -229,6 +231,25 @@ namespace {
                 ui_ci_emit("layer_command_snapshot_capture", true, nullptr);
             } else {
                 ui_ci_emit("layer_command_snapshot_capture", false, "command_snapshot_capture");
+                res.ok = false;
+                res.failed++;
+            }
+        }
+        {
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{0, 0, screen_width, screen_height},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto first = scene.capture_command_snapshot_result(spec);
+            const auto second = scene.capture_command_snapshot_result(spec);
+            const bool exhausted = first.ok()
+                && second.status == ::ui::scene::LayerCaptureStatus::NoSnapshotSlot
+                && !second.handle
+                && scene.release_snapshot(first.handle);
+            if (exhausted) {
+                ui_ci_emit("layer_command_snapshot_capture_full", true, nullptr);
+            } else {
+                ui_ci_emit("layer_command_snapshot_capture_full", false, "command_snapshot_capture_full");
                 res.ok = false;
                 res.failed++;
             }

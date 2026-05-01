@@ -108,6 +108,18 @@ export namespace ui::scene {
         bool overflowed{false};
     };
 
+    struct LayerReplayResult {
+        LayerReplayStatus status{LayerReplayStatus::InvalidPlan};
+        SnapshotHandle source{};
+        SnapshotKind kind{SnapshotKind::EmptyFallback};
+        Rect target_bounds{};
+        ExecStats stats{};
+
+        [[nodiscard]] constexpr bool ok() const noexcept {
+            return status == LayerReplayStatus::Ok;
+        }
+    };
+
     struct TileStats {
         int tiles_total{0};
         int tiles_drawn{0};
@@ -1007,16 +1019,38 @@ export namespace ui::scene {
                                              const LayerBudget& budget) const noexcept {
             return snapshot_store_.check_budget(plan, budget);
         }
-        ExecStats replay_command_snapshot(const LayerComposePlan& plan) noexcept {
-            ExecStats out{};
-            if (!plan.valid || plan.kind != SnapshotKind::CommandBuffer) return out;
+        LayerReplayResult replay_command_snapshot(const LayerComposePlan& plan) noexcept {
+            LayerReplayResult out{};
+            out.source = plan.source;
+            out.kind = plan.kind;
+            out.target_bounds = plan.target_bounds;
+            if (!plan.valid) return out;
+            if (plan.kind != SnapshotKind::CommandBuffer) {
+                out.status = LayerReplayStatus::UnsupportedKind;
+                return out;
+            }
             const auto* record = snapshot_store_.record(plan.source);
-            if (!record || record->payload_slot != 0 || record->stale) return out;
+            if (!record) {
+                out.status = LayerReplayStatus::MissingSnapshot;
+                return out;
+            }
+            if (record->stale || record->epoch != make_layer_epoch()) {
+                (void)snapshot_store_.mark_stale(plan.source);
+                out.status = LayerReplayStatus::StaleSnapshot;
+                return out;
+            }
+            if (record->payload_slot != 0) {
+                out.status = LayerReplayStatus::MissingPayload;
+                return out;
+            }
             reset_alpha_blend_count();
-            out = to_scene_stats(cmd_exec_.execute(canvas_,
-                                                   command_snapshot_buf_,
-                                                   &plan.target_bounds));
-            out.alpha_blend_count = alpha_blend_count();
+            out.stats = to_scene_stats(cmd_exec_.execute(canvas_,
+                                                         command_snapshot_buf_,
+                                                         &plan.target_bounds));
+            out.stats.alpha_blend_count = alpha_blend_count();
+            out.status = out.stats.failed_cmds == 0
+                ? LayerReplayStatus::Ok
+                : LayerReplayStatus::ExecuteFailed;
             return out;
         }
 

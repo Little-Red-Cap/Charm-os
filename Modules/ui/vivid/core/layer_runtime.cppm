@@ -25,6 +25,16 @@ export namespace ui::scene {
         EmptyFallback,
     };
 
+    enum class LayerReplayStatus : std::uint8_t {
+        Ok,
+        InvalidPlan,
+        UnsupportedKind,
+        MissingSnapshot,
+        StaleSnapshot,
+        MissingPayload,
+        ExecuteFailed,
+    };
+
     struct LayerEpoch {
         std::uint32_t layout{0};
         std::uint32_t style{0};

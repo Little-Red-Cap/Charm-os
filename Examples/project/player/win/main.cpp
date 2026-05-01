@@ -369,16 +369,48 @@ namespace {
                 .clip = Rect{0, 0, screen_width, screen_height},
                 .has_clip = true,
             });
-            const auto replay_stats = scene.replay_command_snapshot(plan);
+            const auto replay = scene.replay_command_snapshot(plan);
             const bool replayed = plan.valid
-                && replay_stats.cmd_count > 0
-                && replay_stats.cmd_bytes > 0
-                && replay_stats.failed_cmds == 0;
+                && replay.ok()
+                && replay.stats.cmd_count > 0
+                && replay.stats.cmd_bytes > 0
+                && replay.stats.failed_cmds == 0;
             const bool released = scene.release_snapshot(handle);
             if (replayed && released) {
                 ui_ci_emit("layer_command_snapshot_replay", true, nullptr);
             } else {
                 ui_ci_emit("layer_command_snapshot_replay", false, "command_snapshot_replay");
+                res.ok = false;
+                res.failed++;
+            }
+        }
+        {
+            const Rect root_rect = scene.world_rect(ctx.handles.root);
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{0, 0, screen_width, screen_height},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto handle = scene.capture_command_snapshot(spec);
+            const auto plan = scene.make_snapshot_compose_plan({
+                .source = handle,
+                .transform = ::ui::scene::LayerTransform{},
+                .clip = Rect{0, 0, screen_width, screen_height},
+                .has_clip = true,
+            });
+            if (ctx.handles.root) {
+                scene.access().set_rect(ctx.handles.root, root_rect);
+            }
+            const auto replay = scene.replay_command_snapshot(plan);
+            const auto* record = scene.snapshot_record(handle);
+            const bool stale_rejected = plan.valid
+                && replay.status == ::ui::scene::LayerReplayStatus::StaleSnapshot
+                && record
+                && record->stale;
+            const bool released = scene.release_snapshot(handle);
+            if (stale_rejected && released) {
+                ui_ci_emit("layer_command_snapshot_replay_stale", true, nullptr);
+            } else {
+                ui_ci_emit("layer_command_snapshot_replay_stale", false, "command_snapshot_replay_stale");
                 res.ok = false;
                 res.failed++;
             }

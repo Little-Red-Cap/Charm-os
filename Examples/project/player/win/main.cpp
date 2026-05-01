@@ -415,6 +415,34 @@ namespace {
                 res.failed++;
             }
         }
+        {
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{0, 0, screen_width, screen_height},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto first = scene.capture_command_snapshot(spec);
+            const auto* first_record = scene.snapshot_record(first);
+            const auto first_payload = first_record
+                ? first_record->payload_slot
+                : ::ui::scene::kInvalidSnapshotPayloadSlot;
+            const bool first_released = scene.release_snapshot(first);
+            const auto second = scene.capture_command_snapshot(spec);
+            const auto* second_record = scene.snapshot_record(second);
+            const auto second_payload = second_record
+                ? second_record->payload_slot
+                : ::ui::scene::kInvalidSnapshotPayloadSlot;
+            const bool reused = first_released
+                && first_payload != ::ui::scene::kInvalidSnapshotPayloadSlot
+                && second_payload == first_payload
+                && scene.release_snapshot(second);
+            if (reused) {
+                ui_ci_emit("layer_command_snapshot_payload_reuse", true, nullptr);
+            } else {
+                ui_ci_emit("layer_command_snapshot_payload_reuse", false, "command_snapshot_payload_reuse");
+                res.ok = false;
+                res.failed++;
+            }
+        }
 
         auto click_handle = [&](WidgetHandle h, const char* case_name) -> bool {
             if (!h) {

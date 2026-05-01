@@ -59,6 +59,8 @@ export namespace ui::scene {
         }
     };
 
+    inline constexpr std::uint32_t kInvalidSnapshotPayloadSlot = 0xFFFFFFFFu;
+
     struct SnapshotSpec {
         Rect bounds{};
         SnapshotKind preferred_kind{SnapshotKind::CommandBuffer};
@@ -131,7 +133,7 @@ export namespace ui::scene {
         LayerEpoch epoch{};
         std::uint32_t bytes{0};
         std::uint32_t command_count{0};
-        std::uint32_t payload_slot{0xFFFFFFFFu};
+        std::uint32_t payload_slot{kInvalidSnapshotPayloadSlot};
         std::uint16_t generation{0};
         bool occupied{false};
         bool stale{false};

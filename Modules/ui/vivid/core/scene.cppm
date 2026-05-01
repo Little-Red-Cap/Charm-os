@@ -120,6 +120,55 @@ export namespace ui::scene {
         }
     };
 
+    template<std::size_t MaxSlots>
+    class CommandSnapshotPayloadStore {
+    public:
+        using Buffer = ui::draw_cmd::DefaultDrawCmdBuffer;
+
+        [[nodiscard]] std::uint32_t store(const Buffer& source) noexcept {
+            for (std::size_t i = 0; i < buffers_.size(); ++i) {
+                if (occupied_[i]) continue;
+                if (!copy_into(buffers_[i], source)) return kInvalidSnapshotPayloadSlot;
+                occupied_[i] = true;
+                return static_cast<std::uint32_t>(i);
+            }
+            return kInvalidSnapshotPayloadSlot;
+        }
+
+        [[nodiscard]] bool release(std::uint32_t slot) noexcept {
+            if (slot >= buffers_.size() || !occupied_[slot]) return false;
+            buffers_[slot].clear();
+            occupied_[slot] = false;
+            return true;
+        }
+
+        [[nodiscard]] const Buffer* get(std::uint32_t slot) const noexcept {
+            if (slot >= buffers_.size() || !occupied_[slot]) return nullptr;
+            return &buffers_[slot];
+        }
+
+        void clear() noexcept {
+            for (std::size_t i = 0; i < buffers_.size(); ++i) {
+                buffers_[i].clear();
+                occupied_[i] = false;
+            }
+        }
+
+    private:
+        static bool copy_into(Buffer& target, const Buffer& source) noexcept {
+            return target.load(source.cmd_data(),
+                               source.cmd_bytes(),
+                               source.size(),
+                               source.text_data(),
+                               source.text_used(),
+                               source.blob_data(),
+                               source.blob_used());
+        }
+
+        std::array<Buffer, MaxSlots> buffers_{};
+        std::array<bool, MaxSlots> occupied_{};
+    };
+
     struct TileStats {
         int tiles_total{0};
         int tiles_drawn{0};
@@ -949,6 +998,10 @@ export namespace ui::scene {
             return snapshot_store_.reserve(spec, make_layer_epoch());
         }
         bool release_snapshot(SnapshotHandle handle) noexcept {
+            if (const auto* record = snapshot_store_.record(handle);
+                record && record->payload_slot != kInvalidSnapshotPayloadSlot) {
+                (void)command_snapshot_payloads_.release(record->payload_slot);
+            }
             return snapshot_store_.release(handle);
         }
         bool mark_snapshot_stale(SnapshotHandle handle) noexcept {
@@ -1039,13 +1092,14 @@ export namespace ui::scene {
                 out.status = LayerReplayStatus::StaleSnapshot;
                 return out;
             }
-            if (record->payload_slot != 0) {
+            const auto* payload = command_snapshot_payloads_.get(record->payload_slot);
+            if (!payload) {
                 out.status = LayerReplayStatus::MissingPayload;
                 return out;
             }
             reset_alpha_blend_count();
             out.stats = to_scene_stats(cmd_exec_.execute(canvas_,
-                                                         command_snapshot_buf_,
+                                                         *payload,
                                                          &plan.target_bounds));
             out.stats.alpha_blend_count = alpha_blend_count();
             out.status = out.stats.failed_cmds == 0
@@ -1076,16 +1130,11 @@ export namespace ui::scene {
         bool store_command_snapshot_payload(SnapshotHandle handle) noexcept {
             auto* record = snapshot_store_.mutable_record(handle);
             if (!record) return false;
-            if (!command_snapshot_buf_.load(cmd_buf_.cmd_data(),
-                                            cmd_buf_.cmd_bytes(),
-                                            cmd_buf_.size(),
-                                            cmd_buf_.text_data(),
-                                            cmd_buf_.text_used(),
-                                            cmd_buf_.blob_data(),
-                                            cmd_buf_.blob_used())) {
+            const auto payload_slot = command_snapshot_payloads_.store(cmd_buf_);
+            if (payload_slot == kInvalidSnapshotPayloadSlot) {
                 return false;
             }
-            record->payload_slot = 0;
+            record->payload_slot = payload_slot;
             return true;
         }
 
@@ -1185,7 +1234,7 @@ export namespace ui::scene {
         SoaGui gui_;
         WidgetHandle root_{};
         ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf_{};
-        ui::draw_cmd::DefaultDrawCmdBuffer command_snapshot_buf_{};
+        CommandSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)> command_snapshot_payloads_{};
         ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
         CmdStats last_cmd_stats_{};
         ExecStats last_exec_stats_{};

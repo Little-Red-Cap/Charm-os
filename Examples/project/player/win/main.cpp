@@ -101,6 +101,7 @@ namespace {
 
     constexpr std::size_t kUiCmdBudget = 1200;
     constexpr std::uint64_t kUiAlphaBlendBudget = 1000000;
+    constexpr std::uint32_t kUiLayerBytesBudget = 0;
 
     void ui_ci_emit(const char* name, bool ok, const char* reason) {
         if (ok) {
@@ -162,6 +163,7 @@ namespace {
         {
             const auto cmd_stats = scene.last_cmd_stats();
             const auto exec_stats = scene.last_exec_stats();
+            const auto layer_stats = scene.layer_stats();
             if (cmd_stats.cmd_count > kUiCmdBudget) {
                 ui_ci_emit("frame_budget_cmd", false, "cmd_budget");
                 res.ok = false;
@@ -175,6 +177,13 @@ namespace {
                 res.failed++;
             } else {
                 ui_ci_emit("frame_budget_alpha", true, nullptr);
+            }
+            if (layer_stats.layer_bytes > kUiLayerBytesBudget) {
+                ui_ci_emit("frame_budget_layer", false, "layer_budget");
+                res.ok = false;
+                res.failed++;
+            } else {
+                ui_ci_emit("frame_budget_layer", true, nullptr);
             }
         }
 

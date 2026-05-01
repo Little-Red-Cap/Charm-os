@@ -12,6 +12,7 @@ export import charm.core.handle;
 import charm.core.structured_view;
 export import charm.core.style;
 export import charm.ui.scene.pill_surface;
+export import charm.ui.scene.layer_runtime;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
@@ -937,6 +938,9 @@ export namespace ui::scene {
 
         CmdStats last_cmd_stats() const noexcept { return last_cmd_stats_; }
         ExecStats last_exec_stats() const noexcept { return last_exec_stats_; }
+        LayerStats layer_stats() const noexcept { return snapshot_store_.stats(); }
+        DefaultSnapshotStore& snapshot_store() noexcept { return snapshot_store_; }
+        const DefaultSnapshotStore& snapshot_store() const noexcept { return snapshot_store_; }
 
     private:
         static CmdStats to_scene_stats(const ui::draw_cmd::DrawCmdStats& stats) noexcept {
@@ -1038,6 +1042,7 @@ export namespace ui::scene {
         ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
         CmdStats last_cmd_stats_{};
         ExecStats last_exec_stats_{};
+        DefaultSnapshotStore snapshot_store_{};
         OverlayFn overlay_fn_{nullptr};
         void* overlay_ctx_{nullptr};
     };

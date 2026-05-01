@@ -210,6 +210,29 @@ namespace {
                 res.failed++;
             }
         }
+        {
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{0, 0, screen_width, screen_height},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto handle = scene.capture_command_snapshot(spec);
+            const auto* record = scene.snapshot_record(handle);
+            const bool captured = static_cast<bool>(handle)
+                && record
+                && record->kind == ::ui::scene::SnapshotKind::CommandBuffer
+                && record->command_count > 0
+                && record->bytes > 0
+                && scene.layer_stats().snapshot_count == 1
+                && scene.release_snapshot(handle)
+                && scene.layer_stats().snapshot_count == 0;
+            if (captured) {
+                ui_ci_emit("layer_command_snapshot_capture", true, nullptr);
+            } else {
+                ui_ci_emit("layer_command_snapshot_capture", false, "command_snapshot_capture");
+                res.ok = false;
+                res.failed++;
+            }
+        }
 
         auto click_handle = [&](WidgetHandle h, const char* case_name) -> bool {
             if (!h) {

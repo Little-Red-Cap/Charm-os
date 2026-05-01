@@ -897,12 +897,7 @@ export namespace ui::scene {
         }
 
         void render() {
-            cmd_buf_.clear();
-            last_cmd_stats_ = to_scene_stats(gui_.record_commands(cmd_buf_));
-            if (overlay_fn_) {
-                SceneOverlay overlay{cmd_buf_};
-                overlay_fn_(overlay, overlay_ctx_);
-            }
+            record_current_scene();
             reset_alpha_blend_count();
             last_exec_stats_ = to_scene_stats(cmd_exec_.execute(canvas_, cmd_buf_));
             last_exec_stats_.alpha_blend_count = alpha_blend_count();
@@ -912,12 +907,7 @@ export namespace ui::scene {
         TileStats render_tiles(Backend& backend,
                                const FrameBufferView& tile_buffer,
                                const TileConfig& config) {
-            cmd_buf_.clear();
-            last_cmd_stats_ = to_scene_stats(gui_.record_commands(cmd_buf_));
-            if (overlay_fn_) {
-                SceneOverlay overlay{cmd_buf_};
-                overlay_fn_(overlay, overlay_ctx_);
-            }
+            record_current_scene();
             const ui::draw_cmd::DrawCmdTileConfig cfg{
                 config.tile_width,
                 config.tile_height,
@@ -964,6 +954,18 @@ export namespace ui::scene {
                 static_cast<std::uint32_t>(last_cmd_stats_.cmd_count),
                 static_cast<std::uint32_t>(last_cmd_stats_.cmd_bytes));
         }
+        SnapshotHandle capture_command_snapshot(const SnapshotSpec& spec) noexcept {
+            SnapshotSpec command_spec = spec;
+            command_spec.preferred_kind = SnapshotKind::CommandBuffer;
+            const auto handle = reserve_snapshot(command_spec);
+            if (!handle) return {};
+            record_current_scene();
+            if (!update_command_snapshot(handle)) {
+                (void)release_snapshot(handle);
+                return {};
+            }
+            return handle;
+        }
         bool update_pixel_snapshot(SnapshotHandle handle,
                                    PixelFormat format,
                                    std::uint32_t bytes) noexcept {
@@ -971,6 +973,15 @@ export namespace ui::scene {
         }
 
     private:
+        void record_current_scene() noexcept {
+            cmd_buf_.clear();
+            last_cmd_stats_ = to_scene_stats(gui_.record_commands(cmd_buf_));
+            if (overlay_fn_) {
+                SceneOverlay overlay{cmd_buf_};
+                overlay_fn_(overlay, overlay_ctx_);
+            }
+        }
+
         LayerEpoch make_layer_epoch() const noexcept {
             const auto& tokens = Theme::instance().get_tokens();
             LayerEpoch epoch{};

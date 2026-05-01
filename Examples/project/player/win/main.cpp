@@ -135,6 +135,7 @@ namespace {
             app.tick();
             ctx.tick_player(app.player());
             platform.begin_frame();
+            ctx.compose_now_playing_transition_pixel_layer();
             platform.render();
             platform.end_frame();
         };
@@ -563,6 +564,8 @@ namespace {
         const std::uint32_t capture_fails_before_now = ctx.layer_transition_capture_fail_count;
         const std::uint32_t composes_before_now = ctx.layer_transition_compose_count;
         const std::uint32_t compose_pixels_before_now = ctx.layer_transition_composite_pixels;
+        const std::uint32_t pixel_composes_before_now = ctx.layer_transition_pixel_compose_count;
+        const std::uint32_t pixel_compose_pixels_before_now = ctx.layer_transition_pixel_compose_pixels;
         if (click_handle(ctx.handles.bottom_hit, "home_to_now")) {
             if (wait_for_page(player::PlayerPage::NowPlaying)
                 || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
@@ -584,7 +587,9 @@ namespace {
             res.failed++;
         }
         if (ctx.layer_transition_compose_count > composes_before_now
-            && ctx.layer_transition_composite_pixels > compose_pixels_before_now) {
+            && ctx.layer_transition_composite_pixels > compose_pixels_before_now
+            && ctx.layer_transition_pixel_compose_count > pixel_composes_before_now
+            && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_now) {
             ui_ci_emit("layer_transition_home_to_now_compose", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_home_to_now_compose", false, "transition_compose");
@@ -598,6 +603,8 @@ namespace {
         const std::uint32_t capture_fails_before_back = ctx.layer_transition_capture_fail_count;
         const std::uint32_t composes_before_back = ctx.layer_transition_compose_count;
         const std::uint32_t compose_pixels_before_back = ctx.layer_transition_composite_pixels;
+        const std::uint32_t pixel_composes_before_back = ctx.layer_transition_pixel_compose_count;
+        const std::uint32_t pixel_compose_pixels_before_back = ctx.layer_transition_pixel_compose_pixels;
         if (click_handle(ctx.handles.now_back, "now_back_to_home")) {
             if (wait_for_page(player::PlayerPage::Home)
                 || settle_now_playing_transition(player::PlayerPage::Home)) {
@@ -619,7 +626,9 @@ namespace {
             res.failed++;
         }
         if (ctx.layer_transition_compose_count > composes_before_back
-            && ctx.layer_transition_composite_pixels > compose_pixels_before_back) {
+            && ctx.layer_transition_composite_pixels > compose_pixels_before_back
+            && ctx.layer_transition_pixel_compose_count > pixel_composes_before_back
+            && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_back) {
             ui_ci_emit("layer_transition_now_to_home_compose", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_now_to_home_compose", false, "transition_compose");
@@ -713,6 +722,7 @@ namespace {
                 draw_now_playing_fx(overlay, *state->ctx, *state->scene, state->t_sec);
             },
             state);
+        state->ctx->compose_now_playing_transition_pixel_layer();
         state->platform->render();
         state->platform->end_frame();
 

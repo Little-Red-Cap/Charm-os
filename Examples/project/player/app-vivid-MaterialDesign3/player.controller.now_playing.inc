@@ -683,9 +683,9 @@
             if (!scene) return {};
             const ::ui::scene::SnapshotSpec spec{
                 .bounds = Rect{0, 0, screen_width, screen_height},
-                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+                .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
             };
-            const auto capture = scene->capture_command_snapshot_result(spec);
+            const auto capture = scene->capture_pixel_snapshot_result(spec);
             last_layer_transition_capture_status = capture.status;
             return capture.handle;
         }
@@ -715,14 +715,14 @@
             now_playing_transition.source_snapshot = {};
         }
 
-        void sample_transition_source_snapshot_compose(float progress) noexcept {
-            if (!scene || !now_playing_transition.source_snapshot) return;
+        ::ui::scene::LayerComposePlan make_transition_source_snapshot_plan(float progress) noexcept {
+            if (!scene || !now_playing_transition.source_snapshot) return {};
             const auto phase = sample_now_playing_transition_frame_phase(
                 now_playing_transition, progress);
             const int slide = now_playing_transition.route.expanding
                 ? static_cast<int>((1.0f - phase.toward_destination) * -18.0f)
                 : static_cast<int>(phase.toward_destination * 18.0f);
-            const auto result = scene->compose_snapshot_dry_run({
+            return scene->make_snapshot_compose_plan({
                 .source = now_playing_transition.source_snapshot,
                 .transform = ::ui::scene::LayerTransform{
                     .x = static_cast<std::int16_t>(slide),
@@ -733,12 +733,35 @@
                 .clip = Rect{0, 0, screen_width, screen_height},
                 .has_clip = true,
             });
-            if (result.ok) {
+        }
+
+        void sample_transition_source_snapshot_compose(float progress) noexcept {
+            const auto plan = make_transition_source_snapshot_plan(progress);
+            if (plan.valid) {
                 ++layer_transition_compose_count;
-                layer_transition_composite_pixels += result.composite_pixels;
-            } else {
+                layer_transition_composite_pixels += plan.composite_pixels;
+            } else if (now_playing_transition.source_snapshot) {
                 ++layer_transition_compose_fail_count;
             }
+        }
+
+        void compose_transition_source_pixel_layer(float progress) noexcept {
+            if (!scene || !now_playing_transition.active) return;
+            const auto plan = make_transition_source_snapshot_plan(progress);
+            if (!plan.valid) return;
+            const auto replay = scene->compose_pixel_snapshot(plan);
+            if (replay.ok()) {
+                ++layer_transition_pixel_compose_count;
+                layer_transition_pixel_compose_pixels += plan.composite_pixels;
+            }
+        }
+
+        void compose_now_playing_transition_pixel_layer() noexcept {
+            if (!now_playing_transition.active) return;
+            const auto now_ms = charm::system::ClockCaps::TimeSource::now();
+            const auto tick = sample_now_playing_transition_tick_phase(
+                now_playing_transition, now_ms);
+            compose_transition_source_pixel_layer(tick.progress);
         }
 
         void set_now_playing_transition_root_visible(bool visible) noexcept {
@@ -750,6 +773,7 @@
             now_playing_transition.source_snapshot = capture_transition_source_snapshot();
             if (now_playing_transition.source_snapshot) {
                 ++layer_transition_capture_count;
+                set_page_root_visible(endpoints.source_page, false);
             } else {
                 note_transition_capture_failure();
             }

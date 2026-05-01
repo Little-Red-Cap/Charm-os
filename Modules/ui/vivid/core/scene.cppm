@@ -1120,6 +1120,12 @@ export namespace ui::scene {
             }
             return false;
         }
+        bool validate_snapshot_for_compose(SnapshotHandle handle) noexcept {
+            const auto* record = snapshot_store_.record(handle);
+            if (!record || record->stale) return false;
+            if (record->kind == SnapshotKind::PixelSurface) return true;
+            return validate_snapshot(handle);
+        }
         bool update_command_snapshot(SnapshotHandle handle) noexcept {
             return snapshot_store_.update_command_snapshot(
                 handle,
@@ -1190,7 +1196,7 @@ export namespace ui::scene {
             return snapshot_store_.update_pixel_snapshot(handle, format, bytes);
         }
         LayerComposeResult compose_snapshot_dry_run(const LayerComposeSpec& spec) noexcept {
-            if (!validate_snapshot(spec.source)) {
+            if (!validate_snapshot_for_compose(spec.source)) {
                 LayerComposeResult result{};
                 if (const auto* record = snapshot_store_.record(spec.source)) {
                     result.stale = record->stale;
@@ -1203,7 +1209,7 @@ export namespace ui::scene {
             return snapshot_store_.compose_dry_run(spec);
         }
         LayerComposePlan make_snapshot_compose_plan(const LayerComposeSpec& spec) noexcept {
-            if (!validate_snapshot(spec.source)) return {};
+            if (!validate_snapshot_for_compose(spec.source)) return {};
             return snapshot_store_.make_compose_plan(spec);
         }
         LayerBudgetResult check_layer_budget(const LayerComposePlan& plan,
@@ -1260,7 +1266,7 @@ export namespace ui::scene {
                 out.status = LayerReplayStatus::MissingSnapshot;
                 return out;
             }
-            if (record->stale || record->epoch != make_layer_epoch()) {
+            if (record->stale) {
                 (void)snapshot_store_.mark_stale(plan.source);
                 out.status = LayerReplayStatus::StaleSnapshot;
                 return out;

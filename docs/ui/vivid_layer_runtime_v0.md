@@ -35,23 +35,25 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 
 ## 当前实现快照
 
-截至当前阶段，v0 已落地的部分是“命令快照 + 观测链 + dry-run 合成 + 回放边界”，还没有替换 Player 的真实视觉转场渲染路径。
+截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + 观测链 + 最小合成路径”。Player 的 Now Playing 转场已经可以把 source page 冻结成 PixelSurface，并在真实 render loop 中先合成 frozen layer，再绘制 live tree / overlay。
 
 已实现：
 
 - `layer_runtime.cppm` 提供 `SnapshotHandle`、`SnapshotRecord`、`SnapshotStore`、`LayerStats`、`LayerComposePlan`、`LayerBudgetResult` 等基础类型。
-- `Scene` 支持 `capture_command_snapshot_result()`、`capture_command_snapshot()`、`release_snapshot()`、`validate_snapshot()`、`compose_snapshot_dry_run()`、`make_snapshot_compose_plan()`、`check_layer_budget()` 与 `replay_command_snapshot()`。
+- `Scene` 支持 `capture_command_snapshot_result()`、`capture_command_snapshot()`、`capture_pixel_snapshot_result()`、`capture_pixel_snapshot()`、`release_snapshot()`、`validate_snapshot()`、`compose_snapshot_dry_run()`、`make_snapshot_compose_plan()`、`check_layer_budget()`、`replay_command_snapshot()` 与 `compose_pixel_snapshot()`。
 - `CommandBuffer` snapshot 会复制当前 `DrawCmdBuffer` 到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
-- snapshot 已绑定 `LayerEpoch`，当前覆盖 `layout / style / theme`，过期 snapshot 会被标记为 stale，回放会拒绝 stale payload。
+- `PixelSurface` snapshot 会复制当前 canvas 像素到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
+- snapshot 已绑定 `LayerEpoch`，当前覆盖 `layout / style / theme`。`CommandBuffer` replay 仍严格拒绝 epoch stale；`PixelSurface` compose 表达 frozen pixel artifact，只在显式 stale 或 payload 缺失时拒绝。
 - `LayerCaptureStatus` 与 `LayerReplayStatus` 已提供失败原因，避免上层只通过空 handle 或空统计猜测问题。
-- Player 的 Now Playing 转场已接入命令快照 dry-run，并记录 capture / release / compose / capture failure 状态。
-- `--ui-ci` 已覆盖 snapshot 生命周期、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用，以及 Player 转场 capture/compose 观测。
+- Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface source layer：转场开始时捕获 source page、隐藏 source live root，render loop 中先合成 frozen source，再绘制 live destination / transition overlay。
+- `--ui-ci` 已覆盖 snapshot 生命周期、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/全屏 profile，以及 Player 转场 PixelSurface capture/compose。
 
 仍未实现：
 
-- 转场期间仍没有用 snapshot 替代真实页面渲染；当前 Player 只消费 Layer Runtime 的观测和 dry-run 结果。
+- destination page 仍是 live tree 渲染；`NowPlaying -> Library` 的下一步是冻结或预渲染 destination，使复杂页在转场期间也不参与完整 layout/draw。
 - `CommandBuffer` replay 目前只验证回放边界和 clip，尚未支持平移、opacity 或真正 compositor 语义。
-- `PixelSurface` / `TileSurface` snapshot 尚未落地。
+- `PixelSurface` compose 已支持 fixed payload + clip + x/y offset；opacity / alpha composite 仍待后续补齐。
+- `TileSurface` snapshot 尚未落地。
 - `PageLayer::freeze/thaw` 仍是设计目标，当前实现入口集中在 `Scene` 与 `SnapshotStore`。
 
 ## 核心概念
@@ -133,6 +135,12 @@ enum class SnapshotKind : std::uint8_t {
 ```text
 render once -> RGB565 / ARGB8888 surface -> transition blit/composite
 ```
+
+v0 语义：
+
+- `PixelSurface` 是 frozen pixel artifact，不等同于当前 live tree。
+- 捕获后即使 live tree 的 `layout / style / theme` epoch 变化，也可以继续 compose，除非 snapshot 被显式标记 stale 或 payload 丢失。
+- 这与 `CommandBuffer` snapshot 不同；命令快照依赖当前 scene 执行环境，回放仍必须拒绝 epoch stale。
 
 优点：
 
@@ -445,8 +453,8 @@ ui-ci now_to_library 仍通过
 
 ### Step 3：接入 PixelSurface Snapshot
 
-- PC / SDRAM profile 优先。
-- 只要求 full surface。
+- PC / SDRAM profile 优先；Win Player 已启用全屏 layer cache profile。
+- v0 已支持 full PixelSurface capture / compose，并在 Player Now Playing source layer 转场中进入真实 render path。
 - 后续再考虑 TileSurface。
 
 ### Step 4：最小 compose
@@ -459,10 +467,9 @@ v0 可以先只在 win/sim backend 证明收益。
 
 ### Step 5：Player now_to_library 验证
 
-- 冻结 NowPlaying。
-- 预渲染或冻结 Library。
-- 转场期间只 composite。
-- 结束后 thaw Library。
+- source page 已可冻结为 PixelSurface 并参与 compose。
+- 下一步冻结或预渲染 Library，让 destination 复杂页在转场期间也不重走完整 live tree。
+- 目标仍是转场期间只 composite source / destination layer，结束后 thaw 目标页。
 
 ### Step 6：Motion recipe 与 Component Lab
 

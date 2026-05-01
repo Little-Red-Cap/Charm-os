@@ -689,6 +689,8 @@ export namespace player {
         std::uint32_t layer_transition_compose_count{0};
         std::uint32_t layer_transition_compose_fail_count{0};
         std::uint32_t layer_transition_composite_pixels{0};
+        std::uint32_t layer_transition_pixel_compose_count{0};
+        std::uint32_t layer_transition_pixel_compose_pixels{0};
         ::ui::scene::LayerCaptureStatus last_layer_transition_capture_status{
             ::ui::scene::LayerCaptureStatus::Ok};
         FixedString<128> mount_status{};

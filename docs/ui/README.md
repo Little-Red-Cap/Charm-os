@@ -61,3 +61,8 @@
 
 - UI 这条线既有契约，也有项目化样例和阶段性补丁，不要把它们混成一层。
 - 当输入、状态提交、布局影响位、渲染 record/execute 边界变化时，应同步更新这里的入口。
+
+## 2026-05 Vivid runtime 验证入口补记
+
+- `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、Motion recipe、transition trace、compose dry-run 与单页 `PageMotionTransition`。
+- `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner` 的 normal commit、cancel、low-budget static cut 与 prepare fail 收尾律。

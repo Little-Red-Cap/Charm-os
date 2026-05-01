@@ -297,3 +297,39 @@ source PageLayer freeze
 - 不绕过 `LayerBudget`
 - 不让 recipe 直接接触 backend
 - failure / stale / over-budget 都有确定行为
+
+## 2026-05 补记：PageTransitionRunner v0
+
+`page_transition.cppm` 已经把双页迁移从“动画参数”提升为 Vivid runtime 事务：
+
+```text
+begin()
+  -> admission
+  -> freeze source
+  -> prepare destination
+  -> freeze destination
+  -> sample compose
+  -> commit / cancel
+```
+
+v0 规则：
+
+- `PageTransitionRunner` 只知道 `source PageLayer`、`destination PageLayer`、prepare callback、profile、budget 和 motion recipe，不知道 Player 业务页面。
+- `PixelDouble` admission 下才捕获 source / destination PixelSurface；其它 admission 先走 static cut 路径。
+- static cut 不做 PixelSurface capture，但仍执行 destination prepare，再提交 page truth。
+- commit 后 source hidden，destination live / visible。
+- cancel 或 begin failure 后恢复 begin 前 page truth。
+- runner 获取的 snapshot 必须由 runner 释放；runner 回到 idle 时不得持有 `SnapshotHandle`。
+
+新增验证入口：
+
+```text
+Examples/ui/vivid/page_transition_demo
+```
+
+当前覆盖：
+
+- normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
+- cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
+- low budget static cut：不发生 PixelSurface capture，直接提交目标页
+- destination prepare fail：释放已捕获的 source snapshot，恢复 page truth

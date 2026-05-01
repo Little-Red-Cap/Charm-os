@@ -1,0 +1,260 @@
+#include <cstdio>
+
+import charm.gfx.canvas;
+import charm.ui.vivid;
+
+namespace {
+    struct TransitionScene {
+        DefaultFrameBuffer fb{};
+        DefaultCanvas canvas{fb};
+        ui::scene::Scene scene{canvas};
+        WidgetHandle root{};
+        WidgetHandle source_root{};
+        WidgetHandle destination_root{};
+        ui::scene::PageLayer source{};
+        ui::scene::PageLayer destination{};
+
+        TransitionScene() {
+            scene.build([&](ui::scene::SceneBuilder& builder) {
+                root = builder.create_container();
+                source_root = builder.create_container();
+                destination_root = builder.create_container();
+                builder.set_rect(root, {0, 0, 32, 32});
+                builder.set_rect(source_root, {0, 0, 32, 32});
+                builder.set_rect(destination_root, {0, 0, 32, 32});
+                builder.link(root, source_root);
+                builder.link(root, destination_root);
+                builder.set_input_root(root);
+                builder.set_root(root);
+            });
+            source.set_root(source_root);
+            destination.set_root(destination_root);
+            auto access = scene.access();
+            source.show(access);
+            destination.hide(access);
+            canvas.clear(rgba{0, 0, 0, 255});
+        }
+    };
+
+    struct PaintPrepare {
+        DefaultCanvas* canvas{nullptr};
+        rgba color{};
+        int x{0};
+        int y{0};
+        bool ok{true};
+    };
+
+    [[nodiscard]] bool expect(bool condition, const char* message) noexcept {
+        if (!condition) {
+            std::printf("[ERR] %s\n", message);
+            return false;
+        }
+        return true;
+    }
+
+    bool prepare_destination(ui::scene::Scene&,
+                             ui::scene::SceneAccess,
+                             ui::scene::PageLayer&,
+                             void* ctx) noexcept {
+        auto* prepare = static_cast<PaintPrepare*>(ctx);
+        if (!prepare || !prepare->ok) return false;
+        prepare->canvas->set_pixel(prepare->x, prepare->y, prepare->color);
+        return true;
+    }
+
+    [[nodiscard]] ui::scene::PageTransitionSpec transition_spec(TransitionScene& env,
+                                                               PaintPrepare& prepare,
+                                                               ui::scene::LayerBudget budget = {},
+                                                               ui::scene::LayerProfile profile =
+                                                                   ui::scene::LayerProfile::Rich) noexcept {
+        return {
+            .source = &env.source,
+            .destination = &env.destination,
+            .source_snapshot = {
+                .bounds = {.x = 2, .y = 2, .w = 1, .h = 1},
+                .preferred_kind = ui::scene::SnapshotKind::PixelSurface,
+            },
+            .destination_snapshot = {
+                .bounds = {.x = 4, .y = 2, .w = 1, .h = 1},
+                .preferred_kind = ui::scene::SnapshotKind::PixelSurface,
+            },
+            .recipe = ui::scene::motion_slide(ui::scene::MotionAxis::X, 5, 100),
+            .requested_profile = profile,
+            .budget = budget,
+            .start_ms = 0,
+            .hide_source_live_root = true,
+            .hide_destination_live_root = true,
+            .prepare_destination = prepare_destination,
+            .prepare_ctx = &prepare,
+        };
+    }
+
+    [[nodiscard]] bool run_normal_commit() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{230, 20, 30, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{20, 40, 220, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare));
+        if (!expect(begin.started(), "normal transition starts")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::PixelDouble,
+                    "normal transition admits PixelDouble")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 2,
+                    "normal transition owns two snapshots")) {
+            return false;
+        }
+        if (!expect(!env.source.visible() && !env.destination.visible(),
+                    "normal transition hides live roots")) {
+            return false;
+        }
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 0);
+        if (!expect(frame.valid, "normal transition composes frame")) return false;
+        if (!expect(frame.destination.valid && frame.source.valid,
+                    "normal transition composes destination and source")) {
+            return false;
+        }
+        const auto destination_pixel = env.canvas.get_pixel(4, 2);
+        const auto source_pixel = env.canvas.get_pixel(7, 2);
+        if (!expect(destination_pixel.b == 220, "destination snapshot is composed")) return false;
+        if (!expect(source_pixel.r == 230, "source snapshot is composed with motion")) return false;
+        const auto done = runner.sample(env.scene, 120);
+        if (!expect(done.transition.state == ui::scene::MotionTransitionState::Finished,
+                    "normal transition reaches finished frame")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto trace = runner.trace();
+        if (!expect(runner.idle(), "normal transition returns idle")) return false;
+        if (!expect(!env.source.visible() && env.destination.visible(),
+                    "normal commit updates page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "normal commit releases all snapshots")) {
+            return false;
+        }
+        if (!expect(trace.commit_count == 1 && trace.abort_count == 0,
+                    "normal trace records commit only")) {
+            return false;
+        }
+        std::printf("[pt] normal status=%s admission=%s snapshots=%u commit=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::layer_admission_name(begin.admission),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(trace.commit_count));
+        return true;
+    }
+
+    [[nodiscard]] bool run_cancel_during_compose() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{240, 40, 20, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{30, 60, 210, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare));
+        if (!expect(begin.started(), "cancel transition starts")) return false;
+        const auto frame = runner.sample(env.scene, 0);
+        if (!expect(frame.valid, "cancel transition composes before abort")) return false;
+        runner.cancel(env.scene, access);
+        const auto trace = runner.trace();
+        if (!expect(runner.idle(), "cancel transition returns idle")) return false;
+        if (!expect(env.source.visible() && !env.destination.visible(),
+                    "cancel restores page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "cancel releases all snapshots")) {
+            return false;
+        }
+        if (!expect(trace.abort_count == 1 && trace.commit_count == 0,
+                    "cancel trace records abort only")) {
+            return false;
+        }
+        std::printf("[pt] cancel status=%s samples=%u abort=%u snapshots=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    static_cast<unsigned>(trace.sample_count),
+                    static_cast<unsigned>(trace.abort_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+        return true;
+    }
+
+    [[nodiscard]] bool run_low_budget_static_cut() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{250, 50, 40, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 70, 200, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare, {
+            .max_layer_bytes = 1,
+        }));
+        const auto trace = runner.trace();
+        if (!expect(begin.static_cut(), "low budget resolves static cut")) return false;
+        if (!expect(begin.admission != ui::scene::LayerAdmission::PixelDouble,
+                    "low budget rejects PixelDouble admission")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
+                    "low budget performs no pixel captures")) {
+            return false;
+        }
+        if (!expect(!env.source.visible() && env.destination.visible(),
+                    "low budget cut commits page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "low budget leaves no snapshots")) {
+            return false;
+        }
+        std::printf("[pt] low_budget status=%s admission=%s static_cut=%u snapshots=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::layer_admission_name(begin.admission),
+                    static_cast<unsigned>(trace.static_cut_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+        return true;
+    }
+
+    [[nodiscard]] bool run_prepare_fail() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{210, 30, 40, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{20, 90, 230, 255}, .x = 4, .y = 2, .ok = false};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare));
+        const auto trace = runner.trace();
+        if (!expect(begin.status == ui::scene::PageTransitionBeginStatus::PrepareFailed,
+                    "prepare failure is reported")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
+                    "prepare failure happens after source capture")) {
+            return false;
+        }
+        if (!expect(trace.abort_count == 1, "prepare failure records abort")) return false;
+        if (!expect(env.source.visible() && !env.destination.visible(),
+                    "prepare failure restores page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "prepare failure releases source snapshot")) {
+            return false;
+        }
+        std::printf("[pt] prepare_fail status=%s source_caps=%u abort=%u snapshots=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    static_cast<unsigned>(trace.source_capture_count),
+                    static_cast<unsigned>(trace.abort_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+        return true;
+    }
+}
+
+int main() {
+    if (!run_normal_commit()) return 1;
+    if (!run_cancel_during_compose()) return 1;
+    if (!run_low_budget_static_cut()) return 1;
+    if (!run_prepare_fail()) return 1;
+    std::puts("[page_transition_demo] ok");
+    return 0;
+}

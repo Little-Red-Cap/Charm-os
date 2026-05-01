@@ -320,3 +320,16 @@ Vivid 的差异化不在于“比 LVGL 更现代”或“比 Qt 更轻”，而�
 > 产品 UI 语义 + 嵌入式资源法律 + 可冻结渲染产物 + 可降级 Motion + 可审计性能证据 + PC/MCU 同构验证。
 
 Vivid 的核心责任不是画 UI，而是让 UI 在不同资源宇宙中以可解释、可裁决、可验证的方式成立。
+
+## 2026-05 补记：Transition 是事务
+
+`PageTransitionRunner` 已进入 Vivid runtime spine。它的定位不是 Motion DSL，而是页面迁移事务：
+
+- begin 前先做 admission，决定是否允许 PixelDouble。
+- static cut 不捕获 PixelSurface，但仍执行 destination prepare。
+- commit 负责提交 page truth：source hidden，destination live / visible。
+- cancel / begin failure 负责回滚 page truth。
+- runner 获取的 source / destination snapshot 必须由 runner 释放。
+- evidence 由 `PageTransitionTrace` 与 `Examples/ui/vivid/page_transition_demo` 承接。
+
+这一步把 Vivid 的问题从“如何移动一个 snapshot”推进为“如何以可回滚、可审计、资源闭合的方式迁移两个 PageLayer”。

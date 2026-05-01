@@ -999,6 +999,10 @@ export namespace ui::scene {
             if (!validate_snapshot(spec.source)) return {};
             return snapshot_store_.make_compose_plan(spec);
         }
+        LayerBudgetResult check_layer_budget(const LayerComposePlan& plan,
+                                             const LayerBudget& budget) const noexcept {
+            return snapshot_store_.check_budget(plan, budget);
+        }
 
     private:
         void record_current_scene() noexcept {

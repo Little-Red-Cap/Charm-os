@@ -317,6 +317,46 @@ namespace {
                 res.failed++;
             }
         }
+        {
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{0, 0, 40, 20},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto handle = scene.capture_command_snapshot(spec);
+            const auto plan = scene.make_snapshot_compose_plan({
+                .source = handle,
+                .transform = ::ui::scene::LayerTransform{},
+                .clip = Rect{0, 0, 40, 20},
+                .has_clip = true,
+            });
+            const auto generous = scene.check_layer_budget(plan, {
+                .max_layer_bytes = 2000000,
+                .max_composite_pixels = 1000,
+                .max_command_count = 2000,
+            });
+            const auto strict = scene.check_layer_budget(plan, {
+                .max_layer_bytes = 1,
+                .max_composite_pixels = 1,
+                .max_command_count = 1,
+            });
+            const bool budget_ok = plan.valid
+                && generous.ok
+                && !generous.layer_bytes_over
+                && !generous.composite_pixels_over
+                && !generous.command_count_over
+                && !strict.ok
+                && strict.layer_bytes_over
+                && strict.composite_pixels_over
+                && strict.command_count_over;
+            const bool released = scene.release_snapshot(handle);
+            if (budget_ok && released) {
+                ui_ci_emit("layer_compose_budget", true, nullptr);
+            } else {
+                ui_ci_emit("layer_compose_budget", false, "compose_budget");
+                res.ok = false;
+                res.failed++;
+            }
+        }
 
         auto click_handle = [&](WidgetHandle h, const char* case_name) -> bool {
             if (!h) {

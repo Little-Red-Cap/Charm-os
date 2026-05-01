@@ -101,6 +101,19 @@ export namespace ui::scene {
         std::uint32_t source_bytes{0};
     };
 
+    struct LayerBudget {
+        std::uint32_t max_layer_bytes{0};
+        std::uint32_t max_composite_pixels{0};
+        std::uint32_t max_command_count{0};
+    };
+
+    struct LayerBudgetResult {
+        bool ok{true};
+        bool layer_bytes_over{false};
+        bool composite_pixels_over{false};
+        bool command_count_over{false};
+    };
+
     struct SnapshotRecord {
         SnapshotKind kind{SnapshotKind::EmptyFallback};
         PixelFormat format{screen_pixel_format};
@@ -309,6 +322,27 @@ export namespace ui::scene {
             plan.source_visible = layer_inverse_translate_rect(target, spec.transform);
             plan.valid = true;
             return plan;
+        }
+
+        [[nodiscard]] LayerBudgetResult check_budget(const LayerComposePlan& plan,
+                                                     const LayerBudget& budget) const noexcept {
+            LayerBudgetResult result{};
+            const auto* slot = record(plan.source);
+            if (budget.max_layer_bytes > 0 && stats_.layer_bytes > budget.max_layer_bytes) {
+                result.layer_bytes_over = true;
+            }
+            if (budget.max_composite_pixels > 0 &&
+                plan.composite_pixels > budget.max_composite_pixels) {
+                result.composite_pixels_over = true;
+            }
+            if (slot && budget.max_command_count > 0 &&
+                slot->command_count > budget.max_command_count) {
+                result.command_count_over = true;
+            }
+            result.ok = !result.layer_bytes_over
+                && !result.composite_pixels_over
+                && !result.command_count_over;
+            return result;
         }
 
         [[nodiscard]] LayerStats stats() const noexcept {

@@ -26,6 +26,11 @@ export namespace ui::scene {
         LayerBudgetResult budget{};
     };
 
+    struct MotionComposeProfileDecision {
+        bool valid{false};
+        LayerProfileDecision profile{};
+    };
+
     constexpr MotionComposeBridgeResult make_motion_compose_spec(
         const MotionComposeRequest& request) noexcept {
         if (!request.source || !request.frame.motion.compose) {
@@ -58,6 +63,18 @@ export namespace ui::scene {
             .bridge = bridge,
             .plan = plan,
             .budget = budget_result,
+        };
+    }
+
+    constexpr MotionComposeProfileDecision decide_motion_compose_profile(
+        LayerProfile requested,
+        const MotionComposeDryRunResult& dry_run) noexcept {
+        if (!dry_run.valid) {
+            return {};
+        }
+        return {
+            .valid = true,
+            .profile = decide_layer_profile(requested, dry_run.budget),
         };
     }
 }

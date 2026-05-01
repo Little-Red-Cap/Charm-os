@@ -233,6 +233,14 @@ int main() {
     }
     if (!expect(dry_run.plan.composite_pixels == 5040, "dry-run plan reports composite pixels")) return 1;
     if (!expect(dry_run.budget.ok, "dry-run budget passes within limits")) return 1;
+    const auto dry_run_profile = ui::scene::decide_motion_compose_profile(
+        ui::scene::LayerProfile::Cheap,
+        dry_run);
+    if (!expect(dry_run_profile.valid, "profile decision accepts valid dry-run")) return 1;
+    if (!expect(dry_run_profile.profile.effective == ui::scene::LayerProfile::Cheap,
+                "profile decision keeps profile within budget")) {
+        return 1;
+    }
 
     const auto dry_run_over_budget = ui::scene::dry_run_motion_compose({
         .source = snapshot,
@@ -248,6 +256,18 @@ int main() {
                 "dry-run budget reports composite pixel overrun")) {
         return 1;
     }
+    const auto over_budget_profile = ui::scene::decide_motion_compose_profile(
+        ui::scene::LayerProfile::Cheap,
+        dry_run_over_budget);
+    if (!expect(over_budget_profile.valid, "profile decision accepts over-budget dry-run")) return 1;
+    if (!expect(over_budget_profile.profile.effective == ui::scene::LayerProfile::Static,
+                "profile decision degrades over-budget compose")) {
+        return 1;
+    }
+    if (!expect(over_budget_profile.profile.reason == ui::scene::LayerFallbackReason::CompositePixelsOver,
+                "profile decision records composite pixel fallback reason")) {
+        return 1;
+    }
 
     if (!expect(snapshots.mark_stale(snapshot), "snapshot can be marked stale")) return 1;
     const auto stale_dry_run = ui::scene::dry_run_motion_compose({
@@ -255,6 +275,10 @@ int main() {
         .frame = transition_mid,
     }, snapshots);
     if (!expect(!stale_dry_run.valid, "dry-run rejects stale snapshot plan")) return 1;
+    const auto stale_profile = ui::scene::decide_motion_compose_profile(
+        ui::scene::LayerProfile::Cheap,
+        stale_dry_run);
+    if (!expect(!stale_profile.valid, "profile decision rejects invalid dry-run")) return 1;
 
     runner.reset();
     if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition reset returns idle")) return 1;
@@ -303,6 +327,9 @@ int main() {
     std::printf("[motion] dry_run pixels=%u budget_ok=%u\n",
                 static_cast<unsigned>(dry_run.plan.composite_pixels),
                 static_cast<unsigned>(dry_run.budget.ok));
+    std::printf("[motion] profile effective=%s fallback=%s\n",
+                ui::scene::layer_profile_name(over_budget_profile.profile.effective),
+                ui::scene::layer_fallback_reason_name(over_budget_profile.profile.reason));
     std::printf("[motion] trace samples=%u compose=%u finished=%u canceled=%u\n",
                 static_cast<unsigned>(trace_done.sample_count),
                 static_cast<unsigned>(trace_done.compose_count),

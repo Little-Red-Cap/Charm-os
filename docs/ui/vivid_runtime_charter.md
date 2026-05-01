@@ -232,9 +232,11 @@ Motion recipe 的第一目标不是 API 好看，而是可降级、可审计、�
 - `charm.ui.scene.motion_recipe`
 - `MotionRecipe`
 - `sample_motion_recipe()`
+- `charm.ui.scene.motion_transition`
+- `MotionTransitionRunner`
 - `Examples/ui/vivid/motion_time_demo`
 
-这个核心只回答“时间如何被采样，以及 recipe 如何投影成最小 `LayerTransform`”，暂不表达完整 layer compose 或页面转场。
+这个核心只回答“时间如何被采样，recipe 如何投影成最小 `LayerTransform`，以及 transition 如何托管 begin/sample/finish/cancel 生命周期”，暂不表达完整 layer compose 或页面转场。
 
 ## Pattern Layer
 

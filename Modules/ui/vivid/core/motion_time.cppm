@@ -64,6 +64,7 @@ export namespace ui::scene {
         case MotionTier::Rich60Fps:
             return elapsed_ms > duration_ms ? duration_ms : elapsed_ms;
         case MotionTier::Cheap30Fps: {
+            if (elapsed_ms >= duration_ms) return duration_ms;
             constexpr std::uint64_t step_ms = 33;
             const auto quantized = (elapsed_ms / step_ms) * step_ms;
             return quantized > duration_ms ? duration_ms : quantized;

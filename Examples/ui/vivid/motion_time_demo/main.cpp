@@ -42,6 +42,9 @@ int main() {
     if (!expect(cheap_step.progress > 0.32f && cheap_step.progress < 0.34f, "cheap progress uses sampled step")) {
         return 1;
     }
+    const auto cheap_done = tick(Cheap30Fps, 100);
+    if (!expect(cheap_done.sampled_elapsed_ms == 100, "cheap clamps to final duration")) return 1;
+    if (!expect(cheap_done.finished, "cheap finishes at duration boundary")) return 1;
 
     const auto static_cut = tick(StaticCut, 1);
     if (!expect(static_cut.sampled_elapsed_ms == 100, "static cut samples end state immediately")) return 1;
@@ -145,6 +148,44 @@ int main() {
     if (!expect(cut.transform.opacity == 255, "cut recipe resolves final opacity")) return 1;
     if (!expect(cut.tick.finished && cut.compose, "cut recipe composes final state")) return 1;
 
+    ui::scene::MotionTransitionRunner runner{};
+    if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition runner starts idle")) return 1;
+    runner.begin({
+        .recipe = ui::scene::motion_fade_slide(ui::scene::MotionAxis::X, -90, 90),
+        .profile = ui::scene::LayerProfile::Cheap,
+        .start_ms = 1000,
+    });
+    const auto transition_start = runner.sample(1010);
+    if (!expect(transition_start.state == ui::scene::MotionTransitionState::Running, "transition is running")) {
+        return 1;
+    }
+    if (!expect(transition_start.motion.tick.sampled_elapsed_ms == 0, "transition honors cheap first tick hold")) {
+        return 1;
+    }
+    if (!expect(transition_start.motion.transform.x == -90, "transition starts at recipe offset")) return 1;
+
+    const auto transition_mid = runner.sample(1040);
+    if (!expect(transition_mid.motion.tick.sampled_elapsed_ms == 33, "transition advances on managed tick")) return 1;
+    if (!expect(transition_mid.motion.transform.x == -57, "transition interpolates managed frame")) return 1;
+    if (!expect(transition_mid.motion.transform.opacity == 85, "transition applies profile opacity law")) return 1;
+
+    const auto transition_done = runner.sample(1095);
+    if (!expect(transition_done.state == ui::scene::MotionTransitionState::Finished, "transition finishes")) return 1;
+    if (!expect(!runner.active() && runner.done(), "transition runner reports done")) return 1;
+    if (!expect(transition_done.motion.transform.x == 0, "transition finishes at target transform")) return 1;
+
+    runner.reset();
+    if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition reset returns idle")) return 1;
+    runner.begin({
+        .recipe = ui::scene::motion_fade(100),
+        .profile = ui::scene::LayerProfile::Rich,
+        .start_ms = 0,
+    });
+    runner.cancel();
+    const auto canceled = runner.sample(50);
+    if (!expect(canceled.state == ui::scene::MotionTransitionState::Canceled, "transition can be canceled")) return 1;
+    if (!expect(!canceled.motion.compose, "canceled transition does not compose")) return 1;
+
     std::printf("[motion] rich progress=%.2f sampled=%llu\n",
                 static_cast<double>(rich.progress),
                 static_cast<unsigned long long>(rich.sampled_elapsed_ms));
@@ -160,6 +201,9 @@ int main() {
     std::printf("[motion] recipe fade_slide y=%d opacity=%u\n",
                 static_cast<int>(fade_slide.transform.y),
                 static_cast<unsigned>(fade_slide.transform.opacity));
+    std::printf("[motion] transition x=%d opacity=%u\n",
+                static_cast<int>(transition_mid.motion.transform.x),
+                static_cast<unsigned>(transition_mid.motion.transform.opacity));
     std::puts("[motion_time_demo] ok");
     return 0;
 }

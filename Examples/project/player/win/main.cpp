@@ -134,7 +134,15 @@ namespace {
         auto pump_frame = [&]() {
             app.tick();
             ctx.tick_player(app.player());
+            platform.framebuffer_ref().clear(kUiBackground);
             platform.begin_frame();
+            if (ctx.transition_needs_destination_snapshot()) {
+                ctx.prepare_transition_destination_snapshot_scene();
+                platform.render();
+                ctx.finish_transition_destination_snapshot_capture();
+                platform.framebuffer_ref().clear(kUiBackground);
+                platform.begin_frame();
+            }
             ctx.compose_now_playing_transition_pixel_layer();
             platform.render();
             platform.end_frame();
@@ -241,12 +249,27 @@ namespace {
                 .bounds = Rect{0, 0, screen_width, screen_height},
                 .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
             };
-            const auto first = scene.capture_command_snapshot_result(spec);
-            const auto second = scene.capture_command_snapshot_result(spec);
-            const bool exhausted = first.ok()
-                && second.status == ::ui::scene::LayerCaptureStatus::NoSnapshotSlot
-                && !second.handle
-                && scene.release_snapshot(first.handle);
+            std::array<::ui::scene::SnapshotHandle, static_cast<std::size_t>(layer_cache_slots)> handles{};
+            bool filled = true;
+            for (auto& handle : handles) {
+                const auto capture = scene.capture_command_snapshot_result(spec);
+                if (!capture.ok() || !capture.handle) {
+                    filled = false;
+                    break;
+                }
+                handle = capture.handle;
+            }
+            const auto extra = scene.capture_command_snapshot_result(spec);
+            bool released_all = true;
+            for (auto handle : handles) {
+                if (handle && !scene.release_snapshot(handle)) {
+                    released_all = false;
+                }
+            }
+            const bool exhausted = filled
+                && extra.status == ::ui::scene::LayerCaptureStatus::NoSnapshotSlot
+                && !extra.handle
+                && released_all;
             if (exhausted) {
                 ui_ci_emit("layer_command_snapshot_capture_full", true, nullptr);
             } else {
@@ -566,6 +589,10 @@ namespace {
         const std::uint32_t compose_pixels_before_now = ctx.layer_transition_composite_pixels;
         const std::uint32_t pixel_composes_before_now = ctx.layer_transition_pixel_compose_count;
         const std::uint32_t pixel_compose_pixels_before_now = ctx.layer_transition_pixel_compose_pixels;
+        const std::uint32_t destination_captures_before_now = ctx.layer_transition_destination_capture_count;
+        const std::uint32_t destination_composes_before_now = ctx.layer_transition_destination_compose_count;
+        const std::uint32_t destination_compose_pixels_before_now =
+            ctx.layer_transition_destination_compose_pixels;
         if (click_handle(ctx.handles.bottom_hit, "home_to_now")) {
             if (wait_for_page(player::PlayerPage::NowPlaying)
                 || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
@@ -589,7 +616,10 @@ namespace {
         if (ctx.layer_transition_compose_count > composes_before_now
             && ctx.layer_transition_composite_pixels > compose_pixels_before_now
             && ctx.layer_transition_pixel_compose_count > pixel_composes_before_now
-            && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_now) {
+            && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_now
+            && ctx.layer_transition_destination_capture_count > destination_captures_before_now
+            && ctx.layer_transition_destination_compose_count > destination_composes_before_now
+            && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_now) {
             ui_ci_emit("layer_transition_home_to_now_compose", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_home_to_now_compose", false, "transition_compose");
@@ -605,6 +635,10 @@ namespace {
         const std::uint32_t compose_pixels_before_back = ctx.layer_transition_composite_pixels;
         const std::uint32_t pixel_composes_before_back = ctx.layer_transition_pixel_compose_count;
         const std::uint32_t pixel_compose_pixels_before_back = ctx.layer_transition_pixel_compose_pixels;
+        const std::uint32_t destination_captures_before_back = ctx.layer_transition_destination_capture_count;
+        const std::uint32_t destination_composes_before_back = ctx.layer_transition_destination_compose_count;
+        const std::uint32_t destination_compose_pixels_before_back =
+            ctx.layer_transition_destination_compose_pixels;
         if (click_handle(ctx.handles.now_back, "now_back_to_home")) {
             if (wait_for_page(player::PlayerPage::Home)
                 || settle_now_playing_transition(player::PlayerPage::Home)) {
@@ -628,7 +662,10 @@ namespace {
         if (ctx.layer_transition_compose_count > composes_before_back
             && ctx.layer_transition_composite_pixels > compose_pixels_before_back
             && ctx.layer_transition_pixel_compose_count > pixel_composes_before_back
-            && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_back) {
+            && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_back
+            && ctx.layer_transition_destination_capture_count > destination_captures_before_back
+            && ctx.layer_transition_destination_compose_count > destination_composes_before_back
+            && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_back) {
             ui_ci_emit("layer_transition_now_to_home_compose", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_now_to_home_compose", false, "transition_compose");
@@ -722,6 +759,13 @@ namespace {
                 draw_now_playing_fx(overlay, *state->ctx, *state->scene, state->t_sec);
             },
             state);
+        if (state->ctx->transition_needs_destination_snapshot()) {
+            state->ctx->prepare_transition_destination_snapshot_scene();
+            state->platform->render();
+            state->ctx->finish_transition_destination_snapshot_capture();
+            state->platform->framebuffer_ref().clear(kUiBackground);
+            state->platform->begin_frame();
+        }
         state->ctx->compose_now_playing_transition_pixel_layer();
         state->platform->render();
         state->platform->end_frame();

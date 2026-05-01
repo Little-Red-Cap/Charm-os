@@ -35,7 +35,7 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 
 ## 当前实现快照
 
-截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + 观测链 + 最小合成路径”。Player 的 Now Playing 转场已经可以把 source page 冻结成 PixelSurface，并在真实 render loop 中先合成 frozen layer，再绘制 live tree / overlay。
+截至当前阶段，v0 已落地的部分是“命令快照 + PixelSurface 快照 + 观测链 + 双层最小合成路径”。Player 的 Now Playing 转场已经可以把 source page 与 destination page 都冻结成 PixelSurface，并在真实 render loop 中合成 frozen source / destination，再绘制 transition overlay。
 
 已实现：
 
@@ -45,12 +45,13 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 - `PixelSurface` snapshot 会复制当前 canvas 像素到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
 - snapshot 已绑定 `LayerEpoch`，当前覆盖 `layout / style / theme`。`CommandBuffer` replay 仍严格拒绝 epoch stale；`PixelSurface` compose 表达 frozen pixel artifact，只在显式 stale 或 payload 缺失时拒绝。
 - `LayerCaptureStatus` 与 `LayerReplayStatus` 已提供失败原因，避免上层只通过空 handle 或空统计猜测问题。
-- Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface source layer：转场开始时捕获 source page、隐藏 source live root，render loop 中先合成 frozen source，再绘制 live destination / transition overlay。
-- `--ui-ci` 已覆盖 snapshot 生命周期、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/全屏 profile，以及 Player 转场 PixelSurface capture/compose。
+- Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface 双层路径：转场开始时捕获 source page、隐藏 source live root；render loop 中预渲染并捕获 destination page，然后隐藏 destination live root，转场期间合成 frozen source / destination，再绘制 transition overlay。
+- Win Player rich profile 已把全屏 layer cache slot 扩到 2，用于同时持有 source / destination PixelSurface。
+- `--ui-ci` 已覆盖 snapshot 生命周期、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/全屏 profile，以及 Player 转场 source / destination PixelSurface capture/compose。
 
 仍未实现：
 
-- destination page 仍是 live tree 渲染；`NowPlaying -> Library` 的下一步是冻结或预渲染 destination，使复杂页在转场期间也不参与完整 layout/draw。
+- destination page 已支持预渲染并冻结；下一步是把这套 Player-local 双层路径上收成更正式的 Vivid Layer Runtime / PageLayer freeze-thaw API。
 - `CommandBuffer` replay 目前只验证回放边界和 clip，尚未支持平移、opacity 或真正 compositor 语义。
 - `PixelSurface` compose 已支持 fixed payload + clip + x/y offset；opacity / alpha composite 仍待后续补齐。
 - `TileSurface` snapshot 尚未落地。
@@ -453,8 +454,8 @@ ui-ci now_to_library 仍通过
 
 ### Step 3：接入 PixelSurface Snapshot
 
-- PC / SDRAM profile 优先；Win Player 已启用全屏 layer cache profile。
-- v0 已支持 full PixelSurface capture / compose，并在 Player Now Playing source layer 转场中进入真实 render path。
+- PC / SDRAM profile 优先；Win Player 已启用 2 个全屏 layer cache slot。
+- v0 已支持 full PixelSurface capture / compose，并在 Player Now Playing source / destination 双层转场中进入真实 render path。
 - 后续再考虑 TileSurface。
 
 ### Step 4：最小 compose
@@ -468,8 +469,8 @@ v0 可以先只在 win/sim backend 证明收益。
 ### Step 5：Player now_to_library 验证
 
 - source page 已可冻结为 PixelSurface 并参与 compose。
-- 下一步冻结或预渲染 Library，让 destination 复杂页在转场期间也不重走完整 live tree。
-- 目标仍是转场期间只 composite source / destination layer，结束后 thaw 目标页。
+- destination page 已可通过 render loop 预渲染后冻结为 PixelSurface。
+- `NowPlaying -> Library` 这类复杂页回退路径已进入 source / destination 双层合成闭环；结束后仍回到 live tree。
 
 ### Step 6：Motion recipe 与 Component Lab
 

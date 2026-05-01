@@ -15,8 +15,16 @@ import init.binding;
 import util.core;
 import util.error;
 
-extern "C" __attribute__((weak)) void charm_block_registry_debug_exist(const char*, util::u32) noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+#define CHARM_BLOCK_REGISTRY_WEAK __attribute__((weak))
+#else
+#define CHARM_BLOCK_REGISTRY_WEAK
+#endif
+
+extern "C" CHARM_BLOCK_REGISTRY_WEAK void charm_block_registry_debug_exist(const char*, util::u32) noexcept {
 }
+
+#undef CHARM_BLOCK_REGISTRY_WEAK
 
 export namespace block {
     using CapId = util::u32;

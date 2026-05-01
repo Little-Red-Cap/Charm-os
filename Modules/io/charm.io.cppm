@@ -3,6 +3,7 @@ export module charm.io;
 export import io.channel;
 export import io.channel.slot;
 export import io.channel.slot_export;
+export import io.device_i2c;
 export import io.registry;
 export import io.reactor;
 

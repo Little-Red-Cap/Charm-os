@@ -280,7 +280,7 @@ concept I2cBus =
 
 ### 5.1 `I2cBus` / `I2cDevice`
 
-优先级较高。
+当前已有第一条 v0 窄链落点。
 
 原因：
 
@@ -297,6 +297,19 @@ concept I2cBus =
 - `write_read`
 - transaction script mock
 - 一个小 sensor / codec / EEPROM 类 driver
+
+当前仓库中的最小落点是：
+
+- `Modules/io/device/io.device_i2c.cppm`
+  定义 driver-facing `I2cBus` concept、`I2cBusRef`、`I2cDeviceRef` 与 `I2cErrorKind`
+- `Modules/io/device/io.device_i2c_mock.cppm`
+  定义固定容量 `I2cScriptBus`，用于无硬件 transaction 验证
+- `Examples/io/i2c_contract_mock_smoke`
+  用一个极小 register probe 验证 `write_read`、`write` 与未预期 transaction 失败路径
+
+这条链目前仍是 `experimental`，不是 `admitted`。
+它已经满足“至少一个 mock backend + 至少一个准 driver + 至少一条 no-hardware smoke”的第一层证据，
+但还缺真实硬件 backend 与更完整的资源/事实投影。
 
 ### 5.2 `SpiBus` / `SpiDevice`
 
@@ -462,11 +475,12 @@ system compiler reports:
 
 v0 最值得推进的是：
 
-1. 先落实 [`interface_admission_policy.md`](interface_admission_policy.md)
-2. 选择 I2C transaction mock 作为第一条窄链
-3. 写一个小型真实 driver 或准真实 driver 验证契约
-4. 把 required facts / error kind / execution semantics 写进文档
-5. 让 artifact / evidence 能说明这条链如何成立
+1. 保持 [`interface_admission_policy.md`](interface_admission_policy.md) 作为公共接口准入法律
+2. 继续收敛现有 I2C transaction mock 窄链
+3. 补一个真实硬件或 HAL adapter backend
+4. 写一个小型真实 driver，例如 sensor / codec / EEPROM / PMIC
+5. 把 required facts / error kind / execution semantics 写进更正式的 I2C contract 文档
+6. 让 artifact / evidence 能说明这条链如何成立
 
 这条路线小，但很锋利。
 

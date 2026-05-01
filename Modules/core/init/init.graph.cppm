@@ -11,8 +11,16 @@ import init.node;
 import util.core;
 import util.error;
 
-extern "C" __attribute__((weak)) void charm_init_debug_duplicate_cap(util::u32) noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+#define CHARM_INIT_WEAK __attribute__((weak))
+#else
+#define CHARM_INIT_WEAK
+#endif
+
+extern "C" CHARM_INIT_WEAK void charm_init_debug_duplicate_cap(util::u32) noexcept {
 }
+
+#undef CHARM_INIT_WEAK
 
 export namespace init {
     template <util::usize MaxNodes, util::usize MaxCaps>

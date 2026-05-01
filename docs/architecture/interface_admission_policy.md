@@ -342,6 +342,13 @@ Charm 现在已经有多条强主线：
 - backend 可以是真实硬件，也可以是 host mock
 - system compiler 能看到 required facts、binding result 与 evidence 入口
 
+当前状态：
+
+- I2C 已经有第一条 `experimental` 窄链：
+  `io.device_i2c` + `io.device_i2c_mock` + `Examples/io/i2c_contract_mock_smoke`
+- 它验证了 mock backend、准 driver 和 no-hardware smoke
+- 它还不能升级为 `candidate`，因为还缺至少第二个 backend、真实 driver 与 system compiler facts/evidence 投影
+
 ## 8. 当前结论
 
 Charm 可以大胆推进系统编译器、托管时间、bringup evidence、mock backend 与真实驱动。

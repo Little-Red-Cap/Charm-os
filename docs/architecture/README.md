@@ -48,6 +48,12 @@
 3. [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)
 4. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 
+当前第一条实验窄链：
+
+- `Modules/io/device/io.device_i2c.cppm`
+- `Modules/io/device/io.device_i2c_mock.cppm`
+- `Examples/io/i2c_contract_mock_smoke`
+
 ### 我想看 signal / state 这条线
 
 建议顺序：

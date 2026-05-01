@@ -506,12 +506,16 @@ namespace {
                 .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
             };
             const auto capture = scene.capture_pixel_snapshot_result(spec);
-            const bool rejected = capture.status == ::ui::scene::LayerCaptureStatus::StoreFailed
-                && !capture.handle;
-            if (rejected) {
-                ui_ci_emit("layer_pixel_snapshot_cache_limit", true, nullptr);
+            const bool cache_can_fit_fullscreen =
+                layer_cache_width >= screen_width && layer_cache_height >= screen_height;
+            const bool ok = cache_can_fit_fullscreen
+                ? (capture.ok() && capture.handle && scene.release_snapshot(capture.handle))
+                : (capture.status == ::ui::scene::LayerCaptureStatus::StoreFailed
+                    && !capture.handle);
+            if (ok) {
+                ui_ci_emit("layer_pixel_snapshot_fullscreen_profile", true, nullptr);
             } else {
-                ui_ci_emit("layer_pixel_snapshot_cache_limit", false, "pixel_snapshot_cache_limit");
+                ui_ci_emit("layer_pixel_snapshot_fullscreen_profile", false, "pixel_snapshot_fullscreen_profile");
                 if (capture.handle) {
                     (void)scene.release_snapshot(capture.handle);
                 }

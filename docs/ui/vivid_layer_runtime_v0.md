@@ -1,0 +1,476 @@
+# Vivid Layer Runtime v0 设计草案
+
+## 定位
+
+本文定义 Vivid 下一阶段的 UI runtime 主线：
+
+> 页面何时是 live tree，何时是 frozen surface，何时只是 compositor input。
+
+这不是一项“截图缓存优化”，而是把 Vivid 从：
+
+```text
+Widget Tree -> DrawCmd -> Canvas
+```
+
+推进到：
+
+```text
+Widget Tree -> DrawCmd -> Render Artifact -> Layer Runtime -> Backend
+```
+
+v0 的目标很窄：让复杂页面在转场期间不再每帧参与完整 layout / record / execute，而是先被冻结成可合成的渲染产物。第一验证对象是 Player 的 `Now Playing -> Library` 返回转场。
+
+## 当前地基
+
+Vivid 已经具备适合承接 Layer Runtime 的基础：
+
+- `DrawCmdBuffer` 是明确的渲染中间产物。
+- `Scene::render()` 与 `Scene::render_tiles()` 已经分离 record / execute。
+- `CmdStats`、`ExecStats`、`TileStats` 已经能观察命令、批处理、tile、alpha blend 与失败项。
+- `vivid_replay_workflow.md` 已经定义 dump/replay 与 full/tile backend 回放。
+- `page_layers.cppm` 已提供页面内 `Backdrop / Content / Chrome / Popup` 分区。
+
+需要注意：现有 `PageLayers` 是页面内分区，不是本文定义的 runtime layer。v0 应新增 Layer Runtime 概念，避免把 show/hide、页面分区和 frozen surface 混为一层。
+
+## 核心概念
+
+### PageLayer
+
+页面生命周期容器，负责 live root、snapshot handle、状态、freeze/thaw hooks 与失效版本。
+
+`freeze()` 不是 `hide()`：
+
+- `hide()` 是可见性语义。
+- `freeze()` 是渲染策略语义。
+
+建议状态：
+
+```cpp
+enum class PageLayerState : std::uint8_t {
+    hidden,
+    live,
+    frozen,
+    transitioning,
+    stale_snapshot,
+};
+```
+
+### SnapshotLayer
+
+页面冻结后的渲染产物。它可以是像素表面，也可以是命令快照。
+
+### LiveLayer
+
+仍由 Widget Tree 驱动的页面。LiveLayer 可以响应输入、布局、状态刷新和 style 变化。
+
+### OverlayLayer
+
+Sheet、Popup、Toast、Focus ring 等覆盖层。v0 只定义术语，不强制实现。
+
+### TransitionLayer
+
+转场期间参与合成的临时层。它消费 snapshot，不直接驱动复杂页面刷新。
+
+## Snapshot 类型
+
+v0 至少定义两种实现，先不追求全部后端一次落地。
+
+```cpp
+enum class SnapshotKind : std::uint8_t {
+    CommandBuffer,
+    PixelSurface,
+    EmptyFallback,
+};
+```
+
+### CommandBuffer Snapshot
+
+含义：
+
+```text
+冻结页面的 DrawCmdBuffer。
+转场期间不再遍历 Widget Tree。
+需要输出时重放冻结命令。
+```
+
+优点：
+
+- 贴近现有 DrawCmd / dump / replay / tile 执行链。
+- 内存压力低。
+- 适合 small-mcu、e-ink 或低内存 profile。
+
+代价：
+
+- 每帧仍可能执行 DrawCmd，CPU 收益不如像素快照。
+- transform 能力受限。v0 可以先支持 cut/fade，slide 需要裁剪和坐标偏移策略。
+
+### PixelSurface Snapshot
+
+含义：
+
+```text
+render once -> RGB565 / ARGB8888 surface -> transition blit/composite
+```
+
+优点：
+
+- 转场期间最便宜。
+- 最适合 PC、带 SDRAM 的 Player，以及 rich motion profile。
+
+代价：
+
+- 内存成本高。
+- 需要后端提供 surface 分配、格式、stride 与 composite 能力。
+
+参考内存量级：
+
+```text
+480 x 800 x RGB565   ~= 750 KB
+568 x 1210 x RGB565  ~= 1.31 MB
+```
+
+### EmptyFallback
+
+内存不足、snapshot stale 且不能重建、或后端不支持时的退化形态。
+
+行为：
+
+- rich profile 可尝试重建。
+- cheap profile 可降级为 cut。
+- e-ink profile 可跳过动画并直接重绘目标页。
+
+## 最小 API 草案
+
+```cpp
+struct LayerEpoch {
+    std::uint32_t layout{0};
+    std::uint32_t style{0};
+    std::uint32_t theme{0};
+    std::uint32_t density{0};
+    std::uint32_t font{0};
+    std::uint32_t content{0};
+    std::uint32_t image{0};
+};
+
+struct SnapshotSpec {
+    Rect bounds{};
+    SnapshotKind preferred_kind{SnapshotKind::CommandBuffer};
+    PixelFormat preferred_format{};
+    bool allow_alpha{false};
+    bool allow_partial{false};
+};
+
+struct SnapshotHandle {
+    std::uint16_t slot{0xFFFF};
+    std::uint16_t generation{0};
+};
+
+struct LayerTransform {
+    std::int16_t x{0};
+    std::int16_t y{0};
+    std::uint8_t opacity{255};
+};
+
+class PageLayer {
+public:
+    void set_root(WidgetHandle root) noexcept;
+
+    void show(SceneAccess& access) noexcept;
+    void hide(SceneAccess& access) noexcept;
+
+    SnapshotHandle freeze(SceneAccess& access, const SnapshotSpec& spec) noexcept;
+    void thaw(SceneAccess& access) noexcept;
+    void release_snapshot(SceneAccess& access) noexcept;
+
+    PageLayerState state() const noexcept;
+};
+```
+
+v0 可以先把 `PixelFormat` 收在后端侧，公共 API 只保留 preferred kind。上面的形态是目标结构，不要求第一笔代码完整暴露。
+
+## Layer Runtime 最小闭环
+
+v0 只做四个能力：
+
+```text
+capture
+release
+compose
+invalidate
+```
+
+推荐链路：
+
+```text
+source page live
+  -> freeze source as snapshot
+
+target page render once
+  -> freeze target as snapshot 或 keep live hidden
+
+transition frames
+  -> composite source snapshot + target snapshot
+
+transition end
+  -> release source snapshot
+  -> thaw target page as live
+```
+
+Player 的目标链路：
+
+```text
+NowPlaying live
+  -> freeze(NowPlaying)
+
+Library prepare
+  -> freeze(Library)
+
+Transition
+  -> composite two layers
+
+End
+  -> release(NowPlaying snapshot)
+  -> thaw(Library)
+```
+
+## 失效规则
+
+Snapshot 最大风险是缓存地狱，因此 v0 必须绑定 epoch。
+
+Snapshot 仅在以下版本一致时有效：
+
+- layout
+- style
+- theme
+- density
+- font
+- content
+- image
+
+建议规则：
+
+```text
+freeze() 记录 LayerEpoch
+compose() 前检查 LayerEpoch
+不一致时标记 stale_snapshot
+```
+
+stale 行为由 profile 决定：
+
+```text
+desktop / rich: rebuild snapshot
+player-sdram: rebuild or cut
+small-mcu: cut or command fallback
+e-ink: skip animation, direct redraw
+```
+
+Reactive source 接入后，也必须映射到明确失效级别：
+
+```text
+theme.changed    -> style invalidation + repaint + snapshot stale
+density.changed  -> layout invalidation + snapshot stale
+language.changed -> text invalidation + layout maybe + snapshot stale
+playback.changed -> content update + repaint
+focus.changed    -> repaint only
+```
+
+## Motion 边界
+
+Motion System 应踩在 Layer Runtime 上，而不是散落在页面里。
+
+v0 只支持：
+
+- `cut`
+- `fade`
+- `slide_x`
+- `slide_y`
+- `fade_slide`
+
+v0 暂缓：
+
+- shared element
+- irregular mask
+- per-widget snapshot
+- cover 子层转场
+
+Motion tier 草案：
+
+```cpp
+enum class MotionTier : std::uint8_t {
+    rich_60fps,
+    cheap_30fps,
+    static_cut,
+    eink_dissolve,
+    none,
+};
+```
+
+不同 tier 选择不同执行策略：
+
+```text
+fade:
+  rich      alpha blend
+  cheap     4-step opacity
+  eink      dissolve / direct cut
+  none      immediate swap
+
+slide:
+  rich      per-frame transform
+  cheap     2~4 keyframes
+  eink      disabled
+```
+
+## Render Budget
+
+Layer Runtime 必须与 Render Budget 同步推进，否则无法判断 snapshot 是收益还是负担。
+
+v0 需要新增 layer 维度统计：
+
+```cpp
+struct LayerStats {
+    std::uint16_t snapshot_count{0};
+    std::uint16_t snapshot_rebuild_count{0};
+    std::uint16_t stale_snapshot_count{0};
+    std::uint32_t layer_bytes{0};
+    std::uint32_t composite_pixels{0};
+};
+```
+
+建议统一观测字段：
+
+```text
+record:
+  cmd_count
+  cmd_bytes
+  text_used
+  blob_used
+
+execute:
+  dispatch_groups
+  batch_flushes
+  alpha_blend_count
+  failed_cmds
+
+tile:
+  tiles_total
+  tiles_drawn
+  tile_flush_count
+
+layer:
+  snapshot_count
+  layer_bytes
+  composite_pixels
+  snapshot_rebuild_count
+  stale_snapshot_count
+```
+
+页面预算草案：
+
+```cpp
+struct PageBudget {
+    std::uint16_t max_cmd_count{0};
+    std::uint32_t max_cmd_bytes{0};
+    std::uint32_t max_alpha_pixels{0};
+    std::uint32_t max_layer_bytes{0};
+};
+```
+
+日志目标：
+
+```text
+[budget] page=Library cmd=812/900 ok=1
+[budget] page=Library alpha_pixels=42000/30000 ok=0
+[budget] page=Library layer_bytes=768000/524288 ok=0
+```
+
+## v0 验收标准
+
+以 Player `now_to_library` 转场为第一验收目标：
+
+```text
+target Library 不参与逐帧完整 layout
+transition frame cmd_count 明显下降
+snapshot bytes 可见
+snapshot kind 可见
+stale/rebuild 次数可见
+final Library 可交互
+ui-ci now_to_library 仍通过
+```
+
+建议增加日志：
+
+```text
+[layer] freeze page=NowPlaying kind=PixelSurface bytes=...
+[layer] freeze page=Library kind=CommandBuffer cmds=...
+[layer] compose page=Library opacity=...
+[layer] release page=NowPlaying
+[budget] page=Library layer_bytes=...
+```
+
+## 落地路线
+
+### Step 1：文档与术语收口
+
+- 本文定义 Layer Runtime v0。
+- `vivid_page_layer_style_patch.md` 继续保留现有 `PageLayer` show/hide 使用说明。
+- 后续代码中避免把页面内 `PageLayers` 与 runtime layer 混名。
+
+### Step 2：新增 SnapshotStore 与 LayerStats
+
+- 先实现 `CommandBuffer` snapshot。
+- 暴露 snapshot kind、bytes、cmd_count。
+- 不先做复杂 compositor。
+
+### Step 3：接入 PixelSurface Snapshot
+
+- PC / SDRAM profile 优先。
+- 只要求 full surface。
+- 后续再考虑 TileSurface。
+
+### Step 4：最小 compose
+
+- opacity
+- x/y offset
+- dirty rect
+
+v0 可以先只在 win/sim backend 证明收益。
+
+### Step 5：Player now_to_library 验证
+
+- 冻结 NowPlaying。
+- 预渲染或冻结 Library。
+- 转场期间只 composite。
+- 结束后 thaw Library。
+
+### Step 6：Motion recipe 与 Component Lab
+
+- motion 先基于 Layer。
+- component lab 可复用 dump/replay，不另起体系。
+
+## 非目标
+
+v0 不做：
+
+- 完整窗口管理器
+- 任意层级 compositor
+- shared element
+- irregular clipping/mask
+- 多窗口 scene graph
+- GPU backend
+- 自动 layout token 化
+
+这些可以在 Layer Runtime v0 成立后再推进。
+
+## 总结
+
+Vivid Layer Runtime v0 的关键不是让某个页面画得更快，而是建立一个长期可用的问题分解：
+
+```text
+live tree       负责交互与状态
+snapshot        负责冻结页面渲染产物
+layer runtime   负责转场期间的合成与失效
+backend         负责像素输出与设备差异
+budget          负责证明收益和暴露代价
+```
+
+这一步完成后，Vivid 才真正开始拥有产品级 UI runtime 的骨架。

@@ -53,6 +53,9 @@ access.clear_style_patch(handle);
 
 ## 2. PageLayer（页面容器）
 
+说明：这里的 PageLayer 指页面容器与 show/hide 收口，不等同于
+[`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md) 中的 frozen surface / snapshot runtime。
+
 适用场景：
 - 页面切换时统一刷新 UI。
 - 避免散落的 set_visible/状态恢复逻辑。

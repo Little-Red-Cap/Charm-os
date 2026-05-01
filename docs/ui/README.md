@@ -32,8 +32,9 @@
 
 1. [`vivid_multibackend_plan.md`](vivid_multibackend_plan.md)
 2. [`vivid_replay_workflow.md`](vivid_replay_workflow.md)
-3. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
-4. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+3. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
+4. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
+5. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
 ### 我想看 EInk / Player UI
 
@@ -47,7 +48,7 @@
 
 - UI 硬规则：`ui_kernel_contract.md`
 - 结构化视图：`structured_view_model_v1.md`
-- Vivid 路线：`vivid_multibackend_plan.md` → `vivid_replay_workflow.md`
+- Vivid 路线：`vivid_multibackend_plan.md` → `vivid_replay_workflow.md` → `vivid_layer_runtime_v0.md`
 - Player/UI 组合：`player_ui.md` → `player_vivid_patterns.md`
 
 ## 使用提醒

@@ -33,6 +33,27 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 
 需要注意：现有 `PageLayers` 是页面内分区，不是本文定义的 runtime layer。v0 应新增 Layer Runtime 概念，避免把 show/hide、页面分区和 frozen surface 混为一层。
 
+## 当前实现快照
+
+截至当前阶段，v0 已落地的部分是“命令快照 + 观测链 + dry-run 合成 + 回放边界”，还没有替换 Player 的真实视觉转场渲染路径。
+
+已实现：
+
+- `layer_runtime.cppm` 提供 `SnapshotHandle`、`SnapshotRecord`、`SnapshotStore`、`LayerStats`、`LayerComposePlan`、`LayerBudgetResult` 等基础类型。
+- `Scene` 支持 `capture_command_snapshot_result()`、`capture_command_snapshot()`、`release_snapshot()`、`validate_snapshot()`、`compose_snapshot_dry_run()`、`make_snapshot_compose_plan()`、`check_layer_budget()` 与 `replay_command_snapshot()`。
+- `CommandBuffer` snapshot 会复制当前 `DrawCmdBuffer` 到固定槽位 payload store；释放 snapshot 时同步释放 payload slot。
+- snapshot 已绑定 `LayerEpoch`，当前覆盖 `layout / style / theme`，过期 snapshot 会被标记为 stale，回放会拒绝 stale payload。
+- `LayerCaptureStatus` 与 `LayerReplayStatus` 已提供失败原因，避免上层只通过空 handle 或空统计猜测问题。
+- Player 的 Now Playing 转场已接入命令快照 dry-run，并记录 capture / release / compose / capture failure 状态。
+- `--ui-ci` 已覆盖 snapshot 生命周期、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、命令回放、stale 回放拒绝、payload slot 复用，以及 Player 转场 capture/compose 观测。
+
+仍未实现：
+
+- 转场期间仍没有用 snapshot 替代真实页面渲染；当前 Player 只消费 Layer Runtime 的观测和 dry-run 结果。
+- `CommandBuffer` replay 目前只验证回放边界和 clip，尚未支持平移、opacity 或真正 compositor 语义。
+- `PixelSurface` / `TileSurface` snapshot 尚未落地。
+- `PageLayer::freeze/thaw` 仍是设计目标，当前实现入口集中在 `Scene` 与 `SnapshotStore`。
+
 ## 核心概念
 
 ### PageLayer

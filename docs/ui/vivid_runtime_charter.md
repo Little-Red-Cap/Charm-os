@@ -235,9 +235,11 @@ Motion recipe 的第一目标不是 API 好看，而是可降级、可审计、�
 - `charm.ui.scene.motion_transition`
 - `MotionTransitionRunner`
 - `MotionTransitionTrace`
+- `charm.ui.scene.motion_compose`
+- `make_motion_compose_spec()`
 - `Examples/ui/vivid/motion_time_demo`
 
-这个核心只回答“时间如何被采样，recipe 如何投影成最小 `LayerTransform`，transition 如何托管 begin/sample/finish/cancel 生命周期，以及如何留下最小运行证据”，暂不表达完整 layer compose 或页面转场。
+这个核心只回答“时间如何被采样，recipe 如何投影成最小 `LayerTransform`，transition 如何托管 begin/sample/finish/cancel 生命周期，如何留下最小运行证据，以及如何生成 `LayerComposeSpec`”，暂不执行完整 layer compose 或页面转场。
 
 ## Pattern Layer
 
@@ -297,7 +299,7 @@ Page Token
 
 优先顺序：
 
-1. 将 `Managed UI Time v0` 接入 Layer compose / transition runner
+1. 将 `Managed UI Time v0` 接入真实 Layer compose 执行路径
 2. `Style Token Law`
 3. `Component Lab / Screenshot CI`
 4. `MediaArtSlot / CoverSlot`

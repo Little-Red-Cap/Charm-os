@@ -1,0 +1,35 @@
+module;
+
+export module charm.ui.scene.motion_compose;
+
+export import charm.ui.scene.motion_transition;
+
+export namespace ui::scene {
+    struct MotionComposeRequest {
+        SnapshotHandle source{};
+        MotionTransitionFrame frame{};
+        Rect clip{};
+        bool has_clip{false};
+    };
+
+    struct MotionComposeBridgeResult {
+        bool valid{false};
+        LayerComposeSpec spec{};
+    };
+
+    constexpr MotionComposeBridgeResult make_motion_compose_spec(
+        const MotionComposeRequest& request) noexcept {
+        if (!request.source || !request.frame.motion.compose) {
+            return {};
+        }
+        return {
+            .valid = true,
+            .spec = {
+                .source = request.source,
+                .transform = request.frame.motion.transform,
+                .clip = request.clip,
+                .has_clip = request.has_clip,
+            },
+        };
+    }
+}

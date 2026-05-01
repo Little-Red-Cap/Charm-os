@@ -13,6 +13,7 @@
 - `sample_motion_recipe()` 验证 `fade` / `slide` / `fade_slide` / `cut` 到 `LayerMotionSpec` 的最小翻译。
 - `MotionTransitionRunner` 验证 begin / sample / finish / cancel 的最小生命周期。
 - `MotionTransitionTrace` 验证 sample / compose / finish / cancel 的最小证据账本。
+- `make_motion_compose_spec()` 验证 transition frame 到 `LayerComposeSpec` 的纯函数桥。
 
 构建：
 

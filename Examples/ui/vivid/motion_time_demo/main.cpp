@@ -188,6 +188,28 @@ int main() {
     }
     if (!expect(trace_done.last_now_ms == 1095, "trace records last sample time")) return 1;
 
+    const auto compose = ui::scene::make_motion_compose_spec({
+        .source = {.slot = 3, .generation = 7},
+        .frame = transition_mid,
+        .clip = {.x = 4, .y = 5, .w = 80, .h = 40},
+        .has_clip = true,
+    });
+    if (!expect(compose.valid, "motion frame creates compose spec")) return 1;
+    if (!expect(compose.spec.source.slot == 3 && compose.spec.source.generation == 7,
+                "compose spec keeps source snapshot")) {
+        return 1;
+    }
+    if (!expect(compose.spec.transform.x == -57 && compose.spec.transform.opacity == 85,
+                "compose spec keeps motion transform")) {
+        return 1;
+    }
+    if (!expect(compose.spec.has_clip && compose.spec.clip.w == 80, "compose spec keeps clip")) return 1;
+
+    const auto missing_snapshot = ui::scene::make_motion_compose_spec({
+        .frame = transition_mid,
+    });
+    if (!expect(!missing_snapshot.valid, "compose bridge rejects missing snapshot")) return 1;
+
     runner.reset();
     if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition reset returns idle")) return 1;
     if (!expect(runner.trace().sample_count == 0, "transition reset clears trace")) return 1;
@@ -200,6 +222,11 @@ int main() {
     const auto canceled = runner.sample(50);
     if (!expect(canceled.state == ui::scene::MotionTransitionState::Canceled, "transition can be canceled")) return 1;
     if (!expect(!canceled.motion.compose, "canceled transition does not compose")) return 1;
+    const auto canceled_compose = ui::scene::make_motion_compose_spec({
+        .source = {.slot = 4, .generation = 1},
+        .frame = canceled,
+    });
+    if (!expect(!canceled_compose.valid, "compose bridge rejects non-composing frame")) return 1;
     const auto trace_canceled = runner.trace();
     if (!expect(trace_canceled.cancel_count == 1, "trace records cancel count")) return 1;
     if (!expect(trace_canceled.compose_count == 0, "trace records no canceled compose")) return 1;
@@ -222,6 +249,11 @@ int main() {
     std::printf("[motion] transition x=%d opacity=%u\n",
                 static_cast<int>(transition_mid.motion.transform.x),
                 static_cast<unsigned>(transition_mid.motion.transform.opacity));
+    std::printf("[motion] compose source=%u gen=%u x=%d opacity=%u\n",
+                static_cast<unsigned>(compose.spec.source.slot),
+                static_cast<unsigned>(compose.spec.source.generation),
+                static_cast<int>(compose.spec.transform.x),
+                static_cast<unsigned>(compose.spec.transform.opacity));
     std::printf("[motion] trace samples=%u compose=%u finished=%u canceled=%u\n",
                 static_cast<unsigned>(trace_done.sample_count),
                 static_cast<unsigned>(trace_done.compose_count),

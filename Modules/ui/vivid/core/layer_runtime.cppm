@@ -83,7 +83,20 @@ export namespace ui::scene {
         bool stale{false};
         SnapshotKind kind{SnapshotKind::EmptyFallback};
         Rect source_bounds{};
+        Rect source_visible{};
         Rect target_bounds{};
+        std::uint32_t composite_pixels{0};
+        std::uint32_t source_bytes{0};
+    };
+
+    struct LayerComposePlan {
+        bool valid{false};
+        SnapshotHandle source{};
+        SnapshotKind kind{SnapshotKind::EmptyFallback};
+        Rect source_bounds{};
+        Rect source_visible{};
+        Rect target_bounds{};
+        LayerTransform transform{};
         std::uint32_t composite_pixels{0};
         std::uint32_t source_bytes{0};
     };
@@ -121,6 +134,13 @@ export namespace ui::scene {
         const int right = (right_a < right_b) ? right_a : right_b;
         const int bottom = (bottom_a < bottom_b) ? bottom_a : bottom_b;
         return {left, top, right - left, bottom - top};
+    }
+
+    constexpr Rect layer_inverse_translate_rect(Rect rect,
+                                                const LayerTransform& transform) noexcept {
+        rect.x -= transform.x;
+        rect.y -= transform.y;
+        return rect;
     }
 
     constexpr std::uint32_t layer_rect_area(const Rect& rect) noexcept {
@@ -254,22 +274,41 @@ export namespace ui::scene {
 
         [[nodiscard]] LayerComposeResult compose_dry_run(const LayerComposeSpec& spec) noexcept {
             LayerComposeResult result{};
+            const auto plan = make_compose_plan(spec);
+            result.ok = plan.valid;
+            result.kind = plan.kind;
+            result.source_bounds = plan.source_bounds;
+            result.source_visible = plan.source_visible;
+            result.target_bounds = plan.target_bounds;
+            result.composite_pixels = plan.composite_pixels;
+            result.source_bytes = plan.source_bytes;
+            if (result.ok) {
+                note_composite_pixels(result.composite_pixels);
+            } else if (const auto* slot = record(spec.source)) {
+                result.stale = slot->stale;
+            }
+            return result;
+        }
+
+        [[nodiscard]] LayerComposePlan make_compose_plan(const LayerComposeSpec& spec) const noexcept {
+            LayerComposePlan plan{};
             const auto* slot = record(spec.source);
-            if (!slot) return result;
-            result.kind = slot->kind;
-            result.stale = slot->stale;
-            result.source_bounds = slot->bounds;
-            result.source_bytes = slot->bytes;
-            if (slot->stale) return result;
+            if (!slot || slot->stale) return plan;
+            plan.source = spec.source;
+            plan.kind = slot->kind;
+            plan.source_bounds = slot->bounds;
+            plan.transform = spec.transform;
+            plan.source_bytes = slot->bytes;
             Rect target = layer_translate_rect(slot->bounds, spec.transform);
             if (spec.has_clip) {
                 target = layer_intersect_rect(target, spec.clip);
             }
-            result.target_bounds = target;
-            result.composite_pixels = layer_rect_area(target);
-            result.ok = result.composite_pixels > 0;
-            note_composite_pixels(result.composite_pixels);
-            return result;
+            plan.target_bounds = target;
+            plan.composite_pixels = layer_rect_area(target);
+            if (plan.composite_pixels == 0) return plan;
+            plan.source_visible = layer_inverse_translate_rect(target, spec.transform);
+            plan.valid = true;
+            return plan;
         }
 
         [[nodiscard]] LayerStats stats() const noexcept {

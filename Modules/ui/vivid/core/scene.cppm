@@ -995,6 +995,10 @@ export namespace ui::scene {
             }
             return snapshot_store_.compose_dry_run(spec);
         }
+        LayerComposePlan make_snapshot_compose_plan(const LayerComposeSpec& spec) noexcept {
+            if (!validate_snapshot(spec.source)) return {};
+            return snapshot_store_.make_compose_plan(spec);
+        }
 
     private:
         void record_current_scene() noexcept {

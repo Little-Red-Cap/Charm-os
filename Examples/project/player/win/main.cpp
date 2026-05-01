@@ -285,6 +285,38 @@ namespace {
                 res.failed++;
             }
         }
+        {
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{4, 8, 20, 10},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto handle = scene.capture_command_snapshot(spec);
+            const auto plan = scene.make_snapshot_compose_plan({
+                .source = handle,
+                .transform = ::ui::scene::LayerTransform{.x = -10, .y = -3, .opacity = 192},
+                .clip = Rect{0, 0, 12, 8},
+                .has_clip = true,
+            });
+            const bool planned = plan.valid
+                && plan.source_visible.x == 10
+                && plan.source_visible.y == 8
+                && plan.source_visible.w == 12
+                && plan.source_visible.h == 3
+                && plan.target_bounds.x == 0
+                && plan.target_bounds.y == 5
+                && plan.target_bounds.w == 12
+                && plan.target_bounds.h == 3
+                && plan.composite_pixels == 36;
+            const bool released = scene.release_snapshot(handle);
+            const bool ok = planned && released;
+            if (ok) {
+                ui_ci_emit("layer_compose_plan_clip", true, nullptr);
+            } else {
+                ui_ci_emit("layer_compose_plan_clip", false, "compose_plan_clip");
+                res.ok = false;
+                res.failed++;
+            }
+        }
 
         auto click_handle = [&](WidgetHandle h, const char* case_name) -> bool {
             if (!h) {

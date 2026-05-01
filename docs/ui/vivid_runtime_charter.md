@@ -239,9 +239,10 @@ Motion recipe 的第一目标不是 API 好看，而是可降级、可审计、�
 - `make_motion_compose_spec()`
 - `dry_run_motion_compose()`
 - `decide_motion_compose_profile()`
+- `execute_motion_compose()`
 - `Examples/ui/vivid/motion_time_demo`
 
-这个核心只回答“时间如何被采样，recipe 如何投影成最小 `LayerTransform`，transition 如何托管 begin/sample/finish/cancel 生命周期，如何留下最小运行证据，如何生成 / dry-run `LayerComposeSpec`，以及如何把预算证据转成 effective profile”，暂不执行真实 layer compose 或页面转场。
+这个核心只回答“时间如何被采样，recipe 如何投影成最小 `LayerTransform`，transition 如何托管 begin/sample/finish/cancel 生命周期，如何留下最小运行证据，如何生成 / dry-run `LayerComposeSpec`，如何把预算证据转成 effective profile，以及如何进入最小 Scene compose 执行”，暂不表达完整页面转场。
 
 阶段性细节见：[`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)。
 
@@ -303,7 +304,7 @@ Page Token
 
 优先顺序：
 
-1. 将 `Managed UI Time v0` 接入真实 Layer compose 执行路径
+1. 将 `Managed UI Time v0` 接入 PageLayer transition 执行路径
 2. `Style Token Law`
 3. `Component Lab / Screenshot CI`
 4. `MediaArtSlot / CoverSlot`

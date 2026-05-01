@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdint>
 
+import charm.gfx.canvas;
 import charm.ui.vivid;
 
 namespace {
@@ -280,6 +281,45 @@ int main() {
         stale_dry_run);
     if (!expect(!stale_profile.valid, "profile decision rejects invalid dry-run")) return 1;
 
+    static DefaultFrameBuffer fb{};
+    static DefaultCanvas canvas{fb};
+    static ui::scene::Scene scene{canvas};
+    canvas.clear(rgba{0, 0, 0, 255});
+    canvas.set_pixel(10, 10, rgba{240, 20, 30, 255});
+    const auto captured = scene.capture_pixel_snapshot_result({
+        .bounds = {.x = 10, .y = 10, .w = 1, .h = 1},
+        .preferred_kind = ui::scene::SnapshotKind::PixelSurface,
+    });
+    if (!expect(captured.ok(), "scene captures pixel snapshot")) return 1;
+    canvas.set_pixel(20, 10, rgba{0, 0, 0, 255});
+    const auto execute_frame = ui::scene::sample_motion_recipe(
+        ui::scene::motion_slide(ui::scene::MotionAxis::X, 10, 100),
+        ui::scene::LayerProfile::Rich,
+        0,
+        0);
+    const auto execute_transition_frame = ui::scene::MotionTransitionFrame{
+        .state = ui::scene::MotionTransitionState::Running,
+        .motion = execute_frame,
+    };
+    const auto executed = ui::scene::execute_motion_compose(scene, {
+        .source = captured.handle,
+        .frame = execute_transition_frame,
+    });
+    if (!expect(executed.valid, "motion compose executes through scene")) return 1;
+    if (!expect(executed.plan.composite_pixels == 1, "execute bridge keeps compose pixel evidence")) return 1;
+    if (!expect(executed.replay.status == ui::scene::LayerReplayStatus::Ok, "execute bridge reports replay ok")) {
+        return 1;
+    }
+    const auto moved_pixel = canvas.get_pixel(20, 10);
+    if (!expect(moved_pixel.r == 240 && moved_pixel.g == 20 && moved_pixel.b == 30,
+                "execute bridge blits pixel snapshot")) {
+        return 1;
+    }
+    const auto empty_execute = ui::scene::execute_motion_compose(scene, {
+        .frame = execute_transition_frame,
+    });
+    if (!expect(!empty_execute.valid, "execute bridge rejects missing source")) return 1;
+
     runner.reset();
     if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition reset returns idle")) return 1;
     if (!expect(runner.trace().sample_count == 0, "transition reset clears trace")) return 1;
@@ -327,6 +367,12 @@ int main() {
     std::printf("[motion] dry_run pixels=%u budget_ok=%u\n",
                 static_cast<unsigned>(dry_run.plan.composite_pixels),
                 static_cast<unsigned>(dry_run.budget.ok));
+    std::printf("[motion] execute pixels=%u status=%u moved=(%u,%u,%u)\n",
+                static_cast<unsigned>(executed.plan.composite_pixels),
+                static_cast<unsigned>(executed.replay.status),
+                static_cast<unsigned>(moved_pixel.r),
+                static_cast<unsigned>(moved_pixel.g),
+                static_cast<unsigned>(moved_pixel.b));
     std::printf("[motion] profile effective=%s fallback=%s\n",
                 ui::scene::layer_profile_name(over_budget_profile.profile.effective),
                 ui::scene::layer_fallback_reason_name(over_budget_profile.profile.reason));

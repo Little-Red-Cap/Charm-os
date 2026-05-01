@@ -13,6 +13,7 @@ MotionTime
   -> LayerComposeSpec
   -> MotionComposeDryRun
   -> MotionComposeProfileDecision
+  -> MotionComposeExecute
 ```
 
 目标是让 motion 在进入真实 Layer compose / backend 前，已经具备：
@@ -24,6 +25,7 @@ MotionTime
 - 运行证据
 - compose plan dry-run
 - budget 到 effective profile 的裁决
+- 真实 Scene compose 执行入口
 
 ## 非目标
 
@@ -162,6 +164,27 @@ Finished / Canceled -> reset -> Idle
 - budget 证据通过 `decide_layer_profile()` 转为 effective profile / fallback reason
 - 这一层仍不执行真实 compose
 
+### `motion_execute.cppm`
+
+负责把 motion compose request 接到 `Scene` 的真实执行入口。
+
+核心类型：
+
+- `MotionComposeExecuteResult`
+
+核心函数：
+
+- `execute_motion_compose()`
+
+关键规则：
+
+- 只有这一层知道 `Scene`
+- 先复用 `make_motion_compose_spec()`
+- 再通过 `Scene::make_snapshot_compose_plan()` 生成执行计划
+- `CommandBuffer` 走 `Scene::replay_command_snapshot()`
+- `PixelSurface` 走 `Scene::compose_pixel_snapshot()`
+- 返回 replay 结果和 compose pixel 证据
+
 ## 验证入口
 
 最小验证示例：
@@ -183,6 +206,7 @@ Examples/ui/vivid/motion_time_demo
 - composite pixel budget overrun
 - stale snapshot 拒绝
 - budget 到 effective profile / fallback reason 的裁决
+- `Scene` pixel snapshot compose 最小执行路径
 
 构建：
 
@@ -204,9 +228,10 @@ recipe + profile + time
   -> dry-run plan
   -> budget result
   -> effective profile decision
+  -> optional scene execute
 ```
 
-这意味着 motion runtime 已经可以在不进入页面和 backend 的情况下回答：
+这意味着 motion runtime 已经可以在不进入 PageLayer 页面转场的情况下回答：
 
 - 当前帧是否应该 compose？
 - 当前 transform 是什么？
@@ -214,6 +239,7 @@ recipe + profile + time
 - compose 会覆盖多少像素？
 - 当前预算是否允许？
 - 如果预算不允许，effective profile 应降级到哪里？
+- 如果进入最小执行，Scene replay 是否成功？
 
 ## 下一步
 
@@ -225,8 +251,7 @@ recipe + profile + time
 MotionTransitionFrame
   -> MotionComposeRequest
   -> LayerComposePlan
-  -> Scene / SnapshotStore compose dry-run
-  -> optional execute hook
+  -> Scene compose execute
 ```
 
 第一阶段仍应保持 Vivid-only，优先验证：

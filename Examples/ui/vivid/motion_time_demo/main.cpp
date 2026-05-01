@@ -210,6 +210,52 @@ int main() {
     });
     if (!expect(!missing_snapshot.valid, "compose bridge rejects missing snapshot")) return 1;
 
+    ui::scene::SnapshotStore<2> snapshots{};
+    const auto snapshot = snapshots.reserve({
+        .bounds = {.x = 0, .y = 0, .w = 120, .h = 80},
+        .preferred_kind = ui::scene::SnapshotKind::PixelSurface,
+    }, {});
+    if (!expect(static_cast<bool>(snapshot), "snapshot store reserves source")) return 1;
+    const auto dry_run = ui::scene::dry_run_motion_compose({
+        .source = snapshot,
+        .frame = transition_mid,
+        .clip = {.x = 0, .y = 0, .w = 80, .h = 80},
+        .has_clip = true,
+    }, snapshots, {
+        .max_layer_bytes = 100000,
+        .max_composite_pixels = 6400,
+    });
+    if (!expect(dry_run.valid, "motion compose dry-run creates plan")) return 1;
+    if (!expect(dry_run.plan.source == snapshot, "dry-run plan keeps snapshot handle")) return 1;
+    if (!expect(dry_run.plan.target_bounds.x == 0 && dry_run.plan.target_bounds.w == 63,
+                "dry-run plan applies transform and clip")) {
+        return 1;
+    }
+    if (!expect(dry_run.plan.composite_pixels == 5040, "dry-run plan reports composite pixels")) return 1;
+    if (!expect(dry_run.budget.ok, "dry-run budget passes within limits")) return 1;
+
+    const auto dry_run_over_budget = ui::scene::dry_run_motion_compose({
+        .source = snapshot,
+        .frame = transition_mid,
+        .clip = {.x = 0, .y = 0, .w = 80, .h = 80},
+        .has_clip = true,
+    }, snapshots, {
+        .max_composite_pixels = 100,
+    });
+    if (!expect(dry_run_over_budget.valid, "over-budget dry-run still returns valid plan")) return 1;
+    if (!expect(!dry_run_over_budget.budget.ok &&
+                dry_run_over_budget.budget.composite_pixels_over,
+                "dry-run budget reports composite pixel overrun")) {
+        return 1;
+    }
+
+    if (!expect(snapshots.mark_stale(snapshot), "snapshot can be marked stale")) return 1;
+    const auto stale_dry_run = ui::scene::dry_run_motion_compose({
+        .source = snapshot,
+        .frame = transition_mid,
+    }, snapshots);
+    if (!expect(!stale_dry_run.valid, "dry-run rejects stale snapshot plan")) return 1;
+
     runner.reset();
     if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition reset returns idle")) return 1;
     if (!expect(runner.trace().sample_count == 0, "transition reset clears trace")) return 1;
@@ -254,6 +300,9 @@ int main() {
                 static_cast<unsigned>(compose.spec.source.generation),
                 static_cast<int>(compose.spec.transform.x),
                 static_cast<unsigned>(compose.spec.transform.opacity));
+    std::printf("[motion] dry_run pixels=%u budget_ok=%u\n",
+                static_cast<unsigned>(dry_run.plan.composite_pixels),
+                static_cast<unsigned>(dry_run.budget.ok));
     std::printf("[motion] trace samples=%u compose=%u finished=%u canceled=%u\n",
                 static_cast<unsigned>(trace_done.sample_count),
                 static_cast<unsigned>(trace_done.compose_count),

@@ -14,6 +14,7 @@
 - `MotionTransitionRunner` 验证 begin / sample / finish / cancel 的最小生命周期。
 - `MotionTransitionTrace` 验证 sample / compose / finish / cancel 的最小证据账本。
 - `make_motion_compose_spec()` 验证 transition frame 到 `LayerComposeSpec` 的纯函数桥。
+- `dry_run_motion_compose()` 验证 transition frame 经 `SnapshotStore` 形成 compose plan 和 budget 证据。
 
 构建：
 

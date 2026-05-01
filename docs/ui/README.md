@@ -39,7 +39,7 @@
 
 最小验证示例：
 
-- `Examples/ui/vivid/motion_time_demo`
+- `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time 与 Layer motion transform 采样。
 
 ### 我想看 EInk / Player UI
 

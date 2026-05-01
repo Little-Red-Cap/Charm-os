@@ -225,9 +225,13 @@ Motion recipe 的第一目标不是 API 好看，而是可降级、可审计、�
 - `MotionTimeSpec`
 - `MotionTick`
 - `sample_motion_time()`
+- `charm.ui.scene.motion_plan`
+- `LayerMotionSpec`
+- `LayerMotionFrame`
+- `sample_layer_motion()`
 - `Examples/ui/vivid/motion_time_demo`
 
-这个核心只回答“时间如何被采样”，暂不表达完整 motion recipe、layer compose 或页面转场。
+这个核心只回答“时间如何被采样，以及如何投影成最小 `LayerTransform`”，暂不表达完整 motion recipe、layer compose 或页面转场。
 
 ## Pattern Layer
 

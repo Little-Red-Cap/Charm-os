@@ -66,6 +66,52 @@ int main() {
     if (!expect(zero_duration.progress == 1.0f, "zero duration finishes immediately")) return 1;
     if (!expect(zero_duration.finished, "zero duration is finished")) return 1;
 
+    const auto rich_motion = ui::scene::sample_layer_motion({
+        .profile = ui::scene::LayerProfile::Rich,
+        .start_ms = 0,
+        .now_ms = 50,
+        .duration_ms = 100,
+        .from = {.x = -100, .y = 0, .opacity = 0},
+        .to = {.x = 0, .y = 0, .opacity = 255},
+    });
+    if (!expect(rich_motion.transform.x == -50, "rich motion interpolates slide position")) return 1;
+    if (!expect(rich_motion.transform.opacity == 128, "rich motion interpolates opacity")) return 1;
+    if (!expect(rich_motion.compose, "rich motion composes visible frame")) return 1;
+
+    const auto cheap_motion = ui::scene::sample_layer_motion({
+        .profile = ui::scene::LayerProfile::Cheap,
+        .start_ms = 0,
+        .now_ms = 40,
+        .duration_ms = 100,
+        .from = {.x = 0, .y = 0, .opacity = 0},
+        .to = {.x = 0, .y = 0, .opacity = 255},
+    });
+    if (!expect(cheap_motion.tick.sampled_elapsed_ms == 33, "cheap motion uses managed 30fps tick")) return 1;
+    if (!expect(cheap_motion.transform.opacity == 85, "cheap motion quantizes opacity through layer profile")) return 1;
+
+    const auto static_motion = ui::scene::sample_layer_motion({
+        .profile = ui::scene::LayerProfile::Static,
+        .start_ms = 0,
+        .now_ms = 1,
+        .duration_ms = 100,
+        .from = {.x = -100, .y = 0, .opacity = 0},
+        .to = {.x = 0, .y = 0, .opacity = 255},
+    });
+    if (!expect(static_motion.transform.x == 0, "static motion samples final position")) return 1;
+    if (!expect(static_motion.transform.opacity == 255, "static motion samples final opacity")) return 1;
+    if (!expect(static_motion.compose, "static motion composes only final frame")) return 1;
+
+    const auto none_motion = ui::scene::sample_layer_motion({
+        .profile = ui::scene::LayerProfile::None,
+        .start_ms = 0,
+        .now_ms = 1,
+        .duration_ms = 100,
+        .from = {.x = -100, .y = 0, .opacity = 0},
+        .to = {.x = 0, .y = 0, .opacity = 255},
+    });
+    if (!expect(none_motion.transform.x == 0, "none motion resolves final transform")) return 1;
+    if (!expect(!none_motion.compose, "none motion does not request compose")) return 1;
+
     std::printf("[motion] rich progress=%.2f sampled=%llu\n",
                 static_cast<double>(rich.progress),
                 static_cast<unsigned long long>(rich.sampled_elapsed_ms));
@@ -75,6 +121,9 @@ int main() {
     std::printf("[motion] static progress=%.2f sampled=%llu\n",
                 static_cast<double>(static_cut.progress),
                 static_cast<unsigned long long>(static_cut.sampled_elapsed_ms));
+    std::printf("[motion] layer rich x=%d opacity=%u\n",
+                static_cast<int>(rich_motion.transform.x),
+                static_cast<unsigned>(rich_motion.transform.opacity));
     std::puts("[motion_time_demo] ok");
     return 0;
 }

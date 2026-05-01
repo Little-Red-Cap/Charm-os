@@ -71,6 +71,23 @@ export namespace ui::scene {
         std::uint32_t composite_pixels{0};
     };
 
+    struct LayerComposeSpec {
+        SnapshotHandle source{};
+        LayerTransform transform{};
+        Rect clip{};
+        bool has_clip{false};
+    };
+
+    struct LayerComposeResult {
+        bool ok{false};
+        bool stale{false};
+        SnapshotKind kind{SnapshotKind::EmptyFallback};
+        Rect source_bounds{};
+        Rect target_bounds{};
+        std::uint32_t composite_pixels{0};
+        std::uint32_t source_bytes{0};
+    };
+
     struct SnapshotRecord {
         SnapshotKind kind{SnapshotKind::EmptyFallback};
         PixelFormat format{screen_pixel_format};
@@ -82,6 +99,34 @@ export namespace ui::scene {
         bool occupied{false};
         bool stale{false};
     };
+
+    constexpr bool layer_rect_empty(const Rect& rect) noexcept {
+        return rect.w <= 0 || rect.h <= 0;
+    }
+
+    constexpr Rect layer_translate_rect(Rect rect,
+                                        const LayerTransform& transform) noexcept {
+        rect.x += transform.x;
+        rect.y += transform.y;
+        return rect;
+    }
+
+    constexpr Rect layer_intersect_rect(const Rect& a, const Rect& b) noexcept {
+        const int left = (a.x > b.x) ? a.x : b.x;
+        const int top = (a.y > b.y) ? a.y : b.y;
+        const int right_a = a.x + a.w;
+        const int right_b = b.x + b.w;
+        const int bottom_a = a.y + a.h;
+        const int bottom_b = b.y + b.h;
+        const int right = (right_a < right_b) ? right_a : right_b;
+        const int bottom = (bottom_a < bottom_b) ? bottom_a : bottom_b;
+        return {left, top, right - left, bottom - top};
+    }
+
+    constexpr std::uint32_t layer_rect_area(const Rect& rect) noexcept {
+        if (layer_rect_empty(rect)) return 0;
+        return static_cast<std::uint32_t>(rect.w) * static_cast<std::uint32_t>(rect.h);
+    }
 
     constexpr std::size_t snapshot_pixel_bytes(PixelFormat format,
                                                int width,
@@ -205,6 +250,26 @@ export namespace ui::scene {
 
         void note_composite_pixels(std::uint32_t pixels) noexcept {
             stats_.composite_pixels += pixels;
+        }
+
+        [[nodiscard]] LayerComposeResult compose_dry_run(const LayerComposeSpec& spec) noexcept {
+            LayerComposeResult result{};
+            const auto* slot = record(spec.source);
+            if (!slot) return result;
+            result.kind = slot->kind;
+            result.stale = slot->stale;
+            result.source_bounds = slot->bounds;
+            result.source_bytes = slot->bytes;
+            if (slot->stale) return result;
+            Rect target = layer_translate_rect(slot->bounds, spec.transform);
+            if (spec.has_clip) {
+                target = layer_intersect_rect(target, spec.clip);
+            }
+            result.target_bounds = target;
+            result.composite_pixels = layer_rect_area(target);
+            result.ok = result.composite_pixels > 0;
+            note_composite_pixels(result.composite_pixels);
+            return result;
         }
 
         [[nodiscard]] LayerStats stats() const noexcept {

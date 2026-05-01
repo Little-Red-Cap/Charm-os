@@ -982,6 +982,19 @@ export namespace ui::scene {
                                    std::uint32_t bytes) noexcept {
             return snapshot_store_.update_pixel_snapshot(handle, format, bytes);
         }
+        LayerComposeResult compose_snapshot_dry_run(const LayerComposeSpec& spec) noexcept {
+            if (!validate_snapshot(spec.source)) {
+                LayerComposeResult result{};
+                if (const auto* record = snapshot_store_.record(spec.source)) {
+                    result.stale = record->stale;
+                    result.kind = record->kind;
+                    result.source_bounds = record->bounds;
+                    result.source_bytes = record->bytes;
+                }
+                return result;
+            }
+            return snapshot_store_.compose_dry_run(spec);
+        }
 
     private:
         void record_current_scene() noexcept {

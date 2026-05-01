@@ -257,6 +257,34 @@ namespace {
                 res.failed++;
             }
         }
+        {
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{4, 8, 20, 10},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto handle = scene.capture_command_snapshot(spec);
+            const auto result = scene.compose_snapshot_dry_run({
+                .source = handle,
+                .transform = ::ui::scene::LayerTransform{.x = 6, .y = 2, .opacity = 255},
+                .clip = Rect{0, 0, screen_width, screen_height},
+                .has_clip = true,
+            });
+            const auto stats = scene.layer_stats();
+            const bool composed = result.ok
+                && result.kind == ::ui::scene::SnapshotKind::CommandBuffer
+                && result.target_bounds.x == 10
+                && result.target_bounds.y == 10
+                && result.composite_pixels == 200
+                && stats.composite_pixels >= result.composite_pixels
+                && scene.release_snapshot(handle);
+            if (composed) {
+                ui_ci_emit("layer_compose_dry_run", true, nullptr);
+            } else {
+                ui_ci_emit("layer_compose_dry_run", false, "compose_dry_run");
+                res.ok = false;
+                res.failed++;
+            }
+        }
 
         auto click_handle = [&](WidgetHandle h, const char* case_name) -> bool {
             if (!h) {

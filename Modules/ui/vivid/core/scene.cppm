@@ -948,6 +948,17 @@ export namespace ui::scene {
         const SnapshotRecord* snapshot_record(SnapshotHandle handle) const noexcept {
             return snapshot_store_.record(handle);
         }
+        bool snapshot_current(SnapshotHandle handle) const noexcept {
+            const auto* record = snapshot_store_.record(handle);
+            return record && !record->stale && record->epoch == make_layer_epoch();
+        }
+        bool validate_snapshot(SnapshotHandle handle) noexcept {
+            if (snapshot_current(handle)) return true;
+            if (snapshot_store_.record(handle)) {
+                (void)snapshot_store_.mark_stale(handle);
+            }
+            return false;
+        }
         bool update_command_snapshot(SnapshotHandle handle) noexcept {
             return snapshot_store_.update_command_snapshot(
                 handle,

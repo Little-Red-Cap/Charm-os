@@ -233,6 +233,30 @@ namespace {
                 res.failed++;
             }
         }
+        {
+            const Rect root_rect = scene.world_rect(ctx.handles.root);
+            const ::ui::scene::SnapshotSpec spec{
+                .bounds = Rect{0, 0, 16, 16},
+                .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto handle = scene.capture_command_snapshot(spec);
+            bool stale_checked = static_cast<bool>(handle) && scene.snapshot_current(handle);
+            if (ctx.handles.root) {
+                scene.access().set_rect(ctx.handles.root, root_rect);
+            }
+            stale_checked = stale_checked
+                && !scene.validate_snapshot(handle)
+                && scene.snapshot_record(handle)
+                && scene.snapshot_record(handle)->stale
+                && scene.release_snapshot(handle);
+            if (stale_checked) {
+                ui_ci_emit("layer_snapshot_stale_epoch", true, nullptr);
+            } else {
+                ui_ci_emit("layer_snapshot_stale_epoch", false, "stale_epoch");
+                res.ok = false;
+                res.failed++;
+            }
+        }
 
         auto click_handle = [&](WidgetHandle h, const char* case_name) -> bool {
             if (!h) {

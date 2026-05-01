@@ -37,6 +37,10 @@
 5. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
 6. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
+最小验证示例：
+
+- `Examples/ui/vivid/motion_time_demo`
+
 ### 我想看 EInk / Player UI
 
 读：

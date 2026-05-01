@@ -218,6 +218,17 @@ none:
 
 Motion recipe 的第一目标不是 API 好看，而是可降级、可审计、可被 runtime 托管。
 
+当前 v0 已有最小核心：
+
+- `charm.ui.scene.motion_time`
+- `MotionTier`
+- `MotionTimeSpec`
+- `MotionTick`
+- `sample_motion_time()`
+- `Examples/ui/vivid/motion_time_demo`
+
+这个核心只回答“时间如何被采样”，暂不表达完整 motion recipe、layer compose 或页面转场。
+
 ## Pattern Layer
 
 Pattern 是产品语义组件，不是绘图 helper。
@@ -276,7 +287,7 @@ Page Token
 
 优先顺序：
 
-1. `Managed UI Time / Motion Runtime v0`
+1. 将 `Managed UI Time v0` 接入 Layer / Motion recipe
 2. `Style Token Law`
 3. `Component Lab / Screenshot CI`
 4. `MediaArtSlot / CoverSlot`

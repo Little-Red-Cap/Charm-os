@@ -782,6 +782,45 @@ namespace {
 
         ctx.set_page(player::PlayerPage::Home);
         pump_frame();
+        const auto profile_before_drill = ctx.requested_layer_profile;
+        const bool drill_before = ctx.layer_profile_budget_drill_enabled;
+        const std::uint32_t static_cuts_before = ctx.layer_static_cut_count;
+        const std::uint32_t budget_fails_before = ctx.layer_transition_budget_fail_count;
+        ctx.requested_layer_profile = ::ui::scene::LayerProfile::Cheap;
+        ctx.layer_profile_budget_drill_enabled = true;
+        if (click_handle(ctx.handles.bottom_hit, "home_to_now_static_cut")) {
+            if (wait_for_page(player::PlayerPage::NowPlaying)
+                || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
+                ui_ci_emit("home_to_now_static_cut", true, nullptr);
+            } else {
+                ui_ci_emit("home_to_now_static_cut", false, "page_not_now");
+                res.ok = false;
+                res.failed++;
+            }
+        }
+        const bool static_cut = ctx.current_page == player::PlayerPage::NowPlaying
+            && !ctx.now_playing_transition.active
+            && ctx.page_transition_state == player::PlayerController::PageTransitionState::Idle
+            && ctx.effective_layer_profile == ::ui::scene::LayerProfile::Static
+            && ctx.layer_transition_fallback_reason != ::ui::scene::LayerFallbackReason::None
+            && !ctx.layer_transition_last_budget_ok
+            && ctx.layer_static_cut_count > static_cuts_before
+            && ctx.layer_transition_budget_fail_count > budget_fails_before
+            && scene.layer_stats().snapshot_count == 0;
+        if (static_cut) {
+            ui_ci_emit("layer_transition_static_cut_drill", true, nullptr);
+        } else {
+            ui_ci_emit("layer_transition_static_cut_drill", false, "static_cut_drill");
+            res.ok = false;
+            res.failed++;
+        }
+        ctx.requested_layer_profile = profile_before_drill;
+        ctx.layer_profile_budget_drill_enabled = drill_before;
+        ctx.set_page(player::PlayerPage::Home);
+        pump_frame();
+
+        ctx.set_page(player::PlayerPage::Home);
+        pump_frame();
         const std::uint32_t aborts_before_interrupt = ctx.layer_transition_abort_count;
         const std::uint32_t releases_before_interrupt = ctx.layer_transition_release_count;
         const auto layer_count_before_interrupt = scene.layer_stats().snapshot_count;

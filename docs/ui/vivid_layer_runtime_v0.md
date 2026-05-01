@@ -49,9 +49,10 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 - Player 的 Now Playing 转场已从命令快照 dry-run 推进到 PixelSurface 双层路径：转场开始时通过 PageLayer 捕获 source page、隐藏 source live root；render loop 中预渲染 destination page 并通过 PageLayer 捕获 destination snapshot，然后隐藏 destination live root，转场期间合成 frozen source / destination，再绘制 transition overlay。
 - Player 侧已有最小 `PageTransitionState`，外部页面跳转打断 active transition 时会进入 abort 收尾，统一释放 source / destination snapshot、恢复 live root 可见性、清理 transition overlay，并回到 `Idle`。
 - Player 侧已有最小 LayerProfile 裁决链：页面请求 `Rich / Cheap / Static / Eink / None`，转场冻结 source / destination 后按 layer bytes 与 composite pixels 预算生成 effective profile；预算超限时记录 fallback reason，并让 slide / opacity 走 profile caps 与 `resolve_layer_opacity()`。
+- Player 侧已有最小低预算演练链：UI CI 可强制收紧 layer bytes / composite pixels 预算，验证 `Cheap -> Static` fallback，并让 Static profile 跳过连续 compose、直接 cut 到目标页。
 - Player debug 日志已输出 profile 与 budget 账本，例如 `[layer] profile requested=... effective=... reason=...` 与 `[budget] layer_bytes=.../... composite_pixels=.../...`。
 - Win Player rich profile 已把全屏 layer cache slot 扩到 2，用于同时持有 source / destination PixelSurface。
-- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、LayerProfile 裁决、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/opacity 合成/全屏 profile、Player 转场 source / destination PixelSurface capture/compose，以及 transition interrupt abort。
+- `--ui-ci` 已覆盖 snapshot 生命周期、PageLayer freeze/thaw、命令快照捕获、容量耗尽、stale epoch、compose dry-run、compose plan clip、budget gate、LayerProfile 裁决、低预算 static cut drill、命令回放、stale 回放拒绝、payload slot 复用、PixelSurface 捕获/合成/opacity 合成/全屏 profile、Player 转场 source / destination PixelSurface capture/compose，以及 transition interrupt abort。
 
 仍未实现：
 
@@ -377,6 +378,8 @@ Profile 是裁决
 Backend 是执行
 ```
 
+当前 Player 已有一个最小压力演练：把 requested profile 设为 `Cheap`，同时把预算强制收紧到无法容纳双全屏 PixelSurface。runtime 会得到 `Static` effective profile，记录 fallback reason，然后跳过连续转场 compose，完成一次确定的 cut 收尾。
+
 v0 需要新增 layer 维度统计：
 
 ```cpp
@@ -485,6 +488,7 @@ ui-ci now_to_library 仍通过
 - opacity
 - x/y offset
 - dirty rect
+- static cut fallback
 
 v0 可以先只在 win/sim backend 证明收益。
 

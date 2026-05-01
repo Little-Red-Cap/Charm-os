@@ -796,6 +796,17 @@
             return {};
         }
 
+        ::ui::scene::LayerBudget make_effective_transition_layer_budget(
+            ::ui::scene::LayerProfile profile) const noexcept {
+            auto budget = make_transition_layer_budget(profile);
+            if (layer_profile_budget_drill_enabled) {
+                budget.max_layer_bytes = 1u * 1024u * 1024u;
+                budget.max_composite_pixels =
+                    static_cast<std::uint32_t>(screen_width * screen_height);
+            }
+            return budget;
+        }
+
         std::uint32_t estimate_transition_composite_pixels() const noexcept {
             const auto full_screen_pixels =
                 static_cast<std::uint32_t>(screen_width * screen_height);
@@ -829,7 +840,7 @@
         }
 
         void decide_transition_layer_profile() noexcept {
-            const auto budget_caps = make_transition_layer_budget(requested_layer_profile);
+            const auto budget_caps = make_effective_transition_layer_budget(requested_layer_profile);
             const auto composite_pixels = estimate_transition_composite_pixels();
             const auto budget = check_transition_layer_budget(budget_caps, composite_pixels);
             const auto decision = ::ui::scene::decide_layer_profile(
@@ -860,6 +871,12 @@
                         static_cast<unsigned>(layer_transition_last_composite_pixels_budget),
                         budget.composite_pixels_over ? 0 : 1);
 #endif
+        }
+
+        bool transition_uses_static_cut() const noexcept {
+            return effective_layer_profile == ::ui::scene::LayerProfile::Static
+                || effective_layer_profile == ::ui::scene::LayerProfile::Eink
+                || effective_layer_profile == ::ui::scene::LayerProfile::None;
         }
 
         ::ui::scene::LayerComposePlan make_transition_snapshot_plan(
@@ -978,6 +995,10 @@
                 ++layer_transition_destination_capture_count;
                 set_now_playing_transition_root_visible(true);
                 decide_transition_layer_profile();
+                if (transition_uses_static_cut()) {
+                    finish_now_playing_transition_static_cut();
+                    return;
+                }
                 set_page_transition_state(PageTransitionState::Composing);
             } else {
                 note_transition_capture_failure();
@@ -1015,6 +1036,10 @@
             }
             if (!transition_needs_destination_snapshot()) {
                 decide_transition_layer_profile();
+                if (transition_uses_static_cut()) {
+                    finish_now_playing_transition_static_cut();
+                    return;
+                }
             }
             set_page_transition_state(PageTransitionState::Composing);
         }
@@ -1153,6 +1178,16 @@
 
         void finish_now_playing_transition() noexcept {
             if (!now_playing_transition.active) return;
+            set_page_transition_state(PageTransitionState::Finishing);
+            set_page(now_playing_transition.route.destination_page);
+            restore_now_playing_transition_scene_state();
+            now_playing_transition = {};
+            set_page_transition_state(PageTransitionState::Idle);
+        }
+
+        void finish_now_playing_transition_static_cut() noexcept {
+            if (!now_playing_transition.active) return;
+            ++layer_static_cut_count;
             set_page_transition_state(PageTransitionState::Finishing);
             set_page(now_playing_transition.route.destination_page);
             restore_now_playing_transition_scene_state();

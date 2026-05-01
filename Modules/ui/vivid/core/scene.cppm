@@ -11,6 +11,7 @@ export import charm.core.geometry;
 export import charm.core.handle;
 import charm.core.structured_view;
 export import charm.core.style;
+import charm.core.style_sheet;
 export import charm.ui.scene.pill_surface;
 export import charm.ui.scene.layer_runtime;
 import charm.core.soa_factory;
@@ -939,10 +940,46 @@ export namespace ui::scene {
         CmdStats last_cmd_stats() const noexcept { return last_cmd_stats_; }
         ExecStats last_exec_stats() const noexcept { return last_exec_stats_; }
         LayerStats layer_stats() const noexcept { return snapshot_store_.stats(); }
-        DefaultSnapshotStore& snapshot_store() noexcept { return snapshot_store_; }
-        const DefaultSnapshotStore& snapshot_store() const noexcept { return snapshot_store_; }
+        LayerEpoch current_layer_epoch() const noexcept {
+            return make_layer_epoch();
+        }
+        SnapshotHandle reserve_snapshot(const SnapshotSpec& spec) noexcept {
+            return snapshot_store_.reserve(spec, make_layer_epoch());
+        }
+        bool release_snapshot(SnapshotHandle handle) noexcept {
+            return snapshot_store_.release(handle);
+        }
+        bool mark_snapshot_stale(SnapshotHandle handle) noexcept {
+            return snapshot_store_.mark_stale(handle);
+        }
+        bool refresh_snapshot_epoch(SnapshotHandle handle) noexcept {
+            return snapshot_store_.refresh_epoch(handle, make_layer_epoch());
+        }
+        const SnapshotRecord* snapshot_record(SnapshotHandle handle) const noexcept {
+            return snapshot_store_.record(handle);
+        }
+        bool update_command_snapshot(SnapshotHandle handle) noexcept {
+            return snapshot_store_.update_command_snapshot(
+                handle,
+                static_cast<std::uint32_t>(last_cmd_stats_.cmd_count),
+                static_cast<std::uint32_t>(last_cmd_stats_.cmd_bytes));
+        }
+        bool update_pixel_snapshot(SnapshotHandle handle,
+                                   PixelFormat format,
+                                   std::uint32_t bytes) noexcept {
+            return snapshot_store_.update_pixel_snapshot(handle, format, bytes);
+        }
 
     private:
+        LayerEpoch make_layer_epoch() const noexcept {
+            const auto& tokens = Theme::instance().get_tokens();
+            LayerEpoch epoch{};
+            epoch.layout = kernel_.layout_dirty_version();
+            epoch.style = StyleSheet::instance().stylesheet_version();
+            epoch.theme = tokens.version;
+            return epoch;
+        }
+
         static CmdStats to_scene_stats(const ui::draw_cmd::DrawCmdStats& stats) noexcept {
             CmdStats out{};
             out.cmd_count = stats.cmd_count;

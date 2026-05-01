@@ -29,6 +29,7 @@ Vivid 已经具备适合承接 Layer Runtime 的基础：
 - `CmdStats`、`ExecStats`、`TileStats` 已经能观察命令、批处理、tile、alpha blend 与失败项。
 - `vivid_replay_workflow.md` 已经定义 dump/replay 与 full/tile backend 回放。
 - `page_layers.cppm` 已提供页面内 `Backdrop / Content / Chrome / Popup` 分区。
+- `layer_runtime.cppm` 已开始提供 `SnapshotHandle`、`SnapshotStore`、`LayerStats` 等 v0 代码地基。
 
 需要注意：现有 `PageLayers` 是页面内分区，不是本文定义的 runtime layer。v0 应新增 Layer Runtime 概念，避免把 show/hide、页面分区和 frozen surface 混为一层。
 

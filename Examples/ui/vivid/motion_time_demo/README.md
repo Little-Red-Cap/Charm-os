@@ -12,6 +12,7 @@
 - `sample_layer_motion()` 验证时间采样、`LayerProfile` opacity 降级和 layer transform 插值的最小接线。
 - `sample_motion_recipe()` 验证 `fade` / `slide` / `fade_slide` / `cut` 到 `LayerMotionSpec` 的最小翻译。
 - `MotionTransitionRunner` 验证 begin / sample / finish / cancel 的最小生命周期。
+- `MotionTransitionTrace` 验证 sample / compose / finish / cancel 的最小证据账本。
 
 构建：
 

@@ -150,6 +150,8 @@ int main() {
 
     ui::scene::MotionTransitionRunner runner{};
     if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition runner starts idle")) return 1;
+    runner.cancel();
+    if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "idle transition cancel is ignored")) return 1;
     runner.begin({
         .recipe = ui::scene::motion_fade_slide(ui::scene::MotionAxis::X, -90, 90),
         .profile = ui::scene::LayerProfile::Cheap,
@@ -168,14 +170,27 @@ int main() {
     if (!expect(transition_mid.motion.tick.sampled_elapsed_ms == 33, "transition advances on managed tick")) return 1;
     if (!expect(transition_mid.motion.transform.x == -57, "transition interpolates managed frame")) return 1;
     if (!expect(transition_mid.motion.transform.opacity == 85, "transition applies profile opacity law")) return 1;
+    const auto trace_mid = runner.trace();
+    if (!expect(trace_mid.begin_count == 1, "trace records begin count")) return 1;
+    if (!expect(trace_mid.sample_count == 2, "trace records sample count")) return 1;
+    if (!expect(trace_mid.compose_count == 1, "trace records composed frames")) return 1;
+    if (!expect(trace_mid.last_sampled_elapsed_ms == 33, "trace records sampled elapsed")) return 1;
+    if (!expect(trace_mid.last_transform.x == -57, "trace records last transform")) return 1;
 
     const auto transition_done = runner.sample(1095);
     if (!expect(transition_done.state == ui::scene::MotionTransitionState::Finished, "transition finishes")) return 1;
     if (!expect(!runner.active() && runner.done(), "transition runner reports done")) return 1;
     if (!expect(transition_done.motion.transform.x == 0, "transition finishes at target transform")) return 1;
+    const auto trace_done = runner.trace();
+    if (!expect(trace_done.finish_count == 1, "trace records finish count")) return 1;
+    if (!expect(trace_done.last_state == ui::scene::MotionTransitionState::Finished, "trace records finished state")) {
+        return 1;
+    }
+    if (!expect(trace_done.last_now_ms == 1095, "trace records last sample time")) return 1;
 
     runner.reset();
     if (!expect(runner.state() == ui::scene::MotionTransitionState::Idle, "transition reset returns idle")) return 1;
+    if (!expect(runner.trace().sample_count == 0, "transition reset clears trace")) return 1;
     runner.begin({
         .recipe = ui::scene::motion_fade(100),
         .profile = ui::scene::LayerProfile::Rich,
@@ -185,6 +200,9 @@ int main() {
     const auto canceled = runner.sample(50);
     if (!expect(canceled.state == ui::scene::MotionTransitionState::Canceled, "transition can be canceled")) return 1;
     if (!expect(!canceled.motion.compose, "canceled transition does not compose")) return 1;
+    const auto trace_canceled = runner.trace();
+    if (!expect(trace_canceled.cancel_count == 1, "trace records cancel count")) return 1;
+    if (!expect(trace_canceled.compose_count == 0, "trace records no canceled compose")) return 1;
 
     std::printf("[motion] rich progress=%.2f sampled=%llu\n",
                 static_cast<double>(rich.progress),
@@ -204,6 +222,11 @@ int main() {
     std::printf("[motion] transition x=%d opacity=%u\n",
                 static_cast<int>(transition_mid.motion.transform.x),
                 static_cast<unsigned>(transition_mid.motion.transform.opacity));
+    std::printf("[motion] trace samples=%u compose=%u finished=%u canceled=%u\n",
+                static_cast<unsigned>(trace_done.sample_count),
+                static_cast<unsigned>(trace_done.compose_count),
+                static_cast<unsigned>(trace_done.finish_count),
+                static_cast<unsigned>(trace_canceled.cancel_count));
     std::puts("[motion_time_demo] ok");
     return 0;
 }

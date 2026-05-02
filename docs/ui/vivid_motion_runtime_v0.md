@@ -332,7 +332,7 @@ Examples/ui/vivid/page_transition_demo
 
 - normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
 - cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
-- pixel single：只捕获 source snapshot，destination 保持 live，commit 后 `snapshot_count == 0`
+- pixel single：只捕获 source snapshot，destination 保持 live，commit / cancel 后 `snapshot_count == 0`
 - low budget static cut：不发生 PixelSurface capture，直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
 
@@ -386,4 +386,4 @@ Examples/ui/vivid/page_transition_demo
 - sample 阶段只执行 source snapshot compose，destination compose result 保持 invalid。
 - commit / cancel 后 runner 释放所持 source snapshot，回到 idle 时 `snapshot_count == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_live_destination`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_live_destination` 与 `pixel_single_cancel`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 cancel 后恢复 begin 前 page truth。

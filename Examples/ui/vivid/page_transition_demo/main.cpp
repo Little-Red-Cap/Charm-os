@@ -325,6 +325,75 @@ namespace {
         return true;
     }
 
+    [[nodiscard]] bool run_pixel_single_cancel() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{210, 90, 40, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 120, 230, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare, {
+            .max_layer_bytes = 3,
+        }));
+        if (!expect(begin.started(), "pixel single cancel transition starts")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::PixelSingle,
+                    "pixel single cancel admission is selected")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 1,
+                    "pixel single cancel owns one snapshot before abort")) {
+            return false;
+        }
+        if (!expect(!env.source.visible() && env.destination.visible(),
+                    "pixel single cancel has live destination before abort")) {
+            return false;
+        }
+        const auto frame = runner.sample(env.scene, 0);
+        if (!expect(frame.source.valid && !frame.destination.valid,
+                    "pixel single cancel samples source-only frame")) {
+            return false;
+        }
+        runner.cancel(env.scene, access);
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(runner.idle(), "pixel single cancel returns idle")) return false;
+        if (!expect(env.source.visible() && !env.destination.visible(),
+                    "pixel single cancel restores page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "pixel single cancel releases source snapshot")) {
+            return false;
+        }
+        if (!expect(trace.abort_count == 1 && trace.commit_count == 0,
+                    "pixel single cancel trace records abort only")) {
+            return false;
+        }
+        if (!expect(ledger.aborted && !ledger.committed,
+                    "pixel single cancel ledger records abort")) {
+            return false;
+        }
+        if (!expect(ledger.source_bytes == 3 && ledger.destination_bytes == 0,
+                    "pixel single cancel ledger records source-only bytes")) {
+            return false;
+        }
+        if (!expect(ledger.source_composite_pixels == 1 &&
+                    ledger.destination_composite_pixels == 0,
+                    "pixel single cancel ledger records source-only pixels")) {
+            return false;
+        }
+        if (!expect(ledger.snapshots_released, "pixel single cancel ledger records release")) {
+            return false;
+        }
+        std::printf("[pt] pixel_single_cancel status=%s admission=%s abort=%u snapshots=%u bytes=%u pixels=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::layer_admission_name(begin.admission),
+                    static_cast<unsigned>(trace.abort_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes),
+                    static_cast<unsigned>(ledger.total_composite_pixels));
+        return true;
+    }
+
     [[nodiscard]] bool run_prepare_fail() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{210, 30, 40, 255});
@@ -532,6 +601,7 @@ int main() {
     if (!run_cancel_during_compose()) return 1;
     if (!run_low_budget_static_cut()) return 1;
     if (!run_pixel_single_live_destination()) return 1;
+    if (!run_pixel_single_cancel()) return 1;
     if (!run_prepare_fail()) return 1;
     if (!run_source_capture_fail()) return 1;
     if (!run_destination_capture_fail()) return 1;

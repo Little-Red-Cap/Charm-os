@@ -127,6 +127,7 @@ namespace {
         }
         runner.commit(env.scene, access);
         const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
         if (!expect(runner.idle(), "normal transition returns idle")) return false;
         if (!expect(!env.source.visible() && env.destination.visible(),
                     "normal commit updates page truth")) {
@@ -140,11 +141,22 @@ namespace {
                     "normal trace records commit only")) {
             return false;
         }
-        std::printf("[pt] normal status=%s admission=%s snapshots=%u commit=%u\n",
+        if (!expect(ledger.committed && !ledger.aborted, "normal ledger records commit")) return false;
+        if (!expect(ledger.peak_layer_bytes == 6, "normal ledger records peak layer bytes")) return false;
+        if (!expect(ledger.destination_composite_pixels == 2 &&
+                    ledger.source_composite_pixels == 2 &&
+                    ledger.total_composite_pixels == 4,
+                    "normal ledger records compose pixels")) {
+            return false;
+        }
+        if (!expect(ledger.snapshots_released, "normal ledger records released snapshots")) return false;
+        std::printf("[pt] normal status=%s admission=%s snapshots=%u commit=%u bytes=%u pixels=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     ui::scene::layer_admission_name(begin.admission),
                     static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(trace.commit_count));
+                    static_cast<unsigned>(trace.commit_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes),
+                    static_cast<unsigned>(ledger.total_composite_pixels));
         return true;
     }
 
@@ -160,6 +172,7 @@ namespace {
         if (!expect(frame.valid, "cancel transition composes before abort")) return false;
         runner.cancel(env.scene, access);
         const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
         if (!expect(runner.idle(), "cancel transition returns idle")) return false;
         if (!expect(env.source.visible() && !env.destination.visible(),
                     "cancel restores page truth")) {
@@ -173,11 +186,15 @@ namespace {
                     "cancel trace records abort only")) {
             return false;
         }
-        std::printf("[pt] cancel status=%s samples=%u abort=%u snapshots=%u\n",
+        if (!expect(ledger.aborted && !ledger.committed, "cancel ledger records abort")) return false;
+        if (!expect(ledger.total_composite_pixels == 2, "cancel ledger records one frame pixels")) return false;
+        if (!expect(ledger.snapshots_released, "cancel ledger records released snapshots")) return false;
+        std::printf("[pt] cancel status=%s samples=%u abort=%u snapshots=%u pixels=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     static_cast<unsigned>(trace.sample_count),
                     static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.total_composite_pixels));
         return true;
     }
 
@@ -191,6 +208,7 @@ namespace {
             .max_layer_bytes = 1,
         }));
         const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
         if (!expect(begin.static_cut(), "low budget resolves static cut")) return false;
         if (!expect(begin.admission != ui::scene::LayerAdmission::PixelDouble,
                     "low budget rejects PixelDouble admission")) {
@@ -208,11 +226,19 @@ namespace {
                     "low budget leaves no snapshots")) {
             return false;
         }
-        std::printf("[pt] low_budget status=%s admission=%s static_cut=%u snapshots=%u\n",
+        if (!expect(ledger.static_cut && ledger.committed, "low budget ledger records static cut commit")) {
+            return false;
+        }
+        if (!expect(ledger.peak_layer_bytes == 0 && ledger.total_composite_pixels == 0,
+                    "low budget ledger records no layer cost")) {
+            return false;
+        }
+        std::printf("[pt] low_budget status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     ui::scene::layer_admission_name(begin.admission),
                     static_cast<unsigned>(trace.static_cut_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes));
         return true;
     }
 
@@ -224,6 +250,7 @@ namespace {
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare));
         const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
         if (!expect(begin.status == ui::scene::PageTransitionBeginStatus::PrepareFailed,
                     "prepare failure is reported")) {
             return false;
@@ -241,11 +268,19 @@ namespace {
                     "prepare failure releases source snapshot")) {
             return false;
         }
-        std::printf("[pt] prepare_fail status=%s source_caps=%u abort=%u snapshots=%u\n",
+        if (!expect(ledger.aborted && !ledger.committed, "prepare failure ledger records abort")) {
+            return false;
+        }
+        if (!expect(ledger.source_bytes == 3 && ledger.destination_bytes == 0,
+                    "prepare failure ledger records source-only bytes")) {
+            return false;
+        }
+        std::printf("[pt] prepare_fail status=%s source_caps=%u abort=%u snapshots=%u bytes=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     static_cast<unsigned>(trace.source_capture_count),
                     static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes));
         return true;
     }
 
@@ -259,6 +294,7 @@ namespace {
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene, access, spec);
         const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
         if (!expect(begin.status == ui::scene::PageTransitionBeginStatus::SourceCaptureFailed,
                     "source capture failure is reported")) {
             return false;
@@ -284,11 +320,16 @@ namespace {
                     "source capture failure leaves no snapshots")) {
             return false;
         }
-        std::printf("[pt] source_capture_fail status=%s capture=%u abort=%u snapshots=%u\n",
+        if (!expect(ledger.aborted && ledger.peak_layer_bytes == 0,
+                    "source capture failure ledger records no captured bytes")) {
+            return false;
+        }
+        std::printf("[pt] source_capture_fail status=%s capture=%u abort=%u snapshots=%u bytes=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     static_cast<unsigned>(begin.source_capture.status),
                     static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes));
         return true;
     }
 
@@ -302,6 +343,7 @@ namespace {
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene, access, spec);
         const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
         if (!expect(begin.status == ui::scene::PageTransitionBeginStatus::DestinationCaptureFailed,
                     "destination capture failure is reported")) {
             return false;
@@ -330,11 +372,16 @@ namespace {
                     "destination capture failure releases source snapshot")) {
             return false;
         }
-        std::printf("[pt] destination_capture_fail status=%s src_caps=%u dst_capture=%u snapshots=%u\n",
+        if (!expect(ledger.aborted && ledger.source_bytes == 3 && ledger.destination_bytes == 0,
+                    "destination capture failure ledger records source-only bytes")) {
+            return false;
+        }
+        std::printf("[pt] destination_capture_fail status=%s src_caps=%u dst_capture=%u snapshots=%u bytes=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     static_cast<unsigned>(trace.source_capture_count),
                     static_cast<unsigned>(begin.destination_capture.status),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes));
         return true;
     }
 
@@ -367,6 +414,7 @@ namespace {
         }
         runner.cancel(env.scene, access);
         const auto canceled_trace = runner.trace();
+        const auto ledger = runner.ledger();
         if (!expect(canceled_trace.interrupt_count == 1,
                     "rebegin interrupt count survives cancel")) {
             return false;
@@ -379,11 +427,19 @@ namespace {
                     "rebegin cancel releases replacement snapshots")) {
             return false;
         }
-        std::printf("[pt] rebegin first=%s second=%s interrupts=%u snapshots=%u\n",
+        if (!expect(ledger.interrupted && ledger.aborted, "rebegin ledger records interrupt abort")) {
+            return false;
+        }
+        if (!expect(ledger.peak_layer_bytes == 6 && ledger.snapshots_released,
+                    "rebegin ledger records replacement layer cost")) {
+            return false;
+        }
+        std::printf("[pt] rebegin first=%s second=%s interrupts=%u snapshots=%u bytes=%u\n",
                     ui::scene::page_transition_begin_status_name(first.status),
                     ui::scene::page_transition_begin_status_name(second.status),
                     static_cast<unsigned>(canceled_trace.interrupt_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes));
         return true;
     }
 }

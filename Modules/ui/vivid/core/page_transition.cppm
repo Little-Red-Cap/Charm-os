@@ -92,6 +92,35 @@ export namespace ui::scene {
         MotionTransitionTrace motion{};
     };
 
+    struct PageTransitionLedger {
+        PageTransitionBeginStatus begin_status{PageTransitionBeginStatus::Rejected};
+        PageTransitionState final_state{PageTransitionState::Idle};
+        LayerAdmission admission{LayerAdmission::Reject};
+        LayerProfile requested_profile{LayerProfile::Rich};
+        LayerProfile effective_profile{LayerProfile::Rich};
+        std::uint16_t begin_count{0};
+        std::uint16_t interrupt_count{0};
+        std::uint16_t sample_count{0};
+        std::uint16_t commit_count{0};
+        std::uint16_t abort_count{0};
+        std::uint16_t static_cut_count{0};
+        std::uint16_t source_capture_count{0};
+        std::uint16_t destination_capture_count{0};
+        LayerCaptureStatus source_capture_status{LayerCaptureStatus::NoSnapshotSlot};
+        LayerCaptureStatus destination_capture_status{LayerCaptureStatus::NoSnapshotSlot};
+        std::uint32_t source_bytes{0};
+        std::uint32_t destination_bytes{0};
+        std::uint32_t peak_layer_bytes{0};
+        std::uint32_t destination_composite_pixels{0};
+        std::uint32_t source_composite_pixels{0};
+        std::uint32_t total_composite_pixels{0};
+        bool committed{false};
+        bool aborted{false};
+        bool static_cut{false};
+        bool interrupted{false};
+        bool snapshots_released{true};
+    };
+
     [[nodiscard]] constexpr const char* page_transition_begin_status_name(
         PageTransitionBeginStatus status) noexcept {
         switch (status) {
@@ -165,6 +194,7 @@ export namespace ui::scene {
                 trace_.effective_profile = LayerProfile::Static;
                 ++trace_.static_cut_count;
                 ++trace_.commit_count;
+                ledger_.committed = true;
                 commit_page_truth(scene, access);
                 clear_tracking();
                 return begin_result(PageTransitionBeginStatus::StaticCut);
@@ -186,6 +216,8 @@ export namespace ui::scene {
             }
             source_snapshot_ = source_capture.handle;
             ++trace_.source_capture_count;
+            ledger_.source_bytes = snapshot_bytes(spec.source_snapshot);
+            ledger_.peak_layer_bytes = ledger_.source_bytes + ledger_.destination_bytes;
             source_->mark_transitioning();
 
             state_ = PageTransitionState::PreparingDestination;
@@ -214,6 +246,8 @@ export namespace ui::scene {
             }
             destination_snapshot_ = destination_capture.handle;
             ++trace_.destination_capture_count;
+            ledger_.destination_bytes = snapshot_bytes(spec.destination_snapshot);
+            ledger_.peak_layer_bytes = ledger_.source_bytes + ledger_.destination_bytes;
             destination_->mark_transitioning();
 
             runner_.begin({
@@ -255,6 +289,11 @@ export namespace ui::scene {
                 .source = source_snapshot_,
                 .frame = frame,
             });
+            ledger_.sample_count = trace_.sample_count;
+            ledger_.destination_composite_pixels += destination.plan.composite_pixels;
+            ledger_.source_composite_pixels += source.plan.composite_pixels;
+            ledger_.total_composite_pixels =
+                ledger_.destination_composite_pixels + ledger_.source_composite_pixels;
             return {
                 .valid = destination.valid || source.valid,
                 .transition = frame,
@@ -269,6 +308,9 @@ export namespace ui::scene {
             trace_.last_state = state_;
             trace_.motion = runner_.trace();
             ++trace_.commit_count;
+            ledger_.final_state = state_;
+            ledger_.commit_count = trace_.commit_count;
+            ledger_.committed = true;
             commit_page_truth(scene, access);
             runner_.reset();
             clear_tracking();
@@ -281,6 +323,9 @@ export namespace ui::scene {
             runner_.cancel();
             trace_.motion = runner_.trace();
             ++trace_.abort_count;
+            ledger_.final_state = state_;
+            ledger_.abort_count = trace_.abort_count;
+            ledger_.aborted = true;
             restore_page_truth(scene, access);
             runner_.reset();
             clear_tracking();
@@ -290,6 +335,7 @@ export namespace ui::scene {
             clear_tracking();
             runner_.reset();
             trace_ = {};
+            ledger_ = {};
         }
 
         [[nodiscard]] bool active() const noexcept {
@@ -318,6 +364,10 @@ export namespace ui::scene {
 
         [[nodiscard]] PageTransitionTrace trace() const noexcept {
             return trace_;
+        }
+
+        [[nodiscard]] PageTransitionLedger ledger() const noexcept {
+            return ledger_;
         }
 
     private:
@@ -358,6 +408,15 @@ export namespace ui::scene {
                 .effective_profile = requested,
                 .begin_count = 1,
             };
+            ledger_ = {
+                .begin_status = PageTransitionBeginStatus::Rejected,
+                .final_state = PageTransitionState::Idle,
+                .admission = LayerAdmission::Reject,
+                .requested_profile = requested,
+                .effective_profile = requested,
+                .begin_count = 1,
+                .snapshots_released = true,
+            };
             state_ = PageTransitionState::Idle;
             runner_.reset();
         }
@@ -365,7 +424,24 @@ export namespace ui::scene {
         [[nodiscard]] PageTransitionBeginResult begin_result(
             PageTransitionBeginStatus status,
             LayerCaptureResult source_capture = {},
-            LayerCaptureResult destination_capture = {}) const noexcept {
+            LayerCaptureResult destination_capture = {}) noexcept {
+            ledger_.begin_status = status;
+            ledger_.final_state = state_;
+            ledger_.admission = trace_.admission;
+            ledger_.effective_profile = trace_.effective_profile;
+            ledger_.interrupt_count = trace_.interrupt_count;
+            ledger_.sample_count = trace_.sample_count;
+            ledger_.commit_count = trace_.commit_count;
+            ledger_.abort_count = trace_.abort_count;
+            ledger_.static_cut_count = trace_.static_cut_count;
+            ledger_.source_capture_count = trace_.source_capture_count;
+            ledger_.destination_capture_count = trace_.destination_capture_count;
+            ledger_.source_capture_status = source_capture.status;
+            ledger_.destination_capture_status = destination_capture.status;
+            ledger_.static_cut = status == PageTransitionBeginStatus::StaticCut;
+            ledger_.interrupted = trace_.interrupt_count > 0;
+            ledger_.peak_layer_bytes = ledger_.source_bytes + ledger_.destination_bytes;
+            ledger_.snapshots_released = !source_snapshot_ && !destination_snapshot_;
             return {
                 .status = status,
                 .state = state_,
@@ -377,6 +453,8 @@ export namespace ui::scene {
 
         void abort_begin_failure(Scene& scene, SceneAccess access) noexcept {
             ++trace_.abort_count;
+            ledger_.abort_count = trace_.abort_count;
+            ledger_.aborted = true;
             restore_page_truth(scene, access);
             runner_.reset();
             clear_tracking();
@@ -413,6 +491,8 @@ export namespace ui::scene {
             destination_was_visible_ = false;
             state_ = PageTransitionState::Idle;
             trace_.last_state = state_;
+            ledger_.final_state = state_;
+            ledger_.snapshots_released = !source_snapshot_ && !destination_snapshot_;
         }
 
         PageLayer* source_{nullptr};
@@ -423,6 +503,7 @@ export namespace ui::scene {
         bool destination_was_visible_{false};
         PageTransitionState state_{PageTransitionState::Idle};
         PageTransitionTrace trace_{};
+        PageTransitionLedger ledger_{};
         MotionTransitionRunner runner_{};
     };
 }

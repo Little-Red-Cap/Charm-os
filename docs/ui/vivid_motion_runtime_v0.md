@@ -356,3 +356,18 @@ Examples/ui/vivid/page_transition_demo
 - `PageTransitionTrace::begin_status` 会记录 `SourceCaptureFailed` / `DestinationCaptureFailed`，并保留对应 `LayerCaptureStatus`。
 
 `Examples/ui/vivid/page_transition_demo` 已覆盖 `source_capture_fail` 与 `destination_capture_fail`。
+
+## 2026-05 补记：PageTransition ledger v0
+
+`PageTransitionLedger` 已作为 `PageTransitionRunner` 的事务账本接入。
+
+账本 v0 记录：
+
+- begin status / final state / admission / requested profile / effective profile
+- begin / sample / commit / abort / interrupt / static cut 计数
+- source / destination capture status 与 capture count
+- source / destination snapshot bytes 与 peak layer bytes
+- destination / source / total composite pixels
+- committed / aborted / static_cut / interrupted / snapshots_released 布尔证据
+
+`Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、low-budget static cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。

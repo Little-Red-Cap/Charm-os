@@ -66,3 +66,4 @@
 
 - `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、Motion recipe、transition trace、compose dry-run 与单页 `PageMotionTransition`。
 - `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner`、`fade_slide` recipe 与 Cheap profile 量化；矩阵见 `docs/ui/vivid_motion_runtime_v0.md` 的 “PageTransition v0 运行形态矩阵” 与 “PageTransition fade_slide profile 矩阵”。
+- 该示例 stdout 统一为 `[pt] case=...` summary 形式。

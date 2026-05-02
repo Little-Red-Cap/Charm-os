@@ -129,6 +129,45 @@ namespace {
         return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
     }
 
+    void print_transition_summary(const char* name,
+                                  const ui::scene::PageTransitionBeginResult& begin,
+                                  const ui::scene::PageTransitionTrace& trace,
+                                  const ui::scene::PageTransitionLedger& ledger,
+                                  const TransitionScene& env,
+                                  const ui::scene::PageTransitionFrame* frame = nullptr) noexcept {
+        const bool motion_started = trace.motion.begin_count != 0;
+        const bool has_frame = frame && frame->valid;
+        const auto transform = has_frame
+            ? frame->transition.motion.transform
+            : ui::scene::LayerTransform{};
+        std::printf(
+            "[pt] case=%s status=%s admission=%s requested=%s effective=%s recipe=%s tier=%s "
+            "snapshots=%u src_caps=%u dst_caps=%u samples=%u commits=%u aborts=%u static_cuts=%u "
+            "interrupts=%u src_status=%u dst_status=%u bytes=%u pixels=%u sampled=%llu x=%d opacity=%u\n",
+            name,
+            ui::scene::page_transition_begin_status_name(begin.status),
+            ui::scene::layer_admission_name(begin.admission),
+            ui::scene::layer_profile_name(trace.requested_profile),
+            ui::scene::layer_profile_name(trace.effective_profile),
+            motion_started ? ui::scene::motion_recipe_name(trace.motion.recipe_kind) : "none",
+            motion_started ? ui::scene::motion_tier_name(trace.motion.tier) : "not_started",
+            static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+            static_cast<unsigned>(trace.source_capture_count),
+            static_cast<unsigned>(trace.destination_capture_count),
+            static_cast<unsigned>(trace.sample_count),
+            static_cast<unsigned>(trace.commit_count),
+            static_cast<unsigned>(trace.abort_count),
+            static_cast<unsigned>(trace.static_cut_count),
+            static_cast<unsigned>(trace.interrupt_count),
+            static_cast<unsigned>(begin.source_capture.status),
+            static_cast<unsigned>(begin.destination_capture.status),
+            static_cast<unsigned>(ledger.peak_layer_bytes),
+            static_cast<unsigned>(ledger.total_composite_pixels),
+            static_cast<unsigned long long>(motion_started ? trace.motion.last_sampled_elapsed_ms : 0u),
+            static_cast<int>(transform.x),
+            static_cast<unsigned>(has_frame ? transform.opacity : 0u));
+    }
+
     bool prepare_destination(ui::scene::Scene&,
                              ui::scene::SceneAccess,
                              ui::scene::PageLayer&,
@@ -241,13 +280,7 @@ namespace {
             return false;
         }
         if (!expect(ledger.snapshots_released, "normal ledger records released snapshots")) return false;
-        std::printf("[pt] normal status=%s admission=%s snapshots=%u commit=%u bytes=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(trace.commit_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes),
-                    static_cast<unsigned>(ledger.total_composite_pixels));
+        print_transition_summary("normal", begin, trace, ledger, env);
         return true;
     }
 
@@ -314,12 +347,7 @@ namespace {
                     "fade slide ledger records released commit")) {
             return false;
         }
-        std::printf("[pt] fade_slide status=%s admission=%s x=%d opacity=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<int>(frame.transition.motion.transform.x),
-                    static_cast<unsigned>(frame.transition.motion.transform.opacity),
-                    static_cast<unsigned>(committed_ledger.total_composite_pixels));
+        print_transition_summary("fade_slide", begin, runner.trace(), committed_ledger, env, &frame);
         return true;
     }
 
@@ -379,12 +407,7 @@ namespace {
                     "cheap fade slide ledger records released commit")) {
             return false;
         }
-        std::printf("[pt] fade_slide_cheap status=%s tier=%s sampled=%llu x=%d opacity=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::motion_tier_name(trace.motion.tier),
-                    static_cast<unsigned long long>(trace.motion.last_sampled_elapsed_ms),
-                    static_cast<int>(frame.transition.motion.transform.x),
-                    static_cast<unsigned>(frame.transition.motion.transform.opacity));
+        print_transition_summary("fade_slide_cheap", begin, runner.trace(), ledger, env, &frame);
         return true;
     }
 
@@ -417,12 +440,7 @@ namespace {
         if (!expect(ledger.aborted && !ledger.committed, "cancel ledger records abort")) return false;
         if (!expect(ledger.total_composite_pixels == 2, "cancel ledger records one frame pixels")) return false;
         if (!expect(ledger.snapshots_released, "cancel ledger records released snapshots")) return false;
-        std::printf("[pt] cancel status=%s samples=%u abort=%u snapshots=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    static_cast<unsigned>(trace.sample_count),
-                    static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.total_composite_pixels));
+        print_transition_summary("cancel", begin, trace, ledger, env, &frame);
         return true;
     }
 
@@ -471,12 +489,7 @@ namespace {
                     "command snapshot static cut records no layer cost")) {
             return false;
         }
-        std::printf("[pt] command_snapshot_static_cut status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(trace.static_cut_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("command_snapshot_static_cut", begin, trace, ledger, env);
         return true;
     }
 
@@ -531,12 +544,7 @@ namespace {
                     "static profile records no layer cost")) {
             return false;
         }
-        std::printf("[pt] static_profile_fade_slide status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(trace.static_cut_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("static_profile_fade_slide", begin, trace, ledger, env);
         return true;
     }
 
@@ -606,12 +614,7 @@ namespace {
                     "none profile records no layer cost")) {
             return false;
         }
-        std::printf("[pt] none_profile_fade_slide status=%s admission=%s commits=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(trace.commit_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("none_profile_fade_slide", begin, trace, ledger, env);
         return true;
     }
 
@@ -694,16 +697,12 @@ namespace {
                     "pixel single ledger records released commit")) {
             return false;
         }
-        std::printf("[pt] pixel_single_fade_slide status=%s admission=%s x=%d opacity=%u source_caps=%u dst_caps=%u snapshots=%u bytes=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<int>(frame.transition.motion.transform.x),
-                    static_cast<unsigned>(frame.transition.motion.transform.opacity),
-                    static_cast<unsigned>(committed_trace.source_capture_count),
-                    static_cast<unsigned>(committed_trace.destination_capture_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(committed_ledger.peak_layer_bytes),
-                    static_cast<unsigned>(committed_ledger.total_composite_pixels));
+        print_transition_summary("pixel_single_fade_slide",
+                                 begin,
+                                 committed_trace,
+                                 committed_ledger,
+                                 env,
+                                 &frame);
         return true;
     }
 
@@ -773,13 +772,12 @@ namespace {
                     "pixel single cheap ledger records released commit")) {
             return false;
         }
-        std::printf("[pt] pixel_single_fade_slide_cheap status=%s tier=%s sampled=%llu x=%d opacity=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::motion_tier_name(trace.motion.tier),
-                    static_cast<unsigned long long>(trace.motion.last_sampled_elapsed_ms),
-                    static_cast<int>(frame.transition.motion.transform.x),
-                    static_cast<unsigned>(frame.transition.motion.transform.opacity),
-                    static_cast<unsigned>(committed_ledger.total_composite_pixels));
+        print_transition_summary("pixel_single_fade_slide_cheap",
+                                 begin,
+                                 runner.trace(),
+                                 committed_ledger,
+                                 env,
+                                 &frame);
         return true;
     }
 
@@ -834,13 +832,7 @@ namespace {
         if (!expect(ledger.snapshots_released, "pixel single cancel ledger records release")) {
             return false;
         }
-        std::printf("[pt] pixel_single_cancel status=%s admission=%s abort=%u snapshots=%u bytes=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes),
-                    static_cast<unsigned>(ledger.total_composite_pixels));
+        print_transition_summary("pixel_single_cancel", begin, trace, ledger, env, &frame);
         return true;
     }
 
@@ -877,12 +869,7 @@ namespace {
                     "prepare failure ledger records source-only bytes")) {
             return false;
         }
-        std::printf("[pt] prepare_fail status=%s source_caps=%u abort=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    static_cast<unsigned>(trace.source_capture_count),
-                    static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("prepare_fail", begin, trace, ledger, env);
         return true;
     }
 
@@ -926,12 +913,7 @@ namespace {
                     "source capture failure ledger records no captured bytes")) {
             return false;
         }
-        std::printf("[pt] source_capture_fail status=%s capture=%u abort=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    static_cast<unsigned>(begin.source_capture.status),
-                    static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("source_capture_fail", begin, trace, ledger, env);
         return true;
     }
 
@@ -978,12 +960,7 @@ namespace {
                     "destination capture failure ledger records source-only bytes")) {
             return false;
         }
-        std::printf("[pt] destination_capture_fail status=%s src_caps=%u dst_capture=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    static_cast<unsigned>(trace.source_capture_count),
-                    static_cast<unsigned>(begin.destination_capture.status),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("destination_capture_fail", begin, trace, ledger, env);
         return true;
     }
 
@@ -1036,12 +1013,7 @@ namespace {
                     "rebegin ledger records replacement layer cost")) {
             return false;
         }
-        std::printf("[pt] rebegin first=%s second=%s interrupts=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(first.status),
-                    ui::scene::page_transition_begin_status_name(second.status),
-                    static_cast<unsigned>(canceled_trace.interrupt_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("rebegin", second, canceled_trace, ledger, env);
         return true;
     }
 
@@ -1117,12 +1089,7 @@ namespace {
                     "pixel single rebegin ledger records released snapshot")) {
             return false;
         }
-        std::printf("[pt] pixel_single_rebegin first=%s second=%s interrupts=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(first.status),
-                    ui::scene::page_transition_begin_status_name(second.status),
-                    static_cast<unsigned>(canceled_trace.interrupt_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("pixel_single_rebegin", second, canceled_trace, ledger, env);
         return true;
     }
 }

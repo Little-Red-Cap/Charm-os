@@ -76,6 +76,35 @@ namespace {
         return expect(begin.admission == ui::scene::LayerAdmission::PixelSingle, message);
     }
 
+    [[nodiscard]] bool expect_pixel_double_admission(
+        const ui::scene::PageTransitionBeginResult& begin,
+        const char* message) noexcept {
+        return expect(begin.admission == ui::scene::LayerAdmission::PixelDouble, message);
+    }
+
+    [[nodiscard]] bool expect_fade_slide_trace(const ui::scene::PageTransitionTrace& trace,
+                                               ui::scene::LayerProfile profile,
+                                               const char* message) noexcept {
+        return expect(trace.motion.recipe_kind == ui::scene::MotionRecipeKind::FadeSlide &&
+                          trace.motion.profile == profile,
+                      message);
+    }
+
+    [[nodiscard]] bool expect_motion_not_started(const ui::scene::PageTransitionTrace& trace,
+                                                 const char* message) noexcept {
+        return expect(trace.motion.begin_count == 0 && trace.motion.sample_count == 0,
+                      message);
+    }
+
+    [[nodiscard]] bool expect_transform(const ui::scene::LayerTransform& transform,
+                                        int x,
+                                        unsigned opacity,
+                                        const char* message) noexcept {
+        return expect(static_cast<int>(transform.x) == x &&
+                          static_cast<unsigned>(transform.opacity) == opacity,
+                      message);
+    }
+
     [[nodiscard]] bool expect_source_only_capture(const ui::scene::PageTransitionTrace& trace,
                                                   const char* message) noexcept {
         return expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
@@ -230,8 +259,7 @@ namespace {
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene, access, fade_slide_transition_spec(env, prepare));
         if (!expect(begin.started(), "fade slide transition starts")) return false;
-        if (!expect(begin.admission == ui::scene::LayerAdmission::PixelDouble,
-                    "fade slide transition admits PixelDouble")) {
+        if (!expect_pixel_double_admission(begin, "fade slide transition admits PixelDouble")) {
             return false;
         }
         if (!expect_snapshot_count(env, 2, "fade slide owns two snapshots")) {
@@ -246,19 +274,21 @@ namespace {
                     "fade slide composes both layers")) {
             return false;
         }
-        if (!expect(frame.transition.motion.transform.x == 3 &&
-                    frame.transition.motion.transform.opacity == 120,
-                    "fade slide frame carries transform and opacity")) {
+        if (!expect_transform(frame.transition.motion.transform,
+                              3,
+                              120,
+                              "fade slide frame carries transform and opacity")) {
             return false;
         }
-        if (!expect(frame.source.plan.transform.x == 3 &&
-                    frame.source.plan.transform.opacity == 120,
-                    "fade slide source compose uses sampled transform")) {
+        if (!expect_transform(frame.source.plan.transform,
+                              3,
+                              120,
+                              "fade slide source compose uses sampled transform")) {
             return false;
         }
-        if (!expect(trace.motion.recipe_kind == ui::scene::MotionRecipeKind::FadeSlide &&
-                    trace.motion.profile == ui::scene::LayerProfile::Rich,
-                    "fade slide trace records recipe and profile")) {
+        if (!expect_fade_slide_trace(trace,
+                                     ui::scene::LayerProfile::Rich,
+                                     "fade slide trace records recipe and profile")) {
             return false;
         }
         if (!expect(ledger.destination_composite_pixels == 1 &&
@@ -306,8 +336,7 @@ namespace {
                                                                    {},
                                                                    ui::scene::LayerProfile::Cheap));
         if (!expect(begin.started(), "cheap fade slide transition starts")) return false;
-        if (!expect(begin.admission == ui::scene::LayerAdmission::PixelDouble,
-                    "cheap fade slide admits PixelDouble")) {
+        if (!expect_pixel_double_admission(begin, "cheap fade slide admits PixelDouble")) {
             return false;
         }
         env.canvas.clear(rgba{0, 0, 0, 255});
@@ -324,14 +353,16 @@ namespace {
                     "cheap fade slide quantizes motion time")) {
             return false;
         }
-        if (!expect(frame.transition.motion.transform.x == 4 &&
-                    frame.transition.motion.transform.opacity == 85,
-                    "cheap fade slide quantizes transform and opacity")) {
+        if (!expect_transform(frame.transition.motion.transform,
+                              4,
+                              85,
+                              "cheap fade slide quantizes transform and opacity")) {
             return false;
         }
-        if (!expect(frame.source.plan.transform.x == 4 &&
-                    frame.source.plan.transform.opacity == 85,
-                    "cheap fade slide compose plan uses quantized transform")) {
+        if (!expect_transform(frame.source.plan.transform,
+                              4,
+                              85,
+                              "cheap fade slide compose plan uses quantized transform")) {
             return false;
         }
         if (!expect(frame.source.replay.stats.alpha_blend_count == 1,
@@ -473,8 +504,7 @@ namespace {
                     "static profile remains static effective profile")) {
             return false;
         }
-        if (!expect(trace.motion.begin_count == 0 && trace.sample_count == 0,
-                    "static profile does not start fade slide motion")) {
+        if (!expect_motion_not_started(trace, "static profile does not start fade slide motion")) {
             return false;
         }
         if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
@@ -549,8 +579,7 @@ namespace {
                     "none profile performs no transaction side effects")) {
             return false;
         }
-        if (!expect(trace.motion.begin_count == 0 && trace.sample_count == 0,
-                    "none profile does not start fade slide motion")) {
+        if (!expect_motion_not_started(trace, "none profile does not start fade slide motion")) {
             return false;
         }
         if (!expect_page_truth(env, true, false, "none profile preserves page truth")) {

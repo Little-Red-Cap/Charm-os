@@ -2,7 +2,7 @@
 
 这个示例验证 Vivid 的双页 `PageTransitionRunner` 最小事务语义。
 
-阶段性运行形态矩阵见 `docs/ui/vivid_motion_runtime_v0.md` 的 “PageTransition v0 运行形态矩阵”。
+阶段性运行形态矩阵见 `docs/ui/vivid_motion_runtime_v0.md` 的 “PageTransition v0 运行形态矩阵” 与 “PageTransition fade_slide profile 矩阵”。
 
 它不追求动画效果，而是验证这些收尾律：
 

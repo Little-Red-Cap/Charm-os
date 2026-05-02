@@ -421,6 +421,27 @@ Examples/ui/vivid/page_transition_demo
 - None profile 下同一 `fade_slide` 请求仍直接 reject，不调用 prepare，也不启动 motion runner。
 - commit 后释放所有 snapshot，回到 idle。
 
+### PageTransition fade_slide profile 矩阵
+
+这张表收口的是同一个 `fade_slide` 请求在不同 admission / profile 下的已验证行为。
+
+| requested / admission | recipe execution | time / opacity policy | composed artifacts | evidence |
+| --- | --- | --- | --- | --- |
+| `Rich -> PixelDouble` | motion runner starts | 直接采样输入时间；opacity 不量化 | source snapshot + destination snapshot | `fade_slide_pixel_double` |
+| `Cheap -> PixelDouble` | motion runner starts | 30fps 时间量化；opacity 4-step 量化 | source snapshot + destination snapshot | `fade_slide_cheap_quantized` |
+| `Rich -> PixelSingle` | motion runner starts | 直接采样输入时间；opacity 不量化 | source snapshot over live destination | `pixel_single_fade_slide_live_destination` |
+| `Cheap -> PixelSingle` | motion runner starts | 30fps 时间量化；opacity 4-step 量化 | source snapshot over live destination | `pixel_single_fade_slide_cheap_quantized` |
+| `Static -> StaticCut` | motion runner 不启动 | recipe 被 profile 裁掉 | 无 snapshot compose，直接提交目标页 | `static_profile_static_cut` |
+| `None -> Reject` | motion runner 不启动 | recipe 被 profile 拒绝 | 无 prepare / capture / compose | `none_profile_reject` |
+| budget / caps -> `CommandSnapshot` | motion runner 不启动 | command replay 未实现，合法降级 | 无 snapshot / command compose，直接提交目标页 | `command_snapshot_static_cut` |
+
+收口原则：
+
+- Recipe 是请求，不是保证；profile / admission 先裁决 runtime shape。
+- `PixelDouble` 与 `PixelSingle` 都可以执行同一个 recipe，但 artifacts 不同。
+- Cheap 的时间与 opacity 量化是 profile law，不是单独页面逻辑。
+- Static / None / CommandSnapshot static-cut 不能因为 recipe 存在而启动 motion runner。
+
 这不是完整 Motion system，只是 PageTransition 事务骨架上的第一块 recipe 肌肉：同一 recipe 已开始受 profile 裁决，并且不能绕过 Static / None 的运行时宪法。
 
 ## 2026-05 补记：PageTransition None profile law

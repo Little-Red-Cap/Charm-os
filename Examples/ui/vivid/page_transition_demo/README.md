@@ -7,6 +7,7 @@
 - normal commit 后 source snapshot / destination snapshot 都被释放
 - cancel 后 source / destination live 可见性恢复到 begin 前
 - low budget 路径不做 PixelDouble capture，直接 static cut
+- PixelSingle 路径只捕获 source snapshot，destination 保持 live
 - destination prepare 失败时释放已获取的 source snapshot
 - source / destination capture 失败时恢复 page truth 并释放已获取 snapshot
 - active transition 上再次 begin 时先 abort 旧事务，再启动新事务

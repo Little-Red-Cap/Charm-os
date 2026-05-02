@@ -179,7 +179,8 @@ export namespace ui::scene {
                 clear_tracking();
                 return begin_result(PageTransitionBeginStatus::Rejected);
             }
-            if (trace_.admission != LayerAdmission::PixelDouble) {
+            if (trace_.admission == LayerAdmission::CommandSnapshot ||
+                trace_.admission == LayerAdmission::StaticCut) {
                 state_ = PageTransitionState::PreparingDestination;
                 trace_.last_state = state_;
                 if (spec.prepare_destination &&
@@ -229,6 +230,20 @@ export namespace ui::scene {
                 return begin_result(PageTransitionBeginStatus::PrepareFailed, source_capture);
             }
 
+            if (trace_.admission == LayerAdmission::PixelSingle) {
+                destination_->thaw(scene, access, true);
+                runner_.begin({
+                    .recipe = spec.recipe,
+                    .profile = spec.requested_profile,
+                    .start_ms = spec.start_ms,
+                });
+                state_ = PageTransitionState::Composing;
+                trace_.last_state = state_;
+                trace_.begin_status = PageTransitionBeginStatus::Started;
+                return begin_result(PageTransitionBeginStatus::Started,
+                                    source_capture);
+            }
+
             state_ = PageTransitionState::FreezingDestination;
             trace_.last_state = state_;
             const auto destination_capture =
@@ -266,8 +281,7 @@ export namespace ui::scene {
         [[nodiscard]] PageTransitionFrame sample(Scene& scene,
                                                  std::uint64_t now_ms) noexcept {
             if (state_ != PageTransitionState::Composing ||
-                !source_snapshot_ ||
-                !destination_snapshot_) {
+                !source_snapshot_) {
                 return {};
             }
             const auto frame = runner_.sample(now_ms);
@@ -281,10 +295,12 @@ export namespace ui::scene {
                     .compose = frame.motion.tick.should_sample,
                 },
             };
-            const auto destination = execute_motion_compose(scene, {
-                .source = destination_snapshot_,
-                .frame = destination_frame,
-            });
+            const auto destination = destination_snapshot_
+                ? execute_motion_compose(scene, {
+                      .source = destination_snapshot_,
+                      .frame = destination_frame,
+                  })
+                : MotionComposeExecuteResult{};
             const auto source = execute_motion_compose(scene, {
                 .source = source_snapshot_,
                 .frame = frame,

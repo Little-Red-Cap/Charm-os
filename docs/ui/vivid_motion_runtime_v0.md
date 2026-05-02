@@ -315,7 +315,8 @@ begin()
 v0 规则：
 
 - `PageTransitionRunner` 只知道 `source PageLayer`、`destination PageLayer`、prepare callback、profile、budget 和 motion recipe，不知道 Player 业务页面。
-- `PixelDouble` admission 下才捕获 source / destination PixelSurface；其它 admission 先走 static cut 路径。
+- `PixelDouble` admission 下捕获 source / destination PixelSurface；`PixelSingle` admission 下只捕获 source PixelSurface，destination 保持 live。
+- `CommandSnapshot` / `StaticCut` admission 先走 static cut 路径，CommandSnapshot 的双页 replay 留给后续阶段。
 - static cut 不做 PixelSurface capture，但仍执行 destination prepare，再提交 page truth。
 - commit 后 source hidden，destination live / visible。
 - cancel 或 begin failure 后恢复 begin 前 page truth。
@@ -331,6 +332,7 @@ Examples/ui/vivid/page_transition_demo
 
 - normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
 - cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
+- pixel single：只捕获 source snapshot，destination 保持 live，commit 后 `snapshot_count == 0`
 - low budget static cut：不发生 PixelSurface capture，直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
 
@@ -371,3 +373,17 @@ Examples/ui/vivid/page_transition_demo
 - committed / aborted / static_cut / interrupted / snapshots_released 布尔证据
 
 `Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、low-budget static cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。
+
+## 2026-05 补记：PageTransition PixelSingle path
+
+`PageTransitionRunner` 已接入 `PixelSingle` admission 的真实执行路径。
+
+语义：
+
+- begin 前的 admission 若只允许一个 PixelSurface slot / budget，则选择 `PixelSingle`。
+- source page 会被捕获为 PixelSurface snapshot，并按 recipe 参与 compose。
+- destination page 不捕获 snapshot，而是在 prepare 后保持 live / visible，作为 live destination 背景。
+- sample 阶段只执行 source snapshot compose，destination compose result 保持 invalid。
+- commit / cancel 后 runner 释放所持 source snapshot，回到 idle 时 `snapshot_count == 0`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_live_destination`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0。

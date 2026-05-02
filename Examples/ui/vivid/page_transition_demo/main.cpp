@@ -242,6 +242,89 @@ namespace {
         return true;
     }
 
+    [[nodiscard]] bool run_pixel_single_live_destination() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{220, 70, 30, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{30, 110, 230, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare, {
+            .max_layer_bytes = 3,
+        }));
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(begin.started(), "pixel single transition starts")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::PixelSingle,
+                    "pixel single admission is selected")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
+                    "pixel single captures source only")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 1,
+                    "pixel single owns one snapshot during transition")) {
+            return false;
+        }
+        if (!expect(!env.source.visible() && env.destination.visible(),
+                    "pixel single keeps destination live during transition")) {
+            return false;
+        }
+        if (!expect(env.destination.live(), "pixel single destination is live")) return false;
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 0);
+        const auto after_sample = runner.ledger();
+        if (!expect(frame.valid, "pixel single composes source frame")) return false;
+        if (!expect(frame.source.valid && !frame.destination.valid,
+                    "pixel single composes source over live destination")) {
+            return false;
+        }
+        const auto source_pixel = env.canvas.get_pixel(7, 2);
+        if (!expect(source_pixel.r == 220, "pixel single source snapshot is composed")) return false;
+        if (!expect(after_sample.source_bytes == 3 && after_sample.destination_bytes == 0,
+                    "pixel single ledger records source-only bytes")) {
+            return false;
+        }
+        if (!expect(after_sample.peak_layer_bytes == 3,
+                    "pixel single ledger records one snapshot peak")) {
+            return false;
+        }
+        if (!expect(after_sample.source_composite_pixels == 1 &&
+                    after_sample.destination_composite_pixels == 0,
+                    "pixel single ledger records source-only compose pixels")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto committed_trace = runner.trace();
+        const auto committed_ledger = runner.ledger();
+        if (!expect(runner.idle(), "pixel single returns idle")) return false;
+        if (!expect(!env.source.visible() && env.destination.visible(),
+                    "pixel single commit updates page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "pixel single commit releases source snapshot")) {
+            return false;
+        }
+        if (!expect(committed_trace.commit_count == 1 && committed_trace.abort_count == 0,
+                    "pixel single trace records commit only")) {
+            return false;
+        }
+        if (!expect(committed_ledger.committed && committed_ledger.snapshots_released,
+                    "pixel single ledger records released commit")) {
+            return false;
+        }
+        std::printf("[pt] pixel_single status=%s admission=%s source_caps=%u dst_caps=%u snapshots=%u bytes=%u pixels=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::layer_admission_name(begin.admission),
+                    static_cast<unsigned>(committed_trace.source_capture_count),
+                    static_cast<unsigned>(committed_trace.destination_capture_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(committed_ledger.peak_layer_bytes),
+                    static_cast<unsigned>(committed_ledger.total_composite_pixels));
+        return true;
+    }
+
     [[nodiscard]] bool run_prepare_fail() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{210, 30, 40, 255});
@@ -448,6 +531,7 @@ int main() {
     if (!run_normal_commit()) return 1;
     if (!run_cancel_during_compose()) return 1;
     if (!run_low_budget_static_cut()) return 1;
+    if (!run_pixel_single_live_destination()) return 1;
     if (!run_prepare_fail()) return 1;
     if (!run_source_capture_fail()) return 1;
     if (!run_destination_capture_fail()) return 1;

@@ -300,6 +300,63 @@ namespace {
         return true;
     }
 
+    [[nodiscard]] bool run_static_profile_static_cut() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{245, 80, 60, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{50, 90, 210, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene,
+                                        access,
+                                        transition_spec(env,
+                                                        prepare,
+                                                        {},
+                                                        ui::scene::LayerProfile::Static));
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(begin.static_cut(), "static profile resolves static cut")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::StaticCut,
+                    "static profile admission is StaticCut")) {
+            return false;
+        }
+        if (!expect(trace.requested_profile == ui::scene::LayerProfile::Static &&
+                    trace.effective_profile == ui::scene::LayerProfile::Static,
+                    "static profile remains static effective profile")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
+                    "static profile performs no captures")) {
+            return false;
+        }
+        if (!expect_page_truth(env, false, true, "static profile commits page truth")) {
+            return false;
+        }
+        if (!expect_snapshot_count(env, 0, "static profile leaves no snapshots")) {
+            return false;
+        }
+        if (!expect(ledger.static_cut && ledger.committed,
+                    "static profile ledger records static cut commit")) {
+            return false;
+        }
+        if (!expect(ledger.admission == ui::scene::LayerAdmission::StaticCut &&
+                    ledger.requested_profile == ui::scene::LayerProfile::Static &&
+                    ledger.effective_profile == ui::scene::LayerProfile::Static,
+                    "static profile is recorded in ledger")) {
+            return false;
+        }
+        if (!expect(ledger.peak_layer_bytes == 0 && ledger.total_composite_pixels == 0,
+                    "static profile records no layer cost")) {
+            return false;
+        }
+        std::printf("[pt] static_profile status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::layer_admission_name(begin.admission),
+                    static_cast<unsigned>(trace.static_cut_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        return true;
+    }
+
     [[nodiscard]] bool run_pixel_single_live_destination() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{220, 70, 30, 255});
@@ -718,6 +775,7 @@ int main() {
     if (!run_normal_commit()) return 1;
     if (!run_cancel_during_compose()) return 1;
     if (!run_command_snapshot_static_cut()) return 1;
+    if (!run_static_profile_static_cut()) return 1;
     if (!run_pixel_single_live_destination()) return 1;
     if (!run_pixel_single_cancel()) return 1;
     if (!run_prepare_fail()) return 1;

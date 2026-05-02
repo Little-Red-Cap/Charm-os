@@ -297,3 +297,165 @@ source PageLayer freeze
 - 不绕过 `LayerBudget`
 - 不让 recipe 直接接触 backend
 - failure / stale / over-budget 都有确定行为
+
+## 2026-05 补记：PageTransitionRunner v0
+
+`page_transition.cppm` 已经把双页迁移从“动画参数”提升为 Vivid runtime 事务：
+
+```text
+begin()
+  -> admission
+  -> freeze source
+  -> prepare destination
+  -> freeze destination
+  -> sample compose
+  -> commit / cancel
+```
+
+v0 规则：
+
+- `PageTransitionRunner` 只知道 `source PageLayer`、`destination PageLayer`、prepare callback、profile、budget 和 motion recipe，不知道 Player 业务页面。
+- `PixelDouble` admission 下捕获 source / destination PixelSurface；`PixelSingle` admission 下只捕获 source PixelSurface，destination 保持 live。
+- `CommandSnapshot` / `StaticCut` admission 先走 static cut 路径，CommandSnapshot 的双页 replay 留给后续阶段。
+- static cut 不做 PixelSurface capture，但仍执行 destination prepare，再提交 page truth。
+- commit 后 source hidden，destination live / visible。
+- cancel 或 begin failure 后恢复 begin 前 page truth。
+- runner 获取的 snapshot 必须由 runner 释放；runner 回到 idle 时不得持有 `SnapshotHandle`。
+
+### PageTransition v0 运行形态矩阵
+
+这张表是当前 `PageTransitionRunner` 的阶段性收口。它描述的是已经由 demo 验证的行为，不是未来目标。
+
+| requested / admission | runtime shape | source ownership | destination shape | begin result | page truth result | evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Rich/Cheap -> PixelDouble` | 双 PixelSurface snapshot compose | runner 持有 source snapshot | runner 持有 destination snapshot | `Started` | commit 后 source hidden，destination live | `normal_commit` / `cancel_during_compose` |
+| `Rich/Cheap -> PixelSingle` | source snapshot over live destination | runner 持有 source snapshot | destination prepare 后保持 live | `Started` | commit 后 source hidden，destination live；cancel 后恢复 begin 前 | `pixel_single_live_destination` / `pixel_single_cancel` / `pixel_single_rebegin_interrupt` |
+| `Static -> StaticCut` | 主动 static cut | 无 snapshot | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `static_profile_static_cut` |
+| `None -> Reject` | 拒绝事务 | 无 snapshot | 不调用 prepare | `Rejected` | begin 前 page truth 不变 | `none_profile_reject` |
+| budget / caps -> `CommandSnapshot` | 当前合法降级为 static cut | 无 snapshot / 无 command payload | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `command_snapshot_static_cut` |
+| source capture fail | begin failure rollback | 捕获失败，无持有 | 不进入 prepare / capture | `SourceCaptureFailed` | 恢复 begin 前 page truth | `source_capture_fail` |
+| destination capture fail | begin failure rollback | 释放已捕获 source snapshot | destination capture 失败 | `DestinationCaptureFailed` | 恢复 begin 前 page truth | `destination_capture_fail` |
+| active begin interrupt | 旧事务 abort，新事务 begin | 先释放旧事务持有 snapshot | 先恢复旧 page truth，再进入新事务 | 新事务 result | 由新事务 commit/cancel 决定 | `rebegin_interrupt` / `pixel_single_rebegin_interrupt` |
+
+收口原则：
+
+- `Static` 是主动运行形态；`None` 是主动拒绝形态。
+- `CommandSnapshot` 目前只是 admission 结果，不代表双页 command replay 已实现。
+- `PixelSingle` 是降级后的真实合成路径，不是 static cut。
+- `PageTransitionRunner` 回到 idle 时不得持有任何 `SnapshotHandle`。
+- 所有路径都必须能被 `PageTransitionTrace` / `PageTransitionLedger` 审计。
+
+新增验证入口：
+
+```text
+Examples/ui/vivid/page_transition_demo
+```
+
+当前覆盖：
+
+- normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
+- cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
+- static profile：`LayerProfile::Static` 主动选择 `StaticCut` admission，不依赖预算失败
+- none profile：`LayerProfile::None` 主动拒绝事务，不调用 prepare，不改变 page truth
+- pixel single：只捕获 source snapshot，destination 保持 live，commit / cancel 后 `snapshot_count == 0`
+- command snapshot static cut：`CommandSnapshot` admission 在双页 replay 实现前不发生 capture，显式 static cut 并直接提交目标页
+- destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
+
+## 2026-05 补记：PageTransition interrupt law
+
+`PageTransitionRunner::begin()` 在已有 active transaction 时会先执行旧事务的 `cancel()` 收尾，再开始新事务。
+
+规则：
+
+- re-begin 必须释放旧事务持有的 source / destination snapshot；`PixelSingle` 路径只有 source snapshot 也必须满足同一条律。
+- re-begin 必须恢复旧事务 begin 前的 page truth，再捕获新事务 snapshot。
+- 新事务 trace 通过 `interrupt_count` 记录这次隐式 abort。
+- 后续 commit / cancel 后 `interrupt_count` 必须保留为可审计证据。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `rebegin_interrupt`：旧事务 compose 后再次 begin，新事务重新持有两个 snapshot，最终 cancel 后 `snapshot_count == 0`。
+
+同一入口也覆盖 `pixel_single_rebegin_interrupt`：旧 PixelSingle 事务只持有 source snapshot，再次 begin 时先释放旧 snapshot，新事务重新持有一个 source snapshot，最终 cancel 后 `snapshot_count == 0`。
+
+## 2026-05 补记：PageTransition capture failure law
+
+`PageTransitionRunner` 的 capture 失败路径现在也有明确证据：
+
+- source capture fail：不进入 destination prepare / capture，恢复 begin 前 page truth，`snapshot_count == 0`。
+- destination capture fail：释放已获取的 source snapshot，恢复 begin 前 page truth，`snapshot_count == 0`。
+- `PageTransitionTrace::begin_status` 会记录 `SourceCaptureFailed` / `DestinationCaptureFailed`，并保留对应 `LayerCaptureStatus`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `source_capture_fail` 与 `destination_capture_fail`。
+
+## 2026-05 补记：PageTransition ledger v0
+
+`PageTransitionLedger` 已作为 `PageTransitionRunner` 的事务账本接入。
+
+账本 v0 记录：
+
+- begin status / final state / admission / requested profile / effective profile
+- begin / sample / commit / abort / interrupt / static cut 计数
+- source / destination capture status 与 capture count
+- source / destination snapshot bytes 与 peak layer bytes
+- destination / source / total composite pixels
+- committed / aborted / static_cut / interrupted / snapshots_released 布尔证据
+
+`Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、Static/None profile、CommandSnapshot static-cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。
+
+## 2026-05 补记：PageTransition None profile law
+
+`LayerProfile::None` 是显式禁用转场事务的 profile。它与 `Static` 不同：`Static` 会提交目标页，`None` 会拒绝本次 begin。
+
+当前 `PageTransitionRunner` 在 requested profile 为 `None` 时：
+
+- admission 为 `Reject`。
+- begin status 为 `Rejected`。
+- 不调用 destination prepare。
+- 不捕获 source / destination snapshot。
+- 不 commit、不 abort、不 static cut。
+- 不改变 begin 前 page truth。
+- trace / ledger 保留 `requested_profile == None`、`effective_profile == None` 与 `admission == Reject`。
+- 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `none_profile_reject`。
+
+## 2026-05 补记：PageTransition Static profile law
+
+`LayerProfile::Static` 是主动运行形态，不是错误路径，也不是预算失败后的事故现场。
+
+当前 `PageTransitionRunner` 在 requested profile 为 `Static` 时：
+
+- admission 直接为 `StaticCut`。
+- 不捕获 source / destination snapshot。
+- 仍执行 destination prepare。
+- 直接提交 page truth：source hidden，destination live / visible。
+- trace / ledger 保留 `requested_profile == Static`、`effective_profile == Static` 与 `admission == StaticCut`。
+- 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `static_profile_static_cut`。
+
+## 2026-05 补记：PageTransition CommandSnapshot static-cut law
+
+双页 `CommandSnapshot` replay 仍未进入 v0 执行路径。当前 `PageTransitionRunner` 在 admission 裁决为 `CommandSnapshot` 时执行合法降级：
+
+- 不捕获 source / destination PixelSurface。
+- 不创建 CommandSnapshot payload。
+- 仍执行 destination prepare。
+- 以 `StaticCut` begin status 提交目标页。
+- trace / ledger 保留 `admission == CommandSnapshot` 与 `effective_profile == Static`。
+- 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `command_snapshot_static_cut`。
+
+## 2026-05 补记：PageTransition PixelSingle path
+
+`PageTransitionRunner` 已接入 `PixelSingle` admission 的真实执行路径。
+
+语义：
+
+- begin 前的 admission 若只允许一个 PixelSurface slot / budget，则选择 `PixelSingle`。
+- source page 会被捕获为 PixelSurface snapshot，并按 recipe 参与 compose。
+- destination page 不捕获 snapshot，而是在 prepare 后保持 live / visible，作为 live destination 背景。
+- sample 阶段只执行 source snapshot compose，destination compose result 保持 invalid。
+- commit / cancel 后 runner 释放所持 source snapshot，回到 idle 时 `snapshot_count == 0`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_live_destination`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 cancel / interrupt 后恢复 begin 前 page truth。

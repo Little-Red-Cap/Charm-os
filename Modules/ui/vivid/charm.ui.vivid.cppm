@@ -34,6 +34,7 @@ export import charm.ui.scene.motion_transition;
 export import charm.ui.scene.motion_compose;
 export import charm.ui.scene.motion_execute;
 export import charm.ui.scene.motion_page_transition;
+export import charm.ui.scene.page_transition;
 export import charm.ui.scene.seek_bar_style;
 export import charm.ui.scene.text_style;
 

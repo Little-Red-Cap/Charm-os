@@ -328,7 +328,7 @@ v0 规则：
 
 | requested / admission | runtime shape | source ownership | destination shape | begin result | page truth result | evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Rich/Cheap -> PixelDouble` | 双 PixelSurface snapshot compose | runner 持有 source snapshot | runner 持有 destination snapshot | `Started` | commit 后 source hidden，destination live | `normal_commit` / `cancel_during_compose` |
+| `Rich/Cheap -> PixelDouble` | 双 PixelSurface snapshot compose | runner 持有 source snapshot | runner 持有 destination snapshot | `Started` | commit 后 source hidden，destination live | `normal_commit` / `fade_slide_pixel_double` / `cancel_during_compose` |
 | `Rich/Cheap -> PixelSingle` | source snapshot over live destination | runner 持有 source snapshot | destination prepare 后保持 live | `Started` | commit 后 source hidden，destination live；cancel 后恢复 begin 前 | `pixel_single_live_destination` / `pixel_single_cancel` / `pixel_single_rebegin_interrupt` |
 | `Static -> StaticCut` | 主动 static cut | 无 snapshot | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `static_profile_static_cut` |
 | `None -> Reject` | 拒绝事务 | 无 snapshot | 不调用 prepare | `Rejected` | begin 前 page truth 不变 | `none_profile_reject` |
@@ -354,6 +354,7 @@ Examples/ui/vivid/page_transition_demo
 当前覆盖：
 
 - normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
+- fade slide pixel double：`fade_slide` recipe 在双 snapshot compose 中同时输出 transform / opacity
 - cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
 - static profile：`LayerProfile::Static` 主动选择 `StaticCut` admission，不依赖预算失败
 - none profile：`LayerProfile::None` 主动拒绝事务，不调用 prepare，不改变 page truth
@@ -400,6 +401,21 @@ Examples/ui/vivid/page_transition_demo
 - committed / aborted / static_cut / interrupted / snapshots_released 布尔证据
 
 `Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、Static/None profile、CommandSnapshot static-cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。
+
+## 2026-05 补记：PageTransition fade_slide recipe evidence
+
+`PageTransitionRunner` 已有第一条 Motion recipe 接入证据：`fade_slide_pixel_double`。
+
+这条用例验证的是：
+
+- `PixelDouble` admission 下 source / destination 都以 PixelSurface snapshot 参与 compose。
+- `MotionRecipeKind::FadeSlide` 会进入 `MotionTransitionTrace`。
+- sample frame 同时携带位移与 opacity。
+- source compose plan 使用 sampled transform / opacity。
+- destination snapshot 仍以 identity transform 参与 compose。
+- commit 后释放所有 snapshot，回到 idle。
+
+这不是完整 Motion system，只是 PageTransition 事务骨架上的第一块 recipe 肌肉。
 
 ## 2026-05 补记：PageTransition None profile law
 

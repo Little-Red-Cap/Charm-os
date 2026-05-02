@@ -141,6 +141,16 @@ namespace {
         };
     }
 
+    [[nodiscard]] ui::scene::PageTransitionSpec fade_slide_transition_spec(
+        TransitionScene& env,
+        PaintPrepare& prepare,
+        ui::scene::LayerBudget budget = {},
+        ui::scene::LayerProfile profile = ui::scene::LayerProfile::Rich) noexcept {
+        auto spec = transition_spec(env, prepare, budget, profile);
+        spec.recipe = ui::scene::motion_fade_slide(ui::scene::MotionAxis::X, 6, 120, 0, 240);
+        return spec;
+    }
+
     [[nodiscard]] bool run_normal_commit() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{230, 20, 30, 255});
@@ -209,6 +219,77 @@ namespace {
                     static_cast<unsigned>(trace.commit_count),
                     static_cast<unsigned>(ledger.peak_layer_bytes),
                     static_cast<unsigned>(ledger.total_composite_pixels));
+        return true;
+    }
+
+    [[nodiscard]] bool run_fade_slide_pixel_double() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{235, 30, 50, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{25, 70, 225, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, fade_slide_transition_spec(env, prepare));
+        if (!expect(begin.started(), "fade slide transition starts")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::PixelDouble,
+                    "fade slide transition admits PixelDouble")) {
+            return false;
+        }
+        if (!expect_snapshot_count(env, 2, "fade slide owns two snapshots")) {
+            return false;
+        }
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 60);
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(frame.valid, "fade slide composes frame")) return false;
+        if (!expect(frame.destination.valid && frame.source.valid,
+                    "fade slide composes both layers")) {
+            return false;
+        }
+        if (!expect(frame.transition.motion.transform.x == 3 &&
+                    frame.transition.motion.transform.opacity == 120,
+                    "fade slide frame carries transform and opacity")) {
+            return false;
+        }
+        if (!expect(frame.source.plan.transform.x == 3 &&
+                    frame.source.plan.transform.opacity == 120,
+                    "fade slide source compose uses sampled transform")) {
+            return false;
+        }
+        if (!expect(trace.motion.recipe_kind == ui::scene::MotionRecipeKind::FadeSlide &&
+                    trace.motion.profile == ui::scene::LayerProfile::Rich,
+                    "fade slide trace records recipe and profile")) {
+            return false;
+        }
+        if (!expect(ledger.destination_composite_pixels == 1 &&
+                    ledger.source_composite_pixels == 1 &&
+                    ledger.total_composite_pixels == 2,
+                    "fade slide ledger records one composed frame")) {
+            return false;
+        }
+        if (!expect(frame.source.replay.stats.alpha_blend_count == 1,
+                    "fade slide source compose applies opacity blend")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto committed_ledger = runner.ledger();
+        if (!expect(runner.idle(), "fade slide returns idle")) return false;
+        if (!expect_page_truth(env, false, true, "fade slide commit updates page truth")) {
+            return false;
+        }
+        if (!expect_snapshot_count(env, 0, "fade slide commit releases snapshots")) {
+            return false;
+        }
+        if (!expect(committed_ledger.committed && committed_ledger.snapshots_released,
+                    "fade slide ledger records released commit")) {
+            return false;
+        }
+        std::printf("[pt] fade_slide status=%s admission=%s x=%d opacity=%u pixels=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::layer_admission_name(begin.admission),
+                    static_cast<int>(frame.transition.motion.transform.x),
+                    static_cast<unsigned>(frame.transition.motion.transform.opacity),
+                    static_cast<unsigned>(committed_ledger.total_composite_pixels));
         return true;
     }
 
@@ -849,6 +930,7 @@ namespace {
 
 int main() {
     if (!run_normal_commit()) return 1;
+    if (!run_fade_slide_pixel_double()) return 1;
     if (!run_cancel_during_compose()) return 1;
     if (!run_command_snapshot_static_cut()) return 1;
     if (!run_static_profile_static_cut()) return 1;

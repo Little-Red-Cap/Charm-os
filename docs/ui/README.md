@@ -65,4 +65,4 @@
 ## 2026-05 Vivid runtime 验证入口补记
 
 - `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、Motion recipe、transition trace、compose dry-run 与单页 `PageMotionTransition`。
-- `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner`；运行形态矩阵见 `docs/ui/vivid_motion_runtime_v0.md` 的 “PageTransition v0 运行形态矩阵”。
+- `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner` 与最小 `fade_slide` recipe；运行形态矩阵见 `docs/ui/vivid_motion_runtime_v0.md` 的 “PageTransition v0 运行形态矩阵”。

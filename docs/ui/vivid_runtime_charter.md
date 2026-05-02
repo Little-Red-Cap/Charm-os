@@ -291,6 +291,10 @@ Page Token
 - 跨产品复用后升为 Vivid token。
 - token 不只是整理数字，而是建立可迁移坐标系。
 
+阶段性细节见：[`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)。
+
+当前 v0 已有最小 evidence：`Examples/ui/vivid/style_token_law_demo` 验证 semantic token、role patch、style state mask、`paint_only` impact 与 render artifact 摘要。
+
 ## 非目标
 
 当前阶段不追求：

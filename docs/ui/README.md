@@ -35,10 +35,11 @@
 3. [`vivid_replay_workflow.md`](vivid_replay_workflow.md)
 4. [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)
 5. [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)
-6. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
-7. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
-8. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
-9. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+6. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
+7. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
+8. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
+9. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
+10. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
 最小验证示例：
 
@@ -46,6 +47,7 @@
 - `Examples/ui/vivid/widget_state_demo`：验证 object-level widget state truth 与 observe 语义；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=5`。
 - `Examples/ui/vivid/component_settings_row_demo`：验证 component 级 state truth → render evidence chain；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=4`。
 - `Examples/ui/vivid/component_card_state_demo`：验证多 child state 汇入同一个 component artifact；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=5`。
+- `Examples/ui/vivid/style_token_law_demo`：验证 semantic token、style state mask、paint-only impact 与 render artifact evidence；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=6`。
 - `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、motion recipe、transition trace 与 compose dry-run。
 
 ### 我想看 EInk / Player UI
@@ -60,7 +62,7 @@
 
 - UI 硬规则：`ui_kernel_contract.md`
 - 结构化视图：`structured_view_model_v1.md`
-- Vivid 路线：`vivid_runtime_charter.md` → `vivid_multibackend_plan.md` → `vivid_replay_workflow.md` → `vivid_evidence_stdout_law.md` → `vivid_render_evidence_chain_v0.md` → `vivid_layer_runtime_v0.md` → `vivid_motion_runtime_v0.md`
+- Vivid 路线：`vivid_runtime_charter.md` → `vivid_multibackend_plan.md` → `vivid_replay_workflow.md` → `vivid_evidence_stdout_law.md` → `vivid_render_evidence_chain_v0.md` → `vivid_style_token_law_v0.md` → `vivid_layer_runtime_v0.md` → `vivid_motion_runtime_v0.md`
 - Player/UI 组合：`player_ui.md` → `player_vivid_patterns.md`
 
 ## 使用提醒
@@ -74,5 +76,6 @@
 - `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner`、`fade_slide` recipe 与 Cheap profile 量化；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=15`；矩阵见 `docs/ui/vivid_motion_runtime_v0.md`。
 - `Examples/ui/vivid/component_settings_row_demo`：验证 settings row component 的 state truth、invalidation intent、dirty evidence、draw command evidence 与 render artifact evidence；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=4`；链路见 [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)。
 - `Examples/ui/vivid/component_card_state_demo`：验证 card component 中多 child state、derived output、summary text 与同一 render artifact 的因果关系；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=5`；链路见 [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)。
+- `Examples/ui/vivid/style_token_law_demo`：验证 Style Token Law v0 的 semantic token、role patch、state mask、paint-only impact 与 artifact 变化；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=6`；法律见 [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)。
 - `Examples/ui/vivid/widget_signal_demo`：验证 Button / MenuItem / ListItem 的 object-level click edge；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=3`。
 - `Examples/ui/vivid/widget_state_demo`：验证 Checkbox / Dropdown / Slider / ProgressBarSimple / Arc 的 object-level state truth；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=5`。

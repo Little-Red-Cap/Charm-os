@@ -3,7 +3,7 @@
 这个示例验证 Vivid 的双页 `PageTransitionRunner` 最小事务语义。
 
 阶段性运行形态矩阵见 `docs/ui/vivid_motion_runtime_v0.md` 的 “PageTransition v0 运行形态矩阵” 与 “PageTransition fade_slide profile 矩阵”。
-示例 stdout 现在统一为 `[pt] case=...` 的 summary 形式，便于 CI / 人工对照。
+示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一为 `[pt] run=page_transition_demo phase=begin/end` 与 `[pt] case=...` 的 summary 形式，便于 CI / 人工对照。
 
 它不追求动画效果，而是验证这些收尾律：
 
@@ -28,5 +28,6 @@
 ```bash
 cmake -S Examples/ui/vivid/page_transition_demo -B cmake-build-vivid-page-transition-demo-codex -G Ninja
 cmake --build cmake-build-vivid-page-transition-demo-codex -j 22
+ctest --test-dir cmake-build-vivid-page-transition-demo-codex --output-on-failure
 cmake-build-vivid-page-transition-demo-codex/vivid-page-transition-demo
 ```

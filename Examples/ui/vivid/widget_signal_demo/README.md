@@ -25,9 +25,13 @@
 
 - `Examples/ui/vivid/widget_state_demo`
 
+示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一为 `[ws] run=widget_signal_demo phase=begin/end` 与 `[ws] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=3`。
+
 构建：
 
 ```bash
-cmake -S Examples/ui/vivid/widget_signal_demo -B Examples/ui/vivid/widget_signal_demo/build -G Ninja
-cmake --build Examples/ui/vivid/widget_signal_demo/build
+cmake -S Examples/ui/vivid/widget_signal_demo -B cmake-build-vivid-widget-signal-demo-codex -G Ninja
+cmake --build cmake-build-vivid-widget-signal-demo-codex -j 22
+ctest --test-dir cmake-build-vivid-widget-signal-demo-codex --output-on-failure
+cmake-build-vivid-widget-signal-demo-codex/vivid-widget-signal-demo
 ```

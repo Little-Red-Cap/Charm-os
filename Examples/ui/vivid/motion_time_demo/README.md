@@ -19,10 +19,13 @@
 - `execute_motion_compose()` 验证 transition frame 经 `Scene` 执行 pixel snapshot compose 的最小路径。
 - `PageMotionTransition` 验证 `PageLayer` freeze / transitioning / execute / thaw 的最小路径。
 
+示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一为 `[mt] run=motion_time_demo phase=begin/end` 与 `[mt] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=12`。
+
 构建：
 
 ```bash
-cmake -S Examples/ui/vivid/motion_time_demo -B Examples/ui/vivid/motion_time_demo/build -G Ninja
-cmake --build Examples/ui/vivid/motion_time_demo/build
-Examples/ui/vivid/motion_time_demo/build/vivid-motion-time-demo
+cmake -S Examples/ui/vivid/motion_time_demo -B cmake-build-vivid-motion-time-demo-codex -G Ninja
+cmake --build cmake-build-vivid-motion-time-demo-codex -j 22
+ctest --test-dir cmake-build-vivid-motion-time-demo-codex --output-on-failure
+cmake-build-vivid-motion-time-demo-codex/vivid-motion-time-demo
 ```

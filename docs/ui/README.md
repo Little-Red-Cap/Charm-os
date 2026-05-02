@@ -33,13 +33,15 @@
 1. [`vivid_runtime_charter.md`](vivid_runtime_charter.md)
 2. [`vivid_multibackend_plan.md`](vivid_multibackend_plan.md)
 3. [`vivid_replay_workflow.md`](vivid_replay_workflow.md)
-4. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
-5. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
-6. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
-7. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+4. [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)
+5. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
+6. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
+7. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
+8. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
 最小验证示例：
 
+- `Examples/ui/vivid/widget_signal_demo`：验证 object-level widget click edge 与旧回调兼容；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=3`。
 - `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、motion recipe、transition trace 与 compose dry-run。
 
 ### 我想看 EInk / Player UI
@@ -54,7 +56,7 @@
 
 - UI 硬规则：`ui_kernel_contract.md`
 - 结构化视图：`structured_view_model_v1.md`
-- Vivid 路线：`vivid_runtime_charter.md` → `vivid_multibackend_plan.md` → `vivid_replay_workflow.md` → `vivid_layer_runtime_v0.md` → `vivid_motion_runtime_v0.md`
+- Vivid 路线：`vivid_runtime_charter.md` → `vivid_multibackend_plan.md` → `vivid_replay_workflow.md` → `vivid_evidence_stdout_law.md` → `vivid_layer_runtime_v0.md` → `vivid_motion_runtime_v0.md`
 - Player/UI 组合：`player_ui.md` → `player_vivid_patterns.md`
 
 ## 使用提醒
@@ -64,6 +66,7 @@
 
 ## 2026-05 Vivid runtime 验证入口补记
 
-- `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、Motion recipe、transition trace、compose dry-run 与单页 `PageMotionTransition`。
+- `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、Motion recipe、transition trace、compose dry-run 与单页 `PageMotionTransition`；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=12`。
 - `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner`、`fade_slide` recipe 与 Cheap profile 量化；矩阵见 `docs/ui/vivid_motion_runtime_v0.md` 的 “PageTransition v0 运行形态矩阵” 与 “PageTransition fade_slide profile 矩阵”。
-- 该示例 stdout 统一为 `[pt] case=...` summary 形式。
+- 该示例 stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=15`。
+- `Examples/ui/vivid/widget_signal_demo`：验证 Button / MenuItem / ListItem 的 object-level click edge；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=3`。

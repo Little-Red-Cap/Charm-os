@@ -129,12 +129,25 @@ namespace {
         return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
     }
 
+    unsigned transition_summary_case_count{0};
+
+    void print_transition_run_begin() noexcept {
+        std::printf("[pt] run=page_transition_demo phase=begin\n");
+    }
+
+    void print_transition_run_end(bool ok) noexcept {
+        std::printf("[pt] run=page_transition_demo phase=end result=%s cases=%u\n",
+                    ok ? "ok" : "fail",
+                    transition_summary_case_count);
+    }
+
     void print_transition_summary(const char* name,
                                   const ui::scene::PageTransitionBeginResult& begin,
                                   const ui::scene::PageTransitionTrace& trace,
                                   const ui::scene::PageTransitionLedger& ledger,
                                   const TransitionScene& env,
                                   const ui::scene::PageTransitionFrame* frame = nullptr) noexcept {
+        ++transition_summary_case_count;
         const bool motion_started = trace.motion.begin_count != 0;
         const bool has_frame = frame && frame->valid;
         const auto transform = has_frame
@@ -1095,21 +1108,26 @@ namespace {
 }
 
 int main() {
-    if (!run_normal_commit()) return 1;
-    if (!run_fade_slide_pixel_double()) return 1;
-    if (!run_fade_slide_cheap_quantized()) return 1;
-    if (!run_cancel_during_compose()) return 1;
-    if (!run_command_snapshot_static_cut()) return 1;
-    if (!run_static_profile_static_cut()) return 1;
-    if (!run_none_profile_reject()) return 1;
-    if (!run_pixel_single_fade_slide_live_destination()) return 1;
-    if (!run_pixel_single_fade_slide_cheap_quantized()) return 1;
-    if (!run_pixel_single_cancel()) return 1;
-    if (!run_prepare_fail()) return 1;
-    if (!run_source_capture_fail()) return 1;
-    if (!run_destination_capture_fail()) return 1;
-    if (!run_rebegin_interrupt()) return 1;
-    if (!run_pixel_single_rebegin_interrupt()) return 1;
-    std::puts("[page_transition_demo] ok");
-    return 0;
+    print_transition_run_begin();
+    bool ok = true;
+    do {
+        if (!run_normal_commit()) { ok = false; break; }
+        if (!run_fade_slide_pixel_double()) { ok = false; break; }
+        if (!run_fade_slide_cheap_quantized()) { ok = false; break; }
+        if (!run_cancel_during_compose()) { ok = false; break; }
+        if (!run_command_snapshot_static_cut()) { ok = false; break; }
+        if (!run_static_profile_static_cut()) { ok = false; break; }
+        if (!run_none_profile_reject()) { ok = false; break; }
+        if (!run_pixel_single_fade_slide_live_destination()) { ok = false; break; }
+        if (!run_pixel_single_fade_slide_cheap_quantized()) { ok = false; break; }
+        if (!run_pixel_single_cancel()) { ok = false; break; }
+        if (!run_prepare_fail()) { ok = false; break; }
+        if (!run_source_capture_fail()) { ok = false; break; }
+        if (!run_destination_capture_fail()) { ok = false; break; }
+        if (!run_rebegin_interrupt()) { ok = false; break; }
+        if (!run_pixel_single_rebegin_interrupt()) { ok = false; break; }
+    } while (false);
+    print_transition_run_end(ok);
+    if (ok) std::puts("[page_transition_demo] ok");
+    return ok ? 0 : 1;
 }

@@ -199,7 +199,7 @@ function Load-CaseRuntimeObserve {
     }
 }
 
-function Get-CaseFactEvidencePath {
+function Get-CaseFactEvidenceInfo {
     param(
         $Bundle,
         $CaseEntry
@@ -221,7 +221,24 @@ function Get-CaseFactEvidencePath {
         throw "unsupported fact evidence schema: $([string]$factEvidence.schema)"
     }
 
-    return $factEvidencePath
+    return [pscustomobject]@{
+        Path = $factEvidencePath
+        Data = $factEvidence
+    }
+}
+
+function Get-CaseFactEvidencePath {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    $factEvidenceInfo = Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
+    if ($null -eq $factEvidenceInfo) {
+        return $null
+    }
+
+    return $factEvidenceInfo.Path
 }
 
 function Get-SelectedCases {
@@ -1336,6 +1353,102 @@ function Get-FactResolutionFactSourceMap {
     return $factSourceMap
 }
 
+function Get-FactEvidenceProviderEntries {
+    param(
+        $FactEvidenceInfo,
+        [string]$FactName
+    )
+
+    if ($null -eq $FactEvidenceInfo -or
+        $null -eq $FactEvidenceInfo.Data -or
+        $null -eq $FactEvidenceInfo.Data.PSObject.Properties['raw_facts']) {
+        return @()
+    }
+
+    $providers = @()
+    foreach ($rawFact in @($FactEvidenceInfo.Data.raw_facts)) {
+        if ($null -eq $rawFact -or [string]$rawFact.name -ne $FactName) {
+            continue
+        }
+
+        $state = if ($null -ne $rawFact.PSObject.Properties['state']) {
+            [string]$rawFact.state
+        } else {
+            ''
+        }
+        if ($state -ne 'provided') {
+            continue
+        }
+
+        $providers += [pscustomobject][ordered]@{
+            source = [string]$rawFact.source
+            role = if ($null -ne $rawFact.PSObject.Properties['role']) { [string]$rawFact.role } else { '' }
+            kind = if ($null -ne $rawFact.PSObject.Properties['kind']) { [string]$rawFact.kind } else { '' }
+            state = $state
+        }
+    }
+
+    return @($providers | Sort-Object source, role, kind -Unique)
+}
+
+function New-RequiredFactResolutionEntries {
+    param(
+        [string[]]$RequiredFacts,
+        $FactSourceMap,
+        $FactEvidenceInfo
+    )
+
+    $entries = @()
+    foreach ($requiredFact in @($RequiredFacts | Sort-Object -Unique)) {
+        $factName = [string]$requiredFact
+        if ([string]::IsNullOrWhiteSpace($factName)) {
+            continue
+        }
+
+        $factSources = if ($null -ne $FactSourceMap -and $FactSourceMap.ContainsKey($factName)) {
+            @($FactSourceMap[$factName] | Sort-Object -Unique)
+        } else {
+            @()
+        }
+        $providers = @(Get-FactEvidenceProviderEntries -FactEvidenceInfo $FactEvidenceInfo -FactName $factName)
+        $state = if ($factSources.Count -gt 0) { 'satisfied' } else { 'missing' }
+        $providerText = @(
+            @($providers) |
+                ForEach-Object {
+                    $providerSource = [string]$_.source
+                    $providerRole = [string]$_.role
+                    if ([string]::IsNullOrWhiteSpace($providerRole)) {
+                        $providerSource
+                    } else {
+                        "${providerSource}:${providerRole}"
+                    }
+                } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $statusText = if ($state -eq 'satisfied') {
+            if ($providerText.Count -gt 0) {
+                "required_fact satisfied [$factName] by [$((@($providerText) -join ', '))]"
+            } else {
+                "required_fact satisfied [$factName] by source buckets [$((@($factSources) -join ', '))]"
+            }
+        } else {
+            "required_fact missing [$factName]"
+        }
+
+        $entries += [ordered]@{
+            fact = $factName
+            state = $state
+            fact_sources = @($factSources)
+            providers = @($providers)
+            provider_count = [int]$providers.Count
+            status_text = $statusText
+        }
+    }
+
+    return @($entries)
+}
+
 function New-FactResolutionContractEntrySummary {
     param(
         $ContractEntry,
@@ -1400,7 +1513,8 @@ function New-FactResolutionSummary {
         $SystemInputSummary,
         [string[]]$RequiredFacts,
         [string[]]$GraphProvidedFacts,
-        $ResourceContractSummary
+        $ResourceContractSummary,
+        $FactEvidenceInfo = $null
     )
 
     $resourceSummaryValue = if ($null -eq $ResourceContractSummary) {
@@ -1421,6 +1535,10 @@ function New-FactResolutionSummary {
             $contracts += $entrySummary
         }
     }
+    $requiredFactResolution = New-RequiredFactResolutionEntries `
+        -RequiredFacts $factInventory.required_facts `
+        -FactSourceMap $factSourceMap `
+        -FactEvidenceInfo $FactEvidenceInfo
 
     return [ordered]@{
         declared_contracts = [int]$resourceSummaryValue.declared_contracts
@@ -1429,6 +1547,7 @@ function New-FactResolutionSummary {
         violated_count = [int]$resourceSummaryValue.violated_count
         unknown_count = [int]$resourceSummaryValue.unknown_count
         fact_inventory = $factInventory
+        required_fact_resolution = @($requiredFactResolution)
         contracts = @($contracts | Sort-Object contract)
         satisfied_contracts = @($resourceSummaryValue.satisfied_contracts)
         violations = @($resourceSummaryValue.violations)
@@ -1468,6 +1587,7 @@ function New-EmptyFactResolutionSummary {
             audit_provided_facts = @()
             all_available_facts = @()
         }
+        required_fact_resolution = @()
         contracts = @()
         satisfied_contracts = @()
         violations = @()
@@ -3304,6 +3424,11 @@ function New-FactResolutionComparisonSide {
     } else {
         $FactResolutionSummary
     }
+    $requiredFactResolution = if ($null -ne $summaryValue.PSObject.Properties['required_fact_resolution']) {
+        @($summaryValue.required_fact_resolution)
+    } else {
+        @()
+    }
 
     return [ordered]@{
         declared_contracts = [int]$summaryValue.declared_contracts
@@ -3319,6 +3444,7 @@ function New-FactResolutionComparisonSide {
             audit_provided_facts = @($summaryValue.fact_inventory.audit_provided_facts)
             all_available_facts = @($summaryValue.fact_inventory.all_available_facts)
         }
+        required_fact_resolution = @($requiredFactResolution)
         contracts = @($summaryValue.contracts)
         satisfied_contracts = @($summaryValue.satisfied_contracts)
         violations = @($summaryValue.violations)
@@ -3696,7 +3822,8 @@ function New-ArtifactReport {
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveSummary = Get-RuntimeObserveSummary -RuntimeObserveInfo $runtimeObserveInfo
     $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
-    $factEvidencePath = Get-CaseFactEvidencePath -Bundle $Bundle -CaseEntry $CaseEntry
+    $factEvidenceInfo = Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
+    $factEvidencePath = if ($null -ne $factEvidenceInfo) { $factEvidenceInfo.Path } else { $null }
 
     $graph = if ($null -ne $CaseGraph) { $CaseGraph.Data } else { $null }
     $graphProvidedFacts = if ($null -ne $graph) {
@@ -3807,7 +3934,8 @@ function New-ArtifactReport {
         -SystemInputSummary $systemInputSummary `
         -RequiredFacts $requiredFacts `
         -GraphProvidedFacts $graphProvidedFacts `
-        -ResourceContractSummary $resourceContractSummary
+        -ResourceContractSummary $resourceContractSummary `
+        -FactEvidenceInfo $factEvidenceInfo
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
     $bindingResultSummary = Get-BindingResultSummary -Graph $graph
     $bringupOrderSummary = Get-BringupOrderSummary -Graph $graph

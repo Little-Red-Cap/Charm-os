@@ -9168,6 +9168,21 @@ if ($ResourceSummary) {
     }
     Write-Host ''
 
+    if ($null -ne $resourceSummaryResult.PSObject.Properties['required_fact_resolution'] -and
+        @($resourceSummaryResult.required_fact_resolution).Count -gt 0) {
+        Write-Host '[REQUIRED FACT RESOLUTION]'
+        foreach ($requiredFact in @($resourceSummaryResult.required_fact_resolution)) {
+            Write-Host "fact = $([string]$requiredFact.fact) state=$([string]$requiredFact.state) sources=[$((@($requiredFact.fact_sources) -join ', '))] providers=$([int]$requiredFact.provider_count)"
+            foreach ($provider in @($requiredFact.providers)) {
+                Write-Host "provider = $([string]$provider.source) role=$([string]$provider.role) kind=$([string]$provider.kind)"
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$requiredFact.status_text)) {
+                Write-Host "status_text = $([string]$requiredFact.status_text)"
+            }
+        }
+        Write-Host ''
+    }
+
     Write-Host '[CONTRACTS]'
     foreach ($contractSummary in @($resourceSummaryResult.contracts)) {
         Write-Host "contract = $([string]$contractSummary.contract) state=$([string]$contractSummary.state) requires=[$((@($contractSummary.requires) -join ', '))]"
@@ -9535,6 +9550,12 @@ if ($null -ne $reportData.PSObject.Properties['fact_resolution'] -and $null -ne 
         $factValues = @($factResolution.fact_inventory.$factGroup)
         if (@($factValues).Count -gt 0) {
             Write-Host "$factGroup = $((@($factValues) -join ', '))"
+        }
+    }
+    if ($null -ne $factResolution.PSObject.Properties['required_fact_resolution'] -and
+        @($factResolution.required_fact_resolution).Count -gt 0) {
+        foreach ($requiredFact in @($factResolution.required_fact_resolution)) {
+            Write-Host "required_fact[$([string]$requiredFact.fact)] = $([string]$requiredFact.state) sources=[$((@($requiredFact.fact_sources) -join ', '))] providers=$([int]$requiredFact.provider_count)"
         }
     }
     Write-Host ''

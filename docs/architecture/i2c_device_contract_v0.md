@@ -331,10 +331,14 @@ required=6 provided=5 missing=1 optional_unknown=1
 - `structure.required_facts`
 - `resource_contract.provided_facts`
 - `fact_resolution.fact_inventory`
+- `fact_resolution.required_fact_resolution`
 - `fact_resolution.resource_hotspots`
 
 其中 `pinmux:pb8/pb9.af4` 在 sidecar 中被保留为 required 但未 available，
 用于表达“contract 已经知道需要这个事实，但当前报告仍缺证据”。
+`required_fact_resolution` 会进一步说明每条 required fact 当前是 `satisfied` 还是 `missing`，
+以及它来自哪个 fact source bucket；如果 `fact_evidence.raw_facts` 里存在 provider，
+报告还会带出对应的 `source / role / kind`。
 
 这一步仍然只做报告投影，不做构建期强制。
 

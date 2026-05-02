@@ -1211,6 +1211,7 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
 - `declared_contracts / audited_count / satisfied_count / violated_count / unknown_count`
 - `fact_inventory`
 - `contracts`
+- `required_fact_resolution`
 - `resource_hotspots`
 
 其中：
@@ -1222,13 +1223,18 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
   则把每条声明输入里的资源法律压成稳定结果项，
   至少带出
   `contract / state / requires / present_facts / missing_facts / fact_sources / status_text`
+- `required_fact_resolution`
+  则把每条 `required_fact` 压成稳定结果项，
+  至少带出
+  `fact / state / fact_sources / providers / provider_count / status_text`
+  这让报告能回答“这个 required fact 是被哪个事实桶、哪个 raw evidence provider 满足的”
 
 也就是说：
 
 - `resource_contract`
   继续保留输入侧法律文本与最小审计层
 - `fact_resolution`
-  则负责把输入事实、图事实与合同成立性收束成正式结果语言
+  则负责把输入事实、图事实、required fact 满足关系与合同成立性收束成正式结果语言
 
 ### 5.9 运行时观察摘要
 

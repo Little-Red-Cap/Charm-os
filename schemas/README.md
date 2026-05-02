@@ -62,6 +62,8 @@
   - 对应 `system_compiler.artifact_report/v0` 中 I2C device contract facts 的投影样例
   - 用途偏向验证 `io.device_i2c_facts` 可以通过现有 `fact_resolution.fact_inventory`
     与 `resource_contract.provided_facts` 进入 artifact report，而不新增顶层 I2C 专用字段
+  - 同时钉住 `fact_resolution.required_fact_resolution` 如何表达 required fact 的满足状态、
+    fact source bucket 与 raw evidence provider
   - 它是 schema-level sample，并与当前 `i2c-device-contract-facts-smoke` 真实导出链保持同一种投影语义
 
 - `system_compiler.fact_evidence.v0.schema.json`

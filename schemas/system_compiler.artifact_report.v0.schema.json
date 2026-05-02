@@ -1058,6 +1058,73 @@
         }
       }
     },
+    "requiredFactProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "role",
+        "kind",
+        "state"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "provided"
+          ]
+        }
+      }
+    },
+    "requiredFactResolutionEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact",
+        "state",
+        "fact_sources",
+        "providers",
+        "provider_count",
+        "status_text"
+      ],
+      "properties": {
+        "fact": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "satisfied",
+            "missing"
+          ]
+        },
+        "fact_sources": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactProvider"
+          }
+        },
+        "provider_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status_text": {
+          "type": "string"
+        }
+      }
+    },
     "factResolutionContractEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -1145,6 +1212,12 @@
         },
         "fact_inventory": {
           "$ref": "#/$defs/factInventory"
+        },
+        "required_fact_resolution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactResolutionEntry"
+          }
         },
         "contracts": {
           "type": "array",

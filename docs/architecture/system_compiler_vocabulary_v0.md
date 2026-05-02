@@ -393,6 +393,7 @@ report / system 侧的现实载体包括：
 - `required_facts`
 - `provided_facts`
 - `artifact report.fact_resolution.fact_inventory`
+- `artifact report.fact_resolution.required_fact_resolution`
 - board 已知资源与环境条件
 
 这里需要特别注意：

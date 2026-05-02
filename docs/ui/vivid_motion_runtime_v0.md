@@ -322,6 +322,29 @@ v0 规则：
 - cancel 或 begin failure 后恢复 begin 前 page truth。
 - runner 获取的 snapshot 必须由 runner 释放；runner 回到 idle 时不得持有 `SnapshotHandle`。
 
+### PageTransition v0 运行形态矩阵
+
+这张表是当前 `PageTransitionRunner` 的阶段性收口。它描述的是已经由 demo 验证的行为，不是未来目标。
+
+| requested / admission | runtime shape | source ownership | destination shape | begin result | page truth result | evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Rich/Cheap -> PixelDouble` | 双 PixelSurface snapshot compose | runner 持有 source snapshot | runner 持有 destination snapshot | `Started` | commit 后 source hidden，destination live | `normal_commit` / `cancel_during_compose` |
+| `Rich/Cheap -> PixelSingle` | source snapshot over live destination | runner 持有 source snapshot | destination prepare 后保持 live | `Started` | commit 后 source hidden，destination live；cancel 后恢复 begin 前 | `pixel_single_live_destination` / `pixel_single_cancel` / `pixel_single_rebegin_interrupt` |
+| `Static -> StaticCut` | 主动 static cut | 无 snapshot | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `static_profile_static_cut` |
+| `None -> Reject` | 拒绝事务 | 无 snapshot | 不调用 prepare | `Rejected` | begin 前 page truth 不变 | `none_profile_reject` |
+| budget / caps -> `CommandSnapshot` | 当前合法降级为 static cut | 无 snapshot / 无 command payload | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `command_snapshot_static_cut` |
+| source capture fail | begin failure rollback | 捕获失败，无持有 | 不进入 prepare / capture | `SourceCaptureFailed` | 恢复 begin 前 page truth | `source_capture_fail` |
+| destination capture fail | begin failure rollback | 释放已捕获 source snapshot | destination capture 失败 | `DestinationCaptureFailed` | 恢复 begin 前 page truth | `destination_capture_fail` |
+| active begin interrupt | 旧事务 abort，新事务 begin | 先释放旧事务持有 snapshot | 先恢复旧 page truth，再进入新事务 | 新事务 result | 由新事务 commit/cancel 决定 | `rebegin_interrupt` / `pixel_single_rebegin_interrupt` |
+
+收口原则：
+
+- `Static` 是主动运行形态；`None` 是主动拒绝形态。
+- `CommandSnapshot` 目前只是 admission 结果，不代表双页 command replay 已实现。
+- `PixelSingle` 是降级后的真实合成路径，不是 static cut。
+- `PageTransitionRunner` 回到 idle 时不得持有任何 `SnapshotHandle`。
+- 所有路径都必须能被 `PageTransitionTrace` / `PageTransitionLedger` 审计。
+
 新增验证入口：
 
 ```text

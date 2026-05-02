@@ -615,13 +615,14 @@ namespace {
         return true;
     }
 
-    [[nodiscard]] bool run_pixel_single_live_destination() noexcept {
+    [[nodiscard]] bool run_pixel_single_fade_slide_live_destination() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{220, 70, 30, 255});
         PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{30, 110, 230, 255}, .x = 4, .y = 2};
         ui::scene::PageTransitionRunner runner{};
         auto access = env.scene.access();
-        const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare, pixel_single_budget()));
+        const auto begin =
+            runner.begin(env.scene, access, fade_slide_transition_spec(env, prepare, pixel_single_budget()));
         const auto trace = runner.trace();
         const auto ledger = runner.ledger();
         if (!expect(begin.started(), "pixel single transition starts")) return false;
@@ -639,14 +640,33 @@ namespace {
         }
         if (!expect(env.destination.live(), "pixel single destination is live")) return false;
         env.canvas.clear(rgba{0, 0, 0, 255});
-        const auto frame = runner.sample(env.scene, 0);
+        const auto frame = runner.sample(env.scene, 60);
         const auto after_sample = runner.ledger();
         if (!expect(frame.valid, "pixel single composes source frame")) return false;
         if (!expect_source_only_frame(frame, "pixel single composes source over live destination")) {
             return false;
         }
-        const auto source_pixel = env.canvas.get_pixel(7, 2);
-        if (!expect(source_pixel.r == 220, "pixel single source snapshot is composed")) return false;
+        if (!expect_fade_slide_trace(runner.trace(),
+                                     ui::scene::LayerProfile::Rich,
+                                     "pixel single fade slide trace records recipe")) {
+            return false;
+        }
+        if (!expect_transform(frame.transition.motion.transform,
+                              3,
+                              120,
+                              "pixel single fade slide frame carries transform and opacity")) {
+            return false;
+        }
+        if (!expect_transform(frame.source.plan.transform,
+                              3,
+                              120,
+                              "pixel single fade slide source compose uses sampled transform")) {
+            return false;
+        }
+        if (!expect(frame.source.replay.stats.alpha_blend_count == 1,
+                    "pixel single fade slide source compose applies opacity blend")) {
+            return false;
+        }
         if (!expect_source_only_layer_cost(after_sample,
                                            "pixel single ledger records one snapshot peak")) {
             return false;
@@ -674,9 +694,11 @@ namespace {
                     "pixel single ledger records released commit")) {
             return false;
         }
-        std::printf("[pt] pixel_single status=%s admission=%s source_caps=%u dst_caps=%u snapshots=%u bytes=%u pixels=%u\n",
+        std::printf("[pt] pixel_single_fade_slide status=%s admission=%s x=%d opacity=%u source_caps=%u dst_caps=%u snapshots=%u bytes=%u pixels=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     ui::scene::layer_admission_name(begin.admission),
+                    static_cast<int>(frame.transition.motion.transform.x),
+                    static_cast<unsigned>(frame.transition.motion.transform.opacity),
                     static_cast<unsigned>(committed_trace.source_capture_count),
                     static_cast<unsigned>(committed_trace.destination_capture_count),
                     static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
@@ -1037,7 +1059,7 @@ int main() {
     if (!run_command_snapshot_static_cut()) return 1;
     if (!run_static_profile_static_cut()) return 1;
     if (!run_none_profile_reject()) return 1;
-    if (!run_pixel_single_live_destination()) return 1;
+    if (!run_pixel_single_fade_slide_live_destination()) return 1;
     if (!run_pixel_single_cancel()) return 1;
     if (!run_prepare_fail()) return 1;
     if (!run_source_capture_fail()) return 1;

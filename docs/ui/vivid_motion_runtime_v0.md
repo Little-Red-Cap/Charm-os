@@ -329,7 +329,7 @@ v0 规则：
 | requested / admission | runtime shape | source ownership | destination shape | begin result | page truth result | evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | `Rich/Cheap -> PixelDouble` | 双 PixelSurface snapshot compose | runner 持有 source snapshot | runner 持有 destination snapshot | `Started` | commit 后 source hidden，destination live | `normal_commit` / `fade_slide_pixel_double` / `cancel_during_compose` |
-| `Rich/Cheap -> PixelSingle` | source snapshot over live destination | runner 持有 source snapshot | destination prepare 后保持 live | `Started` | commit 后 source hidden，destination live；cancel 后恢复 begin 前 | `pixel_single_live_destination` / `pixel_single_cancel` / `pixel_single_rebegin_interrupt` |
+| `Rich/Cheap -> PixelSingle` | source snapshot over live destination | runner 持有 source snapshot | destination prepare 后保持 live | `Started` | commit 后 source hidden，destination live；cancel 后恢复 begin 前 | `pixel_single_fade_slide_live_destination` / `pixel_single_cancel` / `pixel_single_rebegin_interrupt` |
 | `Static -> StaticCut` | 主动 static cut | 无 snapshot | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `static_profile_static_cut` |
 | `None -> Reject` | 拒绝事务 | 无 snapshot | 不调用 prepare | `Rejected` | begin 前 page truth 不变 | `none_profile_reject` |
 | budget / caps -> `CommandSnapshot` | 当前合法降级为 static cut | 无 snapshot / 无 command payload | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `command_snapshot_static_cut` |
@@ -410,6 +410,7 @@ Examples/ui/vivid/page_transition_demo
 这条用例验证的是：
 
 - `PixelDouble` admission 下 source / destination 都以 PixelSurface snapshot 参与 compose。
+- `PixelSingle` admission 下 source 以 PixelSurface snapshot 参与 compose，destination 保持 live 且不执行 destination snapshot compose。
 - `MotionRecipeKind::FadeSlide` 会进入 `MotionTransitionTrace`。
 - sample frame 同时携带位移与 opacity。
 - source compose plan 使用 sampled transform / opacity。
@@ -479,4 +480,4 @@ Examples/ui/vivid/page_transition_demo
 - sample 阶段只执行 source snapshot compose，destination compose result 保持 invalid。
 - commit / cancel 后 runner 释放所持 source snapshot，回到 idle 时 `snapshot_count == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_live_destination`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 cancel / interrupt 后恢复 begin 前 page truth。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_fade_slide_live_destination`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 cancel / interrupt 后恢复 begin 前 page truth。

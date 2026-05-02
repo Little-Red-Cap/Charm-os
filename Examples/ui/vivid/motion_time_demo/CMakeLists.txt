@@ -3,6 +3,7 @@ project(vivid-motion-time-demo)
 set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)
+enable_testing()
 
 add_executable(${target_name}
     main.cpp
@@ -17,3 +18,9 @@ set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_POSIX OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
+
+add_test(NAME ${target_name}
+    COMMAND $<TARGET_FILE:${target_name}>)
+set_tests_properties(${target_name} PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[mt\\] run=motion_time_demo phase=end result=ok cases=12"
+    FAIL_REGULAR_EXPRESSION "\\[ERR\\]|result=fail")

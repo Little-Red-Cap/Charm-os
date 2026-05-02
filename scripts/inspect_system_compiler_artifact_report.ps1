@@ -2779,6 +2779,14 @@ function New-ArtifactRootFactResolutionCompareCaseSummary {
                 Sort-Object -Unique
         )
         fact_inventory_changes = $comparison.fact_inventory_changes
+        required_fact_resolution_change_count = @($comparison.required_fact_resolution_changes).Count
+        required_facts_changed = @(
+            @($comparison.required_fact_resolution_changes) |
+                ForEach-Object { [string]$_.fact } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        required_fact_resolution_changes = @($comparison.required_fact_resolution_changes)
         hotspots_added = @($comparison.hotspot_changes.added)
         hotspots_removed = @($comparison.hotspot_changes.removed)
         contract_changes = @($comparison.contract_changes)
@@ -2849,6 +2857,77 @@ function New-ArtifactRootFactResolutionCompareFactInventoryMatrix {
     return $matrix
 }
 
+function New-ArtifactRootRequiredFactResolutionChangeEntry {
+    param(
+        [string]$FactName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($FactName)) {
+        return $null
+    }
+
+    $changeCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $changeEntry = @(
+            @($caseSummary.required_fact_resolution_changes) |
+                Where-Object { [string]$_.fact -eq $FactName } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+
+        if ($null -eq $changeEntry) {
+            continue
+        }
+
+        $changeCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            change_kind = [string]$changeEntry.change_kind
+            left_state = [string]$changeEntry.left_state
+            right_state = [string]$changeEntry.right_state
+            left_fact_sources = @($changeEntry.left_fact_sources)
+            right_fact_sources = @($changeEntry.right_fact_sources)
+            left_provider_count = [int]$changeEntry.left_provider_count
+            right_provider_count = [int]$changeEntry.right_provider_count
+            left_providers = @($changeEntry.left_providers)
+            right_providers = @($changeEntry.right_providers)
+            left_status_text = if ([string]::IsNullOrWhiteSpace([string]$changeEntry.left_status_text)) { $null } else { [string]$changeEntry.left_status_text }
+            right_status_text = if ([string]::IsNullOrWhiteSpace([string]$changeEntry.right_status_text)) { $null } else { [string]$changeEntry.right_status_text }
+        }
+    }
+
+    return [ordered]@{
+        fact = $FactName
+        case_count = @($changeCases).Count
+        change_kinds = @(
+            @($changeCases) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        cases = @($changeCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootRequiredFactResolutionChangeMatrix {
+    param(
+        [object[]]$CaseSummaries
+    )
+
+    $factNames = @(
+        foreach ($caseSummary in @($CaseSummaries)) {
+            @($caseSummary.required_facts_changed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    return @(
+        foreach ($factName in @($factNames)) {
+            New-ArtifactRootRequiredFactResolutionChangeEntry -FactName $factName -CaseSummaries $CaseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object fact
+}
+
 function New-ArtifactRootFactResolutionComparisonResult {
     param(
         [object[]]$LoadedReports
@@ -2888,6 +2967,7 @@ function New-ArtifactRootFactResolutionComparisonResult {
             New-ArtifactRootResourceCompareContractEntry -ContractName $contractName -CaseSummaries $caseSummaries
         }
     ) | Where-Object { $null -ne $_ } | Sort-Object contract
+    $requiredFactResolutionChangeMatrix = New-ArtifactRootRequiredFactResolutionChangeMatrix -CaseSummaries $caseSummaries
 
     return [ordered]@{
         kind = 'fact_resolution_summary/v0'
@@ -2908,9 +2988,11 @@ function New-ArtifactRootFactResolutionComparisonResult {
                 Sort-Object
         )
         contract_change_count = [int](@($caseSummaries | Measure-Object -Property contract_change_count -Sum).Sum)
+        required_fact_resolution_change_count = [int](@($caseSummaries | Measure-Object -Property required_fact_resolution_change_count -Sum).Sum)
         cases = @($caseSummaries)
         summary_change_matrix = @($summaryChangeMatrix)
         contract_change_matrix = @($contractChangeMatrix)
+        required_fact_resolution_change_matrix = @($requiredFactResolutionChangeMatrix)
         fact_inventory_change_matrix = New-ArtifactRootFactResolutionCompareFactInventoryMatrix -CaseSummaries $caseSummaries
     }
 }
@@ -8344,6 +8426,7 @@ if ($ListCases) {
 }
 
 $summaryRows = @($selectedReports | ForEach-Object { New-CaseSummaryRow -LoadedReport $_ })
+$selectsWholeArtifactRoot = [string]::IsNullOrWhiteSpace($Report) -and $Case.Count -eq 0
 
 if (-not [string]::IsNullOrWhiteSpace($GraphPath) -and $selectedReports.Count -ne 1) {
     throw "-GraphPath requires exactly one selected artifact report"
@@ -9033,7 +9116,7 @@ if ($RecentTransitions) {
 }
 
 if ($ResourceSummary) {
-    if ($selectedReports.Count -ne 1) {
+    if ($selectsWholeArtifactRoot -or $selectedReports.Count -ne 1) {
         $artifactRootResourceSummary = New-ArtifactRootFactResolutionSummaryResult -LoadedReports $selectedReports
         $artifactRootResourceComparison = New-ArtifactRootResourceContractComparisonResult -LoadedReports $selectedReports
         $artifactRootFactResolutionComparison = New-ArtifactRootFactResolutionComparisonResult -LoadedReports $selectedReports

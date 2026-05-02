@@ -37,6 +37,21 @@
         "$ref": "#/$defs/changeKind"
       }
     },
+    "requiredFactResolutionChangeKind": {
+      "type": "string",
+      "enum": [
+        "added",
+        "removed",
+        "state_changed",
+        "provider_changed"
+      ]
+    },
+    "requiredFactResolutionChangeKindArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/requiredFactResolutionChangeKind"
+      }
+    },
     "namedChangeBucket": {
       "type": "object",
       "additionalProperties": false,
@@ -662,6 +677,9 @@
         "contract_change_count",
         "contracts_changed",
         "fact_inventory_changes",
+        "required_fact_resolution_change_count",
+        "required_facts_changed",
+        "required_fact_resolution_changes",
         "hotspots_added",
         "hotspots_removed",
         "contract_changes"
@@ -695,6 +713,19 @@
         "fact_inventory_changes": {
           "$ref": "#/$defs/factInventoryChanges"
         },
+        "required_fact_resolution_change_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required_facts_changed": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "required_fact_resolution_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactResolutionChange"
+          }
+        },
         "hotspots_added": {
           "$ref": "#/$defs/stringArray"
         },
@@ -705,6 +736,170 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/comparisonCaseContractChange"
+          }
+        }
+      }
+    },
+    "requiredFactResolutionChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_fact_sources",
+        "right_fact_sources",
+        "left_provider_count",
+        "right_provider_count",
+        "left_providers",
+        "right_providers",
+        "left_status_text",
+        "right_status_text"
+      ],
+      "properties": {
+        "fact": {
+          "type": "string"
+        },
+        "change_kind": {
+          "$ref": "#/$defs/requiredFactResolutionChangeKind"
+        },
+        "left_state": {
+          "type": "string"
+        },
+        "right_state": {
+          "type": "string"
+        },
+        "left_fact_sources": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_fact_sources": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_provider_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "right_provider_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "left_providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactProvider"
+          }
+        },
+        "right_providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactProvider"
+          }
+        },
+        "left_status_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_status_text": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "requiredFactResolutionChangeMatrixCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case",
+        "profile",
+        "board",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_fact_sources",
+        "right_fact_sources",
+        "left_provider_count",
+        "right_provider_count",
+        "left_providers",
+        "right_providers",
+        "left_status_text",
+        "right_status_text"
+      ],
+      "properties": {
+        "case": {
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "board": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "change_kind": {
+          "$ref": "#/$defs/requiredFactResolutionChangeKind"
+        },
+        "left_state": {
+          "type": "string"
+        },
+        "right_state": {
+          "type": "string"
+        },
+        "left_fact_sources": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_fact_sources": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_provider_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "right_provider_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "left_providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactProvider"
+          }
+        },
+        "right_providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactProvider"
+          }
+        },
+        "left_status_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_status_text": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "requiredFactResolutionChangeMatrixEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact",
+        "case_count",
+        "change_kinds",
+        "cases"
+      ],
+      "properties": {
+        "fact": {
+          "type": "string"
+        },
+        "case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "change_kinds": {
+          "$ref": "#/$defs/requiredFactResolutionChangeKindArray"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactResolutionChangeMatrixCase"
           }
         }
       }
@@ -976,9 +1171,11 @@
         "changed_cases",
         "unchanged_cases",
         "contract_change_count",
+        "required_fact_resolution_change_count",
         "cases",
         "summary_change_matrix",
         "contract_change_matrix",
+        "required_fact_resolution_change_matrix",
         "fact_inventory_change_matrix"
       ],
       "properties": {
@@ -1010,6 +1207,10 @@
           "type": "integer",
           "minimum": 0
         },
+        "required_fact_resolution_change_count": {
+          "type": "integer",
+          "minimum": 0
+        },
         "cases": {
           "type": "array",
           "items": {
@@ -1026,6 +1227,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/contractChangeMatrixEntry"
+          }
+        },
+        "required_fact_resolution_change_matrix": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactResolutionChangeMatrixEntry"
           }
         },
         "fact_inventory_change_matrix": {

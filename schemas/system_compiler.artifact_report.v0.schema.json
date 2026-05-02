@@ -1173,6 +1173,86 @@
         }
       }
     },
+    "requiredFactResolutionChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact",
+        "change_kind",
+        "left_state",
+        "right_state",
+        "left_fact_sources",
+        "right_fact_sources",
+        "left_provider_count",
+        "right_provider_count",
+        "left_providers",
+        "right_providers",
+        "left_status_text",
+        "right_status_text"
+      ],
+      "properties": {
+        "fact": {
+          "type": "string"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "state_changed",
+            "provider_changed"
+          ]
+        },
+        "left_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "satisfied",
+            "missing"
+          ]
+        },
+        "right_state": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "satisfied",
+            "missing"
+          ]
+        },
+        "left_fact_sources": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "right_fact_sources": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "left_provider_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "right_provider_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "left_providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactProvider"
+          }
+        },
+        "right_providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactProvider"
+          }
+        },
+        "left_status_text": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "right_status_text": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
     "factResolution": {
       "type": "object",
       "additionalProperties": false,
@@ -2253,6 +2333,7 @@
         "right",
         "summary_changes",
         "fact_inventory_changes",
+        "required_fact_resolution_changes",
         "contract_changes",
         "hotspot_changes"
       ],
@@ -2271,6 +2352,12 @@
         },
         "fact_inventory_changes": {
           "$ref": "#/$defs/factInventoryChanges"
+        },
+        "required_fact_resolution_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requiredFactResolutionChange"
+          }
         },
         "contract_changes": {
           "type": "array",

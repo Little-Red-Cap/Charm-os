@@ -61,6 +61,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 - `scripts/export_system_compiler_artifact_report.ps1`
 - `scripts/inspect_system_compiler_artifact_report.ps1`
 - `scripts/materialized_graph_required_fact_resolution_matrix_smoke.ps1`
+- `scripts/materialized_graph_required_fact_resolution_compare_smoke.ps1`
 
 它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
 与可选 `fact_evidence` sidecar，
@@ -69,6 +70,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 用于把 case 级 `artifact report` 直接展开成人类可读摘要或机器继续消费的 JSON 视图。
 `materialized_graph_required_fact_resolution_matrix_smoke.ps1` 则用于钉住 artifact-root 级
 `required_fact_resolution_matrix` 的横向聚合语义。
+`materialized_graph_required_fact_resolution_compare_smoke.ps1` 则用于钉住 compare 模式下
+`required_fact_resolution_changes` 与 `required_fact_resolution_change_matrix` 的漂移语义。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
 `export_bundle/v1` 现在可以同时承载三类 case：
@@ -345,6 +348,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `system_formation_summary.blocker_change_matrix`
 - `fact_resolution_summary.changed_case_count / unchanged_case_count`
 - `fact_resolution_summary.fact_inventory_change_matrix`
+- `fact_resolution_summary.required_fact_resolution_change_matrix`
 
 这意味着默认总览已经能直接回答：
 
@@ -1400,6 +1404,7 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
 - `left / right`
 - `summary_changes`
 - `fact_inventory_changes`
+- `required_fact_resolution_changes`
 - `contract_changes`
 - `hotspot_changes`
 
@@ -1407,6 +1412,7 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
 报告也已经可以继续回答：
 
 - 哪组 `declared / subject / required / graph_provided / audit_provided` facts 发生了变化
+- 哪个 required fact 从 `missing` 变为 `satisfied`，或 provider/source 发生了变化
 - 哪条资源法律虽然仍存在，但其成立性结果已经漂移
 - 当前 drift 到底停留在最小审计层，还是已经进入正式 fact resolution 结果面
 

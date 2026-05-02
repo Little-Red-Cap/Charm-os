@@ -423,6 +423,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_formation_summary.status_change_matrix / blocker_change_matrix`
 - `comparison.fact_resolution_summary.changed_case_count`
 - `comparison.fact_resolution_summary.fact_inventory_change_matrix`
+- `comparison.fact_resolution_summary.required_fact_resolution_change_matrix`
 - `comparison.fact_resolution_summary.kind / mode`
 - `cases[*].Formation`
 - `cases[*].InpCmp`
@@ -998,6 +999,7 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - `left / right`
 - `summary_changes`
 - `fact_inventory_changes`
+- `required_fact_resolution_changes`
 - `contract_changes`
 - `hotspot_changes`
 
@@ -1024,6 +1026,7 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 - `changed_cases / unchanged_cases`
 - `summary_change_matrix`
 - `contract_change_matrix`
+- `required_fact_resolution_change_matrix`
 - `fact_inventory_change_matrix`
 
 这让资源解释面不只会横向看“哪些合同在哪些 case 中成立”，

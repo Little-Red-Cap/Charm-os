@@ -127,6 +127,8 @@ $reportOutputRoot = Join-Path $resolvedOutputRoot 'report'
 $artifactReportOutputRoot = Join-Path $resolvedOutputRoot 'artifact-report'
 $inspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.inspect.json'
 $rootInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.root.inspect.json'
+$whyInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.why.inspect.json'
+$graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.graph_path.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -226,6 +228,38 @@ Assert-Condition ($null -ne $inspectFactChange) "inspect required fact resolutio
 Assert-Condition ([string]$inspectFactChange.left_state -eq 'missing') 'inspect left required fact state must be missing'
 Assert-Condition ([string]$inspectFactChange.right_state -eq 'satisfied') 'inspect right required fact state must be satisfied'
 
+$whyInspectResult = Invoke-CommandJson -OutputPath $whyInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -WhyCapability $ExpectedFact -AsJson
+}
+Assert-Condition ([string]$whyInspectResult.query.kind -eq 'why_capability') 'inspect why query kind mismatch'
+Assert-Condition ([string]$whyInspectResult.query.scope -eq 'report') 'inspect why query scope mismatch'
+Assert-Condition ($null -ne $whyInspectResult.query.comparison) 'inspect why missing comparison payload'
+Assert-Condition ([bool]$whyInspectResult.query.comparison.resource_changed) 'inspect why comparison must mark resource changed'
+Assert-Condition ([bool]$whyInspectResult.query.comparison.fact_resolution_changed) 'inspect why comparison must mark fact resolution changed'
+Assert-Condition ((@($whyInspectResult.query.comparison.resource_change_kinds) -contains 'required_fact_state_changed')) 'inspect why comparison missing required_fact_state_changed kind'
+Assert-Condition ((@($whyInspectResult.query.comparison.required_fact_resolution_change_kinds) -contains 'state_changed')) 'inspect why comparison missing state_changed required fact kind'
+Assert-Condition ((@($whyInspectResult.query.comparison.required_facts_changed) -contains $ExpectedFact)) "inspect why comparison missing changed required fact: $ExpectedFact"
+$whyFactChange = Get-RequiredFactResolutionChange `
+    -Changes @($whyInspectResult.query.comparison.fact_resolution.required_fact_resolution_changes) `
+    -FactName $ExpectedFact
+Assert-Condition ($null -ne $whyFactChange) "inspect why required fact resolution change missing: $ExpectedFact"
+Assert-Condition ([string]$whyFactChange.left_state -eq 'missing') 'inspect why left required fact state must be missing'
+Assert-Condition ([string]$whyFactChange.right_state -eq 'satisfied') 'inspect why right required fact state must be satisfied'
+Assert-Condition (@(
+    @($whyInspectResult.query.reasons) |
+        Where-Object { [string]$_ -like "*compare required_fact $ExpectedFact changed: state_changed*" }
+).Count -eq 1) 'inspect why reasons missing required fact resolution explanation'
+
+$graphPathInspectResult = Invoke-CommandJson -OutputPath $graphPathInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -GraphPath $ExpectedFact -AsJson
+}
+Assert-Condition ([string]$graphPathInspectResult.query.kind -eq 'graph_path') 'inspect graph path query kind mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.scope -eq 'report') 'inspect graph path scope mismatch'
+Assert-Condition ([string]$graphPathInspectResult.query.result.capability -eq $ExpectedFact) 'inspect graph path capability mismatch'
+Assert-Condition ($null -ne $graphPathInspectResult.query.result.comparison) 'inspect graph path missing comparison payload'
+Assert-Condition ([bool]$graphPathInspectResult.query.result.comparison.fact_resolution_changed) 'inspect graph path comparison must mark fact resolution changed'
+Assert-Condition ((@($graphPathInspectResult.query.result.comparison.required_facts_changed) -contains $ExpectedFact)) "inspect graph path comparison missing changed required fact: $ExpectedFact"
+
 $rootInspectResult = Invoke-CommandJson -OutputPath $rootInspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -ResourceSummary -AsJson
 }
@@ -254,6 +288,8 @@ $summary = [ordered]@{
     artifact_report = $artifactReportPath
     inspect_json = $inspectJsonPath
     root_inspect_json = $rootInspectJsonPath
+    why_inspect_json = $whyInspectJsonPath
+    graph_path_inspect_json = $graphPathInspectJsonPath
     case = $Case
     donor_case = $DonorCase
     expected_fact = $ExpectedFact
@@ -262,6 +298,8 @@ $summary = [ordered]@{
         comparison_fact_resolution_present = $true
         required_fact_changed_missing_to_satisfied = $true
         expected_provider_source_present = $true
+        why_explains_required_fact_resolution_change = $true
+        graph_path_exposes_required_fact_resolution_change = $true
         artifact_root_change_matrix_present = $true
     }
 }

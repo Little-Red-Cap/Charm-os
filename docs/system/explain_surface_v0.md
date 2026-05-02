@@ -695,6 +695,10 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.fact_resolution.required_fact_resolution_changes`
 
 如果选择的是整组 compare report，
 artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
@@ -703,6 +707,8 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
 - `compared_cases / bringup_compare_cases / resource_compare_cases`
 - `resource_contracts`
+- `fact_resolution_compare_case_count / fact_resolution_compare_cases`
+- `required_facts_changed`
 
 这意味着调用方现在不只可以追问：
 
@@ -784,6 +790,10 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.fact_resolution.required_fact_resolution_changes`
 
 也就是说，v0 当前还不是“图查询语言”，
 而是一个面向 explain surface 的最小稳定问题面：

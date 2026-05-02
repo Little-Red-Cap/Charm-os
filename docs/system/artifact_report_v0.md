@@ -655,6 +655,10 @@ comparison 样例见 [`../../schemas/examples/fact_resolution_summary.comparison
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.fact_resolution.required_fact_resolution_changes`
 
 如果选择的是整组 compare report，
 artifact_root 级该查询现在也会继续带出：
@@ -663,6 +667,8 @@ artifact_root 级该查询现在也会继续带出：
 - `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
 - `compared_cases / bringup_compare_cases / resource_compare_cases`
 - `resource_contracts`
+- `fact_resolution_compare_case_count / fact_resolution_compare_cases`
+- `required_facts_changed`
 
 而 `graph path` 当前则明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：
@@ -682,6 +688,10 @@ artifact_root 级该查询现在也会继续带出：
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.fact_resolution.required_fact_resolution_changes`
 
 其中：
 

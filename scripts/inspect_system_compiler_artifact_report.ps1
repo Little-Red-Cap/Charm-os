@@ -755,6 +755,28 @@ function Get-ResourceComparisonContractChangesForCapability {
     )
 }
 
+function Get-FactResolutionRequiredFactChangesForCapability {
+    param(
+        $ReportData,
+        [string]$CapabilityName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CapabilityName)) {
+        return @()
+    }
+
+    $comparison = Get-FactResolutionComparisonFromReport -ReportData $ReportData
+    if ($null -eq $comparison) {
+        return @()
+    }
+
+    return @(
+        @($comparison.required_fact_resolution_changes) |
+            Where-Object { [string]$_.fact -eq $CapabilityName } |
+            Sort-Object fact
+    )
+}
+
 function New-CapabilityComparisonResult {
     param(
         $ReportData,
@@ -764,6 +786,7 @@ function New-CapabilityComparisonResult {
     $bringupChange = Get-BringupComparisonCapabilityChange -ReportData $ReportData -CapabilityName $CapabilityName
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $ReportData
     $resourceContractChanges = @(Get-ResourceComparisonContractChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
+    $requiredFactResolutionChanges = @(Get-FactResolutionRequiredFactChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
 
     $resourceChangeKinds = @()
     $resourceContracts = @()
@@ -793,17 +816,40 @@ function New-CapabilityComparisonResult {
         }
     }
 
+    $requiredFactResolutionChangeKinds = @()
+    foreach ($requiredFactChange in @($requiredFactResolutionChanges)) {
+        $changeKind = [string]$requiredFactChange.change_kind
+        if (-not [string]::IsNullOrWhiteSpace($changeKind)) {
+            $requiredFactResolutionChangeKinds += $changeKind
+            $resourceChangeKinds += "required_fact_$changeKind"
+        }
+    }
+
+    $requiredFactsChanged = @(
+        @($requiredFactResolutionChanges) |
+            ForEach-Object { [string]$_.fact } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+
     $bringupChangeKinds = @()
     if ($null -ne $bringupChange -and -not [string]::IsNullOrWhiteSpace([string]$bringupChange.change_kind)) {
         $bringupChangeKinds += [string]$bringupChange.change_kind
     }
 
+    $resourceChanged = ($resourceFactAdded -or $resourceFactRemoved -or @($resourceContractChanges).Count -gt 0 -or @($requiredFactResolutionChanges).Count -gt 0)
+
     return [ordered]@{
+        changed = (($null -ne $bringupChange) -or $resourceChanged)
         bringup_changed = ($null -ne $bringupChange)
         bringup_change_kinds = @($bringupChangeKinds | Sort-Object -Unique)
-        resource_changed = ($resourceFactAdded -or $resourceFactRemoved -or @($resourceContractChanges).Count -gt 0)
+        resource_changed = $resourceChanged
         resource_change_kinds = @($resourceChangeKinds | Sort-Object -Unique)
         resource_contracts = @($resourceContracts | Sort-Object -Unique)
+        fact_resolution_changed = (@($requiredFactResolutionChanges).Count -gt 0)
+        required_fact_resolution_change_kinds = @($requiredFactResolutionChangeKinds | Sort-Object -Unique)
+        required_facts_changed = @($requiredFactsChanged)
+        required_fact_resolution_changes = @($requiredFactResolutionChanges)
     }
 }
 
@@ -817,6 +863,7 @@ function New-WhyCapabilityComparisonResult {
     $bringupChange = Get-BringupComparisonCapabilityChange -ReportData $ReportData -CapabilityName $CapabilityName
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $ReportData
     $resourceContractChanges = @(Get-ResourceComparisonContractChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
+    $requiredFactResolutionChanges = @(Get-FactResolutionRequiredFactChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
 
     $resourceFactAdded = $false
     $resourceFactRemoved = $false
@@ -842,11 +889,17 @@ function New-WhyCapabilityComparisonResult {
         resource_changed = [bool]$summary.resource_changed
         resource_change_kinds = @($summary.resource_change_kinds)
         resource_contracts = @($summary.resource_contracts)
+        fact_resolution_changed = [bool]$summary.fact_resolution_changed
+        required_fact_resolution_change_kinds = @($summary.required_fact_resolution_change_kinds)
+        required_facts_changed = @($summary.required_facts_changed)
         bringup_evidence = $bringupEvidence
         resource_contract = [ordered]@{
             provided_fact_added = $resourceFactAdded
             provided_fact_removed = $resourceFactRemoved
             contract_changes = @($resourceContractChanges)
+        }
+        fact_resolution = [ordered]@{
+            required_fact_resolution_changes = @($requiredFactResolutionChanges)
         }
     }
 }
@@ -3674,6 +3727,13 @@ function New-WhyCapabilityResult {
                 $rightState = Format-OptionalState -Value ([string]$contractChange.right_state)
                 $reasons += "compare contract $contractName changed: $changeKind ($leftState -> $rightState)"
             }
+            foreach ($requiredFactChange in @($comparison.fact_resolution.required_fact_resolution_changes)) {
+                $factName = [string]$requiredFactChange.fact
+                $changeKind = [string]$requiredFactChange.change_kind
+                $leftState = Format-OptionalState -Value ([string]$requiredFactChange.left_state)
+                $rightState = Format-OptionalState -Value ([string]$requiredFactChange.right_state)
+                $reasons += "compare required_fact $factName changed: $changeKind ($leftState -> $rightState)"
+            }
         }
     }
 
@@ -3700,10 +3760,14 @@ function New-ArtifactRootWhyCapabilityCaseResult {
     $bringupChangeKinds = @()
     $resourceChangeKinds = @()
     $resourceContracts = @()
+    $requiredFactResolutionChangeKinds = @()
+    $requiredFactsChanged = @()
     if ($null -ne $whyResult.comparison) {
         $bringupChangeKinds = @($whyResult.comparison.bringup_change_kinds)
         $resourceChangeKinds = @($whyResult.comparison.resource_change_kinds)
         $resourceContracts = @($whyResult.comparison.resource_contracts)
+        $requiredFactResolutionChangeKinds = @($whyResult.comparison.required_fact_resolution_change_kinds)
+        $requiredFactsChanged = @($whyResult.comparison.required_facts_changed)
     }
 
     return [pscustomobject][ordered]@{
@@ -3719,9 +3783,12 @@ function New-ArtifactRootWhyCapabilityCaseResult {
         compare_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.changed)
         bringup_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.bringup_changed)
         resource_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.resource_changed)
+        fact_resolution_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.fact_resolution_changed)
         bringup_change_kinds = @($bringupChangeKinds)
         resource_change_kinds = @($resourceChangeKinds)
         resource_contracts = @($resourceContracts)
+        required_fact_resolution_change_kinds = @($requiredFactResolutionChangeKinds)
+        required_facts_changed = @($requiredFactsChanged)
     }
 }
 
@@ -3766,9 +3833,19 @@ function New-ArtifactRootWhyCapabilityResult {
             Where-Object { [bool]$_.resource_changed } |
             ForEach-Object { [string]$_.case }
     )
+    $factResolutionCompareCases = @(
+        @($caseResults) |
+            Where-Object { [bool]$_.fact_resolution_changed } |
+            ForEach-Object { [string]$_.case }
+    )
     $resourceContracts = @(
         foreach ($caseResult in @($caseResults)) {
             @($caseResult.resource_contracts)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $requiredFactsChanged = @(
+        foreach ($caseResult in @($caseResults)) {
+            @($caseResult.required_facts_changed)
         }
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
@@ -3779,10 +3856,13 @@ function New-ArtifactRootWhyCapabilityResult {
         compared_case_count = @($comparedCases).Count
         bringup_compare_case_count = @($bringupCompareCases).Count
         resource_compare_case_count = @($resourceCompareCases).Count
+        fact_resolution_compare_case_count = @($factResolutionCompareCases).Count
         compared_cases = @($comparedCases | Sort-Object -Unique)
         bringup_compare_cases = @($bringupCompareCases | Sort-Object -Unique)
         resource_compare_cases = @($resourceCompareCases | Sort-Object -Unique)
+        fact_resolution_compare_cases = @($factResolutionCompareCases | Sort-Object -Unique)
         resource_contracts = @($resourceContracts)
+        required_facts_changed = @($requiredFactsChanged)
         cases = @($caseResults)
     }
 }
@@ -3898,9 +3978,12 @@ function New-AggregatedCapListEntry {
         compare_cases = @()
         bringup_compare_cases = @()
         resource_compare_cases = @()
+        fact_resolution_compare_cases = @()
         bringup_change_kinds = @()
         resource_change_kinds = @()
         resource_contracts = @()
+        required_fact_resolution_change_kinds = @()
+        required_facts_changed = @()
         provider_nodes = @()
         consumer_nodes = @()
     }
@@ -3922,6 +4005,7 @@ function Normalize-AggregatedCapListEntry {
     $compareCases = @($Entry.compare_cases | Sort-Object -Unique)
     $bringupCompareCases = @($Entry.bringup_compare_cases | Sort-Object -Unique)
     $resourceCompareCases = @($Entry.resource_compare_cases | Sort-Object -Unique)
+    $factResolutionCompareCases = @($Entry.fact_resolution_compare_cases | Sort-Object -Unique)
 
     return [ordered]@{
         capability = [string]$Entry.capability
@@ -3936,6 +4020,7 @@ function Normalize-AggregatedCapListEntry {
         compare = ($compareCases.Count -gt 0)
         bringup_compare = ($bringupCompareCases.Count -gt 0)
         resource_compare = ($resourceCompareCases.Count -gt 0)
+        fact_resolution_compare = ($factResolutionCompareCases.Count -gt 0)
         materialized_cases = $materializedCases
         observed_cases = $observedCases
         published_cases = $publishedCases
@@ -3946,9 +4031,12 @@ function Normalize-AggregatedCapListEntry {
         compare_cases = $compareCases
         bringup_compare_cases = $bringupCompareCases
         resource_compare_cases = $resourceCompareCases
+        fact_resolution_compare_cases = $factResolutionCompareCases
         bringup_change_kinds = @($Entry.bringup_change_kinds | Sort-Object -Unique)
         resource_change_kinds = @($Entry.resource_change_kinds | Sort-Object -Unique)
         resource_contracts = @($Entry.resource_contracts | Sort-Object -Unique)
+        required_fact_resolution_change_kinds = @($Entry.required_fact_resolution_change_kinds | Sort-Object -Unique)
+        required_facts_changed = @($Entry.required_facts_changed | Sort-Object -Unique)
         provider_nodes = @($Entry.provider_nodes | Sort-Object -Unique)
         consumer_nodes = @($Entry.consumer_nodes | Sort-Object -Unique)
     }
@@ -4142,9 +4230,12 @@ function New-CapListArtifactRootAggregationResult {
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.bringup_changed -or [bool]$entry.comparison.resource_changed) -CaseName $caseName -PropertyName 'compare_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.bringup_changed) -CaseName $caseName -PropertyName 'bringup_compare_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.resource_changed) -CaseName $caseName -PropertyName 'resource_compare_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.fact_resolution_changed) -CaseName $caseName -PropertyName 'fact_resolution_compare_cases'
             $aggregate.bringup_change_kinds = @($aggregate.bringup_change_kinds + @($entry.comparison.bringup_change_kinds))
             $aggregate.resource_change_kinds = @($aggregate.resource_change_kinds + @($entry.comparison.resource_change_kinds))
             $aggregate.resource_contracts = @($aggregate.resource_contracts + @($entry.comparison.resource_contracts))
+            $aggregate.required_fact_resolution_change_kinds = @($aggregate.required_fact_resolution_change_kinds + @($entry.comparison.required_fact_resolution_change_kinds))
+            $aggregate.required_facts_changed = @($aggregate.required_facts_changed + @($entry.comparison.required_facts_changed))
             $aggregate.provider_nodes = @($aggregate.provider_nodes + @(Get-CaseQualifiedNodeNames -CaseName $caseName -NodeNames @($entry.provider_nodes)))
             $aggregate.consumer_nodes = @($aggregate.consumer_nodes + @(Get-CaseQualifiedNodeNames -CaseName $caseName -NodeNames @($entry.consumer_nodes)))
         }
@@ -9455,11 +9546,18 @@ if (-not [string]::IsNullOrWhiteSpace($GraphPath)) {
         Write-Host "changed = $([bool]$graphPathResult.comparison.changed)"
         Write-Host "bringup_changed = $([bool]$graphPathResult.comparison.bringup_changed)"
         Write-Host "resource_changed = $([bool]$graphPathResult.comparison.resource_changed)"
+        Write-Host "fact_resolution_changed = $([bool]$graphPathResult.comparison.fact_resolution_changed)"
         if (@($graphPathResult.comparison.bringup_change_kinds).Count -gt 0) {
             Write-Host "bringup_change_kinds = $((@($graphPathResult.comparison.bringup_change_kinds) -join ', '))"
         }
         if (@($graphPathResult.comparison.resource_change_kinds).Count -gt 0) {
             Write-Host "resource_change_kinds = $((@($graphPathResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($graphPathResult.comparison.required_fact_resolution_change_kinds).Count -gt 0) {
+            Write-Host "required_fact_resolution_change_kinds = $((@($graphPathResult.comparison.required_fact_resolution_change_kinds) -join ', '))"
+        }
+        if (@($graphPathResult.comparison.required_facts_changed).Count -gt 0) {
+            Write-Host "required_facts_changed = $((@($graphPathResult.comparison.required_facts_changed) -join ', '))"
         }
         if (@($graphPathResult.comparison.resource_contracts).Count -gt 0) {
             Write-Host "resource_contracts = $((@($graphPathResult.comparison.resource_contracts) -join ', '))"
@@ -9533,11 +9631,18 @@ if (-not [string]::IsNullOrWhiteSpace($WhyCapability)) {
         Write-Host "changed = $([bool]$whyResult.comparison.changed)"
         Write-Host "bringup_changed = $([bool]$whyResult.comparison.bringup_changed)"
         Write-Host "resource_changed = $([bool]$whyResult.comparison.resource_changed)"
+        Write-Host "fact_resolution_changed = $([bool]$whyResult.comparison.fact_resolution_changed)"
         if (@($whyResult.comparison.bringup_change_kinds).Count -gt 0) {
             Write-Host "bringup_change_kinds = $((@($whyResult.comparison.bringup_change_kinds) -join ', '))"
         }
         if (@($whyResult.comparison.resource_change_kinds).Count -gt 0) {
             Write-Host "resource_change_kinds = $((@($whyResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($whyResult.comparison.required_fact_resolution_change_kinds).Count -gt 0) {
+            Write-Host "required_fact_resolution_change_kinds = $((@($whyResult.comparison.required_fact_resolution_change_kinds) -join ', '))"
+        }
+        if (@($whyResult.comparison.required_facts_changed).Count -gt 0) {
+            Write-Host "required_facts_changed = $((@($whyResult.comparison.required_facts_changed) -join ', '))"
         }
         if (@($whyResult.comparison.resource_contracts).Count -gt 0) {
             Write-Host "resource_contracts = $((@($whyResult.comparison.resource_contracts) -join ', '))"

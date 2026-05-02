@@ -306,13 +306,17 @@ concept I2cBus =
   定义固定容量 `I2cScriptBus`，用于无硬件 transaction 验证
 - `Modules/io/device/io.device_i2c_hal.cppm`
   定义 `HalI2cBus`，把现有 `hal::I2cIoHandle` 投影成 driver-facing I2C bus backend
+- `Modules/io/driver/driver.i2c_register_device.cppm`
+  定义只依赖 `io.device_i2c` 的 8-bit register device 准 driver
 - `Examples/io/i2c_contract_mock_smoke`
   用一个极小 register probe 验证 `write_read`、`write` 与未预期 transaction 失败路径
 - `Examples/io/i2c_hal_adapter_smoke`
-  用 fake HAL ops 验证 HAL adapter、地址/tx 传递与 `busy / timeout / unsupported` 错误映射
+  用同一个 register device driver 经 fake HAL ops 验证 HAL adapter、地址/tx 传递与 `busy / timeout / unsupported` 错误映射
+- `Examples/io/i2c_register_driver_smoke`
+  用 transaction mock 验证 register device driver 的单寄存器与 burst 读写语义
 
 这条链目前仍是 `experimental`，不是 `admitted`。
-它已经满足“mock backend + HAL adapter backend + 至少一个准 driver + no-hardware smoke”的第一层证据，
+它已经满足“mock backend + HAL adapter backend + 一个准真实 register driver + no-hardware smoke”的第一层证据，
 但还缺真实硬件 backend、真实 driver 与更完整的资源/事实投影。
 
 ### 5.2 `SpiBus` / `SpiDevice`
@@ -482,7 +486,7 @@ v0 最值得推进的是：
 1. 保持 [`interface_admission_policy.md`](interface_admission_policy.md) 作为公共接口准入法律
 2. 继续收敛现有 I2C transaction mock 窄链
 3. 在 HAL adapter backend 之后继续补真实硬件 backend
-4. 写一个小型真实 driver，例如 sensor / codec / EEPROM / PMIC
+4. 在 register device 准 driver 之后继续写一个小型真实 driver，例如 sensor / codec / EEPROM / PMIC
 5. 把 required facts / error kind / execution semantics 写进更正式的 I2C contract 文档
 6. 让 artifact / evidence 能说明这条链如何成立
 

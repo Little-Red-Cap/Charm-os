@@ -345,11 +345,11 @@ Charm 现在已经有多条强主线：
 当前状态：
 
 - I2C 已经有第一条 `experimental` 窄链：
-  `io.device_i2c` + `io.device_i2c_mock` + `io.device_i2c_hal`
-- 它验证了 mock backend、HAL adapter backend、准 driver 和 no-hardware smoke：
-  `Examples/io/i2c_contract_mock_smoke` 与 `Examples/io/i2c_hal_adapter_smoke`
+  `io.device_i2c` + `io.device_i2c_mock` + `io.device_i2c_hal` + `driver.i2c_register_device`
+- 它验证了 mock backend、HAL adapter backend、准真实 register driver 和 no-hardware smoke：
+  `Examples/io/i2c_contract_mock_smoke`、`Examples/io/i2c_hal_adapter_smoke` 与 `Examples/io/i2c_register_driver_smoke`
 - 它还不能升级为 `candidate`，因为 HAL adapter 只是投影现有 controller-facing HAL，
-  仍然缺真实硬件 evidence、真实 driver 与 system compiler facts/evidence 投影
+  register device driver 也只是通用准 driver，仍然缺真实硬件 evidence、真实芯片 driver 与 system compiler facts/evidence 投影
 
 ## 8. 当前结论
 

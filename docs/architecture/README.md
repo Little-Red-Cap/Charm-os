@@ -53,8 +53,10 @@
 - `Modules/io/device/io.device_i2c.cppm`
 - `Modules/io/device/io.device_i2c_mock.cppm`
 - `Modules/io/device/io.device_i2c_hal.cppm`
+- `Modules/io/driver/driver.i2c_register_device.cppm`
 - `Examples/io/i2c_contract_mock_smoke`
 - `Examples/io/i2c_hal_adapter_smoke`
+- `Examples/io/i2c_register_driver_smoke`
 
 ### 我想看 signal / state 这条线
 

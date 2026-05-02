@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <span>
 
+import driver.i2c_register_device;
 import hal_core;
 import hal_i2c;
 import io.device_i2c;
@@ -10,30 +11,6 @@ import util.core;
 import util.error;
 
 namespace {
-    class RegisterProbe {
-    public:
-        explicit constexpr RegisterProbe(io::device::I2cDeviceRef dev) noexcept
-            : dev_(dev) {}
-
-        [[nodiscard]] util::Result<util::u8> read_reg(util::u8 reg) noexcept {
-            std::array<util::u8, 1> tx{reg};
-            std::array<util::u8, 1> rx{};
-            auto result = dev_.write_read(tx, rx);
-            if (!result) {
-                return util::unexpected(result.error());
-            }
-            return rx[0];
-        }
-
-        [[nodiscard]] util::Result<void> write_reg(util::u8 reg, util::u8 value) noexcept {
-            std::array<util::u8, 2> tx{reg, value};
-            return dev_.write(tx);
-        }
-
-    private:
-        io::device::I2cDeviceRef dev_{};
-    };
-
     struct FakeHalI2c {
         util::usize write_count{0};
         util::usize read_count{0};
@@ -130,22 +107,22 @@ int main() {
     FakeHalI2c fake{};
     io::device::HalI2cBus bus{hal::I2cIoHandle{&fake, &kFakeOps}};
     auto dev = io::device::make_i2c_device_ref(io::device::make_i2c_bus_ref(bus), kAddress);
-    RegisterProbe probe{dev};
+    driver::i2c::RegisterDevice8 regs{dev};
 
-    auto id = probe.read_reg(0x0F);
+    auto id = regs.read_u8(0x0F);
     if (!expect(id && id.value() == 0x33, "register read via hal adapter mismatch")) return 1;
     if (!expect(fake.write_read_count == 1, "fake hal write_read not called")) return 2;
     if (!expect(fake.last_addr == kAddress, "fake hal address mismatch")) return 3;
     if (!expect(fake.last_tx_size == 1 && fake.last_tx[0] == 0x0F, "fake hal tx mismatch")) return 4;
 
-    auto write = probe.write_reg(0x20, 0x57);
+    auto write = regs.write_u8(0x20, 0x57);
     if (!expect(static_cast<bool>(write), "register write via hal adapter failed")) return 5;
     if (!expect(fake.write_count == 1, "fake hal write not called")) return 6;
     if (!expect(fake.last_tx_size == 2 && fake.last_tx[0] == 0x20 && fake.last_tx[1] == 0x57,
                 "fake hal write tx mismatch")) return 7;
 
     fake.next_write_read_status = hal::Status::timeout;
-    auto timeout = probe.read_reg(0x0F);
+    auto timeout = regs.read_u8(0x0F);
     if (!expect(!timeout && timeout.error() == util::Errc::timeout, "timeout status mapping mismatch")) return 8;
 
     io::device::HalI2cBus unsupported_bus{hal::I2cIoHandle{&fake, nullptr}};
@@ -156,7 +133,7 @@ int main() {
                 "unsupported status mapping mismatch")) return 9;
 
     fake.next_write_status = hal::Status::busy;
-    auto busy = probe.write_reg(0x20, 0x57);
+    auto busy = regs.write_u8(0x20, 0x57);
     if (!expect(!busy && busy.error() == util::Errc::busy, "busy status mapping mismatch")) return 10;
 
     std::puts("i2c hal adapter smoke: ok");

@@ -248,6 +248,55 @@ namespace {
                     static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
         return true;
     }
+
+    [[nodiscard]] bool run_rebegin_interrupt() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{210, 80, 30, 255});
+        PaintPrepare first_prepare{.canvas = &env.canvas, .color = rgba{30, 80, 210, 255}, .x = 4, .y = 2};
+        PaintPrepare second_prepare{.canvas = &env.canvas, .color = rgba{60, 120, 240, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto first = runner.begin(env.scene, access, transition_spec(env, first_prepare));
+        if (!expect(first.started(), "rebegin first transition starts")) return false;
+        const auto first_frame = runner.sample(env.scene, 0);
+        if (!expect(first_frame.valid, "rebegin first transition composes")) return false;
+        if (!expect(env.scene.layer_stats().snapshot_count == 2,
+                    "rebegin first transition owns two snapshots")) {
+            return false;
+        }
+        const auto second = runner.begin(env.scene, access, transition_spec(env, second_prepare));
+        const auto trace = runner.trace();
+        if (!expect(second.started(), "rebegin starts replacement transition")) return false;
+        if (!expect(trace.interrupt_count == 1, "rebegin trace records interrupt")) return false;
+        if (!expect(env.scene.layer_stats().snapshot_count == 2,
+                    "rebegin releases old snapshots before reacquiring")) {
+            return false;
+        }
+        if (!expect(!env.source.visible() && !env.destination.visible(),
+                    "rebegin replacement transition owns hidden live roots")) {
+            return false;
+        }
+        runner.cancel(env.scene, access);
+        const auto canceled_trace = runner.trace();
+        if (!expect(canceled_trace.interrupt_count == 1,
+                    "rebegin interrupt count survives cancel")) {
+            return false;
+        }
+        if (!expect(env.source.visible() && !env.destination.visible(),
+                    "rebegin cancel restores original page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "rebegin cancel releases replacement snapshots")) {
+            return false;
+        }
+        std::printf("[pt] rebegin first=%s second=%s interrupts=%u snapshots=%u\n",
+                    ui::scene::page_transition_begin_status_name(first.status),
+                    ui::scene::page_transition_begin_status_name(second.status),
+                    static_cast<unsigned>(canceled_trace.interrupt_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+        return true;
+    }
 }
 
 int main() {
@@ -255,6 +304,7 @@ int main() {
     if (!run_cancel_during_compose()) return 1;
     if (!run_low_budget_static_cut()) return 1;
     if (!run_prepare_fail()) return 1;
+    if (!run_rebegin_interrupt()) return 1;
     std::puts("[page_transition_demo] ok");
     return 0;
 }

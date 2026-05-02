@@ -80,6 +80,7 @@ export namespace ui::scene {
         LayerProfile requested_profile{LayerProfile::Rich};
         LayerProfile effective_profile{LayerProfile::Rich};
         std::uint16_t begin_count{0};
+        std::uint16_t interrupt_count{0};
         std::uint16_t sample_count{0};
         std::uint16_t commit_count{0};
         std::uint16_t abort_count{0};
@@ -124,10 +125,13 @@ export namespace ui::scene {
         [[nodiscard]] PageTransitionBeginResult begin(Scene& scene,
                                                      SceneAccess access,
                                                      const PageTransitionSpec& spec) noexcept {
+            const bool interrupted = state_ != PageTransitionState::Idle;
+            const auto previous_interrupts = trace_.interrupt_count;
             if (state_ != PageTransitionState::Idle) {
                 cancel(scene, access);
             }
             reset_transition_trace(spec.requested_profile);
+            trace_.interrupt_count = previous_interrupts + (interrupted ? 1u : 0u);
             source_ = spec.source;
             destination_ = spec.destination;
             if (!source_ || !destination_) {

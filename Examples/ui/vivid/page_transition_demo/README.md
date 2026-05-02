@@ -8,6 +8,7 @@
 - cancel 后 source / destination live 可见性恢复到 begin 前
 - low budget 路径不做 PixelDouble capture，直接 static cut
 - destination prepare 失败时释放已获取的 source snapshot
+- active transition 上再次 begin 时先 abort 旧事务，再启动新事务
 
 构建：
 

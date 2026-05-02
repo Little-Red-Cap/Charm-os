@@ -333,3 +333,16 @@ Examples/ui/vivid/page_transition_demo
 - cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
 - low budget static cut：不发生 PixelSurface capture，直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
+
+## 2026-05 补记：PageTransition interrupt law
+
+`PageTransitionRunner::begin()` 在已有 active transaction 时会先执行旧事务的 `cancel()` 收尾，再开始新事务。
+
+规则：
+
+- re-begin 必须释放旧 source / destination snapshot。
+- re-begin 必须恢复旧事务 begin 前的 page truth，再捕获新事务 snapshot。
+- 新事务 trace 通过 `interrupt_count` 记录这次隐式 abort。
+- 后续 commit / cancel 后 `interrupt_count` 必须保留为可审计证据。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `rebegin_interrupt`：旧事务 compose 后再次 begin，新事务重新持有两个 snapshot，最终 cancel 后 `snapshot_count == 0`。

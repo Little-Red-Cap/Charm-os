@@ -333,7 +333,7 @@ Examples/ui/vivid/page_transition_demo
 - normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
 - cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
 - pixel single：只捕获 source snapshot，destination 保持 live，commit / cancel 后 `snapshot_count == 0`
-- low budget static cut：不发生 PixelSurface capture，直接提交目标页
+- command snapshot static cut：`CommandSnapshot` admission 在双页 replay 实现前不发生 capture，显式 static cut 并直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
 
 ## 2026-05 补记：PageTransition interrupt law
@@ -374,7 +374,20 @@ Examples/ui/vivid/page_transition_demo
 - destination / source / total composite pixels
 - committed / aborted / static_cut / interrupted / snapshots_released 布尔证据
 
-`Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、low-budget static cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。
+`Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、CommandSnapshot static-cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。
+
+## 2026-05 补记：PageTransition CommandSnapshot static-cut law
+
+双页 `CommandSnapshot` replay 仍未进入 v0 执行路径。当前 `PageTransitionRunner` 在 admission 裁决为 `CommandSnapshot` 时执行合法降级：
+
+- 不捕获 source / destination PixelSurface。
+- 不创建 CommandSnapshot payload。
+- 仍执行 destination prepare。
+- 以 `StaticCut` begin status 提交目标页。
+- trace / ledger 保留 `admission == CommandSnapshot` 与 `effective_profile == Static`。
+- 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `command_snapshot_static_cut`。
 
 ## 2026-05 补记：PageTransition PixelSingle path
 

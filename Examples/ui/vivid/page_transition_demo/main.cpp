@@ -246,7 +246,7 @@ namespace {
         return true;
     }
 
-    [[nodiscard]] bool run_low_budget_static_cut() noexcept {
+    [[nodiscard]] bool run_command_snapshot_static_cut() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{250, 50, 40, 255});
         PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 70, 200, 255}, .x = 4, .y = 2};
@@ -257,31 +257,41 @@ namespace {
         }));
         const auto trace = runner.trace();
         const auto ledger = runner.ledger();
-        if (!expect(begin.static_cut(), "low budget resolves static cut")) return false;
-        if (!expect(begin.admission != ui::scene::LayerAdmission::PixelDouble,
-                    "low budget rejects PixelDouble admission")) {
+        if (!expect(begin.static_cut(), "command snapshot admission resolves static cut")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::CommandSnapshot,
+                    "command snapshot admission is selected")) {
+            return false;
+        }
+        if (!expect(trace.effective_profile == ui::scene::LayerProfile::Static,
+                    "command snapshot static cut uses static effective profile")) {
             return false;
         }
         if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
-                    "low budget performs no pixel captures")) {
+                    "command snapshot static cut performs no captures")) {
             return false;
         }
         if (!expect(!env.source.visible() && env.destination.visible(),
-                    "low budget cut commits page truth")) {
+                    "command snapshot static cut commits page truth")) {
             return false;
         }
         if (!expect(env.scene.layer_stats().snapshot_count == 0,
-                    "low budget leaves no snapshots")) {
+                    "command snapshot static cut leaves no snapshots")) {
             return false;
         }
-        if (!expect(ledger.static_cut && ledger.committed, "low budget ledger records static cut commit")) {
+        if (!expect(ledger.static_cut && ledger.committed,
+                    "command snapshot static cut ledger records commit")) {
+            return false;
+        }
+        if (!expect(ledger.admission == ui::scene::LayerAdmission::CommandSnapshot &&
+                    ledger.effective_profile == ui::scene::LayerProfile::Static,
+                    "command snapshot static cut is recorded in ledger")) {
             return false;
         }
         if (!expect(ledger.peak_layer_bytes == 0 && ledger.total_composite_pixels == 0,
-                    "low budget ledger records no layer cost")) {
+                    "command snapshot static cut records no layer cost")) {
             return false;
         }
-        std::printf("[pt] low_budget status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
+        std::printf("[pt] command_snapshot_static_cut status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     ui::scene::layer_admission_name(begin.admission),
                     static_cast<unsigned>(trace.static_cut_count),
@@ -707,7 +717,7 @@ namespace {
 int main() {
     if (!run_normal_commit()) return 1;
     if (!run_cancel_during_compose()) return 1;
-    if (!run_low_budget_static_cut()) return 1;
+    if (!run_command_snapshot_static_cut()) return 1;
     if (!run_pixel_single_live_destination()) return 1;
     if (!run_pixel_single_cancel()) return 1;
     if (!run_prepare_fail()) return 1;

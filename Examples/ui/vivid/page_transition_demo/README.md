@@ -6,7 +6,7 @@
 
 - normal commit 后 source snapshot / destination snapshot 都被释放
 - cancel 后 source / destination live 可见性恢复到 begin 前
-- low budget 路径不做 PixelDouble capture，直接 static cut
+- CommandSnapshot admission 当前不做双页 replay，显式降级为 static cut
 - PixelSingle 路径只捕获 source snapshot，destination 保持 live
 - PixelSingle cancel 后 source snapshot 释放，page truth 恢复到 begin 前
 - PixelSingle active transition 上再次 begin 时先释放旧 source snapshot，再启动新事务

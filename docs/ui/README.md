@@ -65,4 +65,4 @@
 ## 2026-05 Vivid runtime 验证入口补记
 
 - `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、Motion recipe、transition trace、compose dry-run 与单页 `PageMotionTransition`。
-- `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner` 的 normal commit、cancel、PixelSingle commit/cancel/interrupt、low-budget static cut 与 prepare fail 收尾律。
+- `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner` 的 normal commit、cancel、PixelSingle commit/cancel/interrupt、CommandSnapshot static-cut 与 prepare fail 收尾律。

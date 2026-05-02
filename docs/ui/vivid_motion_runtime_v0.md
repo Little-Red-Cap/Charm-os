@@ -333,6 +333,7 @@ Examples/ui/vivid/page_transition_demo
 - normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
 - cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
 - static profile：`LayerProfile::Static` 主动选择 `StaticCut` admission，不依赖预算失败
+- none profile：`LayerProfile::None` 主动拒绝事务，不调用 prepare，不改变 page truth
 - pixel single：只捕获 source snapshot，destination 保持 live，commit / cancel 后 `snapshot_count == 0`
 - command snapshot static cut：`CommandSnapshot` admission 在双页 replay 实现前不发生 capture，显式 static cut 并直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
@@ -375,7 +376,24 @@ Examples/ui/vivid/page_transition_demo
 - destination / source / total composite pixels
 - committed / aborted / static_cut / interrupted / snapshots_released 布尔证据
 
-`Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、Static profile、CommandSnapshot static-cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。
+`Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、Static/None profile、CommandSnapshot static-cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。
+
+## 2026-05 补记：PageTransition None profile law
+
+`LayerProfile::None` 是显式禁用转场事务的 profile。它与 `Static` 不同：`Static` 会提交目标页，`None` 会拒绝本次 begin。
+
+当前 `PageTransitionRunner` 在 requested profile 为 `None` 时：
+
+- admission 为 `Reject`。
+- begin status 为 `Rejected`。
+- 不调用 destination prepare。
+- 不捕获 source / destination snapshot。
+- 不 commit、不 abort、不 static cut。
+- 不改变 begin 前 page truth。
+- trace / ledger 保留 `requested_profile == None`、`effective_profile == None` 与 `admission == Reject`。
+- 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `none_profile_reject`。
 
 ## 2026-05 补记：PageTransition Static profile law
 

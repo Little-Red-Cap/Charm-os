@@ -7,6 +7,7 @@
 - normal commit 后 source snapshot / destination snapshot 都被释放
 - cancel 后 source / destination live 可见性恢复到 begin 前
 - Static profile 是主动 static cut 运行形态，不依赖预算失败
+- None profile 拒绝转场事务，不调用 prepare，不改变 page truth
 - CommandSnapshot admission 当前不做双页 replay，显式降级为 static cut
 - PixelSingle 路径只捕获 source snapshot，destination 保持 live
 - PixelSingle cancel 后 source snapshot 释放，page truth 恢复到 begin 前

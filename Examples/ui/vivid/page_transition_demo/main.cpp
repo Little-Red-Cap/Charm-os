@@ -96,6 +96,10 @@ namespace {
                       message);
     }
 
+    [[nodiscard]] constexpr bool same_rgba(rgba a, rgba b) noexcept {
+        return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+    }
+
     bool prepare_destination(ui::scene::Scene&,
                              ui::scene::SceneAccess,
                              ui::scene::PageLayer&,
@@ -352,6 +356,78 @@ namespace {
                     ui::scene::page_transition_begin_status_name(begin.status),
                     ui::scene::layer_admission_name(begin.admission),
                     static_cast<unsigned>(trace.static_cut_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        return true;
+    }
+
+    [[nodiscard]] bool run_none_profile_reject() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{240, 100, 80, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{50, 130, 220, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto before_destination_pixel = env.canvas.get_pixel(4, 2);
+        const auto begin = runner.begin(env.scene,
+                                        access,
+                                        transition_spec(env,
+                                                        prepare,
+                                                        {},
+                                                        ui::scene::LayerProfile::None));
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        const auto after_destination_pixel = env.canvas.get_pixel(4, 2);
+        if (!expect(!begin.ok(), "none profile rejects transition")) return false;
+        if (!expect(begin.status == ui::scene::PageTransitionBeginStatus::Rejected,
+                    "none profile reports rejected status")) {
+            return false;
+        }
+        if (!expect(begin.admission == ui::scene::LayerAdmission::Reject,
+                    "none profile admission is Reject")) {
+            return false;
+        }
+        if (!expect(trace.requested_profile == ui::scene::LayerProfile::None &&
+                    trace.effective_profile == ui::scene::LayerProfile::None,
+                    "none profile remains none effective profile")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
+                    "none profile performs no captures")) {
+            return false;
+        }
+        if (!expect(trace.static_cut_count == 0 && trace.commit_count == 0 &&
+                    trace.abort_count == 0,
+                    "none profile performs no transaction side effects")) {
+            return false;
+        }
+        if (!expect_page_truth(env, true, false, "none profile preserves page truth")) {
+            return false;
+        }
+        if (!expect(same_rgba(before_destination_pixel, after_destination_pixel),
+                    "none profile does not run destination prepare")) {
+            return false;
+        }
+        if (!expect_snapshot_count(env, 0, "none profile leaves no snapshots")) {
+            return false;
+        }
+        if (!expect(!ledger.committed && !ledger.aborted && !ledger.static_cut,
+                    "none profile ledger records no terminal transaction")) {
+            return false;
+        }
+        if (!expect(ledger.admission == ui::scene::LayerAdmission::Reject &&
+                    ledger.requested_profile == ui::scene::LayerProfile::None &&
+                    ledger.effective_profile == ui::scene::LayerProfile::None,
+                    "none profile reject is recorded in ledger")) {
+            return false;
+        }
+        if (!expect(ledger.peak_layer_bytes == 0 && ledger.total_composite_pixels == 0,
+                    "none profile records no layer cost")) {
+            return false;
+        }
+        std::printf("[pt] none_profile status=%s admission=%s commits=%u snapshots=%u bytes=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::layer_admission_name(begin.admission),
+                    static_cast<unsigned>(trace.commit_count),
                     static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
                     static_cast<unsigned>(ledger.peak_layer_bytes));
         return true;
@@ -776,6 +852,7 @@ int main() {
     if (!run_cancel_during_compose()) return 1;
     if (!run_command_snapshot_static_cut()) return 1;
     if (!run_static_profile_static_cut()) return 1;
+    if (!run_none_profile_reject()) return 1;
     if (!run_pixel_single_live_destination()) return 1;
     if (!run_pixel_single_cancel()) return 1;
     if (!run_prepare_fail()) return 1;

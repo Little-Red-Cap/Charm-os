@@ -53,10 +53,12 @@
 
 - [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
 - `Modules/io/device/io.device_i2c.cppm`
+- `Modules/io/device/io.device_i2c_facts.cppm`
 - `Modules/io/device/io.device_i2c_mock.cppm`
 - `Modules/io/device/io.device_i2c_hal.cppm`
 - `Modules/io/driver/driver.i2c_register_device.cppm`
 - `Examples/io/i2c_contract_mock_smoke`
+- `Examples/io/i2c_facts_smoke`
 - `Examples/io/i2c_hal_adapter_smoke`
 - `Examples/io/i2c_register_driver_smoke`
 

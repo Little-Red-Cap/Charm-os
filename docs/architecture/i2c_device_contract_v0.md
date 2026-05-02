@@ -13,6 +13,7 @@
 当前代码落点：
 
 - `Modules/io/device/io.device_i2c.cppm`
+- `Modules/io/device/io.device_i2c_facts.cppm`
 - `Modules/io/device/io.device_i2c_mock.cppm`
 - `Modules/io/device/io.device_i2c_hal.cppm`
 - `Modules/io/driver/driver.i2c_register_device.cppm`
@@ -20,6 +21,7 @@
 当前 smoke 证据：
 
 - `Examples/io/i2c_contract_mock_smoke`
+- `Examples/io/i2c_facts_smoke`
 - `Examples/io/i2c_hal_adapter_smoke`
 - `Examples/io/i2c_register_driver_smoke`
 
@@ -30,16 +32,17 @@
 它已经具备：
 
 - 一个 driver-facing contract：`io.device_i2c`
+- 一个只读 fact vocabulary：`io.device_i2c_facts`
 - 一个 transaction mock backend：`io.device_i2c_mock`
 - 一个 HAL adapter backend：`io.device_i2c_hal`
 - 一个准真实 register driver：`driver.i2c_register_device`
-- 三条 no-hardware smoke
+- 四条 no-hardware smoke
 
 它还不是 `candidate`，因为仍然缺：
 
 - 真实硬件 evidence
 - 真实芯片 driver
-- system compiler facts / evidence 投影
+- artifact report / evidence pipeline 里的正式 facts 投影
 - 更完整的资源与执行语义冻结
 
 ## 2. Contract Shape
@@ -268,9 +271,46 @@ i2c register driver smoke: ok
 
 ## 9. System Compiler Projection
 
-当前还没有正式投影。
+当前已有只读 facts 草案，但还没有进入正式 artifact report 或 evidence pipeline。
 
-未来该 contract 至少应能进入以下事实语言：
+`io.device_i2c_facts` 当前定义了最小 fact vocabulary：
+
+- `i2c.bus`
+- `i2c.controller`
+- `i2c.device`
+- `clock.domain`
+- `pinmux`
+- `power.domain`
+- `i2c.backend`
+- `i2c.evidence`
+
+每条 fact 当前至少带出：
+
+- kind
+- required / optional
+- provided / missing / unknown
+- address
+- name
+- source
+
+它可以形成最小 `I2cFactResolution`：
+
+- required count
+- provided count
+- missing count
+- optional unknown count
+- satisfied / unsatisfied
+
+当前 smoke 覆盖：
+
+```text
+i2c facts smoke: ok
+required=6 provided=5 missing=1 optional_unknown=1
+```
+
+这仍然是 contract-local 草案，不是全局 fact engine。
+
+未来该 contract 至少应进一步进入以下 system compiler 事实语言：
 
 ```text
 required facts:
@@ -288,6 +328,7 @@ binding result:
 evidence:
   mock script evidence
   HAL adapter smoke evidence
+  I2C fact resolution evidence
   board bringup evidence
   real driver probe evidence
 ```
@@ -323,10 +364,10 @@ Charm:
 
 1. 写一个真实芯片 driver
    例如 sensor / EEPROM / codec / PMIC。
-2. 给 I2C contract 添加 facts 草案
-   至少包括 bus、device address、controller、clock、pinmux。
-3. 给 artifact / evidence report 增加 I2C contract sample
+2. 给 artifact / evidence report 增加 I2C contract sample
    先只做只读报告，不做构建期强制。
+3. 把 `io.device_i2c_facts` 与 system compiler `FactResolution` 字段形状对齐
+   先做投影，不做执法。
 4. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。
 

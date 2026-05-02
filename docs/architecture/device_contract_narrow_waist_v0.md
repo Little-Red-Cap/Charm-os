@@ -304,6 +304,8 @@ concept I2cBus =
   记录当前 I2C experimental contract 的 API、错误语义、backend evidence、driver evidence 与 candidate 缺口
 - `Modules/io/device/io.device_i2c.cppm`
   定义 driver-facing `I2cBus` concept、`I2cBusRef`、`I2cDeviceRef` 与 `I2cErrorKind`
+- `Modules/io/device/io.device_i2c_facts.cppm`
+  定义 I2C contract-local 的只读 fact vocabulary 与最小 resolution 摘要
 - `Modules/io/device/io.device_i2c_mock.cppm`
   定义固定容量 `I2cScriptBus`，用于无硬件 transaction 验证
 - `Modules/io/device/io.device_i2c_hal.cppm`
@@ -312,6 +314,8 @@ concept I2cBus =
   定义只依赖 `io.device_i2c` 的 8-bit register device 准 driver
 - `Examples/io/i2c_contract_mock_smoke`
   用一个极小 register probe 验证 `write_read`、`write` 与未预期 transaction 失败路径
+- `Examples/io/i2c_facts_smoke`
+  验证 I2C facts 的 required / provided / missing / optional unknown 只读统计
 - `Examples/io/i2c_hal_adapter_smoke`
   用同一个 register device driver 经 fake HAL ops 验证 HAL adapter、地址/tx 传递与 `busy / timeout / unsupported` 错误映射
 - `Examples/io/i2c_register_driver_smoke`
@@ -319,7 +323,8 @@ concept I2cBus =
 
 这条链目前仍是 `experimental`，不是 `admitted`。
 它已经满足“mock backend + HAL adapter backend + 一个准真实 register driver + no-hardware smoke”的第一层证据，
-但还缺真实硬件 backend、真实 driver 与更完整的资源/事实投影。
+并开始具备 contract-local facts 草案。
+但还缺真实硬件 backend、真实 driver 与 artifact report / evidence pipeline 中的正式事实投影。
 
 ### 5.2 `SpiBus` / `SpiDevice`
 

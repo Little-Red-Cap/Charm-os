@@ -286,20 +286,28 @@ audit facts 放进同一份 sidecar，展示 `fact_resolution.fact_inventory`
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.required_fact_resolution_changes`
 
 与此同时，
 单 report 默认总览里的 `comparison` 现在也会继续带出一份最小 `capability_summary`，
 至少包括：
 
 - `comparison.capability_summary.compared_capability_count`
-- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `comparison.capability_summary.compared_capabilities`
+- `comparison.capability_summary.fact_resolution_compare_capabilities`
+- `comparison.capability_summary.required_fact_resolution_change_kinds`
+- `comparison.capability_summary.required_facts_changed`
 
 如果选择的是整组 compare report，
 artifact_root 级 `cap list` 现在也会继续带出：
 
-- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases`
-- capability 级 `bringup_change_kinds / resource_change_kinds`
+- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases / fact_resolution_compare_cases`
+- capability 级 `bringup_change_kinds / resource_change_kinds / required_fact_resolution_change_kinds`
+- capability 级 `required_facts_changed`
 - query 级 compare 摘要计数
 
 这意味着当前 inspector 已经可以把“capability 分布”与“compare drift 分布”放进同一张表面。
@@ -323,8 +331,11 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `resource_changed_case_count`
 - `fact_resolution_changed_case_count`
 - `capability_summary.compared_capability_count`
-- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `capability_summary.compared_capabilities`
+- `capability_summary.fact_resolution_compare_capabilities`
+- `capability_summary.required_fact_resolution_change_kinds`
+- `capability_summary.required_facts_changed`
 - `system_compiler_summary.changed_case_count / unchanged_case_count`
 - `system_compiler_summary.stage_change_matrix / status_change_matrix`
 - `system_compiler_summary.system_spec_change_matrix / resolved_input_change_matrix`

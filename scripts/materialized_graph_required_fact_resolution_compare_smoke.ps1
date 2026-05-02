@@ -129,6 +129,8 @@ $inspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compa
 $rootInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.root.inspect.json'
 $whyInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.why.inspect.json'
 $graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.graph_path.inspect.json'
+$capListInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.cap_list.inspect.json'
+$rootCapListInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.root.cap_list.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -189,7 +191,7 @@ Assert-Condition (Test-Path $reportManifestPath) "report manifest not found: $re
 
 & $artifactReportScript `
     -BundleRoot $rightBundleRoot `
-    -Case $Case `
+    -Case @($Case, $DonorCase) `
     -OutputRoot $artifactReportOutputRoot `
     -Mode compare `
     -DiffJson $diffJsonPath `
@@ -216,6 +218,25 @@ Assert-Condition ([string]$factChange.right_state -eq 'satisfied') 'right requir
 Assert-Condition ([int]$factChange.left_provider_count -eq 0) 'left provider_count must be 0'
 Assert-Condition ([int]$factChange.right_provider_count -gt 0) 'right provider_count must be greater than 0'
 Assert-Condition ((@($factChange.right_providers | ForEach-Object { [string]$_.source }) -contains $ExpectedProviderSource)) "expected provider source missing from right providers: $ExpectedProviderSource"
+
+$capListInspectResult = Invoke-CommandJson -OutputPath $capListInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -CapList -AsJson
+}
+Assert-Condition ([string]$capListInspectResult.query.kind -eq 'cap_list') 'inspect cap list query kind mismatch'
+Assert-Condition ([string]$capListInspectResult.query.scope -eq 'report') 'inspect cap list query scope mismatch'
+Assert-Condition ($null -ne $capListInspectResult.query.comparison) 'inspect cap list missing comparison payload'
+Assert-Condition ([int]$capListInspectResult.query.comparison.fact_resolution_compare_capability_count -ge 1) 'inspect cap list fact resolution compare count must be positive'
+Assert-Condition ((@($capListInspectResult.query.comparison.fact_resolution_compare_capabilities) -contains $ExpectedFact)) "inspect cap list missing fact resolution capability: $ExpectedFact"
+Assert-Condition ((@($capListInspectResult.query.comparison.required_facts_changed) -contains $ExpectedFact)) "inspect cap list summary missing changed required fact: $ExpectedFact"
+$capListEntry = @(
+    @($capListInspectResult.query.capabilities) |
+        Where-Object { [string]$_.capability -eq $ExpectedFact } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $capListEntry) "inspect cap list entry missing: $ExpectedFact"
+Assert-Condition ([bool]$capListEntry.comparison.fact_resolution_changed) 'inspect cap list entry must mark fact resolution changed'
+Assert-Condition ((@($capListEntry.comparison.required_fact_resolution_change_kinds) -contains 'state_changed')) 'inspect cap list entry missing state_changed required fact kind'
+Assert-Condition ((@($capListEntry.comparison.required_facts_changed) -contains $ExpectedFact)) "inspect cap list entry missing changed required fact: $ExpectedFact"
 
 $inspectResult = Invoke-CommandJson -OutputPath $inspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -ResourceSummary -AsJson
@@ -283,6 +304,26 @@ Assert-Condition ($null -ne $matrixCase) "artifact_root matrix missing case: $Ca
 Assert-Condition ([string]$matrixCase.left_state -eq 'missing') 'artifact_root matrix left state must be missing'
 Assert-Condition ([string]$matrixCase.right_state -eq 'satisfied') 'artifact_root matrix right state must be satisfied'
 
+$rootCapListInspectResult = Invoke-CommandJson -OutputPath $rootCapListInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -CapList -AsJson
+}
+Assert-Condition ([string]$rootCapListInspectResult.query.kind -eq 'cap_list') 'artifact_root cap list query kind mismatch'
+Assert-Condition ([string]$rootCapListInspectResult.query.scope -eq 'artifact_root') 'artifact_root cap list query scope mismatch'
+Assert-Condition ($null -ne $rootCapListInspectResult.query.comparison) 'artifact_root cap list missing comparison payload'
+Assert-Condition ([int]$rootCapListInspectResult.query.comparison.fact_resolution_compare_capability_count -ge 1) 'artifact_root cap list fact resolution compare count must be positive'
+Assert-Condition ((@($rootCapListInspectResult.query.comparison.fact_resolution_compare_capabilities) -contains $ExpectedFact)) "artifact_root cap list missing fact resolution capability: $ExpectedFact"
+Assert-Condition ((@($rootCapListInspectResult.query.comparison.required_facts_changed) -contains $ExpectedFact)) "artifact_root cap list summary missing changed required fact: $ExpectedFact"
+$rootCapListEntry = @(
+    @($rootCapListInspectResult.query.capabilities) |
+        Where-Object { [string]$_.capability -eq $ExpectedFact } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $rootCapListEntry) "artifact_root cap list entry missing: $ExpectedFact"
+Assert-Condition ([bool]$rootCapListEntry.fact_resolution_compare) 'artifact_root cap list entry must mark fact resolution compare'
+Assert-Condition ((@($rootCapListEntry.fact_resolution_compare_cases) -contains $Case)) "artifact_root cap list entry missing fact resolution compare case: $Case"
+Assert-Condition ((@($rootCapListEntry.required_fact_resolution_change_kinds) -contains 'state_changed')) 'artifact_root cap list entry missing state_changed required fact kind'
+Assert-Condition ((@($rootCapListEntry.required_facts_changed) -contains $ExpectedFact)) "artifact_root cap list entry missing changed required fact: $ExpectedFact"
+
 $summary = [ordered]@{
     bundle_root = $resolvedBundleRoot
     artifact_report = $artifactReportPath
@@ -290,6 +331,8 @@ $summary = [ordered]@{
     root_inspect_json = $rootInspectJsonPath
     why_inspect_json = $whyInspectJsonPath
     graph_path_inspect_json = $graphPathInspectJsonPath
+    cap_list_inspect_json = $capListInspectJsonPath
+    root_cap_list_inspect_json = $rootCapListInspectJsonPath
     case = $Case
     donor_case = $DonorCase
     expected_fact = $ExpectedFact
@@ -301,6 +344,8 @@ $summary = [ordered]@{
         why_explains_required_fact_resolution_change = $true
         graph_path_exposes_required_fact_resolution_change = $true
         artifact_root_change_matrix_present = $true
+        cap_list_exposes_required_fact_resolution_change = $true
+        artifact_root_cap_list_exposes_required_fact_resolution_change = $true
     }
 }
 

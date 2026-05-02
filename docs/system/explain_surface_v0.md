@@ -312,13 +312,20 @@ v0 阶段建议至少覆盖：
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.required_fact_resolution_changes`
 
 与此同时，
 单 report 默认总览里的 `comparison` 现在也会继续附带：
 
 - `comparison.capability_summary.compared_capability_count`
-- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `comparison.capability_summary.compared_capabilities`
+- `comparison.capability_summary.fact_resolution_compare_capabilities`
+- `comparison.capability_summary.required_fact_resolution_change_kinds`
+- `comparison.capability_summary.required_facts_changed`
 
 当前实现支持两种读取作用域：
 
@@ -351,16 +358,19 @@ v0 阶段建议至少覆盖：
 如果选择的是整组 compare report，
 artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 
-- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases`
-- capability 级 `bringup_change_kinds / resource_change_kinds`
+- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases / fact_resolution_compare_cases`
+- capability 级 `bringup_change_kinds / resource_change_kinds / required_fact_resolution_change_kinds`
+- capability 级 `required_facts_changed`
 - query 级 `comparison.compared_capability_count`
-- query 级 `comparison.bringup_compare_capability_count / resource_compare_capability_count`
+- query 级 `comparison.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
+- query 级 `comparison.fact_resolution_compare_capabilities`
+- query 级 `comparison.required_fact_resolution_change_kinds / required_facts_changed`
 
 这意味着 `cap list` 现在已经不只会回答“这个 capability 出现在哪些 case 里”，
 还可以直接回答：
 
 - 哪些 capability 本身已经进入 compare drift 热点
-- 这些热点更偏 bringup 漂移还是资源法律漂移
+- 这些热点更偏 bringup 漂移、资源法律漂移还是事实解析漂移
 - 某个 capability 的 compare 漂移究竟覆盖了哪些 case
 
 与此同时，
@@ -369,8 +379,11 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 至少包括：
 
 - `capability_summary.compared_capability_count`
-- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `capability_summary.compared_capabilities`
+- `capability_summary.fact_resolution_compare_capabilities`
+- `capability_summary.required_fact_resolution_change_kinds`
+- `capability_summary.required_facts_changed`
 
 默认总览本身现在还会继续直接给出：
 

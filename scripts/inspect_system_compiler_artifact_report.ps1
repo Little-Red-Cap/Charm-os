@@ -3921,6 +3921,8 @@ function Format-CapListDisplayRow {
         Unres = Format-BoolFlag -Value ([bool]$Entry.unresolved_binding)
         BrCmp = Format-StringArrayOrDash -Values @($Entry.comparison.bringup_change_kinds)
         ResCmp = Format-StringArrayOrDash -Values @($Entry.comparison.resource_change_kinds)
+        FactCmp = Format-StringArrayOrDash -Values @($Entry.comparison.required_fact_resolution_change_kinds)
+        ReqFacts = Format-StringArrayOrDash -Values @($Entry.comparison.required_facts_changed)
         Providers = Format-StringArray @($Entry.provider_nodes)
         Consumers = Format-StringArray @($Entry.consumer_nodes)
     }
@@ -4059,7 +4061,10 @@ function Format-AggregatedCapListDisplayRow {
         Unres = Format-StringArray @($Entry.unresolved_binding_cases)
         BrCmp = Format-StringArray @($Entry.bringup_compare_cases)
         ResCmp = Format-StringArray @($Entry.resource_compare_cases)
+        FactCmp = Format-StringArray @($Entry.fact_resolution_compare_cases)
         ResCtr = Format-StringArray @($Entry.resource_contracts)
+        ReqFactKinds = Format-StringArray @($Entry.required_fact_resolution_change_kinds)
+        ReqFacts = Format-StringArray @($Entry.required_facts_changed)
         Providers = Format-StringArray @($Entry.provider_nodes)
         Consumers = Format-StringArray @($Entry.consumer_nodes)
     }
@@ -4122,13 +4127,15 @@ function New-CapListComparisonSummaryResult {
                 if ($null -ne $comparison) {
                     return (
                         [bool](Get-OptionalMemberValue -Object $comparison -Name 'bringup_changed') -or
-                        [bool](Get-OptionalMemberValue -Object $comparison -Name 'resource_changed')
+                        [bool](Get-OptionalMemberValue -Object $comparison -Name 'resource_changed') -or
+                        [bool](Get-OptionalMemberValue -Object $comparison -Name 'fact_resolution_changed')
                     )
                 }
 
                 return (
                     [bool](Get-OptionalMemberValue -Object $_ -Name 'bringup_compare') -or
-                    [bool](Get-OptionalMemberValue -Object $_ -Name 'resource_compare')
+                    [bool](Get-OptionalMemberValue -Object $_ -Name 'resource_compare') -or
+                    [bool](Get-OptionalMemberValue -Object $_ -Name 'fact_resolution_compare')
                 )
             } |
             ForEach-Object { [string]$_.capability } |
@@ -4160,6 +4167,39 @@ function New-CapListComparisonSummaryResult {
             ForEach-Object { [string]$_.capability } |
             Sort-Object -Unique
     )
+    $factResolutionComparedCapabilities = @(
+        @($Capabilities) |
+            Where-Object {
+                $comparison = Get-OptionalMemberValue -Object $_ -Name 'comparison'
+                if ($null -ne $comparison) {
+                    return [bool](Get-OptionalMemberValue -Object $comparison -Name 'fact_resolution_changed')
+                }
+
+                return [bool](Get-OptionalMemberValue -Object $_ -Name 'fact_resolution_compare')
+            } |
+            ForEach-Object { [string]$_.capability } |
+            Sort-Object -Unique
+    )
+    $requiredFactResolutionChangeKinds = @(
+        foreach ($capability in @($Capabilities)) {
+            $comparison = Get-OptionalMemberValue -Object $capability -Name 'comparison'
+            if ($null -ne $comparison) {
+                @(Get-OptionalMemberValue -Object $comparison -Name 'required_fact_resolution_change_kinds')
+            } else {
+                @(Get-OptionalMemberValue -Object $capability -Name 'required_fact_resolution_change_kinds')
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $requiredFactsChanged = @(
+        foreach ($capability in @($Capabilities)) {
+            $comparison = Get-OptionalMemberValue -Object $capability -Name 'comparison'
+            if ($null -ne $comparison) {
+                @(Get-OptionalMemberValue -Object $comparison -Name 'required_facts_changed')
+            } else {
+                @(Get-OptionalMemberValue -Object $capability -Name 'required_facts_changed')
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
     if (@($comparedCapabilities).Count -eq 0) {
         return $null
@@ -4169,9 +4209,13 @@ function New-CapListComparisonSummaryResult {
         compared_capability_count = @($comparedCapabilities).Count
         bringup_compare_capability_count = @($bringupComparedCapabilities).Count
         resource_compare_capability_count = @($resourceComparedCapabilities).Count
+        fact_resolution_compare_capability_count = @($factResolutionComparedCapabilities).Count
         compared_capabilities = @($comparedCapabilities)
         bringup_compare_capabilities = @($bringupComparedCapabilities)
         resource_compare_capabilities = @($resourceComparedCapabilities)
+        fact_resolution_compare_capabilities = @($factResolutionComparedCapabilities)
+        required_fact_resolution_change_kinds = @($requiredFactResolutionChangeKinds)
+        required_facts_changed = @($requiredFactsChanged)
     }
 }
 
@@ -4227,7 +4271,7 @@ function New-CapListArtifactRootAggregationResult {
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.declared_fact) -CaseName $caseName -PropertyName 'declared_fact_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.resource_fact) -CaseName $caseName -PropertyName 'resource_fact_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.unresolved_binding) -CaseName $caseName -PropertyName 'unresolved_binding_cases'
-            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.bringup_changed -or [bool]$entry.comparison.resource_changed) -CaseName $caseName -PropertyName 'compare_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.bringup_changed -or [bool]$entry.comparison.resource_changed -or [bool]$entry.comparison.fact_resolution_changed) -CaseName $caseName -PropertyName 'compare_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.bringup_changed) -CaseName $caseName -PropertyName 'bringup_compare_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.resource_changed) -CaseName $caseName -PropertyName 'resource_compare_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.fact_resolution_changed) -CaseName $caseName -PropertyName 'fact_resolution_compare_cases'
@@ -8538,11 +8582,11 @@ if ($CapList) {
             Write-Host "[CASE] $([string]($capListView.subject.case))"
             Write-Host "[CAP LIST]"
             if ($null -ne $capListView.query.comparison) {
-                Write-Host "compare_capabilities = $([int]$capListView.query.comparison.compared_capability_count) bringup_compare = $([int]$capListView.query.comparison.bringup_compare_capability_count) resource_compare = $([int]$capListView.query.comparison.resource_compare_capability_count)"
+                Write-Host "compare_capabilities = $([int]$capListView.query.comparison.compared_capability_count) bringup_compare = $([int]$capListView.query.comparison.bringup_compare_capability_count) resource_compare = $([int]$capListView.query.comparison.resource_compare_capability_count) fact_resolution_compare = $([int]$capListView.query.comparison.fact_resolution_compare_capability_count)"
             }
             @($capListView.query.capabilities) |
                 ForEach-Object { Format-CapListDisplayRow -Entry $_ } |
-                Format-Table -Wrap -AutoSize Capability, Mat, Obs, Pub, Req, DecFact, ResFact, Unres, BrCmp, ResCmp, Providers, Consumers |
+                Format-Table -Wrap -AutoSize Capability, Mat, Obs, Pub, Req, DecFact, ResFact, Unres, BrCmp, ResCmp, FactCmp, ReqFacts, Providers, Consumers |
                 Out-Host
         }
         exit 0
@@ -8555,11 +8599,11 @@ if ($CapList) {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
         Write-Host "[CAP LIST] scope=artifact_root cases=$([int]$capListView.query.case_count)"
         if ($null -ne $capListView.query.comparison) {
-            Write-Host "compare_capabilities = $([int]$capListView.query.comparison.compared_capability_count) bringup_compare = $([int]$capListView.query.comparison.bringup_compare_capability_count) resource_compare = $([int]$capListView.query.comparison.resource_compare_capability_count)"
+            Write-Host "compare_capabilities = $([int]$capListView.query.comparison.compared_capability_count) bringup_compare = $([int]$capListView.query.comparison.bringup_compare_capability_count) resource_compare = $([int]$capListView.query.comparison.resource_compare_capability_count) fact_resolution_compare = $([int]$capListView.query.comparison.fact_resolution_compare_capability_count)"
         }
         @($capListView.query.capabilities) |
             ForEach-Object { Format-AggregatedCapListDisplayRow -Entry $_ } |
-            Format-List Capability, Cases, Mat, Obs, Pub, Req, DecFact, ResFact, Unres, BrCmp, ResCmp, ResCtr, Providers, Consumers |
+            Format-List Capability, Cases, Mat, Obs, Pub, Req, DecFact, ResFact, Unres, BrCmp, ResCmp, FactCmp, ResCtr, ReqFactKinds, ReqFacts, Providers, Consumers |
             Out-Host
     }
     exit 0
@@ -8841,6 +8885,7 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
                 Write-Host "compare_capabilities     = $([int]$comparisonOverview.capability_summary.compared_capability_count)"
                 Write-Host "bringup_compare_caps     = $([int]$comparisonOverview.capability_summary.bringup_compare_capability_count)"
                 Write-Host "resource_compare_caps    = $([int]$comparisonOverview.capability_summary.resource_compare_capability_count)"
+                Write-Host "fact_resolution_caps     = $([int]$comparisonOverview.capability_summary.fact_resolution_compare_capability_count)"
                 if (@($comparisonOverview.capability_summary.compared_capabilities).Count -gt 0) {
                     Write-Host "compared_capabilities    = $((@($comparisonOverview.capability_summary.compared_capabilities) -join ', '))"
                 }
@@ -9870,6 +9915,7 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
         Write-Host "compare_capabilities = $([int]$comparisonOverview.capability_summary.compared_capability_count)"
         Write-Host "bringup_compare_caps = $([int]$comparisonOverview.capability_summary.bringup_compare_capability_count)"
         Write-Host "resource_compare_caps = $([int]$comparisonOverview.capability_summary.resource_compare_capability_count)"
+        Write-Host "fact_resolution_caps = $([int]$comparisonOverview.capability_summary.fact_resolution_compare_capability_count)"
         if (@($comparisonOverview.capability_summary.compared_capabilities).Count -gt 0) {
             Write-Host "compared_capabilities = $((@($comparisonOverview.capability_summary.compared_capabilities) -join ', '))"
         }

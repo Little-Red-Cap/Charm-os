@@ -199,6 +199,31 @@ function Load-CaseRuntimeObserve {
     }
 }
 
+function Get-CaseFactEvidencePath {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or
+        $null -eq $CaseEntry.PSObject.Properties['fact_evidence'] -or
+        [string]::IsNullOrWhiteSpace([string]$CaseEntry.fact_evidence)) {
+        return $null
+    }
+
+    $factEvidencePath = Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.fact_evidence)
+    if (-not (Test-Path $factEvidencePath)) {
+        throw "case fact evidence artifact not found: $factEvidencePath"
+    }
+
+    $factEvidence = Get-Content -LiteralPath $factEvidencePath -Raw -Encoding utf8 | ConvertFrom-Json
+    if ([string]$factEvidence.schema -ne 'system_compiler.fact_evidence/v0') {
+        throw "unsupported fact evidence schema: $([string]$factEvidence.schema)"
+    }
+
+    return $factEvidencePath
+}
+
 function Get-SelectedCases {
     param(
         $Bundle
@@ -3671,6 +3696,7 @@ function New-ArtifactReport {
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveSummary = Get-RuntimeObserveSummary -RuntimeObserveInfo $runtimeObserveInfo
     $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
+    $factEvidencePath = Get-CaseFactEvidencePath -Bundle $Bundle -CaseEntry $CaseEntry
 
     $graph = if ($null -ne $CaseGraph) { $CaseGraph.Data } else { $null }
     $graphProvidedFacts = if ($null -ne $graph) {
@@ -3872,6 +3898,7 @@ function New-ArtifactReport {
             dot = $dotArtifactPath
             sample_json = $sampleJsonPath
             runtime_observe = if ($null -ne $runtimeObserveInfo) { $runtimeObserveInfo.Path } else { $null }
+            fact_evidence = $factEvidencePath
             diff = $ArtifactContext.Diff
             ci_summary = $ArtifactContext.CiSummary
             report_manifest = $ArtifactContext.ReportManifest

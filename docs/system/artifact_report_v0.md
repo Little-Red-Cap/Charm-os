@@ -8,6 +8,8 @@
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `schemas/examples/system_compiler.artifact_report.v0.sample.json`
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
+- `schemas/system_compiler.fact_evidence.v0.schema.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
 - `schemas/system_compiler_summary.v0.schema.json`
 - `schemas/examples/system_compiler_summary.summary.v0.sample.json`
 - `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
@@ -34,6 +36,7 @@
 ```powershell
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
@@ -54,7 +57,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 - `scripts/export_system_compiler_artifact_report.ps1`
 - `scripts/inspect_system_compiler_artifact_report.ps1`
 
-它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample` 与可选 `runtime_observe` sidecar，
+它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
+与可选 `fact_evidence` sidecar，
 为每个 case 生成一份最小 `artifact report` JSON。
 而 `inspect_system_compiler_artifact_report.ps1` 则提供了当前最小只读消费面，
 用于把 case 级 `artifact report` 直接展开成人类可读摘要或机器继续消费的 JSON 视图。
@@ -67,7 +71,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 - `runtime_only`
   只带出 `runtime_observe` sidecar，不强行伪造 graph 工件
 - `fact_only`
-  只声明事实输入与审计事实，不强行伪造 graph 或 runtime sidecar
+  可以只携带事实输入 / 审计事实 / `fact_evidence` sidecar，不强行伪造 graph 或 runtime sidecar
 
 如果调用方显式传入 `-Profile`、`-Board`、`-Facet`，
 当前生成链也会把这些 subject 元数据写入报告对象。
@@ -81,6 +85,11 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 `resource_contract.provided_facts` 与 `fact_resolution.fact_inventory`；
 其中 required 但未 available 的事实会自动进入 `resource_hotspots`，
 但仍只作为报告结论，不阻断构建。
+如果 bundle 的 case entry 自带 `fact_evidence` sidecar，
+当前报告脚本会先校验 sidecar schema，
+再把来源写入 `artifacts.fact_evidence`；
+其中 facts 投影仍通过 bundle case entry 上的
+`declared_facts / required_facts / audit_provided_facts` 进入现有报告字段。
 如果 bundle 的 case entry 自带 `declared_contracts`，
 当前导出脚本也会把这些输入合同写入 `resource_contract.declared_contract_entries`，
 并基于 `declared_facts`、`subject` 派生事实与图提供能力产出最小 `provided / satisfied / violated / unknown` 摘要。
@@ -102,6 +111,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
   继续承载静态结构事实
 - `runtime_observe` sidecar
   承载独立的动态观察事实
+- `fact_evidence` sidecar
+  承载 contract-local 或 board-local 的事实证据投影
 
 如果当前 case 还没有接入 sidecar，
 `artifact report` 仍会保留稳定的 `runtime_observe` 形状，
@@ -115,6 +126,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 `artifact report.artifacts.sample_json`、`artifact report.artifacts.dot`
 与 `artifact report.artifacts.runtime_observe` 都会保持为空；
 但 `declared / required / audit_provided` facts 仍会进入事实库存与资源热点计算。
+如果它来自 `fact_evidence` sidecar，
+则 `artifacts.fact_evidence` 会保留对应证据文件路径。
 
 当前最小真实链路可以这样跑：
 
@@ -166,9 +179,11 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 当前也已经有一份 I2C device contract facts 的 artifact report 样例：
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
 
 这份样例现在与 `i2c-device-contract-facts-smoke` 这条 `fact_only`
-导出链保持同一种投影语义。
+导出链保持同一种投影语义，并通过 `fact_evidence` sidecar
+把 `io.device_i2c_facts` 的 contract-local facts 带入 bundle / artifact report。
 它的作用是把 `io.device_i2c_facts` 如何进入现有
 `fact_resolution.fact_inventory`、`structure.required_facts`
 与 `resource_contract.provided_facts` 的形状钉住。

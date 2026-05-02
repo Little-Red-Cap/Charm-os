@@ -142,6 +142,9 @@
       "build_dir": "cmake-build-i2c-facts-smoke-clang",
       "build_target": "i2c-facts-smoke",
       "case_kind": "fact_only",
+      "fact_evidence_target": "export_i2c_facts_evidence",
+      "fact_evidence_cache": "I2C_FACTS_EVIDENCE_PATH",
+      "default_fact_evidence": "i2c_facts.evidence.json",
       "export_target": null,
       "dot_cache": null,
       "json_cache": null,
@@ -150,25 +153,9 @@
       "default_json": null,
       "default_runtime_observe": null,
       "declared_facts": [
-        "board.hqzy",
-        "i2c.bus:i2c1",
-        "i2c.device:i2c1@0x18"
       ],
-      "required_facts": [
-        "clock.domain:rcc.i2c1",
-        "i2c.backend:io.device_i2c_hal",
-        "i2c.bus:i2c1",
-        "i2c.controller:hal.i2c1",
-        "i2c.device:i2c1@0x18",
-        "pinmux:pb8/pb9.af4"
-      ],
-      "audit_provided_facts": [
-        "clock.domain:rcc.i2c1",
-        "i2c.backend:io.device_i2c_hal",
-        "i2c.bus:i2c1",
-        "i2c.controller:hal.i2c1",
-        "i2c.device:i2c1@0x18"
-      ],
+      "required_facts": [],
+      "audit_provided_facts": [],
       "declared_contracts": [],
       "extra_cache": [],
       "subject": {

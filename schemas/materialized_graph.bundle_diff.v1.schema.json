@@ -308,6 +308,12 @@
             "null"
           ]
         },
+        "fact_evidence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "declared_facts": {
           "$ref": "#/$defs/capabilityNameArray"
         },

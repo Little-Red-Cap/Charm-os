@@ -267,6 +267,14 @@ function Get-CaseAuditProvidedFacts {
     )
 }
 
+function Get-CaseFactEvidence {
+    param(
+        $CaseEntry
+    )
+
+    return Get-CaseStringProperty -CaseEntry $CaseEntry -PropertyName 'fact_evidence'
+}
+
 function Get-CaseDeclaredContracts {
     param(
         $CaseEntry
@@ -553,6 +561,7 @@ function New-CaseSummaryRow {
         DeclaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
         RequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
         AuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
+        FactEvidence = Get-CaseFactEvidence -CaseEntry $CaseEntry
         DeclaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
         Nodes = Get-CaseNodeCount -CaseEntry $CaseEntry
         Edges = Get-CaseEdgeCount -CaseEntry $CaseEntry
@@ -684,6 +693,7 @@ if ($AsJson) {
             dot = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'dot'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.dot) }
             json = if ($null -ne $caseGraph) { $caseGraph.Path } else { $null }
             runtime_observe = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'runtime_observe'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.runtime_observe) }
+            fact_evidence = if ([string]::IsNullOrWhiteSpace((Get-CaseFactEvidence -CaseEntry $selectedCase))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.fact_evidence) }
             declared_facts = @(Get-CaseDeclaredFacts -CaseEntry $selectedCase)
             required_facts = @(Get-CaseRequiredFacts -CaseEntry $selectedCase)
             audit_provided_facts = @(Get-CaseAuditProvidedFacts -CaseEntry $selectedCase)
@@ -715,6 +725,7 @@ Write-Host "[CASE] $($selectedCase.name)"
 Write-Host "[CASE KIND] $(Get-CaseKind -CaseEntry $selectedCase)"
 $dotPath = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'dot'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.dot) }
 $runtimeObservePath = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'runtime_observe'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.runtime_observe) }
+$factEvidencePath = if ([string]::IsNullOrWhiteSpace((Get-CaseFactEvidence -CaseEntry $selectedCase))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.fact_evidence) }
 if ($null -ne $dotPath) {
     Write-Host "[DOT]  $dotPath"
 }
@@ -726,6 +737,9 @@ if ($null -ne $caseGraph) {
 if ($null -ne $runtimeObservePath) {
     Write-Host "[RUNTIME OBSERVE] $runtimeObservePath"
 }
+if ($null -ne $factEvidencePath) {
+    Write-Host "[FACT EVIDENCE] $factEvidencePath"
+}
 $declaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $selectedCase)
 if ($declaredFacts.Count -gt 0) {
     Write-Host "[DECLARED FACTS] $($declaredFacts -join ', ')"
@@ -736,7 +750,7 @@ if ($declaredContracts.Count -gt 0) {
 }
 Write-Host ''
 
-$summaryRows | Format-List Case, CaseKind, Profile, Board, Facets, DeclaredFacts, RequiredFacts, AuditProvidedFacts, Nodes, Edges, Phase, Runlevel, Kinds, ConnectionModes | Out-Host
+$summaryRows | Format-List Case, CaseKind, Profile, Board, Facets, DeclaredFacts, RequiredFacts, AuditProvidedFacts, FactEvidence, Nodes, Edges, Phase, Runlevel, Kinds, ConnectionModes | Out-Host
 if ($null -ne $caseGraph) {
     Write-Host '[NODES]'
     $nodeRows | Format-Table -Wrap -AutoSize Index, Kind, Phase, Name, Connection, Provides, Requires | Out-Host

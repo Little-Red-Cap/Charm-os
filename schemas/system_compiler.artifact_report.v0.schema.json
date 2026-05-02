@@ -2293,6 +2293,9 @@
         "runtime_observe": {
           "$ref": "#/$defs/nullableString"
         },
+        "fact_evidence": {
+          "$ref": "#/$defs/nullableString"
+        },
         "diff": {
           "$ref": "#/$defs/nullableString"
         },

@@ -274,7 +274,9 @@ i2c register driver smoke: ok
 当前已有只读 facts 草案，并已有一份可被现有 schema 校验的 artifact report sample。
 它也已经以 `fact_only` case 的形式接入
 `export_case_manifest -> export_bundle -> artifact_report` 真实导出链。
-但它还没有进入正式 evidence pipeline，也不会阻断构建。
+当前 facts 不再主要依赖 manifest 字面量，而是由
+`system_compiler.fact_evidence/v0` sidecar 进入 bundle 后再投影到 artifact report。
+这仍然只是报告证据，不会阻断构建。
 
 `io.device_i2c_facts` 当前定义了最小 fact vocabulary：
 
@@ -316,6 +318,7 @@ required=6 provided=5 missing=1 optional_unknown=1
 当前 artifact report sample：
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
 
 当前真实导出 case：
 
@@ -323,13 +326,14 @@ required=6 provided=5 missing=1 optional_unknown=1
 
 这份样例把 I2C facts 投影进现有字段：
 
+- `artifacts.fact_evidence`
 - `structure.declared_facts`
 - `structure.required_facts`
 - `resource_contract.provided_facts`
 - `fact_resolution.fact_inventory`
 - `fact_resolution.resource_hotspots`
 
-其中 `pinmux:pb8/pb9.af4` 被保留为 required 但未 available，
+其中 `pinmux:pb8/pb9.af4` 在 sidecar 中被保留为 required 但未 available，
 用于表达“contract 已经知道需要这个事实，但当前报告仍缺证据”。
 
 这一步仍然只做报告投影，不做构建期强制。
@@ -388,8 +392,8 @@ Charm:
 
 1. 写一个真实芯片 driver
    例如 sensor / EEPROM / codec / PMIC。
-2. 把 `io.device_i2c_facts` 接入更正式的 evidence pipeline
-   先作为 evidence sidecar 或 fact resolution input，不做执法。
+2. 把当前 smoke 级 `fact_evidence` sidecar 推进到更真实的 evidence pipeline
+   例如 board package facts、probe evidence 或 board bringup evidence，不做执法。
 3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。
 

@@ -32,7 +32,6 @@
         ]
       },
       "declared_facts": [
-        "board.hqzy",
         "i2c.bus:i2c1",
         "i2c.device:i2c1@0x18"
       ],
@@ -68,7 +67,6 @@
     "edge_count": 0,
     "materialized_order": [],
     "declared_facts": [
-      "board.hqzy",
       "i2c.bus:i2c1",
       "i2c.device:i2c1@0x18"
     ],
@@ -100,7 +98,7 @@
     "status": "formed",
     "formation_basis": {
       "case_kind": "fact_only",
-      "declared_fact_count": 3,
+      "declared_fact_count": 2,
       "declared_contract_count": 0,
       "subject_fact_count": 4
     },
@@ -159,7 +157,6 @@
     "unknown_count": 0,
     "fact_inventory": {
       "declared_facts": [
-        "board.hqzy",
         "i2c.bus:i2c1",
         "i2c.device:i2c1@0x18"
       ],
@@ -224,6 +221,7 @@
     "dot": null,
     "sample_json": null,
     "runtime_observe": null,
+    "fact_evidence": "system_compiler.fact_evidence.v0.i2c_facts.sample.json",
     "diff": null,
     "ci_summary": null,
     "report_manifest": null

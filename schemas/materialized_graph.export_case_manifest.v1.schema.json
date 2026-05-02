@@ -162,6 +162,24 @@
             "null"
           ]
         },
+        "fact_evidence_target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fact_evidence_cache": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default_fact_evidence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "declared_facts": {
           "type": "array",
           "items": {
@@ -193,6 +211,12 @@
           }
         },
         "runtime_observe": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fact_evidence": {
           "type": [
             "string",
             "null"

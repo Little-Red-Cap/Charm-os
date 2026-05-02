@@ -12,6 +12,7 @@ SCHEMA_FILES = {
     "materialized_graph.ci_summary/v1": "schemas/materialized_graph.ci_summary.v1.schema.json",
     "materialized_graph.report_manifest/v1": "schemas/materialized_graph.report_manifest.v1.schema.json",
     "system_compiler.artifact_report/v0": "schemas/system_compiler.artifact_report.v0.schema.json",
+    "system_compiler.fact_evidence/v0": "schemas/system_compiler.fact_evidence.v0.schema.json",
     "system_compiler.runtime_observe_snapshot/v0": "schemas/system_compiler.runtime_observe_snapshot.v0.schema.json",
     "system_compiler_result_map/v0": "schemas/system_compiler_result_map.v0.schema.json",
     "system_compiler_summary/v0": "schemas/system_compiler_summary.v0.schema.json",
@@ -75,6 +76,7 @@ def validate_bundle_root(bundle_root: Path, repo_root: Path, visited: set[Path])
         case_kind = case_entry.get("case_kind", "materialized_graph")
         json_value = case_entry.get("json")
         runtime_observe_value = case_entry.get("runtime_observe")
+        fact_evidence_value = case_entry.get("fact_evidence")
 
         if isinstance(json_value, str) and json_value:
             json_path = resolve_path(bundle_root.resolve(), json_value)
@@ -88,6 +90,10 @@ def validate_bundle_root(bundle_root: Path, repo_root: Path, visited: set[Path])
             raise RuntimeError(
                 f"runtime_only bundle case '{case_entry.get('name', '<unknown>')}' is missing runtime_observe"
             )
+
+        if isinstance(fact_evidence_value, str) and fact_evidence_value:
+            fact_evidence_path = resolve_path(bundle_root.resolve(), fact_evidence_value)
+            validate_once(fact_evidence_path, repo_root, visited)
 
 
 def validate_ci_output_root(ci_root: Path, repo_root: Path, visited: set[Path]):
@@ -138,11 +144,17 @@ def validate_once(path: Path, repo_root: Path, visited: set[Path]):
             path_value = case_entry.get("runtime_observe")
             if isinstance(path_value, str) and path_value:
                 validate_once(resolve_path(bundle_root, path_value), repo_root, visited)
+            path_value = case_entry.get("fact_evidence")
+            if isinstance(path_value, str) and path_value:
+                validate_once(resolve_path(bundle_root, path_value), repo_root, visited)
 
     if schema_name == "system_compiler.artifact_report/v0":
         artifacts = data.get("artifacts")
         if isinstance(artifacts, dict):
             path_value = artifacts.get("runtime_observe")
+            if isinstance(path_value, str) and path_value:
+                validate_once(resolve_path(resolved.parent, path_value), repo_root, visited)
+            path_value = artifacts.get("fact_evidence")
             if isinstance(path_value, str) and path_value:
                 validate_once(resolve_path(resolved.parent, path_value), repo_root, visited)
 

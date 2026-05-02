@@ -212,6 +212,12 @@
             "null"
           ]
         },
+        "fact_evidence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "subject": {
           "$ref": "#/$defs/subjectSummary"
         },

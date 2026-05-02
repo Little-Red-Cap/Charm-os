@@ -213,6 +213,10 @@ function Convert-ExportCaseEntry {
         RuntimeObserveTarget = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'runtime_observe_target'
         RuntimeObserveCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'runtime_observe_cache'
         DefaultRuntimeObserve = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'default_runtime_observe'
+        FactEvidenceTarget = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'fact_evidence_target'
+        FactEvidenceCache = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'fact_evidence_cache'
+        DefaultFactEvidence = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'default_fact_evidence'
+        FactEvidence = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'fact_evidence'
         ExtraCache = Get-OptionalStringArrayProperty -Object $CaseEntry -PropertyName 'extra_cache'
         RuntimeObserve = Get-OptionalStringProperty -Object $CaseEntry -PropertyName 'runtime_observe'
         Profile = Get-OptionalStringProperty -Object $subjectEntry -PropertyName 'profile'
@@ -326,6 +330,34 @@ function Resolve-RuntimeObserveOutputPath {
     return ''
 }
 
+function Resolve-FactEvidenceOutputPath {
+    param(
+        $Entry,
+        [string]$BuildDirPath,
+        [string]$OutputRootPath = ''
+    )
+
+    if ($null -eq $Entry) {
+        return ''
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($OutputRootPath) -and
+        -not [string]::IsNullOrWhiteSpace($Entry.DefaultFactEvidence)) {
+        $caseOutputDir = Join-Path (Resolve-FullPath $OutputRootPath) $Entry.Name
+        return Join-Path $caseOutputDir $Entry.DefaultFactEvidence
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Entry.FactEvidence)) {
+        return Resolve-FullPath $Entry.FactEvidence
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Entry.DefaultFactEvidence)) {
+        return Join-Path $BuildDirPath $Entry.DefaultFactEvidence
+    }
+
+    return ''
+}
+
 function Ensure-ParentDirectory {
     param(
         [string]$Path
@@ -369,6 +401,55 @@ function Get-OptionalRelativePath {
     }
 
     return Get-RelativePath -BasePath $BasePath -TargetPath $TargetPath
+}
+
+function Get-FactEvidenceFacts {
+    param(
+        $FactEvidence,
+        [string]$PropertyName
+    )
+
+    if ($null -eq $FactEvidence) {
+        return @()
+    }
+
+    $source = $FactEvidence
+    if ($null -ne $FactEvidence.PSObject.Properties['facts'] -and $null -ne $FactEvidence.facts) {
+        $source = $FactEvidence.facts
+    }
+
+    if ($null -eq $source.PSObject.Properties[$PropertyName]) {
+        return @()
+    }
+
+    return @(
+        @($source.$PropertyName) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Load-FactEvidence {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+
+    $resolvedPath = Resolve-FullPath $Path
+    if (-not (Test-Path $resolvedPath)) {
+        return $null
+    }
+
+    $evidence = Get-Content -LiteralPath $resolvedPath -Raw -Encoding utf8 | ConvertFrom-Json
+    if ([string]$evidence.schema -ne 'system_compiler.fact_evidence/v0') {
+        throw "unsupported fact evidence schema: $([string]$evidence.schema)"
+    }
+
+    return $evidence
 }
 
 function Get-GraphSummary {
@@ -459,7 +540,8 @@ function New-CaseSubjectMetadata {
 
 function New-CaseDeclaredFactsMetadata {
     param(
-        $Entry
+        $Entry,
+        $FactEvidence = $null
     )
 
     $declaredFacts = @()
@@ -472,12 +554,19 @@ function New-CaseDeclaredFactsMetadata {
         )
     }
 
-    return @($declaredFacts)
+    return @(
+        @($declaredFacts) +
+        @(Get-FactEvidenceFacts -FactEvidence $FactEvidence -PropertyName 'declared_facts') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
 }
 
 function New-CaseRequiredFactsMetadata {
     param(
-        $Entry
+        $Entry,
+        $FactEvidence = $null
     )
 
     $requiredFacts = @()
@@ -490,12 +579,19 @@ function New-CaseRequiredFactsMetadata {
         )
     }
 
-    return @($requiredFacts)
+    return @(
+        @($requiredFacts) +
+        @(Get-FactEvidenceFacts -FactEvidence $FactEvidence -PropertyName 'required_facts') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
 }
 
 function New-CaseAuditProvidedFactsMetadata {
     param(
-        $Entry
+        $Entry,
+        $FactEvidence = $null
     )
 
     $auditProvidedFacts = @()
@@ -508,7 +604,13 @@ function New-CaseAuditProvidedFactsMetadata {
         )
     }
 
-    return @($auditProvidedFacts)
+    return @(
+        @($auditProvidedFacts) +
+        @(Get-FactEvidenceFacts -FactEvidence $FactEvidence -PropertyName 'audit_provided_facts') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
 }
 
 function New-CaseDeclaredContractsMetadata {
@@ -590,6 +692,11 @@ function Write-ExportBundleIndex {
         }
         if ($null -ne $result.PSObject.Properties['AuditProvidedFacts']) {
             $caseEntry.audit_provided_facts = @($result.AuditProvidedFacts)
+        }
+        if ($null -ne $result.PSObject.Properties['FactEvidencePath'] -and -not [string]::IsNullOrWhiteSpace([string]$result.FactEvidencePath)) {
+            $caseEntry.fact_evidence = Get-OptionalRelativePath -BasePath $bundleRoot -TargetPath $result.FactEvidencePath
+        } elseif ($null -ne $result.PSObject.Properties['FactEvidence'] -and -not [string]::IsNullOrWhiteSpace([string]$result.FactEvidence)) {
+            Write-Warning "[INDEX][$($result.Name)] fact evidence artifact not found: $([string]$result.FactEvidence)"
         }
         if ($null -ne $result.PSObject.Properties['DeclaredContracts']) {
             $caseEntry.declared_contracts = @($result.DeclaredContracts)
@@ -740,6 +847,11 @@ function Invoke-ManifestCase {
         [string]::IsNullOrWhiteSpace($runtimeObservePath)) {
         throw "runtime observe target requires a resolved runtime observe path: $($Entry.Name)"
     }
+    $factEvidencePath = Resolve-FactEvidenceOutputPath -Entry $Entry -BuildDirPath $buildDir -OutputRootPath $OutputRootPath
+    if (-not [string]::IsNullOrWhiteSpace($Entry.FactEvidenceTarget) -and
+        [string]::IsNullOrWhiteSpace($factEvidencePath)) {
+        throw "fact evidence target requires a resolved fact evidence path: $($Entry.Name)"
+    }
 
     $configureArgs = @(
         '-S', $sourceDir,
@@ -759,6 +871,11 @@ function Invoke-ManifestCase {
         Ensure-ParentDirectory -Path $runtimeObservePath
         $configureArgs += @('-D', "$($Entry.RuntimeObserveCache)=$runtimeObservePath")
     }
+    if (-not [string]::IsNullOrWhiteSpace($Entry.FactEvidenceCache) -and
+        -not [string]::IsNullOrWhiteSpace($factEvidencePath)) {
+        Ensure-ParentDirectory -Path $factEvidencePath
+        $configureArgs += @('-D', "$($Entry.FactEvidenceCache)=$factEvidencePath")
+    }
     foreach ($cacheArg in $Entry.ExtraCache) {
         $configureArgs += @('-D', $cacheArg)
     }
@@ -770,6 +887,7 @@ function Invoke-ManifestCase {
     }
 
     if ($ConfigureOnly) {
+        $factEvidenceInfo = Load-FactEvidence -Path $factEvidencePath
         Write-Host "[OK][$($Entry.Name)] configure finished: $buildDir"
         return [pscustomobject]@{
             Name = $Entry.Name
@@ -781,12 +899,14 @@ function Invoke-ManifestCase {
             DotPath = $dotPath
             JsonPath = $jsonPath
             Subject = New-CaseSubjectMetadata -Entry $Entry
-            DeclaredFacts = New-CaseDeclaredFactsMetadata -Entry $Entry
-            RequiredFacts = New-CaseRequiredFactsMetadata -Entry $Entry
-            AuditProvidedFacts = New-CaseAuditProvidedFactsMetadata -Entry $Entry
+            DeclaredFacts = New-CaseDeclaredFactsMetadata -Entry $Entry -FactEvidence $factEvidenceInfo
+            RequiredFacts = New-CaseRequiredFactsMetadata -Entry $Entry -FactEvidence $factEvidenceInfo
+            AuditProvidedFacts = New-CaseAuditProvidedFactsMetadata -Entry $Entry -FactEvidence $factEvidenceInfo
             DeclaredContracts = New-CaseDeclaredContractsMetadata -Entry $Entry
             RuntimeObserve = $Entry.RuntimeObserve
             RuntimeObservePath = $runtimeObservePath
+            FactEvidence = $Entry.FactEvidence
+            FactEvidencePath = Resolve-OptionalExistingPath -Path $factEvidencePath
         }
     }
 
@@ -817,6 +937,13 @@ function Invoke-ManifestCase {
             throw "runtime observe target failed: $($Entry.Name)"
         }
     }
+    if (-not [string]::IsNullOrWhiteSpace($Entry.FactEvidenceTarget)) {
+        Write-Host "[FACT_EVIDENCE][$($Entry.Name)] target=$($Entry.FactEvidenceTarget)"
+        cmake --build $buildDir --target $Entry.FactEvidenceTarget -j $Jobs | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "fact evidence target failed: $($Entry.Name)"
+        }
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($dotPath)) {
         Write-Host "[DOT][$($Entry.Name)]  $dotPath"
@@ -825,6 +952,11 @@ function Invoke-ManifestCase {
         Write-Host "[JSON][$($Entry.Name)] $jsonPath"
     }
     $runtimeObserveArtifactPath = Resolve-OptionalExistingPath -Path $runtimeObservePath
+    $factEvidenceArtifactPath = Resolve-OptionalExistingPath -Path $factEvidencePath
+    if (-not [string]::IsNullOrWhiteSpace($Entry.FactEvidenceTarget) -and $null -eq $factEvidenceArtifactPath) {
+        throw "fact evidence target did not produce expected artifact: $factEvidencePath"
+    }
+    $factEvidenceInfo = Load-FactEvidence -Path $factEvidenceArtifactPath
     return [pscustomobject]@{
         Name = $Entry.Name
         Source = $Entry.Source
@@ -835,9 +967,9 @@ function Invoke-ManifestCase {
         DotPath = $dotPath
         JsonPath = $jsonPath
         Subject = New-CaseSubjectMetadata -Entry $Entry
-        DeclaredFacts = New-CaseDeclaredFactsMetadata -Entry $Entry
-        RequiredFacts = New-CaseRequiredFactsMetadata -Entry $Entry
-        AuditProvidedFacts = New-CaseAuditProvidedFactsMetadata -Entry $Entry
+        DeclaredFacts = New-CaseDeclaredFactsMetadata -Entry $Entry -FactEvidence $factEvidenceInfo
+        RequiredFacts = New-CaseRequiredFactsMetadata -Entry $Entry -FactEvidence $factEvidenceInfo
+        AuditProvidedFacts = New-CaseAuditProvidedFactsMetadata -Entry $Entry -FactEvidence $factEvidenceInfo
         DeclaredContracts = New-CaseDeclaredContractsMetadata -Entry $Entry
         RuntimeObserve = if (-not [string]::IsNullOrWhiteSpace($Entry.RuntimeObserve)) {
             $Entry.RuntimeObserve
@@ -845,6 +977,12 @@ function Invoke-ManifestCase {
             $runtimeObservePath
         }
         RuntimeObservePath = $runtimeObserveArtifactPath
+        FactEvidence = if (-not [string]::IsNullOrWhiteSpace($Entry.FactEvidence)) {
+            $Entry.FactEvidence
+        } else {
+            $factEvidencePath
+        }
+        FactEvidencePath = $factEvidenceArtifactPath
     }
 }
 
@@ -893,6 +1031,13 @@ if ($ListCases) {
         }
         if (@($auditProvidedFacts).Count -gt 0) {
             $line += " audit_provided_facts={$((@($auditProvidedFacts) -join ', '))}"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$entry.FactEvidenceTarget)) {
+            $line += " fact_evidence_target={$([string]$entry.FactEvidenceTarget)}"
+        } elseif (-not [string]::IsNullOrWhiteSpace([string]$entry.FactEvidence)) {
+            $line += " fact_evidence={$([string]$entry.FactEvidence)}"
+        } elseif (-not [string]::IsNullOrWhiteSpace([string]$entry.DefaultFactEvidence)) {
+            $line += " default_fact_evidence={$([string]$entry.DefaultFactEvidence)}"
         }
         if (@($declaredContracts).Count -gt 0) {
             $contractText = @(

@@ -874,6 +874,11 @@ function Compare-CaseSummary {
     if ($leftRuntimeObserve -ne $rightRuntimeObserve) {
         $changes += "runtime_observe:$(Format-NullableValue $leftRuntimeObserve)->$(Format-NullableValue $rightRuntimeObserve)"
     }
+    $leftFactEvidence = Get-CaseStringProperty -CaseEntry $LeftCase -PropertyName 'fact_evidence'
+    $rightFactEvidence = Get-CaseStringProperty -CaseEntry $RightCase -PropertyName 'fact_evidence'
+    if ($leftFactEvidence -ne $rightFactEvidence) {
+        $changes += "fact_evidence:$(Format-NullableValue $leftFactEvidence)->$(Format-NullableValue $rightFactEvidence)"
+    }
 
     $leftSubject = Get-CaseSubjectInfo -CaseEntry $LeftCase
     $rightSubject = Get-CaseSubjectInfo -CaseEntry $RightCase
@@ -1099,6 +1104,7 @@ function New-CaseJsonView {
         dot = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'dot'
         json = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'json'
         runtime_observe = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'runtime_observe'
+        fact_evidence = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'fact_evidence'
         declared_facts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
         required_facts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
         audit_provided_facts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)

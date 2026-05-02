@@ -1,0 +1,83 @@
+{
+  "schema": "system_compiler.fact_evidence/v0",
+  "source": "Examples/io/i2c_facts_smoke",
+  "producer": "io.device_i2c_facts",
+  "summary": {
+    "required_count": 6,
+    "provided_count": 5,
+    "missing_count": 1,
+    "optional_unknown_count": 1
+  },
+  "facts": {
+    "declared_facts": [
+      "i2c.bus:i2c1",
+      "i2c.device:i2c1@0x18"
+    ],
+    "required_facts": [
+      "i2c.bus:i2c1",
+      "i2c.device:i2c1@0x18",
+      "i2c.controller:hal.i2c1",
+      "clock.domain:rcc.i2c1",
+      "pinmux:pb8/pb9.af4",
+      "i2c.backend:io.device_i2c_hal"
+    ],
+    "audit_provided_facts": [
+      "i2c.bus:i2c1",
+      "i2c.device:i2c1@0x18",
+      "i2c.controller:hal.i2c1",
+      "clock.domain:rcc.i2c1",
+      "i2c.backend:io.device_i2c_hal"
+    ]
+  },
+  "raw_facts": [
+    {
+      "name": "i2c.bus:i2c1",
+      "kind": "i2c.bus",
+      "source": "board.hqzy",
+      "required": true,
+      "state": "provided"
+    },
+    {
+      "name": "i2c.device:i2c1@0x18",
+      "kind": "i2c.device",
+      "source": "board.hqzy",
+      "required": true,
+      "state": "provided"
+    },
+    {
+      "name": "i2c.controller:hal.i2c1",
+      "kind": "i2c.controller",
+      "source": "init.graph",
+      "required": true,
+      "state": "provided"
+    },
+    {
+      "name": "clock.domain:rcc.i2c1",
+      "kind": "clock.domain",
+      "source": "board.hqzy",
+      "required": true,
+      "state": "provided"
+    },
+    {
+      "name": "pinmux:pb8/pb9.af4",
+      "kind": "pinmux",
+      "source": "board.hqzy",
+      "required": true,
+      "state": "unknown"
+    },
+    {
+      "name": "power.domain:sensor.vdd",
+      "kind": "power.domain",
+      "source": "board.hqzy",
+      "required": false,
+      "state": "unknown"
+    },
+    {
+      "name": "i2c.backend:io.device_i2c_hal",
+      "kind": "i2c.backend",
+      "source": "adapter",
+      "required": true,
+      "state": "provided"
+    }
+  ]
+}

@@ -35,7 +35,32 @@
 先读：
 
 - [`driver_model.md`](driver_model.md)
+- [`interface_admission_policy.md`](interface_admission_policy.md)（公共接口进入契约层前的证据门槛）
+- [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)（面向驱动生态的最小共同语言）
 - [`device_model_overview.md`](device_model_overview.md)（偏动态 discovery 平面快照与补充说明）
+
+### 我想看公共接口契约 / 驱动生态窄腰
+
+建议顺序：
+
+1. [`driver_model.md`](driver_model.md)
+2. [`interface_admission_policy.md`](interface_admission_policy.md)
+3. [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)
+4. [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
+5. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+
+当前第一条实验窄链：
+
+- [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
+- `Modules/io/device/io.device_i2c.cppm`
+- `Modules/io/device/io.device_i2c_facts.cppm`
+- `Modules/io/device/io.device_i2c_mock.cppm`
+- `Modules/io/device/io.device_i2c_hal.cppm`
+- `Modules/io/driver/driver.i2c_register_device.cppm`
+- `Examples/io/i2c_contract_mock_smoke`
+- `Examples/io/i2c_facts_smoke`
+- `Examples/io/i2c_hal_adapter_smoke`
+- `Examples/io/i2c_register_driver_smoke`
 
 ### 我想看 signal / state 这条线
 
@@ -83,7 +108,7 @@
 - 看依赖与分层：
   `dependency_contract.md`
 - 看驱动与设备：
-  `driver_model.md` → `device_model_overview.md`（后者偏动态 discovery 平面与历史补充）
+  `driver_model.md` → `interface_admission_policy.md` → `device_contract_narrow_waist_v0.md` → `i2c_device_contract_v0.md` → `device_model_overview.md`（后者偏动态 discovery 平面与历史补充）
 - 看 signal/state：
   `signal_state_contract_v0.md`
 - 看 system compiler：

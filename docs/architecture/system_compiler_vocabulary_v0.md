@@ -265,7 +265,68 @@ report / system 侧的现实载体包括：
 - `artifact report.system_input.resolved_input.active_facets`
   现在已经把活动 facets 及其解析来源正式投影出来
 
-### 3.6 `Case`
+### 3.6 `DeviceContract`
+
+它回答的是：
+
+> **一个可复用 driver / component / middleware 最小需要相信哪些设备语义。**
+
+它不是 vendor HAL，也不是 runtime discovery 生命周期本身。
+它更像驱动生态的窄腰契约。
+
+当前对应的架构入口包括：
+
+- [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)
+- [`interface_admission_policy.md`](interface_admission_policy.md)
+- [`driver_model.md`](driver_model.md) 中的 capability-first / dual-plane 边界
+
+当前它应至少关心：
+
+- API shape
+- ownership / responsibility
+- transaction boundary
+- execution / time semantics
+- error kind
+- resource facts
+- mock / evidence path
+- capability export path
+
+当前明确不要把它误写成：
+
+- 大一统 HAL
+- 单个 `device::Driver`
+- vendor SDK 包装
+- 某个 board 的私有 handle
+
+### 3.7 `InterfaceAdmission`
+
+它回答的是：
+
+> **一个接口凭什么有资格进入 Charm 公共契约层。**
+
+它不是普通代码评审清单，
+而是公共接口从 `proposed` 走向 `admitted` 的证据门槛。
+
+当前对应的架构入口是：
+
+- [`interface_admission_policy.md`](interface_admission_policy.md)
+
+它当前至少要求接口说明：
+
+- 保护谁
+- 至少有哪些 backend 证据
+- 至少有哪些 driver / component 证据
+- 是否有 no-hardware 测试路径
+- 阻塞、ISR、reentrancy、时间源等执行语义
+- 错误分类与 `util::Result<T>` / `util::Errc` 映射
+- 能否被 system compiler、artifact report、explain surface 看见
+
+当前状态：
+
+- 这是新补入的治理词汇
+- v0 阶段先作为文档级法律，不直接等价于构建期强制检查
+
+### 3.8 `Case`
 
 它回答的是：
 
@@ -532,6 +593,8 @@ report / system 侧的现实载体包括：
 | `BoardPackage` | `BoardCaps` + 板级 target/config + `system_input.resolved_input.board` | 事实载体已存在，开始显式投影 board 取值来源 | 隐式 init / BSP 黑盒 |
 | `Binding` | `*Binding`、init chain、runtime driver/export | 双平面都已存在 | 只等于 `device::Driver` |
 | `Facet` | facet target、`active_facets`、语义面文档、`system_input.resolved_input.active_facets` | 词已出现，开始显式投影解析来源 | profile / target / component |
+| `DeviceContract` | `device_contract_narrow_waist_v0.md`、`interface_admission_policy.md`、驱动模型语义面 | 新补入治理与窄腰词汇，先作为文档级法律 | 大一统 HAL / vendor SDK 包装 |
+| `InterfaceAdmission` | `interface_admission_policy.md` | 新补入公共契约准入词汇，先作为文档级门槛 | 普通代码评审或随手加接口 |
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
 | `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
@@ -598,6 +661,10 @@ Outputs
   负责给出主轴、维度、边界与时间线
 - `docs/architecture/system_compiler_vocabulary_v0.md`
   负责给出核心词义与当前仓库映射
+- `docs/architecture/interface_admission_policy.md`
+  负责给出公共接口进入契约层前的证据门槛
+- `docs/architecture/device_contract_narrow_waist_v0.md`
+  负责给出面向驱动生态的最小共同语言
 - `docs/system/artifact_report_v0.md`
   负责给出最小结论对象
 - `docs/system/explain_surface_v0.md`

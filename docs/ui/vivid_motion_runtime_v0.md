@@ -346,3 +346,13 @@ Examples/ui/vivid/page_transition_demo
 - 后续 commit / cancel 后 `interrupt_count` 必须保留为可审计证据。
 
 `Examples/ui/vivid/page_transition_demo` 已覆盖 `rebegin_interrupt`：旧事务 compose 后再次 begin，新事务重新持有两个 snapshot，最终 cancel 后 `snapshot_count == 0`。
+
+## 2026-05 补记：PageTransition capture failure law
+
+`PageTransitionRunner` 的 capture 失败路径现在也有明确证据：
+
+- source capture fail：不进入 destination prepare / capture，恢复 begin 前 page truth，`snapshot_count == 0`。
+- destination capture fail：释放已获取的 source snapshot，恢复 begin 前 page truth，`snapshot_count == 0`。
+- `PageTransitionTrace::begin_status` 会记录 `SourceCaptureFailed` / `DestinationCaptureFailed`，并保留对应 `LayerCaptureStatus`。
+
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `source_capture_fail` 与 `destination_capture_fail`。

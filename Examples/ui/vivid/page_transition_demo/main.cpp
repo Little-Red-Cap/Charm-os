@@ -249,6 +249,95 @@ namespace {
         return true;
     }
 
+    [[nodiscard]] bool run_source_capture_fail() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{190, 40, 60, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 90, 220, 255}, .x = 4, .y = 2};
+        auto spec = transition_spec(env, prepare);
+        spec.source_snapshot.bounds = {.x = 40, .y = 40, .w = 1, .h = 1};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, spec);
+        const auto trace = runner.trace();
+        if (!expect(begin.status == ui::scene::PageTransitionBeginStatus::SourceCaptureFailed,
+                    "source capture failure is reported")) {
+            return false;
+        }
+        if (!expect(begin.source_capture.status == ui::scene::LayerCaptureStatus::StoreFailed,
+                    "source capture failure keeps capture status")) {
+            return false;
+        }
+        if (!expect(trace.begin_status == ui::scene::PageTransitionBeginStatus::SourceCaptureFailed,
+                    "source capture failure is recorded in trace")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
+                    "source capture failure performs no successful captures")) {
+            return false;
+        }
+        if (!expect(trace.abort_count == 1, "source capture failure records abort")) return false;
+        if (!expect(env.source.visible() && !env.destination.visible(),
+                    "source capture failure restores page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "source capture failure leaves no snapshots")) {
+            return false;
+        }
+        std::printf("[pt] source_capture_fail status=%s capture=%u abort=%u snapshots=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    static_cast<unsigned>(begin.source_capture.status),
+                    static_cast<unsigned>(trace.abort_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+        return true;
+    }
+
+    [[nodiscard]] bool run_destination_capture_fail() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{180, 50, 70, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{50, 100, 230, 255}, .x = 4, .y = 2};
+        auto spec = transition_spec(env, prepare);
+        spec.destination_snapshot.bounds = {.x = 40, .y = 40, .w = 1, .h = 1};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, spec);
+        const auto trace = runner.trace();
+        if (!expect(begin.status == ui::scene::PageTransitionBeginStatus::DestinationCaptureFailed,
+                    "destination capture failure is reported")) {
+            return false;
+        }
+        if (!expect(begin.source_capture.ok(), "destination capture failure keeps source capture result")) {
+            return false;
+        }
+        if (!expect(begin.destination_capture.status == ui::scene::LayerCaptureStatus::StoreFailed,
+                    "destination capture failure keeps capture status")) {
+            return false;
+        }
+        if (!expect(trace.begin_status == ui::scene::PageTransitionBeginStatus::DestinationCaptureFailed,
+                    "destination capture failure is recorded in trace")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
+                    "destination capture failure happens after source capture")) {
+            return false;
+        }
+        if (!expect(trace.abort_count == 1, "destination capture failure records abort")) return false;
+        if (!expect(env.source.visible() && !env.destination.visible(),
+                    "destination capture failure restores page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "destination capture failure releases source snapshot")) {
+            return false;
+        }
+        std::printf("[pt] destination_capture_fail status=%s src_caps=%u dst_capture=%u snapshots=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    static_cast<unsigned>(trace.source_capture_count),
+                    static_cast<unsigned>(begin.destination_capture.status),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count));
+        return true;
+    }
+
     [[nodiscard]] bool run_rebegin_interrupt() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{210, 80, 30, 255});
@@ -304,6 +393,8 @@ int main() {
     if (!run_cancel_during_compose()) return 1;
     if (!run_low_budget_static_cut()) return 1;
     if (!run_prepare_fail()) return 1;
+    if (!run_source_capture_fail()) return 1;
+    if (!run_destination_capture_fail()) return 1;
     if (!run_rebegin_interrupt()) return 1;
     std::puts("[page_transition_demo] ok");
     return 0;

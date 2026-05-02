@@ -135,6 +135,7 @@ export namespace ui::scene {
             source_ = spec.source;
             destination_ = spec.destination;
             if (!source_ || !destination_) {
+                trace_.begin_status = PageTransitionBeginStatus::Rejected;
                 clear_tracking();
                 return begin_result(PageTransitionBeginStatus::Rejected);
             }
@@ -145,6 +146,7 @@ export namespace ui::scene {
             trace_.last_state = state_;
             trace_.admission = decide_admission(spec);
             if (trace_.admission == LayerAdmission::Reject) {
+                trace_.begin_status = PageTransitionBeginStatus::Rejected;
                 clear_tracking();
                 return begin_result(PageTransitionBeginStatus::Rejected);
             }
@@ -153,6 +155,7 @@ export namespace ui::scene {
                 trace_.last_state = state_;
                 if (spec.prepare_destination &&
                     !spec.prepare_destination(scene, access, *destination_, spec.prepare_ctx)) {
+                    trace_.begin_status = PageTransitionBeginStatus::PrepareFailed;
                     abort_begin_failure(scene, access);
                     return begin_result(PageTransitionBeginStatus::PrepareFailed);
                 }
@@ -176,6 +179,7 @@ export namespace ui::scene {
                                 spec.hide_source_live_root);
             trace_.source_capture_status = source_capture.status;
             if (!source_capture.ok()) {
+                trace_.begin_status = PageTransitionBeginStatus::SourceCaptureFailed;
                 abort_begin_failure(scene, access);
                 return begin_result(PageTransitionBeginStatus::SourceCaptureFailed,
                                     source_capture);
@@ -188,6 +192,7 @@ export namespace ui::scene {
             trace_.last_state = state_;
             if (spec.prepare_destination &&
                 !spec.prepare_destination(scene, access, *destination_, spec.prepare_ctx)) {
+                trace_.begin_status = PageTransitionBeginStatus::PrepareFailed;
                 abort_begin_failure(scene, access);
                 return begin_result(PageTransitionBeginStatus::PrepareFailed, source_capture);
             }
@@ -201,6 +206,7 @@ export namespace ui::scene {
                                      spec.hide_destination_live_root);
             trace_.destination_capture_status = destination_capture.status;
             if (!destination_capture.ok()) {
+                trace_.begin_status = PageTransitionBeginStatus::DestinationCaptureFailed;
                 abort_begin_failure(scene, access);
                 return begin_result(PageTransitionBeginStatus::DestinationCaptureFailed,
                                     source_capture,

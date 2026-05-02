@@ -392,6 +392,7 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.binding_result_changed_case_count`
 - `comparison.bringup_order_changed_case_count`
 - `comparison.fact_resolution_changed_case_count`
+- case summary 行级 `FactCmp`
 - `system_compiler_summary.case_count / formed_case_count / blocked_case_count`
 - `system_compiler_summary.case_kind_matrix`
 - `system_compiler_summary.resolved_profile_matrix / resolved_board_matrix / resolved_active_facet_matrix`
@@ -911,6 +912,11 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 
 - 行级 `BrCmp / ResCmp`
 - 一行最小 `TRANSITION COMPARE` 摘要
+
+这里不额外给 transition 行塞 `FactCmp`：
+`recent transitions` 仍然只解释已经发生的 runtime publish/export 切换，
+required fact resolution 漂移则通过默认总览 case summary 行级 `FactCmp`
+和 `cap list` 的 `FactCmp / ReqFacts` 观察。
 
 当前仓库里已经有一条真实 runtime-only producer：
 

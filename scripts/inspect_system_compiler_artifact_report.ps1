@@ -8253,7 +8253,7 @@ function New-ComparisonOverviewCaseSummary {
         resource_changed = ($null -ne $resourceComparison -and [bool]$resourceComparison.changed)
         resource_change_count = if ($null -ne $resourceComparison) { [int]@($resourceComparison.contract_changes).Count } else { 0 }
         fact_resolution_changed = ($null -ne $factResolutionComparison -and [bool]$factResolutionComparison.changed)
-        fact_resolution_change_count = if ($null -ne $factResolutionComparison) { [int]@($factResolutionComparison.contract_changes).Count } else { 0 }
+        fact_resolution_change_count = if ($null -ne $factResolutionComparison) { [int]@($factResolutionComparison.required_fact_resolution_changes).Count } else { 0 }
     }
 }
 
@@ -8396,6 +8396,7 @@ function New-CaseSummaryRow {
     $bringupOrderComparison = Get-BringupOrderComparisonFromReport -ReportData $report
     $bringupComparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $report
+    $factResolutionComparison = Get-FactResolutionComparisonFromReport -ReportData $report
     return [pscustomobject]@{
         Case = [string]$report.subject.case
         Mode = [string]$report.mode
@@ -8418,6 +8419,7 @@ function New-CaseSummaryRow {
         OrdCmp = if ($null -ne $bringupOrderComparison -and [bool]$bringupOrderComparison.changed) { [int]@($bringupOrderComparison.entry_changes).Count } else { 0 }
         BrCmp = if ($null -ne $bringupComparison -and [bool]$bringupComparison.changed) { [int]@($bringupComparison.capability_changes).Count } else { 0 }
         ResCmp = if ($null -ne $resourceComparison -and [bool]$resourceComparison.changed) { [int]@($resourceComparison.contract_changes).Count } else { 0 }
+        FactCmp = if ($null -ne $factResolutionComparison -and [bool]$factResolutionComparison.changed) { [int]@($factResolutionComparison.required_fact_resolution_changes).Count } else { 0 }
     }
 }
 
@@ -8940,7 +8942,7 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             }
             Write-Host ''
         }
-        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp, BindCmp, OrdCmp, BrCmp, ResCmp | Out-Host
+        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp, BindCmp, OrdCmp, BrCmp, ResCmp, FactCmp | Out-Host
     }
     exit 0
 }
@@ -9707,7 +9709,7 @@ Write-Host "[CASE] $([string]($reportData.subject.case))"
 Write-Host "[MODE] $([string]($reportData.mode))"
 Write-Host ''
 
-$summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp | Out-Host
+$summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp, BindCmp, OrdCmp, BrCmp, ResCmp, FactCmp | Out-Host
 
 if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $reportData.system_input) {
     $systemInput = $reportData.system_input

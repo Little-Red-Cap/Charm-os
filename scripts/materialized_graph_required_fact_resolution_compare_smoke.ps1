@@ -131,6 +131,7 @@ $whyInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_co
 $graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.graph_path.inspect.json'
 $capListInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.cap_list.inspect.json'
 $rootCapListInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.root.cap_list.inspect.json'
+$defaultOverviewInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.default_overview.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -324,6 +325,20 @@ Assert-Condition ((@($rootCapListEntry.fact_resolution_compare_cases) -contains 
 Assert-Condition ((@($rootCapListEntry.required_fact_resolution_change_kinds) -contains 'state_changed')) 'artifact_root cap list entry missing state_changed required fact kind'
 Assert-Condition ((@($rootCapListEntry.required_facts_changed) -contains $ExpectedFact)) "artifact_root cap list entry missing changed required fact: $ExpectedFact"
 
+$defaultOverviewInspectResult = Invoke-CommandJson -OutputPath $defaultOverviewInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
+}
+$defaultOverviewCase = @(
+    @($defaultOverviewInspectResult.cases) |
+        Where-Object { [string]$_.Case -eq $Case } |
+        Select-Object -First 1
+) | Select-Object -First 1
+Assert-Condition ($null -ne $defaultOverviewCase) "default overview case summary missing: $Case"
+Assert-Condition ([int]$defaultOverviewCase.FactCmp -ge 1) 'default overview case summary FactCmp must be positive'
+Assert-Condition ($null -ne $defaultOverviewInspectResult.comparison) 'default overview missing comparison payload'
+Assert-Condition ([int]$defaultOverviewInspectResult.comparison.fact_resolution_changed_case_count -ge 1) 'default overview fact resolution changed case count must be positive'
+Assert-Condition ([int]$defaultOverviewInspectResult.comparison.capability_summary.fact_resolution_compare_capability_count -ge 1) 'default overview capability summary fact resolution count must be positive'
+
 $summary = [ordered]@{
     bundle_root = $resolvedBundleRoot
     artifact_report = $artifactReportPath
@@ -333,6 +348,7 @@ $summary = [ordered]@{
     graph_path_inspect_json = $graphPathInspectJsonPath
     cap_list_inspect_json = $capListInspectJsonPath
     root_cap_list_inspect_json = $rootCapListInspectJsonPath
+    default_overview_inspect_json = $defaultOverviewInspectJsonPath
     case = $Case
     donor_case = $DonorCase
     expected_fact = $ExpectedFact
@@ -346,6 +362,7 @@ $summary = [ordered]@{
         artifact_root_change_matrix_present = $true
         cap_list_exposes_required_fact_resolution_change = $true
         artifact_root_cap_list_exposes_required_fact_resolution_change = $true
+        default_overview_exposes_factcmp = $true
     }
 }
 

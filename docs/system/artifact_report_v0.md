@@ -365,6 +365,10 @@ artifact_root 级 `cap list` 现在也会继续带出：
 
 > **这一组 compare report 里，到底有多少 case 真正在 compare 维度上发生了漂移。**
 
+其中 case summary 行级 `FactCmp` 只统计该 case 的
+`comparison.fact_resolution.required_fact_resolution_changes` 数量，
+用于把“事实解析漂移”从 `ResCmp` 这种资源法律漂移计数中分出来。
+
 它现在还会继续给出一份最小 capability 热点入口，
 用来先回答：
 
@@ -782,6 +786,10 @@ artifact_root 级该查询现在也会继续带出：
 
 - `order / capability / action / before / after`
 - 行级 `BrCmp / ResCmp`
+
+这里的 transition 行级 `ResCmp` 仍然只表达“该 capability 在资源/事实相关 compare 面有漂移”，
+不会把未出现在 `recent_transitions` 里的 required fact resolution 漂移强行混入 runtime 视图。
+case summary 行级的 `FactCmp` 才是默认总览里用于观察 required fact resolution 漂移的字段。
 
 如果当前 report 来自 compare 模式，
 它还会在 `[TRANSITIONS]` 前先给出一行最小 `TRANSITION COMPARE` 摘要，

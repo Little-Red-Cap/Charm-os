@@ -300,6 +300,8 @@ concept I2cBus =
 
 当前仓库中的最小落点是：
 
+- [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
+  记录当前 I2C experimental contract 的 API、错误语义、backend evidence、driver evidence 与 candidate 缺口
 - `Modules/io/device/io.device_i2c.cppm`
   定义 driver-facing `I2cBus` concept、`I2cBusRef`、`I2cDeviceRef` 与 `I2cErrorKind`
 - `Modules/io/device/io.device_i2c_mock.cppm`

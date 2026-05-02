@@ -46,10 +46,12 @@
 1. [`driver_model.md`](driver_model.md)
 2. [`interface_admission_policy.md`](interface_admission_policy.md)
 3. [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)
-4. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+4. [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
+5. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 
 当前第一条实验窄链：
 
+- [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
 - `Modules/io/device/io.device_i2c.cppm`
 - `Modules/io/device/io.device_i2c_mock.cppm`
 - `Modules/io/device/io.device_i2c_hal.cppm`
@@ -104,7 +106,7 @@
 - 看依赖与分层：
   `dependency_contract.md`
 - 看驱动与设备：
-  `driver_model.md` → `interface_admission_policy.md` → `device_contract_narrow_waist_v0.md` → `device_model_overview.md`（后者偏动态 discovery 平面与历史补充）
+  `driver_model.md` → `interface_admission_policy.md` → `device_contract_narrow_waist_v0.md` → `i2c_device_contract_v0.md` → `device_model_overview.md`（后者偏动态 discovery 平面与历史补充）
 - 看 signal/state：
   `signal_state_contract_v0.md`
 - 看 system compiler：

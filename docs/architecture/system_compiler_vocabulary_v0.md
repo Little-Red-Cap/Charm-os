@@ -168,6 +168,11 @@ v0 阶段的使用规则如下：
   已经把 `platform.board.stm32_stub::make_board_caps()` 投影成
   `system_compiler.fact_evidence/v0`，证明 board/package facts 可以作为
   artifact report 的 sidecar 事实来源进入系统编译器结果物
+- `board-i2c-fact-composition-smoke`
+  已经把 I2C contract-required facts 与 board/package/adapter 提供的
+  audit facts 合进同一份 `system_compiler.fact_evidence/v0`，
+  用于展示 `BoardPackage` facts 不只是“可列出”，也可以参与回答
+  某条设备契约为什么成立
 
 ### 3.4 `Binding`
 
@@ -383,6 +388,7 @@ report / system 侧的现实载体包括：
 - `export case manifest` 里的 per-case `declared_facts`
 - `system_compiler.fact_evidence/v0` sidecar 里的 contract-local facts
 - `system_compiler.fact_evidence/v0` sidecar 里的 board/package-local facts
+- `system_compiler.fact_evidence/v0` sidecar 里的多来源 fact composition
 - `export case manifest` 里的 per-case `declared_contracts.requires`
 - `required_facts`
 - `provided_facts`

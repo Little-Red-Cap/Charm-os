@@ -56,9 +56,9 @@ export namespace hal::stm32_stub {
     };
 
     struct I2c {
-        static Result init(I2cHandle, I2cConfig) noexcept { return err(Status::busy); }
-        static Result enable(I2cHandle) noexcept { return err(Status::busy); }
-        static Result disable(I2cHandle) noexcept { return err(Status::busy); }
+        static Result init(I2cHandle, I2cConfig) noexcept { return ok(); }
+        static Result enable(I2cHandle) noexcept { return ok(); }
+        static Result disable(I2cHandle) noexcept { return ok(); }
         static Result write(I2cHandle, util::u16,
                             std::span<const util::u8>) noexcept { return err(Status::busy); }
         static Result read(I2cHandle, util::u16,

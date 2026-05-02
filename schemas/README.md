@@ -76,6 +76,11 @@
   - 对应 `platform.board_facts` 的 board/package-local fact evidence 样例
   - 用途偏向钉住 `BoardCaps` 当前事实载体如何投影到通用 `fact_evidence` sidecar
 
+- `examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
+  - 对应 `platform.board_facts + io.device_i2c_facts` 的多来源 fact composition 样例
+  - 用途偏向钉住 contract-required facts 与 board/package/adapter audit facts 如何在通用
+    `fact_evidence` sidecar 中合流，并进入 artifact report 的 `fact_resolution.fact_inventory`
+
 - `system_compiler.canonical_world.v0.schema.json`
   - 对应 `docs/system/canonical_world_v0.md` 里定义的 canonical world 对象
   - 用途偏向把一组 case / contract / witness plan 收成“这个世界想证明什么”的正式声明对象

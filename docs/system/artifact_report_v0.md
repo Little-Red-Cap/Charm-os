@@ -11,6 +11,7 @@
 - `schemas/system_compiler.fact_evidence.v0.schema.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
 - `schemas/system_compiler_summary.v0.schema.json`
 - `schemas/examples/system_compiler_summary.summary.v0.sample.json`
 - `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
@@ -39,6 +40,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
@@ -165,6 +167,14 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-facts-bundle ./out/board-facts-artifact-report/board-package-facts-smoke.artifact_report.json
 ```
 
+当前多来源 fact composition 也已经可以走同一条正式链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case board-i2c-fact-composition-smoke -OutputRoot out/board-i2c-composition-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/board-i2c-composition-bundle -Case board-i2c-fact-composition-smoke -OutputRoot out/board-i2c-composition-artifact-report
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-i2c-composition-bundle ./out/board-i2c-composition-artifact-report/board-i2c-fact-composition-smoke.artifact_report.json
+```
+
 当前 inspector 至少会直接带出：
 
 - case / mode / profile / board / facets
@@ -203,12 +213,18 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 当前也已经有一份 board/package facts 的 sidecar 样例：
 
 - `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
 
 这份样例与 `board-package-facts-smoke` 这条 `fact_only` 导出链保持同一种投影语义，
 但来源从 contract-local I2C facts 换成 `platform.board_facts` 对 `BoardCaps`
 当前事实载体的只读投影。
 它的作用是证明 `fact_evidence` 是 system compiler 的通用事实证据入口，
 而不是 I2C contract 的专用旁路。
+
+其中 `board_i2c_composition` 样例进一步把 `io.device_i2c_facts`
+的 contract-required facts 与 `platform.board_facts` / adapter 提供的
+audit facts 放进同一份 sidecar，展示 `fact_resolution.fact_inventory`
+如何从“列出缺口”推进到“解释 required facts 被哪些来源满足”。
 
 为了避免 inspector 继续在“支持哪些查询 / 哪些 scope / 哪些边界”上漂移，
 当前也需要把它压成一张更具体的支持矩阵。

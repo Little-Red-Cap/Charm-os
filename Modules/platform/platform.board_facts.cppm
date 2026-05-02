@@ -13,6 +13,9 @@ export namespace platform::board {
         profile,
         facet,
         capability,
+        i2c_bus,
+        i2c_device,
+        i2c_controller,
         controller,
         clock_domain,
         pinmux,
@@ -62,6 +65,12 @@ export namespace platform::board {
             return "facet";
         case BoardFactKind::capability:
             return "capability";
+        case BoardFactKind::i2c_bus:
+            return "i2c.bus";
+        case BoardFactKind::i2c_device:
+            return "i2c.device";
+        case BoardFactKind::i2c_controller:
+            return "i2c.controller";
         case BoardFactKind::controller:
             return "controller";
         case BoardFactKind::clock_domain:

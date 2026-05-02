@@ -393,7 +393,9 @@ Charm:
 1. 写一个真实芯片 driver
    例如 sensor / EEPROM / codec / PMIC。
 2. 把当前 smoke 级 `fact_evidence` sidecar 推进到更真实的 evidence pipeline
-   当前 board/package fact source 已由 `board-package-facts-smoke` 接入；
+   当前 board/package fact source 已由 `board-package-facts-smoke` 接入，
+   I2C contract-required facts 与 board/package/adapter audit facts 的组合
+   也已由 `board-i2c-fact-composition-smoke` 接入；
    下一步更适合继续推进 probe evidence 或 board bringup evidence，不做执法。
 3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。

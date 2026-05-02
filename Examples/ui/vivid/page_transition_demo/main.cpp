@@ -457,10 +457,10 @@ namespace {
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene,
                                         access,
-                                        transition_spec(env,
-                                                        prepare,
-                                                        {},
-                                                        ui::scene::LayerProfile::Static));
+                                        fade_slide_transition_spec(env,
+                                                                   prepare,
+                                                                   {},
+                                                                   ui::scene::LayerProfile::Static));
         const auto trace = runner.trace();
         const auto ledger = runner.ledger();
         if (!expect(begin.static_cut(), "static profile resolves static cut")) return false;
@@ -471,6 +471,10 @@ namespace {
         if (!expect(trace.requested_profile == ui::scene::LayerProfile::Static &&
                     trace.effective_profile == ui::scene::LayerProfile::Static,
                     "static profile remains static effective profile")) {
+            return false;
+        }
+        if (!expect(trace.motion.begin_count == 0 && trace.sample_count == 0,
+                    "static profile does not start fade slide motion")) {
             return false;
         }
         if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
@@ -497,7 +501,7 @@ namespace {
                     "static profile records no layer cost")) {
             return false;
         }
-        std::printf("[pt] static_profile status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
+        std::printf("[pt] static_profile_fade_slide status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     ui::scene::layer_admission_name(begin.admission),
                     static_cast<unsigned>(trace.static_cut_count),
@@ -515,10 +519,10 @@ namespace {
         const auto before_destination_pixel = env.canvas.get_pixel(4, 2);
         const auto begin = runner.begin(env.scene,
                                         access,
-                                        transition_spec(env,
-                                                        prepare,
-                                                        {},
-                                                        ui::scene::LayerProfile::None));
+                                        fade_slide_transition_spec(env,
+                                                                   prepare,
+                                                                   {},
+                                                                   ui::scene::LayerProfile::None));
         const auto trace = runner.trace();
         const auto ledger = runner.ledger();
         const auto after_destination_pixel = env.canvas.get_pixel(4, 2);
@@ -545,6 +549,10 @@ namespace {
                     "none profile performs no transaction side effects")) {
             return false;
         }
+        if (!expect(trace.motion.begin_count == 0 && trace.sample_count == 0,
+                    "none profile does not start fade slide motion")) {
+            return false;
+        }
         if (!expect_page_truth(env, true, false, "none profile preserves page truth")) {
             return false;
         }
@@ -569,7 +577,7 @@ namespace {
                     "none profile records no layer cost")) {
             return false;
         }
-        std::printf("[pt] none_profile status=%s admission=%s commits=%u snapshots=%u bytes=%u\n",
+        std::printf("[pt] none_profile_fade_slide status=%s admission=%s commits=%u snapshots=%u bytes=%u\n",
                     ui::scene::page_transition_begin_status_name(begin.status),
                     ui::scene::layer_admission_name(begin.admission),
                     static_cast<unsigned>(trace.commit_count),

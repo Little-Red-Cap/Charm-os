@@ -416,9 +416,11 @@ Examples/ui/vivid/page_transition_demo
 - destination snapshot 仍以 identity transform 参与 compose。
 - Rich profile 下 sample time 直接按输入时间推进。
 - Cheap profile 下 motion time 量化到 30fps step，opacity 量化到 4-step 档位。
+- Static profile 下同一 `fade_slide` 请求仍直接 static cut，不启动 motion runner。
+- None profile 下同一 `fade_slide` 请求仍直接 reject，不调用 prepare，也不启动 motion runner。
 - commit 后释放所有 snapshot，回到 idle。
 
-这不是完整 Motion system，只是 PageTransition 事务骨架上的第一块 recipe 肌肉：同一 recipe 已开始受 profile 裁决。
+这不是完整 Motion system，只是 PageTransition 事务骨架上的第一块 recipe 肌肉：同一 recipe 已开始受 profile 裁决，并且不能绕过 Static / None 的运行时宪法。
 
 ## 2026-05 补记：PageTransition None profile law
 
@@ -435,7 +437,7 @@ Examples/ui/vivid/page_transition_demo
 - trace / ledger 保留 `requested_profile == None`、`effective_profile == None` 与 `admission == Reject`。
 - 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `none_profile_reject`。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `none_profile_reject`，该用例使用 `fade_slide` 请求来验证 recipe 不会绕过 `None` 的拒绝语义。
 
 ## 2026-05 补记：PageTransition Static profile law
 
@@ -450,7 +452,7 @@ Examples/ui/vivid/page_transition_demo
 - trace / ledger 保留 `requested_profile == Static`、`effective_profile == Static` 与 `admission == StaticCut`。
 - 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `static_profile_static_cut`。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `static_profile_static_cut`，该用例使用 `fade_slide` 请求来验证 recipe 不会绕过 `Static` 的 static cut 语义。
 
 ## 2026-05 补记：PageTransition CommandSnapshot static-cut law
 

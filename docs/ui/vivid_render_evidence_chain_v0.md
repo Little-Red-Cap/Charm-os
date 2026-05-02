@@ -85,6 +85,18 @@ pixel_hash
 
 PNG / screenshot diff 是后续投影，不是 v0 的第一真相。
 
+## Evidence Lab 支撑工具
+
+`Examples/ui/vivid/support/vivid_evidence_support.hpp` 是 v0 的示例侧共享证据账本。
+
+它先服务 Component Lab，不作为 Vivid core 公共 API 承诺：
+
+- `RunLog` 统一 begin / case / end stdout 计数。
+- `expect()` 统一 `[ERR]` 失败出口。
+- `RenderEvidence` 聚合 dirty / command / pixel artifact 摘要。
+- `render_scene()` 统一 record / execute 后的证据采集。
+- `dirty_stays_inside()` 验证 component dirty 不越界。
+
 ## 首个落点
 
 `Examples/ui/vivid/component_settings_row_demo` 是第一条 component 级证据链样本。

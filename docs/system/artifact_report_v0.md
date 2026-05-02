@@ -7,6 +7,7 @@
 
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `schemas/examples/system_compiler.artifact_report.v0.sample.json`
+- `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/system_compiler_summary.v0.schema.json`
 - `schemas/examples/system_compiler_summary.summary.v0.sample.json`
 - `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
@@ -32,6 +33,7 @@
 
 ```powershell
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
@@ -149,6 +151,17 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - artifact_root 默认总览里的 compare 摘要
 - 最小 `why unavailable` 查询结果
 - 按需显示底层工件引用
+
+当前也已经有一份 I2C device contract facts 的 artifact report 样例：
+
+- `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
+
+这份样例不表示导出脚本已经自动从 I2C contract 生成 facts。
+它的作用是先把 `io.device_i2c_facts` 如何进入现有
+`fact_resolution.fact_inventory`、`structure.required_facts`
+与 `resource_contract.provided_facts` 的形状钉住。
+其中 `pinmux:pb8/pb9.af4` 故意保留为 required 但未 available，
+用于展示 contract-local fact 缺口如何被 artifact report 表达。
 
 为了避免 inspector 继续在“支持哪些查询 / 哪些 scope / 哪些边界”上漂移，
 当前也需要把它压成一张更具体的支持矩阵。

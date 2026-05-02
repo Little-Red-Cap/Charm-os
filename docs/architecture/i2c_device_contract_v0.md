@@ -271,7 +271,8 @@ i2c register driver smoke: ok
 
 ## 9. System Compiler Projection
 
-当前已有只读 facts 草案，但还没有进入正式 artifact report 或 evidence pipeline。
+当前已有只读 facts 草案，并已有一份可被现有 schema 校验的 artifact report sample。
+但它还没有进入自动导出链，也还没有进入正式 evidence pipeline。
 
 `io.device_i2c_facts` 当前定义了最小 fact vocabulary：
 
@@ -309,6 +310,23 @@ required=6 provided=5 missing=1 optional_unknown=1
 ```
 
 这仍然是 contract-local 草案，不是全局 fact engine。
+
+当前 artifact report sample：
+
+- `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
+
+这份样例把 I2C facts 投影进现有字段：
+
+- `structure.declared_facts`
+- `structure.required_facts`
+- `resource_contract.provided_facts`
+- `fact_resolution.fact_inventory`
+- `fact_resolution.resource_hotspots`
+
+其中 `pinmux:pb8/pb9.af4` 被保留为 required 但未 available，
+用于表达“contract 已经知道需要这个事实，但当前报告仍缺证据”。
+
+这一步仍然只做报告样例，不做构建期强制。
 
 未来该 contract 至少应进一步进入以下 system compiler 事实语言：
 
@@ -365,8 +383,8 @@ Charm:
 1. 写一个真实芯片 driver
    例如 sensor / EEPROM / codec / PMIC。
 2. 给 artifact / evidence report 增加 I2C contract sample
-   先只做只读报告，不做构建期强制。
-3. 把 `io.device_i2c_facts` 与 system compiler `FactResolution` 字段形状对齐
+   已有 schema-level sample，下一步是自动导出。
+3. 把 `io.device_i2c_facts` 接入 artifact report 导出链
    先做投影，不做执法。
 4. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。

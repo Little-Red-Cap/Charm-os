@@ -355,6 +355,7 @@ Examples/ui/vivid/page_transition_demo
 
 - normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
 - fade slide pixel double：`fade_slide` recipe 在双 snapshot compose 中同时输出 transform / opacity
+- fade slide cheap quantized：同一 recipe 在 Cheap profile 下量化 motion time 与 opacity
 - cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
 - static profile：`LayerProfile::Static` 主动选择 `StaticCut` admission，不依赖预算失败
 - none profile：`LayerProfile::None` 主动拒绝事务，不调用 prepare，不改变 page truth
@@ -404,7 +405,7 @@ Examples/ui/vivid/page_transition_demo
 
 ## 2026-05 补记：PageTransition fade_slide recipe evidence
 
-`PageTransitionRunner` 已有第一条 Motion recipe 接入证据：`fade_slide_pixel_double`。
+`PageTransitionRunner` 已有第一条 Motion recipe 接入证据：`fade_slide_pixel_double`，并补充了 Cheap profile 下的量化证据 `fade_slide_cheap_quantized`。
 
 这条用例验证的是：
 
@@ -413,9 +414,11 @@ Examples/ui/vivid/page_transition_demo
 - sample frame 同时携带位移与 opacity。
 - source compose plan 使用 sampled transform / opacity。
 - destination snapshot 仍以 identity transform 参与 compose。
+- Rich profile 下 sample time 直接按输入时间推进。
+- Cheap profile 下 motion time 量化到 30fps step，opacity 量化到 4-step 档位。
 - commit 后释放所有 snapshot，回到 idle。
 
-这不是完整 Motion system，只是 PageTransition 事务骨架上的第一块 recipe 肌肉。
+这不是完整 Motion system，只是 PageTransition 事务骨架上的第一块 recipe 肌肉：同一 recipe 已开始受 profile 裁决。
 
 ## 2026-05 补记：PageTransition None profile law
 

@@ -293,6 +293,70 @@ namespace {
         return true;
     }
 
+    [[nodiscard]] bool run_fade_slide_cheap_quantized() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{225, 40, 70, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{35, 80, 215, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene,
+                                        access,
+                                        fade_slide_transition_spec(env,
+                                                                   prepare,
+                                                                   {},
+                                                                   ui::scene::LayerProfile::Cheap));
+        if (!expect(begin.started(), "cheap fade slide transition starts")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::PixelDouble,
+                    "cheap fade slide admits PixelDouble")) {
+            return false;
+        }
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 60);
+        const auto trace = runner.trace();
+        if (!expect(frame.valid, "cheap fade slide composes frame")) return false;
+        if (!expect(trace.motion.profile == ui::scene::LayerProfile::Cheap &&
+                    trace.motion.tier == ui::scene::MotionTier::Cheap30Fps,
+                    "cheap fade slide trace records cheap tier")) {
+            return false;
+        }
+        if (!expect(trace.motion.last_elapsed_ms == 60 &&
+                    trace.motion.last_sampled_elapsed_ms == 33,
+                    "cheap fade slide quantizes motion time")) {
+            return false;
+        }
+        if (!expect(frame.transition.motion.transform.x == 4 &&
+                    frame.transition.motion.transform.opacity == 85,
+                    "cheap fade slide quantizes transform and opacity")) {
+            return false;
+        }
+        if (!expect(frame.source.plan.transform.x == 4 &&
+                    frame.source.plan.transform.opacity == 85,
+                    "cheap fade slide compose plan uses quantized transform")) {
+            return false;
+        }
+        if (!expect(frame.source.replay.stats.alpha_blend_count == 1,
+                    "cheap fade slide still uses alpha blend for quantized opacity")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto ledger = runner.ledger();
+        if (!expect(runner.idle(), "cheap fade slide returns idle")) return false;
+        if (!expect_snapshot_count(env, 0, "cheap fade slide releases snapshots")) {
+            return false;
+        }
+        if (!expect(ledger.committed && ledger.snapshots_released,
+                    "cheap fade slide ledger records released commit")) {
+            return false;
+        }
+        std::printf("[pt] fade_slide_cheap status=%s tier=%s sampled=%llu x=%d opacity=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::motion_tier_name(trace.motion.tier),
+                    static_cast<unsigned long long>(trace.motion.last_sampled_elapsed_ms),
+                    static_cast<int>(frame.transition.motion.transform.x),
+                    static_cast<unsigned>(frame.transition.motion.transform.opacity));
+        return true;
+    }
+
     [[nodiscard]] bool run_cancel_during_compose() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{240, 40, 20, 255});
@@ -931,6 +995,7 @@ namespace {
 int main() {
     if (!run_normal_commit()) return 1;
     if (!run_fade_slide_pixel_double()) return 1;
+    if (!run_fade_slide_cheap_quantized()) return 1;
     if (!run_cancel_during_compose()) return 1;
     if (!run_command_snapshot_static_cut()) return 1;
     if (!run_static_profile_static_cut()) return 1;

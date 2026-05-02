@@ -269,7 +269,7 @@
     与 `comparison.fact_resolution_summary`
   - 用途偏向把 artifact_root 默认总览里的 fact-resolution-side summary object
     正式锚定成可验证协议，并把 `kind / mode` 自描述字段固定下来
-  - 它当前负责冻结 fact inventory、contract drift 与 resource hotspot 汇总对象形状
+  - 它当前负责冻结 fact inventory、required fact resolution、contract drift 与 resource hotspot 汇总对象形状
 
 - `examples/fact_resolution_summary.summary.v0.sample.json`
   - 对应 `fact_resolution_summary/v0` 在 `mode = summary` 下的最小样例

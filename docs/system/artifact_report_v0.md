@@ -60,12 +60,15 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 
 - `scripts/export_system_compiler_artifact_report.ps1`
 - `scripts/inspect_system_compiler_artifact_report.ps1`
+- `scripts/materialized_graph_required_fact_resolution_matrix_smoke.ps1`
 
 它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
 与可选 `fact_evidence` sidecar，
 为每个 case 生成一份最小 `artifact report` JSON。
 而 `inspect_system_compiler_artifact_report.ps1` 则提供了当前最小只读消费面，
 用于把 case 级 `artifact report` 直接展开成人类可读摘要或机器继续消费的 JSON 视图。
+`materialized_graph_required_fact_resolution_matrix_smoke.ps1` 则用于钉住 artifact-root 级
+`required_fact_resolution_matrix` 的横向聚合语义。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
 `export_bundle/v1` 现在可以同时承载三类 case：
@@ -605,6 +608,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `case_count`
 - `totals.declared_contracts / totals.satisfied_count / totals.violated_count / totals.unknown_count`
 - `required_fact_matrix / provided_fact_matrix`
+- `required_fact_resolution_matrix`
 - `contract_matrix`
 - `resource_hotspot_matrix`
 
@@ -613,6 +617,12 @@ artifact_root 级 `cap list` 现在也会继续带出：
 comparison 样例见 [`../../schemas/examples/fact_resolution_summary.comparison.v0.sample.json`](../../schemas/examples/fact_resolution_summary.comparison.v0.sample.json)。
 现在外部脚本也可以直接通过 `kind = fact_resolution_summary/v0` 与 `mode = summary | comparison`
 把它当作独立的 fact-resolution-side result object 识别。
+其中 `required_fact_resolution_matrix` 专门用于横向回答：
+
+- 某个 required fact 在多少 case 中被声明
+- 在哪些 case 中是 `satisfied`
+- 在哪些 case 中是 `missing`
+- 当前能追溯到哪些 provider source / role
 
 这意味着 inspector 已经不只会逐 case 地回答
 “系统是否 formed / blocked”，

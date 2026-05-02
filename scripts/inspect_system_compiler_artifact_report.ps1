@@ -1120,6 +1120,11 @@ function New-ArtifactRootFactResolutionCaseSummary {
     $report = $LoadedReport.Data
     $graphInfo = Load-GraphFromArtifactReport -ReportData $report
     $resourceSummary = New-ResourceSummaryResult -ReportData $report -GraphInfo $graphInfo
+    $requiredFactResolution = if ($null -ne $resourceSummary.PSObject.Properties['required_fact_resolution']) {
+        @($resourceSummary.required_fact_resolution)
+    } else {
+        @()
+    }
 
     return [pscustomobject][ordered]@{
         report_path = $LoadedReport.Path
@@ -1138,6 +1143,7 @@ function New-ArtifactRootFactResolutionCaseSummary {
         graph_provided_facts = @($resourceSummary.fact_inventory.graph_provided_facts)
         audit_provided_facts = @($resourceSummary.fact_inventory.audit_provided_facts)
         all_available_facts = @($resourceSummary.fact_inventory.all_available_facts)
+        required_fact_resolution = @($requiredFactResolution)
         resource_hotspots = @($resourceSummary.resource_hotspots)
         contracts = @($resourceSummary.contracts)
     }
@@ -1259,6 +1265,87 @@ function New-ArtifactRootResourceProvidedFactEntry {
     return New-ArtifactRootFactInventoryMatrixEntry -FactName $FactName -FactGroup 'audit_provided_facts' -CaseSummaries $CaseSummaries
 }
 
+function New-ArtifactRootRequiredFactResolutionMatrixEntry {
+    param(
+        [string]$FactName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($FactName)) {
+        return $null
+    }
+
+    $factCases = @()
+    $providerSources = @()
+    $providerRoles = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $matchingEntries = @(
+            @($caseSummary.required_fact_resolution) |
+                Where-Object { [string]$_.fact -eq $FactName }
+        )
+        if ($matchingEntries.Count -eq 0) {
+            continue
+        }
+
+        $entry = $matchingEntries[0]
+        $providers = @($entry.providers)
+        $providerSources += @(
+            @($providers) |
+                ForEach-Object { [string]$_.source } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        )
+        $providerRoles += @(
+            @($providers) |
+                ForEach-Object { [string]$_.role } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        )
+        $factCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            state = [string]$entry.state
+            fact_sources = @($entry.fact_sources)
+            provider_count = [int]$entry.provider_count
+            providers = @($providers)
+            status_text = [string]$entry.status_text
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        fact = $FactName
+        case_count = @($factCases).Count
+        cases_satisfied = @($factCases | Where-Object { [string]$_.state -eq 'satisfied' }).Count
+        cases_missing = @($factCases | Where-Object { [string]$_.state -eq 'missing' }).Count
+        provider_count = (@($factCases | Measure-Object -Property provider_count -Sum).Sum)
+        provider_sources = @($providerSources | Sort-Object -Unique)
+        provider_roles = @($providerRoles | Sort-Object -Unique)
+        cases = @($factCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootRequiredFactResolutionMatrix {
+    param(
+        [object[]]$CaseSummaries
+    )
+
+    $factNames = @(
+        foreach ($caseSummary in @($CaseSummaries)) {
+            foreach ($entry in @($caseSummary.required_fact_resolution)) {
+                $factName = [string]$entry.fact
+                if (-not [string]::IsNullOrWhiteSpace($factName)) {
+                    $factName
+                }
+            }
+        }
+    ) | Sort-Object -Unique
+
+    return @(
+        foreach ($factName in @($factNames)) {
+            New-ArtifactRootRequiredFactResolutionMatrixEntry -FactName $factName -CaseSummaries $CaseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object fact
+}
+
 function New-ArtifactRootResourceHotspotEntry {
     param(
         [string]$HotspotText,
@@ -1318,6 +1405,7 @@ function New-ArtifactRootFactResolutionSummaryResult {
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
     $factInventoryMatrix = New-ArtifactRootFactInventoryMatrix -CaseSummaries $caseSummaries
+    $requiredFactResolutionMatrix = New-ArtifactRootRequiredFactResolutionMatrix -CaseSummaries $caseSummaries
 
     $contractMatrix = @(
         foreach ($contractName in @($contractNames)) {
@@ -1346,6 +1434,7 @@ function New-ArtifactRootFactResolutionSummaryResult {
         fact_inventory_matrix = $factInventoryMatrix
         contract_matrix = @($contractMatrix | Sort-Object contract)
         required_fact_matrix = @($factInventoryMatrix.required_facts)
+        required_fact_resolution_matrix = @($requiredFactResolutionMatrix)
         provided_fact_matrix = @($factInventoryMatrix.audit_provided_facts)
         resource_hotspot_matrix = @($resourceHotspotMatrix | Sort-Object hotspot)
     }
@@ -9009,6 +9098,24 @@ if ($ResourceSummary) {
                         ForEach-Object { [string]$_.case }
                 )
                 Write-Host "fact = $([string]$factEntry.fact) case_count=$([int]$factEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+            }
+            Write-Host ''
+        }
+
+        if (@($artifactRootResourceSummary.required_fact_resolution_matrix).Count -gt 0) {
+            Write-Host '[REQUIRED FACT RESOLUTION MATRIX]'
+            foreach ($factEntry in @($artifactRootResourceSummary.required_fact_resolution_matrix)) {
+                $caseStates = @(
+                    @($factEntry.cases) |
+                        ForEach-Object { "$([string]$_.case):$([string]$_.state)" }
+                )
+                Write-Host "fact = $([string]$factEntry.fact) cases=$([int]$factEntry.case_count) satisfied=$([int]$factEntry.cases_satisfied) missing=$([int]$factEntry.cases_missing) providers=$([int]$factEntry.provider_count)"
+                if (@($factEntry.provider_sources).Count -gt 0) {
+                    Write-Host "provider_sources = $((@($factEntry.provider_sources) -join ', '))"
+                }
+                if (@($caseStates).Count -gt 0) {
+                    Write-Host "cases = $((@($caseStates) -join ', '))"
+                }
             }
             Write-Host ''
         }

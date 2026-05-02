@@ -10,6 +10,7 @@
 
 - `Examples/ui/vivid/motion_time_demo`
 - `Examples/ui/vivid/page_transition_demo`
+- `Examples/ui/vivid/component_settings_row_demo`
 - `Examples/ui/vivid/widget_signal_demo`
 - `Examples/ui/vivid/widget_state_demo`
 
@@ -65,6 +66,7 @@ set_tests_properties(${target_name} PROPERTIES
 | --- | --- | --- |
 | `page_transition_demo` | `pt` | `[pt] run=page_transition_demo phase=end result=ok cases=15` |
 | `motion_time_demo` | `mt` | `[mt] run=motion_time_demo phase=end result=ok cases=12` |
+| `component_settings_row_demo` | `csr` | `[csr] run=component_settings_row_demo phase=end result=ok cases=4` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 

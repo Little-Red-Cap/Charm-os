@@ -15,6 +15,7 @@
 - None profile 拒绝转场事务，不调用 prepare，不改变 page truth
 - CommandSnapshot admission 当前不做双页 replay，显式降级为 static cut
 - PixelSingle + fade_slide 只捕获 source snapshot，destination 保持 live
+- PixelSingle + Cheap + fade_slide 同样受 motion time / opacity 量化约束
 - PixelSingle cancel 后 source snapshot 释放，page truth 恢复到 begin 前
 - PixelSingle active transition 上再次 begin 时先释放旧 source snapshot，再启动新事务
 - destination prepare 失败时释放已获取的 source snapshot

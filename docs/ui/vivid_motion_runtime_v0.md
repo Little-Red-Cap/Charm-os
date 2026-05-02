@@ -416,7 +416,7 @@ Examples/ui/vivid/page_transition_demo
 - source compose plan 使用 sampled transform / opacity。
 - destination snapshot 仍以 identity transform 参与 compose。
 - Rich profile 下 sample time 直接按输入时间推进。
-- Cheap profile 下 motion time 量化到 30fps step，opacity 量化到 4-step 档位。
+- Cheap profile 下 motion time 量化到 30fps step，opacity 量化到 4-step 档位；该规则同时覆盖 PixelDouble 与 PixelSingle。
 - Static profile 下同一 `fade_slide` 请求仍直接 static cut，不启动 motion runner。
 - None profile 下同一 `fade_slide` 请求仍直接 reject，不调用 prepare，也不启动 motion runner。
 - commit 后释放所有 snapshot，回到 idle。
@@ -480,4 +480,4 @@ Examples/ui/vivid/page_transition_demo
 - sample 阶段只执行 source snapshot compose，destination compose result 保持 invalid。
 - commit / cancel 后 runner 释放所持 source snapshot，回到 idle 时 `snapshot_count == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_fade_slide_live_destination`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 cancel / interrupt 后恢复 begin 前 page truth。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_fade_slide_live_destination`、`pixel_single_fade_slide_cheap_quantized`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 Cheap profile 量化、cancel / interrupt 后恢复 begin 前 page truth。

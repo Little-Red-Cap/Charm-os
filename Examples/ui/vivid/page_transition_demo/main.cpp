@@ -707,6 +707,82 @@ namespace {
         return true;
     }
 
+    [[nodiscard]] bool run_pixel_single_fade_slide_cheap_quantized() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{215, 80, 40, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 120, 220, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene,
+                                        access,
+                                        fade_slide_transition_spec(env,
+                                                                   prepare,
+                                                                   pixel_single_budget(),
+                                                                   ui::scene::LayerProfile::Cheap));
+        if (!expect(begin.started(), "pixel single cheap fade slide starts")) return false;
+        if (!expect_pixel_single_admission(begin, "pixel single cheap admission is selected")) {
+            return false;
+        }
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 60);
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(frame.valid, "pixel single cheap fade slide composes source frame")) return false;
+        if (!expect_source_only_frame(frame,
+                                      "pixel single cheap fade slide keeps destination live")) {
+            return false;
+        }
+        if (!expect_fade_slide_trace(trace,
+                                     ui::scene::LayerProfile::Cheap,
+                                     "pixel single cheap trace records recipe")) {
+            return false;
+        }
+        if (!expect(trace.motion.tier == ui::scene::MotionTier::Cheap30Fps &&
+                    trace.motion.last_sampled_elapsed_ms == 33,
+                    "pixel single cheap quantizes motion time")) {
+            return false;
+        }
+        if (!expect_transform(frame.transition.motion.transform,
+                              4,
+                              85,
+                              "pixel single cheap quantizes transform and opacity")) {
+            return false;
+        }
+        if (!expect_transform(frame.source.plan.transform,
+                              4,
+                              85,
+                              "pixel single cheap source plan uses quantized transform")) {
+            return false;
+        }
+        if (!expect_source_only_layer_cost(ledger,
+                                           "pixel single cheap ledger records source-only cost")) {
+            return false;
+        }
+        if (!expect(ledger.source_composite_pixels == 1 &&
+                    ledger.destination_composite_pixels == 0,
+                    "pixel single cheap ledger records source-only pixels")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto committed_ledger = runner.ledger();
+        if (!expect(runner.idle(), "pixel single cheap fade slide returns idle")) return false;
+        if (!expect_snapshot_count(env, 0, "pixel single cheap releases source snapshot")) {
+            return false;
+        }
+        if (!expect(committed_ledger.committed && committed_ledger.snapshots_released,
+                    "pixel single cheap ledger records released commit")) {
+            return false;
+        }
+        std::printf("[pt] pixel_single_fade_slide_cheap status=%s tier=%s sampled=%llu x=%d opacity=%u pixels=%u\n",
+                    ui::scene::page_transition_begin_status_name(begin.status),
+                    ui::scene::motion_tier_name(trace.motion.tier),
+                    static_cast<unsigned long long>(trace.motion.last_sampled_elapsed_ms),
+                    static_cast<int>(frame.transition.motion.transform.x),
+                    static_cast<unsigned>(frame.transition.motion.transform.opacity),
+                    static_cast<unsigned>(committed_ledger.total_composite_pixels));
+        return true;
+    }
+
     [[nodiscard]] bool run_pixel_single_cancel() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{210, 90, 40, 255});
@@ -1060,6 +1136,7 @@ int main() {
     if (!run_static_profile_static_cut()) return 1;
     if (!run_none_profile_reject()) return 1;
     if (!run_pixel_single_fade_slide_live_destination()) return 1;
+    if (!run_pixel_single_fade_slide_cheap_quantized()) return 1;
     if (!run_pixel_single_cancel()) return 1;
     if (!run_prepare_fail()) return 1;
     if (!run_source_capture_fail()) return 1;

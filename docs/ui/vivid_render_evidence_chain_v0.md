@@ -97,4 +97,13 @@ PNG / screenshot diff 是后续投影，不是 v0 的第一真相。
 - 本次变化声明为 `paint_only`。
 - render 后输出 dirty / command / pixel artifact 摘要。
 
+`Examples/ui/vivid/component_card_state_demo` 是第二条 component 级证据链样本。
+
+它验证一个 card component 中：
+
+- checkbox 与 slider 两个 child truth 同时变化。
+- progress mirror 与 summary label 汇入同一个 component artifact。
+- 多 child state 变化仍声明为 `paint_only`。
+- render 后输出单个 card dirty rect 与 command / pixel artifact 摘要。
+
 stdout 仍遵守 `vivid_evidence_stdout_law.md`。

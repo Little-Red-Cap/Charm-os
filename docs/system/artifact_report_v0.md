@@ -10,6 +10,7 @@
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/system_compiler.fact_evidence.v0.schema.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
 - `schemas/system_compiler_summary.v0.schema.json`
 - `schemas/examples/system_compiler_summary.summary.v0.sample.json`
 - `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
@@ -37,6 +38,7 @@
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
@@ -112,7 +114,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 - `runtime_observe` sidecar
   承载独立的动态观察事实
 - `fact_evidence` sidecar
-  承载 contract-local 或 board-local 的事实证据投影
+  承载 contract-local 或 board/package-local 的事实证据投影
 
 如果当前 case 还没有接入 sidecar，
 `artifact report` 仍会保留稳定的 `runtime_observe` 形状，
@@ -155,6 +157,14 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/runtime-only-artifact-report -Case usb-host-runtime-multi-smoke -RecentTransitions
 ```
 
+当前 board/package fact-only case 也已经可以走同一条正式链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case board-package-facts-smoke -OutputRoot out/board-facts-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/board-facts-bundle -Case board-package-facts-smoke -OutputRoot out/board-facts-artifact-report
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-facts-bundle ./out/board-facts-artifact-report/board-package-facts-smoke.artifact_report.json
+```
+
 当前 inspector 至少会直接带出：
 
 - case / mode / profile / board / facets
@@ -189,6 +199,16 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 与 `resource_contract.provided_facts` 的形状钉住。
 其中 `pinmux:pb8/pb9.af4` 故意保留为 required 但未 available，
 用于展示 contract-local fact 缺口如何被 artifact report 表达。
+
+当前也已经有一份 board/package facts 的 sidecar 样例：
+
+- `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
+
+这份样例与 `board-package-facts-smoke` 这条 `fact_only` 导出链保持同一种投影语义，
+但来源从 contract-local I2C facts 换成 `platform.board_facts` 对 `BoardCaps`
+当前事实载体的只读投影。
+它的作用是证明 `fact_evidence` 是 system compiler 的通用事实证据入口，
+而不是 I2C contract 的专用旁路。
 
 为了避免 inspector 继续在“支持哪些查询 / 哪些 scope / 哪些边界”上漂移，
 当前也需要把它压成一张更具体的支持矩阵。

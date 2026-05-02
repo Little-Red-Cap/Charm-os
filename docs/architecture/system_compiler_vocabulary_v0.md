@@ -141,6 +141,7 @@ v0 阶段的使用规则如下：
 
 - `platform::board::BoardCaps`
 - 各板级 `make_board_caps()`
+- `platform.board_facts` 对 `BoardCaps` / board package 已知事实的只读投影
 
 当前还可能伴随：
 
@@ -163,6 +164,10 @@ v0 阶段的使用规则如下：
 - `BoardPackage` 仍是更上位的汇总词
 - `artifact report.system_input.resolved_input.board`
   现在已经把 board 取值及来源正式投影出来，但还不是完整 `BoardPackage`
+- `board-package-facts-smoke`
+  已经把 `platform.board.stm32_stub::make_board_caps()` 投影成
+  `system_compiler.fact_evidence/v0`，证明 board/package facts 可以作为
+  artifact report 的 sidecar 事实来源进入系统编译器结果物
 
 ### 3.4 `Binding`
 
@@ -377,6 +382,7 @@ report / system 侧的现实载体包括：
 
 - `export case manifest` 里的 per-case `declared_facts`
 - `system_compiler.fact_evidence/v0` sidecar 里的 contract-local facts
+- `system_compiler.fact_evidence/v0` sidecar 里的 board/package-local facts
 - `export case manifest` 里的 per-case `declared_contracts.requires`
 - `required_facts`
 - `provided_facts`

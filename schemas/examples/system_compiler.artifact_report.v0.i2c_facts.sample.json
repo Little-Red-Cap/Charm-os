@@ -16,9 +16,9 @@
   "system_input": {
     "system_spec": {
       "case_name": "i2c-device-contract-facts-smoke",
-      "case_kind": "materialized_graph",
+      "case_kind": "fact_only",
       "source": "Examples/io/i2c_facts_smoke",
-      "build_dir": "cmake-build-i2c-facts-smoke-core",
+      "build_dir": "cmake-build-i2c-facts-smoke-clang",
       "build_target": "i2c-facts-smoke",
       "export_target": null
     },
@@ -99,7 +99,7 @@
   "system_formation": {
     "status": "formed",
     "formation_basis": {
-      "case_kind": "materialized_graph",
+      "case_kind": "fact_only",
       "declared_fact_count": 3,
       "declared_contract_count": 0,
       "subject_fact_count": 4
@@ -148,7 +148,7 @@
     "violations": [],
     "unknown_contracts": [],
     "resource_hotspots": [
-      "pinmux:pb8/pb9.af4"
+      "required_fact missing [pinmux:pb8/pb9.af4]"
     ]
   },
   "fact_resolution": {
@@ -202,7 +202,7 @@
     "violations": [],
     "unknown_contracts": [],
     "resource_hotspots": [
-      "pinmux:pb8/pb9.af4"
+      "required_fact missing [pinmux:pb8/pb9.af4]"
     ]
   },
   "runtime_observe": {

@@ -236,6 +236,7 @@
       "enum": [
         "materialized_graph",
         "runtime_only",
+        "fact_only",
         null
       ]
     },
@@ -290,7 +291,8 @@
           "type": "string",
           "enum": [
             "materialized_graph",
-            "runtime_only"
+            "runtime_only",
+            "fact_only"
           ]
         },
         "source": {

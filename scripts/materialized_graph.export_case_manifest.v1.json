@@ -137,6 +137,50 @@
       }
     },
     {
+      "name": "i2c-device-contract-facts-smoke",
+      "source": "Examples/io/i2c_facts_smoke",
+      "build_dir": "cmake-build-i2c-facts-smoke-clang",
+      "build_target": "i2c-facts-smoke",
+      "case_kind": "fact_only",
+      "export_target": null,
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": null,
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": null,
+      "declared_facts": [
+        "board.hqzy",
+        "i2c.bus:i2c1",
+        "i2c.device:i2c1@0x18"
+      ],
+      "required_facts": [
+        "clock.domain:rcc.i2c1",
+        "i2c.backend:io.device_i2c_hal",
+        "i2c.bus:i2c1",
+        "i2c.controller:hal.i2c1",
+        "i2c.device:i2c1@0x18",
+        "pinmux:pb8/pb9.af4"
+      ],
+      "audit_provided_facts": [
+        "clock.domain:rcc.i2c1",
+        "i2c.backend:io.device_i2c_hal",
+        "i2c.bus:i2c1",
+        "i2c.controller:hal.i2c1",
+        "i2c.device:i2c1@0x18"
+      ],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": "MCU_MIN",
+        "board": "hqzy",
+        "active_facets": [
+          "io",
+          "driver_contract"
+        ]
+      }
+    },
+    {
       "name": "usb-host-runtime-multi-smoke",
       "source": "Examples/usb/usb_host_runtime_multi_smoke",
       "build_dir": "cmake-build-usb-host-runtime-multi-smoke-clang",

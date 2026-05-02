@@ -90,7 +90,7 @@ function Get-CaseKindProperty {
     }
 
     $normalized = [string]$value
-    if ($normalized -notin @('materialized_graph', 'runtime_only')) {
+    if ($normalized -notin @('materialized_graph', 'runtime_only', 'fact_only')) {
         throw "unsupported case_kind '$normalized' in $Context"
     }
 
@@ -163,20 +163,25 @@ function Assert-ExportCaseEntrySemantics {
     }
 
     if (-not [string]::IsNullOrWhiteSpace($Entry.ExportTarget)) {
-        throw "runtime_only case must not declare export_target in $Context"
+        throw "$($Entry.CaseKind) case must not declare export_target in $Context"
     }
     if (-not [string]::IsNullOrWhiteSpace($Entry.DotCache)) {
-        throw "runtime_only case must not declare dot_cache in $Context"
+        throw "$($Entry.CaseKind) case must not declare dot_cache in $Context"
     }
     if (-not [string]::IsNullOrWhiteSpace($Entry.JsonCache)) {
-        throw "runtime_only case must not declare json_cache in $Context"
+        throw "$($Entry.CaseKind) case must not declare json_cache in $Context"
     }
     if (-not [string]::IsNullOrWhiteSpace($Entry.DefaultDot)) {
-        throw "runtime_only case must not declare default_dot in $Context"
+        throw "$($Entry.CaseKind) case must not declare default_dot in $Context"
     }
     if (-not [string]::IsNullOrWhiteSpace($Entry.DefaultJson)) {
-        throw "runtime_only case must not declare default_json in $Context"
+        throw "$($Entry.CaseKind) case must not declare default_json in $Context"
     }
+
+    if ($Entry.CaseKind -eq 'fact_only') {
+        return
+    }
+
     if ([string]::IsNullOrWhiteSpace($Entry.RuntimeObserveTarget) -and
         [string]::IsNullOrWhiteSpace($Entry.RuntimeObserve) -and
         [string]::IsNullOrWhiteSpace($Entry.DefaultRuntimeObserve)) {
@@ -214,6 +219,8 @@ function Convert-ExportCaseEntry {
         Board = Get-OptionalStringProperty -Object $subjectEntry -PropertyName 'board'
         ActiveFacets = Get-OptionalStringArrayProperty -Object $subjectEntry -PropertyName 'active_facets'
         DeclaredFacts = Get-OptionalStringArrayProperty -Object $CaseEntry -PropertyName 'declared_facts'
+        RequiredFacts = Get-OptionalStringArrayProperty -Object $CaseEntry -PropertyName 'required_facts'
+        AuditProvidedFacts = Get-OptionalStringArrayProperty -Object $CaseEntry -PropertyName 'audit_provided_facts'
         DeclaredContracts = Get-OptionalDeclaredContractsProperty -Object $CaseEntry -PropertyName 'declared_contracts' -Context $context
     }
 
@@ -468,6 +475,42 @@ function New-CaseDeclaredFactsMetadata {
     return @($declaredFacts)
 }
 
+function New-CaseRequiredFactsMetadata {
+    param(
+        $Entry
+    )
+
+    $requiredFacts = @()
+    if ($null -ne $Entry -and $null -ne $Entry.PSObject.Properties['RequiredFacts']) {
+        $requiredFacts = @(
+            @($Entry.RequiredFacts) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Select-Object -Unique
+        )
+    }
+
+    return @($requiredFacts)
+}
+
+function New-CaseAuditProvidedFactsMetadata {
+    param(
+        $Entry
+    )
+
+    $auditProvidedFacts = @()
+    if ($null -ne $Entry -and $null -ne $Entry.PSObject.Properties['AuditProvidedFacts']) {
+        $auditProvidedFacts = @(
+            @($Entry.AuditProvidedFacts) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Select-Object -Unique
+        )
+    }
+
+    return @($auditProvidedFacts)
+}
+
 function New-CaseDeclaredContractsMetadata {
     param(
         $Entry
@@ -541,6 +584,12 @@ function Write-ExportBundleIndex {
         }
         if ($null -ne $result.PSObject.Properties['DeclaredFacts']) {
             $caseEntry.declared_facts = @($result.DeclaredFacts)
+        }
+        if ($null -ne $result.PSObject.Properties['RequiredFacts']) {
+            $caseEntry.required_facts = @($result.RequiredFacts)
+        }
+        if ($null -ne $result.PSObject.Properties['AuditProvidedFacts']) {
+            $caseEntry.audit_provided_facts = @($result.AuditProvidedFacts)
         }
         if ($null -ne $result.PSObject.Properties['DeclaredContracts']) {
             $caseEntry.declared_contracts = @($result.DeclaredContracts)
@@ -733,13 +782,21 @@ function Invoke-ManifestCase {
             JsonPath = $jsonPath
             Subject = New-CaseSubjectMetadata -Entry $Entry
             DeclaredFacts = New-CaseDeclaredFactsMetadata -Entry $Entry
+            RequiredFacts = New-CaseRequiredFactsMetadata -Entry $Entry
+            AuditProvidedFacts = New-CaseAuditProvidedFactsMetadata -Entry $Entry
             DeclaredContracts = New-CaseDeclaredContractsMetadata -Entry $Entry
             RuntimeObserve = $Entry.RuntimeObserve
             RuntimeObservePath = $runtimeObservePath
         }
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($Entry.ExportTarget)) {
+    if ($Entry.CaseKind -eq 'fact_only') {
+        Write-Host "[BUILD][$($Entry.Name)] target=$($Entry.BuildTarget)"
+        cmake --build $buildDir --target $Entry.BuildTarget -j $Jobs | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "build failed: $($Entry.Name)"
+        }
+    } elseif (-not [string]::IsNullOrWhiteSpace($Entry.ExportTarget)) {
         Write-Host "[EXPORT][$($Entry.Name)] target=$($Entry.ExportTarget)"
         cmake --build $buildDir --target $Entry.ExportTarget -j $Jobs | Out-Host
         if ($LASTEXITCODE -ne 0) {
@@ -779,6 +836,8 @@ function Invoke-ManifestCase {
         JsonPath = $jsonPath
         Subject = New-CaseSubjectMetadata -Entry $Entry
         DeclaredFacts = New-CaseDeclaredFactsMetadata -Entry $Entry
+        RequiredFacts = New-CaseRequiredFactsMetadata -Entry $Entry
+        AuditProvidedFacts = New-CaseAuditProvidedFactsMetadata -Entry $Entry
         DeclaredContracts = New-CaseDeclaredContractsMetadata -Entry $Entry
         RuntimeObserve = if (-not [string]::IsNullOrWhiteSpace($Entry.RuntimeObserve)) {
             $Entry.RuntimeObserve
@@ -807,6 +866,8 @@ if ($ListCases) {
     foreach ($entry in $manifestCases) {
         $subject = New-CaseSubjectMetadata -Entry $entry
         $declaredFacts = New-CaseDeclaredFactsMetadata -Entry $entry
+        $requiredFacts = New-CaseRequiredFactsMetadata -Entry $entry
+        $auditProvidedFacts = New-CaseAuditProvidedFactsMetadata -Entry $entry
         $declaredContracts = New-CaseDeclaredContractsMetadata -Entry $entry
         $subjectParts = @()
         if (-not [string]::IsNullOrWhiteSpace([string]$subject.profile)) {
@@ -826,6 +887,12 @@ if ($ListCases) {
         }
         if (@($declaredFacts).Count -gt 0) {
             $line += " declared_facts={$((@($declaredFacts) -join ', '))}"
+        }
+        if (@($requiredFacts).Count -gt 0) {
+            $line += " required_facts={$((@($requiredFacts) -join ', '))}"
+        }
+        if (@($auditProvidedFacts).Count -gt 0) {
+            $line += " audit_provided_facts={$((@($auditProvidedFacts) -join ', '))}"
         }
         if (@($declaredContracts).Count -gt 0) {
             $contractText = @(

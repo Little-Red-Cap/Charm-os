@@ -233,6 +233,40 @@ function Get-CaseDeclaredFacts {
     )
 }
 
+function Get-CaseRequiredFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['required_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.required_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Get-CaseAuditProvidedFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['audit_provided_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.audit_provided_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
 function Get-CaseDeclaredContracts {
     param(
         $CaseEntry
@@ -517,6 +551,8 @@ function New-CaseSummaryRow {
         Board = $subject.Board
         Facets = Format-ActiveFacets $subject.ActiveFacets
         DeclaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
+        RequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+        AuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
         DeclaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
         Nodes = Get-CaseNodeCount -CaseEntry $CaseEntry
         Edges = Get-CaseEdgeCount -CaseEntry $CaseEntry
@@ -624,7 +660,7 @@ if ($selectedCases.Count -ne 1) {
 $selectedCase = $selectedCases[0]
 $caseGraph = Load-CaseGraph -BundleRootPath $bundle.BundleRoot -CaseEntry $selectedCase
 if ($ShowEdges -and $null -eq $caseGraph) {
-    throw "selected case has no static graph; -ShowEdges is unavailable for runtime_only cases"
+    throw "selected case has no static graph; -ShowEdges is unavailable for non-graph cases"
 }
 
 $nodeRows = @()
@@ -649,6 +685,8 @@ if ($AsJson) {
             json = if ($null -ne $caseGraph) { $caseGraph.Path } else { $null }
             runtime_observe = if ([string]::IsNullOrWhiteSpace((Get-CaseStringProperty -CaseEntry $selectedCase -PropertyName 'runtime_observe'))) { $null } else { Resolve-CaseArtifactPath -BundleRootPath $bundle.BundleRoot -RelativeOrAbsolutePath ([string]$selectedCase.runtime_observe) }
             declared_facts = @(Get-CaseDeclaredFacts -CaseEntry $selectedCase)
+            required_facts = @(Get-CaseRequiredFacts -CaseEntry $selectedCase)
+            audit_provided_facts = @(Get-CaseAuditProvidedFacts -CaseEntry $selectedCase)
             declared_contracts = @(Get-CaseDeclaredContracts -CaseEntry $selectedCase)
             graph = Get-CaseGraphSummary -CaseEntry $selectedCase
         }
@@ -698,7 +736,7 @@ if ($declaredContracts.Count -gt 0) {
 }
 Write-Host ''
 
-$summaryRows | Format-List Case, CaseKind, Profile, Board, Facets, Nodes, Edges, Phase, Runlevel, Kinds, ConnectionModes | Out-Host
+$summaryRows | Format-List Case, CaseKind, Profile, Board, Facets, DeclaredFacts, RequiredFacts, AuditProvidedFacts, Nodes, Edges, Phase, Runlevel, Kinds, ConnectionModes | Out-Host
 if ($null -ne $caseGraph) {
     Write-Host '[NODES]'
     $nodeRows | Format-Table -Wrap -AutoSize Index, Kind, Phase, Name, Connection, Provides, Requires | Out-Host

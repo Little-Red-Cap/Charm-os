@@ -116,7 +116,7 @@ function Get-CaseKind {
     }
 
     $normalized = [string]$CaseEntry.case_kind
-    if ($normalized -notin @('materialized_graph', 'runtime_only')) {
+    if ($normalized -notin @('materialized_graph', 'runtime_only', 'fact_only')) {
         throw "unsupported case kind '$normalized' in bundle case entry"
     }
 
@@ -152,7 +152,7 @@ function Load-CaseGraph {
         ''
     }
     if ([string]::IsNullOrWhiteSpace($jsonValue)) {
-        if ($caseKind -eq 'runtime_only') {
+        if ($caseKind -ne 'materialized_graph') {
             return $null
         }
         throw "case json missing for materialized_graph case: $([string]$CaseEntry.name)"
@@ -996,6 +996,40 @@ function Get-CaseDeclaredFacts {
     )
 }
 
+function Get-CaseRequiredFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['required_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.required_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Get-CaseAuditProvidedFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['audit_provided_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.audit_provided_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
 function Get-CaseDeclaredContracts {
     param(
         $CaseEntry
@@ -1085,7 +1119,9 @@ function Format-DeclaredContractEntry {
 function Get-ResourceContractSummary {
     param(
         $DeclaredContracts,
-        [string[]]$AvailableFacts
+        [string[]]$AvailableFacts,
+        [string[]]$AuditProvidedFacts = @(),
+        [string[]]$RequiredFacts = @()
     )
 
     $availableSet = @{}
@@ -1100,7 +1136,11 @@ function Get-ResourceContractSummary {
     $violations = @()
     $unknownContracts = @()
     $resourceHotspots = @()
-    $providedFacts = @()
+    $providedFacts = @(
+        @($AuditProvidedFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
 
     foreach ($contractEntry in @($DeclaredContracts)) {
         if ($null -eq $contractEntry) {
@@ -1149,6 +1189,15 @@ function Get-ResourceContractSummary {
         $violationText = "$contractName missing [$((@($missingFacts) -join ', '))] requires [$((@($requires) -join ', '))]"
         $violations += $violationText
         $resourceHotspots += $violationText
+    }
+
+    foreach ($requiredFact in @($RequiredFacts | Sort-Object -Unique)) {
+        $factName = [string]$requiredFact
+        if ([string]::IsNullOrWhiteSpace($factName) -or $availableSet.ContainsKey($factName)) {
+            continue
+        }
+
+        $resourceHotspots += "required_fact missing [$factName]"
     }
 
     return [ordered]@{
@@ -2323,16 +2372,35 @@ function New-CaseResourceContractSummary {
     } else {
         @()
     }
+    $graphRequiredFacts = if ($null -ne $graph) {
+        @(Get-RequiredFacts -Graph $graph)
+    } else {
+        @()
+    }
+    $caseRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+    $requiredFacts = @(
+        @($graphRequiredFacts) +
+        @($caseRequiredFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
     $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
+    $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $availableFacts = @(
         @($graphProvidedFacts) +
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+        @($caseAuditProvidedFacts) +
         @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
             Sort-Object -Unique
     )
 
-    return Get-ResourceContractSummary -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) -AvailableFacts $availableFacts
+    return Get-ResourceContractSummary `
+        -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) `
+        -AvailableFacts $availableFacts `
+        -AuditProvidedFacts $caseAuditProvidedFacts `
+        -RequiredFacts $requiredFacts
 }
 
 function New-CaseFactResolutionSummary {
@@ -2356,20 +2424,34 @@ function New-CaseFactResolutionSummary {
     } else {
         @()
     }
-    $requiredFacts = if ($null -ne $graph) {
+    $graphRequiredFacts = if ($null -ne $graph) {
         @(Get-RequiredFacts -Graph $graph)
     } else {
         @()
     }
+    $caseRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+    $requiredFacts = @(
+        @($graphRequiredFacts) +
+        @($caseRequiredFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
     $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
+    $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $availableFacts = @(
         @($graphProvidedFacts) +
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+        @($caseAuditProvidedFacts) +
         @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
             Sort-Object -Unique
     )
-    $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) -AvailableFacts $availableFacts
+    $resourceContractSummary = Get-ResourceContractSummary `
+        -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) `
+        -AvailableFacts $availableFacts `
+        -AuditProvidedFacts $caseAuditProvidedFacts `
+        -RequiredFacts $requiredFacts
 
     return New-FactResolutionSummary `
         -SystemInputSummary $systemInputSummary `
@@ -3596,11 +3678,19 @@ function New-ArtifactReport {
     } else {
         @()
     }
-    $requiredFacts = if ($null -ne $graph) {
+    $graphRequiredFacts = if ($null -ne $graph) {
         @(Get-RequiredFacts -Graph $graph)
     } else {
         @()
     }
+    $caseRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+    $requiredFacts = @(
+        @($graphRequiredFacts) +
+        @($caseRequiredFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
     $providedFacts = if ($null -ne $graph) {
         @($graphProvidedFacts)
     } else {
@@ -3674,13 +3764,19 @@ function New-ArtifactReport {
     $resolvedFacets = @($resolvedSubject.ActiveFacets)
     $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
+    $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $resourceAvailableFacts = @(
         @($providedFacts) +
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+        @($caseAuditProvidedFacts) +
         @(Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedFacets)
     ) | Sort-Object -Unique
-    $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts $declaredContracts -AvailableFacts $resourceAvailableFacts
+    $resourceContractSummary = Get-ResourceContractSummary `
+        -DeclaredContracts $declaredContracts `
+        -AvailableFacts $resourceAvailableFacts `
+        -AuditProvidedFacts $caseAuditProvidedFacts `
+        -RequiredFacts $requiredFacts
     $factResolutionSummary = New-FactResolutionSummary `
         -SystemInputSummary $systemInputSummary `
         -RequiredFacts $requiredFacts `

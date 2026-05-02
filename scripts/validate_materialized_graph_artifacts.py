@@ -79,7 +79,7 @@ def validate_bundle_root(bundle_root: Path, repo_root: Path, visited: set[Path])
         if isinstance(json_value, str) and json_value:
             json_path = resolve_path(bundle_root.resolve(), json_value)
             validate_once(json_path, repo_root, visited)
-        elif case_kind != "runtime_only":
+        elif case_kind == "materialized_graph":
             raise RuntimeError(
                 f"bundle case '{case_entry.get('name', '<unknown>')}' is missing json for case_kind={case_kind}"
             )

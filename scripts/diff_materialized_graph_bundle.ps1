@@ -439,6 +439,40 @@ function Get-CaseDeclaredFacts {
     )
 }
 
+function Get-CaseRequiredFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['required_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.required_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Get-CaseAuditProvidedFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['audit_provided_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.audit_provided_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
 function Get-CaseDeclaredContracts {
     param(
         $CaseEntry
@@ -868,6 +902,16 @@ function Compare-CaseMetadata {
     if (-not (Compare-StringArrays -Left $leftDeclaredFacts -Right $rightDeclaredFacts)) {
         $changes += "declared_facts:[$(Join-Names $leftDeclaredFacts)]->[$(Join-Names $rightDeclaredFacts)]"
     }
+    $leftRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $LeftCase)
+    $rightRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $RightCase)
+    if (-not (Compare-StringArrays -Left $leftRequiredFacts -Right $rightRequiredFacts)) {
+        $changes += "required_facts:[$(Join-Names $leftRequiredFacts)]->[$(Join-Names $rightRequiredFacts)]"
+    }
+    $leftAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $LeftCase)
+    $rightAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $RightCase)
+    if (-not (Compare-StringArrays -Left $leftAuditProvidedFacts -Right $rightAuditProvidedFacts)) {
+        $changes += "audit_provided_facts:[$(Join-Names $leftAuditProvidedFacts)]->[$(Join-Names $rightAuditProvidedFacts)]"
+    }
     $leftDeclaredContracts = @(Get-DeclaredContractTexts -CaseEntry $LeftCase)
     $rightDeclaredContracts = @(Get-DeclaredContractTexts -CaseEntry $RightCase)
     if (-not (Compare-StringArrays -Left $leftDeclaredContracts -Right $rightDeclaredContracts)) {
@@ -1056,6 +1100,8 @@ function New-CaseJsonView {
         json = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'json'
         runtime_observe = Resolve-CaseArtifactOrNull -Bundle $Bundle -CaseEntry $CaseEntry -FieldName 'runtime_observe'
         declared_facts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
+        required_facts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+        audit_provided_facts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
         declared_contracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
         graph = Get-CaseGraphSummary -CaseEntry $CaseEntry
     }

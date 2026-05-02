@@ -60,12 +60,14 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 用于把 case 级 `artifact report` 直接展开成人类可读摘要或机器继续消费的 JSON 视图。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
-`export_bundle/v1` 现在可以同时承载两类 case：
+`export_bundle/v1` 现在可以同时承载三类 case：
 
 - `materialized_graph`
   同时带出 `dot/json` 与可选 `runtime_observe` sidecar
 - `runtime_only`
   只带出 `runtime_observe` sidecar，不强行伪造 graph 工件
+- `fact_only`
+  只声明事实输入与审计事实，不强行伪造 graph 或 runtime sidecar
 
 如果调用方显式传入 `-Profile`、`-Board`、`-Facet`，
 当前生成链也会把这些 subject 元数据写入报告对象。
@@ -74,6 +76,11 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 如果 bundle 的 case entry 自带 `declared_facts`，
 当前导出脚本也会把它们写入 `structure.declared_facts`，
 并与图推导出的 `required_facts` / `provided_facts` 保持分离。
+如果 bundle 的 case entry 自带 `required_facts` 与 `audit_provided_facts`，
+当前导出脚本会把它们并入 `structure.required_facts`、
+`resource_contract.provided_facts` 与 `fact_resolution.fact_inventory`；
+其中 required 但未 available 的事实会自动进入 `resource_hotspots`，
+但仍只作为报告结论，不阻断构建。
 如果 bundle 的 case entry 自带 `declared_contracts`，
 当前导出脚本也会把这些输入合同写入 `resource_contract.declared_contract_entries`，
 并基于 `declared_facts`、`subject` 派生事实与图提供能力产出最小 `provided / satisfied / violated / unknown` 摘要。
@@ -104,6 +111,10 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 `artifact report.artifacts.sample_json` 与 `artifact report.artifacts.dot` 会保持为空，
 `structure.node_count / edge_count / materialized_order` 也会回落到零值或空数组；
 但 `capability_count`、`bringup_evidence` 与 `runtime_observe` 仍会继续从 sidecar 收敛最小结论对象。
+如果当前 case 属于 `fact_only`，
+`artifact report.artifacts.sample_json`、`artifact report.artifacts.dot`
+与 `artifact report.artifacts.runtime_observe` 都会保持为空；
+但 `declared / required / audit_provided` facts 仍会进入事实库存与资源热点计算。
 
 当前最小真实链路可以这样跑：
 
@@ -156,8 +167,9 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 
-这份样例不表示导出脚本已经自动从 I2C contract 生成 facts。
-它的作用是先把 `io.device_i2c_facts` 如何进入现有
+这份样例现在与 `i2c-device-contract-facts-smoke` 这条 `fact_only`
+导出链保持同一种投影语义。
+它的作用是把 `io.device_i2c_facts` 如何进入现有
 `fact_resolution.fact_inventory`、`structure.required_facts`
 与 `resource_contract.provided_facts` 的形状钉住。
 其中 `pinmux:pb8/pb9.af4` 故意保留为 required 但未 available，

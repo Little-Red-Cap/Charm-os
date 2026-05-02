@@ -11,6 +11,7 @@
 - `Examples/ui/vivid/motion_time_demo`
 - `Examples/ui/vivid/page_transition_demo`
 - `Examples/ui/vivid/widget_signal_demo`
+- `Examples/ui/vivid/widget_state_demo`
 
 未来 `Component Lab`、截图回归、Layer budget drill 或其它 Vivid runtime demo 可以复用这套格式。
 
@@ -65,6 +66,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `page_transition_demo` | `pt` | `[pt] run=page_transition_demo phase=end result=ok cases=15` |
 | `motion_time_demo` | `mt` | `[mt] run=motion_time_demo phase=end result=ok cases=12` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
+| `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 
 ## 维护规则
 

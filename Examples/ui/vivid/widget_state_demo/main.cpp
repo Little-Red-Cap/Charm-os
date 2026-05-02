@@ -92,9 +92,28 @@ namespace {
         }
         return true;
     }
+
+    unsigned widget_state_summary_case_count{0};
+
+    void print_widget_state_run_begin() noexcept {
+        std::printf("[wst] run=widget_state_demo phase=begin\n");
+    }
+
+    void print_widget_state_run_end(bool ok) noexcept {
+        std::printf("[wst] run=widget_state_demo phase=end result=%s cases=%u\n",
+                    ok ? "ok" : "fail",
+                    widget_state_summary_case_count);
+    }
+
+    void print_widget_state_case(const char* name) noexcept {
+        ++widget_state_summary_case_count;
+        std::printf("[wst] case=%s", name);
+    }
 }
 
 int main() {
+    print_widget_state_run_begin();
+
     Probe probe{};
 
     Checkbox checkbox{"Enable"};
@@ -194,20 +213,26 @@ int main() {
     if (!expect(nearly_equal(arc.value(), 0.75f), "arc still updates truth after disconnect")) return 1;
     if (!expect(probe.arc_changes == 1, "arc disconnected observer stays silent")) return 1;
 
-    std::printf("[checkbox] changes=%d callbacks=%d now=%d\n",
+    print_widget_state_case("checkbox_state");
+    std::printf(" changes=%d callbacks=%d now=%d\n",
                 probe.checkbox_changes,
                 g_checkbox_callbacks,
                 checkbox.is_checked() ? 1 : 0);
-    std::printf("[dropdown] changes=%d callbacks=%d selected=%d\n",
+    print_widget_state_case("dropdown_state");
+    std::printf(" changes=%d callbacks=%d selected=%d\n",
                 probe.dropdown_changes,
                 g_dropdown_callbacks,
                 dropdown.selected());
-    std::printf("[slider] changes=%d callbacks=%d value=%d\n",
+    print_widget_state_case("slider_state");
+    std::printf(" changes=%d callbacks=%d value=%d\n",
                 probe.slider_changes,
                 g_slider_callbacks,
                 slider.value());
-    std::printf("[progress] changes=%d value=%d\n", probe.progress_changes, progress.value());
-    std::printf("[arc] changes=%d value=%.2f\n", probe.arc_changes, static_cast<double>(arc.value()));
+    print_widget_state_case("progress_state");
+    std::printf(" changes=%d value=%d\n", probe.progress_changes, progress.value());
+    print_widget_state_case("arc_state");
+    std::printf(" changes=%d value=%.2f\n", probe.arc_changes, static_cast<double>(arc.value()));
+    print_widget_state_run_end(true);
     std::puts("[widget_state_demo] ok");
     return 0;
 }

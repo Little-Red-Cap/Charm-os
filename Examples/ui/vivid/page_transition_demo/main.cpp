@@ -594,6 +594,88 @@ namespace {
                     static_cast<unsigned>(ledger.peak_layer_bytes));
         return true;
     }
+
+    [[nodiscard]] bool run_pixel_single_rebegin_interrupt() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{230, 100, 30, 255});
+        PaintPrepare first_prepare{.canvas = &env.canvas, .color = rgba{30, 100, 230, 255}, .x = 4, .y = 2};
+        PaintPrepare second_prepare{.canvas = &env.canvas, .color = rgba{70, 140, 240, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto budget = ui::scene::LayerBudget{.max_layer_bytes = 3};
+        const auto first = runner.begin(env.scene, access, transition_spec(env, first_prepare, budget));
+        if (!expect(first.started(), "pixel single rebegin first transition starts")) return false;
+        if (!expect(first.admission == ui::scene::LayerAdmission::PixelSingle,
+                    "pixel single rebegin first admission is selected")) {
+            return false;
+        }
+        const auto first_frame = runner.sample(env.scene, 0);
+        if (!expect(first_frame.source.valid && !first_frame.destination.valid,
+                    "pixel single rebegin first transition composes source-only")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 1,
+                    "pixel single rebegin first transition owns one snapshot")) {
+            return false;
+        }
+        const auto second = runner.begin(env.scene, access, transition_spec(env, second_prepare, budget));
+        const auto trace = runner.trace();
+        if (!expect(second.started(), "pixel single rebegin starts replacement transition")) return false;
+        if (!expect(second.admission == ui::scene::LayerAdmission::PixelSingle,
+                    "pixel single rebegin replacement admission is selected")) {
+            return false;
+        }
+        if (!expect(trace.interrupt_count == 1, "pixel single rebegin trace records interrupt")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
+                    "pixel single rebegin replacement captures source only")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 1,
+                    "pixel single rebegin releases old snapshot before reacquiring")) {
+            return false;
+        }
+        if (!expect(!env.source.visible() && env.destination.visible(),
+                    "pixel single rebegin replacement keeps destination live")) {
+            return false;
+        }
+        runner.cancel(env.scene, access);
+        const auto canceled_trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(canceled_trace.interrupt_count == 1,
+                    "pixel single rebegin interrupt count survives cancel")) {
+            return false;
+        }
+        if (!expect(env.source.visible() && !env.destination.visible(),
+                    "pixel single rebegin cancel restores original page truth")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "pixel single rebegin cancel releases replacement snapshot")) {
+            return false;
+        }
+        if (!expect(ledger.interrupted && ledger.aborted,
+                    "pixel single rebegin ledger records interrupt abort")) {
+            return false;
+        }
+        if (!expect(ledger.source_bytes == 3 && ledger.destination_bytes == 0 &&
+                    ledger.peak_layer_bytes == 3,
+                    "pixel single rebegin ledger records source-only layer cost")) {
+            return false;
+        }
+        if (!expect(ledger.snapshots_released,
+                    "pixel single rebegin ledger records released snapshot")) {
+            return false;
+        }
+        std::printf("[pt] pixel_single_rebegin first=%s second=%s interrupts=%u snapshots=%u bytes=%u\n",
+                    ui::scene::page_transition_begin_status_name(first.status),
+                    ui::scene::page_transition_begin_status_name(second.status),
+                    static_cast<unsigned>(canceled_trace.interrupt_count),
+                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        return true;
+    }
 }
 
 int main() {
@@ -606,6 +688,7 @@ int main() {
     if (!run_source_capture_fail()) return 1;
     if (!run_destination_capture_fail()) return 1;
     if (!run_rebegin_interrupt()) return 1;
+    if (!run_pixel_single_rebegin_interrupt()) return 1;
     std::puts("[page_transition_demo] ok");
     return 0;
 }

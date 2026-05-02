@@ -342,12 +342,14 @@ Examples/ui/vivid/page_transition_demo
 
 规则：
 
-- re-begin 必须释放旧 source / destination snapshot。
+- re-begin 必须释放旧事务持有的 source / destination snapshot；`PixelSingle` 路径只有 source snapshot 也必须满足同一条律。
 - re-begin 必须恢复旧事务 begin 前的 page truth，再捕获新事务 snapshot。
 - 新事务 trace 通过 `interrupt_count` 记录这次隐式 abort。
 - 后续 commit / cancel 后 `interrupt_count` 必须保留为可审计证据。
 
 `Examples/ui/vivid/page_transition_demo` 已覆盖 `rebegin_interrupt`：旧事务 compose 后再次 begin，新事务重新持有两个 snapshot，最终 cancel 后 `snapshot_count == 0`。
+
+同一入口也覆盖 `pixel_single_rebegin_interrupt`：旧 PixelSingle 事务只持有 source snapshot，再次 begin 时先释放旧 snapshot，新事务重新持有一个 source snapshot，最终 cancel 后 `snapshot_count == 0`。
 
 ## 2026-05 补记：PageTransition capture failure law
 
@@ -386,4 +388,4 @@ Examples/ui/vivid/page_transition_demo
 - sample 阶段只执行 source snapshot compose，destination compose result 保持 invalid。
 - commit / cancel 后 runner 释放所持 source snapshot，回到 idle 时 `snapshot_count == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_live_destination` 与 `pixel_single_cancel`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 cancel 后恢复 begin 前 page truth。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_live_destination`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 cancel / interrupt 后恢复 begin 前 page truth。

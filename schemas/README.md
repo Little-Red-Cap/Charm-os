@@ -54,9 +54,18 @@
   - 它当前是 v0 草案协议，已能覆盖 `export_only` 与 `compare` 两种最小输出场景，并可继续引用 `bundle / input_manifest / runtime_observe / diff / report manifest`
   - 它当前的 `runtime_observe` 摘要也已经可以继续带出 `observed_capabilities`，让 runtime-only case 在 explain 面里不再退化成“完全未声明”
 
+- `system_compiler.artifact_report_index.v0.schema.json`
+  - 对应 `export_system_compiler_artifact_report.ps1 -OutputRoot ...` 生成的 `artifact-report/index.json`
+  - 用途偏向给 CI、IDE 原型和外部脚本一个 first-read 入口，先读取 `compiler_headline`、case 路径、formation 状态、drift 维度与阻塞热点
+  - 它不替代 case 级 `system_compiler.artifact_report/v0`，也不替代 inspector 的 artifact_root 默认总览
+
 - `examples/system_compiler.artifact_report.v0.sample.json`
   - 对应 `system_compiler.artifact_report/v0` 的最小机器可验样例
   - 用途偏向 schema 自检、字段讨论与后续脚本接入前的样例锚点
+
+- `examples/system_compiler.artifact_report_index.v0.sample.json`
+  - 对应 `system_compiler.artifact_report_index/v0` 的最小机器可验样例
+  - 用途偏向钉住 artifact report root index 的 first-read 形状，以及 `compiler_headline` 与 case path 的轻量入口语义
 
 - `examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
   - 对应 `system_compiler.artifact_report/v0` 中 I2C device contract facts 的投影样例
@@ -291,6 +300,7 @@
 - `report_manifest/v1`：当前报告层稳定依赖的工件元数据协议
 - `runtime_observe_snapshot/v0`：当前 runtime 观察输入 sidecar 的最小协议，用于把动态观察事实稳定挂接到 bundle / report 链
 - `system_compiler.artifact_report/v0`：当前 system compiler 输出面的对象草案锚点，字段仍允许继续收敛
+- `system_compiler.artifact_report_index/v0`：当前 artifact report root 的 first-read 入口锚点，负责让 CI/IDE/脚本先定位 headline、case 路径与阻塞热点
 - `system_compiler.canonical_world/v0`：当前“一个世界想证明什么、依赖哪些 witness / contracts”的声明对象锚点
 - `system_compiler.witness_bundle/v0`：当前“这次交付拿什么作证”的交付对象锚点
 - `system_compiler.world_compare/v0`：当前“这个世界相对基线还站不站得住”的 compare verdict 对象锚点

@@ -6,7 +6,9 @@
 当前 schema 草案与最小机器可验样例见：
 
 - `schemas/system_compiler.artifact_report.v0.schema.json`
+- `schemas/system_compiler.artifact_report_index.v0.schema.json`
 - `schemas/examples/system_compiler.artifact_report.v0.sample.json`
+- `schemas/examples/system_compiler.artifact_report_index.v0.sample.json`
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/system_compiler.fact_evidence.v0.schema.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
@@ -37,6 +39,7 @@
 
 ```powershell
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report_index.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json

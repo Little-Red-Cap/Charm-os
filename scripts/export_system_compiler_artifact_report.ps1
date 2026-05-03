@@ -4019,6 +4019,20 @@ function Get-ArtifactReportIndexDriftDimensionNames {
     )
 }
 
+function Get-ArtifactIndexNullableString {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    $value = Get-OptionalMemberValue -Object $Object -Name $PropertyName
+    if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
+        return $null
+    }
+
+    return [string]$value
+}
+
 function Get-ReportDriftDimensions {
     param(
         $Report
@@ -4072,17 +4086,21 @@ function New-ArtifactIndexCase {
     $bindingSummary = Get-OptionalMemberValue -Object $systemFormation -Name 'binding_summary'
     $bringupSummary = Get-OptionalMemberValue -Object $systemFormation -Name 'bringup_summary'
     $comparison = Get-OptionalMemberValue -Object $Report -Name 'comparison'
+    $comparisonStatus = Get-OptionalMemberValue -Object $comparison -Name 'status'
+    if ($null -ne $comparisonStatus) {
+        $comparisonStatus = [string]$comparisonStatus
+    }
     $driftDimensions = @(Get-ReportDriftDimensions -Report $Report)
 
     return [ordered]@{
         name = [string](Get-OptionalMemberValue -Object $subject -Name 'case')
         path = $ReportPath
         mode = [string](Get-OptionalMemberValue -Object $Report -Name 'mode')
-        profile = [string](Get-OptionalMemberValue -Object $subject -Name 'profile')
-        board = [string](Get-OptionalMemberValue -Object $subject -Name 'board')
+        profile = Get-ArtifactIndexNullableString -Object $subject -PropertyName 'profile'
+        board = Get-ArtifactIndexNullableString -Object $subject -PropertyName 'board'
         active_facets = @(Get-OptionalStringArrayValue -Object $subject -PropertyName 'active_facets')
         formation_status = [string](Get-OptionalMemberValue -Object $systemFormation -Name 'status')
-        comparison_status = [string](Get-OptionalMemberValue -Object $comparison -Name 'status')
+        comparison_status = $comparisonStatus
         has_drift = @($driftDimensions).Count -gt 0
         drift_dimensions = @($driftDimensions)
         unresolved_binding_count = [int](Get-OptionalMemberValue -Object $bindingSummary -Name 'unresolved_binding_count')

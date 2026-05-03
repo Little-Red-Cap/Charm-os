@@ -295,12 +295,19 @@ audit facts 放进同一份 sidecar，展示 `fact_resolution.fact_inventory`
 单 report 默认总览里的 `comparison` 现在也会继续带出一份最小 `capability_summary`，
 至少包括：
 
+- `comparison.drift_headline.text`
+- `comparison.drift_headline.changed_dimensions`
+- `comparison.drift_headline.dimension_counts`
 - `comparison.capability_summary.compared_capability_count`
 - `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `comparison.capability_summary.compared_capabilities`
 - `comparison.capability_summary.fact_resolution_compare_capabilities`
 - `comparison.capability_summary.required_fact_resolution_change_kinds`
 - `comparison.capability_summary.required_facts_changed`
+
+单 report 里的 `comparison.drift_headline` 与 artifact_root 级字段保持同一输出形状，
+但它的 `dimension_counts` 不是跨 case 汇总，而是当前 report 的维度命中标记：
+每个维度只会是 `0` 或 `1`，表示这个 case 是否在该维度发生 compare drift。
 
 如果选择的是整组 compare report，
 artifact_root 级 `cap list` 现在也会继续带出：

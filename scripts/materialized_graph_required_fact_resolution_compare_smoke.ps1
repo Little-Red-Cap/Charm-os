@@ -132,6 +132,7 @@ $graphPathInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolut
 $capListInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.cap_list.inspect.json'
 $rootCapListInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.root.cap_list.inspect.json'
 $defaultOverviewInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.default_overview.inspect.json'
+$singleOverviewInspectJsonPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare.single_overview.inspect.json'
 $summaryPath = Join-Path $resolvedOutputRoot 'required_fact_resolution_compare_smoke.summary.json'
 
 $diffScript = Join-Path $PSScriptRoot 'diff_materialized_graph_bundle.ps1'
@@ -343,6 +344,16 @@ Assert-Condition ((@($defaultOverviewInspectResult.comparison.drift_headline.cha
 Assert-Condition ([int]$defaultOverviewInspectResult.comparison.drift_headline.dimension_counts.fact_resolution -ge 1) 'default overview drift headline fact_resolution count must be positive'
 Assert-Condition ([string]$defaultOverviewInspectResult.comparison.drift_headline.text -like '*fact_resolution:*') 'default overview drift headline text missing fact_resolution segment'
 
+$singleOverviewInspectResult = Invoke-CommandJson -OutputPath $singleOverviewInspectJsonPath -Command {
+    & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $Case -AsJson
+}
+Assert-Condition ([string]$singleOverviewInspectResult.subject.case -eq $Case) "single overview subject case mismatch: $Case"
+Assert-Condition ($null -ne $singleOverviewInspectResult.comparison) 'single overview missing comparison payload'
+Assert-Condition ($null -ne $singleOverviewInspectResult.comparison.drift_headline) 'single overview missing drift headline'
+Assert-Condition ((@($singleOverviewInspectResult.comparison.drift_headline.changed_dimensions) -contains 'fact_resolution')) 'single overview drift headline missing fact_resolution dimension'
+Assert-Condition ([int]$singleOverviewInspectResult.comparison.drift_headline.dimension_counts.fact_resolution -eq 1) 'single overview drift headline fact_resolution count must be 1'
+Assert-Condition ([string]$singleOverviewInspectResult.comparison.drift_headline.text -like '*fact_resolution:1*') 'single overview drift headline text missing fact_resolution segment'
+
 $summary = [ordered]@{
     bundle_root = $resolvedBundleRoot
     artifact_report = $artifactReportPath
@@ -353,6 +364,7 @@ $summary = [ordered]@{
     cap_list_inspect_json = $capListInspectJsonPath
     root_cap_list_inspect_json = $rootCapListInspectJsonPath
     default_overview_inspect_json = $defaultOverviewInspectJsonPath
+    single_overview_inspect_json = $singleOverviewInspectJsonPath
     case = $Case
     donor_case = $DonorCase
     expected_fact = $ExpectedFact
@@ -368,6 +380,7 @@ $summary = [ordered]@{
         artifact_root_cap_list_exposes_required_fact_resolution_change = $true
         default_overview_exposes_factcmp = $true
         default_overview_exposes_drift_headline = $true
+        single_overview_exposes_drift_headline = $true
     }
 }
 

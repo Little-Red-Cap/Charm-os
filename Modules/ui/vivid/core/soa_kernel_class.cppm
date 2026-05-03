@@ -1156,6 +1156,7 @@ private:
     bool input_is_focus_candidate(WidgetHandle h) const noexcept ;
     WidgetHandle input_first_focus_candidate(WidgetHandle root) const noexcept ;
     WidgetHandle input_next_focus_candidate(WidgetHandle root, WidgetHandle current, bool reverse) const noexcept ;
+    WidgetHandle input_spatial_focus_candidate(WidgetHandle root, WidgetHandle current, Event::Key key) const noexcept ;
     WidgetHandle input_resolve_focus_request(WidgetHandle h) const noexcept ;
     void input_set_focus(WidgetHandle h) ;
     WidgetHandle input_drag_target() const noexcept ;

@@ -1,0 +1,29 @@
+# Vivid Focus Spatial Navigation Demo
+
+`focus_spatial_navigation_demo` 是 Vivid Evidence Lab 的 spatial focus navigation 样本。
+
+它验证：
+
+```text
+directional key 在 active focus scope 内按几何方向选择候选；
+Tab 仍保持 deterministic preorder 导航；
+没有空间候选时回退到顺序 wrap；
+scope 外 target 不参与 spatial 候选；
+每次迁移都产生 FocusOut / FocusIn 与 input_focused truth 提交。
+```
+
+stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
+
+```text
+[fss] run=focus_spatial_navigation_demo phase=begin
+[fss] case=scope_model ...
+[fss] case=initial_focus ...
+[fss] case=right_to_right ...
+[fss] case=down_to_down ...
+[fss] case=left_to_origin ...
+[fss] case=up_to_top ...
+[fss] case=tab_preorder ...
+[fss] case=no_candidate_wrap ...
+[fss] case=outside_not_candidate ...
+[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9
+```

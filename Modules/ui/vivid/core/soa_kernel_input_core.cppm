@@ -381,8 +381,9 @@ import charm.core.soa_registry;
     }
 
     void SoaKernel::input_handle_key_down(Event::Key key) {
+        const bool tab = key == Event::Key::Tab;
         const bool reverse = key == Event::Key::Left || key == Event::Key::Up;
-        const bool forward = key == Event::Key::Tab || key == Event::Key::Right || key == Event::Key::Down;
+        const bool forward = tab || key == Event::Key::Right || key == Event::Key::Down;
         if (!forward && !reverse) {
             if (input_.focused) {
                 input_emit_event(input_.focused, Event::key(Event::Type::KeyDown, key, input_.last_ms));
@@ -391,7 +392,10 @@ import charm.core.soa_registry;
         }
 
         const WidgetHandle root = input_.focus_scope ? input_.focus_scope : input_.root;
-        WidgetHandle next = input_next_focus_candidate(root, input_.focused, reverse);
+        WidgetHandle next = tab ? WidgetHandle{} : input_spatial_focus_candidate(root, input_.focused, key);
+        if (!next) {
+            next = input_next_focus_candidate(root, input_.focused, reverse);
+        }
         if (!next) {
             next = input_first_focus_candidate(root);
         }
@@ -970,6 +974,84 @@ import charm.core.soa_registry;
             return (index + 1 == count) ? candidates[0] : candidates[index + 1];
         }
         return reverse ? candidates[count - 1] : candidates[0];
+    }
+
+    WidgetHandle SoaKernel::input_spatial_focus_candidate(WidgetHandle root,
+                                                          WidgetHandle current,
+                                                          Event::Key key) const noexcept {
+        if (!root || !valid(root) || !input_is_focus_candidate(current)) return {};
+        if (current != root && !input_is_descendant(current, root)) return {};
+        const Rect from = input_world_rect(current);
+        if (!rect_valid(from)) return {};
+        const int from_cx = from.x + from.w / 2;
+        const int from_cy = from.y + from.h / 2;
+
+        WidgetHandle best{};
+        std::int64_t best_major = 0;
+        std::int64_t best_minor = 0;
+        std::int64_t best_order = 0;
+        std::int64_t order = 0;
+
+        std::array<WidgetHandle, 256> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = root;
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp];
+            if (!valid(h) || !visible(h) || !enabled(h)) continue;
+            if (input_is_focus_candidate(h) && h != current) {
+                const Rect to = input_world_rect(h);
+                if (rect_valid(to)) {
+                    const int to_cx = to.x + to.w / 2;
+                    const int to_cy = to.y + to.h / 2;
+                    std::int64_t major = 0;
+                    std::int64_t minor = 0;
+                    bool directional = false;
+                    switch (key) {
+                    case Event::Key::Left:
+                        directional = to_cx < from_cx;
+                        major = static_cast<std::int64_t>(from_cx - to_cx);
+                        minor = static_cast<std::int64_t>(to_cy - from_cy);
+                        break;
+                    case Event::Key::Right:
+                        directional = to_cx > from_cx;
+                        major = static_cast<std::int64_t>(to_cx - from_cx);
+                        minor = static_cast<std::int64_t>(to_cy - from_cy);
+                        break;
+                    case Event::Key::Up:
+                        directional = to_cy < from_cy;
+                        major = static_cast<std::int64_t>(from_cy - to_cy);
+                        minor = static_cast<std::int64_t>(to_cx - from_cx);
+                        break;
+                    case Event::Key::Down:
+                        directional = to_cy > from_cy;
+                        major = static_cast<std::int64_t>(to_cy - from_cy);
+                        minor = static_cast<std::int64_t>(to_cx - from_cx);
+                        break;
+                    default:
+                        break;
+                    }
+                    if (directional) {
+                        if (minor < 0) minor = -minor;
+                        const bool better = !best
+                            || major < best_major
+                            || (major == best_major && minor < best_minor)
+                            || (major == best_major && minor == best_minor && order < best_order);
+                        if (better) {
+                            best = h;
+                            best_major = major;
+                            best_minor = minor;
+                            best_order = order;
+                        }
+                    }
+                }
+                ++order;
+            }
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = child;
+            }
+        }
+        return best;
     }
 
     SoaWheelAxisPolicy SoaKernel::input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,

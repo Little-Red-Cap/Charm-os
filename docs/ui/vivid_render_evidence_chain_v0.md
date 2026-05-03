@@ -21,6 +21,8 @@ v0 由 `Examples/ui/vivid/focus_boundary_demo` 验证：`set_focused(true)` 不�
 
 `Examples/ui/vivid/focus_scope_navigation_demo` 继续验证 keyboard / d-pad focus navigation evidence：key event 不直接写 visual state，而是产生 `FocusOut / FocusIn`、提交 `input_focused`，再由 focus ring artifact 证明结果；scope 外 target 的 command evidence 保持 baseline。详细法律见 `vivid_focus_scope_evidence_v0.md`。
 
+`Examples/ui/vivid/focus_spatial_navigation_demo` 继续验证 spatial focus navigation evidence：方向键先由 runtime 根据 world rect 选择几何候选，无候选再回退到 preorder wrap；scope 外 target 的 command evidence 保持 baseline。详细法律见 `vivid_focus_scope_evidence_v0.md`。
+
 本文定义 Vivid 从 widget 级证据进入 component 级因果证据的最小路线。
 
 它的目标不是替代截图回归，而是在截图之前先证明：

@@ -18,6 +18,7 @@
 - `Examples/ui/vivid/focus_scope_demo`
 - `Examples/ui/vivid/focus_scope_nested_demo`
 - `Examples/ui/vivid/focus_scope_navigation_demo`
+- `Examples/ui/vivid/focus_spatial_navigation_demo`
 - `Examples/ui/vivid/widget_signal_demo`
 - `Examples/ui/vivid/widget_state_demo`
 
@@ -81,6 +82,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `focus_scope_demo` | `fs` | `[fs] run=focus_scope_demo phase=end result=ok cases=9` |
 | `focus_scope_nested_demo` | `fsn` | `[fsn] run=focus_scope_nested_demo phase=end result=ok cases=8` |
 | `focus_scope_navigation_demo` | `fsnav` | `[fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=7` |
+| `focus_spatial_navigation_demo` | `fss` | `[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 

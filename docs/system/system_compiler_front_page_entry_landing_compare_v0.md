@@ -52,7 +52,7 @@ The compare summary currently records:
 - query-plan drift for each landing tab
 - direct explain mode changes
 - tab additions, removals, and alias drift
-- provenance root additions and removals
+- provenance root additions, removals, and same-id source-detail drift
 - a `landing_regression_surface` that highlights the smallest consumer-facing
   opening breakage surface
 - a `query_regression_surface` that highlights the smallest
@@ -73,6 +73,8 @@ Current `landing_verdict` mirrors the broader compare language:
 - `drifted`
   - the candidate lost tabs or direct modes, downgraded entry tier, or changed
     the opening plan without staying equivalent
+  - this also includes provenance roots that keep the same id but point at a
+    different kind, schema, source summary path, or front-page summary path
   - this now also includes opening-query regressions such as:
     - losing the primary query
     - narrowing a compare-aware artifact-root opening back to report scope
@@ -137,7 +139,7 @@ Instead of re-deriving:
 - whether the default open tab changed
 - whether the default explain query changed
 - whether a direct compare or review landing disappeared
-- whether provenance roots got richer
+- whether provenance roots got richer or changed source detail
 
 a consumer can read one compare object that already says:
 
@@ -146,7 +148,8 @@ a consumer can read one compare object that already says:
 - this primary opening query changed or narrowed
 - these tabs or direct modes were added or removed
 - these query plans were added, removed, or regressed
-- these provenance roots are new or missing
+- these provenance roots are new, missing, or still present but pointing at a
+  different source detail
 
 That keeps later tools closer to "consume the artifact plan" and further from
 "rebuild landing drift policy in code".

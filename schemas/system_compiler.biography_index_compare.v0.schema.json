@@ -372,7 +372,8 @@
         "summary_changed",
         "profile_changed",
         "question_changes",
-        "world_name_changes"
+        "world_name_changes",
+        "front_page_entry_detail_changes"
       ],
       "properties": {
         "changed": {
@@ -392,6 +393,84 @@
         },
         "world_name_changes": {
           "$ref": "#/$defs/arrayChange"
+        },
+        "front_page_entry_detail_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/frontPageEntryDetailChange"
+          }
+        }
+      }
+    },
+    "frontPageEntryDetailChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchor_id",
+        "baseline_surface_id",
+        "candidate_surface_id",
+        "baseline_summary_schema",
+        "candidate_summary_schema",
+        "baseline_summary_path",
+        "candidate_summary_path",
+        "baseline_report_markdown_path",
+        "candidate_report_markdown_path",
+        "baseline_check_text_path",
+        "candidate_check_text_path",
+        "surface_id_changed",
+        "schema_changed",
+        "summary_path_changed",
+        "report_path_changed",
+        "check_path_changed"
+      ],
+      "properties": {
+        "anchor_id": {
+          "type": "string"
+        },
+        "baseline_surface_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_surface_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_summary_schema": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_summary_schema": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_summary_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_summary_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_report_markdown_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_report_markdown_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_check_text_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_check_text_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "surface_id_changed": {
+          "type": "boolean"
+        },
+        "schema_changed": {
+          "type": "boolean"
+        },
+        "summary_path_changed": {
+          "type": "boolean"
+        },
+        "report_path_changed": {
+          "type": "boolean"
+        },
+        "check_path_changed": {
+          "type": "boolean"
         }
       }
     },
@@ -584,6 +663,7 @@
         "regressed_entries",
         "removed_worlds",
         "added_failed_entries",
+        "front_page_entry_detail_changed_anchors",
         "affected_worlds",
         "affected_profiles",
         "narratives"
@@ -599,6 +679,9 @@
           "$ref": "#/$defs/stringArray"
         },
         "added_failed_entries": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "front_page_entry_detail_changed_anchors": {
           "$ref": "#/$defs/stringArray"
         },
         "affected_worlds": {

@@ -104,6 +104,10 @@ The traversal semantics stay intentionally conservative.
 - graph expansion still follows only `front_page.supporting_surfaces`
 - `route_provenance` is consumed as a sidecar witness of which lower
   front-page roots that summary actually used while assembling itself
+- `artifact_context.artifact_report_index` is also lifted as
+  `provenance_route_kind = artifact_report_index` when present, so tools can
+  discover the artifact report root first-read index without pretending it is a
+  `front_page.supporting_surfaces` edge
 
 That keeps consumer behavior stable while still lifting lower-layer route
 evidence into one higher-level object.
@@ -129,6 +133,17 @@ route object can now record that it actually consumed:
 
 without pretending those provenance records are new traversal edges by
 themselves.
+
+Similarly, if a `witness bundle` records
+`artifact_context.artifact_report_index`, the route can expose that index as
+provenance:
+
+- `source_summary_schema = system_compiler.artifact_report_index/v0`
+- `source_summary_path = <artifact-report-root>/index.json`
+- `source_front_page_* = ""`
+
+This is intentionally not a normal front-page root. It is a provenance source
+for finding case-level artifact reports.
 
 ## Manual example
 

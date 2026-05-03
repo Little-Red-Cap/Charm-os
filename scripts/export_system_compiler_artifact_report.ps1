@@ -866,12 +866,13 @@ function Get-OptionalStringArrayValue {
         [string]$PropertyName
     )
 
-    if ($null -eq $Object -or $null -eq $Object.PSObject.Properties[$PropertyName]) {
+    $value = Get-OptionalMemberValue -Object $Object -Name $PropertyName
+    if ($null -eq $value) {
         return @()
     }
 
     return @(
-        @($Object.$PropertyName) |
+        @($value) |
             Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
             ForEach-Object { [string]$_ }
     )
@@ -3978,6 +3979,300 @@ function Get-OutputPathForCase {
     return Join-Path $outputRootPath ($CaseName + '.artifact_report.json')
 }
 
+function Get-ArtifactIndexPath {
+    if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
+        return $null
+    }
+
+    $outputRootPath = Resolve-FullPath $OutputRoot
+    if (-not (Test-Path $outputRootPath)) {
+        New-Item -ItemType Directory -Path $outputRootPath -Force | Out-Null
+    }
+
+    return Join-Path $outputRootPath 'index.json'
+}
+
+function Test-ComparisonDimensionChanged {
+    param(
+        $Comparison,
+        [string]$PropertyName
+    )
+
+    $dimension = Get-OptionalMemberValue -Object $Comparison -Name $PropertyName
+    if ($null -eq $dimension) {
+        return $false
+    }
+
+    return [bool](Get-OptionalMemberValue -Object $dimension -Name 'changed')
+}
+
+function Get-ArtifactReportIndexDriftDimensionNames {
+    return @(
+        'metadata',
+        'input',
+        'formation',
+        'binding',
+        'bringup_order',
+        'bringup_evidence',
+        'resource',
+        'fact_resolution'
+    )
+}
+
+function Get-ArtifactIndexNullableString {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    $value = Get-OptionalMemberValue -Object $Object -Name $PropertyName
+    if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
+        return $null
+    }
+
+    return [string]$value
+}
+
+function Get-ReportDriftDimensions {
+    param(
+        $Report
+    )
+
+    $comparison = Get-OptionalMemberValue -Object $Report -Name 'comparison'
+    if ($null -eq $comparison) {
+        return @()
+    }
+
+    $changedDimensions = @{}
+    if (@(Get-OptionalStringArrayValue -Object $comparison -PropertyName 'metadata_changes').Count -gt 0) {
+        $changedDimensions['metadata'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'system_input') {
+        $changedDimensions['input'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'system_formation') {
+        $changedDimensions['formation'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'binding_result') {
+        $changedDimensions['binding'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'bringup_order') {
+        $changedDimensions['bringup_order'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'bringup_evidence') {
+        $changedDimensions['bringup_evidence'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'resource_contract') {
+        $changedDimensions['resource'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'fact_resolution') {
+        $changedDimensions['fact_resolution'] = $true
+    }
+
+    return @(
+        Get-ArtifactReportIndexDriftDimensionNames |
+            Where-Object { $changedDimensions.ContainsKey([string]$_) }
+    )
+}
+
+function New-ArtifactIndexCase {
+    param(
+        $Report,
+        [string]$ReportPath
+    )
+
+    $subject = Get-OptionalMemberValue -Object $Report -Name 'subject'
+    $systemFormation = Get-OptionalMemberValue -Object $Report -Name 'system_formation'
+    $bindingSummary = Get-OptionalMemberValue -Object $systemFormation -Name 'binding_summary'
+    $bringupSummary = Get-OptionalMemberValue -Object $systemFormation -Name 'bringup_summary'
+    $comparison = Get-OptionalMemberValue -Object $Report -Name 'comparison'
+    $comparisonStatus = Get-OptionalMemberValue -Object $comparison -Name 'status'
+    if ($null -ne $comparisonStatus) {
+        $comparisonStatus = [string]$comparisonStatus
+    }
+    $driftDimensions = @(Get-ReportDriftDimensions -Report $Report)
+
+    return [ordered]@{
+        name = [string](Get-OptionalMemberValue -Object $subject -Name 'case')
+        path = $ReportPath
+        mode = [string](Get-OptionalMemberValue -Object $Report -Name 'mode')
+        profile = Get-ArtifactIndexNullableString -Object $subject -PropertyName 'profile'
+        board = Get-ArtifactIndexNullableString -Object $subject -PropertyName 'board'
+        active_facets = @(Get-OptionalStringArrayValue -Object $subject -PropertyName 'active_facets')
+        formation_status = [string](Get-OptionalMemberValue -Object $systemFormation -Name 'status')
+        comparison_status = $comparisonStatus
+        has_drift = @($driftDimensions).Count -gt 0
+        drift_dimensions = @($driftDimensions)
+        unresolved_binding_count = [int](Get-OptionalMemberValue -Object $bindingSummary -Name 'unresolved_binding_count')
+        blocked_node_count = [int](Get-OptionalMemberValue -Object $bringupSummary -Name 'blocked_node_count')
+        blocker_count = [int](Get-OptionalMemberValue -Object $systemFormation -Name 'blocker_count')
+        unresolved_capabilities = @(Get-OptionalStringArrayValue -Object $bindingSummary -PropertyName 'unresolved_capabilities')
+        blocked_nodes = @(Get-OptionalStringArrayValue -Object $bringupSummary -PropertyName 'blocked_nodes')
+    }
+}
+
+function New-ArtifactIndexCompilerHeadline {
+    param(
+        [object[]]$Cases
+    )
+
+    $caseItems = @($Cases)
+    $formedCases = @(
+        $caseItems |
+            Where-Object { [string]$_.formation_status -eq 'formed' } |
+            ForEach-Object { [string]$_.name }
+    )
+    $blockedCases = @(
+        $caseItems |
+            Where-Object { [string]$_.formation_status -ne 'formed' } |
+            ForEach-Object { [string]$_.name }
+    )
+    $unresolvedCapabilities = @(
+        $caseItems |
+            ForEach-Object { @(Get-OptionalMemberValue -Object $_ -Name 'unresolved_capabilities') } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $blockedNodes = @(
+        $caseItems |
+            ForEach-Object { @(Get-OptionalMemberValue -Object $_ -Name 'blocked_nodes') } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $dimensionCounts = [ordered]@{}
+    foreach ($dimensionName in @(Get-ArtifactReportIndexDriftDimensionNames)) {
+        $dimensionCounts[$dimensionName] = @(
+            $caseItems |
+                Where-Object { @(Get-OptionalMemberValue -Object $_ -Name 'drift_dimensions') -contains $dimensionName }
+        ).Count
+    }
+    $driftDimensions = @(
+        foreach ($dimensionName in @(Get-ArtifactReportIndexDriftDimensionNames)) {
+            if ([int]$dimensionCounts[$dimensionName] -gt 0) {
+                [string]$dimensionName
+            }
+        }
+    )
+    $hasComparison = @(
+        $caseItems |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.comparison_status) }
+    ).Count -gt 0
+    $hasDrift = @($driftDimensions).Count -gt 0
+    $status = if (@($blockedCases).Count -gt 0) { 'blocked' } else { 'formed' }
+    if ($caseItems.Count -eq 0) {
+        $status = 'unknown'
+    }
+    $driftToken = if (-not $hasComparison) {
+        'n/a'
+    } elseif ($hasDrift) {
+        @($driftDimensions) -join ','
+    } else {
+        'none'
+    }
+    $formationParts = @(
+        "status:$status",
+        "formed:$(@($formedCases).Count)",
+        "blocked:$(@($blockedCases).Count)"
+    )
+    $unresolvedBindingCount = [int]((
+        $caseItems |
+            ForEach-Object { [int](Get-OptionalMemberValue -Object $_ -Name 'unresolved_binding_count') } |
+            Measure-Object -Sum
+    ).Sum)
+    $blockedNodeCount = [int]((
+        $caseItems |
+            ForEach-Object { [int](Get-OptionalMemberValue -Object $_ -Name 'blocked_node_count') } |
+            Measure-Object -Sum
+    ).Sum)
+    $blockerCount = [int]((
+        $caseItems |
+            ForEach-Object { [int](Get-OptionalMemberValue -Object $_ -Name 'blocker_count') } |
+            Measure-Object -Sum
+    ).Sum)
+    if ($unresolvedBindingCount -gt 0) {
+        $formationParts += "unresolved_bindings:$unresolvedBindingCount"
+    }
+    if ($blockedNodeCount -gt 0) {
+        $formationParts += "blocked_nodes:$blockedNodeCount"
+    }
+    if ($blockerCount -gt 0) {
+        $formationParts += "blockers:$blockerCount"
+    }
+
+    $driftText = if ($hasDrift) {
+        @(
+            foreach ($dimensionName in @($driftDimensions)) {
+                "$dimensionName`:$([int]$dimensionCounts[$dimensionName])"
+            }
+        ) -join ' '
+    } elseif ($hasComparison) {
+        'no drift'
+    } else {
+        ''
+    }
+
+    return [ordered]@{
+        text = "status:$status drift:$driftToken"
+        status = $status
+        formation_text = (@($formationParts) -join ' ')
+        drift_text = $driftText
+        has_comparison = [bool]$hasComparison
+        has_drift = [bool]$hasDrift
+        case_count = $caseItems.Count
+        formed_case_count = @($formedCases).Count
+        blocked_case_count = @($blockedCases).Count
+        unresolved_binding_count = $unresolvedBindingCount
+        blocked_node_count = $blockedNodeCount
+        blocker_count = $blockerCount
+        compared_case_count = @(
+            $caseItems |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.comparison_status) }
+        ).Count
+        changed_dimension_count = @($driftDimensions).Count
+        drift_dimensions = @($driftDimensions)
+        dimension_counts = $dimensionCounts
+        blocked_cases = @($blockedCases | Sort-Object -Unique)
+        unresolved_capabilities = @($unresolvedCapabilities)
+        blocked_nodes = @($blockedNodes)
+    }
+}
+
+function New-ArtifactReportIndex {
+    param(
+        $Bundle,
+        $ArtifactContext,
+        [object[]]$Reports
+    )
+
+    $caseEntries = @(
+        @($Reports) |
+            ForEach-Object { New-ArtifactIndexCase -Report $_.Report -ReportPath ([string]$_.Path) } |
+            Sort-Object name
+    )
+
+    return [ordered]@{
+        schema = 'system_compiler.artifact_report_index/v0'
+        generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+        generator = 'scripts/export_system_compiler_artifact_report.ps1'
+        report_kind = 'system_compiler.artifact_report_index'
+        mode = $ArtifactContext.Mode
+        artifact_root = Resolve-FullPath $OutputRoot
+        bundle = [ordered]@{
+            root = $Bundle.BundleRoot
+            index = $Bundle.IndexPath
+            input_manifest = $Bundle.InputManifestPath
+        }
+        artifacts = [ordered]@{
+            diff = $ArtifactContext.Diff
+            ci_summary = $ArtifactContext.CiSummary
+            report_manifest = $ArtifactContext.ReportManifest
+        }
+        case_count = @($caseEntries).Count
+        compiler_headline = New-ArtifactIndexCompilerHeadline -Cases @($caseEntries)
+        cases = @($caseEntries)
+    }
+}
+
 function New-ArtifactReport {
     param(
         $Bundle,
@@ -4214,6 +4509,7 @@ $selectedCases = @(Get-SelectedCases -Bundle $bundle)
 $artifactContext = Get-ArtifactContext
 
 $written = @()
+$writtenReports = @()
 foreach ($caseEntry in $selectedCases) {
     $caseGraph = Load-CaseGraph -Bundle $bundle -CaseEntry $caseEntry
     $report = New-ArtifactReport -Bundle $bundle -CaseEntry $caseEntry -CaseGraph $caseGraph -ArtifactContext $artifactContext
@@ -4221,7 +4517,19 @@ foreach ($caseEntry in $selectedCases) {
     Ensure-ParentDirectory -Path $reportPath
     $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportPath -Encoding utf8
     $written += $reportPath
+    $writtenReports += [pscustomobject]@{
+        Report = $report
+        Path = $reportPath
+    }
     Write-Host "[ARTIFACT][$($caseEntry.name)] $reportPath"
+}
+
+$indexPath = Get-ArtifactIndexPath
+if ($null -ne $indexPath) {
+    Ensure-ParentDirectory -Path $indexPath
+    $artifactIndex = New-ArtifactReportIndex -Bundle $bundle -ArtifactContext $artifactContext -Reports @($writtenReports)
+    $artifactIndex | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $indexPath -Encoding utf8
+    Write-Host "[INDEX] $indexPath"
 }
 
 Write-Host "[OK] generated $($written.Count) artifact report(s)"

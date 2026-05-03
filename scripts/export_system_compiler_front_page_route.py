@@ -87,6 +87,11 @@ def build_report(summary: dict) -> str:
     )
     if route_provenance_entries:
         for entry in route_provenance_entries:
+            source_path = (
+                entry["source_front_page_summary_path"]
+                if entry["provenance_route_kind"] != "artifact_report_index"
+                else entry["source_summary_path"]
+            )
             lines.append(
                 "- owner=`{0}` surface=`{1}` provenance=`{2}` kind=`{3}`".format(
                     entry["owner_route_id"],
@@ -96,7 +101,7 @@ def build_report(summary: dict) -> str:
                 )
             )
             lines.append(f"  source_summary: `{entry['source_summary_path']}`")
-            lines.append(f"  front_page_summary: `{entry['source_front_page_summary_path']}`")
+            lines.append(f"  source_entry: `{source_path}`")
             if entry["available_supporting_surface_ids"]:
                 lines.append(
                     "  available_supporting_surfaces: `{0}`".format(

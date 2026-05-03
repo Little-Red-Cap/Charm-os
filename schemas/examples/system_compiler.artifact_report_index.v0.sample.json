@@ -1,0 +1,106 @@
+{
+  "schema": "system_compiler.artifact_report_index/v0",
+  "generated_at_utc": "2026-05-03T10:00:00.0000000Z",
+  "generator": "scripts/export_system_compiler_artifact_report.ps1",
+  "report_kind": "system_compiler.artifact_report_index",
+  "mode": "compare",
+  "artifact_root": "out/system-compiler-artifact-report",
+  "bundle": {
+    "root": "out/materialized-graph-bundle",
+    "index": "out/materialized-graph-bundle/index.json",
+    "input_manifest": "scripts/materialized_graph.export_case_manifest.v1.json"
+  },
+  "artifacts": {
+    "diff": "out/report/materialized_graph_bundle_diff.json",
+    "ci_summary": "out/ci/summary.json",
+    "report_manifest": "out/report/materialized_graph_bundle_diff_report.manifest.json"
+  },
+  "case_count": 2,
+  "compiler_headline": {
+    "text": "status:blocked drift:formation,binding,bringup_order",
+    "status": "blocked",
+    "formation_text": "status:blocked formed:1 blocked:1 unresolved_bindings:1 blocked_nodes:1 blockers:2",
+    "drift_text": "formation:1 binding:1 bringup_order:1",
+    "has_comparison": true,
+    "has_drift": true,
+    "case_count": 2,
+    "formed_case_count": 1,
+    "blocked_case_count": 1,
+    "unresolved_binding_count": 1,
+    "blocked_node_count": 1,
+    "blocker_count": 2,
+    "compared_case_count": 2,
+    "changed_dimension_count": 3,
+    "drift_dimensions": [
+      "formation",
+      "binding",
+      "bringup_order"
+    ],
+    "dimension_counts": {
+      "metadata": 0,
+      "input": 0,
+      "formation": 1,
+      "binding": 1,
+      "bringup_order": 1,
+      "bringup_evidence": 0,
+      "resource": 0,
+      "fact_resolution": 0
+    },
+    "blocked_cases": [
+      "bringup-minimal-observe-demo"
+    ],
+    "unresolved_capabilities": [
+      "platform.irq"
+    ],
+    "blocked_nodes": [
+      "hal.uart1"
+    ]
+  },
+  "cases": [
+    {
+      "name": "bringup-block-observe-demo",
+      "path": "system_compiler.artifact_report.v0.i2c_facts.sample.json",
+      "mode": "compare",
+      "profile": null,
+      "board": null,
+      "active_facets": [],
+      "formation_status": "formed",
+      "comparison_status": "unchanged",
+      "has_drift": false,
+      "drift_dimensions": [],
+      "unresolved_binding_count": 0,
+      "blocked_node_count": 0,
+      "blocker_count": 0,
+      "unresolved_capabilities": [],
+      "blocked_nodes": []
+    },
+    {
+      "name": "bringup-minimal-observe-demo",
+      "path": "system_compiler.artifact_report.v0.sample.json",
+      "mode": "compare",
+      "profile": "MCU_MIN",
+      "board": "stm32_stub",
+      "active_facets": [
+        "runtime",
+        "input"
+      ],
+      "formation_status": "blocked",
+      "comparison_status": "changed",
+      "has_drift": true,
+      "drift_dimensions": [
+        "formation",
+        "binding",
+        "bringup_order"
+      ],
+      "unresolved_binding_count": 1,
+      "blocked_node_count": 1,
+      "blocker_count": 2,
+      "unresolved_capabilities": [
+        "platform.irq"
+      ],
+      "blocked_nodes": [
+        "hal.uart1"
+      ]
+    }
+  ]
+}

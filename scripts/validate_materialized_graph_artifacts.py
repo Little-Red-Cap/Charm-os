@@ -12,6 +12,7 @@ SCHEMA_FILES = {
     "materialized_graph.ci_summary/v1": "schemas/materialized_graph.ci_summary.v1.schema.json",
     "materialized_graph.report_manifest/v1": "schemas/materialized_graph.report_manifest.v1.schema.json",
     "system_compiler.artifact_report/v0": "schemas/system_compiler.artifact_report.v0.schema.json",
+    "system_compiler.artifact_report_index/v0": "schemas/system_compiler.artifact_report_index.v0.schema.json",
     "system_compiler.fact_evidence/v0": "schemas/system_compiler.fact_evidence.v0.schema.json",
     "system_compiler.runtime_observe_snapshot/v0": "schemas/system_compiler.runtime_observe_snapshot.v0.schema.json",
     "system_compiler_result_map/v0": "schemas/system_compiler_result_map.v0.schema.json",
@@ -118,6 +119,9 @@ def validate_ci_output_root(ci_root: Path, repo_root: Path, visited: set[Path]):
 
     artifact_report = summary.get("artifact_report")
     if isinstance(artifact_report, dict):
+        index_value = artifact_report.get("index")
+        if isinstance(index_value, str) and index_value:
+            validate_once(Path(index_value).resolve(), repo_root, visited)
         for case_entry in artifact_report.get("cases", []):
             path_value = case_entry.get("path")
             if isinstance(path_value, str) and path_value:
@@ -155,6 +159,12 @@ def validate_once(path: Path, repo_root: Path, visited: set[Path]):
             if isinstance(path_value, str) and path_value:
                 validate_once(resolve_path(resolved.parent, path_value), repo_root, visited)
             path_value = artifacts.get("fact_evidence")
+            if isinstance(path_value, str) and path_value:
+                validate_once(resolve_path(resolved.parent, path_value), repo_root, visited)
+
+    if schema_name == "system_compiler.artifact_report_index/v0":
+        for case_entry in data.get("cases", []):
+            path_value = case_entry.get("path")
             if isinstance(path_value, str) and path_value:
                 validate_once(resolve_path(resolved.parent, path_value), repo_root, visited)
 

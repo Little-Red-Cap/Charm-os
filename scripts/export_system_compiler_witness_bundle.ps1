@@ -331,6 +331,29 @@ function Get-ArtifactReportInfos {
     return @($infos)
 }
 
+function Get-ArtifactReportIndexPath {
+    param(
+        [string]$RootPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($RootPath)) {
+        return $null
+    }
+
+    $resolvedArtifactRoot = Resolve-FullPath -Path $RootPath
+    $candidatePath = Join-Path $resolvedArtifactRoot "index.json"
+    if (-not (Test-Path -LiteralPath $candidatePath)) {
+        return $null
+    }
+
+    $data = Load-JsonObject -Path $candidatePath
+    if ([string]$data.schema -ne "system_compiler.artifact_report_index/v0") {
+        throw "unsupported artifact report index schema: $([string]$data.schema)"
+    }
+
+    return (Resolve-FullPath -Path $candidatePath)
+}
+
 function Load-RuntimeEvidenceSummaryInfo {
     param(
         [string]$Path
@@ -769,6 +792,7 @@ $checkTextPathResolved = Get-OutputPath -ExplicitPath $CheckTextPath -OutputRoot
 
 $canonicalWorldInfo = Load-CanonicalWorldInfo -Path $CanonicalWorld
 $artifactReportInfos = @(Get-ArtifactReportInfos)
+$artifactReportIndexPath = Get-ArtifactReportIndexPath -RootPath $ArtifactRoot
 $runtimeEvidenceSummaryInfo = Load-RuntimeEvidenceSummaryInfo -Path $RuntimeEvidenceSummary
 $resolvedWorld = New-ResolvedWorld -CanonicalWorldInfo $canonicalWorldInfo -ArtifactReportInfos $artifactReportInfos -RuntimeEvidenceSummaryInfo $runtimeEvidenceSummaryInfo
 $artifactReportMaps = Get-ArtifactReportMaps -ArtifactReportInfos $artifactReportInfos
@@ -839,6 +863,7 @@ $bundleObject = [ordered]@{
     artifact_context = [ordered]@{
         canonical_world = if ($null -eq $canonicalWorldInfo) { $null } else { $canonicalWorldInfo.Path }
         artifact_root = if ([string]::IsNullOrWhiteSpace($ArtifactRoot)) { $null } else { Resolve-FullPath -Path $ArtifactRoot }
+        artifact_report_index = $artifactReportIndexPath
         artifact_reports = @($artifactReportInfos | ForEach-Object { $_.Path })
         runtime_evidence_summary = if ($null -eq $runtimeEvidenceSummaryInfo) { $null } else { $runtimeEvidenceSummaryInfo.Path }
         output_root = $outputRootPath

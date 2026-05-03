@@ -74,6 +74,7 @@ $regressionCount = [int]$entrySummary.regression_count
 $improvementCount = [int]$entrySummary.improvement_count
 $addedWorlds = @($shelfChanges.world_name_changes.added).Count
 $removedWorlds = @($shelfChanges.world_name_changes.removed).Count
+$frontPageEntryDetailChangeCount = @($shelfChanges.front_page_entry_detail_changes).Count
 $addedFailedEntries = @($collapseSurface.added_failed_entries).Count
 $nextQuestionCount = @($summaryData.questions.next_questions).Count
 
@@ -121,6 +122,7 @@ $lines.Add(("regression_count: {0}" -f $regressionCount)) | Out-Null
 $lines.Add(("improvement_count: {0}" -f $improvementCount)) | Out-Null
 $lines.Add(("added_world_count: {0}" -f $addedWorlds)) | Out-Null
 $lines.Add(("removed_world_count: {0}" -f $removedWorlds)) | Out-Null
+$lines.Add(("front_page_entry_detail_change_count: {0}" -f $frontPageEntryDetailChangeCount)) | Out-Null
 $lines.Add(("added_failed_entries: {0}" -f $addedFailedEntries)) | Out-Null
 $lines.Add(("next_question_count: {0}" -f $nextQuestionCount)) | Out-Null
 

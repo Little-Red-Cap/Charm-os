@@ -144,6 +144,16 @@ def build_report(summary: dict) -> str:
                     change["candidate"],
                 )
             )
+    if route_changes["route_provenance_detail_changes"]:
+        lines.append("- Route provenance detail changes:")
+        for change in route_changes["route_provenance_detail_changes"]:
+            lines.append(
+                "  - `{0}`: source `{1}` -> `{2}`".format(
+                    change["provenance_id"],
+                    change["baseline_source_summary_path"],
+                    change["candidate_source_summary_path"],
+                )
+            )
 
     lines.extend(["", "## Regression Surface"])
     if route_regression_surface["changed"]:
@@ -163,6 +173,12 @@ def build_report(summary: dict) -> str:
             lines.append(
                 "- Regressed entries: `{0}`".format(
                     "`, `".join(route_regression_surface["regressed_entries"])
+                )
+            )
+        if route_regression_surface["route_provenance_detail_changed_ids"]:
+            lines.append(
+                "- Route provenance detail changed: `{0}`".format(
+                    "`, `".join(route_regression_surface["route_provenance_detail_changed_ids"])
                 )
             )
         for narrative in route_regression_surface["narratives"]:
@@ -231,6 +247,12 @@ def build_check(summary: dict) -> str:
             "key_surface_changes: +[{0}] -[{1}]".format(
                 ", ".join(route_changes["key_surface_changes"]["added"]),
                 ", ".join(route_changes["key_surface_changes"]["removed"]),
+            ),
+            "route_provenance_detail_changes: [{0}]".format(
+                ", ".join(
+                    change["provenance_id"]
+                    for change in route_changes["route_provenance_detail_changes"]
+                )
             ),
             "route_regression_surface: changed={0} affected={1}".format(
                 route_regression_surface["changed"],

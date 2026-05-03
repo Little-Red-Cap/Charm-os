@@ -184,6 +184,15 @@ def build_report(summary: dict) -> str:
                 ", ".join(landing_changes["provenance_root_changes"]["removed"]),
             )
         )
+    if landing_changes["provenance_root_detail_changes"]:
+        lines.append(
+            "- Provenance root detail changes: `{0}`".format(
+                ", ".join(
+                    change["root_id"]
+                    for change in landing_changes["provenance_root_detail_changes"]
+                )
+            )
+        )
     if query_plan_changes["primary_query_changed"]:
         lines.append(
             "- Primary query: `tab {0}->{1} query {2}->{3} scope {4}->{5}`".format(
@@ -217,6 +226,12 @@ def build_report(summary: dict) -> str:
             lines.append(f"- Missing baseline primary tab: `{regression_surface['missing_primary_tab_id']}`")
         if regression_surface["downgraded_tier"]:
             lines.append("- Candidate entry tier regressed")
+        if regression_surface["provenance_root_detail_changed_ids"]:
+            lines.append(
+                "- Provenance root detail changed: `{0}`".format(
+                    "`, `".join(regression_surface["provenance_root_detail_changed_ids"])
+                )
+            )
         for narrative in regression_surface["narratives"]:
             lines.append(f"- {narrative}")
     else:
@@ -349,6 +364,12 @@ def build_check(summary: dict) -> str:
             "provenance_root_changes: +[{0}] -[{1}]".format(
                 ", ".join(landing_changes["provenance_root_changes"]["added"]),
                 ", ".join(landing_changes["provenance_root_changes"]["removed"]),
+            ),
+            "provenance_root_detail_changes: [{0}]".format(
+                ", ".join(
+                    change["root_id"]
+                    for change in landing_changes["provenance_root_detail_changes"]
+                )
             ),
             "query_plan_tabs: +[{0}] -[{1}]".format(
                 ", ".join(query_plan_changes["available_query_tab_changes"]["added"]),

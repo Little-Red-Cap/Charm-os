@@ -275,8 +275,15 @@ def build_provenance_roots(capability_summary: dict[str, Any]) -> list[OrderedDi
             root = OrderedDict(
                 [
                     ("root_id", choose_text(hint.get("provenance_id"))),
+                    ("root_kind", choose_text(hint.get("provenance_route_kind"))),
                     ("source_summary_schema", choose_text(hint.get("source_summary_schema"))),
                     ("source_summary_path", source_summary_path),
+                    (
+                        "source_front_page_summary_path",
+                        normalize_path(hint.get("source_front_page_summary_path", ""))
+                        if choose_text(hint.get("source_front_page_summary_path"))
+                        else "",
+                    ),
                     ("owner_route_ids", []),
                     ("owner_surface_ids", []),
                     ("available_supporting_surface_ids", []),

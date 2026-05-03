@@ -31,6 +31,24 @@ def expect_equal(actual, expected, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: expected {expected!r} but got {actual!r}")
 
 
+def validate_source_schema(path_value: str | None, expected_schema: str, label: str, errors: list[str]) -> None:
+    if expected_schema != "system_compiler.artifact_report_index/v0":
+        return
+
+    text = str(path_value or "").strip()
+    if not text:
+        return
+
+    try:
+        source = load_json(Path(text).resolve())
+    except Exception as exc:
+        errors.append(f"{label}: invalid json -> {exc}")
+        return
+
+    if source.get("schema") != expected_schema:
+        errors.append(f"{label}: expected schema {expected_schema!r} but got {source.get('schema')!r}")
+
+
 def validate_references(summary: dict, errors: list[str]) -> None:
     artifact_context = summary.get("artifact_context", {})
     root_surface = summary.get("root_surface", {})
@@ -61,21 +79,29 @@ def validate_references(summary: dict, errors: list[str]) -> None:
 
         ensure_exists(entry.get("owner_summary_path"), f"route_provenance_entries[{index}].owner_summary_path", errors)
         ensure_exists(entry.get("source_summary_path"), f"route_provenance_entries[{index}].source_summary_path", errors)
-        ensure_exists(
-            entry.get("source_front_page_summary_path"),
-            f"route_provenance_entries[{index}].source_front_page_summary_path",
+        validate_source_schema(
+            entry.get("source_summary_path"),
+            str(entry.get("source_summary_schema") or ""),
+            f"route_provenance_entries[{index}].source_summary_path",
             errors,
         )
-        ensure_exists(
-            entry.get("source_front_page_report_markdown_path"),
-            f"route_provenance_entries[{index}].source_front_page_report_markdown_path",
-            errors,
-        )
-        ensure_exists(
-            entry.get("source_front_page_check_text_path"),
-            f"route_provenance_entries[{index}].source_front_page_check_text_path",
-            errors,
-        )
+
+        if entry.get("provenance_route_kind") != "artifact_report_index":
+            ensure_exists(
+                entry.get("source_front_page_summary_path"),
+                f"route_provenance_entries[{index}].source_front_page_summary_path",
+                errors,
+            )
+            ensure_exists(
+                entry.get("source_front_page_report_markdown_path"),
+                f"route_provenance_entries[{index}].source_front_page_report_markdown_path",
+                errors,
+            )
+            ensure_exists(
+                entry.get("source_front_page_check_text_path"),
+                f"route_provenance_entries[{index}].source_front_page_check_text_path",
+                errors,
+            )
 
 
 def main() -> int:

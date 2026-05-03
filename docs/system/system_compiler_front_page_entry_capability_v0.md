@@ -75,6 +75,15 @@ The current summary records:
 - one preferred route entry for each available capability
 - condensed provenance hints for route-aware consumers
 
+`provenance_hints` may point to two kinds of source:
+
+- front-page roots, such as shelf or compare summaries
+- non-front-page first-read sources, currently
+  `system_compiler.artifact_report_index/v0`
+
+For the latter, `source_front_page_summary_path` remains empty on purpose.
+It is a provenance root for discovery, not a traversal edge.
+
 That makes it useful for tools that want to decide:
 
 - whether a compare tab should appear

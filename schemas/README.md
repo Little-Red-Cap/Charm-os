@@ -54,9 +54,18 @@
   - 它当前是 v0 草案协议，已能覆盖 `export_only` 与 `compare` 两种最小输出场景，并可继续引用 `bundle / input_manifest / runtime_observe / diff / report manifest`
   - 它当前的 `runtime_observe` 摘要也已经可以继续带出 `observed_capabilities`，让 runtime-only case 在 explain 面里不再退化成“完全未声明”
 
+- `system_compiler.artifact_report_index.v0.schema.json`
+  - 对应 `export_system_compiler_artifact_report.ps1 -OutputRoot ...` 生成的 `artifact-report/index.json`
+  - 用途偏向给 CI、IDE 原型和外部脚本一个 first-read 入口，先读取 `compiler_headline`、case 路径、formation 状态、drift 维度与阻塞热点
+  - 它不替代 case 级 `system_compiler.artifact_report/v0`，也不替代 inspector 的 artifact_root 默认总览
+
 - `examples/system_compiler.artifact_report.v0.sample.json`
   - 对应 `system_compiler.artifact_report/v0` 的最小机器可验样例
   - 用途偏向 schema 自检、字段讨论与后续脚本接入前的样例锚点
+
+- `examples/system_compiler.artifact_report_index.v0.sample.json`
+  - 对应 `system_compiler.artifact_report_index/v0` 的最小机器可验样例
+  - 用途偏向钉住 artifact report root index 的 first-read 形状，以及 `compiler_headline` 与 case path 的轻量入口语义
 
 - `examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
   - 对应 `system_compiler.artifact_report/v0` 中 I2C device contract facts 的投影样例
@@ -96,6 +105,8 @@
   - 对应 `docs/system/witness_bundle_v0.md` 与 `scripts/export_system_compiler_witness_bundle.ps1`
   - 用途偏向把 canonical world、artifact report、runtime evidence bundle 与 example refs 收成正式交付对象
   - 它当前关注的是“证词是否齐、来源在哪里、缺口是什么”，而不是替代下层更细的 runtime / compare 语义
+  - 它当前也可在 `artifact_context.artifact_report_index` 中记录 artifact report root 的 first-read index，
+    作为上层 proof / IDE / CI 发现 case 级报告的来源锚点
 
 - `examples/system_compiler.witness_bundle.v0.sample.json`
   - 对应 `system_compiler.witness_bundle/v0` 的最小样例
@@ -126,6 +137,7 @@
 - `system_compiler.biography_index_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_biography_index_compare_v0.md` 与 `scripts/compare_system_compiler_biography_index.py`
   - 用途偏向把 baseline / candidate 两份 biography index summary 收成一个 shelf-to-shelf compare 对象
+  - 记录 shelf entry 漂移，并额外锚定同 entry anchor 的 front-page 入口来源细节漂移
 
 - `system_compiler.world_shelf_review.v0.schema.json`
   - 对应 `docs/system/system_compiler_world_shelf_review_v0.md` 与 `scripts/review_system_compiler_world_shelf.ps1`
@@ -136,10 +148,14 @@
     与 `scripts/validate_system_compiler_front_page_route.py`
   - 用途偏向把一个 root summary 的 `front_page` 消费路径收成可验证的 route 对象，
     明确记录 supporting surface 展开、revisit 与 cycle
+  - 它当前也可把 `artifact_context.artifact_report_index` 提升成
+    `provenance_route_kind = artifact_report_index`，让上层入口发现 artifact report root 的 first-read index，
+    但不把它伪装成普通 front-page traversal edge
 
 - `system_compiler.front_page_route_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_route_compare_v0.md`、`scripts/compare_system_compiler_front_page_route.py`
     与 `scripts/validate_system_compiler_front_page_route_compare.py`
+  - 记录 route walk 漂移，并额外锚定同 ID route provenance 的来源细节漂移。
   - 用途偏向比较两份 `front_page route` 总结对象，回答消费路径如何变化、哪些 level-1
     surface 出现或消失，以及候选 route 是否更丰富还是发生了 consumer-facing drift
 
@@ -148,18 +164,56 @@
     与 `scripts/validate_system_compiler_front_page_entry_capability.py`
   - 用途偏向把一份 `front_page route` 总结对象收成“这个入口已经具备哪些 explain 能力”的能力表，
     明确推荐默认 landing mode、能力 tier、首选入口与 provenance hints
+  - `provenance_hints` 会保留 route 暴露的来源类型；当来源是 `artifact_report_index` 时，
+    它指向 artifact report root 的 first-read index，且不提供普通 front-page summary path
 
 - `system_compiler.front_page_entry_landing.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_landing_v0.md`、`scripts/export_system_compiler_front_page_entry_landing.py`
     与 `scripts/validate_system_compiler_front_page_entry_landing.py`
   - 用途偏向把一份 `front_page entry capability` 总结对象进一步收成更薄的 open-plan，
     明确 primary landing、secondary tabs、fallback mode order 与可展开 provenance roots
+  - `provenance_roots` 会保留 `root_kind`；当 root 是 `artifact_report_index` 时，
+    它只是 discovery provenance，不是 `front_page.supporting_surfaces` traversal root
 
 - `system_compiler.front_page_entry_landing_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_landing_compare_v0.md`、`scripts/compare_system_compiler_front_page_entry_landing.py`
     与 `scripts/validate_system_compiler_front_page_entry_landing_compare.py`
   - 用途偏向比较两份 `front_page entry landing` 总结对象，回答默认 landing、direct mode、
     tab 集合与 provenance roots 是否发生 consumer-facing drift
+  - 它会区分 provenance root 的增删与同 id source-detail drift；例如 `artifact_report_index`
+    root 仍存在但指向不同 first-read index 时，会作为 drift 暴露而不是静默通过
+
+- `system_compiler.front_page_entry_opener.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opener_v0.md`、`scripts/export_system_compiler_front_page_entry_opener.py`
+    与 `scripts/validate_system_compiler_front_page_entry_opener.py`
+  - 用途偏向把一份 `front_page entry landing` 与可选的 `landing compare` 收成确定性 explain opening plan，
+    明确 open action、目标 summary/report/check，以及是否能安全转成 `inspect_system_compiler_artifact_report.ps1` 参数
+
+- `system_compiler.front_page_entry_opening_flow.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_v0.md`、
+    `scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow.py`
+  - 用途偏向把 `front_page route -> capability -> landing -> landing compare -> opener`
+    这一整条 consumer-side opening chain 收成一个 smoke-level evidence artifact，
+    明确 flow steps、opener cases、projection availability、compare context 与 inspector readiness
+
+- `system_compiler.front_page_entry_opening_flow_consumer.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer.py`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer.py`
+  - 用途偏向把一份 `front_page entry opening flow` summary 收成上层 explain 工具可消费的入口清单，
+    明确 default opening、compare opening、renderable openings、projection kinds 与 inspector blockers
+
+- `system_compiler.front_page_entry_opening_flow_compare.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow.py`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_workspace.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_compare.py`
+  - 用途偏向比较两份 `front_page entry opening flow` summary，回答 consumer-side opening chain
+    的 opener case、projection、compare context 与 inspector readiness 是否发生可解释漂移
 
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
@@ -291,6 +345,7 @@
 - `report_manifest/v1`：当前报告层稳定依赖的工件元数据协议
 - `runtime_observe_snapshot/v0`：当前 runtime 观察输入 sidecar 的最小协议，用于把动态观察事实稳定挂接到 bundle / report 链
 - `system_compiler.artifact_report/v0`：当前 system compiler 输出面的对象草案锚点，字段仍允许继续收敛
+- `system_compiler.artifact_report_index/v0`：当前 artifact report root 的 first-read 入口锚点，负责让 CI/IDE/脚本先定位 headline、case 路径与阻塞热点
 - `system_compiler.canonical_world/v0`：当前“一个世界想证明什么、依赖哪些 witness / contracts”的声明对象锚点
 - `system_compiler.witness_bundle/v0`：当前“这次交付拿什么作证”的交付对象锚点
 - `system_compiler.world_compare/v0`：当前“这个世界相对基线还站不站得住”的 compare verdict 对象锚点

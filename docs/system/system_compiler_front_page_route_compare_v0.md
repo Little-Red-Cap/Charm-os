@@ -17,6 +17,7 @@ after `system_compiler.front_page_route/v0`.
 - how did the consumer walk change
 - which level-1 surfaces appeared or disappeared
 - whether key surfaces stayed reachable
+- whether same-id route provenance still points at the same source detail
 - whether the candidate route got richer, drifted, or collapsed
 
 It still stays on the consumer side.
@@ -54,6 +55,7 @@ The compare summary currently records:
 - reachable surface / role drift
 - schema-count and role-count drift
 - cycle / revisit / expanded-anchor drift
+- same-id route provenance source-detail drift
 - route-entry changes anchored by semantic route path, not raw route id
 - a `route_regression_surface` that highlights the smallest consumer-facing
   breakage surface
@@ -73,6 +75,22 @@ Instead it compares entries by a semantic route anchor built from:
 This lets the compare follow the same route concept even when the absolute
 artifact paths or sibling positions differ between two worlds.
 
+Route provenance has a separate rule.
+
+`route_provenance_entries` are not traversal edges. They are discovery
+provenance roots. The comparer therefore does not add them to the consumer walk
+or reopen the producer artifact. It only asks whether the same provenance id
+still carries the same source detail:
+
+- route kind / provenance route kind
+- source summary schema
+- source summary path
+- source front-page summary / report / check paths
+- available supporting surface ids
+
+If any of those details change while the provenance id stays the same, the
+candidate is reported as `drifted`.
+
 ## Current verdicts
 
 Current `route_verdict` mirrors the broader compare language:
@@ -83,7 +101,7 @@ Current `route_verdict` mirrors the broader compare language:
   - the candidate route gained reachability or richness without regressions
 - `drifted`
   - the candidate route changed in a non-standing way, or lost reachable route
-    surface
+    surface, or a same-id route provenance changed source detail
 - `collapsed`
   - the candidate route summary itself no longer stands as `result=ok`
 
@@ -122,6 +140,8 @@ but also:
 - how that route changed
 - what a richer default front page would expose
 - what consumer-facing path disappeared when a world drifted
+- whether a named provenance source still points at the same underlying route
+  material
 
 That gives the system compiler line a route-aware compare surface without
 forcing later tools to bypass the artifact layer.

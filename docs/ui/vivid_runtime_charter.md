@@ -14,6 +14,8 @@
 
 `Focus Spatial Navigation Evidence v0` 已由 `Examples/ui/vivid/focus_spatial_navigation_demo` 承接：方向键优先按世界坐标矩形选择 active scope 内的空间候选，无候选时回退到 preorder wrap，Tab 保持 preorder；详见 `vivid_focus_scope_evidence_v0.md`。
 
+`Focus Semantic Evidence v0` 已由 `Examples/ui/vivid/focus_semantic_demo` 承接：semantic target table 能把 `input_focused` 解析为稳定 id / role / label，并证明 semantic current target、input focus truth 与 visual focus ring artifact 对齐；详见 `vivid_focus_semantic_evidence_v0.md`。
+
 本文是 Vivid 进入 `Runtime Spine v0` 后的方向宪章。
 
 它不是 API 契约，也不替代 `ui_kernel_contract.md`、`vivid_replay_workflow.md`、`vivid_layer_runtime_v0.md` 或 `vivid_motion_runtime_v0.md`。它负责回答一个更上层的问题：

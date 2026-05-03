@@ -169,7 +169,8 @@
 
 - `system_compiler.front_page_entry_opening_flow.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_v0.md`、
-    `scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
+    `scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow.py`
   - 用途偏向把 `front_page route -> capability -> landing -> landing compare -> opener`
     这一整条 consumer-side opening chain 收成一个 smoke-level evidence artifact，

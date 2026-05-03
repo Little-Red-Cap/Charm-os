@@ -42,6 +42,8 @@ Current `system_compiler.front_page_entry_opening_flow` includes:
   - `scripts/validate_system_compiler_front_page_entry_opening_flow.py`
 - smoke / exporter
   - `scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
+- workspace wrapper
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`
 
 ## Current outputs
 
@@ -55,6 +57,13 @@ The default output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-smoke
+```
+
+When the flow is exported from an already prepared multi-case front-page
+workspace, the default wrapper output root is:
+
+```powershell
+out/system-compiler-front-page-entry-opening-flow-workspace
 ```
 
 ## What the flow records
@@ -134,6 +143,16 @@ Run the full consumer-side opening chain and emit the flow artifact:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1 -Clean
+```
+
+Or start from a front-page workspace that already contains the canonical
+multi-case witness worlds, route traces, and shelf review evidence:
+
+```powershell
+./scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1 `
+  -FrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -OutputRoot cmake-build-system-compiler-front-page-entry-opening-flow-workspace-smoke `
+  -Clean
 ```
 
 Then validate the exported flow object:

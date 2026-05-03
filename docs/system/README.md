@@ -130,6 +130,7 @@
 - [`system_compiler_front_page_entry_opener_v0.md`](system_compiler_front_page_entry_opener_v0.md)
 - [`system_compiler_front_page_entry_opening_flow_v0.md`](system_compiler_front_page_entry_opening_flow_v0.md)
 - [`system_compiler_front_page_entry_opening_flow_compare_v0.md`](system_compiler_front_page_entry_opening_flow_compare_v0.md)
+- [`../../scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`](../../scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1)
 - [`explain_surface_v0.md`](explain_surface_v0.md)
 - [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)
 

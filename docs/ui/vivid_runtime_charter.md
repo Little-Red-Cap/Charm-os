@@ -6,6 +6,8 @@
 
 `Focus Transfer Evidence v0` 已由 `Examples/ui/vivid/focus_transfer_demo` 承接：old target 发出 `FocusOut`，new target 发出 `FocusIn`，`input_focused` 提交到 new target，artifact 随 focus ring 迁移；详见 `vivid_focus_transfer_evidence_v0.md`。
 
+`Focus Scope Evidence v0` 已由 `Examples/ui/vivid/focus_scope_demo` 承接：scope 内请求被允许，scope 外请求被拒绝，scope truth 保持在 fallback/current，focus ring artifact 不泄漏到 scope 外 target；详见 `vivid_focus_scope_evidence_v0.md`。
+
 本文是 Vivid 进入 `Runtime Spine v0` 后的方向宪章。
 
 它不是 API 契约，也不替代 `ui_kernel_contract.md`、`vivid_replay_workflow.md`、`vivid_layer_runtime_v0.md` 或 `vivid_motion_runtime_v0.md`。它负责回答一个更上层的问题：

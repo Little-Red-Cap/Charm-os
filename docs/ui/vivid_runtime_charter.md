@@ -1,5 +1,15 @@
 # Vivid Product UI Runtime Charter
 
+## 2026-05 补记：Focus Evidence Boundary
+
+`Focus Evidence Boundary v0` 已由 `Examples/ui/vivid/focus_boundary_demo` 承接：focused 不改变普通 Button `ResolvedStyleEvidence`，但通过 focus ring 改变 draw command / render artifact evidence；详见 `vivid_focus_evidence_boundary_v0.md`。
+
+`Focus Transfer Evidence v0` 已由 `Examples/ui/vivid/focus_transfer_demo` 承接：old target 发出 `FocusOut`，new target 发出 `FocusIn`，`input_focused` 提交到 new target，artifact 随 focus ring 迁移；详见 `vivid_focus_transfer_evidence_v0.md`。
+
+`Focus Scope Evidence v0` 已由 `Examples/ui/vivid/focus_scope_demo` 承接：scope 内请求通过真实 input dispatch 迁移焦点，scope 外请求被 runtime focus admission 拒绝，input focus truth 保持在 fallback/current，focus ring artifact 不泄漏到 scope 外 target；详见 `vivid_focus_scope_evidence_v0.md`。
+
+`Focus Scope Nested Evidence v0` 已由 `Examples/ui/vivid/focus_scope_nested_demo` 承接：runtime 可以 push modal scope、pop 恢复 base scope；modal trap 使用 current-first / fallback-second 的裁决顺序，避免弹窗内已有焦点被外部点击重置；详见 `vivid_focus_scope_evidence_v0.md`。
+
 本文是 Vivid 进入 `Runtime Spine v0` 后的方向宪章。
 
 它不是 API 契约，也不替代 `ui_kernel_contract.md`、`vivid_replay_workflow.md`、`vivid_layer_runtime_v0.md` 或 `vivid_motion_runtime_v0.md`。它负责回答一个更上层的问题：
@@ -290,6 +300,14 @@ Page Token
 - 跨页面复用后升为 product token。
 - 跨产品复用后升为 Vivid token。
 - token 不只是整理数字，而是建立可迁移坐标系。
+
+阶段性细节见：[`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)。
+
+当前 v0 已有最小 evidence：`Examples/ui/vivid/style_token_law_demo` 验证 semantic token、role patch、style state mask、`paint_only` impact 与 render artifact 摘要。
+
+`charm.core.style_evidence` 将 `ResolvedStyleView` 压缩为 `color_hash / metrics_hash / style_key`，让 Style Token Law 能证明 color token 变化只影响 color evidence，而不误伤 metrics evidence。
+
+`StyleStateEvidence` 记录普通 style mask 的状态边界：hovered / pressed / disabled 可以进入 style evidence；focused 暂时留在普通 style mask 外，后续由 focus ring / navigation evidence 承接。
 
 ## 非目标
 

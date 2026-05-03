@@ -7,6 +7,8 @@ export import charm.core.event;
 export import charm.core.geometry;
 export import charm.core.handle;
 export import charm.core.style;
+export import charm.core.style_evidence;
+export import charm.core.style_impact;
 export import charm.core.style_sheet;
 export import charm.core.theme_preset;
 
@@ -35,6 +37,7 @@ export import charm.ui.scene.motion_compose;
 export import charm.ui.scene.motion_execute;
 export import charm.ui.scene.motion_page_transition;
 export import charm.ui.scene.page_transition;
+export import charm.ui.scene.focus_scope;
 export import charm.ui.scene.seek_bar_style;
 export import charm.ui.scene.text_style;
 

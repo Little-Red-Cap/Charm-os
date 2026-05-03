@@ -10,7 +10,13 @@
 
 - `Examples/ui/vivid/motion_time_demo`
 - `Examples/ui/vivid/page_transition_demo`
+- `Examples/ui/vivid/component_card_state_demo`
 - `Examples/ui/vivid/component_settings_row_demo`
+- `Examples/ui/vivid/style_token_law_demo`
+- `Examples/ui/vivid/focus_boundary_demo`
+- `Examples/ui/vivid/focus_transfer_demo`
+- `Examples/ui/vivid/focus_scope_demo`
+- `Examples/ui/vivid/focus_scope_nested_demo`
 - `Examples/ui/vivid/widget_signal_demo`
 - `Examples/ui/vivid/widget_state_demo`
 
@@ -66,7 +72,13 @@ set_tests_properties(${target_name} PROPERTIES
 | --- | --- | --- |
 | `page_transition_demo` | `pt` | `[pt] run=page_transition_demo phase=end result=ok cases=15` |
 | `motion_time_demo` | `mt` | `[mt] run=motion_time_demo phase=end result=ok cases=12` |
+| `component_card_state_demo` | `ccs` | `[ccs] run=component_card_state_demo phase=end result=ok cases=5` |
 | `component_settings_row_demo` | `csr` | `[csr] run=component_settings_row_demo phase=end result=ok cases=4` |
+| `style_token_law_demo` | `stl` | `[stl] run=style_token_law_demo phase=end result=ok cases=6` |
+| `focus_boundary_demo` | `fb` | `[fb] run=focus_boundary_demo phase=end result=ok cases=6` |
+| `focus_transfer_demo` | `ft` | `[ft] run=focus_transfer_demo phase=end result=ok cases=7` |
+| `focus_scope_demo` | `fs` | `[fs] run=focus_scope_demo phase=end result=ok cases=9` |
+| `focus_scope_nested_demo` | `fsn` | `[fsn] run=focus_scope_nested_demo phase=end result=ok cases=8` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 

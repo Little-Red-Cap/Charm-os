@@ -177,6 +177,70 @@ function Format-StringArrayOrDash {
     return Format-StringArray -Values $Values
 }
 
+function New-DriftHeadlineDimension {
+    param(
+        [string]$Name,
+        [int]$Count,
+        [string[]]$Cases = @()
+    )
+
+    return [ordered]@{
+        name = $Name
+        changed_case_count = [int]$Count
+        cases = @($Cases | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+    }
+}
+
+function New-ArtifactRootDriftHeadline {
+    param(
+        $ComparisonOverview
+    )
+
+    if ($null -eq $ComparisonOverview) {
+        return $null
+    }
+
+    $dimensions = @(
+        New-DriftHeadlineDimension -Name 'metadata' -Count ([int]$ComparisonOverview.metadata_changed_case_count) -Cases @($ComparisonOverview.metadata_changed_cases)
+        New-DriftHeadlineDimension -Name 'input' -Count ([int]$ComparisonOverview.input_changed_case_count) -Cases @($ComparisonOverview.input_changed_cases)
+        New-DriftHeadlineDimension -Name 'formation' -Count ([int]$ComparisonOverview.system_formation_changed_case_count) -Cases @($ComparisonOverview.system_formation_changed_cases)
+        New-DriftHeadlineDimension -Name 'binding' -Count ([int]$ComparisonOverview.binding_result_changed_case_count) -Cases @($ComparisonOverview.binding_result_changed_cases)
+        New-DriftHeadlineDimension -Name 'bringup_order' -Count ([int]$ComparisonOverview.bringup_order_changed_case_count) -Cases @($ComparisonOverview.bringup_order_changed_cases)
+        New-DriftHeadlineDimension -Name 'bringup_evidence' -Count ([int]$ComparisonOverview.bringup_changed_case_count) -Cases @($ComparisonOverview.bringup_changed_cases)
+        New-DriftHeadlineDimension -Name 'resource' -Count ([int]$ComparisonOverview.resource_changed_case_count) -Cases @($ComparisonOverview.resource_changed_cases)
+        New-DriftHeadlineDimension -Name 'fact_resolution' -Count ([int]$ComparisonOverview.fact_resolution_changed_case_count) -Cases @($ComparisonOverview.fact_resolution_changed_cases)
+    )
+
+    $changedDimensions = @(
+        @($dimensions) |
+            Where-Object { [int]$_.changed_case_count -gt 0 } |
+            ForEach-Object { [string]$_.name }
+    )
+    $dimensionCounts = [ordered]@{}
+    foreach ($dimension in @($dimensions)) {
+        $dimensionCounts[[string]$dimension.name] = [int]$dimension.changed_case_count
+    }
+
+    $text = if (@($changedDimensions).Count -gt 0) {
+        @(
+            @($dimensions) |
+                Where-Object { [int]$_.changed_case_count -gt 0 } |
+                ForEach-Object { "$([string]$_.name):$([int]$_.changed_case_count)" }
+        ) -join ' '
+    } else {
+        'no drift'
+    }
+
+    return [ordered]@{
+        text = $text
+        compared_case_count = [int]$ComparisonOverview.compared_case_count
+        changed_dimension_count = @($changedDimensions).Count
+        changed_dimensions = @($changedDimensions)
+        dimension_counts = $dimensionCounts
+        dimensions = @($dimensions)
+    }
+}
+
 function Format-ResolvedScalarInputText {
     param(
         $ResolvedInput
@@ -8381,6 +8445,8 @@ function New-ArtifactRootComparisonOverviewResult {
         $result.fact_resolution_summary = $FactResolutionComparisonSummary
     }
 
+    $result.drift_headline = New-ArtifactRootDriftHeadline -ComparisonOverview $result
+
     return $result
 }
 
@@ -8865,6 +8931,9 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         }
         if ($null -ne $comparisonOverview) {
             Write-Host '[COMPARISON]'
+            if ($null -ne $comparisonOverview.drift_headline) {
+                Write-Host "drift_headline           = $([string]$comparisonOverview.drift_headline.text)"
+            }
             Write-Host "compared_case_count      = $([int]$comparisonOverview.compared_case_count)"
             Write-Host "metadata_changed_cases   = $([int]$comparisonOverview.metadata_changed_case_count)"
             Write-Host "input_changed_cases      = $([int]$comparisonOverview.input_changed_case_count)"

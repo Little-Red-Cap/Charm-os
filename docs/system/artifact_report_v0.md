@@ -330,6 +330,9 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `bringup_changed_case_count`
 - `resource_changed_case_count`
 - `fact_resolution_changed_case_count`
+- `drift_headline.text`
+- `drift_headline.changed_dimensions`
+- `drift_headline.dimension_counts`
 - `capability_summary.compared_capability_count`
 - `capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `capability_summary.compared_capabilities`
@@ -364,6 +367,11 @@ artifact_root 级 `cap list` 现在也会继续带出：
 这意味着默认总览已经能直接回答：
 
 > **这一组 compare report 里，到底有多少 case 真正在 compare 维度上发生了漂移。**
+
+其中 `comparison.drift_headline` 是给人类和轻量工具看的扫读入口：
+它把 `metadata / input / formation / binding / bringup_order / bringup_evidence / resource / fact_resolution`
+这些维度压成一行 `text`，并保留 `changed_dimensions` 与 `dimension_counts` 供机器消费。
+详细诊断仍以各个 `*_summary` 与 matrix 为准。
 
 其中 case summary 行级 `FactCmp` 只统计该 case 的
 `comparison.fact_resolution.required_fact_resolution_changes` 数量，

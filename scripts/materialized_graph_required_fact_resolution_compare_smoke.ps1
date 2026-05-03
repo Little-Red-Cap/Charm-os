@@ -338,6 +338,10 @@ Assert-Condition ([int]$defaultOverviewCase.FactCmp -ge 1) 'default overview cas
 Assert-Condition ($null -ne $defaultOverviewInspectResult.comparison) 'default overview missing comparison payload'
 Assert-Condition ([int]$defaultOverviewInspectResult.comparison.fact_resolution_changed_case_count -ge 1) 'default overview fact resolution changed case count must be positive'
 Assert-Condition ([int]$defaultOverviewInspectResult.comparison.capability_summary.fact_resolution_compare_capability_count -ge 1) 'default overview capability summary fact resolution count must be positive'
+Assert-Condition ($null -ne $defaultOverviewInspectResult.comparison.drift_headline) 'default overview missing drift headline'
+Assert-Condition ((@($defaultOverviewInspectResult.comparison.drift_headline.changed_dimensions) -contains 'fact_resolution')) 'default overview drift headline missing fact_resolution dimension'
+Assert-Condition ([int]$defaultOverviewInspectResult.comparison.drift_headline.dimension_counts.fact_resolution -ge 1) 'default overview drift headline fact_resolution count must be positive'
+Assert-Condition ([string]$defaultOverviewInspectResult.comparison.drift_headline.text -like '*fact_resolution:*') 'default overview drift headline text missing fact_resolution segment'
 
 $summary = [ordered]@{
     bundle_root = $resolvedBundleRoot
@@ -363,6 +367,7 @@ $summary = [ordered]@{
         cap_list_exposes_required_fact_resolution_change = $true
         artifact_root_cap_list_exposes_required_fact_resolution_change = $true
         default_overview_exposes_factcmp = $true
+        default_overview_exposes_drift_headline = $true
     }
 }
 

@@ -392,6 +392,9 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.binding_result_changed_case_count`
 - `comparison.bringup_order_changed_case_count`
 - `comparison.fact_resolution_changed_case_count`
+- `comparison.drift_headline.text`
+- `comparison.drift_headline.changed_dimensions`
+- `comparison.drift_headline.dimension_counts`
 - case summary 行级 `FactCmp`
 - `system_compiler_summary.case_count / formed_case_count / blocked_case_count`
 - `system_compiler_summary.case_kind_matrix`
@@ -439,11 +442,17 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.fact_resolution_summary.fact_inventory_change_matrix`
 - `comparison.fact_resolution_summary.required_fact_resolution_change_matrix`
 - `comparison.fact_resolution_summary.kind / mode`
+- `comparison.drift_headline`
 - `cases[*].Formation`
 - `cases[*].InpCmp`
 - `cases[*].FormCmp`
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
+
+其中 `comparison.drift_headline` 是默认总览的人类扫读入口：
+它把 `metadata / input / formation / binding / bringup_order / bringup_evidence / resource / fact_resolution`
+这些 compare 维度压成一行 `text`，并保留 `changed_dimensions` 与 `dimension_counts`
+给轻量工具消费。它不替代各个 summary matrix，只负责让默认视图第一眼能看出“漂移发生在哪些维度”。
 
 对机器消费者来说，`system_compiler_summary` 现在也不再只是
 artifact_root 默认总览里的匿名嵌套块。

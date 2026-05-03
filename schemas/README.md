@@ -175,6 +175,13 @@
     这一整条 consumer-side opening chain 收成一个 smoke-level evidence artifact，
     明确 flow steps、opener cases、projection availability、compare context 与 inspector readiness
 
+- `system_compiler.front_page_entry_opening_flow_compare.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow.py`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_compare.py`
+  - 用途偏向比较两份 `front_page entry opening flow` summary，回答 consumer-side opening chain
+    的 opener case、projection、compare context 与 inspector readiness 是否发生可解释漂移
+
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点

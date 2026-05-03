@@ -106,6 +106,10 @@ import charm.core.soa_registry;
         const bool hovered_hit = input_is_invalid(input_.hovered) || input_is_descendant(input_.hovered, h);
         const bool focused_hit = input_is_invalid(input_.focused) || input_is_descendant(input_.focused, h);
         const bool scroll_hit = input_is_invalid(input_.scroll_target) || input_is_descendant(input_.scroll_target, h);
+        const bool focus_scope_hit = input_.focus_scope
+            && (input_is_invalid(input_.focus_scope) || input_is_descendant(input_.focus_scope, h));
+        const bool focus_scope_fallback_hit = input_.focus_scope_fallback
+            && (input_is_invalid(input_.focus_scope_fallback) || input_is_descendant(input_.focus_scope_fallback, h));
 
         WidgetHandle drag_target{};
         if (captured_hit && valid(input_.captured)) {
@@ -135,6 +139,13 @@ import charm.core.soa_registry;
         }
         if (scroll_hit) {
             input_.scroll_target = {};
+        }
+        if (focus_scope_hit) {
+            input_.focus_scope = {};
+            input_.focus_scope_fallback = {};
+            input_.focus_scope_trap = false;
+        } else if (focus_scope_fallback_hit) {
+            input_.focus_scope_fallback = {};
         }
         if (hovered_hit) {
             if (valid(input_.hovered)) {
@@ -909,7 +920,21 @@ import charm.core.soa_registry;
         }
     }
 
+    WidgetHandle SoaKernel::input_resolve_focus_request(WidgetHandle h) const noexcept {
+        if (!h) return {};
+        if (!input_.focus_scope || !input_.focus_scope_trap) return h;
+        if (input_is_descendant(h, input_.focus_scope)) return h;
+        if (input_.focus_scope_fallback && input_is_descendant(input_.focus_scope_fallback, input_.focus_scope)) {
+            return input_.focus_scope_fallback;
+        }
+        if (input_.focused && input_is_descendant(input_.focused, input_.focus_scope)) {
+            return input_.focused;
+        }
+        return {};
+    }
+
     void SoaKernel::input_set_focus(WidgetHandle h) {
+        h = input_resolve_focus_request(h);
         if (input_.focused == h) return;
         if (input_.focused) {
             input_emit_event(input_.focused, Event::key(Event::Type::FocusOut, Event::Key::Unknown, input_.last_ms));

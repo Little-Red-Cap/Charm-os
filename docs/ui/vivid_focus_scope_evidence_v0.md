@@ -8,7 +8,7 @@
 
 `Focus Transfer Evidence v0` 证明真实输入链可以把 focus truth 从 old target 提交到 new target，并留下 `FocusOut / FocusIn` 事件证据。
 
-`Focus Scope Evidence v0` 继续向前一步：证明一个组件或 overlay 可以声明焦点作用域，允许 scope 内迁移，拒绝 scope 外请求，并保证被拒绝请求不会把 focus ring artifact 泄漏到外部 target。
+`Focus Scope Evidence v0` 继续向前一步：证明一个组件或 overlay 可以声明焦点作用域，允许 scope 内迁移，拒绝 scope 外焦点提交，并保证被拒绝请求不会把 focus ring artifact 泄漏到外部 target。
 
 ## v0 法律
 
@@ -21,7 +21,7 @@ decision=allow
 allowed=1
 ```
 
-v0 的 `decide_focus_scope_request()` 只负责 policy decision，不直接提交 kernel input focus truth。
+v0 同时保留 `decide_focus_scope_request()` 作为 policy helper，并把同一条准入语义接入 `SoaKernel::input_set_focus()`，让真实 input dispatch 能提交 scope 内焦点迁移。
 
 ### Law 2：scope 外请求必须拒绝
 
@@ -35,9 +35,9 @@ fallback=<current-or-fallback>
 
 `RejectOutsideScope` 对 Focus Scope 不是失败，而是焦点陷阱的合法裁决。
 
-### Law 3：scope truth 与 input truth 必须分清
+### Law 3：scope truth 必须由 runtime focus admission 提交
 
-v0 的 scope helper 是 policy helper。它返回：
+v0 的 scope helper 返回：
 
 ```text
 requested
@@ -45,14 +45,22 @@ fallback
 decision
 ```
 
-调用者可以用它驱动 visual focus flags，也可以在后续 runtime 集成中驱动 kernel input focus truth；但 demo 不把 `SceneAccess::set_focused()` 误认作 `input_focused()` 提交。
-
-因此 `focus_scope_demo` 使用显式 `scope_truth` 账本证明：
+runtime 集成后，`SceneBuilder::set_focus_scope()` / `SceneAccess::set_focus_scope()` 会安装 active focus scope：
 
 ```text
-inside request -> scope_truth=inside_b
-outside request -> scope_truth remains fallback
+scope
+fallback
+trap
 ```
+
+真实 input dispatch 进入 `input_set_focus()` 后先经过 focus admission：
+
+```text
+inside request -> FocusOut(old) + FocusIn(new) + input_focused=new
+outside request -> no focus transfer + input_focused remains fallback/current
+```
+
+`SceneAccess::set_focused()` 仍然只是 visual focus flag helper，不等价于 `input_focused()` 提交。
 
 ### Law 4：scope 外 artifact 不得泄漏 focus ring
 
@@ -85,22 +93,26 @@ root
 
 - `inside_a / inside_b` 属于 focus scope。
 - `outside` 不属于 focus scope。
-- `inside_b` 请求被允许，focus ring artifact 从 `inside_a` 迁移到 `inside_b`。
-- `outside` 请求被拒绝，`scope_truth` 保持在 fallback target。
+- runtime 安装 `scope=container fallback=inside_b trap=1`。
+- `inside_b` 请求被允许，真实 dispatch 产生 `FocusOut(inside_a)` / `FocusIn(inside_b)`，并把 `input_focused` 提交到 `inside_b`。
+- `outside` 请求被拒绝，pointer event 仍送达 outside，但不产生 `FocusOut / FocusIn`，`input_focused` 保持在 fallback/current。
 - `outside` artifact 与 unfocused baseline 一致，没有 focus ring 泄漏。
 
 stdout 最终约束：
 
 ```text
-[fs] run=focus_scope_demo phase=end result=ok cases=7
+[fs] run=focus_scope_demo phase=end result=ok cases=9
 ```
 
 核心字段：
 
 ```text
+policy=focus_admission
 decision=allow
 decision=reject_outside_scope
-scope_truth=inside_b
+focus_out=1
+focus_in=1
+input_truth=inside_b
 fallback=inside_b
 outside_focus_ring=0
 leaked=0
@@ -108,7 +120,6 @@ leaked=0
 
 ## 后续方向
 
-- 将 policy helper 接入真实 input dispatch，使 scope decision 能统一驱动 `input_focused` 与 visual focus flags。
 - 支持 modal / popup 的 nested focus scope。
 - 支持 keyboard / d-pad 在 scope 内循环。
 - 为 accessibility focus 增加 semantic focus target 与 visual focus artifact 对齐证据。

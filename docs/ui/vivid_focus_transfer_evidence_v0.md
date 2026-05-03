@@ -84,6 +84,6 @@ artifact_changed=1
 下一步可以把 transfer evidence 推到更高层：
 
 - keyboard / d-pad navigation source。
-- focus scope：已由 `vivid_focus_scope_evidence_v0.md` 与 `Examples/ui/vivid/focus_scope_demo` 承接第一版 inside allow / outside reject / no-leak artifact。
+- focus scope：已由 `vivid_focus_scope_evidence_v0.md` 与 `Examples/ui/vivid/focus_scope_demo` 承接第一版 runtime focus admission / inside dispatch allow / outside dispatch reject / no-leak artifact。
 - focus trap：modal / popup 内焦点不泄漏。
 - accessibility focus：semantic focus target 与 visual focus artifact 对齐。

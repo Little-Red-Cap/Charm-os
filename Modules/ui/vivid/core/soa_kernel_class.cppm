@@ -445,12 +445,38 @@ public:
         return input_.focused;
     }
 
+    WidgetHandle input_focus_scope() const noexcept {
+        return input_.focus_scope;
+    }
+
+    WidgetHandle input_focus_scope_fallback() const noexcept {
+        return input_.focus_scope_fallback;
+    }
+
+    bool input_focus_scope_trap() const noexcept {
+        return input_.focus_scope_trap;
+    }
+
     WidgetHandle input_captured() const noexcept {
         return input_.captured;
     }
 
     bool input_dragging() const noexcept {
         return input_.dragging;
+    }
+
+    void set_focus_scope(WidgetHandle scope,
+                         WidgetHandle fallback = {},
+                         bool trap = true) noexcept {
+        input_.focus_scope = scope;
+        input_.focus_scope_fallback = fallback;
+        input_.focus_scope_trap = trap;
+    }
+
+    void clear_focus_scope() noexcept {
+        input_.focus_scope = {};
+        input_.focus_scope_fallback = {};
+        input_.focus_scope_trap = false;
     }
 
     Rect world_rect(WidgetHandle h) const noexcept;
@@ -1034,6 +1060,8 @@ private:
         WidgetHandle focused{};
         WidgetHandle captured{};
         WidgetHandle scroll_target{};
+        WidgetHandle focus_scope{};
+        WidgetHandle focus_scope_fallback{};
         int drag_start_x{0};
         int drag_start_y{0};
         int drag_last_x{0};
@@ -1044,6 +1072,7 @@ private:
         int button{0};
         int drag_threshold_sq{25};
         bool dragging{false};
+        bool focus_scope_trap{false};
     };
 
     InputEventQueue input_events_{};
@@ -1084,6 +1113,7 @@ private:
     SoaWheelAxisPolicy input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
         SoaWheelAxisPolicy fallback, int x, int y) const noexcept ;
     void input_apply_scroll_by(WidgetHandle h, int dy, int dx) ;
+    WidgetHandle input_resolve_focus_request(WidgetHandle h) const noexcept ;
     void input_set_focus(WidgetHandle h) ;
     WidgetHandle input_drag_target() const noexcept ;
     std::uint16_t index_of(WidgetHandle h) const noexcept ;

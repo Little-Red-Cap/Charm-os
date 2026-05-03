@@ -206,6 +206,13 @@ Or run the dedicated smoke:
 ./scripts/system_compiler_front_page_entry_opener_smoke.ps1 -Clean
 ```
 
+To run the full entry-opening flow from capability through landing, landing
+compare, and opener:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1 -Clean
+```
+
 ## Why this matters
 
 This object is useful because it removes the last bit of hand-rolled opening

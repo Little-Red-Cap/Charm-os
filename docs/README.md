@@ -145,6 +145,7 @@
 - System Compiler Front Page Entry Landing v0：`docs/system/system_compiler_front_page_entry_landing_v0.md`
 - System Compiler Front Page Entry Landing Compare v0：`docs/system/system_compiler_front_page_entry_landing_compare_v0.md`
 - System Compiler Front Page Entry Opener v0：`docs/system/system_compiler_front_page_entry_opener_v0.md`
+- System Compiler Front Page Entry Opening Flow smoke：`scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
 - Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
 - 资源契约 v0：`docs/system/resource_contract_v0.md`
 - bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`

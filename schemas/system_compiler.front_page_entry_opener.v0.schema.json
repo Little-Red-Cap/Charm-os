@@ -18,6 +18,7 @@
     "compare_context",
     "open_action",
     "inspector_invocation",
+    "opened_projection",
     "questions",
     "violations"
   ],

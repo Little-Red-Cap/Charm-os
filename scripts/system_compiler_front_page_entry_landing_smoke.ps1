@@ -108,6 +108,20 @@ function Assert-Condition {
     }
 }
 
+function Test-AllPathsExist {
+    param(
+        [string[]]$Paths
+    )
+
+    foreach ($path in @($Paths)) {
+        if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path $path)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $inputRootPath = Resolve-FullPath -Path $InputRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
@@ -132,55 +146,68 @@ foreach ($requiredPath in @($capabilitySmokeScript, $exportScript, $validateScri
     }
 }
 
+$cases = @(
+    [ordered]@{
+        Name = "root-witness"
+        SummaryPath = Join-Path $inputRootPath "root-witness\front-page.entry-capability.summary.json"
+        ExpectedMode = "biography"
+        ExpectedPrimary = "delivery_biography"
+        ExpectedTabsPrefix = @("delivery_biography", "supporting_evidence", "supporting_testimony")
+        ExpectedProvenanceRoots = 0
+        ExpectedPrimaryQueryKind = "default_overview"
+        ExpectedPrimaryQueryScope = "report"
+    },
+    [ordered]@{
+        Name = "root-world-compare"
+        SummaryPath = Join-Path $inputRootPath "root-world-compare\front-page.entry-capability.summary.json"
+        ExpectedMode = "compare"
+        ExpectedPrimary = "counterfactual_verdict"
+        ExpectedTabsPrefix = @("counterfactual_verdict", "delivery_biography", "supporting_evidence")
+        ExpectedProvenanceRoots = 0
+        ExpectedPrimaryQueryKind = "default_overview"
+        ExpectedPrimaryQueryScope = "artifact_root"
+    },
+    [ordered]@{
+        Name = "witness-ci-shelf"
+        SummaryPath = Join-Path $inputRootPath "witness-ci-shelf\front-page.entry-capability.summary.json"
+        ExpectedMode = "review"
+        ExpectedPrimary = "grouped_review"
+        ExpectedTabsPrefix = @("grouped_review", "shelf_compare", "candidate_shelf", "baseline_shelf")
+        ExpectedProvenanceRoots = 0
+        ExpectedPrimaryQueryKind = "default_overview"
+        ExpectedPrimaryQueryScope = "artifact_root"
+    },
+    [ordered]@{
+        Name = "review-provenance"
+        SummaryPath = Join-Path $inputRootPath "review-provenance\front-page.entry-capability.summary.json"
+        ExpectedMode = "review"
+        ExpectedPrimary = "grouped_review"
+        ExpectedTabsPrefix = @("grouped_review", "shelf_compare", "candidate_shelf", "baseline_shelf")
+        ExpectedProvenanceRoots = 3
+        ExpectedPrimaryQueryKind = "default_overview"
+        ExpectedPrimaryQueryScope = "artifact_root"
+    }
+)
+
 Push-Location $repoRoot
 try {
-    Invoke-ExternalTool `
-        -Executable "powershell.exe" `
-        -ArgumentList @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $capabilitySmokeScript,
-            "-OutputRoot",
-            $inputRootPath
-        ) `
-        -FailureMessage "front page entry capability smoke bootstrap failed"
-
-    $cases = @(
-        [ordered]@{
-            Name = "root-witness"
-            SummaryPath = Join-Path $inputRootPath "root-witness\front-page.entry-capability.summary.json"
-            ExpectedMode = "biography"
-            ExpectedPrimary = "delivery_biography"
-            ExpectedTabsPrefix = @("delivery_biography", "supporting_evidence", "supporting_testimony")
-            ExpectedProvenanceRoots = 0
-        },
-        [ordered]@{
-            Name = "root-world-compare"
-            SummaryPath = Join-Path $inputRootPath "root-world-compare\front-page.entry-capability.summary.json"
-            ExpectedMode = "compare"
-            ExpectedPrimary = "counterfactual_verdict"
-            ExpectedTabsPrefix = @("counterfactual_verdict", "delivery_biography", "supporting_evidence")
-            ExpectedProvenanceRoots = 0
-        },
-        [ordered]@{
-            Name = "witness-ci-shelf"
-            SummaryPath = Join-Path $inputRootPath "witness-ci-shelf\front-page.entry-capability.summary.json"
-            ExpectedMode = "review"
-            ExpectedPrimary = "grouped_review"
-            ExpectedTabsPrefix = @("grouped_review", "shelf_compare", "candidate_shelf", "baseline_shelf")
-            ExpectedProvenanceRoots = 0
-        },
-        [ordered]@{
-            Name = "review-provenance"
-            SummaryPath = Join-Path $inputRootPath "review-provenance\front-page.entry-capability.summary.json"
-            ExpectedMode = "review"
-            ExpectedPrimary = "grouped_review"
-            ExpectedTabsPrefix = @("grouped_review", "shelf_compare", "candidate_shelf", "baseline_shelf")
-            ExpectedProvenanceRoots = 3
-        }
-    )
+    $bootstrapInputs = @($cases | ForEach-Object { [string]$_.SummaryPath })
+    if (Test-AllPathsExist -Paths $bootstrapInputs) {
+        Write-Host "[FRONT-PAGE-ENTRY-LANDING-SMOKE] bootstrap=reuse-existing"
+    } else {
+        Invoke-ExternalTool `
+            -Executable "powershell.exe" `
+            -ArgumentList @(
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                $capabilitySmokeScript,
+                "-OutputRoot",
+                $inputRootPath
+            ) `
+            -FailureMessage "front page entry capability smoke bootstrap failed"
+    }
 
     foreach ($case in $cases) {
         if (-not (Test-Path $case.SummaryPath)) {
@@ -209,6 +236,15 @@ try {
         Assert-Condition `
             -Condition ([int]$landingSummary.landing_status.provenance_root_count -eq [int]$case.ExpectedProvenanceRoots) `
             -Message ("case '{0}' expected provenance roots '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProvenanceRoots, $landingSummary.landing_status.provenance_root_count)
+        Assert-Condition `
+            -Condition ([string]$landingSummary.query_hints.primary_query.query_kind -eq $case.ExpectedPrimaryQueryKind) `
+            -Message ("case '{0}' expected primary query kind '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryKind, $landingSummary.query_hints.primary_query.query_kind)
+        Assert-Condition `
+            -Condition ([string]$landingSummary.query_hints.primary_query.scope -eq $case.ExpectedPrimaryQueryScope) `
+            -Message ("case '{0}' expected primary query scope '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryScope, $landingSummary.query_hints.primary_query.scope)
+        Assert-Condition `
+            -Condition (@($landingSummary.query_hints.tab_queries).Count -eq @($landingSummary.landing_tabs).Count) `
+            -Message ("case '{0}' query_hints.tab_queries must match landing tab count" -f $case.Name)
 
         $availableTabIds = @([string[]]$landingSummary.landing_status.available_tab_ids)
         for ($i = 0; $i -lt $case.ExpectedTabsPrefix.Count; $i++) {
@@ -219,10 +255,12 @@ try {
         }
 
         Write-Host (
-            "[FRONT-PAGE-ENTRY-LANDING-SMOKE] case={0} mode={1} primary={2} tabs={3} provenance_roots={4}" -f
+            "[FRONT-PAGE-ENTRY-LANDING-SMOKE] case={0} mode={1} primary={2} query={3}/{4} tabs={5} provenance_roots={6}" -f
             $case.Name,
             [string]$landingSummary.landing_status.recommended_entry_mode,
             [string]$landingSummary.landing_status.primary_tab_id,
+            [string]$landingSummary.query_hints.primary_query.query_kind,
+            [string]$landingSummary.query_hints.primary_query.scope,
             ($availableTabIds -join ","),
             [int]$landingSummary.landing_status.provenance_root_count
         )
@@ -232,4 +270,3 @@ try {
 }
 
 Write-Host ("[FRONT-PAGE-ENTRY-LANDING-SMOKE] output_root={0}" -f $outputRootPath)
-

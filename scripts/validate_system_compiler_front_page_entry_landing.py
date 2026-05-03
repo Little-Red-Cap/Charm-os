@@ -171,6 +171,7 @@ def main() -> int:
         expect_equal(summary.get("secondary_landings"), expected_summary.get("secondary_landings"), "secondary_landings", errors)
         expect_equal(summary.get("landing_tabs"), expected_summary.get("landing_tabs"), "landing_tabs", errors)
         expect_equal(summary.get("provenance_roots"), expected_summary.get("provenance_roots"), "provenance_roots", errors)
+        expect_equal(summary.get("query_hints"), expected_summary.get("query_hints"), "query_hints", errors)
         expect_equal(summary.get("questions"), expected_summary.get("questions"), "questions", errors)
         expect_equal(summary.get("violations"), [], "violations", errors)
         expect_equal(
@@ -196,4 +197,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

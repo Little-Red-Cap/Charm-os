@@ -17,6 +17,7 @@ def build_report(summary: dict) -> str:
     primary_landing = summary["primary_landing"]
     landing_tabs = summary["landing_tabs"]
     provenance_roots = summary["provenance_roots"]
+    query_hints = summary["query_hints"]
     questions = summary["questions"]
 
     lines: list[str] = [
@@ -48,6 +49,26 @@ def build_report(summary: dict) -> str:
     else:
         lines.append("- none")
 
+    lines.extend(["", "## Explain Query Hints"])
+    primary_query = query_hints["primary_query"]
+    if isinstance(primary_query, dict) and primary_query:
+        lines.append(
+            "- primary `{0}` -> query=`{1}` scope=`{2}` selection=`{3}` compare_expected=`{4}`".format(
+                primary_query["tab_id"],
+                primary_query["query_kind"],
+                primary_query["scope"],
+                primary_query["selection_rule"],
+                "yes" if primary_query["compare_expected"] else "no",
+            )
+        )
+        lines.append(
+            "  follow-up: `{0}`".format(
+                "`, `".join(primary_query["followup_query_kinds"])
+            )
+        )
+    else:
+        lines.append("- none")
+
     lines.extend(["", "## Landing Tabs"])
     for tab in landing_tabs:
         entry = tab["entry"]
@@ -61,6 +82,24 @@ def build_report(summary: dict) -> str:
             )
         )
         lines.append(f"  path: `{entry['summary_path']}`")
+
+    lines.extend(["", "## Tab Query Plan"])
+    for query_hint in query_hints["tab_queries"]:
+        lines.append(
+            "- `{0}` query=`{1}` scope=`{2}` selection=`{3}` compare_expected=`{4}`".format(
+                query_hint["tab_id"],
+                query_hint["query_kind"],
+                query_hint["scope"],
+                query_hint["selection_rule"],
+                "yes" if query_hint["compare_expected"] else "no",
+            )
+        )
+        lines.append(
+            "  follow-up: `{0}`".format(
+                "`, `".join(query_hint["followup_query_kinds"])
+            )
+        )
+        lines.append(f"  rationale: {query_hint['rationale']}")
 
     lines.extend(["", "## Provenance Roots"])
     if provenance_roots:
@@ -93,6 +132,7 @@ def build_report(summary: dict) -> str:
 
 def build_check(summary: dict) -> str:
     landing_status = summary["landing_status"]
+    primary_query = summary["query_hints"]["primary_query"]
     return "\n".join(
         [
             f"input_capability_summary_path: {summary['artifact_context']['input_capability_summary_path']}",
@@ -103,6 +143,8 @@ def build_check(summary: dict) -> str:
             f"fallback_tab_ids: {','.join(landing_status['fallback_tab_ids'])}",
             f"provenance_root_count: {landing_status['provenance_root_count']}",
             f"route_provenance_entry_count: {landing_status['route_provenance_entry_count']}",
+            f"primary_query_kind: {primary_query['query_kind'] if isinstance(primary_query, dict) else ''}",
+            f"primary_query_scope: {primary_query['scope'] if isinstance(primary_query, dict) else ''}",
         ]
     ) + "\n"
 
@@ -162,4 +204,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

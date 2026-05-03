@@ -40,6 +40,28 @@ function Ensure-Directory {
     }
 }
 
+function Assert-CleanPath {
+    param(
+        [string]$Path,
+        [string]$RootPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $resolvedPath = Resolve-FullPath -Path $Path
+    $resolvedRoot = Resolve-FullPath -Path $RootPath
+    $comparison = [System.StringComparison]::OrdinalIgnoreCase
+    $rootPrefix = $resolvedRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if ($resolvedPath.Equals($resolvedRoot, $comparison)) {
+        throw "refusing to clean repo root: $resolvedPath"
+    }
+    if (-not $resolvedPath.StartsWith($rootPrefix, $comparison)) {
+        throw "refusing to clean outside repo root: $resolvedPath"
+    }
+}
+
 function Remove-PathIfExists {
     param(
         [string]$Path
@@ -49,8 +71,9 @@ function Remove-PathIfExists {
         return
     }
 
-    if (Test-Path $Path) {
-        Remove-Item -LiteralPath $Path -Recurse -Force
+    $resolvedPath = Resolve-FullPath -Path $Path
+    if (Test-Path -LiteralPath $resolvedPath) {
+        Remove-Item -LiteralPath $resolvedPath -Recurse -Force
     }
 }
 
@@ -111,7 +134,11 @@ if (-not (Test-Path $frontPageWorkspaceRootPath)) {
 }
 
 if ($Clean) {
-    foreach ($path in @($flowRootPath, $consumerRootPath, $outputRootPath)) {
+    $cleanPaths = @($flowRootPath, $consumerRootPath, $outputRootPath)
+    foreach ($path in $cleanPaths) {
+        Assert-CleanPath -Path $path -RootPath $repoRoot
+    }
+    foreach ($path in $cleanPaths) {
         Remove-PathIfExists -Path $path
     }
 }

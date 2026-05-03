@@ -37,6 +37,21 @@ function Ensure-Directory {
     }
 }
 
+function Ensure-ParentDirectory {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent)) {
+        Ensure-Directory -Path $parent
+    }
+}
+
 function Remove-PathIfExists {
     param(
         [string]$Path
@@ -95,6 +110,91 @@ function Load-JsonObject {
     )
 
     return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
+}
+
+function Ensure-TextFileIfMissing {
+    param(
+        [string]$Path,
+        [string]$Content,
+        [System.Collections.Generic.List[string]]$CreatedPaths
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or (Test-Path $Path)) {
+        return
+    }
+
+    Ensure-ParentDirectory -Path $Path
+    Set-Content -LiteralPath $Path -Value $Content -Encoding utf8
+    $CreatedPaths.Add([System.IO.Path]::GetFullPath($Path)) | Out-Null
+}
+
+function Ensure-PlaceholderEntryArtifacts {
+    param(
+        [object]$Entry,
+        [System.Collections.Generic.List[string]]$CreatedPaths
+    )
+
+    if ($Entry -isnot [System.Management.Automation.PSCustomObject] -and $Entry -isnot [hashtable]) {
+        return
+    }
+
+    if ([string]$Entry.summary_schema -ne "temporary.placeholder/v0") {
+        return
+    }
+
+    $placeholderSummary = "{`n  `"schema`": `"temporary.placeholder/v0`",`n  `"note`": `"Temporary runtime evidence root placeholder for front-page entry landing smoke.`"`n}`n"
+    $placeholderReport = "# Temporary Runtime Evidence Placeholder`n"
+    $placeholderCheck = "temporary runtime evidence placeholder`n"
+
+    Ensure-TextFileIfMissing -Path ([string]$Entry.summary_path) -Content $placeholderSummary -CreatedPaths $CreatedPaths
+    Ensure-TextFileIfMissing -Path ([string]$Entry.report_markdown_path) -Content $placeholderReport -CreatedPaths $CreatedPaths
+    Ensure-TextFileIfMissing -Path ([string]$Entry.check_text_path) -Content $placeholderCheck -CreatedPaths $CreatedPaths
+}
+
+function Ensure-CapabilitySummaryPlaceholders {
+    param(
+        [string]$CapabilitySummaryPath,
+        [System.Collections.Generic.List[string]]$CreatedPaths
+    )
+
+    $capabilitySummary = Load-JsonObject -Path $CapabilitySummaryPath
+    $preferredEntries = $capabilitySummary.capability_summary.preferred_entries
+    if ($preferredEntries -isnot [System.Management.Automation.PSCustomObject] -and $preferredEntries -isnot [hashtable]) {
+        return
+    }
+
+    foreach ($property in $preferredEntries.PSObject.Properties) {
+        Ensure-PlaceholderEntryArtifacts -Entry $property.Value -CreatedPaths $CreatedPaths
+    }
+}
+
+function Remove-TemporaryFiles {
+    param(
+        [string[]]$Paths,
+        [string]$RepoRootPath
+    )
+
+    foreach ($path in @($Paths | Sort-Object -Unique | Sort-Object Length -Descending)) {
+        if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path $path)) {
+            continue
+        }
+
+        Remove-Item -LiteralPath $path -Force
+        $parent = Split-Path -Parent $path
+        while (-not [string]::IsNullOrWhiteSpace($parent) -and $parent.StartsWith($RepoRootPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            if (-not (Test-Path $parent)) {
+                break
+            }
+
+            $remaining = @(Get-ChildItem -LiteralPath $parent -Force)
+            if ($remaining.Count -ne 0) {
+                break
+            }
+
+            Remove-Item -LiteralPath $parent -Force
+            $parent = Split-Path -Parent $parent
+        }
+    }
 }
 
 function Assert-Condition {
@@ -209,61 +309,72 @@ try {
             -FailureMessage "front page entry capability smoke bootstrap failed"
     }
 
-    foreach ($case in $cases) {
-        if (-not (Test-Path $case.SummaryPath)) {
-            throw "entry capability summary not found for case '$($case.Name)': $($case.SummaryPath)"
-        }
+    $temporaryPlaceholderPaths = [System.Collections.Generic.List[string]]::new()
+    try {
+        foreach ($case in $cases) {
+            if (-not (Test-Path $case.SummaryPath)) {
+                throw "entry capability summary not found for case '$($case.Name)': $($case.SummaryPath)"
+            }
 
-        $caseOutputRoot = Join-Path $outputRootPath $case.Name
-        Invoke-ExternalTool `
-            -Executable $resolvedPythonExe `
-            -ArgumentList @($exportScript, "--summary", $case.SummaryPath, "--output-root", $caseOutputRoot) `
-            -FailureMessage ("front page entry landing export failed for case '{0}'" -f $case.Name)
+            Ensure-CapabilitySummaryPlaceholders -CapabilitySummaryPath $case.SummaryPath -CreatedPaths $temporaryPlaceholderPaths
 
-        $landingSummaryPath = Join-Path $caseOutputRoot "front-page.entry-landing.summary.json"
-        Invoke-ExternalTool `
-            -Executable $resolvedPythonExe `
-            -ArgumentList @($validateScript, "--summary", $landingSummaryPath) `
-            -FailureMessage ("front page entry landing validation failed for case '{0}'" -f $case.Name)
+            $caseOutputRoot = Join-Path $outputRootPath $case.Name
+            Invoke-ExternalTool `
+                -Executable $resolvedPythonExe `
+                -ArgumentList @($exportScript, "--summary", $case.SummaryPath, "--output-root", $caseOutputRoot) `
+                -FailureMessage ("front page entry landing export failed for case '{0}'" -f $case.Name)
 
-        $landingSummary = Load-JsonObject -Path $landingSummaryPath
-        Assert-Condition `
-            -Condition ([string]$landingSummary.landing_status.recommended_entry_mode -eq $case.ExpectedMode) `
-            -Message ("case '{0}' expected mode '{1}' but got '{2}'" -f $case.Name, $case.ExpectedMode, $landingSummary.landing_status.recommended_entry_mode)
-        Assert-Condition `
-            -Condition ([string]$landingSummary.landing_status.primary_tab_id -eq $case.ExpectedPrimary) `
-            -Message ("case '{0}' expected primary tab '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimary, $landingSummary.landing_status.primary_tab_id)
-        Assert-Condition `
-            -Condition ([int]$landingSummary.landing_status.provenance_root_count -eq [int]$case.ExpectedProvenanceRoots) `
-            -Message ("case '{0}' expected provenance roots '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProvenanceRoots, $landingSummary.landing_status.provenance_root_count)
-        Assert-Condition `
-            -Condition ([string]$landingSummary.query_hints.primary_query.query_kind -eq $case.ExpectedPrimaryQueryKind) `
-            -Message ("case '{0}' expected primary query kind '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryKind, $landingSummary.query_hints.primary_query.query_kind)
-        Assert-Condition `
-            -Condition ([string]$landingSummary.query_hints.primary_query.scope -eq $case.ExpectedPrimaryQueryScope) `
-            -Message ("case '{0}' expected primary query scope '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryScope, $landingSummary.query_hints.primary_query.scope)
-        Assert-Condition `
-            -Condition (@($landingSummary.query_hints.tab_queries).Count -eq @($landingSummary.landing_tabs).Count) `
-            -Message ("case '{0}' query_hints.tab_queries must match landing tab count" -f $case.Name)
-
-        $availableTabIds = @([string[]]$landingSummary.landing_status.available_tab_ids)
-        for ($i = 0; $i -lt $case.ExpectedTabsPrefix.Count; $i++) {
-            $expectedTabId = [string]$case.ExpectedTabsPrefix[$i]
+            $landingSummaryPath = Join-Path $caseOutputRoot "front-page.entry-landing.summary.json"
             Assert-Condition `
-                -Condition ($availableTabIds.Count -gt $i -and [string]$availableTabIds[$i] -eq $expectedTabId) `
-                -Message ("case '{0}' expected tab index {1} to be '{2}' but got '{3}'" -f $case.Name, $i, $expectedTabId, ($(if ($availableTabIds.Count -gt $i) { [string]$availableTabIds[$i] } else { "" })))
-        }
+                -Condition (Test-Path $landingSummaryPath) `
+                -Message ("front page entry landing summary missing for case '{0}'" -f $case.Name)
 
-        Write-Host (
-            "[FRONT-PAGE-ENTRY-LANDING-SMOKE] case={0} mode={1} primary={2} query={3}/{4} tabs={5} provenance_roots={6}" -f
-            $case.Name,
-            [string]$landingSummary.landing_status.recommended_entry_mode,
-            [string]$landingSummary.landing_status.primary_tab_id,
-            [string]$landingSummary.query_hints.primary_query.query_kind,
-            [string]$landingSummary.query_hints.primary_query.scope,
-            ($availableTabIds -join ","),
-            [int]$landingSummary.landing_status.provenance_root_count
-        )
+            Invoke-ExternalTool `
+                -Executable $resolvedPythonExe `
+                -ArgumentList @($validateScript, "--summary", $landingSummaryPath) `
+                -FailureMessage ("front page entry landing validation failed for case '{0}'" -f $case.Name)
+
+            $landingSummary = Load-JsonObject -Path $landingSummaryPath
+            Assert-Condition `
+                -Condition ([string]$landingSummary.landing_status.recommended_entry_mode -eq $case.ExpectedMode) `
+                -Message ("case '{0}' expected mode '{1}' but got '{2}'" -f $case.Name, $case.ExpectedMode, $landingSummary.landing_status.recommended_entry_mode)
+            Assert-Condition `
+                -Condition ([string]$landingSummary.landing_status.primary_tab_id -eq $case.ExpectedPrimary) `
+                -Message ("case '{0}' expected primary tab '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimary, $landingSummary.landing_status.primary_tab_id)
+            Assert-Condition `
+                -Condition ([int]$landingSummary.landing_status.provenance_root_count -eq [int]$case.ExpectedProvenanceRoots) `
+                -Message ("case '{0}' expected provenance roots '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProvenanceRoots, $landingSummary.landing_status.provenance_root_count)
+            Assert-Condition `
+                -Condition ([string]$landingSummary.query_hints.primary_query.query_kind -eq $case.ExpectedPrimaryQueryKind) `
+                -Message ("case '{0}' expected primary query kind '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryKind, $landingSummary.query_hints.primary_query.query_kind)
+            Assert-Condition `
+                -Condition ([string]$landingSummary.query_hints.primary_query.scope -eq $case.ExpectedPrimaryQueryScope) `
+                -Message ("case '{0}' expected primary query scope '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryScope, $landingSummary.query_hints.primary_query.scope)
+            Assert-Condition `
+                -Condition (@($landingSummary.query_hints.tab_queries).Count -eq @($landingSummary.landing_tabs).Count) `
+                -Message ("case '{0}' query_hints.tab_queries must match landing tab count" -f $case.Name)
+
+            $availableTabIds = @([string[]]$landingSummary.landing_status.available_tab_ids)
+            for ($i = 0; $i -lt $case.ExpectedTabsPrefix.Count; $i++) {
+                $expectedTabId = [string]$case.ExpectedTabsPrefix[$i]
+                Assert-Condition `
+                    -Condition ($availableTabIds.Count -gt $i -and [string]$availableTabIds[$i] -eq $expectedTabId) `
+                    -Message ("case '{0}' expected tab index {1} to be '{2}' but got '{3}'" -f $case.Name, $i, $expectedTabId, ($(if ($availableTabIds.Count -gt $i) { [string]$availableTabIds[$i] } else { "" })))
+            }
+
+            Write-Host (
+                "[FRONT-PAGE-ENTRY-LANDING-SMOKE] case={0} mode={1} primary={2} query={3}/{4} tabs={5} provenance_roots={6}" -f
+                $case.Name,
+                [string]$landingSummary.landing_status.recommended_entry_mode,
+                [string]$landingSummary.landing_status.primary_tab_id,
+                [string]$landingSummary.query_hints.primary_query.query_kind,
+                [string]$landingSummary.query_hints.primary_query.scope,
+                ($availableTabIds -join ","),
+                [int]$landingSummary.landing_status.provenance_root_count
+            )
+        }
+    } finally {
+        Remove-TemporaryFiles -Paths @($temporaryPlaceholderPaths) -RepoRootPath $repoRoot
     }
 } finally {
     Pop-Location

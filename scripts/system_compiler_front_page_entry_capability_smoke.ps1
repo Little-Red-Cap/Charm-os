@@ -37,6 +37,21 @@ function Ensure-Directory {
     }
 }
 
+function Ensure-ParentDirectory {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent)) {
+        Ensure-Directory -Path $parent
+    }
+}
+
 function Remove-PathIfExists {
     param(
         [string]$Path
@@ -97,6 +112,87 @@ function Load-JsonObject {
     return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
 }
 
+function Ensure-TextFileIfMissing {
+    param(
+        [string]$Path,
+        [string]$Content,
+        [System.Collections.Generic.List[string]]$CreatedPaths
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or (Test-Path $Path)) {
+        return
+    }
+
+    Ensure-ParentDirectory -Path $Path
+    Set-Content -LiteralPath $Path -Value $Content -Encoding utf8
+    $CreatedPaths.Add([System.IO.Path]::GetFullPath($Path)) | Out-Null
+}
+
+function Ensure-PlaceholderSurfaceArtifacts {
+    param(
+        [object]$Entry,
+        [System.Collections.Generic.List[string]]$CreatedPaths
+    )
+
+    if ($Entry -isnot [System.Management.Automation.PSCustomObject] -and $Entry -isnot [hashtable]) {
+        return
+    }
+
+    if ([string]$Entry.summary_schema -ne "temporary.placeholder/v0") {
+        return
+    }
+
+    $placeholderSummary = "{`n  `"schema`": `"temporary.placeholder/v0`",`n  `"note`": `"Temporary runtime evidence root placeholder for front-page entry capability smoke.`"`n}`n"
+    $placeholderReport = "# Temporary Runtime Evidence Placeholder`n"
+    $placeholderCheck = "temporary runtime evidence placeholder`n"
+
+    Ensure-TextFileIfMissing -Path ([string]$Entry.summary_path) -Content $placeholderSummary -CreatedPaths $CreatedPaths
+    Ensure-TextFileIfMissing -Path ([string]$Entry.report_markdown_path) -Content $placeholderReport -CreatedPaths $CreatedPaths
+    Ensure-TextFileIfMissing -Path ([string]$Entry.check_text_path) -Content $placeholderCheck -CreatedPaths $CreatedPaths
+}
+
+function Ensure-RouteSummaryPlaceholders {
+    param(
+        [string]$RouteSummaryPath,
+        [System.Collections.Generic.List[string]]$CreatedPaths
+    )
+
+    $routeSummary = Load-JsonObject -Path $RouteSummaryPath
+    Ensure-PlaceholderSurfaceArtifacts -Entry $routeSummary.root_surface -CreatedPaths $CreatedPaths
+    foreach ($entry in @($routeSummary.route_entries)) {
+        Ensure-PlaceholderSurfaceArtifacts -Entry $entry -CreatedPaths $CreatedPaths
+    }
+}
+
+function Remove-TemporaryFiles {
+    param(
+        [string[]]$Paths,
+        [string]$RepoRootPath
+    )
+
+    foreach ($path in @($Paths | Sort-Object -Unique | Sort-Object Length -Descending)) {
+        if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path $path)) {
+            continue
+        }
+
+        Remove-Item -LiteralPath $path -Force
+        $parent = Split-Path -Parent $path
+        while (-not [string]::IsNullOrWhiteSpace($parent) -and $parent.StartsWith($RepoRootPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            if (-not (Test-Path $parent)) {
+                break
+            }
+
+            $remaining = @(Get-ChildItem -LiteralPath $parent -Force)
+            if ($remaining.Count -ne 0) {
+                break
+            }
+
+            Remove-Item -LiteralPath $parent -Force
+            $parent = Split-Path -Parent $parent
+        }
+    }
+}
+
 function Assert-Condition {
     param(
         [bool]$Condition,
@@ -144,9 +240,10 @@ try {
             $routeSmokeScript,
             "-OutputRoot",
             $inputRootPath
-        ) `
+            ) `
         -FailureMessage "front page route smoke bootstrap failed"
 
+    $temporaryPlaceholderPaths = [System.Collections.Generic.List[string]]::new()
     $cases = @(
         [ordered]@{
             Name = "root-witness"
@@ -182,52 +279,57 @@ try {
         }
     )
 
-    foreach ($case in $cases) {
-        if (-not (Test-Path $case.SummaryPath)) {
-            throw "route summary not found for case '$($case.Name)': $($case.SummaryPath)"
-        }
+    try {
+        foreach ($case in $cases) {
+            if (-not (Test-Path $case.SummaryPath)) {
+                throw "route summary not found for case '$($case.Name)': $($case.SummaryPath)"
+            }
 
-        $caseOutputRoot = Join-Path $outputRootPath $case.Name
-        Invoke-ExternalTool `
-            -Executable $resolvedPythonExe `
-            -ArgumentList @($exportScript, "--summary", $case.SummaryPath, "--output-root", $caseOutputRoot) `
-            -FailureMessage ("front page entry capability export failed for case '{0}'" -f $case.Name)
+            Ensure-RouteSummaryPlaceholders -RouteSummaryPath $case.SummaryPath -CreatedPaths $temporaryPlaceholderPaths
 
-        $capabilitySummaryPath = Join-Path $caseOutputRoot "front-page.entry-capability.summary.json"
-        Invoke-ExternalTool `
-            -Executable $resolvedPythonExe `
-            -ArgumentList @($validateScript, "--summary", $capabilitySummaryPath) `
-            -FailureMessage ("front page entry capability validation failed for case '{0}'" -f $case.Name)
+            $caseOutputRoot = Join-Path $outputRootPath $case.Name
+            Invoke-ExternalTool `
+                -Executable $resolvedPythonExe `
+                -ArgumentList @($exportScript, "--summary", $case.SummaryPath, "--output-root", $caseOutputRoot) `
+                -FailureMessage ("front page entry capability export failed for case '{0}'" -f $case.Name)
 
-        $capabilitySummary = Load-JsonObject -Path $capabilitySummaryPath
-        Assert-Condition `
-            -Condition ([string]$capabilitySummary.entry_status.recommended_entry_mode -eq $case.ExpectedMode) `
-            -Message ("case '{0}' expected mode '{1}' but got '{2}'" -f $case.Name, $case.ExpectedMode, $capabilitySummary.entry_status.recommended_entry_mode)
-        Assert-Condition `
-            -Condition ([string]$capabilitySummary.entry_status.entry_tier -eq $case.ExpectedTier) `
-            -Message ("case '{0}' expected tier '{1}' but got '{2}'" -f $case.Name, $case.ExpectedTier, $capabilitySummary.entry_status.entry_tier)
-        Assert-Condition `
-            -Condition ([int]$capabilitySummary.entry_status.route_provenance_entry_count -eq [int]$case.ExpectedProvenanceCount) `
-            -Message ("case '{0}' expected route provenance count '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProvenanceCount, $capabilitySummary.entry_status.route_provenance_entry_count)
+            $capabilitySummaryPath = Join-Path $caseOutputRoot "front-page.entry-capability.summary.json"
+            Invoke-ExternalTool `
+                -Executable $resolvedPythonExe `
+                -ArgumentList @($validateScript, "--summary", $capabilitySummaryPath) `
+                -FailureMessage ("front page entry capability validation failed for case '{0}'" -f $case.Name)
 
-        $availableCapabilities = @([string[]]$capabilitySummary.capability_summary.available_capability_ids)
-        foreach ($capabilityId in @($case.RequiredCapabilities)) {
+            $capabilitySummary = Load-JsonObject -Path $capabilitySummaryPath
             Assert-Condition `
-                -Condition ($availableCapabilities -contains [string]$capabilityId) `
-                -Message ("case '{0}' is missing capability '{1}'" -f $case.Name, $capabilityId)
-        }
+                -Condition ([string]$capabilitySummary.entry_status.recommended_entry_mode -eq $case.ExpectedMode) `
+                -Message ("case '{0}' expected mode '{1}' but got '{2}'" -f $case.Name, $case.ExpectedMode, $capabilitySummary.entry_status.recommended_entry_mode)
+            Assert-Condition `
+                -Condition ([string]$capabilitySummary.entry_status.entry_tier -eq $case.ExpectedTier) `
+                -Message ("case '{0}' expected tier '{1}' but got '{2}'" -f $case.Name, $case.ExpectedTier, $capabilitySummary.entry_status.entry_tier)
+            Assert-Condition `
+                -Condition ([int]$capabilitySummary.entry_status.route_provenance_entry_count -eq [int]$case.ExpectedProvenanceCount) `
+                -Message ("case '{0}' expected route provenance count '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProvenanceCount, $capabilitySummary.entry_status.route_provenance_entry_count)
 
-        Write-Host (
-            "[FRONT-PAGE-ENTRY-CAPABILITY-SMOKE] case={0} mode={1} tier={2} capabilities={3}" -f
-            $case.Name,
-            [string]$capabilitySummary.entry_status.recommended_entry_mode,
-            [string]$capabilitySummary.entry_status.entry_tier,
-            ($availableCapabilities -join ",")
-        )
+            $availableCapabilities = @([string[]]$capabilitySummary.capability_summary.available_capability_ids)
+            foreach ($capabilityId in @($case.RequiredCapabilities)) {
+                Assert-Condition `
+                    -Condition ($availableCapabilities -contains [string]$capabilityId) `
+                    -Message ("case '{0}' is missing capability '{1}'" -f $case.Name, $capabilityId)
+            }
+
+            Write-Host (
+                "[FRONT-PAGE-ENTRY-CAPABILITY-SMOKE] case={0} mode={1} tier={2} capabilities={3}" -f
+                $case.Name,
+                [string]$capabilitySummary.entry_status.recommended_entry_mode,
+                [string]$capabilitySummary.entry_status.entry_tier,
+                ($availableCapabilities -join ",")
+            )
+        }
+    } finally {
+        Remove-TemporaryFiles -Paths @($temporaryPlaceholderPaths) -RepoRootPath $repoRoot
     }
 } finally {
     Pop-Location
 }
 
 Write-Host ("[FRONT-PAGE-ENTRY-CAPABILITY-SMOKE] output_root={0}" -f $outputRootPath)
-

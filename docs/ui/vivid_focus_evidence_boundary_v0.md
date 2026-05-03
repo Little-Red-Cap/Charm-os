@@ -91,3 +91,7 @@ Focus Evidence Boundary v0 只证明单 Button 的 focus ring 边界。
 - focus transfer evidence：old focus out + new focus in。
 - component focus scope：focus ring 不越出 component boundary。
 - accessibility evidence：focus truth 与 semantic focus target 对齐。
+
+## 2026-05 补记：Focus Transfer
+
+`Examples/ui/vivid/focus_transfer_demo` 已将 focus evidence 从单点 focus ring 推进到迁移事务：真实 input dispatch 产生 `FocusOut(old)` 与 `FocusIn(new)`，`input_focused` 提交到新 target，style evidence 保持稳定，render artifact 迁移到 destination。详细法律见 `vivid_focus_transfer_evidence_v0.md`。

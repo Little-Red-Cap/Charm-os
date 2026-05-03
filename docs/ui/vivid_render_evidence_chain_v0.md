@@ -13,6 +13,8 @@ focus_ring=1
 
 v0 由 `Examples/ui/vivid/focus_boundary_demo` 验证：`set_focused(true)` 不改变 `ResolvedStyleEvidence`，但会改变 draw command evidence 与 render artifact；`set_focused(false)` 后 artifact 回到 baseline。详细法律见 `vivid_focus_evidence_boundary_v0.md`。
 
+`Examples/ui/vivid/focus_transfer_demo` 继续验证 focus transfer evidence：真实 input dispatch 产生 `FocusOut / FocusIn`，focus truth 提交到新 target，style evidence 保持稳定，artifact 迁移由 `dirty_hash / pixel_hash / target` 证明。详细法律见 `vivid_focus_transfer_evidence_v0.md`。
+
 本文定义 Vivid 从 widget 级证据进入 component 级因果证据的最小路线。
 
 它的目标不是替代截图回归，而是在截图之前先证明：

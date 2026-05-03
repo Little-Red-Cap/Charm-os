@@ -14,6 +14,7 @@
 - `Examples/ui/vivid/component_settings_row_demo`
 - `Examples/ui/vivid/style_token_law_demo`
 - `Examples/ui/vivid/focus_boundary_demo`
+- `Examples/ui/vivid/focus_transfer_demo`
 - `Examples/ui/vivid/widget_signal_demo`
 - `Examples/ui/vivid/widget_state_demo`
 
@@ -73,6 +74,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `component_settings_row_demo` | `csr` | `[csr] run=component_settings_row_demo phase=end result=ok cases=4` |
 | `style_token_law_demo` | `stl` | `[stl] run=style_token_law_demo phase=end result=ok cases=6` |
 | `focus_boundary_demo` | `fb` | `[fb] run=focus_boundary_demo phase=end result=ok cases=6` |
+| `focus_transfer_demo` | `ft` | `[ft] run=focus_transfer_demo phase=end result=ok cases=7` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 

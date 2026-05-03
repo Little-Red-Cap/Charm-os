@@ -226,6 +226,17 @@ v0 阶段建议至少覆盖：
 - declared facts / declared contracts 是什么
 - profile / board / facets 是从显式参数、默认值还是 case subject 解析出来的
 
+与此同时，artifact report root 现在也有了一份更轻的机器入口：
+
+- `artifact-report/index.json`
+- `schema = system_compiler.artifact_report_index/v0`
+
+它不是新的 explain query，也不替代 inspector 默认总览。
+它的职责是给 CI、IDE 原型和外部脚本一个 first-read entrypoint：
+先读取 `compiler_headline`、case 路径、formation 状态、drift 维度与阻塞热点，
+再决定是否打开完整 `*.artifact_report.json`
+或调用 inspector 继续追问。
+
 ## 6. v0 的最小 `explain surface`
 
 当前建议先把问题面收敛为五类最小查询，而不是先发明很大的命令系统。
@@ -472,6 +483,15 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 它不替代 `formation_headline` 的成立性细节，也不替代 `comparison.drift_headline`
 或各个 `comparison.*_summary` 的 drift 诊断；如果当前没有 compare 结果，
 `has_comparison` 为 `false`，`text` 中的 `drift` 为 `n/a`。
+
+同一组 first-read 语义现在也会被投影进 `artifact-report/index.json`。
+这让轻量工具可以先读 root index 的 `compiler_headline`，
+不用为了回答“当前是否 blocked、drift 在哪些维度、哪些 case 需要深挖”
+而预先加载完整 artifact root 默认总览。
+两者的边界是：
+
+- root index 负责入口、路径和热点。
+- inspector 默认总览负责完整 summary、matrix 和 explain query 起点。
 
 其中顶层 `formation_headline` 是当前结果“如何成立”的人类扫读入口：
 它把 `formed / blocked / unresolved_bindings / blocked_nodes / blockers`
@@ -1137,6 +1157,7 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 ### 7.2 工件组织层
 
 - `bundle`
+- `artifact report index`
 - `report manifest`
 
 用途：
@@ -1144,6 +1165,7 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 - 批量导出结果组织
 - 报告工件发现
 - 上层工具稳定引用
+- CI / IDE / 外部脚本的 first-read 入口
 
 ### 7.3 比较与 CI 层
 
@@ -1155,6 +1177,14 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 - 增量变化分析
 - 自动化审阅
 - CI 状态汇总
+
+其中 `ci summary` 可以继续暴露：
+
+- `artifact_report.index`
+- `artifact_report.compiler_headline`
+
+这条路径只负责把 root index 的第一眼结论接到 CI 摘要里。
+完整诊断仍保留在 artifact report root 与 inspector 查询面。
 
 ### 7.4 解释层
 

@@ -351,6 +351,27 @@ Assert-Condition ([int]$reportInspectResult.summary.OrdCmp -gt 0) 'default repor
 $rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJsonPath -Command {
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
 }
+$artifactReportIndexPath = Join-Path $artifactReportOutputRoot 'index.json'
+Assert-Condition (Test-Path $artifactReportIndexPath) 'artifact report root must expose index.json'
+$artifactReportIndex = Get-Content -LiteralPath $artifactReportIndexPath -Raw -Encoding utf8 | ConvertFrom-Json
+Assert-Condition ([string]$artifactReportIndex.schema -eq 'system_compiler.artifact_report_index/v0') 'artifact report index schema mismatch'
+Assert-Condition ($null -ne $artifactReportIndex.compiler_headline) 'artifact report index must expose compiler_headline'
+Assert-Condition ([string]$artifactReportIndex.compiler_headline.status -eq 'blocked') 'artifact report index compiler_headline status must be blocked'
+Assert-Condition ([bool]$artifactReportIndex.compiler_headline.has_comparison) 'artifact report index compiler_headline must mark comparison as present'
+Assert-Condition ([bool]$artifactReportIndex.compiler_headline.has_drift) 'artifact report index compiler_headline must mark drift as present'
+Assert-Condition ([int]$artifactReportIndex.compiler_headline.case_count -ge 2) 'artifact report index compiler_headline case_count must be at least 2'
+Assert-Condition ([int]$artifactReportIndex.compiler_headline.blocked_case_count -eq 1) 'artifact report index compiler_headline blocked_case_count must be 1'
+Assert-Condition ((@($artifactReportIndex.compiler_headline.drift_dimensions) -contains 'formation')) 'artifact report index compiler_headline missing formation drift dimension'
+Assert-Condition ((@($artifactReportIndex.compiler_headline.drift_dimensions) -contains 'binding')) 'artifact report index compiler_headline missing binding drift dimension'
+Assert-Condition ((@($artifactReportIndex.compiler_headline.drift_dimensions) -contains 'bringup_order')) 'artifact report index compiler_headline missing bringup_order drift dimension'
+Assert-Condition ((@($artifactReportIndex.compiler_headline.blocked_cases) -contains $ChangedCase)) 'artifact report index compiler_headline missing blocked case'
+Assert-Condition ((@($artifactReportIndex.compiler_headline.unresolved_capabilities) -contains $RemovedCapability)) 'artifact report index compiler_headline missing removed capability'
+Assert-Condition ((@($artifactReportIndex.compiler_headline.blocked_nodes) -contains $BlockedNode)) 'artifact report index compiler_headline missing blocked node'
+Assert-Condition ([string]$artifactReportIndex.compiler_headline.text -like '*status:blocked*') 'artifact report index compiler_headline text missing blocked status'
+Assert-Condition ([string]$artifactReportIndex.compiler_headline.text -like '*drift:*') 'artifact report index compiler_headline text missing drift token'
+Assert-Condition ([string]$artifactReportIndex.compiler_headline.text -eq [string]$rootSummaryInspectResult.compiler_headline.text) 'artifact report index compiler_headline text must match root summary compiler_headline text'
+Assert-Condition (@($artifactReportIndex.cases).Count -ge 2) 'artifact report index must expose case entries'
+Assert-Condition ((@($artifactReportIndex.cases | ForEach-Object { [string]$_.name }) -contains $ChangedCase)) 'artifact report index missing changed case entry'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary) 'artifact_root summary must expose system_compiler_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.compiler_headline) 'artifact_root summary must expose compiler_headline'
 Assert-Condition ([string]$rootSummaryInspectResult.compiler_headline.status -eq 'blocked') 'artifact_root compiler_headline status must be blocked'
@@ -577,6 +598,7 @@ $summary = [ordered]@{
     blocked_node = $BlockedNode
     diff_json = $diffJsonPath
     artifact_report_root = $artifactReportOutputRoot
+    artifact_report_index = $artifactReportIndexPath
     captures = [ordered]@{
         report_summary = $reportInspectJsonPath
         root_summary = $rootSummaryInspectJsonPath
@@ -586,6 +608,7 @@ $summary = [ordered]@{
         artifact_report_exposes_system_formation = $true
         system_compiler_summary_supported = $true
         compiler_headline_supported = $true
+        artifact_report_index_compiler_headline_supported = $true
         formation_headline_supported = $true
         binding_result_compare_supported = $true
         bringup_order_compare_supported = $true

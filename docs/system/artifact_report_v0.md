@@ -66,6 +66,18 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
 与可选 `fact_evidence` sidecar，
 为每个 case 生成一份最小 `artifact report` JSON。
+当调用方通过 `-OutputRoot` 导出一组 report 时，
+脚本还会在 root 下生成一份轻量入口：
+
+- `index.json`
+- `schema = system_compiler.artifact_report_index/v0`
+
+这份 index 不是新的大总报告。
+它只把“第一眼判断”和“继续深挖的路径”放在 root 入口，
+让 CI、IDE 原型或外部脚本不用先打开所有 case 级 full report，
+也能快速知道当前 formation 状态、compare drift 维度、阻塞热点与 report 文件位置。
+如果调用方使用 `-OutputPath` 只导出单个 report，
+当前不会额外生成 root index。
 而 `inspect_system_compiler_artifact_report.ps1` 则提供了当前最小只读消费面，
 用于把 case 级 `artifact report` 直接展开成人类可读摘要或机器继续消费的 JSON 视图。
 `materialized_graph_required_fact_resolution_matrix_smoke.ps1` 则用于钉住 artifact-root 级
@@ -145,6 +157,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 ./scripts/export_materialized_graph.ps1 -Case materialize-observe-demo -OutputRoot out/artifact-report-demo-bundle
 ./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/artifact-report-demo-bundle -Case materialize-observe-demo -OutputRoot out/system-compiler-artifact-report-demo
 python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-artifact-report-demo/materialize-observe-demo.artifact_report.json
+Get-Content -Raw -Encoding UTF8 ./out/system-compiler-artifact-report-demo/index.json | ConvertFrom-Json
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -Case materialize-observe-demo -CapList
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/system-compiler-artifact-report-demo -CapList -AsJson
@@ -1534,6 +1547,63 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
 - 或可解析引用键
 
 形式出现，而不是把大块内容直接内嵌进顶层报告。
+
+### 5.12 Artifact root index
+
+当一组 `artifact report` 通过 `-OutputRoot` 落到同一个 root 时，
+root 下可以额外存在一份 `index.json`：
+
+- `schema = system_compiler.artifact_report_index/v0`
+- `report_kind = system_compiler.artifact_report_index`
+
+它回答的问题不是“完整诊断是什么”，而是：
+
+> “这组 report 当前是否成立、是否发生 drift、阻塞热点在哪里、full report 在哪里。”
+
+当前 index 建议保持轻量，至少包含：
+
+- `artifact_root`
+- `bundle.root / bundle.index / bundle.input_manifest`
+- `artifacts.diff / artifacts.ci_summary / artifacts.report_manifest`
+- `case_count`
+- `compiler_headline`
+- `cases[*].name / path / mode`
+- `cases[*].profile / board / active_facets`
+- `cases[*].formation_status / comparison_status`
+- `cases[*].has_drift / drift_dimensions`
+- `cases[*].unresolved_binding_count / blocked_node_count / blocker_count`
+- `cases[*].unresolved_capabilities / blocked_nodes`
+
+其中 `compiler_headline` 复用 artifact_root 默认总览的第一眼语义，
+至少带出：
+
+- `text`
+- `status`
+- `formation_text / drift_text`
+- `has_comparison / has_drift`
+- `case_count / formed_case_count / blocked_case_count`
+- `unresolved_binding_count / blocked_node_count / blocker_count`
+- `compared_case_count / changed_dimension_count`
+- `drift_dimensions / dimension_counts`
+- `blocked_cases / unresolved_capabilities / blocked_nodes`
+
+这里必须守住两个边界：
+
+- index 不复制 full report 的各类 summary matrix。
+- index 不替代 inspector 的 artifact_root 默认总览。
+
+如果工具需要完整 system input、binding result、bringup order、fact resolution、
+resource contract 或 capability 级 explain，
+仍应继续读取 case 级 `*.artifact_report.json`，
+或调用 `inspect_system_compiler_artifact_report.ps1` 的对应查询。
+
+CI 链路当前也会把这个 first-read 入口继续暴露到 `ci summary`：
+
+- `summary.artifact_report.index`
+- `summary.artifact_report.compiler_headline`
+
+这样自动化系统可以先读 CI summary，
+再按需跳转到 root index 或 full report。
 
 ## 6. v0 的最小样例形状
 

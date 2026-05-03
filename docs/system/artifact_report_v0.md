@@ -329,6 +329,15 @@ artifact_root 级 `cap list` 现在也会继续带出：
 当前 JSON 总览也会额外带出一份最小 `comparison` 摘要，
 至少回答：
 
+- 顶层 `formation_headline.text`
+- 顶层 `formation_headline.status / status_counts`
+- 顶层 `formation_headline.formed_cases / blocked_cases`
+- 顶层 `formation_headline.unresolved_capabilities / blocked_nodes / blockers`
+- 顶层 `compiler_headline.text`
+- 顶层 `compiler_headline.status / has_comparison / has_drift`
+- 顶层 `compiler_headline.formation_text / drift_text`
+- 顶层 `compiler_headline.drift_dimensions`
+- 顶层 `compiler_headline.blocked_cases / unresolved_capabilities / blocked_nodes`
 - `compared_case_count`
 - `metadata_changed_case_count`
 - `system_formation_changed_case_count`
@@ -374,6 +383,20 @@ artifact_root 级 `cap list` 现在也会继续带出：
 这意味着默认总览已经能直接回答：
 
 > **这一组 compare report 里，到底有多少 case 真正在 compare 维度上发生了漂移。**
+
+其中顶层 `compiler_headline` 是默认总览的第一眼扫读入口：
+它把当前结果的 `formation_headline` 与 compare 侧的 `comparison.drift_headline`
+合成一行 `text`，形如 `status:blocked drift:formation,binding,bringup_order`。
+如果当前 report/root 没有 compare 结果，`drift` 会写成 `n/a`；
+如果存在 compare 结果但没有漂移，`drift` 会写成 `none`。
+它只负责回答“当前是否成立 + 漂移在哪些维度”，
+不替代 `formation_headline`、`comparison.drift_headline` 或各个 `comparison.*_summary`。
+
+其中顶层 `formation_headline` 描述的是当前 artifact_root 这组结果“如何成立”：
+它把 `formed / blocked / unresolved_bindings / blocked_nodes / blockers`
+压成一行 `text`，并保留 blocked case 与阻塞热点给轻量工具消费。
+它不是 compare drift 字段；如果需要看左右两份 report 的变化，
+仍应读取 `comparison.drift_headline` 与各个 `comparison.*_summary`。
 
 其中 `comparison.drift_headline` 是给人类和轻量工具看的扫读入口：
 它把 `metadata / input / formation / binding / bringup_order / bringup_evidence / resource / fact_resolution`
@@ -1175,6 +1198,32 @@ case summary 行级的 `FactCmp` 才是默认总览里用于观察 required fact
 - `binding_summary`
 - `bringup_summary`
 - `blocker_count / blockers`
+
+单 report 默认总览也会在顶层带出 `compiler_headline` 与 `formation_headline`。
+
+`compiler_headline` 至少包含：
+
+- `compiler_headline.text`
+- `compiler_headline.status / has_comparison / has_drift`
+- `compiler_headline.formation_text / drift_text`
+- `compiler_headline.drift_dimensions`
+- `compiler_headline.blocked_cases / unresolved_capabilities / blocked_nodes`
+
+它把当前单 report 的成立状态与 compare drift 摘要合并成扫读入口；
+`case_count` 通常为 `1`，`drift_dimensions` 也只表达当前 case 命中的 drift 维度。
+如果当前 report 不是 compare 模式，`has_comparison` 为 `false`，`text` 中的 `drift` 为 `n/a`。
+
+`formation_headline` 至少包含：
+
+- `formation_headline.text`
+- `formation_headline.status / status_counts`
+- `formation_headline.formed_cases / blocked_cases`
+- `formation_headline.unresolved_capabilities / blocked_nodes / blockers`
+
+这份 headline 只描述当前 report 的成立状态，
+因此 `case_count` 通常为 `1`，`status_counts` 也只是当前 case 的 `0/1` 命中。
+它用于让默认视图第一眼回答“这个系统是否成立、阻塞在哪里”，
+详细诊断仍以 `system_formation.binding_summary / bringup_summary / blockers` 为准。
 
 它不取代 `binding_result` 或 `bringup_order`，
 而是把“系统是否成立、为什么没成立”正式压成一个顶层结果物。

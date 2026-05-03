@@ -395,6 +395,15 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 
 默认总览本身现在还会继续直接给出：
 
+- 顶层 `compiler_headline.text`
+- 顶层 `compiler_headline.status / has_comparison / has_drift`
+- 顶层 `compiler_headline.formation_text / drift_text`
+- 顶层 `compiler_headline.drift_dimensions`
+- 顶层 `compiler_headline.blocked_cases / unresolved_capabilities / blocked_nodes`
+- 顶层 `formation_headline.text`
+- 顶层 `formation_headline.status / status_counts`
+- 顶层 `formation_headline.formed_cases / blocked_cases`
+- 顶层 `formation_headline.unresolved_capabilities / blocked_nodes / blockers`
 - `comparison.input_changed_case_count`
 - `comparison.system_formation_changed_case_count`
 - `comparison.binding_result_changed_case_count`
@@ -456,6 +465,19 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `cases[*].FormCmp`
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
+
+其中顶层 `compiler_headline` 是默认总览的第一眼扫读入口：
+它把当前结果的 `formation_headline` 与 compare 侧的 `comparison.drift_headline`
+合成一行 `text`，用于回答“当前系统是否成立 + 相比 baseline 漂移在哪些维度”。
+它不替代 `formation_headline` 的成立性细节，也不替代 `comparison.drift_headline`
+或各个 `comparison.*_summary` 的 drift 诊断；如果当前没有 compare 结果，
+`has_comparison` 为 `false`，`text` 中的 `drift` 为 `n/a`。
+
+其中顶层 `formation_headline` 是当前结果“如何成立”的人类扫读入口：
+它把 `formed / blocked / unresolved_bindings / blocked_nodes / blockers`
+压成一行 `text`，并保留 blocked case、unresolved capability 与 blocked node 热点
+给轻量工具消费。它不表达 compare drift；
+drift 仍然由 `comparison.drift_headline` 与各个 `comparison.*_summary` 负责。
 
 其中 `comparison.drift_headline` 是默认总览的人类扫读入口：
 它把 `metadata / input / formation / binding / bringup_order / bringup_evidence / resource / fact_resolution`
@@ -574,6 +596,7 @@ artifact_root 默认总览里的匿名嵌套块。
 “有多少 case 发生了 system formation 漂移”，
 还会继续直接带出：
 
+- 一行 `formation_headline`，先说明当前结果整体是 formed 还是 blocked
 - 这一组 case 的 system compiler 总结果当前是怎样收口的
 - 这一组 case 当前有哪些 `case_kind / resolved profile / resolved board / active facet`
 - 单个 case 的 `formation_basis / binding_summary / bringup_summary` 是怎样收口的

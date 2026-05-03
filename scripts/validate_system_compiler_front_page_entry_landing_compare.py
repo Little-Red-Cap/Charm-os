@@ -172,13 +172,23 @@ def main() -> int:
         expect_equal(summary.get("artifact_context"), expected_summary.get("artifact_context"), "artifact_context", errors)
         expect_equal(summary.get("landing_verdict"), expected_summary.get("landing_verdict"), "landing_verdict", errors)
         expect_equal(summary.get("landing_status"), expected_summary.get("landing_status"), "landing_status", errors)
+        expect_equal(summary.get("primary_query_status"), expected_summary.get("primary_query_status"), "primary_query_status", errors)
         expect_equal(summary.get("landing_changes"), expected_summary.get("landing_changes"), "landing_changes", errors)
+        expect_equal(summary.get("query_plan_changes"), expected_summary.get("query_plan_changes"), "query_plan_changes", errors)
+        expect_equal(summary.get("query_summary"), expected_summary.get("query_summary"), "query_summary", errors)
+        expect_equal(summary.get("query_changes"), expected_summary.get("query_changes"), "query_changes", errors)
         expect_equal(summary.get("tab_summary"), expected_summary.get("tab_summary"), "tab_summary", errors)
         expect_equal(summary.get("tab_changes"), expected_summary.get("tab_changes"), "tab_changes", errors)
         expect_equal(
             summary.get("landing_regression_surface"),
             expected_summary.get("landing_regression_surface"),
             "landing_regression_surface",
+            errors,
+        )
+        expect_equal(
+            summary.get("query_regression_surface"),
+            expected_summary.get("query_regression_surface"),
+            "query_regression_surface",
             errors,
         )
         expect_equal(summary.get("questions"), expected_summary.get("questions"), "questions", errors)

@@ -108,6 +108,20 @@ function Assert-Condition {
     }
 }
 
+function Test-AllPathsExist {
+    param(
+        [string[]]$Paths
+    )
+
+    foreach ($path in @($Paths)) {
+        if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path $path)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $inputRootPath = Resolve-FullPath -Path $InputRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
@@ -134,19 +148,6 @@ foreach ($requiredPath in @($landingSmokeScript, $compareScript, $validateScript
 
 Push-Location $repoRoot
 try {
-    Invoke-ExternalTool `
-        -Executable "powershell.exe" `
-        -ArgumentList @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $landingSmokeScript,
-            "-OutputRoot",
-            $inputRootPath
-        ) `
-        -FailureMessage "front page entry landing smoke bootstrap failed"
-
     $cases = @(
         [ordered]@{
             Name = "root-witness-to-root-witness"
@@ -154,6 +155,10 @@ try {
             Candidate = Join-Path $inputRootPath "root-witness\front-page.entry-landing.summary.json"
             ExpectedVerdict = "standing"
             ExpectedPrimary = "delivery_biography"
+            ExpectedPrimaryQueryKind = "default_overview"
+            ExpectedPrimaryQueryScope = "report"
+            ExpectedPrimaryQueryChanged = $false
+            ExpectedQueryRegression = $false
             AddedTabs = @()
             RemovedTabs = @()
             AddedDirectModes = @()
@@ -166,6 +171,10 @@ try {
             Candidate = Join-Path $inputRootPath "root-world-compare\front-page.entry-landing.summary.json"
             ExpectedVerdict = "improved"
             ExpectedPrimary = "counterfactual_verdict"
+            ExpectedPrimaryQueryKind = "default_overview"
+            ExpectedPrimaryQueryScope = "artifact_root"
+            ExpectedPrimaryQueryChanged = $true
+            ExpectedQueryRegression = $false
             AddedTabs = @("counterfactual_verdict")
             RemovedTabs = @()
             AddedDirectModes = @("compare")
@@ -178,6 +187,10 @@ try {
             Candidate = Join-Path $inputRootPath "root-witness\front-page.entry-landing.summary.json"
             ExpectedVerdict = "drifted"
             ExpectedPrimary = "delivery_biography"
+            ExpectedPrimaryQueryKind = "default_overview"
+            ExpectedPrimaryQueryScope = "report"
+            ExpectedPrimaryQueryChanged = $true
+            ExpectedQueryRegression = $true
             AddedTabs = @()
             RemovedTabs = @("counterfactual_verdict")
             AddedDirectModes = @()
@@ -190,6 +203,10 @@ try {
             Candidate = Join-Path $inputRootPath "review-provenance\front-page.entry-landing.summary.json"
             ExpectedVerdict = "improved"
             ExpectedPrimary = "grouped_review"
+            ExpectedPrimaryQueryKind = "default_overview"
+            ExpectedPrimaryQueryScope = "artifact_root"
+            ExpectedPrimaryQueryChanged = $false
+            ExpectedQueryRegression = $false
             AddedTabs = @()
             RemovedTabs = @()
             AddedDirectModes = @()
@@ -197,6 +214,29 @@ try {
             AddedProvenanceRoots = @("candidate_shelf", "shelf_compare", "baseline_shelf")
         }
     )
+
+    $bootstrapInputs = @()
+    foreach ($case in $cases) {
+        $bootstrapInputs += [string]$case.Baseline
+        $bootstrapInputs += [string]$case.Candidate
+    }
+
+    if (Test-AllPathsExist -Paths $bootstrapInputs) {
+        Write-Host "[FRONT-PAGE-ENTRY-LANDING-COMPARE-SMOKE] bootstrap=reuse-existing"
+    } else {
+        Invoke-ExternalTool `
+            -Executable "powershell.exe" `
+            -ArgumentList @(
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                $landingSmokeScript,
+                "-OutputRoot",
+                $inputRootPath
+            ) `
+            -FailureMessage "front page entry landing smoke bootstrap failed"
+    }
 
     foreach ($case in $cases) {
         foreach ($requiredSummary in @($case.Baseline, $case.Candidate)) {
@@ -224,6 +264,18 @@ try {
         Assert-Condition `
             -Condition ([string]$compareSummary.landing_status.candidate_primary_tab_id -eq $case.ExpectedPrimary) `
             -Message ("case '{0}' expected candidate primary tab '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimary, $compareSummary.landing_status.candidate_primary_tab_id)
+        Assert-Condition `
+            -Condition ([string]$compareSummary.primary_query_status.candidate_query_kind -eq $case.ExpectedPrimaryQueryKind) `
+            -Message ("case '{0}' expected candidate primary query kind '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryKind, $compareSummary.primary_query_status.candidate_query_kind)
+        Assert-Condition `
+            -Condition ([string]$compareSummary.primary_query_status.candidate_scope -eq $case.ExpectedPrimaryQueryScope) `
+            -Message ("case '{0}' expected candidate primary query scope '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryScope, $compareSummary.primary_query_status.candidate_scope)
+        Assert-Condition `
+            -Condition ([bool]$compareSummary.query_plan_changes.primary_query_changed -eq [bool]$case.ExpectedPrimaryQueryChanged) `
+            -Message ("case '{0}' expected primary_query_changed '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryChanged, $compareSummary.query_plan_changes.primary_query_changed)
+        Assert-Condition `
+            -Condition ([bool]$compareSummary.query_regression_surface.changed -eq [bool]$case.ExpectedQueryRegression) `
+            -Message ("case '{0}' expected query regression '{1}' but got '{2}'" -f $case.Name, $case.ExpectedQueryRegression, $compareSummary.query_regression_surface.changed)
 
         $addedTabs = @([string[]]$compareSummary.landing_changes.available_tab_changes.added)
         $removedTabs = @([string[]]$compareSummary.landing_changes.available_tab_changes.removed)
@@ -258,10 +310,14 @@ try {
         }
 
         Write-Host (
-            "[FRONT-PAGE-ENTRY-LANDING-COMPARE-SMOKE] case={0} verdict={1} primary={2} tabs=+[{3}] -[{4}] direct=+[{5}] -[{6}] provenance=+[{7}]" -f
+            "[FRONT-PAGE-ENTRY-LANDING-COMPARE-SMOKE] case={0} verdict={1} primary={2} query={3}/{4} query_changed={5} query_regression={6} tabs=+[{7}] -[{8}] direct=+[{9}] -[{10}] provenance=+[{11}]" -f
             $case.Name,
             [string]$compareSummary.landing_verdict,
             [string]$compareSummary.landing_status.candidate_primary_tab_id,
+            [string]$compareSummary.primary_query_status.candidate_query_kind,
+            [string]$compareSummary.primary_query_status.candidate_scope,
+            [bool]$compareSummary.query_plan_changes.primary_query_changed,
+            [bool]$compareSummary.query_regression_surface.changed,
             ($addedTabs -join ","),
             ($removedTabs -join ","),
             ($addedDirectModes -join ","),

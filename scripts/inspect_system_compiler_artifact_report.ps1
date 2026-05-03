@@ -464,6 +464,72 @@ function New-ArtifactRootFormationHeadline {
         -Blockers @($summary.blocker_matrix)
 }
 
+function New-CompilerHeadline {
+    param(
+        $FormationHeadline,
+        $ComparisonOverview
+    )
+
+    if ($null -eq $FormationHeadline -and $null -eq $ComparisonOverview) {
+        return $null
+    }
+
+    $driftHeadline = Get-OptionalMemberValue -Object $ComparisonOverview -Name 'drift_headline'
+    $changedDimensions = @(
+        @(Get-OptionalMemberValue -Object $driftHeadline -Name 'changed_dimensions') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+    $hasComparison = $null -ne $driftHeadline
+    $hasDrift = $hasComparison -and @($changedDimensions).Count -gt 0
+    $driftToken = if (-not $hasComparison) {
+        'n/a'
+    } elseif ($hasDrift) {
+        @($changedDimensions) -join ','
+    } else {
+        'none'
+    }
+
+    $status = [string](Get-OptionalMemberValue -Object $FormationHeadline -Name 'status')
+    if ([string]::IsNullOrWhiteSpace($status)) {
+        $status = 'unknown'
+    }
+
+    $statusCounts = Get-OptionalMemberValue -Object $FormationHeadline -Name 'status_counts'
+    return [ordered]@{
+        text = "status:$status drift:$driftToken"
+        status = $status
+        formation_text = [string](Get-OptionalMemberValue -Object $FormationHeadline -Name 'text')
+        drift_text = [string](Get-OptionalMemberValue -Object $driftHeadline -Name 'text')
+        has_comparison = [bool]$hasComparison
+        has_drift = [bool]$hasDrift
+        case_count = [int](Get-OptionalMemberValue -Object $FormationHeadline -Name 'case_count')
+        formed_case_count = [int](Get-OptionalMemberValue -Object $statusCounts -Name 'formed')
+        blocked_case_count = [int](Get-OptionalMemberValue -Object $statusCounts -Name 'blocked')
+        unresolved_binding_count = [int](Get-OptionalMemberValue -Object $FormationHeadline -Name 'unresolved_binding_count')
+        blocked_node_count = [int](Get-OptionalMemberValue -Object $FormationHeadline -Name 'blocked_node_count')
+        blocker_count = [int](Get-OptionalMemberValue -Object $FormationHeadline -Name 'blocker_count')
+        compared_case_count = [int](Get-OptionalMemberValue -Object $driftHeadline -Name 'compared_case_count')
+        changed_dimension_count = [int](Get-OptionalMemberValue -Object $driftHeadline -Name 'changed_dimension_count')
+        drift_dimensions = @($changedDimensions)
+        blocked_cases = @(
+            @(Get-OptionalMemberValue -Object $FormationHeadline -Name 'blocked_cases') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        unresolved_capabilities = @(
+            @(Get-OptionalMemberValue -Object $FormationHeadline -Name 'unresolved_capabilities') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        blocked_nodes = @(
+            @(Get-OptionalMemberValue -Object $FormationHeadline -Name 'blocked_nodes') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+    }
+}
+
 function Format-ResolvedScalarInputText {
     param(
         $ResolvedInput
@@ -8720,9 +8786,11 @@ function New-ArtifactJsonView {
     $report = $LoadedReport.Data
     $comparison = New-ReportComparisonOverviewResult -LoadedReport $LoadedReport
     $formationHeadline = New-ReportFormationHeadline -ReportData $report
+    $compilerHeadline = New-CompilerHeadline -FormationHeadline $formationHeadline -ComparisonOverview $comparison
     return [ordered]@{
         report_path = $LoadedReport.Path
         summary = New-CaseSummaryRow -LoadedReport $LoadedReport
+        compiler_headline = $compilerHeadline
         formation_headline = $formationHeadline
         subject = $report.subject
         system_input = $report.system_input
@@ -8974,11 +9042,15 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         -BringupOrderComparisonSummary $bringupOrderComparisonSummary `
         -SystemFormationComparisonSummary $systemFormationComparisonSummary `
         -FactResolutionComparisonSummary $factResolutionComparisonSummary
+    $compilerHeadline = New-CompilerHeadline -FormationHeadline $formationHeadline -ComparisonOverview $comparisonOverview
     if ($AsJson) {
         $payload = [ordered]@{
             artifact_root = $artifactRootPath
             case_count = $summaryRows.Count
             cases = $summaryRows
+        }
+        if ($null -ne $compilerHeadline) {
+            $payload.compiler_headline = $compilerHeadline
         }
         if ($null -ne $formationHeadline) {
             $payload.formation_headline = $formationHeadline
@@ -9007,6 +9079,13 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         $payload | ConvertTo-Json -Depth 14
     } else {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
+        if ($null -ne $compilerHeadline) {
+            Write-Host "compiler_headline      = $([string]$compilerHeadline.text)"
+            if (@($compilerHeadline.drift_dimensions).Count -gt 0) {
+                Write-Host "compiler_drift         = $((@($compilerHeadline.drift_dimensions) -join ', '))"
+            }
+            Write-Host ''
+        }
         if ($null -ne $formationHeadline) {
             Write-Host "formation_headline      = $([string]$formationHeadline.text)"
             if (@($formationHeadline.unresolved_capabilities).Count -gt 0) {
@@ -10022,6 +10101,17 @@ Write-Host "[CASE] $([string]($reportData.subject.case))"
 Write-Host "[MODE] $([string]($reportData.mode))"
 Write-Host ''
 
+$reportFormationHeadline = New-ReportFormationHeadline -ReportData $reportData
+$reportComparisonOverview = New-ReportComparisonOverviewResult -LoadedReport $loadedReport
+$reportCompilerHeadline = New-CompilerHeadline -FormationHeadline $reportFormationHeadline -ComparisonOverview $reportComparisonOverview
+if ($null -ne $reportCompilerHeadline) {
+    Write-Host "compiler_headline = $([string]$reportCompilerHeadline.text)"
+    if (@($reportCompilerHeadline.drift_dimensions).Count -gt 0) {
+        Write-Host "compiler_drift    = $((@($reportCompilerHeadline.drift_dimensions) -join ', '))"
+    }
+    Write-Host ''
+}
+
 $summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp, BindCmp, OrdCmp, BrCmp, ResCmp, FactCmp | Out-Host
 
 if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $reportData.system_input) {
@@ -10137,10 +10227,9 @@ Write-Host ''
 
 if ($null -ne $reportData.PSObject.Properties['system_formation'] -and $null -ne $reportData.system_formation) {
     $systemFormation = $reportData.system_formation
-    $formationHeadline = New-ReportFormationHeadline -ReportData $reportData
     Write-Host '[SYSTEM FORMATION]'
-    if ($null -ne $formationHeadline) {
-        Write-Host "formation_headline      = $([string]$formationHeadline.text)"
+    if ($null -ne $reportFormationHeadline) {
+        Write-Host "formation_headline      = $([string]$reportFormationHeadline.text)"
     }
     Write-Host "status                  = $([string]$systemFormation.status)"
     if ($null -ne $systemFormation.PSObject.Properties['formation_basis'] -and $null -ne $systemFormation.formation_basis) {
@@ -10223,7 +10312,7 @@ if ($null -ne $reportData.PSObject.Properties['fact_resolution'] -and $null -ne 
 }
 
 if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $reportData.comparison) {
-    $comparisonOverview = New-ReportComparisonOverviewResult -LoadedReport $loadedReport
+    $comparisonOverview = $reportComparisonOverview
     Write-Host '[COMPARISON]'
     if ($null -ne $comparisonOverview.drift_headline) {
         Write-Host "drift_headline = $([string]$comparisonOverview.drift_headline.text)"

@@ -316,6 +316,20 @@ $reportInspectResult = Invoke-CommandJson -OutputPath $reportInspectJsonPath -Co
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $ChangedCase -AsJson
 }
 Assert-Condition ([string]$reportInspectResult.summary.Case -eq $ChangedCase) 'report inspect summary case mismatch'
+Assert-Condition ($null -ne $reportInspectResult.compiler_headline) 'default report summary must expose compiler_headline'
+Assert-Condition ([string]$reportInspectResult.compiler_headline.status -eq 'blocked') 'default report compiler_headline status must be blocked'
+Assert-Condition ([bool]$reportInspectResult.compiler_headline.has_comparison) 'default report compiler_headline must mark comparison as present'
+Assert-Condition ([bool]$reportInspectResult.compiler_headline.has_drift) 'default report compiler_headline must mark drift as present'
+Assert-Condition ([int]$reportInspectResult.compiler_headline.case_count -eq 1) 'default report compiler_headline case_count must be 1'
+Assert-Condition ([int]$reportInspectResult.compiler_headline.blocked_case_count -eq 1) 'default report compiler_headline blocked_case_count must be 1'
+Assert-Condition ((@($reportInspectResult.compiler_headline.drift_dimensions) -contains 'formation')) 'default report compiler_headline missing formation drift dimension'
+Assert-Condition ((@($reportInspectResult.compiler_headline.drift_dimensions) -contains 'binding')) 'default report compiler_headline missing binding drift dimension'
+Assert-Condition ((@($reportInspectResult.compiler_headline.drift_dimensions) -contains 'bringup_order')) 'default report compiler_headline missing bringup_order drift dimension'
+Assert-Condition ((@($reportInspectResult.compiler_headline.blocked_cases) -contains $ChangedCase)) 'default report compiler_headline missing blocked case'
+Assert-Condition ((@($reportInspectResult.compiler_headline.unresolved_capabilities) -contains $RemovedCapability)) 'default report compiler_headline missing removed capability'
+Assert-Condition ((@($reportInspectResult.compiler_headline.blocked_nodes) -contains $BlockedNode)) 'default report compiler_headline missing blocked node'
+Assert-Condition ([string]$reportInspectResult.compiler_headline.text -like '*status:blocked*') 'default report compiler_headline text missing blocked status'
+Assert-Condition ([string]$reportInspectResult.compiler_headline.text -like '*drift:*') 'default report compiler_headline text missing drift token'
 Assert-Condition ($null -ne $reportInspectResult.formation_headline) 'default report summary must expose formation_headline'
 Assert-Condition ([string]$reportInspectResult.formation_headline.status -eq 'blocked') 'default report formation_headline status must be blocked'
 Assert-Condition ([int]$reportInspectResult.formation_headline.case_count -eq 1) 'default report formation_headline case_count must be 1'
@@ -338,6 +352,21 @@ $rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJs
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
 }
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary) 'artifact_root summary must expose system_compiler_summary'
+Assert-Condition ($null -ne $rootSummaryInspectResult.compiler_headline) 'artifact_root summary must expose compiler_headline'
+Assert-Condition ([string]$rootSummaryInspectResult.compiler_headline.status -eq 'blocked') 'artifact_root compiler_headline status must be blocked'
+Assert-Condition ([bool]$rootSummaryInspectResult.compiler_headline.has_comparison) 'artifact_root compiler_headline must mark comparison as present'
+Assert-Condition ([bool]$rootSummaryInspectResult.compiler_headline.has_drift) 'artifact_root compiler_headline must mark drift as present'
+Assert-Condition ([int]$rootSummaryInspectResult.compiler_headline.case_count -ge 2) 'artifact_root compiler_headline case_count must be at least 2'
+Assert-Condition ([int]$rootSummaryInspectResult.compiler_headline.formed_case_count -ge 1) 'artifact_root compiler_headline must retain formed status count'
+Assert-Condition ([int]$rootSummaryInspectResult.compiler_headline.blocked_case_count -eq 1) 'artifact_root compiler_headline blocked_case_count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.compiler_headline.drift_dimensions) -contains 'formation')) 'artifact_root compiler_headline missing formation drift dimension'
+Assert-Condition ((@($rootSummaryInspectResult.compiler_headline.drift_dimensions) -contains 'binding')) 'artifact_root compiler_headline missing binding drift dimension'
+Assert-Condition ((@($rootSummaryInspectResult.compiler_headline.drift_dimensions) -contains 'bringup_order')) 'artifact_root compiler_headline missing bringup_order drift dimension'
+Assert-Condition ((@($rootSummaryInspectResult.compiler_headline.blocked_cases) -contains $ChangedCase)) 'artifact_root compiler_headline missing blocked case'
+Assert-Condition ((@($rootSummaryInspectResult.compiler_headline.unresolved_capabilities) -contains $RemovedCapability)) 'artifact_root compiler_headline missing removed capability'
+Assert-Condition ((@($rootSummaryInspectResult.compiler_headline.blocked_nodes) -contains $BlockedNode)) 'artifact_root compiler_headline missing blocked node'
+Assert-Condition ([string]$rootSummaryInspectResult.compiler_headline.text -like '*status:blocked*') 'artifact_root compiler_headline text missing blocked status'
+Assert-Condition ([string]$rootSummaryInspectResult.compiler_headline.text -like '*drift:*') 'artifact_root compiler_headline text missing drift token'
 Assert-Condition ($null -ne $rootSummaryInspectResult.formation_headline) 'artifact_root summary must expose formation_headline'
 Assert-Condition ([string]$rootSummaryInspectResult.formation_headline.status -eq 'blocked') 'artifact_root formation_headline status must be blocked'
 Assert-Condition ([int]$rootSummaryInspectResult.formation_headline.case_count -ge 2) 'artifact_root formation_headline case_count must be at least 2'
@@ -556,6 +585,7 @@ $summary = [ordered]@{
         diff_marks_system_formation_as_changed = $true
         artifact_report_exposes_system_formation = $true
         system_compiler_summary_supported = $true
+        compiler_headline_supported = $true
         formation_headline_supported = $true
         binding_result_compare_supported = $true
         bringup_order_compare_supported = $true

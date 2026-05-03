@@ -7,6 +7,7 @@ export import charm.core.event;
 export import charm.core.geometry;
 export import charm.core.handle;
 export import charm.core.style;
+export import charm.core.style_impact;
 export import charm.core.style_sheet;
 export import charm.core.theme_preset;
 

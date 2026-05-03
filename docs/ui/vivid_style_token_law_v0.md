@@ -87,6 +87,15 @@ radius       -> paint_only 或 layout，取决于 box model
 
 如果 token 只改变颜色，demo 应证明 metrics 不变，并声明 `impact=paint_only`。
 
+`charm.core.style_impact` 提供 v0 的最小判定表：
+
+- `StyleTokenDomain::Color` -> `PaintOnly`
+- `StyleTokenDomain::Spacing` -> `PaintOnly | Layout`
+- `StyleTokenDomain::Font` -> `PaintOnly | TextMetrics | Layout`
+- `StyleTokenDomain::Radius` -> `PaintOnly | Layout`
+- `StyleTokenDomain::BorderWidth` -> `PaintOnly | Layout`
+- `StyleTokenDomain::Decoration` -> `PaintOnly`
+
 ### Law 5：ResolvedStyle 必须可审计
 
 StyleSheet 解析结果应能输出稳定摘要：
@@ -111,6 +120,6 @@ v0 使用 stdout evidence 证明 token 变化会改变 resolved color / render a
 - Button style state mask 包含 hovered / pressed / disabled，但不包含 focused。
 - accent token 变化后 `token_version` 增加，`stylesheet_version` 不需要变化。
 - resolved style color / style key 变化，但 metrics 不变。
-- color token 变化声明为 `paint_only`，并产生新的 render artifact。
+- color token 变化经 `decide_style_token_impact(Color)` 判定为 `paint_only`，并产生新的 render artifact。
 
 stdout 遵守 `vivid_evidence_stdout_law.md`。

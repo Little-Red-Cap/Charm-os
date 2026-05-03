@@ -3,6 +3,7 @@
 
 import charm.core.geometry;
 import charm.core.style;
+import charm.core.style_impact;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.gfx.canvas;
@@ -217,12 +218,44 @@ int main() {
     if (!vivid::evidence::expect(style_key_after != style_key_before, "style key changes after accent token")) {
         return 1;
     }
+    const StyleImpactDecision impact = decide_style_token_impact(StyleTokenDomain::Color);
+    if (!vivid::evidence::expect(impact.has(StyleInvalidationImpact::PaintOnly), "color token triggers paint")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(!impact.has(StyleInvalidationImpact::Layout), "color token does not trigger layout")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(!impact.has(StyleInvalidationImpact::TextMetrics),
+                                 "color token does not trigger text metrics")) {
+        return 1;
+    }
+    const StyleImpactDecision spacing_impact = decide_style_token_impact(StyleTokenDomain::Spacing);
+    if (!vivid::evidence::expect(spacing_impact.has(StyleInvalidationImpact::PaintOnly),
+                                 "spacing token preserves paint impact")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(spacing_impact.has(StyleInvalidationImpact::Layout),
+                                 "spacing token triggers layout")) {
+        return 1;
+    }
+    const StyleImpactDecision font_impact = decide_style_token_impact(StyleTokenDomain::Font);
+    if (!vivid::evidence::expect(font_impact.has(StyleInvalidationImpact::TextMetrics),
+                                 "font token triggers text metrics")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(font_impact.has(StyleInvalidationImpact::Layout),
+                                 "font token triggers layout")) {
+        return 1;
+    }
 
     run_log.case_begin("token_change_impact");
-    std::printf(" token=accent old_version=%u new_version=%u stylesheet_version=%u impact=paint_only metrics_same=1 style_key_old=%u style_key_new=%u\n",
+    std::printf(" token=accent domain=%s old_version=%u new_version=%u stylesheet_version=%u impact=%s impact_mask=%u metrics_same=1 style_key_old=%u style_key_new=%u\n",
+                style_token_domain_name(impact.domain),
                 token_version_before,
                 token_version_after,
                 stylesheet_version,
+                style_impact_primary_name(impact),
+                impact.impact_mask,
                 style_key_before,
                 style_key_after);
 

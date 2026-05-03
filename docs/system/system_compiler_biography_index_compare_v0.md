@@ -122,6 +122,8 @@ The compare object also compresses shelf-level risk into one projection:
 - regressed shelf entries
 - removed worlds
 - newly added failing entries
+- shelf entries whose front-page source detail changed while the entry anchor
+  stayed the same
 - affected worlds / profiles
 - short narratives that explain where the shelf first starts to crack
 
@@ -162,6 +164,23 @@ The compare object also emits `route_provenance`.
 
 That block records which lower shelf front-page roots were actually consumed,
 and which supporting surface ids were visible there for the next drill-down hop.
+
+The compare object also records same-anchor front-page entry detail drift.
+
+This is intentionally narrower than arbitrary JSON diffing. Entries are matched
+by the same stable shelf entry anchor used by `entry_changes`, then the comparer
+checks the machine front-page surface that represents that entry:
+
+- surface id
+- summary schema
+- summary path
+- report path
+- check path
+
+If the shelf entry still represents the same world/profile/facet identity but
+its front-page source detail changes, the shelf verdict becomes `drifted` and
+`collapse_surface.front_page_entry_detail_changed_anchors` names the affected
+entry anchors.
 
 ## Recommended usage
 

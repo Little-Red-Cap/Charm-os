@@ -137,6 +137,7 @@
 - `system_compiler.biography_index_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_biography_index_compare_v0.md` 与 `scripts/compare_system_compiler_biography_index.py`
   - 用途偏向把 baseline / candidate 两份 biography index summary 收成一个 shelf-to-shelf compare 对象
+  - 记录 shelf entry 漂移，并额外锚定同 entry anchor 的 front-page 入口来源细节漂移
 
 - `system_compiler.world_shelf_review.v0.schema.json`
   - 对应 `docs/system/system_compiler_world_shelf_review_v0.md` 与 `scripts/review_system_compiler_world_shelf.ps1`

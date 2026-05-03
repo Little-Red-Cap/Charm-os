@@ -108,6 +108,31 @@ def expected_route_provenance_entry(index_summary: dict, index_path: str, route_
     }
 
 
+def entry_anchor_base(entry: dict):
+    facets = ",".join(str(value) for value in entry.get("active_facets", []) if value is not None)
+    compare_label = "compare" if bool(entry.get("compare_attached")) else "witness"
+    return "|".join(
+        [
+            str(entry.get("world_name", "")),
+            str(entry.get("profile", "")),
+            str(entry.get("board") or ""),
+            facets,
+            compare_label,
+        ]
+    )
+
+
+def entry_anchors(index_summary: dict):
+    seen: dict[str, int] = {}
+    anchors = set()
+    for entry in index_summary.get("entries", []):
+        base = entry_anchor_base(entry)
+        seen[base] = seen.get(base, 0) + 1
+        anchor = base if seen[base] == 1 else f"{base}#{seen[base]}"
+        anchors.add(anchor)
+    return anchors
+
+
 def validate_summary_counts(summary: dict, errors: list[str]):
     entry_changes = summary.get("entry_changes", [])
     change_count = len(entry_changes)
@@ -151,6 +176,19 @@ def validate_summary_counts(summary: dict, errors: list[str]):
             "collapse_surface.added_failed_entries: expected {0} entries but got {1}".format(
                 expected_added_failed,
                 len(collapse_surface.get("added_failed_entries", [])),
+            )
+        )
+
+    shelf_changes = summary.get("shelf_changes", {})
+    detail_change_anchors = [
+        change.get("anchor_id")
+        for change in shelf_changes.get("front_page_entry_detail_changes", [])
+    ]
+    if collapse_surface.get("front_page_entry_detail_changed_anchors", []) != detail_change_anchors:
+        errors.append(
+            "collapse_surface.front_page_entry_detail_changed_anchors: expected {0!r} but got {1!r}".format(
+                detail_change_anchors,
+                collapse_surface.get("front_page_entry_detail_changed_anchors", []),
             )
         )
 
@@ -392,6 +430,15 @@ def validate_references(summary: dict, index_schema: dict, summary_path: Path, e
                     errors.append(f"{prefix}.world_name: expected {candidate_entry.get('world_name')!r} but got {change.get('world_name')!r}")
                 if change.get("profile") != candidate_entry.get("profile"):
                     errors.append(f"{prefix}.profile: expected {candidate_entry.get('profile')!r} but got {change.get('profile')!r}")
+
+    baseline_entry_anchors = entry_anchors(baseline_summary)
+    candidate_entry_anchors = entry_anchors(candidate_summary)
+    for index, change in enumerate(summary.get("shelf_changes", {}).get("front_page_entry_detail_changes", [])):
+        anchor_id = change.get("anchor_id")
+        if anchor_id not in baseline_entry_anchors:
+            errors.append(f"shelf_changes.front_page_entry_detail_changes[{index}].anchor_id: not found in baseline entries -> {anchor_id}")
+        if anchor_id not in candidate_entry_anchors:
+            errors.append(f"shelf_changes.front_page_entry_detail_changes[{index}].anchor_id: not found in candidate entries -> {anchor_id}")
 
 
 def main() -> int:

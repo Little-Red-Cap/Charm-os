@@ -1,0 +1,721 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.front_page_entry_opening_flow_compare.v0.schema.json",
+  "title": "system_compiler.front_page_entry_opening_flow_compare/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "generated_at_utc",
+    "generator",
+    "result",
+    "opening_flow_compare",
+    "front_page",
+    "flow_provenance",
+    "artifact_context",
+    "flow_verdict",
+    "flow_status",
+    "flow_changes",
+    "opener_case_summary",
+    "opener_case_changes",
+    "flow_regression_surface",
+    "questions",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.front_page_entry_opening_flow_compare/v0"
+    },
+    "kind": {
+      "const": "system_compiler.front_page_entry_opening_flow_compare"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "opening_flow_compare": {
+      "$ref": "#/$defs/titleBlock"
+    },
+    "front_page": {
+      "$ref": "#/$defs/frontPage"
+    },
+    "flow_provenance": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/flowProvenanceEntry"
+      }
+    },
+    "artifact_context": {
+      "$ref": "#/$defs/artifactContext"
+    },
+    "flow_verdict": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed"
+      ]
+    },
+    "flow_status": {
+      "$ref": "#/$defs/flowStatus"
+    },
+    "flow_changes": {
+      "$ref": "#/$defs/flowChanges"
+    },
+    "opener_case_summary": {
+      "$ref": "#/$defs/openerCaseSummary"
+    },
+    "opener_case_changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/openerCaseChange"
+      }
+    },
+    "flow_regression_surface": {
+      "$ref": "#/$defs/flowRegressionSurface"
+    },
+    "questions": {
+      "$ref": "#/$defs/questionBlock"
+    },
+    "violations": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "titleBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "countChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline",
+        "candidate",
+        "delta"
+      ],
+      "properties": {
+        "baseline": {
+          "type": "integer"
+        },
+        "candidate": {
+          "type": "integer"
+        },
+        "delta": {
+          "type": "integer"
+        }
+      }
+    },
+    "arrayChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "frontPageSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "role",
+        "summary_schema",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "frontPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "supporting_surfaces"
+      ],
+      "properties": {
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "supporting_surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/frontPageSurface"
+          }
+        }
+      }
+    },
+    "flowProvenanceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "flow_role",
+        "source_summary_schema",
+        "source_summary_path",
+        "source_report_markdown_path",
+        "source_check_text_path",
+        "result",
+        "expected_opener_count",
+        "actual_opener_count",
+        "available_projection_count",
+        "compare_context_count",
+        "inspector_ready_count",
+        "blocked_inspector_count",
+        "completed_step_count"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "flow_role": {
+          "type": "string",
+          "enum": [
+            "baseline_flow",
+            "candidate_flow"
+          ]
+        },
+        "source_summary_schema": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "source_report_markdown_path": {
+          "type": "string"
+        },
+        "source_check_text_path": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string"
+        },
+        "expected_opener_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actual_opener_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "available_projection_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compare_context_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inspector_ready_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_inspector_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed_step_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "artifactContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_flow_summary_path",
+        "candidate_flow_summary_path",
+        "output_root",
+        "compare_summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "baseline_flow_summary_path": {
+          "type": "string"
+        },
+        "candidate_flow_summary_path": {
+          "type": "string"
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "compare_summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "flowStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_result",
+        "candidate_result",
+        "baseline_expected_opener_count",
+        "candidate_expected_opener_count",
+        "baseline_actual_opener_count",
+        "candidate_actual_opener_count",
+        "baseline_available_projection_count",
+        "candidate_available_projection_count",
+        "baseline_compare_context_count",
+        "candidate_compare_context_count",
+        "baseline_inspector_ready_count",
+        "candidate_inspector_ready_count",
+        "baseline_blocked_inspector_count",
+        "candidate_blocked_inspector_count",
+        "baseline_completed_step_count",
+        "candidate_completed_step_count"
+      ],
+      "properties": {
+        "baseline_result": {
+          "type": "string"
+        },
+        "candidate_result": {
+          "type": "string"
+        },
+        "baseline_expected_opener_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_expected_opener_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_actual_opener_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_actual_opener_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_available_projection_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_available_projection_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_compare_context_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_compare_context_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_inspector_ready_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_inspector_ready_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_blocked_inspector_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_blocked_inspector_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_completed_step_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_completed_step_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "flowChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_changed",
+        "expected_opener_count_change",
+        "actual_opener_count_change",
+        "available_projection_count_change",
+        "compare_context_count_change",
+        "inspector_ready_count_change",
+        "completed_step_count_change",
+        "step_id_changes",
+        "opener_case_changes",
+        "changed"
+      ],
+      "properties": {
+        "result_changed": {
+          "type": "boolean"
+        },
+        "expected_opener_count_change": {
+          "$ref": "#/$defs/countChange"
+        },
+        "actual_opener_count_change": {
+          "$ref": "#/$defs/countChange"
+        },
+        "available_projection_count_change": {
+          "$ref": "#/$defs/countChange"
+        },
+        "compare_context_count_change": {
+          "$ref": "#/$defs/countChange"
+        },
+        "inspector_ready_count_change": {
+          "$ref": "#/$defs/countChange"
+        },
+        "completed_step_count_change": {
+          "$ref": "#/$defs/countChange"
+        },
+        "step_id_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "opener_case_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "changed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "openerCaseSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_case_count",
+        "candidate_case_count",
+        "changed_case_count",
+        "added_case_count",
+        "removed_case_count",
+        "unchanged_case_count",
+        "regression_count",
+        "improvement_count",
+        "neutral_change_count",
+        "projection_regression_count",
+        "projection_improvement_count",
+        "compare_context_lost_count",
+        "compare_context_gained_count",
+        "inspector_readiness_changed_count",
+        "query_changed_count",
+        "target_changed_count"
+      ],
+      "properties": {
+        "baseline_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchanged_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "regression_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "improvement_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "neutral_change_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "projection_regression_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "projection_improvement_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compare_context_lost_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compare_context_gained_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inspector_readiness_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "query_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "target_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "openerCaseChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "change_kind",
+        "impact",
+        "baseline_summary_path",
+        "candidate_summary_path",
+        "baseline_selected_tab_id",
+        "candidate_selected_tab_id",
+        "baseline_query_kind",
+        "candidate_query_kind",
+        "baseline_query_scope",
+        "candidate_query_scope",
+        "baseline_target_summary_schema",
+        "candidate_target_summary_schema",
+        "baseline_target_summary_kind",
+        "candidate_target_summary_kind",
+        "baseline_projection_status",
+        "candidate_projection_status",
+        "baseline_projection_kind",
+        "candidate_projection_kind",
+        "baseline_compare_context_available",
+        "candidate_compare_context_available",
+        "baseline_landing_verdict",
+        "candidate_landing_verdict",
+        "baseline_inspector_ready",
+        "candidate_inspector_ready",
+        "change_notes"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "enum": [
+            "regression",
+            "improvement",
+            "neutral"
+          ]
+        },
+        "baseline_summary_path": {
+          "type": "string"
+        },
+        "candidate_summary_path": {
+          "type": "string"
+        },
+        "baseline_selected_tab_id": {
+          "type": "string"
+        },
+        "candidate_selected_tab_id": {
+          "type": "string"
+        },
+        "baseline_query_kind": {
+          "type": "string"
+        },
+        "candidate_query_kind": {
+          "type": "string"
+        },
+        "baseline_query_scope": {
+          "type": "string"
+        },
+        "candidate_query_scope": {
+          "type": "string"
+        },
+        "baseline_target_summary_schema": {
+          "type": "string"
+        },
+        "candidate_target_summary_schema": {
+          "type": "string"
+        },
+        "baseline_target_summary_kind": {
+          "type": "string"
+        },
+        "candidate_target_summary_kind": {
+          "type": "string"
+        },
+        "baseline_projection_status": {
+          "type": "string"
+        },
+        "candidate_projection_status": {
+          "type": "string"
+        },
+        "baseline_projection_kind": {
+          "type": "string"
+        },
+        "candidate_projection_kind": {
+          "type": "string"
+        },
+        "baseline_compare_context_available": {
+          "type": "boolean"
+        },
+        "candidate_compare_context_available": {
+          "type": "boolean"
+        },
+        "baseline_landing_verdict": {
+          "type": "string"
+        },
+        "candidate_landing_verdict": {
+          "type": "string"
+        },
+        "baseline_inspector_ready": {
+          "type": "boolean"
+        },
+        "candidate_inspector_ready": {
+          "type": "boolean"
+        },
+        "change_notes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "flowRegressionSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "removed_case_names",
+        "unavailable_projection_case_names",
+        "lost_compare_context_case_names",
+        "lost_inspector_ready_case_names",
+        "failed_result_transition",
+        "narratives"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "removed_case_names": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unavailable_projection_case_names": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "lost_compare_context_case_names": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "lost_inspector_ready_case_names": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "failed_result_transition": {
+          "type": "boolean"
+        },
+        "narratives": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "questionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compare_questions",
+        "next_questions"
+      ],
+      "properties": {
+        "compare_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "next_questions": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    }
+  }
+}

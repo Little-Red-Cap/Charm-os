@@ -178,6 +178,8 @@
     与 `scripts/validate_system_compiler_front_page_entry_landing_compare.py`
   - 用途偏向比较两份 `front_page entry landing` 总结对象，回答默认 landing、direct mode、
     tab 集合与 provenance roots 是否发生 consumer-facing drift
+  - 它会区分 provenance root 的增删与同 id source-detail drift；例如 `artifact_report_index`
+    root 仍存在但指向不同 first-read index 时，会作为 drift 暴露而不是静默通过
 
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例

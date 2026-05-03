@@ -100,6 +100,90 @@ def has_array_changes(change: dict[str, list[str]]) -> bool:
     return bool(change.get("added") or change.get("removed"))
 
 
+def normalize_provenance_root(root_value: Any) -> OrderedDict[str, str] | None:
+    root = get_mapping(root_value)
+    root_id = choose_text(root.get("root_id"))
+    if not root_id:
+        return None
+
+    return OrderedDict(
+        [
+            ("root_id", root_id),
+            ("root_kind", choose_text(root.get("root_kind"))),
+            ("source_summary_schema", choose_text(root.get("source_summary_schema"))),
+            ("source_summary_path", normalize_path(root.get("source_summary_path", ""))),
+            (
+                "source_front_page_summary_path",
+                normalize_path(root.get("source_front_page_summary_path", ""))
+                if choose_text(root.get("source_front_page_summary_path"))
+                else "",
+            ),
+        ]
+    )
+
+
+def provenance_roots_by_id(summary: dict[str, Any]) -> OrderedDict[str, OrderedDict[str, str]]:
+    roots: OrderedDict[str, OrderedDict[str, str]] = OrderedDict()
+    for root_value in get_list(summary.get("provenance_roots")):
+        root = normalize_provenance_root(root_value)
+        if root is None or root["root_id"] in roots:
+            continue
+        roots[root["root_id"]] = root
+    return roots
+
+
+def build_provenance_root_detail_changes(
+    baseline_summary: dict[str, Any],
+    candidate_summary: dict[str, Any],
+) -> list[OrderedDict[str, Any]]:
+    baseline_roots = provenance_roots_by_id(baseline_summary)
+    candidate_roots = provenance_roots_by_id(candidate_summary)
+    changes: list[OrderedDict[str, Any]] = []
+
+    for root_id, baseline_root in baseline_roots.items():
+        candidate_root = candidate_roots.get(root_id)
+        if candidate_root is None:
+            continue
+
+        root_kind_changed = baseline_root["root_kind"] != candidate_root["root_kind"]
+        schema_changed = baseline_root["source_summary_schema"] != candidate_root["source_summary_schema"]
+        source_path_changed = baseline_root["source_summary_path"] != candidate_root["source_summary_path"]
+        front_page_path_changed = (
+            baseline_root["source_front_page_summary_path"]
+            != candidate_root["source_front_page_summary_path"]
+        )
+        if not any([root_kind_changed, schema_changed, source_path_changed, front_page_path_changed]):
+            continue
+
+        changes.append(
+            OrderedDict(
+                [
+                    ("root_id", root_id),
+                    ("baseline_root_kind", baseline_root["root_kind"]),
+                    ("candidate_root_kind", candidate_root["root_kind"]),
+                    ("baseline_source_summary_schema", baseline_root["source_summary_schema"]),
+                    ("candidate_source_summary_schema", candidate_root["source_summary_schema"]),
+                    ("baseline_source_summary_path", baseline_root["source_summary_path"]),
+                    ("candidate_source_summary_path", candidate_root["source_summary_path"]),
+                    (
+                        "baseline_source_front_page_summary_path",
+                        baseline_root["source_front_page_summary_path"],
+                    ),
+                    (
+                        "candidate_source_front_page_summary_path",
+                        candidate_root["source_front_page_summary_path"],
+                    ),
+                    ("root_kind_changed", root_kind_changed),
+                    ("schema_changed", schema_changed),
+                    ("source_path_changed", source_path_changed),
+                    ("front_page_path_changed", front_page_path_changed),
+                ]
+            )
+        )
+
+    return changes
+
+
 def load_landing_summary(path: Path) -> dict[str, Any]:
     summary = load_json(path)
     if choose_text(summary.get("schema")) != LANDING_SCHEMA:
@@ -374,16 +458,12 @@ def build_landing_changes(
         for mode in DIRECT_MODE_TO_TAB_ID
         if bool(landing_status.get(f"candidate_direct_{mode}_available"))
     ]
-    baseline_provenance_root_ids = [
-        choose_text(root.get("root_id"))
-        for root in get_list(baseline_summary.get("provenance_roots"))
-        if isinstance(root, dict)
-    ]
-    candidate_provenance_root_ids = [
-        choose_text(root.get("root_id"))
-        for root in get_list(candidate_summary.get("provenance_roots"))
-        if isinstance(root, dict)
-    ]
+    baseline_provenance_root_ids = list(provenance_roots_by_id(baseline_summary).keys())
+    candidate_provenance_root_ids = list(provenance_roots_by_id(candidate_summary).keys())
+    provenance_root_detail_changes = build_provenance_root_detail_changes(
+        baseline_summary,
+        candidate_summary,
+    )
 
     landing_changes = OrderedDict(
         [
@@ -441,6 +521,7 @@ def build_landing_changes(
                 "provenance_root_changes",
                 string_array_changes(baseline_provenance_root_ids, candidate_provenance_root_ids),
             ),
+            ("provenance_root_detail_changes", provenance_root_detail_changes),
         ]
     )
     landing_changes["changed"] = any(
@@ -457,6 +538,7 @@ def build_landing_changes(
             has_array_changes(landing_changes["available_tab_changes"]),
             has_array_changes(landing_changes["direct_capability_changes"]),
             has_array_changes(landing_changes["provenance_root_changes"]),
+            bool(landing_changes["provenance_root_detail_changes"]),
         ]
     )
     return landing_changes
@@ -1210,6 +1292,11 @@ def build_landing_regression_surface(
         for change in tab_changes
         if change["impact"] == "regression"
     ]
+    provenance_root_detail_changed_ids = [
+        choose_text(change.get("root_id"))
+        for change in landing_changes["provenance_root_detail_changes"]
+        if choose_text(change.get("root_id"))
+    ]
     affected_tab_ids = ordered_unique(
         removed_tab_ids + regressed_tabs + ([missing_primary_tab_id] if missing_primary_tab_id else [])
     )
@@ -1236,18 +1323,28 @@ def build_landing_regression_surface(
                 ", ".join(change.get("candidate_capability_ids", [])),
             )
         )
+    for root_id in provenance_root_detail_changed_ids[:3]:
+        narratives.append(f"provenance root `{root_id}` changed source detail")
 
     return OrderedDict(
         [
             (
                 "changed",
-                bool(removed_tab_ids or lost_direct_modes or downgraded_tier or missing_primary_tab_id or regressed_tabs),
+                bool(
+                    removed_tab_ids
+                    or lost_direct_modes
+                    or downgraded_tier
+                    or missing_primary_tab_id
+                    or regressed_tabs
+                    or provenance_root_detail_changed_ids
+                ),
             ),
             ("removed_tab_ids", removed_tab_ids),
             ("lost_direct_modes", lost_direct_modes),
             ("missing_primary_tab_id", missing_primary_tab_id),
             ("downgraded_tier", downgraded_tier),
             ("regressed_tabs", regressed_tabs),
+            ("provenance_root_detail_changed_ids", provenance_root_detail_changed_ids),
             ("affected_tab_ids", affected_tab_ids),
             ("narratives", narratives),
         ]
@@ -1408,6 +1505,8 @@ def build_questions(
         compare_questions.append("Did the landing gain or lose any direct explain mode?")
     if has_array_changes(landing_changes["provenance_root_changes"]):
         compare_questions.append("Did the landing expose new provenance roots?")
+    if landing_changes["provenance_root_detail_changes"]:
+        compare_questions.append("Did any provenance root keep the same id but change source detail?")
     if has_array_changes(query_plan_changes["available_query_tab_changes"]) or query_summary["changed_query_count"] > 0:
         compare_questions.append("Did any landing tab change its explain opening plan?")
     if not compare_questions:
@@ -1426,6 +1525,10 @@ def build_questions(
         next_questions.append("Should the candidate primary opening recover compare-aware overview semantics?")
     for root_id in landing_changes["provenance_root_changes"]["added"][:2]:
         next_questions.append(f"Should provenance root `{root_id}` become a first-class explain follow-on world?")
+    for change in landing_changes["provenance_root_detail_changes"][:2]:
+        root_id = choose_text(change.get("root_id"))
+        if root_id:
+            next_questions.append(f"Should provenance root `{root_id}` still be treated as the same follow-on world?")
     if not next_questions and landing_verdict == "improved":
         next_questions.append("Which richer landing should become the next default consumer baseline?")
     if not next_questions:

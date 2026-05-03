@@ -156,6 +156,66 @@
         }
       }
     },
+    "provenanceRootDetailChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_id",
+        "baseline_root_kind",
+        "candidate_root_kind",
+        "baseline_source_summary_schema",
+        "candidate_source_summary_schema",
+        "baseline_source_summary_path",
+        "candidate_source_summary_path",
+        "baseline_source_front_page_summary_path",
+        "candidate_source_front_page_summary_path",
+        "root_kind_changed",
+        "schema_changed",
+        "source_path_changed",
+        "front_page_path_changed"
+      ],
+      "properties": {
+        "root_id": {
+          "type": "string"
+        },
+        "baseline_root_kind": {
+          "type": "string"
+        },
+        "candidate_root_kind": {
+          "type": "string"
+        },
+        "baseline_source_summary_schema": {
+          "type": "string"
+        },
+        "candidate_source_summary_schema": {
+          "type": "string"
+        },
+        "baseline_source_summary_path": {
+          "type": "string"
+        },
+        "candidate_source_summary_path": {
+          "type": "string"
+        },
+        "baseline_source_front_page_summary_path": {
+          "type": "string"
+        },
+        "candidate_source_front_page_summary_path": {
+          "type": "string"
+        },
+        "root_kind_changed": {
+          "type": "boolean"
+        },
+        "schema_changed": {
+          "type": "boolean"
+        },
+        "source_path_changed": {
+          "type": "boolean"
+        },
+        "front_page_path_changed": {
+          "type": "boolean"
+        }
+      }
+    },
     "titleBlock": {
       "type": "object",
       "additionalProperties": false,
@@ -531,6 +591,7 @@
         "available_tab_changes",
         "direct_capability_changes",
         "provenance_root_changes",
+        "provenance_root_detail_changes",
         "changed"
       ],
       "properties": {
@@ -569,6 +630,12 @@
         },
         "provenance_root_changes": {
           "$ref": "#/$defs/arrayChange"
+        },
+        "provenance_root_detail_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/provenanceRootDetailChange"
+          }
         },
         "changed": {
           "type": "boolean"
@@ -1081,6 +1148,7 @@
         "missing_primary_tab_id",
         "downgraded_tier",
         "regressed_tabs",
+        "provenance_root_detail_changed_ids",
         "affected_tab_ids",
         "narratives"
       ],
@@ -1101,6 +1169,9 @@
           "type": "boolean"
         },
         "regressed_tabs": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "provenance_root_detail_changed_ids": {
           "$ref": "#/$defs/stringArray"
         },
         "affected_tab_ids": {

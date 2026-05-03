@@ -32,6 +32,8 @@ Current `system_compiler.front_page_entry_opening_flow_consumer` includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_consumer.v0.schema.json`
 - exporter
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer.py`
+- workspace wrapper
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer.py`
 - smoke
@@ -55,6 +57,12 @@ The smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-smoke
+```
+
+The workspace wrapper output root is:
+
+```powershell
+out/system-compiler-front-page-entry-opening-flow-consumer-workspace
 ```
 
 ## What the consumer records
@@ -116,6 +124,16 @@ Or export directly:
 python ./scripts/export_system_compiler_front_page_entry_opening_flow_consumer.py `
   --flow cmake-build-system-compiler-front-page-entry-opening-flow-workspace-smoke/front-page.entry-opening-flow.summary.json `
   --output-root cmake-build-system-compiler-front-page-entry-opening-flow-consumer-smoke
+```
+
+Or start from a prepared front-page workspace and export both the opening-flow
+witness and consumer handoff in one step:
+
+```powershell
+./scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1 `
+  -FrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -OutputRoot cmake-build-system-compiler-front-page-entry-opening-flow-consumer-workspace-smoke `
+  -Clean
 ```
 
 Then validate:

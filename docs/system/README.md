@@ -133,6 +133,7 @@
 - [`system_compiler_front_page_entry_opening_flow_compare_v0.md`](system_compiler_front_page_entry_opening_flow_compare_v0.md)
 - [System Compiler Front Page Entry Opening Flow workspace exporter](../../scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer workspace exporter](../../scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1)
 - [System Compiler Front Page Entry Opening Flow workspace compare](../../scripts/compare_system_compiler_front_page_entry_opening_flow_workspace.ps1)
 - [`explain_surface_v0.md`](explain_surface_v0.md)
 - [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)

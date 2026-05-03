@@ -179,6 +179,7 @@
 - `system_compiler.front_page_entry_opening_flow_consumer.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`、
     `scripts/export_system_compiler_front_page_entry_opening_flow_consumer.py`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1`、
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer.py`
   - 用途偏向把一份 `front_page entry opening flow` summary 收成上层 explain 工具可消费的入口清单，

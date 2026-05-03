@@ -610,6 +610,7 @@ public:
         case Event::Type::FocusOut:
             break;
         case Event::Type::KeyDown:
+            input_handle_key_down(e.key_code);
             break;
         case Event::Type::KeyUp:
             break;
@@ -1131,6 +1132,7 @@ private:
     void input_handle_release(int x, int y, int button) ;
     void input_handle_wheel(int x, int y, int dy) ;
     void input_handle_cancel(int x, int y, int button) ;
+    void input_handle_key_down(Event::Key key) ;
     void input_handle_click(WidgetHandle h, int x, int y) ;
     bool scrollbar_track_info(WidgetHandle h, const ResolvedMetrics* metrics, ScrollBarTrackInfo& info) ;
     bool input_scrollbar_page_click(WidgetHandle h, int x, int y, const ResolvedMetrics* metrics) ;
@@ -1151,6 +1153,9 @@ private:
     SoaWheelAxisPolicy input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
         SoaWheelAxisPolicy fallback, int x, int y) const noexcept ;
     void input_apply_scroll_by(WidgetHandle h, int dy, int dx) ;
+    bool input_is_focus_candidate(WidgetHandle h) const noexcept ;
+    WidgetHandle input_first_focus_candidate(WidgetHandle root) const noexcept ;
+    WidgetHandle input_next_focus_candidate(WidgetHandle root, WidgetHandle current, bool reverse) const noexcept ;
     WidgetHandle input_resolve_focus_request(WidgetHandle h) const noexcept ;
     void input_set_focus(WidgetHandle h) ;
     WidgetHandle input_drag_target() const noexcept ;

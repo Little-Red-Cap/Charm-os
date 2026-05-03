@@ -10,6 +10,8 @@
 
 `Focus Scope Nested Evidence v0` 已由 `Examples/ui/vivid/focus_scope_nested_demo` 承接：runtime 可以 push modal scope、pop 恢复 base scope；modal trap 使用 current-first / fallback-second 的裁决顺序，避免弹窗内已有焦点被外部点击重置；详见 `vivid_focus_scope_evidence_v0.md`。
 
+`Focus Scope Navigation Evidence v0` 已由 `Examples/ui/vivid/focus_scope_navigation_demo` 承接：Tab / Right / Down 在 active scope 内前进，Left / Up 后退，导航按 deterministic preorder focusable 顺序循环，scope 外 target 不参与键盘焦点导航；详见 `vivid_focus_scope_evidence_v0.md`。
+
 本文是 Vivid 进入 `Runtime Spine v0` 后的方向宪章。
 
 它不是 API 契约，也不替代 `ui_kernel_contract.md`、`vivid_replay_workflow.md`、`vivid_layer_runtime_v0.md` 或 `vivid_motion_runtime_v0.md`。它负责回答一个更上层的问题：

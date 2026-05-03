@@ -380,6 +380,26 @@ import charm.core.soa_registry;
         input_.button = 0;
     }
 
+    void SoaKernel::input_handle_key_down(Event::Key key) {
+        const bool reverse = key == Event::Key::Left || key == Event::Key::Up;
+        const bool forward = key == Event::Key::Tab || key == Event::Key::Right || key == Event::Key::Down;
+        if (!forward && !reverse) {
+            if (input_.focused) {
+                input_emit_event(input_.focused, Event::key(Event::Type::KeyDown, key, input_.last_ms));
+            }
+            return;
+        }
+
+        const WidgetHandle root = input_.focus_scope ? input_.focus_scope : input_.root;
+        WidgetHandle next = input_next_focus_candidate(root, input_.focused, reverse);
+        if (!next) {
+            next = input_first_focus_candidate(root);
+        }
+        if (next) {
+            input_set_focus(next);
+        }
+    }
+
     void SoaKernel::input_handle_click(WidgetHandle h, int x, int y) {
         const WidgetKind k = kind(h);
         const SoaBehavior behavior = behavior_for_kind(k);
@@ -897,6 +917,59 @@ import charm.core.soa_registry;
 
     void SoaKernel::input_scroll_by(WidgetHandle h, int dy, int dx) {
         input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, dx});
+    }
+
+    bool SoaKernel::input_is_focus_candidate(WidgetHandle h) const noexcept {
+        return h && valid(h) && visible(h) && enabled(h) && focusable(h);
+    }
+
+    WidgetHandle SoaKernel::input_first_focus_candidate(WidgetHandle root) const noexcept {
+        if (!root || !valid(root)) return {};
+        std::array<WidgetHandle, 256> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = root;
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp];
+            if (!valid(h) || !visible(h) || !enabled(h)) continue;
+            if (input_is_focus_candidate(h)) return h;
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = child;
+            }
+        }
+        return {};
+    }
+
+    WidgetHandle SoaKernel::input_next_focus_candidate(WidgetHandle root,
+                                                       WidgetHandle current,
+                                                       bool reverse) const noexcept {
+        if (!root || !valid(root)) return {};
+        std::array<WidgetHandle, 256> candidates{};
+        std::size_t count = 0;
+        std::array<WidgetHandle, 256> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = root;
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp];
+            if (!valid(h) || !visible(h) || !enabled(h)) continue;
+            if (input_is_focus_candidate(h) && count < candidates.size()) {
+                candidates[count++] = h;
+            }
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = child;
+            }
+        }
+        if (count == 0) return {};
+        if (!current) return reverse ? candidates[count - 1] : candidates[0];
+        for (std::size_t index = 0; index < count; ++index) {
+            if (candidates[index] != current) continue;
+            if (reverse) {
+                return index == 0 ? candidates[count - 1] : candidates[index - 1];
+            }
+            return (index + 1 == count) ? candidates[0] : candidates[index + 1];
+        }
+        return reverse ? candidates[count - 1] : candidates[0];
     }
 
     SoaWheelAxisPolicy SoaKernel::input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,

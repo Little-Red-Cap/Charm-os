@@ -602,8 +602,10 @@
       "additionalProperties": false,
       "required": [
         "root_id",
+        "root_kind",
         "source_summary_schema",
         "source_summary_path",
+        "source_front_page_summary_path",
         "owner_route_ids",
         "owner_surface_ids",
         "available_supporting_surface_ids"
@@ -612,10 +614,16 @@
         "root_id": {
           "type": "string"
         },
+        "root_kind": {
+          "type": "string"
+        },
         "source_summary_schema": {
           "type": "string"
         },
         "source_summary_path": {
+          "type": "string"
+        },
+        "source_front_page_summary_path": {
           "type": "string"
         },
         "owner_route_ids": {
@@ -627,7 +635,28 @@
         "available_supporting_surface_ids": {
           "$ref": "#/$defs/stringArray"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "root_kind": {
+                "const": "artifact_report_index"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_summary_schema": {
+                "const": "system_compiler.artifact_report_index/v0"
+              },
+              "source_front_page_summary_path": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
     },
     "questionBlock": {
       "type": "object",

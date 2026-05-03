@@ -759,6 +759,7 @@
         "provenance_route_kind",
         "source_summary_schema",
         "source_summary_path",
+        "source_front_page_summary_path",
         "available_supporting_surface_ids"
       ],
       "properties": {
@@ -787,10 +788,34 @@
         "source_summary_path": {
           "type": "string"
         },
+        "source_front_page_summary_path": {
+          "type": "string"
+        },
         "available_supporting_surface_ids": {
           "$ref": "#/$defs/stringArray"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provenance_route_kind": {
+                "const": "artifact_report_index"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_summary_schema": {
+                "const": "system_compiler.artifact_report_index/v0"
+              },
+              "source_front_page_summary_path": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
     },
     "questionBlock": {
       "type": "object",

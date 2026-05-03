@@ -125,6 +125,12 @@ landing line to the newer `artifact_report` / `explain_surface` query line.
 They are meant for expandable "open another declared front-page root" actions,
 not for duplicate top-level tabs.
 
+Some provenance roots are discovery sources rather than front-page roots. The
+current example is `root_kind = artifact_report_index`, which points at a
+`system_compiler.artifact_report_index/v0` first-read index. A consumer may show
+it as an expandable provenance source, but should not treat it as a normal
+`front_page.supporting_surfaces` traversal root.
+
 So if grouped review and route provenance both point back to the same root
 summary, the landing plan keeps:
 

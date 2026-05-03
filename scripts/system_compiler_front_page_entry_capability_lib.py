@@ -382,6 +382,12 @@ def build_provenance_hints(route_summary: dict[str, Any]) -> list[OrderedDict[st
                     ("source_summary_schema", choose_text(entry.get("source_summary_schema"))),
                     ("source_summary_path", normalize_path(entry.get("source_summary_path", ""))),
                     (
+                        "source_front_page_summary_path",
+                        normalize_path(entry.get("source_front_page_summary_path", ""))
+                        if choose_text(entry.get("source_front_page_summary_path"))
+                        else "",
+                    ),
+                    (
                         "available_supporting_surface_ids",
                         ordered_unique(
                             [

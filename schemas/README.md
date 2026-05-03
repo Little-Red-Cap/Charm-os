@@ -147,6 +147,9 @@
     与 `scripts/validate_system_compiler_front_page_route.py`
   - 用途偏向把一个 root summary 的 `front_page` 消费路径收成可验证的 route 对象，
     明确记录 supporting surface 展开、revisit 与 cycle
+  - 它当前也可把 `artifact_context.artifact_report_index` 提升成
+    `provenance_route_kind = artifact_report_index`，让上层入口发现 artifact report root 的 first-read index，
+    但不把它伪装成普通 front-page traversal edge
 
 - `system_compiler.front_page_route_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_route_compare_v0.md`、`scripts/compare_system_compiler_front_page_route.py`
@@ -159,12 +162,16 @@
     与 `scripts/validate_system_compiler_front_page_entry_capability.py`
   - 用途偏向把一份 `front_page route` 总结对象收成“这个入口已经具备哪些 explain 能力”的能力表，
     明确推荐默认 landing mode、能力 tier、首选入口与 provenance hints
+  - `provenance_hints` 会保留 route 暴露的来源类型；当来源是 `artifact_report_index` 时，
+    它指向 artifact report root 的 first-read index，且不提供普通 front-page summary path
 
 - `system_compiler.front_page_entry_landing.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_landing_v0.md`、`scripts/export_system_compiler_front_page_entry_landing.py`
     与 `scripts/validate_system_compiler_front_page_entry_landing.py`
   - 用途偏向把一份 `front_page entry capability` 总结对象进一步收成更薄的 open-plan，
     明确 primary landing、secondary tabs、fallback mode order 与可展开 provenance roots
+  - `provenance_roots` 会保留 `root_kind`；当 root 是 `artifact_report_index` 时，
+    它只是 discovery provenance，不是 `front_page.supporting_surfaces` traversal root
 
 - `system_compiler.front_page_entry_landing_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_landing_compare_v0.md`、`scripts/compare_system_compiler_front_page_entry_landing.py`

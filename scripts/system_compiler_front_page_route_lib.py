@@ -56,11 +56,36 @@ def get_artifact_context(summary: dict[str, Any]) -> dict[str, Any]:
     return get_mapping(summary.get("artifact_context"))
 
 
+def build_artifact_report_index_provenance(summary: dict[str, Any]) -> list[OrderedDict[str, Any]]:
+    artifact_context = get_artifact_context(summary)
+    artifact_report_index = normalize_optional_path(artifact_context.get("artifact_report_index"))
+    if not artifact_report_index:
+        return []
+
+    return [
+        OrderedDict(
+            [
+                ("id", "artifact_report_index"),
+                ("route_kind", "artifact_report_index"),
+                ("source_summary_schema", "system_compiler.artifact_report_index/v0"),
+                ("source_summary_path", artifact_report_index),
+                ("source_front_page_summary_path", ""),
+                ("source_front_page_report_markdown_path", ""),
+                ("source_front_page_check_text_path", ""),
+                ("available_supporting_surface_ids", []),
+            ]
+        )
+    ]
+
+
 def get_route_provenance(summary: dict[str, Any]) -> list[Any]:
     route_provenance = summary.get("route_provenance", [])
-    if isinstance(route_provenance, list):
-        return route_provenance
-    return []
+    explicit_provenance = route_provenance if isinstance(route_provenance, list) else []
+    return [*explicit_provenance, *build_artifact_report_index_provenance(summary)]
+
+
+def is_front_page_provenance(entry: dict[str, Any]) -> bool:
+    return choose_text(entry.get("provenance_route_kind")) != "artifact_report_index"
 
 
 def build_root_label(summary: dict[str, Any]) -> str:
@@ -349,7 +374,7 @@ def build_route_model(root_summary_path: Path) -> tuple[
         {
             entry["source_front_page_summary_path"]
             for entry in state.route_provenance_entries
-            if choose_text(entry["source_front_page_summary_path"])
+            if is_front_page_provenance(entry) and choose_text(entry["source_front_page_summary_path"])
         }
     )
     route_provenance_summary = OrderedDict(

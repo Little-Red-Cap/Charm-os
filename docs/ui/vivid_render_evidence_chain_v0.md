@@ -1,5 +1,18 @@
 # Vivid Render Evidence Chain v0
 
+## 2026-05 补记：Focus Evidence
+
+Focus 进入 Evidence Plane 后，必须证明它是 navigation / focus ring artifact，而不是普通 Button style mask 的新维度：
+
+```text
+focused_in_style_mask=0
+style_same=1
+artifact_changed=1
+focus_ring=1
+```
+
+v0 由 `Examples/ui/vivid/focus_boundary_demo` 验证：`set_focused(true)` 不改变 `ResolvedStyleEvidence`，但会改变 draw command evidence 与 render artifact；`set_focused(false)` 后 artifact 回到 baseline。详细法律见 `vivid_focus_evidence_boundary_v0.md`。
+
 本文定义 Vivid 从 widget 级证据进入 component 级因果证据的最小路线。
 
 它的目标不是替代截图回归，而是在截图之前先证明：

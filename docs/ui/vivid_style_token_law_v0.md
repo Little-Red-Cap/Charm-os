@@ -1,5 +1,9 @@
 # Vivid Style Token Law v0
 
+## 2026-05 补记：Focus Boundary
+
+Focus 的运行证据不继续塞进 `style_token_law_demo`。`Examples/ui/vivid/focus_boundary_demo` 与 `docs/ui/vivid_focus_evidence_boundary_v0.md` 专门承接 focus boundary：它证明 focused 不进入普通 Button style mask，但会通过 focus ring 改变 render artifact，并且 clear focus 后回到 baseline。
+
 本文定义 Vivid Style Token Law 的第一版最小边界。
 
 它的目标不是把所有视觉数字一次性 token 化，而是先把 style 从“局部数值选择”推进为可审计的运行时事实：

@@ -1,5 +1,7 @@
 # UI 文档入口
 
+2026-05 补记：`Examples/ui/vivid/focus_boundary_demo` 是 Focus Evidence Boundary v0 的最小运行样本，验证 focused 不进入普通 Button style mask，但通过 focus ring 改变 render artifact；法律见 `vivid_focus_evidence_boundary_v0.md`，stdout 见 `vivid_evidence_stdout_law.md`。
+
 本目录收纳 Charm UI 语义、布局、渲染、热键和多后端规划相关材料。
 
 如果你是第一次进入仓库，先读：

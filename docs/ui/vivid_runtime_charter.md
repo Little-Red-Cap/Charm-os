@@ -1,5 +1,9 @@
 # Vivid Product UI Runtime Charter
 
+## 2026-05 补记：Focus Evidence Boundary
+
+`Focus Evidence Boundary v0` 已由 `Examples/ui/vivid/focus_boundary_demo` 承接：focused 不改变普通 Button `ResolvedStyleEvidence`，但通过 focus ring 改变 draw command / render artifact evidence；详见 `vivid_focus_evidence_boundary_v0.md`。
+
 本文是 Vivid 进入 `Runtime Spine v0` 后的方向宪章。
 
 它不是 API 契约，也不替代 `ui_kernel_contract.md`、`vivid_replay_workflow.md`、`vivid_layer_runtime_v0.md` 或 `vivid_motion_runtime_v0.md`。它负责回答一个更上层的问题：

@@ -154,6 +154,7 @@
 - `system_compiler.front_page_route_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_route_compare_v0.md`、`scripts/compare_system_compiler_front_page_route.py`
     与 `scripts/validate_system_compiler_front_page_route_compare.py`
+  - 记录 route walk 漂移，并额外锚定同 ID route provenance 的来源细节漂移。
   - 用途偏向比较两份 `front_page route` 总结对象，回答消费路径如何变化、哪些 level-1
     surface 出现或消失，以及候选 route 是否更丰富还是发生了 consumer-facing drift
 

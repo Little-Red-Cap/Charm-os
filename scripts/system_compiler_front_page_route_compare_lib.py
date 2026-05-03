@@ -60,6 +60,12 @@ def ordered_unique(values: list[str]) -> list[str]:
     return result
 
 
+def get_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [choose_text(item) for item in value if choose_text(item)]
+
+
 def string_array_changes(left: list[str], right: list[str]) -> OrderedDict[str, list[str]]:
     left_values = ordered_unique(left)
     right_values = ordered_unique(right)
@@ -175,6 +181,165 @@ def build_route_provenance_entry(
             ("level1_surface_ids", level1_surface_ids),
         ]
     )
+
+
+def normalize_route_provenance_entry(entry_value: Any) -> OrderedDict[str, Any] | None:
+    entry = get_mapping(entry_value)
+    provenance_id = choose_text(entry.get("provenance_id")) or choose_text(entry.get("id"))
+    if not provenance_id:
+        return None
+
+    return OrderedDict(
+        [
+            ("provenance_id", provenance_id),
+            ("route_kind", choose_text(entry.get("route_kind"))),
+            ("provenance_route_kind", choose_text(entry.get("provenance_route_kind"))),
+            ("source_summary_schema", choose_text(entry.get("source_summary_schema"))),
+            ("source_summary_path", normalize_path(entry.get("source_summary_path", ""))),
+            (
+                "source_front_page_summary_path",
+                normalize_path(entry.get("source_front_page_summary_path", ""))
+                if choose_text(entry.get("source_front_page_summary_path"))
+                else "",
+            ),
+            (
+                "source_front_page_report_markdown_path",
+                normalize_path(entry.get("source_front_page_report_markdown_path", ""))
+                if choose_text(entry.get("source_front_page_report_markdown_path"))
+                else "",
+            ),
+            (
+                "source_front_page_check_text_path",
+                normalize_path(entry.get("source_front_page_check_text_path", ""))
+                if choose_text(entry.get("source_front_page_check_text_path"))
+                else "",
+            ),
+            (
+                "available_supporting_surface_ids",
+                ordered_unique(get_string_list(entry.get("available_supporting_surface_ids"))),
+            ),
+        ]
+    )
+
+
+def route_provenance_by_id(route_summary: dict[str, Any]) -> OrderedDict[str, OrderedDict[str, Any]]:
+    entries: OrderedDict[str, OrderedDict[str, Any]] = OrderedDict()
+    for entry_value in route_summary.get("route_provenance_entries", []):
+        entry = normalize_route_provenance_entry(entry_value)
+        if entry is None or entry["provenance_id"] in entries:
+            continue
+        entries[entry["provenance_id"]] = entry
+    return entries
+
+
+def build_route_provenance_detail_changes(
+    baseline_route: dict[str, Any],
+    candidate_route: dict[str, Any],
+) -> list[OrderedDict[str, Any]]:
+    baseline_entries = route_provenance_by_id(baseline_route)
+    candidate_entries = route_provenance_by_id(candidate_route)
+    changes: list[OrderedDict[str, Any]] = []
+
+    for provenance_id, baseline_entry in baseline_entries.items():
+        candidate_entry = candidate_entries.get(provenance_id)
+        if candidate_entry is None:
+            continue
+
+        route_kind_changed = baseline_entry["route_kind"] != candidate_entry["route_kind"]
+        provenance_route_kind_changed = (
+            baseline_entry["provenance_route_kind"] != candidate_entry["provenance_route_kind"]
+        )
+        schema_changed = baseline_entry["source_summary_schema"] != candidate_entry["source_summary_schema"]
+        source_path_changed = baseline_entry["source_summary_path"] != candidate_entry["source_summary_path"]
+        front_page_path_changed = (
+            baseline_entry["source_front_page_summary_path"]
+            != candidate_entry["source_front_page_summary_path"]
+        )
+        front_page_report_path_changed = (
+            baseline_entry["source_front_page_report_markdown_path"]
+            != candidate_entry["source_front_page_report_markdown_path"]
+        )
+        front_page_check_path_changed = (
+            baseline_entry["source_front_page_check_text_path"]
+            != candidate_entry["source_front_page_check_text_path"]
+        )
+        supporting_surface_changes = string_array_changes(
+            baseline_entry["available_supporting_surface_ids"],
+            candidate_entry["available_supporting_surface_ids"],
+        )
+        supporting_surfaces_changed = has_array_changes(supporting_surface_changes)
+
+        if not any(
+            [
+                route_kind_changed,
+                provenance_route_kind_changed,
+                schema_changed,
+                source_path_changed,
+                front_page_path_changed,
+                front_page_report_path_changed,
+                front_page_check_path_changed,
+                supporting_surfaces_changed,
+            ]
+        ):
+            continue
+
+        changes.append(
+            OrderedDict(
+                [
+                    ("provenance_id", provenance_id),
+                    ("baseline_route_kind", baseline_entry["route_kind"]),
+                    ("candidate_route_kind", candidate_entry["route_kind"]),
+                    ("baseline_provenance_route_kind", baseline_entry["provenance_route_kind"]),
+                    ("candidate_provenance_route_kind", candidate_entry["provenance_route_kind"]),
+                    ("baseline_source_summary_schema", baseline_entry["source_summary_schema"]),
+                    ("candidate_source_summary_schema", candidate_entry["source_summary_schema"]),
+                    ("baseline_source_summary_path", baseline_entry["source_summary_path"]),
+                    ("candidate_source_summary_path", candidate_entry["source_summary_path"]),
+                    (
+                        "baseline_source_front_page_summary_path",
+                        baseline_entry["source_front_page_summary_path"],
+                    ),
+                    (
+                        "candidate_source_front_page_summary_path",
+                        candidate_entry["source_front_page_summary_path"],
+                    ),
+                    (
+                        "baseline_source_front_page_report_markdown_path",
+                        baseline_entry["source_front_page_report_markdown_path"],
+                    ),
+                    (
+                        "candidate_source_front_page_report_markdown_path",
+                        candidate_entry["source_front_page_report_markdown_path"],
+                    ),
+                    (
+                        "baseline_source_front_page_check_text_path",
+                        baseline_entry["source_front_page_check_text_path"],
+                    ),
+                    (
+                        "candidate_source_front_page_check_text_path",
+                        candidate_entry["source_front_page_check_text_path"],
+                    ),
+                    (
+                        "baseline_available_supporting_surface_ids",
+                        baseline_entry["available_supporting_surface_ids"],
+                    ),
+                    (
+                        "candidate_available_supporting_surface_ids",
+                        candidate_entry["available_supporting_surface_ids"],
+                    ),
+                    ("route_kind_changed", route_kind_changed),
+                    ("provenance_route_kind_changed", provenance_route_kind_changed),
+                    ("schema_changed", schema_changed),
+                    ("source_path_changed", source_path_changed),
+                    ("front_page_path_changed", front_page_path_changed),
+                    ("front_page_report_path_changed", front_page_report_path_changed),
+                    ("front_page_check_path_changed", front_page_check_path_changed),
+                    ("supporting_surface_changes", supporting_surface_changes),
+                ]
+            )
+        )
+
+    return changes
 
 
 def normalize_route_entries(route_summary: dict[str, Any]) -> tuple[list[OrderedDict[str, Any]], list[str]]:
@@ -331,6 +496,7 @@ def build_route_changes(
     key_surface_ids = ["runtime_evidence", "witness_bundle", "biography", "world_compare", "world_shelf_review"]
     baseline_key_surfaces = [surface_id for surface_id in key_surface_ids if surface_id in baseline_surface_ids]
     candidate_key_surfaces = [surface_id for surface_id in key_surface_ids if surface_id in candidate_surface_ids]
+    route_provenance_detail_changes = build_route_provenance_detail_changes(baseline_route, candidate_route)
 
     route_changes = OrderedDict(
         [
@@ -366,6 +532,7 @@ def build_route_changes(
             ("cycle_anchor_changes", string_array_changes(baseline_cycle_anchors, candidate_cycle_anchors)),
             ("revisit_anchor_changes", string_array_changes(baseline_revisit_anchors, candidate_revisit_anchors)),
             ("expanded_anchor_changes", string_array_changes(baseline_expanded_anchors, candidate_expanded_anchors)),
+            ("route_provenance_detail_changes", route_provenance_detail_changes),
         ]
     )
 
@@ -385,6 +552,7 @@ def build_route_changes(
             has_array_changes(route_changes["cycle_anchor_changes"]),
             has_array_changes(route_changes["revisit_anchor_changes"]),
             has_array_changes(route_changes["expanded_anchor_changes"]),
+            bool(route_changes["route_provenance_detail_changes"]),
         ]
     )
     return route_changes
@@ -688,6 +856,11 @@ def build_route_regression_surface(
     regressed_entries = [change["anchor_id"] for change in entry_changes if change["impact"] == "regression"]
     removed_level1_surfaces = route_changes["level1_surface_changes"]["removed"]
     missing_key_surface_ids = route_changes["key_surface_changes"]["removed"]
+    route_provenance_detail_changed_ids = [
+        choose_text(change.get("provenance_id"))
+        for change in route_changes["route_provenance_detail_changes"]
+        if choose_text(change.get("provenance_id"))
+    ]
     affected_surface_ids = ordered_unique(
         [change["surface_id"] for change in entry_changes if change["impact"] == "regression"]
         + removed_level1_surfaces
@@ -708,16 +881,24 @@ def build_route_regression_surface(
                 change["candidate_expanded"],
             )
         )
+    for provenance_id in route_provenance_detail_changed_ids[:3]:
+        narratives.append(f"route provenance `{provenance_id}` changed source detail")
 
     return OrderedDict(
         [
             (
                 "changed",
-                bool(regressed_entries or removed_level1_surfaces or missing_key_surface_ids),
+                bool(
+                    regressed_entries
+                    or removed_level1_surfaces
+                    or missing_key_surface_ids
+                    or route_provenance_detail_changed_ids
+                ),
             ),
             ("regressed_entries", regressed_entries),
             ("removed_level1_surfaces", removed_level1_surfaces),
             ("missing_key_surface_ids", missing_key_surface_ids),
+            ("route_provenance_detail_changed_ids", route_provenance_detail_changed_ids),
             ("candidate_surface_ids", candidate_surface_ids),
             ("affected_surface_ids", affected_surface_ids),
             ("narratives", narratives),
@@ -754,6 +935,8 @@ def build_questions(
         compare_questions.append("Did any key front page surface appear or disappear?")
     if has_array_changes(route_changes["cycle_anchor_changes"]):
         compare_questions.append("Did the route gain or lose any real cycles?")
+    if route_changes["route_provenance_detail_changes"]:
+        compare_questions.append("Did any route provenance keep the same id but change source detail?")
     if not compare_questions:
         compare_questions.append("Does the candidate front page route still match the baseline consumer walk?")
 
@@ -771,6 +954,10 @@ def build_questions(
                 change["surface_id"],
             )
         )
+    for change in route_changes["route_provenance_detail_changes"][:2]:
+        provenance_id = choose_text(change.get("provenance_id"))
+        if provenance_id:
+            next_questions.append(f"Should provenance route `{provenance_id}` still be treated as the same source?")
     if not next_questions and route_verdict == "improved":
         next_questions.append("Which richer candidate route should become the next default consumer baseline?")
     if not next_questions:

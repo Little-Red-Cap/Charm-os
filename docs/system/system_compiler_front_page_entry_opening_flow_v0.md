@@ -51,6 +51,12 @@ The smoke currently leaves behind:
 - `front-page.entry-opening-flow.report.md`
 - `front-page.entry-opening-flow.check.txt`
 
+The default output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-smoke
+```
+
 ## What the flow records
 
 The current summary records:
@@ -135,6 +141,12 @@ Then validate the exported flow object:
 ```powershell
 python ./scripts/validate_system_compiler_front_page_entry_opening_flow.py `
   --summary cmake-build-system-compiler-front-page-entry-opening-flow-smoke/front-page.entry-opening-flow.summary.json
+```
+
+Expected smoke shape:
+
+```text
+[FRONT-PAGE-ENTRY-OPENING-FLOW-SMOKE] openers=10 projections=10 compare_context=2 inspector_ready=0
 ```
 
 ## Why this matters

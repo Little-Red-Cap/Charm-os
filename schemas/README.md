@@ -176,6 +176,14 @@
     这一整条 consumer-side opening chain 收成一个 smoke-level evidence artifact，
     明确 flow steps、opener cases、projection availability、compare context 与 inspector readiness
 
+- `system_compiler.front_page_entry_opening_flow_consumer.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer.py`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer.py`
+  - 用途偏向把一份 `front_page entry opening flow` summary 收成上层 explain 工具可消费的入口清单，
+    明确 default opening、compare opening、renderable openings、projection kinds 与 inspector blockers
+
 - `system_compiler.front_page_entry_opening_flow_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`、
     `scripts/compare_system_compiler_front_page_entry_opening_flow.py`

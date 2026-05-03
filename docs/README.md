@@ -146,8 +146,10 @@
 - System Compiler Front Page Entry Landing Compare v0：`docs/system/system_compiler_front_page_entry_landing_compare_v0.md`
 - System Compiler Front Page Entry Opener v0：`docs/system/system_compiler_front_page_entry_opener_v0.md`
 - System Compiler Front Page Entry Opening Flow v0：`docs/system/system_compiler_front_page_entry_opening_flow_v0.md`
+- System Compiler Front Page Entry Opening Flow Consumer v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`
 - System Compiler Front Page Entry Opening Flow Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`
 - System Compiler Front Page Entry Opening Flow smoke：`scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`
 - Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
 - 资源契约 v0：`docs/system/resource_contract_v0.md`

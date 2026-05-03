@@ -161,6 +161,12 @@
   - 用途偏向比较两份 `front_page entry landing` 总结对象，回答默认 landing、direct mode、
     tab 集合与 provenance roots 是否发生 consumer-facing drift
 
+- `system_compiler.front_page_entry_opener.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opener_v0.md`、`scripts/export_system_compiler_front_page_entry_opener.py`
+    与 `scripts/validate_system_compiler_front_page_entry_opener.py`
+  - 用途偏向把一份 `front_page entry landing` 与可选的 `landing compare` 收成确定性 explain opening plan，
+    明确 open action、目标 summary/report/check，以及是否能安全转成 `inspect_system_compiler_artifact_report.ps1` 参数
+
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点

@@ -3,6 +3,7 @@
 
 import charm.core.geometry;
 import charm.core.style;
+import charm.core.style_evidence;
 import charm.core.style_impact;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
@@ -35,33 +36,6 @@ namespace {
             && lhs.g == rhs.g
             && lhs.b == rhs.b
             && lhs.a == rhs.a;
-    }
-
-    [[nodiscard]] std::uint32_t hash_color(std::uint32_t hash, rgba color) noexcept {
-        hash = vivid::evidence::hash_mix(hash, color.r);
-        hash = vivid::evidence::hash_mix(hash, color.g);
-        hash = vivid::evidence::hash_mix(hash, color.b);
-        hash = vivid::evidence::hash_mix(hash, color.a);
-        return hash;
-    }
-
-    [[nodiscard]] std::uint32_t hash_resolved_style(const ResolvedStyleView& style) noexcept {
-        std::uint32_t hash = 2166136261u;
-        if (style.colors) {
-            hash = hash_color(hash, style.colors->bg);
-            hash = hash_color(hash, style.colors->border);
-            hash = hash_color(hash, style.colors->font);
-            hash = hash_color(hash, style.colors->accent);
-            hash = hash_color(hash, style.colors->on_accent);
-        }
-        if (style.metrics) {
-            hash = vivid::evidence::hash_mix(hash, static_cast<std::uint32_t>(style.metrics->border_width));
-            hash = vivid::evidence::hash_mix(hash, static_cast<std::uint32_t>(style.metrics->corner_radius));
-            hash = vivid::evidence::hash_mix(hash, static_cast<std::uint32_t>(style.metrics->padding));
-            hash = vivid::evidence::hash_mix(hash, static_cast<std::uint32_t>(style.metrics->font_role));
-            hash = vivid::evidence::hash_mix(hash, static_cast<std::uint32_t>(style.metrics->font_weight));
-        }
-        return hash;
     }
 
     [[nodiscard]] bool metrics_equal(const ResolvedMetrics& lhs, const ResolvedMetrics& rhs) noexcept {
@@ -177,10 +151,12 @@ int main() {
                 button_mask,
                 style_kind_state_count(WidgetKind::Button));
 
-    const std::uint32_t style_key_before = hash_resolved_style(normal_before);
+    const ResolvedStyleEvidence style_evidence_before = make_resolved_style_evidence(normal_before);
     run_log.case_begin("resolved_style_key");
-    std::printf(" widget=button state=normal style_key=%u token_version=%u stylesheet_version=%u\n",
-                style_key_before,
+    std::printf(" widget=button state=normal style_key=%u color_hash=%u metrics_hash=%u token_version=%u stylesheet_version=%u\n",
+                style_evidence_before.style_key,
+                style_evidence_before.color_hash,
+                style_evidence_before.metrics_hash,
                 token_version_before,
                 stylesheet_version);
 
@@ -214,8 +190,9 @@ int main() {
         return 1;
     }
 
-    const std::uint32_t style_key_after = hash_resolved_style(normal_after);
-    if (!vivid::evidence::expect(style_key_after != style_key_before, "style key changes after accent token")) {
+    const ResolvedStyleEvidence style_evidence_after = make_resolved_style_evidence(normal_after);
+    if (!vivid::evidence::expect(style_evidence_after.style_key != style_evidence_before.style_key,
+                                 "style key changes after accent token")) {
         return 1;
     }
     const StyleImpactDecision impact = decide_style_token_impact(StyleTokenDomain::Color);
@@ -227,6 +204,20 @@ int main() {
     }
     if (!vivid::evidence::expect(!impact.has(StyleInvalidationImpact::TextMetrics),
                                  "color token does not trigger text metrics")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(!style_color_evidence_equal(style_evidence_before, style_evidence_after),
+                                 "color evidence changes")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(style_metrics_evidence_equal(style_evidence_before, style_evidence_after),
+                                 "metrics evidence remains stable")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(style_evidence_matches_impact(style_evidence_before,
+                                                               style_evidence_after,
+                                                               impact),
+                                 "style evidence matches impact decision")) {
         return 1;
     }
     const StyleImpactDecision spacing_impact = decide_style_token_impact(StyleTokenDomain::Spacing);
@@ -249,15 +240,19 @@ int main() {
     }
 
     run_log.case_begin("token_change_impact");
-    std::printf(" token=accent domain=%s old_version=%u new_version=%u stylesheet_version=%u impact=%s impact_mask=%u metrics_same=1 style_key_old=%u style_key_new=%u\n",
+    std::printf(" token=accent domain=%s old_version=%u new_version=%u stylesheet_version=%u impact=%s impact_mask=%u color_hash_old=%u color_hash_new=%u metrics_hash_old=%u metrics_hash_new=%u color_changed=1 metrics_same=1 style_key_old=%u style_key_new=%u\n",
                 style_token_domain_name(impact.domain),
                 token_version_before,
                 token_version_after,
                 stylesheet_version,
                 style_impact_primary_name(impact),
                 impact.impact_mask,
-                style_key_before,
-                style_key_after);
+                style_evidence_before.color_hash,
+                style_evidence_after.color_hash,
+                style_evidence_before.metrics_hash,
+                style_evidence_after.metrics_hash,
+                style_evidence_before.style_key,
+                style_evidence_after.style_key);
 
     const auto updated = vivid::evidence::render_scene(scene, canvas, kButtonBounds);
     if (!vivid::evidence::expect(updated.failed_cmds == 0, "updated style render has no failed commands")) return 1;

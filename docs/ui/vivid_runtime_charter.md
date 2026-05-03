@@ -295,6 +295,8 @@ Page Token
 
 当前 v0 已有最小 evidence：`Examples/ui/vivid/style_token_law_demo` 验证 semantic token、role patch、style state mask、`paint_only` impact 与 render artifact 摘要。
 
+`charm.core.style_evidence` 将 `ResolvedStyleView` 压缩为 `color_hash / metrics_hash / style_key`，让 Style Token Law 能证明 color token 变化只影响 color evidence，而不误伤 metrics evidence。
+
 ## 非目标
 
 当前阶段不追求：

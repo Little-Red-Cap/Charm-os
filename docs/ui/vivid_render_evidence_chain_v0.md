@@ -85,6 +85,20 @@ pixel_hash
 
 PNG / screenshot diff 是后续投影，不是 v0 的第一真相。
 
+### Style Evidence
+
+Style Token Law 进入 Evidence Plane 后，resolved style 也需要可审计摘要：
+
+```text
+style_key
+color_hash
+metrics_hash
+impact
+impact_mask
+```
+
+v0 由 `charm.core.style_evidence` 提供 `ResolvedStyleEvidence`，并由 `Examples/ui/vivid/style_token_law_demo` 验证 color token 变化只改变 color evidence，不改变 metrics evidence。
+
 ## Evidence Lab 支撑工具
 
 `Examples/ui/vivid/support/vivid_evidence_support.hpp` 是 v0 的示例侧共享证据账本。

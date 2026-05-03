@@ -105,10 +105,19 @@ token_version
 stylesheet_version
 style_state_mask
 style_key
+color_hash
+metrics_hash
 impact
 ```
 
 v0 使用 stdout evidence 证明 token 变化会改变 resolved color / render artifact，但不改变 metrics。
+
+`charm.core.style_evidence` 提供 v0 的最小证据压缩：
+
+- `make_resolved_style_evidence()` 产出 `color_hash / metrics_hash / style_key`。
+- `style_color_evidence_equal()` 比较 resolved color 证据。
+- `style_metrics_evidence_equal()` 比较 metrics 证据。
+- `style_evidence_matches_impact()` 检查证据变化是否符合 impact 判定。
 
 ## 首个落点
 
@@ -119,7 +128,26 @@ v0 使用 stdout evidence 证明 token 变化会改变 resolved color / render a
 - semantic token 以 `accent / on_accent` 形式进入 Button role patch。
 - Button style state mask 包含 hovered / pressed / disabled，但不包含 focused。
 - accent token 变化后 `token_version` 增加，`stylesheet_version` 不需要变化。
-- resolved style color / style key 变化，但 metrics 不变。
+- resolved style `color_hash / style_key` 变化，但 `metrics_hash` 不变。
 - color token 变化经 `decide_style_token_impact(Color)` 判定为 `paint_only`，并产生新的 render artifact。
+
+核心 stdout 字段：
+
+```text
+style_key=<hash>
+color_hash=<hash>
+metrics_hash=<hash>
+impact=<impact_name>
+impact_mask=<mask>
+color_changed=1
+metrics_same=1
+```
+
+这些字段证明：
+
+- style evidence 变化发生在 color 层。
+- metrics evidence 保持不变。
+- impact resolver 的 `paint_only` 裁决有证据支撑。
+- render artifact 随 color token 变化而变化。
 
 stdout 遵守 `vivid_evidence_stdout_law.md`。

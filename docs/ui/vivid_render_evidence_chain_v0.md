@@ -93,11 +93,13 @@ Style Token Law 进入 Evidence Plane 后，resolved style 也需要可审计摘
 style_key
 color_hash
 metrics_hash
+style_state_mask
+state_count
 impact
 impact_mask
 ```
 
-v0 由 `charm.core.style_evidence` 提供 `ResolvedStyleEvidence`，并由 `Examples/ui/vivid/style_token_law_demo` 验证 color token 变化只改变 color evidence，不改变 metrics evidence。
+v0 由 `charm.core.style_evidence` 提供 `ResolvedStyleEvidence` 与 `StyleStateEvidence`，并由 `Examples/ui/vivid/style_token_law_demo` 验证 color token 变化只改变 color evidence，不改变 metrics evidence；同时验证 Button 普通 style mask 包含 hovered / pressed / disabled，但不包含 focused。
 
 ## Evidence Lab 支撑工具
 

@@ -136,20 +136,24 @@ int main() {
                 bg_before.g,
                 bg_before.b);
 
-    constexpr std::uint8_t hovered = static_cast<std::uint8_t>(StyleStateFlag::Hovered);
-    constexpr std::uint8_t pressed = static_cast<std::uint8_t>(StyleStateFlag::Pressed);
-    constexpr std::uint8_t focused = static_cast<std::uint8_t>(StyleStateFlag::Focused);
-    constexpr std::uint8_t disabled = static_cast<std::uint8_t>(StyleStateFlag::Disabled);
-    const std::uint8_t button_mask = style_kind_state_mask(WidgetKind::Button);
-    if (!vivid::evidence::expect((button_mask & hovered) != 0, "button mask includes hovered")) return 1;
-    if (!vivid::evidence::expect((button_mask & pressed) != 0, "button mask includes pressed")) return 1;
-    if (!vivid::evidence::expect((button_mask & disabled) != 0, "button mask includes disabled")) return 1;
-    if (!vivid::evidence::expect((button_mask & focused) == 0, "button mask keeps focus separate")) return 1;
+    const StyleStateEvidence state_evidence = make_style_state_evidence(WidgetKind::Button);
+    if (!vivid::evidence::expect(state_evidence.includes_hovered, "button mask includes hovered")) return 1;
+    if (!vivid::evidence::expect(state_evidence.includes_pressed, "button mask includes pressed")) return 1;
+    if (!vivid::evidence::expect(state_evidence.includes_disabled, "button mask includes disabled")) return 1;
+    if (!vivid::evidence::expect(!state_evidence.includes_focused, "button mask keeps focus separate")) return 1;
+    if (!vivid::evidence::expect(style_state_evidence_matches_interactive_law(state_evidence),
+                                 "button state evidence matches interactive law")) {
+        return 1;
+    }
 
     run_log.case_begin("state_mask_law");
-    std::printf(" widget=button mask=%u hovered=1 pressed=1 disabled=1 focused_in_style_mask=0 state_count=%u\n",
-                button_mask,
-                style_kind_state_count(WidgetKind::Button));
+    std::printf(" widget=button mask=%u hovered=%d pressed=%d disabled=%d focused_in_style_mask=%d state_count=%u law=interactive_without_focus\n",
+                state_evidence.mask,
+                state_evidence.includes_hovered ? 1 : 0,
+                state_evidence.includes_pressed ? 1 : 0,
+                state_evidence.includes_disabled ? 1 : 0,
+                state_evidence.includes_focused ? 1 : 0,
+                state_evidence.state_count);
 
     const ResolvedStyleEvidence style_evidence_before = make_resolved_style_evidence(normal_before);
     run_log.case_begin("resolved_style_key");

@@ -14,6 +14,17 @@ struct ResolvedStyleEvidence {
 };
 
 export
+struct StyleStateEvidence {
+    WidgetKind kind{WidgetKind::None};
+    std::uint8_t mask{0};
+    std::uint8_t state_count{0};
+    bool includes_hovered{false};
+    bool includes_pressed{false};
+    bool includes_disabled{false};
+    bool includes_focused{false};
+};
+
+export
 inline constexpr std::uint32_t style_evidence_hash_mix(std::uint32_t hash,
                                                        std::uint32_t value) noexcept {
     hash ^= value;
@@ -74,6 +85,24 @@ inline ResolvedStyleEvidence make_resolved_style_evidence(const ResolvedStyleVie
 }
 
 export
+inline StyleStateEvidence make_style_state_evidence(WidgetKind kind) noexcept {
+    const std::uint8_t mask = style_kind_state_mask(kind);
+    const auto hovered = static_cast<std::uint8_t>(StyleStateFlag::Hovered);
+    const auto pressed = static_cast<std::uint8_t>(StyleStateFlag::Pressed);
+    const auto focused = static_cast<std::uint8_t>(StyleStateFlag::Focused);
+    const auto disabled = static_cast<std::uint8_t>(StyleStateFlag::Disabled);
+    return StyleStateEvidence{
+        .kind = kind,
+        .mask = mask,
+        .state_count = style_kind_state_count(kind),
+        .includes_hovered = (mask & hovered) != 0,
+        .includes_pressed = (mask & pressed) != 0,
+        .includes_disabled = (mask & disabled) != 0,
+        .includes_focused = (mask & focused) != 0,
+    };
+}
+
+export
 inline bool style_metrics_evidence_equal(const ResolvedStyleEvidence& lhs,
                                          const ResolvedStyleEvidence& rhs) noexcept {
     return lhs.metrics_hash == rhs.metrics_hash;
@@ -98,4 +127,13 @@ inline bool style_evidence_matches_impact(const ResolvedStyleEvidence& before,
         return color_changed && !metrics_changed;
     }
     return before.style_key == after.style_key;
+}
+
+export
+inline bool style_state_evidence_matches_interactive_law(const StyleStateEvidence& evidence) noexcept {
+    return evidence.includes_hovered
+        && evidence.includes_pressed
+        && evidence.includes_disabled
+        && !evidence.includes_focused
+        && evidence.state_count >= 1;
 }

@@ -297,6 +297,8 @@ Page Token
 
 `charm.core.style_evidence` 将 `ResolvedStyleView` 压缩为 `color_hash / metrics_hash / style_key`，让 Style Token Law 能证明 color token 变化只影响 color evidence，而不误伤 metrics evidence。
 
+`StyleStateEvidence` 记录普通 style mask 的状态边界：hovered / pressed / disabled 可以进入 style evidence；focused 暂时留在普通 style mask 外，后续由 focus ring / navigation evidence 承接。
+
 ## 非目标
 
 当前阶段不追求：

@@ -72,6 +72,12 @@ focused                      -> 暂不进入普通 Button style mask
 
 focus 未来应优先进入 focus ring / navigation / accessibility evidence，而不是无边界扩大普通 style cache 组合。
 
+`charm.core.style_evidence` 提供 v0 的 state evidence：
+
+- `StyleStateEvidence` 记录 `mask / state_count / includes_hovered / includes_pressed / includes_disabled / includes_focused`。
+- `make_style_state_evidence()` 从 `WidgetKind` 读取当前 style state mask。
+- `style_state_evidence_matches_interactive_law()` 验证 interactive widget 的普通 style mask 包含 hovered / pressed / disabled，但不包含 focused。
+
 ### Law 4：Token 必须声明 invalidation impact
 
 token 变化必须能说明影响层级。
@@ -107,6 +113,7 @@ style_state_mask
 style_key
 color_hash
 metrics_hash
+state_count
 impact
 ```
 
@@ -134,6 +141,12 @@ v0 使用 stdout evidence 证明 token 变化会改变 resolved color / render a
 核心 stdout 字段：
 
 ```text
+mask=<mask>
+hovered=1
+pressed=1
+disabled=1
+focused_in_style_mask=0
+law=interactive_without_focus
 style_key=<hash>
 color_hash=<hash>
 metrics_hash=<hash>
@@ -145,6 +158,8 @@ metrics_same=1
 
 这些字段证明：
 
+- hovered / pressed / disabled 进入普通 style state evidence。
+- focused 被保留在普通 style mask 外，后续应进入 focus ring / navigation evidence。
 - style evidence 变化发生在 color 层。
 - metrics evidence 保持不变。
 - impact resolver 的 `paint_only` 裁决有证据支撑。

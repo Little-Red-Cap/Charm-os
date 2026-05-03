@@ -477,6 +477,33 @@ public:
         input_.focus_scope = {};
         input_.focus_scope_fallback = {};
         input_.focus_scope_trap = false;
+        input_focus_scope_stack_size_ = 0;
+    }
+
+    bool push_focus_scope(WidgetHandle scope,
+                          WidgetHandle fallback = {},
+                          bool trap = true) noexcept {
+        if (input_focus_scope_stack_size_ >= kMaxFocusScopeStack) return false;
+        input_focus_scope_stack_[input_focus_scope_stack_size_++] = FocusScopeFrame{
+            input_.focus_scope,
+            input_.focus_scope_fallback,
+            input_.focus_scope_trap,
+        };
+        set_focus_scope(scope, fallback, trap);
+        return true;
+    }
+
+    bool pop_focus_scope() noexcept {
+        if (input_focus_scope_stack_size_ == 0) return false;
+        const FocusScopeFrame frame = input_focus_scope_stack_[--input_focus_scope_stack_size_];
+        input_.focus_scope = frame.scope;
+        input_.focus_scope_fallback = frame.fallback;
+        input_.focus_scope_trap = frame.trap;
+        return true;
+    }
+
+    std::size_t input_focus_scope_stack_size() const noexcept {
+        return input_focus_scope_stack_size_;
     }
 
     Rect world_rect(WidgetHandle h) const noexcept;
@@ -1077,6 +1104,17 @@ private:
 
     InputEventQueue input_events_{};
     InputState input_{};
+    static constexpr std::size_t kMaxFocusScopeStack = 4;
+
+    struct FocusScopeFrame {
+        WidgetHandle scope{};
+        WidgetHandle fallback{};
+        bool trap{false};
+    };
+
+    std::array<FocusScopeFrame, kMaxFocusScopeStack> input_focus_scope_stack_{};
+    std::size_t input_focus_scope_stack_size_{0};
+
     static int clamp_int(int v, int lo, int hi) noexcept ;
     static int div_floor(int num, int den) noexcept ;
     void input_emit_event(WidgetHandle target, const Event& e) noexcept ;

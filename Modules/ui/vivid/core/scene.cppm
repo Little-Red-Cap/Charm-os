@@ -473,9 +473,16 @@ export namespace ui::scene {
             kernel_->set_focus_scope(scope, fallback, trap);
         }
         void clear_focus_scope() noexcept { kernel_->clear_focus_scope(); }
+        bool push_focus_scope(WidgetHandle scope,
+                              WidgetHandle fallback = {},
+                              bool trap = true) noexcept {
+            return kernel_->push_focus_scope(scope, fallback, trap);
+        }
+        bool pop_focus_scope() noexcept { return kernel_->pop_focus_scope(); }
         WidgetHandle input_focus_scope() const noexcept { return kernel_->input_focus_scope(); }
         WidgetHandle input_focus_scope_fallback() const noexcept { return kernel_->input_focus_scope_fallback(); }
         bool input_focus_scope_trap() const noexcept { return kernel_->input_focus_scope_trap(); }
+        std::size_t input_focus_scope_stack_size() const noexcept { return kernel_->input_focus_scope_stack_size(); }
 
         std::size_t input_event_count() const noexcept { return kernel_->input_event_count(); }
         const SoaInputEvent& input_event(std::size_t index) const noexcept { return kernel_->input_event(index); }
@@ -529,6 +536,11 @@ export namespace ui::scene {
                              WidgetHandle fallback = {},
                              bool trap = true) noexcept {
             kernel_.set_focus_scope(scope, fallback, trap);
+        }
+        bool push_focus_scope(WidgetHandle scope,
+                              WidgetHandle fallback = {},
+                              bool trap = true) noexcept {
+            return kernel_.push_focus_scope(scope, fallback, trap);
         }
         void set_clip_children(WidgetHandle h, bool v) noexcept { kernel_.set_clip_children(h, v); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_.set_scroll_step(h, step); }

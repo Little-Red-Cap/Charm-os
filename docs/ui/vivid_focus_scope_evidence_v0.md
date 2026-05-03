@@ -75,6 +75,26 @@ leaked=0
 
 这条证据比简单比较内外 `cmd_count` 更稳，因为不同 target 尺寸或 widget 形态可能产生不同的基础命令数。
 
+### Law 5：nested scope 必须 push/pop 闭合
+
+modal / popup 这类临时 UI 不应该覆盖 base scope 后遗忘旧 truth。v0 使用小型 focus scope stack 表达：
+
+```text
+push modal scope -> 保存 base scope frame
+pop modal scope  -> 恢复 base scope frame
+```
+
+嵌套 scope 的拒绝顺序是：
+
+```text
+inside request  -> allow requested
+outside request -> keep current focused target if still inside active scope
+otherwise       -> fallback if fallback still inside active scope
+otherwise       -> reject to empty
+```
+
+也就是 current-first / fallback-second。这样用户点击 modal 外部时，不会把 modal 内已有焦点重置到 modal fallback。
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_scope_demo` 是 Focus Scope Evidence v0 的第一条运行证据。
@@ -98,10 +118,22 @@ root
 - `outside` 请求被拒绝，pointer event 仍送达 outside，但不产生 `FocusOut / FocusIn`，`input_focused` 保持在 fallback/current。
 - `outside` artifact 与 unfocused baseline 一致，没有 focus ring 泄漏。
 
+`Examples/ui/vivid/focus_scope_nested_demo` 是 Focus Scope Nested Evidence v0 的第一条运行证据。
+
+它验证：
+
+- base scope 安装后可以提交 `base_a` focus。
+- `push_focus_scope(modal_scope)` 后 active scope 切换到 modal，stack size 变为 1。
+- modal 内请求产生 `FocusOut(base_a)` / `FocusIn(modal_b)`，并把 `input_focused` 提交到 `modal_b`。
+- modal 外请求只保留 pointer event，不产生 focus transfer，`input_focused` 保持 `modal_b`。
+- `pop_focus_scope()` 后 active scope 恢复 base，stack size 回到 0。
+- 恢复 base scope 后，modal target 请求被 base scope 拒绝并重定向到 base fallback。
+
 stdout 最终约束：
 
 ```text
 [fs] run=focus_scope_demo phase=end result=ok cases=9
+[fsn] run=focus_scope_nested_demo phase=end result=ok cases=8
 ```
 
 核心字段：
@@ -116,10 +148,12 @@ input_truth=inside_b
 fallback=inside_b
 outside_focus_ring=0
 leaked=0
+stack=0/1
+pushed=1
+popped=1
 ```
 
 ## 后续方向
 
-- 支持 modal / popup 的 nested focus scope。
 - 支持 keyboard / d-pad 在 scope 内循环。
 - 为 accessibility focus 增加 semantic focus target 与 visual focus artifact 对齐证据。

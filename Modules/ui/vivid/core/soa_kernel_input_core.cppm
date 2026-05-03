@@ -110,6 +110,15 @@ import charm.core.soa_registry;
             && (input_is_invalid(input_.focus_scope) || input_is_descendant(input_.focus_scope, h));
         const bool focus_scope_fallback_hit = input_.focus_scope_fallback
             && (input_is_invalid(input_.focus_scope_fallback) || input_is_descendant(input_.focus_scope_fallback, h));
+        bool focus_scope_stack_hit = false;
+        for (std::size_t index = 0; index < input_focus_scope_stack_size_; ++index) {
+            const auto& frame = input_focus_scope_stack_[index];
+            if ((frame.scope && (input_is_invalid(frame.scope) || input_is_descendant(frame.scope, h)))
+                || (frame.fallback && (input_is_invalid(frame.fallback) || input_is_descendant(frame.fallback, h)))) {
+                focus_scope_stack_hit = true;
+                break;
+            }
+        }
 
         WidgetHandle drag_target{};
         if (captured_hit && valid(input_.captured)) {
@@ -144,8 +153,12 @@ import charm.core.soa_registry;
             input_.focus_scope = {};
             input_.focus_scope_fallback = {};
             input_.focus_scope_trap = false;
+            input_focus_scope_stack_size_ = 0;
         } else if (focus_scope_fallback_hit) {
             input_.focus_scope_fallback = {};
+        }
+        if (focus_scope_stack_hit) {
+            input_focus_scope_stack_size_ = 0;
         }
         if (hovered_hit) {
             if (valid(input_.hovered)) {
@@ -924,11 +937,11 @@ import charm.core.soa_registry;
         if (!h) return {};
         if (!input_.focus_scope || !input_.focus_scope_trap) return h;
         if (input_is_descendant(h, input_.focus_scope)) return h;
-        if (input_.focus_scope_fallback && input_is_descendant(input_.focus_scope_fallback, input_.focus_scope)) {
-            return input_.focus_scope_fallback;
-        }
         if (input_.focused && input_is_descendant(input_.focused, input_.focus_scope)) {
             return input_.focused;
+        }
+        if (input_.focus_scope_fallback && input_is_descendant(input_.focus_scope_fallback, input_.focus_scope)) {
+            return input_.focus_scope_fallback;
         }
         return {};
     }

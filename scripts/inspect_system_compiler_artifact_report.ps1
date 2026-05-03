@@ -177,6 +177,37 @@ function Format-StringArrayOrDash {
     return Format-StringArray -Values $Values
 }
 
+function Get-MapEntries {
+    param(
+        $Map
+    )
+
+    if ($null -eq $Map) {
+        return @()
+    }
+
+    if ($Map -is [System.Collections.IDictionary]) {
+        return @(
+            foreach ($key in @($Map.Keys)) {
+                [pscustomobject][ordered]@{
+                    Name = [string]$key
+                    Value = $Map[$key]
+                }
+            }
+        )
+    }
+
+    return @(
+        @($Map.PSObject.Properties) |
+            ForEach-Object {
+                [pscustomobject][ordered]@{
+                    Name = [string]$_.Name
+                    Value = $_.Value
+                }
+            }
+    )
+}
+
 function New-DriftHeadlineDimension {
     param(
         [string]$Name,
@@ -309,6 +340,128 @@ function New-ReportDriftHeadline {
     )
 
     return New-DriftHeadlineFromDimensions -Dimensions $dimensions -ComparedCaseCount 1
+}
+
+function New-FormationHeadline {
+    param(
+        [int]$CaseCount,
+        [int]$FormedCaseCount,
+        [int]$BlockedCaseCount,
+        [string[]]$FormedCases = @(),
+        [string[]]$BlockedCases = @(),
+        [int]$UnresolvedBindingCount = 0,
+        [int]$BlockedNodeCount = 0,
+        [int]$BlockerCount = 0,
+        [string[]]$UnresolvedCapabilities = @(),
+        [string[]]$BlockedNodes = @(),
+        [object[]]$Blockers = @()
+    )
+
+    $status = if ($BlockedCaseCount -gt 0 -or $UnresolvedBindingCount -gt 0 -or $BlockedNodeCount -gt 0 -or $BlockerCount -gt 0) {
+        'blocked'
+    } else {
+        'formed'
+    }
+
+    $textParts = @("status:$status", "formed:$FormedCaseCount", "blocked:$BlockedCaseCount")
+    if ($UnresolvedBindingCount -gt 0) {
+        $textParts += "unresolved_bindings:$UnresolvedBindingCount"
+    }
+    if ($BlockedNodeCount -gt 0) {
+        $textParts += "blocked_nodes:$BlockedNodeCount"
+    }
+    if ($BlockerCount -gt 0) {
+        $textParts += "blockers:$BlockerCount"
+    }
+
+    return [ordered]@{
+        text = (@($textParts) -join ' ')
+        status = $status
+        case_count = [int]$CaseCount
+        status_counts = [ordered]@{
+            formed = [int]$FormedCaseCount
+            blocked = [int]$BlockedCaseCount
+        }
+        formed_cases = @($FormedCases | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+        blocked_cases = @($BlockedCases | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+        unresolved_binding_count = [int]$UnresolvedBindingCount
+        blocked_node_count = [int]$BlockedNodeCount
+        blocker_count = [int]$BlockerCount
+        unresolved_capabilities = @($UnresolvedCapabilities | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+        blocked_nodes = @($BlockedNodes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+        blockers = @($Blockers)
+    }
+}
+
+function New-ReportFormationHeadline {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['system_formation'] -or
+        $null -eq $ReportData.system_formation) {
+        return $null
+    }
+
+    $systemFormation = $ReportData.system_formation
+    $caseName = if ($null -ne $ReportData.PSObject.Properties['subject'] -and
+        $null -ne $ReportData.subject -and
+        $null -ne $ReportData.subject.PSObject.Properties['case']) {
+        [string]$ReportData.subject.case
+    } else {
+        ''
+    }
+    $formed = [string]$systemFormation.status -eq 'formed'
+    $bindingSummary = if ($null -ne $systemFormation.PSObject.Properties['binding_summary']) { $systemFormation.binding_summary } else { $null }
+    $bringupSummary = if ($null -ne $systemFormation.PSObject.Properties['bringup_summary']) { $systemFormation.bringup_summary } else { $null }
+
+    return New-FormationHeadline `
+        -CaseCount 1 `
+        -FormedCaseCount ([int]$formed) `
+        -BlockedCaseCount ([int](-not $formed)) `
+        -FormedCases $(if ($formed) { @($caseName) } else { @() }) `
+        -BlockedCases $(if (-not $formed) { @($caseName) } else { @() }) `
+        -UnresolvedBindingCount $(if ($null -ne $bindingSummary) { [int]$bindingSummary.unresolved_binding_count } else { 0 }) `
+        -BlockedNodeCount $(if ($null -ne $bringupSummary) { [int]$bringupSummary.blocked_node_count } else { 0 }) `
+        -BlockerCount ([int]$systemFormation.blocker_count) `
+        -UnresolvedCapabilities $(if ($null -ne $bindingSummary) { @($bindingSummary.unresolved_capabilities) } else { @() }) `
+        -BlockedNodes $(if ($null -ne $bringupSummary) { @($bringupSummary.blocked_nodes) } else { @() }) `
+        -Blockers @($systemFormation.blockers)
+}
+
+function New-ArtifactRootFormationHeadline {
+    param(
+        $SystemCompilerSummary,
+        $SystemFormationSummary
+    )
+
+    $summary = if ($null -ne $SystemCompilerSummary) { $SystemCompilerSummary } else { $SystemFormationSummary }
+    if ($null -eq $summary) {
+        return $null
+    }
+
+    $unresolvedCapabilities = @(
+        @($summary.unresolved_capability_matrix) |
+            ForEach-Object { [string]$_.capability }
+    )
+    $blockedNodes = @(
+        @($summary.blocked_node_matrix) |
+            ForEach-Object { [string]$_.node }
+    )
+
+    return New-FormationHeadline `
+        -CaseCount ([int]$summary.case_count) `
+        -FormedCaseCount ([int]$summary.formed_case_count) `
+        -BlockedCaseCount ([int]$summary.blocked_case_count) `
+        -FormedCases @($summary.formed_cases) `
+        -BlockedCases @($summary.blocked_cases) `
+        -UnresolvedBindingCount ([int]$summary.totals.unresolved_binding_count) `
+        -BlockedNodeCount ([int]$summary.totals.blocked_node_count) `
+        -BlockerCount ([int]$summary.totals.blocker_count) `
+        -UnresolvedCapabilities @($unresolvedCapabilities) `
+        -BlockedNodes @($blockedNodes) `
+        -Blockers @($summary.blocker_matrix)
 }
 
 function Format-ResolvedScalarInputText {
@@ -8566,9 +8719,11 @@ function New-ArtifactJsonView {
 
     $report = $LoadedReport.Data
     $comparison = New-ReportComparisonOverviewResult -LoadedReport $LoadedReport
+    $formationHeadline = New-ReportFormationHeadline -ReportData $report
     return [ordered]@{
         report_path = $LoadedReport.Path
         summary = New-CaseSummaryRow -LoadedReport $LoadedReport
+        formation_headline = $formationHeadline
         subject = $report.subject
         system_input = $report.system_input
         structure = $report.structure
@@ -8802,6 +8957,7 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
     $bindingResultSummary = New-ArtifactRootBindingResultSummaryResult -LoadedReports $selectedReports
     $bringupOrderSummary = New-ArtifactRootBringupOrderSummaryResult -LoadedReports $selectedReports
     $systemFormationSummary = New-ArtifactRootSystemFormationSummaryResult -LoadedReports $selectedReports
+    $formationHeadline = New-ArtifactRootFormationHeadline -SystemCompilerSummary $systemCompilerSummary -SystemFormationSummary $systemFormationSummary
     $factResolutionSummary = New-ArtifactRootFactResolutionSummaryResult -LoadedReports $selectedReports
     $systemCompilerComparisonSummary = New-ArtifactRootSystemCompilerComparisonResult -LoadedReports $selectedReports
     $systemInputComparisonSummary = New-ArtifactRootSystemInputComparisonResult -LoadedReports $selectedReports
@@ -8823,6 +8979,9 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             artifact_root = $artifactRootPath
             case_count = $summaryRows.Count
             cases = $summaryRows
+        }
+        if ($null -ne $formationHeadline) {
+            $payload.formation_headline = $formationHeadline
         }
         if ($null -ne $systemCompilerSummary) {
             $payload.system_compiler_summary = $systemCompilerSummary
@@ -8848,6 +9007,16 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         $payload | ConvertTo-Json -Depth 14
     } else {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
+        if ($null -ne $formationHeadline) {
+            Write-Host "formation_headline      = $([string]$formationHeadline.text)"
+            if (@($formationHeadline.unresolved_capabilities).Count -gt 0) {
+                Write-Host "formation_unresolved    = $((@($formationHeadline.unresolved_capabilities) -join ', '))"
+            }
+            if (@($formationHeadline.blocked_nodes).Count -gt 0) {
+                Write-Host "formation_blocked_nodes = $((@($formationHeadline.blocked_nodes) -join ', '))"
+            }
+            Write-Host ''
+        }
         if ($null -ne $systemCompilerSummary) {
             Write-Host '[SYSTEM COMPILER SUMMARY]'
             Write-Host "case_count              = $([int]$systemCompilerSummary.case_count)"
@@ -8947,9 +9116,10 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             Write-Host "case_count              = $([int]$bringupOrderSummary.case_count)"
             Write-Host "ordered_node_count      = $([int]$bringupOrderSummary.totals.ordered_node_count)"
             Write-Host "blocked_node_count      = $([int]$bringupOrderSummary.totals.blocked_node_count)"
-            if ($null -ne $bringupOrderSummary.phase_counts -and @($bringupOrderSummary.phase_counts.PSObject.Properties).Count -gt 0) {
+            $phaseCountEntries = @(Get-MapEntries -Map $bringupOrderSummary.phase_counts)
+            if (@($phaseCountEntries).Count -gt 0) {
                 $phaseParts = @()
-                foreach ($phaseEntry in @($bringupOrderSummary.phase_counts.PSObject.Properties)) {
+                foreach ($phaseEntry in @($phaseCountEntries)) {
                     $phaseParts += "$([string]$phaseEntry.Name):$([int]$phaseEntry.Value)"
                 }
                 Write-Host "phase_counts            = $((@($phaseParts) -join ', '))"
@@ -9947,13 +10117,15 @@ Write-Host '[BRINGUP ORDER]'
 Write-Host "ordered_nodes = $([int]$reportData.bringup_order.ordered_node_count)"
 Write-Host "blocked_nodes = $([int]$reportData.bringup_order.blocked_node_count)"
 if ($null -ne $reportData.bringup_order.PSObject.Properties['phase_counts'] -and
-    $null -ne $reportData.bringup_order.phase_counts -and
-    @($reportData.bringup_order.phase_counts.PSObject.Properties).Count -gt 0) {
+    $null -ne $reportData.bringup_order.phase_counts) {
+    $phaseCountEntries = @(Get-MapEntries -Map $reportData.bringup_order.phase_counts)
     $phaseParts = @()
-    foreach ($phaseEntry in @($reportData.bringup_order.phase_counts.PSObject.Properties)) {
+    foreach ($phaseEntry in @($phaseCountEntries)) {
         $phaseParts += "$([string]$phaseEntry.Name):$([int]$phaseEntry.Value)"
     }
-    Write-Host "phase_counts  = $((@($phaseParts) -join ', '))"
+    if (@($phaseParts).Count -gt 0) {
+        Write-Host "phase_counts  = $((@($phaseParts) -join ', '))"
+    }
 }
 if (@($reportData.bringup_order.entries).Count -gt 0) {
     @($reportData.bringup_order.entries) |
@@ -9965,7 +10137,11 @@ Write-Host ''
 
 if ($null -ne $reportData.PSObject.Properties['system_formation'] -and $null -ne $reportData.system_formation) {
     $systemFormation = $reportData.system_formation
+    $formationHeadline = New-ReportFormationHeadline -ReportData $reportData
     Write-Host '[SYSTEM FORMATION]'
+    if ($null -ne $formationHeadline) {
+        Write-Host "formation_headline      = $([string]$formationHeadline.text)"
+    }
     Write-Host "status                  = $([string]$systemFormation.status)"
     if ($null -ne $systemFormation.PSObject.Properties['formation_basis'] -and $null -ne $systemFormation.formation_basis) {
         Write-Host "case_kind               = $([string]$systemFormation.formation_basis.case_kind)"

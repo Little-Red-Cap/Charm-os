@@ -316,6 +316,14 @@ $reportInspectResult = Invoke-CommandJson -OutputPath $reportInspectJsonPath -Co
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -Case $ChangedCase -AsJson
 }
 Assert-Condition ([string]$reportInspectResult.summary.Case -eq $ChangedCase) 'report inspect summary case mismatch'
+Assert-Condition ($null -ne $reportInspectResult.formation_headline) 'default report summary must expose formation_headline'
+Assert-Condition ([string]$reportInspectResult.formation_headline.status -eq 'blocked') 'default report formation_headline status must be blocked'
+Assert-Condition ([int]$reportInspectResult.formation_headline.case_count -eq 1) 'default report formation_headline case_count must be 1'
+Assert-Condition ([int]$reportInspectResult.formation_headline.status_counts.blocked -eq 1) 'default report formation_headline blocked status count must be 1'
+Assert-Condition ((@($reportInspectResult.formation_headline.blocked_cases) -contains $ChangedCase)) 'default report formation_headline missing blocked case'
+Assert-Condition ((@($reportInspectResult.formation_headline.unresolved_capabilities) -contains $RemovedCapability)) 'default report formation_headline missing removed capability'
+Assert-Condition ((@($reportInspectResult.formation_headline.blocked_nodes) -contains $BlockedNode)) 'default report formation_headline missing blocked node'
+Assert-Condition ([string]$reportInspectResult.formation_headline.text -like '*status:blocked*') 'default report formation_headline text missing blocked status'
 Assert-Condition ($null -ne $reportInspectResult.comparison) 'default report summary must expose comparison payload'
 Assert-Condition ($null -ne $reportInspectResult.system_formation) 'default report summary must expose system_formation payload'
 Assert-Condition ([string]$reportInspectResult.summary.Formation -eq 'blocked') 'default report summary Formation must become blocked'
@@ -330,6 +338,16 @@ $rootSummaryInspectResult = Invoke-CommandJson -OutputPath $rootSummaryInspectJs
     & $inspectScript -ArtifactRoot $artifactReportOutputRoot -AsJson
 }
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_compiler_summary) 'artifact_root summary must expose system_compiler_summary'
+Assert-Condition ($null -ne $rootSummaryInspectResult.formation_headline) 'artifact_root summary must expose formation_headline'
+Assert-Condition ([string]$rootSummaryInspectResult.formation_headline.status -eq 'blocked') 'artifact_root formation_headline status must be blocked'
+Assert-Condition ([int]$rootSummaryInspectResult.formation_headline.case_count -ge 2) 'artifact_root formation_headline case_count must be at least 2'
+Assert-Condition ([int]$rootSummaryInspectResult.formation_headline.status_counts.formed -ge 1) 'artifact_root formation_headline must retain formed status count'
+Assert-Condition ([int]$rootSummaryInspectResult.formation_headline.status_counts.blocked -eq 1) 'artifact_root formation_headline blocked status count must be 1'
+Assert-Condition ((@($rootSummaryInspectResult.formation_headline.blocked_cases) -contains $ChangedCase)) 'artifact_root formation_headline missing blocked case'
+Assert-Condition ((@($rootSummaryInspectResult.formation_headline.formed_cases) -contains $ExpectedUnchangedCase)) 'artifact_root formation_headline missing formed case'
+Assert-Condition ((@($rootSummaryInspectResult.formation_headline.unresolved_capabilities) -contains $RemovedCapability)) 'artifact_root formation_headline missing removed capability'
+Assert-Condition ((@($rootSummaryInspectResult.formation_headline.blocked_nodes) -contains $BlockedNode)) 'artifact_root formation_headline missing blocked node'
+Assert-Condition ([string]$rootSummaryInspectResult.formation_headline.text -like '*status:blocked*') 'artifact_root formation_headline text missing blocked status'
 Assert-Condition ($null -ne $rootSummaryInspectResult.binding_result_summary) 'artifact_root summary must expose binding_result_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.bringup_order_summary) 'artifact_root summary must expose bringup_order_summary'
 Assert-Condition ($null -ne $rootSummaryInspectResult.system_formation_summary) 'artifact_root summary must expose system_formation_summary'
@@ -538,6 +556,7 @@ $summary = [ordered]@{
         diff_marks_system_formation_as_changed = $true
         artifact_report_exposes_system_formation = $true
         system_compiler_summary_supported = $true
+        formation_headline_supported = $true
         binding_result_compare_supported = $true
         bringup_order_compare_supported = $true
         default_report_summary_exposes_system_formation_counts = $true

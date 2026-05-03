@@ -73,6 +73,22 @@ def count_change(baseline: int, candidate: int) -> OrderedDict[str, int]:
     )
 
 
+def normalize_path_for_compare(path_value: str, root_value: str) -> str:
+    path_text = choose_text(path_value)
+    root_text = choose_text(root_value)
+    if not path_text:
+        return ""
+    if not root_text:
+        return normalize_path(path_text)
+
+    try:
+        path = Path(path_text).resolve()
+        root = Path(root_text).resolve()
+        return normalize_path(path.relative_to(root))
+    except Exception:
+        return normalize_path(path_text)
+
+
 def load_flow_summary(path: Path) -> dict[str, Any]:
     summary = load_json(path)
     if choose_text(summary.get("schema")) != FLOW_SCHEMA:
@@ -194,12 +210,15 @@ def normalize_flow_steps(flow_summary: dict[str, Any]) -> OrderedDict[str, Order
 
 
 def normalize_opener_cases(flow_summary: dict[str, Any]) -> OrderedDict[str, OrderedDict[str, Any]]:
+    artifact_context = get_mapping(flow_summary.get("artifact_context"))
+    output_root = choose_text(artifact_context.get("output_root"))
     cases: OrderedDict[str, OrderedDict[str, Any]] = OrderedDict()
     for value in get_list(flow_summary.get("opener_cases")):
         case = get_mapping(value)
         name = choose_text(case.get("name"))
         if not name:
             continue
+        target_summary_path = choose_text(case.get("target_summary_path"))
         cases[name] = OrderedDict(
             [
                 ("name", name),
@@ -214,7 +233,11 @@ def normalize_opener_cases(flow_summary: dict[str, Any]) -> OrderedDict[str, Ord
                 ("selection_rule", choose_text(case.get("selection_rule"))),
                 ("target_summary_schema", choose_text(case.get("target_summary_schema"))),
                 ("target_summary_kind", choose_text(case.get("target_summary_kind"))),
-                ("target_summary_path", choose_text(case.get("target_summary_path"))),
+                ("target_summary_path", target_summary_path),
+                (
+                    "target_summary_compare_path",
+                    normalize_path_for_compare(target_summary_path, output_root),
+                ),
                 ("projection_status", choose_text(case.get("projection_status"))),
                 ("projection_kind", choose_text(case.get("projection_kind"))),
                 ("compare_context_available", bool(case.get("compare_context_available"))),
@@ -359,7 +382,7 @@ def classify_changed_case(baseline_case: dict[str, Any], candidate_case: dict[st
         "selection_rule",
         "target_summary_schema",
         "target_summary_kind",
-        "target_summary_path",
+        "target_summary_compare_path",
         "projection_status",
         "projection_kind",
         "compare_context_available",
@@ -508,7 +531,7 @@ def build_opener_case_changes(
             if (
                 baseline_case.get("target_summary_schema") != candidate_case.get("target_summary_schema")
                 or baseline_case.get("target_summary_kind") != candidate_case.get("target_summary_kind")
-                or baseline_case.get("target_summary_path") != candidate_case.get("target_summary_path")
+                or baseline_case.get("target_summary_compare_path") != candidate_case.get("target_summary_compare_path")
             ):
                 summary["target_changed_count"] += 1
 

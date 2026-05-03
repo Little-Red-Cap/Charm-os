@@ -20,6 +20,8 @@ Current `system_compiler.front_page_entry_opening_flow_compare` includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_compare.v0.schema.json`
 - exporter
   - `scripts/compare_system_compiler_front_page_entry_opening_flow.py`
+- workspace compare wrapper
+  - `scripts/compare_system_compiler_front_page_entry_opening_flow_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_compare.py`
 - smoke
@@ -37,6 +39,12 @@ The dedicated smoke writes under:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-compare-smoke
+```
+
+The workspace compare wrapper writes under:
+
+```powershell
+out/system-compiler-front-page-entry-opening-flow-workspace-compare
 ```
 
 ## What the compare records
@@ -89,6 +97,11 @@ It does not:
 It only judges whether two opening-flow witnesses expose the same consumer
 opening surface.
 
+For workspace-exported flows, target summary paths are compared relative to
+each flow output root. That keeps `baseline_opening_flow/` and
+`candidate_opening_flow/` scratch directories from looking like consumer-facing
+drift while still preserving the original absolute paths in provenance fields.
+
 ## Manual example
 
 Generate the base opening-flow witness:
@@ -110,6 +123,17 @@ python ./scripts/compare_system_compiler_front_page_entry_opening_flow.py `
   --baseline cmake-build-system-compiler-front-page-entry-opening-flow-smoke/front-page.entry-opening-flow.summary.json `
   --candidate cmake-build-system-compiler-front-page-entry-opening-flow-smoke/front-page.entry-opening-flow.summary.json `
   --output-root cmake-build-system-compiler-front-page-entry-opening-flow-compare-smoke/self-standing
+```
+
+Or compare two prepared front-page workspaces by exporting both opening-flow
+witnesses first and then comparing them:
+
+```powershell
+./scripts/compare_system_compiler_front_page_entry_opening_flow_workspace.ps1 `
+  -BaselineFrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -CandidateFrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -OutputRoot cmake-build-system-compiler-front-page-entry-opening-flow-workspace-compare-smoke `
+  -Clean
 ```
 
 Validate the compare object:

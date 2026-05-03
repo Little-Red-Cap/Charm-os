@@ -62,7 +62,26 @@
   - 对应 `system_compiler.artifact_report/v0` 中 I2C device contract facts 的投影样例
   - 用途偏向验证 `io.device_i2c_facts` 可以通过现有 `fact_resolution.fact_inventory`
     与 `resource_contract.provided_facts` 进入 artifact report，而不新增顶层 I2C 专用字段
-  - 它是 schema-level sample，不表示导出脚本已经自动生成 I2C facts
+  - 同时钉住 `fact_resolution.required_fact_resolution` 如何表达 required fact 的满足状态、
+    fact source bucket 与 raw evidence provider
+  - 它是 schema-level sample，并与当前 `i2c-device-contract-facts-smoke` 真实导出链保持同一种投影语义
+
+- `system_compiler.fact_evidence.v0.schema.json`
+  - 对应 `system_compiler.fact_evidence/v0` 的通用事实证据 sidecar
+  - 用途偏向让 contract-local 或 board/package-local facts 在不伪造 graph 的前提下进入 export bundle 与 artifact report
+
+- `examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+  - 对应 `io.device_i2c_facts` 的 contract-local fact evidence 样例
+  - 用途偏向钉住 I2C driver contract facts 如何投影到通用 `fact_evidence` sidecar
+
+- `examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
+  - 对应 `platform.board_facts` 的 board/package-local fact evidence 样例
+  - 用途偏向钉住 `BoardCaps` 当前事实载体如何投影到通用 `fact_evidence` sidecar
+
+- `examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
+  - 对应 `platform.board_facts + io.device_i2c_facts` 的多来源 fact composition 样例
+  - 用途偏向钉住 contract-required facts 与 board/package/adapter audit facts 如何在通用
+    `fact_evidence` sidecar 中合流，并进入 artifact report 的 `fact_resolution.fact_inventory`
 
 - `system_compiler.canonical_world.v0.schema.json`
   - 对应 `docs/system/canonical_world_v0.md` 里定义的 canonical world 对象
@@ -250,7 +269,7 @@
     与 `comparison.fact_resolution_summary`
   - 用途偏向把 artifact_root 默认总览里的 fact-resolution-side summary object
     正式锚定成可验证协议，并把 `kind / mode` 自描述字段固定下来
-  - 它当前负责冻结 fact inventory、contract drift 与 resource hotspot 汇总对象形状
+  - 它当前负责冻结 fact inventory、required fact resolution、contract drift 与 resource hotspot 汇总对象形状
 
 - `examples/fact_resolution_summary.summary.v0.sample.json`
   - 对应 `fact_resolution_summary/v0` 在 `mode = summary` 下的最小样例

@@ -51,6 +51,11 @@ The current summary records:
 - `secondary_landings`
 - one `fallback_mode_order`
 - de-duplicated `provenance_roots`
+- one `query_hints` block that says:
+  - which existing explain query should open first for each landing tab
+  - whether that query is `report` or `artifact_root` scoped
+  - whether the landing is expected to surface compare-aware overview semantics
+  - which no-argument follow-up queries stay nearest to that landing
 - a compact `landing_status` block with:
   - recommended mode
   - entry tier
@@ -62,6 +67,10 @@ That means a tool no longer needs to infer:
 - which preferred entry should win first
 - whether two capabilities point to the same route entry
 - whether provenance roots should be shown as separate expandable worlds
+- whether a landing should immediately open a report overview or an
+  artifact-root overview
+- which stable no-argument explain query is the safest next hop after a tab
+  has been chosen
 
 ## Current ordering rules
 
@@ -86,6 +95,28 @@ Examples:
 
 If multiple capabilities resolve to the same route entry, the landing plan
 collapses them into one tab and keeps the capability aliases together.
+
+## Query hints
+
+`query_hints` is intentionally modest.
+
+It does not try to freeze every future explain interaction, and it does not
+guess parameterized queries such as `-WhyCapability <cap>` or
+`-GraphPath <capability>`.
+
+Instead it only binds each landing tab to the smallest stable no-argument
+explain read that already exists today:
+
+- report-first landings such as `delivery_biography`
+  - open `default_overview` in `report` scope first
+- evidence-first landings such as `supporting_evidence`
+  - open `bringup_evidence` in `report` scope first
+- compare / review / shelf-style landings such as `counterfactual_verdict`,
+  `grouped_review`, and `shelf_compare`
+  - open `default_overview` in `artifact_root` scope first
+
+That keeps the object consumer-side and low-risk while still welding the older
+landing line to the newer `artifact_report` / `explain_surface` query line.
 
 ## Provenance roots
 

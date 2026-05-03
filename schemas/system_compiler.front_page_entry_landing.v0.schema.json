@@ -21,6 +21,7 @@
     "secondary_landings",
     "landing_tabs",
     "provenance_roots",
+    "query_hints",
     "questions",
     "violations"
   ],
@@ -101,6 +102,9 @@
       "items": {
         "$ref": "#/$defs/provenanceRoot"
       }
+    },
+    "query_hints": {
+      "$ref": "#/$defs/queryHints"
     },
     "questions": {
       "$ref": "#/$defs/questionBlock"
@@ -494,6 +498,105 @@
         }
       }
     },
+    "queryHint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tab_id",
+        "tab_title",
+        "entry_role",
+        "summary_schema",
+        "summary_kind",
+        "scope",
+        "selection_rule",
+        "query_kind",
+        "compare_expected",
+        "followup_query_kinds",
+        "rationale"
+      ],
+      "properties": {
+        "tab_id": {
+          "type": "string"
+        },
+        "tab_title": {
+          "type": "string"
+        },
+        "entry_role": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_kind": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "report",
+            "artifact_root"
+          ]
+        },
+        "selection_rule": {
+          "type": "string",
+          "enum": [
+            "single_report",
+            "artifact_root_full",
+            "artifact_root_or_subset"
+          ]
+        },
+        "query_kind": {
+          "type": "string",
+          "enum": [
+            "default_overview",
+            "bringup_evidence",
+            "resource_summary",
+            "cap_list"
+          ]
+        },
+        "compare_expected": {
+          "type": "boolean"
+        },
+        "followup_query_kinds": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "rationale": {
+          "type": "string"
+        }
+      }
+    },
+    "queryHints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_query",
+        "tab_queries"
+      ],
+      "properties": {
+        "primary_query": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/queryHint"
+              }
+            }
+          ]
+        },
+        "tab_queries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/queryHint"
+          }
+        }
+      }
+    },
     "provenanceRoot": {
       "type": "object",
       "additionalProperties": false,
@@ -544,4 +647,3 @@
     }
   }
 }
-

@@ -177,6 +177,359 @@ function Format-StringArrayOrDash {
     return Format-StringArray -Values $Values
 }
 
+function Get-MapEntries {
+    param(
+        $Map
+    )
+
+    if ($null -eq $Map) {
+        return @()
+    }
+
+    if ($Map -is [System.Collections.IDictionary]) {
+        return @(
+            foreach ($key in @($Map.Keys)) {
+                [pscustomobject][ordered]@{
+                    Name = [string]$key
+                    Value = $Map[$key]
+                }
+            }
+        )
+    }
+
+    return @(
+        @($Map.PSObject.Properties) |
+            ForEach-Object {
+                [pscustomobject][ordered]@{
+                    Name = [string]$_.Name
+                    Value = $_.Value
+                }
+            }
+    )
+}
+
+function New-DriftHeadlineDimension {
+    param(
+        [string]$Name,
+        [int]$Count,
+        [string[]]$Cases = @()
+    )
+
+    return [ordered]@{
+        name = $Name
+        changed_case_count = [int]$Count
+        cases = @($Cases | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+    }
+}
+
+function New-DriftHeadlineFromDimensions {
+    param(
+        [object[]]$Dimensions,
+        [int]$ComparedCaseCount
+    )
+
+    $changedDimensions = @(
+        @($Dimensions) |
+            Where-Object { [int]$_.changed_case_count -gt 0 } |
+            ForEach-Object { [string]$_.name }
+    )
+    $dimensionCounts = [ordered]@{}
+    foreach ($dimension in @($Dimensions)) {
+        $dimensionCounts[[string]$dimension.name] = [int]$dimension.changed_case_count
+    }
+
+    $text = if (@($changedDimensions).Count -gt 0) {
+        @(
+            @($Dimensions) |
+                Where-Object { [int]$_.changed_case_count -gt 0 } |
+                ForEach-Object { "$([string]$_.name):$([int]$_.changed_case_count)" }
+        ) -join ' '
+    } else {
+        'no drift'
+    }
+
+    return [ordered]@{
+        text = $text
+        compared_case_count = [int]$ComparedCaseCount
+        changed_dimension_count = @($changedDimensions).Count
+        changed_dimensions = @($changedDimensions)
+        dimension_counts = $dimensionCounts
+        dimensions = @($Dimensions)
+    }
+}
+
+function New-ArtifactRootDriftHeadline {
+    param(
+        $ComparisonOverview
+    )
+
+    if ($null -eq $ComparisonOverview) {
+        return $null
+    }
+
+    $dimensions = @(
+        New-DriftHeadlineDimension -Name 'metadata' -Count ([int]$ComparisonOverview.metadata_changed_case_count) -Cases @($ComparisonOverview.metadata_changed_cases)
+        New-DriftHeadlineDimension -Name 'input' -Count ([int]$ComparisonOverview.input_changed_case_count) -Cases @($ComparisonOverview.input_changed_cases)
+        New-DriftHeadlineDimension -Name 'formation' -Count ([int]$ComparisonOverview.system_formation_changed_case_count) -Cases @($ComparisonOverview.system_formation_changed_cases)
+        New-DriftHeadlineDimension -Name 'binding' -Count ([int]$ComparisonOverview.binding_result_changed_case_count) -Cases @($ComparisonOverview.binding_result_changed_cases)
+        New-DriftHeadlineDimension -Name 'bringup_order' -Count ([int]$ComparisonOverview.bringup_order_changed_case_count) -Cases @($ComparisonOverview.bringup_order_changed_cases)
+        New-DriftHeadlineDimension -Name 'bringup_evidence' -Count ([int]$ComparisonOverview.bringup_changed_case_count) -Cases @($ComparisonOverview.bringup_changed_cases)
+        New-DriftHeadlineDimension -Name 'resource' -Count ([int]$ComparisonOverview.resource_changed_case_count) -Cases @($ComparisonOverview.resource_changed_cases)
+        New-DriftHeadlineDimension -Name 'fact_resolution' -Count ([int]$ComparisonOverview.fact_resolution_changed_case_count) -Cases @($ComparisonOverview.fact_resolution_changed_cases)
+    )
+
+    return New-DriftHeadlineFromDimensions -Dimensions $dimensions -ComparedCaseCount ([int]$ComparisonOverview.compared_case_count)
+}
+
+function Test-ReportComparisonDimensionChanged {
+    param(
+        $ComparisonOverview,
+        [string]$Name
+    )
+
+    $dimension = Get-OptionalMemberValue -Object $ComparisonOverview -Name $Name
+    if ($null -eq $dimension) {
+        return $false
+    }
+
+    return [bool](Get-OptionalMemberValue -Object $dimension -Name 'changed')
+}
+
+function Get-OptionalMemberValueCount {
+    param(
+        $Object,
+        [string]$Name
+    )
+
+    $value = Get-OptionalMemberValue -Object $Object -Name $Name
+    if ($null -eq $value) {
+        return 0
+    }
+
+    return @($value).Count
+}
+
+function New-ReportDriftHeadline {
+    param(
+        $ComparisonOverview,
+        [string]$CaseName
+    )
+
+    if ($null -eq $ComparisonOverview) {
+        return $null
+    }
+
+    $caseSet = if (-not [string]::IsNullOrWhiteSpace($CaseName)) { @($CaseName) } else { @() }
+    $metadataChanged = (Get-OptionalMemberValueCount -Object $ComparisonOverview -Name 'metadata_changes') -gt 0
+    $inputChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'system_input'
+    $formationChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'system_formation'
+    $bindingChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'binding_result'
+    $bringupOrderChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'bringup_order'
+    $bringupEvidenceChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'bringup_evidence'
+    $resourceChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'resource_contract'
+    $factResolutionChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'fact_resolution'
+    $dimensions = @(
+        New-DriftHeadlineDimension -Name 'metadata' -Count ([int]$metadataChanged) -Cases $(if ($metadataChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'input' -Count ([int]$inputChanged) -Cases $(if ($inputChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'formation' -Count ([int]$formationChanged) -Cases $(if ($formationChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'binding' -Count ([int]$bindingChanged) -Cases $(if ($bindingChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'bringup_order' -Count ([int]$bringupOrderChanged) -Cases $(if ($bringupOrderChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'bringup_evidence' -Count ([int]$bringupEvidenceChanged) -Cases $(if ($bringupEvidenceChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'resource' -Count ([int]$resourceChanged) -Cases $(if ($resourceChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'fact_resolution' -Count ([int]$factResolutionChanged) -Cases $(if ($factResolutionChanged) { $caseSet } else { @() })
+    )
+
+    return New-DriftHeadlineFromDimensions -Dimensions $dimensions -ComparedCaseCount 1
+}
+
+function New-FormationHeadline {
+    param(
+        [int]$CaseCount,
+        [int]$FormedCaseCount,
+        [int]$BlockedCaseCount,
+        [string[]]$FormedCases = @(),
+        [string[]]$BlockedCases = @(),
+        [int]$UnresolvedBindingCount = 0,
+        [int]$BlockedNodeCount = 0,
+        [int]$BlockerCount = 0,
+        [string[]]$UnresolvedCapabilities = @(),
+        [string[]]$BlockedNodes = @(),
+        [object[]]$Blockers = @()
+    )
+
+    $status = if ($BlockedCaseCount -gt 0 -or $UnresolvedBindingCount -gt 0 -or $BlockedNodeCount -gt 0 -or $BlockerCount -gt 0) {
+        'blocked'
+    } else {
+        'formed'
+    }
+
+    $textParts = @("status:$status", "formed:$FormedCaseCount", "blocked:$BlockedCaseCount")
+    if ($UnresolvedBindingCount -gt 0) {
+        $textParts += "unresolved_bindings:$UnresolvedBindingCount"
+    }
+    if ($BlockedNodeCount -gt 0) {
+        $textParts += "blocked_nodes:$BlockedNodeCount"
+    }
+    if ($BlockerCount -gt 0) {
+        $textParts += "blockers:$BlockerCount"
+    }
+
+    return [ordered]@{
+        text = (@($textParts) -join ' ')
+        status = $status
+        case_count = [int]$CaseCount
+        status_counts = [ordered]@{
+            formed = [int]$FormedCaseCount
+            blocked = [int]$BlockedCaseCount
+        }
+        formed_cases = @($FormedCases | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+        blocked_cases = @($BlockedCases | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+        unresolved_binding_count = [int]$UnresolvedBindingCount
+        blocked_node_count = [int]$BlockedNodeCount
+        blocker_count = [int]$BlockerCount
+        unresolved_capabilities = @($UnresolvedCapabilities | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+        blocked_nodes = @($BlockedNodes | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique)
+        blockers = @($Blockers)
+    }
+}
+
+function New-ReportFormationHeadline {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['system_formation'] -or
+        $null -eq $ReportData.system_formation) {
+        return $null
+    }
+
+    $systemFormation = $ReportData.system_formation
+    $caseName = if ($null -ne $ReportData.PSObject.Properties['subject'] -and
+        $null -ne $ReportData.subject -and
+        $null -ne $ReportData.subject.PSObject.Properties['case']) {
+        [string]$ReportData.subject.case
+    } else {
+        ''
+    }
+    $formed = [string]$systemFormation.status -eq 'formed'
+    $bindingSummary = if ($null -ne $systemFormation.PSObject.Properties['binding_summary']) { $systemFormation.binding_summary } else { $null }
+    $bringupSummary = if ($null -ne $systemFormation.PSObject.Properties['bringup_summary']) { $systemFormation.bringup_summary } else { $null }
+
+    return New-FormationHeadline `
+        -CaseCount 1 `
+        -FormedCaseCount ([int]$formed) `
+        -BlockedCaseCount ([int](-not $formed)) `
+        -FormedCases $(if ($formed) { @($caseName) } else { @() }) `
+        -BlockedCases $(if (-not $formed) { @($caseName) } else { @() }) `
+        -UnresolvedBindingCount $(if ($null -ne $bindingSummary) { [int]$bindingSummary.unresolved_binding_count } else { 0 }) `
+        -BlockedNodeCount $(if ($null -ne $bringupSummary) { [int]$bringupSummary.blocked_node_count } else { 0 }) `
+        -BlockerCount ([int]$systemFormation.blocker_count) `
+        -UnresolvedCapabilities $(if ($null -ne $bindingSummary) { @($bindingSummary.unresolved_capabilities) } else { @() }) `
+        -BlockedNodes $(if ($null -ne $bringupSummary) { @($bringupSummary.blocked_nodes) } else { @() }) `
+        -Blockers @($systemFormation.blockers)
+}
+
+function New-ArtifactRootFormationHeadline {
+    param(
+        $SystemCompilerSummary,
+        $SystemFormationSummary
+    )
+
+    $summary = if ($null -ne $SystemCompilerSummary) { $SystemCompilerSummary } else { $SystemFormationSummary }
+    if ($null -eq $summary) {
+        return $null
+    }
+
+    $unresolvedCapabilities = @(
+        @($summary.unresolved_capability_matrix) |
+            ForEach-Object { [string]$_.capability }
+    )
+    $blockedNodes = @(
+        @($summary.blocked_node_matrix) |
+            ForEach-Object { [string]$_.node }
+    )
+
+    return New-FormationHeadline `
+        -CaseCount ([int]$summary.case_count) `
+        -FormedCaseCount ([int]$summary.formed_case_count) `
+        -BlockedCaseCount ([int]$summary.blocked_case_count) `
+        -FormedCases @($summary.formed_cases) `
+        -BlockedCases @($summary.blocked_cases) `
+        -UnresolvedBindingCount ([int]$summary.totals.unresolved_binding_count) `
+        -BlockedNodeCount ([int]$summary.totals.blocked_node_count) `
+        -BlockerCount ([int]$summary.totals.blocker_count) `
+        -UnresolvedCapabilities @($unresolvedCapabilities) `
+        -BlockedNodes @($blockedNodes) `
+        -Blockers @($summary.blocker_matrix)
+}
+
+function New-CompilerHeadline {
+    param(
+        $FormationHeadline,
+        $ComparisonOverview
+    )
+
+    if ($null -eq $FormationHeadline -and $null -eq $ComparisonOverview) {
+        return $null
+    }
+
+    $driftHeadline = Get-OptionalMemberValue -Object $ComparisonOverview -Name 'drift_headline'
+    $changedDimensions = @(
+        @(Get-OptionalMemberValue -Object $driftHeadline -Name 'changed_dimensions') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+    $hasComparison = $null -ne $driftHeadline
+    $hasDrift = $hasComparison -and @($changedDimensions).Count -gt 0
+    $driftToken = if (-not $hasComparison) {
+        'n/a'
+    } elseif ($hasDrift) {
+        @($changedDimensions) -join ','
+    } else {
+        'none'
+    }
+
+    $status = [string](Get-OptionalMemberValue -Object $FormationHeadline -Name 'status')
+    if ([string]::IsNullOrWhiteSpace($status)) {
+        $status = 'unknown'
+    }
+
+    $statusCounts = Get-OptionalMemberValue -Object $FormationHeadline -Name 'status_counts'
+    return [ordered]@{
+        text = "status:$status drift:$driftToken"
+        status = $status
+        formation_text = [string](Get-OptionalMemberValue -Object $FormationHeadline -Name 'text')
+        drift_text = [string](Get-OptionalMemberValue -Object $driftHeadline -Name 'text')
+        has_comparison = [bool]$hasComparison
+        has_drift = [bool]$hasDrift
+        case_count = [int](Get-OptionalMemberValue -Object $FormationHeadline -Name 'case_count')
+        formed_case_count = [int](Get-OptionalMemberValue -Object $statusCounts -Name 'formed')
+        blocked_case_count = [int](Get-OptionalMemberValue -Object $statusCounts -Name 'blocked')
+        unresolved_binding_count = [int](Get-OptionalMemberValue -Object $FormationHeadline -Name 'unresolved_binding_count')
+        blocked_node_count = [int](Get-OptionalMemberValue -Object $FormationHeadline -Name 'blocked_node_count')
+        blocker_count = [int](Get-OptionalMemberValue -Object $FormationHeadline -Name 'blocker_count')
+        compared_case_count = [int](Get-OptionalMemberValue -Object $driftHeadline -Name 'compared_case_count')
+        changed_dimension_count = [int](Get-OptionalMemberValue -Object $driftHeadline -Name 'changed_dimension_count')
+        drift_dimensions = @($changedDimensions)
+        blocked_cases = @(
+            @(Get-OptionalMemberValue -Object $FormationHeadline -Name 'blocked_cases') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        unresolved_capabilities = @(
+            @(Get-OptionalMemberValue -Object $FormationHeadline -Name 'unresolved_capabilities') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        blocked_nodes = @(
+            @(Get-OptionalMemberValue -Object $FormationHeadline -Name 'blocked_nodes') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+    }
+}
+
 function Format-ResolvedScalarInputText {
     param(
         $ResolvedInput
@@ -755,6 +1108,28 @@ function Get-ResourceComparisonContractChangesForCapability {
     )
 }
 
+function Get-FactResolutionRequiredFactChangesForCapability {
+    param(
+        $ReportData,
+        [string]$CapabilityName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CapabilityName)) {
+        return @()
+    }
+
+    $comparison = Get-FactResolutionComparisonFromReport -ReportData $ReportData
+    if ($null -eq $comparison) {
+        return @()
+    }
+
+    return @(
+        @($comparison.required_fact_resolution_changes) |
+            Where-Object { [string]$_.fact -eq $CapabilityName } |
+            Sort-Object fact
+    )
+}
+
 function New-CapabilityComparisonResult {
     param(
         $ReportData,
@@ -764,6 +1139,7 @@ function New-CapabilityComparisonResult {
     $bringupChange = Get-BringupComparisonCapabilityChange -ReportData $ReportData -CapabilityName $CapabilityName
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $ReportData
     $resourceContractChanges = @(Get-ResourceComparisonContractChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
+    $requiredFactResolutionChanges = @(Get-FactResolutionRequiredFactChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
 
     $resourceChangeKinds = @()
     $resourceContracts = @()
@@ -793,17 +1169,40 @@ function New-CapabilityComparisonResult {
         }
     }
 
+    $requiredFactResolutionChangeKinds = @()
+    foreach ($requiredFactChange in @($requiredFactResolutionChanges)) {
+        $changeKind = [string]$requiredFactChange.change_kind
+        if (-not [string]::IsNullOrWhiteSpace($changeKind)) {
+            $requiredFactResolutionChangeKinds += $changeKind
+            $resourceChangeKinds += "required_fact_$changeKind"
+        }
+    }
+
+    $requiredFactsChanged = @(
+        @($requiredFactResolutionChanges) |
+            ForEach-Object { [string]$_.fact } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+
     $bringupChangeKinds = @()
     if ($null -ne $bringupChange -and -not [string]::IsNullOrWhiteSpace([string]$bringupChange.change_kind)) {
         $bringupChangeKinds += [string]$bringupChange.change_kind
     }
 
+    $resourceChanged = ($resourceFactAdded -or $resourceFactRemoved -or @($resourceContractChanges).Count -gt 0 -or @($requiredFactResolutionChanges).Count -gt 0)
+
     return [ordered]@{
+        changed = (($null -ne $bringupChange) -or $resourceChanged)
         bringup_changed = ($null -ne $bringupChange)
         bringup_change_kinds = @($bringupChangeKinds | Sort-Object -Unique)
-        resource_changed = ($resourceFactAdded -or $resourceFactRemoved -or @($resourceContractChanges).Count -gt 0)
+        resource_changed = $resourceChanged
         resource_change_kinds = @($resourceChangeKinds | Sort-Object -Unique)
         resource_contracts = @($resourceContracts | Sort-Object -Unique)
+        fact_resolution_changed = (@($requiredFactResolutionChanges).Count -gt 0)
+        required_fact_resolution_change_kinds = @($requiredFactResolutionChangeKinds | Sort-Object -Unique)
+        required_facts_changed = @($requiredFactsChanged)
+        required_fact_resolution_changes = @($requiredFactResolutionChanges)
     }
 }
 
@@ -817,6 +1216,7 @@ function New-WhyCapabilityComparisonResult {
     $bringupChange = Get-BringupComparisonCapabilityChange -ReportData $ReportData -CapabilityName $CapabilityName
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $ReportData
     $resourceContractChanges = @(Get-ResourceComparisonContractChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
+    $requiredFactResolutionChanges = @(Get-FactResolutionRequiredFactChangesForCapability -ReportData $ReportData -CapabilityName $CapabilityName)
 
     $resourceFactAdded = $false
     $resourceFactRemoved = $false
@@ -842,11 +1242,17 @@ function New-WhyCapabilityComparisonResult {
         resource_changed = [bool]$summary.resource_changed
         resource_change_kinds = @($summary.resource_change_kinds)
         resource_contracts = @($summary.resource_contracts)
+        fact_resolution_changed = [bool]$summary.fact_resolution_changed
+        required_fact_resolution_change_kinds = @($summary.required_fact_resolution_change_kinds)
+        required_facts_changed = @($summary.required_facts_changed)
         bringup_evidence = $bringupEvidence
         resource_contract = [ordered]@{
             provided_fact_added = $resourceFactAdded
             provided_fact_removed = $resourceFactRemoved
             contract_changes = @($resourceContractChanges)
+        }
+        fact_resolution = [ordered]@{
+            required_fact_resolution_changes = @($requiredFactResolutionChanges)
         }
     }
 }
@@ -1120,6 +1526,11 @@ function New-ArtifactRootFactResolutionCaseSummary {
     $report = $LoadedReport.Data
     $graphInfo = Load-GraphFromArtifactReport -ReportData $report
     $resourceSummary = New-ResourceSummaryResult -ReportData $report -GraphInfo $graphInfo
+    $requiredFactResolution = if ($null -ne $resourceSummary.PSObject.Properties['required_fact_resolution']) {
+        @($resourceSummary.required_fact_resolution)
+    } else {
+        @()
+    }
 
     return [pscustomobject][ordered]@{
         report_path = $LoadedReport.Path
@@ -1138,6 +1549,7 @@ function New-ArtifactRootFactResolutionCaseSummary {
         graph_provided_facts = @($resourceSummary.fact_inventory.graph_provided_facts)
         audit_provided_facts = @($resourceSummary.fact_inventory.audit_provided_facts)
         all_available_facts = @($resourceSummary.fact_inventory.all_available_facts)
+        required_fact_resolution = @($requiredFactResolution)
         resource_hotspots = @($resourceSummary.resource_hotspots)
         contracts = @($resourceSummary.contracts)
     }
@@ -1259,6 +1671,87 @@ function New-ArtifactRootResourceProvidedFactEntry {
     return New-ArtifactRootFactInventoryMatrixEntry -FactName $FactName -FactGroup 'audit_provided_facts' -CaseSummaries $CaseSummaries
 }
 
+function New-ArtifactRootRequiredFactResolutionMatrixEntry {
+    param(
+        [string]$FactName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($FactName)) {
+        return $null
+    }
+
+    $factCases = @()
+    $providerSources = @()
+    $providerRoles = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $matchingEntries = @(
+            @($caseSummary.required_fact_resolution) |
+                Where-Object { [string]$_.fact -eq $FactName }
+        )
+        if ($matchingEntries.Count -eq 0) {
+            continue
+        }
+
+        $entry = $matchingEntries[0]
+        $providers = @($entry.providers)
+        $providerSources += @(
+            @($providers) |
+                ForEach-Object { [string]$_.source } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        )
+        $providerRoles += @(
+            @($providers) |
+                ForEach-Object { [string]$_.role } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        )
+        $factCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            state = [string]$entry.state
+            fact_sources = @($entry.fact_sources)
+            provider_count = [int]$entry.provider_count
+            providers = @($providers)
+            status_text = [string]$entry.status_text
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        fact = $FactName
+        case_count = @($factCases).Count
+        cases_satisfied = @($factCases | Where-Object { [string]$_.state -eq 'satisfied' }).Count
+        cases_missing = @($factCases | Where-Object { [string]$_.state -eq 'missing' }).Count
+        provider_count = (@($factCases | Measure-Object -Property provider_count -Sum).Sum)
+        provider_sources = @($providerSources | Sort-Object -Unique)
+        provider_roles = @($providerRoles | Sort-Object -Unique)
+        cases = @($factCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootRequiredFactResolutionMatrix {
+    param(
+        [object[]]$CaseSummaries
+    )
+
+    $factNames = @(
+        foreach ($caseSummary in @($CaseSummaries)) {
+            foreach ($entry in @($caseSummary.required_fact_resolution)) {
+                $factName = [string]$entry.fact
+                if (-not [string]::IsNullOrWhiteSpace($factName)) {
+                    $factName
+                }
+            }
+        }
+    ) | Sort-Object -Unique
+
+    return @(
+        foreach ($factName in @($factNames)) {
+            New-ArtifactRootRequiredFactResolutionMatrixEntry -FactName $factName -CaseSummaries $CaseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object fact
+}
+
 function New-ArtifactRootResourceHotspotEntry {
     param(
         [string]$HotspotText,
@@ -1318,6 +1811,7 @@ function New-ArtifactRootFactResolutionSummaryResult {
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
     $factInventoryMatrix = New-ArtifactRootFactInventoryMatrix -CaseSummaries $caseSummaries
+    $requiredFactResolutionMatrix = New-ArtifactRootRequiredFactResolutionMatrix -CaseSummaries $caseSummaries
 
     $contractMatrix = @(
         foreach ($contractName in @($contractNames)) {
@@ -1346,6 +1840,7 @@ function New-ArtifactRootFactResolutionSummaryResult {
         fact_inventory_matrix = $factInventoryMatrix
         contract_matrix = @($contractMatrix | Sort-Object contract)
         required_fact_matrix = @($factInventoryMatrix.required_facts)
+        required_fact_resolution_matrix = @($requiredFactResolutionMatrix)
         provided_fact_matrix = @($factInventoryMatrix.audit_provided_facts)
         resource_hotspot_matrix = @($resourceHotspotMatrix | Sort-Object hotspot)
     }
@@ -2690,6 +3185,14 @@ function New-ArtifactRootFactResolutionCompareCaseSummary {
                 Sort-Object -Unique
         )
         fact_inventory_changes = $comparison.fact_inventory_changes
+        required_fact_resolution_change_count = @($comparison.required_fact_resolution_changes).Count
+        required_facts_changed = @(
+            @($comparison.required_fact_resolution_changes) |
+                ForEach-Object { [string]$_.fact } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        required_fact_resolution_changes = @($comparison.required_fact_resolution_changes)
         hotspots_added = @($comparison.hotspot_changes.added)
         hotspots_removed = @($comparison.hotspot_changes.removed)
         contract_changes = @($comparison.contract_changes)
@@ -2760,6 +3263,77 @@ function New-ArtifactRootFactResolutionCompareFactInventoryMatrix {
     return $matrix
 }
 
+function New-ArtifactRootRequiredFactResolutionChangeEntry {
+    param(
+        [string]$FactName,
+        [object[]]$CaseSummaries
+    )
+
+    if ([string]::IsNullOrWhiteSpace($FactName)) {
+        return $null
+    }
+
+    $changeCases = @()
+    foreach ($caseSummary in @($CaseSummaries)) {
+        $changeEntry = @(
+            @($caseSummary.required_fact_resolution_changes) |
+                Where-Object { [string]$_.fact -eq $FactName } |
+                Select-Object -First 1
+        ) | Select-Object -First 1
+
+        if ($null -eq $changeEntry) {
+            continue
+        }
+
+        $changeCases += [pscustomobject][ordered]@{
+            case = [string]$caseSummary.case
+            profile = [string]$caseSummary.profile
+            board = [string]$caseSummary.board
+            change_kind = [string]$changeEntry.change_kind
+            left_state = [string]$changeEntry.left_state
+            right_state = [string]$changeEntry.right_state
+            left_fact_sources = @($changeEntry.left_fact_sources)
+            right_fact_sources = @($changeEntry.right_fact_sources)
+            left_provider_count = [int]$changeEntry.left_provider_count
+            right_provider_count = [int]$changeEntry.right_provider_count
+            left_providers = @($changeEntry.left_providers)
+            right_providers = @($changeEntry.right_providers)
+            left_status_text = if ([string]::IsNullOrWhiteSpace([string]$changeEntry.left_status_text)) { $null } else { [string]$changeEntry.left_status_text }
+            right_status_text = if ([string]::IsNullOrWhiteSpace([string]$changeEntry.right_status_text)) { $null } else { [string]$changeEntry.right_status_text }
+        }
+    }
+
+    return [ordered]@{
+        fact = $FactName
+        case_count = @($changeCases).Count
+        change_kinds = @(
+            @($changeCases) |
+                ForEach-Object { [string]$_.change_kind } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        cases = @($changeCases | Sort-Object case)
+    }
+}
+
+function New-ArtifactRootRequiredFactResolutionChangeMatrix {
+    param(
+        [object[]]$CaseSummaries
+    )
+
+    $factNames = @(
+        foreach ($caseSummary in @($CaseSummaries)) {
+            @($caseSummary.required_facts_changed)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+
+    return @(
+        foreach ($factName in @($factNames)) {
+            New-ArtifactRootRequiredFactResolutionChangeEntry -FactName $factName -CaseSummaries $CaseSummaries
+        }
+    ) | Where-Object { $null -ne $_ } | Sort-Object fact
+}
+
 function New-ArtifactRootFactResolutionComparisonResult {
     param(
         [object[]]$LoadedReports
@@ -2799,6 +3373,7 @@ function New-ArtifactRootFactResolutionComparisonResult {
             New-ArtifactRootResourceCompareContractEntry -ContractName $contractName -CaseSummaries $caseSummaries
         }
     ) | Where-Object { $null -ne $_ } | Sort-Object contract
+    $requiredFactResolutionChangeMatrix = New-ArtifactRootRequiredFactResolutionChangeMatrix -CaseSummaries $caseSummaries
 
     return [ordered]@{
         kind = 'fact_resolution_summary/v0'
@@ -2819,9 +3394,11 @@ function New-ArtifactRootFactResolutionComparisonResult {
                 Sort-Object
         )
         contract_change_count = [int](@($caseSummaries | Measure-Object -Property contract_change_count -Sum).Sum)
+        required_fact_resolution_change_count = [int](@($caseSummaries | Measure-Object -Property required_fact_resolution_change_count -Sum).Sum)
         cases = @($caseSummaries)
         summary_change_matrix = @($summaryChangeMatrix)
         contract_change_matrix = @($contractChangeMatrix)
+        required_fact_resolution_change_matrix = @($requiredFactResolutionChangeMatrix)
         fact_inventory_change_matrix = New-ArtifactRootFactResolutionCompareFactInventoryMatrix -CaseSummaries $caseSummaries
     }
 }
@@ -3503,6 +4080,13 @@ function New-WhyCapabilityResult {
                 $rightState = Format-OptionalState -Value ([string]$contractChange.right_state)
                 $reasons += "compare contract $contractName changed: $changeKind ($leftState -> $rightState)"
             }
+            foreach ($requiredFactChange in @($comparison.fact_resolution.required_fact_resolution_changes)) {
+                $factName = [string]$requiredFactChange.fact
+                $changeKind = [string]$requiredFactChange.change_kind
+                $leftState = Format-OptionalState -Value ([string]$requiredFactChange.left_state)
+                $rightState = Format-OptionalState -Value ([string]$requiredFactChange.right_state)
+                $reasons += "compare required_fact $factName changed: $changeKind ($leftState -> $rightState)"
+            }
         }
     }
 
@@ -3529,10 +4113,14 @@ function New-ArtifactRootWhyCapabilityCaseResult {
     $bringupChangeKinds = @()
     $resourceChangeKinds = @()
     $resourceContracts = @()
+    $requiredFactResolutionChangeKinds = @()
+    $requiredFactsChanged = @()
     if ($null -ne $whyResult.comparison) {
         $bringupChangeKinds = @($whyResult.comparison.bringup_change_kinds)
         $resourceChangeKinds = @($whyResult.comparison.resource_change_kinds)
         $resourceContracts = @($whyResult.comparison.resource_contracts)
+        $requiredFactResolutionChangeKinds = @($whyResult.comparison.required_fact_resolution_change_kinds)
+        $requiredFactsChanged = @($whyResult.comparison.required_facts_changed)
     }
 
     return [pscustomobject][ordered]@{
@@ -3548,9 +4136,12 @@ function New-ArtifactRootWhyCapabilityCaseResult {
         compare_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.changed)
         bringup_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.bringup_changed)
         resource_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.resource_changed)
+        fact_resolution_changed = ($null -ne $whyResult.comparison -and [bool]$whyResult.comparison.fact_resolution_changed)
         bringup_change_kinds = @($bringupChangeKinds)
         resource_change_kinds = @($resourceChangeKinds)
         resource_contracts = @($resourceContracts)
+        required_fact_resolution_change_kinds = @($requiredFactResolutionChangeKinds)
+        required_facts_changed = @($requiredFactsChanged)
     }
 }
 
@@ -3595,9 +4186,19 @@ function New-ArtifactRootWhyCapabilityResult {
             Where-Object { [bool]$_.resource_changed } |
             ForEach-Object { [string]$_.case }
     )
+    $factResolutionCompareCases = @(
+        @($caseResults) |
+            Where-Object { [bool]$_.fact_resolution_changed } |
+            ForEach-Object { [string]$_.case }
+    )
     $resourceContracts = @(
         foreach ($caseResult in @($caseResults)) {
             @($caseResult.resource_contracts)
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $requiredFactsChanged = @(
+        foreach ($caseResult in @($caseResults)) {
+            @($caseResult.required_facts_changed)
         }
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
@@ -3608,10 +4209,13 @@ function New-ArtifactRootWhyCapabilityResult {
         compared_case_count = @($comparedCases).Count
         bringup_compare_case_count = @($bringupCompareCases).Count
         resource_compare_case_count = @($resourceCompareCases).Count
+        fact_resolution_compare_case_count = @($factResolutionCompareCases).Count
         compared_cases = @($comparedCases | Sort-Object -Unique)
         bringup_compare_cases = @($bringupCompareCases | Sort-Object -Unique)
         resource_compare_cases = @($resourceCompareCases | Sort-Object -Unique)
+        fact_resolution_compare_cases = @($factResolutionCompareCases | Sort-Object -Unique)
         resource_contracts = @($resourceContracts)
+        required_facts_changed = @($requiredFactsChanged)
         cases = @($caseResults)
     }
 }
@@ -3670,6 +4274,8 @@ function Format-CapListDisplayRow {
         Unres = Format-BoolFlag -Value ([bool]$Entry.unresolved_binding)
         BrCmp = Format-StringArrayOrDash -Values @($Entry.comparison.bringup_change_kinds)
         ResCmp = Format-StringArrayOrDash -Values @($Entry.comparison.resource_change_kinds)
+        FactCmp = Format-StringArrayOrDash -Values @($Entry.comparison.required_fact_resolution_change_kinds)
+        ReqFacts = Format-StringArrayOrDash -Values @($Entry.comparison.required_facts_changed)
         Providers = Format-StringArray @($Entry.provider_nodes)
         Consumers = Format-StringArray @($Entry.consumer_nodes)
     }
@@ -3727,9 +4333,12 @@ function New-AggregatedCapListEntry {
         compare_cases = @()
         bringup_compare_cases = @()
         resource_compare_cases = @()
+        fact_resolution_compare_cases = @()
         bringup_change_kinds = @()
         resource_change_kinds = @()
         resource_contracts = @()
+        required_fact_resolution_change_kinds = @()
+        required_facts_changed = @()
         provider_nodes = @()
         consumer_nodes = @()
     }
@@ -3751,6 +4360,7 @@ function Normalize-AggregatedCapListEntry {
     $compareCases = @($Entry.compare_cases | Sort-Object -Unique)
     $bringupCompareCases = @($Entry.bringup_compare_cases | Sort-Object -Unique)
     $resourceCompareCases = @($Entry.resource_compare_cases | Sort-Object -Unique)
+    $factResolutionCompareCases = @($Entry.fact_resolution_compare_cases | Sort-Object -Unique)
 
     return [ordered]@{
         capability = [string]$Entry.capability
@@ -3765,6 +4375,7 @@ function Normalize-AggregatedCapListEntry {
         compare = ($compareCases.Count -gt 0)
         bringup_compare = ($bringupCompareCases.Count -gt 0)
         resource_compare = ($resourceCompareCases.Count -gt 0)
+        fact_resolution_compare = ($factResolutionCompareCases.Count -gt 0)
         materialized_cases = $materializedCases
         observed_cases = $observedCases
         published_cases = $publishedCases
@@ -3775,9 +4386,12 @@ function Normalize-AggregatedCapListEntry {
         compare_cases = $compareCases
         bringup_compare_cases = $bringupCompareCases
         resource_compare_cases = $resourceCompareCases
+        fact_resolution_compare_cases = $factResolutionCompareCases
         bringup_change_kinds = @($Entry.bringup_change_kinds | Sort-Object -Unique)
         resource_change_kinds = @($Entry.resource_change_kinds | Sort-Object -Unique)
         resource_contracts = @($Entry.resource_contracts | Sort-Object -Unique)
+        required_fact_resolution_change_kinds = @($Entry.required_fact_resolution_change_kinds | Sort-Object -Unique)
+        required_facts_changed = @($Entry.required_facts_changed | Sort-Object -Unique)
         provider_nodes = @($Entry.provider_nodes | Sort-Object -Unique)
         consumer_nodes = @($Entry.consumer_nodes | Sort-Object -Unique)
     }
@@ -3800,7 +4414,10 @@ function Format-AggregatedCapListDisplayRow {
         Unres = Format-StringArray @($Entry.unresolved_binding_cases)
         BrCmp = Format-StringArray @($Entry.bringup_compare_cases)
         ResCmp = Format-StringArray @($Entry.resource_compare_cases)
+        FactCmp = Format-StringArray @($Entry.fact_resolution_compare_cases)
         ResCtr = Format-StringArray @($Entry.resource_contracts)
+        ReqFactKinds = Format-StringArray @($Entry.required_fact_resolution_change_kinds)
+        ReqFacts = Format-StringArray @($Entry.required_facts_changed)
         Providers = Format-StringArray @($Entry.provider_nodes)
         Consumers = Format-StringArray @($Entry.consumer_nodes)
     }
@@ -3863,13 +4480,15 @@ function New-CapListComparisonSummaryResult {
                 if ($null -ne $comparison) {
                     return (
                         [bool](Get-OptionalMemberValue -Object $comparison -Name 'bringup_changed') -or
-                        [bool](Get-OptionalMemberValue -Object $comparison -Name 'resource_changed')
+                        [bool](Get-OptionalMemberValue -Object $comparison -Name 'resource_changed') -or
+                        [bool](Get-OptionalMemberValue -Object $comparison -Name 'fact_resolution_changed')
                     )
                 }
 
                 return (
                     [bool](Get-OptionalMemberValue -Object $_ -Name 'bringup_compare') -or
-                    [bool](Get-OptionalMemberValue -Object $_ -Name 'resource_compare')
+                    [bool](Get-OptionalMemberValue -Object $_ -Name 'resource_compare') -or
+                    [bool](Get-OptionalMemberValue -Object $_ -Name 'fact_resolution_compare')
                 )
             } |
             ForEach-Object { [string]$_.capability } |
@@ -3901,6 +4520,39 @@ function New-CapListComparisonSummaryResult {
             ForEach-Object { [string]$_.capability } |
             Sort-Object -Unique
     )
+    $factResolutionComparedCapabilities = @(
+        @($Capabilities) |
+            Where-Object {
+                $comparison = Get-OptionalMemberValue -Object $_ -Name 'comparison'
+                if ($null -ne $comparison) {
+                    return [bool](Get-OptionalMemberValue -Object $comparison -Name 'fact_resolution_changed')
+                }
+
+                return [bool](Get-OptionalMemberValue -Object $_ -Name 'fact_resolution_compare')
+            } |
+            ForEach-Object { [string]$_.capability } |
+            Sort-Object -Unique
+    )
+    $requiredFactResolutionChangeKinds = @(
+        foreach ($capability in @($Capabilities)) {
+            $comparison = Get-OptionalMemberValue -Object $capability -Name 'comparison'
+            if ($null -ne $comparison) {
+                @(Get-OptionalMemberValue -Object $comparison -Name 'required_fact_resolution_change_kinds')
+            } else {
+                @(Get-OptionalMemberValue -Object $capability -Name 'required_fact_resolution_change_kinds')
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
+    $requiredFactsChanged = @(
+        foreach ($capability in @($Capabilities)) {
+            $comparison = Get-OptionalMemberValue -Object $capability -Name 'comparison'
+            if ($null -ne $comparison) {
+                @(Get-OptionalMemberValue -Object $comparison -Name 'required_facts_changed')
+            } else {
+                @(Get-OptionalMemberValue -Object $capability -Name 'required_facts_changed')
+            }
+        }
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Sort-Object -Unique
 
     if (@($comparedCapabilities).Count -eq 0) {
         return $null
@@ -3910,9 +4562,13 @@ function New-CapListComparisonSummaryResult {
         compared_capability_count = @($comparedCapabilities).Count
         bringup_compare_capability_count = @($bringupComparedCapabilities).Count
         resource_compare_capability_count = @($resourceComparedCapabilities).Count
+        fact_resolution_compare_capability_count = @($factResolutionComparedCapabilities).Count
         compared_capabilities = @($comparedCapabilities)
         bringup_compare_capabilities = @($bringupComparedCapabilities)
         resource_compare_capabilities = @($resourceComparedCapabilities)
+        fact_resolution_compare_capabilities = @($factResolutionComparedCapabilities)
+        required_fact_resolution_change_kinds = @($requiredFactResolutionChangeKinds)
+        required_facts_changed = @($requiredFactsChanged)
     }
 }
 
@@ -3968,12 +4624,15 @@ function New-CapListArtifactRootAggregationResult {
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.declared_fact) -CaseName $caseName -PropertyName 'declared_fact_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.resource_fact) -CaseName $caseName -PropertyName 'resource_fact_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.unresolved_binding) -CaseName $caseName -PropertyName 'unresolved_binding_cases'
-            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.bringup_changed -or [bool]$entry.comparison.resource_changed) -CaseName $caseName -PropertyName 'compare_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.bringup_changed -or [bool]$entry.comparison.resource_changed -or [bool]$entry.comparison.fact_resolution_changed) -CaseName $caseName -PropertyName 'compare_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.bringup_changed) -CaseName $caseName -PropertyName 'bringup_compare_cases'
             Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.resource_changed) -CaseName $caseName -PropertyName 'resource_compare_cases'
+            Add-CaseIf -Entry $aggregate -Condition ([bool]$entry.comparison.fact_resolution_changed) -CaseName $caseName -PropertyName 'fact_resolution_compare_cases'
             $aggregate.bringup_change_kinds = @($aggregate.bringup_change_kinds + @($entry.comparison.bringup_change_kinds))
             $aggregate.resource_change_kinds = @($aggregate.resource_change_kinds + @($entry.comparison.resource_change_kinds))
             $aggregate.resource_contracts = @($aggregate.resource_contracts + @($entry.comparison.resource_contracts))
+            $aggregate.required_fact_resolution_change_kinds = @($aggregate.required_fact_resolution_change_kinds + @($entry.comparison.required_fact_resolution_change_kinds))
+            $aggregate.required_facts_changed = @($aggregate.required_facts_changed + @($entry.comparison.required_facts_changed))
             $aggregate.provider_nodes = @($aggregate.provider_nodes + @(Get-CaseQualifiedNodeNames -CaseName $caseName -NodeNames @($entry.provider_nodes)))
             $aggregate.consumer_nodes = @($aggregate.consumer_nodes + @(Get-CaseQualifiedNodeNames -CaseName $caseName -NodeNames @($entry.consumer_nodes)))
         }
@@ -7947,7 +8606,7 @@ function New-ComparisonOverviewCaseSummary {
         resource_changed = ($null -ne $resourceComparison -and [bool]$resourceComparison.changed)
         resource_change_count = if ($null -ne $resourceComparison) { [int]@($resourceComparison.contract_changes).Count } else { 0 }
         fact_resolution_changed = ($null -ne $factResolutionComparison -and [bool]$factResolutionComparison.changed)
-        fact_resolution_change_count = if ($null -ne $factResolutionComparison) { [int]@($factResolutionComparison.contract_changes).Count } else { 0 }
+        fact_resolution_change_count = if ($null -ne $factResolutionComparison) { [int]@($factResolutionComparison.required_fact_resolution_changes).Count } else { 0 }
     }
 }
 
@@ -8075,6 +8734,8 @@ function New-ArtifactRootComparisonOverviewResult {
         $result.fact_resolution_summary = $FactResolutionComparisonSummary
     }
 
+    $result.drift_headline = New-ArtifactRootDriftHeadline -ComparisonOverview $result
+
     return $result
 }
 
@@ -8090,6 +8751,7 @@ function New-CaseSummaryRow {
     $bringupOrderComparison = Get-BringupOrderComparisonFromReport -ReportData $report
     $bringupComparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $report
+    $factResolutionComparison = Get-FactResolutionComparisonFromReport -ReportData $report
     return [pscustomobject]@{
         Case = [string]$report.subject.case
         Mode = [string]$report.mode
@@ -8112,6 +8774,7 @@ function New-CaseSummaryRow {
         OrdCmp = if ($null -ne $bringupOrderComparison -and [bool]$bringupOrderComparison.changed) { [int]@($bringupOrderComparison.entry_changes).Count } else { 0 }
         BrCmp = if ($null -ne $bringupComparison -and [bool]$bringupComparison.changed) { [int]@($bringupComparison.capability_changes).Count } else { 0 }
         ResCmp = if ($null -ne $resourceComparison -and [bool]$resourceComparison.changed) { [int]@($resourceComparison.contract_changes).Count } else { 0 }
+        FactCmp = if ($null -ne $factResolutionComparison -and [bool]$factResolutionComparison.changed) { [int]@($factResolutionComparison.required_fact_resolution_changes).Count } else { 0 }
     }
 }
 
@@ -8122,9 +8785,13 @@ function New-ArtifactJsonView {
 
     $report = $LoadedReport.Data
     $comparison = New-ReportComparisonOverviewResult -LoadedReport $LoadedReport
+    $formationHeadline = New-ReportFormationHeadline -ReportData $report
+    $compilerHeadline = New-CompilerHeadline -FormationHeadline $formationHeadline -ComparisonOverview $comparison
     return [ordered]@{
         report_path = $LoadedReport.Path
         summary = New-CaseSummaryRow -LoadedReport $LoadedReport
+        compiler_headline = $compilerHeadline
+        formation_headline = $formationHeadline
         subject = $report.subject
         system_input = $report.system_input
         structure = $report.structure
@@ -8165,6 +8832,10 @@ function New-ReportComparisonOverviewResult {
     if ($null -ne $capabilitySummary) {
         $comparisonOverview.capability_summary = $capabilitySummary
     }
+
+    $subject = Get-OptionalMemberValue -Object $report -Name 'subject'
+    $caseName = [string](Get-OptionalMemberValue -Object $subject -Name 'case')
+    $comparisonOverview.drift_headline = New-ReportDriftHeadline -ComparisonOverview $comparisonOverview -CaseName $caseName
 
     return $comparisonOverview
 }
@@ -8255,6 +8926,7 @@ if ($ListCases) {
 }
 
 $summaryRows = @($selectedReports | ForEach-Object { New-CaseSummaryRow -LoadedReport $_ })
+$selectsWholeArtifactRoot = [string]::IsNullOrWhiteSpace($Report) -and $Case.Count -eq 0
 
 if (-not [string]::IsNullOrWhiteSpace($GraphPath) -and $selectedReports.Count -ne 1) {
     throw "-GraphPath requires exactly one selected artifact report"
@@ -8275,11 +8947,11 @@ if ($CapList) {
             Write-Host "[CASE] $([string]($capListView.subject.case))"
             Write-Host "[CAP LIST]"
             if ($null -ne $capListView.query.comparison) {
-                Write-Host "compare_capabilities = $([int]$capListView.query.comparison.compared_capability_count) bringup_compare = $([int]$capListView.query.comparison.bringup_compare_capability_count) resource_compare = $([int]$capListView.query.comparison.resource_compare_capability_count)"
+                Write-Host "compare_capabilities = $([int]$capListView.query.comparison.compared_capability_count) bringup_compare = $([int]$capListView.query.comparison.bringup_compare_capability_count) resource_compare = $([int]$capListView.query.comparison.resource_compare_capability_count) fact_resolution_compare = $([int]$capListView.query.comparison.fact_resolution_compare_capability_count)"
             }
             @($capListView.query.capabilities) |
                 ForEach-Object { Format-CapListDisplayRow -Entry $_ } |
-                Format-Table -Wrap -AutoSize Capability, Mat, Obs, Pub, Req, DecFact, ResFact, Unres, BrCmp, ResCmp, Providers, Consumers |
+                Format-Table -Wrap -AutoSize Capability, Mat, Obs, Pub, Req, DecFact, ResFact, Unres, BrCmp, ResCmp, FactCmp, ReqFacts, Providers, Consumers |
                 Out-Host
         }
         exit 0
@@ -8292,11 +8964,11 @@ if ($CapList) {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
         Write-Host "[CAP LIST] scope=artifact_root cases=$([int]$capListView.query.case_count)"
         if ($null -ne $capListView.query.comparison) {
-            Write-Host "compare_capabilities = $([int]$capListView.query.comparison.compared_capability_count) bringup_compare = $([int]$capListView.query.comparison.bringup_compare_capability_count) resource_compare = $([int]$capListView.query.comparison.resource_compare_capability_count)"
+            Write-Host "compare_capabilities = $([int]$capListView.query.comparison.compared_capability_count) bringup_compare = $([int]$capListView.query.comparison.bringup_compare_capability_count) resource_compare = $([int]$capListView.query.comparison.resource_compare_capability_count) fact_resolution_compare = $([int]$capListView.query.comparison.fact_resolution_compare_capability_count)"
         }
         @($capListView.query.capabilities) |
             ForEach-Object { Format-AggregatedCapListDisplayRow -Entry $_ } |
-            Format-List Capability, Cases, Mat, Obs, Pub, Req, DecFact, ResFact, Unres, BrCmp, ResCmp, ResCtr, Providers, Consumers |
+            Format-List Capability, Cases, Mat, Obs, Pub, Req, DecFact, ResFact, Unres, BrCmp, ResCmp, FactCmp, ResCtr, ReqFactKinds, ReqFacts, Providers, Consumers |
             Out-Host
     }
     exit 0
@@ -8353,6 +9025,7 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
     $bindingResultSummary = New-ArtifactRootBindingResultSummaryResult -LoadedReports $selectedReports
     $bringupOrderSummary = New-ArtifactRootBringupOrderSummaryResult -LoadedReports $selectedReports
     $systemFormationSummary = New-ArtifactRootSystemFormationSummaryResult -LoadedReports $selectedReports
+    $formationHeadline = New-ArtifactRootFormationHeadline -SystemCompilerSummary $systemCompilerSummary -SystemFormationSummary $systemFormationSummary
     $factResolutionSummary = New-ArtifactRootFactResolutionSummaryResult -LoadedReports $selectedReports
     $systemCompilerComparisonSummary = New-ArtifactRootSystemCompilerComparisonResult -LoadedReports $selectedReports
     $systemInputComparisonSummary = New-ArtifactRootSystemInputComparisonResult -LoadedReports $selectedReports
@@ -8369,11 +9042,18 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         -BringupOrderComparisonSummary $bringupOrderComparisonSummary `
         -SystemFormationComparisonSummary $systemFormationComparisonSummary `
         -FactResolutionComparisonSummary $factResolutionComparisonSummary
+    $compilerHeadline = New-CompilerHeadline -FormationHeadline $formationHeadline -ComparisonOverview $comparisonOverview
     if ($AsJson) {
         $payload = [ordered]@{
             artifact_root = $artifactRootPath
             case_count = $summaryRows.Count
             cases = $summaryRows
+        }
+        if ($null -ne $compilerHeadline) {
+            $payload.compiler_headline = $compilerHeadline
+        }
+        if ($null -ne $formationHeadline) {
+            $payload.formation_headline = $formationHeadline
         }
         if ($null -ne $systemCompilerSummary) {
             $payload.system_compiler_summary = $systemCompilerSummary
@@ -8399,6 +9079,23 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         $payload | ConvertTo-Json -Depth 14
     } else {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
+        if ($null -ne $compilerHeadline) {
+            Write-Host "compiler_headline      = $([string]$compilerHeadline.text)"
+            if (@($compilerHeadline.drift_dimensions).Count -gt 0) {
+                Write-Host "compiler_drift         = $((@($compilerHeadline.drift_dimensions) -join ', '))"
+            }
+            Write-Host ''
+        }
+        if ($null -ne $formationHeadline) {
+            Write-Host "formation_headline      = $([string]$formationHeadline.text)"
+            if (@($formationHeadline.unresolved_capabilities).Count -gt 0) {
+                Write-Host "formation_unresolved    = $((@($formationHeadline.unresolved_capabilities) -join ', '))"
+            }
+            if (@($formationHeadline.blocked_nodes).Count -gt 0) {
+                Write-Host "formation_blocked_nodes = $((@($formationHeadline.blocked_nodes) -join ', '))"
+            }
+            Write-Host ''
+        }
         if ($null -ne $systemCompilerSummary) {
             Write-Host '[SYSTEM COMPILER SUMMARY]'
             Write-Host "case_count              = $([int]$systemCompilerSummary.case_count)"
@@ -8498,9 +9195,10 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             Write-Host "case_count              = $([int]$bringupOrderSummary.case_count)"
             Write-Host "ordered_node_count      = $([int]$bringupOrderSummary.totals.ordered_node_count)"
             Write-Host "blocked_node_count      = $([int]$bringupOrderSummary.totals.blocked_node_count)"
-            if ($null -ne $bringupOrderSummary.phase_counts -and @($bringupOrderSummary.phase_counts.PSObject.Properties).Count -gt 0) {
+            $phaseCountEntries = @(Get-MapEntries -Map $bringupOrderSummary.phase_counts)
+            if (@($phaseCountEntries).Count -gt 0) {
                 $phaseParts = @()
-                foreach ($phaseEntry in @($bringupOrderSummary.phase_counts.PSObject.Properties)) {
+                foreach ($phaseEntry in @($phaseCountEntries)) {
                     $phaseParts += "$([string]$phaseEntry.Name):$([int]$phaseEntry.Value)"
                 }
                 Write-Host "phase_counts            = $((@($phaseParts) -join ', '))"
@@ -8556,6 +9254,9 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         }
         if ($null -ne $comparisonOverview) {
             Write-Host '[COMPARISON]'
+            if ($null -ne $comparisonOverview.drift_headline) {
+                Write-Host "drift_headline           = $([string]$comparisonOverview.drift_headline.text)"
+            }
             Write-Host "compared_case_count      = $([int]$comparisonOverview.compared_case_count)"
             Write-Host "metadata_changed_cases   = $([int]$comparisonOverview.metadata_changed_case_count)"
             Write-Host "input_changed_cases      = $([int]$comparisonOverview.input_changed_case_count)"
@@ -8578,6 +9279,7 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
                 Write-Host "compare_capabilities     = $([int]$comparisonOverview.capability_summary.compared_capability_count)"
                 Write-Host "bringup_compare_caps     = $([int]$comparisonOverview.capability_summary.bringup_compare_capability_count)"
                 Write-Host "resource_compare_caps    = $([int]$comparisonOverview.capability_summary.resource_compare_capability_count)"
+                Write-Host "fact_resolution_caps     = $([int]$comparisonOverview.capability_summary.fact_resolution_compare_capability_count)"
                 if (@($comparisonOverview.capability_summary.compared_capabilities).Count -gt 0) {
                     Write-Host "compared_capabilities    = $((@($comparisonOverview.capability_summary.compared_capabilities) -join ', '))"
                 }
@@ -8632,7 +9334,7 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
             }
             Write-Host ''
         }
-        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp, BindCmp, OrdCmp, BrCmp, ResCmp | Out-Host
+        $summaryRows | Sort-Object Case | Format-Table -AutoSize Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp, BindCmp, OrdCmp, BrCmp, ResCmp, FactCmp | Out-Host
     }
     exit 0
 }
@@ -8944,7 +9646,7 @@ if ($RecentTransitions) {
 }
 
 if ($ResourceSummary) {
-    if ($selectedReports.Count -ne 1) {
+    if ($selectsWholeArtifactRoot -or $selectedReports.Count -ne 1) {
         $artifactRootResourceSummary = New-ArtifactRootFactResolutionSummaryResult -LoadedReports $selectedReports
         $artifactRootResourceComparison = New-ArtifactRootResourceContractComparisonResult -LoadedReports $selectedReports
         $artifactRootFactResolutionComparison = New-ArtifactRootFactResolutionComparisonResult -LoadedReports $selectedReports
@@ -9009,6 +9711,24 @@ if ($ResourceSummary) {
                         ForEach-Object { [string]$_.case }
                 )
                 Write-Host "fact = $([string]$factEntry.fact) case_count=$([int]$factEntry.case_count) cases=[$((@($caseNames) -join ', '))]"
+            }
+            Write-Host ''
+        }
+
+        if (@($artifactRootResourceSummary.required_fact_resolution_matrix).Count -gt 0) {
+            Write-Host '[REQUIRED FACT RESOLUTION MATRIX]'
+            foreach ($factEntry in @($artifactRootResourceSummary.required_fact_resolution_matrix)) {
+                $caseStates = @(
+                    @($factEntry.cases) |
+                        ForEach-Object { "$([string]$_.case):$([string]$_.state)" }
+                )
+                Write-Host "fact = $([string]$factEntry.fact) cases=$([int]$factEntry.case_count) satisfied=$([int]$factEntry.cases_satisfied) missing=$([int]$factEntry.cases_missing) providers=$([int]$factEntry.provider_count)"
+                if (@($factEntry.provider_sources).Count -gt 0) {
+                    Write-Host "provider_sources = $((@($factEntry.provider_sources) -join ', '))"
+                }
+                if (@($caseStates).Count -gt 0) {
+                    Write-Host "cases = $((@($caseStates) -join ', '))"
+                }
             }
             Write-Host ''
         }
@@ -9168,6 +9888,21 @@ if ($ResourceSummary) {
     }
     Write-Host ''
 
+    if ($null -ne $resourceSummaryResult.PSObject.Properties['required_fact_resolution'] -and
+        @($resourceSummaryResult.required_fact_resolution).Count -gt 0) {
+        Write-Host '[REQUIRED FACT RESOLUTION]'
+        foreach ($requiredFact in @($resourceSummaryResult.required_fact_resolution)) {
+            Write-Host "fact = $([string]$requiredFact.fact) state=$([string]$requiredFact.state) sources=[$((@($requiredFact.fact_sources) -join ', '))] providers=$([int]$requiredFact.provider_count)"
+            foreach ($provider in @($requiredFact.providers)) {
+                Write-Host "provider = $([string]$provider.source) role=$([string]$provider.role) kind=$([string]$provider.kind)"
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$requiredFact.status_text)) {
+                Write-Host "status_text = $([string]$requiredFact.status_text)"
+            }
+        }
+        Write-Host ''
+    }
+
     Write-Host '[CONTRACTS]'
     foreach ($contractSummary in @($resourceSummaryResult.contracts)) {
         Write-Host "contract = $([string]$contractSummary.contract) state=$([string]$contractSummary.state) requires=[$((@($contractSummary.requires) -join ', '))]"
@@ -9250,11 +9985,18 @@ if (-not [string]::IsNullOrWhiteSpace($GraphPath)) {
         Write-Host "changed = $([bool]$graphPathResult.comparison.changed)"
         Write-Host "bringup_changed = $([bool]$graphPathResult.comparison.bringup_changed)"
         Write-Host "resource_changed = $([bool]$graphPathResult.comparison.resource_changed)"
+        Write-Host "fact_resolution_changed = $([bool]$graphPathResult.comparison.fact_resolution_changed)"
         if (@($graphPathResult.comparison.bringup_change_kinds).Count -gt 0) {
             Write-Host "bringup_change_kinds = $((@($graphPathResult.comparison.bringup_change_kinds) -join ', '))"
         }
         if (@($graphPathResult.comparison.resource_change_kinds).Count -gt 0) {
             Write-Host "resource_change_kinds = $((@($graphPathResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($graphPathResult.comparison.required_fact_resolution_change_kinds).Count -gt 0) {
+            Write-Host "required_fact_resolution_change_kinds = $((@($graphPathResult.comparison.required_fact_resolution_change_kinds) -join ', '))"
+        }
+        if (@($graphPathResult.comparison.required_facts_changed).Count -gt 0) {
+            Write-Host "required_facts_changed = $((@($graphPathResult.comparison.required_facts_changed) -join ', '))"
         }
         if (@($graphPathResult.comparison.resource_contracts).Count -gt 0) {
             Write-Host "resource_contracts = $((@($graphPathResult.comparison.resource_contracts) -join ', '))"
@@ -9328,11 +10070,18 @@ if (-not [string]::IsNullOrWhiteSpace($WhyCapability)) {
         Write-Host "changed = $([bool]$whyResult.comparison.changed)"
         Write-Host "bringup_changed = $([bool]$whyResult.comparison.bringup_changed)"
         Write-Host "resource_changed = $([bool]$whyResult.comparison.resource_changed)"
+        Write-Host "fact_resolution_changed = $([bool]$whyResult.comparison.fact_resolution_changed)"
         if (@($whyResult.comparison.bringup_change_kinds).Count -gt 0) {
             Write-Host "bringup_change_kinds = $((@($whyResult.comparison.bringup_change_kinds) -join ', '))"
         }
         if (@($whyResult.comparison.resource_change_kinds).Count -gt 0) {
             Write-Host "resource_change_kinds = $((@($whyResult.comparison.resource_change_kinds) -join ', '))"
+        }
+        if (@($whyResult.comparison.required_fact_resolution_change_kinds).Count -gt 0) {
+            Write-Host "required_fact_resolution_change_kinds = $((@($whyResult.comparison.required_fact_resolution_change_kinds) -join ', '))"
+        }
+        if (@($whyResult.comparison.required_facts_changed).Count -gt 0) {
+            Write-Host "required_facts_changed = $((@($whyResult.comparison.required_facts_changed) -join ', '))"
         }
         if (@($whyResult.comparison.resource_contracts).Count -gt 0) {
             Write-Host "resource_contracts = $((@($whyResult.comparison.resource_contracts) -join ', '))"
@@ -9352,7 +10101,18 @@ Write-Host "[CASE] $([string]($reportData.subject.case))"
 Write-Host "[MODE] $([string]($reportData.mode))"
 Write-Host ''
 
-$summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp | Out-Host
+$reportFormationHeadline = New-ReportFormationHeadline -ReportData $reportData
+$reportComparisonOverview = New-ReportComparisonOverviewResult -LoadedReport $loadedReport
+$reportCompilerHeadline = New-CompilerHeadline -FormationHeadline $reportFormationHeadline -ComparisonOverview $reportComparisonOverview
+if ($null -ne $reportCompilerHeadline) {
+    Write-Host "compiler_headline = $([string]$reportCompilerHeadline.text)"
+    if (@($reportCompilerHeadline.drift_dimensions).Count -gt 0) {
+        Write-Host "compiler_drift    = $((@($reportCompilerHeadline.drift_dimensions) -join ', '))"
+    }
+    Write-Host ''
+}
+
+$summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp, BindCmp, OrdCmp, BrCmp, ResCmp, FactCmp | Out-Host
 
 if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $reportData.system_input) {
     $systemInput = $reportData.system_input
@@ -9447,13 +10207,15 @@ Write-Host '[BRINGUP ORDER]'
 Write-Host "ordered_nodes = $([int]$reportData.bringup_order.ordered_node_count)"
 Write-Host "blocked_nodes = $([int]$reportData.bringup_order.blocked_node_count)"
 if ($null -ne $reportData.bringup_order.PSObject.Properties['phase_counts'] -and
-    $null -ne $reportData.bringup_order.phase_counts -and
-    @($reportData.bringup_order.phase_counts.PSObject.Properties).Count -gt 0) {
+    $null -ne $reportData.bringup_order.phase_counts) {
+    $phaseCountEntries = @(Get-MapEntries -Map $reportData.bringup_order.phase_counts)
     $phaseParts = @()
-    foreach ($phaseEntry in @($reportData.bringup_order.phase_counts.PSObject.Properties)) {
+    foreach ($phaseEntry in @($phaseCountEntries)) {
         $phaseParts += "$([string]$phaseEntry.Name):$([int]$phaseEntry.Value)"
     }
-    Write-Host "phase_counts  = $((@($phaseParts) -join ', '))"
+    if (@($phaseParts).Count -gt 0) {
+        Write-Host "phase_counts  = $((@($phaseParts) -join ', '))"
+    }
 }
 if (@($reportData.bringup_order.entries).Count -gt 0) {
     @($reportData.bringup_order.entries) |
@@ -9466,6 +10228,9 @@ Write-Host ''
 if ($null -ne $reportData.PSObject.Properties['system_formation'] -and $null -ne $reportData.system_formation) {
     $systemFormation = $reportData.system_formation
     Write-Host '[SYSTEM FORMATION]'
+    if ($null -ne $reportFormationHeadline) {
+        Write-Host "formation_headline      = $([string]$reportFormationHeadline.text)"
+    }
     Write-Host "status                  = $([string]$systemFormation.status)"
     if ($null -ne $systemFormation.PSObject.Properties['formation_basis'] -and $null -ne $systemFormation.formation_basis) {
         Write-Host "case_kind               = $([string]$systemFormation.formation_basis.case_kind)"
@@ -9537,12 +10302,21 @@ if ($null -ne $reportData.PSObject.Properties['fact_resolution'] -and $null -ne 
             Write-Host "$factGroup = $((@($factValues) -join ', '))"
         }
     }
+    if ($null -ne $factResolution.PSObject.Properties['required_fact_resolution'] -and
+        @($factResolution.required_fact_resolution).Count -gt 0) {
+        foreach ($requiredFact in @($factResolution.required_fact_resolution)) {
+            Write-Host "required_fact[$([string]$requiredFact.fact)] = $([string]$requiredFact.state) sources=[$((@($requiredFact.fact_sources) -join ', '))] providers=$([int]$requiredFact.provider_count)"
+        }
+    }
     Write-Host ''
 }
 
 if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $reportData.comparison) {
-    $comparisonOverview = New-ReportComparisonOverviewResult -LoadedReport $loadedReport
+    $comparisonOverview = $reportComparisonOverview
     Write-Host '[COMPARISON]'
+    if ($null -ne $comparisonOverview.drift_headline) {
+        Write-Host "drift_headline = $([string]$comparisonOverview.drift_headline.text)"
+    }
     Write-Host "status = $([string]($comparisonOverview.status))"
     if (@($comparisonOverview.summary_changes).Count -gt 0) {
         Write-Host "summary_changes  = $((@($comparisonOverview.summary_changes) -join '; '))"
@@ -9554,6 +10328,7 @@ if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $repo
         Write-Host "compare_capabilities = $([int]$comparisonOverview.capability_summary.compared_capability_count)"
         Write-Host "bringup_compare_caps = $([int]$comparisonOverview.capability_summary.bringup_compare_capability_count)"
         Write-Host "resource_compare_caps = $([int]$comparisonOverview.capability_summary.resource_compare_capability_count)"
+        Write-Host "fact_resolution_caps = $([int]$comparisonOverview.capability_summary.fact_resolution_compare_capability_count)"
         if (@($comparisonOverview.capability_summary.compared_capabilities).Count -gt 0) {
             Write-Host "compared_capabilities = $((@($comparisonOverview.capability_summary.compared_capabilities) -join ', '))"
         }

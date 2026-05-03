@@ -462,6 +462,202 @@ def build_landing_changes(
     return landing_changes
 
 
+def normalize_query_hint_entry(value: Any) -> OrderedDict[str, Any] | None:
+    hint = get_mapping(value)
+    if not hint:
+        return None
+
+    tab_id = choose_text(hint.get("tab_id"))
+    query_kind = choose_text(hint.get("query_kind"))
+    scope = choose_text(hint.get("scope"))
+    selection_rule = choose_text(hint.get("selection_rule"))
+    followup_query_kinds = ordered_unique(
+        [choose_text(item) for item in get_list(hint.get("followup_query_kinds"))]
+    )
+    if not any([tab_id, query_kind, scope, selection_rule, followup_query_kinds]):
+        return None
+
+    return OrderedDict(
+        [
+            ("tab_id", tab_id),
+            ("tab_title", choose_text(hint.get("tab_title"))),
+            ("entry_role", choose_text(hint.get("entry_role"))),
+            ("summary_schema", choose_text(hint.get("summary_schema"))),
+            ("summary_kind", choose_text(hint.get("summary_kind"))),
+            ("scope", scope),
+            ("selection_rule", selection_rule),
+            ("query_kind", query_kind),
+            ("compare_expected", bool(hint.get("compare_expected"))),
+            ("followup_query_kinds", followup_query_kinds),
+            ("rationale", choose_text(hint.get("rationale"))),
+        ]
+    )
+
+
+def normalize_query_hints(
+    landing_summary: dict[str, Any],
+) -> tuple[OrderedDict[str, Any] | None, list[OrderedDict[str, Any]], list[str]]:
+    query_hints = get_mapping(landing_summary.get("query_hints"))
+    primary_query = normalize_query_hint_entry(query_hints.get("primary_query"))
+
+    tab_queries: list[OrderedDict[str, Any]] = []
+    anchor_order: list[str] = []
+    seen_tab_ids: set[str] = set()
+    for index, value in enumerate(get_list(query_hints.get("tab_queries"))):
+        normalized = normalize_query_hint_entry(value)
+        if normalized is None:
+            continue
+        tab_id = choose_text(normalized.get("tab_id")) or f"query#{index}"
+        if tab_id in seen_tab_ids:
+            continue
+        seen_tab_ids.add(tab_id)
+        tab_queries.append(normalized)
+        anchor_order.append(tab_id)
+
+    return primary_query, tab_queries, anchor_order
+
+
+def build_primary_query_status(
+    baseline_summary: dict[str, Any],
+    candidate_summary: dict[str, Any],
+) -> OrderedDict[str, Any]:
+    baseline_primary_query, _, _ = normalize_query_hints(baseline_summary)
+    candidate_primary_query, _, _ = normalize_query_hints(candidate_summary)
+
+    return OrderedDict(
+        [
+            ("baseline_present", baseline_primary_query is not None),
+            ("candidate_present", candidate_primary_query is not None),
+            (
+                "baseline_tab_id",
+                nullable_text(baseline_primary_query.get("tab_id")) if baseline_primary_query else None,
+            ),
+            (
+                "candidate_tab_id",
+                nullable_text(candidate_primary_query.get("tab_id")) if candidate_primary_query else None,
+            ),
+            (
+                "baseline_query_kind",
+                nullable_text(baseline_primary_query.get("query_kind")) if baseline_primary_query else None,
+            ),
+            (
+                "candidate_query_kind",
+                nullable_text(candidate_primary_query.get("query_kind")) if candidate_primary_query else None,
+            ),
+            (
+                "baseline_scope",
+                nullable_text(baseline_primary_query.get("scope")) if baseline_primary_query else None,
+            ),
+            (
+                "candidate_scope",
+                nullable_text(candidate_primary_query.get("scope")) if candidate_primary_query else None,
+            ),
+            (
+                "baseline_selection_rule",
+                nullable_text(baseline_primary_query.get("selection_rule")) if baseline_primary_query else None,
+            ),
+            (
+                "candidate_selection_rule",
+                nullable_text(candidate_primary_query.get("selection_rule")) if candidate_primary_query else None,
+            ),
+            (
+                "baseline_compare_expected",
+                nullable_bool(baseline_primary_query.get("compare_expected")) if baseline_primary_query else None,
+            ),
+            (
+                "candidate_compare_expected",
+                nullable_bool(candidate_primary_query.get("compare_expected")) if candidate_primary_query else None,
+            ),
+            (
+                "baseline_followup_query_kinds",
+                list(baseline_primary_query.get("followup_query_kinds", [])) if baseline_primary_query else [],
+            ),
+            (
+                "candidate_followup_query_kinds",
+                list(candidate_primary_query.get("followup_query_kinds", [])) if candidate_primary_query else [],
+            ),
+        ]
+    )
+
+
+def build_query_plan_changes(
+    baseline_summary: dict[str, Any],
+    candidate_summary: dict[str, Any],
+    primary_query_status: dict[str, Any],
+) -> OrderedDict[str, Any]:
+    _, baseline_tab_queries, _ = normalize_query_hints(baseline_summary)
+    _, candidate_tab_queries, _ = normalize_query_hints(candidate_summary)
+
+    baseline_query_tab_ids = [
+        choose_text(query.get("tab_id"))
+        for query in baseline_tab_queries
+        if choose_text(query.get("tab_id"))
+    ]
+    candidate_query_tab_ids = [
+        choose_text(query.get("tab_id"))
+        for query in candidate_tab_queries
+        if choose_text(query.get("tab_id"))
+    ]
+    primary_followup_query_changes = string_array_changes(
+        list(primary_query_status.get("baseline_followup_query_kinds", [])),
+        list(primary_query_status.get("candidate_followup_query_kinds", [])),
+    )
+
+    query_plan_changes = OrderedDict(
+        [
+            (
+                "primary_query_presence_changed",
+                bool(primary_query_status.get("baseline_present")) != bool(primary_query_status.get("candidate_present")),
+            ),
+            (
+                "primary_query_tab_changed",
+                choose_text(primary_query_status.get("baseline_tab_id"))
+                != choose_text(primary_query_status.get("candidate_tab_id")),
+            ),
+            (
+                "primary_query_kind_changed",
+                choose_text(primary_query_status.get("baseline_query_kind"))
+                != choose_text(primary_query_status.get("candidate_query_kind")),
+            ),
+            (
+                "primary_query_scope_changed",
+                choose_text(primary_query_status.get("baseline_scope"))
+                != choose_text(primary_query_status.get("candidate_scope")),
+            ),
+            (
+                "primary_query_selection_rule_changed",
+                choose_text(primary_query_status.get("baseline_selection_rule"))
+                != choose_text(primary_query_status.get("candidate_selection_rule")),
+            ),
+            (
+                "primary_query_compare_expected_changed",
+                nullable_bool(primary_query_status.get("baseline_compare_expected"))
+                != nullable_bool(primary_query_status.get("candidate_compare_expected")),
+            ),
+            ("primary_followup_query_changes", primary_followup_query_changes),
+            (
+                "available_query_tab_changes",
+                string_array_changes(baseline_query_tab_ids, candidate_query_tab_ids),
+            ),
+        ]
+    )
+    query_plan_changes["primary_query_changed"] = any(
+        [
+            bool(query_plan_changes["primary_query_presence_changed"]),
+            bool(query_plan_changes["primary_query_tab_changed"]),
+            bool(query_plan_changes["primary_query_kind_changed"]),
+            bool(query_plan_changes["primary_query_scope_changed"]),
+            bool(query_plan_changes["primary_query_selection_rule_changed"]),
+            bool(query_plan_changes["primary_query_compare_expected_changed"]),
+            has_array_changes(query_plan_changes["primary_followup_query_changes"]),
+        ]
+    )
+    query_plan_changes["changed"] = bool(query_plan_changes["primary_query_changed"]) or has_array_changes(
+        query_plan_changes["available_query_tab_changes"]
+    )
+    return query_plan_changes
+
+
 def append_scalar_change(changes: list[str], label: str, baseline_value: Any, candidate_value: Any) -> None:
     if baseline_value != candidate_value:
         changes.append(f"{label}:{baseline_value}->{candidate_value}")
@@ -758,6 +954,239 @@ def compare_landing_tabs(
     return tab_changes, tab_summary
 
 
+def compare_query_hint(
+    anchor_id: str,
+    baseline_query: dict[str, Any] | None,
+    candidate_query: dict[str, Any] | None,
+) -> OrderedDict[str, Any] | None:
+    if baseline_query is None and candidate_query is None:
+        return None
+
+    if baseline_query is None:
+        return OrderedDict(
+            [
+                ("anchor_id", anchor_id),
+                ("baseline_tab_id", None),
+                ("candidate_tab_id", choose_text(candidate_query.get("tab_id"))),
+                ("change_kind", "added"),
+                ("impact", "improvement"),
+                ("baseline_tab_title", None),
+                ("candidate_tab_title", choose_text(candidate_query.get("tab_title"))),
+                ("baseline_scope", None),
+                ("candidate_scope", choose_text(candidate_query.get("scope"))),
+                ("baseline_selection_rule", None),
+                ("candidate_selection_rule", choose_text(candidate_query.get("selection_rule"))),
+                ("baseline_query_kind", None),
+                ("candidate_query_kind", choose_text(candidate_query.get("query_kind"))),
+                ("baseline_compare_expected", None),
+                ("candidate_compare_expected", bool(candidate_query.get("compare_expected"))),
+                ("baseline_followup_query_kinds", []),
+                ("candidate_followup_query_kinds", list(candidate_query.get("followup_query_kinds", []))),
+                (
+                    "followup_query_changes",
+                    string_array_changes([], list(candidate_query.get("followup_query_kinds", []))),
+                ),
+                ("change_notes", []),
+            ]
+        )
+
+    if candidate_query is None:
+        return OrderedDict(
+            [
+                ("anchor_id", anchor_id),
+                ("baseline_tab_id", choose_text(baseline_query.get("tab_id"))),
+                ("candidate_tab_id", None),
+                ("change_kind", "removed"),
+                ("impact", "regression"),
+                ("baseline_tab_title", choose_text(baseline_query.get("tab_title"))),
+                ("candidate_tab_title", None),
+                ("baseline_scope", choose_text(baseline_query.get("scope"))),
+                ("candidate_scope", None),
+                ("baseline_selection_rule", choose_text(baseline_query.get("selection_rule"))),
+                ("candidate_selection_rule", None),
+                ("baseline_query_kind", choose_text(baseline_query.get("query_kind"))),
+                ("candidate_query_kind", None),
+                ("baseline_compare_expected", bool(baseline_query.get("compare_expected"))),
+                ("candidate_compare_expected", None),
+                ("baseline_followup_query_kinds", list(baseline_query.get("followup_query_kinds", []))),
+                ("candidate_followup_query_kinds", []),
+                (
+                    "followup_query_changes",
+                    string_array_changes(list(baseline_query.get("followup_query_kinds", [])), []),
+                ),
+                ("change_notes", []),
+            ]
+        )
+
+    change_notes: list[str] = []
+    append_scalar_change(
+        change_notes,
+        "scope",
+        choose_text(baseline_query.get("scope")),
+        choose_text(candidate_query.get("scope")),
+    )
+    append_scalar_change(
+        change_notes,
+        "selection_rule",
+        choose_text(baseline_query.get("selection_rule")),
+        choose_text(candidate_query.get("selection_rule")),
+    )
+    append_scalar_change(
+        change_notes,
+        "query_kind",
+        choose_text(baseline_query.get("query_kind")),
+        choose_text(candidate_query.get("query_kind")),
+    )
+    append_scalar_change(
+        change_notes,
+        "compare_expected",
+        bool(baseline_query.get("compare_expected")),
+        bool(candidate_query.get("compare_expected")),
+    )
+    followup_query_changes = string_array_changes(
+        list(baseline_query.get("followup_query_kinds", [])),
+        list(candidate_query.get("followup_query_kinds", [])),
+    )
+    if has_array_changes(followup_query_changes):
+        change_notes.append(
+            "followup_query_kinds:+[{0}] -[{1}]".format(
+                ", ".join(followup_query_changes["added"]),
+                ", ".join(followup_query_changes["removed"]),
+            )
+        )
+
+    if not change_notes:
+        return None
+
+    score = 0
+    baseline_compare_expected = bool(baseline_query.get("compare_expected"))
+    candidate_compare_expected = bool(candidate_query.get("compare_expected"))
+    if baseline_compare_expected and not candidate_compare_expected:
+        score -= 2
+    elif not baseline_compare_expected and candidate_compare_expected:
+        score += 2
+
+    baseline_scope = choose_text(baseline_query.get("scope"))
+    candidate_scope = choose_text(candidate_query.get("scope"))
+    if baseline_scope == "artifact_root" and candidate_scope == "report":
+        score -= 1
+    elif baseline_scope == "report" and candidate_scope == "artifact_root" and candidate_compare_expected:
+        score += 1
+
+    followup_delta = len(followup_query_changes["added"]) - len(followup_query_changes["removed"])
+    if followup_delta > 0:
+        score += 1
+    elif followup_delta < 0:
+        score -= 1
+
+    if score > 0:
+        impact = "improvement"
+    elif score < 0:
+        impact = "regression"
+    else:
+        impact = "neutral"
+
+    return OrderedDict(
+        [
+            ("anchor_id", anchor_id),
+            ("baseline_tab_id", choose_text(baseline_query.get("tab_id"))),
+            ("candidate_tab_id", choose_text(candidate_query.get("tab_id"))),
+            ("change_kind", "changed"),
+            ("impact", impact),
+            ("baseline_tab_title", choose_text(baseline_query.get("tab_title"))),
+            ("candidate_tab_title", choose_text(candidate_query.get("tab_title"))),
+            ("baseline_scope", baseline_scope),
+            ("candidate_scope", candidate_scope),
+            ("baseline_selection_rule", choose_text(baseline_query.get("selection_rule"))),
+            ("candidate_selection_rule", choose_text(candidate_query.get("selection_rule"))),
+            ("baseline_query_kind", choose_text(baseline_query.get("query_kind"))),
+            ("candidate_query_kind", choose_text(candidate_query.get("query_kind"))),
+            ("baseline_compare_expected", baseline_compare_expected),
+            ("candidate_compare_expected", candidate_compare_expected),
+            ("baseline_followup_query_kinds", list(baseline_query.get("followup_query_kinds", []))),
+            ("candidate_followup_query_kinds", list(candidate_query.get("followup_query_kinds", []))),
+            ("followup_query_changes", followup_query_changes),
+            ("change_notes", change_notes),
+        ]
+    )
+
+
+def compare_query_hints(
+    baseline_queries: list[OrderedDict[str, Any]],
+    candidate_queries: list[OrderedDict[str, Any]],
+    baseline_anchor_order: list[str],
+    candidate_anchor_order: list[str],
+) -> tuple[list[OrderedDict[str, Any]], OrderedDict[str, int]]:
+    baseline_map = {choose_text(query.get("tab_id")): query for query in baseline_queries if choose_text(query.get("tab_id"))}
+    candidate_map = {choose_text(query.get("tab_id")): query for query in candidate_queries if choose_text(query.get("tab_id"))}
+    anchor_order = ordered_unique(candidate_anchor_order + baseline_anchor_order)
+
+    query_changes: list[OrderedDict[str, Any]] = []
+    added_count = 0
+    removed_count = 0
+    regression_count = 0
+    improvement_count = 0
+    neutral_change_count = 0
+    scope_changed_count = 0
+    selection_rule_changed_count = 0
+    query_kind_changed_count = 0
+    compare_expectation_changed_count = 0
+    followup_changed_count = 0
+
+    for anchor_id in anchor_order:
+        baseline_query = baseline_map.get(anchor_id)
+        candidate_query = candidate_map.get(anchor_id)
+        change = compare_query_hint(anchor_id, baseline_query, candidate_query)
+        if change is None:
+            continue
+
+        query_changes.append(change)
+        if change["change_kind"] == "added":
+            added_count += 1
+        elif change["change_kind"] == "removed":
+            removed_count += 1
+
+        if change["impact"] == "regression":
+            regression_count += 1
+        elif change["impact"] == "improvement":
+            improvement_count += 1
+        else:
+            neutral_change_count += 1
+
+        if change["change_kind"] == "changed":
+            if change["baseline_scope"] != change["candidate_scope"]:
+                scope_changed_count += 1
+            if change["baseline_selection_rule"] != change["candidate_selection_rule"]:
+                selection_rule_changed_count += 1
+            if change["baseline_query_kind"] != change["candidate_query_kind"]:
+                query_kind_changed_count += 1
+            if change["baseline_compare_expected"] != change["candidate_compare_expected"]:
+                compare_expectation_changed_count += 1
+            if has_array_changes(change["followup_query_changes"]):
+                followup_changed_count += 1
+
+    query_summary = OrderedDict(
+        [
+            ("baseline_query_tab_count", len(baseline_queries)),
+            ("candidate_query_tab_count", len(candidate_queries)),
+            ("changed_query_count", len(query_changes)),
+            ("added_query_count", added_count),
+            ("removed_query_count", removed_count),
+            ("unchanged_query_count", max(len(anchor_order) - len(query_changes), 0)),
+            ("regression_count", regression_count),
+            ("improvement_count", improvement_count),
+            ("neutral_change_count", neutral_change_count),
+            ("scope_changed_count", scope_changed_count),
+            ("selection_rule_changed_count", selection_rule_changed_count),
+            ("query_kind_changed_count", query_kind_changed_count),
+            ("compare_expectation_changed_count", compare_expectation_changed_count),
+            ("followup_changed_count", followup_changed_count),
+            ("primary_query_change_count", 0),
+        ]
+    )
+    return query_changes, query_summary
+
+
 def build_landing_regression_surface(
     landing_status: dict[str, Any],
     landing_changes: dict[str, Any],
@@ -825,16 +1254,120 @@ def build_landing_regression_surface(
     )
 
 
+def build_query_regression_surface(
+    primary_query_status: dict[str, Any],
+    query_plan_changes: dict[str, Any],
+    query_changes: list[OrderedDict[str, Any]],
+) -> OrderedDict[str, Any]:
+    removed_query_tab_ids = list(query_plan_changes["available_query_tab_changes"]["removed"])
+    lost_compare_expected_tab_ids = ordered_unique(
+        [
+            choose_text(change.get("baseline_tab_id")) or choose_text(change.get("candidate_tab_id"))
+            for change in query_changes
+            if change["change_kind"] == "changed"
+            and bool(change.get("baseline_compare_expected"))
+            and not bool(change.get("candidate_compare_expected"))
+        ]
+    )
+    primary_query_missing = bool(primary_query_status.get("baseline_present")) and not bool(
+        primary_query_status.get("candidate_present")
+    )
+    primary_query_scope_narrowed = (
+        choose_text(primary_query_status.get("baseline_scope")) == "artifact_root"
+        and choose_text(primary_query_status.get("candidate_scope")) == "report"
+    )
+    primary_query_compare_expected_regressed = bool(primary_query_status.get("baseline_compare_expected")) and not bool(
+        primary_query_status.get("candidate_compare_expected")
+    )
+    regressed_query_tabs = ordered_unique(
+        [
+            choose_text(change.get("candidate_tab_id")) or choose_text(change.get("baseline_tab_id"))
+            for change in query_changes
+            if change["impact"] == "regression"
+        ]
+    )
+    primary_query_regressed = (
+        primary_query_missing or primary_query_scope_narrowed or primary_query_compare_expected_regressed
+    )
+    primary_tab_id = choose_text(primary_query_status.get("baseline_tab_id")) or choose_text(
+        primary_query_status.get("candidate_tab_id")
+    )
+    affected_tab_ids = ordered_unique(
+        removed_query_tab_ids
+        + lost_compare_expected_tab_ids
+        + regressed_query_tabs
+        + ([primary_tab_id] if primary_query_regressed and primary_tab_id else [])
+    )
+
+    narratives: list[str] = []
+    if removed_query_tab_ids:
+        narratives.append("candidate landing no longer carries query plan(s) for tab(s): `{0}`".format("`, `".join(removed_query_tab_ids)))
+    if primary_query_missing:
+        narratives.append("candidate landing no longer exposes a primary explain opening query")
+    if primary_query_scope_narrowed:
+        narratives.append(
+            "primary explain opening narrowed `{0}` -> `{1}`".format(
+                choose_text(primary_query_status.get("baseline_scope")),
+                choose_text(primary_query_status.get("candidate_scope")),
+            )
+        )
+    if primary_query_compare_expected_regressed:
+        narratives.append("primary explain opening no longer advertises compare-aware overview semantics")
+    if lost_compare_expected_tab_ids:
+        narratives.append(
+            "query plan(s) lost compare-aware semantics for tab(s): `{0}`".format(
+                "`, `".join(lost_compare_expected_tab_ids)
+            )
+        )
+    for change in [item for item in query_changes if item["impact"] == "regression"][:3]:
+        narratives.append(
+            "query opening for `{0}` regressed with `{1}`".format(
+                choose_text(change.get("candidate_tab_id")) or choose_text(change.get("baseline_tab_id")),
+                "; ".join(change.get("change_notes", [])) or "changed explain opening semantics",
+            )
+        )
+
+    return OrderedDict(
+        [
+            (
+                "changed",
+                bool(
+                    removed_query_tab_ids
+                    or lost_compare_expected_tab_ids
+                    or primary_query_regressed
+                    or regressed_query_tabs
+                ),
+            ),
+            ("removed_query_tab_ids", removed_query_tab_ids),
+            ("lost_compare_expected_tab_ids", lost_compare_expected_tab_ids),
+            ("primary_query_missing", primary_query_missing),
+            ("primary_query_scope_narrowed", primary_query_scope_narrowed),
+            ("primary_query_compare_expected_regressed", primary_query_compare_expected_regressed),
+            ("regressed_query_tabs", regressed_query_tabs),
+            ("affected_tab_ids", affected_tab_ids),
+            ("narratives", narratives),
+        ]
+    )
+
+
 def determine_landing_verdict(
     candidate_summary: dict[str, Any],
     landing_status: dict[str, Any],
     landing_changes: dict[str, Any],
+    query_plan_changes: dict[str, Any],
     tab_summary: dict[str, int],
+    query_summary: dict[str, int],
     landing_regression_surface: dict[str, Any],
+    query_regression_surface: dict[str, Any],
 ) -> str:
     if choose_text(candidate_summary.get("result")) != "ok":
         return "collapsed"
-    if landing_regression_surface["changed"] or tab_summary["regression_count"] > 0:
+    if (
+        landing_regression_surface["changed"]
+        or query_regression_surface["changed"]
+        or tab_summary["regression_count"] > 0
+        or query_summary["regression_count"] > 0
+    ):
         return "drifted"
 
     baseline_tier_rank = ENTRY_TIER_RANK.get(choose_text(landing_status.get("baseline_entry_tier")), -1)
@@ -843,13 +1376,17 @@ def determine_landing_verdict(
         return "improved"
     if tab_summary["improvement_count"] > 0:
         return "improved"
+    if query_summary["improvement_count"] > 0:
+        return "improved"
     if landing_changes["available_tab_changes"]["added"]:
         return "improved"
     if landing_changes["direct_capability_changes"]["added"]:
         return "improved"
     if landing_changes["provenance_root_changes"]["added"]:
         return "improved"
-    if landing_changes["changed"] or tab_summary["neutral_change_count"] > 0:
+    if query_plan_changes["available_query_tab_changes"]["added"]:
+        return "improved"
+    if landing_changes["changed"] or query_plan_changes["changed"] or tab_summary["neutral_change_count"] > 0 or query_summary["neutral_change_count"] > 0:
         return "drifted"
     return "standing"
 
@@ -857,15 +1394,22 @@ def determine_landing_verdict(
 def build_questions(
     landing_status: dict[str, Any],
     landing_changes: dict[str, Any],
+    query_plan_changes: dict[str, Any],
+    query_summary: dict[str, int],
     landing_verdict: str,
+    query_regression_surface: dict[str, Any],
 ) -> OrderedDict[str, list[str]]:
     compare_questions: list[str] = []
     if bool(landing_changes.get("primary_tab_changed")):
         compare_questions.append("Did the default explain landing tab change?")
+    if bool(query_plan_changes.get("primary_query_changed")):
+        compare_questions.append("Did the default explain opening query change?")
     if has_array_changes(landing_changes["direct_capability_changes"]):
         compare_questions.append("Did the landing gain or lose any direct explain mode?")
     if has_array_changes(landing_changes["provenance_root_changes"]):
         compare_questions.append("Did the landing expose new provenance roots?")
+    if has_array_changes(query_plan_changes["available_query_tab_changes"]) or query_summary["changed_query_count"] > 0:
+        compare_questions.append("Did any landing tab change its explain opening plan?")
     if not compare_questions:
         compare_questions.append("Does the candidate landing still match the baseline open plan?")
 
@@ -874,18 +1418,23 @@ def build_questions(
         next_questions.append(f"How do we restore direct `{mode}` entry on the candidate landing?")
     for tab_id in landing_changes["available_tab_changes"]["removed"][:2]:
         next_questions.append(f"Which landing should bring back tab `{tab_id}`?")
+    for tab_id in query_regression_surface["removed_query_tab_ids"][:2]:
+        next_questions.append(f"Which explain opening should replace removed query plan `{tab_id}`?")
+    for tab_id in query_regression_surface["regressed_query_tabs"][:2]:
+        next_questions.append(f"Which query should open tab `{tab_id}` by default now?")
+    if query_regression_surface["primary_query_compare_expected_regressed"]:
+        next_questions.append("Should the candidate primary opening recover compare-aware overview semantics?")
     for root_id in landing_changes["provenance_root_changes"]["added"][:2]:
         next_questions.append(f"Should provenance root `{root_id}` become a first-class explain follow-on world?")
     if not next_questions and landing_verdict == "improved":
         next_questions.append("Which richer landing should become the next default consumer baseline?")
     if not next_questions:
-        next_questions.append(
-            "What landing should follow `{0}` by default?".format(
-                choose_text(landing_status.get("candidate_primary_tab_id"))
-                or choose_text(landing_status.get("baseline_primary_tab_id"))
-                or "this entry"
-            )
+        next_tab_id = (
+            choose_text(landing_status.get("candidate_primary_tab_id"))
+            or choose_text(landing_status.get("baseline_primary_tab_id"))
+            or "this entry"
         )
+        next_questions.append(f"What query should open `{next_tab_id}` by default?")
 
     return OrderedDict(
         [
@@ -907,23 +1456,53 @@ def build_compare_summary_model(
     candidate_summary = load_landing_summary(candidate_landing_path)
     baseline_tabs, baseline_anchor_order = normalize_landing_tabs(baseline_summary)
     candidate_tabs, candidate_anchor_order = normalize_landing_tabs(candidate_summary)
+    _, baseline_queries, baseline_query_anchor_order = normalize_query_hints(baseline_summary)
+    _, candidate_queries, candidate_query_anchor_order = normalize_query_hints(candidate_summary)
     landing_status = build_landing_status(baseline_summary, candidate_summary, baseline_tabs, candidate_tabs)
     landing_changes = build_landing_changes(baseline_summary, candidate_summary, landing_status)
+    primary_query_status = build_primary_query_status(baseline_summary, candidate_summary)
+    query_plan_changes = build_query_plan_changes(
+        baseline_summary,
+        candidate_summary,
+        primary_query_status,
+    )
     tab_changes, tab_summary = compare_landing_tabs(
         baseline_tabs,
         candidate_tabs,
         baseline_anchor_order,
         candidate_anchor_order,
     )
+    query_changes, query_summary = compare_query_hints(
+        baseline_queries,
+        candidate_queries,
+        baseline_query_anchor_order,
+        candidate_query_anchor_order,
+    )
+    query_summary["primary_query_change_count"] = 1 if query_plan_changes["primary_query_changed"] else 0
     landing_regression_surface = build_landing_regression_surface(landing_status, landing_changes, tab_changes)
+    query_regression_surface = build_query_regression_surface(
+        primary_query_status,
+        query_plan_changes,
+        query_changes,
+    )
     landing_verdict = determine_landing_verdict(
         candidate_summary,
         landing_status,
         landing_changes,
+        query_plan_changes,
         tab_summary,
+        query_summary,
         landing_regression_surface,
+        query_regression_surface,
     )
-    questions = build_questions(landing_status, landing_changes, landing_verdict)
+    questions = build_questions(
+        landing_status,
+        landing_changes,
+        query_plan_changes,
+        query_summary,
+        landing_verdict,
+        query_regression_surface,
+    )
 
     supporting_surfaces = [
         build_front_page_surface(
@@ -967,7 +1546,7 @@ def build_compare_summary_model(
                         ("title", "System Compiler Front Page Entry Landing Compare"),
                         (
                             "summary",
-                            "A consumer-side comparison that asks how the default explain landing plan changes between two landing summaries.",
+                            "A consumer-side comparison that asks how the default explain landing plan and opening query plan change between two landing summaries.",
                         ),
                     ]
                 ),
@@ -997,10 +1576,15 @@ def build_compare_summary_model(
             ),
             ("landing_verdict", landing_verdict),
             ("landing_status", landing_status),
+            ("primary_query_status", primary_query_status),
             ("landing_changes", landing_changes),
+            ("query_plan_changes", query_plan_changes),
+            ("query_summary", query_summary),
+            ("query_changes", query_changes),
             ("tab_summary", tab_summary),
             ("tab_changes", tab_changes),
             ("landing_regression_surface", landing_regression_surface),
+            ("query_regression_surface", query_regression_surface),
             ("questions", questions),
             ("violations", []),
         ]

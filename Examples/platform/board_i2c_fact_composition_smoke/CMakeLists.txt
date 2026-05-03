@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.0)
-project(i2c-facts-smoke)
+project(board-i2c-fact-composition-smoke)
 set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)
@@ -21,13 +21,13 @@ set(CHARM_TARGET_HAS_WINSOCK OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
 
-set(I2C_FACTS_EVIDENCE_PATH
-    "${CMAKE_CURRENT_BINARY_DIR}/i2c_facts.evidence.json"
-    CACHE FILEPATH "Fact evidence sidecar path for i2c_facts_smoke")
+set(BOARD_I2C_FACT_COMPOSITION_EVIDENCE_PATH
+    "${CMAKE_CURRENT_BINARY_DIR}/board_i2c_fact_composition.evidence.json"
+    CACHE FILEPATH "Fact evidence sidecar path for board_i2c_fact_composition_smoke")
 
-add_custom_target(export_i2c_facts_evidence
+add_custom_target(export_board_i2c_fact_composition_evidence
     COMMAND $<TARGET_FILE:${target_name}>
-        --fact-evidence "${I2C_FACTS_EVIDENCE_PATH}"
+        --fact-evidence "${BOARD_I2C_FACT_COMPOSITION_EVIDENCE_PATH}"
     DEPENDS ${target_name}
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     VERBATIM)

@@ -93,6 +93,8 @@ Charm 这一条线想做的，不是把 bringup 魔法再包装一次，
 在当前仓库里，典型来源包括：
 
 - `BoardCaps`
+- `platform.board_facts` / `system_compiler.fact_evidence/v0`
+  对 board package 已知事实的只读投影
 - bringup helper 里声明的能力与节点
 - `Recipe` / `ready_as<Cap>()`
 - runtime stable slot export 的 descriptor 与命名约定

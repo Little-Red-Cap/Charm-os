@@ -280,7 +280,8 @@
           "type": "string",
           "enum": [
             "materialized_graph",
-            "runtime_only"
+            "runtime_only",
+            "fact_only"
           ]
         },
         "export_target": {
@@ -307,7 +308,19 @@
             "null"
           ]
         },
+        "fact_evidence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "declared_facts": {
+          "$ref": "#/$defs/capabilityNameArray"
+        },
+        "required_facts": {
+          "$ref": "#/$defs/capabilityNameArray"
+        },
+        "audit_provided_facts": {
           "$ref": "#/$defs/capabilityNameArray"
         },
         "declared_contracts": {

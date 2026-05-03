@@ -78,6 +78,7 @@
       "enum": [
         "materialized_graph",
         "runtime_only",
+        "fact_only",
         null
       ]
     },

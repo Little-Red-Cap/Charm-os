@@ -272,7 +272,11 @@ i2c register driver smoke: ok
 ## 9. System Compiler Projection
 
 当前已有只读 facts 草案，并已有一份可被现有 schema 校验的 artifact report sample。
-但它还没有进入自动导出链，也还没有进入正式 evidence pipeline。
+它也已经以 `fact_only` case 的形式接入
+`export_case_manifest -> export_bundle -> artifact_report` 真实导出链。
+当前 facts 不再主要依赖 manifest 字面量，而是由
+`system_compiler.fact_evidence/v0` sidecar 进入 bundle 后再投影到 artifact report。
+这仍然只是报告证据，不会阻断构建。
 
 `io.device_i2c_facts` 当前定义了最小 fact vocabulary：
 
@@ -314,19 +318,29 @@ required=6 provided=5 missing=1 optional_unknown=1
 当前 artifact report sample：
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+
+当前真实导出 case：
+
+- `i2c-device-contract-facts-smoke`
 
 这份样例把 I2C facts 投影进现有字段：
 
+- `artifacts.fact_evidence`
 - `structure.declared_facts`
 - `structure.required_facts`
 - `resource_contract.provided_facts`
 - `fact_resolution.fact_inventory`
+- `fact_resolution.required_fact_resolution`
 - `fact_resolution.resource_hotspots`
 
-其中 `pinmux:pb8/pb9.af4` 被保留为 required 但未 available，
+其中 `pinmux:pb8/pb9.af4` 在 sidecar 中被保留为 required 但未 available，
 用于表达“contract 已经知道需要这个事实，但当前报告仍缺证据”。
+`required_fact_resolution` 会进一步说明每条 required fact 当前是 `satisfied` 还是 `missing`，
+以及它来自哪个 fact source bucket；如果 `fact_evidence.raw_facts` 里存在 provider，
+报告还会带出对应的 `source / role / kind`。
 
-这一步仍然只做报告样例，不做构建期强制。
+这一步仍然只做报告投影，不做构建期强制。
 
 未来该 contract 至少应进一步进入以下 system compiler 事实语言：
 
@@ -382,11 +396,12 @@ Charm:
 
 1. 写一个真实芯片 driver
    例如 sensor / EEPROM / codec / PMIC。
-2. 给 artifact / evidence report 增加 I2C contract sample
-   已有 schema-level sample，下一步是自动导出。
-3. 把 `io.device_i2c_facts` 接入 artifact report 导出链
-   先做投影，不做执法。
-4. 评估是否需要 `I2cDevice` ownership type
+2. 把当前 smoke 级 `fact_evidence` sidecar 推进到更真实的 evidence pipeline
+   当前 board/package fact source 已由 `board-package-facts-smoke` 接入，
+   I2C contract-required facts 与 board/package/adapter audit facts 的组合
+   也已由 `board-i2c-fact-composition-smoke` 接入；
+   下一步更适合继续推进 probe evidence 或 board bringup evidence，不做执法。
+3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。
 
 在这些完成前，I2C 仍保持 `experimental`。

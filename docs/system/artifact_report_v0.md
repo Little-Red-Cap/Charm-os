@@ -8,6 +8,10 @@
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `schemas/examples/system_compiler.artifact_report.v0.sample.json`
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
+- `schemas/system_compiler.fact_evidence.v0.schema.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
 - `schemas/system_compiler_summary.v0.schema.json`
 - `schemas/examples/system_compiler_summary.summary.v0.sample.json`
 - `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
@@ -34,6 +38,9 @@
 ```powershell
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
@@ -53,19 +60,28 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 
 - `scripts/export_system_compiler_artifact_report.ps1`
 - `scripts/inspect_system_compiler_artifact_report.ps1`
+- `scripts/materialized_graph_required_fact_resolution_matrix_smoke.ps1`
+- `scripts/materialized_graph_required_fact_resolution_compare_smoke.ps1`
 
-它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample` 与可选 `runtime_observe` sidecar，
+它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
+与可选 `fact_evidence` sidecar，
 为每个 case 生成一份最小 `artifact report` JSON。
 而 `inspect_system_compiler_artifact_report.ps1` 则提供了当前最小只读消费面，
 用于把 case 级 `artifact report` 直接展开成人类可读摘要或机器继续消费的 JSON 视图。
+`materialized_graph_required_fact_resolution_matrix_smoke.ps1` 则用于钉住 artifact-root 级
+`required_fact_resolution_matrix` 的横向聚合语义。
+`materialized_graph_required_fact_resolution_compare_smoke.ps1` 则用于钉住 compare 模式下
+`required_fact_resolution_changes` 与 `required_fact_resolution_change_matrix` 的漂移语义。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
-`export_bundle/v1` 现在可以同时承载两类 case：
+`export_bundle/v1` 现在可以同时承载三类 case：
 
 - `materialized_graph`
   同时带出 `dot/json` 与可选 `runtime_observe` sidecar
 - `runtime_only`
   只带出 `runtime_observe` sidecar，不强行伪造 graph 工件
+- `fact_only`
+  可以只携带事实输入 / 审计事实 / `fact_evidence` sidecar，不强行伪造 graph 或 runtime sidecar
 
 如果调用方显式传入 `-Profile`、`-Board`、`-Facet`，
 当前生成链也会把这些 subject 元数据写入报告对象。
@@ -74,6 +90,16 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 如果 bundle 的 case entry 自带 `declared_facts`，
 当前导出脚本也会把它们写入 `structure.declared_facts`，
 并与图推导出的 `required_facts` / `provided_facts` 保持分离。
+如果 bundle 的 case entry 自带 `required_facts` 与 `audit_provided_facts`，
+当前导出脚本会把它们并入 `structure.required_facts`、
+`resource_contract.provided_facts` 与 `fact_resolution.fact_inventory`；
+其中 required 但未 available 的事实会自动进入 `resource_hotspots`，
+但仍只作为报告结论，不阻断构建。
+如果 bundle 的 case entry 自带 `fact_evidence` sidecar，
+当前报告脚本会先校验 sidecar schema，
+再把来源写入 `artifacts.fact_evidence`；
+其中 facts 投影仍通过 bundle case entry 上的
+`declared_facts / required_facts / audit_provided_facts` 进入现有报告字段。
 如果 bundle 的 case entry 自带 `declared_contracts`，
 当前导出脚本也会把这些输入合同写入 `resource_contract.declared_contract_entries`，
 并基于 `declared_facts`、`subject` 派生事实与图提供能力产出最小 `provided / satisfied / violated / unknown` 摘要。
@@ -95,6 +121,8 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
   继续承载静态结构事实
 - `runtime_observe` sidecar
   承载独立的动态观察事实
+- `fact_evidence` sidecar
+  承载 contract-local 或 board/package-local 的事实证据投影
 
 如果当前 case 还没有接入 sidecar，
 `artifact report` 仍会保留稳定的 `runtime_observe` 形状，
@@ -104,6 +132,12 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 `artifact report.artifacts.sample_json` 与 `artifact report.artifacts.dot` 会保持为空，
 `structure.node_count / edge_count / materialized_order` 也会回落到零值或空数组；
 但 `capability_count`、`bringup_evidence` 与 `runtime_observe` 仍会继续从 sidecar 收敛最小结论对象。
+如果当前 case 属于 `fact_only`，
+`artifact report.artifacts.sample_json`、`artifact report.artifacts.dot`
+与 `artifact report.artifacts.runtime_observe` 都会保持为空；
+但 `declared / required / audit_provided` facts 仍会进入事实库存与资源热点计算。
+如果它来自 `fact_evidence` sidecar，
+则 `artifacts.fact_evidence` 会保留对应证据文件路径。
 
 当前最小真实链路可以这样跑：
 
@@ -131,6 +165,22 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 ./scripts/inspect_system_compiler_artifact_report.ps1 -ArtifactRoot out/runtime-only-artifact-report -Case usb-host-runtime-multi-smoke -RecentTransitions
 ```
 
+当前 board/package fact-only case 也已经可以走同一条正式链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case board-package-facts-smoke -OutputRoot out/board-facts-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/board-facts-bundle -Case board-package-facts-smoke -OutputRoot out/board-facts-artifact-report
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-facts-bundle ./out/board-facts-artifact-report/board-package-facts-smoke.artifact_report.json
+```
+
+当前多来源 fact composition 也已经可以走同一条正式链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case board-i2c-fact-composition-smoke -OutputRoot out/board-i2c-composition-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/board-i2c-composition-bundle -Case board-i2c-fact-composition-smoke -OutputRoot out/board-i2c-composition-artifact-report
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-i2c-composition-bundle ./out/board-i2c-composition-artifact-report/board-i2c-fact-composition-smoke.artifact_report.json
+```
+
 当前 inspector 至少会直接带出：
 
 - case / mode / profile / board / facets
@@ -155,13 +205,32 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 当前也已经有一份 I2C device contract facts 的 artifact report 样例：
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
 
-这份样例不表示导出脚本已经自动从 I2C contract 生成 facts。
-它的作用是先把 `io.device_i2c_facts` 如何进入现有
+这份样例现在与 `i2c-device-contract-facts-smoke` 这条 `fact_only`
+导出链保持同一种投影语义，并通过 `fact_evidence` sidecar
+把 `io.device_i2c_facts` 的 contract-local facts 带入 bundle / artifact report。
+它的作用是把 `io.device_i2c_facts` 如何进入现有
 `fact_resolution.fact_inventory`、`structure.required_facts`
 与 `resource_contract.provided_facts` 的形状钉住。
 其中 `pinmux:pb8/pb9.af4` 故意保留为 required 但未 available，
 用于展示 contract-local fact 缺口如何被 artifact report 表达。
+
+当前也已经有一份 board/package facts 的 sidecar 样例：
+
+- `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
+
+这份样例与 `board-package-facts-smoke` 这条 `fact_only` 导出链保持同一种投影语义，
+但来源从 contract-local I2C facts 换成 `platform.board_facts` 对 `BoardCaps`
+当前事实载体的只读投影。
+它的作用是证明 `fact_evidence` 是 system compiler 的通用事实证据入口，
+而不是 I2C contract 的专用旁路。
+
+其中 `board_i2c_composition` 样例进一步把 `io.device_i2c_facts`
+的 contract-required facts 与 `platform.board_facts` / adapter 提供的
+audit facts 放进同一份 sidecar，展示 `fact_resolution.fact_inventory`
+如何从“列出缺口”推进到“解释 required facts 被哪些来源满足”。
 
 为了避免 inspector 继续在“支持哪些查询 / 哪些 scope / 哪些边界”上漂移，
 当前也需要把它压成一张更具体的支持矩阵。
@@ -217,20 +286,35 @@ python ./scripts/validate_materialized_graph_artifacts.py ./out/system-compiler-
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.required_fact_resolution_changes`
 
 与此同时，
 单 report 默认总览里的 `comparison` 现在也会继续带出一份最小 `capability_summary`，
 至少包括：
 
+- `comparison.drift_headline.text`
+- `comparison.drift_headline.changed_dimensions`
+- `comparison.drift_headline.dimension_counts`
 - `comparison.capability_summary.compared_capability_count`
-- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `comparison.capability_summary.compared_capabilities`
+- `comparison.capability_summary.fact_resolution_compare_capabilities`
+- `comparison.capability_summary.required_fact_resolution_change_kinds`
+- `comparison.capability_summary.required_facts_changed`
+
+单 report 里的 `comparison.drift_headline` 与 artifact_root 级字段保持同一输出形状，
+但它的 `dimension_counts` 不是跨 case 汇总，而是当前 report 的维度命中标记：
+每个维度只会是 `0` 或 `1`，表示这个 case 是否在该维度发生 compare drift。
 
 如果选择的是整组 compare report，
 artifact_root 级 `cap list` 现在也会继续带出：
 
-- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases`
-- capability 级 `bringup_change_kinds / resource_change_kinds`
+- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases / fact_resolution_compare_cases`
+- capability 级 `bringup_change_kinds / resource_change_kinds / required_fact_resolution_change_kinds`
+- capability 级 `required_facts_changed`
 - query 级 compare 摘要计数
 
 这意味着当前 inspector 已经可以把“capability 分布”与“compare drift 分布”放进同一张表面。
@@ -245,6 +329,15 @@ artifact_root 级 `cap list` 现在也会继续带出：
 当前 JSON 总览也会额外带出一份最小 `comparison` 摘要，
 至少回答：
 
+- 顶层 `formation_headline.text`
+- 顶层 `formation_headline.status / status_counts`
+- 顶层 `formation_headline.formed_cases / blocked_cases`
+- 顶层 `formation_headline.unresolved_capabilities / blocked_nodes / blockers`
+- 顶层 `compiler_headline.text`
+- 顶层 `compiler_headline.status / has_comparison / has_drift`
+- 顶层 `compiler_headline.formation_text / drift_text`
+- 顶层 `compiler_headline.drift_dimensions`
+- 顶层 `compiler_headline.blocked_cases / unresolved_capabilities / blocked_nodes`
 - `compared_case_count`
 - `metadata_changed_case_count`
 - `system_formation_changed_case_count`
@@ -253,9 +346,15 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `bringup_changed_case_count`
 - `resource_changed_case_count`
 - `fact_resolution_changed_case_count`
+- `drift_headline.text`
+- `drift_headline.changed_dimensions`
+- `drift_headline.dimension_counts`
 - `capability_summary.compared_capability_count`
-- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `capability_summary.compared_capabilities`
+- `capability_summary.fact_resolution_compare_capabilities`
+- `capability_summary.required_fact_resolution_change_kinds`
+- `capability_summary.required_facts_changed`
 - `system_compiler_summary.changed_case_count / unchanged_case_count`
 - `system_compiler_summary.stage_change_matrix / status_change_matrix`
 - `system_compiler_summary.system_spec_change_matrix / resolved_input_change_matrix`
@@ -279,10 +378,34 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `system_formation_summary.blocker_change_matrix`
 - `fact_resolution_summary.changed_case_count / unchanged_case_count`
 - `fact_resolution_summary.fact_inventory_change_matrix`
+- `fact_resolution_summary.required_fact_resolution_change_matrix`
 
 这意味着默认总览已经能直接回答：
 
 > **这一组 compare report 里，到底有多少 case 真正在 compare 维度上发生了漂移。**
+
+其中顶层 `compiler_headline` 是默认总览的第一眼扫读入口：
+它把当前结果的 `formation_headline` 与 compare 侧的 `comparison.drift_headline`
+合成一行 `text`，形如 `status:blocked drift:formation,binding,bringup_order`。
+如果当前 report/root 没有 compare 结果，`drift` 会写成 `n/a`；
+如果存在 compare 结果但没有漂移，`drift` 会写成 `none`。
+它只负责回答“当前是否成立 + 漂移在哪些维度”，
+不替代 `formation_headline`、`comparison.drift_headline` 或各个 `comparison.*_summary`。
+
+其中顶层 `formation_headline` 描述的是当前 artifact_root 这组结果“如何成立”：
+它把 `formed / blocked / unresolved_bindings / blocked_nodes / blockers`
+压成一行 `text`，并保留 blocked case 与阻塞热点给轻量工具消费。
+它不是 compare drift 字段；如果需要看左右两份 report 的变化，
+仍应读取 `comparison.drift_headline` 与各个 `comparison.*_summary`。
+
+其中 `comparison.drift_headline` 是给人类和轻量工具看的扫读入口：
+它把 `metadata / input / formation / binding / bringup_order / bringup_evidence / resource / fact_resolution`
+这些维度压成一行 `text`，并保留 `changed_dimensions` 与 `dimension_counts` 供机器消费。
+详细诊断仍以各个 `*_summary` 与 matrix 为准。
+
+其中 case summary 行级 `FactCmp` 只统计该 case 的
+`comparison.fact_resolution.required_fact_resolution_changes` 数量，
+用于把“事实解析漂移”从 `ResCmp` 这种资源法律漂移计数中分出来。
 
 它现在还会继续给出一份最小 capability 热点入口，
 用来先回答：
@@ -542,6 +665,7 @@ artifact_root 级 `cap list` 现在也会继续带出：
 - `case_count`
 - `totals.declared_contracts / totals.satisfied_count / totals.violated_count / totals.unknown_count`
 - `required_fact_matrix / provided_fact_matrix`
+- `required_fact_resolution_matrix`
 - `contract_matrix`
 - `resource_hotspot_matrix`
 
@@ -550,6 +674,12 @@ artifact_root 级 `cap list` 现在也会继续带出：
 comparison 样例见 [`../../schemas/examples/fact_resolution_summary.comparison.v0.sample.json`](../../schemas/examples/fact_resolution_summary.comparison.v0.sample.json)。
 现在外部脚本也可以直接通过 `kind = fact_resolution_summary/v0` 与 `mode = summary | comparison`
 把它当作独立的 fact-resolution-side result object 识别。
+其中 `required_fact_resolution_matrix` 专门用于横向回答：
+
+- 某个 required fact 在多少 case 中被声明
+- 在哪些 case 中是 `satisfied`
+- 在哪些 case 中是 `missing`
+- 当前能追溯到哪些 provider source / role
 
 这意味着 inspector 已经不只会逐 case 地回答
 “系统是否 formed / blocked”，
@@ -578,6 +708,10 @@ comparison 样例见 [`../../schemas/examples/fact_resolution_summary.comparison
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.fact_resolution.required_fact_resolution_changes`
 
 如果选择的是整组 compare report，
 artifact_root 级该查询现在也会继续带出：
@@ -586,6 +720,8 @@ artifact_root 级该查询现在也会继续带出：
 - `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
 - `compared_cases / bringup_compare_cases / resource_compare_cases`
 - `resource_contracts`
+- `fact_resolution_compare_case_count / fact_resolution_compare_cases`
+- `required_facts_changed`
 
 而 `graph path` 当前则明确只支持单 report 查询。
 它当前最小稳定输出会围绕以下字段组织：
@@ -605,6 +741,10 @@ artifact_root 级该查询现在也会继续带出：
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.fact_resolution.required_fact_resolution_changes`
 
 其中：
 
@@ -684,6 +824,10 @@ artifact_root 级该查询现在也会继续带出：
 
 - `order / capability / action / before / after`
 - 行级 `BrCmp / ResCmp`
+
+这里的 transition 行级 `ResCmp` 仍然只表达“该 capability 在资源/事实相关 compare 面有漂移”，
+不会把未出现在 `recent_transitions` 里的 required fact resolution 漂移强行混入 runtime 视图。
+case summary 行级的 `FactCmp` 才是默认总览里用于观察 required fact resolution 漂移的字段。
 
 如果当前 report 来自 compare 模式，
 它还会在 `[TRANSITIONS]` 前先给出一行最小 `TRANSITION COMPARE` 摘要，
@@ -1055,6 +1199,32 @@ artifact_root 级该查询现在也会继续带出：
 - `bringup_summary`
 - `blocker_count / blockers`
 
+单 report 默认总览也会在顶层带出 `compiler_headline` 与 `formation_headline`。
+
+`compiler_headline` 至少包含：
+
+- `compiler_headline.text`
+- `compiler_headline.status / has_comparison / has_drift`
+- `compiler_headline.formation_text / drift_text`
+- `compiler_headline.drift_dimensions`
+- `compiler_headline.blocked_cases / unresolved_capabilities / blocked_nodes`
+
+它把当前单 report 的成立状态与 compare drift 摘要合并成扫读入口；
+`case_count` 通常为 `1`，`drift_dimensions` 也只表达当前 case 命中的 drift 维度。
+如果当前 report 不是 compare 模式，`has_comparison` 为 `false`，`text` 中的 `drift` 为 `n/a`。
+
+`formation_headline` 至少包含：
+
+- `formation_headline.text`
+- `formation_headline.status / status_counts`
+- `formation_headline.formed_cases / blocked_cases`
+- `formation_headline.unresolved_capabilities / blocked_nodes / blockers`
+
+这份 headline 只描述当前 report 的成立状态，
+因此 `case_count` 通常为 `1`，`status_counts` 也只是当前 case 的 `0/1` 命中。
+它用于让默认视图第一眼回答“这个系统是否成立、阻塞在哪里”，
+详细诊断仍以 `system_formation.binding_summary / bringup_summary / blockers` 为准。
+
 它不取代 `binding_result` 或 `bringup_order`，
 而是把“系统是否成立、为什么没成立”正式压成一个顶层结果物。
 
@@ -1148,6 +1318,7 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
 - `declared_contracts / audited_count / satisfied_count / violated_count / unknown_count`
 - `fact_inventory`
 - `contracts`
+- `required_fact_resolution`
 - `resource_hotspots`
 
 其中：
@@ -1159,13 +1330,18 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
   则把每条声明输入里的资源法律压成稳定结果项，
   至少带出
   `contract / state / requires / present_facts / missing_facts / fact_sources / status_text`
+- `required_fact_resolution`
+  则把每条 `required_fact` 压成稳定结果项，
+  至少带出
+  `fact / state / fact_sources / providers / provider_count / status_text`
+  这让报告能回答“这个 required fact 是被哪个事实桶、哪个 raw evidence provider 满足的”
 
 也就是说：
 
 - `resource_contract`
   继续保留输入侧法律文本与最小审计层
 - `fact_resolution`
-  则负责把输入事实、图事实与合同成立性收束成正式结果语言
+  则负责把输入事实、图事实、required fact 满足关系与合同成立性收束成正式结果语言
 
 ### 5.9 运行时观察摘要
 
@@ -1321,6 +1497,7 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
 - `left / right`
 - `summary_changes`
 - `fact_inventory_changes`
+- `required_fact_resolution_changes`
 - `contract_changes`
 - `hotspot_changes`
 
@@ -1328,6 +1505,7 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
 报告也已经可以继续回答：
 
 - 哪组 `declared / subject / required / graph_provided / audit_provided` facts 发生了变化
+- 哪个 required fact 从 `missing` 变为 `satisfied`，或 provider/source 发生了变化
 - 哪条资源法律虽然仍存在，但其成立性结果已经漂移
 - 当前 drift 到底停留在最小审计层，还是已经进入正式 fact resolution 结果面
 

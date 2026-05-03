@@ -110,7 +110,8 @@
           "type": "string",
           "enum": [
             "materialized_graph",
-            "runtime_only"
+            "runtime_only",
+            "fact_only"
           ]
         },
         "export_target": {
@@ -161,7 +162,37 @@
             "null"
           ]
         },
+        "fact_evidence_target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fact_evidence_cache": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default_fact_evidence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "declared_facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "audit_provided_facts": {
           "type": "array",
           "items": {
             "type": "string"
@@ -180,6 +211,12 @@
           }
         },
         "runtime_observe": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fact_evidence": {
           "type": [
             "string",
             "null"

@@ -22,6 +22,28 @@ def ensure_exists(path_value: str | None, label: str, errors: list[str]):
         errors.append(f"{label}: not found -> {path_value}")
 
 
+def validate_artifact_report_index(path_value: str | None, label: str, errors: list[str]):
+    if path_value is None:
+        return
+    if not isinstance(path_value, str) or not path_value.strip():
+        errors.append(f"{label}: missing path")
+        return
+
+    path = Path(path_value)
+    if not path.exists():
+        errors.append(f"{label}: not found -> {path_value}")
+        return
+
+    try:
+        data = load_json(path)
+    except Exception as exc:
+        errors.append(f"{label}: invalid json -> {exc}")
+        return
+
+    if data.get("schema") != "system_compiler.artifact_report_index/v0":
+        errors.append(f"{label}: unsupported schema -> {data.get('schema')}")
+
+
 def validate_front_page(front_page: dict, label: str, errors: list[str]):
     ensure_exists(front_page.get("summary_path"), f"{label}.summary_path", errors)
     ensure_exists(front_page.get("report_markdown_path"), f"{label}.report_markdown_path", errors)
@@ -55,6 +77,11 @@ def validate_references(summary: dict):
     artifact_context = summary.get("artifact_context", {})
     if isinstance(artifact_context, dict):
         ensure_exists(artifact_context.get("canonical_world"), "artifact_context.canonical_world", errors)
+        validate_artifact_report_index(
+            artifact_context.get("artifact_report_index"),
+            "artifact_context.artifact_report_index",
+            errors,
+        )
         ensure_exists(artifact_context.get("runtime_evidence_summary"), "artifact_context.runtime_evidence_summary", errors)
         ensure_exists(artifact_context.get("output_root"), "artifact_context.output_root", errors)
         ensure_exists(artifact_context.get("report_markdown_path"), "artifact_context.report_markdown_path", errors)

@@ -89,16 +89,23 @@
       }
     ]
   },
+  "front_page": {
+    "summary_path": "schemas/examples/system_compiler.witness_bundle.v0.candidate_drift.sample.json",
+    "report_markdown_path": "docs/system/witness_bundle_v0.md",
+    "check_text_path": "docs/system/witness_bundle_v0.md",
+    "supporting_surfaces": []
+  },
   "artifact_context": {
     "canonical_world": "schemas/examples/system_compiler.canonical_world.v0.sample.json",
     "artifact_root": null,
+    "artifact_report_index": "schemas/examples/system_compiler.artifact_report_index.v0.sample.json",
     "artifact_reports": [
       "schemas/examples/system_compiler.artifact_report.v0.sample.json"
     ],
     "runtime_evidence_summary": "schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json",
-    "output_root": "out/system-compiler-witness-bundle-candidate-drift-sample",
-    "report_markdown_path": "out/system-compiler-witness-bundle-candidate-drift-sample/report.md",
-    "check_text_path": "out/system-compiler-witness-bundle-candidate-drift-sample/check.txt"
+    "output_root": "schemas/examples",
+    "report_markdown_path": "docs/system/witness_bundle_v0.md",
+    "check_text_path": "docs/system/witness_bundle_v0.md"
   },
   "contract_status": {
     "declared_count": 3,

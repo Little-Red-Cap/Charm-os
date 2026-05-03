@@ -93,8 +93,16 @@
 回答：
 
 - 这份 bundle 从哪里导出
+- artifact report root 的 first-read index 在哪里
 - 用了哪些 artifact report
 - 是否接了 runtime evidence summary
+
+其中 `artifact_context.artifact_report_index` 是来源锚点：
+
+- 当导出时传入 `ArtifactRoot` 且其中存在 `index.json`，脚本会把它记录为 `artifact_report_index`
+- 该 index 必须是 `system_compiler.artifact_report_index/v0`
+- 它负责让上层 proof / IDE / CI 先找到 artifact report root 的轻量入口
+- 它不替代 `artifact_reports`，也不把 case 级结论复制进 witness bundle
 
 ### `front_page`
 
@@ -170,6 +178,21 @@
 
 `witness bundle` 不重写它，
 而是引用它、总结它在这个 world 里的角色。
+
+### 1.1 与 `artifact report index`
+
+`artifact report index` 是 artifact report root 的 first-read 入口。
+
+`witness bundle` 不把它当成单独 witness entry，
+而是在 `artifact_context.artifact_report_index` 中记录其路径。
+
+这表示：
+
+- `artifact_report_index` 负责回答“这批 artifact report 从哪里开始读”
+- `artifact_reports` 负责回答“这份 witness bundle 实际拿哪些 case 作证”
+- `witness_entries` 负责回答“每个 witness 在 canonical world 里承担什么角色”
+
+三者各自分工，不互相替代。
 
 ### 2. 与 `minimal kernel runtime evidence bundle`
 

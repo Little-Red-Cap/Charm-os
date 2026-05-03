@@ -105,6 +105,8 @@
   - 对应 `docs/system/witness_bundle_v0.md` 与 `scripts/export_system_compiler_witness_bundle.ps1`
   - 用途偏向把 canonical world、artifact report、runtime evidence bundle 与 example refs 收成正式交付对象
   - 它当前关注的是“证词是否齐、来源在哪里、缺口是什么”，而不是替代下层更细的 runtime / compare 语义
+  - 它当前也可在 `artifact_context.artifact_report_index` 中记录 artifact report root 的 first-read index，
+    作为上层 proof / IDE / CI 发现 case 级报告的来源锚点
 
 - `examples/system_compiler.witness_bundle.v0.sample.json`
   - 对应 `system_compiler.witness_bundle/v0` 的最小样例

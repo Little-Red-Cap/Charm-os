@@ -298,6 +298,7 @@
       "required": [
         "canonical_world",
         "artifact_root",
+        "artifact_report_index",
         "artifact_reports",
         "runtime_evidence_summary",
         "output_root",
@@ -309,6 +310,9 @@
           "$ref": "#/$defs/nullableString"
         },
         "artifact_root": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "artifact_report_index": {
           "$ref": "#/$defs/nullableString"
         },
         "artifact_reports": {

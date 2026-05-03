@@ -191,6 +191,42 @@ function New-DriftHeadlineDimension {
     }
 }
 
+function New-DriftHeadlineFromDimensions {
+    param(
+        [object[]]$Dimensions,
+        [int]$ComparedCaseCount
+    )
+
+    $changedDimensions = @(
+        @($Dimensions) |
+            Where-Object { [int]$_.changed_case_count -gt 0 } |
+            ForEach-Object { [string]$_.name }
+    )
+    $dimensionCounts = [ordered]@{}
+    foreach ($dimension in @($Dimensions)) {
+        $dimensionCounts[[string]$dimension.name] = [int]$dimension.changed_case_count
+    }
+
+    $text = if (@($changedDimensions).Count -gt 0) {
+        @(
+            @($Dimensions) |
+                Where-Object { [int]$_.changed_case_count -gt 0 } |
+                ForEach-Object { "$([string]$_.name):$([int]$_.changed_case_count)" }
+        ) -join ' '
+    } else {
+        'no drift'
+    }
+
+    return [ordered]@{
+        text = $text
+        compared_case_count = [int]$ComparedCaseCount
+        changed_dimension_count = @($changedDimensions).Count
+        changed_dimensions = @($changedDimensions)
+        dimension_counts = $dimensionCounts
+        dimensions = @($Dimensions)
+    }
+}
+
 function New-ArtifactRootDriftHeadline {
     param(
         $ComparisonOverview
@@ -211,34 +247,68 @@ function New-ArtifactRootDriftHeadline {
         New-DriftHeadlineDimension -Name 'fact_resolution' -Count ([int]$ComparisonOverview.fact_resolution_changed_case_count) -Cases @($ComparisonOverview.fact_resolution_changed_cases)
     )
 
-    $changedDimensions = @(
-        @($dimensions) |
-            Where-Object { [int]$_.changed_case_count -gt 0 } |
-            ForEach-Object { [string]$_.name }
+    return New-DriftHeadlineFromDimensions -Dimensions $dimensions -ComparedCaseCount ([int]$ComparisonOverview.compared_case_count)
+}
+
+function Test-ReportComparisonDimensionChanged {
+    param(
+        $ComparisonOverview,
+        [string]$Name
     )
-    $dimensionCounts = [ordered]@{}
-    foreach ($dimension in @($dimensions)) {
-        $dimensionCounts[[string]$dimension.name] = [int]$dimension.changed_case_count
+
+    $dimension = Get-OptionalMemberValue -Object $ComparisonOverview -Name $Name
+    if ($null -eq $dimension) {
+        return $false
     }
 
-    $text = if (@($changedDimensions).Count -gt 0) {
-        @(
-            @($dimensions) |
-                Where-Object { [int]$_.changed_case_count -gt 0 } |
-                ForEach-Object { "$([string]$_.name):$([int]$_.changed_case_count)" }
-        ) -join ' '
-    } else {
-        'no drift'
+    return [bool](Get-OptionalMemberValue -Object $dimension -Name 'changed')
+}
+
+function Get-OptionalMemberValueCount {
+    param(
+        $Object,
+        [string]$Name
+    )
+
+    $value = Get-OptionalMemberValue -Object $Object -Name $Name
+    if ($null -eq $value) {
+        return 0
     }
 
-    return [ordered]@{
-        text = $text
-        compared_case_count = [int]$ComparisonOverview.compared_case_count
-        changed_dimension_count = @($changedDimensions).Count
-        changed_dimensions = @($changedDimensions)
-        dimension_counts = $dimensionCounts
-        dimensions = @($dimensions)
+    return @($value).Count
+}
+
+function New-ReportDriftHeadline {
+    param(
+        $ComparisonOverview,
+        [string]$CaseName
+    )
+
+    if ($null -eq $ComparisonOverview) {
+        return $null
     }
+
+    $caseSet = if (-not [string]::IsNullOrWhiteSpace($CaseName)) { @($CaseName) } else { @() }
+    $metadataChanged = (Get-OptionalMemberValueCount -Object $ComparisonOverview -Name 'metadata_changes') -gt 0
+    $inputChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'system_input'
+    $formationChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'system_formation'
+    $bindingChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'binding_result'
+    $bringupOrderChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'bringup_order'
+    $bringupEvidenceChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'bringup_evidence'
+    $resourceChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'resource_contract'
+    $factResolutionChanged = Test-ReportComparisonDimensionChanged -ComparisonOverview $ComparisonOverview -Name 'fact_resolution'
+    $dimensions = @(
+        New-DriftHeadlineDimension -Name 'metadata' -Count ([int]$metadataChanged) -Cases $(if ($metadataChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'input' -Count ([int]$inputChanged) -Cases $(if ($inputChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'formation' -Count ([int]$formationChanged) -Cases $(if ($formationChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'binding' -Count ([int]$bindingChanged) -Cases $(if ($bindingChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'bringup_order' -Count ([int]$bringupOrderChanged) -Cases $(if ($bringupOrderChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'bringup_evidence' -Count ([int]$bringupEvidenceChanged) -Cases $(if ($bringupEvidenceChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'resource' -Count ([int]$resourceChanged) -Cases $(if ($resourceChanged) { $caseSet } else { @() })
+        New-DriftHeadlineDimension -Name 'fact_resolution' -Count ([int]$factResolutionChanged) -Cases $(if ($factResolutionChanged) { $caseSet } else { @() })
+    )
+
+    return New-DriftHeadlineFromDimensions -Dimensions $dimensions -ComparedCaseCount 1
 }
 
 function Format-ResolvedScalarInputText {
@@ -8540,6 +8610,10 @@ function New-ReportComparisonOverviewResult {
         $comparisonOverview.capability_summary = $capabilitySummary
     }
 
+    $subject = Get-OptionalMemberValue -Object $report -Name 'subject'
+    $caseName = [string](Get-OptionalMemberValue -Object $subject -Name 'case')
+    $comparisonOverview.drift_headline = New-ReportDriftHeadline -ComparisonOverview $comparisonOverview -CaseName $caseName
+
     return $comparisonOverview
 }
 
@@ -9975,6 +10049,9 @@ if ($null -ne $reportData.PSObject.Properties['fact_resolution'] -and $null -ne 
 if ($null -ne $reportData.PSObject.Properties['comparison'] -and $null -ne $reportData.comparison) {
     $comparisonOverview = New-ReportComparisonOverviewResult -LoadedReport $loadedReport
     Write-Host '[COMPARISON]'
+    if ($null -ne $comparisonOverview.drift_headline) {
+        Write-Host "drift_headline = $([string]$comparisonOverview.drift_headline.text)"
+    }
     Write-Host "status = $([string]($comparisonOverview.status))"
     if (@($comparisonOverview.summary_changes).Count -gt 0) {
         Write-Host "summary_changes  = $((@($comparisonOverview.summary_changes) -join '; '))"

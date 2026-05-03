@@ -320,12 +320,20 @@ v0 阶段建议至少覆盖：
 与此同时，
 单 report 默认总览里的 `comparison` 现在也会继续附带：
 
+- `comparison.drift_headline.text`
+- `comparison.drift_headline.changed_dimensions`
+- `comparison.drift_headline.dimension_counts`
 - `comparison.capability_summary.compared_capability_count`
 - `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `comparison.capability_summary.compared_capabilities`
 - `comparison.capability_summary.fact_resolution_compare_capabilities`
 - `comparison.capability_summary.required_fact_resolution_change_kinds`
 - `comparison.capability_summary.required_facts_changed`
+
+这里的 `comparison.drift_headline` 是单 report 默认视图的人类扫读入口。
+它复用 artifact_root 默认总览的字段形状，
+但每个 `dimension_counts` 值只表达当前 case 是否命中该维度，
+因此取值稳定为 `0` 或 `1`。
 
 当前实现支持两种读取作用域：
 

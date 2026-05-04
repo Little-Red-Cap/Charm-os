@@ -614,6 +614,7 @@ def build_world_shelf_review_projection(summary_path: Path, summary: dict[str, A
     artifact_context = get_mapping(summary.get("artifact_context"))
     review_status = get_mapping(summary.get("review_status"))
     collapse_surface = get_mapping(summary.get("collapse_surface"))
+    drift_digest = get_mapping(summary.get("drift_digest"))
     questions = get_mapping(summary.get("questions"))
     headline = "world_shelf_review verdict={0}".format(choose_text(summary.get("review_verdict")) or "-")
     summary_lines = [
@@ -634,6 +635,16 @@ def build_world_shelf_review_projection(summary_path: Path, summary: dict[str, A
             len(get_list(collapse_surface.get("narratives"))),
         ),
     ]
+    summary_lines.append(
+        "drift_digest changed={0} verdict={1} entry_changed={2} regressions={3} improvements={4} front_page_detail={5}".format(
+            "yes" if bool(drift_digest.get("changed")) else "no",
+            choose_text(drift_digest.get("verdict")) or choose_text(summary.get("review_verdict")) or "-",
+            choose_text(drift_digest.get("entry_changed_count")) or "0",
+            choose_text(drift_digest.get("entry_regression_count")) or "0",
+            choose_text(drift_digest.get("entry_improvement_count")) or "0",
+            choose_text(drift_digest.get("front_page_entry_detail_changed_count")) or "0",
+        )
+    )
     return build_opened_projection_record(
         status="available",
         projection_kind="world_shelf_review_overview",

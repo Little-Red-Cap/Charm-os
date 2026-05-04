@@ -172,6 +172,11 @@ For those targets it records:
 - nearby question lines
 - nearby supporting / evidence / compare paths
 
+For `system_compiler.world_shelf_review/v0`, those summary lines include a
+single `drift_digest ...` line. This is only a consumer preview of the review
+object's own `drift_digest`; the opener does not re-run shelf compare logic or
+reinterpret lower `biography_index_compare` semantics.
+
 If the target exists but the opener does not know how to project it yet,
 `opened_projection.status` becomes `unavailable` and the blocker explains which
 summary schema still needs a projection adapter.

@@ -399,6 +399,7 @@ try {
             ExpectedInspectorReady = $false
             ExpectedProjectionStatus = "available"
             ExpectedProjectionKind = "world_shelf_review_overview"
+            ExpectedSummaryLinePrefix = "drift_digest "
         },
         [ordered]@{
             Name = "review-provenance"
@@ -412,6 +413,7 @@ try {
             ExpectedInspectorReady = $false
             ExpectedProjectionStatus = "available"
             ExpectedProjectionKind = "world_shelf_review_overview"
+            ExpectedSummaryLinePrefix = "drift_digest "
         },
         [ordered]@{
             Name = "root-witness-supporting-testimony"
@@ -523,6 +525,15 @@ try {
         Assert-Condition `
             -Condition (@($openerSummary.opened_projection.summary_lines).Count -gt 0) `
             -Message ("case '{0}' opened projection must expose summary lines" -f $case.Name)
+        if (-not [string]::IsNullOrWhiteSpace([string]$case.ExpectedSummaryLinePrefix)) {
+            $matchingSummaryLines = @(
+                @($openerSummary.opened_projection.summary_lines) |
+                    Where-Object { ([string]$_).StartsWith([string]$case.ExpectedSummaryLinePrefix, [System.StringComparison]::Ordinal) }
+            )
+            Assert-Condition `
+                -Condition ($matchingSummaryLines.Count -gt 0) `
+                -Message ("case '{0}' expected summary line prefix '{1}'" -f $case.Name, $case.ExpectedSummaryLinePrefix)
+        }
 
         Write-Host (
             "[FRONT-PAGE-ENTRY-OPENER-SMOKE] case={0} tab={1} query={2}/{3} compare={4}/{5} inspector_ready={6} projection={7}/{8}" -f

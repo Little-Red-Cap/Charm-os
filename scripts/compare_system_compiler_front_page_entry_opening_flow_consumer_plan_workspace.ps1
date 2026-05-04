@@ -1,8 +1,6 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$BaselineFrontPageWorkspaceRoot,
-    [Parameter(Mandatory = $true)]
-    [string]$CandidateFrontPageWorkspaceRoot,
+    [string]$BaselineFrontPageWorkspaceRoot = "",
+    [string]$CandidateFrontPageWorkspaceRoot = "",
     [string]$OutputRoot = "out/system-compiler-plan-ws-compare",
     [string]$BaselinePlanWorkspaceRoot = "",
     [string]$CandidatePlanWorkspaceRoot = "",
@@ -138,13 +136,6 @@ $compareRootPath = if ([string]::IsNullOrWhiteSpace($CompareRoot)) {
     Resolve-FullPath -Path $CompareRoot
 }
 
-if (-not (Test-Path -LiteralPath $baselineFrontPageWorkspaceRootPath)) {
-    throw "baseline front-page workspace root not found: $baselineFrontPageWorkspaceRootPath"
-}
-if (-not (Test-Path -LiteralPath $candidateFrontPageWorkspaceRootPath)) {
-    throw "candidate front-page workspace root not found: $candidateFrontPageWorkspaceRootPath"
-}
-
 if ($Clean) {
     $cleanPaths = @($baselinePlanWorkspaceRootPath, $candidatePlanWorkspaceRootPath, $compareRootPath, $outputRootPath)
     foreach ($path in $cleanPaths) {
@@ -175,10 +166,18 @@ Push-Location $repoRoot
 try {
     $baselinePlanSummaryPath = Join-Path $baselinePlanWorkspaceRootPath "plan\front-page.entry-opening-flow.consumer.plan.summary.json"
     $candidatePlanSummaryPath = Join-Path $candidatePlanWorkspaceRootPath "plan\front-page.entry-opening-flow.consumer.plan.summary.json"
+    $baselinePlanAvailable = (-not $Clean) -and (Test-Path -LiteralPath $baselinePlanSummaryPath)
+    $candidatePlanAvailable = (-not $Clean) -and (Test-Path -LiteralPath $candidatePlanSummaryPath)
 
-    if ((-not $Clean) -and (Test-Path -LiteralPath $baselinePlanSummaryPath)) {
+    if ($baselinePlanAvailable) {
         Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-WORKSPACE-COMPARE] baseline_plan_workspace=reuse-existing"
     } else {
+        if ([string]::IsNullOrWhiteSpace($baselineFrontPageWorkspaceRootPath)) {
+            throw "baseline front-page workspace root is required unless BaselinePlanWorkspaceRoot already contains a plan summary"
+        }
+        if (-not (Test-Path -LiteralPath $baselineFrontPageWorkspaceRootPath)) {
+            throw "baseline front-page workspace root not found: $baselineFrontPageWorkspaceRootPath"
+        }
         Invoke-ExternalTool `
             -Executable $powerShellExe `
             -ArgumentList @(
@@ -198,9 +197,15 @@ try {
             -FailureMessage "baseline opening-flow consumer plan workspace export failed"
     }
 
-    if ((-not $Clean) -and (Test-Path -LiteralPath $candidatePlanSummaryPath)) {
+    if ($candidatePlanAvailable) {
         Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-WORKSPACE-COMPARE] candidate_plan_workspace=reuse-existing"
     } else {
+        if ([string]::IsNullOrWhiteSpace($candidateFrontPageWorkspaceRootPath)) {
+            throw "candidate front-page workspace root is required unless CandidatePlanWorkspaceRoot already contains a plan summary"
+        }
+        if (-not (Test-Path -LiteralPath $candidateFrontPageWorkspaceRootPath)) {
+            throw "candidate front-page workspace root not found: $candidateFrontPageWorkspaceRootPath"
+        }
         Invoke-ExternalTool `
             -Executable $powerShellExe `
             -ArgumentList @(

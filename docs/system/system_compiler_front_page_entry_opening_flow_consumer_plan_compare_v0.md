@@ -138,6 +138,9 @@ contain `plan/front-page.entry-opening-flow.consumer.plan.summary.json` and
 `-Clean` is omitted, the wrapper reuses those plan witnesses instead of
 rebuilding the whole front-page opening-flow chain.
 
+In that hot path, `-BaselineFrontPageWorkspaceRoot` and
+`-CandidateFrontPageWorkspaceRoot` may be omitted entirely.
+
 Or compare two explicit consumer plan summaries:
 
 ```powershell

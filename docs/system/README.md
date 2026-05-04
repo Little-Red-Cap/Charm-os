@@ -47,6 +47,8 @@
 - [`inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1)
 - [`minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md`](minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md)
 - [`system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`](../../scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1)
+- [`inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1)
+- [`inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1)
 - [`minimal-kernel-runtime-session-witness.yml`](../../.github/workflows/minimal-kernel-runtime-session-witness.yml)
 - [`minimal_kernel_task_message_api_contract.md`](minimal_kernel_task_message_api_contract.md)
 - [`minimal_kernel_task_message_table_contract.md`](minimal_kernel_task_message_table_contract.md)

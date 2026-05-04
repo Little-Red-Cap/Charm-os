@@ -35,6 +35,10 @@ includes:
   - `scripts/validate_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py`
 - smoke
   - `scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`
+- inspect
+  - `scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1`
+- inspect smoke
+  - `scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`
 
 ## Current outputs
 
@@ -154,10 +158,21 @@ Or run the single smoke:
 ./scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1 -Clean
 ```
 
+Or inspect the consumer directly:
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1 -Summary out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json -ShowFallbacks
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1 -Summary out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json -FocusId runtime-regression -ShowArtifacts
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1 -Summary out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json -FocusId world-compare-drift -AsJson
+```
+
 Expected smoke shape:
 
 ```text
 [MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] focuses=5 changed=5 default=session-state-drift severity=critical next=session-report
+==> inspect minimal kernel runtime session witness inspect compare consumer smoke
+selected_focus=world-compare-drift selected_explain_hop=world-compare-report ok=1
 ```
 
 ## Why this matters

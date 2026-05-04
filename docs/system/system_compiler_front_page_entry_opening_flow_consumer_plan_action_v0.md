@@ -33,9 +33,13 @@ includes:
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
+- compare
+  - `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
+  - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -67,6 +71,12 @@ The workspace smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-smoke
+```
+
+The compare smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-compare-smoke
 ```
 
 ## What the action facade records
@@ -132,6 +142,12 @@ Run the workspace action smoke:
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1 -Clean
 ```
 
+Run the action compare smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1 -Clean
+```
+
 Or export through the workspace wrapper from a prepared front-page workspace:
 
 ```powershell
@@ -174,11 +190,22 @@ python ./scripts/validate_system_compiler_front_page_entry_opening_flow_consumer
   --summary cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-smoke/default/front-page.entry-opening-flow.consumer.plan-action.summary.json
 ```
 
+Compare two action witnesses:
+
+```powershell
+python ./scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py `
+  --baseline cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-smoke/cold-default/action/front-page.entry-opening-flow.consumer.plan-action.summary.json `
+  --candidate cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-smoke/hot-compare-neighbor/action/front-page.entry-opening-flow.consumer.plan-action.summary.json `
+  --output-root cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-compare-smoke/default-to-compare-neighbor
+```
+
 Expected smoke shape:
 
 ```text
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=default selector=default_action action=open-default kind=default
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=compare-neighbor selector=action_kind:compare-neighbor action=open-compare-neighbor kind=compare-neighbor
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=action-self-standing verdict=standing changed=0
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=24
 ```
 
 ## Why this matters

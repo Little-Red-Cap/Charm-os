@@ -24,6 +24,8 @@ includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_consumer_selector_compare.v0.schema.json`
 - exporter
   - `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_selector.py`
+- workspace compare wrapper
+  - `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector_compare.py`
 - smoke
@@ -41,6 +43,12 @@ The dedicated smoke writes under:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-selector-compare-smoke
+```
+
+The workspace compare wrapper writes under:
+
+```powershell
+out/system-compiler-front-page-entry-opening-flow-consumer-selector-workspace-compare
 ```
 
 ## What the compare records
@@ -86,7 +94,8 @@ This object intentionally stays at selector-compare level.
 It does not:
 
 - rebuild consumer handoff summaries
-- rerun opener, landing, capability, or route tools
+- rerun opener, landing, capability, or route tools when explicit selector
+  summaries are provided
 - execute inspector commands
 - invent a separate consumer plan language
 
@@ -110,6 +119,17 @@ Run the compare smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_smoke.ps1 -Clean
+```
+
+Or compare two prepared front-page workspaces by exporting both selector
+witnesses first and then comparing them:
+
+```powershell
+./scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1 `
+  -BaselineFrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -CandidateFrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -OutputRoot cmake-build-system-compiler-front-page-entry-opening-flow-consumer-selector-workspace-compare-smoke `
+  -Clean
 ```
 
 Or compare two explicit selector summaries:

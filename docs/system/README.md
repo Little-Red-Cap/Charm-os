@@ -140,6 +140,7 @@
 - [System Compiler Front Page Entry Opening Flow consumer plan smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer selector compare smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer selector workspace exporter](../../scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer selector workspace compare](../../scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer workspace exporter](../../scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1)
 - [System Compiler Front Page Entry Opening Flow workspace compare](../../scripts/compare_system_compiler_front_page_entry_opening_flow_workspace.ps1)
 - [`explain_surface_v0.md`](explain_surface_v0.md)

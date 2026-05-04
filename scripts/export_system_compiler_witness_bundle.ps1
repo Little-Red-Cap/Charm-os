@@ -176,7 +176,8 @@ function New-WitnessBundleFrontPage {
         [string]$SummaryPath,
         [string]$ReportMarkdownPath,
         [string]$CheckTextPath,
-        $RuntimeEvidenceSummaryInfo
+        $RuntimeEvidenceSummaryInfo,
+        $KernelRuntimeSessionSummaryInfo
     )
 
     $supportingSurfaces = [System.Collections.Generic.List[object]]::new()
@@ -190,6 +191,23 @@ function New-WitnessBundleFrontPage {
                 -SummaryPath $RuntimeEvidenceSummaryInfo.Path `
                 -ReportMarkdownPath (Resolve-RelativeToBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value ([string]$RuntimeEvidenceSummaryInfo.Data.report_markdown_path)) `
                 -CheckTextPath (Resolve-RelativeToBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value ([string]$RuntimeEvidenceSummaryInfo.Data.check_text_path))
+            )
+        ) | Out-Null
+    }
+
+    $sessionSurfaceInfo = Resolve-KernelRuntimeSessionSurfaceInfo `
+        -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo `
+        -KernelRuntimeSessionSummaryInfo $KernelRuntimeSessionSummaryInfo
+    if ($null -ne $sessionSurfaceInfo) {
+        $supportingSurfaces.Add(
+            (New-FrontPageSurface `
+                -Id "kernel_runtime_session" `
+                -Label "kernel runtime session" `
+                -Role "supporting_evidence" `
+                -SummarySchema "minimal_kernel.kernel_runtime_session/v0" `
+                -SummaryPath $sessionSurfaceInfo.SummaryPath `
+                -ReportMarkdownPath $sessionSurfaceInfo.ReportMarkdownPath `
+                -CheckTextPath $sessionSurfaceInfo.CheckTextPath
             )
         ) | Out-Null
     }
@@ -522,6 +540,61 @@ function Resolve-KernelRuntimeSessionSummaryInfo {
     }
 
     return Load-KernelRuntimeSessionSummaryInfo -Path ([string]$sessionView.summary_path) -BasePath $RuntimeEvidenceSummaryInfo.Path
+}
+
+function Resolve-KernelRuntimeSessionSurfaceInfo {
+    param(
+        $RuntimeEvidenceSummaryInfo,
+        $KernelRuntimeSessionSummaryInfo
+    )
+
+    if ($null -eq $KernelRuntimeSessionSummaryInfo) {
+        return $null
+    }
+
+    $summaryPath = $KernelRuntimeSessionSummaryInfo.Path
+    $reportMarkdownPath = ""
+    $checkTextPath = ""
+
+    if ($null -ne $RuntimeEvidenceSummaryInfo) {
+        $runtimeSummary = $RuntimeEvidenceSummaryInfo.Data
+        $sessionView = $null
+        if ($null -ne $runtimeSummary.PSObject.Properties["session"] -and $null -ne $runtimeSummary.session) {
+            $sessionView = $runtimeSummary.session
+        } elseif ($null -ne $runtimeSummary.PSObject.Properties["session_summary"] -and $null -ne $runtimeSummary.session_summary) {
+            $sessionView = $runtimeSummary.session_summary
+        }
+
+        if ($null -ne $sessionView) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$sessionView.report_markdown_path)) {
+                $reportMarkdownPath = Resolve-PathNearBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value ([string]$sessionView.report_markdown_path)
+            }
+            if (-not [string]::IsNullOrWhiteSpace([string]$sessionView.check_text_path)) {
+                $checkTextPath = Resolve-PathNearBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value ([string]$sessionView.check_text_path)
+            }
+        }
+    }
+
+    $session = $KernelRuntimeSessionSummaryInfo.Data
+    if ([string]::IsNullOrWhiteSpace($reportMarkdownPath) -and $null -ne $session.PSObject.Properties["artifact_paths"] -and $null -ne $session.artifact_paths) {
+        $reportMarkdownPath = Resolve-PathNearBase -BasePath $KernelRuntimeSessionSummaryInfo.Path -Value ([string]$session.artifact_paths.report)
+    }
+    if ([string]::IsNullOrWhiteSpace($checkTextPath) -and $null -ne $session.PSObject.Properties["artifact_paths"] -and $null -ne $session.artifact_paths) {
+        $checkTextPath = Resolve-PathNearBase -BasePath $KernelRuntimeSessionSummaryInfo.Path -Value ([string]$session.artifact_paths.check)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($reportMarkdownPath)) {
+        $reportMarkdownPath = Join-Path (Split-Path -Parent $KernelRuntimeSessionSummaryInfo.Path) "report.md"
+    }
+    if ([string]::IsNullOrWhiteSpace($checkTextPath)) {
+        $checkTextPath = Join-Path (Split-Path -Parent $KernelRuntimeSessionSummaryInfo.Path) "check.txt"
+    }
+
+    return [pscustomobject]@{
+        SummaryPath = $summaryPath
+        ReportMarkdownPath = $reportMarkdownPath
+        CheckTextPath = $checkTextPath
+    }
 }
 
 function Get-ExistingArtifactRefsFromKernelRuntimeSession {
@@ -1001,6 +1074,7 @@ $canonicalWorldInfo = Load-CanonicalWorldInfo -Path $CanonicalWorld
 $artifactReportInfos = @(Get-ArtifactReportInfos)
 $artifactReportIndexPath = Get-ArtifactReportIndexPath -RootPath $ArtifactRoot
 $runtimeEvidenceSummaryInfo = Load-RuntimeEvidenceSummaryInfo -Path $RuntimeEvidenceSummary
+$kernelRuntimeSessionSummaryInfo = Resolve-KernelRuntimeSessionSummaryInfo -RuntimeEvidenceSummaryInfo $runtimeEvidenceSummaryInfo
 $resolvedWorld = New-ResolvedWorld -CanonicalWorldInfo $canonicalWorldInfo -ArtifactReportInfos $artifactReportInfos -RuntimeEvidenceSummaryInfo $runtimeEvidenceSummaryInfo
 $artifactReportMaps = Get-ArtifactReportMaps -ArtifactReportInfos $artifactReportInfos
 
@@ -1066,7 +1140,8 @@ $bundleObject = [ordered]@{
         -SummaryPath $summaryPathResolved `
         -ReportMarkdownPath $reportMarkdownPathResolved `
         -CheckTextPath $checkTextPathResolved `
-        -RuntimeEvidenceSummaryInfo $runtimeEvidenceSummaryInfo
+        -RuntimeEvidenceSummaryInfo $runtimeEvidenceSummaryInfo `
+        -KernelRuntimeSessionSummaryInfo $kernelRuntimeSessionSummaryInfo
     artifact_context = [ordered]@{
         canonical_world = if ($null -eq $canonicalWorldInfo) { $null } else { $canonicalWorldInfo.Path }
         artifact_root = if ([string]::IsNullOrWhiteSpace($ArtifactRoot)) { $null } else { Resolve-FullPath -Path $ArtifactRoot }

@@ -240,6 +240,86 @@ function Resolve-SummarySurface {
     }
 }
 
+function Resolve-KernelRuntimeSessionSurface {
+    param(
+        [string]$RuntimeEvidenceSummaryPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($RuntimeEvidenceSummaryPath)) {
+        return $null
+    }
+
+    $resolvedRuntimeEvidenceSummaryPath = Resolve-FullPath -Path $RuntimeEvidenceSummaryPath
+    if (-not (Test-Path $resolvedRuntimeEvidenceSummaryPath)) {
+        throw "runtime evidence summary not found: $resolvedRuntimeEvidenceSummaryPath"
+    }
+
+    $runtimeSummary = Load-JsonObject -Path $resolvedRuntimeEvidenceSummaryPath
+    Require-Schema `
+        -Summary $runtimeSummary `
+        -Path $resolvedRuntimeEvidenceSummaryPath `
+        -ExpectedSchema "minimal_kernel.runtime_evidence_bundle.summary/v1"
+
+    $sessionView = Get-ObjectPropertyValue -Object $runtimeSummary -Name "session"
+    if ($null -eq $sessionView) {
+        $sessionView = Get-ObjectPropertyValue -Object $runtimeSummary -Name "session_summary"
+    }
+
+    if ($null -eq $sessionView) {
+        return $null
+    }
+
+    $sessionSummaryPath = Resolve-ReferencedPath `
+        -BasePath $resolvedRuntimeEvidenceSummaryPath `
+        -Value (Get-ObjectPropertyValue -Object $sessionView -Name "summary_path")
+    if ([string]::IsNullOrWhiteSpace($sessionSummaryPath)) {
+        return $null
+    }
+    if (-not (Test-Path $sessionSummaryPath)) {
+        throw "kernel runtime session summary not found: $sessionSummaryPath"
+    }
+
+    $sessionSummary = Load-JsonObject -Path $sessionSummaryPath
+    Require-Schema `
+        -Summary $sessionSummary `
+        -Path $sessionSummaryPath `
+        -ExpectedSchema "minimal_kernel.kernel_runtime_session/v0"
+
+    $artifactPaths = Get-ObjectPropertyValue -Object $sessionSummary -Name "artifact_paths"
+    $reportMarkdownPath = Resolve-ReferencedPath `
+        -BasePath $resolvedRuntimeEvidenceSummaryPath `
+        -Value (Get-ObjectPropertyValue -Object $sessionView -Name "report_markdown_path")
+    if ([string]::IsNullOrWhiteSpace($reportMarkdownPath)) {
+        $reportMarkdownPath = Resolve-ReferencedPath `
+            -BasePath $sessionSummaryPath `
+            -Value (Get-ObjectPropertyValue -Object $artifactPaths -Name "report")
+    }
+
+    $checkTextPath = Resolve-ReferencedPath `
+        -BasePath $resolvedRuntimeEvidenceSummaryPath `
+        -Value (Get-ObjectPropertyValue -Object $sessionView -Name "check_text_path")
+    if ([string]::IsNullOrWhiteSpace($checkTextPath)) {
+        $checkTextPath = Resolve-ReferencedPath `
+            -BasePath $sessionSummaryPath `
+            -Value (Get-ObjectPropertyValue -Object $artifactPaths -Name "check")
+    }
+
+    if ([string]::IsNullOrWhiteSpace($reportMarkdownPath)) {
+        $reportMarkdownPath = Join-Path (Split-Path -Parent $sessionSummaryPath) "report.md"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($checkTextPath)) {
+        $checkTextPath = Join-Path (Split-Path -Parent $sessionSummaryPath) "check.txt"
+    }
+
+    return [ordered]@{
+        Schema = "minimal_kernel.kernel_runtime_session/v0"
+        SummaryPath = $sessionSummaryPath
+        ReportMarkdownPath = $reportMarkdownPath
+        CheckTextPath = $checkTextPath
+    }
+}
+
 $resolvedRootSummaryPath = Resolve-FullPath -Path $SummaryPath
 if (-not (Test-Path $resolvedRootSummaryPath)) {
     throw "witness bundle summary not found: $resolvedRootSummaryPath"
@@ -350,6 +430,21 @@ if ($null -ne $resolvedRuntimeEvidenceSurface) {
             -SummaryPath $resolvedRuntimeEvidenceSurface.SummaryPath `
             -ReportMarkdownPath $resolvedRuntimeEvidenceSurface.ReportMarkdownPath `
             -CheckTextPath $resolvedRuntimeEvidenceSurface.CheckTextPath)
+    ) | Out-Null
+}
+
+$resolvedKernelRuntimeSessionSurface = Resolve-KernelRuntimeSessionSurface `
+    -RuntimeEvidenceSummaryPath $RuntimeEvidenceSummary
+if ($null -ne $resolvedKernelRuntimeSessionSurface) {
+    $supportingSurfaces.Add(
+        (New-FrontPageSurface `
+            -Id "kernel_runtime_session" `
+            -Label "kernel runtime session" `
+            -Role "supporting_evidence" `
+            -SummarySchema "minimal_kernel.kernel_runtime_session/v0" `
+            -SummaryPath $resolvedKernelRuntimeSessionSurface.SummaryPath `
+            -ReportMarkdownPath $resolvedKernelRuntimeSessionSurface.ReportMarkdownPath `
+            -CheckTextPath $resolvedKernelRuntimeSessionSurface.CheckTextPath)
     ) | Out-Null
 }
 

@@ -116,7 +116,8 @@
   - 用途偏向把 host 语义证据、ARMv7-A QEMU 机器入口证据、runtime facts、
     runtime ledger 与 session verdict 收成一个共同被证明的 session witness 对象
   - 它不替代 host / QEMU 原始证据，也不直接替代 witness bundle；
-    它当前通过 runtime evidence bundle 进入 `kernel_runtime_session` witness entry
+    它当前通过 runtime evidence bundle 进入 `kernel_runtime_session` witness entry，
+    并作为 `front_page.supporting_surfaces[id=kernel_runtime_session]` 的直接可追入口
 
 - `examples/system_compiler.witness_bundle.v0.sample.json`
   - 对应 `system_compiler.witness_bundle/v0` 的最小样例
@@ -296,11 +297,12 @@
 - `minimal_kernel.kernel_runtime_session.v0.schema.json`
   - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/export_minimal_kernel_runtime_session.py`
   - 用途偏向把 host 语义证据、ARMv7-A QEMU 机器证据与 runtime continuity 投影成同一个 `kernel_runtime_session` 对象
-  - 它不替代 runtime evidence bundle、witness bundle 或 world compare，而是给这些上层对象一个共同可引用的 session summary
+  - 它不替代 runtime evidence bundle、witness bundle 或 world compare，而是给这些上层对象一个共同可引用的 session summary，
+    同时给 witness bundle front page 一个可直接打开的 supporting surface
 
 - `examples/minimal_kernel.kernel_runtime_session.v0.sample.json`
   - 对应 `minimal_kernel.kernel_runtime_session/v0` 的最小样例
-  - 用途偏向 schema 自检、session witness 字段讨论与后续 witness bundle 接入前的对象锚点
+  - 用途偏向 schema 自检、session witness 字段讨论、witness entry 与 front-page supporting surface 的对象锚点
 
 - `system_compiler.runtime_observe_snapshot.v0.schema.json`
   - 对应 per-case runtime observe sidecar 的最小机器可读协议

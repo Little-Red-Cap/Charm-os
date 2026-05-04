@@ -164,7 +164,13 @@ runtime ledger 是血流
 session summary 是体检报告
 ```
 
-当前第一刀只新增 `runtime_ledger.json` 与 `kernel_runtime_session.summary.json` 的最小出口，不要求立刻重构现有 QEMU log parser。
+当前第一刀保留 `runtime_ledger.json` 与 `kernel_runtime_session.summary.json` 的最小出口，不要求重构现有 QEMU log parser。
+
+现在 session summary 已经不只是旁路 artifact。
+
+- runtime evidence bundle 的 `summary.json` 通过 `session` 暴露这份 session 对象；旧字段 `session_summary` 仅作为兼容入口保留
+- system compiler witness bundle 会把它消费为 `kernel_runtime_session` witness entry
+- witness bundle 的 `front_page.supporting_surfaces` 也会把它作为 `kernel_runtime_session` 入口直接暴露给 reader / IDE / proof workflow
 
 ## Failure Taxonomy v0
 
@@ -237,7 +243,16 @@ session/
 - `scripts/export_minimal_kernel_runtime_session.py`
 - `scripts/minimal_kernel_runtime_session_smoke.ps1`
 
-v0 先允许它作为旁路 artifact 存在。等对象形状稳定后，再把根 runtime evidence bundle 的 `summary.json` 增加 `session_summary` 引用，并让 system compiler witness bundle 通过 witness entry 消费它。
+v0 当前路径：
+
+```text
+runtime evidence summary.session
+  -> kernel_runtime_session.summary.json
+  -> system compiler witness entry
+  -> front_page.supporting_surfaces[id=kernel_runtime_session]
+```
+
+这仍然不要求上层直接解析 host / QEMU 散日志；上层只需要追 session summary、report 与 check。
 
 ## 当前非目标
 

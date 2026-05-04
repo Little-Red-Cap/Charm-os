@@ -231,6 +231,7 @@
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`、
     `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan.py`、
     `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_workspace_compare_smoke.ps1`、
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_compare.py`
   - 用途偏向比较两份 `front_page entry opening flow consumer plan` summary，回答 default action、

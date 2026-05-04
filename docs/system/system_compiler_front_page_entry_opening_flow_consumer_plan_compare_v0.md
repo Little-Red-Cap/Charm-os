@@ -30,6 +30,7 @@ includes:
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_workspace_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -43,6 +44,12 @@ The dedicated smoke writes under:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-compare-smoke
+```
+
+The workspace compare smoke writes under:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-workspace-compare-smoke
 ```
 
 The workspace compare wrapper writes under:
@@ -87,6 +94,11 @@ Expected smoke shape:
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-COMPARE-SMOKE] case=removed-compare-action verdict=drifted changed=3 added=0 removed=1 default_changed=False compare_changed=True
 ```
 
+The workspace compare smoke proves the same two verdict classes through the
+plan-workspace hot path, where the wrapper reuses already materialized
+`plan/front-page.entry-opening-flow.consumer.plan.summary.json` witnesses
+without requiring front-page workspace arguments.
+
 ## Boundary
 
 This object intentionally stays at consumer-plan compare level.
@@ -120,6 +132,12 @@ Run the compare smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1 -Clean
+```
+
+Run the plan-workspace hot reuse compare smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_workspace_compare_smoke.ps1 -Clean
 ```
 
 Or compare two prepared front-page workspaces by exporting selector and plan

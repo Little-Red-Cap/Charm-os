@@ -42,6 +42,7 @@ Current `system_compiler.front_page_entry_opener` includes:
   - `scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_opener_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_opening_flow_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_plan_action_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1`
 
@@ -226,6 +227,7 @@ summary shapes in the repository:
 - `system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`
 - `system_compiler.front_page_entry_opener_compare/v0`
 - `system_compiler.front_page_entry_opening_flow_compare/v0`
+- `system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare/v0`
 
 For those targets it records:
 
@@ -290,6 +292,25 @@ This lets an opener explain "why this whole opening chain compare is
 interesting" without first opening the full flow compare report or walking back
 through every lower smoke directory.
 
+For
+`system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare/v0`,
+the projection kind is `plan_action_compare_overview`.
+
+It exposes:
+
+- the plan-action compare verdict and changed-field count in the headline
+- baseline and candidate action result / open status / id / kind / entry
+- compact selection, open-action, opener-surface, and execution-receipt change
+  counts
+- action drift and regression flag digests for target, opener, reason,
+  operation, compare-context loss, and inspector-readiness loss
+- up to three `action_regression ...` narratives
+- baseline and candidate plan-action summaries as evidence paths
+
+This lets an opener explain "why this final action judgment is interesting"
+without first opening the full consumer plan-action compare report or re-diffing
+the two action witnesses.
+
 The opener also prepends one `opening_reason ...` summary line from the source
 landing.
 
@@ -347,6 +368,12 @@ To prove only the OpeningFlowCompare projection adapter:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opener_opening_flow_compare_smoke.ps1 -Clean
+```
+
+To prove only the PlanActionCompare projection adapter:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_plan_action_compare_smoke.ps1 -Clean
 ```
 
 To export the same opener object through the reusable workspace facade:

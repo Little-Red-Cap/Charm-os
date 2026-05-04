@@ -227,6 +227,14 @@
   - 用途偏向把一份 `front_page entry opening flow consumer selector` open order 收成确定性执行计划，
     明确 open-default、open-compare-neighbor、open-next actions 与对应 opener 证据入口
 
+- `system_compiler.front_page_entry_opening_flow_consumer_plan_action.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
+  - 用途偏向从一份 `front_page entry opening flow consumer plan` summary 中选择单个 action，
+    输出后续 explain consumer 可直接打开的 opener summary witness
+
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`、
     `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan.py`、

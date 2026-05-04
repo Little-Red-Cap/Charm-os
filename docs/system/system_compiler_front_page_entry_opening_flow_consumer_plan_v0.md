@@ -28,10 +28,13 @@ Current `system_compiler.front_page_entry_opening_flow_consumer_plan` includes:
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
 - workspace exporter
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`
+- action facade
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
 
 ## Current outputs
 
@@ -57,6 +60,12 @@ The workspace exporter writes under:
 
 ```powershell
 out/system-compiler-plan-ws
+```
+
+The action facade smoke writes under:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-smoke
 ```
 
 ## What the consumer plan records
@@ -114,6 +123,12 @@ That keeps this layer small.
 The plan is a consumer-side action bundle, not a second selector and not a UI
 state machine.
 
+The next consumer seam is
+`system_compiler.front_page_entry_opening_flow_consumer_plan_action/v0`.
+
+That object selects one already-planned action and records the exact opener
+summary a later explain surface should open now.
+
 ## Manual example
 
 Run the consumer plan smoke:
@@ -156,6 +171,12 @@ Expected smoke shape:
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions=5 default=root-witness compare=root-witness-to-root-world-compare next=3 omitted=5
 ```
 
+Run the single-action facade smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1 -Clean
+```
+
 ## Why this matters
 
 `front_page_entry_opening_flow_consumer_selector` makes the opening handoff
@@ -169,6 +190,9 @@ This gives later explain tooling a tiny first-read artifact:
 - keep this compare opener near it
 - prepare these next opener actions
 - defer the rest without losing provenance
+
+The action facade then lets a consumer open exactly one of those opener
+witnesses without reconstructing plan selection policy.
 
 That preserves the artifact chain while moving the system one step closer to a
 real consumer entry point.

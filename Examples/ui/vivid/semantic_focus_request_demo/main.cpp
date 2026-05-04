@@ -4,6 +4,7 @@
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.style;
+import charm.core.style_evidence;
 import charm.core.theme_preset;
 import charm.gfx.canvas;
 import charm.ui.scene;
@@ -13,6 +14,13 @@ import charm.ui.scene;
 
 namespace {
     constexpr vivid::evidence::RunLog kRunLog{"sfr", "semantic_focus_request_demo"};
+
+    [[nodiscard]] bool style_evidence_equal(const ResolvedStyleEvidence& lhs,
+                                            const ResolvedStyleEvidence& rhs) noexcept {
+        return lhs.style_key == rhs.style_key
+            && lhs.color_hash == rhs.color_hash
+            && lhs.metrics_hash == rhs.metrics_hash;
+    }
 
 }
 
@@ -34,6 +42,47 @@ int main() {
                                  "setup establishes primary input focus")) {
         return 1;
     }
+
+    auto& sheet = StyleSheet::instance();
+    const StyleStateEvidence state_evidence = make_style_state_evidence(WidgetKind::ListItem);
+    if (!vivid::evidence::expect(!state_evidence.includes_focused,
+                                 "list item style state keeps focus outside style mask")) {
+        return 1;
+    }
+    const StyleState normal_state = make_style_state(true, false, false, false);
+    const StyleState focused_state = make_style_state(true, false, false, true);
+    const auto normal_style = sheet.lookup(WidgetKind::ListItem, normal_state);
+    const auto focused_lookup = sheet.lookup(WidgetKind::ListItem, focused_state);
+    if (!vivid::evidence::expect(normal_style.colors != nullptr && normal_style.metrics != nullptr,
+                                 "normal list item style resolves")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(focused_lookup.colors != nullptr && focused_lookup.metrics != nullptr,
+                                 "focused list item lookup resolves")) {
+        return 1;
+    }
+    const ResolvedStyleEvidence style_before = make_resolved_style_evidence(normal_style);
+    const ResolvedStyleEvidence style_focus_lookup = make_resolved_style_evidence(focused_lookup);
+    if (!vivid::evidence::expect(style_evidence_equal(style_before, style_focus_lookup),
+                                 "focused lookup keeps list item style evidence stable")) {
+        return 1;
+    }
+
+    const auto primary_artifact =
+        vivid::evidence::render_scene(scene, canvas, vivid::evidence::kSemanticFocusPrimaryBounds);
+    if (!vivid::evidence::expect(primary_artifact.failed_cmds == 0,
+                                 "primary focus baseline render has no failed commands")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(primary_artifact.cmd_count > 0,
+                                 "primary focus baseline records commands")) {
+        return 1;
+    }
+
+    run_log.case_begin("pre_request_artifact");
+    std::printf(" semantic_current=action.primary focus_ring=primary");
+    vivid::evidence::print_render_evidence("before", primary_artifact);
+    std::printf("\n");
 
     const auto request = scene.request_semantic_focus(handles.scope, "row.secondary");
     run_log.case_begin("commit_transfer");
@@ -88,6 +137,55 @@ int main() {
                                  "visual focused flag follows semantic request")) {
         return 1;
     }
+
+    const auto style_after_lookup = sheet.lookup(WidgetKind::ListItem, focused_state);
+    if (!vivid::evidence::expect(style_after_lookup.colors != nullptr && style_after_lookup.metrics != nullptr,
+                                 "style after semantic focus request resolves")) {
+        return 1;
+    }
+    const ResolvedStyleEvidence style_after = make_resolved_style_evidence(style_after_lookup);
+    run_log.case_begin("style_boundary_after_request");
+    vivid::evidence::print_focus_style_evidence("list_item",
+                                                true,
+                                                style_after,
+                                                style_evidence_equal(style_before, style_after),
+                                                state_evidence.includes_focused);
+    std::printf("\n");
+    if (!vivid::evidence::expect(style_evidence_equal(style_before, style_after),
+                                 "semantic focus request keeps style evidence stable")) {
+        return 1;
+    }
+
+    const auto secondary_capture = vivid::evidence::render_component_artifact_delta(
+        scene,
+        canvas,
+        vivid::evidence::kSemanticFocusSecondaryBounds,
+        primary_artifact);
+    const auto& secondary_artifact = secondary_capture.evidence;
+    const auto& secondary_delta = secondary_capture.delta;
+    if (!vivid::evidence::expect(secondary_artifact.failed_cmds == 0,
+                                 "semantic focus artifact render has no failed commands")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(secondary_delta.changed,
+                                 "semantic focus request changes render artifact")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(secondary_delta.single_dirty_rect,
+                                 "semantic focus artifact uses a single dirty rect")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(secondary_delta.dirty_within_component,
+                                 "semantic focus artifact stays inside secondary bounds")) {
+        return 1;
+    }
+
+    run_log.case_begin("focus_artifact_after_request");
+    std::printf(" semantic_current=row.secondary focus_ring=secondary");
+    vivid::evidence::print_render_artifact_verdict(secondary_delta,
+                                                   "after",
+                                                   secondary_artifact);
+    std::printf("\n");
 
     const auto already = scene.request_semantic_focus(handles.scope, "row.secondary");
     run_log.case_begin("already_focused_noop");

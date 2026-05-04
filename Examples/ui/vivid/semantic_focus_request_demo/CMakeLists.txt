@@ -22,5 +22,5 @@ target_link_libraries(${target_name} PRIVATE Charm-os)
 add_test(NAME ${target_name}
     COMMAND $<TARGET_FILE:${target_name}>)
 set_tests_properties(${target_name} PROPERTIES
-    PASS_REGULAR_EXPRESSION "\\[sfr\\] run=semantic_focus_request_demo phase=end result=ok cases=7"
+    PASS_REGULAR_EXPRESSION "\\[sfr\\] run=semantic_focus_request_demo phase=end result=ok cases=10"
     FAIL_REGULAR_EXPRESSION "\\[ERR\\]|result=fail")

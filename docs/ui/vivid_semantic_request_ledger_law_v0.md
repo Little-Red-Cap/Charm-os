@@ -85,7 +85,7 @@ Canonical stdout shape:
 Current stdout contracts remain owned by `vivid_evidence_stdout_law.md`:
 
 ```text
-[sfr] run=semantic_focus_request_demo phase=end result=ok cases=7
+[sfr] run=semantic_focus_request_demo phase=end result=ok cases=10
 [sar] run=semantic_action_request_demo phase=end result=ok cases=6
 ```
 

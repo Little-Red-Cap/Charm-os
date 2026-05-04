@@ -53,7 +53,7 @@ namespace {
         {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission, "docs/ui/vivid_intent_to_artifact_evidence_v0.md"},
         {"semantic_focus_query_demo", "sfq", 7, AxisSemantic | AxisFocus, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_focus_admission_demo", "sfa", 7, AxisSemantic | AxisFocus | AxisAdmission, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
-        {"semantic_focus_request_demo", "sfr", 7, AxisSemantic | AxisFocus | AxisAdmission | AxisEdge, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"semantic_focus_request_demo", "sfr", 10, AxisSemantic | AxisFocus | AxisAdmission | AxisEdge | AxisRender, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"widget_signal_demo", "ws", 3, AxisEdge, "docs/ui/vivid_evidence_stdout_law.md"},
         {"widget_state_demo", "wst", 5, AxisState, "docs/ui/vivid_widget_state_observe.md"},
         {"evidence_vocabulary_demo", "evl", 5, AxisVocabulary | AxisState | AxisRender | AxisCausal, "docs/ui/vivid_evidence_vocabulary_law_v0.md"},
@@ -61,7 +61,7 @@ namespace {
     };
 
     constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 186;
+    constexpr unsigned kExpectedCaseTotal = 189;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState

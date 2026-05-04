@@ -633,6 +633,46 @@ public:
         return out;
     }
 
+    SemanticFocusRequest request_semantic_focus(WidgetHandle root, const char* id) noexcept {
+        SemanticFocusRequest out{};
+        input_events_.clear();
+        input_actions_.clear();
+        out.before_focus = input_.focused;
+        out.events_before = input_events_.count;
+        out.admission = admit_semantic_focus(root, id);
+
+        if (!out.admission.admitted) {
+            out.after_focus = input_.focused;
+            out.events_after = input_events_.count;
+            out.status = SemanticFocusRequestStatus::Rejected;
+            return out;
+        }
+        if (!out.admission.transfer_needed) {
+            out.after_focus = input_.focused;
+            out.events_after = input_events_.count;
+            out.status = SemanticFocusRequestStatus::AlreadyFocused;
+            return out;
+        }
+
+        input_set_focus(out.admission.handle);
+        const std::size_t emitted_begin = out.events_before;
+        for (std::size_t index = emitted_begin; index < input_events_.count; ++index) {
+            const auto type = input_events_.events[index].event.type;
+            out.emitted_focus_out = out.emitted_focus_out || type == Event::Type::FocusOut;
+            out.emitted_focus_in = out.emitted_focus_in || type == Event::Type::FocusIn;
+        }
+        input_apply_actions();
+
+        out.after_focus = input_.focused;
+        out.events_after = input_events_.count;
+        out.focus_changed = out.before_focus != out.after_focus;
+        out.committed = out.focus_changed && out.after_focus == out.admission.handle;
+        out.status = out.committed
+            ? SemanticFocusRequestStatus::Committed
+            : SemanticFocusRequestStatus::Rejected;
+        return out;
+    }
+
     SemanticTreeSnapshot semantic_tree_snapshot(
         WidgetHandle root,
         std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {

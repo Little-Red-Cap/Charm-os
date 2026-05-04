@@ -459,3 +459,19 @@ This belongs between the Semantic Plane and Input Runtime. It preserves the boun
 Current evidence:
 
 - `Examples/ui/vivid/semantic_focus_admission_demo` proves admitted transfer plans, already-focused no-op plans, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
+
+## 2026-05 Addendum: Semantic Focus Request
+
+Vivid can now execute a semantic focus transfer through the normal input focus path:
+
+```text
+SemanticFocusQuery
+  -> SemanticFocusAdmission
+  -> SemanticFocusRequest
+```
+
+This is the first semantic focus API that is allowed to mutate input focus truth. It must still preserve the runtime boundary: failed admission is a rejection, already-focused is a no-op, and committed transfer must be evidenced by `FocusOut/FocusIn`, before/after focus truth, and semantic current focus.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_focus_request_demo` proves controlled semantic focus transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled target rejection, duplicate-id ambiguity, and invalid request statuses.

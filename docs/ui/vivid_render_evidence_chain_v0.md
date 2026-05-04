@@ -246,3 +246,16 @@ semantic tree root
 ```
 
 The demo guards admitted transfer plans, already-focused no-op plans, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
+
+## 2026-05 Addendum: Semantic Focus Request
+
+`Examples/ui/vivid/semantic_focus_request_demo` verifies Semantic Focus Request v0. It is the first semantic focus path that crosses from admission into controlled input execution:
+
+```text
+SemanticFocusQuery
+  -> SemanticFocusAdmission
+  -> SemanticFocusRequest
+  -> input focus truth + FocusOut/FocusIn evidence
+```
+
+The demo guards committed transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable targets, disabled targets, ambiguous duplicate ids, invalid root, and missing request id.

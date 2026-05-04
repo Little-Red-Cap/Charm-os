@@ -180,6 +180,23 @@ v0 rules:
 - transfer plans must declare whether a future execution would emit `FocusOut` and `FocusIn`.
 - admission must not emit `FocusIn/FocusOut`, mutate input focus truth, or draw focus ring artifacts.
 
+### Law 12: semantic focus request is the first controlled transfer execution
+
+Semantic Focus Request v0 is the execution boundary after query and admission:
+
+```text
+SemanticFocusQuery -> SemanticFocusAdmission -> SemanticFocusRequest
+```
+
+v0 rules:
+
+- request must first run admission and reject with the same admission reason when admission fails.
+- request may mutate input focus truth only when admission is `admitted` and `transfer_needed=1`.
+- request must reuse the normal input focus transfer path so `FocusOut/FocusIn` and focused state evidence stay consistent.
+- `already_focused` is an explicit no-op and must not emit focus events.
+- rejected requests must preserve the current focus truth and must not emit focus events.
+- committed requests must expose before/after focus truth and event evidence.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
@@ -253,6 +270,15 @@ stdout final contract:
 [sfa] run=semantic_focus_admission_demo phase=end result=ok cases=7
 ```
 
+`Examples/ui/vivid/semantic_focus_request_demo` is the first Semantic Focus Request v0 runtime evidence.
+It verifies controlled focus transfer execution, `FocusOut/FocusIn` event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled rejection, ambiguous duplicate ids, and invalid request statuses.
+
+stdout final contract:
+
+```text
+[sfr] run=semantic_focus_request_demo phase=end result=ok cases=7
+```
+
 核心字段：
 
 ```text
@@ -262,6 +288,8 @@ actions=activate
 intent_status=resolved/ambiguous_id/unsupported_action/disabled
 focus_query_status=resolved/outside_active_scope/not_focusable/disabled
 focus_admission_status=admitted/already_focused/outside_active_scope/not_focusable/disabled
+focus_request_status=committed/already_focused/rejected
+committed=0/1
 transfer_needed=0/1
 focus_out=0/1
 focus_in=0/1

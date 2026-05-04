@@ -155,6 +155,27 @@ struct SemanticFocusAdmission {
 };
 
 export
+enum class SemanticFocusRequestStatus : std::uint8_t {
+    Committed = 0,
+    AlreadyFocused,
+    Rejected,
+};
+
+export
+struct SemanticFocusRequest {
+    SemanticFocusAdmission admission{};
+    WidgetHandle before_focus{};
+    WidgetHandle after_focus{};
+    std::size_t events_before{0};
+    std::size_t events_after{0};
+    SemanticFocusRequestStatus status{SemanticFocusRequestStatus::Rejected};
+    bool committed{false};
+    bool focus_changed{false};
+    bool emitted_focus_out{false};
+    bool emitted_focus_in{false};
+};
+
+export
 constexpr std::size_t kSemanticTreeMaxNodes = 32;
 
 export
@@ -323,6 +344,19 @@ inline const char* semantic_focus_admission_status_name(SemanticFocusAdmissionSt
         return "disabled";
     case SemanticFocusAdmissionStatus::OutsideActiveScope:
         return "outside_active_scope";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_focus_request_status_name(SemanticFocusRequestStatus status) noexcept {
+    switch (status) {
+    case SemanticFocusRequestStatus::Committed:
+        return "committed";
+    case SemanticFocusRequestStatus::AlreadyFocused:
+        return "already_focused";
+    case SemanticFocusRequestStatus::Rejected:
+        return "rejected";
     }
     return "unknown";
 }

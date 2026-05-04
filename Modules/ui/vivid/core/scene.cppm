@@ -36,6 +36,8 @@ export using ::SemanticFocusAdmission;
 export using ::SemanticFocusAdmissionStatus;
 export using ::SemanticFocusQuery;
 export using ::SemanticFocusQueryStatus;
+export using ::SemanticFocusRequest;
+export using ::SemanticFocusRequestStatus;
 export using ::SemanticFocusSnapshot;
 export using ::SemanticIntentResolution;
 export using ::SemanticIntentStatus;
@@ -48,6 +50,7 @@ export using ::semantic_default_role_for_kind;
 export using ::semantic_default_actions_for_role;
 export using ::semantic_focus_admission_status_name;
 export using ::semantic_focus_query_status_name;
+export using ::semantic_focus_request_status_name;
 export using ::semantic_intent_status_name;
 export using ::kSemanticTreeMaxNodes;
 export using ::kSemanticTreeNoFocusIndex;
@@ -71,6 +74,8 @@ export namespace ui::scene {
     using SemanticFocusAdmissionStatus = ::SemanticFocusAdmissionStatus;
     using SemanticFocusQuery = ::SemanticFocusQuery;
     using SemanticFocusQueryStatus = ::SemanticFocusQueryStatus;
+    using SemanticFocusRequest = ::SemanticFocusRequest;
+    using SemanticFocusRequestStatus = ::SemanticFocusRequestStatus;
     using SemanticFocusSnapshot = ::SemanticFocusSnapshot;
     using SemanticIntentResolution = ::SemanticIntentResolution;
     using SemanticIntentStatus = ::SemanticIntentStatus;
@@ -82,6 +87,7 @@ export namespace ui::scene {
     using ::semantic_default_actions_for_role;
     using ::semantic_focus_admission_status_name;
     using ::semantic_focus_query_status_name;
+    using ::semantic_focus_request_status_name;
     using ::semantic_intent_status_name;
     constexpr std::size_t kSemanticTreeMaxNodes = ::kSemanticTreeMaxNodes;
     constexpr std::uint16_t kSemanticTreeNoFocusIndex = ::kSemanticTreeNoFocusIndex;
@@ -415,6 +421,9 @@ export namespace ui::scene {
         }
         SemanticFocusAdmission admit_semantic_focus(WidgetHandle root, const char* id) const noexcept {
             return kernel_->admit_semantic_focus(root, id);
+        }
+        SemanticFocusRequest request_semantic_focus(WidgetHandle root, const char* id) noexcept {
+            return kernel_->request_semantic_focus(root, id);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_->semantic_focus_snapshot();
@@ -1191,6 +1200,9 @@ export namespace ui::scene {
         }
         SemanticFocusAdmission admit_semantic_focus(WidgetHandle root, const char* id) const noexcept {
             return kernel_.admit_semantic_focus(root, id);
+        }
+        SemanticFocusRequest request_semantic_focus(WidgetHandle root, const char* id) noexcept {
+            return kernel_.request_semantic_focus(root, id);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_.semantic_focus_snapshot();

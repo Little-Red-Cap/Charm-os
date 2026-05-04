@@ -70,6 +70,30 @@ struct SemanticActionSnapshot {
 };
 
 export
+enum class SemanticIntentStatus : std::uint8_t {
+    Resolved = 0,
+    InvalidRoot,
+    MissingId,
+    NotFound,
+    AmbiguousId,
+    UnsupportedAction,
+    Disabled,
+};
+
+export
+struct SemanticIntentResolution {
+    WidgetHandle handle{};
+    const char* id{""};
+    SemanticAction action{SemanticAction::Activate};
+    SemanticIntentStatus status{SemanticIntentStatus::NotFound};
+    SemanticActionMask actions{0};
+    std::size_t visited_count{0};
+    std::size_t match_count{0};
+    bool found{false};
+    bool executable{false};
+};
+
+export
 constexpr std::size_t kSemanticTreeMaxNodes = 32;
 
 export
@@ -171,6 +195,27 @@ inline constexpr SemanticActionMask semantic_default_actions_for_role(SemanticRo
         return 0;
     }
     return 0;
+}
+
+export
+inline const char* semantic_intent_status_name(SemanticIntentStatus status) noexcept {
+    switch (status) {
+    case SemanticIntentStatus::Resolved:
+        return "resolved";
+    case SemanticIntentStatus::InvalidRoot:
+        return "invalid_root";
+    case SemanticIntentStatus::MissingId:
+        return "missing_id";
+    case SemanticIntentStatus::NotFound:
+        return "not_found";
+    case SemanticIntentStatus::AmbiguousId:
+        return "ambiguous_id";
+    case SemanticIntentStatus::UnsupportedAction:
+        return "unsupported_action";
+    case SemanticIntentStatus::Disabled:
+        return "disabled";
+    }
+    return "unknown";
 }
 
 export

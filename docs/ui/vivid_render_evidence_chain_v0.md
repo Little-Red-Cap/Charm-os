@@ -207,3 +207,16 @@ semantic store
 ```
 
 The demo guards role-derived `activate` defaults for Button/ListItem, no-action defaults for Container/Text, explicit action override, and action participation in semantic tree hashes.
+
+## 2026-05 Addendum: Semantic Intent Resolution
+
+`Examples/ui/vivid/semantic_intent_demo` verifies Semantic Intent Resolution v0. It keeps action execution deliberately separate from address lookup:
+
+```text
+semantic tree root
+  -> semantic id + action request
+  -> SemanticIntentResolution
+  -> status evidence
+```
+
+The demo guards resolved lookup, no input/callback side effects, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid root, and missing request id.

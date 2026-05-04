@@ -440,6 +440,71 @@ public:
         return semantic_snapshot(input_.focused);
     }
 
+    SemanticIntentResolution resolve_semantic_intent(WidgetHandle root,
+                                                     const char* id,
+                                                     SemanticAction action) const noexcept {
+        SemanticIntentResolution out{};
+        out.id = id ? id : "";
+        out.action = action;
+        if (!root || !valid(root)) {
+            out.status = SemanticIntentStatus::InvalidRoot;
+            return out;
+        }
+        if (!id || id[0] == '\0') {
+            out.status = SemanticIntentStatus::MissingId;
+            return out;
+        }
+
+        struct StackEntry {
+            WidgetHandle handle{};
+        };
+
+        std::array<StackEntry, kMaxNodes> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = StackEntry{root};
+
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp].handle;
+            if (!valid(h) || !visible(h)) continue;
+            ++out.visited_count;
+
+            const auto semantic = semantic_snapshot(h);
+            if (semantic.found && text_equal(semantic.id, id)) {
+                ++out.match_count;
+                if (out.match_count == 1) {
+                    out.handle = h;
+                    out.actions = semantic.actions;
+                    out.found = true;
+                } else {
+                    out.status = SemanticIntentStatus::AmbiguousId;
+                    out.executable = false;
+                    return out;
+                }
+            }
+
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = StackEntry{child};
+            }
+        }
+
+        if (!out.found) {
+            out.status = SemanticIntentStatus::NotFound;
+            return out;
+        }
+        if (!semantic_action_present(out.actions, action)) {
+            out.status = SemanticIntentStatus::UnsupportedAction;
+            return out;
+        }
+        if (!enabled(out.handle)) {
+            out.status = SemanticIntentStatus::Disabled;
+            return out;
+        }
+        out.status = SemanticIntentStatus::Resolved;
+        out.executable = true;
+        return out;
+    }
+
     SemanticTreeSnapshot semantic_tree_snapshot(
         WidgetHandle root,
         std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {
@@ -1148,6 +1213,16 @@ private:
 #if defined(VIVID_SOA_TRACE_INPUT)
         paint_invalidated_count_ += 1u;
 #endif
+    }
+
+    static bool text_equal(const char* lhs, const char* rhs) noexcept {
+        if (!lhs || !rhs) return lhs == rhs;
+        while (*lhs && *rhs) {
+            if (*lhs != *rhs) return false;
+            ++lhs;
+            ++rhs;
+        }
+        return *lhs == *rhs;
     }
 
     void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept {

@@ -129,6 +129,23 @@ v0 rules:
 - an action bit is evidence of capability, not a request to synthesize input or invoke OS accessibility.
 - v0 does not introduce a full accessibility runtime.
 
+### Law 9: semantic intent resolution is address lookup, not execution
+
+Semantic Intent Resolution v0 lets runtime resolve a product request:
+
+```text
+root + semantic_id + action -> SemanticIntentResolution
+```
+
+v0 rules:
+
+- lookup is root-bound and deterministic.
+- duplicate ids under the requested root are `ambiguous_id`, not silently first-match.
+- missing id, invalid root, unsupported action, and disabled target are explicit status values.
+- `resolved` means the target is addressable and currently executable.
+- resolution must not synthesize input, dispatch callbacks, mutate pressed/focused state, or bind OS accessibility.
+- execution remains a future, separate admission step.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
@@ -175,12 +192,22 @@ stdout final contract:
 [sact] run=semantic_action_demo phase=end result=ok cases=6
 ```
 
+`Examples/ui/vivid/semantic_intent_demo` is the first Semantic Intent Resolution v0 runtime evidence.
+It verifies root-bound id/action lookup, no-execute side effects, unsupported action, missing id, ambiguous duplicate id, disabled target, and invalid request statuses.
+
+stdout final contract:
+
+```text
+[sint] run=semantic_intent_demo phase=end result=ok cases=7
+```
+
 核心字段：
 
 ```text
 semantic_id=primary/secondary/outside
 role=button/list_item
 actions=activate
+intent_status=resolved/ambiguous_id/unsupported_action/disabled
 semantic_found=1
 semantic_current=secondary
 semantic_hash=...

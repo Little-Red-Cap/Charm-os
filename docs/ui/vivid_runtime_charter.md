@@ -414,3 +414,18 @@ This remains deliberately below a full accessibility runtime. `activate` is a ca
 Current evidence:
 
 - `Examples/ui/vivid/semantic_action_demo` proves role-derived `activate`, no-action semantic roles, explicit action override, tree action artifacts, and action participation in `semantic_hash`.
+
+## 2026-05 Addendum: Semantic Intent Resolution
+
+Vivid can now resolve a product semantic request without executing it:
+
+```text
+root + semantic_id + action
+  -> SemanticIntentResolution
+```
+
+This belongs to the Semantic Plane and Evidence Plane. It makes semantic nodes addressable while preserving the boundary that action execution, input synthesis, callback dispatch, and OS accessibility binding are future, separate runtime admissions.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, and no input side effects during resolution.

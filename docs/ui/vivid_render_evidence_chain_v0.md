@@ -148,6 +148,8 @@ print_render_artifact_comparison(delta, before, after)
 
 These helpers keep Component Lab, Focus Evidence, Style Token Law, and Intent-to-Artifact cases aligned on the same artifact capture / verdict shape. They are demo-side evidence vocabulary, not a Vivid core render API.
 
+Promotion boundary: `vivid_evidence_artifact_promotion_v0.md` records which Evidence Lab names remain demo-only, which field vocabularies are law candidates, and which runtime-native ledgers may become core-facing contracts.
+
 ### Style Evidence
 
 Style Token Law 进入 Evidence Plane 后，resolved style 也需要可审计摘要：

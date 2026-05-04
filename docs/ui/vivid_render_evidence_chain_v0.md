@@ -23,7 +23,7 @@ v0 由 `Examples/ui/vivid/focus_boundary_demo` 验证：`set_focused(true)` 不�
 
 `Examples/ui/vivid/focus_spatial_navigation_demo` 继续验证 spatial focus navigation evidence：方向键先由 runtime 根据 world rect 选择几何候选，无候选再回退到 preorder wrap；scope 外 target 的 command evidence 保持 baseline。详细法律见 `vivid_focus_scope_evidence_v0.md`。
 
-`Examples/ui/vivid/focus_semantic_demo` 继续验证 semantic focus evidence：`input_focused` 可以解析为稳定 semantic id / role / label，semantic current target 与 visual focus ring artifact 对齐，scope 外 semantic target 不参与 active scope navigation。详细法律见 `vivid_focus_semantic_evidence_v0.md`。
+`Examples/ui/vivid/focus_semantic_demo` 继续验证 semantic focus evidence：runtime semantic store 可以把 `input_focused` 解析为稳定 semantic id / role / label，semantic current target 与 visual focus ring artifact 对齐，scope 外 semantic target 不参与 active scope navigation。详细法律见 `vivid_focus_semantic_evidence_v0.md`。
 
 本文定义 Vivid 从 widget 级证据进入 component 级因果证据的最小路线。
 
@@ -160,3 +160,22 @@ v0 由 `charm.core.style_evidence` 提供 `ResolvedStyleEvidence` 与 `StyleStat
 - render 后输出单个 card dirty rect 与 command / pixel artifact 摘要。
 
 stdout 仍遵守 `vivid_evidence_stdout_law.md`。
+
+## 2026-05 Addendum: Semantic Artifact Evidence
+
+`Examples/ui/vivid/semantic_tree_demo` extends semantic focus evidence into a root-bound Semantic Tree Artifact v0. The artifact is still intentionally smaller than an accessibility runtime: it collects runtime semantic entries under a requested root, preserves deterministic preorder, marks focus truth, reports fixed-capacity overflow, and emits `semantic_hash`.
+
+The evidence chain now has a semantic branch before screenshot CI:
+
+```text
+semantic store
+  -> semantic focus snapshot
+  -> semantic tree snapshot
+  -> semantic_hash
+```
+
+Stdout remains governed by `vivid_evidence_stdout_law.md`:
+
+```text
+[stree] run=semantic_tree_demo phase=end result=ok cases=6
+```

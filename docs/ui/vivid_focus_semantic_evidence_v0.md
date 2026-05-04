@@ -10,13 +10,20 @@
 
 `Focus Semantic Evidence v0` 继续向前一步：证明 focus 不只是视觉 ring，也必须能映射到稳定的产品语义 target。
 
-v0 暂不引入完整 accessibility tree，也不把语义存储写入 SoA node。第一版使用 demo 侧 semantic target table 建立证据语言，后续再上收为 Vivid runtime capability。
+v0 暂不引入完整 accessibility tree。当前已把最小语义三元组写入 Vivid SoA node，并通过 runtime API 暴露：
+
+```text
+set_semantic(handle, role, id, label)
+semantic_snapshot(handle)
+semantic_focus_snapshot()
+semantic_tree_snapshot(root, max_nodes)
+```
 
 ## v0 法律
 
 ### Law 1：semantic target 必须稳定
 
-每个可被语义暴露的 focus target 必须有稳定 id、role 与 label：
+每个可被语义暴露的 focus target 必须有稳定 id、role 与 label。v0 由 runtime 存储：
 
 ```text
 semantic_id
@@ -25,17 +32,17 @@ label
 focusable
 ```
 
-这些字段不应依赖 widget handle 地址或运行时随机值。
+这些字段不应依赖 widget handle 地址或运行时随机值。widget handle 只作为 runtime 绑定点，不是 semantic identity。
 
 ### Law 2：input focus truth 必须能解析为 semantic focus
 
-当 `input_focused` 提交到某个 target 后，semantic table 必须能解析：
+当 `input_focused` 提交到某个 target 后，runtime 必须能解析：
 
 ```text
 input_focused -> semantic_id
 ```
 
-如果 focused handle 不在 semantic table 内，必须显式输出 `semantic_found=0`，而不是静默假装对齐。
+如果 focused handle 没有 runtime semantic entry，必须显式输出 `semantic_found=0`，而不是静默假装对齐。
 
 ### Law 3：semantic focus 与 visual focus artifact 必须对齐
 
@@ -68,14 +75,31 @@ decorative_present=1
 decorative_semantic=0
 ```
 
+### Law 6: semantic tree artifact is a fixed-capacity snapshot
+
+Semantic Tree Artifact v0 is not a full accessibility runtime. It is a root-bound evidence artifact collected from the Vivid SoA tree:
+
+```text
+root -> preorder semantic nodes -> semantic_hash
+```
+
+v0 rules:
+
+- only nodes with runtime semantic entries are collected.
+- collection order is deterministic preorder under the requested root.
+- choosing `root` is the artifact policy: a page root can include outside semantic nodes, while a focus scope root can exclude them.
+- capacity overflow must be explicit through `overflowed=1`; truncation must not be silent.
+- `focus_id` records focus truth even when the focused node is beyond stored capacity.
+- `semantic_hash` summarizes the semantic artifact only; it is not yet an accessibility tree hash.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
 
 它验证：
 
-- semantic target table 中存在 `primary / secondary / outside` 三个稳定条目。
-- decorative label 不进入 semantic target table。
+- runtime semantic store 中存在 `primary / secondary / outside` 三个稳定条目。
+- decorative label 不进入 runtime semantic store。
 - pointer focus 可以从 primary 迁移到 secondary，并解析为 `semantic_id=secondary`。
 - keyboard navigation 在 active scope 内迁移 semantic focus。
 - scope 外 semantic target 不参与 active scope navigation。
@@ -87,6 +111,15 @@ stdout 最终约束：
 [fsem] run=focus_semantic_demo phase=end result=ok cases=8
 ```
 
+`Examples/ui/vivid/semantic_tree_demo` is the first Semantic Tree Artifact v0 runtime evidence.
+It verifies deterministic preorder collection, decorative exclusion, focus markers, root-bound policy, overflow reporting, and stable semantic hash.
+
+stdout final contract:
+
+```text
+[stree] run=semantic_tree_demo phase=end result=ok cases=6
+```
+
 核心字段：
 
 ```text
@@ -94,16 +127,17 @@ semantic_id=primary/secondary/outside
 role=button/list_item
 semantic_found=1
 semantic_current=secondary
+semantic_hash=...
 input_truth=secondary
 focus_ring=1
 outside_semantic_present=1
 outside_selected=0
 decorative_semantic=0
+overflowed=1
 ```
 
 ## 后续方向
 
-- 把 semantic target table 上收为 Vivid core capability。
 - 区分 input focus、semantic focus、accessibility focus 与 visual focus ring。
 - 输出 semantic tree / accessibility tree 的 artifact hash。
 - 让 component pattern 声明默认 semantic role 与 label source。

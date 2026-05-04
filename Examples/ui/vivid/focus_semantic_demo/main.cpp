@@ -1,4 +1,3 @@
-#include <array>
 #include <cstddef>
 #include <cstdio>
 
@@ -30,26 +29,10 @@ namespace {
         WidgetHandle outside{};
     };
 
-    struct SemanticTarget {
-        const char* id{};
-        const char* role{};
-        const char* label{};
-        WidgetHandle handle{};
-        bool focusable{false};
-    };
-
     [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
         return lhs.kind == rhs.kind
             && lhs.index == rhs.index
             && lhs.generation == rhs.generation;
-    }
-
-    [[nodiscard]] const SemanticTarget* find_semantic(const std::array<SemanticTarget, 3>& targets,
-                                                      WidgetHandle handle) noexcept {
-        for (const auto& target : targets) {
-            if (same_handle(target.handle, handle)) return &target;
-        }
-        return nullptr;
     }
 
     [[nodiscard]] bool style_evidence_equal(const ResolvedStyleEvidence& lhs,
@@ -123,27 +106,33 @@ int main() {
         builder.set_rect(handles.primary, kPrimaryBounds);
         builder.set_rect(handles.secondary, kSecondaryBounds);
         builder.set_rect(handles.outside, kOutsideBounds);
+        builder.set_semantic(handles.primary, SemanticRole::Button, "primary", "Primary action");
+        builder.set_semantic(handles.secondary, SemanticRole::ListItem, "secondary", "Secondary row");
+        builder.set_semantic(handles.outside, SemanticRole::Button, "outside", "Outside action");
         builder.set_input_root(handles.root);
         builder.set_focus_scope(handles.scope, handles.primary, true);
         builder.set_root(handles.root);
     });
 
-    const std::array<SemanticTarget, 3> semantic_targets{{
-        SemanticTarget{"primary", "button", "Primary action", handles.primary, true},
-        SemanticTarget{"secondary", "list_item", "Secondary row", handles.secondary, true},
-        SemanticTarget{"outside", "button", "Outside action", handles.outside, true},
-    }};
-
     run_log.case_begin("semantic_table");
-    std::printf(" targets=3 semantic_id=primary role=button semantic_id2=secondary role2=list_item outside_semantic_present=1 stable=1\n");
+    const auto primary_entry = scene.semantic_snapshot(handles.primary);
+    const auto secondary_entry = scene.semantic_snapshot(handles.secondary);
+    const auto outside_entry = scene.semantic_snapshot(handles.outside);
+    const auto title_entry = scene.semantic_snapshot(handles.title);
+    std::printf(" source=runtime targets=3 semantic_id=%s role=%s semantic_id2=%s role2=%s outside_semantic_present=%d stable=1\n",
+                primary_entry.id,
+                primary_entry.role,
+                secondary_entry.id,
+                secondary_entry.role,
+                outside_entry.found ? 1 : 0);
 
-    if (!vivid::evidence::expect(find_semantic(semantic_targets, handles.primary) != nullptr,
+    if (!vivid::evidence::expect(primary_entry.found && primary_entry.focusable,
                                  "primary semantic target exists")) return 1;
-    if (!vivid::evidence::expect(find_semantic(semantic_targets, handles.secondary) != nullptr,
+    if (!vivid::evidence::expect(secondary_entry.found && secondary_entry.focusable,
                                  "secondary semantic target exists")) return 1;
-    if (!vivid::evidence::expect(find_semantic(semantic_targets, handles.outside) != nullptr,
+    if (!vivid::evidence::expect(outside_entry.found && outside_entry.focusable,
                                  "outside semantic target exists")) return 1;
-    if (!vivid::evidence::expect(find_semantic(semantic_targets, handles.title) == nullptr,
+    if (!vivid::evidence::expect(!title_entry.found,
                                  "decorative title is not semantic focus target")) return 1;
 
     run_log.case_begin("decorative_excluded");
@@ -151,9 +140,9 @@ int main() {
 
     click(scene, kPrimaryBounds, 10);
     auto primary_access = scene.access();
-    const auto* primary_semantic = find_semantic(semantic_targets, primary_access.input_focused());
-    if (!vivid::evidence::expect(primary_semantic != nullptr, "primary focus resolves semantic target")) return 1;
-    if (!vivid::evidence::expect(primary_semantic && primary_semantic->id[0] == 'p',
+    const auto primary_semantic = primary_access.semantic_focus_snapshot();
+    if (!vivid::evidence::expect(primary_semantic.found, "primary focus resolves semantic target")) return 1;
+    if (!vivid::evidence::expect(primary_semantic.id[0] == 'p',
                                  "primary semantic id selected")) return 1;
 
     const auto primary_artifact = vivid::evidence::render_scene(scene, canvas, kPrimaryBounds);
@@ -162,8 +151,8 @@ int main() {
 
     run_log.case_begin("initial_semantic_focus");
     std::printf(" source=pointer semantic_found=1 semantic_current=%s role=%s input_truth=primary focus_ring=1 cmd_hash=%u pixel_hash=%u\n",
-                primary_semantic->id,
-                primary_semantic->role,
+                primary_semantic.id,
+                primary_semantic.role,
                 primary_artifact.cmd_hash,
                 primary_artifact.pixel_hash);
 
@@ -174,13 +163,13 @@ int main() {
                                       20));
     auto transfer_access = scene.access();
     const auto transfer_trace = collect_focus_move(transfer_access, handles.primary, handles.secondary);
-    const auto* secondary_semantic = find_semantic(semantic_targets, transfer_access.input_focused());
+    const auto secondary_semantic = transfer_access.semantic_focus_snapshot();
     if (!vivid::evidence::expect(transfer_trace.focus_out == 1 && transfer_trace.focus_out_expected,
                                  "semantic transfer emits FocusOut primary")) return 1;
     if (!vivid::evidence::expect(transfer_trace.focus_in == 1 && transfer_trace.focus_in_expected,
                                  "semantic transfer emits FocusIn secondary")) return 1;
-    if (!vivid::evidence::expect(secondary_semantic != nullptr, "secondary focus resolves semantic target")) return 1;
-    if (!vivid::evidence::expect(secondary_semantic && secondary_semantic->id[0] == 's',
+    if (!vivid::evidence::expect(secondary_semantic.found, "secondary focus resolves semantic target")) return 1;
+    if (!vivid::evidence::expect(secondary_semantic.id[0] == 's',
                                  "secondary semantic id selected")) return 1;
     scene.dispatch_event(Event::mouse(Event::Type::MouseUp,
                                       kSecondaryBounds.x + kSecondaryBounds.w / 2,
@@ -192,38 +181,38 @@ int main() {
     std::printf(" source=pointer old=primary new=secondary focus_out=%d focus_in=%d semantic_found=1 semantic_current=%s role=%s input_truth=secondary\n",
                 transfer_trace.focus_out,
                 transfer_trace.focus_in,
-                secondary_semantic->id,
-                secondary_semantic->role);
+                secondary_semantic.id,
+                secondary_semantic.role);
 
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Up, 30));
     auto key_access = scene.access();
     const auto key_trace = collect_focus_move(key_access, handles.secondary, handles.primary);
-    const auto* key_semantic = find_semantic(semantic_targets, key_access.input_focused());
+    const auto key_semantic = key_access.semantic_focus_snapshot();
     if (!vivid::evidence::expect(key_trace.focus_out == 1 && key_trace.focus_out_expected,
                                  "keyboard semantic focus emits FocusOut secondary")) return 1;
     if (!vivid::evidence::expect(key_trace.focus_in == 1 && key_trace.focus_in_expected,
                                  "keyboard semantic focus emits FocusIn primary")) return 1;
-    if (!vivid::evidence::expect(key_semantic != nullptr && key_semantic->id[0] == 'p',
+    if (!vivid::evidence::expect(key_semantic.found && key_semantic.id[0] == 'p',
                                  "keyboard focus resolves primary semantic target")) return 1;
 
     run_log.case_begin("keyboard_semantic_focus");
     std::printf(" source=key key=up old=secondary new=primary semantic_found=1 semantic_current=%s role=%s focus_out=%d focus_in=%d input_truth=primary\n",
-                key_semantic->id,
-                key_semantic->role,
+                key_semantic.id,
+                key_semantic.role,
                 key_trace.focus_out,
                 key_trace.focus_in);
 
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Right, 40));
     auto outside_access = scene.access();
-    const auto* outside_skip_semantic = find_semantic(semantic_targets, outside_access.input_focused());
-    if (!vivid::evidence::expect(outside_skip_semantic != nullptr,
+    const auto outside_skip_semantic = outside_access.semantic_focus_snapshot();
+    if (!vivid::evidence::expect(outside_skip_semantic.found,
                                  "inside fallback focus still resolves semantic target")) return 1;
     if (!vivid::evidence::expect(!same_handle(outside_access.input_focused(), handles.outside),
                                  "outside semantic target is not selected by active scope navigation")) return 1;
 
     run_log.case_begin("outside_semantic_not_selected");
     std::printf(" source=key key=right outside_semantic_present=1 outside_selected=0 semantic_found=1 semantic_current=%s input_truth=inside_scope\n",
-                outside_skip_semantic->id);
+                outside_skip_semantic.id);
 
     const StyleStateEvidence focus_state = make_style_state_evidence(WidgetKind::ScrollContainer);
     const StyleState normal_state = make_style_state(true, false, false, false);
@@ -259,8 +248,8 @@ int main() {
 
     run_log.case_begin("artifact_alignment");
     std::printf(" semantic_current=%s input_truth=%s focus_ring=1 dirty_count=%zu cmd_hash=%u pixel_hash=%u artifact_aligned=1\n",
-                outside_skip_semantic->id,
-                outside_skip_semantic->id,
+                outside_skip_semantic.id,
+                outside_skip_semantic.id,
                 aligned_artifact.dirty_count,
                 aligned_artifact.cmd_hash,
                 aligned_artifact.pixel_hash);

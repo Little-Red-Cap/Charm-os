@@ -2,6 +2,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <sstream>
+#include <string>
 
 namespace {
     enum EvidenceAxis : std::uint32_t {
@@ -17,6 +20,7 @@ namespace {
         AxisVocabulary = 1u << 9u,
         AxisCausal = 1u << 10u,
         AxisAdmission = 1u << 11u,
+        AxisManifest = 1u << 12u,
     };
 
     struct ManifestEntry {
@@ -52,10 +56,11 @@ namespace {
         {"widget_signal_demo", "ws", 3, AxisEdge},
         {"widget_state_demo", "wst", 5, AxisState},
         {"evidence_vocabulary_demo", "evl", 5, AxisVocabulary | AxisState | AxisRender | AxisCausal},
+        {"evidence_lab_manifest_demo", "elm", 8, AxisManifest | AxisVocabulary},
     };
 
-    constexpr unsigned kExpectedEntryCount = 25;
-    constexpr unsigned kExpectedCaseTotal = 177;
+    constexpr unsigned kExpectedEntryCount = 26;
+    constexpr unsigned kExpectedCaseTotal = 185;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState
@@ -68,7 +73,8 @@ namespace {
         | AxisLayer
         | AxisVocabulary
         | AxisCausal
-        | AxisAdmission;
+        | AxisAdmission
+        | AxisManifest;
 
     unsigned manifest_case_count = 0;
 
@@ -79,6 +85,46 @@ namespace {
     [[nodiscard]] bool text_equal(const char* lhs, const char* rhs) noexcept {
         if (lhs == nullptr || rhs == nullptr) return lhs == rhs;
         return std::strcmp(lhs, rhs) == 0;
+    }
+
+    [[nodiscard]] std::string source_path(const char* relative_path) {
+        std::string path = CHARM_SOURCE_ROOT;
+        path += "/";
+        path += relative_path;
+        return path;
+    }
+
+    [[nodiscard]] std::string read_file(const char* relative_path) {
+        std::ifstream input(source_path(relative_path), std::ios::binary);
+        std::ostringstream buffer;
+        buffer << input.rdbuf();
+        return buffer.str();
+    }
+
+    [[nodiscard]] bool contains(const std::string& haystack, const std::string& needle) noexcept {
+        return haystack.find(needle) != std::string::npos;
+    }
+
+    [[nodiscard]] std::string case_text(unsigned cases) {
+        return std::to_string(cases);
+    }
+
+    [[nodiscard]] std::string stdout_gate(const ManifestEntry& entry) {
+        return std::string("[")
+            + entry.tag
+            + "] run="
+            + entry.run
+            + " phase=end result=ok cases="
+            + case_text(entry.cases);
+    }
+
+    [[nodiscard]] std::string cmake_gate(const ManifestEntry& entry) {
+        return std::string("\\\\[")
+            + entry.tag
+            + "\\\\] run="
+            + entry.run
+            + " phase=end result=ok cases="
+            + case_text(entry.cases);
     }
 
     [[nodiscard]] bool expect(bool condition, const char* message) noexcept {
@@ -170,6 +216,28 @@ namespace {
         }
         return nullptr;
     }
+
+    [[nodiscard]] bool stdout_law_matches_manifest(const std::string& stdout_law) {
+        if (stdout_law.empty()) return false;
+        for (const auto& entry : kManifest) {
+            if (!contains(stdout_law, stdout_gate(entry))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool cmake_gates_match_manifest() {
+        for (const auto& entry : kManifest) {
+            const std::string relative_path =
+                std::string("Examples/ui/vivid/") + entry.run + "/CMakeLists.txt";
+            const std::string cmake_file = read_file(relative_path.c_str());
+            if (cmake_file.empty() || !contains(cmake_file, cmake_gate(entry))) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 int main() {
@@ -206,7 +274,7 @@ int main() {
     const std::uint32_t axes = axis_union();
     const bool required_axes_present = (axes & kRequiredAxes) == kRequiredAxes;
     case_begin("axis_coverage");
-    std::printf(" edge=%d state=%d style=%d render=%d semantic=%d focus=%d motion=%d transaction=%d layer=%d vocabulary=%d causal=%d admission=%d\n",
+    std::printf(" edge=%d state=%d style=%d render=%d semantic=%d focus=%d motion=%d transaction=%d layer=%d vocabulary=%d causal=%d admission=%d manifest=%d\n",
                 has_axis(axes, AxisEdge) ? 1 : 0,
                 has_axis(axes, AxisState) ? 1 : 0,
                 has_axis(axes, AxisStyle) ? 1 : 0,
@@ -218,7 +286,8 @@ int main() {
                 has_axis(axes, AxisLayer) ? 1 : 0,
                 has_axis(axes, AxisVocabulary) ? 1 : 0,
                 has_axis(axes, AxisCausal) ? 1 : 0,
-                has_axis(axes, AxisAdmission) ? 1 : 0);
+                has_axis(axes, AxisAdmission) ? 1 : 0,
+                has_axis(axes, AxisManifest) ? 1 : 0);
     if (!expect(required_axes_present, "manifest must cover every v0 evidence axis")) return 1;
 
     const ManifestEntry* intent_artifact = find_entry("intent_artifact_demo");
@@ -248,6 +317,19 @@ int main() {
                 vocabulary && has_axis(vocabulary->axes, AxisCausal) ? 1 : 0,
                 vocabulary && has_axis(vocabulary->axes, AxisRender) ? 1 : 0);
     if (!expect(vocabulary_ok, "vocabulary demo must remain the field-law anchor")) return 1;
+
+    const std::string stdout_law = read_file("docs/ui/vivid_evidence_stdout_law.md");
+    const bool stdout_sync_ok = stdout_law_matches_manifest(stdout_law);
+    case_begin("stdout_law_sync");
+    std::printf(" file=docs/ui/vivid_evidence_stdout_law.md entries=%u synced=%d\n",
+                entries,
+                stdout_sync_ok ? 1 : 0);
+    if (!expect(stdout_sync_ok, "stdout law registry must match manifest gates")) return 1;
+
+    const bool cmake_sync_ok = cmake_gates_match_manifest();
+    case_begin("cmake_gate_sync");
+    std::printf(" demos=%u synced=%d\n", entries, cmake_sync_ok ? 1 : 0);
+    if (!expect(cmake_sync_ok, "demo CMake PASS gates must match manifest gates")) return 1;
 
     case_begin("promotion_boundary");
     std::printf(" demo_support=demo_side vocabulary=law runtime_ledgers=core_candidate print_helpers=do_not_promote runtime_behavior=0 screenshot=0\n");

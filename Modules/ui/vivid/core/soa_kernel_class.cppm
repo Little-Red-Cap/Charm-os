@@ -399,6 +399,89 @@ public:
         return semantic_snapshot(input_.focused);
     }
 
+    SemanticTreeSnapshot semantic_tree_snapshot(
+        WidgetHandle root,
+        std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {
+        SemanticTreeSnapshot out{};
+        if (!root || !valid(root)) {
+            return out;
+        }
+        if (max_nodes > kSemanticTreeMaxNodes) {
+            max_nodes = kSemanticTreeMaxNodes;
+        }
+
+        struct StackEntry {
+            WidgetHandle handle{};
+            std::uint16_t depth{0};
+        };
+
+        std::array<StackEntry, kMaxNodes> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = StackEntry{root, 0};
+
+        while (sp > 0) {
+            const StackEntry entry = stack[--sp];
+            const WidgetHandle h = entry.handle;
+            if (!valid(h) || !visible(h)) continue;
+            ++out.visited_count;
+
+            const auto semantic = semantic_snapshot(h);
+            if (semantic.found) {
+                const bool focused = h == input_.focused;
+                ++out.total_semantic_count;
+                if (focused) {
+                    out.focused_handle = h;
+                    out.focus_id = semantic.id;
+                    out.focus_found = true;
+                }
+                if (out.node_count < max_nodes) {
+                    SemanticTreeNode node{};
+                    node.handle = h;
+                    node.id = semantic.id;
+                    node.role = semantic.role;
+                    node.label = semantic.label;
+                    node.bounds = world_rect(h);
+                    node.depth = entry.depth;
+                    node.preorder = static_cast<std::uint16_t>(out.total_semantic_count - 1);
+                    node.focused = focused;
+                    node.focusable = semantic.focusable;
+                    out.nodes[out.node_count] = node;
+                    out.semantic_hash = semantic_tree_hash_node(out.semantic_hash, node);
+                    if (focused) {
+                        out.focus_index = static_cast<std::uint16_t>(out.node_count);
+                    }
+                    ++out.node_count;
+                } else {
+                    out.overflowed = true;
+                }
+            }
+
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) {
+                    out.overflowed = true;
+                    break;
+                }
+                stack[sp++] = StackEntry{
+                    child,
+                    static_cast<std::uint16_t>(entry.depth + 1),
+                };
+            }
+        }
+
+        out.semantic_hash = semantic_tree_hash_mix(
+            out.semantic_hash,
+            static_cast<std::uint32_t>(out.node_count));
+        out.semantic_hash = semantic_tree_hash_mix(
+            out.semantic_hash,
+            static_cast<std::uint32_t>(out.total_semantic_count));
+        out.semantic_hash = semantic_tree_hash_mix(
+            out.semantic_hash,
+            out.focus_found ? static_cast<std::uint32_t>(out.focus_index) : 0xFFFFu);
+        out.semantic_hash = semantic_tree_hash_text(out.semantic_hash, out.focus_found ? out.focus_id : "");
+        out.semantic_hash = semantic_tree_hash_mix(out.semantic_hash, out.overflowed ? 1u : 0u);
+        return out;
+    }
+
     void set_hit_testable(WidgetHandle h, bool on) noexcept {
         set_flag(h, SoaNodeFlag::HitTest, on);
     }

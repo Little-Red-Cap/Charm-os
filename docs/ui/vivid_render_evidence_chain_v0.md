@@ -160,3 +160,22 @@ v0 由 `charm.core.style_evidence` 提供 `ResolvedStyleEvidence` 与 `StyleStat
 - render 后输出单个 card dirty rect 与 command / pixel artifact 摘要。
 
 stdout 仍遵守 `vivid_evidence_stdout_law.md`。
+
+## 2026-05 Addendum: Semantic Artifact Evidence
+
+`Examples/ui/vivid/semantic_tree_demo` extends semantic focus evidence into a root-bound Semantic Tree Artifact v0. The artifact is still intentionally smaller than an accessibility runtime: it collects runtime semantic entries under a requested root, preserves deterministic preorder, marks focus truth, reports fixed-capacity overflow, and emits `semantic_hash`.
+
+The evidence chain now has a semantic branch before screenshot CI:
+
+```text
+semantic store
+  -> semantic focus snapshot
+  -> semantic tree snapshot
+  -> semantic_hash
+```
+
+Stdout remains governed by `vivid_evidence_stdout_law.md`:
+
+```text
+[stree] run=semantic_tree_demo phase=end result=ok cases=6
+```

@@ -59,6 +59,10 @@
 13. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
 14. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
+Semantic Tree Artifact v0 runtime sample:
+
+- `Examples/ui/vivid/semantic_tree_demo`: verifies root-bound semantic preorder collection, focus marker, decorative exclusion, overflow reporting, and stable `semantic_hash`; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=6`.
+
 最小验证示例：
 
 - `Examples/ui/vivid/widget_signal_demo`：验证 object-level widget click edge 与旧回调兼容；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=3`。

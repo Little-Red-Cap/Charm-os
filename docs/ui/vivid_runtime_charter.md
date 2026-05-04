@@ -365,3 +365,20 @@ Vivid 的核心责任不是画 UI，而是让 UI 在不同资源宇宙中以可�
 ## 2026-05 补记：Transition ledger
 
 `PageTransitionLedger` 让页面迁移事务从 trace 事件推进到可汇总账本：一次转场最终是否 committed / aborted、是否 static cut / interrupted、峰值 layer bytes、合成像素数、capture 状态与 snapshot 是否释放，都可以在 runner 回到 idle 后读取。
+
+## 2026-05 Addendum: Semantic Tree Artifact
+
+Vivid now has a minimal semantic artifact path in addition to focus target lookup:
+
+```text
+set_semantic(handle, role, id, label)
+semantic_focus_snapshot()
+semantic_tree_snapshot(root, max_nodes)
+```
+
+`semantic_tree_snapshot` belongs to the Evidence Plane and Artifact Plane, not to Pattern code. Pattern authors may provide semantic roles and labels, but they should not know how the tree is stored, hashed, or capacity-limited.
+
+Current evidence:
+
+- `Examples/ui/vivid/focus_semantic_demo` proves focused target lookup and focus ring alignment.
+- `Examples/ui/vivid/semantic_tree_demo` proves root-bound preorder artifact collection, focus marker, decorative exclusion, overflow reporting, and stable `semantic_hash`.

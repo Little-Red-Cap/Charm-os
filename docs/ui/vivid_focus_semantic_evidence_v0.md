@@ -16,6 +16,7 @@ v0 暂不引入完整 accessibility tree。当前已把最小语义三元组写�
 set_semantic(handle, role, id, label)
 semantic_snapshot(handle)
 semantic_focus_snapshot()
+semantic_tree_snapshot(root, max_nodes)
 ```
 
 ## v0 法律
@@ -74,6 +75,23 @@ decorative_present=1
 decorative_semantic=0
 ```
 
+### Law 6: semantic tree artifact is a fixed-capacity snapshot
+
+Semantic Tree Artifact v0 is not a full accessibility runtime. It is a root-bound evidence artifact collected from the Vivid SoA tree:
+
+```text
+root -> preorder semantic nodes -> semantic_hash
+```
+
+v0 rules:
+
+- only nodes with runtime semantic entries are collected.
+- collection order is deterministic preorder under the requested root.
+- choosing `root` is the artifact policy: a page root can include outside semantic nodes, while a focus scope root can exclude them.
+- capacity overflow must be explicit through `overflowed=1`; truncation must not be silent.
+- `focus_id` records focus truth even when the focused node is beyond stored capacity.
+- `semantic_hash` summarizes the semantic artifact only; it is not yet an accessibility tree hash.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
@@ -93,6 +111,15 @@ stdout 最终约束：
 [fsem] run=focus_semantic_demo phase=end result=ok cases=8
 ```
 
+`Examples/ui/vivid/semantic_tree_demo` is the first Semantic Tree Artifact v0 runtime evidence.
+It verifies deterministic preorder collection, decorative exclusion, focus markers, root-bound policy, overflow reporting, and stable semantic hash.
+
+stdout final contract:
+
+```text
+[stree] run=semantic_tree_demo phase=end result=ok cases=6
+```
+
 核心字段：
 
 ```text
@@ -100,11 +127,13 @@ semantic_id=primary/secondary/outside
 role=button/list_item
 semantic_found=1
 semantic_current=secondary
+semantic_hash=...
 input_truth=secondary
 focus_ring=1
 outside_semantic_present=1
 outside_selected=0
 decorative_semantic=0
+overflowed=1
 ```
 
 ## 后续方向

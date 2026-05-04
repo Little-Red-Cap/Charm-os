@@ -31,6 +31,10 @@ import charm.gfx.draw_cmd;
 export using ::ScrollBarOrientation;
 export using ::SemanticFocusSnapshot;
 export using ::SemanticRole;
+export using ::SemanticTreeNode;
+export using ::SemanticTreeSnapshot;
+export using ::kSemanticTreeMaxNodes;
+export using ::kSemanticTreeNoFocusIndex;
 export using ::TableViewHeaderStyle;
 export using ::TableViewColDividerStyle;
 
@@ -46,6 +50,10 @@ export namespace ui::scene {
     using ScrollBarOrientation = ::ScrollBarOrientation;
     using SemanticFocusSnapshot = ::SemanticFocusSnapshot;
     using SemanticRole = ::SemanticRole;
+    using SemanticTreeNode = ::SemanticTreeNode;
+    using SemanticTreeSnapshot = ::SemanticTreeSnapshot;
+    constexpr std::size_t kSemanticTreeMaxNodes = ::kSemanticTreeMaxNodes;
+    constexpr std::uint16_t kSemanticTreeNoFocusIndex = ::kSemanticTreeNoFocusIndex;
     using TableViewHeaderStyle = ::TableViewHeaderStyle;
     using TableViewColDividerStyle = ::TableViewColDividerStyle;
     using TextAlignH = ::TextAlignH;
@@ -352,6 +360,11 @@ export namespace ui::scene {
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_->semantic_focus_snapshot();
+        }
+        SemanticTreeSnapshot semantic_tree_snapshot(
+            WidgetHandle root,
+            std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {
+            return kernel_->semantic_tree_snapshot(root, max_nodes);
         }
 
         void set_image(WidgetHandle h, ImageId image) noexcept { kernel_->set_image(h, image); }
@@ -1100,6 +1113,11 @@ export namespace ui::scene {
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_.semantic_focus_snapshot();
+        }
+        SemanticTreeSnapshot semantic_tree_snapshot(
+            WidgetHandle root,
+            std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {
+            return kernel_.semantic_tree_snapshot(root, max_nodes);
         }
         SceneAccess access() noexcept { return SceneAccess(kernel_); }
 

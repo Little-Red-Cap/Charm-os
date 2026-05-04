@@ -303,7 +303,10 @@ int main() {
     if (!vivid::evidence::expect(trapped_inside.failed_cmds == 0, "trapped inside render has no failed commands")) {
         return 1;
     }
-    const auto outside_artifact = vivid::evidence::render_scene(scene, canvas, kOutsideBounds);
+    const auto outside_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kOutsideBounds, outside_baseline);
+    const auto& outside_artifact = outside_capture.evidence;
+    const auto& outside_delta = outside_capture.delta;
     if (!vivid::evidence::expect(outside_artifact.failed_cmds == 0, "outside render has no failed commands")) return 1;
     if (!vivid::evidence::expect(outside_artifact.cmd_count == outside_baseline.cmd_count,
                                  "outside target command evidence stays at unfocused baseline")) {
@@ -317,7 +320,7 @@ int main() {
                                  "outside target render artifact stays at unfocused baseline")) {
         return 1;
     }
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kOutsideBounds),
+    if (!vivid::evidence::expect(outside_delta.dirty_within_component,
                                  "outside dirty evidence remains local")) {
         return 1;
     }

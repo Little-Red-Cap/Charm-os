@@ -181,7 +181,10 @@ int main() {
                                                 state_evidence.includes_focused);
     std::printf("\n");
 
-    const auto destination_artifact = vivid::evidence::render_scene(scene, canvas, kDestinationBounds);
+    const auto destination_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kDestinationBounds, source_artifact);
+    const auto& destination_artifact = destination_capture.evidence;
+    const auto& destination_delta = destination_capture.delta;
     if (!vivid::evidence::expect(destination_artifact.failed_cmds == 0,
                                  "destination focused render has no failed commands")) {
         return 1;
@@ -194,7 +197,7 @@ int main() {
                                  "destination focus repaint uses single dirty rect")) {
         return 1;
     }
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kDestinationBounds),
+    if (!vivid::evidence::expect(destination_delta.dirty_within_component,
                                  "destination dirty evidence remains inside bounds")) {
         return 1;
     }

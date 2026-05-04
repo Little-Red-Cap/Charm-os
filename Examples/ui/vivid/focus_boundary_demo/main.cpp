@@ -117,7 +117,10 @@ int main() {
                                                 state_evidence.includes_focused);
     std::printf("\n");
 
-    const auto focused_artifact = vivid::evidence::render_scene(scene, canvas, kButtonBounds);
+    const auto focused_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kButtonBounds, initial);
+    const auto& focused_artifact = focused_capture.evidence;
+    const auto& focused_delta = focused_capture.delta;
     if (!vivid::evidence::expect(focused_artifact.failed_cmds == 0, "focused render has no failed commands")) return 1;
     if (!vivid::evidence::expect(focused_artifact.cmd_count > initial.cmd_count,
                                  "focused render records extra focus command")) {
@@ -132,7 +135,7 @@ int main() {
         return 1;
     }
     if (!vivid::evidence::expect(focused_artifact.dirty_count == 1, "focus repaint uses single dirty rect")) return 1;
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kButtonBounds),
+    if (!vivid::evidence::expect(focused_delta.dirty_within_component,
                                  "focus dirty evidence remains inside button bounds")) {
         return 1;
     }

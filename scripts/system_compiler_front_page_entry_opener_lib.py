@@ -24,6 +24,7 @@ BIOGRAPHY_INDEX_SCHEMA = "system_compiler.biography_index/v0"
 BIOGRAPHY_INDEX_COMPARE_SCHEMA = "system_compiler.biography_index_compare/v0"
 WITNESS_BUNDLE_SCHEMA = "system_compiler.witness_bundle/v0"
 RUNTIME_EVIDENCE_SCHEMA = "minimal_kernel.runtime_evidence_bundle.summary/v1"
+OPEN_EVENT_WITNESS_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0"
 
 INSPECTOR_SCRIPT = "scripts/inspect_system_compiler_artifact_report.ps1"
 
@@ -926,6 +927,58 @@ def build_runtime_evidence_projection(summary_path: Path, summary: dict[str, Any
     )
 
 
+def build_open_event_witness_compare_projection(summary_path: Path, summary: dict[str, Any]) -> OrderedDict[str, Any]:
+    status = get_mapping(summary.get("witness_status"))
+    change_summary = get_mapping(summary.get("change_summary"))
+    regression = get_mapping(summary.get("witness_regression_surface"))
+    questions = get_mapping(summary.get("questions"))
+    artifact_context = get_mapping(summary.get("artifact_context"))
+    headline = "open_event_witness_compare verdict={0} changed={1}".format(
+        choose_text(summary.get("witness_verdict")) or "-",
+        choose_text(change_summary.get("changed_field_count")) or "0",
+    )
+    summary_lines = [
+        "baseline witness={0} status={1} event={2}".format(
+            choose_text(status.get("baseline_witness_id")) or "-",
+            choose_text(status.get("baseline_witness_status")) or "-",
+            choose_text(status.get("baseline_open_event_id")) or "-",
+        ),
+        "candidate witness={0} status={1} event={2}".format(
+            choose_text(status.get("candidate_witness_id")) or "-",
+            choose_text(status.get("candidate_witness_status")) or "-",
+            choose_text(status.get("candidate_open_event_id")) or "-",
+        ),
+        "change_counts identity={0} judgment={1} evidence={2} explanation={3}".format(
+            choose_text(change_summary.get("identity_changed_field_count")) or "0",
+            choose_text(change_summary.get("judgment_changed_field_count")) or "0",
+            choose_text(change_summary.get("evidence_changed_field_count")) or "0",
+            choose_text(change_summary.get("explanation_changed_field_count")) or "0",
+        ),
+    ]
+    for narrative in get_list(regression.get("narratives"))[:3]:
+        summary_lines.append(f"witness_drift {choose_text(narrative)}")
+
+    return build_opened_projection_record(
+        status="available",
+        projection_kind="open_event_witness_compare_overview",
+        source_summary_schema=choose_text(summary.get("schema")),
+        source_summary_kind=choose_text(summary.get("kind")),
+        source_summary_path=normalize_path(summary_path),
+        headline=headline,
+        summary_lines=summary_lines,
+        question_lines=get_list(questions.get("compare_questions")) + get_list(questions.get("next_questions")),
+        supporting_summary_paths=build_front_page_supporting_paths(summary),
+        evidence_paths=existing_paths(
+            [
+                artifact_context.get("baseline_open_event_witness_summary_path"),
+                artifact_context.get("candidate_open_event_witness_summary_path"),
+            ]
+        ),
+        compare_paths=[],
+        blockers=[],
+    )
+
+
 def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[str, Any]:
     target_summary_path = choose_text(open_action.get("target_summary_path"))
     target_summary_schema = choose_text(open_action.get("target_summary_schema"))
@@ -987,6 +1040,8 @@ def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[s
         return build_witness_bundle_projection(summary_path, summary)
     if actual_schema == RUNTIME_EVIDENCE_SCHEMA:
         return build_runtime_evidence_projection(summary_path, summary)
+    if actual_schema == OPEN_EVENT_WITNESS_COMPARE_SCHEMA:
+        return build_open_event_witness_compare_projection(summary_path, summary)
 
     return build_opened_projection_record(
         status="unavailable",

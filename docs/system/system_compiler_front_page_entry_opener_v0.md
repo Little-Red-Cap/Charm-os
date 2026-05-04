@@ -33,6 +33,7 @@ Current `system_compiler.front_page_entry_opener` includes:
   - `scripts/validate_system_compiler_front_page_entry_opener.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opener_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -77,8 +78,8 @@ It contains:
 It lets the opener say:
 
 - this target is a `biography`, `world_compare`, `world_shelf_review`,
-  `biography_index`, `biography_index_compare`, `witness_bundle`, or
-  `runtime_evidence_bundle`
+  `biography_index`, `biography_index_compare`, `witness_bundle`,
+  `runtime_evidence_bundle`, or `open_event_witness_compare`
 - here is the smallest stable overview a consumer can already render now
 - here are the most relevant supporting / evidence / compare paths that stay
   nearest to that opening
@@ -165,6 +166,7 @@ summary shapes in the repository:
 - `system_compiler.biography_index_compare/v0`
 - `system_compiler.witness_bundle/v0`
 - `minimal_kernel.runtime_evidence_bundle.summary/v1`
+- `system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`
 
 For those targets it records:
 
@@ -178,6 +180,21 @@ For `system_compiler.world_shelf_review/v0`, those summary lines include a
 single `drift_digest ...` line. This is only a consumer preview of the review
 object's own `drift_digest`; the opener does not re-run shelf compare logic or
 reinterpret lower `biography_index_compare` semantics.
+
+For
+`system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`,
+the projection kind is `open_event_witness_compare_overview`.
+
+It exposes:
+
+- the witness verdict and changed-field count in the headline
+- baseline and candidate witness ids, status, and source open-event ids
+- a compact change-count line
+- up to three `witness_drift ...` narratives
+- baseline and candidate OpenEventWitness summaries as evidence paths
+
+This lets an opener explain "why this witness compare is interesting" without
+opening the full witness compare report first.
 
 The opener also prepends one `opening_reason ...` summary line from the source
 landing.
@@ -218,6 +235,12 @@ Or run the dedicated smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opener_smoke.ps1 -Clean
+```
+
+To prove only the OpenEventWitnessCompare projection adapter:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1 -Clean
 ```
 
 To run the full entry-opening flow from capability through landing, landing

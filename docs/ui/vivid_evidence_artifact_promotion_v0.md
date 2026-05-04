@@ -135,6 +135,7 @@ They are useful laboratory tools, not runtime semantics.
 ## Relationship To Existing Laws
 
 - `vivid_render_evidence_chain_v0.md` defines the state-to-artifact causal chain.
+- `vivid_evidence_lab_manifest_v0.md` records CTest-gated Evidence Lab demo coverage and keeps manifest drift visible.
 - `vivid_evidence_vocabulary_law_v0.md` defines stable field semantics for candidate evidence vocabulary.
 - `vivid_intent_to_artifact_evidence_v0.md` proves one vertical semantic intent-to-artifact chain.
 - `vivid_semantic_request_ledger_law_v0.md` defines runtime semantic request ledger law.

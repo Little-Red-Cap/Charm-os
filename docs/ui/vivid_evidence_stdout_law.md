@@ -33,6 +33,7 @@
 - `Examples/ui/vivid/widget_signal_demo`
 - `Examples/ui/vivid/widget_state_demo`
 - `Examples/ui/vivid/evidence_vocabulary_demo`
+- `Examples/ui/vivid/evidence_lab_manifest_demo`
 
 未来 `Component Lab`、截图回归、Layer budget drill 或其它 Vivid runtime demo 可以复用这套格式。
 
@@ -110,6 +111,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 | `evidence_vocabulary_demo` | `evl` | `[evl] run=evidence_vocabulary_demo phase=end result=ok cases=5` |
+| `evidence_lab_manifest_demo` | `elm` | `[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=6` |
 
 ## 维护规则
 

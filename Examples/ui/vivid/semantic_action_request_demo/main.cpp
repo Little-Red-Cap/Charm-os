@@ -123,7 +123,30 @@ int main() {
         return 1;
     }
 
-    const std::size_t events_after_first = access.input_event_count();
+    run_log.case_begin("request_event_trace");
+    const auto focus_trace = vivid::evidence::collect_focus_move(access, {}, handles.toggle);
+    const std::size_t first_clicks =
+        vivid::evidence::count_click_events_since(access, handles.toggle, request.events_before);
+    std::printf(" focus_out=%d focus_in=%d focus_in_toggle=%d click=%zu events_before=%zu events_after=%zu focus_ready=%d executed=%d\n",
+                focus_trace.focus_out,
+                focus_trace.focus_in,
+                focus_trace.focus_in_expected ? 1 : 0,
+                first_clicks,
+                request.events_before,
+                request.events_after,
+                request.focus_ready ? 1 : 0,
+                request.executed ? 1 : 0);
+    if (!vivid::evidence::expect(focus_trace.focus_out == 0
+                                 && focus_trace.focus_in == 1
+                                 && focus_trace.focus_in_expected,
+                                 "first action request emits FocusIn for target")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(first_clicks == 1,
+                                 "first action request emits one target Click")) {
+        return 1;
+    }
+
     const auto already = scene.request_semantic_action(handles.scope, "action.toggle", SemanticAction::Activate);
     run_log.case_begin("already_focused_execute");
     vivid::evidence::print_action_request_ledger(already);
@@ -139,6 +162,28 @@ int main() {
     }
     if (!vivid::evidence::expect(!access.checked(handles.toggle),
                                  "second activate toggles through normal click law")) {
+        return 1;
+    }
+
+    run_log.case_begin("already_focused_event_trace");
+    const auto already_trace =
+        vivid::evidence::collect_focus_move(access, handles.toggle, handles.toggle);
+    const std::size_t already_clicks =
+        vivid::evidence::count_click_events_since(access, handles.toggle, already.events_before);
+    std::printf(" focus_out=%d focus_in=%d click=%zu events_before=%zu events_after=%zu already_focused=1\n",
+                already_trace.focus_out,
+                already_trace.focus_in,
+                already_clicks,
+                already.events_before,
+                already.events_after);
+    if (!vivid::evidence::expect(already_trace.focus_out == 0
+                                 && already_trace.focus_in == 0,
+                                 "already-focused action emits no focus transfer events")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(already_clicks == 1
+                                 && already.events_after > already.events_before,
+                                 "already-focused action still emits click")) {
         return 1;
     }
 

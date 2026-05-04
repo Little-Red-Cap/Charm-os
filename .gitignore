@@ -22,6 +22,8 @@ Examples/kernel/armv7a/qemu/out/
 Examples/kernel/armv7a/qemu/qemu-ci.log
 Examples/kernel/armv7a/qemu/qemu-ci.err.log
 Examples/kernel/armv7a/qemu/qemu-ci.debug.log
+Examples/kernel/armv7a/qemu/qemu-phase-ledger.log
+Examples/kernel/armv7a/qemu/qemu-phase-ledger.err.log
 Examples/kernel/posix/qemu/qemu-ci.log
 Examples/kernel/posix/qemu/qemu-ci.err.log
 Examples/kernel/posix/qemu/qemu-ci.debug.log

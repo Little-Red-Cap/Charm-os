@@ -192,14 +192,22 @@ try {
     Assert-Condition `
         -Condition (-not [string]::IsNullOrWhiteSpace([string]$summary.execution_plan.default_action.projection_headline)) `
         -Message "plan default action must expose projection_headline"
+    Assert-Condition `
+        -Condition (@($summary.execution_plan.default_action.projection_summary_lines).Count -gt 0) `
+        -Message "plan default action must expose projection_summary_lines"
+    Assert-Condition `
+        -Condition (@($summary.execution_plan.default_action.projection_question_lines).Count -gt 0) `
+        -Message "plan default action must expose projection_question_lines"
     Write-Host (
-        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions={0} default={1} compare={2} next={3} omitted={4} reason={5}" -f
+        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions={0} default={1} compare={2} next={3} omitted={4} reason={5} projection_summary={6} projection_questions={7}" -f
         [int]$summary.planner_status.planned_action_count,
         [string]$summary.planner_status.default_action_name,
         [string]$summary.planner_status.compare_action_name,
         [int]$summary.planner_status.next_action_count,
         [int]$summary.planner_status.omitted_entry_count,
-        [string]$summary.execution_plan.default_action.opening_reason.kind
+        [string]$summary.execution_plan.default_action.opening_reason.kind,
+        @($summary.execution_plan.default_action.projection_summary_lines).Count,
+        @($summary.execution_plan.default_action.projection_question_lines).Count
     )
 } finally {
     Pop-Location

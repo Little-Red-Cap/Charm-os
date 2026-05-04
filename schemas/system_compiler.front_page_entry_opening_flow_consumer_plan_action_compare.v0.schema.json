@@ -422,6 +422,8 @@
         "opener_changed",
         "opening_reason_changed",
         "projection_headline_changed",
+        "projection_summary_changed",
+        "projection_questions_changed",
         "reason_changed",
         "operation_changed",
         "lost_compare_context",
@@ -459,6 +461,12 @@
           "type": "boolean"
         },
         "projection_headline_changed": {
+          "type": "boolean"
+        },
+        "projection_summary_changed": {
+          "type": "boolean"
+        },
+        "projection_questions_changed": {
           "type": "boolean"
         },
         "reason_changed": {

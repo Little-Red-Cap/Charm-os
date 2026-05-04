@@ -97,10 +97,11 @@ The workspace compare smoke output root is:
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-compare-smoke
 ```
 
-The compare witness also treats opening reason and projection headline drift as
-first-class preview drift. This keeps the final explain-open action compare in
-sync with the consumer-facing preview surface while still preserving the
-structured `opening_reason` compare object for machine consumers.
+The compare witness also treats opening reason and projection preview drift as
+first-class drift. The preview drift covers headline, summary lines, and
+question lines. This keeps the final explain-open action compare in sync with
+the consumer-facing preview surface while still preserving the structured
+`opening_reason` compare object for machine consumers.
 
 ## What the action facade records
 
@@ -116,14 +117,14 @@ The current summary records:
   - default and compare action ids/names
 - `selected_action`
   - the original plan action copied without recomputing policy
-  - structured `opening_reason` and `projection_headline` from the selected plan action
+  - structured `opening_reason` and projection headline / summary / question lines from the selected plan action
 - `open_action`
   - the normalized action a consumer should execute now
-  - the same `opening_reason`, `projection_headline`, and consumer-facing reason string
+  - the same `opening_reason`, projection preview lines, and consumer-facing reason string
 - `opening_preview`
   - one small UI/tool-facing preview surface for the selected action
-  - carries entry name, opening reason, projection kind, headline, opener paths,
-    and preview blockers
+  - carries entry name, opening reason, projection kind, headline, summary
+    lines, question lines, opener paths, and preview blockers
 - `opener_surface`
   - the selected opener summary/report/check surface
 - `execution_receipt`
@@ -160,7 +161,9 @@ It either follows the plan default or follows the explicit consumer request.
 For a runtime-session-only plan, the default action should select
 `entry_name=runtime-session-sample`, keep `action_id=open-default`, and expose
 `projection_kind=kernel_runtime_session_overview` with
-`expected_consumer_operation=open-opener-summary`.
+`expected_consumer_operation=open-opener-summary`. It should also preserve the
+runtime-session projection summary and question lines all the way into
+`opening_preview`.
 
 ## Manual example
 
@@ -267,22 +270,23 @@ Expected smoke shape:
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=default selector=default_action action=open-default kind=default entry=root-witness query=default_overview/artifact_root reason=delivery_biography
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=compare-neighbor selector=action_kind:compare-neighbor action=open-compare-neighbor kind=compare-neighbor entry=root-witness-to-root-world-compare query=default_overview/artifact_root reason=counterfactual_verdict
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=action-self-standing verdict=standing changed=0
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=28
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=30
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-self-standing verdict=standing changed=0
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-default-to-compare-neighbor verdict=drifted changed=28
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-default-to-compare-neighbor verdict=drifted changed=30
 ```
 
 Expected narrow runtime-session shape:
 
 ```text
-[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id=open-default entry=runtime-session-sample projection=kernel_runtime_session_overview
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id=open-default entry=runtime-session-sample projection=kernel_runtime_session_overview projection_summary=12 projection_questions=2
 ```
 
 Expected narrow runtime-session compare shape:
 
 ```text
-[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case=action-self-standing verdict=standing changed=0 selection_changed=False open_action_changed=False receipt_changed=False
-[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case=default-selector-to-entry-selector verdict=drifted changed=3 selection_changed=True open_action_changed=False receipt_changed=True
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case=action-self-standing verdict=standing changed=0 selection_changed=False open_action_changed=False receipt_changed=False projection_summary_changed=False projection_questions_changed=False
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case=default-selector-to-entry-selector verdict=drifted changed=3 selection_changed=True open_action_changed=False receipt_changed=True projection_summary_changed=False projection_questions_changed=False
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case=projection-preview-drift verdict=drifted changed=2 selection_changed=False open_action_changed=True receipt_changed=False projection_summary_changed=True projection_questions_changed=True
 ```
 
 ## Why this matters
@@ -301,6 +305,8 @@ That gives a future explain surface a tiny contract:
 - consume one action summary
 - open its `opener_surface.summary_path`
 - show its `open_action`, `opening_preview`, and `execution_receipt`
+- use `opening_preview.summary_lines` and `opening_preview.question_lines` as
+  the first diagnostic rationale for why this opener was selected
 - do not reconstruct selector or plan policy from raw JSON
 
 This is one more step toward a system that can explain how it should be opened,

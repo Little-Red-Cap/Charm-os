@@ -95,6 +95,21 @@ function Load-JsonObject {
     return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
 }
 
+function Write-JsonObject {
+    param(
+        [string]$Path,
+        $Value
+    )
+
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent)) {
+        Ensure-Directory -Path $parent
+    }
+
+    $json = $Value | ConvertTo-Json -Depth 100
+    [System.IO.File]::WriteAllText($Path, $json + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
+}
+
 function Assert-Condition {
     param(
         [bool]$Condition,
@@ -146,11 +161,14 @@ Push-Location $repoRoot
 try {
     $actionChainRoot = Join-Path $outputRootPath "action-chain"
     $entrySelectedActionRoot = Join-Path $outputRootPath "entry-selected-action"
+    $projectionPreviewDriftActionRoot = Join-Path $outputRootPath "projection-preview-drift-action"
     $selfCompareRoot = Join-Path $outputRootPath "action-self-standing"
     $selectorCompareRoot = Join-Path $outputRootPath "default-selector-to-entry-selector"
+    $projectionPreviewCompareRoot = Join-Path $outputRootPath "projection-preview-drift"
     $planSummaryPath = Join-Path $actionChainRoot "plan\front-page.entry-opening-flow.consumer.plan.summary.json"
     $defaultActionPath = Join-Path $actionChainRoot "action\front-page.entry-opening-flow.consumer.plan-action.summary.json"
     $entrySelectedActionPath = Join-Path $entrySelectedActionRoot "front-page.entry-opening-flow.consumer.plan-action.summary.json"
+    $projectionPreviewDriftActionPath = Join-Path $projectionPreviewDriftActionRoot "front-page.entry-opening-flow.consumer.plan-action.summary.json"
 
     $chainArgs = @(
         "-NoProfile",
@@ -192,6 +210,31 @@ try {
         -ArgumentList @($actionValidateScript, "--summary", $entrySelectedActionPath) `
         -FailureMessage "runtime session entry-selected plan action sample validation failed"
 
+    Ensure-Directory -Path $projectionPreviewDriftActionRoot
+    $projectionPreviewDriftReportPath = Join-Path $projectionPreviewDriftActionRoot "front-page.entry-opening-flow.consumer.plan-action.report.md"
+    $projectionPreviewDriftCheckPath = Join-Path $projectionPreviewDriftActionRoot "front-page.entry-opening-flow.consumer.plan-action.check.txt"
+    $defaultActionSummary = Load-JsonObject -Path $defaultActionPath
+    Copy-Item -LiteralPath ([string]$defaultActionSummary.artifact_context.report_markdown_path) -Destination $projectionPreviewDriftReportPath -Force
+    Copy-Item -LiteralPath ([string]$defaultActionSummary.artifact_context.check_text_path) -Destination $projectionPreviewDriftCheckPath -Force
+
+    $syntheticSummaryLines = [string[]]@($defaultActionSummary.open_action.projection_summary_lines | ForEach-Object { [string]$_ })
+    $syntheticQuestionLines = [string[]]@($defaultActionSummary.open_action.projection_question_lines | ForEach-Object { [string]$_ })
+    $syntheticSummaryLines += "synthetic preview summary drift"
+    $syntheticQuestionLines += "synthetic preview question drift"
+    $defaultActionSummary.artifact_context.action_summary_path = $projectionPreviewDriftActionPath
+    $defaultActionSummary.artifact_context.report_markdown_path = $projectionPreviewDriftReportPath
+    $defaultActionSummary.artifact_context.check_text_path = $projectionPreviewDriftCheckPath
+    $defaultActionSummary.front_page.summary_path = $projectionPreviewDriftActionPath
+    $defaultActionSummary.front_page.report_markdown_path = $projectionPreviewDriftReportPath
+    $defaultActionSummary.front_page.check_text_path = $projectionPreviewDriftCheckPath
+    $defaultActionSummary.selected_action.projection_summary_lines = $syntheticSummaryLines
+    $defaultActionSummary.selected_action.projection_question_lines = $syntheticQuestionLines
+    $defaultActionSummary.open_action.projection_summary_lines = $syntheticSummaryLines
+    $defaultActionSummary.open_action.projection_question_lines = $syntheticQuestionLines
+    $defaultActionSummary.opening_preview.summary_lines = $syntheticSummaryLines
+    $defaultActionSummary.opening_preview.question_lines = $syntheticQuestionLines
+    Write-JsonObject -Path $projectionPreviewDriftActionPath -Value $defaultActionSummary
+
     $cases = @(
         [ordered]@{
             Name = "action-self-standing"
@@ -214,6 +257,19 @@ try {
             ExpectedSelectionChanged = $true
             ExpectedReceiptChanged = $true
             ExpectedOpenActionChanged = $false
+            ExpectedProjectionPreviewChanged = $false
+        },
+        [ordered]@{
+            Name = "projection-preview-drift"
+            Baseline = $defaultActionPath
+            Candidate = $projectionPreviewDriftActionPath
+            OutputRoot = $projectionPreviewCompareRoot
+            ExpectedVerdict = "drifted"
+            ExpectedChangedFields = 2
+            ExpectedSelectionChanged = $false
+            ExpectedReceiptChanged = $false
+            ExpectedOpenActionChanged = $true
+            ExpectedProjectionPreviewChanged = $true
         }
     )
 
@@ -254,6 +310,12 @@ try {
             -Condition ([bool]$compareSummary.execution_receipt_changes.changed -eq [bool]$case.ExpectedReceiptChanged) `
             -Message ("case '{0}' execution receipt changed expectation mismatch" -f $case.Name)
         Assert-Condition `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_summary_changed -eq [bool]$case.ExpectedProjectionPreviewChanged) `
+            -Message ("case '{0}' projection summary changed expectation mismatch" -f $case.Name)
+        Assert-Condition `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_questions_changed -eq [bool]$case.ExpectedProjectionPreviewChanged) `
+            -Message ("case '{0}' projection questions changed expectation mismatch" -f $case.Name)
+        Assert-Condition `
             -Condition (-not [bool]$compareSummary.action_regression_surface.action_id_changed) `
             -Message ("case '{0}' should not change action id" -f $case.Name)
         Assert-Condition `
@@ -273,13 +335,15 @@ try {
             -Message ("case '{0}' should not change projection headline" -f $case.Name)
 
         Write-Host (
-            "[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case={0} verdict={1} changed={2} selection_changed={3} open_action_changed={4} receipt_changed={5}" -f
+            "[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case={0} verdict={1} changed={2} selection_changed={3} open_action_changed={4} receipt_changed={5} projection_summary_changed={6} projection_questions_changed={7}" -f
             $case.Name,
             [string]$compareSummary.action_verdict,
             [int]$compareSummary.change_summary.changed_field_count,
             [bool]$compareSummary.selection_changes.changed,
             [bool]$compareSummary.open_action_changes.changed,
-            [bool]$compareSummary.execution_receipt_changes.changed
+            [bool]$compareSummary.execution_receipt_changes.changed,
+            [bool]$compareSummary.action_regression_surface.projection_summary_changed,
+            [bool]$compareSummary.action_regression_surface.projection_questions_changed
         )
     }
 

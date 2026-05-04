@@ -29,6 +29,10 @@ def get_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def string_list(value: Any) -> list[str]:
+    return [choose_text(item) for item in get_list(value) if choose_text(item)]
+
+
 def load_selector_summary(path: Path) -> dict[str, Any]:
     summary = load_json(path)
     if choose_text(summary.get("schema")) != SELECTOR_SCHEMA:
@@ -86,6 +90,8 @@ def build_action(
             ("projection_kind", choose_text(entry.get("projection_kind"))),
             ("opening_reason", get_mapping(entry.get("opening_reason"))),
             ("projection_headline", choose_text(entry.get("projection_headline"))),
+            ("projection_summary_lines", string_list(entry.get("projection_summary_lines"))),
+            ("projection_question_lines", string_list(entry.get("projection_question_lines"))),
             ("compare_context_available", bool(entry.get("compare_context_available"))),
             ("landing_verdict", choose_text(entry.get("landing_verdict"))),
             ("inspector_ready", bool(entry.get("inspector_ready"))),
@@ -406,6 +412,12 @@ def build_report(summary: dict[str, Any]) -> str:
             "  reason=`{0}` headline={1}".format(
                 get_mapping(action.get("opening_reason")).get("kind", ""),
                 action.get("projection_headline", "") or "none",
+            )
+        )
+        lines.append(
+            "  projection_lines: summary=`{0}` questions=`{1}`".format(
+                len(get_list(action.get("projection_summary_lines"))),
+                len(get_list(action.get("projection_question_lines"))),
             )
         )
         lines.append(f"  opener: `{action['opener_summary_path']}`")

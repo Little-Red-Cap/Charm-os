@@ -221,6 +221,12 @@ try {
     Assert-Condition `
         -Condition ([string]$planSummary.execution_plan.default_action.projection_kind -eq "kernel_runtime_session_overview") `
         -Message ("expected plan projection kernel_runtime_session_overview but got '{0}'" -f $planSummary.execution_plan.default_action.projection_kind)
+    Assert-Condition `
+        -Condition (@($planSummary.execution_plan.default_action.projection_summary_lines).Count -gt 0) `
+        -Message "expected plan default action to carry runtime-session projection summary lines"
+    Assert-Condition `
+        -Condition (@($planSummary.execution_plan.default_action.projection_question_lines).Count -gt 0) `
+        -Message "expected plan default action to carry runtime-session projection question lines"
 
     $actionSummary = Load-JsonObject -Path $actionSummaryPath
     Assert-Condition `
@@ -241,15 +247,29 @@ try {
     Assert-Condition `
         -Condition ([string]$actionSummary.open_action.expected_consumer_operation -eq "open-opener-summary") `
         -Message ("expected action operation open-opener-summary but got '{0}'" -f $actionSummary.open_action.expected_consumer_operation)
+    Assert-Condition `
+        -Condition (@($actionSummary.open_action.projection_summary_lines).Count -gt 0) `
+        -Message "expected action to carry runtime-session projection summary lines"
+    Assert-Condition `
+        -Condition (@($actionSummary.open_action.projection_question_lines).Count -gt 0) `
+        -Message "expected action to carry runtime-session projection question lines"
+    Assert-Condition `
+        -Condition (@($actionSummary.opening_preview.summary_lines).Count -eq @($actionSummary.open_action.projection_summary_lines).Count) `
+        -Message "expected action opening preview summary lines to mirror open action projection summary lines"
+    Assert-Condition `
+        -Condition (@($actionSummary.opening_preview.question_lines).Count -eq @($actionSummary.open_action.projection_question_lines).Count) `
+        -Message "expected action opening preview question lines to mirror open action projection question lines"
 
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] selector={0}" -f $selectorSummaryPath)
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] plan={0}" -f $planSummaryPath)
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action={0}" -f $actionSummaryPath)
     Write-Host (
-        "[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id={0} entry={1} projection={2}" -f
+        "[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id={0} entry={1} projection={2} projection_summary={3} projection_questions={4}" -f
         [string]$actionSummary.open_action.action_id,
         [string]$actionSummary.open_action.entry_name,
-        [string]$actionSummary.open_action.projection_kind
+        [string]$actionSummary.open_action.projection_kind,
+        @($actionSummary.open_action.projection_summary_lines).Count,
+        @($actionSummary.open_action.projection_question_lines).Count
     )
     Write-Host "ok=1"
 } finally {

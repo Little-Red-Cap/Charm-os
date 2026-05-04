@@ -55,6 +55,14 @@ def normalize_opening_reason(value: Any) -> OrderedDict[str, Any]:
     )
 
 
+def has_projection_preview(action: dict[str, Any]) -> bool:
+    return bool(
+        choose_text(action.get("projection_headline"))
+        or string_list(action.get("projection_summary_lines"))
+        or string_list(action.get("projection_question_lines"))
+    )
+
+
 def make_surface(
     surface_id: str,
     label: str,
@@ -96,6 +104,8 @@ def normalize_plan_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("projection_kind", choose_text(action.get("projection_kind"))),
             ("opening_reason", normalize_opening_reason(action.get("opening_reason"))),
             ("projection_headline", choose_text(action.get("projection_headline"))),
+            ("projection_summary_lines", string_list(action.get("projection_summary_lines"))),
+            ("projection_question_lines", string_list(action.get("projection_question_lines"))),
             ("compare_context_available", bool(action.get("compare_context_available"))),
             ("landing_verdict", choose_text(action.get("landing_verdict"))),
             ("inspector_ready", bool(action.get("inspector_ready"))),
@@ -236,6 +246,8 @@ def build_open_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("projection_kind", choose_text(action.get("projection_kind"))),
             ("opening_reason", normalize_opening_reason(action.get("opening_reason"))),
             ("projection_headline", choose_text(action.get("projection_headline"))),
+            ("projection_summary_lines", string_list(action.get("projection_summary_lines"))),
+            ("projection_question_lines", string_list(action.get("projection_question_lines"))),
             ("compare_context_available", bool(action.get("compare_context_available"))),
             ("landing_verdict", choose_text(action.get("landing_verdict"))),
             ("opener_summary_path", normalize_optional_path(action.get("opener_summary_path"))),
@@ -249,19 +261,20 @@ def build_open_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
 
 
 def build_opening_preview(action: dict[str, Any]) -> OrderedDict[str, Any]:
+    available = has_projection_preview(action)
     return OrderedDict(
         [
-            ("available", bool(choose_text(action.get("projection_headline")))),
+            ("available", available),
             ("entry_name", choose_text(action.get("entry_name"))),
             ("opening_reason", normalize_opening_reason(action.get("opening_reason"))),
             ("projection_kind", choose_text(action.get("projection_kind"))),
             ("headline", choose_text(action.get("projection_headline"))),
-            ("summary_lines", []),
-            ("question_lines", []),
+            ("summary_lines", string_list(action.get("projection_summary_lines"))),
+            ("question_lines", string_list(action.get("projection_question_lines"))),
             ("opener_summary_path", normalize_optional_path(action.get("opener_summary_path"))),
             ("opener_report_markdown_path", normalize_optional_path(action.get("opener_report_markdown_path"))),
             ("opener_check_text_path", normalize_optional_path(action.get("opener_check_text_path"))),
-            ("blockers", [] if choose_text(action.get("projection_headline")) else ["selected action has no projection headline"]),
+            ("blockers", [] if available else ["selected action has no projection preview"]),
         ]
     )
 
@@ -444,6 +457,10 @@ def build_report(summary: dict[str, Any]) -> str:
             get_mapping(open_action.get("opening_reason")).get("kind", ""),
             open_action["projection_headline"] or "none",
         ),
+        "- projection lines: summary=`{0}` questions=`{1}`".format(
+            len(get_list(open_action.get("projection_summary_lines"))),
+            len(get_list(open_action.get("projection_question_lines"))),
+        ),
         f"- reason: {open_action['reason']}",
         "",
         "## Opening Preview",
@@ -453,6 +470,10 @@ def build_report(summary: dict[str, Any]) -> str:
             opening_preview["opening_reason"]["kind"],
         ),
         f"- headline: {opening_preview['headline'] or 'none'}",
+        "- lines: summary=`{0}` questions=`{1}`".format(
+            len(get_list(opening_preview.get("summary_lines"))),
+            len(get_list(opening_preview.get("question_lines"))),
+        ),
         "",
         "## Execution Receipt",
         "- operation=`{0}` selected_rank=`{1}` source_rank=`{2}` inspector_ready=`{3}` inspector_mode=`{4}`".format(
@@ -495,6 +516,8 @@ def build_check(summary: dict[str, Any]) -> str:
             f"projection_kind: {open_action['projection_kind']}",
             f"opening_reason_kind: {get_mapping(open_action.get('opening_reason')).get('kind', '')}",
             f"projection_headline: {open_action['projection_headline']}",
+            f"projection_summary_line_count: {len(get_list(open_action.get('projection_summary_lines')))}",
+            f"projection_question_line_count: {len(get_list(open_action.get('projection_question_lines')))}",
             f"opener_summary_path: {open_action['opener_summary_path']}",
             f"consumer_operation: {receipt['consumer_operation']}",
             f"inspector_ready: {receipt['inspector_ready']}",

@@ -288,6 +288,8 @@
         "projection_kind",
         "opening_reason",
         "projection_headline",
+        "projection_summary_lines",
+        "projection_question_lines",
         "compare_context_available",
         "landing_verdict",
         "inspector_ready",
@@ -359,6 +361,12 @@
         },
         "projection_headline": {
           "type": "string"
+        },
+        "projection_summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "projection_question_lines": {
+          "$ref": "#/$defs/stringArray"
         },
         "compare_context_available": {
           "type": "boolean"
@@ -449,6 +457,8 @@
         "projection_kind",
         "opening_reason",
         "projection_headline",
+        "projection_summary_lines",
+        "projection_question_lines",
         "compare_context_available",
         "landing_verdict",
         "opener_summary_path",
@@ -512,6 +522,12 @@
         },
         "projection_headline": {
           "type": "string"
+        },
+        "projection_summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "projection_question_lines": {
+          "$ref": "#/$defs/stringArray"
         },
         "compare_context_available": {
           "type": "boolean"

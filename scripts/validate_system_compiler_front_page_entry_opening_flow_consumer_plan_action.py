@@ -89,6 +89,8 @@ def validate_action_consistency(summary: dict, errors: list[str]) -> None:
         "projection_kind",
         "opening_reason",
         "projection_headline",
+        "projection_summary_lines",
+        "projection_question_lines",
         "compare_context_available",
         "landing_verdict",
         "opener_summary_path",
@@ -127,6 +129,18 @@ def validate_action_consistency(summary: dict, errors: list[str]) -> None:
         opening_preview.get("headline"),
         open_action.get("projection_headline"),
         "opening_preview.headline",
+        errors,
+    )
+    expect_equal(
+        opening_preview.get("summary_lines"),
+        open_action.get("projection_summary_lines"),
+        "opening_preview.summary_lines",
+        errors,
+    )
+    expect_equal(
+        opening_preview.get("question_lines"),
+        open_action.get("projection_question_lines"),
+        "opening_preview.question_lines",
         errors,
     )
     expect_equal(

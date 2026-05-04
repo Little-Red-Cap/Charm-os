@@ -190,6 +190,14 @@ def normalize_action_summary(action_summary: dict[str, Any]) -> OrderedDict[str,
             ("opening_reason", normalize_opening_reason_for_compare(open_action.get("opening_reason"), plan_root)),
             ("opening_reason_kind", choose_text(get_mapping(open_action.get("opening_reason")).get("kind"))),
             ("projection_headline", choose_text(open_action.get("projection_headline"))),
+            (
+                "projection_summary_lines",
+                ordered_unique([choose_text(item) for item in get_list(open_action.get("projection_summary_lines"))]),
+            ),
+            (
+                "projection_question_lines",
+                ordered_unique([choose_text(item) for item in get_list(open_action.get("projection_question_lines"))]),
+            ),
             ("reason", choose_text(open_action.get("reason"))),
             ("compare_context_available", bool(open_action.get("compare_context_available"))),
             ("landing_verdict", choose_text(open_action.get("landing_verdict"))),
@@ -312,8 +320,14 @@ def build_regression_surface(
     opener_changed = bool(open_action_changes.get("opener_summary_compare_path", {}).get("changed"))
     opening_reason_changed = bool(open_action_changes.get("opening_reason_kind", {}).get("changed"))
     projection_headline_changed = bool(open_action_changes.get("projection_headline", {}).get("changed"))
+    projection_summary_changed = bool(open_action_changes.get("projection_summary_lines", {}).get("changed"))
+    projection_questions_changed = bool(open_action_changes.get("projection_question_lines", {}).get("changed"))
     reason_changed = bool(open_action_changes.get("opening_reason", {}).get("changed")) or bool(
         open_action_changes.get("projection_headline", {}).get("changed")
+    ) or bool(
+        open_action_changes.get("projection_summary_lines", {}).get("changed")
+    ) or bool(
+        open_action_changes.get("projection_question_lines", {}).get("changed")
     )
     operation_changed = bool(open_action_changes.get("expected_consumer_operation", {}).get("changed")) or bool(
         receipt_changes.get("consumer_operation", {}).get("changed")
@@ -345,6 +359,10 @@ def build_regression_surface(
         narratives.append(
             f"projection headline changed: {baseline['projection_headline']} -> {candidate['projection_headline']}"
         )
+    if projection_summary_changed:
+        narratives.append("projection summary lines changed")
+    if projection_questions_changed:
+        narratives.append("projection question lines changed")
     if operation_changed:
         narratives.append("consumer operation changed")
     if lost_compare_context:
@@ -366,6 +384,8 @@ def build_regression_surface(
         or opener_changed
         or opening_reason_changed
         or projection_headline_changed
+        or projection_summary_changed
+        or projection_questions_changed
         or reason_changed
         or operation_changed
         or lost_compare_context
@@ -385,6 +405,8 @@ def build_regression_surface(
             ("opener_changed", opener_changed),
             ("opening_reason_changed", opening_reason_changed),
             ("projection_headline_changed", projection_headline_changed),
+            ("projection_summary_changed", projection_summary_changed),
+            ("projection_questions_changed", projection_questions_changed),
             ("reason_changed", reason_changed),
             ("operation_changed", operation_changed),
             ("lost_compare_context", lost_compare_context),
@@ -442,6 +464,10 @@ def build_questions(action_verdict: str, regression_surface: dict[str, Any]) -> 
         next_questions.append("Should opening-reason drift change the consumer's first explain surface?")
     if bool(regression_surface.get("projection_headline_changed")):
         next_questions.append("Should projection-headline drift trigger a preview-level review?")
+    if bool(regression_surface.get("projection_summary_changed")):
+        next_questions.append("Should projection-summary drift trigger a preview-level review?")
+    if bool(regression_surface.get("projection_questions_changed")):
+        next_questions.append("Should projection-question drift change the consumer's first diagnostic prompts?")
     if bool(regression_surface.get("target_changed")):
         next_questions.append("Should target drift trigger a deeper front-page route compare?")
     if not next_questions:
@@ -494,6 +520,8 @@ def build_compare_summary_model(
             "opening_reason",
             "opening_reason_kind",
             "projection_headline",
+            "projection_summary_lines",
+            "projection_question_lines",
             "reason",
             "compare_context_available",
             "landing_verdict",
@@ -703,6 +731,8 @@ def build_check(summary: dict[str, Any]) -> str:
             f"target_changed: {regression_surface['target_changed']}",
             f"opening_reason_changed: {regression_surface['opening_reason_changed']}",
             f"projection_headline_changed: {regression_surface['projection_headline_changed']}",
+            f"projection_summary_changed: {regression_surface['projection_summary_changed']}",
+            f"projection_questions_changed: {regression_surface['projection_questions_changed']}",
         ]
     ) + "\n"
 

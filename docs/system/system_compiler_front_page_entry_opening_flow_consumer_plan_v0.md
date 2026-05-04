@@ -112,7 +112,7 @@ Each action keeps:
 - selected tab, role, query kind, and query scope
 - target summary schema / kind / path
 - projection kind and compare-context flag
-- opening reason and projection headline
+- opening reason and projection headline / summary / question lines
 - opener summary / report / check paths
 - inspector readiness and blockers
 
@@ -183,13 +183,13 @@ python ./scripts/validate_system_compiler_front_page_entry_opening_flow_consumer
 Expected smoke shape:
 
 ```text
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions=5 default=root-witness compare=root-witness-to-root-world-compare next=3 omitted=5 reason=delivery_biography
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions=5 default=root-witness compare=root-witness-to-root-world-compare next=3 omitted=5 reason=delivery_biography projection_summary=3 projection_questions=2
 ```
 
 Expected narrow runtime-session shape:
 
 ```text
-[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id=open-default entry=runtime-session-sample projection=kernel_runtime_session_overview
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id=open-default entry=runtime-session-sample projection=kernel_runtime_session_overview projection_summary=12 projection_questions=2
 ```
 
 Run the single-action facade smoke:

@@ -99,7 +99,7 @@ $args = @(
 )
 
 $proc = Start-Process -FilePath $qemu -ArgumentList $args `
-    -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru
+    -RedirectStandardOutput $outFile -RedirectStandardError $errFile -WindowStyle Hidden -PassThru
 
 $expected = @(
     "Charm ARMv7-A QEMU skeleton",

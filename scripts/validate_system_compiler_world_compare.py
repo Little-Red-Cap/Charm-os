@@ -49,6 +49,15 @@ def validate_references(summary: dict):
         for ref_index, artifact_ref in enumerate(entry.get("artifact_refs_removed", [])):
             ensure_exists(artifact_ref, f"witness_changes[{index}].artifact_refs_removed[{ref_index}]", errors)
 
+    session_drift = summary.get("session_drift", {})
+    if isinstance(session_drift, dict):
+        if session_drift.get("changed") and not session_drift.get("fact_changes"):
+            errors.append("session_drift.fact_changes: changed session drift must explain at least one fact")
+        if session_drift.get("changed") and not session_drift.get("narratives"):
+            errors.append("session_drift.narratives: changed session drift must carry at least one narrative")
+        if session_drift.get("drift_domains") and not session_drift.get("present"):
+            errors.append("session_drift.present: drift domains require a session witness on at least one side")
+
     return errors
 
 

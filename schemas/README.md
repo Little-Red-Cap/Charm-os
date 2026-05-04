@@ -130,6 +130,8 @@
   - 对应 `docs/system/world_compare_v0.md` 与 `scripts/compare_system_compiler_world.py`
   - 用途偏向把 baseline / candidate witness bundle 提升成一个世界级 drift / collapse verdict 对象
   - 它当前关注的是“世界是否还站住、哪条 witness 先坏、最小塌陷面落在哪”，而不是替代下层 case compare
+  - 它现在也导出 `session_drift`，用于把 `kernel_runtime_session` witness 的漂移投影到
+    `semantic / machine / runtime / handoff / verdict / source` 等解释域
 
 - `examples/system_compiler.world_compare.v0.sample.json`
   - 对应 `system_compiler.world_compare/v0` 的最小样例
@@ -419,7 +421,7 @@
 - `system_compiler.canonical_world/v0`：当前“一个世界想证明什么、依赖哪些 witness / contracts”的声明对象锚点
 - `system_compiler.witness_bundle/v0`：当前“这次交付拿什么作证”的交付对象锚点
 - `minimal_kernel.kernel_runtime_session/v0`：当前“host 语义证据与 ARMv7-A QEMU 机器证据共同证明哪一个 runtime session”的对象锚点
-- `system_compiler.world_compare/v0`：当前“这个世界相对基线还站不站得住”的 compare verdict 对象锚点
+- `system_compiler.world_compare/v0`：当前“这个世界相对基线还站不站得住、session 漂移落在哪个解释域”的 compare verdict 对象锚点
 - `system_compiler.biography/v0`：当前“如何把证据世界压成顶层交付封面并留下继续追问入口”的 biography 对象锚点
 - `system_compiler.biography_index/v0`：当前“如何把多个 biography 摆成一个可交付、可审阅的 world shelf”的 directory object 锚点
 - `system_compiler.biography_index_compare/v0`：当前“如何把两个 biography shelf 收成一个可验证、可门禁、可交付的 shelf compare verdict 对象”的锚点

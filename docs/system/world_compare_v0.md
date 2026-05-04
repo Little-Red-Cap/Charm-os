@@ -75,6 +75,7 @@
 - `contract_drift`
 - `witness_summary`
 - `witness_changes`
+- `session_drift`
 - `collapse_surface`
 - `questions`
 
@@ -136,6 +137,30 @@
 
 也就是说，`collapse_surface` 当前先不做完整自动根因分析，
 但已经能把“最小塌陷面”压到一个相对可行动的层级。
+
+### `session_drift`
+
+`session_drift` 是 `kernel_runtime_session` 进入 world compare 后的专用解释面。
+
+它仍然只消费 witness bundle 中的 `kernel_runtime_session` witness entry，
+不会直接读取 QEMU 日志、runtime evidence summary 或 session summary 原始文件。
+
+它回答：
+
+- session witness 是否存在
+- entry status 是否从 `ok / missing / fail / absent` 发生变化
+- `session_status` 是否仍为 `standing`
+- 漂移落在 `semantic / machine / runtime / handoff / verdict / source` 哪个 domain
+- 哪些 session fact 发生了变化
+
+这让 world compare 不只知道“某条 witness changed”，
+还可以进一步回答：
+
+> 如果 runtime session 漂了，漂的是 host 语义、机器入口、runtime loop、
+> handoff continuity，还是证据来源本身？
+
+v0 的边界仍然很克制：`session_drift` 是 witness entry observation 的结构化投影，
+不是完整 runtime 根因分析器。
 
 ## 当前推荐工作流
 

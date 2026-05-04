@@ -1,7 +1,7 @@
 {
   "schema": "system_compiler.world_compare/v0",
   "kind": "system_compiler.world_compare",
-  "generated_at_utc": "2026-04-26T11:10:00Z",
+  "generated_at_utc": "2026-05-04T12:35:47Z",
   "generator": "scripts/compare_system_compiler_world.py",
   "result": "ok",
   "world_verdict": "collapsed",
@@ -46,9 +46,9 @@
   "artifact_context": {
     "baseline_witness_bundle": "schemas/examples/system_compiler.witness_bundle.v0.sample.json",
     "candidate_witness_bundle": "schemas/examples/system_compiler.witness_bundle.v0.candidate_drift.sample.json",
-    "output_root": "out/system-compiler-world-compare-sample",
-    "report_markdown_path": "out/system-compiler-world-compare-sample/report.md",
-    "check_text_path": "out/system-compiler-world-compare-sample/check.txt"
+    "output_root": "schemas/examples",
+    "report_markdown_path": "docs/system/world_compare_v0.md",
+    "check_text_path": "docs/system/world_compare_v0.md"
   },
   "bundle_status": {
     "baseline_result": "ok",
@@ -62,11 +62,14 @@
   },
   "world_changes": {
     "changed": true,
-    "summary_changed": false,
+    "summary_changed": true,
     "subject_changes": [],
     "first_class_term_changes": {
       "added": [],
-      "removed": []
+      "removed": [
+        "session",
+        "ingress"
+      ]
     },
     "core_question_changes": {
       "added": [],
@@ -84,7 +87,9 @@
     },
     "witness_plan_changes": {
       "added": [],
-      "removed": []
+      "removed": [
+        "kernel_runtime_session"
+      ]
     }
   },
   "contract_drift": {
@@ -101,16 +106,16 @@
     }
   },
   "witness_summary": {
-    "baseline_entry_count": 3,
+    "baseline_entry_count": 4,
     "candidate_entry_count": 3,
-    "changed_entry_count": 1,
+    "changed_entry_count": 2,
     "added_entry_count": 0,
-    "removed_entry_count": 0,
+    "removed_entry_count": 1,
     "unchanged_entry_count": 2,
-    "regression_count": 1,
+    "regression_count": 2,
     "improvement_count": 0,
     "neutral_change_count": 0,
-    "required_regression_count": 1
+    "required_regression_count": 2
   },
   "witness_changes": [
     {
@@ -138,20 +143,152 @@
       ],
       "observations_removed": [
         "result=ok",
-        "qemu=ok:3 fail:0 other:0"
+        "qemu_cases=4/4",
+        "qemu=ok:4 fail:0 other:0"
       ],
       "artifact_refs_added": [],
       "artifact_refs_removed": [],
       "metadata_changes": []
+    },
+    {
+      "id": "kernel_runtime_session",
+      "change_kind": "removed",
+      "impact": "regression",
+      "required": true,
+      "kind": "kernel_runtime_session",
+      "label": "kernel-runtime-session",
+      "layer": "bundle",
+      "role": "shared runtime session object",
+      "witness_focus": [
+        "session",
+        "runtime",
+        "ingress",
+        "continuity"
+      ],
+      "left_status": "ok",
+      "right_status": "absent",
+      "left_source_path": "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json",
+      "right_source_path": null,
+      "subject_changes": [
+        "case:minimal_kernel_runtime.armv7a_qemu.debug->None",
+        "profile:debug->None",
+        "board:armv7a_qemu->None",
+        "active_facets:+[] -[session, runtime, ingress, continuity]"
+      ],
+      "observations_added": [],
+      "observations_removed": [
+        "session_status=standing",
+        "semantic_host=True",
+        "machine_qemu=True",
+        "trap_ingress=True",
+        "runtime_loop=True",
+        "handoff_continuity=True"
+      ],
+      "artifact_refs_added": [],
+      "artifact_refs_removed": [
+        "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json"
+      ],
+      "metadata_changes": [
+        "kind:kernel_runtime_session->None",
+        "label:kernel-runtime-session->None",
+        "role:shared runtime session object->None",
+        "layer:bundle->None",
+        "witness_focus:+[] -[session, runtime, ingress, continuity]",
+        "source_path:schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json->None"
+      ]
     }
   ],
+  "session_drift": {
+    "present": true,
+    "changed": true,
+    "baseline_entry_status": "ok",
+    "candidate_entry_status": "absent",
+    "baseline_session_status": "standing",
+    "candidate_session_status": null,
+    "drift_domains": [
+      "source",
+      "verdict",
+      "semantic",
+      "machine",
+      "runtime",
+      "handoff"
+    ],
+    "fact_changes": [
+      {
+        "key": "entry_status",
+        "domain": "source",
+        "baseline": "ok",
+        "candidate": "absent",
+        "impact": "regression"
+      },
+      {
+        "key": "source_path",
+        "domain": "source",
+        "baseline": "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json",
+        "candidate": null,
+        "impact": "neutral"
+      },
+      {
+        "key": "session_status",
+        "domain": "verdict",
+        "baseline": "standing",
+        "candidate": null,
+        "impact": "regression"
+      },
+      {
+        "key": "semantic_host",
+        "domain": "semantic",
+        "baseline": "True",
+        "candidate": null,
+        "impact": "neutral"
+      },
+      {
+        "key": "machine_qemu",
+        "domain": "machine",
+        "baseline": "True",
+        "candidate": null,
+        "impact": "neutral"
+      },
+      {
+        "key": "trap_ingress",
+        "domain": "machine",
+        "baseline": "True",
+        "candidate": null,
+        "impact": "neutral"
+      },
+      {
+        "key": "runtime_loop",
+        "domain": "runtime",
+        "baseline": "True",
+        "candidate": null,
+        "impact": "neutral"
+      },
+      {
+        "key": "handoff_continuity",
+        "domain": "handoff",
+        "baseline": "True",
+        "candidate": null,
+        "impact": "neutral"
+      }
+    ],
+    "narratives": [
+      "kernel_runtime_session witness was removed from the candidate bundle",
+      "session `entry_status` changed `ok` -> `absent` in domain `source`",
+      "session `source_path` changed `schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json` -> `None` in domain `source`",
+      "session `session_status` changed `standing` -> `None` in domain `verdict`",
+      "session `semantic_host` changed `True` -> `None` in domain `semantic`",
+      "session `machine_qemu` changed `True` -> `None` in domain `machine`"
+    ]
+  },
   "collapse_surface": {
     "changed": true,
     "regressed_witnesses": [
-      "runtime_bundle_sample"
+      "runtime_bundle_sample",
+      "kernel_runtime_session"
     ],
     "required_regressed_witnesses": [
-      "runtime_bundle_sample"
+      "runtime_bundle_sample",
+      "kernel_runtime_session"
     ],
     "failing_candidate_witnesses": [
       "runtime_bundle_sample"
@@ -166,12 +303,25 @@
     "affected_focus": [
       "upper-half",
       "lower-half",
-      "bundle"
+      "bundle",
+      "session",
+      "runtime",
+      "ingress",
+      "continuity",
+      "source",
+      "verdict",
+      "semantic",
+      "machine",
+      "handoff"
     ],
     "narratives": [
       "witness `runtime_bundle_sample` regressed `ok` -> `fail` on layer `bundle`",
+      "witness `kernel_runtime_session` regressed `ok` -> `absent` on layer `bundle`",
       "candidate is missing contract ref `docs/system/minimal_kernel_trap_ingress_contract.md`",
-      "candidate witness bundle no longer stands as `ok`"
+      "candidate witness bundle no longer stands as `ok`",
+      "kernel_runtime_session witness was removed from the candidate bundle",
+      "session `entry_status` changed `ok` -> `absent` in domain `source`",
+      "session `source_path` changed `schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json` -> `None` in domain `source`"
     ]
   },
   "questions": {
@@ -182,7 +332,9 @@
     ],
     "next_questions": [
       "Why did witness `runtime_bundle_sample` regress from `ok` to `fail`?",
+      "Why did witness `kernel_runtime_session` regress from `ok` to `absent`?",
       "Which route should restore missing contract ref `docs/system/minimal_kernel_trap_ingress_contract.md`?",
+      "Does witness plan drift reflect a real semantic change, or only an evidence-routing move?",
       "How do we restore the smallest collapse surface across layers `bundle`?"
     ]
   },

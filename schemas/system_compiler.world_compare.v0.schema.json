@@ -18,6 +18,7 @@
     "contract_drift",
     "witness_summary",
     "witness_changes",
+    "session_drift",
     "collapse_surface",
     "questions",
     "violations"
@@ -74,6 +75,9 @@
       "items": {
         "$ref": "#/$defs/witnessChange"
       }
+    },
+    "session_drift": {
+      "$ref": "#/$defs/sessionDrift"
     },
     "collapse_surface": {
       "$ref": "#/$defs/collapseSurface"
@@ -485,6 +489,90 @@
           "$ref": "#/$defs/stringArray"
         },
         "metadata_changes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "sessionFactChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "domain",
+        "baseline",
+        "candidate",
+        "impact"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string",
+          "enum": [
+            "semantic",
+            "machine",
+            "runtime",
+            "handoff",
+            "verdict",
+            "source",
+            "session"
+          ]
+        },
+        "baseline": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "impact": {
+          "$ref": "#/$defs/witnessImpact"
+        }
+      }
+    },
+    "sessionDrift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "changed",
+        "baseline_entry_status",
+        "candidate_entry_status",
+        "baseline_session_status",
+        "candidate_session_status",
+        "drift_domains",
+        "fact_changes",
+        "narratives"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "baseline_entry_status": {
+          "$ref": "#/$defs/witnessEntryStatus"
+        },
+        "candidate_entry_status": {
+          "$ref": "#/$defs/witnessEntryStatus"
+        },
+        "baseline_session_status": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_session_status": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "drift_domains": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "fact_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sessionFactChange"
+          }
+        },
+        "narratives": {
           "$ref": "#/$defs/stringArray"
         }
       }

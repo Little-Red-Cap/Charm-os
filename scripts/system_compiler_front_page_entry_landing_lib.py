@@ -24,6 +24,7 @@ MODE_TO_CAPABILITY_ORDER = {
         "delivery_biography",
         "counterfactual_verdict",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "route_provenance",
     ],
@@ -31,6 +32,7 @@ MODE_TO_CAPABILITY_ORDER = {
         "counterfactual_verdict",
         "delivery_biography",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "shelf_compare",
         "candidate_shelf",
@@ -40,6 +42,7 @@ MODE_TO_CAPABILITY_ORDER = {
     "biography": [
         "delivery_biography",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "counterfactual_verdict",
         "shelf_compare",
@@ -49,6 +52,7 @@ MODE_TO_CAPABILITY_ORDER = {
     ],
     "evidence": [
         "supporting_evidence",
+        "runtime_session",
         "delivery_biography",
         "supporting_testimony",
         "counterfactual_verdict",
@@ -65,6 +69,7 @@ MODE_TO_CAPABILITY_ORDER = {
         "delivery_biography",
         "counterfactual_verdict",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
     ],
 }
@@ -77,6 +82,7 @@ CAPABILITY_LABELS = {
     "delivery_biography": "delivery biography",
     "counterfactual_verdict": "counterfactual verdict",
     "supporting_evidence": "supporting evidence",
+    "runtime_session": "runtime session",
     "supporting_testimony": "supporting testimony",
     "route_provenance": "route provenance",
 }
@@ -336,7 +342,7 @@ def build_query_hint(tab: dict[str, Any]) -> OrderedDict[str, Any]:
             "bringup_evidence",
         ]
         rationale = "Open the artifact_root overview first so shelf-style navigation can pivot into shared aggregate explain surfaces."
-    elif tab_id == "supporting_evidence":
+    elif tab_id in {"supporting_evidence", "runtime_session"}:
         scope = "report"
         selection_rule = "single_report"
         query_kind = "bringup_evidence"
@@ -421,6 +427,7 @@ def build_landing_status(
             ("direct_compare_available", "counterfactual_verdict" in available_tab_ids),
             ("direct_biography_available", "delivery_biography" in available_tab_ids),
             ("direct_evidence_available", "supporting_evidence" in available_tab_ids),
+            ("direct_runtime_session_available", "runtime_session" in available_tab_ids),
         ]
     )
 

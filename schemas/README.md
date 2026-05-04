@@ -182,6 +182,10 @@
     与 `scripts/validate_system_compiler_front_page_entry_capability.py`
   - 用途偏向把一份 `front_page route` 总结对象收成“这个入口已经具备哪些 explain 能力”的能力表，
     明确推荐默认 landing mode、能力 tier、首选入口与 provenance hints
+  - `minimal_kernel.kernel_runtime_session/v0` 会被命名为独立 `runtime_session` 能力；
+    它仍归入 evidence mode，但不再只藏在 generic supporting evidence 下面
+  - `scripts/system_compiler_front_page_entry_runtime_session_sample_smoke.ps1` 会用 witness bundle sample
+    守住 `kernel_runtime_session -> runtime_session capability -> runtime_session landing tab`
   - `provenance_hints` 会保留 route 暴露的来源类型；当来源是 `artifact_report_index` 时，
     它指向 artifact report root 的 first-read index，且不提供普通 front-page summary path
 
@@ -190,6 +194,8 @@
     与 `scripts/validate_system_compiler_front_page_entry_landing.py`
   - 用途偏向把一份 `front_page entry capability` 总结对象进一步收成更薄的 open-plan，
     明确 primary landing、secondary tabs、fallback mode order 与可展开 provenance roots
+  - landing status 会单独暴露 `direct_runtime_session_available`，让 reader / IDE 可以把
+    `runtime_session` 渲染成独立 evidence-oriented tab
   - `provenance_roots` 会保留 `root_kind`；当 root 是 `artifact_report_index` 时，
     它只是 discovery provenance，不是 `front_page.supporting_surfaces` traversal root
 

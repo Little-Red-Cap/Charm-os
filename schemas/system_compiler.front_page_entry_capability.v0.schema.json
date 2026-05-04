@@ -414,6 +414,7 @@
             "counterfactual_verdict",
             "delivery_biography",
             "supporting_evidence",
+            "runtime_session",
             "route"
           ]
         },
@@ -439,6 +440,7 @@
         "counterfactual_verdict",
         "grouped_review",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "shelf_compare",
         "candidate_shelf",
@@ -456,6 +458,9 @@
           "type": "boolean"
         },
         "supporting_evidence": {
+          "type": "boolean"
+        },
+        "runtime_session": {
           "type": "boolean"
         },
         "supporting_testimony": {
@@ -483,6 +488,7 @@
         "counterfactual_verdict",
         "grouped_review",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "shelf_compare",
         "candidate_shelf",
@@ -503,6 +509,10 @@
           "minimum": 0
         },
         "supporting_evidence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_session": {
           "type": "integer",
           "minimum": 0
         },
@@ -607,6 +617,7 @@
         "counterfactual_verdict",
         "grouped_review",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "shelf_compare",
         "candidate_shelf",
@@ -663,6 +674,22 @@
           ]
         },
         "supporting_evidence": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/entryRef"
+              }
+            }
+          ]
+        },
+        "runtime_session": {
           "type": [
             "object",
             "null"

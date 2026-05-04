@@ -277,7 +277,7 @@ try {
             SummaryPath = Join-Path $inputRootPath "root-witness\front-page.route.summary.json"
             ExpectedMode = "biography"
             ExpectedTier = "biography_ready"
-            RequiredCapabilities = @("delivery_biography", "supporting_evidence", "supporting_testimony")
+            RequiredCapabilities = @("delivery_biography", "supporting_evidence", "runtime_session", "supporting_testimony")
             ExpectedProvenanceCount = 0
             ExpectedOpeningReasonKinds = @("delivery_biography")
             ExpectedOpeningReasonDriftChanged = $false
@@ -288,7 +288,7 @@ try {
             SummaryPath = Join-Path $inputRootPath "root-world-compare\front-page.route.summary.json"
             ExpectedMode = "compare"
             ExpectedTier = "compare_ready"
-            RequiredCapabilities = @("delivery_biography", "counterfactual_verdict", "supporting_evidence")
+            RequiredCapabilities = @("delivery_biography", "counterfactual_verdict", "supporting_evidence", "runtime_session")
             ExpectedProvenanceCount = 0
             ExpectedOpeningReasonKinds = @("counterfactual_verdict")
             ExpectedOpeningReasonDriftChanged = $false
@@ -299,7 +299,7 @@ try {
             SummaryPath = Join-Path $inputRootPath "witness-ci-shelf\front-page.route.summary.json"
             ExpectedMode = "review"
             ExpectedTier = "review_ready"
-            RequiredCapabilities = @("grouped_review", "delivery_biography", "supporting_evidence", "shelf_compare")
+            RequiredCapabilities = @("grouped_review", "delivery_biography", "supporting_evidence", "runtime_session", "shelf_compare")
             ExpectedProvenanceCount = 0
             ExpectedOpeningReasonKinds = @("world_shelf_review", "world_shelf_review_drift", "grouped_review")
             ExpectedOpeningReasonDriftChanged = $null

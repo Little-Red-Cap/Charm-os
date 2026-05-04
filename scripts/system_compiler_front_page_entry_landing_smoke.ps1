@@ -304,7 +304,7 @@ $cases = @(
         SummaryPath = Join-Path $inputRootPath "root-witness\front-page.entry-capability.summary.json"
         ExpectedMode = "biography"
         ExpectedPrimary = "delivery_biography"
-        ExpectedTabsPrefix = @("delivery_biography", "supporting_evidence", "supporting_testimony")
+        ExpectedTabsPrefix = @("delivery_biography", "supporting_evidence", "runtime_session", "supporting_testimony")
         ExpectedProvenanceRoots = 0
         ExpectedPrimaryQueryKind = "default_overview"
         ExpectedPrimaryQueryScope = "report"
@@ -317,7 +317,7 @@ $cases = @(
         SummaryPath = Join-Path $inputRootPath "root-world-compare\front-page.entry-capability.summary.json"
         ExpectedMode = "compare"
         ExpectedPrimary = "counterfactual_verdict"
-        ExpectedTabsPrefix = @("counterfactual_verdict", "delivery_biography", "supporting_evidence")
+        ExpectedTabsPrefix = @("counterfactual_verdict", "delivery_biography", "supporting_evidence", "runtime_session")
         ExpectedProvenanceRoots = 0
         ExpectedPrimaryQueryKind = "default_overview"
         ExpectedPrimaryQueryScope = "artifact_root"
@@ -429,6 +429,10 @@ try {
                 -Message ("case '{0}' query_hints.tab_queries must match landing tab count" -f $case.Name)
 
             $availableTabIds = @([string[]]$landingSummary.landing_status.available_tab_ids)
+            $hasRuntimeSessionTab = $availableTabIds -contains "runtime_session"
+            Assert-Condition `
+                -Condition ([bool]$landingSummary.landing_status.direct_runtime_session_available -eq [bool]$hasRuntimeSessionTab) `
+                -Message ("case '{0}' expected direct_runtime_session_available to match runtime_session tab presence" -f $case.Name)
             for ($i = 0; $i -lt $case.ExpectedTabsPrefix.Count; $i++) {
                 $expectedTabId = [string]$case.ExpectedTabsPrefix[$i]
                 Assert-Condition `

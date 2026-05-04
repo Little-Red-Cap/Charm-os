@@ -36,6 +36,7 @@ Current `system_compiler.front_page_entry_capability` includes:
   - `scripts/validate_system_compiler_front_page_entry_capability.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_capability_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -68,6 +69,7 @@ The current summary records:
   - `counterfactual_verdict`
   - `grouped_review`
   - `supporting_evidence`
+  - `runtime_session`
   - `supporting_testimony`
   - `shelf_compare`
   - `candidate_shelf`
@@ -75,6 +77,15 @@ The current summary records:
   - `route_provenance`
 - one preferred route entry for each available capability
 - condensed provenance hints for route-aware consumers
+
+`runtime_session` is intentionally separate from generic
+`supporting_evidence`.
+
+It means a route exposes a direct `minimal_kernel.kernel_runtime_session/v0`
+object, usually via `front_page.supporting_surfaces[id=kernel_runtime_session]`.
+It still participates in evidence mode and can produce `evidence_only` or
+richer tiers, but tools may render it as its own runtime-session entry instead
+of hiding it inside the broader evidence bucket.
 
 `provenance_hints` may point to two kinds of source:
 
@@ -137,6 +148,12 @@ Or run the dedicated smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_capability_smoke.ps1 -Clean
+```
+
+For the narrow `kernel_runtime_session` route/capability/landing chain, use:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_sample_smoke.ps1 -Clean
 ```
 
 ## Why this matters

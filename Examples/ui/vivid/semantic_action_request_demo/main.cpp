@@ -48,9 +48,11 @@ namespace {
     }
 
     void print_request(const SemanticActionRequest& request) noexcept {
-        std::printf(" status=%s intent=%s focus=%s executed=%d click=%d focus_ready=%d focus_changed=%d events=%zu before=%s after=%s id=%s\n",
+        std::printf(" status=%s reason=%s intent=%s action_admission=%s focus=%s executed=%d click=%d focus_ready=%d focus_changed=%d events=%zu before=%s after=%s id=%s\n",
                     semantic_action_request_status_name(request.status),
+                    semantic_action_request_reject_reason_name(request.reject_reason),
                     semantic_intent_status_name(request.admission.intent_status),
+                    semantic_action_admission_status_name(request.admission.status),
                     semantic_focus_request_status_name(request.focus_request.status),
                     request.executed ? 1 : 0,
                     request.emitted_click ? 1 : 0,
@@ -137,6 +139,7 @@ int main() {
     run_log.case_begin("request_executes_activate");
     print_request(request);
     if (!vivid::evidence::expect(request.status == SemanticActionRequestStatus::Executed
+                                 && request.reject_reason == SemanticActionRequestRejectReason::None
                                  && request.executed
                                  && request.emitted_click,
                                  "semantic action request executes activate")) {
@@ -159,6 +162,7 @@ int main() {
                 access.checked(handles.toggle) ? 1 : 0,
                 click_events_since(access, handles.toggle, already.events_before));
     if (!vivid::evidence::expect(already.status == SemanticActionRequestStatus::Executed
+                                 && already.reject_reason == SemanticActionRequestRejectReason::None
                                  && already.focus_request.status == SemanticFocusRequestStatus::AlreadyFocused
                                  && already.emitted_click,
                                  "already-focused action still executes without focus transfer")) {
@@ -174,6 +178,7 @@ int main() {
     run_log.case_begin("unsupported_rejected");
     print_request(unsupported);
     if (!vivid::evidence::expect(unsupported.status == SemanticActionRequestStatus::Rejected
+                                 && unsupported.reject_reason == SemanticActionRequestRejectReason::ActionAdmissionRejected
                                  && unsupported.admission.status == SemanticActionAdmissionStatus::UnsupportedAction
                                  && !unsupported.emitted_click,
                                  "unsupported semantic action is rejected before execution")) {
@@ -185,6 +190,7 @@ int main() {
     run_log.case_begin("outside_scope_rejected");
     print_request(outside);
     if (!vivid::evidence::expect(outside.status == SemanticActionRequestStatus::Rejected
+                                 && outside.reject_reason == SemanticActionRequestRejectReason::FocusRequestRejected
                                  && outside.admission.intent_status == SemanticIntentStatus::Resolved
                                  && outside.focus_request.status == SemanticFocusRequestStatus::Rejected
                                  && outside.focus_request.admission.status == SemanticFocusAdmissionStatus::OutsideActiveScope
@@ -196,18 +202,22 @@ int main() {
     const auto ambiguous = scene.request_semantic_action(handles.root, "action.apply", SemanticAction::Activate);
     const auto missing_id = scene.request_semantic_action(handles.scope, "", SemanticAction::Activate);
     run_log.case_begin("invalid_requests");
-    std::printf(" ambiguous=%s missing_id=%s click_ambiguous=%d click_missing=%d focus_preserved=%d\n",
+    std::printf(" ambiguous=%s missing_id=%s reason_ambiguous=%s reason_missing=%s click_ambiguous=%d click_missing=%d focus_preserved=%d\n",
                 semantic_intent_status_name(ambiguous.admission.intent_status),
                 semantic_intent_status_name(missing_id.admission.intent_status),
+                semantic_action_request_reject_reason_name(ambiguous.reject_reason),
+                semantic_action_request_reject_reason_name(missing_id.reject_reason),
                 ambiguous.emitted_click ? 1 : 0,
                 missing_id.emitted_click ? 1 : 0,
                 same_handle(access.input_focused(), handles.toggle) ? 1 : 0);
     if (!vivid::evidence::expect(ambiguous.status == SemanticActionRequestStatus::Rejected
+                                 && ambiguous.reject_reason == SemanticActionRequestRejectReason::ActionAdmissionRejected
                                  && ambiguous.admission.status == SemanticActionAdmissionStatus::AmbiguousId,
                                  "ambiguous action request is rejected")) {
         return 1;
     }
     if (!vivid::evidence::expect(missing_id.status == SemanticActionRequestStatus::Rejected
+                                 && missing_id.reject_reason == SemanticActionRequestRejectReason::ActionAdmissionRejected
                                  && missing_id.admission.status == SemanticActionAdmissionStatus::MissingId,
                                  "missing id action request is rejected")) {
         return 1;

@@ -130,6 +130,15 @@ enum class SemanticActionRequestStatus : std::uint8_t {
 };
 
 export
+enum class SemanticActionRequestRejectReason : std::uint8_t {
+    None = 0,
+    ActionAdmissionRejected,
+    FocusRequestRejected,
+    InputActionOverflow,
+    NoActionEmitted,
+};
+
+export
 enum class SemanticFocusQueryStatus : std::uint8_t {
     Resolved = 0,
     InvalidRoot,
@@ -221,6 +230,7 @@ struct SemanticActionRequest {
     std::size_t events_before{0};
     std::size_t events_after{0};
     SemanticActionRequestStatus status{SemanticActionRequestStatus::Rejected};
+    SemanticActionRequestRejectReason reject_reason{SemanticActionRequestRejectReason::None};
     bool resolved{false};
     bool admitted{false};
     bool focus_ready{false};
@@ -384,6 +394,24 @@ inline const char* semantic_action_request_status_name(SemanticActionRequestStat
         return "executed";
     case SemanticActionRequestStatus::Rejected:
         return "rejected";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_action_request_reject_reason_name(
+    SemanticActionRequestRejectReason reason) noexcept {
+    switch (reason) {
+    case SemanticActionRequestRejectReason::None:
+        return "none";
+    case SemanticActionRequestRejectReason::ActionAdmissionRejected:
+        return "action_admission_rejected";
+    case SemanticActionRequestRejectReason::FocusRequestRejected:
+        return "focus_request_rejected";
+    case SemanticActionRequestRejectReason::InputActionOverflow:
+        return "input_action_overflow";
+    case SemanticActionRequestRejectReason::NoActionEmitted:
+        return "no_action_emitted";
     }
     return "unknown";
 }

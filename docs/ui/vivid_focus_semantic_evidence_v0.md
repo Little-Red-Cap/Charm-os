@@ -214,6 +214,27 @@ v0 rules:
 - rejected requests must preserve the current focus truth and must not emit focus events.
 - committed requests must expose before/after focus truth and event evidence.
 
+### Law 14: semantic action request rejection must name its boundary
+
+Semantic Action Request v0 is allowed to cross from semantic planning into input execution, so rejection cannot remain an undifferentiated `rejected` fact.
+
+v0 request ledger:
+
+```text
+SemanticActionAdmission rejected -> action_admission_rejected
+SemanticFocusRequest rejected    -> focus_request_rejected
+input action queue overflow      -> input_action_overflow
+no click emitted after execution -> no_action_emitted
+```
+
+v0 rules:
+
+- successful requests must report `reject_reason=none`.
+- unsupported action, disabled target, ambiguous id, missing id, and invalid root must reject at the action admission boundary.
+- active scope denial must reject at the focus request boundary after action admission succeeds.
+- rejected requests must not emit click evidence unless the reason explicitly represents an execution-time failure.
+- stdout evidence must print both high-level status and rejection reason.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
@@ -271,6 +292,7 @@ stdout final contract:
 
 `Examples/ui/vivid/semantic_action_request_demo` is the first Semantic Action Request v0 runtime evidence.
 It verifies that semantic intent resolution and action admission remain side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, and rejects scope-forbidden targets through focus admission.
+It also records `SemanticActionRequestRejectReason` so CI can distinguish action-admission rejection from focus-request rejection.
 
 stdout final contract:
 
@@ -322,6 +344,7 @@ role=button/list_item
 actions=activate
 intent_status=resolved/ambiguous_id/unsupported_action/disabled
 action_admission_status=admitted/ambiguous_id/unsupported_action/disabled
+action_request_reason=none/action_admission_rejected/focus_request_rejected/input_action_overflow/no_action_emitted
 action_will_request_focus=0/1
 action_will_emit_click=0/1
 focus_query_status=resolved/outside_active_scope/not_focusable/disabled

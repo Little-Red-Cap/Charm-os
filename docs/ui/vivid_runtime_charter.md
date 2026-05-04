@@ -445,11 +445,12 @@ resolve_semantic_intent(root, id, action)
 `SemanticActionAdmission` is the planning boundary after semantic intent resolution. It may declare that a future execution would request focus and emit a click, but it must not synthesize input, mutate focus truth, or toggle widget state.
 
 `SemanticActionRequest` is the controlled execution boundary after semantic action admission. Successful request must prove both semantic execution evidence (`executed`, `emitted_click`) and focus preparation evidence (`SemanticFocusRequest`). Failed action admission or failed focus admission must reject before action execution.
+Every rejected action request must also name the boundary that failed through `SemanticActionRequestRejectReason`, so `Rejected` never becomes an opaque catch-all ledger entry.
 
 Current evidence:
 
 - `Examples/ui/vivid/semantic_action_admission_demo` proves admitted activate plans, no execution side effects, unsupported-action and disabled-target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus/click plan evidence.
-- `Examples/ui/vivid/semantic_action_request_demo` proves side-effect-free resolution, controlled activate execution, normal click behavior reuse, already-focused execution, unsupported-action rejection, active-scope rejection through focus admission, duplicate-id ambiguity, and missing request ids.
+- `Examples/ui/vivid/semantic_action_request_demo` proves side-effect-free resolution, controlled activate execution, normal click behavior reuse, already-focused execution, unsupported-action rejection, active-scope rejection through focus admission, duplicate-id ambiguity, missing request ids, and explicit request rejection reasons.
 
 ## 2026-05 Addendum: Semantic Focus Query
 

@@ -569,6 +569,7 @@ public:
             out.after_focus = input_.focused;
             out.events_after = input_events_.count;
             out.status = SemanticActionRequestStatus::Rejected;
+            out.reject_reason = SemanticActionRequestRejectReason::ActionAdmissionRejected;
             return out;
         }
 
@@ -585,6 +586,7 @@ public:
 
         if (!out.focus_ready) {
             out.status = SemanticActionRequestStatus::Rejected;
+            out.reject_reason = SemanticActionRequestRejectReason::FocusRequestRejected;
             return out;
         }
 
@@ -599,6 +601,7 @@ public:
                 out.after_focus = input_.focused;
                 out.events_after = input_events_.count;
                 out.status = SemanticActionRequestStatus::Rejected;
+                out.reject_reason = SemanticActionRequestRejectReason::InputActionOverflow;
                 return out;
             }
             input_apply_actions();
@@ -616,6 +619,9 @@ public:
         out.status = out.executed
             ? SemanticActionRequestStatus::Executed
             : SemanticActionRequestStatus::Rejected;
+        out.reject_reason = out.executed
+            ? SemanticActionRequestRejectReason::None
+            : SemanticActionRequestRejectReason::NoActionEmitted;
         return out;
     }
 

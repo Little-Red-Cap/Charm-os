@@ -224,12 +224,15 @@
 - `system_compiler.front_page_entry_opening_flow.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_v0.md`、
     `scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`、
+    `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_sample_smoke.ps1`、
     `scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow.py`
   - 用途偏向把 `front_page route -> capability -> landing -> landing compare -> opener`
     这一整条 consumer-side opening chain 收成一个 smoke-level evidence artifact，
     明确 flow steps、opener cases、projection availability、compare context 与 inspector readiness
   - `opener_cases` 同时保留 opener 的 opening reason、projection preview、projection blockers 与 opener questions
+  - `runtime_session` 的窄口样例 smoke 会验证 `kernel_runtime_session_overview`
+    能作为 opener projection 进入 opening-flow handoff 形态
 
 - `system_compiler.front_page_entry_opening_flow_consumer.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`、

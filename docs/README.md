@@ -89,6 +89,8 @@
 - 最小内核运行会话 witness inspect 入口：`scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1`
 - 最小内核运行会话 witness inspect compare smoke：`scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1`
 - 最小内核运行会话 witness inspect compare summary smoke：`scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1`
+- 最小内核运行会话 witness inspect compare consumer v0：`docs/system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md`
+- 最小内核运行会话 witness inspect compare consumer smoke：`scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`
 - 最小内核运行会话 witness workflow：`.github/workflows/minimal-kernel-runtime-session-witness.yml`
 - 最小内核 runtime mailbox 契约：`docs/system/minimal_kernel_runtime_mailbox_contract.md`
 - 最小内核 task message API 契约：`docs/system/minimal_kernel_task_message_api_contract.md`

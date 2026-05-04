@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/minimal_kernel.runtime_session_witness_inspect_compare_consumer.v0.schema.json",
+  "title": "minimal_kernel.runtime_session_witness_inspect_compare_consumer/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "generated_at_utc",
+    "generator",
+    "result",
+    "compare_consumer",
+    "artifact_context",
+    "source_compare",
+    "consumer_status",
+    "default_focus",
+    "focus_entries",
+    "readiness_surface",
+    "supporting_artifacts",
+    "questions",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "minimal_kernel.runtime_session_witness_inspect_compare_consumer/v0"
+    },
+    "kind": {
+      "const": "minimal_kernel.runtime_session_witness_inspect_compare_consumer"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "compare_consumer": {
+      "$ref": "#/$defs/titleBlock"
+    },
+    "artifact_context": {
+      "$ref": "#/$defs/artifactContext"
+    },
+    "source_compare": {
+      "$ref": "#/$defs/sourceCompare"
+    },
+    "consumer_status": {
+      "$ref": "#/$defs/consumerStatus"
+    },
+    "default_focus": {
+      "$ref": "#/$defs/focusEntry"
+    },
+    "focus_entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/focusEntry"
+      }
+    },
+    "readiness_surface": {
+      "$ref": "#/$defs/readinessSurface"
+    },
+    "supporting_artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifactRef"
+      }
+    },
+    "questions": {
+      "$ref": "#/$defs/questionBlock"
+    },
+    "violations": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stringIntegerMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "titleBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "artifactContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_compare_summary_path",
+        "output_root",
+        "consumer_summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "source_compare_summary_path": {
+          "type": "string"
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "consumer_summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "sourceCompare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_result",
+        "changed",
+        "baseline_summary_path",
+        "candidate_summary_path",
+        "baseline_result",
+        "current_result",
+        "baseline_session_status",
+        "current_session_status",
+        "baseline_failure_domain",
+        "current_failure_domain",
+        "runtime_regression_count",
+        "runtime_improvement_count",
+        "world_failure_code_delta_count",
+        "witness_failure_code_delta_count",
+        "violation_delta_count"
+      ],
+      "properties": {
+        "source_result": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "baseline_summary_path": {
+          "type": "string"
+        },
+        "candidate_summary_path": {
+          "type": "string"
+        },
+        "baseline_result": {
+          "type": "string"
+        },
+        "current_result": {
+          "type": "string"
+        },
+        "baseline_session_status": {
+          "type": "string"
+        },
+        "current_session_status": {
+          "type": "string"
+        },
+        "baseline_failure_domain": {
+          "type": "string"
+        },
+        "current_failure_domain": {
+          "type": "string"
+        },
+        "runtime_regression_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_improvement_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "world_failure_code_delta_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "witness_failure_code_delta_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violation_delta_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "consumerStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "total_focus_count",
+        "changed_focus_count",
+        "actionable_focus_count",
+        "default_focus_id",
+        "highest_severity",
+        "runtime_regression_count",
+        "added_failure_code_count",
+        "added_missing_runtime_fact_count",
+        "added_violation_count"
+      ],
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "total_focus_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_focus_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actionable_focus_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "default_focus_id": {
+          "type": "string"
+        },
+        "highest_severity": {
+          "type": "string",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "info"
+          ]
+        },
+        "runtime_regression_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_failure_code_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_missing_runtime_fact_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_violation_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "focusEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "focus_id",
+        "focus_kind",
+        "priority",
+        "severity",
+        "changed",
+        "headline",
+        "reason",
+        "session_status_baseline",
+        "session_status_current",
+        "failure_domain_baseline",
+        "failure_domain_current",
+        "runtime_regressions",
+        "runtime_improvements",
+        "added_failure_codes",
+        "removed_failure_codes",
+        "added_missing_runtime_facts",
+        "removed_missing_runtime_facts",
+        "added_affected_focus",
+        "removed_affected_focus",
+        "added_violations",
+        "removed_violations",
+        "artifact_refs",
+        "summary_lines",
+        "question_lines"
+      ],
+      "properties": {
+        "focus_id": {
+          "type": "string"
+        },
+        "focus_kind": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "info"
+          ]
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "headline": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "session_status_baseline": {
+          "type": "string"
+        },
+        "session_status_current": {
+          "type": "string"
+        },
+        "failure_domain_baseline": {
+          "type": "string"
+        },
+        "failure_domain_current": {
+          "type": "string"
+        },
+        "runtime_regressions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "runtime_improvements": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "added_failure_codes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed_failure_codes": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "added_missing_runtime_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed_missing_runtime_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "added_affected_focus": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed_affected_focus": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "added_violations": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed_violations": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifactRef"
+          }
+        },
+        "summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "question_lines": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "readinessSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "severity_counts",
+        "focus_kind_counts",
+        "changed_focus_ids",
+        "actionable_focus_ids"
+      ],
+      "properties": {
+        "severity_counts": {
+          "$ref": "#/$defs/stringIntegerMap"
+        },
+        "focus_kind_counts": {
+          "$ref": "#/$defs/stringIntegerMap"
+        },
+        "changed_focus_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "actionable_focus_ids": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "questionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consumer_questions",
+        "next_questions"
+      ],
+      "properties": {
+        "consumer_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "next_questions": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    }
+  }
+}

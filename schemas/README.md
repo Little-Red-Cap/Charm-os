@@ -309,6 +309,14 @@
   - 对应 `minimal_kernel.runtime_session_witness_inspect_compare/v0` 的最小样例
   - 用途偏向 schema 自检、compare object 字段讨论与后续 explain consumer 接入前的对象锚点
 
+- `minimal_kernel.runtime_session_witness_inspect_compare_consumer.v0.schema.json`
+  - 对应 `docs/system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md` 与 `scripts/export_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py`
+  - 用途偏向把 inspect compare drift 收成 consumer-first 的焦点对象，方便 explain/front-page 下一跳直接消费
+
+- `examples/minimal_kernel.runtime_session_witness_inspect_compare_consumer.v0.sample.json`
+  - 对应 `minimal_kernel.runtime_session_witness_inspect_compare_consumer/v0` 的最小样例
+  - 用途偏向 schema 自检、focus-entry 讨论与后续 explain consumer 接入前的对象锚点
+
 - `minimal_kernel.kernel_runtime_session.v0.schema.json`
   - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/export_minimal_kernel_runtime_session.py`
   - 用途偏向把 host 语义证据、ARMv7-A QEMU 机器证据与 runtime continuity 投影成同一个 `kernel_runtime_session` 对象
@@ -461,6 +469,7 @@
 - `system_compiler_result_map/v0`：当前 system compiler root summary 关系语言的对象锚点，语义继续由脚本契约与样例共同收紧
 - `minimal_kernel.runtime_session_witness_smoke/v0`：当前 minimal-kernel runtime session witness 聚合回归对象锚点，负责把 standing session、synthetic drift 与 witness-export collapse 三条子证据链收成同一可消费根对象
 - `minimal_kernel.runtime_session_witness_inspect_compare/v0`：当前 minimal-kernel runtime session witness inspect compare 对象锚点，负责把 summary-to-summary 的 result、runtime facts 与 failure taxonomy 漂移收成稳定差分对象
+- `minimal_kernel.runtime_session_witness_inspect_compare_consumer/v0`：当前 minimal-kernel runtime session witness inspect compare consumer 对象锚点，负责把 stable compare drift 收成上层 explain/front-page 可直接接走的焦点对象
 - `minimal_kernel.kernel_runtime_session/v0`：当前 minimal-kernel runtime session witness 对象锚点，负责把 semantic witness、machine witness、runtime continuity、ledger 与 failure taxonomy 收成同一可消费对象
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，

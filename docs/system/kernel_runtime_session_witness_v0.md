@@ -291,7 +291,15 @@ system compiler witness bundle 也可以通过 `kernel_runtime_session` witness 
 ```powershell
 ./scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1
 ./scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1
+./scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1
 ```
+
+如果上层不想重新拼接 baseline / candidate summary，而是只想问“当前这次 drift 最先该看什么”，
+可以继续消费：
+
+- `docs/system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md`
+- `scripts/export_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py`
+- `scripts/validate_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py`
 
 ## World Compare Projection
 

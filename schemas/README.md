@@ -282,6 +282,15 @@
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点
 
+- `minimal_kernel.runtime_session_witness_smoke.v0.schema.json`
+  - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/minimal_kernel_runtime_session_witness_smoke.ps1`
+  - 用途偏向把 standing session、synthetic session drift 与 witness-export collapse 三条低成本证据链聚合成同一个可验证根对象
+  - 它服务于 CI、schema validator、gate 与上层 discoverability，不替代单独的 `kernel_runtime_session` summary，也不绕过 witness bundle / world compare
+
+- `examples/minimal_kernel.runtime_session_witness_smoke.v0.sample.json`
+  - 对应 `minimal_kernel.runtime_session_witness_smoke/v0` 的最小样例
+  - 用途偏向 schema 自检、聚合 artifact path 讨论与后续 CI / front-page 消费前的对象锚点
+
 - `minimal_kernel.kernel_runtime_session.v0.schema.json`
   - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/export_minimal_kernel_runtime_session.py`
   - 用途偏向把 host 语义证据、ARMv7-A QEMU 机器证据与 runtime continuity 投影成同一个 `kernel_runtime_session` 对象
@@ -432,6 +441,7 @@
 - `system_formation_summary/v0`：当前 artifact_root 默认总览里的 formation-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `fact_resolution_summary/v0`：当前 artifact_root 默认总览里的 fact-resolution-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_compiler_result_map/v0`：当前 system compiler root summary 关系语言的对象锚点，语义继续由脚本契约与样例共同收紧
+- `minimal_kernel.runtime_session_witness_smoke/v0`：当前 minimal-kernel runtime session witness 聚合回归对象锚点，负责把 standing session、synthetic drift 与 witness-export collapse 三条子证据链收成同一可消费根对象
 - `minimal_kernel.kernel_runtime_session/v0`：当前 minimal-kernel runtime session witness 对象锚点，负责把 semantic witness、machine witness、runtime continuity、ledger 与 failure taxonomy 收成同一可消费对象
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，
@@ -442,4 +452,5 @@
 - 设计说明：`docs/system/init_materialized_graph_observe.md`
 - 输出面：`docs/system/explain_surface_v0.md`
 - 统一报告对象：`docs/system/artifact_report_v0.md`
+- Session witness：`docs/system/kernel_runtime_session_witness_v0.md`
 - 方法论复盘：`docs/architecture/charm_methodology_charter.md`

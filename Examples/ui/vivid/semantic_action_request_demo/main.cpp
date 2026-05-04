@@ -200,6 +200,32 @@ int main() {
         return 1;
     }
 
+    run_log.case_begin("unsupported_no_event_trace");
+    const auto unsupported_trace =
+        vivid::evidence::collect_focus_move(access, handles.toggle, handles.info);
+    const std::size_t unsupported_clicks =
+        vivid::evidence::count_click_events_since(access, handles.info, unsupported.events_before);
+    std::printf(" focus_out=%d focus_in=%d click=%zu events_before=%zu events_after=%zu focus_preserved=%d checked=%d\n",
+                unsupported_trace.focus_out,
+                unsupported_trace.focus_in,
+                unsupported_clicks,
+                unsupported.events_before,
+                unsupported.events_after,
+                vivid::evidence::same_handle(access.input_focused(), handles.toggle) ? 1 : 0,
+                access.checked(handles.toggle) ? 1 : 0);
+    if (!vivid::evidence::expect(unsupported_trace.focus_out == 0
+                                 && unsupported_trace.focus_in == 0
+                                 && unsupported_clicks == 0
+                                 && unsupported.events_after == unsupported.events_before,
+                                 "unsupported rejection emits no focus or click events")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), handles.toggle)
+                                 && !access.checked(handles.toggle),
+                                 "unsupported rejection preserves focus and checked truth")) {
+        return 1;
+    }
+
     const auto outside =
         scene.request_semantic_action(handles.root, "action.outside", SemanticAction::Activate);
     run_log.case_begin("outside_scope_rejected");
@@ -212,6 +238,32 @@ int main() {
                                  && outside.focus_request.admission.status == SemanticFocusAdmissionStatus::OutsideActiveScope
                                  && !outside.emitted_click,
                                  "outside active scope semantic action is rejected by focus admission")) {
+        return 1;
+    }
+
+    run_log.case_begin("outside_scope_no_event_trace");
+    const auto outside_trace =
+        vivid::evidence::collect_focus_move(access, handles.toggle, handles.outside);
+    const std::size_t outside_clicks =
+        vivid::evidence::count_click_events_since(access, handles.outside, outside.events_before);
+    std::printf(" focus_out=%d focus_in=%d click=%zu events_before=%zu events_after=%zu focus_preserved=%d checked=%d\n",
+                outside_trace.focus_out,
+                outside_trace.focus_in,
+                outside_clicks,
+                outside.events_before,
+                outside.events_after,
+                vivid::evidence::same_handle(access.input_focused(), handles.toggle) ? 1 : 0,
+                access.checked(handles.toggle) ? 1 : 0);
+    if (!vivid::evidence::expect(outside_trace.focus_out == 0
+                                 && outside_trace.focus_in == 0
+                                 && outside_clicks == 0
+                                 && outside.events_after == outside.events_before,
+                                 "outside rejection emits no focus or click events")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), handles.toggle)
+                                 && !access.checked(handles.toggle),
+                                 "outside rejection preserves focus and checked truth")) {
         return 1;
     }
 

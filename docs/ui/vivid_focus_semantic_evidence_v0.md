@@ -297,14 +297,14 @@ stdout final contract:
 ```
 
 `Examples/ui/vivid/semantic_action_request_demo` is the first Semantic Action Request v0 runtime evidence.
-It verifies that semantic intent resolution and action admission remain side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, and rejects scope-forbidden targets through focus admission.
+It verifies that semantic intent resolution and action admission remain side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, rejects scope-forbidden targets through focus admission, and proves rejected requests do not emit focus or click events.
 It also records `SemanticActionRequestRejectReason` so CI can distinguish action-admission rejection from focus-request rejection.
 The main request cases emit `ledger=action_request stage=action_admission/focus_request/execution` lines generated from `SemanticActionRequestLedger`, and the execution cases include focus/click event traces so `focus_ready` and `click` are tied back to input evidence.
 
 stdout final contract:
 
 ```text
-[sar] run=semantic_action_request_demo phase=end result=ok cases=8
+[sar] run=semantic_action_request_demo phase=end result=ok cases=10
 ```
 
 `Examples/ui/vivid/semantic_action_admission_demo` is the first Semantic Action Admission v0 runtime evidence.

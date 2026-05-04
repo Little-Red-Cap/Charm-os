@@ -20,7 +20,7 @@ The negative case disables the target before the request and proves rejected adm
 Stdout follows `docs/ui/vivid_evidence_stdout_law.md`:
 
 ```text
-[ia] run=intent_artifact_demo phase=end result=ok cases=8
+[ia] run=intent_artifact_demo phase=end result=ok cases=9
 ```
 
 Build locally:

@@ -79,7 +79,8 @@ The demo follows `vivid_evidence_stdout_law.md`:
 [ia] case=invalidation invalidation=1 kind=paint_only dirty_scope=component layout_changed=0 ...
 [ia] case=render_artifact artifact_delta=1 changed=1 dirty_within_component=1 single_dirty_rect=1 after_dirty_count=<n> ...
 [ia] case=rejected_artifact artifact_delta=0 changed=0 dirty_within_component=1 single_dirty_rect=1 ...
-[ia] run=intent_artifact_demo phase=end result=ok cases=8
+[ia] case=causal_chain causal_chain=1 name=settings.wifi.toggle.activate ok=1 request_ok=1 state_delta_ok=1 invalidation_ok=1 artifact_ok=1 rejected_no_mutation=1
+[ia] run=intent_artifact_demo phase=end result=ok cases=9
 ```
 
 The final line is the CTest audit gate.
@@ -91,6 +92,7 @@ The final line is the CTest audit gate.
 - `InvalidationEvidence` currently lives in demo support as evidence vocabulary, not runtime contract surface.
 - `RenderEvidence` printing currently lives in demo support as evidence vocabulary, not runtime contract surface.
 - `RenderArtifactDeltaEvidence` currently lives in demo support as evidence vocabulary, not runtime contract surface.
+- `CausalChainEvidence` currently lives in demo support as evidence vocabulary, not runtime contract surface.
 - This v0 does not introduce screenshot golden files.
 - This v0 does not require every component demo to become semantic.
 - This v0 does not replace `vivid_semantic_request_ledger_law_v0.md`; it consumes that ledger law.

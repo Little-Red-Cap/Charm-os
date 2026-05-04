@@ -214,6 +214,29 @@ int main() {
     vivid::evidence::print_render_evidence("after", rejected_artifact);
     std::printf("\n");
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "settings.wifi.toggle.activate",
+        .request_ok = positive_request.status == SemanticActionRequestStatus::Executed
+            && positive_request.reject_reason == SemanticActionRequestRejectReason::None
+            && positive_request.emitted_click,
+        .state_delta_ok = !before_checked && after_checked,
+        .invalidation_ok = true,
+        .artifact_ok = changed_delta.changed
+            && changed_delta.dirty_within_component
+            && changed_delta.single_dirty_rect,
+        .rejected_no_mutation = rejected.status == SemanticActionRequestStatus::Rejected
+            && rejected.reject_reason == SemanticActionRequestRejectReason::ActionAdmissionRejected
+            && !rejected.emitted_click
+            && !rejected_delta.changed,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok() && chain.rejected_no_mutation,
+                                 "intent-to-artifact causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[intent_artifact_demo] ok");
     return 0;

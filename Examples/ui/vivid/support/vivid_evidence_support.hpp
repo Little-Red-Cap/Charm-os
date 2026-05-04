@@ -42,6 +42,19 @@ namespace vivid::evidence {
         bool single_dirty_rect{false};
     };
 
+    struct CausalChainEvidence {
+        const char* name{""};
+        bool request_ok{false};
+        bool state_delta_ok{false};
+        bool invalidation_ok{false};
+        bool artifact_ok{false};
+        bool rejected_no_mutation{false};
+
+        [[nodiscard]] bool ok() const noexcept {
+            return request_ok && state_delta_ok && invalidation_ok && artifact_ok;
+        }
+    };
+
     class RunLog {
     public:
         constexpr RunLog(const char* tag, const char* run) noexcept
@@ -188,6 +201,17 @@ namespace vivid::evidence {
                     delta.changed ? 1 : 0,
                     delta.dirty_within_component ? 1 : 0,
                     delta.single_dirty_rect ? 1 : 0);
+    }
+
+    inline void print_causal_chain(const CausalChainEvidence& evidence) noexcept {
+        std::printf(" causal_chain=1 name=%s ok=%d request_ok=%d state_delta_ok=%d invalidation_ok=%d artifact_ok=%d rejected_no_mutation=%d",
+                    evidence.name ? evidence.name : "",
+                    evidence.ok() ? 1 : 0,
+                    evidence.request_ok ? 1 : 0,
+                    evidence.state_delta_ok ? 1 : 0,
+                    evidence.invalidation_ok ? 1 : 0,
+                    evidence.artifact_ok ? 1 : 0,
+                    evidence.rejected_no_mutation ? 1 : 0);
     }
 
     [[nodiscard]] inline std::uint32_t hash_bytes(const std::byte* data, std::size_t len) noexcept {

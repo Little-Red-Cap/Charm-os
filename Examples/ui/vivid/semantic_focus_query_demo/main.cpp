@@ -121,6 +121,32 @@ int main() {
         return 1;
     }
 
+    run_log.case_begin("rejected_no_focus_transfer");
+    const bool rejected_no_focus_transfer =
+        vivid::evidence::same_handle(access.input_focused(), initial_focus)
+        && access.input_event_count() == initial_events
+        && !not_focusable.focusable_now
+        && !disabled.focusable_now
+        && !outside.focusable_now
+        && !ambiguous.focusable_now
+        && !missing.focusable_now
+        && !invalid_root.focusable_now
+        && !missing_id.focusable_now;
+    std::printf(" focus_preserved=%d events_preserved=%d rejected_focusable_now=0 not_focusable=%s disabled=%s outside=%s ambiguous=%s missing=%s invalid_root=%s missing_id=%s\n",
+                vivid::evidence::same_handle(access.input_focused(), initial_focus) ? 1 : 0,
+                access.input_event_count() == initial_events ? 1 : 0,
+                semantic_focus_query_status_name(not_focusable.status),
+                semantic_focus_query_status_name(disabled.status),
+                semantic_focus_query_status_name(outside.status),
+                semantic_focus_query_status_name(ambiguous.status),
+                semantic_focus_query_status_name(missing.status),
+                semantic_focus_query_status_name(invalid_root.status),
+                semantic_focus_query_status_name(missing_id.status));
+    if (!vivid::evidence::expect(rejected_no_focus_transfer,
+                                 "rejected focus queries remain lookup-only")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_focus_query_demo] ok");
     return 0;

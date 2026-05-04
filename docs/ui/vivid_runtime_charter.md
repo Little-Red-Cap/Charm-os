@@ -467,7 +467,7 @@ This keeps focus lookup in the Semantic Plane while preserving the boundary that
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_focus_query_demo` proves root-bound semantic focus lookup, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
+- `Examples/ui/vivid/semantic_focus_query_demo` proves root-bound semantic focus lookup, active-scope rejection, rejected queries without focus/event mutation, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
 
 ## 2026-05 Addendum: Semantic Focus Admission
 

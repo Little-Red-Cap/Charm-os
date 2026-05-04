@@ -138,7 +138,7 @@ Push-Location $repoRoot
 try {
     $baselineActionPath = Join-Path $actionWorkspaceRootPath "cold-default\action\front-page.entry-opening-flow.consumer.plan-action.summary.json"
     $baselinePlanWorkspaceRoot = Join-Path $actionWorkspaceRootPath "cold-default\plan-ws"
-    if (Test-Path -LiteralPath $baselineActionPath) {
+    if ((-not $Clean) -and (Test-Path -LiteralPath $baselineActionPath)) {
         Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] bootstrap=reuse-existing"
     } else {
         Invoke-ExternalTool `
@@ -187,14 +187,16 @@ try {
             ExpectedVerdict = "standing"
             ExpectedChangedFields = 0
             ExpectedActionChanged = $false
+            ExpectedReasonChanged = $false
         },
         [ordered]@{
             Name = "default-to-compare-neighbor"
             Baseline = $baselineActionPath
             Candidate = $candidateActionPath
             ExpectedVerdict = "drifted"
-            ExpectedChangedFields = 26
+            ExpectedChangedFields = 28
             ExpectedActionChanged = $true
+            ExpectedReasonChanged = $true
         }
     )
 
@@ -230,14 +232,17 @@ try {
             -Condition ([bool]$compareSummary.action_regression_surface.action_id_changed -eq [bool]$case.ExpectedActionChanged) `
             -Message ("case '{0}' action changed expectation mismatch" -f $case.Name)
         Assert-Condition `
-            -Condition ([bool]$compareSummary.action_regression_surface.opening_reason_changed -eq [bool]$case.ExpectedActionChanged) `
+            -Condition ([bool]$compareSummary.action_regression_surface.opening_reason_changed -eq [bool]$case.ExpectedReasonChanged) `
             -Message ("case '{0}' opening reason changed expectation mismatch" -f $case.Name)
         Assert-Condition `
-            -Condition ([bool]$compareSummary.action_regression_surface.projection_headline_changed -eq [bool]$case.ExpectedActionChanged) `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_headline_changed -eq [bool]$case.ExpectedReasonChanged) `
             -Message ("case '{0}' projection headline changed expectation mismatch" -f $case.Name)
+        Assert-Condition `
+            -Condition ([bool]$compareSummary.action_regression_surface.reason_changed -eq [bool]$case.ExpectedReasonChanged) `
+            -Message ("case '{0}' reason changed expectation mismatch" -f $case.Name)
 
         Write-Host (
-            "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case={0} verdict={1} changed={2} action_changed={3} opening_reason_changed={4} projection_headline_changed={5} opener_changed={6} target_changed={7}" -f
+            "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case={0} verdict={1} changed={2} action_changed={3} opening_reason_changed={4} projection_headline_changed={5} opener_changed={6} target_changed={7} reason_changed={8}" -f
             $case.Name,
             [string]$compareSummary.action_verdict,
             [int]$compareSummary.change_summary.changed_field_count,
@@ -245,7 +250,8 @@ try {
             [bool]$compareSummary.action_regression_surface.opening_reason_changed,
             [bool]$compareSummary.action_regression_surface.projection_headline_changed,
             [bool]$compareSummary.action_regression_surface.opener_changed,
-            [bool]$compareSummary.action_regression_surface.target_changed
+            [bool]$compareSummary.action_regression_surface.target_changed,
+            [bool]$compareSummary.action_regression_surface.reason_changed
         )
     }
 } finally {

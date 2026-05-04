@@ -49,7 +49,7 @@ qemu bundle 主要证明：
 - `handoff-live`
 
 这些 lower-half smoke 在同一个 `debug` 构建上仍然闭环成立，并且会留下每个 case 的独立日志工件。
-总证据入口当前会以 `RequireCaseCount = 4` 调用 qemu bundle，避免 session 证词在 lower-half case 缺席时误判为站立。
+总证据入口不再硬编码早期 case 数，而是消费 qemu bundle 自身导出的 `case_count / completed_case_count`，避免 session 证词在 lower-half case 缺席时误判为站立。
 
 它不证明：
 
@@ -71,6 +71,7 @@ out/minimal-kernel-runtime-evidence/
   session/
     kernel_runtime_session.summary.json
     runtime_ledger.json
+    report.md
     check.txt
   witness/
   summary.json
@@ -89,7 +90,7 @@ out/minimal-kernel-runtime-evidence/
 - `session/*` 收口 `kernel_runtime_session` 对象、runtime ledger 与 session check
 - `witness/*` 收口 canonical world 对应的 witness summary / report / check
 - 根 `summary.json / report.md / check.txt` 是这次总证据包的聚合视图
-- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path / session_summary / witness_bundle`，方便上层自动化只消费一个入口
+- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path / session / witness_bundle`，方便上层自动化只消费一个入口
 
 ## Kernel Runtime Session
 
@@ -97,8 +98,8 @@ out/minimal-kernel-runtime-evidence/
 
 它把 host 侧 semantic witness、ARMv7-A QEMU 侧 machine witness、runtime facts、
 runtime ledger 引用和 session verdict 收成一个对象。它不替代 host 或 QEMU 原始证据，
-也不直接喂给 world compare；它先作为 runtime evidence bundle 的正式 artifact，
-再由 system compiler witness bundle 作为 `kernel_runtime_session` witness entry 出口。
+而是先作为 runtime evidence bundle 的正式 `session` 侧车 artifact，
+再由 system compiler witness bundle 提升为 `kernel_runtime_session` witness entry。
 
 对应契约入口：
 
@@ -110,6 +111,7 @@ runtime ledger 引用和 session verdict 收成一个对象。它不替代 host 
 当前总证据 summary 已补齐独立 schema：
 
 - `schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json`
+- `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
 
 本地或 CI 如需校验 summary 结构与引用工件完整性，使用：
 
@@ -122,7 +124,27 @@ python ./scripts/validate_minimal_kernel_runtime_evidence.py `
 
 - 用 schema 校验根 `summary.json` 的结构
 - 检查 summary 中引用到的 host / qemu / session / witness / report / check / case log 工件是否都存在
-- 复核 `session_summary`、`kernel_runtime_session.summary.json` 与 `runtime_ledger.json` 的基础一致性
+- 复核 `session`、`kernel_runtime_session.summary.json` 与 `runtime_ledger.json` 的基础一致性
+
+如果只想验证 session 对象的第一版出口，可以先跑旁路 smoke：
+
+```powershell
+./scripts/minimal_kernel_runtime_session_smoke.ps1
+```
+
+它默认消费 `schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`，
+并输出：
+
+```text
+cmake-build-minimal-kernel-runtime-session-smoke/
+  kernel_runtime_session.summary.json
+  runtime_ledger.json
+  report.md
+  check.txt
+```
+
+这条旁路入口先证明 `session` 对象本身站得住；总 runtime evidence bundle 已经会把 `session` 作为侧车视图回填到根 `summary.json`。
+system compiler witness bundle 会把它提升为独立 `kernel_runtime_session` witness entry。
 
 ## 本地验证
 

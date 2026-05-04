@@ -13,7 +13,7 @@
     "check_text_path",
     "host",
     "qemu",
-    "session_summary",
+    "session",
     "violations"
   ],
   "properties": {
@@ -73,6 +73,22 @@
           },
           "then": {
             "$ref": "#/$defs/witnessBundleView"
+          }
+        }
+      ]
+    },
+    "session": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "type": "object"
+          },
+          "then": {
+            "$ref": "#/$defs/sessionView"
           }
         }
       ]
@@ -859,6 +875,79 @@
               }
             }
           ]
+        }
+      }
+    },
+    "sessionView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "output_root",
+        "bundle_log_path",
+        "bundle_exit_code",
+        "summary_path",
+        "runtime_ledger_path",
+        "report_markdown_path",
+        "check_text_path",
+        "result",
+        "session_id",
+        "world",
+        "session_status",
+        "failure_domain",
+        "failure_count"
+      ],
+      "properties": {
+        "output_root": {
+          "type": "string"
+        },
+        "bundle_log_path": {
+          "type": "string"
+        },
+        "bundle_exit_code": {
+          "type": "integer"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "runtime_ledger_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail"
+          ]
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "world": {
+          "type": "string"
+        },
+        "session_status": {
+          "type": "string",
+          "enum": [
+            "standing",
+            "drifted",
+            "collapsed"
+          ]
+        },
+        "failure_domain": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failure_count": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     }

@@ -510,11 +510,18 @@ function Resolve-KernelRuntimeSessionSummaryInfo {
     }
 
     $summary = $RuntimeEvidenceSummaryInfo.Data
-    if ($null -eq $summary.PSObject.Properties["session_summary"] -or $null -eq $summary.session_summary) {
+    $sessionView = $null
+    if ($null -ne $summary.PSObject.Properties["session"] -and $null -ne $summary.session) {
+        $sessionView = $summary.session
+    } elseif ($null -ne $summary.PSObject.Properties["session_summary"] -and $null -ne $summary.session_summary) {
+        $sessionView = $summary.session_summary
+    }
+
+    if ($null -eq $sessionView -or [string]::IsNullOrWhiteSpace([string]$sessionView.summary_path)) {
         return $null
     }
 
-    return Load-KernelRuntimeSessionSummaryInfo -Path ([string]$summary.session_summary.summary_path) -BasePath $RuntimeEvidenceSummaryInfo.Path
+    return Load-KernelRuntimeSessionSummaryInfo -Path ([string]$sessionView.summary_path) -BasePath $RuntimeEvidenceSummaryInfo.Path
 }
 
 function Get-ExistingArtifactRefsFromKernelRuntimeSession {
@@ -529,16 +536,47 @@ function Get-ExistingArtifactRefsFromKernelRuntimeSession {
     }
 
     $refs.Add($SessionInfo.Path) | Out-Null
+
     if ($null -ne $SessionInfo.Data.ledger -and -not [string]::IsNullOrWhiteSpace([string]$SessionInfo.Data.ledger.runtime_ledger)) {
         $runtimeLedger = Resolve-PathNearBase -BasePath $SessionInfo.Path -Value ([string]$SessionInfo.Data.ledger.runtime_ledger)
         if (Test-Path $runtimeLedger) {
             $refs.Add($runtimeLedger) | Out-Null
         }
     }
-    if ($null -ne $RuntimeEvidenceSummaryInfo -and $null -ne $RuntimeEvidenceSummaryInfo.Data.session_summary) {
-        $checkPath = Resolve-PathNearBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value ([string]$RuntimeEvidenceSummaryInfo.Data.session_summary.check_text_path)
-        if (Test-Path $checkPath) {
-            $refs.Add($checkPath) | Out-Null
+
+    if ($null -ne $RuntimeEvidenceSummaryInfo) {
+        $summary = $RuntimeEvidenceSummaryInfo.Data
+        $sessionView = $null
+        if ($null -ne $summary.PSObject.Properties["session"] -and $null -ne $summary.session) {
+            $sessionView = $summary.session
+        } elseif ($null -ne $summary.PSObject.Properties["session_summary"] -and $null -ne $summary.session_summary) {
+            $sessionView = $summary.session_summary
+        }
+
+        if ($null -ne $sessionView) {
+            foreach ($pathValue in @([string]$sessionView.runtime_ledger_path, [string]$sessionView.report_markdown_path, [string]$sessionView.check_text_path)) {
+                if ([string]::IsNullOrWhiteSpace($pathValue)) {
+                    continue
+                }
+
+                $artifactPath = Resolve-PathNearBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value $pathValue
+                if (Test-Path $artifactPath) {
+                    $refs.Add($artifactPath) | Out-Null
+                }
+            }
+        }
+
+        if ($null -ne $SessionInfo.Data.PSObject.Properties["artifact_paths"] -and $null -ne $SessionInfo.Data.artifact_paths) {
+            foreach ($pathValue in @([string]$SessionInfo.Data.artifact_paths.report, [string]$SessionInfo.Data.artifact_paths.check)) {
+                if ([string]::IsNullOrWhiteSpace($pathValue)) {
+                    continue
+                }
+
+                $artifactPath = Resolve-PathNearBase -BasePath $SessionInfo.Path -Value $pathValue
+                if (Test-Path $artifactPath) {
+                    $refs.Add($artifactPath) | Out-Null
+                }
+            }
         }
     }
 
@@ -671,7 +709,22 @@ function New-KernelRuntimeSessionWitnessEntry {
     $observations.Add(("trap_ingress={0}" -f [bool]$session.machine_witness.trap_ingress)) | Out-Null
     $observations.Add(("runtime_loop={0}" -f [bool]$session.machine_witness.runtime_loop)) | Out-Null
     $observations.Add(("handoff_continuity={0}" -f [bool]$session.runtime.handoff_continuity)) | Out-Null
-    if ($null -ne $session.verdict.failure) {
+
+    $failures = @()
+    if ($null -ne $session.PSObject.Properties["failures"] -and $null -ne $session.failures) {
+        $failures = @($session.failures)
+    }
+
+    if (@($failures).Count -gt 0) {
+        $firstFailure = $failures[0]
+        if ($null -ne $firstFailure.PSObject.Properties["code"] -and -not [string]::IsNullOrWhiteSpace([string]$firstFailure.code)) {
+            $observations.Add(("failure={0}" -f [string]$firstFailure.code)) | Out-Null
+        } elseif (-not [string]::IsNullOrWhiteSpace([string]$firstFailure)) {
+            $observations.Add(("failure={0}" -f [string]$firstFailure)) | Out-Null
+        }
+    } elseif ($null -ne $session.verdict.PSObject.Properties["failure_domain"] -and -not [string]::IsNullOrWhiteSpace([string]$session.verdict.failure_domain)) {
+        $observations.Add(("failure_domain={0}" -f [string]$session.verdict.failure_domain)) | Out-Null
+    } elseif ($null -ne $session.verdict.PSObject.Properties["failure"] -and $null -ne $session.verdict.failure) {
         $observations.Add(("failure={0}" -f [string]$session.verdict.failure.code)) | Out-Null
     }
 

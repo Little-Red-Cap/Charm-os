@@ -7,6 +7,7 @@
   "required": [
     "schema",
     "kind",
+    "generated_at",
     "session_id",
     "world",
     "subject",
@@ -14,7 +15,10 @@
     "machine_witness",
     "runtime",
     "ledger",
-    "verdict"
+    "verdict",
+    "failures",
+    "artifact_paths",
+    "provenance"
   ],
   "properties": {
     "schema": {
@@ -23,13 +27,14 @@
     "kind": {
       "const": "minimal_kernel.kernel_runtime_session"
     },
+    "generated_at": {
+      "type": "string"
+    },
     "session_id": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "world": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "subject": {
       "$ref": "#/$defs/subject"
@@ -44,10 +49,22 @@
       "$ref": "#/$defs/runtimeFacts"
     },
     "ledger": {
-      "$ref": "#/$defs/ledgerRefs"
+      "$ref": "#/$defs/ledger"
     },
     "verdict": {
       "$ref": "#/$defs/verdict"
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/failure"
+      }
+    },
+    "artifact_paths": {
+      "$ref": "#/$defs/artifactPaths"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
     }
   },
   "$defs": {
@@ -62,6 +79,14 @@
       "items": {
         "type": "string"
       }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "degraded",
+        "missing"
+      ]
     },
     "subject": {
       "type": "object",
@@ -88,14 +113,30 @@
       "additionalProperties": false,
       "required": [
         "host",
-        "contracts"
+        "status",
+        "contracts",
+        "source_summary",
+        "cold_summary",
+        "warm_summary"
       ],
       "properties": {
         "host": {
           "type": "boolean"
         },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
         "contracts": {
           "$ref": "#/$defs/stringArray"
+        },
+        "source_summary": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "cold_summary": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "warm_summary": {
+          "$ref": "#/$defs/nullableString"
         }
       }
     },
@@ -104,16 +145,26 @@
       "additionalProperties": false,
       "required": [
         "qemu",
+        "status",
+        "source_summary",
         "exception_ingress",
         "interrupt_ingress",
         "timer_ingress",
         "trap_ingress",
         "context_ingress",
-        "runtime_loop"
+        "runtime_loop",
+        "standing_cases",
+        "regressed_cases"
       ],
       "properties": {
         "qemu": {
           "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "source_summary": {
+          "$ref": "#/$defs/nullableString"
         },
         "exception_ingress": {
           "type": "boolean"
@@ -132,6 +183,12 @@
         },
         "runtime_loop": {
           "type": "boolean"
+        },
+        "standing_cases": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "regressed_cases": {
+          "$ref": "#/$defs/stringArray"
         }
       }
     },
@@ -163,53 +220,47 @@
         }
       }
     },
-    "ledgerRefs": {
+    "ledger": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "phase_ledger",
-        "runtime_ledger"
+        "runtime_ledger",
+        "event_count"
       ],
       "properties": {
         "phase_ledger": {
           "$ref": "#/$defs/nullableString"
         },
         "runtime_ledger": {
-          "$ref": "#/$defs/nullableString"
+          "type": "string"
+        },
+        "event_count": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
-    "failureDomain": {
-      "type": "string",
-      "enum": [
-        "semantic",
-        "machine",
-        "bundle",
-        "witness",
-        "world"
-      ]
-    },
-    "failureCode": {
-      "type": "string",
-      "enum": [
-        "decode_failed",
-        "unsupported_service",
-        "unbound_adapter",
-        "unbound_bridge",
-        "writeback_failed",
-        "missing_phase",
-        "unexpected_phase",
-        "timeout",
-        "spurious_interrupt",
-        "trap_not_observed",
-        "tick_not_observed",
-        "thread_not_resumed",
-        "handoff_not_landed",
-        "handoff_continuity_broken",
-        "host_semantic_mismatch",
-        "machine_witness_missing",
-        "world_contract_missing"
-      ]
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_status",
+        "failure_domain"
+      ],
+      "properties": {
+        "session_status": {
+          "type": "string",
+          "enum": [
+            "standing",
+            "drifted",
+            "collapsed"
+          ]
+        },
+        "failure_domain": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
     },
     "failure": {
       "type": "object",
@@ -225,10 +276,36 @@
       ],
       "properties": {
         "code": {
-          "$ref": "#/$defs/failureCode"
+          "type": "string",
+          "enum": [
+            "decode_failed",
+            "unsupported_service",
+            "unbound_adapter",
+            "unbound_bridge",
+            "writeback_failed",
+            "missing_phase",
+            "unexpected_phase",
+            "timeout",
+            "spurious_interrupt",
+            "trap_not_observed",
+            "tick_not_observed",
+            "thread_not_resumed",
+            "handoff_not_landed",
+            "handoff_continuity_broken",
+            "host_semantic_mismatch",
+            "machine_witness_missing",
+            "world_contract_missing"
+          ]
         },
         "domain": {
-          "$ref": "#/$defs/failureDomain"
+          "type": "string",
+          "enum": [
+            "semantic",
+            "machine",
+            "runtime",
+            "bundle",
+            "world"
+          ]
         },
         "layer": {
           "type": "string"
@@ -240,44 +317,54 @@
           "type": "boolean"
         },
         "phase": {
-          "type": "string"
+          "$ref": "#/$defs/nullableString"
         },
         "message": {
           "type": "string"
         }
       }
     },
-    "verdict": {
+    "artifactPaths": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "session_status",
-        "failure"
+        "summary",
+        "runtime_ledger",
+        "report",
+        "check",
+        "source_runtime_evidence"
       ],
       "properties": {
-        "session_status": {
-          "type": "string",
-          "enum": [
-            "standing",
-            "failed",
-            "drifted"
-          ]
+        "summary": {
+          "type": "string"
         },
-        "failure": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "allOf": [
-            {
-              "if": {
-                "type": "object"
-              },
-              "then": {
-                "$ref": "#/$defs/failure"
-              }
-            }
-          ]
+        "runtime_ledger": {
+          "type": "string"
+        },
+        "report": {
+          "type": "string"
+        },
+        "check": {
+          "type": "string"
+        },
+        "source_runtime_evidence": {
+          "type": "string"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_evidence_summary",
+        "canonical_world"
+      ],
+      "properties": {
+        "runtime_evidence_summary": {
+          "type": "string"
+        },
+        "canonical_world": {
+          "$ref": "#/$defs/nullableString"
         }
       }
     }

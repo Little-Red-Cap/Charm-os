@@ -37,11 +37,13 @@ includes:
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
 - compare
   - `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
+  - `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -81,9 +83,22 @@ The compare smoke output root is:
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-compare-smoke
 ```
 
+The workspace compare wrapper writes under:
+
+```powershell
+out/system-compiler-plan-action-ws-compare
+```
+
+The workspace compare smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-compare-smoke
+```
+
 The compare witness also treats opening reason and projection headline drift as
 first-class preview drift. This keeps the final explain-open action compare in
-sync with the consumer-facing preview surface.
+sync with the consumer-facing preview surface while still preserving the
+structured `opening_reason` compare object for machine consumers.
 
 ## What the action facade records
 
@@ -99,9 +114,10 @@ The current summary records:
   - default and compare action ids/names
 - `selected_action`
   - the original plan action copied without recomputing policy
+  - structured `opening_reason` and `projection_headline` from the selected plan action
 - `open_action`
   - the normalized action a consumer should execute now
-  - includes the selected action's `opening_reason` and projection headline
+  - the same `opening_reason`, `projection_headline`, and consumer-facing reason string
 - `opening_preview`
   - one small UI/tool-facing preview surface for the selected action
   - carries entry name, opening reason, projection kind, headline, opener paths,
@@ -159,6 +175,12 @@ Run the action compare smoke:
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1 -Clean
 ```
 
+Run the action workspace compare smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1 -Clean
+```
+
 Or export through the workspace wrapper from a prepared front-page workspace:
 
 ```powershell
@@ -210,13 +232,25 @@ python ./scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_
   --output-root cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-compare-smoke/default-to-compare-neighbor
 ```
 
+Or compare from action/plan workspaces through the workspace wrapper:
+
+```powershell
+./scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1 `
+  -BaselineActionWorkspaceRoot cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-smoke/cold-default `
+  -CandidatePlanWorkspaceRoot cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-smoke/cold-default/plan-ws `
+  -CandidateActionKind compare-neighbor `
+  -OutputRoot cmake-build-plan-action-ws-compare-smoke
+```
+
 Expected smoke shape:
 
 ```text
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=default selector=default_action action=open-default kind=default entry=root-witness query=default_overview/artifact_root reason=delivery_biography
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=compare-neighbor selector=action_kind:compare-neighbor action=open-compare-neighbor kind=compare-neighbor entry=root-witness-to-root-world-compare query=default_overview/artifact_root reason=counterfactual_verdict
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=action-self-standing verdict=standing changed=0
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=26
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=28
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-self-standing verdict=standing changed=0
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-default-to-compare-neighbor verdict=drifted changed=28
 ```
 
 ## Why this matters

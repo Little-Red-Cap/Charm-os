@@ -392,6 +392,44 @@
         }
       }
     },
+    "openingReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "summary",
+        "source_summary_path",
+        "drift_changed",
+        "drift_verdict"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "world_shelf_review_drift",
+            "world_shelf_review",
+            "grouped_review",
+            "counterfactual_verdict",
+            "delivery_biography",
+            "supporting_evidence",
+            "route",
+            ""
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "drift_changed": {
+          "type": "boolean"
+        },
+        "drift_verdict": {
+          "type": "string"
+        }
+      }
+    },
     "openAction": {
       "type": "object",
       "additionalProperties": false,

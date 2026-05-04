@@ -402,7 +402,6 @@
         "front_page_entry_detail_changed_anchors",
         "removed_worlds",
         "added_failed_entries",
-        "front_page_entry_detail_changed_anchors",
         "affected_worlds",
         "affected_profiles",
         "narratives"
@@ -444,9 +443,6 @@
           "$ref": "#/$defs/stringArray"
         },
         "added_failed_entries": {
-          "$ref": "#/$defs/stringArray"
-        },
-        "front_page_entry_detail_changed_anchors": {
           "$ref": "#/$defs/stringArray"
         },
         "affected_worlds": {

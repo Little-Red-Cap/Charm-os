@@ -33,19 +33,6 @@ def string_list(value: Any) -> list[str]:
     return [choose_text(item) for item in get_list(value) if choose_text(item)]
 
 
-def clone_opening_reason(reason: Any) -> OrderedDict[str, Any]:
-    reason_map = get_mapping(reason)
-    return OrderedDict(
-        [
-            ("kind", choose_text(reason_map.get("kind"))),
-            ("summary", choose_text(reason_map.get("summary"))),
-            ("source_summary_path", normalize_optional_path(reason_map.get("source_summary_path"))),
-            ("drift_changed", bool(reason_map.get("drift_changed"))),
-            ("drift_verdict", choose_text(reason_map.get("drift_verdict"))),
-        ]
-    )
-
-
 def load_plan_summary(path: Path) -> dict[str, Any]:
     summary = load_json(path)
     if choose_text(summary.get("schema")) != PLAN_SCHEMA:
@@ -53,6 +40,19 @@ def load_plan_summary(path: Path) -> dict[str, Any]:
     if choose_text(summary.get("kind")) != PLAN_KIND:
         raise ValueError(f"unsupported opening-flow consumer plan kind: {path}")
     return summary
+
+
+def normalize_opening_reason(value: Any) -> OrderedDict[str, Any]:
+    reason = get_mapping(value)
+    return OrderedDict(
+        [
+            ("kind", choose_text(reason.get("kind"))),
+            ("summary", choose_text(reason.get("summary"))),
+            ("source_summary_path", normalize_optional_path(reason.get("source_summary_path"))),
+            ("drift_changed", bool(reason.get("drift_changed"))),
+            ("drift_verdict", choose_text(reason.get("drift_verdict"))),
+        ]
+    )
 
 
 def make_surface(
@@ -94,7 +94,7 @@ def normalize_plan_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("target_summary_kind", choose_text(action.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(action.get("target_summary_path"))),
             ("projection_kind", choose_text(action.get("projection_kind"))),
-            ("opening_reason", clone_opening_reason(action.get("opening_reason"))),
+            ("opening_reason", normalize_opening_reason(action.get("opening_reason"))),
             ("projection_headline", choose_text(action.get("projection_headline"))),
             ("compare_context_available", bool(action.get("compare_context_available"))),
             ("landing_verdict", choose_text(action.get("landing_verdict"))),
@@ -234,7 +234,7 @@ def build_open_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("target_summary_kind", choose_text(action.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(action.get("target_summary_path"))),
             ("projection_kind", choose_text(action.get("projection_kind"))),
-            ("opening_reason", clone_opening_reason(action.get("opening_reason"))),
+            ("opening_reason", normalize_opening_reason(action.get("opening_reason"))),
             ("projection_headline", choose_text(action.get("projection_headline"))),
             ("compare_context_available", bool(action.get("compare_context_available"))),
             ("landing_verdict", choose_text(action.get("landing_verdict"))),
@@ -253,7 +253,7 @@ def build_opening_preview(action: dict[str, Any]) -> OrderedDict[str, Any]:
         [
             ("available", bool(choose_text(action.get("projection_headline")))),
             ("entry_name", choose_text(action.get("entry_name"))),
-            ("opening_reason", clone_opening_reason(action.get("opening_reason"))),
+            ("opening_reason", normalize_opening_reason(action.get("opening_reason"))),
             ("projection_kind", choose_text(action.get("projection_kind"))),
             ("headline", choose_text(action.get("projection_headline"))),
             ("summary_lines", []),
@@ -440,6 +440,10 @@ def build_report(summary: dict[str, Any]) -> str:
         ),
         f"- target summary: `{open_action['target_summary_path']}`",
         f"- opener summary: `{open_action['opener_summary_path']}`",
+        "- opening reason: `{0}` headline={1}".format(
+            get_mapping(open_action.get("opening_reason")).get("kind", ""),
+            open_action["projection_headline"] or "none",
+        ),
         f"- reason: {open_action['reason']}",
         "",
         "## Opening Preview",
@@ -489,7 +493,7 @@ def build_check(summary: dict[str, Any]) -> str:
             f"query_kind: {open_action['query_kind']}",
             f"query_scope: {open_action['query_scope']}",
             f"projection_kind: {open_action['projection_kind']}",
-            f"opening_reason_kind: {open_action['opening_reason']['kind']}",
+            f"opening_reason_kind: {get_mapping(open_action.get('opening_reason')).get('kind', '')}",
             f"projection_headline: {open_action['projection_headline']}",
             f"opener_summary_path: {open_action['opener_summary_path']}",
             f"consumer_operation: {receipt['consumer_operation']}",

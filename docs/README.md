@@ -152,6 +152,7 @@
 - System Compiler Front Page Entry Opening Flow smoke：`scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer selector smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer selector workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`
 - System Compiler Front Page Entry Opening Flow consumer workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1`
 - System Compiler Front Page Entry Opening Flow workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`
 - System Compiler Front Page Entry Opening Flow workspace compare：`scripts/compare_system_compiler_front_page_entry_opening_flow_workspace.ps1`

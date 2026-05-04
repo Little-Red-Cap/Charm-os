@@ -134,6 +134,11 @@ candidate shelf and, when present, its baseline shelf.
 review artifact together with the candidate shelf, the review questions, and a
 front-page route back down into the lower shelf surfaces.
 
+When compare is attached, the review envelope mirrors the lower shelf compare
+`collapse_surface`, including `front_page_entry_detail_changed_anchors`. Empty
+detail-change sets are still emitted as empty arrays so the review and compare
+objects stay structurally aligned.
+
 ### 3. Versus `world compare`
 
 `world compare` answers whether one candidate witness world still stands

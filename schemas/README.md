@@ -142,6 +142,8 @@
 - `system_compiler.world_shelf_review.v0.schema.json`
   - 对应 `docs/system/system_compiler_world_shelf_review_v0.md` 与 `scripts/review_system_compiler_world_shelf.ps1`
   - 用途偏向把 candidate shelf、baseline shelf 与 shelf compare verdict 收成一个可验证的 review envelope 对象
+  - `collapse_surface` 与 shelf compare 的 collapse surface 保持同形，包括空的
+    `front_page_entry_detail_changed_anchors`
 
 - `system_compiler.front_page_route.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_route_v0.md`、`scripts/export_system_compiler_front_page_route.py`
@@ -210,6 +212,7 @@
 - `system_compiler.front_page_entry_opening_flow_consumer_selector.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_v0.md`、
     `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector.py`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`、
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector.py`
   - 用途偏向把一份 `front_page entry opening flow consumer` handoff 收成确定性 open order，

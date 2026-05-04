@@ -907,6 +907,7 @@ try {
             regressed_entries = To-StringArray -Values $compareSummary.collapse_surface.regressed_entries
             removed_worlds = To-StringArray -Values $compareSummary.collapse_surface.removed_worlds
             added_failed_entries = To-StringArray -Values $compareSummary.collapse_surface.added_failed_entries
+            front_page_entry_detail_changed_anchors = To-StringArray -Values $compareSummary.collapse_surface.front_page_entry_detail_changed_anchors
             affected_worlds = To-StringArray -Values $compareSummary.collapse_surface.affected_worlds
             affected_profiles = To-StringArray -Values $compareSummary.collapse_surface.affected_profiles
             narratives = To-StringArray -Values $compareSummary.collapse_surface.narratives
@@ -917,6 +918,7 @@ try {
             regressed_entries = [string[]]@()
             removed_worlds = [string[]]@()
             added_failed_entries = [string[]]@()
+            front_page_entry_detail_changed_anchors = [string[]]@()
             affected_worlds = [string[]]@()
             affected_profiles = [string[]]@()
             narratives = [string[]]@()

@@ -29,6 +29,8 @@ includes:
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
+- workspace wrapper
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`
 
 ## Current outputs
 
@@ -48,6 +50,12 @@ The smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-selector-smoke
+```
+
+The workspace wrapper output root is:
+
+```powershell
+out/system-compiler-front-page-entry-opening-flow-consumer-selector-workspace
 ```
 
 ## What the selector records
@@ -110,6 +118,16 @@ Or export directly:
 python ./scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector.py `
   --consumer cmake-build-system-compiler-front-page-entry-opening-flow-consumer-workspace-smoke/consumer/front-page.entry-opening-flow.consumer.summary.json `
   --output-root cmake-build-system-compiler-front-page-entry-opening-flow-consumer-selector-smoke
+```
+
+Or start from a prepared front-page workspace and export the consumer workspace
+and selector in one step:
+
+```powershell
+./scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1 `
+  -FrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -OutputRoot cmake-build-system-compiler-front-page-entry-opening-flow-consumer-selector-workspace-smoke `
+  -Clean
 ```
 
 Then validate:

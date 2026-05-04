@@ -26,6 +26,7 @@ WITNESS_BUNDLE_SCHEMA = "system_compiler.witness_bundle/v0"
 RUNTIME_EVIDENCE_SCHEMA = "minimal_kernel.runtime_evidence_bundle.summary/v1"
 OPEN_EVENT_WITNESS_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0"
 OPENER_COMPARE_SCHEMA = "system_compiler.front_page_entry_opener_compare/v0"
+OPENING_FLOW_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_flow_compare/v0"
 
 INSPECTOR_SCRIPT = "scripts/inspect_system_compiler_artifact_report.ps1"
 
@@ -1050,6 +1051,89 @@ def build_opener_compare_projection(summary_path: Path, summary: dict[str, Any])
     )
 
 
+def build_opening_flow_compare_projection(summary_path: Path, summary: dict[str, Any]) -> OrderedDict[str, Any]:
+    status = get_mapping(summary.get("flow_status"))
+    changes = get_mapping(summary.get("flow_changes"))
+    case_summary = get_mapping(summary.get("opener_case_summary"))
+    regression = get_mapping(summary.get("flow_regression_surface"))
+    questions = get_mapping(summary.get("questions"))
+    artifact_context = get_mapping(summary.get("artifact_context"))
+    opener_case_changes = [get_mapping(change) for change in get_list(summary.get("opener_case_changes")) if isinstance(change, dict)]
+    headline = "opening_flow_compare verdict={0} changed_cases={1} added={2} removed={3}".format(
+        choose_text(summary.get("flow_verdict")) or "-",
+        choose_text(case_summary.get("changed_case_count")) or "0",
+        choose_text(case_summary.get("added_case_count")) or "0",
+        choose_text(case_summary.get("removed_case_count")) or "0",
+    )
+    summary_lines = [
+        "flow_counts baseline_openers={0}/{1} candidate_openers={2}/{3} projections={4}->{5} compare_context={6}->{7}".format(
+            choose_text(status.get("baseline_actual_opener_count")) or "0",
+            choose_text(status.get("baseline_expected_opener_count")) or "0",
+            choose_text(status.get("candidate_actual_opener_count")) or "0",
+            choose_text(status.get("candidate_expected_opener_count")) or "0",
+            choose_text(status.get("baseline_available_projection_count")) or "0",
+            choose_text(status.get("candidate_available_projection_count")) or "0",
+            choose_text(status.get("baseline_compare_context_count")) or "0",
+            choose_text(status.get("candidate_compare_context_count")) or "0",
+        ),
+        "flow_deltas openers={0} projections={1} compare_context={2} inspector_ready={3} completed_steps={4}".format(
+            choose_text(get_mapping(changes.get("actual_opener_count_change")).get("delta")) or "0",
+            choose_text(get_mapping(changes.get("available_projection_count_change")).get("delta")) or "0",
+            choose_text(get_mapping(changes.get("compare_context_count_change")).get("delta")) or "0",
+            choose_text(get_mapping(changes.get("inspector_ready_count_change")).get("delta")) or "0",
+            choose_text(get_mapping(changes.get("completed_step_count_change")).get("delta")) or "0",
+        ),
+        "case_counts changed={0} added={1} removed={2} unchanged={3}".format(
+            choose_text(case_summary.get("changed_case_count")) or "0",
+            choose_text(case_summary.get("added_case_count")) or "0",
+            choose_text(case_summary.get("removed_case_count")) or "0",
+            choose_text(case_summary.get("unchanged_case_count")) or "0",
+        ),
+        "impact_counts regressions={0} improvements={1} neutral={2} projection_regressions={3} compare_context_lost={4} compare_context_gained={5}".format(
+            choose_text(case_summary.get("regression_count")) or "0",
+            choose_text(case_summary.get("improvement_count")) or "0",
+            choose_text(case_summary.get("neutral_change_count")) or "0",
+            choose_text(case_summary.get("projection_regression_count")) or "0",
+            choose_text(case_summary.get("compare_context_lost_count")) or "0",
+            choose_text(case_summary.get("compare_context_gained_count")) or "0",
+        ),
+    ]
+    for change in opener_case_changes[:3]:
+        summary_lines.append(
+            "case_change {0} kind={1} impact={2} projection={3}->{4} compare_context={5}->{6}".format(
+                choose_text(change.get("name")) or "-",
+                choose_text(change.get("change_kind")) or "-",
+                choose_text(change.get("impact")) or "-",
+                choose_text(change.get("baseline_projection_kind")) or "-",
+                choose_text(change.get("candidate_projection_kind")) or "-",
+                "yes" if bool(change.get("baseline_compare_context_available")) else "no",
+                "yes" if bool(change.get("candidate_compare_context_available")) else "no",
+            )
+        )
+    for narrative in get_list(regression.get("narratives"))[:3]:
+        summary_lines.append(f"flow_regression {choose_text(narrative)}")
+
+    return build_opened_projection_record(
+        status="available",
+        projection_kind="opening_flow_compare_overview",
+        source_summary_schema=choose_text(summary.get("schema")),
+        source_summary_kind=choose_text(summary.get("kind")),
+        source_summary_path=normalize_path(summary_path),
+        headline=headline,
+        summary_lines=summary_lines,
+        question_lines=get_list(questions.get("compare_questions")) + get_list(questions.get("next_questions")),
+        supporting_summary_paths=build_front_page_supporting_paths(summary),
+        evidence_paths=existing_paths(
+            [
+                artifact_context.get("baseline_flow_summary_path"),
+                artifact_context.get("candidate_flow_summary_path"),
+            ]
+        ),
+        compare_paths=[],
+        blockers=[],
+    )
+
+
 def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[str, Any]:
     target_summary_path = choose_text(open_action.get("target_summary_path"))
     target_summary_schema = choose_text(open_action.get("target_summary_schema"))
@@ -1115,6 +1199,8 @@ def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[s
         return build_open_event_witness_compare_projection(summary_path, summary)
     if actual_schema == OPENER_COMPARE_SCHEMA:
         return build_opener_compare_projection(summary_path, summary)
+    if actual_schema == OPENING_FLOW_COMPARE_SCHEMA:
+        return build_opening_flow_compare_projection(summary_path, summary)
 
     return build_opened_projection_record(
         status="unavailable",

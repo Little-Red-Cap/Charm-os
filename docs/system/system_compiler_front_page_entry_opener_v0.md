@@ -41,6 +41,7 @@ Current `system_compiler.front_page_entry_opener` includes:
   - `scripts/system_compiler_front_page_entry_opener_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_opener_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_opening_flow_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1`
 
@@ -224,6 +225,7 @@ summary shapes in the repository:
 - `minimal_kernel.runtime_evidence_bundle.summary/v1`
 - `system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`
 - `system_compiler.front_page_entry_opener_compare/v0`
+- `system_compiler.front_page_entry_opening_flow_compare/v0`
 
 For those targets it records:
 
@@ -269,6 +271,24 @@ It exposes:
 
 This lets an opener explain "why this opener judgment compare is interesting"
 without opening either side's full opener report first.
+
+For `system_compiler.front_page_entry_opening_flow_compare/v0`, the projection
+kind is `opening_flow_compare_overview`.
+
+It exposes:
+
+- the opening-flow compare verdict plus changed / added / removed opener case
+  counts in the headline
+- baseline and candidate opener / projection / compare-context counts
+- flow deltas for opener count, projection count, compare context, inspector
+  readiness, and completed steps
+- regression / improvement / neutral case impact counts
+- up to three `case_change ...` and `flow_regression ...` lines
+- baseline and candidate opening-flow summaries as evidence paths
+
+This lets an opener explain "why this whole opening chain compare is
+interesting" without first opening the full flow compare report or walking back
+through every lower smoke directory.
 
 The opener also prepends one `opening_reason ...` summary line from the source
 landing.
@@ -321,6 +341,12 @@ To prove only the OpenerCompare projection adapter:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opener_opener_compare_smoke.ps1 -Clean
+```
+
+To prove only the OpeningFlowCompare projection adapter:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_opening_flow_compare_smoke.ps1 -Clean
 ```
 
 To export the same opener object through the reusable workspace facade:

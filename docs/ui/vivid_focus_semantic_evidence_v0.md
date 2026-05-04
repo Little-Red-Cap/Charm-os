@@ -213,6 +213,8 @@ v0 rules:
 - `already_focused` is an explicit no-op and must not emit focus events.
 - rejected requests must preserve the current focus truth and must not emit focus events.
 - committed requests must expose before/after focus truth and event evidence.
+- runtime exposes `SemanticFocusRequestLedger` so focus request evidence uses the same artifact language as action request evidence.
+- request stdout evidence should use `ledger=focus_request stage=focus_admission/already_focused/execution`.
 
 ### Law 14: semantic action request rejection must name its boundary
 
@@ -332,6 +334,7 @@ stdout final contract:
 
 `Examples/ui/vivid/semantic_focus_request_demo` is the first Semantic Focus Request v0 runtime evidence.
 It verifies controlled focus transfer execution, `FocusOut/FocusIn` event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled rejection, ambiguous duplicate ids, and invalid request statuses.
+The main request cases emit `ledger=focus_request stage=focus_admission/already_focused/execution` lines generated from `SemanticFocusRequestLedger`.
 
 stdout final contract:
 
@@ -353,6 +356,7 @@ action_will_emit_click=0/1
 focus_query_status=resolved/outside_active_scope/not_focusable/disabled
 focus_admission_status=admitted/already_focused/outside_active_scope/not_focusable/disabled
 focus_request_status=committed/already_focused/rejected
+focus_request_stage=focus_admission/already_focused/execution
 committed=0/1
 transfer_needed=0/1
 focus_out=0/1

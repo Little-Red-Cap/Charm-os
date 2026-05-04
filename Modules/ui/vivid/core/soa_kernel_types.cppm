@@ -215,6 +215,14 @@ enum class SemanticFocusRequestStatus : std::uint8_t {
 };
 
 export
+enum class SemanticFocusRequestStage : std::uint8_t {
+    None = 0,
+    FocusAdmission,
+    AlreadyFocused,
+    Execution,
+};
+
+export
 struct SemanticFocusRequest {
     SemanticFocusAdmission admission{};
     WidgetHandle before_focus{};
@@ -226,6 +234,25 @@ struct SemanticFocusRequest {
     bool focus_changed{false};
     bool emitted_focus_out{false};
     bool emitted_focus_in{false};
+};
+
+export
+struct SemanticFocusRequestLedger {
+    SemanticFocusRequestStage stage{SemanticFocusRequestStage::None};
+    SemanticFocusRequestStatus status{SemanticFocusRequestStatus::Rejected};
+    SemanticFocusAdmissionStatus admission_status{SemanticFocusAdmissionStatus::NotFound};
+    SemanticFocusQueryStatus query_status{SemanticFocusQueryStatus::NotFound};
+    const char* id{""};
+    std::size_t events_before{0};
+    std::size_t events_after{0};
+    bool admitted{false};
+    bool transfer_needed{false};
+    bool committed{false};
+    bool focus_changed{false};
+    bool emitted_focus_out{false};
+    bool emitted_focus_in{false};
+    bool focus_started_on_target{false};
+    bool focus_ended_on_target{false};
 };
 
 export
@@ -559,6 +586,60 @@ inline const char* semantic_focus_request_status_name(SemanticFocusRequestStatus
         return "rejected";
     }
     return "unknown";
+}
+
+export
+inline const char* semantic_focus_request_stage_name(SemanticFocusRequestStage stage) noexcept {
+    switch (stage) {
+    case SemanticFocusRequestStage::None:
+        return "none";
+    case SemanticFocusRequestStage::FocusAdmission:
+        return "focus_admission";
+    case SemanticFocusRequestStage::AlreadyFocused:
+        return "already_focused";
+    case SemanticFocusRequestStage::Execution:
+        return "execution";
+    }
+    return "unknown";
+}
+
+export
+inline SemanticFocusRequestStage semantic_focus_request_stage(
+    const SemanticFocusRequest& request) noexcept {
+    switch (request.status) {
+    case SemanticFocusRequestStatus::Committed:
+        return SemanticFocusRequestStage::Execution;
+    case SemanticFocusRequestStatus::AlreadyFocused:
+        return SemanticFocusRequestStage::AlreadyFocused;
+    case SemanticFocusRequestStatus::Rejected:
+        if (!request.admission.admitted) {
+            return SemanticFocusRequestStage::FocusAdmission;
+        }
+        return SemanticFocusRequestStage::Execution;
+    }
+    return SemanticFocusRequestStage::None;
+}
+
+export
+inline SemanticFocusRequestLedger semantic_focus_request_ledger(
+    const SemanticFocusRequest& request) noexcept {
+    return SemanticFocusRequestLedger{
+        .stage = semantic_focus_request_stage(request),
+        .status = request.status,
+        .admission_status = request.admission.status,
+        .query_status = request.admission.query_status,
+        .id = request.admission.id,
+        .events_before = request.events_before,
+        .events_after = request.events_after,
+        .admitted = request.admission.admitted,
+        .transfer_needed = request.admission.transfer_needed,
+        .committed = request.committed,
+        .focus_changed = request.focus_changed,
+        .emitted_focus_out = request.emitted_focus_out,
+        .emitted_focus_in = request.emitted_focus_in,
+        .focus_started_on_target = request.before_focus == request.admission.handle,
+        .focus_ended_on_target = request.after_focus == request.admission.handle,
+    };
 }
 
 export

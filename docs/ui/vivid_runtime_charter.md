@@ -493,8 +493,8 @@ SemanticFocusQuery
   -> SemanticFocusRequest
 ```
 
-This is the first semantic focus API that is allowed to mutate input focus truth. It must still preserve the runtime boundary: failed admission is a rejection, already-focused is a no-op, and committed transfer must be evidenced by `FocusOut/FocusIn`, before/after focus truth, and semantic current focus.
+This is the first semantic focus API that is allowed to mutate input focus truth. It must still preserve the runtime boundary: failed admission is a rejection, already-focused is a no-op, and committed transfer must be evidenced by `FocusOut/FocusIn`, before/after focus truth, and semantic current focus. `SemanticFocusRequestLedger` is the runtime artifact for this evidence.
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_focus_request_demo` proves controlled semantic focus transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled target rejection, duplicate-id ambiguity, and invalid request statuses.
+- `Examples/ui/vivid/semantic_focus_request_demo` proves controlled semantic focus transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus request ledger stages.

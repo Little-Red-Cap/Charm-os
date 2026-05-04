@@ -125,6 +125,31 @@ cmake-build-minimal-kernel-runtime-session-smoke/
 这条旁路入口先证明 `session` 对象本身站得住；总 runtime evidence bundle 已经会把 `session` 作为侧车视图回填到根 `summary.json`。
 后续再决定 witness bundle 是否把它提升为独立 witness entry。
 
+如果要验证 `session` 作为 witness 聚合对象的完整闭环，优先跑：
+
+```powershell
+./scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1 -Clean
+```
+
+它默认输出：
+
+```text
+out/minimal-kernel-runtime-session-witness-smoke/
+  summary.json
+  report.md
+  check.txt
+  session/
+  world_compare_session_drift/
+  witness_session_failure_export/
+```
+
+这条入口会同时证明：
+
+- standing `kernel_runtime_session` 可以导出为根证据对象
+- synthetic session drift 可以被 world compare 投影
+- collapsed session 可以经由 witness exporter 进入 world compare
+- 根 `summary.json` 可以通过 schema validator 与语义 gate
+
 ## 本地验证
 
 如果要在本地复现当前总证据链，优先直接跑：

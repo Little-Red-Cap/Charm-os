@@ -256,8 +256,10 @@ check.txt
 - `schemas/examples/minimal_kernel.runtime_session_witness_smoke.v0.sample.json`
 - `scripts/validate_minimal_kernel_runtime_session_witness_smoke.py`
 - `scripts/check_minimal_kernel_runtime_session_witness_smoke_summary.ps1`
+- `scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1`
 
 其中 validator 负责 schema 与引用路径，check 脚本负责断言 session standing、两条 session drift 投影、failure code 与 missing runtime fact。
+CI / 人工验收优先调用 `ci_minimal_kernel_runtime_session_witness_smoke.ps1`，它默认把产物落到 `out/minimal-kernel-runtime-session-witness-smoke`，并在根 smoke 之后再次执行 validator 与 gate。
 
 runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
 system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。

@@ -382,3 +382,50 @@ Current evidence:
 
 - `Examples/ui/vivid/focus_semantic_demo` proves focused target lookup and focus ring alignment.
 - `Examples/ui/vivid/semantic_tree_demo` proves root-bound preorder artifact collection, focus marker, decorative exclusion, overflow reporting, and stable `semantic_hash`.
+
+## 2026-05 Addendum: Pattern Semantic Defaults
+
+Pattern Semantic Defaults v0 adds a narrow bridge from Pattern / Widget semantics to the Semantic Evidence Plane:
+
+```text
+WidgetKind -> default SemanticRole
+widget text -> default label source
+product id -> stable semantic identity
+```
+
+The important boundary is that Vivid does not invent stable identity. `set_semantic_default(handle, stable_id, optional_label)` is opt-in and still requires product code to provide `stable_id`.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_default_demo` proves default role derivation, label source, decorative opt-in boundary, explicit override, and semantic tree integration.
+
+## 2026-05 Addendum: Semantic Action Artifact
+
+Vivid semantic nodes can now expose a fixed action mask as artifact evidence:
+
+```text
+semantic_id / role / label
+  -> actions
+  -> semantic tree artifact
+```
+
+This remains deliberately below a full accessibility runtime. `activate` is a capability fact carried by Button/ListItem semantics, not an instruction to synthesize input, dispatch callbacks, or bind OS accessibility.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_action_demo` proves role-derived `activate`, no-action semantic roles, explicit action override, tree action artifacts, and action participation in `semantic_hash`.
+
+## 2026-05 Addendum: Semantic Intent Resolution
+
+Vivid can now resolve a product semantic request without executing it:
+
+```text
+root + semantic_id + action
+  -> SemanticIntentResolution
+```
+
+This belongs to the Semantic Plane and Evidence Plane. It makes semantic nodes addressable while preserving the boundary that action execution, input synthesis, callback dispatch, and OS accessibility binding are future, separate runtime admissions.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, and no input side effects during resolution.

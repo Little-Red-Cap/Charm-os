@@ -30,11 +30,13 @@ Current `system_compiler.front_page_entry_opening_flow_consumer_plan` includes:
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`
 - action facade
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
 
 ## Current outputs
 
@@ -66,6 +68,12 @@ The action facade smoke writes under:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-smoke
+```
+
+The action facade workspace smoke writes under:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-smoke
 ```
 
 ## What the consumer plan records
@@ -176,6 +184,12 @@ Run the single-action facade smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1 -Clean
+```
+
+Run the single-action workspace facade smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1 -Clean
 ```
 
 ## Why this matters

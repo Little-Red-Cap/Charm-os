@@ -29,10 +29,20 @@ export import charm.gfx.text_box;
 import charm.gfx.draw_cmd;
 
 export using ::ScrollBarOrientation;
+export using ::SemanticAction;
+export using ::SemanticActionMask;
+export using ::SemanticActionSnapshot;
 export using ::SemanticFocusSnapshot;
+export using ::SemanticIntentResolution;
+export using ::SemanticIntentStatus;
 export using ::SemanticRole;
 export using ::SemanticTreeNode;
 export using ::SemanticTreeSnapshot;
+export using ::semantic_action_mask;
+export using ::semantic_action_present;
+export using ::semantic_default_role_for_kind;
+export using ::semantic_default_actions_for_role;
+export using ::semantic_intent_status_name;
 export using ::kSemanticTreeMaxNodes;
 export using ::kSemanticTreeNoFocusIndex;
 export using ::TableViewHeaderStyle;
@@ -48,10 +58,19 @@ export namespace ui::scene {
     using ImageShapeKind = ui::render::ImageShapeKind;
 
     using ScrollBarOrientation = ::ScrollBarOrientation;
+    using SemanticAction = ::SemanticAction;
+    using SemanticActionMask = ::SemanticActionMask;
+    using SemanticActionSnapshot = ::SemanticActionSnapshot;
     using SemanticFocusSnapshot = ::SemanticFocusSnapshot;
+    using SemanticIntentResolution = ::SemanticIntentResolution;
+    using SemanticIntentStatus = ::SemanticIntentStatus;
     using SemanticRole = ::SemanticRole;
     using SemanticTreeNode = ::SemanticTreeNode;
     using SemanticTreeSnapshot = ::SemanticTreeSnapshot;
+    using ::semantic_action_mask;
+    using ::semantic_action_present;
+    using ::semantic_default_actions_for_role;
+    using ::semantic_intent_status_name;
     constexpr std::size_t kSemanticTreeMaxNodes = ::kSemanticTreeMaxNodes;
     constexpr std::uint16_t kSemanticTreeNoFocusIndex = ::kSemanticTreeNoFocusIndex;
     using TableViewHeaderStyle = ::TableViewHeaderStyle;
@@ -354,9 +373,29 @@ export namespace ui::scene {
                           const char* label) noexcept {
             kernel_->set_semantic(h, role, id, label);
         }
+        void set_semantic_default(WidgetHandle h,
+                                  const char* id,
+                                  const char* label = nullptr) noexcept {
+            kernel_->set_semantic_default(h, id, label);
+        }
         void clear_semantic(WidgetHandle h) noexcept { kernel_->clear_semantic(h); }
+        void set_semantic_actions(WidgetHandle h, SemanticActionMask actions) noexcept {
+            kernel_->set_semantic_actions(h, actions);
+        }
+        void set_enabled(WidgetHandle h, bool on) noexcept { kernel_->set_enabled(h, on); }
+        bool pressed(WidgetHandle h) const noexcept { return kernel_->pressed(h); }
+        bool focused(WidgetHandle h) const noexcept { return kernel_->focused(h); }
         SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
             return kernel_->semantic_snapshot(h);
+        }
+        SemanticActionSnapshot semantic_action_snapshot(WidgetHandle h) const noexcept {
+            return kernel_->semantic_action_snapshot(h);
+        }
+        SemanticIntentResolution resolve_semantic_intent(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) const noexcept {
+            return kernel_->resolve_semantic_intent(root, id, action);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_->semantic_focus_snapshot();
@@ -566,6 +605,14 @@ export namespace ui::scene {
                           const char* id,
                           const char* label) noexcept {
             kernel_.set_semantic(h, role, id, label);
+        }
+        void set_semantic_default(WidgetHandle h,
+                                  const char* id,
+                                  const char* label = nullptr) noexcept {
+            kernel_.set_semantic_default(h, id, label);
+        }
+        void set_semantic_actions(WidgetHandle h, SemanticActionMask actions) noexcept {
+            kernel_.set_semantic_actions(h, actions);
         }
         void set_input_root(WidgetHandle h) noexcept { kernel_.set_input_root(h); }
         void set_focus_scope(WidgetHandle scope,
@@ -1110,6 +1157,15 @@ export namespace ui::scene {
         const char* text(WidgetHandle h) const noexcept { return kernel_.text(h); }
         SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
             return kernel_.semantic_snapshot(h);
+        }
+        SemanticActionSnapshot semantic_action_snapshot(WidgetHandle h) const noexcept {
+            return kernel_.semantic_action_snapshot(h);
+        }
+        SemanticIntentResolution resolve_semantic_intent(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) const noexcept {
+            return kernel_.resolve_semantic_intent(root, id, action);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_.semantic_focus_snapshot();

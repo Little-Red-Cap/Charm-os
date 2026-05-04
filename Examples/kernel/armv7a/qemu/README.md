@@ -361,8 +361,9 @@ use:
 ```
 
 That aggregate lower-half smoke now clean-rebuilds the shared `debug` preset
-before fanning out into the focused runtime/task-syscall cases, and also asks
-the dedicated `handoff-live` smoke to clean-rebuild `debug-handoff-live`.
+before fanning out into the phase-ledger, focused runtime/task-syscall cases,
+and also asks the dedicated `handoff-live` smoke to clean-rebuild
+`debug-handoff-live`.
 This keeps wide lower-half regressions from being masked or invented by stale
 object files after contract/header layout changes.
 The same bundle output now also carries one explicit `canonical world`,

@@ -17,6 +17,7 @@ set_semantic(handle, role, id, label)
 semantic_snapshot(handle)
 semantic_focus_snapshot()
 semantic_tree_snapshot(root, max_nodes)
+set_semantic_default(handle, stable_id, optional_label)
 ```
 
 ## v0 法律
@@ -92,6 +93,59 @@ v0 rules:
 - `focus_id` records focus truth even when the focused node is beyond stored capacity.
 - `semantic_hash` summarizes the semantic artifact only; it is not yet an accessibility tree hash.
 
+### Law 7: semantic defaults are opt-in, not automatic identity
+
+Pattern Semantic Defaults v0 lets Vivid derive role / label source, but product code must still provide stable semantic id:
+
+```text
+set_semantic_default(handle, stable_id)
+```
+
+v0 rules:
+
+- default role is derived from `WidgetKind`.
+- default label is derived from widget text when no label override is supplied.
+- stable id is never derived from handle, pointer, or display text.
+- decorative widgets remain non-semantic until explicitly opted in.
+- explicit `set_semantic()` may override a previous default.
+
+### Law 8: semantic actions are artifact facts, not event execution
+
+Semantic Action Artifact v0 lets a semantic node expose the minimal fixed action mask it supports:
+
+```text
+semantic_id
+role
+label
+actions=activate
+```
+
+v0 rules:
+
+- actions are stored as a fixed `SemanticActionMask`.
+- `Button` and `ListItem` default to `activate`; `Text` and `Container` default to no action.
+- product/runtime code may explicitly override the action mask through `set_semantic_actions()`.
+- semantic tree nodes carry action masks and include them in `semantic_hash`.
+- an action bit is evidence of capability, not a request to synthesize input or invoke OS accessibility.
+- v0 does not introduce a full accessibility runtime.
+
+### Law 9: semantic intent resolution is address lookup, not execution
+
+Semantic Intent Resolution v0 lets runtime resolve a product request:
+
+```text
+root + semantic_id + action -> SemanticIntentResolution
+```
+
+v0 rules:
+
+- lookup is root-bound and deterministic.
+- duplicate ids under the requested root are `ambiguous_id`, not silently first-match.
+- missing id, invalid root, unsupported action, and disabled target are explicit status values.
+- `resolved` means the target is addressable and currently executable.
+- resolution must not synthesize input, dispatch callbacks, mutate pressed/focused state, or bind OS accessibility.
+- execution remains a future, separate admission step.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
@@ -120,11 +174,40 @@ stdout final contract:
 [stree] run=semantic_tree_demo phase=end result=ok cases=6
 ```
 
+`Examples/ui/vivid/semantic_default_demo` is the first Pattern Semantic Defaults v0 runtime evidence.
+It verifies default role derivation, text-based label source, explicit label override, opt-in boundary for decorative labels, explicit override, and semantic tree artifact integration.
+
+stdout final contract:
+
+```text
+[sdef] run=semantic_default_demo phase=end result=ok cases=6
+```
+
+`Examples/ui/vivid/semantic_action_demo` is the first Semantic Action Artifact v0 runtime evidence.
+It verifies role-derived activate defaults, non-action semantic roles, explicit action override, tree action artifacts, and semantic hash participation.
+
+stdout final contract:
+
+```text
+[sact] run=semantic_action_demo phase=end result=ok cases=6
+```
+
+`Examples/ui/vivid/semantic_intent_demo` is the first Semantic Intent Resolution v0 runtime evidence.
+It verifies root-bound id/action lookup, no-execute side effects, unsupported action, missing id, ambiguous duplicate id, disabled target, and invalid request statuses.
+
+stdout final contract:
+
+```text
+[sint] run=semantic_intent_demo phase=end result=ok cases=7
+```
+
 核心字段：
 
 ```text
 semantic_id=primary/secondary/outside
 role=button/list_item
+actions=activate
+intent_status=resolved/ambiguous_id/unsupported_action/disabled
 semantic_found=1
 semantic_current=secondary
 semantic_hash=...

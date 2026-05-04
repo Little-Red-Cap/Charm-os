@@ -33,6 +33,7 @@ Current `system_compiler.front_page_entry_opener` includes:
   - `scripts/validate_system_compiler_front_page_entry_opener.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opener_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -165,6 +166,7 @@ summary shapes in the repository:
 - `system_compiler.biography_index_compare/v0`
 - `system_compiler.witness_bundle/v0`
 - `minimal_kernel.runtime_evidence_bundle.summary/v1`
+- `minimal_kernel.kernel_runtime_session/v0`
 
 For those targets it records:
 
@@ -173,6 +175,12 @@ For those targets it records:
 - short summary lines
 - nearby question lines
 - nearby supporting / evidence / compare paths
+
+For `minimal_kernel.kernel_runtime_session/v0`, the projection kind is
+`kernel_runtime_session_overview`. It keeps the runtime session distinct from
+the broader `runtime_evidence_bundle` preview, and summarizes the session id,
+world, semantic witness, machine witness, runtime facts, ledger count, and
+session verdict.
 
 For `system_compiler.world_shelf_review/v0`, those summary lines include a
 single `drift_digest ...` line. This is only a consumer preview of the review
@@ -218,6 +226,12 @@ Or run the dedicated smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opener_smoke.ps1 -Clean
+```
+
+For the narrow `runtime_session` opener projection path, use:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1 -Clean
 ```
 
 To run the full entry-opening flow from capability through landing, landing

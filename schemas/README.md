@@ -216,6 +216,10 @@
     与 `scripts/validate_system_compiler_front_page_entry_opener.py`
   - 用途偏向把一份 `front_page entry landing` 与可选的 `landing compare` 收成确定性 explain opening plan，
     明确 open action、目标 summary/report/check，以及是否能安全转成 `inspect_system_compiler_artifact_report.ps1` 参数
+  - opener projection 现在支持 `minimal_kernel.kernel_runtime_session/v0`，
+    并投影为 `kernel_runtime_session_overview`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1` 会守住
+    `runtime_session` tab 到 opener projection 的最短链路
 
 - `system_compiler.front_page_entry_opening_flow.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_v0.md`、

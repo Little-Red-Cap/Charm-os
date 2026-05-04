@@ -24,6 +24,7 @@ BIOGRAPHY_INDEX_SCHEMA = "system_compiler.biography_index/v0"
 BIOGRAPHY_INDEX_COMPARE_SCHEMA = "system_compiler.biography_index_compare/v0"
 WITNESS_BUNDLE_SCHEMA = "system_compiler.witness_bundle/v0"
 RUNTIME_EVIDENCE_SCHEMA = "minimal_kernel.runtime_evidence_bundle.summary/v1"
+KERNEL_RUNTIME_SESSION_SCHEMA = "minimal_kernel.kernel_runtime_session/v0"
 
 INSPECTOR_SCRIPT = "scripts/inspect_system_compiler_artifact_report.ps1"
 
@@ -926,6 +927,96 @@ def build_runtime_evidence_projection(summary_path: Path, summary: dict[str, Any
     )
 
 
+def build_kernel_runtime_session_projection(summary_path: Path, summary: dict[str, Any]) -> OrderedDict[str, Any]:
+    subject = get_mapping(summary.get("subject"))
+    semantic_witness = get_mapping(summary.get("semantic_witness"))
+    machine_witness = get_mapping(summary.get("machine_witness"))
+    runtime = get_mapping(summary.get("runtime"))
+    ledger = get_mapping(summary.get("ledger"))
+    verdict = get_mapping(summary.get("verdict"))
+    artifact_paths = get_mapping(summary.get("artifact_paths"))
+    provenance = get_mapping(summary.get("provenance"))
+    failures = [get_mapping(item) for item in get_list(summary.get("failures")) if isinstance(item, dict)]
+    headline = "runtime_session id={0} status={1}".format(
+        choose_text(summary.get("session_id")) or "unknown",
+        choose_text(verdict.get("session_status")) or "-",
+    )
+    summary_lines = [
+        "world={0} board={1} profile={2} leaf={3}".format(
+            choose_text(summary.get("world")) or "-",
+            choose_text(subject.get("board")) or "-",
+            choose_text(subject.get("profile")) or "-",
+            choose_text(subject.get("leaf")) or "-",
+        ),
+        "semantic status={0} host={1} contracts={2}".format(
+            choose_text(semantic_witness.get("status")) or "-",
+            "yes" if bool(semantic_witness.get("host")) else "no",
+            len(get_list(semantic_witness.get("contracts"))),
+        ),
+        "machine status={0} qemu={1} standing_cases={2} regressed_cases={3}".format(
+            choose_text(machine_witness.get("status")) or "-",
+            "yes" if bool(machine_witness.get("qemu")) else "no",
+            len(get_list(machine_witness.get("standing_cases"))),
+            len(get_list(machine_witness.get("regressed_cases"))),
+        ),
+        "runtime tick={0} trap={1} thread={2} task_syscall={3} handoff={4}".format(
+            "yes" if bool(runtime.get("tick")) else "no",
+            "yes" if bool(runtime.get("trap")) else "no",
+            "yes" if bool(runtime.get("thread")) else "no",
+            "yes" if bool(runtime.get("task_syscall")) else "no",
+            "yes" if bool(runtime.get("handoff_continuity")) else "no",
+        ),
+        "ledger events={0} failures={1} failure_domain={2}".format(
+            choose_text(ledger.get("event_count")) or "0",
+            len(failures),
+            choose_text(verdict.get("failure_domain")) or "-",
+        ),
+    ]
+    question_lines = [
+        "Which runtime phase would explain this session if it stops standing?",
+        "Should this session become the default minimal-kernel runtime witness entry?",
+    ]
+    if failures:
+        first_failure = failures[0]
+        question_lines.insert(
+            0,
+            "How should `{0}` in domain `{1}` be resolved?".format(
+                choose_text(first_failure.get("code")) or "unknown",
+                choose_text(first_failure.get("domain")) or "unknown",
+            ),
+        )
+
+    return build_opened_projection_record(
+        status="available",
+        projection_kind="kernel_runtime_session_overview",
+        source_summary_schema=choose_text(summary.get("schema")),
+        source_summary_kind=choose_text(summary.get("kind")),
+        source_summary_path=normalize_path(summary_path),
+        headline=headline,
+        summary_lines=summary_lines,
+        question_lines=question_lines,
+        supporting_summary_paths=[],
+        evidence_paths=existing_paths(
+            [
+                artifact_paths.get("summary"),
+                artifact_paths.get("runtime_ledger"),
+                artifact_paths.get("report"),
+                artifact_paths.get("check"),
+                artifact_paths.get("source_runtime_evidence"),
+                provenance.get("runtime_evidence_summary"),
+                semantic_witness.get("source_summary"),
+                semantic_witness.get("cold_summary"),
+                semantic_witness.get("warm_summary"),
+                machine_witness.get("source_summary"),
+                ledger.get("phase_ledger"),
+                ledger.get("runtime_ledger"),
+            ]
+        ),
+        compare_paths=[],
+        blockers=[],
+    )
+
+
 def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[str, Any]:
     target_summary_path = choose_text(open_action.get("target_summary_path"))
     target_summary_schema = choose_text(open_action.get("target_summary_schema"))
@@ -987,6 +1078,8 @@ def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[s
         return build_witness_bundle_projection(summary_path, summary)
     if actual_schema == RUNTIME_EVIDENCE_SCHEMA:
         return build_runtime_evidence_projection(summary_path, summary)
+    if actual_schema == KERNEL_RUNTIME_SESSION_SCHEMA:
+        return build_kernel_runtime_session_projection(summary_path, summary)
 
     return build_opened_projection_record(
         status="unavailable",

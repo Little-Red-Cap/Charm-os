@@ -139,6 +139,14 @@ enum class SemanticActionRequestRejectReason : std::uint8_t {
 };
 
 export
+enum class SemanticActionRequestStage : std::uint8_t {
+    None = 0,
+    ActionAdmission,
+    FocusRequest,
+    Execution,
+};
+
+export
 enum class SemanticFocusQueryStatus : std::uint8_t {
     Resolved = 0,
     InvalidRoot,
@@ -239,6 +247,25 @@ struct SemanticActionRequest {
     bool emitted_focus_in{false};
     bool emitted_click{false};
     bool executed{false};
+};
+
+export
+struct SemanticActionRequestLedger {
+    SemanticActionRequestStage stage{SemanticActionRequestStage::None};
+    SemanticActionRequestStatus status{SemanticActionRequestStatus::Rejected};
+    SemanticActionRequestRejectReason reject_reason{SemanticActionRequestRejectReason::None};
+    SemanticIntentStatus intent_status{SemanticIntentStatus::NotFound};
+    SemanticActionAdmissionStatus action_admission_status{SemanticActionAdmissionStatus::NotFound};
+    SemanticFocusRequestStatus focus_request_status{SemanticFocusRequestStatus::Rejected};
+    const char* id{""};
+    std::size_t events_before{0};
+    std::size_t events_after{0};
+    bool admitted{false};
+    bool focus_ready{false};
+    bool executed{false};
+    bool emitted_click{false};
+    bool focus_started_on_target{false};
+    bool focus_ended_on_target{false};
 };
 
 export
@@ -414,6 +441,63 @@ inline const char* semantic_action_request_reject_reason_name(
         return "no_action_emitted";
     }
     return "unknown";
+}
+
+export
+inline const char* semantic_action_request_stage_name(SemanticActionRequestStage stage) noexcept {
+    switch (stage) {
+    case SemanticActionRequestStage::None:
+        return "none";
+    case SemanticActionRequestStage::ActionAdmission:
+        return "action_admission";
+    case SemanticActionRequestStage::FocusRequest:
+        return "focus_request";
+    case SemanticActionRequestStage::Execution:
+        return "execution";
+    }
+    return "unknown";
+}
+
+export
+inline SemanticActionRequestStage semantic_action_request_stage(
+    const SemanticActionRequest& request) noexcept {
+    if (request.status == SemanticActionRequestStatus::Executed) {
+        return SemanticActionRequestStage::Execution;
+    }
+    switch (request.reject_reason) {
+    case SemanticActionRequestRejectReason::None:
+        return SemanticActionRequestStage::None;
+    case SemanticActionRequestRejectReason::ActionAdmissionRejected:
+        return SemanticActionRequestStage::ActionAdmission;
+    case SemanticActionRequestRejectReason::FocusRequestRejected:
+        return SemanticActionRequestStage::FocusRequest;
+    case SemanticActionRequestRejectReason::InputActionOverflow:
+    case SemanticActionRequestRejectReason::NoActionEmitted:
+        return SemanticActionRequestStage::Execution;
+    }
+    return SemanticActionRequestStage::None;
+}
+
+export
+inline SemanticActionRequestLedger semantic_action_request_ledger(
+    const SemanticActionRequest& request) noexcept {
+    return SemanticActionRequestLedger{
+        .stage = semantic_action_request_stage(request),
+        .status = request.status,
+        .reject_reason = request.reject_reason,
+        .intent_status = request.admission.intent_status,
+        .action_admission_status = request.admission.status,
+        .focus_request_status = request.focus_request.status,
+        .id = request.admission.id,
+        .events_before = request.events_before,
+        .events_after = request.events_after,
+        .admitted = request.admitted,
+        .focus_ready = request.focus_ready,
+        .executed = request.executed,
+        .emitted_click = request.emitted_click,
+        .focus_started_on_target = request.before_focus == request.target,
+        .focus_ended_on_target = request.after_focus == request.target,
+    };
 }
 
 export

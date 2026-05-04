@@ -234,7 +234,8 @@ v0 rules:
 - active scope denial must reject at the focus request boundary after action admission succeeds.
 - rejected requests must not emit click evidence unless the reason explicitly represents an execution-time failure.
 - stdout evidence must print both high-level status and rejection reason.
-- request stdout evidence should use `ledger=action_request stage=<boundary>` so each case records the last boundary reached.
+- runtime exposes `SemanticActionRequestLedger` so ledger semantics are not trapped inside demo printf code.
+- request stdout evidence should use `ledger=action_request stage=<boundary>` from the runtime ledger artifact so each case records the last boundary reached.
 
 ## 首个落点
 
@@ -294,7 +295,7 @@ stdout final contract:
 `Examples/ui/vivid/semantic_action_request_demo` is the first Semantic Action Request v0 runtime evidence.
 It verifies that semantic intent resolution and action admission remain side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, and rejects scope-forbidden targets through focus admission.
 It also records `SemanticActionRequestRejectReason` so CI can distinguish action-admission rejection from focus-request rejection.
-The main request cases emit `ledger=action_request stage=action_admission/focus_request/execution` lines.
+The main request cases emit `ledger=action_request stage=action_admission/focus_request/execution` lines generated from `SemanticActionRequestLedger`.
 
 stdout final contract:
 

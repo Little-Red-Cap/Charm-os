@@ -47,41 +47,24 @@ namespace {
         return count;
     }
 
-    [[nodiscard]] const char* request_stage(const SemanticActionRequest& request) noexcept {
-        if (request.status == SemanticActionRequestStatus::Executed) {
-            return "execution";
-        }
-        switch (request.reject_reason) {
-        case SemanticActionRequestRejectReason::None:
-            return "none";
-        case SemanticActionRequestRejectReason::ActionAdmissionRejected:
-            return "action_admission";
-        case SemanticActionRequestRejectReason::FocusRequestRejected:
-            return "focus_request";
-        case SemanticActionRequestRejectReason::InputActionOverflow:
-        case SemanticActionRequestRejectReason::NoActionEmitted:
-            return "execution";
-        }
-        return "unknown";
-    }
-
     void print_request_ledger(const SemanticActionRequest& request) noexcept {
+        const SemanticActionRequestLedger ledger = semantic_action_request_ledger(request);
         std::printf(" ledger=action_request stage=%s status=%s reason=%s intent=%s action_admission=%s focus=%s admitted=%d focus_ready=%d executed=%d click=%d events_before=%zu events_after=%zu focus_before=%s focus_after=%s id=%s\n",
-                    request_stage(request),
-                    semantic_action_request_status_name(request.status),
-                    semantic_action_request_reject_reason_name(request.reject_reason),
-                    semantic_intent_status_name(request.admission.intent_status),
-                    semantic_action_admission_status_name(request.admission.status),
-                    semantic_focus_request_status_name(request.focus_request.status),
-                    request.admitted ? 1 : 0,
-                    request.focus_ready ? 1 : 0,
-                    request.executed ? 1 : 0,
-                    request.emitted_click ? 1 : 0,
-                    request.events_before,
-                    request.events_after,
-                    same_handle(request.before_focus, request.target) ? "target" : "other",
-                    same_handle(request.after_focus, request.target) ? "target" : "other",
-                    request.admission.id);
+                    semantic_action_request_stage_name(ledger.stage),
+                    semantic_action_request_status_name(ledger.status),
+                    semantic_action_request_reject_reason_name(ledger.reject_reason),
+                    semantic_intent_status_name(ledger.intent_status),
+                    semantic_action_admission_status_name(ledger.action_admission_status),
+                    semantic_focus_request_status_name(ledger.focus_request_status),
+                    ledger.admitted ? 1 : 0,
+                    ledger.focus_ready ? 1 : 0,
+                    ledger.executed ? 1 : 0,
+                    ledger.emitted_click ? 1 : 0,
+                    ledger.events_before,
+                    ledger.events_after,
+                    ledger.focus_started_on_target ? "target" : "other",
+                    ledger.focus_ended_on_target ? "target" : "other",
+                    ledger.id);
     }
 }
 

@@ -446,7 +446,7 @@ resolve_semantic_intent(root, id, action)
 
 `SemanticActionRequest` is the controlled execution boundary after semantic action admission. Successful request must prove both semantic execution evidence (`executed`, `emitted_click`) and focus preparation evidence (`SemanticFocusRequest`). Failed action admission or failed focus admission must reject before action execution.
 Every rejected action request must also name the boundary that failed through `SemanticActionRequestRejectReason`, so `Rejected` never becomes an opaque catch-all ledger entry.
-Runtime evidence should print this as an action request ledger, not only as scattered fields.
+Runtime evidence should print this as an action request ledger, not only as scattered fields; `SemanticActionRequestLedger` is the runtime artifact for that evidence.
 
 Current evidence:
 

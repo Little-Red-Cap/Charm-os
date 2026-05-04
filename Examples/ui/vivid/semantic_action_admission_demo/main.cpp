@@ -24,21 +24,6 @@ namespace {
             && admission.will_emit_click
             && vivid::evidence::same_handle(admission.handle, expected);
     }
-
-    void print_admission(const SemanticActionAdmission& admission) noexcept {
-        std::printf(" status=%s intent=%s admitted=%d executable=%d focus_plan=%d click_plan=%d found=%d id=%s visited=%zu matches=%zu actions=%u\n",
-                    semantic_action_admission_status_name(admission.status),
-                    semantic_intent_status_name(admission.intent_status),
-                    admission.admitted ? 1 : 0,
-                    admission.executable ? 1 : 0,
-                    admission.will_request_focus ? 1 : 0,
-                    admission.will_emit_click ? 1 : 0,
-                    admission.found ? 1 : 0,
-                    admission.id,
-                    admission.visited_count,
-                    admission.match_count,
-                    admission.actions);
-    }
 }
 
 int main() {
@@ -64,7 +49,8 @@ int main() {
 
     const auto primary = scene.admit_semantic_action(handles.scope, "action.primary", SemanticAction::Activate);
     run_log.case_begin("admit_activate");
-    print_admission(primary);
+    vivid::evidence::print_action_admission_ledger(primary);
+    std::printf("\n");
     if (!vivid::evidence::expect(admitted_activate(primary, handles.primary),
                                  "primary activate action is admitted with execution plan")) {
         return 1;
@@ -91,7 +77,8 @@ int main() {
 
     const auto secondary = scene.admit_semantic_action(handles.scope, "row.secondary", SemanticAction::Activate);
     run_log.case_begin("admit_list_item");
-    print_admission(secondary);
+    vivid::evidence::print_action_admission_ledger(secondary);
+    std::printf("\n");
     if (!vivid::evidence::expect(admitted_activate(secondary, handles.secondary),
                                  "list item activate action is admitted")) {
         return 1;
@@ -105,7 +92,8 @@ int main() {
     const auto unsupported =
         scene.admit_semantic_action(handles.scope, "panel.info", SemanticAction::Activate);
     run_log.case_begin("reject_unsupported_action");
-    print_admission(unsupported);
+    vivid::evidence::print_action_admission_ledger(unsupported);
+    std::printf("\n");
     if (!vivid::evidence::expect(unsupported.status == SemanticActionAdmissionStatus::UnsupportedAction
                                  && unsupported.intent_status == SemanticIntentStatus::UnsupportedAction
                                  && !unsupported.admitted
@@ -117,7 +105,8 @@ int main() {
     const auto disabled =
         scene.admit_semantic_action(handles.scope, "action.disabled", SemanticAction::Activate);
     run_log.case_begin("reject_disabled");
-    print_admission(disabled);
+    vivid::evidence::print_action_admission_ledger(disabled);
+    std::printf("\n");
     if (!vivid::evidence::expect(disabled.status == SemanticActionAdmissionStatus::Disabled
                                  && disabled.intent_status == SemanticIntentStatus::Disabled
                                  && !disabled.admitted,

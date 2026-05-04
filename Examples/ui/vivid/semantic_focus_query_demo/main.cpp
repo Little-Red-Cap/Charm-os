@@ -19,18 +19,6 @@ namespace {
             && query.focusable_now
             && query.allowed_by_scope;
     }
-
-    void print_query(const SemanticFocusQuery& query) noexcept {
-        std::printf(" status=%s found=%d focusable=%d allowed=%d focusable_now=%d id=%s visited=%zu matches=%zu\n",
-                    semantic_focus_query_status_name(query.status),
-                    query.found ? 1 : 0,
-                    query.focusable ? 1 : 0,
-                    query.allowed_by_scope ? 1 : 0,
-                    query.focusable_now ? 1 : 0,
-                    query.id,
-                    query.visited_count,
-                    query.match_count);
-    }
 }
 
 int main() {
@@ -51,7 +39,8 @@ int main() {
 
     const auto primary = scene.query_semantic_focus(handles.scope, "action.primary");
     run_log.case_begin("resolve_inside_scope");
-    print_query(primary);
+    vivid::evidence::print_focus_query_ledger(primary);
+    std::printf("\n");
     if (!vivid::evidence::expect(resolved(primary), "primary focus query resolves")) return 1;
     if (!vivid::evidence::expect(vivid::evidence::same_handle(primary.handle, handles.primary),
                                  "primary focus query returns scoped handle")) {
@@ -75,7 +64,8 @@ int main() {
 
     const auto not_focusable = scene.query_semantic_focus(handles.scope, "panel.info");
     run_log.case_begin("not_focusable");
-    print_query(not_focusable);
+    vivid::evidence::print_focus_query_ledger(not_focusable);
+    std::printf("\n");
     if (!vivid::evidence::expect(not_focusable.status == SemanticFocusQueryStatus::NotFocusable,
                                  "container semantic target is not focusable")) {
         return 1;
@@ -83,7 +73,8 @@ int main() {
 
     const auto disabled = scene.query_semantic_focus(handles.scope, "action.disabled");
     run_log.case_begin("disabled_target");
-    print_query(disabled);
+    vivid::evidence::print_focus_query_ledger(disabled);
+    std::printf("\n");
     if (!vivid::evidence::expect(disabled.status == SemanticFocusQueryStatus::Disabled,
                                  "disabled focus target is rejected")) {
         return 1;
@@ -91,7 +82,8 @@ int main() {
 
     const auto outside = scene.query_semantic_focus(handles.root, "action.outside");
     run_log.case_begin("outside_active_scope");
-    print_query(outside);
+    vivid::evidence::print_focus_query_ledger(outside);
+    std::printf("\n");
     if (!vivid::evidence::expect(outside.status == SemanticFocusQueryStatus::OutsideActiveScope,
                                  "active trapped scope rejects outside focus query")) {
         return 1;
@@ -99,7 +91,8 @@ int main() {
 
     const auto ambiguous = scene.query_semantic_focus(handles.root, "action.primary");
     run_log.case_begin("ambiguous_id");
-    print_query(ambiguous);
+    vivid::evidence::print_focus_query_ledger(ambiguous);
+    std::printf("\n");
     if (!vivid::evidence::expect(ambiguous.status == SemanticFocusQueryStatus::AmbiguousId,
                                  "duplicate semantic focus id is ambiguous")) {
         return 1;

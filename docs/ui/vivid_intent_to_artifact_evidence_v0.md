@@ -94,6 +94,7 @@ The final line is the CTest audit gate.
 - `RenderArtifactDeltaEvidence` currently lives in demo support as evidence vocabulary, not runtime contract surface.
 - `CausalChainEvidence` currently lives in demo support as evidence vocabulary, not runtime contract surface.
 - Semantic request ledger printing currently lives in demo support as evidence vocabulary, not runtime contract surface.
+- Semantic query, intent resolution, and admission printing currently live in demo support as evidence vocabulary, not runtime contract surface.
 - This v0 does not introduce screenshot golden files.
 - This v0 does not require every component demo to become semantic.
 - This v0 does not replace `vivid_semantic_request_ledger_law_v0.md`; it consumes that ledger law.

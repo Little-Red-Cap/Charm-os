@@ -214,6 +214,60 @@ namespace vivid::evidence {
                     evidence.rejected_no_mutation ? 1 : 0);
     }
 
+    inline void print_semantic_intent_resolution(const SemanticIntentResolution& resolution) noexcept {
+        std::printf(" intent_resolution=1 status=%s found=%d executable=%d id=%s actions=%u visited=%zu matches=%zu",
+                    semantic_intent_status_name(resolution.status),
+                    resolution.found ? 1 : 0,
+                    resolution.executable ? 1 : 0,
+                    resolution.id,
+                    resolution.actions,
+                    resolution.visited_count,
+                    resolution.match_count);
+    }
+
+    inline void print_focus_query_ledger(const SemanticFocusQuery& query) noexcept {
+        std::printf(" ledger=focus_query status=%s found=%d focusable=%d allowed=%d focusable_now=%d id=%s visited=%zu matches=%zu",
+                    semantic_focus_query_status_name(query.status),
+                    query.found ? 1 : 0,
+                    query.focusable ? 1 : 0,
+                    query.allowed_by_scope ? 1 : 0,
+                    query.focusable_now ? 1 : 0,
+                    query.id,
+                    query.visited_count,
+                    query.match_count);
+    }
+
+    inline void print_focus_admission_ledger(const SemanticFocusAdmission& admission) noexcept {
+        std::printf(" ledger=focus_admission status=%s query=%s admitted=%d transfer_needed=%d focus_out=%d focus_in=%d found=%d focusable=%d allowed=%d id=%s visited=%zu matches=%zu",
+                    semantic_focus_admission_status_name(admission.status),
+                    semantic_focus_query_status_name(admission.query_status),
+                    admission.admitted ? 1 : 0,
+                    admission.transfer_needed ? 1 : 0,
+                    admission.will_emit_focus_out ? 1 : 0,
+                    admission.will_emit_focus_in ? 1 : 0,
+                    admission.found ? 1 : 0,
+                    admission.focusable ? 1 : 0,
+                    admission.allowed_by_scope ? 1 : 0,
+                    admission.id,
+                    admission.visited_count,
+                    admission.match_count);
+    }
+
+    inline void print_action_admission_ledger(const SemanticActionAdmission& admission) noexcept {
+        std::printf(" ledger=action_admission status=%s intent=%s admitted=%d executable=%d focus_plan=%d click_plan=%d found=%d id=%s visited=%zu matches=%zu actions=%u",
+                    semantic_action_admission_status_name(admission.status),
+                    semantic_intent_status_name(admission.intent_status),
+                    admission.admitted ? 1 : 0,
+                    admission.executable ? 1 : 0,
+                    admission.will_request_focus ? 1 : 0,
+                    admission.will_emit_click ? 1 : 0,
+                    admission.found ? 1 : 0,
+                    admission.id,
+                    admission.visited_count,
+                    admission.match_count,
+                    admission.actions);
+    }
+
     inline void print_focus_request_ledger(const SemanticFocusRequest& request) noexcept {
         const SemanticFocusRequestLedger ledger = semantic_focus_request_ledger(request);
         std::printf(" ledger=focus_request stage=%s status=%s admission=%s query=%s admitted=%d transfer_needed=%d committed=%d focus_changed=%d focus_out=%d focus_in=%d events_before=%zu events_after=%zu focus_before=%s focus_after=%s id=%s",

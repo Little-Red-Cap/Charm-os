@@ -77,6 +77,10 @@ Canonical stdout shape:
 
 - `Examples/ui/vivid/semantic_focus_request_demo` proves `SemanticFocusRequestLedger`.
 - `Examples/ui/vivid/semantic_action_request_demo` proves `SemanticActionRequestLedger`.
+- `Examples/ui/vivid/semantic_focus_query_demo` prints `ledger=focus_query` through the shared support helper.
+- `Examples/ui/vivid/semantic_focus_admission_demo` prints `ledger=focus_admission` through the shared support helper.
+- `Examples/ui/vivid/semantic_action_admission_demo` prints `ledger=action_admission` through the shared support helper.
+- `Examples/ui/vivid/semantic_intent_demo` prints `intent_resolution=1` through the shared support helper.
 
 Current stdout contracts remain owned by `vivid_evidence_stdout_law.md`:
 
@@ -87,9 +91,24 @@ Current stdout contracts remain owned by `vivid_evidence_stdout_law.md`:
 
 `Examples/ui/vivid/intent_artifact_demo` also consumes `SemanticActionRequestLedger` through the shared helper as part of its causal chain evidence.
 
+## Support-Layer Vocabulary
+
+`Examples/ui/vivid/support/vivid_evidence_support.hpp` also owns shared stdout helpers for semantic query, intent resolution, and admission evidence:
+
+```text
+intent_resolution=1 ...
+ledger=focus_query ...
+ledger=focus_admission ...
+ledger=action_admission ...
+ledger=focus_request ...
+ledger=action_request ...
+```
+
+Only `SemanticFocusRequestLedger` and `SemanticActionRequestLedger` are runtime ledger artifacts in this v0 law. Query, intent resolution, and admission helpers are demo-lab evidence vocabulary: they keep stdout stable and remove duplicated field assembly from demos, but they do not promote those intermediate results into a new core contract surface.
+
 ## Non-Goals
 
 - This law does not define a general transaction framework.
 - This law does not merge focus and action request types.
 - This law does not add accessibility execution.
-- This law does not require every semantic query or admission to have a ledger.
+- This law does not require every semantic query or admission to become a runtime ledger artifact.

@@ -150,6 +150,16 @@ out/minimal-kernel-runtime-session-witness-smoke/
 - collapsed session 可以经由 witness exporter 进入 world compare
 - 根 `summary.json` 可以通过 schema validator 与语义 gate
 
+如果只是想消费这条聚合根、确认 session standing / drift / failure taxonomy，而不想重新执行 smoke，可以直接运行：
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
+  -ShowArtifacts
+```
+
+它会把根 `summary.json` 里的 session 状态、两条 drift 投影、missing runtime facts、failure codes 与关键 artifact path 收成稳定的只读视图。
+
 ## 本地验证
 
 如果要在本地复现当前总证据链，优先直接跑：

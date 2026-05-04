@@ -86,6 +86,7 @@
 - 最小内核运行时证据矩阵：`docs/system/minimal_kernel_runtime_evidence_matrix.md`
 - 最小内核运行时总回归：`scripts/minimal_kernel_runtime_smoke.ps1`
 - 最小内核运行会话 witness CI 入口：`scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1`
+- 最小内核运行会话 witness inspect 入口：`scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1`
 - 最小内核运行会话 witness workflow：`.github/workflows/minimal-kernel-runtime-session-witness.yml`
 - 最小内核 runtime mailbox 契约：`docs/system/minimal_kernel_runtime_mailbox_contract.md`
 - 最小内核 task message API 契约：`docs/system/minimal_kernel_task_message_api_contract.md`
@@ -231,6 +232,7 @@ flowchart TD
 | 推进最小内核运行时 glue / bridge | `docs/system/minimal_kernel_runtime_bridge_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 推进最小内核运行会话 witness / session 证据对象 | `docs/system/kernel_runtime_session_witness_v0.md` → `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md` → `schemas/README.md` |
 | 回归最小内核运行会话 witness 聚合证据 | `scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1` → `.github/workflows/minimal-kernel-runtime-session-witness.yml` → `docs/system/kernel_runtime_session_witness_v0.md` |
+| 查看最小内核运行会话 witness 聚合状态 | `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1` → `docs/system/kernel_runtime_session_witness_v0.md` → `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md` |
 | 查看最小内核运行时证据覆盖 | `docs/system/minimal_kernel_runtime_evidence_matrix.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |
 | 回归最小内核运行时总入口 | `scripts/minimal_kernel_runtime_smoke.ps1` → `docs/system/README.md` |
 | 推进第一个 stateful kernel object / runtime mailbox | `docs/system/minimal_kernel_runtime_mailbox_contract.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |

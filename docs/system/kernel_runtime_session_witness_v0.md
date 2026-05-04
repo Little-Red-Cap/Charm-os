@@ -237,6 +237,7 @@ session/
 - `scripts/export_minimal_kernel_runtime_session.py`
 - `scripts/minimal_kernel_runtime_session_smoke.ps1`
 - `scripts/minimal_kernel_runtime_session_witness_smoke.ps1`
+- `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1`
 
 聚合入口 `minimal_kernel_runtime_session_witness_smoke.ps1` 不再只是 console smoke。
 它会在输出根目录额外导出：
@@ -263,6 +264,21 @@ CI / 人工验收优先调用 `ci_minimal_kernel_runtime_session_witness_smoke.p
 
 runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
 system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。
+
+如果只是想只读消费这条聚合根，而不重跑 smoke，可以直接运行：
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -ShowArtifacts
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -ShowNarratives -AsJson
+```
+
+这条 inspect 入口只读取根 `summary.json`，回答：
+
+- 当前 `kernel_runtime_session` 是否 standing
+- synthetic drift 与 witness-export drift 各自塌在哪个 domain / focus
+- 哪个 failure code 与 missing runtime fact 导致了 session continuity collapse
+- 上层如果要继续追 report / check / runtime ledger，应该沿着哪些 artifact path 下钻
 
 ## World Compare Projection
 

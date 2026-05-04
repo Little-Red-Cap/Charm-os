@@ -53,6 +53,23 @@ def normalize_optional_path(path_value: Any) -> str:
     return normalize_path(text)
 
 
+def clone_opening_reason(reason: Any) -> OrderedDict[str, Any]:
+    reason_map = get_mapping(reason)
+    return OrderedDict(
+        [
+            ("kind", choose_text(reason_map.get("kind"))),
+            ("summary", choose_text(reason_map.get("summary"))),
+            ("source_summary_path", normalize_optional_path(reason_map.get("source_summary_path"))),
+            ("drift_changed", bool(reason_map.get("drift_changed"))),
+            ("drift_verdict", choose_text(reason_map.get("drift_verdict"))),
+        ]
+    )
+
+
+def string_list(value: Any) -> list[str]:
+    return [choose_text(item) for item in get_list(value) if choose_text(item)]
+
+
 def make_surface(
     surface_id: str,
     label: str,
@@ -92,7 +109,9 @@ def build_opening_handoff_entry(index: int, case: dict[str, Any]) -> OrderedDict
     report_exists = path_exists(case.get("report_markdown_path"))
     check_exists = path_exists(case.get("check_text_path"))
     inspector_ready = bool(case.get("inspector_ready"))
-    inspector_blockers = [choose_text(item) for item in get_list(case.get("inspector_blockers")) if choose_text(item)]
+    open_action_blockers = string_list(case.get("open_action_blockers"))
+    projection_blockers = string_list(case.get("projection_blockers"))
+    inspector_blockers = string_list(case.get("inspector_blockers"))
 
     blockers: list[str] = []
     if not open_action_ready:
@@ -132,11 +151,17 @@ def build_opening_handoff_entry(index: int, case: dict[str, Any]) -> OrderedDict
             ("query_kind", choose_text(case.get("query_kind"))),
             ("query_scope", choose_text(case.get("query_scope"))),
             ("selection_rule", choose_text(case.get("selection_rule"))),
+            ("opening_reason", clone_opening_reason(case.get("opening_reason"))),
             ("target_summary_schema", choose_text(case.get("target_summary_schema"))),
             ("target_summary_kind", choose_text(case.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(case.get("target_summary_path"))),
+            ("open_action_blockers", open_action_blockers),
             ("projection_status", choose_text(case.get("projection_status"))),
             ("projection_kind", choose_text(case.get("projection_kind"))),
+            ("projection_headline", choose_text(case.get("projection_headline"))),
+            ("projection_summary_lines", string_list(case.get("projection_summary_lines"))),
+            ("projection_question_lines", string_list(case.get("projection_question_lines"))),
+            ("projection_blockers", projection_blockers),
             ("compare_context_available", compare_context_available),
             ("landing_verdict", choose_text(case.get("landing_verdict"))),
             ("inspector_ready", inspector_ready),
@@ -145,6 +170,8 @@ def build_opening_handoff_entry(index: int, case: dict[str, Any]) -> OrderedDict
             ("report_markdown_path", normalize_optional_path(case.get("report_markdown_path"))),
             ("check_text_path", normalize_optional_path(case.get("check_text_path"))),
             ("inspector_blockers", inspector_blockers),
+            ("opener_compare_questions", string_list(case.get("opener_compare_questions"))),
+            ("opener_next_questions", string_list(case.get("opener_next_questions"))),
             ("handoff_blockers", ordered_unique(blockers)),
         ]
     )
@@ -178,6 +205,12 @@ def project_opening(entry: OrderedDict[str, Any] | None) -> OrderedDict[str, Any
                 ("target_summary_schema", ""),
                 ("target_summary_path", ""),
                 ("projection_kind", ""),
+                ("opening_reason", clone_opening_reason({})),
+                ("projection_headline", ""),
+                ("projection_summary_lines", []),
+                ("projection_question_lines", []),
+                ("blockers", []),
+                ("questions", OrderedDict([("compare_questions", []), ("next_questions", [])])),
                 ("reason", "no renderable opening handoff entry exists"),
             ]
         )
@@ -191,6 +224,23 @@ def project_opening(entry: OrderedDict[str, Any] | None) -> OrderedDict[str, Any
             ("target_summary_schema", entry["target_summary_schema"]),
             ("target_summary_path", entry["target_summary_path"]),
             ("projection_kind", entry["projection_kind"]),
+            ("opening_reason", entry["opening_reason"]),
+            ("projection_headline", entry["projection_headline"]),
+            ("projection_summary_lines", entry["projection_summary_lines"]),
+            ("projection_question_lines", entry["projection_question_lines"]),
+            (
+                "blockers",
+                ordered_unique(entry["open_action_blockers"] + entry["projection_blockers"] + entry["handoff_blockers"]),
+            ),
+            (
+                "questions",
+                OrderedDict(
+                    [
+                        ("compare_questions", entry["opener_compare_questions"]),
+                        ("next_questions", entry["opener_next_questions"]),
+                    ]
+                ),
+            ),
             ("reason", "first stable renderable opening for consumer preview"),
         ]
     )
@@ -199,16 +249,23 @@ def project_opening(entry: OrderedDict[str, Any] | None) -> OrderedDict[str, Any
 def build_readiness_surface(entries: list[OrderedDict[str, Any]]) -> OrderedDict[str, Any]:
     projection_kinds = Counter(entry["projection_kind"] for entry in entries if entry["projection_kind"])
     target_schemas = Counter(entry["target_summary_schema"] for entry in entries if entry["target_summary_schema"])
+    opening_reason_kinds = Counter(entry["opening_reason"]["kind"] for entry in entries if entry["opening_reason"]["kind"])
     blocker_counter = Counter()
     for entry in entries:
-        for blocker in entry["inspector_blockers"] + entry["handoff_blockers"]:
+        for blocker in (
+            entry["open_action_blockers"]
+            + entry["projection_blockers"]
+            + entry["inspector_blockers"]
+            + entry["handoff_blockers"]
+        ):
             blocker_counter[blocker] += 1
 
     return OrderedDict(
         [
             ("projection_kinds", OrderedDict(sorted(projection_kinds.items()))),
             ("target_summary_schemas", OrderedDict(sorted(target_schemas.items()))),
-            ("blocked_inspector_reasons", OrderedDict(sorted(blocker_counter.items()))),
+            ("opening_reason_kinds", OrderedDict(sorted(opening_reason_kinds.items()))),
+            ("blocked_reason_counts", OrderedDict(sorted(blocker_counter.items()))),
             (
                 "compare_aware_openings",
                 [entry["name"] for entry in entries if entry["compare_context_available"]],
@@ -216,6 +273,18 @@ def build_readiness_surface(entries: list[OrderedDict[str, Any]]) -> OrderedDict
             (
                 "renderable_openings",
                 [entry["name"] for entry in entries if entry["renderable"]],
+            ),
+            (
+                "preview_ready_openings",
+                [
+                    entry["name"]
+                    for entry in entries
+                    if entry["projection_headline"] or entry["projection_summary_lines"]
+                ],
+            ),
+            (
+                "drift_reason_openings",
+                [entry["name"] for entry in entries if bool(entry["opening_reason"]["drift_changed"])],
             ),
             (
                 "blocked_openings",
@@ -439,38 +508,49 @@ def build_report(summary: dict[str, Any]) -> str:
         f"- compare opening: `{status['compare_opening_name']}`",
         "",
         "## Default Opening",
-        "- `{0}` schema=`{1}` projection=`{2}` target=`{3}`".format(
+        "- `{0}` schema=`{1}` projection=`{2}` reason=`{3}` target=`{4}`".format(
             default_opening["name"],
             default_opening["target_summary_schema"],
             default_opening["projection_kind"],
+            default_opening["opening_reason"]["kind"],
             default_opening["target_summary_path"],
         ),
+        f"- headline: {default_opening['projection_headline'] or 'none'}",
         "",
         "## Compare Opening",
-        "- `{0}` schema=`{1}` projection=`{2}` target=`{3}`".format(
+        "- `{0}` schema=`{1}` projection=`{2}` reason=`{3}` target=`{4}`".format(
             compare_opening["name"],
             compare_opening["target_summary_schema"],
             compare_opening["projection_kind"],
+            compare_opening["opening_reason"]["kind"],
             compare_opening["target_summary_path"],
         ),
+        f"- headline: {compare_opening['projection_headline'] or 'none'}",
         "",
         "## Opening Entries",
     ]
     for entry in summary["opening_handoff_entries"]:
         lines.append(
-            "- `{0}` status=`{1}` renderable=`{2}` tab=`{3}` projection=`{4}` compare=`{5}` inspector_ready=`{6}`".format(
+            "- `{0}` status=`{1}` renderable=`{2}` tab=`{3}` reason=`{4}` projection=`{5}` compare=`{6}` inspector_ready=`{7}`".format(
                 entry["name"],
                 entry["handoff_status"],
                 entry["renderable"],
                 entry["selected_tab_id"],
+                entry["opening_reason"]["kind"],
                 entry["projection_kind"],
                 entry["compare_context_available"],
                 entry["inspector_ready"],
             )
         )
+        if entry["projection_headline"]:
+            lines.append(f"  headline: {entry['projection_headline']}")
+        for item in entry["projection_summary_lines"][:2]:
+            lines.append(f"  summary: {item}")
 
     lines.extend(["", "## Readiness Surface"])
-    for reason, count in readiness["blocked_inspector_reasons"].items():
+    for kind, count in readiness["opening_reason_kinds"].items():
+        lines.append(f"- opening reason `{kind}` count=`{count}`")
+    for reason, count in readiness["blocked_reason_counts"].items():
         lines.append(f"- blocker `{reason}` count=`{count}`")
 
     lines.extend(["", "## Questions"])
@@ -496,6 +576,8 @@ def build_check(summary: dict[str, Any]) -> str:
             f"blocked_inspector_count: {status['blocked_inspector_count']}",
             f"default_opening_name: {status['default_opening_name']}",
             f"compare_opening_name: {status['compare_opening_name']}",
+            f"default_opening_reason_kind: {summary['default_opening']['opening_reason']['kind']}",
+            f"default_projection_headline: {summary['default_opening']['projection_headline']}",
         ]
     ) + "\n"
 

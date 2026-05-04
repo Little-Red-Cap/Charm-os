@@ -36,6 +36,23 @@ def normalize_optional_path(value: Any) -> str:
     return normalize_path(text)
 
 
+def string_list(value: Any) -> list[str]:
+    return [choose_text(item) for item in get_list(value) if choose_text(item)]
+
+
+def clone_opening_reason(reason: Any) -> OrderedDict[str, Any]:
+    reason_map = get_mapping(reason)
+    return OrderedDict(
+        [
+            ("kind", choose_text(reason_map.get("kind"))),
+            ("summary", choose_text(reason_map.get("summary"))),
+            ("source_summary_path", normalize_optional_path(reason_map.get("source_summary_path"))),
+            ("drift_changed", bool(reason_map.get("drift_changed"))),
+            ("drift_verdict", choose_text(reason_map.get("drift_verdict"))),
+        ]
+    )
+
+
 def load_consumer_summary(path: Path) -> dict[str, Any]:
     summary = load_json(path)
     if choose_text(summary.get("schema")) != CONSUMER_SCHEMA:
@@ -80,6 +97,9 @@ def build_entry_view(entry: dict[str, Any], rank: int) -> OrderedDict[str, Any]:
             ("target_summary_kind", choose_text(entry.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(entry.get("target_summary_path"))),
             ("projection_kind", choose_text(entry.get("projection_kind"))),
+            ("opening_reason", clone_opening_reason(entry.get("opening_reason"))),
+            ("projection_headline", choose_text(entry.get("projection_headline"))),
+            ("projection_summary_lines", string_list(entry.get("projection_summary_lines"))),
             ("compare_context_available", bool(entry.get("compare_context_available"))),
             ("landing_verdict", choose_text(entry.get("landing_verdict"))),
             ("inspector_ready", bool(entry.get("inspector_ready"))),
@@ -351,6 +371,10 @@ def build_report(summary: dict[str, Any]) -> str:
             default_entry.get("projection_kind", ""),
             default_entry.get("target_summary_path", ""),
         ),
+        "- reason=`{0}` headline={1}".format(
+            get_mapping(default_entry.get("opening_reason")).get("kind", ""),
+            default_entry.get("projection_headline", "") or "none",
+        ),
         "",
         "## Compare Entry",
         "- `{0}` tab=`{1}` query=`{2}/{3}` projection=`{4}` target=`{5}`".format(
@@ -361,15 +385,20 @@ def build_report(summary: dict[str, Any]) -> str:
             compare_entry.get("projection_kind", ""),
             compare_entry.get("target_summary_path", ""),
         ),
+        "- reason=`{0}` headline={1}".format(
+            get_mapping(compare_entry.get("opening_reason")).get("kind", ""),
+            compare_entry.get("projection_headline", "") or "none",
+        ),
         "",
         "## Ordered Entries",
     ]
     for entry in get_list(open_plan.get("ordered_entries")):
         lines.append(
-            "- rank=`{0}` name=`{1}` schema=`{2}` projection=`{3}` compare=`{4}` inspector_ready=`{5}`".format(
+            "- rank=`{0}` name=`{1}` schema=`{2}` reason=`{3}` projection=`{4}` compare=`{5}` inspector_ready=`{6}`".format(
                 entry["rank"],
                 entry["name"],
                 entry["target_summary_schema"],
+                entry["opening_reason"]["kind"],
                 entry["projection_kind"],
                 entry["compare_context_available"],
                 entry["inspector_ready"],

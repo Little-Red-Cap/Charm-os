@@ -98,6 +98,17 @@ function Load-JsonObject {
     return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
 }
 
+function Assert-Condition {
+    param(
+        [bool]$Condition,
+        [string]$Message
+    )
+
+    if (-not $Condition) {
+        throw $Message
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $frontPageWorkspaceRootPath = Resolve-FullPath -Path $FrontPageWorkspaceRoot
 $consumerWorkspaceRootPath = Resolve-FullPath -Path $ConsumerWorkspaceRoot
@@ -166,12 +177,19 @@ try {
         -FailureMessage "front page entry opening-flow consumer selector validation failed"
 
     $summary = Load-JsonObject -Path $summaryPath
+    Assert-Condition `
+        -Condition (-not [string]::IsNullOrWhiteSpace([string]$summary.open_plan.default_entry.opening_reason.kind)) `
+        -Message "selector default entry must expose opening_reason.kind"
+    Assert-Condition `
+        -Condition (-not [string]::IsNullOrWhiteSpace([string]$summary.open_plan.default_entry.projection_headline)) `
+        -Message "selector default entry must expose projection_headline"
     Write-Host (
-        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SELECTOR-SMOKE] selected={0} default={1} compare={2} fallback={3}" -f
+        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SELECTOR-SMOKE] selected={0} default={1} compare={2} fallback={3} reason={4}" -f
         [int]$summary.selector_status.selected_entry_count,
         [string]$summary.selector_status.default_entry_name,
         [string]$summary.selector_status.compare_entry_name,
-        [int]$summary.selector_status.fallback_entry_count
+        [int]$summary.selector_status.fallback_entry_count,
+        [string]$summary.open_plan.default_entry.opening_reason.kind
     )
 } finally {
     Pop-Location

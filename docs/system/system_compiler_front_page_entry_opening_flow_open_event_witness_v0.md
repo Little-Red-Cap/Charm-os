@@ -26,10 +26,12 @@ includes:
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_open_event_witness.py`
 - compare
   - `scripts/compare_system_compiler_front_page_entry_opening_flow_open_event_witness.py`
+  - `scripts/compare_system_compiler_front_page_entry_opening_flow_open_event_witness_workspace.ps1`
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_open_event_witness_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_workspace_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -55,6 +57,12 @@ The compare smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-compare-smoke
+```
+
+The workspace compare smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-workspace-compare-smoke
 ```
 
 ## What the witness records
@@ -113,6 +121,12 @@ Run the witness compare smoke:
 ./scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_compare_smoke.ps1 -Clean
 ```
 
+Run the witness workspace compare smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_workspace_compare_smoke.ps1 -Clean
+```
+
 Export directly from an open-event summary:
 
 ```powershell
@@ -135,6 +149,8 @@ Expected smoke shape:
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-SMOKE] case=default-with-drift-compare-witness witness_status=ok event_status=accepted_with_drift compare=True/drifted
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-COMPARE-SMOKE] case=open-event-witness-self-standing verdict=standing changed=0
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-COMPARE-SMOKE] case=open-event-witness-default-to-drift-context verdict=drifted
+[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-WORKSPACE-COMPARE-SMOKE] case=workspace-witness-summary-self-standing verdict=standing changed=0
+[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-WORKSPACE-COMPARE-SMOKE] case=workspace-open-event-summary-to-drift-witness verdict=drifted changed=17
 ```
 
 ## Why this matters

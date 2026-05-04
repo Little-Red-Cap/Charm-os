@@ -24,10 +24,12 @@ includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_open_event_witness_compare.v0.schema.json`
 - compare
   - `scripts/compare_system_compiler_front_page_entry_opening_flow_open_event_witness.py`
+  - `scripts/compare_system_compiler_front_page_entry_opening_flow_open_event_witness_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_open_event_witness_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_workspace_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -47,6 +49,12 @@ The smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-compare-smoke
+```
+
+The workspace compare smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-workspace-compare-smoke
 ```
 
 ## What the compare records
@@ -89,6 +97,12 @@ Run the smoke:
 ./scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_compare_smoke.ps1 -Clean
 ```
 
+Run the workspace compare smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_workspace_compare_smoke.ps1 -Clean
+```
+
 Compare two witness summaries directly:
 
 ```powershell
@@ -105,11 +119,34 @@ python ./scripts/validate_system_compiler_front_page_entry_opening_flow_open_eve
   --summary cmake-build-open-event-witness-compare/front-page.entry-opening-flow.open-event.witness.compare.summary.json
 ```
 
+Compare through the workspace wrapper from witness summaries:
+
+```powershell
+./scripts/compare_system_compiler_front_page_entry_opening_flow_open_event_witness_workspace.ps1 `
+  -BaselineOpenEventWitnessSummaryPath cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-smoke/default-no-compare-witness/front-page.entry-opening-flow.open-event.witness.summary.json `
+  -CandidateOpenEventWitnessSummaryPath cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-smoke/default-with-drift-compare-witness/front-page.entry-opening-flow.open-event.witness.summary.json `
+  -OutputRoot cmake-build-open-event-witness-workspace-compare `
+  -Clean
+```
+
+The same wrapper can also start from open-event summaries and export the
+intermediate witnesses before comparing:
+
+```powershell
+./scripts/compare_system_compiler_front_page_entry_opening_flow_open_event_witness_workspace.ps1 `
+  -BaselineOpenEventSummaryPath cmake-build-system-compiler-front-page-entry-opening-flow-open-event-smoke/default-no-compare/front-page.entry-opening-flow.open-event.summary.json `
+  -CandidateOpenEventSummaryPath cmake-build-system-compiler-front-page-entry-opening-flow-open-event-smoke/default-with-drift-compare/front-page.entry-opening-flow.open-event.summary.json `
+  -OutputRoot cmake-build-open-event-witness-from-events-workspace-compare `
+  -Clean
+```
+
 Expected smoke shape:
 
 ```text
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-COMPARE-SMOKE] case=open-event-witness-self-standing verdict=standing changed=0
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-COMPARE-SMOKE] case=open-event-witness-default-to-drift-context verdict=drifted
+[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-WORKSPACE-COMPARE-SMOKE] case=workspace-witness-summary-self-standing verdict=standing changed=0
+[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-WORKSPACE-COMPARE-SMOKE] case=workspace-open-event-summary-to-drift-witness verdict=drifted changed=17
 ```
 
 ## Why this matters

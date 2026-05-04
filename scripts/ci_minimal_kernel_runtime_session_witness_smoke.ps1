@@ -63,12 +63,14 @@ if ($Clean) {
 }
 
 $resolvedInspectCompareSummaryOutputRoot = ""
+$resolvedInspectCompareSummaryPath = ""
 if (-not [string]::IsNullOrWhiteSpace($InspectCompareSummaryOutputRoot)) {
     if (-not (Test-Path $inspectCompareSmoke)) {
         throw "missing runtime session witness inspect compare dependency: $inspectCompareSmoke"
     }
 
     $resolvedInspectCompareSummaryOutputRoot = Resolve-FullPath -Path $InspectCompareSummaryOutputRoot
+    $resolvedInspectCompareSummaryPath = Join-Path $resolvedInspectCompareSummaryOutputRoot "session-witness.inspect.compare.summary.json"
     if ($Clean) {
         Remove-PathIfExists -Path $resolvedInspectCompareSummaryOutputRoot
     }
@@ -136,6 +138,10 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareSummaryOutputRoot))
     } finally {
         Pop-Location
     }
+
+    if (-not (Test-Path $resolvedInspectCompareSummaryPath)) {
+        throw "missing runtime session witness inspect compare summary: $resolvedInspectCompareSummaryPath"
+    }
 }
 
 Write-Host "==> minimal kernel runtime session witness CI smoke"
@@ -143,5 +149,6 @@ Write-Host ("output_root={0}" -f $resolvedOutputRoot)
 Write-Host ("summary={0}" -f $summaryPathResolved)
 if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareSummaryOutputRoot)) {
     Write-Host ("inspect_compare_output_root={0}" -f $resolvedInspectCompareSummaryOutputRoot)
+    Write-Host ("inspect_compare_summary={0}" -f $resolvedInspectCompareSummaryPath)
 }
 Write-Host "ok=1"

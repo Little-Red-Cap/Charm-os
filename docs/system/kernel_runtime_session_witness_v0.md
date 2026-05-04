@@ -238,6 +238,18 @@ session/
 - `scripts/minimal_kernel_runtime_session_smoke.ps1`
 - `scripts/minimal_kernel_runtime_session_witness_smoke.ps1`
 
+聚合入口 `minimal_kernel_runtime_session_witness_smoke.ps1` 不再只是 console smoke。
+它会在输出根目录额外导出：
+
+```text
+summary.json
+report.md
+check.txt
+```
+
+其中根 `summary.json` 会引用 session exporter、world compare session drift、witness exporter failure export 三条子证据链，并摘取 session status、runtime facts、session drift failure codes 等最小结论。
+这让 `kernel_runtime_session` 的阶段性闭环可以被 CI、front page、evidence shelf 或后续 witness bundle 消费，而不是只停留在终端输出里。
+
 runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
 system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。
 

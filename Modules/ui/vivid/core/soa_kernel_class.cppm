@@ -505,6 +505,52 @@ public:
         return out;
     }
 
+    SemanticActionAdmission admit_semantic_action(WidgetHandle root,
+                                                  const char* id,
+                                                  SemanticAction action) const noexcept {
+        SemanticActionAdmission out{};
+        out.root = root;
+        out.id = id ? id : "";
+        out.action = action;
+        out.resolution = resolve_semantic_intent(root, id, action);
+        out.handle = out.resolution.handle;
+        out.intent_status = out.resolution.status;
+        out.actions = out.resolution.actions;
+        out.visited_count = out.resolution.visited_count;
+        out.match_count = out.resolution.match_count;
+        out.found = out.resolution.found;
+        out.executable = out.resolution.executable;
+
+        switch (out.resolution.status) {
+        case SemanticIntentStatus::Resolved:
+            break;
+        case SemanticIntentStatus::InvalidRoot:
+            out.status = SemanticActionAdmissionStatus::InvalidRoot;
+            return out;
+        case SemanticIntentStatus::MissingId:
+            out.status = SemanticActionAdmissionStatus::MissingId;
+            return out;
+        case SemanticIntentStatus::NotFound:
+            out.status = SemanticActionAdmissionStatus::NotFound;
+            return out;
+        case SemanticIntentStatus::AmbiguousId:
+            out.status = SemanticActionAdmissionStatus::AmbiguousId;
+            return out;
+        case SemanticIntentStatus::UnsupportedAction:
+            out.status = SemanticActionAdmissionStatus::UnsupportedAction;
+            return out;
+        case SemanticIntentStatus::Disabled:
+            out.status = SemanticActionAdmissionStatus::Disabled;
+            return out;
+        }
+
+        out.status = SemanticActionAdmissionStatus::Admitted;
+        out.admitted = true;
+        out.will_request_focus = focusable(out.handle);
+        out.will_emit_click = action == SemanticAction::Activate;
+        return out;
+    }
+
     SemanticActionRequest request_semantic_action(WidgetHandle root,
                                                   const char* id,
                                                   SemanticAction action) noexcept {
@@ -513,12 +559,13 @@ public:
         input_actions_.clear();
         out.before_focus = input_.focused;
         out.events_before = input_events_.count;
-        out.resolution = resolve_semantic_intent(root, id, action);
-        out.target = out.resolution.handle;
-        out.resolved = out.resolution.status == SemanticIntentStatus::Resolved
-            && out.resolution.executable;
+        out.admission = admit_semantic_action(root, id, action);
+        out.target = out.admission.handle;
+        out.resolved = out.admission.intent_status == SemanticIntentStatus::Resolved
+            && out.admission.executable;
+        out.admitted = out.admission.admitted;
 
-        if (!out.resolved) {
+        if (!out.admitted) {
             out.after_focus = input_.focused;
             out.events_after = input_events_.count;
             out.status = SemanticActionRequestStatus::Rejected;

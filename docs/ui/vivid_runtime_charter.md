@@ -436,15 +436,19 @@ Vivid can now execute a semantic action request through the runtime input law in
 
 ```text
 resolve_semantic_intent(root, id, action)
+  -> admit_semantic_action(root, id, action)
   -> request_semantic_focus(root, id)
   -> emit Click
   -> apply normal click behavior
 ```
 
-`SemanticActionRequest` is the controlled execution boundary after semantic intent resolution. Successful request must prove both semantic execution evidence (`executed`, `emitted_click`) and focus preparation evidence (`SemanticFocusRequest`). Failed resolution or failed focus admission must reject before action execution.
+`SemanticActionAdmission` is the planning boundary after semantic intent resolution. It may declare that a future execution would request focus and emit a click, but it must not synthesize input, mutate focus truth, or toggle widget state.
+
+`SemanticActionRequest` is the controlled execution boundary after semantic action admission. Successful request must prove both semantic execution evidence (`executed`, `emitted_click`) and focus preparation evidence (`SemanticFocusRequest`). Failed action admission or failed focus admission must reject before action execution.
 
 Current evidence:
 
+- `Examples/ui/vivid/semantic_action_admission_demo` proves admitted activate plans, no execution side effects, unsupported-action and disabled-target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus/click plan evidence.
 - `Examples/ui/vivid/semantic_action_request_demo` proves side-effect-free resolution, controlled activate execution, normal click behavior reuse, already-focused execution, unsupported-action rejection, active-scope rejection through focus admission, duplicate-id ambiguity, and missing request ids.
 
 ## 2026-05 Addendum: Semantic Focus Query

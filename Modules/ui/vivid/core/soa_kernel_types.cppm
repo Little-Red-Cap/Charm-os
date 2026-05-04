@@ -94,6 +94,36 @@ struct SemanticIntentResolution {
 };
 
 export
+enum class SemanticActionAdmissionStatus : std::uint8_t {
+    Admitted = 0,
+    InvalidRoot,
+    MissingId,
+    NotFound,
+    AmbiguousId,
+    UnsupportedAction,
+    Disabled,
+};
+
+export
+struct SemanticActionAdmission {
+    SemanticIntentResolution resolution{};
+    WidgetHandle handle{};
+    WidgetHandle root{};
+    const char* id{""};
+    SemanticAction action{SemanticAction::Activate};
+    SemanticIntentStatus intent_status{SemanticIntentStatus::NotFound};
+    SemanticActionAdmissionStatus status{SemanticActionAdmissionStatus::NotFound};
+    SemanticActionMask actions{0};
+    std::size_t visited_count{0};
+    std::size_t match_count{0};
+    bool found{false};
+    bool executable{false};
+    bool admitted{false};
+    bool will_request_focus{false};
+    bool will_emit_click{false};
+};
+
+export
 enum class SemanticActionRequestStatus : std::uint8_t {
     Executed = 0,
     Rejected,
@@ -183,7 +213,7 @@ struct SemanticFocusRequest {
 
 export
 struct SemanticActionRequest {
-    SemanticIntentResolution resolution{};
+    SemanticActionAdmission admission{};
     SemanticFocusRequest focus_request{};
     WidgetHandle target{};
     WidgetHandle before_focus{};
@@ -192,6 +222,7 @@ struct SemanticActionRequest {
     std::size_t events_after{0};
     SemanticActionRequestStatus status{SemanticActionRequestStatus::Rejected};
     bool resolved{false};
+    bool admitted{false};
     bool focus_ready{false};
     bool focus_changed{false};
     bool emitted_focus_out{false};
@@ -320,6 +351,27 @@ inline const char* semantic_intent_status_name(SemanticIntentStatus status) noex
     case SemanticIntentStatus::UnsupportedAction:
         return "unsupported_action";
     case SemanticIntentStatus::Disabled:
+        return "disabled";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_action_admission_status_name(SemanticActionAdmissionStatus status) noexcept {
+    switch (status) {
+    case SemanticActionAdmissionStatus::Admitted:
+        return "admitted";
+    case SemanticActionAdmissionStatus::InvalidRoot:
+        return "invalid_root";
+    case SemanticActionAdmissionStatus::MissingId:
+        return "missing_id";
+    case SemanticActionAdmissionStatus::NotFound:
+        return "not_found";
+    case SemanticActionAdmissionStatus::AmbiguousId:
+        return "ambiguous_id";
+    case SemanticActionAdmissionStatus::UnsupportedAction:
+        return "unsupported_action";
+    case SemanticActionAdmissionStatus::Disabled:
         return "disabled";
     }
     return "unknown";

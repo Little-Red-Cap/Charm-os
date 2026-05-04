@@ -30,6 +30,8 @@ import charm.gfx.draw_cmd;
 
 export using ::ScrollBarOrientation;
 export using ::SemanticAction;
+export using ::SemanticActionAdmission;
+export using ::SemanticActionAdmissionStatus;
 export using ::SemanticActionMask;
 export using ::SemanticActionRequest;
 export using ::SemanticActionRequestStatus;
@@ -46,6 +48,7 @@ export using ::SemanticIntentStatus;
 export using ::SemanticRole;
 export using ::SemanticTreeNode;
 export using ::SemanticTreeSnapshot;
+export using ::semantic_action_admission_status_name;
 export using ::semantic_action_mask;
 export using ::semantic_action_present;
 export using ::semantic_action_request_status_name;
@@ -71,6 +74,8 @@ export namespace ui::scene {
 
     using ScrollBarOrientation = ::ScrollBarOrientation;
     using SemanticAction = ::SemanticAction;
+    using SemanticActionAdmission = ::SemanticActionAdmission;
+    using SemanticActionAdmissionStatus = ::SemanticActionAdmissionStatus;
     using SemanticActionMask = ::SemanticActionMask;
     using SemanticActionRequest = ::SemanticActionRequest;
     using SemanticActionRequestStatus = ::SemanticActionRequestStatus;
@@ -87,6 +92,7 @@ export namespace ui::scene {
     using SemanticRole = ::SemanticRole;
     using SemanticTreeNode = ::SemanticTreeNode;
     using SemanticTreeSnapshot = ::SemanticTreeSnapshot;
+    using ::semantic_action_admission_status_name;
     using ::semantic_action_mask;
     using ::semantic_action_present;
     using ::semantic_action_request_status_name;
@@ -421,6 +427,12 @@ export namespace ui::scene {
             const char* id,
             SemanticAction action) const noexcept {
             return kernel_->resolve_semantic_intent(root, id, action);
+        }
+        SemanticActionAdmission admit_semantic_action(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) const noexcept {
+            return kernel_->admit_semantic_action(root, id, action);
         }
         SemanticActionRequest request_semantic_action(
             WidgetHandle root,
@@ -1206,6 +1218,12 @@ export namespace ui::scene {
             const char* id,
             SemanticAction action) const noexcept {
             return kernel_.resolve_semantic_intent(root, id, action);
+        }
+        SemanticActionAdmission admit_semantic_action(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) const noexcept {
+            return kernel_.admit_semantic_action(root, id, action);
         }
         SemanticActionRequest request_semantic_action(
             WidgetHandle root,

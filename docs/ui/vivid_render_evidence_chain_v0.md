@@ -227,12 +227,27 @@ The demo guards resolved lookup, no input/callback side effects, unsupported act
 
 ```text
 SemanticIntentResolution
+  -> SemanticActionAdmission
   -> SemanticFocusRequest
   -> Click event evidence
   -> normal widget click behavior
 ```
 
-The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection, active-scope rejection through focus admission, ambiguous duplicate ids, and missing request ids.
+The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, ambiguous duplicate ids, and missing request ids.
+
+## 2026-05 Addendum: Semantic Action Admission
+
+`Examples/ui/vivid/semantic_action_admission_demo` verifies Semantic Action Admission v0. It keeps action execution permission separate from actual input execution:
+
+```text
+semantic tree root
+  -> semantic id + action request
+  -> SemanticIntentResolution
+  -> SemanticActionAdmission
+  -> focus/click execution plan
+```
+
+The demo guards admitted activate plans, planning-only side effects, planned focus/click evidence, unsupported action, disabled target, ambiguous duplicate id, missing id, invalid root, and missing request id.
 
 ## 2026-05 Addendum: Semantic Focus Query
 

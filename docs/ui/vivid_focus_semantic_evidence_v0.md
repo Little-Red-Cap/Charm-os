@@ -146,7 +146,24 @@ v0 rules:
 - resolution must not synthesize input, dispatch callbacks, mutate pressed/focused state, or bind OS accessibility.
 - execution remains a future, separate admission step.
 
-### Law 10: semantic focus query is focus addressability, not focus transfer
+### Law 10: semantic action admission is execution permission, not execution
+
+Semantic Action Admission v0 turns a successful semantic intent resolution into an explicit action execution plan:
+
+```text
+root + semantic_id + action -> SemanticActionAdmission
+```
+
+v0 rules:
+
+- admission reuses the root-bound `SemanticIntentResolution` result instead of inventing a second lookup law.
+- intent failures are mapped to admission rejection statuses with the same semantic reason.
+- `admitted` means the runtime may later request focus and emit the action; it does not mean the action already ran.
+- admitted plans must declare whether a future execution would request focus and emit a click.
+- admission must not synthesize input events, mutate input focus truth, press widgets, toggle state, dispatch callbacks, or draw artifacts.
+- full request execution still has a later focus-admission boundary and may reject before click emission when focus preparation is denied.
+
+### Law 11: semantic focus query is focus addressability, not focus transfer
 
 Semantic Focus Query v0 lets runtime answer whether a semantic id can become focus under a requested root and current active scope:
 
@@ -163,7 +180,7 @@ v0 rules:
 - `resolved` means the target is focus-addressable now.
 - query must not emit `FocusIn/FocusOut`, mutate input focus truth, or draw focus ring artifacts.
 
-### Law 11: semantic focus admission is transfer permission, not transfer execution
+### Law 12: semantic focus admission is transfer permission, not transfer execution
 
 Semantic Focus Admission v0 turns a successful focus query into an explicit focus-transfer plan:
 
@@ -180,7 +197,7 @@ v0 rules:
 - transfer plans must declare whether a future execution would emit `FocusOut` and `FocusIn`.
 - admission must not emit `FocusIn/FocusOut`, mutate input focus truth, or draw focus ring artifacts.
 
-### Law 12: semantic focus request is the first controlled transfer execution
+### Law 13: semantic focus request is the first controlled transfer execution
 
 Semantic Focus Request v0 is the execution boundary after query and admission:
 
@@ -253,12 +270,21 @@ stdout final contract:
 ```
 
 `Examples/ui/vivid/semantic_action_request_demo` is the first Semantic Action Request v0 runtime evidence.
-It verifies that semantic intent resolution remains side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, and rejects scope-forbidden targets through focus admission.
+It verifies that semantic intent resolution and action admission remain side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, and rejects scope-forbidden targets through focus admission.
 
 stdout final contract:
 
 ```text
 [sar] run=semantic_action_request_demo phase=end result=ok cases=6
+```
+
+`Examples/ui/vivid/semantic_action_admission_demo` is the first Semantic Action Admission v0 runtime evidence.
+It verifies admitted activate plans, no execution side effects, focus/click plan evidence, unsupported action rejection, disabled target rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
+
+stdout final contract:
+
+```text
+[saa] run=semantic_action_admission_demo phase=end result=ok cases=7
 ```
 
 `Examples/ui/vivid/semantic_focus_query_demo` is the first Semantic Focus Query v0 runtime evidence.
@@ -295,6 +321,9 @@ semantic_id=primary/secondary/outside
 role=button/list_item
 actions=activate
 intent_status=resolved/ambiguous_id/unsupported_action/disabled
+action_admission_status=admitted/ambiguous_id/unsupported_action/disabled
+action_will_request_focus=0/1
+action_will_emit_click=0/1
 focus_query_status=resolved/outside_active_scope/not_focusable/disabled
 focus_admission_status=admitted/already_focused/outside_active_scope/not_focusable/disabled
 focus_request_status=committed/already_focused/rejected

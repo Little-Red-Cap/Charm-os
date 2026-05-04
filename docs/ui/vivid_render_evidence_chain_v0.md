@@ -130,6 +130,14 @@ pixel_hash
 
 PNG / screenshot diff 是后续投影，不是 v0 的第一真相。
 
+2026-05 addendum: demo support now provides `RenderArtifactDeltaEvidence` for the final artifact verdict:
+
+```text
+artifact_delta=<0|1> changed=<0|1> dirty_within_component=<0|1> single_dirty_rect=<0|1>
+```
+
+This delta complements prefixed render summaries. It tells whether the artifact changed and whether the dirty evidence stayed inside the claimed component boundary.
+
 ### Style Evidence
 
 Style Token Law 进入 Evidence Plane 后，resolved style 也需要可审计摘要：

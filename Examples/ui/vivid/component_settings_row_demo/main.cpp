@@ -132,19 +132,24 @@ int main() {
     const auto updated = vivid::evidence::render_scene(scene, canvas, kComponentBounds);
     if (!vivid::evidence::expect(updated.failed_cmds == 0, "updated render has no failed commands")) return 1;
     if (!vivid::evidence::expect(updated.cmd_count > 0, "updated render records commands")) return 1;
-    if (!vivid::evidence::expect(updated.pixel_hash != initial.pixel_hash,
+    const bool updated_dirty_inside = vivid::evidence::dirty_stays_inside(canvas, kComponentBounds);
+    const auto updated_delta =
+        vivid::evidence::make_render_artifact_delta(initial, updated, updated_dirty_inside);
+    if (!vivid::evidence::expect(updated_delta.changed,
                                  "state change affects render artifact")) {
         return 1;
     }
-    if (!vivid::evidence::expect(updated.dirty_count == 1, "updated render keeps a single component dirty rect")) {
+    if (!vivid::evidence::expect(updated_delta.single_dirty_rect,
+                                 "updated render keeps a single component dirty rect")) {
         return 1;
     }
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kComponentBounds),
+    if (!vivid::evidence::expect(updated_delta.dirty_within_component,
                                  "dirty evidence remains inside component bounds")) {
         return 1;
     }
 
     run_log.case_begin("render_artifact");
+    vivid::evidence::print_render_artifact_delta(updated_delta);
     vivid::evidence::print_render_evidence("updated", updated);
     std::printf("\n");
 

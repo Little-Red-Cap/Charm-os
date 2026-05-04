@@ -36,6 +36,12 @@ namespace vivid::evidence {
         bool layout_changed{false};
     };
 
+    struct RenderArtifactDeltaEvidence {
+        bool changed{false};
+        bool dirty_within_component{false};
+        bool single_dirty_rect{false};
+    };
+
     class RunLog {
     public:
         constexpr RunLog(const char* tag, const char* run) noexcept
@@ -150,6 +156,38 @@ namespace vivid::evidence {
                     evidence.cmd_hash,
                     p,
                     evidence.pixel_hash);
+    }
+
+    [[nodiscard]] inline bool render_artifact_same(const RenderEvidence& lhs,
+                                                   const RenderEvidence& rhs) noexcept {
+        return lhs.dirty_count == rhs.dirty_count
+            && lhs.dirty_hash == rhs.dirty_hash
+            && lhs.cmd_hash == rhs.cmd_hash
+            && lhs.pixel_hash == rhs.pixel_hash
+            && lhs.cmd_count == rhs.cmd_count
+            && lhs.cmd_bytes == rhs.cmd_bytes
+            && lhs.exec_cmds == rhs.exec_cmds
+            && lhs.failed_cmds == rhs.failed_cmds;
+    }
+
+    [[nodiscard]] inline RenderArtifactDeltaEvidence make_render_artifact_delta(
+        const RenderEvidence& before,
+        const RenderEvidence& after,
+        bool dirty_within_component) noexcept {
+        return RenderArtifactDeltaEvidence{
+            .changed = !render_artifact_same(before, after),
+            .dirty_within_component = dirty_within_component,
+            .single_dirty_rect = after.dirty_count == 1,
+        };
+    }
+
+    inline void print_render_artifact_delta(
+        const RenderArtifactDeltaEvidence& delta) noexcept {
+        std::printf(" artifact_delta=%d changed=%d dirty_within_component=%d single_dirty_rect=%d",
+                    delta.changed ? 1 : 0,
+                    delta.changed ? 1 : 0,
+                    delta.dirty_within_component ? 1 : 0,
+                    delta.single_dirty_rect ? 1 : 0);
     }
 
     [[nodiscard]] inline std::uint32_t hash_bytes(const std::byte* data, std::size_t len) noexcept {

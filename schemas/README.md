@@ -265,6 +265,8 @@
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
   - 用途偏向把一份 `front_page entry opening flow consumer selector` open order 收成确定性执行计划，
     明确 open-default、open-compare-neighbor、open-next actions、opening reason / headline 与对应 opener 证据入口
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_sample_smoke.ps1`
+    会守住 `runtime_session` 从 selector default entry 进入 `open-default` plan action 的最终计划链路
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、
@@ -275,6 +277,8 @@
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
   - 用途偏向从一份 `front_page entry opening flow consumer plan` summary 中选择单个 action，
     输出后续 explain consumer 可直接打开的 opener summary witness，并保留 opening reason / preview
+  - 同一个 runtime-session plan/action 样例 smoke 会验证默认 action 输出
+    `open-default/runtime-session-sample/kernel_runtime_session_overview`
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、

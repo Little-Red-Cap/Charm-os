@@ -44,6 +44,7 @@ includes:
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -155,12 +156,23 @@ This facade does not invent a new priority order.
 
 It either follows the plan default or follows the explicit consumer request.
 
+For a runtime-session-only plan, the default action should select
+`entry_name=runtime-session-sample`, keep `action_id=open-default`, and expose
+`projection_kind=kernel_runtime_session_overview` with
+`expected_consumer_operation=open-opener-summary`.
+
 ## Manual example
 
 Run the action smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1 -Clean
+```
+
+Run the narrow runtime-session plan/action sample:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_sample_smoke.ps1 -Clean
 ```
 
 Run the workspace action smoke:
@@ -251,6 +263,12 @@ Expected smoke shape:
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=28
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-self-standing verdict=standing changed=0
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-default-to-compare-neighbor verdict=drifted changed=28
+```
+
+Expected narrow runtime-session shape:
+
+```text
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id=open-default entry=runtime-session-sample projection=kernel_runtime_session_overview
 ```
 
 ## Why this matters

@@ -37,6 +37,7 @@ Current `system_compiler.front_page_entry_opening_flow_consumer_plan` includes:
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -127,6 +128,11 @@ policy:
 - fallback eager planning is capped at three `next` actions
 - omitted entries remain recoverable from the source selector artifact
 
+For a runtime-session-only selector, the plan should produce one
+`open-default` action with `entry_name=runtime-session-sample`,
+`selected_tab_id=runtime_session`, and
+`projection_kind=kernel_runtime_session_overview`.
+
 That keeps this layer small.
 
 The plan is a consumer-side action bundle, not a second selector and not a UI
@@ -180,6 +186,12 @@ Expected smoke shape:
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions=5 default=root-witness compare=root-witness-to-root-world-compare next=3 omitted=5 reason=delivery_biography
 ```
 
+Expected narrow runtime-session shape:
+
+```text
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id=open-default entry=runtime-session-sample projection=kernel_runtime_session_overview
+```
+
 Run the single-action facade smoke:
 
 ```powershell
@@ -190,6 +202,12 @@ Run the single-action workspace facade smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1 -Clean
+```
+
+Run the narrow runtime-session plan/action sample:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_sample_smoke.ps1 -Clean
 ```
 
 ## Why this matters

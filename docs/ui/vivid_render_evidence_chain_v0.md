@@ -233,7 +233,7 @@ SemanticIntentResolution
   -> normal widget click behavior
 ```
 
-The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, ambiguous duplicate ids, missing request ids, and `reject_reason` evidence that names the failed boundary.
+The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, ambiguous duplicate ids, missing request ids, and `ledger=action_request` / `reject_reason` evidence that names the failed boundary.
 
 ## 2026-05 Addendum: Semantic Action Admission
 

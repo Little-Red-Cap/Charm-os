@@ -47,17 +47,37 @@ namespace {
         return count;
     }
 
-    void print_request(const SemanticActionRequest& request) noexcept {
-        std::printf(" status=%s reason=%s intent=%s action_admission=%s focus=%s executed=%d click=%d focus_ready=%d focus_changed=%d events=%zu before=%s after=%s id=%s\n",
+    [[nodiscard]] const char* request_stage(const SemanticActionRequest& request) noexcept {
+        if (request.status == SemanticActionRequestStatus::Executed) {
+            return "execution";
+        }
+        switch (request.reject_reason) {
+        case SemanticActionRequestRejectReason::None:
+            return "none";
+        case SemanticActionRequestRejectReason::ActionAdmissionRejected:
+            return "action_admission";
+        case SemanticActionRequestRejectReason::FocusRequestRejected:
+            return "focus_request";
+        case SemanticActionRequestRejectReason::InputActionOverflow:
+        case SemanticActionRequestRejectReason::NoActionEmitted:
+            return "execution";
+        }
+        return "unknown";
+    }
+
+    void print_request_ledger(const SemanticActionRequest& request) noexcept {
+        std::printf(" ledger=action_request stage=%s status=%s reason=%s intent=%s action_admission=%s focus=%s admitted=%d focus_ready=%d executed=%d click=%d events_before=%zu events_after=%zu focus_before=%s focus_after=%s id=%s\n",
+                    request_stage(request),
                     semantic_action_request_status_name(request.status),
                     semantic_action_request_reject_reason_name(request.reject_reason),
                     semantic_intent_status_name(request.admission.intent_status),
                     semantic_action_admission_status_name(request.admission.status),
                     semantic_focus_request_status_name(request.focus_request.status),
+                    request.admitted ? 1 : 0,
+                    request.focus_ready ? 1 : 0,
                     request.executed ? 1 : 0,
                     request.emitted_click ? 1 : 0,
-                    request.focus_ready ? 1 : 0,
-                    request.focus_changed ? 1 : 0,
+                    request.events_before,
                     request.events_after,
                     same_handle(request.before_focus, request.target) ? "target" : "other",
                     same_handle(request.after_focus, request.target) ? "target" : "other",
@@ -137,7 +157,7 @@ int main() {
 
     const auto request = scene.request_semantic_action(handles.scope, "action.toggle", SemanticAction::Activate);
     run_log.case_begin("request_executes_activate");
-    print_request(request);
+    print_request_ledger(request);
     if (!vivid::evidence::expect(request.status == SemanticActionRequestStatus::Executed
                                  && request.reject_reason == SemanticActionRequestRejectReason::None
                                  && request.executed
@@ -157,7 +177,7 @@ int main() {
     const std::size_t events_after_first = access.input_event_count();
     const auto already = scene.request_semantic_action(handles.scope, "action.toggle", SemanticAction::Activate);
     run_log.case_begin("already_focused_execute");
-    print_request(already);
+    print_request_ledger(already);
     std::printf(" checked=%d clicks=%zu\n",
                 access.checked(handles.toggle) ? 1 : 0,
                 click_events_since(access, handles.toggle, already.events_before));
@@ -176,7 +196,7 @@ int main() {
     const auto unsupported =
         scene.request_semantic_action(handles.scope, "panel.info", SemanticAction::Activate);
     run_log.case_begin("unsupported_rejected");
-    print_request(unsupported);
+    print_request_ledger(unsupported);
     if (!vivid::evidence::expect(unsupported.status == SemanticActionRequestStatus::Rejected
                                  && unsupported.reject_reason == SemanticActionRequestRejectReason::ActionAdmissionRejected
                                  && unsupported.admission.status == SemanticActionAdmissionStatus::UnsupportedAction
@@ -188,7 +208,7 @@ int main() {
     const auto outside =
         scene.request_semantic_action(handles.root, "action.outside", SemanticAction::Activate);
     run_log.case_begin("outside_scope_rejected");
-    print_request(outside);
+    print_request_ledger(outside);
     if (!vivid::evidence::expect(outside.status == SemanticActionRequestStatus::Rejected
                                  && outside.reject_reason == SemanticActionRequestRejectReason::FocusRequestRejected
                                  && outside.admission.intent_status == SemanticIntentStatus::Resolved

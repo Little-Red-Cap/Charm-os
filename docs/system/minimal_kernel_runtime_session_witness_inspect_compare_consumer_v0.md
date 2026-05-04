@@ -70,9 +70,15 @@ The current summary records:
   - highest severity
 - `default_focus`
   - the first drift a higher explain layer should inspect
+- `default_explain_hop`
+  - the first artifact a higher explain layer should open
+  - why that artifact is preferred over sibling surfaces
+- `fallback_explain_hops`
+  - ordered alternative explain hops if the default opening is not enough
 - `focus_entries`
   - ordered drift units such as session-state drift, runtime regressions,
     world-compare drift, witness-compare drift, or violation drift
+  - each focus also carries a `preferred_explain_hop`
 - `readiness_surface`
   - focus-kind counters
   - severity counters
@@ -91,7 +97,16 @@ Each focus entry keeps:
 - added/removed affected focus tags
 - added/removed violations
 - artifact refs
+- preferred explain hop
 - short summary lines and next-step questions
+
+Each explain hop keeps:
+
+- focus id / focus kind
+- selected artifact ref
+- fallback artifact refs
+- reason kind / reason
+- copied headline / summary lines / question lines
 
 ## Current policy
 
@@ -104,6 +119,8 @@ It only compresses one inspect-compare object into a thinner answer:
 - inspect runtime regressions next if continuity facts regressed
 - keep world-compare and witness-compare deltas as separate focus surfaces
 - keep summary-level violations as the last thin gate-facing focus
+- explicitly point the reader at the first artifact to open for each focus
+- preserve a small fallback list instead of forcing the next layer to guess
 
 That keeps this layer stable and useful without hard-coding later UI policy.
 
@@ -140,7 +157,7 @@ Or run the single smoke:
 Expected smoke shape:
 
 ```text
-[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] focuses=5 changed=5 default=session-state-drift severity=critical
+[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] focuses=5 changed=5 default=session-state-drift severity=critical next=session-report
 ```
 
 ## Why this matters
@@ -153,7 +170,8 @@ drift directly consumable.
 This gives later explain/front-page layers a thinner first-read artifact:
 
 - start from this one default focus
+- open the default explain hop without reparsing artifact refs
 - keep runtime regressions and failure taxonomy deltas separate
-- follow these artifact refs for the next explain hop
+- follow the fallback explain hops only when the default opening is insufficient
 - avoid reparsing baseline/candidate summaries just to answer “what should I
   look at first?”

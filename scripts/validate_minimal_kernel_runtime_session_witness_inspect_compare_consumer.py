@@ -52,6 +52,58 @@ def validate_references(summary: dict, errors: list[str]) -> None:
                 errors.append(f"default_focus.artifact_refs[{index}]: invalid artifact ref")
                 continue
             ensure_exists(ref.get("path"), f"default_focus.artifact_refs[{index}].path", errors)
+        preferred_hop = default_focus.get("preferred_explain_hop", {})
+        if isinstance(preferred_hop, dict):
+            ref = preferred_hop.get("artifact_ref", {})
+            if not isinstance(ref, dict):
+                errors.append("default_focus.preferred_explain_hop.artifact_ref: invalid artifact ref")
+            else:
+                ensure_exists(ref.get("path"), "default_focus.preferred_explain_hop.artifact_ref.path", errors)
+            for index, fallback_ref in enumerate(preferred_hop.get("fallback_artifact_refs", [])):
+                if not isinstance(fallback_ref, dict):
+                    errors.append(f"default_focus.preferred_explain_hop.fallback_artifact_refs[{index}]: invalid artifact ref")
+                    continue
+                ensure_exists(
+                    fallback_ref.get("path"),
+                    f"default_focus.preferred_explain_hop.fallback_artifact_refs[{index}].path",
+                    errors,
+                )
+
+    default_explain_hop = summary.get("default_explain_hop", {})
+    if isinstance(default_explain_hop, dict):
+        ref = default_explain_hop.get("artifact_ref", {})
+        if not isinstance(ref, dict):
+            errors.append("default_explain_hop.artifact_ref: invalid artifact ref")
+        else:
+            ensure_exists(ref.get("path"), "default_explain_hop.artifact_ref.path", errors)
+        for index, fallback_ref in enumerate(default_explain_hop.get("fallback_artifact_refs", [])):
+            if not isinstance(fallback_ref, dict):
+                errors.append(f"default_explain_hop.fallback_artifact_refs[{index}]: invalid artifact ref")
+                continue
+            ensure_exists(
+                fallback_ref.get("path"),
+                f"default_explain_hop.fallback_artifact_refs[{index}].path",
+                errors,
+            )
+
+    for hop_index, hop in enumerate(summary.get("fallback_explain_hops", [])):
+        if not isinstance(hop, dict):
+            errors.append(f"fallback_explain_hops[{hop_index}]: invalid hop")
+            continue
+        ref = hop.get("artifact_ref", {})
+        if not isinstance(ref, dict):
+            errors.append(f"fallback_explain_hops[{hop_index}].artifact_ref: invalid artifact ref")
+        else:
+            ensure_exists(ref.get("path"), f"fallback_explain_hops[{hop_index}].artifact_ref.path", errors)
+        for ref_index, fallback_ref in enumerate(hop.get("fallback_artifact_refs", [])):
+            if not isinstance(fallback_ref, dict):
+                errors.append(f"fallback_explain_hops[{hop_index}].fallback_artifact_refs[{ref_index}]: invalid artifact ref")
+                continue
+            ensure_exists(
+                fallback_ref.get("path"),
+                f"fallback_explain_hops[{hop_index}].fallback_artifact_refs[{ref_index}].path",
+                errors,
+            )
 
     for entry_index, entry in enumerate(summary.get("focus_entries", [])):
         if not isinstance(entry, dict):
@@ -74,6 +126,28 @@ def validate_references(summary: dict, errors: list[str]) -> None:
                 errors.append(f"focus_entries[{entry_index}].artifact_refs[{ref_index}]: invalid artifact ref")
                 continue
             ensure_exists(ref.get("path"), f"focus_entries[{entry_index}].artifact_refs[{ref_index}].path", errors)
+        explain_hop = entry.get("preferred_explain_hop", {})
+        if isinstance(explain_hop, dict):
+            ref = explain_hop.get("artifact_ref", {})
+            if not isinstance(ref, dict):
+                errors.append(f"focus_entries[{entry_index}].preferred_explain_hop.artifact_ref: invalid artifact ref")
+            else:
+                ensure_exists(
+                    ref.get("path"),
+                    f"focus_entries[{entry_index}].preferred_explain_hop.artifact_ref.path",
+                    errors,
+                )
+            for ref_index, fallback_ref in enumerate(explain_hop.get("fallback_artifact_refs", [])):
+                if not isinstance(fallback_ref, dict):
+                    errors.append(
+                        f"focus_entries[{entry_index}].preferred_explain_hop.fallback_artifact_refs[{ref_index}]: invalid artifact ref"
+                    )
+                    continue
+                ensure_exists(
+                    fallback_ref.get("path"),
+                    f"focus_entries[{entry_index}].preferred_explain_hop.fallback_artifact_refs[{ref_index}].path",
+                    errors,
+                )
 
 
 def validate_counts(summary: dict, errors: list[str]) -> None:
@@ -88,6 +162,18 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
     if entries:
         expect_equal(status.get("default_focus_id"), entries[0].get("focus_id"), "consumer_status.default_focus_id", errors)
         expect_equal(summary.get("default_focus"), entries[0], "default_focus", errors)
+        expect_equal(
+            summary.get("default_explain_hop"),
+            entries[0].get("preferred_explain_hop"),
+            "default_explain_hop",
+            errors,
+        )
+        expect_equal(
+            summary.get("fallback_explain_hops"),
+            [entry.get("preferred_explain_hop") for entry in entries[1:]],
+            "fallback_explain_hops",
+            errors,
+        )
 
     readiness = summary.get("readiness_surface", {})
     expect_equal(
@@ -174,6 +260,8 @@ def main() -> int:
             "source_compare",
             "consumer_status",
             "default_focus",
+            "default_explain_hop",
+            "fallback_explain_hops",
             "focus_entries",
             "readiness_surface",
             "supporting_artifacts",

@@ -246,6 +246,135 @@ def make_focus_entry(
     )
 
 
+EXPLAIN_HOP_POLICY: dict[str, dict[str, Any]] = {
+    "session_state_drift": {
+        "artifact_ids": [
+            "session-report",
+            "session-summary",
+            "current-report",
+            "current-summary",
+            "session-check",
+            "source-compare-summary",
+        ],
+        "reason_kind": "session_report",
+        "reason": "session report keeps session status, failure domain, and ledger delta in one explainable surface.",
+    },
+    "runtime_regression": {
+        "artifact_ids": [
+            "runtime-ledger",
+            "session-report",
+            "session-summary",
+            "source-compare-summary",
+        ],
+        "reason_kind": "runtime_ledger",
+        "reason": "runtime ledger is the smallest stable surface for tick, trap, thread, and continuity drift.",
+    },
+    "world_compare_drift": {
+        "artifact_ids": [
+            "world-compare-report",
+            "world-compare-summary",
+            "world-compare-check",
+            "source-compare-summary",
+        ],
+        "reason_kind": "world_compare_report",
+        "reason": "world compare report keeps failure taxonomy, missing runtime facts, and collapse projection together.",
+    },
+    "witness_compare_drift": {
+        "artifact_ids": [
+            "witness-compare-report",
+            "witness-compare-summary",
+            "witness-compare-check",
+            "source-compare-summary",
+        ],
+        "reason_kind": "witness_compare_report",
+        "reason": "witness compare report is the thinnest entry for export-side collapse and witness drift.",
+    },
+    "violation_drift": {
+        "artifact_ids": [
+            "current-check",
+            "current-report",
+            "current-summary",
+            "source-compare-summary",
+        ],
+        "reason_kind": "check_surface",
+        "reason": "check text is the shortest gate-facing surface once the lower compare chain has already converged.",
+    },
+    "steady_state": {
+        "artifact_ids": [
+            "current-summary",
+            "session-summary",
+            "source-compare-summary",
+        ],
+        "reason_kind": "standing_summary",
+        "reason": "current witness summary is the simplest standing anchor when no actionable drift exists.",
+    },
+}
+
+
+def choose_explain_hop_target(
+    artifact_refs: list[OrderedDict[str, str]],
+    preferred_ids: list[str],
+) -> tuple[OrderedDict[str, str], list[OrderedDict[str, str]]]:
+    ref_lookup = {choose_text(ref.get("id")): ref for ref in artifact_refs if choose_text(ref.get("id"))}
+
+    selected: OrderedDict[str, str] | None = None
+    for artifact_id in preferred_ids:
+        if artifact_id in ref_lookup:
+            selected = ref_lookup[artifact_id]
+            break
+
+    if selected is None:
+        if not artifact_refs:
+            raise ValueError("focus entry has no artifact refs for explain hop selection")
+        selected = artifact_refs[0]
+
+    selected_id = choose_text(selected.get("id"))
+    fallback_refs = [ref for ref in artifact_refs if choose_text(ref.get("id")) != selected_id]
+    return selected, fallback_refs
+
+
+def build_preferred_explain_hop(entry: OrderedDict[str, Any]) -> OrderedDict[str, Any]:
+    policy = EXPLAIN_HOP_POLICY.get(choose_text(entry.get("focus_kind")), EXPLAIN_HOP_POLICY["steady_state"])
+    artifact_refs = [
+        ref for ref in get_list(entry.get("artifact_refs")) if isinstance(ref, dict) and choose_text(ref.get("id"))
+    ]
+    selected_ref, fallback_refs = choose_explain_hop_target(
+        artifact_refs=artifact_refs,
+        preferred_ids=list(policy["artifact_ids"]),
+    )
+
+    return OrderedDict(
+        [
+            ("hop_id", "{0}-hop".format(choose_text(entry.get("focus_id")) or "focus")),
+            ("focus_id", choose_text(entry.get("focus_id"))),
+            ("focus_kind", choose_text(entry.get("focus_kind"))),
+            ("artifact_ref", selected_ref),
+            ("fallback_artifact_refs", fallback_refs),
+            ("reason_kind", choose_text(policy["reason_kind"])),
+            ("reason", choose_text(policy["reason"])),
+            ("headline", choose_text(entry.get("headline"))),
+            ("summary_lines", string_list(entry.get("summary_lines"))),
+            ("question_lines", string_list(entry.get("question_lines"))),
+        ]
+    )
+
+
+def attach_preferred_explain_hops(entries: list[OrderedDict[str, Any]]) -> list[OrderedDict[str, Any]]:
+    for entry in entries:
+        entry["preferred_explain_hop"] = build_preferred_explain_hop(entry)
+    return entries
+
+
+def build_default_explain_hop(entries: list[OrderedDict[str, Any]]) -> OrderedDict[str, Any]:
+    if not entries:
+        raise ValueError("expected at least one focus entry for default explain hop")
+    return entries[0]["preferred_explain_hop"]
+
+
+def build_fallback_explain_hops(entries: list[OrderedDict[str, Any]]) -> list[OrderedDict[str, Any]]:
+    return [entry["preferred_explain_hop"] for entry in entries[1:]]
+
+
 def build_focus_entries(summary: dict[str, Any], ref_lookup: dict[str, OrderedDict[str, str]]) -> list[OrderedDict[str, Any]]:
     comparison = get_mapping(summary.get("comparison"))
     session = get_mapping(comparison.get("session"))
@@ -616,8 +745,10 @@ def build_summary_model(
     compare_summary = load_compare_summary(compare_summary_path)
     supporting_artifacts = build_supporting_artifacts(compare_summary)
     ref_lookup = build_ref_lookup(supporting_artifacts)
-    focus_entries = build_focus_entries(compare_summary, ref_lookup)
+    focus_entries = attach_preferred_explain_hops(build_focus_entries(compare_summary, ref_lookup))
     consumer_status = build_consumer_status(compare_summary, focus_entries)
+    default_explain_hop = build_default_explain_hop(focus_entries)
+    fallback_explain_hops = build_fallback_explain_hops(focus_entries)
 
     return OrderedDict(
         [
@@ -652,6 +783,8 @@ def build_summary_model(
             ("source_compare", build_source_compare(compare_summary)),
             ("consumer_status", consumer_status),
             ("default_focus", focus_entries[0]),
+            ("default_explain_hop", default_explain_hop),
+            ("fallback_explain_hops", fallback_explain_hops),
             ("focus_entries", focus_entries),
             ("readiness_surface", build_readiness_surface(focus_entries)),
             ("supporting_artifacts", supporting_artifacts),
@@ -669,6 +802,7 @@ def build_summary_model(
 def build_report(summary: dict[str, Any]) -> str:
     status = get_mapping(summary.get("consumer_status"))
     default_focus = get_mapping(summary.get("default_focus"))
+    default_explain_hop = get_mapping(summary.get("default_explain_hop"))
 
     lines: list[str] = [
         "# Minimal Kernel Runtime Session Witness Inspect Compare Consumer",
@@ -698,6 +832,11 @@ def build_report(summary: dict[str, Any]) -> str:
             default_focus["severity"],
         ),
         f"- headline: {default_focus['headline']}",
+        "- next explain hop: `{0}` -> `{1}` reason=`{2}`".format(
+            choose_text(get_mapping(default_explain_hop.get("artifact_ref")).get("id")) or "-",
+            choose_text(get_mapping(default_explain_hop.get("artifact_ref")).get("path")) or "-",
+            choose_text(default_explain_hop.get("reason_kind")) or "-",
+        ),
     ]
     for line in default_focus["summary_lines"]:
         lines.append(f"  - {line}")
@@ -713,8 +852,29 @@ def build_report(summary: dict[str, Any]) -> str:
             )
         )
         lines.append(f"  - {entry['headline']}")
+        explain_hop = get_mapping(entry.get("preferred_explain_hop"))
+        explain_ref = get_mapping(explain_hop.get("artifact_ref"))
+        lines.append(
+            "  - explain hop: `{0}` reason=`{1}`".format(
+                choose_text(explain_ref.get("id")) or "-",
+                choose_text(explain_hop.get("reason_kind")) or "-",
+            )
+        )
         for line in entry["summary_lines"][:3]:
             lines.append(f"  - {line}")
+
+    lines.extend(["", "## Fallback Explain Hops"])
+    for hop in get_list(summary.get("fallback_explain_hops")):
+        hop_map = get_mapping(hop)
+        ref = get_mapping(hop_map.get("artifact_ref"))
+        lines.append(
+            "- `{0}` focus=`{1}` artifact=`{2}` reason=`{3}`".format(
+                choose_text(hop_map.get("hop_id")) or "-",
+                choose_text(hop_map.get("focus_id")) or "-",
+                choose_text(ref.get("id")) or "-",
+                choose_text(hop_map.get("reason_kind")) or "-",
+            )
+        )
 
     lines.extend(["", "## Supporting Artifacts"])
     for ref in summary["supporting_artifacts"]:
@@ -733,6 +893,8 @@ def build_check(summary: dict[str, Any]) -> str:
     status = get_mapping(summary.get("consumer_status"))
     source_compare = get_mapping(summary.get("source_compare"))
     default_focus = get_mapping(summary.get("default_focus"))
+    default_explain_hop = get_mapping(summary.get("default_explain_hop"))
+    default_explain_ref = get_mapping(default_explain_hop.get("artifact_ref"))
 
     return "\n".join(
         [
@@ -748,6 +910,10 @@ def build_check(summary: dict[str, Any]) -> str:
             f"highest_severity: {status['highest_severity']}",
             f"runtime_regression_count: {status['runtime_regression_count']}",
             f"default_focus_headline: {default_focus['headline']}",
+            f"default_explain_hop_id: {default_explain_hop.get('hop_id', '')}",
+            f"default_explain_artifact_id: {default_explain_ref.get('id', '')}",
+            f"default_explain_reason_kind: {default_explain_hop.get('reason_kind', '')}",
+            f"fallback_explain_hop_count: {len(get_list(summary.get('fallback_explain_hops')))}",
         ]
     ) + "\n"
 

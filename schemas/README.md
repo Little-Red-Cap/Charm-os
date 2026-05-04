@@ -221,6 +221,7 @@
 - `system_compiler.front_page_entry_opening_flow_consumer_plan.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_v0.md`、
     `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan.py`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`、
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
   - 用途偏向把一份 `front_page entry opening flow consumer selector` open order 收成确定性执行计划，
@@ -229,6 +230,7 @@
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`、
     `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan.py`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`、
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_compare.py`
   - 用途偏向比较两份 `front_page entry opening flow consumer plan` summary，回答 default action、

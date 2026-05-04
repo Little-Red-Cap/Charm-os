@@ -24,6 +24,8 @@ includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_consumer_plan_compare.v0.schema.json`
 - exporter
   - `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
+- workspace compare wrapper
+  - `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_compare.py`
 - smoke
@@ -41,6 +43,12 @@ The dedicated smoke writes under:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-compare-smoke
+```
+
+The workspace compare wrapper writes under:
+
+```powershell
+out/system-compiler-plan-ws-compare
 ```
 
 ## What the compare records
@@ -85,7 +93,8 @@ This object intentionally stays at consumer-plan compare level.
 
 It does not:
 
-- rebuild the consumer selector or consumer plan
+- rebuild the consumer selector or consumer plan when explicit plan summaries
+  are provided
 - rerun opener, landing, capability, route, biography, witness, or world
   compare tools
 - execute inspector commands
@@ -112,6 +121,22 @@ Run the compare smoke:
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1 -Clean
 ```
+
+Or compare two prepared front-page workspaces by exporting selector and plan
+witnesses first and then comparing the resulting execution plans:
+
+```powershell
+./scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1 `
+  -BaselineFrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -CandidateFrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -OutputRoot cmake-build-plan-ws-compare `
+  -Clean
+```
+
+If `-BaselinePlanWorkspaceRoot` and `-CandidatePlanWorkspaceRoot` already
+contain `plan/front-page.entry-opening-flow.consumer.plan.summary.json` and
+`-Clean` is omitted, the wrapper reuses those plan witnesses instead of
+rebuilding the whole front-page opening-flow chain.
 
 Or compare two explicit consumer plan summaries:
 

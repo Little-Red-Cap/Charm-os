@@ -26,6 +26,8 @@ Current `system_compiler.front_page_entry_opening_flow_consumer_plan` includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_consumer_plan.v0.schema.json`
 - exporter
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
+- workspace exporter
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
 - smoke
@@ -49,6 +51,12 @@ The smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-smoke
+```
+
+The workspace exporter writes under:
+
+```powershell
+out/system-compiler-plan-ws
 ```
 
 ## What the consumer plan records
@@ -114,6 +122,16 @@ Run the consumer plan smoke:
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1 `
   -SelectorWorkspaceRoot cmake-build-system-compiler-front-page-entry-opening-flow-consumer-selector-workspace-smoke `
   -OutputRoot cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-smoke `
+  -Clean
+```
+
+Or export directly from a prepared front-page workspace by letting the wrapper
+produce the selector witness first:
+
+```powershell
+./scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1 `
+  -FrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -OutputRoot cmake-build-plan-ws-smoke `
   -Clean
 ```
 

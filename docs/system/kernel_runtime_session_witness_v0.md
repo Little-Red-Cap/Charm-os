@@ -275,6 +275,12 @@ minimal_kernel_runtime world 的 session continuity witness 发生 runtime-domai
 ./scripts/system_compiler_world_compare_session_drift_smoke.ps1
 ```
 
+如果要验证 `kernel_runtime_session.summary.json` 的 failure entry 能经由 witness bundle exporter 进入 world compare，可以运行 exporter 级闭环 smoke：
+
+```powershell
+./scripts/system_compiler_witness_session_failure_export_smoke.ps1
+```
+
 CI / gate 可以通过 `scripts/check_system_compiler_world_compare_summary.ps1` 直接断言 session drift 面：
 
 ```powershell

@@ -233,7 +233,7 @@ SemanticIntentResolution
   -> normal widget click behavior
 ```
 
-The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, ambiguous duplicate ids, missing request ids, and `SemanticActionRequestLedger` / `reject_reason` evidence that names the failed boundary.
+The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, ambiguous duplicate ids, missing request ids, and `SemanticActionRequestLedger` / `reject_reason` evidence that names the failed boundary. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
 
 ## 2026-05 Addendum: Semantic Action Admission
 
@@ -286,4 +286,4 @@ SemanticFocusQuery
   -> input focus truth + FocusOut/FocusIn evidence
 ```
 
-The demo guards committed transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable targets, disabled targets, ambiguous duplicate ids, invalid root, missing request id, and `SemanticFocusRequestLedger` evidence that names the final request stage.
+The demo guards committed transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable targets, disabled targets, ambiguous duplicate ids, invalid root, missing request id, and `SemanticFocusRequestLedger` evidence that names the final request stage. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.

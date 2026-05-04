@@ -57,7 +57,8 @@
 11. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
 12. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
 13. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
-14. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+14. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
+15. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
 Semantic Tree Artifact v0 runtime sample:
 

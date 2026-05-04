@@ -1,5 +1,7 @@
 # Vivid Focus Semantic Evidence v0
 
+Semantic request ledger summary: `vivid_semantic_request_ledger_law_v0.md`.
+
 本文定义 Vivid v0 对 semantic focus target 与 visual focus artifact 对齐的最小证据。
 
 ## 定位

@@ -54,6 +54,7 @@ namespace soa_detail {
         std::array<SemanticRole, N> semantic_role{};
         std::array<soa_detail::TextId, N> semantic_id{};
         std::array<soa_detail::TextId, N> semantic_label{};
+        std::array<SemanticActionMask, N> semantic_actions{};
     };
 
 }
@@ -92,6 +93,7 @@ public:
             common_.semantic_role[i] = SemanticRole::None;
             common_.semantic_id[i] = soa_detail::empty_text_id();
             common_.semantic_label[i] = soa_detail::empty_text_id();
+            common_.semantic_actions[i] = 0;
         }
         payloads_.reset();
     }
@@ -137,6 +139,7 @@ public:
         common_.semantic_role[idx] = SemanticRole::None;
         common_.semantic_id[idx] = soa_detail::empty_text_id();
         common_.semantic_label[idx] = soa_detail::empty_text_id();
+        common_.semantic_actions[idx] = 0;
         const auto payload = payload_alloc(kind, idx);
         if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
             common_.kind[idx] = WidgetKind::None;
@@ -162,6 +165,7 @@ public:
             common_.semantic_role[idx] = SemanticRole::None;
             common_.semantic_id[idx] = soa_detail::empty_text_id();
             common_.semantic_label[idx] = soa_detail::empty_text_id();
+            common_.semantic_actions[idx] = 0;
             common_.free_next[idx] = free_head_;
             free_head_ = idx;
             return {};
@@ -195,6 +199,7 @@ public:
         common_.semantic_role[idx] = SemanticRole::None;
         common_.semantic_id[idx] = soa_detail::empty_text_id();
         common_.semantic_label[idx] = soa_detail::empty_text_id();
+        common_.semantic_actions[idx] = 0;
         payload_free(old_kind, common_.payload[idx], idx);
         common_.payload[idx] = soa_detail::invalid_payload_handle();
         mark_layout_dirty();
@@ -371,6 +376,24 @@ public:
         common_.semantic_role[idx] = role;
         common_.semantic_id[idx] = payloads_.store_text(id);
         common_.semantic_label[idx] = payloads_.store_text(label);
+        common_.semantic_actions[idx] = semantic_default_actions_for_role(role);
+    }
+
+    void set_semantic_default(WidgetHandle h,
+                              const char* id,
+                              const char* label = nullptr) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const SemanticRole role = semantic_default_role_for_kind(common_.kind[idx]);
+        if (role == SemanticRole::None) {
+            clear_semantic(h);
+            return;
+        }
+        const char* resolved_label = label;
+        if (!resolved_label || resolved_label[0] == '\0') {
+            resolved_label = text(h);
+        }
+        set_semantic(h, role, id, resolved_label);
     }
 
     void clear_semantic(WidgetHandle h) noexcept {
@@ -379,6 +402,13 @@ public:
         common_.semantic_role[idx] = SemanticRole::None;
         common_.semantic_id[idx] = soa_detail::empty_text_id();
         common_.semantic_label[idx] = soa_detail::empty_text_id();
+        common_.semantic_actions[idx] = 0;
+    }
+
+    void set_semantic_actions(WidgetHandle h, SemanticActionMask actions) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.semantic_actions[idx] = actions;
     }
 
     SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
@@ -390,13 +420,89 @@ public:
         out.id = payloads_.text_c_str(common_.semantic_id[idx]);
         out.role = semantic_role_name(role);
         out.label = payloads_.text_c_str(common_.semantic_label[idx]);
+        out.actions = common_.semantic_actions[idx];
         out.focusable = focusable(h);
         out.found = role != SemanticRole::None && out.id && out.id[0] != '\0';
         return out;
     }
 
+    SemanticActionSnapshot semantic_action_snapshot(WidgetHandle h) const noexcept {
+        SemanticActionSnapshot out{};
+        const auto semantic = semantic_snapshot(h);
+        out.handle = semantic.handle;
+        out.id = semantic.id;
+        out.actions = semantic.actions;
+        out.found = semantic.found;
+        return out;
+    }
+
     SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
         return semantic_snapshot(input_.focused);
+    }
+
+    SemanticIntentResolution resolve_semantic_intent(WidgetHandle root,
+                                                     const char* id,
+                                                     SemanticAction action) const noexcept {
+        SemanticIntentResolution out{};
+        out.id = id ? id : "";
+        out.action = action;
+        if (!root || !valid(root)) {
+            out.status = SemanticIntentStatus::InvalidRoot;
+            return out;
+        }
+        if (!id || id[0] == '\0') {
+            out.status = SemanticIntentStatus::MissingId;
+            return out;
+        }
+
+        struct StackEntry {
+            WidgetHandle handle{};
+        };
+
+        std::array<StackEntry, kMaxNodes> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = StackEntry{root};
+
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp].handle;
+            if (!valid(h) || !visible(h)) continue;
+            ++out.visited_count;
+
+            const auto semantic = semantic_snapshot(h);
+            if (semantic.found && text_equal(semantic.id, id)) {
+                ++out.match_count;
+                if (out.match_count == 1) {
+                    out.handle = h;
+                    out.actions = semantic.actions;
+                    out.found = true;
+                } else {
+                    out.status = SemanticIntentStatus::AmbiguousId;
+                    out.executable = false;
+                    return out;
+                }
+            }
+
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = StackEntry{child};
+            }
+        }
+
+        if (!out.found) {
+            out.status = SemanticIntentStatus::NotFound;
+            return out;
+        }
+        if (!semantic_action_present(out.actions, action)) {
+            out.status = SemanticIntentStatus::UnsupportedAction;
+            return out;
+        }
+        if (!enabled(out.handle)) {
+            out.status = SemanticIntentStatus::Disabled;
+            return out;
+        }
+        out.status = SemanticIntentStatus::Resolved;
+        out.executable = true;
+        return out;
     }
 
     SemanticTreeSnapshot semantic_tree_snapshot(
@@ -440,6 +546,7 @@ public:
                     node.id = semantic.id;
                     node.role = semantic.role;
                     node.label = semantic.label;
+                    node.actions = semantic.actions;
                     node.bounds = world_rect(h);
                     node.depth = entry.depth;
                     node.preorder = static_cast<std::uint16_t>(out.total_semantic_count - 1);
@@ -1106,6 +1213,16 @@ private:
 #if defined(VIVID_SOA_TRACE_INPUT)
         paint_invalidated_count_ += 1u;
 #endif
+    }
+
+    static bool text_equal(const char* lhs, const char* rhs) noexcept {
+        if (!lhs || !rhs) return lhs == rhs;
+        while (*lhs && *rhs) {
+            if (*lhs != *rhs) return false;
+            ++lhs;
+            ++rhs;
+        }
+        return *lhs == *rhs;
     }
 
     void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept {

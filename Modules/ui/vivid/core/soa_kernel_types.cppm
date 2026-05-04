@@ -43,13 +43,54 @@ enum class SemanticRole : std::uint8_t {
 };
 
 export
+enum class SemanticAction : std::uint8_t {
+    Activate = 1 << 0,
+};
+
+export
+using SemanticActionMask = std::uint8_t;
+
+export
 struct SemanticFocusSnapshot {
     WidgetHandle handle{};
     const char* id{""};
     const char* role{"none"};
     const char* label{""};
+    SemanticActionMask actions{0};
     bool found{false};
     bool focusable{false};
+};
+
+export
+struct SemanticActionSnapshot {
+    WidgetHandle handle{};
+    const char* id{""};
+    SemanticActionMask actions{0};
+    bool found{false};
+};
+
+export
+enum class SemanticIntentStatus : std::uint8_t {
+    Resolved = 0,
+    InvalidRoot,
+    MissingId,
+    NotFound,
+    AmbiguousId,
+    UnsupportedAction,
+    Disabled,
+};
+
+export
+struct SemanticIntentResolution {
+    WidgetHandle handle{};
+    const char* id{""};
+    SemanticAction action{SemanticAction::Activate};
+    SemanticIntentStatus status{SemanticIntentStatus::NotFound};
+    SemanticActionMask actions{0};
+    std::size_t visited_count{0};
+    std::size_t match_count{0};
+    bool found{false};
+    bool executable{false};
 };
 
 export
@@ -64,6 +105,7 @@ struct SemanticTreeNode {
     const char* id{""};
     const char* role{"none"};
     const char* label{""};
+    SemanticActionMask actions{0};
     Rect bounds{};
     std::uint16_t depth{0};
     std::uint16_t preorder{0};
@@ -103,6 +145,80 @@ inline const char* semantic_role_name(SemanticRole role) noexcept {
 }
 
 export
+inline SemanticRole semantic_default_role_for_kind(WidgetKind kind) noexcept {
+    switch (kind) {
+    case WidgetKind::Button:
+    case WidgetKind::IconButton:
+    case WidgetKind::MenuItem:
+    case WidgetKind::Checkbox:
+    case WidgetKind::Radio:
+    case WidgetKind::Switch:
+        return SemanticRole::Button;
+    case WidgetKind::ListItem:
+        return SemanticRole::ListItem;
+    case WidgetKind::Label:
+    case WidgetKind::TextBox:
+        return SemanticRole::Text;
+    case WidgetKind::Container:
+    case WidgetKind::ScrollContainer:
+    case WidgetKind::List:
+    case WidgetKind::ListView:
+    case WidgetKind::Menu:
+    case WidgetKind::PopupLayer:
+    case WidgetKind::ModalDialog:
+        return SemanticRole::Container;
+    default:
+        return SemanticRole::None;
+    }
+}
+
+export
+inline constexpr SemanticActionMask semantic_action_mask(SemanticAction action) noexcept {
+    return static_cast<SemanticActionMask>(action);
+}
+
+export
+inline constexpr bool semantic_action_present(SemanticActionMask mask,
+                                              SemanticAction action) noexcept {
+    return (mask & semantic_action_mask(action)) != 0;
+}
+
+export
+inline constexpr SemanticActionMask semantic_default_actions_for_role(SemanticRole role) noexcept {
+    switch (role) {
+    case SemanticRole::Button:
+    case SemanticRole::ListItem:
+        return semantic_action_mask(SemanticAction::Activate);
+    case SemanticRole::None:
+    case SemanticRole::Text:
+    case SemanticRole::Container:
+        return 0;
+    }
+    return 0;
+}
+
+export
+inline const char* semantic_intent_status_name(SemanticIntentStatus status) noexcept {
+    switch (status) {
+    case SemanticIntentStatus::Resolved:
+        return "resolved";
+    case SemanticIntentStatus::InvalidRoot:
+        return "invalid_root";
+    case SemanticIntentStatus::MissingId:
+        return "missing_id";
+    case SemanticIntentStatus::NotFound:
+        return "not_found";
+    case SemanticIntentStatus::AmbiguousId:
+        return "ambiguous_id";
+    case SemanticIntentStatus::UnsupportedAction:
+        return "unsupported_action";
+    case SemanticIntentStatus::Disabled:
+        return "disabled";
+    }
+    return "unknown";
+}
+
+export
 inline std::uint32_t semantic_tree_hash_mix(std::uint32_t hash, std::uint32_t value) noexcept {
     hash ^= value;
     hash *= 16777619u;
@@ -126,6 +242,7 @@ inline std::uint32_t semantic_tree_hash_node(std::uint32_t hash,
     hash = semantic_tree_hash_text(hash, node.id);
     hash = semantic_tree_hash_text(hash, node.role);
     hash = semantic_tree_hash_text(hash, node.label);
+    hash = semantic_tree_hash_mix(hash, node.actions);
     hash = semantic_tree_hash_mix(hash, static_cast<std::uint32_t>(node.bounds.x));
     hash = semantic_tree_hash_mix(hash, static_cast<std::uint32_t>(node.bounds.y));
     hash = semantic_tree_hash_mix(hash, static_cast<std::uint32_t>(node.bounds.w));

@@ -28,39 +28,40 @@ namespace {
         const char* tag;
         unsigned cases;
         std::uint32_t axes;
+        const char* primary_doc;
     };
 
     constexpr ManifestEntry kManifest[] = {
-        {"page_transition_demo", "pt", 15, AxisMotion | AxisTransaction | AxisLayer | AxisRender | AxisAdmission},
-        {"motion_time_demo", "mt", 12, AxisMotion},
-        {"component_card_state_demo", "ccs", 5, AxisState | AxisRender},
-        {"component_settings_row_demo", "csr", 4, AxisState | AxisRender},
-        {"style_token_law_demo", "stl", 6, AxisStyle | AxisRender},
-        {"focus_boundary_demo", "fb", 6, AxisFocus | AxisStyle | AxisRender},
-        {"focus_transfer_demo", "ft", 7, AxisEdge | AxisFocus | AxisRender},
-        {"focus_scope_demo", "fs", 9, AxisEdge | AxisFocus | AxisRender | AxisAdmission},
-        {"focus_scope_nested_demo", "fsn", 8, AxisFocus | AxisTransaction | AxisRender},
-        {"focus_scope_navigation_demo", "fsnav", 7, AxisEdge | AxisFocus},
-        {"focus_spatial_navigation_demo", "fss", 9, AxisEdge | AxisFocus},
-        {"focus_semantic_demo", "fsem", 8, AxisSemantic | AxisFocus | AxisRender},
-        {"semantic_tree_demo", "stree", 6, AxisSemantic},
-        {"semantic_default_demo", "sdef", 6, AxisSemantic},
-        {"semantic_action_demo", "sact", 6, AxisSemantic},
-        {"semantic_intent_demo", "sint", 7, AxisSemantic | AxisAdmission},
-        {"semantic_action_admission_demo", "saa", 7, AxisSemantic | AxisAdmission},
-        {"semantic_action_request_demo", "sar", 6, AxisSemantic | AxisAdmission | AxisEdge},
-        {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission},
-        {"semantic_focus_query_demo", "sfq", 7, AxisSemantic | AxisFocus},
-        {"semantic_focus_admission_demo", "sfa", 7, AxisSemantic | AxisFocus | AxisAdmission},
-        {"semantic_focus_request_demo", "sfr", 7, AxisSemantic | AxisFocus | AxisAdmission | AxisEdge},
-        {"widget_signal_demo", "ws", 3, AxisEdge},
-        {"widget_state_demo", "wst", 5, AxisState},
-        {"evidence_vocabulary_demo", "evl", 5, AxisVocabulary | AxisState | AxisRender | AxisCausal},
-        {"evidence_lab_manifest_demo", "elm", 8, AxisManifest | AxisVocabulary},
+        {"page_transition_demo", "pt", 15, AxisMotion | AxisTransaction | AxisLayer | AxisRender | AxisAdmission, "docs/ui/vivid_motion_runtime_v0.md"},
+        {"motion_time_demo", "mt", 12, AxisMotion, "docs/ui/vivid_motion_runtime_v0.md"},
+        {"component_card_state_demo", "ccs", 5, AxisState | AxisRender, "docs/ui/vivid_render_evidence_chain_v0.md"},
+        {"component_settings_row_demo", "csr", 4, AxisState | AxisRender, "docs/ui/vivid_render_evidence_chain_v0.md"},
+        {"style_token_law_demo", "stl", 6, AxisStyle | AxisRender, "docs/ui/vivid_style_token_law_v0.md"},
+        {"focus_boundary_demo", "fb", 6, AxisFocus | AxisStyle | AxisRender, "docs/ui/vivid_focus_evidence_boundary_v0.md"},
+        {"focus_transfer_demo", "ft", 7, AxisEdge | AxisFocus | AxisRender, "docs/ui/vivid_focus_transfer_evidence_v0.md"},
+        {"focus_scope_demo", "fs", 9, AxisEdge | AxisFocus | AxisRender | AxisAdmission, "docs/ui/vivid_focus_scope_evidence_v0.md"},
+        {"focus_scope_nested_demo", "fsn", 8, AxisFocus | AxisTransaction | AxisRender, "docs/ui/vivid_focus_scope_evidence_v0.md"},
+        {"focus_scope_navigation_demo", "fsnav", 7, AxisEdge | AxisFocus, "docs/ui/vivid_focus_scope_evidence_v0.md"},
+        {"focus_spatial_navigation_demo", "fss", 9, AxisEdge | AxisFocus, "docs/ui/vivid_focus_scope_evidence_v0.md"},
+        {"focus_semantic_demo", "fsem", 8, AxisSemantic | AxisFocus | AxisRender, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
+        {"semantic_tree_demo", "stree", 6, AxisSemantic, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
+        {"semantic_default_demo", "sdef", 6, AxisSemantic, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
+        {"semantic_action_demo", "sact", 6, AxisSemantic, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
+        {"semantic_intent_demo", "sint", 7, AxisSemantic | AxisAdmission, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"semantic_action_admission_demo", "saa", 7, AxisSemantic | AxisAdmission, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"semantic_action_request_demo", "sar", 6, AxisSemantic | AxisAdmission | AxisEdge, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission, "docs/ui/vivid_intent_to_artifact_evidence_v0.md"},
+        {"semantic_focus_query_demo", "sfq", 7, AxisSemantic | AxisFocus, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"semantic_focus_admission_demo", "sfa", 7, AxisSemantic | AxisFocus | AxisAdmission, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"semantic_focus_request_demo", "sfr", 7, AxisSemantic | AxisFocus | AxisAdmission | AxisEdge, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"widget_signal_demo", "ws", 3, AxisEdge, "docs/ui/vivid_evidence_stdout_law.md"},
+        {"widget_state_demo", "wst", 5, AxisState, "docs/ui/vivid_widget_state_observe.md"},
+        {"evidence_vocabulary_demo", "evl", 5, AxisVocabulary | AxisState | AxisRender | AxisCausal, "docs/ui/vivid_evidence_vocabulary_law_v0.md"},
+        {"evidence_lab_manifest_demo", "elm", 9, AxisManifest | AxisVocabulary, "docs/ui/vivid_evidence_lab_manifest_v0.md"},
     };
 
     constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 185;
+    constexpr unsigned kExpectedCaseTotal = 186;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState
@@ -127,6 +128,10 @@ namespace {
             + case_text(entry.cases);
     }
 
+    [[nodiscard]] std::string demo_path(const ManifestEntry& entry) {
+        return std::string("Examples/ui/vivid/") + entry.run;
+    }
+
     [[nodiscard]] bool expect(bool condition, const char* message) noexcept {
         if (!condition) {
             std::printf("[ERR] %s\n", message);
@@ -177,6 +182,9 @@ namespace {
     [[nodiscard]] bool gate_shape_valid() noexcept {
         for (const auto& entry : kManifest) {
             if (text_empty(entry.run) || text_empty(entry.tag) || entry.cases == 0 || entry.axes == 0u) {
+                return false;
+            }
+            if (text_empty(entry.primary_doc)) {
                 return false;
             }
             if (std::strlen(entry.tag) > 5u) {
@@ -233,6 +241,16 @@ namespace {
                 std::string("Examples/ui/vivid/") + entry.run + "/CMakeLists.txt";
             const std::string cmake_file = read_file(relative_path.c_str());
             if (cmake_file.empty() || !contains(cmake_file, cmake_gate(entry))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool doc_routes_match_manifest() {
+        for (const auto& entry : kManifest) {
+            const std::string doc = read_file(entry.primary_doc);
+            if (doc.empty() || !contains(doc, demo_path(entry))) {
                 return false;
             }
         }
@@ -330,6 +348,14 @@ int main() {
     case_begin("cmake_gate_sync");
     std::printf(" demos=%u synced=%d\n", entries, cmake_sync_ok ? 1 : 0);
     if (!expect(cmake_sync_ok, "demo CMake PASS gates must match manifest gates")) return 1;
+
+    const bool doc_route_ok = doc_routes_match_manifest();
+    case_begin("doc_route_sync");
+    std::printf(" demos=%u primary_docs=%u synced=%d\n",
+                entries,
+                entries,
+                doc_route_ok ? 1 : 0);
+    if (!expect(doc_route_ok, "manifest primary docs must point back to their demos")) return 1;
 
     case_begin("promotion_boundary");
     std::printf(" demo_support=demo_side vocabulary=law runtime_ledgers=core_candidate print_helpers=do_not_promote runtime_behavior=0 screenshot=0\n");

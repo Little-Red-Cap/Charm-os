@@ -147,6 +147,8 @@
 - [`system_compiler_front_page_entry_opening_flow_open_event_v0.md`](system_compiler_front_page_entry_opening_flow_open_event_v0.md)
 - [`system_compiler_front_page_entry_opening_flow_open_event_witness_v0.md`](system_compiler_front_page_entry_opening_flow_open_event_witness_v0.md)
 - [`system_compiler_front_page_entry_opening_flow_open_event_witness_compare_v0.md`](system_compiler_front_page_entry_opening_flow_open_event_witness_compare_v0.md)
+- [System Compiler Front Page Entry Opener workspace exporter](../../scripts/export_system_compiler_front_page_entry_opener_workspace.ps1)
+- [System Compiler Front Page Entry Opener workspace smoke](../../scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow workspace exporter](../../scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer selector smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1)

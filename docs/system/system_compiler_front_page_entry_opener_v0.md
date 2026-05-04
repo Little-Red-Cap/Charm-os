@@ -29,11 +29,13 @@ Current `system_compiler.front_page_entry_opener` includes:
   - `schemas/system_compiler.front_page_entry_opener.v0.schema.json`
 - exporter
   - `scripts/export_system_compiler_front_page_entry_opener.py`
+  - `scripts/export_system_compiler_front_page_entry_opener_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opener.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opener_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1`
 
 ## Current outputs
 
@@ -42,6 +44,19 @@ By default the exporter leaves behind:
 - `front-page.entry-opener.summary.json`
 - `front-page.entry-opener.report.md`
 - `front-page.entry-opener.check.txt`
+
+The PowerShell workspace facade wraps the same exporter and validator, resolves
+either direct summary paths or workspace roots, and writes the opener artifacts
+under:
+
+- `out/system-compiler-front-page-entry-opener-workspace/opener/`
+
+This facade is intentionally thin. It does not reinterpret landing policy; it
+only gives downstream workspace tools one stable entry point for:
+
+- a landing workspace root or explicit landing summary
+- an optional landing-compare workspace root or explicit landing-compare summary
+- the validated opener summary/report/check output root
 
 ## What the opener records
 
@@ -242,6 +257,30 @@ To prove only the OpenEventWitnessCompare projection adapter:
 ```powershell
 ./scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1 -Clean
 ```
+
+To export the same opener object through the reusable workspace facade:
+
+```powershell
+./scripts/export_system_compiler_front_page_entry_opener_workspace.ps1 `
+  -LandingWorkspaceRoot cmake-build-system-compiler-front-page-entry-landing-smoke/root-world-compare `
+  -LandingCompareWorkspaceRoot cmake-build-system-compiler-front-page-entry-landing-compare-smoke/root-witness-to-root-world-compare `
+  -OutputRoot out/system-compiler-front-page-entry-opener-workspace `
+  -Clean
+```
+
+To prove the workspace facade without depending on a pre-existing front-page
+smoke directory:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1 -Clean
+```
+
+That smoke builds synthetic but schema-valid landing fixtures, uses the real
+landing compare exporter to create an `improved` compare context, and then
+checks both:
+
+- a cold opener workspace with no compare context
+- a hot opener workspace with candidate landing compare context
 
 To run the full entry-opening flow from capability through landing, landing
 compare, and opener:

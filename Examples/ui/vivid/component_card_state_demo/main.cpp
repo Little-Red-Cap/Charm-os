@@ -114,14 +114,12 @@ int main() {
     if (!vivid::evidence::expect(initial.cmd_count > 0, "initial render records commands")) return 1;
 
     run_log.case_begin("initial_artifact");
-    std::printf(" enabled=%d level=%d output=%d dirty_count=%zu cmd_count=%zu cmd_hash=%u pixel_hash=%u\n",
+    std::printf(" enabled=%d level=%d output=%d",
                 state.enabled ? 1 : 0,
                 state.level,
-                state.output,
-                initial.dirty_count,
-                initial.cmd_count,
-                initial.cmd_hash,
-                initial.pixel_hash);
+                state.output);
+    vivid::evidence::print_render_evidence("initial", initial);
+    std::printf("\n");
 
     state.old_enabled = state.enabled;
     state.old_level = state.level;
@@ -138,12 +136,21 @@ int main() {
     }
 
     run_log.case_begin("state_delta");
-    std::printf(" source=programmatic enabled_old=%d enabled_new=%d level_old=%d level_new=%d output=%d\n",
-                state.old_enabled ? 1 : 0,
-                state.enabled ? 1 : 0,
-                state.old_level,
-                state.level,
-                state.output);
+    vivid::evidence::print_named_state_delta("enabled", {
+        .id = "power_card.enabled",
+        .key = "checked",
+        .source = "programmatic",
+        .old_value = state.old_enabled ? 1 : 0,
+        .new_value = state.enabled ? 1 : 0,
+    });
+    vivid::evidence::print_named_state_delta("level", {
+        .id = "power_card.level",
+        .key = "value",
+        .source = "programmatic",
+        .old_value = state.old_level,
+        .new_value = state.level,
+    });
+    std::printf(" output=%d\n", state.output);
 
     run_log.case_begin("component_derivation");
     std::printf(" children=3 summary=\"%s\" output_mirror=%d\n",
@@ -151,37 +158,36 @@ int main() {
                 access.value(handles.output));
 
     run_log.case_begin("invalidation_intent");
-    std::printf(" kind=paint_only component_x=%d component_y=%d component_w=%d component_h=%d\n",
-                kCardBounds.x,
-                kCardBounds.y,
-                kCardBounds.w,
-                kCardBounds.h);
+    vivid::evidence::print_invalidation({
+        .kind = "paint_only",
+        .dirty_scope = "component",
+        .component_bounds = kCardBounds,
+        .layout_changed = false,
+    });
+    std::printf("\n");
 
-    const auto updated = vivid::evidence::render_scene(scene, canvas, kCardBounds);
+    const auto updated_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kCardBounds, initial);
+    const auto& updated = updated_capture.evidence;
+    const auto& updated_delta = updated_capture.delta;
     if (!vivid::evidence::expect(updated.failed_cmds == 0, "updated render has no failed commands")) return 1;
     if (!vivid::evidence::expect(updated.cmd_count > 0, "updated render records commands")) return 1;
-    if (!vivid::evidence::expect(updated.pixel_hash != initial.pixel_hash,
+    if (!vivid::evidence::expect(updated_delta.changed,
                                  "card state changes render artifact")) {
         return 1;
     }
-    if (!vivid::evidence::expect(updated.dirty_count == 1, "updated render keeps a single card dirty rect")) {
+    if (!vivid::evidence::expect(updated_delta.single_dirty_rect,
+                                 "updated render keeps a single card dirty rect")) {
         return 1;
     }
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kCardBounds),
+    if (!vivid::evidence::expect(updated_delta.dirty_within_component,
                                  "dirty evidence remains inside card bounds")) {
         return 1;
     }
 
     run_log.case_begin("render_artifact");
-    std::printf(" dirty_count=%zu dirty_hash=%u cmd_count=%zu cmd_bytes=%zu exec_cmds=%zu failed=%zu cmd_hash=%u pixel_hash=%u\n",
-                updated.dirty_count,
-                updated.dirty_hash,
-                updated.cmd_count,
-                updated.cmd_bytes,
-                updated.exec_cmds,
-                updated.failed_cmds,
-                updated.cmd_hash,
-                updated.pixel_hash);
+    vivid::evidence::print_render_artifact_verdict(updated_delta, "updated", updated);
+    std::printf("\n");
 
     run_log.end(true);
     std::puts("[component_card_state_demo] ok");

@@ -147,20 +147,13 @@ int main() {
     }
 
     run_log.case_begin("state_mask_law");
-    std::printf(" widget=button mask=%u hovered=%d pressed=%d disabled=%d focused_in_style_mask=%d state_count=%u law=interactive_without_focus\n",
-                state_evidence.mask,
-                state_evidence.includes_hovered ? 1 : 0,
-                state_evidence.includes_pressed ? 1 : 0,
-                state_evidence.includes_disabled ? 1 : 0,
-                state_evidence.includes_focused ? 1 : 0,
-                state_evidence.state_count);
+    vivid::evidence::print_style_state_mask("button", "interactive_without_focus", state_evidence);
+    std::printf("\n");
 
     const ResolvedStyleEvidence style_evidence_before = make_resolved_style_evidence(normal_before);
     run_log.case_begin("resolved_style_key");
-    std::printf(" widget=button state=normal style_key=%u color_hash=%u metrics_hash=%u token_version=%u stylesheet_version=%u\n",
-                style_evidence_before.style_key,
-                style_evidence_before.color_hash,
-                style_evidence_before.metrics_hash,
+    vivid::evidence::print_resolved_style_evidence("button", "normal", style_evidence_before);
+    std::printf(" token_version=%u stylesheet_version=%u\n",
                 token_version_before,
                 stylesheet_version);
 
@@ -169,11 +162,8 @@ int main() {
     if (!vivid::evidence::expect(initial.cmd_count > 0, "initial style render records commands")) return 1;
 
     run_log.case_begin("render_artifact_before");
-    std::printf(" dirty_count=%zu cmd_count=%zu cmd_hash=%u pixel_hash=%u\n",
-                initial.dirty_count,
-                initial.cmd_count,
-                initial.cmd_hash,
-                initial.pixel_hash);
+    vivid::evidence::print_render_evidence("before", initial);
+    std::printf("\n");
 
     apply_tokens_only(make_tokens(rgba{220, 80, 40, 255}, rgba{255, 255, 255, 255}));
     const auto token_version_after = Theme::instance().get_tokens().version;
@@ -258,7 +248,10 @@ int main() {
                 style_evidence_before.style_key,
                 style_evidence_after.style_key);
 
-    const auto updated = vivid::evidence::render_scene(scene, canvas, kButtonBounds);
+    const auto updated_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kButtonBounds, initial);
+    const auto& updated = updated_capture.evidence;
+    const auto& artifact_delta = updated_capture.delta;
     if (!vivid::evidence::expect(updated.failed_cmds == 0, "updated style render has no failed commands")) return 1;
     if (!vivid::evidence::expect(updated.cmd_count > 0, "updated style render records commands")) return 1;
     if (!vivid::evidence::expect(updated.pixel_hash != initial.pixel_hash,
@@ -266,20 +259,14 @@ int main() {
         return 1;
     }
     if (!vivid::evidence::expect(updated.dirty_count == 1, "token repaint uses single button dirty rect")) return 1;
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kButtonBounds),
+    if (!vivid::evidence::expect(artifact_delta.dirty_within_component,
                                  "style dirty evidence remains inside button bounds")) {
         return 1;
     }
 
     run_log.case_begin("render_artifact_after");
-    std::printf(" dirty_count=%zu dirty_hash=%u cmd_count=%zu cmd_bytes=%zu failed=%zu cmd_hash=%u pixel_hash=%u\n",
-                updated.dirty_count,
-                updated.dirty_hash,
-                updated.cmd_count,
-                updated.cmd_bytes,
-                updated.failed_cmds,
-                updated.cmd_hash,
-                updated.pixel_hash);
+    vivid::evidence::print_render_artifact_verdict(artifact_delta, "after", updated);
+    std::printf("\n");
 
     run_log.end(true);
     std::puts("[style_token_law_demo] ok");

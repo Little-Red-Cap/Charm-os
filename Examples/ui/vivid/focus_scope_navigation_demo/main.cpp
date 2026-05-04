@@ -1,4 +1,4 @@
-﻿#include <cstddef>
+#include <cstddef>
 #include <cstdio>
 
 import charm.core.event;
@@ -28,56 +28,16 @@ namespace {
         WidgetHandle outside{};
     };
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs.kind == rhs.kind
-            && lhs.index == rhs.index
-            && lhs.generation == rhs.generation;
-    }
 
-    void mouse_down(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-    }
-
-    void mouse_up(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
-    }
-
-    struct FocusMoveTrace {
-        int focus_out{0};
-        int focus_in{0};
-        bool focus_out_expected{false};
-        bool focus_in_expected{false};
-    };
-
-    [[nodiscard]] FocusMoveTrace collect_focus_move(::ui::scene::SceneAccess& access,
-                                                    WidgetHandle old_target,
-                                                    WidgetHandle new_target) noexcept {
-        FocusMoveTrace out{};
-        for (std::size_t index = 0; index < access.input_event_count(); ++index) {
-            const auto& event = access.input_event(index);
-            if (event.event.type == Event::Type::FocusOut) {
-                ++out.focus_out;
-                out.focus_out_expected = out.focus_out_expected || same_handle(event.target, old_target);
-            } else if (event.event.type == Event::Type::FocusIn) {
-                ++out.focus_in;
-                out.focus_in_expected = out.focus_in_expected || same_handle(event.target, new_target);
-            }
-        }
-        return out;
-    }
 
     bool expect_focus_move(::ui::scene::SceneAccess& access,
                            WidgetHandle old_target,
                            WidgetHandle new_target,
                            const char* label) noexcept {
-        const auto trace = collect_focus_move(access, old_target, new_target);
+        const auto trace = vivid::evidence::collect_focus_move(access, old_target, new_target);
         if (!vivid::evidence::expect(trace.focus_out == 1 && trace.focus_out_expected, label)) return false;
         if (!vivid::evidence::expect(trace.focus_in == 1 && trace.focus_in_expected, label)) return false;
-        if (!vivid::evidence::expect(same_handle(access.input_focused(), new_target), label)) return false;
+        if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), new_target), label)) return false;
         return true;
     }
 }
@@ -120,38 +80,32 @@ int main() {
     run_log.case_begin("scope_model");
     std::printf(" focusable_inside=3 outside=1 order=first,second,third keys=tab,right,down,left,up\n");
 
-    mouse_down(scene, kFirstBounds, 10);
+    vivid::evidence::mouse_down_center(scene, kFirstBounds, 10);
     auto initial = scene.access();
-    int initial_focus_in = 0;
-    bool initial_focus_in_first = false;
-    for (std::size_t index = 0; index < initial.input_event_count(); ++index) {
-        const auto& event = initial.input_event(index);
-        if (event.event.type == Event::Type::FocusIn) {
-            ++initial_focus_in;
-            initial_focus_in_first = initial_focus_in_first || same_handle(event.target, handles.first);
-        }
-    }
-    if (!vivid::evidence::expect(initial_focus_in == 1 && initial_focus_in_first, "first receives initial FocusIn")) {
+    const auto initial_trace =
+        vivid::evidence::collect_pointer_focus_trace(initial, handles.first, {}, handles.first);
+    if (!vivid::evidence::expect(initial_trace.focus_in == 1 && initial_trace.focus_in_expected,
+                                 "first receives initial FocusIn")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(initial.input_focused(), handles.first), "initial focus truth is first")) {
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(initial.input_focused(), handles.first), "initial focus truth is first")) {
         return 1;
     }
-    mouse_up(scene, kFirstBounds, 11);
+    vivid::evidence::mouse_up_center(scene, kFirstBounds, 11);
 
     const auto first_artifact = vivid::evidence::render_scene(scene, canvas, kFirstBounds);
     if (!vivid::evidence::expect(first_artifact.failed_cmds == 0, "first artifact has no failed commands")) return 1;
 
     run_log.case_begin("initial_focus");
     std::printf(" target=first focus_in=%d input_truth=first cmd_count=%zu pixel_hash=%u\n",
-                initial_focus_in,
+                initial_trace.focus_in,
                 first_artifact.cmd_count,
                 first_artifact.pixel_hash);
 
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Tab, 20));
     auto tab_access = scene.access();
     if (!expect_focus_move(tab_access, handles.first, handles.second, "tab moves first to second")) return 1;
-    const auto tab_trace = collect_focus_move(tab_access, handles.first, handles.second);
+    const auto tab_trace = vivid::evidence::collect_focus_move(tab_access, handles.first, handles.second);
     const auto second_artifact = vivid::evidence::render_scene(scene, canvas, kSecondBounds);
     if (!vivid::evidence::expect(second_artifact.failed_cmds == 0, "second artifact has no failed commands")) return 1;
 
@@ -164,7 +118,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Right, 30));
     auto right_access = scene.access();
     if (!expect_focus_move(right_access, handles.second, handles.third, "right moves second to third")) return 1;
-    const auto right_trace = collect_focus_move(right_access, handles.second, handles.third);
+    const auto right_trace = vivid::evidence::collect_focus_move(right_access, handles.second, handles.third);
 
     run_log.case_begin("right_to_third");
     std::printf(" key=right old=second new=third focus_out=%d focus_in=%d input_truth=third\n",
@@ -174,7 +128,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Down, 40));
     auto down_access = scene.access();
     if (!expect_focus_move(down_access, handles.third, handles.first, "down wraps third to first")) return 1;
-    const auto down_trace = collect_focus_move(down_access, handles.third, handles.first);
+    const auto down_trace = vivid::evidence::collect_focus_move(down_access, handles.third, handles.first);
 
     run_log.case_begin("down_wrap_first");
     std::printf(" key=down old=third new=first wrap=1 focus_out=%d focus_in=%d input_truth=first\n",
@@ -184,7 +138,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Left, 50));
     auto left_access = scene.access();
     if (!expect_focus_move(left_access, handles.first, handles.third, "left wraps first to third")) return 1;
-    const auto left_trace = collect_focus_move(left_access, handles.first, handles.third);
+    const auto left_trace = vivid::evidence::collect_focus_move(left_access, handles.first, handles.third);
 
     run_log.case_begin("left_wrap_third");
     std::printf(" key=left old=first new=third reverse=1 wrap=1 focus_out=%d focus_in=%d input_truth=third\n",
@@ -197,7 +151,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Right, 60));
     auto outside_skip = scene.access();
     if (!expect_focus_move(outside_skip, handles.third, handles.first, "right wraps third to first without outside")) return 1;
-    if (!vivid::evidence::expect(!same_handle(outside_skip.input_focused(), handles.outside),
+    if (!vivid::evidence::expect(!vivid::evidence::same_handle(outside_skip.input_focused(), handles.outside),
                                  "outside is not selected by scope navigation")) {
         return 1;
     }

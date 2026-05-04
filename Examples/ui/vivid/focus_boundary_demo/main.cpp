@@ -66,13 +66,8 @@ int main() {
     }
 
     run_log.case_begin("style_mask_boundary");
-    std::printf(" widget=button mask=%u hovered=%d pressed=%d disabled=%d focused_in_style_mask=%d state_count=%u law=focus_outside_style_mask\n",
-                state_evidence.mask,
-                state_evidence.includes_hovered ? 1 : 0,
-                state_evidence.includes_pressed ? 1 : 0,
-                state_evidence.includes_disabled ? 1 : 0,
-                state_evidence.includes_focused ? 1 : 0,
-                state_evidence.state_count);
+    vivid::evidence::print_style_state_mask("button", "focus_outside_style_mask", state_evidence);
+    std::printf("\n");
 
     const ResolvedStyleEvidence style_before = make_resolved_style_evidence(normal_style);
     const ResolvedStyleEvidence style_focused_lookup = make_resolved_style_evidence(focused_style);
@@ -82,10 +77,8 @@ int main() {
     }
 
     run_log.case_begin("style_evidence_before");
-    std::printf(" widget=button focus=0 style_key=%u color_hash=%u metrics_hash=%u token_version=%u stylesheet_version=%u\n",
-                style_before.style_key,
-                style_before.color_hash,
-                style_before.metrics_hash,
+    vivid::evidence::print_focus_style_evidence("button", false, style_before, true, false);
+    std::printf(" token_version=%u stylesheet_version=%u\n",
                 token_version,
                 stylesheet_version);
 
@@ -117,13 +110,17 @@ int main() {
     }
 
     run_log.case_begin("style_evidence_after");
-    std::printf(" widget=button focus=1 style_key=%u color_hash=%u metrics_hash=%u style_same=1 focused_in_style_mask=%d\n",
-                style_after.style_key,
-                style_after.color_hash,
-                style_after.metrics_hash,
-                state_evidence.includes_focused ? 1 : 0);
+    vivid::evidence::print_focus_style_evidence("button",
+                                                true,
+                                                style_after,
+                                                true,
+                                                state_evidence.includes_focused);
+    std::printf("\n");
 
-    const auto focused_artifact = vivid::evidence::render_scene(scene, canvas, kButtonBounds);
+    const auto focused_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kButtonBounds, initial);
+    const auto& focused_artifact = focused_capture.evidence;
+    const auto& focused_delta = focused_capture.delta;
     if (!vivid::evidence::expect(focused_artifact.failed_cmds == 0, "focused render has no failed commands")) return 1;
     if (!vivid::evidence::expect(focused_artifact.cmd_count > initial.cmd_count,
                                  "focused render records extra focus command")) {
@@ -138,7 +135,7 @@ int main() {
         return 1;
     }
     if (!vivid::evidence::expect(focused_artifact.dirty_count == 1, "focus repaint uses single dirty rect")) return 1;
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kButtonBounds),
+    if (!vivid::evidence::expect(focused_delta.dirty_within_component,
                                  "focus dirty evidence remains inside button bounds")) {
         return 1;
     }

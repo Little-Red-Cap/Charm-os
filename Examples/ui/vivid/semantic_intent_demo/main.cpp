@@ -43,17 +43,6 @@ namespace {
             && !scene.access().pressed(handles.row)
             && !scene.access().focused(handles.row);
     }
-
-    void print_resolution(const SemanticIntentResolution& resolution) noexcept {
-        std::printf(" status=%s found=%d executable=%d id=%s actions=%u visited=%zu matches=%zu\n",
-                    semantic_intent_status_name(resolution.status),
-                    resolution.found ? 1 : 0,
-                    resolution.executable ? 1 : 0,
-                    resolution.id,
-                    resolution.actions,
-                    resolution.visited_count,
-                    resolution.match_count);
-    }
 }
 
 int main() {
@@ -101,7 +90,8 @@ int main() {
     const auto action_resolution =
         scene.resolve_semantic_intent(handles.scope, "action.apply", SemanticAction::Activate);
     run_log.case_begin("resolve_activate");
-    print_resolution(action_resolution);
+    vivid::evidence::print_semantic_intent_resolution(action_resolution);
+    std::printf("\n");
     if (!vivid::evidence::expect(resolved(action_resolution), "button activate intent resolves")) return 1;
     if (!vivid::evidence::expect(action_resolution.handle == handles.action,
                                  "button activate resolves to scoped handle")) {
@@ -122,7 +112,8 @@ int main() {
     const auto unsupported =
         scene.resolve_semantic_intent(handles.scope, "panel.info", SemanticAction::Activate);
     run_log.case_begin("unsupported_action");
-    print_resolution(unsupported);
+    vivid::evidence::print_semantic_intent_resolution(unsupported);
+    std::printf("\n");
     if (!vivid::evidence::expect(unsupported.status == SemanticIntentStatus::UnsupportedAction,
                                  "container semantic id rejects activate")) {
         return 1;
@@ -131,7 +122,8 @@ int main() {
     const auto missing =
         scene.resolve_semantic_intent(handles.scope, "missing.id", SemanticAction::Activate);
     run_log.case_begin("missing_id");
-    print_resolution(missing);
+    vivid::evidence::print_semantic_intent_resolution(missing);
+    std::printf("\n");
     if (!vivid::evidence::expect(missing.status == SemanticIntentStatus::NotFound,
                                  "missing semantic id is not found")) {
         return 1;
@@ -140,7 +132,8 @@ int main() {
     const auto ambiguous =
         scene.resolve_semantic_intent(handles.root, "action.apply", SemanticAction::Activate);
     run_log.case_begin("ambiguous_id");
-    print_resolution(ambiguous);
+    vivid::evidence::print_semantic_intent_resolution(ambiguous);
+    std::printf("\n");
     if (!vivid::evidence::expect(ambiguous.status == SemanticIntentStatus::AmbiguousId,
                                  "duplicate id under root is ambiguous")) {
         return 1;
@@ -151,7 +144,8 @@ int main() {
     const auto disabled =
         scene.resolve_semantic_intent(handles.scope, "row.track_one", SemanticAction::Activate);
     run_log.case_begin("disabled_target");
-    print_resolution(disabled);
+    vivid::evidence::print_semantic_intent_resolution(disabled);
+    std::printf("\n");
     if (!vivid::evidence::expect(disabled.status == SemanticIntentStatus::Disabled,
                                  "disabled semantic target is not executable")) {
         return 1;

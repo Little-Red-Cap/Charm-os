@@ -33,10 +33,6 @@ namespace {
         WidgetHandle outside{};
     };
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs == rhs;
-    }
-
     [[nodiscard]] bool text_equals(const char* lhs, const char* rhs) noexcept {
         if (!lhs || !rhs) return lhs == rhs;
         while (*lhs && *rhs) {
@@ -57,12 +53,6 @@ namespace {
         return kSemanticTreeNoFocusIndex;
     }
 
-    void click(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
-    }
 }
 
 int main() {
@@ -145,7 +135,7 @@ int main() {
     if (!vivid::evidence::expect(text_equals(root_tree.nodes[4].id, "outside"), "preorder visits outside after scope subtree")) return 1;
     if (!vivid::evidence::expect(root_tree.nodes[3].depth == 3, "nested semantic depth is stable")) return 1;
 
-    click(scene, scene.world_rect(handles.secondary), 10);
+    vivid::evidence::click_center(scene, scene.world_rect(handles.secondary), 10);
     const auto focused_tree = scene.semantic_tree_snapshot(handles.root);
     const auto focus_index = find_id(focused_tree, "track-1");
 

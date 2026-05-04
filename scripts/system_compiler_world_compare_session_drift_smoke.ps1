@@ -110,6 +110,7 @@ $candidate | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $candidatePath
 $python = Resolve-ToolPath -Tool $PythonExe
 $compareScript = Join-Path $PSScriptRoot "compare_system_compiler_world.py"
 $validateScript = Join-Path $PSScriptRoot "validate_system_compiler_world_compare.py"
+$checkScript = Join-Path $PSScriptRoot "check_system_compiler_world_compare_summary.ps1"
 
 Push-Location $repoRoot
 try {
@@ -128,6 +129,15 @@ try {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
+
+    & $checkScript `
+        -Summary $summaryPath `
+        -RequireVerdict "collapsed" `
+        -RequireSessionDrift "true" `
+        -RequireSessionDomain @("session", "runtime") `
+        -RequireSessionFocus @("session", "runtime", "handoff", "continuity") `
+        -RequireSessionFailureCode @("handoff_continuity_broken") `
+        -RequireMissingRuntimeFact @("handoff")
 } finally {
     Pop-Location
 }

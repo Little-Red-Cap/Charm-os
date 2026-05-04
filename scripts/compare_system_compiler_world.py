@@ -661,6 +661,27 @@ def build_collapse_surface(witness_changes, contract_drift, candidate):
 
 def build_next_questions(world_view, world_changes, witness_changes, contract_drift, collapse_surface, witness_summary):
     next_questions = []
+    session_drift = collapse_surface.get("session_drift", {})
+
+    if session_drift.get("changed"):
+        if session_drift.get("failure_codes"):
+            next_questions.append(
+                "Which session failure code should be restored first: `{0}`?".format(
+                    "`, `".join(session_drift["failure_codes"][:3])
+                )
+            )
+        if session_drift.get("missing_runtime_facts"):
+            next_questions.append(
+                "Which runtime fact broke the session witness: `{0}`?".format(
+                    "`, `".join(session_drift["missing_runtime_facts"][:3])
+                )
+            )
+        if session_drift.get("affected_domains"):
+            next_questions.append(
+                "Did the kernel runtime session drift in `{0}`?".format(
+                    "`, `".join(session_drift["affected_domains"][:3])
+                )
+            )
 
     for change in [entry for entry in witness_changes if entry["impact"] == "regression"][:3]:
         next_questions.append(

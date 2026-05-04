@@ -275,6 +275,18 @@ minimal_kernel_runtime world 的 session continuity witness 发生 runtime-domai
 ./scripts/system_compiler_world_compare_session_drift_smoke.ps1
 ```
 
+CI / gate 可以通过 `scripts/check_system_compiler_world_compare_summary.ps1` 直接断言 session drift 面：
+
+```powershell
+./scripts/check_system_compiler_world_compare_summary.ps1 `
+  -Summary out/system-compiler-world-compare/summary.json `
+  -RequireSessionDrift true `
+  -RequireSessionDomain session,runtime `
+  -RequireSessionFocus session,runtime,handoff,continuity `
+  -RequireSessionFailureCode handoff_continuity_broken `
+  -RequireMissingRuntimeFact handoff
+```
+
 ## 当前非目标
 
 这一刀不做：

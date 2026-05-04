@@ -31,9 +31,13 @@ on:
       - schemas/minimal_kernel.runtime_session_witness_smoke.v0.schema.json
       - schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json
       - schemas/examples/minimal_kernel.runtime_session_witness_smoke.v0.sample.json
+      - schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json
+      - schemas/examples/system_compiler.witness_bundle.v0.sample.json
       - schemas/system_compiler.canonical_world.v0.schema.json
       - schemas/system_compiler.witness_bundle.v0.schema.json
       - schemas/system_compiler.world_compare.v0.schema.json
+      - docs/README.md
+      - docs/system/README.md
       - docs/system/kernel_runtime_session_witness_v0.md
       - docs/system/minimal_kernel_runtime_evidence_bundle_contract.md
       - docs/system/minimal_kernel_runtime_evidence_matrix.md

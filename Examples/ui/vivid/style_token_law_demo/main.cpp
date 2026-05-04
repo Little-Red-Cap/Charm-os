@@ -248,7 +248,10 @@ int main() {
                 style_evidence_before.style_key,
                 style_evidence_after.style_key);
 
-    const auto updated = vivid::evidence::render_scene(scene, canvas, kButtonBounds);
+    const auto updated_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kButtonBounds, initial);
+    const auto& updated = updated_capture.evidence;
+    const auto& artifact_delta = updated_capture.delta;
     if (!vivid::evidence::expect(updated.failed_cmds == 0, "updated style render has no failed commands")) return 1;
     if (!vivid::evidence::expect(updated.cmd_count > 0, "updated style render records commands")) return 1;
     if (!vivid::evidence::expect(updated.pixel_hash != initial.pixel_hash,
@@ -256,13 +259,10 @@ int main() {
         return 1;
     }
     if (!vivid::evidence::expect(updated.dirty_count == 1, "token repaint uses single button dirty rect")) return 1;
-    const bool style_dirty_inside = vivid::evidence::dirty_stays_inside(canvas, kButtonBounds);
-    if (!vivid::evidence::expect(style_dirty_inside,
+    if (!vivid::evidence::expect(artifact_delta.dirty_within_component,
                                  "style dirty evidence remains inside button bounds")) {
         return 1;
     }
-    const auto artifact_delta =
-        vivid::evidence::make_render_artifact_delta(initial, updated, style_dirty_inside);
 
     run_log.case_begin("render_artifact_after");
     vivid::evidence::print_render_artifact_verdict(artifact_delta, "after", updated);

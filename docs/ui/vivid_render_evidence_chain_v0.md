@@ -146,7 +146,7 @@ print_render_artifact_verdict(delta, prefix, evidence)
 print_render_artifact_comparison(delta, before, after)
 ```
 
-These helpers keep Component Lab and Intent-to-Artifact cases aligned on the same artifact capture / verdict shape. They are demo-side evidence vocabulary, not a Vivid core render API.
+These helpers keep Component Lab, Style Token Law, and Intent-to-Artifact cases aligned on the same artifact capture / verdict shape. They are demo-side evidence vocabulary, not a Vivid core render API.
 
 ### Style Evidence
 

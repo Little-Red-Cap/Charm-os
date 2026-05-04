@@ -7,7 +7,11 @@ on:
       - .github/workflows/minimal-kernel-runtime-session-witness.yml
       - scripts/minimal_kernel_runtime_session_witness_smoke.ps1
       - scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1
+      - scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1
+      - scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1
+      - scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1
       - scripts/validate_minimal_kernel_runtime_session_witness_smoke.py
+      - scripts/validate_minimal_kernel_runtime_session_witness_inspect_compare.py
       - scripts/check_minimal_kernel_runtime_session_witness_smoke_summary.ps1
       - scripts/minimal_kernel_runtime_session_smoke.ps1
       - scripts/export_minimal_kernel_runtime_session.py
@@ -28,8 +32,10 @@ on:
       - cmake/**
       - schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json
       - schemas/minimal_kernel.kernel_runtime_session.v0.schema.json
+      - schemas/minimal_kernel.runtime_session_witness_inspect_compare.v0.schema.json
       - schemas/minimal_kernel.runtime_session_witness_smoke.v0.schema.json
       - schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json
+      - schemas/examples/minimal_kernel.runtime_session_witness_inspect_compare.v0.sample.json
       - schemas/examples/minimal_kernel.runtime_session_witness_smoke.v0.sample.json
       - schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json
       - schemas/examples/system_compiler.witness_bundle.v0.sample.json
@@ -67,6 +73,7 @@ jobs:
         run: |
           ./scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1 `
             -OutputRoot out/minimal-kernel-runtime-session-witness-smoke `
+            -InspectCompareSummaryOutputRoot out/minimal-kernel-runtime-session-witness-inspect-compare `
             -Clean
 
       - name: Publish minimal kernel runtime session witness summary

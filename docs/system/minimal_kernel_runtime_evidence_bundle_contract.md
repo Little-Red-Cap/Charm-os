@@ -128,8 +128,15 @@ cmake-build-minimal-kernel-runtime-session-smoke/
 如果要验证 `session` 作为 witness 聚合对象的完整闭环，优先跑：
 
 ```powershell
-./scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1 -Clean
+./scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Clean `
+  -InspectCompareSummaryOutputRoot out/minimal-kernel-runtime-session-witness-inspect-compare
 ```
+
+这样可以同时守住两层对象：
+
+- 根 `minimal_kernel.runtime_session_witness_smoke/v0` summary
+- `minimal_kernel.runtime_session_witness_inspect_compare/v0` compare 对象
 
 它默认输出：
 

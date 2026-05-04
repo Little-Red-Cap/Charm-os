@@ -3,6 +3,7 @@ param(
     [string]$SummaryPath = "",
     [string]$ReportMarkdownPath = "",
     [string]$CheckTextPath = "",
+    [string]$InspectCompareSummaryOutputRoot = "",
     [string]$PythonExe = "python",
     [switch]$Clean
 )
@@ -43,6 +44,7 @@ $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $rootScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_session_witness_smoke.ps1"
 $validator = Join-Path $PSScriptRoot "validate_minimal_kernel_runtime_session_witness_smoke.py"
 $gate = Join-Path $PSScriptRoot "check_minimal_kernel_runtime_session_witness_smoke_summary.ps1"
+$inspectCompareSmoke = Join-Path $PSScriptRoot "inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1"
 
 foreach ($script in @($rootScript, $validator, $gate)) {
     if (-not (Test-Path $script)) {
@@ -58,6 +60,18 @@ $resolvedOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
 
 if ($Clean) {
     Remove-PathIfExists -Path $resolvedOutputRoot
+}
+
+$resolvedInspectCompareSummaryOutputRoot = ""
+if (-not [string]::IsNullOrWhiteSpace($InspectCompareSummaryOutputRoot)) {
+    if (-not (Test-Path $inspectCompareSmoke)) {
+        throw "missing runtime session witness inspect compare dependency: $inspectCompareSmoke"
+    }
+
+    $resolvedInspectCompareSummaryOutputRoot = Resolve-FullPath -Path $InspectCompareSummaryOutputRoot
+    if ($Clean) {
+        Remove-PathIfExists -Path $resolvedInspectCompareSummaryOutputRoot
+    }
 }
 
 $invokeArgs = @{
@@ -110,7 +124,24 @@ try {
     Pop-Location
 }
 
+if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareSummaryOutputRoot)) {
+    Push-Location $repoRoot
+    try {
+        & $inspectCompareSmoke `
+            -OutputRoot $resolvedInspectCompareSummaryOutputRoot `
+            -PythonExe $PythonExe
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 Write-Host "==> minimal kernel runtime session witness CI smoke"
 Write-Host ("output_root={0}" -f $resolvedOutputRoot)
 Write-Host ("summary={0}" -f $summaryPathResolved)
+if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareSummaryOutputRoot)) {
+    Write-Host ("inspect_compare_output_root={0}" -f $resolvedInspectCompareSummaryOutputRoot)
+}
 Write-Host "ok=1"

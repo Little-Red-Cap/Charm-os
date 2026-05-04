@@ -203,6 +203,23 @@ namespace vivid::evidence {
                     delta.single_dirty_rect ? 1 : 0);
     }
 
+    inline void print_render_artifact_verdict(
+        const RenderArtifactDeltaEvidence& delta,
+        const char* prefix,
+        const RenderEvidence& evidence) noexcept {
+        print_render_artifact_delta(delta);
+        print_render_evidence(prefix, evidence);
+    }
+
+    inline void print_render_artifact_comparison(
+        const RenderArtifactDeltaEvidence& delta,
+        const RenderEvidence& before,
+        const RenderEvidence& after) noexcept {
+        print_render_artifact_delta(delta);
+        print_render_evidence("before", before);
+        print_render_evidence("after", after);
+    }
+
     inline void print_causal_chain(const CausalChainEvidence& evidence) noexcept {
         std::printf(" causal_chain=1 name=%s ok=%d request_ok=%d state_delta_ok=%d invalidation_ok=%d artifact_ok=%d rejected_no_mutation=%d",
                     evidence.name ? evidence.name : "",

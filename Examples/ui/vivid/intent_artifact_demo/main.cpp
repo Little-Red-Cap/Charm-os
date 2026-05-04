@@ -140,8 +140,7 @@ int main() {
     }
 
     run_log.case_begin("render_artifact");
-    vivid::evidence::print_render_artifact_delta(changed_delta);
-    vivid::evidence::print_render_evidence("after", changed);
+    vivid::evidence::print_render_artifact_verdict(changed_delta, "after", changed);
     std::printf("\n");
 
     access.set_enabled(handles.toggle, false);
@@ -195,9 +194,9 @@ int main() {
     }
 
     run_log.case_begin("rejected_artifact");
-    vivid::evidence::print_render_artifact_delta(rejected_delta);
-    vivid::evidence::print_render_evidence("before", disabled_baseline);
-    vivid::evidence::print_render_evidence("after", rejected_artifact);
+    vivid::evidence::print_render_artifact_comparison(rejected_delta,
+                                                      disabled_baseline,
+                                                      rejected_artifact);
     std::printf("\n");
 
     const vivid::evidence::CausalChainEvidence chain{

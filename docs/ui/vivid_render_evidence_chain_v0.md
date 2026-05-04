@@ -138,6 +138,15 @@ artifact_delta=<0|1> changed=<0|1> dirty_within_component=<0|1> single_dirty_rec
 
 This delta complements prefixed render summaries. It tells whether the artifact changed and whether the dirty evidence stayed inside the claimed component boundary.
 
+`Examples/ui/vivid/support/vivid_evidence_support.hpp` also provides small stdout composition helpers:
+
+```text
+print_render_artifact_verdict(delta, prefix, evidence)
+print_render_artifact_comparison(delta, before, after)
+```
+
+These helpers keep Component Lab and Intent-to-Artifact cases aligned on the same artifact verdict shape. They are demo-side evidence vocabulary, not a Vivid core render API.
+
 ### Style Evidence
 
 Style Token Law 进入 Evidence Plane 后，resolved style 也需要可审计摘要：

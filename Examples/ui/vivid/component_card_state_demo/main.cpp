@@ -186,8 +186,7 @@ int main() {
     }
 
     run_log.case_begin("render_artifact");
-    vivid::evidence::print_render_artifact_delta(updated_delta);
-    vivid::evidence::print_render_evidence("updated", updated);
+    vivid::evidence::print_render_artifact_verdict(updated_delta, "updated", updated);
     std::printf("\n");
 
     run_log.end(true);

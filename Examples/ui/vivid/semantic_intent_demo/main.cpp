@@ -170,6 +170,31 @@ int main() {
         return 1;
     }
 
+    run_log.case_begin("rejected_no_side_effect");
+    const bool rejected_no_side_effect =
+        no_input_side_effect(scene, handles, input_events_before)
+        && !unsupported.executable
+        && !missing.executable
+        && !ambiguous.executable
+        && !disabled.executable
+        && !invalid_root.executable
+        && !missing_request.executable;
+    std::printf(" before_events=%zu after_events=%zu pressed_action=%d focused_action=%d rejected_executable=0 unsupported=%s missing=%s ambiguous=%s disabled=%s invalid_root=%s missing_id=%s\n",
+                input_events_before,
+                access.input_event_count(),
+                access.pressed(handles.action) ? 1 : 0,
+                access.focused(handles.action) ? 1 : 0,
+                semantic_intent_status_name(unsupported.status),
+                semantic_intent_status_name(missing.status),
+                semantic_intent_status_name(ambiguous.status),
+                semantic_intent_status_name(disabled.status),
+                semantic_intent_status_name(invalid_root.status),
+                semantic_intent_status_name(missing_request.status));
+    if (!vivid::evidence::expect(rejected_no_side_effect,
+                                 "rejected semantic intent resolutions remain lookup-only")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_intent_demo] ok");
     return 0;

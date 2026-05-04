@@ -428,7 +428,7 @@ This belongs to the Semantic Plane and Evidence Plane. It makes semantic nodes a
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, and no input side effects during resolution.
+- `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, rejected resolutions without input mutation, and no input side effects during resolution.
 
 ## 2026-05 Addendum: Semantic Action Request
 

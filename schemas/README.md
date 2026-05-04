@@ -193,6 +193,15 @@
   - 用途偏向把一份 `front_page entry landing` 与可选的 `landing compare` 收成确定性 explain opening plan，
     明确 open action、目标 summary/report/check，以及是否能安全转成 `inspect_system_compiler_artifact_report.ps1` 参数
 
+- `system_compiler.front_page_entry_opener_compare.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opener_v0.md`、
+    `scripts/compare_system_compiler_front_page_entry_opener.py`,
+    `scripts/compare_system_compiler_front_page_entry_opener_workspace.ps1`,
+    `scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1`,
+    与 `scripts/validate_system_compiler_front_page_entry_opener_compare.py`
+  - 用途偏向比较两份 `front_page entry opener` summary，判断 open action、projection、
+    compare context、inspector readiness 与后续 questions 是否保留同一份 explain opening judgment
+
 - `system_compiler.front_page_entry_opening_flow.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_v0.md`、
     `scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`、

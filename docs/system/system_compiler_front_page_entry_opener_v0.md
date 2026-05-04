@@ -27,15 +27,21 @@ Current `system_compiler.front_page_entry_opener` includes:
 
 - schema
   - `schemas/system_compiler.front_page_entry_opener.v0.schema.json`
+  - `schemas/system_compiler.front_page_entry_opener_compare.v0.schema.json`
 - exporter
   - `scripts/export_system_compiler_front_page_entry_opener.py`
   - `scripts/export_system_compiler_front_page_entry_opener_workspace.ps1`
+- compare
+  - `scripts/compare_system_compiler_front_page_entry_opener.py`
+  - `scripts/compare_system_compiler_front_page_entry_opener_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opener.py`
+  - `scripts/validate_system_compiler_front_page_entry_opener_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opener_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -165,6 +171,40 @@ Then it preserves the opening-relevant compare fields:
 This lets downstream tools open the candidate or baseline deterministically
 while still showing the drift context that made this opening interesting.
 
+## Opener compare
+
+`system_compiler.front_page_entry_opener_compare/v0` compares two opener
+facades as opening judgments.
+
+It is intentionally not a raw directory diff.
+
+The compare focuses on consumer-visible opener semantics:
+
+- open action status, selected tab, query, target, and opening reason
+- compare context availability and landing verdict
+- opened projection status, kind, headline, summary lines, and evidence paths
+- inspector readiness and blockers
+- follow-up question drift
+
+The current verdicts are:
+
+- `standing`
+  - the opener judgment is unchanged
+- `improved`
+  - the candidate keeps a ready action and gains useful opener context, such as
+    landing compare context
+- `drifted`
+  - the candidate still opens but loses context or changes the judgment surface
+- `collapsed`
+  - the candidate no longer produces an `ok` ready opener action
+
+The workspace wrapper resolves either direct opener summary paths or opener
+workspace roots and writes:
+
+- `front-page.entry-opener.compare.summary.json`
+- `front-page.entry-opener.compare.report.md`
+- `front-page.entry-opener.compare.check.txt`
+
 ## Opened projection boundary
 
 The opener still does not try to become the full explain engine.
@@ -281,6 +321,30 @@ checks both:
 
 - a cold opener workspace with no compare context
 - a hot opener workspace with candidate landing compare context
+
+Compare two opener workspaces:
+
+```powershell
+./scripts/compare_system_compiler_front_page_entry_opener_workspace.ps1 `
+  -BaselineOpenerWorkspaceRoot cmake-build-system-compiler-front-page-entry-opener-workspace-smoke/cold-runtime-evidence `
+  -CandidateOpenerWorkspaceRoot cmake-build-system-compiler-front-page-entry-opener-workspace-smoke/hot-runtime-evidence-with-landing-compare `
+  -OutputRoot cmake-build-opener-workspace-compare `
+  -Clean
+```
+
+Run the opener workspace compare smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1 -Clean
+```
+
+Expected smoke shape:
+
+```text
+[FRONT-PAGE-ENTRY-OPENER-WORKSPACE-COMPARE-SMOKE] case=workspace-self-standing verdict=standing changed=0 compare_changed=False projection_changed=False improved=False regressed=False
+[FRONT-PAGE-ENTRY-OPENER-WORKSPACE-COMPARE-SMOKE] case=workspace-cold-to-hot-compare-context verdict=improved changed=10 compare_changed=True projection_changed=True improved=True regressed=False
+[FRONT-PAGE-ENTRY-OPENER-WORKSPACE-COMPARE-SMOKE] case=workspace-hot-to-cold-lost-compare-context verdict=drifted changed=10 compare_changed=True projection_changed=True improved=False regressed=True
+```
 
 To run the full entry-opening flow from capability through landing, landing
 compare, and opener:

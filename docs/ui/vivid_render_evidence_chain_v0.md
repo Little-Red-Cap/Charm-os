@@ -141,11 +141,12 @@ This delta complements prefixed render summaries. It tells whether the artifact 
 `Examples/ui/vivid/support/vivid_evidence_support.hpp` also provides small stdout composition helpers:
 
 ```text
+render_component_artifact_delta(scene, canvas, component_bounds, before)
 print_render_artifact_verdict(delta, prefix, evidence)
 print_render_artifact_comparison(delta, before, after)
 ```
 
-These helpers keep Component Lab and Intent-to-Artifact cases aligned on the same artifact verdict shape. They are demo-side evidence vocabulary, not a Vivid core render API.
+These helpers keep Component Lab and Intent-to-Artifact cases aligned on the same artifact capture / verdict shape. They are demo-side evidence vocabulary, not a Vivid core render API.
 
 ### Style Evidence
 

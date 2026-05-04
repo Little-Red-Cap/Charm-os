@@ -42,6 +42,11 @@ namespace vivid::evidence {
         bool single_dirty_rect{false};
     };
 
+    struct RenderArtifactEvidenceCapture {
+        RenderEvidence evidence{};
+        RenderArtifactDeltaEvidence delta{};
+    };
+
     struct CausalChainEvidence {
         const char* name{""};
         bool request_ok{false};
@@ -494,6 +499,20 @@ namespace vivid::evidence {
             .cmd_hash = hash_cmd_stats(cmd, exec),
             .pixel_hash = hash_bytes(canvas.data(),
                                      static_cast<std::size_t>(canvas.height()) * canvas.stride_bytes()),
+        };
+    }
+
+    [[nodiscard]] inline RenderArtifactEvidenceCapture render_component_artifact_delta(
+        ::ui::scene::Scene& scene,
+        DefaultCanvas& canvas,
+        Rect component_bounds,
+        const RenderEvidence& before) noexcept {
+        const auto evidence = render_scene(scene, canvas, component_bounds);
+        return RenderArtifactEvidenceCapture{
+            .evidence = evidence,
+            .delta = make_render_artifact_delta(before,
+                                                evidence,
+                                                dirty_stays_inside(canvas, component_bounds)),
         };
     }
 }

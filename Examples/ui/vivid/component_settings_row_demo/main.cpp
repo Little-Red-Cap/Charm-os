@@ -129,12 +129,12 @@ int main() {
     });
     std::printf("\n");
 
-    const auto updated = vivid::evidence::render_scene(scene, canvas, kComponentBounds);
+    const auto updated_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kComponentBounds, initial);
+    const auto& updated = updated_capture.evidence;
+    const auto& updated_delta = updated_capture.delta;
     if (!vivid::evidence::expect(updated.failed_cmds == 0, "updated render has no failed commands")) return 1;
     if (!vivid::evidence::expect(updated.cmd_count > 0, "updated render records commands")) return 1;
-    const bool updated_dirty_inside = vivid::evidence::dirty_stays_inside(canvas, kComponentBounds);
-    const auto updated_delta =
-        vivid::evidence::make_render_artifact_delta(initial, updated, updated_dirty_inside);
     if (!vivid::evidence::expect(updated_delta.changed,
                                  "state change affects render artifact")) {
         return 1;

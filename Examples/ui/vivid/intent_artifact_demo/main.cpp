@@ -117,11 +117,11 @@ int main() {
     });
     std::printf("\n");
 
-    const auto changed = vivid::evidence::render_scene(scene, canvas, kComponentBounds);
+    const auto changed_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kComponentBounds, baseline);
+    const auto& changed = changed_capture.evidence;
+    const auto& changed_delta = changed_capture.delta;
     if (!vivid::evidence::expect(changed.failed_cmds == 0, "changed render has no failed commands")) return 1;
-    const bool changed_dirty_inside = vivid::evidence::dirty_stays_inside(canvas, kComponentBounds);
-    const auto changed_delta =
-        vivid::evidence::make_render_artifact_delta(baseline, changed, changed_dirty_inside);
     if (!vivid::evidence::expect(changed_delta.changed,
                                  "state delta changes render artifact")) {
         return 1;
@@ -176,14 +176,14 @@ int main() {
         return 1;
     }
 
-    const auto rejected_artifact = vivid::evidence::render_scene(scene, canvas, kComponentBounds);
+    const auto rejected_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kComponentBounds, disabled_baseline);
+    const auto& rejected_artifact = rejected_capture.evidence;
+    const auto& rejected_delta = rejected_capture.delta;
     if (!vivid::evidence::expect(rejected_artifact.failed_cmds == 0,
                                  "rejected render has no failed commands")) {
         return 1;
     }
-    const bool rejected_dirty_inside = vivid::evidence::dirty_stays_inside(canvas, kComponentBounds);
-    const auto rejected_delta =
-        vivid::evidence::make_render_artifact_delta(disabled_baseline, rejected_artifact, rejected_dirty_inside);
     if (!vivid::evidence::expect(!rejected_delta.changed,
                                  "rejected request preserves render artifact")) {
         return 1;

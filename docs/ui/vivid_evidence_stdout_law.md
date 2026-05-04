@@ -32,6 +32,8 @@
 - `Examples/ui/vivid/semantic_focus_request_demo`
 - `Examples/ui/vivid/widget_signal_demo`
 - `Examples/ui/vivid/widget_state_demo`
+- `Examples/ui/vivid/evidence_vocabulary_demo`
+- `Examples/ui/vivid/evidence_lab_manifest_demo`
 
 未来 `Component Lab`、截图回归、Layer budget drill 或其它 Vivid runtime demo 可以复用这套格式。
 
@@ -63,6 +65,7 @@
 - 不输出地址、指针、耗时抖动、随机值等不稳定内容。
 - 一个 case 应尽量对应一个明确语义，例如 `static_profile_fade_slide` 或 `pixel_single_cancel`。
 
+Candidate evidence vocabulary such as `StateDeltaEvidence`, `InvalidationEvidence`, `RenderEvidence`, `RenderArtifactDeltaEvidence`, and `CausalChainEvidence` is defined in `vivid_evidence_vocabulary_law_v0.md`. This stdout law governs line shape; the vocabulary law governs field meaning.
 ## CTest 审计
 
 每个采用本法律的示例必须在自己的 `CMakeLists.txt` 中接入 CTest：
@@ -107,6 +110,8 @@ set_tests_properties(${target_name} PROPERTIES
 | `semantic_focus_request_demo` | `sfr` | `[sfr] run=semantic_focus_request_demo phase=end result=ok cases=7` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
+| `evidence_vocabulary_demo` | `evl` | `[evl] run=evidence_vocabulary_demo phase=end result=ok cases=5` |
+| `evidence_lab_manifest_demo` | `elm` | `[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=8` |
 
 ## 维护规则
 

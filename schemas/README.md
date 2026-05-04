@@ -204,6 +204,10 @@
     与 `scripts/validate_system_compiler_front_page_entry_landing_compare.py`
   - 用途偏向比较两份 `front_page entry landing` 总结对象，回答默认 landing、direct mode、
     tab 集合与 provenance roots 是否发生 consumer-facing drift
+  - `runtime_session` 会作为独立 direct mode 参与 direct capability drift，
+    不只依赖 `available_tab_changes` 间接暴露
+  - `scripts/system_compiler_front_page_entry_runtime_session_compare_sample_smoke.ps1` 会守住
+    `runtime_session` direct mode 的 added / removed / regression surface 语义
   - 它会区分 provenance root 的增删与同 id source-detail drift；例如 `artifact_report_index`
     root 仍存在但指向不同 first-read index 时，会作为 drift 暴露而不是静默通过
 

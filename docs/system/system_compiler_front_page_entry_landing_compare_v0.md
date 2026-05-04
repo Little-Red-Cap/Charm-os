@@ -33,6 +33,7 @@ Current `system_compiler.front_page_entry_landing_compare` includes:
   - `scripts/validate_system_compiler_front_page_entry_landing_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_landing_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_compare_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -51,6 +52,8 @@ The compare summary currently records:
 - baseline and candidate primary opening query status
 - query-plan drift for each landing tab
 - direct explain mode changes
+  - including `runtime_session` as a distinct direct mode, separate from
+    generic `evidence`
 - tab additions, removals, and alias drift
 - provenance root additions, removals, and same-id source-detail drift
 - a `landing_regression_surface` that highlights the smallest consumer-facing
@@ -130,6 +133,12 @@ Or run the dedicated smoke:
 ./scripts/system_compiler_front_page_entry_landing_compare_smoke.ps1 -Clean
 ```
 
+For the narrow `runtime_session` direct-mode compare path, use:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_compare_sample_smoke.ps1 -Clean
+```
+
 ## Why this matters
 
 This object gives later explain-entry tools a thinner compare seam.
@@ -139,6 +148,7 @@ Instead of re-deriving:
 - whether the default open tab changed
 - whether the default explain query changed
 - whether a direct compare or review landing disappeared
+- whether the dedicated runtime session landing appeared or disappeared
 - whether provenance roots got richer or changed source detail
 
 a consumer can read one compare object that already says:

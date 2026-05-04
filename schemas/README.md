@@ -95,7 +95,7 @@
 - `system_compiler.canonical_world.v0.schema.json`
   - 对应 `docs/system/canonical_world_v0.md` 里定义的 canonical world 对象
   - 用途偏向把一组 case / contract / witness plan 收成“这个世界想证明什么”的正式声明对象
-  - 它当前刻意只覆盖 `artifact_report / runtime_evidence_bundle / example_ref` 三类 witness plan
+  - 它当前刻意只覆盖 `artifact_report / runtime_evidence_bundle / kernel_runtime_session / example_ref` 四类 witness plan
 
 - `examples/system_compiler.canonical_world.v0.sample.json`
   - 对应 `system_compiler.canonical_world/v0` 的最小样例
@@ -104,6 +104,7 @@
 - `system_compiler.witness_bundle.v0.schema.json`
   - 对应 `docs/system/witness_bundle_v0.md` 与 `scripts/export_system_compiler_witness_bundle.ps1`
   - 用途偏向把 canonical world、artifact report、runtime evidence bundle 与 example refs 收成正式交付对象
+  - 它当前也可把 `kernel_runtime_session` 作为独立 witness entry 消费，优先从 runtime evidence summary 的 `session.summary_path` 解析来源
   - 它当前关注的是“证词是否齐、来源在哪里、缺口是什么”，而不是替代下层更细的 runtime / compare 语义
   - 它当前也可在 `artifact_context.artifact_report_index` 中记录 artifact report root 的 first-read index，
     作为上层 proof / IDE / CI 发现 case 级报告的来源锚点

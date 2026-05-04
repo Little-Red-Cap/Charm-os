@@ -237,7 +237,8 @@ session/
 - `scripts/export_minimal_kernel_runtime_session.py`
 - `scripts/minimal_kernel_runtime_session_smoke.ps1`
 
-v0 先允许它作为旁路 artifact 存在。等对象形状稳定后，再把根 runtime evidence bundle 的 `summary.json` 增加 `session_summary` 引用，并让 system compiler witness bundle 通过 witness entry 消费它。
+runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
+system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。
 
 ## 当前非目标
 

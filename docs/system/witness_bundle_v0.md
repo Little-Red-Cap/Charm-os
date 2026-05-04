@@ -53,11 +53,12 @@
 - 校验脚本：
   - `scripts/validate_system_compiler_witness_bundle.py`
 
-它当前可以组合三类输入：
+它当前可以组合四类输入：
 
 - `canonical world`
 - `artifact report`
 - `minimal kernel runtime evidence bundle summary`
+- `kernel runtime session summary`
 
 并可附带：
 
@@ -201,6 +202,20 @@
 `witness bundle` 不替代这条 bundle，
 而是把它当成某个 canonical world 的一名正式 witness。
 
+### 2.1 与 `kernel_runtime_session`
+
+`kernel_runtime_session` 是 runtime evidence bundle 中更聚焦的一等 session witness。
+
+`witness bundle` 可以把它作为独立 `kernel_runtime_session` entry 消费：
+
+- 优先使用 canonical world witness plan 中显式声明的 `path`
+- 如果 `path` 为空，则从 `runtime_evidence_summary.session.summary_path` 解析
+- 只有当 session verdict 为 `standing` 且 failure count 为 0 时，entry 才视为 `ok`
+
+这表示 world compare 后续可以追问：
+
+> 不是“QEMU 日志是否还像昨天”，而是“这个 kernel runtime session witness 是否还站住”。
+
 ### 3. 与 `compare`
 
 当前 `witness bundle` 还不是最终的反事实审判器。
@@ -225,7 +240,7 @@
 ## 当前推荐工作流
 
 1. 先定义 canonical world。
-2. 再把相关 `artifact report / runtime evidence bundle / example_ref` 填进 witness plan。
+2. 再把相关 `artifact report / runtime evidence bundle / kernel_runtime_session / example_ref` 填进 witness plan。
 3. 再导出 `witness bundle`。
 4. 如需比较世界漂移，再导出 `world compare`。
 5. 最后把它和 binary、report、check 一起视作完整交付。

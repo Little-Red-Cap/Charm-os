@@ -240,7 +240,9 @@
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、
     `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`、
-    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare.py`
   - 用途偏向比较两份 `front_page entry opening flow consumer plan action` summary，
     回答最终 explain-open action、目标、opener、consumer operation 与 inspector readiness 是否漂移

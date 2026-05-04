@@ -142,6 +142,8 @@
 - [System Compiler Front Page Entry Opening Flow consumer plan smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan action smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan action compare smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer plan action workspace compare](../../scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer plan action workspace compare smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan action workspace exporter](../../scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan action workspace smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan compare smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1)

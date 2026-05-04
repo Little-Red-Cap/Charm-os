@@ -193,7 +193,7 @@ try {
             Baseline = $baselineActionPath
             Candidate = $candidateActionPath
             ExpectedVerdict = "drifted"
-            ExpectedChangedFields = 24
+            ExpectedChangedFields = 26
             ExpectedActionChanged = $true
         }
     )
@@ -229,13 +229,21 @@ try {
         Assert-Condition `
             -Condition ([bool]$compareSummary.action_regression_surface.action_id_changed -eq [bool]$case.ExpectedActionChanged) `
             -Message ("case '{0}' action changed expectation mismatch" -f $case.Name)
+        Assert-Condition `
+            -Condition ([bool]$compareSummary.action_regression_surface.opening_reason_changed -eq [bool]$case.ExpectedActionChanged) `
+            -Message ("case '{0}' opening reason changed expectation mismatch" -f $case.Name)
+        Assert-Condition `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_headline_changed -eq [bool]$case.ExpectedActionChanged) `
+            -Message ("case '{0}' projection headline changed expectation mismatch" -f $case.Name)
 
         Write-Host (
-            "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case={0} verdict={1} changed={2} action_changed={3} opener_changed={4} target_changed={5}" -f
+            "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case={0} verdict={1} changed={2} action_changed={3} opening_reason_changed={4} projection_headline_changed={5} opener_changed={6} target_changed={7}" -f
             $case.Name,
             [string]$compareSummary.action_verdict,
             [int]$compareSummary.change_summary.changed_field_count,
             [bool]$compareSummary.action_regression_surface.action_id_changed,
+            [bool]$compareSummary.action_regression_surface.opening_reason_changed,
+            [bool]$compareSummary.action_regression_surface.projection_headline_changed,
             [bool]$compareSummary.action_regression_surface.opener_changed,
             [bool]$compareSummary.action_regression_surface.target_changed
         )

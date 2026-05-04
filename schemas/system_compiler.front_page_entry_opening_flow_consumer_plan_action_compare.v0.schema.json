@@ -420,6 +420,8 @@
         "entry_changed",
         "target_changed",
         "opener_changed",
+        "opening_reason_changed",
+        "projection_headline_changed",
         "operation_changed",
         "lost_compare_context",
         "lost_inspector_ready",
@@ -450,6 +452,12 @@
           "type": "boolean"
         },
         "opener_changed": {
+          "type": "boolean"
+        },
+        "opening_reason_changed": {
+          "type": "boolean"
+        },
+        "projection_headline_changed": {
           "type": "boolean"
         },
         "operation_changed": {

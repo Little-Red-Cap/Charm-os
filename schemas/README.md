@@ -238,7 +238,7 @@
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
   - 用途偏向从一份 `front_page entry opening flow consumer plan` summary 中选择单个 action，
-    输出后续 explain consumer 可直接打开的 opener summary witness
+    输出后续 explain consumer 可直接打开的 opener summary witness，并保留 opening reason / preview
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、
@@ -246,7 +246,7 @@
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare.py`
   - 用途偏向比较两份 `front_page entry opening flow consumer plan action` summary，
-    回答最终 explain-open action、目标、opener、consumer operation 与 inspector readiness 是否漂移
+    回答最终 explain-open action、目标、opener、opening reason / headline、consumer operation 与 inspector readiness 是否漂移
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`、

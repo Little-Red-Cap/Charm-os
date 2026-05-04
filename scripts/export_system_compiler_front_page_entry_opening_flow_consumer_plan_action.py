@@ -29,6 +29,23 @@ def get_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def string_list(value: Any) -> list[str]:
+    return [choose_text(item) for item in get_list(value) if choose_text(item)]
+
+
+def clone_opening_reason(reason: Any) -> OrderedDict[str, Any]:
+    reason_map = get_mapping(reason)
+    return OrderedDict(
+        [
+            ("kind", choose_text(reason_map.get("kind"))),
+            ("summary", choose_text(reason_map.get("summary"))),
+            ("source_summary_path", normalize_optional_path(reason_map.get("source_summary_path"))),
+            ("drift_changed", bool(reason_map.get("drift_changed"))),
+            ("drift_verdict", choose_text(reason_map.get("drift_verdict"))),
+        ]
+    )
+
+
 def load_plan_summary(path: Path) -> dict[str, Any]:
     summary = load_json(path)
     if choose_text(summary.get("schema")) != PLAN_SCHEMA:
@@ -77,14 +94,13 @@ def normalize_plan_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("target_summary_kind", choose_text(action.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(action.get("target_summary_path"))),
             ("projection_kind", choose_text(action.get("projection_kind"))),
+            ("opening_reason", clone_opening_reason(action.get("opening_reason"))),
+            ("projection_headline", choose_text(action.get("projection_headline"))),
             ("compare_context_available", bool(action.get("compare_context_available"))),
             ("landing_verdict", choose_text(action.get("landing_verdict"))),
             ("inspector_ready", bool(action.get("inspector_ready"))),
             ("inspector_mode", choose_text(action.get("inspector_mode"))),
-            (
-                "inspector_blockers",
-                [choose_text(item) for item in get_list(action.get("inspector_blockers")) if choose_text(item)],
-            ),
+            ("inspector_blockers", string_list(action.get("inspector_blockers"))),
             ("opener_summary_path", normalize_optional_path(action.get("opener_summary_path"))),
             ("opener_report_markdown_path", normalize_optional_path(action.get("opener_report_markdown_path"))),
             ("opener_check_text_path", normalize_optional_path(action.get("opener_check_text_path"))),
@@ -218,6 +234,8 @@ def build_open_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("target_summary_kind", choose_text(action.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(action.get("target_summary_path"))),
             ("projection_kind", choose_text(action.get("projection_kind"))),
+            ("opening_reason", clone_opening_reason(action.get("opening_reason"))),
+            ("projection_headline", choose_text(action.get("projection_headline"))),
             ("compare_context_available", bool(action.get("compare_context_available"))),
             ("landing_verdict", choose_text(action.get("landing_verdict"))),
             ("opener_summary_path", normalize_optional_path(action.get("opener_summary_path"))),
@@ -226,6 +244,24 @@ def build_open_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("expected_consumer_operation", choose_text(action.get("expected_consumer_operation"))),
             ("reason", choose_text(action.get("reason"))),
             ("blockers", blockers),
+        ]
+    )
+
+
+def build_opening_preview(action: dict[str, Any]) -> OrderedDict[str, Any]:
+    return OrderedDict(
+        [
+            ("available", bool(choose_text(action.get("projection_headline")))),
+            ("entry_name", choose_text(action.get("entry_name"))),
+            ("opening_reason", clone_opening_reason(action.get("opening_reason"))),
+            ("projection_kind", choose_text(action.get("projection_kind"))),
+            ("headline", choose_text(action.get("projection_headline"))),
+            ("summary_lines", []),
+            ("question_lines", []),
+            ("opener_summary_path", normalize_optional_path(action.get("opener_summary_path"))),
+            ("opener_report_markdown_path", normalize_optional_path(action.get("opener_report_markdown_path"))),
+            ("opener_check_text_path", normalize_optional_path(action.get("opener_check_text_path"))),
+            ("blockers", [] if choose_text(action.get("projection_headline")) else ["selected action has no projection headline"]),
         ]
     )
 
@@ -260,7 +296,7 @@ def build_execution_receipt(
             ("inspector_mode", choose_text(action.get("inspector_mode"))),
             (
                 "inspector_blockers",
-                [choose_text(item) for item in get_list(action.get("inspector_blockers")) if choose_text(item)],
+                string_list(action.get("inspector_blockers")),
             ),
         ]
     )
@@ -348,6 +384,7 @@ def build_summary_model(
             ("source_plan", source_plan),
             ("selected_action", action),
             ("open_action", open_action),
+            ("opening_preview", build_opening_preview(action)),
             ("opener_surface", build_opener_surface(action)),
             ("execution_receipt", build_execution_receipt(plan_summary, action, effective_selector)),
             ("questions", build_questions(action)),
@@ -359,6 +396,7 @@ def build_summary_model(
 def build_report(summary: dict[str, Any]) -> str:
     selection = summary["selection_request"]
     open_action = summary["open_action"]
+    opening_preview = summary["opening_preview"]
     source_plan = summary["source_plan"]
     receipt = summary["execution_receipt"]
     questions = summary["questions"]
@@ -392,16 +430,25 @@ def build_report(summary: dict[str, Any]) -> str:
             open_action["entry_name"],
             open_action["display_group"],
         ),
-        "- tab=`{0}` role=`{1}` query=`{2}/{3}` projection=`{4}`".format(
+        "- tab=`{0}` role=`{1}` query=`{2}/{3}` projection=`{4}` opening_reason=`{5}`".format(
             open_action["selected_tab_id"],
             open_action["selected_role"],
             open_action["query_kind"],
             open_action["query_scope"],
             open_action["projection_kind"],
+            open_action["opening_reason"]["kind"],
         ),
         f"- target summary: `{open_action['target_summary_path']}`",
         f"- opener summary: `{open_action['opener_summary_path']}`",
         f"- reason: {open_action['reason']}",
+        "",
+        "## Opening Preview",
+        "- available=`{0}` kind=`{1}` reason=`{2}`".format(
+            opening_preview["available"],
+            opening_preview["projection_kind"],
+            opening_preview["opening_reason"]["kind"],
+        ),
+        f"- headline: {opening_preview['headline'] or 'none'}",
         "",
         "## Execution Receipt",
         "- operation=`{0}` selected_rank=`{1}` source_rank=`{2}` inspector_ready=`{3}` inspector_mode=`{4}`".format(
@@ -442,6 +489,8 @@ def build_check(summary: dict[str, Any]) -> str:
             f"query_kind: {open_action['query_kind']}",
             f"query_scope: {open_action['query_scope']}",
             f"projection_kind: {open_action['projection_kind']}",
+            f"opening_reason_kind: {open_action['opening_reason']['kind']}",
+            f"projection_headline: {open_action['projection_headline']}",
             f"opener_summary_path: {open_action['opener_summary_path']}",
             f"consumer_operation: {receipt['consumer_operation']}",
             f"inspector_ready: {receipt['inspector_ready']}",

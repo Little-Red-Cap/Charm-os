@@ -225,16 +225,29 @@ try {
         Assert-Condition `
             -Condition ([bool]$actionSummary.opener_surface.available) `
             -Message ("case '{0}' opener surface must be available" -f $case.Name)
+        Assert-Condition `
+            -Condition (-not [string]::IsNullOrWhiteSpace([string]$actionSummary.open_action.opening_reason.kind)) `
+            -Message ("case '{0}' open action must expose opening_reason.kind" -f $case.Name)
+        Assert-Condition `
+            -Condition (-not [string]::IsNullOrWhiteSpace([string]$actionSummary.open_action.projection_headline)) `
+            -Message ("case '{0}' open action must expose projection_headline" -f $case.Name)
+        Assert-Condition `
+            -Condition ([bool]$actionSummary.opening_preview.available) `
+            -Message ("case '{0}' opening preview must be available" -f $case.Name)
+        Assert-Condition `
+            -Condition ([string]$actionSummary.opening_preview.opening_reason.kind -eq [string]$actionSummary.open_action.opening_reason.kind) `
+            -Message ("case '{0}' opening preview reason must match open action reason" -f $case.Name)
 
         Write-Host (
-            "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case={0} selector={1} action={2} kind={3} entry={4} query={5}/{6}" -f
+            "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case={0} selector={1} action={2} kind={3} entry={4} query={5}/{6} reason={7}" -f
             $case.Name,
             [string]$actionSummary.selection_request.effective_selector,
             [string]$actionSummary.open_action.action_id,
             [string]$actionSummary.open_action.action_kind,
             [string]$actionSummary.open_action.entry_name,
             [string]$actionSummary.open_action.query_kind,
-            [string]$actionSummary.open_action.query_scope
+            [string]$actionSummary.open_action.query_scope,
+            [string]$actionSummary.open_action.opening_reason.kind
         )
     }
 } finally {

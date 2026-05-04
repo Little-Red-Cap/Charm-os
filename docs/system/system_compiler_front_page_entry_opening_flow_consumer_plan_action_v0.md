@@ -14,6 +14,8 @@ The plan says:
 The action facade answers one smaller consumer question:
 
 - which one action should an explain consumer open now
+- why that action should open
+- what immediate opening preview should be shown first
 
 It is not a new selector, planner, renderer, or inspector wrapper.
 
@@ -79,6 +81,10 @@ The compare smoke output root is:
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-compare-smoke
 ```
 
+The compare witness also treats opening reason and projection headline drift as
+first-class preview drift. This keeps the final explain-open action compare in
+sync with the consumer-facing preview surface.
+
 ## What the action facade records
 
 The current summary records:
@@ -95,6 +101,11 @@ The current summary records:
   - the original plan action copied without recomputing policy
 - `open_action`
   - the normalized action a consumer should execute now
+  - includes the selected action's `opening_reason` and projection headline
+- `opening_preview`
+  - one small UI/tool-facing preview surface for the selected action
+  - carries entry name, opening reason, projection kind, headline, opener paths,
+    and preview blockers
 - `opener_surface`
   - the selected opener summary/report/check surface
 - `execution_receipt`
@@ -202,10 +213,10 @@ python ./scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_
 Expected smoke shape:
 
 ```text
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=default selector=default_action action=open-default kind=default
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=compare-neighbor selector=action_kind:compare-neighbor action=open-compare-neighbor kind=compare-neighbor
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=default selector=default_action action=open-default kind=default entry=root-witness query=default_overview/artifact_root reason=delivery_biography
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=compare-neighbor selector=action_kind:compare-neighbor action=open-compare-neighbor kind=compare-neighbor entry=root-witness-to-root-world-compare query=default_overview/artifact_root reason=counterfactual_verdict
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=action-self-standing verdict=standing changed=0
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=24
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=26
 ```
 
 ## Why this matters
@@ -223,7 +234,7 @@ That gives a future explain surface a tiny contract:
 
 - consume one action summary
 - open its `opener_surface.summary_path`
-- show its `open_action` and `execution_receipt`
+- show its `open_action`, `opening_preview`, and `execution_receipt`
 - do not reconstruct selector or plan policy from raw JSON
 
 This is one more step toward a system that can explain how it should be opened,

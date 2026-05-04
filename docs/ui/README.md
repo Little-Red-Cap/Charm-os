@@ -79,6 +79,12 @@ Semantic Tree Artifact v0 runtime sample:
 - `Examples/ui/vivid/evidence_vocabulary_demo`: verifies Evidence Vocabulary Law v0 field shape and helper-derived verdicts for state delta, invalidation, render evidence, artifact delta, and causal chain; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=5`.
 - `Examples/ui/vivid/evidence_lab_manifest_demo`: verifies Evidence Lab Manifest v0, including stable run/tag/cases registry shape, unique stdout tags, axis coverage, Intent-to-Artifact anchor, vocabulary anchor, stdout law sync, CMake gate sync, doc route sync, and promotion boundary; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=9`.
 
+Fast manifest smoke:
+
+```powershell
+./scripts/vivid_evidence_lab_manifest_smoke.ps1
+```
+
 最小验证示例：
 
 - `Examples/ui/vivid/widget_signal_demo`：验证 object-level widget click edge 与旧回调兼容；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=3`。

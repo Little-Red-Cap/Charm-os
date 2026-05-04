@@ -54,6 +54,12 @@ CTest guards the final line:
 [elm] run=evidence_lab_manifest_demo phase=end result=ok cases=9
 ```
 
+The fast smoke entry is:
+
+```powershell
+./scripts/vivid_evidence_lab_manifest_smoke.ps1
+```
+
 ## Manifest Fields
 
 Each manifest row has:
@@ -113,6 +119,7 @@ When adding, deleting, splitting, or renaming a CTest-gated Evidence Lab demo:
 2. Update this manifest document.
 3. Update Examples/ui/vivid/evidence_lab_manifest_demo.
 4. Update docs/ui/README.md when the entry is a recommended route.
+5. Run scripts/vivid_evidence_lab_manifest_smoke.ps1.
 ```
 
 This keeps Vivid Evidence Plane from becoming a set of clever local proofs without a stable map.

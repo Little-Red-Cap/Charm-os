@@ -51,6 +51,9 @@ namespace soa_detail {
         std::array<StyleClassId, N> style_class{};
         std::array<std::uint8_t, N> text_align_h{};
         std::array<std::uint8_t, N> text_align_v{};
+        std::array<SemanticRole, N> semantic_role{};
+        std::array<soa_detail::TextId, N> semantic_id{};
+        std::array<soa_detail::TextId, N> semantic_label{};
     };
 
 }
@@ -86,6 +89,9 @@ public:
             common_.style_class[i] = kStyleClassInvalid;
             common_.text_align_h[i] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[i] = static_cast<std::uint8_t>(TextAlignV::Center);
+            common_.semantic_role[i] = SemanticRole::None;
+            common_.semantic_id[i] = soa_detail::empty_text_id();
+            common_.semantic_label[i] = soa_detail::empty_text_id();
         }
         payloads_.reset();
     }
@@ -128,6 +134,9 @@ public:
         common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
+        common_.semantic_role[idx] = SemanticRole::None;
+        common_.semantic_id[idx] = soa_detail::empty_text_id();
+        common_.semantic_label[idx] = soa_detail::empty_text_id();
         const auto payload = payload_alloc(kind, idx);
         if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
             common_.kind[idx] = WidgetKind::None;
@@ -150,6 +159,9 @@ public:
             common_.style_class[idx] = kStyleClassInvalid;
             common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
+            common_.semantic_role[idx] = SemanticRole::None;
+            common_.semantic_id[idx] = soa_detail::empty_text_id();
+            common_.semantic_label[idx] = soa_detail::empty_text_id();
             common_.free_next[idx] = free_head_;
             free_head_ = idx;
             return {};
@@ -180,6 +192,9 @@ public:
         common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
+        common_.semantic_role[idx] = SemanticRole::None;
+        common_.semantic_id[idx] = soa_detail::empty_text_id();
+        common_.semantic_label[idx] = soa_detail::empty_text_id();
         payload_free(old_kind, common_.payload[idx], idx);
         common_.payload[idx] = soa_detail::invalid_payload_handle();
         mark_layout_dirty();
@@ -345,6 +360,43 @@ public:
 
     bool focusable(WidgetHandle h) const noexcept {
         return get_flag(h, SoaNodeFlag::Focusable);
+    }
+
+    void set_semantic(WidgetHandle h,
+                      SemanticRole role,
+                      const char* id,
+                      const char* label) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.semantic_role[idx] = role;
+        common_.semantic_id[idx] = payloads_.store_text(id);
+        common_.semantic_label[idx] = payloads_.store_text(label);
+    }
+
+    void clear_semantic(WidgetHandle h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.semantic_role[idx] = SemanticRole::None;
+        common_.semantic_id[idx] = soa_detail::empty_text_id();
+        common_.semantic_label[idx] = soa_detail::empty_text_id();
+    }
+
+    SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
+        SemanticFocusSnapshot out{};
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return out;
+        const SemanticRole role = common_.semantic_role[idx];
+        out.handle = h;
+        out.id = payloads_.text_c_str(common_.semantic_id[idx]);
+        out.role = semantic_role_name(role);
+        out.label = payloads_.text_c_str(common_.semantic_label[idx]);
+        out.focusable = focusable(h);
+        out.found = role != SemanticRole::None && out.id && out.id[0] != '\0';
+        return out;
+    }
+
+    SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
+        return semantic_snapshot(input_.focused);
     }
 
     void set_hit_testable(WidgetHandle h, bool on) noexcept {

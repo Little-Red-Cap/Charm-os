@@ -3,6 +3,8 @@ module;
 
 export module charm.core.soa_kernel:types;
 
+export import charm.core.handle;
+
 export
 enum class SoaNodeFlag : std::uint8_t {
     Used = 1 << 0,
@@ -27,6 +29,42 @@ enum class SoaStateMask : std::uint8_t {
     Pressed = 1 << 2,
     Focused = 1 << 3
 };
+
+export
+enum class SemanticRole : std::uint8_t {
+    None = 0,
+    Button,
+    ListItem,
+    Text,
+    Container,
+};
+
+export
+struct SemanticFocusSnapshot {
+    WidgetHandle handle{};
+    const char* id{""};
+    const char* role{"none"};
+    const char* label{""};
+    bool found{false};
+    bool focusable{false};
+};
+
+export
+inline const char* semantic_role_name(SemanticRole role) noexcept {
+    switch (role) {
+    case SemanticRole::None:
+        return "none";
+    case SemanticRole::Button:
+        return "button";
+    case SemanticRole::ListItem:
+        return "list_item";
+    case SemanticRole::Text:
+        return "text";
+    case SemanticRole::Container:
+        return "container";
+    }
+    return "unknown";
+}
 
 export
 enum class ScrollBarOrientation : std::uint8_t {

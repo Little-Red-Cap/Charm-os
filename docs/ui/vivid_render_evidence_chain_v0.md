@@ -23,7 +23,7 @@ v0 由 `Examples/ui/vivid/focus_boundary_demo` 验证：`set_focused(true)` 不�
 
 `Examples/ui/vivid/focus_spatial_navigation_demo` 继续验证 spatial focus navigation evidence：方向键先由 runtime 根据 world rect 选择几何候选，无候选再回退到 preorder wrap；scope 外 target 的 command evidence 保持 baseline。详细法律见 `vivid_focus_scope_evidence_v0.md`。
 
-`Examples/ui/vivid/focus_semantic_demo` 继续验证 semantic focus evidence：`input_focused` 可以解析为稳定 semantic id / role / label，semantic current target 与 visual focus ring artifact 对齐，scope 外 semantic target 不参与 active scope navigation。详细法律见 `vivid_focus_semantic_evidence_v0.md`。
+`Examples/ui/vivid/focus_semantic_demo` 继续验证 semantic focus evidence：runtime semantic store 可以把 `input_focused` 解析为稳定 semantic id / role / label，semantic current target 与 visual focus ring artifact 对齐，scope 外 semantic target 不参与 active scope navigation。详细法律见 `vivid_focus_semantic_evidence_v0.md`。
 
 本文定义 Vivid 从 widget 级证据进入 component 级因果证据的最小路线。
 

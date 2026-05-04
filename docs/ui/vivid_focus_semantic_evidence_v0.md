@@ -10,13 +10,19 @@
 
 `Focus Semantic Evidence v0` 继续向前一步：证明 focus 不只是视觉 ring，也必须能映射到稳定的产品语义 target。
 
-v0 暂不引入完整 accessibility tree，也不把语义存储写入 SoA node。第一版使用 demo 侧 semantic target table 建立证据语言，后续再上收为 Vivid runtime capability。
+v0 暂不引入完整 accessibility tree。当前已把最小语义三元组写入 Vivid SoA node，并通过 runtime API 暴露：
+
+```text
+set_semantic(handle, role, id, label)
+semantic_snapshot(handle)
+semantic_focus_snapshot()
+```
 
 ## v0 法律
 
 ### Law 1：semantic target 必须稳定
 
-每个可被语义暴露的 focus target 必须有稳定 id、role 与 label：
+每个可被语义暴露的 focus target 必须有稳定 id、role 与 label。v0 由 runtime 存储：
 
 ```text
 semantic_id
@@ -25,17 +31,17 @@ label
 focusable
 ```
 
-这些字段不应依赖 widget handle 地址或运行时随机值。
+这些字段不应依赖 widget handle 地址或运行时随机值。widget handle 只作为 runtime 绑定点，不是 semantic identity。
 
 ### Law 2：input focus truth 必须能解析为 semantic focus
 
-当 `input_focused` 提交到某个 target 后，semantic table 必须能解析：
+当 `input_focused` 提交到某个 target 后，runtime 必须能解析：
 
 ```text
 input_focused -> semantic_id
 ```
 
-如果 focused handle 不在 semantic table 内，必须显式输出 `semantic_found=0`，而不是静默假装对齐。
+如果 focused handle 没有 runtime semantic entry，必须显式输出 `semantic_found=0`，而不是静默假装对齐。
 
 ### Law 3：semantic focus 与 visual focus artifact 必须对齐
 
@@ -74,8 +80,8 @@ decorative_semantic=0
 
 它验证：
 
-- semantic target table 中存在 `primary / secondary / outside` 三个稳定条目。
-- decorative label 不进入 semantic target table。
+- runtime semantic store 中存在 `primary / secondary / outside` 三个稳定条目。
+- decorative label 不进入 runtime semantic store。
 - pointer focus 可以从 primary 迁移到 secondary，并解析为 `semantic_id=secondary`。
 - keyboard navigation 在 active scope 内迁移 semantic focus。
 - scope 外 semantic target 不参与 active scope navigation。
@@ -103,7 +109,6 @@ decorative_semantic=0
 
 ## 后续方向
 
-- 把 semantic target table 上收为 Vivid core capability。
 - 区分 input focus、semantic focus、accessibility focus 与 visual focus ring。
 - 输出 semantic tree / accessibility tree 的 artifact hash。
 - 让 component pattern 声明默认 semantic role 与 label source。

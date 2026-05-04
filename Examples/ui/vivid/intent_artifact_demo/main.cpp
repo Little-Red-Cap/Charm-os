@@ -146,10 +146,14 @@ int main() {
     }
 
     run_log.case_begin("state_delta");
-    std::printf(" semantic_id=settings.wifi.toggle key=checked old=%d new=%d changed=%d source=semantic_action_request\n",
-                before_checked ? 1 : 0,
-                after_checked ? 1 : 0,
-                before_checked != after_checked ? 1 : 0);
+    vivid::evidence::print_state_delta({
+        .id = "settings.wifi.toggle",
+        .key = "checked",
+        .source = "semantic_action_request",
+        .old_value = before_checked ? 1 : 0,
+        .new_value = after_checked ? 1 : 0,
+    });
+    std::printf("\n");
     if (!vivid::evidence::expect(!before_checked && after_checked,
                                  "semantic activate toggles checked truth")) {
         return 1;
@@ -201,10 +205,15 @@ int main() {
     }
 
     run_log.case_begin("rejected_no_state_delta");
-    std::printf(" semantic_id=settings.wifi.toggle key=checked old=%d new=%d changed=%d reason=admission_rejected\n",
-                disabled_before_checked ? 1 : 0,
-                disabled_after_checked ? 1 : 0,
-                disabled_before_checked != disabled_after_checked ? 1 : 0);
+    vivid::evidence::print_state_delta({
+        .id = "settings.wifi.toggle",
+        .key = "checked",
+        .source = "semantic_action_request",
+        .old_value = disabled_before_checked ? 1 : 0,
+        .new_value = disabled_after_checked ? 1 : 0,
+        .reason = "admission_rejected",
+    });
+    std::printf("\n");
     if (!vivid::evidence::expect(disabled_before_checked == disabled_after_checked,
                                  "rejected request preserves checked truth")) {
         return 1;

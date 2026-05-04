@@ -138,12 +138,21 @@ int main() {
     }
 
     run_log.case_begin("state_delta");
-    std::printf(" source=programmatic enabled_old=%d enabled_new=%d level_old=%d level_new=%d output=%d\n",
-                state.old_enabled ? 1 : 0,
-                state.enabled ? 1 : 0,
-                state.old_level,
-                state.level,
-                state.output);
+    vivid::evidence::print_named_state_delta("enabled", {
+        .id = "power_card.enabled",
+        .key = "checked",
+        .source = "programmatic",
+        .old_value = state.old_enabled ? 1 : 0,
+        .new_value = state.enabled ? 1 : 0,
+    });
+    vivid::evidence::print_named_state_delta("level", {
+        .id = "power_card.level",
+        .key = "value",
+        .source = "programmatic",
+        .old_value = state.old_level,
+        .new_value = state.level,
+    });
+    std::printf(" output=%d\n", state.output);
 
     run_log.case_begin("component_derivation");
     std::printf(" children=3 summary=\"%s\" output_mirror=%d\n",

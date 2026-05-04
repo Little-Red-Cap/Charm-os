@@ -112,9 +112,14 @@ int main() {
     }
 
     run_log.case_begin("state_delta");
-    std::printf(" source=programmatic key=settings_row.value old=%d new=%d mirror=%d label=%s\n",
-                state.old_value,
-                state.value,
+    vivid::evidence::print_state_delta({
+        .id = "settings_row",
+        .key = "value",
+        .source = "programmatic",
+        .old_value = state.old_value,
+        .new_value = state.value,
+    });
+    std::printf(" mirror=%d label=%s\n",
                 access.value(handles.progress),
                 scene.text(handles.value_label));
 

@@ -16,6 +16,19 @@ namespace vivid::evidence {
         std::uint32_t pixel_hash{0};
     };
 
+    struct StateDeltaEvidence {
+        const char* id{""};
+        const char* key{""};
+        const char* source{""};
+        int old_value{0};
+        int new_value{0};
+        const char* reason{""};
+
+        [[nodiscard]] bool changed() const noexcept {
+            return old_value != new_value;
+        }
+    };
+
     class RunLog {
     public:
         constexpr RunLog(const char* tag, const char* run) noexcept
@@ -60,6 +73,43 @@ namespace vivid::evidence {
         hash ^= value;
         hash *= 16777619u;
         return hash;
+    }
+
+    inline void print_state_delta(const StateDeltaEvidence& delta) noexcept {
+        std::printf(" state_delta=%d id=%s key=%s old=%d new=%d changed=%d source=%s",
+                    delta.changed() ? 1 : 0,
+                    delta.id ? delta.id : "",
+                    delta.key ? delta.key : "",
+                    delta.old_value,
+                    delta.new_value,
+                    delta.changed() ? 1 : 0,
+                    delta.source ? delta.source : "");
+        if (delta.reason && delta.reason[0] != '\0') {
+            std::printf(" reason=%s", delta.reason);
+        }
+    }
+
+    inline void print_named_state_delta(const char* name,
+                                        const StateDeltaEvidence& delta) noexcept {
+        const char* prefix = name ? name : "delta";
+        std::printf(" %s_state_delta=%d %s_id=%s %s_key=%s %s_old=%d %s_new=%d %s_changed=%d %s_source=%s",
+                    prefix,
+                    delta.changed() ? 1 : 0,
+                    prefix,
+                    delta.id ? delta.id : "",
+                    prefix,
+                    delta.key ? delta.key : "",
+                    prefix,
+                    delta.old_value,
+                    prefix,
+                    delta.new_value,
+                    prefix,
+                    delta.changed() ? 1 : 0,
+                    prefix,
+                    delta.source ? delta.source : "");
+        if (delta.reason && delta.reason[0] != '\0') {
+            std::printf(" %s_reason=%s", prefix, delta.reason);
+        }
     }
 
     [[nodiscard]] inline std::uint32_t hash_bytes(const std::byte* data, std::size_t len) noexcept {

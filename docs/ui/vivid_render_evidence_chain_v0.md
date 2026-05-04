@@ -57,6 +57,14 @@ state truth
 
 v0 先不要求所有 Vivid 控件都产出统一 `StateDelta` 类型，但 component demo 必须在 case 中输出稳定的状态摘要。
 
+2026-05 addendum: `Examples/ui/vivid/support/vivid_evidence_support.hpp` now provides a demo-side `StateDeltaEvidence` helper. It standardizes stdout fields without promoting a core Vivid API:
+
+```text
+state_delta=<0|1> id=<id> key=<key> old=<old> new=<new> changed=<0|1> source=<source>
+```
+
+Multi-delta component cases may use named prefixes such as `enabled_old` / `level_old`, but they should still preserve `id`, `key`, `old`, `new`, `changed`, and `source` as the stable causal vocabulary.
+
 ### Invalidation Intent
 
 状态变化必须声明预期影响：

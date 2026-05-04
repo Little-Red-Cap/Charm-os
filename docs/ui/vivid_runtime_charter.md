@@ -382,3 +382,19 @@ Current evidence:
 
 - `Examples/ui/vivid/focus_semantic_demo` proves focused target lookup and focus ring alignment.
 - `Examples/ui/vivid/semantic_tree_demo` proves root-bound preorder artifact collection, focus marker, decorative exclusion, overflow reporting, and stable `semantic_hash`.
+
+## 2026-05 Addendum: Pattern Semantic Defaults
+
+Pattern Semantic Defaults v0 adds a narrow bridge from Pattern / Widget semantics to the Semantic Evidence Plane:
+
+```text
+WidgetKind -> default SemanticRole
+widget text -> default label source
+product id -> stable semantic identity
+```
+
+The important boundary is that Vivid does not invent stable identity. `set_semantic_default(handle, stable_id, optional_label)` is opt-in and still requires product code to provide `stable_id`.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_default_demo` proves default role derivation, label source, decorative opt-in boundary, explicit override, and semantic tree integration.

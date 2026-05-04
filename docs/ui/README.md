@@ -62,6 +62,7 @@
 Semantic Tree Artifact v0 runtime sample:
 
 - `Examples/ui/vivid/semantic_tree_demo`: verifies root-bound semantic preorder collection, focus marker, decorative exclusion, overflow reporting, and stable `semantic_hash`; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=6`.
+- `Examples/ui/vivid/semantic_default_demo`: verifies opt-in pattern semantic defaults, default role / label source, explicit override, decorative boundary, and semantic tree integration; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=6`.
 
 最小验证示例：
 

@@ -179,3 +179,18 @@ Stdout remains governed by `vivid_evidence_stdout_law.md`:
 ```text
 [stree] run=semantic_tree_demo phase=end result=ok cases=6
 ```
+
+## 2026-05 Addendum: Pattern Semantic Defaults
+
+`Examples/ui/vivid/semantic_default_demo` verifies Pattern Semantic Defaults v0. This is deliberately opt-in: Vivid derives default role and label source, while product code still supplies stable semantic id.
+
+Evidence chain:
+
+```text
+WidgetKind + text
+  -> set_semantic_default(stable_id)
+  -> semantic snapshot
+  -> semantic tree artifact
+```
+
+The demo guards that decorative widgets are not auto-enrolled and that explicit `set_semantic()` can override a default.

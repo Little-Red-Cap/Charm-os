@@ -103,6 +103,34 @@ inline const char* semantic_role_name(SemanticRole role) noexcept {
 }
 
 export
+inline SemanticRole semantic_default_role_for_kind(WidgetKind kind) noexcept {
+    switch (kind) {
+    case WidgetKind::Button:
+    case WidgetKind::IconButton:
+    case WidgetKind::MenuItem:
+    case WidgetKind::Checkbox:
+    case WidgetKind::Radio:
+    case WidgetKind::Switch:
+        return SemanticRole::Button;
+    case WidgetKind::ListItem:
+        return SemanticRole::ListItem;
+    case WidgetKind::Label:
+    case WidgetKind::TextBox:
+        return SemanticRole::Text;
+    case WidgetKind::Container:
+    case WidgetKind::ScrollContainer:
+    case WidgetKind::List:
+    case WidgetKind::ListView:
+    case WidgetKind::Menu:
+    case WidgetKind::PopupLayer:
+    case WidgetKind::ModalDialog:
+        return SemanticRole::Container;
+    default:
+        return SemanticRole::None;
+    }
+}
+
+export
 inline std::uint32_t semantic_tree_hash_mix(std::uint32_t hash, std::uint32_t value) noexcept {
     hash ^= value;
     hash *= 16777619u;

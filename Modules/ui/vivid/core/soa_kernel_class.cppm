@@ -373,6 +373,23 @@ public:
         common_.semantic_label[idx] = payloads_.store_text(label);
     }
 
+    void set_semantic_default(WidgetHandle h,
+                              const char* id,
+                              const char* label = nullptr) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const SemanticRole role = semantic_default_role_for_kind(common_.kind[idx]);
+        if (role == SemanticRole::None) {
+            clear_semantic(h);
+            return;
+        }
+        const char* resolved_label = label;
+        if (!resolved_label || resolved_label[0] == '\0') {
+            resolved_label = text(h);
+        }
+        set_semantic(h, role, id, resolved_label);
+    }
+
     void clear_semantic(WidgetHandle h) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;

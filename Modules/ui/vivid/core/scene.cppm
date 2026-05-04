@@ -33,6 +33,7 @@ export using ::SemanticFocusSnapshot;
 export using ::SemanticRole;
 export using ::SemanticTreeNode;
 export using ::SemanticTreeSnapshot;
+export using ::semantic_default_role_for_kind;
 export using ::kSemanticTreeMaxNodes;
 export using ::kSemanticTreeNoFocusIndex;
 export using ::TableViewHeaderStyle;
@@ -354,6 +355,11 @@ export namespace ui::scene {
                           const char* label) noexcept {
             kernel_->set_semantic(h, role, id, label);
         }
+        void set_semantic_default(WidgetHandle h,
+                                  const char* id,
+                                  const char* label = nullptr) noexcept {
+            kernel_->set_semantic_default(h, id, label);
+        }
         void clear_semantic(WidgetHandle h) noexcept { kernel_->clear_semantic(h); }
         SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
             return kernel_->semantic_snapshot(h);
@@ -566,6 +572,11 @@ export namespace ui::scene {
                           const char* id,
                           const char* label) noexcept {
             kernel_.set_semantic(h, role, id, label);
+        }
+        void set_semantic_default(WidgetHandle h,
+                                  const char* id,
+                                  const char* label = nullptr) noexcept {
+            kernel_.set_semantic_default(h, id, label);
         }
         void set_input_root(WidgetHandle h) noexcept { kernel_.set_input_root(h); }
         void set_focus_scope(WidgetHandle scope,

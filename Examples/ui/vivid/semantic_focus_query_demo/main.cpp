@@ -8,32 +8,10 @@ import charm.gfx.canvas;
 import charm.ui.scene;
 
 #include "../support/vivid_evidence_support.hpp"
+#include "../support/vivid_semantic_focus_fixture.hpp"
 
 namespace {
-    constexpr Rect kSceneBounds{0, 0, 360, 208};
-    constexpr Rect kScopeBounds{12, 12, 210, 184};
-    constexpr Rect kPrimaryBounds{24, 24, 132, 30};
-    constexpr Rect kSecondaryBounds{24, 66, 132, 30};
-    constexpr Rect kInfoBounds{24, 108, 132, 30};
-    constexpr Rect kDisabledBounds{24, 150, 132, 30};
-    constexpr Rect kOutsideBounds{240, 24, 96, 30};
-    constexpr Rect kDuplicateBounds{240, 66, 96, 30};
     constexpr vivid::evidence::RunLog kRunLog{"sfq", "semantic_focus_query_demo"};
-
-    struct Handles {
-        WidgetHandle root{};
-        WidgetHandle scope{};
-        WidgetHandle primary{};
-        WidgetHandle secondary{};
-        WidgetHandle info{};
-        WidgetHandle disabled{};
-        WidgetHandle outside{};
-        WidgetHandle duplicate{};
-    };
-
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs == rhs;
-    }
 
     [[nodiscard]] bool resolved(const SemanticFocusQuery& query) noexcept {
         return query.status == SemanticFocusQueryStatus::Resolved
@@ -63,52 +41,11 @@ int main() {
     static DefaultFrameBuffer fb{};
     static DefaultCanvas canvas{fb};
     static ::ui::scene::Scene scene{canvas};
-    Handles handles{};
-
-    scene.build([&](::ui::scene::SceneBuilder& builder) {
-        handles.root = builder.create_container();
-        handles.scope = builder.create_container();
-        handles.primary = builder.create_button_static("Primary");
-        handles.secondary = builder.create_list_item("Secondary");
-        handles.info = builder.create_container();
-        handles.disabled = builder.create_button_static("Disabled");
-        handles.outside = builder.create_button_static("Outside");
-        handles.duplicate = builder.create_button_static("Duplicate");
-
-        builder.link(handles.root, handles.scope);
-        builder.link(handles.scope, handles.primary);
-        builder.link(handles.scope, handles.secondary);
-        builder.link(handles.scope, handles.info);
-        builder.link(handles.scope, handles.disabled);
-        builder.link(handles.root, handles.outside);
-        builder.link(handles.root, handles.duplicate);
-
-        builder.set_rect(handles.root, kSceneBounds);
-        builder.set_rect(handles.scope, kScopeBounds);
-        builder.set_rect(handles.primary, kPrimaryBounds);
-        builder.set_rect(handles.secondary, kSecondaryBounds);
-        builder.set_rect(handles.info, kInfoBounds);
-        builder.set_rect(handles.disabled, kDisabledBounds);
-        builder.set_rect(handles.outside, kOutsideBounds);
-        builder.set_rect(handles.duplicate, kDuplicateBounds);
-        builder.set_semantic_default(handles.primary, "action.primary");
-        builder.set_semantic_default(handles.secondary, "row.secondary");
-        builder.set_semantic(handles.info, SemanticRole::Container, "panel.info", "Info panel");
-        builder.set_semantic_default(handles.disabled, "action.disabled");
-        builder.set_semantic_default(handles.outside, "action.outside");
-        builder.set_semantic_default(handles.duplicate, "action.primary", "Duplicate primary");
-        builder.set_input_root(handles.root);
-        builder.set_focus_scope(handles.scope, handles.primary, true);
-        builder.set_root(handles.root);
-    });
+    vivid::evidence::SemanticFocusFixtureHandles handles{};
+    vivid::evidence::build_semantic_focus_fixture(scene, handles);
 
     auto access = scene.access();
-    access.set_focusable(handles.primary, true);
-    access.set_focusable(handles.secondary, true);
-    access.set_focusable(handles.disabled, true);
-    access.set_focusable(handles.outside, true);
-    access.set_focusable(handles.duplicate, true);
-    access.set_enabled(handles.disabled, false);
+    vivid::evidence::configure_semantic_focus_fixture(access, handles);
     const WidgetHandle initial_focus = access.input_focused();
     const std::size_t initial_events = access.input_event_count();
 
@@ -116,7 +53,7 @@ int main() {
     run_log.case_begin("resolve_inside_scope");
     print_query(primary);
     if (!vivid::evidence::expect(resolved(primary), "primary focus query resolves")) return 1;
-    if (!vivid::evidence::expect(same_handle(primary.handle, handles.primary),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(primary.handle, handles.primary),
                                  "primary focus query returns scoped handle")) {
         return 1;
     }
@@ -127,7 +64,7 @@ int main() {
                 access.input_focused() ? 1 : 0,
                 initial_events,
                 access.input_event_count());
-    if (!vivid::evidence::expect(same_handle(access.input_focused(), initial_focus),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), initial_focus),
                                  "query does not commit focus truth")) {
         return 1;
     }

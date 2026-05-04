@@ -9,39 +9,10 @@ import charm.gfx.canvas;
 import charm.ui.scene;
 
 #include "../support/vivid_evidence_support.hpp"
+#include "../support/vivid_semantic_focus_fixture.hpp"
 
 namespace {
-    constexpr Rect kSceneBounds{0, 0, 360, 208};
-    constexpr Rect kScopeBounds{12, 12, 210, 184};
-    constexpr Rect kPrimaryBounds{24, 24, 132, 30};
-    constexpr Rect kSecondaryBounds{24, 66, 132, 30};
-    constexpr Rect kInfoBounds{24, 108, 132, 30};
-    constexpr Rect kDisabledBounds{24, 150, 132, 30};
-    constexpr Rect kOutsideBounds{240, 24, 96, 30};
-    constexpr Rect kDuplicateBounds{240, 66, 96, 30};
     constexpr vivid::evidence::RunLog kRunLog{"sfr", "semantic_focus_request_demo"};
-
-    struct Handles {
-        WidgetHandle root{};
-        WidgetHandle scope{};
-        WidgetHandle primary{};
-        WidgetHandle secondary{};
-        WidgetHandle info{};
-        WidgetHandle disabled{};
-        WidgetHandle outside{};
-        WidgetHandle duplicate{};
-    };
-
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs == rhs;
-    }
-
-    void click(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
-    }
 
     void print_request(const SemanticFocusRequest& request) noexcept {
         std::printf(" status=%s admission=%s committed=%d focus_changed=%d focus_out=%d focus_in=%d events=%zu before=%s after=%s id=%s\n",
@@ -72,10 +43,10 @@ namespace {
             const auto& event = access.input_event(index);
             if (event.event.type == Event::Type::FocusOut) {
                 ++focus_out;
-                out_primary = out_primary || same_handle(event.target, primary);
+                out_primary = out_primary || vivid::evidence::same_handle(event.target, primary);
             } else if (event.event.type == Event::Type::FocusIn) {
                 ++focus_in;
-                in_secondary = in_secondary || same_handle(event.target, secondary);
+                in_secondary = in_secondary || vivid::evidence::same_handle(event.target, secondary);
             }
         }
     }
@@ -89,54 +60,13 @@ int main() {
     static DefaultFrameBuffer fb{};
     static DefaultCanvas canvas{fb};
     static ::ui::scene::Scene scene{canvas};
-    Handles handles{};
-
-    scene.build([&](::ui::scene::SceneBuilder& builder) {
-        handles.root = builder.create_container();
-        handles.scope = builder.create_container();
-        handles.primary = builder.create_button_static("Primary");
-        handles.secondary = builder.create_list_item("Secondary");
-        handles.info = builder.create_container();
-        handles.disabled = builder.create_button_static("Disabled");
-        handles.outside = builder.create_button_static("Outside");
-        handles.duplicate = builder.create_button_static("Duplicate");
-
-        builder.link(handles.root, handles.scope);
-        builder.link(handles.scope, handles.primary);
-        builder.link(handles.scope, handles.secondary);
-        builder.link(handles.scope, handles.info);
-        builder.link(handles.scope, handles.disabled);
-        builder.link(handles.root, handles.outside);
-        builder.link(handles.root, handles.duplicate);
-
-        builder.set_rect(handles.root, kSceneBounds);
-        builder.set_rect(handles.scope, kScopeBounds);
-        builder.set_rect(handles.primary, kPrimaryBounds);
-        builder.set_rect(handles.secondary, kSecondaryBounds);
-        builder.set_rect(handles.info, kInfoBounds);
-        builder.set_rect(handles.disabled, kDisabledBounds);
-        builder.set_rect(handles.outside, kOutsideBounds);
-        builder.set_rect(handles.duplicate, kDuplicateBounds);
-        builder.set_semantic_default(handles.primary, "action.primary");
-        builder.set_semantic_default(handles.secondary, "row.secondary");
-        builder.set_semantic(handles.info, SemanticRole::Container, "panel.info", "Info panel");
-        builder.set_semantic_default(handles.disabled, "action.disabled");
-        builder.set_semantic_default(handles.outside, "action.outside");
-        builder.set_semantic_default(handles.duplicate, "action.primary", "Duplicate primary");
-        builder.set_input_root(handles.root);
-        builder.set_focus_scope(handles.scope, handles.primary, true);
-        builder.set_root(handles.root);
-    });
+    vivid::evidence::SemanticFocusFixtureHandles handles{};
+    vivid::evidence::build_semantic_focus_fixture(scene, handles);
 
     auto access = scene.access();
-    access.set_focusable(handles.primary, true);
-    access.set_focusable(handles.secondary, true);
-    access.set_focusable(handles.disabled, true);
-    access.set_focusable(handles.outside, true);
-    access.set_focusable(handles.duplicate, true);
-    access.set_enabled(handles.disabled, false);
-    click(scene, kPrimaryBounds, 10);
-    if (!vivid::evidence::expect(same_handle(access.input_focused(), handles.primary),
+    vivid::evidence::configure_semantic_focus_fixture(access, handles);
+    vivid::evidence::click_center(scene, vivid::evidence::kSemanticFocusPrimaryBounds, 10);
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), handles.primary),
                                  "setup establishes primary input focus")) {
         return 1;
     }
@@ -152,8 +82,8 @@ int main() {
                                  "semantic focus request changes input truth")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(request.before_focus, handles.primary)
-                                 && same_handle(request.after_focus, handles.secondary),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(request.before_focus, handles.primary)
+                                 && vivid::evidence::same_handle(request.after_focus, handles.secondary),
                                  "request records before and after focus handles")) {
         return 1;
     }
@@ -185,7 +115,7 @@ int main() {
                 semantic.found ? 1 : 0,
                 semantic.id,
                 access.focused(handles.secondary) ? 1 : 0);
-    if (!vivid::evidence::expect(same_handle(access.input_focused(), handles.secondary),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), handles.secondary),
                                  "input focus truth is secondary after request")) {
         return 1;
     }
@@ -218,7 +148,7 @@ int main() {
                                  "outside active scope request is rejected")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(access.input_focused(), handles.secondary),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), handles.secondary),
                                  "outside rejection preserves current focus")) {
         return 1;
     }
@@ -229,7 +159,7 @@ int main() {
     std::printf(" disabled=%s not_focusable=%s focus_preserved=%d\n",
                 semantic_focus_admission_status_name(disabled.admission.status),
                 semantic_focus_admission_status_name(not_focusable.admission.status),
-                same_handle(access.input_focused(), handles.secondary) ? 1 : 0);
+                vivid::evidence::same_handle(access.input_focused(), handles.secondary) ? 1 : 0);
     if (!vivid::evidence::expect(disabled.status == SemanticFocusRequestStatus::Rejected
                                  && disabled.admission.status == SemanticFocusAdmissionStatus::Disabled,
                                  "disabled semantic focus request is rejected")) {
@@ -249,7 +179,7 @@ int main() {
                 semantic_focus_admission_status_name(ambiguous.admission.status),
                 semantic_focus_admission_status_name(invalid_root.admission.status),
                 semantic_focus_admission_status_name(missing_id.admission.status),
-                same_handle(access.input_focused(), handles.secondary) ? 1 : 0);
+                vivid::evidence::same_handle(access.input_focused(), handles.secondary) ? 1 : 0);
     if (!vivid::evidence::expect(ambiguous.status == SemanticFocusRequestStatus::Rejected
                                  && ambiguous.admission.status == SemanticFocusAdmissionStatus::AmbiguousId,
                                  "ambiguous semantic focus request is rejected")) {

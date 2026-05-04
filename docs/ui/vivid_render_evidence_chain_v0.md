@@ -220,3 +220,16 @@ semantic tree root
 ```
 
 The demo guards resolved lookup, no input/callback side effects, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid root, and missing request id.
+
+## 2026-05 Addendum: Semantic Focus Query
+
+`Examples/ui/vivid/semantic_focus_query_demo` verifies Semantic Focus Query v0. It keeps focus addressability separate from focus transfer:
+
+```text
+semantic tree root
+  -> semantic id + active scope
+  -> SemanticFocusQuery
+  -> focus-addressability status
+```
+
+The demo guards resolved focus targets, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.

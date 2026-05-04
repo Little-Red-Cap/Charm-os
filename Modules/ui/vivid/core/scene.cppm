@@ -32,6 +32,8 @@ export using ::ScrollBarOrientation;
 export using ::SemanticAction;
 export using ::SemanticActionMask;
 export using ::SemanticActionSnapshot;
+export using ::SemanticFocusQuery;
+export using ::SemanticFocusQueryStatus;
 export using ::SemanticFocusSnapshot;
 export using ::SemanticIntentResolution;
 export using ::SemanticIntentStatus;
@@ -42,6 +44,7 @@ export using ::semantic_action_mask;
 export using ::semantic_action_present;
 export using ::semantic_default_role_for_kind;
 export using ::semantic_default_actions_for_role;
+export using ::semantic_focus_query_status_name;
 export using ::semantic_intent_status_name;
 export using ::kSemanticTreeMaxNodes;
 export using ::kSemanticTreeNoFocusIndex;
@@ -61,6 +64,8 @@ export namespace ui::scene {
     using SemanticAction = ::SemanticAction;
     using SemanticActionMask = ::SemanticActionMask;
     using SemanticActionSnapshot = ::SemanticActionSnapshot;
+    using SemanticFocusQuery = ::SemanticFocusQuery;
+    using SemanticFocusQueryStatus = ::SemanticFocusQueryStatus;
     using SemanticFocusSnapshot = ::SemanticFocusSnapshot;
     using SemanticIntentResolution = ::SemanticIntentResolution;
     using SemanticIntentStatus = ::SemanticIntentStatus;
@@ -70,6 +75,7 @@ export namespace ui::scene {
     using ::semantic_action_mask;
     using ::semantic_action_present;
     using ::semantic_default_actions_for_role;
+    using ::semantic_focus_query_status_name;
     using ::semantic_intent_status_name;
     constexpr std::size_t kSemanticTreeMaxNodes = ::kSemanticTreeMaxNodes;
     constexpr std::uint16_t kSemanticTreeNoFocusIndex = ::kSemanticTreeNoFocusIndex;
@@ -383,6 +389,7 @@ export namespace ui::scene {
             kernel_->set_semantic_actions(h, actions);
         }
         void set_enabled(WidgetHandle h, bool on) noexcept { kernel_->set_enabled(h, on); }
+        void set_focusable(WidgetHandle h, bool on) noexcept { kernel_->set_focusable(h, on); }
         bool pressed(WidgetHandle h) const noexcept { return kernel_->pressed(h); }
         bool focused(WidgetHandle h) const noexcept { return kernel_->focused(h); }
         SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
@@ -396,6 +403,9 @@ export namespace ui::scene {
             const char* id,
             SemanticAction action) const noexcept {
             return kernel_->resolve_semantic_intent(root, id, action);
+        }
+        SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept {
+            return kernel_->query_semantic_focus(root, id);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_->semantic_focus_snapshot();
@@ -1166,6 +1176,9 @@ export namespace ui::scene {
             const char* id,
             SemanticAction action) const noexcept {
             return kernel_.resolve_semantic_intent(root, id, action);
+        }
+        SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept {
+            return kernel_.query_semantic_focus(root, id);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_.semantic_focus_snapshot();

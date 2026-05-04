@@ -505,6 +505,78 @@ public:
         return out;
     }
 
+    SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept {
+        SemanticFocusQuery out{};
+        out.root = root;
+        out.active_scope = input_.focus_scope;
+        out.id = id ? id : "";
+        if (!root || !valid(root)) {
+            out.status = SemanticFocusQueryStatus::InvalidRoot;
+            return out;
+        }
+        if (!id || id[0] == '\0') {
+            out.status = SemanticFocusQueryStatus::MissingId;
+            return out;
+        }
+
+        struct StackEntry {
+            WidgetHandle handle{};
+        };
+
+        std::array<StackEntry, kMaxNodes> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = StackEntry{root};
+
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp].handle;
+            if (!valid(h) || !visible(h)) continue;
+            ++out.visited_count;
+
+            const auto semantic = semantic_snapshot(h);
+            if (semantic.found && text_equal(semantic.id, id)) {
+                ++out.match_count;
+                if (out.match_count == 1) {
+                    out.handle = h;
+                    out.found = true;
+                    out.focusable = semantic.focusable;
+                } else {
+                    out.status = SemanticFocusQueryStatus::AmbiguousId;
+                    out.allowed_by_scope = false;
+                    out.focusable_now = false;
+                    return out;
+                }
+            }
+
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = StackEntry{child};
+            }
+        }
+
+        if (!out.found) {
+            out.status = SemanticFocusQueryStatus::NotFound;
+            return out;
+        }
+        if (!out.focusable) {
+            out.status = SemanticFocusQueryStatus::NotFocusable;
+            return out;
+        }
+        if (!enabled(out.handle)) {
+            out.status = SemanticFocusQueryStatus::Disabled;
+            return out;
+        }
+        out.allowed_by_scope = !input_.focus_scope
+            || !input_.focus_scope_trap
+            || input_is_descendant(out.handle, input_.focus_scope);
+        if (!out.allowed_by_scope) {
+            out.status = SemanticFocusQueryStatus::OutsideActiveScope;
+            return out;
+        }
+        out.status = SemanticFocusQueryStatus::Resolved;
+        out.focusable_now = true;
+        return out;
+    }
+
     SemanticTreeSnapshot semantic_tree_snapshot(
         WidgetHandle root,
         std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {

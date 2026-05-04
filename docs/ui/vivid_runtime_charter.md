@@ -429,3 +429,18 @@ This belongs to the Semantic Plane and Evidence Plane. It makes semantic nodes a
 Current evidence:
 
 - `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, and no input side effects during resolution.
+
+## 2026-05 Addendum: Semantic Focus Query
+
+Vivid can now answer whether a semantic id is focus-addressable without moving focus:
+
+```text
+root + semantic_id + active_scope
+  -> SemanticFocusQuery
+```
+
+This keeps focus lookup in the Semantic Plane while preserving the boundary that focus transfer, `FocusIn/FocusOut`, input focus truth mutation, and focus ring artifact generation remain separate runtime actions.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_focus_query_demo` proves root-bound semantic focus lookup, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.

@@ -65,6 +65,7 @@ Semantic Tree Artifact v0 runtime sample:
 - `Examples/ui/vivid/semantic_default_demo`: verifies opt-in pattern semantic defaults, default role / label source, explicit override, decorative boundary, and semantic tree integration; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=6`.
 - `Examples/ui/vivid/semantic_action_demo`: verifies Semantic Action Artifact v0, including role-derived `activate`, no-action semantic roles, explicit action override, tree action artifacts, and action participation in `semantic_hash`; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=6`.
 - `Examples/ui/vivid/semantic_intent_demo`: verifies Semantic Intent Resolution v0, including root-bound id/action lookup, no-execute side effects, unsupported action, missing id, ambiguous duplicate id, disabled target, and invalid request statuses; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=7`.
+- `Examples/ui/vivid/semantic_focus_query_demo`: verifies Semantic Focus Query v0, including focus-addressable ids, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate id, and invalid request statuses; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=7`.
 
 最小验证示例：
 

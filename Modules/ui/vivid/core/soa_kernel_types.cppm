@@ -94,6 +94,33 @@ struct SemanticIntentResolution {
 };
 
 export
+enum class SemanticFocusQueryStatus : std::uint8_t {
+    Resolved = 0,
+    InvalidRoot,
+    MissingId,
+    NotFound,
+    AmbiguousId,
+    NotFocusable,
+    Disabled,
+    OutsideActiveScope,
+};
+
+export
+struct SemanticFocusQuery {
+    WidgetHandle handle{};
+    WidgetHandle root{};
+    WidgetHandle active_scope{};
+    const char* id{""};
+    SemanticFocusQueryStatus status{SemanticFocusQueryStatus::NotFound};
+    std::size_t visited_count{0};
+    std::size_t match_count{0};
+    bool found{false};
+    bool focusable{false};
+    bool allowed_by_scope{false};
+    bool focusable_now{false};
+};
+
+export
 constexpr std::size_t kSemanticTreeMaxNodes = 32;
 
 export
@@ -214,6 +241,29 @@ inline const char* semantic_intent_status_name(SemanticIntentStatus status) noex
         return "unsupported_action";
     case SemanticIntentStatus::Disabled:
         return "disabled";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_focus_query_status_name(SemanticFocusQueryStatus status) noexcept {
+    switch (status) {
+    case SemanticFocusQueryStatus::Resolved:
+        return "resolved";
+    case SemanticFocusQueryStatus::InvalidRoot:
+        return "invalid_root";
+    case SemanticFocusQueryStatus::MissingId:
+        return "missing_id";
+    case SemanticFocusQueryStatus::NotFound:
+        return "not_found";
+    case SemanticFocusQueryStatus::AmbiguousId:
+        return "ambiguous_id";
+    case SemanticFocusQueryStatus::NotFocusable:
+        return "not_focusable";
+    case SemanticFocusQueryStatus::Disabled:
+        return "disabled";
+    case SemanticFocusQueryStatus::OutsideActiveScope:
+        return "outside_active_scope";
     }
     return "unknown";
 }

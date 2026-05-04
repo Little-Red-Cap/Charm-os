@@ -146,6 +146,23 @@ v0 rules:
 - resolution must not synthesize input, dispatch callbacks, mutate pressed/focused state, or bind OS accessibility.
 - execution remains a future, separate admission step.
 
+### Law 10: semantic focus query is focus addressability, not focus transfer
+
+Semantic Focus Query v0 lets runtime answer whether a semantic id can become focus under a requested root and current active scope:
+
+```text
+root + semantic_id + active_scope -> SemanticFocusQuery
+```
+
+v0 rules:
+
+- query is root-bound and deterministic.
+- duplicate ids under the requested root are `ambiguous_id`.
+- non-focusable, disabled, invalid root, missing id, and missing target are explicit status values.
+- active trapped focus scope may reject an otherwise valid target as `outside_active_scope`.
+- `resolved` means the target is focus-addressable now.
+- query must not emit `FocusIn/FocusOut`, mutate input focus truth, or draw focus ring artifacts.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
@@ -201,6 +218,15 @@ stdout final contract:
 [sint] run=semantic_intent_demo phase=end result=ok cases=7
 ```
 
+`Examples/ui/vivid/semantic_focus_query_demo` is the first Semantic Focus Query v0 runtime evidence.
+It verifies focus-addressable semantic ids, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, and invalid request statuses.
+
+stdout final contract:
+
+```text
+[sfq] run=semantic_focus_query_demo phase=end result=ok cases=7
+```
+
 核心字段：
 
 ```text
@@ -208,6 +234,7 @@ semantic_id=primary/secondary/outside
 role=button/list_item
 actions=activate
 intent_status=resolved/ambiguous_id/unsupported_action/disabled
+focus_query_status=resolved/outside_active_scope/not_focusable/disabled
 semantic_found=1
 semantic_current=secondary
 semantic_hash=...

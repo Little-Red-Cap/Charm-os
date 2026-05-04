@@ -23,10 +23,6 @@ namespace vivid::evidence {
         WidgetHandle duplicate{};
     };
 
-    [[nodiscard]] inline bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs == rhs;
-    }
-
     inline void build_semantic_focus_fixture(::ui::scene::Scene& scene,
                                              SemanticFocusFixtureHandles& handles) {
         scene.build([&](::ui::scene::SceneBuilder& builder) {
@@ -75,13 +71,6 @@ namespace vivid::evidence {
         access.set_focusable(handles.outside, true);
         access.set_focusable(handles.duplicate, true);
         access.set_enabled(handles.disabled, false);
-    }
-
-    inline void click_center(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
     }
 
     [[nodiscard]] inline bool focus_semantic_fixture_primary(::ui::scene::Scene& scene,

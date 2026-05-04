@@ -31,25 +31,20 @@ namespace {
         Handles handles{};
     };
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs.kind == rhs.kind
-            && lhs.index == rhs.index
-            && lhs.generation == rhs.generation;
-    }
 
     [[nodiscard]] bool contains_in_demo(WidgetHandle node, WidgetHandle ancestor, void* ctx) noexcept {
         const auto* tree = static_cast<const ScopeTree*>(ctx);
         if (!tree) return false;
-        if (same_handle(node, ancestor)) return true;
-        if (same_handle(ancestor, tree->handles.scope)) {
-            return same_handle(node, tree->handles.inside_a)
-                || same_handle(node, tree->handles.inside_b);
+        if (vivid::evidence::same_handle(node, ancestor)) return true;
+        if (vivid::evidence::same_handle(ancestor, tree->handles.scope)) {
+            return vivid::evidence::same_handle(node, tree->handles.inside_a)
+                || vivid::evidence::same_handle(node, tree->handles.inside_b);
         }
-        if (same_handle(ancestor, tree->handles.root)) {
-            return same_handle(node, tree->handles.scope)
-                || same_handle(node, tree->handles.inside_a)
-                || same_handle(node, tree->handles.inside_b)
-                || same_handle(node, tree->handles.outside);
+        if (vivid::evidence::same_handle(ancestor, tree->handles.root)) {
+            return vivid::evidence::same_handle(node, tree->handles.scope)
+                || vivid::evidence::same_handle(node, tree->handles.inside_a)
+                || vivid::evidence::same_handle(node, tree->handles.inside_b)
+                || vivid::evidence::same_handle(node, tree->handles.outside);
         }
         return false;
     }
@@ -124,11 +119,11 @@ int main() {
     std::printf(" scope=container inside_targets=2 outside_targets=1 trap=1 contains_inside=1 contains_outside=0\n");
 
     auto access = scene.access();
-    if (!vivid::evidence::expect(same_handle(access.input_focus_scope(), handles.scope),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focus_scope(), handles.scope),
                                  "runtime focus scope is installed")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(access.input_focus_scope_fallback(), handles.inside_b),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focus_scope_fallback(), handles.inside_b),
                                  "runtime focus scope fallback is installed")) {
         return 1;
     }
@@ -146,11 +141,11 @@ int main() {
     bool initial_focus_in_inside_a = false;
     for (std::size_t index = 0; index < initial_access.input_event_count(); ++index) {
         const auto& event = initial_access.input_event(index);
-        if (event.event.type == Event::Type::MouseDown && same_handle(event.target, handles.inside_a)) {
+        if (event.event.type == Event::Type::MouseDown && vivid::evidence::same_handle(event.target, handles.inside_a)) {
             ++initial_mouse_down;
         } else if (event.event.type == Event::Type::FocusIn) {
             ++initial_focus_in;
-            initial_focus_in_inside_a = initial_focus_in_inside_a || same_handle(event.target, handles.inside_a);
+            initial_focus_in_inside_a = initial_focus_in_inside_a || vivid::evidence::same_handle(event.target, handles.inside_a);
         }
     }
     if (!vivid::evidence::expect(initial_mouse_down == 1, "inside_a receives initial mouse down")) return 1;
@@ -158,7 +153,7 @@ int main() {
                                  "inside_a receives initial FocusIn")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(initial_access.input_focused(), handles.inside_a),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(initial_access.input_focused(), handles.inside_a),
                                  "runtime focus truth commits to inside_a")) {
         return 1;
     }
@@ -200,14 +195,14 @@ int main() {
     bool inside_focus_in_b = false;
     for (std::size_t index = 0; index < inside_access.input_event_count(); ++index) {
         const auto& event = inside_access.input_event(index);
-        if (event.event.type == Event::Type::MouseDown && same_handle(event.target, handles.inside_b)) {
+        if (event.event.type == Event::Type::MouseDown && vivid::evidence::same_handle(event.target, handles.inside_b)) {
             ++inside_mouse_down;
         } else if (event.event.type == Event::Type::FocusOut) {
             ++inside_focus_out;
-            inside_focus_out_a = inside_focus_out_a || same_handle(event.target, handles.inside_a);
+            inside_focus_out_a = inside_focus_out_a || vivid::evidence::same_handle(event.target, handles.inside_a);
         } else if (event.event.type == Event::Type::FocusIn) {
             ++inside_focus_in;
-            inside_focus_in_b = inside_focus_in_b || same_handle(event.target, handles.inside_b);
+            inside_focus_in_b = inside_focus_in_b || vivid::evidence::same_handle(event.target, handles.inside_b);
         }
     }
     if (!vivid::evidence::expect(inside_mouse_down == 1, "inside_b receives mouse down")) return 1;
@@ -219,7 +214,7 @@ int main() {
                                  "inside transfer emits FocusIn for inside_b")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(inside_access.input_focused(), handles.inside_b),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(inside_access.input_focused(), handles.inside_b),
                                  "runtime focus truth moves to inside_b")) {
         return 1;
     }
@@ -280,7 +275,7 @@ int main() {
     int outside_focus_in = 0;
     for (std::size_t index = 0; index < outside_access.input_event_count(); ++index) {
         const auto& event = outside_access.input_event(index);
-        if (event.event.type == Event::Type::MouseDown && same_handle(event.target, handles.outside)) {
+        if (event.event.type == Event::Type::MouseDown && vivid::evidence::same_handle(event.target, handles.outside)) {
             ++outside_mouse_down;
         } else if (event.event.type == Event::Type::FocusOut) {
             ++outside_focus_out;
@@ -293,18 +288,18 @@ int main() {
                                  "outside rejected request emits no focus transfer events")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(outside_access.input_focused(), handles.inside_b),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(outside_access.input_focused(), handles.inside_b),
                                  "runtime focus remains trapped inside scope")) {
         return 1;
     }
     if (!vivid::evidence::expect(!outside_access.input_focus_scope_trap()
-                                     || same_handle(outside_access.input_focus_scope(), handles.scope),
+                                     || vivid::evidence::same_handle(outside_access.input_focus_scope(), handles.scope),
                                  "runtime scope trap remains installed")) {
         return 1;
     }
     mouse_up(scene, kOutsideBounds, 31);
     auto after_outside_access = scene.access();
-    if (!vivid::evidence::expect(same_handle(after_outside_access.input_focused(), handles.inside_b),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(after_outside_access.input_focused(), handles.inside_b),
                                  "runtime focus remains trapped after outside release")) {
         return 1;
     }

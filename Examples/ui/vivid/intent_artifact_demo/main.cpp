@@ -24,10 +24,6 @@ namespace {
         WidgetHandle toggle{};
     };
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs == rhs;
-    }
-
     void build_scene(::ui::scene::Scene& scene, Handles& handles) {
         scene.build([&](::ui::scene::SceneBuilder& builder) {
             handles.root = builder.create_container();
@@ -68,7 +64,7 @@ int main() {
     access.set_focusable(handles.toggle, true);
     const auto focus_setup = scene.request_semantic_focus(handles.row, "settings.wifi.toggle");
     if (!vivid::evidence::expect(focus_setup.status == SemanticFocusRequestStatus::Committed
-                                 && same_handle(access.input_focused(), handles.toggle),
+                                 && vivid::evidence::same_handle(access.input_focused(), handles.toggle),
                                  "setup focuses toggle through semantic focus request")) {
         return 1;
     }

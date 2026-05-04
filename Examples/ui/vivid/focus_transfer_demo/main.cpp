@@ -17,24 +17,11 @@ namespace {
     constexpr Rect kDestinationBounds{20, 62, 152, 36};
     constexpr vivid::evidence::RunLog kRunLog{"ft", "focus_transfer_demo"};
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs.kind == rhs.kind
-            && lhs.index == rhs.index
-            && lhs.generation == rhs.generation;
-    }
-
     [[nodiscard]] bool style_evidence_equal(const ResolvedStyleEvidence& lhs,
                                             const ResolvedStyleEvidence& rhs) noexcept {
         return lhs.style_key == rhs.style_key
             && lhs.color_hash == rhs.color_hash
             && lhs.metrics_hash == rhs.metrics_hash;
-    }
-
-    void click(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
     }
 }
 
@@ -96,9 +83,9 @@ int main() {
     }
 
     auto access = scene.access();
-    click(scene, kSourceBounds, 10);
+    vivid::evidence::click_center(scene, kSourceBounds, 10);
     auto access_after_source_click = scene.access();
-    if (!vivid::evidence::expect(same_handle(access_after_source_click.input_focused(), source),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access_after_source_click.input_focused(), source),
                                  "source receives initial focus")) {
         return 1;
     }
@@ -135,16 +122,16 @@ int main() {
             ++mouse_down;
         } else if (event.event.type == Event::Type::FocusOut) {
             ++focus_out;
-            focus_out_source = focus_out_source || same_handle(event.target, source);
+            focus_out_source = focus_out_source || vivid::evidence::same_handle(event.target, source);
         } else if (event.event.type == Event::Type::FocusIn) {
             ++focus_in;
-            focus_in_destination = focus_in_destination || same_handle(event.target, destination);
+            focus_in_destination = focus_in_destination || vivid::evidence::same_handle(event.target, destination);
         }
     }
     if (!vivid::evidence::expect(mouse_down == 1, "transfer emits destination mouse down")) return 1;
     if (!vivid::evidence::expect(focus_out == 1 && focus_out_source, "transfer emits source FocusOut")) return 1;
     if (!vivid::evidence::expect(focus_in == 1 && focus_in_destination, "transfer emits destination FocusIn")) return 1;
-    if (!vivid::evidence::expect(same_handle(transfer_access.input_focused(), destination),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(transfer_access.input_focused(), destination),
                                  "destination becomes focused during transfer")) {
         return 1;
     }
@@ -163,7 +150,7 @@ int main() {
                                       1,
                                       21));
     auto after_transfer = scene.access();
-    if (!vivid::evidence::expect(same_handle(after_transfer.input_focused(), destination),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(after_transfer.input_focused(), destination),
                                  "destination remains focused after release")) {
         return 1;
     }

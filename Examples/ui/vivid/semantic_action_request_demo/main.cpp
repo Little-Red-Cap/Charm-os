@@ -30,9 +30,6 @@ namespace {
         WidgetHandle duplicate{};
     };
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs == rhs;
-    }
 
     [[nodiscard]] std::size_t click_events_since(::ui::scene::SceneAccess& access,
                                                  WidgetHandle target,
@@ -40,7 +37,7 @@ namespace {
         std::size_t count = 0;
         for (std::size_t index = begin; index < access.input_event_count(); ++index) {
             const auto& event = access.input_event(index);
-            if (same_handle(event.target, target) && event.event.type == Event::Type::Click) {
+            if (vivid::evidence::same_handle(event.target, target) && event.event.type == Event::Type::Click) {
                 ++count;
             }
         }
@@ -109,7 +106,7 @@ int main() {
                 access.input_event_count());
     if (!vivid::evidence::expect(resolution.status == SemanticIntentStatus::Resolved
                                  && resolution.executable
-                                 && same_handle(resolution.handle, handles.toggle),
+                                 && vivid::evidence::same_handle(resolution.handle, handles.toggle),
                                  "semantic action intent resolves target")) {
         return 1;
     }
@@ -134,7 +131,7 @@ int main() {
                                  "activate request reuses normal click behavior")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(access.input_focused(), handles.toggle),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), handles.toggle),
                                  "activate request prepares focus before execution")) {
         return 1;
     }
@@ -196,7 +193,7 @@ int main() {
                 semantic_action_request_reject_reason_name(missing_id.reject_reason),
                 ambiguous.emitted_click ? 1 : 0,
                 missing_id.emitted_click ? 1 : 0,
-                same_handle(access.input_focused(), handles.toggle) ? 1 : 0);
+                vivid::evidence::same_handle(access.input_focused(), handles.toggle) ? 1 : 0);
     if (!vivid::evidence::expect(ambiguous.status == SemanticActionRequestStatus::Rejected
                                  && ambiguous.reject_reason == SemanticActionRequestRejectReason::ActionAdmissionRejected
                                  && ambiguous.admission.status == SemanticActionAdmissionStatus::AmbiguousId,

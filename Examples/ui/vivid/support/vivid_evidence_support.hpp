@@ -95,6 +95,17 @@ namespace vivid::evidence {
         return true;
     }
 
+    [[nodiscard]] inline bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
+        return lhs == rhs;
+    }
+
+    inline void click_center(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
+        const int x = bounds.x + bounds.w / 2;
+        const int y = bounds.y + bounds.h / 2;
+        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
+        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
+    }
+
     [[nodiscard]] inline std::uint32_t hash_mix(std::uint32_t hash, std::uint32_t value) noexcept {
         hash ^= value;
         hash *= 16777619u;

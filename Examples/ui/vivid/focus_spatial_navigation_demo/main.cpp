@@ -30,11 +30,6 @@ namespace {
         WidgetHandle outside{};
     };
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs.kind == rhs.kind
-            && lhs.index == rhs.index
-            && lhs.generation == rhs.generation;
-    }
 
     void mouse_down(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
         const int x = bounds.x + bounds.w / 2;
@@ -63,10 +58,10 @@ namespace {
             const auto& event = access.input_event(index);
             if (event.event.type == Event::Type::FocusOut) {
                 ++out.focus_out;
-                out.focus_out_expected = out.focus_out_expected || same_handle(event.target, old_target);
+                out.focus_out_expected = out.focus_out_expected || vivid::evidence::same_handle(event.target, old_target);
             } else if (event.event.type == Event::Type::FocusIn) {
                 ++out.focus_in;
-                out.focus_in_expected = out.focus_in_expected || same_handle(event.target, new_target);
+                out.focus_in_expected = out.focus_in_expected || vivid::evidence::same_handle(event.target, new_target);
             }
         }
         return out;
@@ -79,7 +74,7 @@ namespace {
         const auto trace = collect_focus_move(access, old_target, new_target);
         if (!vivid::evidence::expect(trace.focus_out == 1 && trace.focus_out_expected, label)) return false;
         if (!vivid::evidence::expect(trace.focus_in == 1 && trace.focus_in_expected, label)) return false;
-        if (!vivid::evidence::expect(same_handle(access.input_focused(), new_target), label)) return false;
+        if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), new_target), label)) return false;
         return true;
     }
 }
@@ -133,12 +128,12 @@ int main() {
         const auto& event = initial.input_event(index);
         if (event.event.type == Event::Type::FocusIn) {
             ++initial_focus_in;
-            initial_focus_in_origin = initial_focus_in_origin || same_handle(event.target, handles.origin);
+            initial_focus_in_origin = initial_focus_in_origin || vivid::evidence::same_handle(event.target, handles.origin);
         }
     }
     if (!vivid::evidence::expect(initial_focus_in == 1 && initial_focus_in_origin,
                                  "origin receives initial FocusIn")) return 1;
-    if (!vivid::evidence::expect(same_handle(initial.input_focused(), handles.origin),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(initial.input_focused(), handles.origin),
                                  "initial focus truth is origin")) return 1;
     mouse_up(scene, kOriginBounds, 11);
 
@@ -213,7 +208,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Right, 80));
     auto outside_skip = scene.access();
     if (!expect_focus_move(outside_skip, handles.top, handles.right, "right chooses inside scope instead of outside")) return 1;
-    if (!vivid::evidence::expect(!same_handle(outside_skip.input_focused(), handles.outside),
+    if (!vivid::evidence::expect(!vivid::evidence::same_handle(outside_skip.input_focused(), handles.outside),
                                  "outside is not selected by spatial navigation")) return 1;
     const auto outside_after = vivid::evidence::render_scene(scene, canvas, kOutsideBounds);
     if (!vivid::evidence::expect(outside_after.cmd_hash == outside_baseline.cmd_hash,

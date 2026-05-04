@@ -1,4 +1,4 @@
-﻿#include <cstddef>
+#include <cstddef>
 #include <cstdio>
 
 import charm.core.event;
@@ -32,11 +32,6 @@ namespace {
         WidgetHandle modal_b{};
     };
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs.kind == rhs.kind
-            && lhs.index == rhs.index
-            && lhs.generation == rhs.generation;
-    }
 
     void mouse_down(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
         const int x = bounds.x + bounds.w / 2;
@@ -65,14 +60,14 @@ namespace {
         EventCounts out{};
         for (std::size_t index = 0; index < access.input_event_count(); ++index) {
             const auto& event = access.input_event(index);
-            if (event.event.type == Event::Type::MouseDown && same_handle(event.target, mouse_target)) {
+            if (event.event.type == Event::Type::MouseDown && vivid::evidence::same_handle(event.target, mouse_target)) {
                 ++out.mouse_down;
             } else if (event.event.type == Event::Type::FocusOut) {
                 ++out.focus_out;
-                out.focus_out_expected = out.focus_out_expected || same_handle(event.target, focus_out_target);
+                out.focus_out_expected = out.focus_out_expected || vivid::evidence::same_handle(event.target, focus_out_target);
             } else if (event.event.type == Event::Type::FocusIn) {
                 ++out.focus_in;
-                out.focus_in_expected = out.focus_in_expected || same_handle(event.target, focus_in_target);
+                out.focus_in_expected = out.focus_in_expected || vivid::evidence::same_handle(event.target, focus_in_target);
             }
         }
         return out;
@@ -121,11 +116,11 @@ int main() {
     std::printf(" base_targets=2 modal_targets=2 root_targets=2 nested=1\n");
 
     auto access = scene.access();
-    if (!vivid::evidence::expect(same_handle(access.input_focus_scope(), handles.base_scope),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focus_scope(), handles.base_scope),
                                  "base focus scope is installed")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(access.input_focus_scope_fallback(), handles.base_b),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focus_scope_fallback(), handles.base_b),
                                  "base fallback is installed")) {
         return 1;
     }
@@ -146,7 +141,7 @@ int main() {
                                  "base_a receives FocusIn")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(base_initial.input_focused(), handles.base_a),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(base_initial.input_focused(), handles.base_a),
                                  "input focus commits to base_a")) {
         return 1;
     }
@@ -165,7 +160,7 @@ int main() {
     auto push_access = scene.access();
     const bool pushed = push_access.push_focus_scope(handles.modal_scope, handles.modal_a, true);
     if (!vivid::evidence::expect(pushed, "modal focus scope push succeeds")) return 1;
-    if (!vivid::evidence::expect(same_handle(push_access.input_focus_scope(), handles.modal_scope),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(push_access.input_focus_scope(), handles.modal_scope),
                                  "modal focus scope becomes active")) {
         return 1;
     }
@@ -190,7 +185,7 @@ int main() {
                                  "modal_b receives FocusIn")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(modal_inside.input_focused(), handles.modal_b),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(modal_inside.input_focused(), handles.modal_b),
                                  "input focus commits to modal_b")) {
         return 1;
     }
@@ -220,7 +215,7 @@ int main() {
                                  "modal trap rejects base focus transfer")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(modal_trap.input_focused(), handles.modal_b),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(modal_trap.input_focused(), handles.modal_b),
                                  "input focus remains in modal scope")) {
         return 1;
     }
@@ -246,7 +241,7 @@ int main() {
     auto pop_access = scene.access();
     const bool popped = pop_access.pop_focus_scope();
     if (!vivid::evidence::expect(popped, "modal focus scope pop succeeds")) return 1;
-    if (!vivid::evidence::expect(same_handle(pop_access.input_focus_scope(), handles.base_scope),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(pop_access.input_focus_scope(), handles.base_scope),
                                  "base focus scope is restored")) {
         return 1;
     }
@@ -271,7 +266,7 @@ int main() {
                                  "restored base scope focuses fallback")) {
         return 1;
     }
-    if (!vivid::evidence::expect(same_handle(restored_trap.input_focused(), handles.base_b),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(restored_trap.input_focused(), handles.base_b),
                                  "restored base scope redirects outside request to fallback")) {
         return 1;
     }

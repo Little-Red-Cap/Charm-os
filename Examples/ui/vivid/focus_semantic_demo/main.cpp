@@ -29,24 +29,11 @@ namespace {
         WidgetHandle outside{};
     };
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs.kind == rhs.kind
-            && lhs.index == rhs.index
-            && lhs.generation == rhs.generation;
-    }
-
     [[nodiscard]] bool style_evidence_equal(const ResolvedStyleEvidence& lhs,
                                             const ResolvedStyleEvidence& rhs) noexcept {
         return lhs.style_key == rhs.style_key
             && lhs.color_hash == rhs.color_hash
             && lhs.metrics_hash == rhs.metrics_hash;
-    }
-
-    void click(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
     }
 
     struct FocusMoveTrace {
@@ -64,12 +51,12 @@ namespace {
             const auto& event = access.input_event(index);
             if (event.event.type == Event::Type::FocusOut) {
                 ++out.focus_out;
-                out.focus_out_expected = out.focus_out_expected || same_handle(event.target, old_target);
-            } else if (event.event.type == Event::Type::FocusIn) {
-                ++out.focus_in;
-                out.focus_in_expected = out.focus_in_expected || same_handle(event.target, new_target);
-            }
+            out.focus_out_expected = out.focus_out_expected || vivid::evidence::same_handle(event.target, old_target);
+        } else if (event.event.type == Event::Type::FocusIn) {
+            ++out.focus_in;
+            out.focus_in_expected = out.focus_in_expected || vivid::evidence::same_handle(event.target, new_target);
         }
+    }
         return out;
     }
 }
@@ -138,7 +125,7 @@ int main() {
     run_log.case_begin("decorative_excluded");
     std::printf(" widget=label decorative_present=1 decorative_semantic=0 focusable=0 semantic_found=0\n");
 
-    click(scene, kPrimaryBounds, 10);
+    vivid::evidence::click_center(scene, kPrimaryBounds, 10);
     auto primary_access = scene.access();
     const auto primary_semantic = primary_access.semantic_focus_snapshot();
     if (!vivid::evidence::expect(primary_semantic.found, "primary focus resolves semantic target")) return 1;
@@ -207,7 +194,7 @@ int main() {
     const auto outside_skip_semantic = outside_access.semantic_focus_snapshot();
     if (!vivid::evidence::expect(outside_skip_semantic.found,
                                  "inside fallback focus still resolves semantic target")) return 1;
-    if (!vivid::evidence::expect(!same_handle(outside_access.input_focused(), handles.outside),
+    if (!vivid::evidence::expect(!vivid::evidence::same_handle(outside_access.input_focused(), handles.outside),
                                  "outside semantic target is not selected by active scope navigation")) return 1;
 
     run_log.case_begin("outside_semantic_not_selected");
@@ -237,7 +224,7 @@ int main() {
                 focused_evidence.color_hash,
                 focused_evidence.metrics_hash);
 
-    const Rect aligned_bounds = same_handle(outside_access.input_focused(), handles.primary)
+    const Rect aligned_bounds = vivid::evidence::same_handle(outside_access.input_focused(), handles.primary)
         ? kPrimaryBounds
         : kSecondaryBounds;
     const auto aligned_artifact = vivid::evidence::render_scene(scene, canvas, aligned_bounds);

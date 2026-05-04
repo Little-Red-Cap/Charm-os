@@ -87,16 +87,9 @@ int main() {
 
     vivid::evidence::mouse_down_center(scene, kOriginBounds, 10);
     auto initial = scene.access();
-    int initial_focus_in = 0;
-    bool initial_focus_in_origin = false;
-    for (std::size_t index = 0; index < initial.input_event_count(); ++index) {
-        const auto& event = initial.input_event(index);
-        if (event.event.type == Event::Type::FocusIn) {
-            ++initial_focus_in;
-            initial_focus_in_origin = initial_focus_in_origin || vivid::evidence::same_handle(event.target, handles.origin);
-        }
-    }
-    if (!vivid::evidence::expect(initial_focus_in == 1 && initial_focus_in_origin,
+    const auto initial_trace =
+        vivid::evidence::collect_pointer_focus_trace(initial, handles.origin, {}, handles.origin);
+    if (!vivid::evidence::expect(initial_trace.focus_in == 1 && initial_trace.focus_in_expected,
                                  "origin receives initial FocusIn")) return 1;
     if (!vivid::evidence::expect(vivid::evidence::same_handle(initial.input_focused(), handles.origin),
                                  "initial focus truth is origin")) return 1;
@@ -108,7 +101,7 @@ int main() {
 
     run_log.case_begin("initial_focus");
     std::printf(" target=origin focus_in=%d input_truth=origin cmd_count=%zu pixel_hash=%u\n",
-                initial_focus_in,
+                initial_trace.focus_in,
                 origin_artifact.cmd_count,
                 origin_artifact.pixel_hash);
 

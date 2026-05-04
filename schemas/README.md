@@ -218,6 +218,14 @@
   - 用途偏向把一份 `front_page entry opening flow consumer` handoff 收成确定性 open order，
     明确 default entry、compare entry、fallback entries 与对应 opener 证据入口
 
+- `system_compiler.front_page_entry_opening_flow_consumer_plan.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_v0.md`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan.py`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
+  - 用途偏向把一份 `front_page entry opening flow consumer selector` open order 收成确定性执行计划，
+    明确 open-default、open-compare-neighbor、open-next actions 与对应 opener 证据入口
+
 - `system_compiler.front_page_entry_opening_flow_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`、
     `scripts/compare_system_compiler_front_page_entry_opening_flow.py`、

@@ -204,6 +204,33 @@ function Assert-Condition {
     }
 }
 
+function Assert-OpeningReason {
+    param(
+        [object]$OpeningReason,
+        [string[]]$ExpectedKinds,
+        [AllowNull()][object]$ExpectedDriftChanged,
+        [AllowNull()][object]$ExpectedDriftVerdict,
+        [string]$CaseName
+    )
+
+    Assert-Condition `
+        -Condition ($OpeningReason -is [System.Management.Automation.PSCustomObject] -or $OpeningReason -is [hashtable]) `
+        -Message ("case '{0}' expected opening_reason object" -f $CaseName)
+    Assert-Condition `
+        -Condition ($ExpectedKinds -contains [string]$OpeningReason.kind) `
+        -Message ("case '{0}' expected opening_reason kind in '{1}' but got '{2}'" -f $CaseName, ($ExpectedKinds -join ","), $OpeningReason.kind)
+    if ($null -ne $ExpectedDriftChanged) {
+        Assert-Condition `
+            -Condition ([bool]$OpeningReason.drift_changed -eq [bool]$ExpectedDriftChanged) `
+            -Message ("case '{0}' expected opening_reason.drift_changed '{1}' but got '{2}'" -f $CaseName, $ExpectedDriftChanged, $OpeningReason.drift_changed)
+    }
+    if ($null -ne $ExpectedDriftVerdict) {
+        Assert-Condition `
+            -Condition ([string]$OpeningReason.drift_verdict -eq [string]$ExpectedDriftVerdict) `
+            -Message ("case '{0}' expected opening_reason.drift_verdict '{1}' but got '{2}'" -f $CaseName, $ExpectedDriftVerdict, $OpeningReason.drift_verdict)
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $inputRootPath = Resolve-FullPath -Path $InputRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
@@ -252,6 +279,9 @@ try {
             ExpectedTier = "biography_ready"
             RequiredCapabilities = @("delivery_biography", "supporting_evidence", "supporting_testimony")
             ExpectedProvenanceCount = 0
+            ExpectedOpeningReasonKinds = @("delivery_biography")
+            ExpectedOpeningReasonDriftChanged = $false
+            ExpectedOpeningReasonDriftVerdict = ""
         },
         [ordered]@{
             Name = "root-world-compare"
@@ -260,6 +290,9 @@ try {
             ExpectedTier = "compare_ready"
             RequiredCapabilities = @("delivery_biography", "counterfactual_verdict", "supporting_evidence")
             ExpectedProvenanceCount = 0
+            ExpectedOpeningReasonKinds = @("counterfactual_verdict")
+            ExpectedOpeningReasonDriftChanged = $false
+            ExpectedOpeningReasonDriftVerdict = ""
         },
         [ordered]@{
             Name = "witness-ci-shelf"
@@ -268,6 +301,9 @@ try {
             ExpectedTier = "review_ready"
             RequiredCapabilities = @("grouped_review", "delivery_biography", "supporting_evidence", "shelf_compare")
             ExpectedProvenanceCount = 0
+            ExpectedOpeningReasonKinds = @("world_shelf_review", "world_shelf_review_drift", "grouped_review")
+            ExpectedOpeningReasonDriftChanged = $null
+            ExpectedOpeningReasonDriftVerdict = $null
         },
         [ordered]@{
             Name = "review-provenance"
@@ -276,6 +312,9 @@ try {
             ExpectedTier = "review_ready"
             RequiredCapabilities = @("grouped_review", "candidate_shelf", "baseline_shelf", "route_provenance")
             ExpectedProvenanceCount = 5
+            ExpectedOpeningReasonKinds = @("world_shelf_review", "world_shelf_review_drift", "grouped_review")
+            ExpectedOpeningReasonDriftChanged = $null
+            ExpectedOpeningReasonDriftVerdict = $null
         }
     )
 
@@ -309,6 +348,12 @@ try {
             Assert-Condition `
                 -Condition ([int]$capabilitySummary.entry_status.route_provenance_entry_count -eq [int]$case.ExpectedProvenanceCount) `
                 -Message ("case '{0}' expected route provenance count '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProvenanceCount, $capabilitySummary.entry_status.route_provenance_entry_count)
+            Assert-OpeningReason `
+                -OpeningReason $capabilitySummary.entry_status.opening_reason `
+                -ExpectedKinds ([string[]]$case.ExpectedOpeningReasonKinds) `
+                -ExpectedDriftChanged $case.ExpectedOpeningReasonDriftChanged `
+                -ExpectedDriftVerdict $case.ExpectedOpeningReasonDriftVerdict `
+                -CaseName $case.Name
 
             $availableCapabilities = @([string[]]$capabilitySummary.capability_summary.available_capability_ids)
             foreach ($capabilityId in @($case.RequiredCapabilities)) {

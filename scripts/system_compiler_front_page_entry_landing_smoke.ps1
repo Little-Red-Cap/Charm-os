@@ -222,6 +222,58 @@ function Test-AllPathsExist {
     return $true
 }
 
+function Test-CapabilityInputsReady {
+    param(
+        [string[]]$Paths
+    )
+
+    if (-not (Test-AllPathsExist -Paths $Paths)) {
+        return $false
+    }
+
+    foreach ($path in @($Paths)) {
+        try {
+            $summary = Load-JsonObject -Path $path
+        } catch {
+            return $false
+        }
+
+        $openingReason = $summary.entry_status.opening_reason
+        if ($openingReason -isnot [System.Management.Automation.PSCustomObject] -and $openingReason -isnot [hashtable]) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Assert-OpeningReason {
+    param(
+        [object]$OpeningReason,
+        [string[]]$ExpectedKinds,
+        [AllowNull()][object]$ExpectedDriftChanged,
+        [AllowNull()][object]$ExpectedDriftVerdict,
+        [string]$CaseName
+    )
+
+    Assert-Condition `
+        -Condition ($OpeningReason -is [System.Management.Automation.PSCustomObject] -or $OpeningReason -is [hashtable]) `
+        -Message ("case '{0}' expected opening_reason object" -f $CaseName)
+    Assert-Condition `
+        -Condition ($ExpectedKinds -contains [string]$OpeningReason.kind) `
+        -Message ("case '{0}' expected opening_reason kind in '{1}' but got '{2}'" -f $CaseName, ($ExpectedKinds -join ","), $OpeningReason.kind)
+    if ($null -ne $ExpectedDriftChanged) {
+        Assert-Condition `
+            -Condition ([bool]$OpeningReason.drift_changed -eq [bool]$ExpectedDriftChanged) `
+            -Message ("case '{0}' expected opening_reason.drift_changed '{1}' but got '{2}'" -f $CaseName, $ExpectedDriftChanged, $OpeningReason.drift_changed)
+    }
+    if ($null -ne $ExpectedDriftVerdict) {
+        Assert-Condition `
+            -Condition ([string]$OpeningReason.drift_verdict -eq [string]$ExpectedDriftVerdict) `
+            -Message ("case '{0}' expected opening_reason.drift_verdict '{1}' but got '{2}'" -f $CaseName, $ExpectedDriftVerdict, $OpeningReason.drift_verdict)
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $inputRootPath = Resolve-FullPath -Path $InputRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
@@ -256,6 +308,9 @@ $cases = @(
         ExpectedProvenanceRoots = 0
         ExpectedPrimaryQueryKind = "default_overview"
         ExpectedPrimaryQueryScope = "report"
+        ExpectedOpeningReasonKinds = @("delivery_biography")
+        ExpectedOpeningReasonDriftChanged = $false
+        ExpectedOpeningReasonDriftVerdict = ""
     },
     [ordered]@{
         Name = "root-world-compare"
@@ -266,6 +321,9 @@ $cases = @(
         ExpectedProvenanceRoots = 0
         ExpectedPrimaryQueryKind = "default_overview"
         ExpectedPrimaryQueryScope = "artifact_root"
+        ExpectedOpeningReasonKinds = @("counterfactual_verdict")
+        ExpectedOpeningReasonDriftChanged = $false
+        ExpectedOpeningReasonDriftVerdict = ""
     },
     [ordered]@{
         Name = "witness-ci-shelf"
@@ -276,6 +334,9 @@ $cases = @(
         ExpectedProvenanceRoots = 0
         ExpectedPrimaryQueryKind = "default_overview"
         ExpectedPrimaryQueryScope = "artifact_root"
+        ExpectedOpeningReasonKinds = @("world_shelf_review", "world_shelf_review_drift", "grouped_review")
+        ExpectedOpeningReasonDriftChanged = $null
+        ExpectedOpeningReasonDriftVerdict = $null
     },
     [ordered]@{
         Name = "review-provenance"
@@ -286,13 +347,16 @@ $cases = @(
         ExpectedProvenanceRoots = 3
         ExpectedPrimaryQueryKind = "default_overview"
         ExpectedPrimaryQueryScope = "artifact_root"
+        ExpectedOpeningReasonKinds = @("world_shelf_review", "world_shelf_review_drift", "grouped_review")
+        ExpectedOpeningReasonDriftChanged = $null
+        ExpectedOpeningReasonDriftVerdict = $null
     }
 )
 
 Push-Location $repoRoot
 try {
     $bootstrapInputs = @($cases | ForEach-Object { [string]$_.SummaryPath })
-    if (Test-AllPathsExist -Paths $bootstrapInputs) {
+    if (Test-CapabilityInputsReady -Paths $bootstrapInputs) {
         Write-Host "[FRONT-PAGE-ENTRY-LANDING-SMOKE] bootstrap=reuse-existing"
     } else {
         Invoke-ExternalTool `
@@ -318,6 +382,7 @@ try {
 
             Ensure-CapabilitySummaryPlaceholders -CapabilitySummaryPath $case.SummaryPath -CreatedPaths $temporaryPlaceholderPaths
 
+            $capabilitySummary = Load-JsonObject -Path $case.SummaryPath
             $caseOutputRoot = Join-Path $outputRootPath $case.Name
             Invoke-ExternalTool `
                 -Executable $resolvedPythonExe `
@@ -350,6 +415,15 @@ try {
             Assert-Condition `
                 -Condition ([string]$landingSummary.query_hints.primary_query.scope -eq $case.ExpectedPrimaryQueryScope) `
                 -Message ("case '{0}' expected primary query scope '{1}' but got '{2}'" -f $case.Name, $case.ExpectedPrimaryQueryScope, $landingSummary.query_hints.primary_query.scope)
+            Assert-OpeningReason `
+                -OpeningReason $landingSummary.landing_status.opening_reason `
+                -ExpectedKinds ([string[]]$case.ExpectedOpeningReasonKinds) `
+                -ExpectedDriftChanged $case.ExpectedOpeningReasonDriftChanged `
+                -ExpectedDriftVerdict $case.ExpectedOpeningReasonDriftVerdict `
+                -CaseName $case.Name
+            Assert-Condition `
+                -Condition (($landingSummary.landing_status.opening_reason | ConvertTo-Json -Depth 8 -Compress) -eq ($capabilitySummary.entry_status.opening_reason | ConvertTo-Json -Depth 8 -Compress)) `
+                -Message ("case '{0}' expected landing opening_reason to pass through capability opening_reason" -f $case.Name)
             Assert-Condition `
                 -Condition (@($landingSummary.query_hints.tab_queries).Count -eq @($landingSummary.landing_tabs).Count) `
                 -Message ("case '{0}' query_hints.tab_queries must match landing tab count" -f $case.Name)

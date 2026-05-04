@@ -38,6 +38,7 @@ Current `system_compiler.front_page_route` includes:
   - `scripts/validate_system_compiler_front_page_route.py`
 - smoke
   - `scripts/system_compiler_front_page_route_smoke.ps1`
+  - `scripts/system_compiler_front_page_route_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -98,6 +99,15 @@ The route summary currently records:
   - `cycle_entry_count`
   - `leaf_entry_count`
   - `max_depth`
+
+For the witness bundle sample, the current level-1 consumer route is expected
+to expose:
+
+- `runtime_evidence`
+- `kernel_runtime_session`
+
+The latter is intentionally a direct front-page surface, not just a witness
+entry buried inside the root bundle.
 
 The traversal semantics stay intentionally conservative.
 
@@ -165,6 +175,13 @@ compiler entry worlds:
 
 ```powershell
 ./scripts/system_compiler_front_page_route_smoke.ps1 -Clean
+```
+
+For a lighter schema/sample guard that does not require the full generated
+front-page workspace, run:
+
+```powershell
+./scripts/system_compiler_front_page_route_sample_smoke.ps1 -Clean
 ```
 
 Or inspect the route artifact that now appears automatically under a witness

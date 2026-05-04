@@ -164,6 +164,8 @@
     与 `scripts/validate_system_compiler_front_page_route.py`
   - 用途偏向把一个 root summary 的 `front_page` 消费路径收成可验证的 route 对象，
     明确记录 supporting surface 展开、revisit 与 cycle
+  - `scripts/system_compiler_front_page_route_sample_smoke.ps1` 会用 witness bundle sample 守住
+    `runtime_evidence / kernel_runtime_session` 这组同级 level-1 前台入口
   - 它当前也可把 `artifact_context.artifact_report_index` 提升成
     `provenance_route_kind = artifact_report_index`，让上层入口发现 artifact report root 的 first-read index，
     但不把它伪装成普通 front-page traversal edge

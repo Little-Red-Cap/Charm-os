@@ -149,11 +149,13 @@
 - System Compiler Front Page Entry Opening Flow Consumer v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`
 - System Compiler Front Page Entry Opening Flow Consumer Selector v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_v0.md`
 - System Compiler Front Page Entry Opening Flow Consumer Plan v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_v0.md`
+- System Compiler Front Page Entry Opening Flow Consumer Selector Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_v0.md`
 - System Compiler Front Page Entry Opening Flow Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`
 - System Compiler Front Page Entry Opening Flow smoke：`scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer selector smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer plan smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer selector compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer selector workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`
 - System Compiler Front Page Entry Opening Flow consumer workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1`
 - System Compiler Front Page Entry Opening Flow workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`

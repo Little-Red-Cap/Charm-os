@@ -163,6 +163,23 @@ v0 rules:
 - `resolved` means the target is focus-addressable now.
 - query must not emit `FocusIn/FocusOut`, mutate input focus truth, or draw focus ring artifacts.
 
+### Law 11: semantic focus admission is transfer permission, not transfer execution
+
+Semantic Focus Admission v0 turns a successful focus query into an explicit focus-transfer plan:
+
+```text
+root + semantic_id + current_focus + active_scope -> SemanticFocusAdmission
+```
+
+v0 rules:
+
+- admission reuses the root-bound `SemanticFocusQuery` result instead of performing a second semantic law.
+- query failures are mapped to admission rejection statuses with the same semantic reason.
+- `admitted` means the runtime may transfer focus later; it does not mean focus already moved.
+- `already_focused` is admitted but has `transfer_needed=0` and no planned `FocusOut/FocusIn`.
+- transfer plans must declare whether a future execution would emit `FocusOut` and `FocusIn`.
+- admission must not emit `FocusIn/FocusOut`, mutate input focus truth, or draw focus ring artifacts.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
@@ -227,6 +244,15 @@ stdout final contract:
 [sfq] run=semantic_focus_query_demo phase=end result=ok cases=7
 ```
 
+`Examples/ui/vivid/semantic_focus_admission_demo` is the first Semantic Focus Admission v0 runtime evidence.
+It verifies admitted transfer plans, already-focused no-op plans, no focus transfer side effects, non-focusable and disabled rejection, active-scope rejection, ambiguous duplicate ids, and invalid request statuses.
+
+stdout final contract:
+
+```text
+[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=7
+```
+
 核心字段：
 
 ```text
@@ -235,6 +261,10 @@ role=button/list_item
 actions=activate
 intent_status=resolved/ambiguous_id/unsupported_action/disabled
 focus_query_status=resolved/outside_active_scope/not_focusable/disabled
+focus_admission_status=admitted/already_focused/outside_active_scope/not_focusable/disabled
+transfer_needed=0/1
+focus_out=0/1
+focus_in=0/1
 semantic_found=1
 semantic_current=secondary
 semantic_hash=...

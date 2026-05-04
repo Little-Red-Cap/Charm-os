@@ -121,6 +121,40 @@ struct SemanticFocusQuery {
 };
 
 export
+enum class SemanticFocusAdmissionStatus : std::uint8_t {
+    Admitted = 0,
+    AlreadyFocused,
+    InvalidRoot,
+    MissingId,
+    NotFound,
+    AmbiguousId,
+    NotFocusable,
+    Disabled,
+    OutsideActiveScope,
+};
+
+export
+struct SemanticFocusAdmission {
+    WidgetHandle handle{};
+    WidgetHandle root{};
+    WidgetHandle current_focus{};
+    WidgetHandle active_scope{};
+    const char* id{""};
+    SemanticFocusQueryStatus query_status{SemanticFocusQueryStatus::NotFound};
+    SemanticFocusAdmissionStatus status{SemanticFocusAdmissionStatus::NotFound};
+    std::size_t visited_count{0};
+    std::size_t match_count{0};
+    bool found{false};
+    bool focusable{false};
+    bool allowed_by_scope{false};
+    bool focusable_now{false};
+    bool admitted{false};
+    bool transfer_needed{false};
+    bool will_emit_focus_out{false};
+    bool will_emit_focus_in{false};
+};
+
+export
 constexpr std::size_t kSemanticTreeMaxNodes = 32;
 
 export
@@ -263,6 +297,31 @@ inline const char* semantic_focus_query_status_name(SemanticFocusQueryStatus sta
     case SemanticFocusQueryStatus::Disabled:
         return "disabled";
     case SemanticFocusQueryStatus::OutsideActiveScope:
+        return "outside_active_scope";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_focus_admission_status_name(SemanticFocusAdmissionStatus status) noexcept {
+    switch (status) {
+    case SemanticFocusAdmissionStatus::Admitted:
+        return "admitted";
+    case SemanticFocusAdmissionStatus::AlreadyFocused:
+        return "already_focused";
+    case SemanticFocusAdmissionStatus::InvalidRoot:
+        return "invalid_root";
+    case SemanticFocusAdmissionStatus::MissingId:
+        return "missing_id";
+    case SemanticFocusAdmissionStatus::NotFound:
+        return "not_found";
+    case SemanticFocusAdmissionStatus::AmbiguousId:
+        return "ambiguous_id";
+    case SemanticFocusAdmissionStatus::NotFocusable:
+        return "not_focusable";
+    case SemanticFocusAdmissionStatus::Disabled:
+        return "disabled";
+    case SemanticFocusAdmissionStatus::OutsideActiveScope:
         return "outside_active_scope";
     }
     return "unknown";

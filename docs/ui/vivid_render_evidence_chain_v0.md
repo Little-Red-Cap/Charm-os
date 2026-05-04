@@ -233,3 +233,16 @@ semantic tree root
 ```
 
 The demo guards resolved focus targets, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
+
+## 2026-05 Addendum: Semantic Focus Admission
+
+`Examples/ui/vivid/semantic_focus_admission_demo` verifies Semantic Focus Admission v0. It keeps transfer permission separate from transfer execution:
+
+```text
+semantic tree root
+  -> semantic id + current focus + active scope
+  -> SemanticFocusAdmission
+  -> transfer plan / rejection status
+```
+
+The demo guards admitted transfer plans, already-focused no-op plans, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.

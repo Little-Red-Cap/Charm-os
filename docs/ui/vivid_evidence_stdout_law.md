@@ -25,6 +25,7 @@
 - `Examples/ui/vivid/semantic_action_demo`
 - `Examples/ui/vivid/semantic_intent_demo`
 - `Examples/ui/vivid/semantic_focus_query_demo`
+- `Examples/ui/vivid/semantic_focus_admission_demo`
 - `Examples/ui/vivid/widget_signal_demo`
 - `Examples/ui/vivid/widget_state_demo`
 
@@ -95,6 +96,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `semantic_action_demo` | `sact` | `[sact] run=semantic_action_demo phase=end result=ok cases=6` |
 | `semantic_intent_demo` | `sint` | `[sint] run=semantic_intent_demo phase=end result=ok cases=7` |
 | `semantic_focus_query_demo` | `sfq` | `[sfq] run=semantic_focus_query_demo phase=end result=ok cases=7` |
+| `semantic_focus_admission_demo` | `sfa` | `[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=7` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 

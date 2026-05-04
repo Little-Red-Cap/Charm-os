@@ -444,3 +444,18 @@ This keeps focus lookup in the Semantic Plane while preserving the boundary that
 Current evidence:
 
 - `Examples/ui/vivid/semantic_focus_query_demo` proves root-bound semantic focus lookup, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
+
+## 2026-05 Addendum: Semantic Focus Admission
+
+Vivid can now decide whether a semantic focus transfer is permitted without executing that transfer:
+
+```text
+root + semantic_id + current_focus + active_scope
+  -> SemanticFocusAdmission
+```
+
+This belongs between the Semantic Plane and Input Runtime. It preserves the boundary that `FocusIn/FocusOut`, input focus truth mutation, and focus ring artifact generation remain execution-time actions, while admission records whether those actions would be needed.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_focus_admission_demo` proves admitted transfer plans, already-focused no-op plans, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.

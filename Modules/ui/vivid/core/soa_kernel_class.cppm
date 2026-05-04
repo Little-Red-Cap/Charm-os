@@ -577,6 +577,62 @@ public:
         return out;
     }
 
+    SemanticFocusAdmission admit_semantic_focus(WidgetHandle root, const char* id) const noexcept {
+        const SemanticFocusQuery query = query_semantic_focus(root, id);
+        SemanticFocusAdmission out{};
+        out.handle = query.handle;
+        out.root = query.root;
+        out.current_focus = input_.focused;
+        out.active_scope = query.active_scope;
+        out.id = query.id;
+        out.query_status = query.status;
+        out.visited_count = query.visited_count;
+        out.match_count = query.match_count;
+        out.found = query.found;
+        out.focusable = query.focusable;
+        out.allowed_by_scope = query.allowed_by_scope;
+        out.focusable_now = query.focusable_now;
+
+        switch (query.status) {
+        case SemanticFocusQueryStatus::Resolved:
+            break;
+        case SemanticFocusQueryStatus::InvalidRoot:
+            out.status = SemanticFocusAdmissionStatus::InvalidRoot;
+            return out;
+        case SemanticFocusQueryStatus::MissingId:
+            out.status = SemanticFocusAdmissionStatus::MissingId;
+            return out;
+        case SemanticFocusQueryStatus::NotFound:
+            out.status = SemanticFocusAdmissionStatus::NotFound;
+            return out;
+        case SemanticFocusQueryStatus::AmbiguousId:
+            out.status = SemanticFocusAdmissionStatus::AmbiguousId;
+            return out;
+        case SemanticFocusQueryStatus::NotFocusable:
+            out.status = SemanticFocusAdmissionStatus::NotFocusable;
+            return out;
+        case SemanticFocusQueryStatus::Disabled:
+            out.status = SemanticFocusAdmissionStatus::Disabled;
+            return out;
+        case SemanticFocusQueryStatus::OutsideActiveScope:
+            out.status = SemanticFocusAdmissionStatus::OutsideActiveScope;
+            return out;
+        }
+
+        if (input_.focused == query.handle) {
+            out.status = SemanticFocusAdmissionStatus::AlreadyFocused;
+            out.admitted = true;
+            return out;
+        }
+
+        out.status = SemanticFocusAdmissionStatus::Admitted;
+        out.admitted = true;
+        out.transfer_needed = true;
+        out.will_emit_focus_out = static_cast<bool>(input_.focused);
+        out.will_emit_focus_in = static_cast<bool>(query.handle);
+        return out;
+    }
+
     SemanticTreeSnapshot semantic_tree_snapshot(
         WidgetHandle root,
         std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {

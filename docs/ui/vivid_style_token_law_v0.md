@@ -158,6 +158,8 @@ impact=<impact_name>
 impact_mask=<mask>
 color_changed=1
 metrics_same=1
+artifact_delta=1
+dirty_within_component=1
 ```
 
 这些字段证明：

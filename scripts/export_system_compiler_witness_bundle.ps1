@@ -119,6 +119,17 @@ function Load-JsonObject {
     return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
 }
 
+function Write-Utf8NoBomText {
+    param(
+        [string]$Path,
+        [string]$Text
+    )
+
+    Ensure-ParentDirectory -Path $Path
+    $encoding = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($Path, $Text, $encoding)
+}
+
 function Add-CountMapEntry {
     param(
         [hashtable]$Counts,
@@ -485,7 +496,34 @@ function Get-ExistingArtifactRefsFromRuntimeEvidenceSummary {
     return @($refs | Select-Object -Unique)
 }
 
-function Load-KernelRuntimeSessionSummaryInfo {
+function Resolve-SessionSummaryPathFromRuntimeEvidence {
+    param(
+        $SummaryInfo
+    )
+
+    if ($null -eq $SummaryInfo -or $null -eq $SummaryInfo.Data) {
+        return ""
+    }
+    $sessionView = $null
+    if ($null -ne $SummaryInfo.Data.PSObject.Properties["session"] -and $null -ne $SummaryInfo.Data.session) {
+        $sessionView = $SummaryInfo.Data.session
+    } elseif ($null -ne $SummaryInfo.Data.PSObject.Properties["session_summary"] -and $null -ne $SummaryInfo.Data.session_summary) {
+        $sessionView = $SummaryInfo.Data.session_summary
+    }
+
+    if ($null -eq $sessionView) {
+        return ""
+    }
+
+    $sessionPath = [string]$sessionView.summary_path
+    if ([string]::IsNullOrWhiteSpace($sessionPath)) {
+        return ""
+    }
+
+    return Resolve-PathNearBase -BasePath $SummaryInfo.Path -Value $sessionPath
+}
+
+function Load-KernelRuntimeSessionInfo {
     param(
         [string]$Path,
         [string]$BasePath = ""
@@ -518,28 +556,26 @@ function Load-KernelRuntimeSessionSummaryInfo {
     }
 }
 
+function Load-KernelRuntimeSessionSummaryInfo {
+    param(
+        [string]$Path,
+        [string]$BasePath = ""
+    )
+
+    return Load-KernelRuntimeSessionInfo -Path $Path -BasePath $BasePath
+}
+
 function Resolve-KernelRuntimeSessionSummaryInfo {
     param(
         $RuntimeEvidenceSummaryInfo
     )
 
-    if ($null -eq $RuntimeEvidenceSummaryInfo) {
+    $sessionSummaryPath = Resolve-SessionSummaryPathFromRuntimeEvidence -SummaryInfo $RuntimeEvidenceSummaryInfo
+    if ([string]::IsNullOrWhiteSpace($sessionSummaryPath)) {
         return $null
     }
 
-    $summary = $RuntimeEvidenceSummaryInfo.Data
-    $sessionView = $null
-    if ($null -ne $summary.PSObject.Properties["session"] -and $null -ne $summary.session) {
-        $sessionView = $summary.session
-    } elseif ($null -ne $summary.PSObject.Properties["session_summary"] -and $null -ne $summary.session_summary) {
-        $sessionView = $summary.session_summary
-    }
-
-    if ($null -eq $sessionView -or [string]::IsNullOrWhiteSpace([string]$sessionView.summary_path)) {
-        return $null
-    }
-
-    return Load-KernelRuntimeSessionSummaryInfo -Path ([string]$sessionView.summary_path) -BasePath $RuntimeEvidenceSummaryInfo.Path
+    return Load-KernelRuntimeSessionInfo -Path $sessionSummaryPath
 }
 
 function Resolve-KernelRuntimeSessionSurfaceInfo {
@@ -600,7 +636,7 @@ function Resolve-KernelRuntimeSessionSurfaceInfo {
 function Get-ExistingArtifactRefsFromKernelRuntimeSession {
     param(
         $SessionInfo,
-        $RuntimeEvidenceSummaryInfo
+        $RuntimeEvidenceSummaryInfo = $null
     )
 
     $refs = [System.Collections.Generic.List[string]]::new()
@@ -639,16 +675,18 @@ function Get-ExistingArtifactRefsFromKernelRuntimeSession {
             }
         }
 
-        if ($null -ne $SessionInfo.Data.PSObject.Properties["artifact_paths"] -and $null -ne $SessionInfo.Data.artifact_paths) {
-            foreach ($pathValue in @([string]$SessionInfo.Data.artifact_paths.report, [string]$SessionInfo.Data.artifact_paths.check)) {
-                if ([string]::IsNullOrWhiteSpace($pathValue)) {
-                    continue
-                }
+    }
 
-                $artifactPath = Resolve-PathNearBase -BasePath $SessionInfo.Path -Value $pathValue
-                if (Test-Path $artifactPath) {
-                    $refs.Add($artifactPath) | Out-Null
-                }
+    if ($null -ne $SessionInfo.Data.PSObject.Properties["artifact_paths"] -and $null -ne $SessionInfo.Data.artifact_paths) {
+        foreach ($property in @($SessionInfo.Data.artifact_paths.PSObject.Properties)) {
+            $value = [string]$property.Value
+            if ([string]::IsNullOrWhiteSpace($value)) {
+                continue
+            }
+
+            $candidate = Resolve-PathNearBase -BasePath $SessionInfo.Path -Value $value
+            if (Test-Path $candidate) {
+                $refs.Add($candidate) | Out-Null
             }
         }
     }
@@ -766,39 +804,37 @@ function New-RuntimeEvidenceWitnessEntry {
 function New-KernelRuntimeSessionWitnessEntry {
     param(
         $PlanEntry,
-        $RuntimeEvidenceSummaryInfo
+        $SessionInfo,
+        $RuntimeEvidenceSummaryInfo = $null
     )
 
-    $sessionInfo = Resolve-KernelRuntimeSessionSummaryInfo -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo
-    if ($null -eq $sessionInfo) {
-        return (New-MissingWitnessEntry -PlanEntry $PlanEntry -SourcePath $null -Observation "kernel runtime session summary missing")
+    if ($null -eq $SessionInfo) {
+        return (New-MissingWitnessEntry -PlanEntry $PlanEntry -SourcePath ([string]$PlanEntry.path) -Observation "kernel runtime session summary missing")
     }
 
-    $session = $sessionInfo.Data
+    $session = $SessionInfo.Data
+    $verdict = $session.verdict
+    $semantic = $session.semantic_witness
+    $machine = $session.machine_witness
+    $runtime = $session.runtime
+    $ledger = $session.ledger
     $observations = [System.Collections.Generic.List[string]]::new()
-    $observations.Add(("session_status={0}" -f [string]$session.verdict.session_status)) | Out-Null
-    $observations.Add(("semantic_host={0}" -f [bool]$session.semantic_witness.host)) | Out-Null
-    $observations.Add(("machine_qemu={0}" -f [bool]$session.machine_witness.qemu)) | Out-Null
-    $observations.Add(("trap_ingress={0}" -f [bool]$session.machine_witness.trap_ingress)) | Out-Null
-    $observations.Add(("runtime_loop={0}" -f [bool]$session.machine_witness.runtime_loop)) | Out-Null
-    $observations.Add(("handoff_continuity={0}" -f [bool]$session.runtime.handoff_continuity)) | Out-Null
 
-    $failures = @()
-    if ($null -ne $session.PSObject.Properties["failures"] -and $null -ne $session.failures) {
-        $failures = @($session.failures)
+    $observations.Add(("session_status={0}" -f [string]$verdict.session_status)) | Out-Null
+    $observations.Add(("semantic={0}" -f [string]$semantic.status)) | Out-Null
+    $observations.Add(("machine={0}" -f [string]$machine.status)) | Out-Null
+    $observations.Add(("runtime=tick:{0} trap:{1} thread:{2} task_syscall:{3} handoff:{4}" -f [bool]$runtime.tick, [bool]$runtime.trap, [bool]$runtime.thread, [bool]$runtime.task_syscall, [bool]$runtime.handoff_continuity)) | Out-Null
+    $observations.Add(("ledger_events={0}" -f [int]$ledger.event_count)) | Out-Null
+    $observations.Add(("failures={0}" -f @($session.failures).Count)) | Out-Null
+    foreach ($failure in @($session.failures)) {
+        $focusText = (@($failure.focus) -join ",")
+        $observations.Add(("failure={0} domain={1} layer={2} phase={3} focus={4}" -f [string]$failure.code, [string]$failure.domain, [string]$failure.layer, [string]$failure.phase, $focusText)) | Out-Null
     }
 
-    if (@($failures).Count -gt 0) {
-        $firstFailure = $failures[0]
-        if ($null -ne $firstFailure.PSObject.Properties["code"] -and -not [string]::IsNullOrWhiteSpace([string]$firstFailure.code)) {
-            $observations.Add(("failure={0}" -f [string]$firstFailure.code)) | Out-Null
-        } elseif (-not [string]::IsNullOrWhiteSpace([string]$firstFailure)) {
-            $observations.Add(("failure={0}" -f [string]$firstFailure)) | Out-Null
-        }
-    } elseif ($null -ne $session.verdict.PSObject.Properties["failure_domain"] -and -not [string]::IsNullOrWhiteSpace([string]$session.verdict.failure_domain)) {
-        $observations.Add(("failure_domain={0}" -f [string]$session.verdict.failure_domain)) | Out-Null
-    } elseif ($null -ne $session.verdict.PSObject.Properties["failure"] -and $null -ne $session.verdict.failure) {
-        $observations.Add(("failure={0}" -f [string]$session.verdict.failure.code)) | Out-Null
+    $sessionCaseName = if ([string]::IsNullOrWhiteSpace([string]$PlanEntry.case)) {
+        [string]$session.session_id
+    } else {
+        [string]$PlanEntry.case
     }
 
     return [ordered]@{
@@ -808,13 +844,13 @@ function New-KernelRuntimeSessionWitnessEntry {
         role = [string]$PlanEntry.role
         layer = [string]$PlanEntry.layer
         required = [bool]$PlanEntry.required
-        status = $(if ([string]$session.verdict.session_status -eq "standing") { "ok" } else { "fail" })
+        status = $(if ([string]$verdict.session_status -eq "standing" -and @($session.failures).Count -eq 0) { "ok" } else { "fail" })
         witness_focus = @($PlanEntry.witness_focus)
-        case = $(if ([string]::IsNullOrWhiteSpace([string]$PlanEntry.case)) { [string]$session.session_id } else { [string]$PlanEntry.case })
-        source_path = $sessionInfo.Path
-        subject = New-EntrySubject -Case ([string]$session.session_id) -Profile ([string]$session.subject.profile) -Board ([string]$session.subject.board) -ActiveFacets @("session", "runtime", "ingress", "continuity")
+        case = $sessionCaseName
+        source_path = $SessionInfo.Path
+        subject = New-EntrySubject -Case $sessionCaseName -Profile ([string]$session.subject.profile) -Board ([string]$session.subject.board) -ActiveFacets @($PlanEntry.witness_focus)
         observations = @($observations)
-        artifact_refs = @(Get-ExistingArtifactRefsFromKernelRuntimeSession -SessionInfo $sessionInfo -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo)
+        artifact_refs = @(Get-ExistingArtifactRefsFromKernelRuntimeSession -SessionInfo $SessionInfo -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo)
     }
 }
 
@@ -938,6 +974,19 @@ function Get-DiscoveredPlan {
             -WitnessFocus @("upper-half", "lower-half", "bundle") `
             -CaseName "minimal-kernel-runtime-evidence" `
             -Path $RuntimeEvidenceSummaryInfo.Path
+
+        $sessionSummaryPath = Resolve-SessionSummaryPathFromRuntimeEvidence -SummaryInfo $RuntimeEvidenceSummaryInfo
+        if (-not [string]::IsNullOrWhiteSpace($sessionSummaryPath)) {
+            $plan += New-DiscoveredPlanEntry `
+                -Id "kernel_runtime_session" `
+                -Kind "kernel_runtime_session" `
+                -Label "minimal-kernel-runtime-session" `
+                -Role "discovered kernel runtime session witness" `
+                -Layer "session" `
+                -WitnessFocus @("session", "runtime", "ingress", "continuity") `
+                -CaseName "minimal_kernel_runtime.armv7a_qemu.debug" `
+                -Path $sessionSummaryPath
+        }
     }
 
     return @($plan)
@@ -1031,6 +1080,24 @@ function Resolve-RuntimeEvidenceForPlanEntry {
     return $null
 }
 
+function Resolve-KernelRuntimeSessionForPlanEntry {
+    param(
+        $PlanEntry,
+        $RuntimeEvidenceSummaryInfo
+    )
+
+    if ($null -ne $PlanEntry.path -and (Test-Path ([string]$PlanEntry.path))) {
+        return Load-KernelRuntimeSessionInfo -Path ([string]$PlanEntry.path)
+    }
+
+    $sessionSummaryPath = Resolve-SessionSummaryPathFromRuntimeEvidence -SummaryInfo $RuntimeEvidenceSummaryInfo
+    if (-not [string]::IsNullOrWhiteSpace($sessionSummaryPath) -and (Test-Path $sessionSummaryPath)) {
+        return Load-KernelRuntimeSessionInfo -Path $sessionSummaryPath
+    }
+
+    return $null
+}
+
 function New-WitnessEntry {
     param(
         $PlanEntry,
@@ -1051,7 +1118,8 @@ function New-WitnessEntry {
             return (New-RuntimeEvidenceWitnessEntry -PlanEntry $PlanEntry -SummaryInfo $summaryInfo)
         }
         "kernel_runtime_session" {
-            return (New-KernelRuntimeSessionWitnessEntry -PlanEntry $PlanEntry -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo)
+            $sessionInfo = Resolve-KernelRuntimeSessionForPlanEntry -PlanEntry $PlanEntry -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo
+            return (New-KernelRuntimeSessionWitnessEntry -PlanEntry $PlanEntry -SessionInfo $sessionInfo -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo)
         }
         "example_ref" {
             return (New-ExampleRefWitnessEntry -PlanEntry $PlanEntry -ResolvedPath ([string]$PlanEntry.path))
@@ -1171,8 +1239,7 @@ $bundleObject = [ordered]@{
     violations = @($violations)
 }
 
-Ensure-ParentDirectory -Path $summaryPathResolved
-$bundleObject | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPathResolved -Encoding utf8
+Write-Utf8NoBomText -Path $summaryPathResolved -Text (($bundleObject | ConvertTo-Json -Depth 8) + "`n")
 
 $reportBuilder = [System.Text.StringBuilder]::new()
 [void]$reportBuilder.AppendLine("# System Compiler Witness Bundle")
@@ -1252,8 +1319,7 @@ if ($violations.Count -gt 0) {
     }
 }
 
-Ensure-ParentDirectory -Path $reportMarkdownPathResolved
-Set-Content -LiteralPath $reportMarkdownPathResolved -Encoding utf8 ($reportBuilder.ToString())
+Write-Utf8NoBomText -Path $reportMarkdownPathResolved -Text ($reportBuilder.ToString())
 
 $checkBuilder = [System.Text.StringBuilder]::new()
 [void]$checkBuilder.AppendLine(("summary: {0}" -f $summaryPathResolved))
@@ -1267,7 +1333,7 @@ if ($violations.Count -gt 0) {
         [void]$checkBuilder.AppendLine(("- {0}" -f [string]$message))
     }
 }
-Set-Content -LiteralPath $checkTextPathResolved -Encoding utf8 ($checkBuilder.ToString())
+Write-Utf8NoBomText -Path $checkTextPathResolved -Text ($checkBuilder.ToString())
 
 Write-Host "[WITNESS] summary=$summaryPathResolved"
 Write-Host "[WITNESS] report=$reportMarkdownPathResolved"

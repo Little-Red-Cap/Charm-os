@@ -68,6 +68,22 @@
       "path": null
     },
     {
+      "id": "kernel_runtime_session_sample",
+      "kind": "kernel_runtime_session",
+      "label": "minimal-kernel-runtime-session",
+      "role": "joint semantic and machine session witness",
+      "layer": "session",
+      "required": true,
+      "witness_focus": [
+        "session",
+        "runtime",
+        "ingress",
+        "continuity"
+      ],
+      "case": "minimal_kernel_runtime.armv7a_qemu.debug",
+      "path": null
+    },
+    {
       "id": "session_roundtrip_example",
       "kind": "example_ref",
       "label": "runtime_task_message_session_roundtrip_host",

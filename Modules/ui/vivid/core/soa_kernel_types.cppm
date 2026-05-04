@@ -94,6 +94,208 @@ struct SemanticIntentResolution {
 };
 
 export
+enum class SemanticActionAdmissionStatus : std::uint8_t {
+    Admitted = 0,
+    InvalidRoot,
+    MissingId,
+    NotFound,
+    AmbiguousId,
+    UnsupportedAction,
+    Disabled,
+};
+
+export
+struct SemanticActionAdmission {
+    SemanticIntentResolution resolution{};
+    WidgetHandle handle{};
+    WidgetHandle root{};
+    const char* id{""};
+    SemanticAction action{SemanticAction::Activate};
+    SemanticIntentStatus intent_status{SemanticIntentStatus::NotFound};
+    SemanticActionAdmissionStatus status{SemanticActionAdmissionStatus::NotFound};
+    SemanticActionMask actions{0};
+    std::size_t visited_count{0};
+    std::size_t match_count{0};
+    bool found{false};
+    bool executable{false};
+    bool admitted{false};
+    bool will_request_focus{false};
+    bool will_emit_click{false};
+};
+
+export
+enum class SemanticActionRequestStatus : std::uint8_t {
+    Executed = 0,
+    Rejected,
+};
+
+export
+enum class SemanticActionRequestRejectReason : std::uint8_t {
+    None = 0,
+    ActionAdmissionRejected,
+    FocusRequestRejected,
+    InputActionOverflow,
+    NoActionEmitted,
+};
+
+export
+enum class SemanticActionRequestStage : std::uint8_t {
+    None = 0,
+    ActionAdmission,
+    FocusRequest,
+    Execution,
+};
+
+export
+enum class SemanticFocusQueryStatus : std::uint8_t {
+    Resolved = 0,
+    InvalidRoot,
+    MissingId,
+    NotFound,
+    AmbiguousId,
+    NotFocusable,
+    Disabled,
+    OutsideActiveScope,
+};
+
+export
+struct SemanticFocusQuery {
+    WidgetHandle handle{};
+    WidgetHandle root{};
+    WidgetHandle active_scope{};
+    const char* id{""};
+    SemanticFocusQueryStatus status{SemanticFocusQueryStatus::NotFound};
+    std::size_t visited_count{0};
+    std::size_t match_count{0};
+    bool found{false};
+    bool focusable{false};
+    bool allowed_by_scope{false};
+    bool focusable_now{false};
+};
+
+export
+enum class SemanticFocusAdmissionStatus : std::uint8_t {
+    Admitted = 0,
+    AlreadyFocused,
+    InvalidRoot,
+    MissingId,
+    NotFound,
+    AmbiguousId,
+    NotFocusable,
+    Disabled,
+    OutsideActiveScope,
+};
+
+export
+struct SemanticFocusAdmission {
+    WidgetHandle handle{};
+    WidgetHandle root{};
+    WidgetHandle current_focus{};
+    WidgetHandle active_scope{};
+    const char* id{""};
+    SemanticFocusQueryStatus query_status{SemanticFocusQueryStatus::NotFound};
+    SemanticFocusAdmissionStatus status{SemanticFocusAdmissionStatus::NotFound};
+    std::size_t visited_count{0};
+    std::size_t match_count{0};
+    bool found{false};
+    bool focusable{false};
+    bool allowed_by_scope{false};
+    bool focusable_now{false};
+    bool admitted{false};
+    bool transfer_needed{false};
+    bool will_emit_focus_out{false};
+    bool will_emit_focus_in{false};
+};
+
+export
+enum class SemanticFocusRequestStatus : std::uint8_t {
+    Committed = 0,
+    AlreadyFocused,
+    Rejected,
+};
+
+export
+enum class SemanticFocusRequestStage : std::uint8_t {
+    None = 0,
+    FocusAdmission,
+    AlreadyFocused,
+    Execution,
+};
+
+export
+struct SemanticFocusRequest {
+    SemanticFocusAdmission admission{};
+    WidgetHandle before_focus{};
+    WidgetHandle after_focus{};
+    std::size_t events_before{0};
+    std::size_t events_after{0};
+    SemanticFocusRequestStatus status{SemanticFocusRequestStatus::Rejected};
+    bool committed{false};
+    bool focus_changed{false};
+    bool emitted_focus_out{false};
+    bool emitted_focus_in{false};
+};
+
+export
+struct SemanticFocusRequestLedger {
+    SemanticFocusRequestStage stage{SemanticFocusRequestStage::None};
+    SemanticFocusRequestStatus status{SemanticFocusRequestStatus::Rejected};
+    SemanticFocusAdmissionStatus admission_status{SemanticFocusAdmissionStatus::NotFound};
+    SemanticFocusQueryStatus query_status{SemanticFocusQueryStatus::NotFound};
+    const char* id{""};
+    std::size_t events_before{0};
+    std::size_t events_after{0};
+    bool admitted{false};
+    bool transfer_needed{false};
+    bool committed{false};
+    bool focus_changed{false};
+    bool emitted_focus_out{false};
+    bool emitted_focus_in{false};
+    bool focus_started_on_target{false};
+    bool focus_ended_on_target{false};
+};
+
+export
+struct SemanticActionRequest {
+    SemanticActionAdmission admission{};
+    SemanticFocusRequest focus_request{};
+    WidgetHandle target{};
+    WidgetHandle before_focus{};
+    WidgetHandle after_focus{};
+    std::size_t events_before{0};
+    std::size_t events_after{0};
+    SemanticActionRequestStatus status{SemanticActionRequestStatus::Rejected};
+    SemanticActionRequestRejectReason reject_reason{SemanticActionRequestRejectReason::None};
+    bool resolved{false};
+    bool admitted{false};
+    bool focus_ready{false};
+    bool focus_changed{false};
+    bool emitted_focus_out{false};
+    bool emitted_focus_in{false};
+    bool emitted_click{false};
+    bool executed{false};
+};
+
+export
+struct SemanticActionRequestLedger {
+    SemanticActionRequestStage stage{SemanticActionRequestStage::None};
+    SemanticActionRequestStatus status{SemanticActionRequestStatus::Rejected};
+    SemanticActionRequestRejectReason reject_reason{SemanticActionRequestRejectReason::None};
+    SemanticIntentStatus intent_status{SemanticIntentStatus::NotFound};
+    SemanticActionAdmissionStatus action_admission_status{SemanticActionAdmissionStatus::NotFound};
+    SemanticFocusRequestStatus focus_request_status{SemanticFocusRequestStatus::Rejected};
+    const char* id{""};
+    std::size_t events_before{0};
+    std::size_t events_after{0};
+    bool admitted{false};
+    bool focus_ready{false};
+    bool executed{false};
+    bool emitted_click{false};
+    bool focus_started_on_target{false};
+    bool focus_ended_on_target{false};
+};
+
+export
 constexpr std::size_t kSemanticTreeMaxNodes = 32;
 
 export
@@ -216,6 +418,228 @@ inline const char* semantic_intent_status_name(SemanticIntentStatus status) noex
         return "disabled";
     }
     return "unknown";
+}
+
+export
+inline const char* semantic_action_admission_status_name(SemanticActionAdmissionStatus status) noexcept {
+    switch (status) {
+    case SemanticActionAdmissionStatus::Admitted:
+        return "admitted";
+    case SemanticActionAdmissionStatus::InvalidRoot:
+        return "invalid_root";
+    case SemanticActionAdmissionStatus::MissingId:
+        return "missing_id";
+    case SemanticActionAdmissionStatus::NotFound:
+        return "not_found";
+    case SemanticActionAdmissionStatus::AmbiguousId:
+        return "ambiguous_id";
+    case SemanticActionAdmissionStatus::UnsupportedAction:
+        return "unsupported_action";
+    case SemanticActionAdmissionStatus::Disabled:
+        return "disabled";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_action_request_status_name(SemanticActionRequestStatus status) noexcept {
+    switch (status) {
+    case SemanticActionRequestStatus::Executed:
+        return "executed";
+    case SemanticActionRequestStatus::Rejected:
+        return "rejected";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_action_request_reject_reason_name(
+    SemanticActionRequestRejectReason reason) noexcept {
+    switch (reason) {
+    case SemanticActionRequestRejectReason::None:
+        return "none";
+    case SemanticActionRequestRejectReason::ActionAdmissionRejected:
+        return "action_admission_rejected";
+    case SemanticActionRequestRejectReason::FocusRequestRejected:
+        return "focus_request_rejected";
+    case SemanticActionRequestRejectReason::InputActionOverflow:
+        return "input_action_overflow";
+    case SemanticActionRequestRejectReason::NoActionEmitted:
+        return "no_action_emitted";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_action_request_stage_name(SemanticActionRequestStage stage) noexcept {
+    switch (stage) {
+    case SemanticActionRequestStage::None:
+        return "none";
+    case SemanticActionRequestStage::ActionAdmission:
+        return "action_admission";
+    case SemanticActionRequestStage::FocusRequest:
+        return "focus_request";
+    case SemanticActionRequestStage::Execution:
+        return "execution";
+    }
+    return "unknown";
+}
+
+export
+inline SemanticActionRequestStage semantic_action_request_stage(
+    const SemanticActionRequest& request) noexcept {
+    if (request.status == SemanticActionRequestStatus::Executed) {
+        return SemanticActionRequestStage::Execution;
+    }
+    switch (request.reject_reason) {
+    case SemanticActionRequestRejectReason::None:
+        return SemanticActionRequestStage::None;
+    case SemanticActionRequestRejectReason::ActionAdmissionRejected:
+        return SemanticActionRequestStage::ActionAdmission;
+    case SemanticActionRequestRejectReason::FocusRequestRejected:
+        return SemanticActionRequestStage::FocusRequest;
+    case SemanticActionRequestRejectReason::InputActionOverflow:
+    case SemanticActionRequestRejectReason::NoActionEmitted:
+        return SemanticActionRequestStage::Execution;
+    }
+    return SemanticActionRequestStage::None;
+}
+
+export
+inline SemanticActionRequestLedger semantic_action_request_ledger(
+    const SemanticActionRequest& request) noexcept {
+    return SemanticActionRequestLedger{
+        .stage = semantic_action_request_stage(request),
+        .status = request.status,
+        .reject_reason = request.reject_reason,
+        .intent_status = request.admission.intent_status,
+        .action_admission_status = request.admission.status,
+        .focus_request_status = request.focus_request.status,
+        .id = request.admission.id,
+        .events_before = request.events_before,
+        .events_after = request.events_after,
+        .admitted = request.admitted,
+        .focus_ready = request.focus_ready,
+        .executed = request.executed,
+        .emitted_click = request.emitted_click,
+        .focus_started_on_target = request.before_focus == request.target,
+        .focus_ended_on_target = request.after_focus == request.target,
+    };
+}
+
+export
+inline const char* semantic_focus_query_status_name(SemanticFocusQueryStatus status) noexcept {
+    switch (status) {
+    case SemanticFocusQueryStatus::Resolved:
+        return "resolved";
+    case SemanticFocusQueryStatus::InvalidRoot:
+        return "invalid_root";
+    case SemanticFocusQueryStatus::MissingId:
+        return "missing_id";
+    case SemanticFocusQueryStatus::NotFound:
+        return "not_found";
+    case SemanticFocusQueryStatus::AmbiguousId:
+        return "ambiguous_id";
+    case SemanticFocusQueryStatus::NotFocusable:
+        return "not_focusable";
+    case SemanticFocusQueryStatus::Disabled:
+        return "disabled";
+    case SemanticFocusQueryStatus::OutsideActiveScope:
+        return "outside_active_scope";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_focus_admission_status_name(SemanticFocusAdmissionStatus status) noexcept {
+    switch (status) {
+    case SemanticFocusAdmissionStatus::Admitted:
+        return "admitted";
+    case SemanticFocusAdmissionStatus::AlreadyFocused:
+        return "already_focused";
+    case SemanticFocusAdmissionStatus::InvalidRoot:
+        return "invalid_root";
+    case SemanticFocusAdmissionStatus::MissingId:
+        return "missing_id";
+    case SemanticFocusAdmissionStatus::NotFound:
+        return "not_found";
+    case SemanticFocusAdmissionStatus::AmbiguousId:
+        return "ambiguous_id";
+    case SemanticFocusAdmissionStatus::NotFocusable:
+        return "not_focusable";
+    case SemanticFocusAdmissionStatus::Disabled:
+        return "disabled";
+    case SemanticFocusAdmissionStatus::OutsideActiveScope:
+        return "outside_active_scope";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_focus_request_status_name(SemanticFocusRequestStatus status) noexcept {
+    switch (status) {
+    case SemanticFocusRequestStatus::Committed:
+        return "committed";
+    case SemanticFocusRequestStatus::AlreadyFocused:
+        return "already_focused";
+    case SemanticFocusRequestStatus::Rejected:
+        return "rejected";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_focus_request_stage_name(SemanticFocusRequestStage stage) noexcept {
+    switch (stage) {
+    case SemanticFocusRequestStage::None:
+        return "none";
+    case SemanticFocusRequestStage::FocusAdmission:
+        return "focus_admission";
+    case SemanticFocusRequestStage::AlreadyFocused:
+        return "already_focused";
+    case SemanticFocusRequestStage::Execution:
+        return "execution";
+    }
+    return "unknown";
+}
+
+export
+inline SemanticFocusRequestStage semantic_focus_request_stage(
+    const SemanticFocusRequest& request) noexcept {
+    switch (request.status) {
+    case SemanticFocusRequestStatus::Committed:
+        return SemanticFocusRequestStage::Execution;
+    case SemanticFocusRequestStatus::AlreadyFocused:
+        return SemanticFocusRequestStage::AlreadyFocused;
+    case SemanticFocusRequestStatus::Rejected:
+        if (!request.admission.admitted) {
+            return SemanticFocusRequestStage::FocusAdmission;
+        }
+        return SemanticFocusRequestStage::Execution;
+    }
+    return SemanticFocusRequestStage::None;
+}
+
+export
+inline SemanticFocusRequestLedger semantic_focus_request_ledger(
+    const SemanticFocusRequest& request) noexcept {
+    return SemanticFocusRequestLedger{
+        .stage = semantic_focus_request_stage(request),
+        .status = request.status,
+        .admission_status = request.admission.status,
+        .query_status = request.admission.query_status,
+        .id = request.admission.id,
+        .events_before = request.events_before,
+        .events_after = request.events_after,
+        .admitted = request.admission.admitted,
+        .transfer_needed = request.admission.transfer_needed,
+        .committed = request.committed,
+        .focus_changed = request.focus_changed,
+        .emitted_focus_out = request.emitted_focus_out,
+        .emitted_focus_in = request.emitted_focus_in,
+        .focus_started_on_target = request.before_focus == request.admission.handle,
+        .focus_ended_on_target = request.after_focus == request.admission.handle,
+    };
 }
 
 export

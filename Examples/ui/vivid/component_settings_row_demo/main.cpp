@@ -93,12 +93,9 @@ int main() {
     if (!vivid::evidence::expect(initial.cmd_count > 0, "initial render records commands")) return 1;
 
     run_log.case_begin("initial_artifact");
-    std::printf(" value=%d dirty_count=%zu cmd_count=%zu cmd_hash=%u pixel_hash=%u\n",
-                state.value,
-                initial.dirty_count,
-                initial.cmd_count,
-                initial.cmd_hash,
-                initial.pixel_hash);
+    std::printf(" value=%d", state.value);
+    vivid::evidence::print_render_evidence("initial", initial);
+    std::printf("\n");
 
     state.old_value = state.value;
     state.value = 64;
@@ -112,44 +109,48 @@ int main() {
     }
 
     run_log.case_begin("state_delta");
-    std::printf(" source=programmatic key=settings_row.value old=%d new=%d mirror=%d label=%s\n",
-                state.old_value,
-                state.value,
+    vivid::evidence::print_state_delta({
+        .id = "settings_row",
+        .key = "value",
+        .source = "programmatic",
+        .old_value = state.old_value,
+        .new_value = state.value,
+    });
+    std::printf(" mirror=%d label=%s\n",
                 access.value(handles.progress),
                 scene.text(handles.value_label));
 
     run_log.case_begin("invalidation_intent");
-    std::printf(" kind=paint_only component_x=%d component_y=%d component_w=%d component_h=%d\n",
-                kComponentBounds.x,
-                kComponentBounds.y,
-                kComponentBounds.w,
-                kComponentBounds.h);
+    vivid::evidence::print_invalidation({
+        .kind = "paint_only",
+        .dirty_scope = "component",
+        .component_bounds = kComponentBounds,
+        .layout_changed = false,
+    });
+    std::printf("\n");
 
-    const auto updated = vivid::evidence::render_scene(scene, canvas, kComponentBounds);
+    const auto updated_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kComponentBounds, initial);
+    const auto& updated = updated_capture.evidence;
+    const auto& updated_delta = updated_capture.delta;
     if (!vivid::evidence::expect(updated.failed_cmds == 0, "updated render has no failed commands")) return 1;
     if (!vivid::evidence::expect(updated.cmd_count > 0, "updated render records commands")) return 1;
-    if (!vivid::evidence::expect(updated.pixel_hash != initial.pixel_hash,
+    if (!vivid::evidence::expect(updated_delta.changed,
                                  "state change affects render artifact")) {
         return 1;
     }
-    if (!vivid::evidence::expect(updated.dirty_count == 1, "updated render keeps a single component dirty rect")) {
+    if (!vivid::evidence::expect(updated_delta.single_dirty_rect,
+                                 "updated render keeps a single component dirty rect")) {
         return 1;
     }
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kComponentBounds),
+    if (!vivid::evidence::expect(updated_delta.dirty_within_component,
                                  "dirty evidence remains inside component bounds")) {
         return 1;
     }
 
     run_log.case_begin("render_artifact");
-    std::printf(" dirty_count=%zu dirty_hash=%u cmd_count=%zu cmd_bytes=%zu exec_cmds=%zu failed=%zu cmd_hash=%u pixel_hash=%u\n",
-                updated.dirty_count,
-                updated.dirty_hash,
-                updated.cmd_count,
-                updated.cmd_bytes,
-                updated.exec_cmds,
-                updated.failed_cmds,
-                updated.cmd_hash,
-                updated.pixel_hash);
+    vivid::evidence::print_render_artifact_verdict(updated_delta, "updated", updated);
+    std::printf("\n");
 
     run_log.end(true);
     std::puts("[component_settings_row_demo] ok");

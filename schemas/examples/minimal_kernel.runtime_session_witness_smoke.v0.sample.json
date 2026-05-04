@@ -1,0 +1,120 @@
+{
+  "schema": "minimal_kernel.runtime_session_witness_smoke/v0",
+  "kind": "minimal_kernel.runtime_session_witness_smoke",
+  "generated_at": "2026-05-04T00:00:00Z",
+  "result": "ok",
+  "output_root": "cmake-build-minimal-kernel-runtime-session-witness-smoke",
+  "artifacts": {
+    "summary": "cmake-build-minimal-kernel-runtime-session-witness-smoke/summary.json",
+    "report_markdown": "cmake-build-minimal-kernel-runtime-session-witness-smoke/report.md",
+    "check_text": "cmake-build-minimal-kernel-runtime-session-witness-smoke/check.txt",
+    "session": {
+      "output_root": "cmake-build-minimal-kernel-runtime-session-witness-smoke/session",
+      "summary": "cmake-build-minimal-kernel-runtime-session-witness-smoke/session/kernel_runtime_session.summary.json",
+      "runtime_ledger": "cmake-build-minimal-kernel-runtime-session-witness-smoke/session/runtime_ledger.json",
+      "report_markdown": "cmake-build-minimal-kernel-runtime-session-witness-smoke/session/report.md",
+      "check_text": "cmake-build-minimal-kernel-runtime-session-witness-smoke/session/check.txt"
+    },
+    "world_compare_session_drift": {
+      "output_root": "cmake-build-minimal-kernel-runtime-session-witness-smoke/world_compare_session_drift",
+      "summary": "cmake-build-minimal-kernel-runtime-session-witness-smoke/world_compare_session_drift/summary.json",
+      "report_markdown": "cmake-build-minimal-kernel-runtime-session-witness-smoke/world_compare_session_drift/report.md",
+      "check_text": "cmake-build-minimal-kernel-runtime-session-witness-smoke/world_compare_session_drift/check.txt"
+    },
+    "witness_session_failure_export": {
+      "output_root": "cmake-build-minimal-kernel-runtime-session-witness-smoke/witness_session_failure_export",
+      "baseline_summary": "cmake-build-minimal-kernel-runtime-session-witness-smoke/witness_session_failure_export/baseline/summary.json",
+      "candidate_summary": "cmake-build-minimal-kernel-runtime-session-witness-smoke/witness_session_failure_export/candidate/summary.json",
+      "world_compare_summary": "cmake-build-minimal-kernel-runtime-session-witness-smoke/witness_session_failure_export/world_compare/summary.json",
+      "world_compare_report_markdown": "cmake-build-minimal-kernel-runtime-session-witness-smoke/witness_session_failure_export/world_compare/report.md",
+      "world_compare_check_text": "cmake-build-minimal-kernel-runtime-session-witness-smoke/witness_session_failure_export/world_compare/check.txt"
+    }
+  },
+  "checks": {
+    "session": {
+      "session_id": "minimal_kernel_runtime.armv7a_qemu.debug",
+      "world": "minimal_kernel_runtime",
+      "session_status": "standing",
+      "failure_domain": null,
+      "failure_count": 0,
+      "runtime": {
+        "tick": true,
+        "trap": true,
+        "thread": true,
+        "task_syscall": true,
+        "handoff_continuity": true
+      },
+      "ledger_event_count": 9
+    },
+    "world_compare_session_drift": {
+      "result": "ok",
+      "world_verdict": "collapsed",
+      "regression_count": 1,
+      "required_regression_count": 1,
+      "session_drift": {
+        "changed": true,
+        "regressed_sessions": [
+          "kernel_runtime_session_sample"
+        ],
+        "required_regressed_sessions": [
+          "kernel_runtime_session_sample"
+        ],
+        "affected_domains": [
+          "session",
+          "runtime"
+        ],
+        "affected_focus": [
+          "session",
+          "runtime",
+          "handoff",
+          "continuity"
+        ],
+        "missing_runtime_facts": [
+          "handoff"
+        ],
+        "failure_codes": [
+          "handoff_continuity_broken"
+        ],
+        "narratives": [
+          "session witness `kernel_runtime_session_sample` regressed `ok` -> `fail`"
+        ]
+      }
+    },
+    "witness_session_failure_export": {
+      "result": "ok",
+      "world_verdict": "collapsed",
+      "regression_count": 1,
+      "required_regression_count": 1,
+      "candidate_session_status": "fail",
+      "session_drift": {
+        "changed": true,
+        "regressed_sessions": [
+          "kernel_runtime_session"
+        ],
+        "required_regressed_sessions": [
+          "kernel_runtime_session"
+        ],
+        "affected_domains": [
+          "session",
+          "runtime"
+        ],
+        "affected_focus": [
+          "session",
+          "runtime",
+          "handoff",
+          "continuity"
+        ],
+        "missing_runtime_facts": [
+          "handoff"
+        ],
+        "failure_codes": [
+          "handoff_continuity_broken"
+        ],
+        "narratives": [
+          "session witness `kernel_runtime_session` regressed `ok` -> `fail`"
+        ]
+      }
+    }
+  },
+  "violations": []
+}

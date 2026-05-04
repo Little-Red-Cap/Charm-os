@@ -17,24 +17,11 @@ namespace {
     constexpr Rect kDestinationBounds{20, 62, 152, 36};
     constexpr vivid::evidence::RunLog kRunLog{"ft", "focus_transfer_demo"};
 
-    [[nodiscard]] bool same_handle(WidgetHandle lhs, WidgetHandle rhs) noexcept {
-        return lhs.kind == rhs.kind
-            && lhs.index == rhs.index
-            && lhs.generation == rhs.generation;
-    }
-
     [[nodiscard]] bool style_evidence_equal(const ResolvedStyleEvidence& lhs,
                                             const ResolvedStyleEvidence& rhs) noexcept {
         return lhs.style_key == rhs.style_key
             && lhs.color_hash == rhs.color_hash
             && lhs.metrics_hash == rhs.metrics_hash;
-    }
-
-    void click(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
     }
 }
 
@@ -74,13 +61,10 @@ int main() {
     }
 
     run_log.case_begin("style_mask_boundary");
-    std::printf(" widget=scroll_container mask=%u hovered=%d pressed=%d disabled=%d focused_in_style_mask=%d state_count=%u law=focus_outside_style_mask\n",
-                state_evidence.mask,
-                state_evidence.includes_hovered ? 1 : 0,
-                state_evidence.includes_pressed ? 1 : 0,
-                state_evidence.includes_disabled ? 1 : 0,
-                state_evidence.includes_focused ? 1 : 0,
-                state_evidence.state_count);
+    vivid::evidence::print_style_state_mask("scroll_container",
+                                            "focus_outside_style_mask",
+                                            state_evidence);
+    std::printf("\n");
 
     const StyleState normal_state = make_style_state(true, false, false, false);
     const StyleState focused_state = make_style_state(true, false, false, true);
@@ -99,9 +83,9 @@ int main() {
     }
 
     auto access = scene.access();
-    click(scene, kSourceBounds, 10);
+    vivid::evidence::click_center(scene, kSourceBounds, 10);
     auto access_after_source_click = scene.access();
-    if (!vivid::evidence::expect(same_handle(access_after_source_click.input_focused(), source),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access_after_source_click.input_focused(), source),
                                  "source receives initial focus")) {
         return 1;
     }
@@ -127,38 +111,26 @@ int main() {
                                       1,
                                       20));
     auto transfer_access = scene.access();
-    int focus_out = 0;
-    int focus_in = 0;
-    int mouse_down = 0;
-    bool focus_out_source = false;
-    bool focus_in_destination = false;
-    for (std::size_t index = 0; index < transfer_access.input_event_count(); ++index) {
-        const auto& event = transfer_access.input_event(index);
-        if (event.event.type == Event::Type::MouseDown) {
-            ++mouse_down;
-        } else if (event.event.type == Event::Type::FocusOut) {
-            ++focus_out;
-            focus_out_source = focus_out_source || same_handle(event.target, source);
-        } else if (event.event.type == Event::Type::FocusIn) {
-            ++focus_in;
-            focus_in_destination = focus_in_destination || same_handle(event.target, destination);
-        }
-    }
-    if (!vivid::evidence::expect(mouse_down == 1, "transfer emits destination mouse down")) return 1;
-    if (!vivid::evidence::expect(focus_out == 1 && focus_out_source, "transfer emits source FocusOut")) return 1;
-    if (!vivid::evidence::expect(focus_in == 1 && focus_in_destination, "transfer emits destination FocusIn")) return 1;
-    if (!vivid::evidence::expect(same_handle(transfer_access.input_focused(), destination),
+    const auto transfer_trace =
+        vivid::evidence::collect_pointer_focus_trace(transfer_access, destination, source, destination);
+    if (!vivid::evidence::expect(transfer_trace.mouse_down == 1 && transfer_trace.mouse_down_expected,
+                                 "transfer emits destination mouse down")) return 1;
+    if (!vivid::evidence::expect(transfer_trace.focus_out == 1 && transfer_trace.focus_out_expected,
+                                 "transfer emits source FocusOut")) return 1;
+    if (!vivid::evidence::expect(transfer_trace.focus_in == 1 && transfer_trace.focus_in_expected,
+                                 "transfer emits destination FocusIn")) return 1;
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(transfer_access.input_focused(), destination),
                                  "destination becomes focused during transfer")) {
         return 1;
     }
 
     run_log.case_begin("transfer_event_trace");
     std::printf(" source=mouse_down old=source new=destination mouse_down=%d focus_out=%d focus_in=%d focus_out_source=%d focus_in_destination=%d\n",
-                mouse_down,
-                focus_out,
-                focus_in,
-                focus_out_source ? 1 : 0,
-                focus_in_destination ? 1 : 0);
+                transfer_trace.mouse_down,
+                transfer_trace.focus_out,
+                transfer_trace.focus_in,
+                transfer_trace.focus_out_expected ? 1 : 0,
+                transfer_trace.focus_in_expected ? 1 : 0);
 
     scene.dispatch_event(Event::mouse(Event::Type::MouseUp,
                                       kDestinationBounds.x + kDestinationBounds.w / 2,
@@ -166,7 +138,7 @@ int main() {
                                       1,
                                       21));
     auto after_transfer = scene.access();
-    if (!vivid::evidence::expect(same_handle(after_transfer.input_focused(), destination),
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(after_transfer.input_focused(), destination),
                                  "destination remains focused after release")) {
         return 1;
     }
@@ -190,13 +162,17 @@ int main() {
     }
 
     run_log.case_begin("style_evidence_after_transfer");
-    std::printf(" widget=scroll_container style_key=%u color_hash=%u metrics_hash=%u style_same=1 focused_in_style_mask=%d\n",
-                style_after.style_key,
-                style_after.color_hash,
-                style_after.metrics_hash,
-                state_evidence.includes_focused ? 1 : 0);
+    vivid::evidence::print_focus_style_evidence("scroll_container",
+                                                true,
+                                                style_after,
+                                                true,
+                                                state_evidence.includes_focused);
+    std::printf("\n");
 
-    const auto destination_artifact = vivid::evidence::render_scene(scene, canvas, kDestinationBounds);
+    const auto destination_capture =
+        vivid::evidence::render_component_artifact_delta(scene, canvas, kDestinationBounds, source_artifact);
+    const auto& destination_artifact = destination_capture.evidence;
+    const auto& destination_delta = destination_capture.delta;
     if (!vivid::evidence::expect(destination_artifact.failed_cmds == 0,
                                  "destination focused render has no failed commands")) {
         return 1;
@@ -209,7 +185,7 @@ int main() {
                                  "destination focus repaint uses single dirty rect")) {
         return 1;
     }
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kDestinationBounds),
+    if (!vivid::evidence::expect(destination_delta.dirty_within_component,
                                  "destination dirty evidence remains inside bounds")) {
         return 1;
     }

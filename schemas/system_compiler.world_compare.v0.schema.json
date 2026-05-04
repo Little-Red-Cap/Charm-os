@@ -589,6 +589,7 @@
         "added_missing_contract_refs",
         "affected_layers",
         "affected_focus",
+        "session_drift",
         "narratives"
       ],
       "properties": {
@@ -614,6 +615,49 @@
           "$ref": "#/$defs/stringArray"
         },
         "affected_focus": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "session_drift": {
+          "$ref": "#/$defs/collapseSessionDrift"
+        },
+        "narratives": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "collapseSessionDrift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "regressed_sessions",
+        "required_regressed_sessions",
+        "affected_domains",
+        "affected_focus",
+        "missing_runtime_facts",
+        "failure_codes",
+        "narratives"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "regressed_sessions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "required_regressed_sessions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "affected_domains": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "affected_focus": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "missing_runtime_facts": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "failure_codes": {
           "$ref": "#/$defs/stringArray"
         },
         "narratives": {

@@ -54,11 +54,12 @@
 - 校验脚本：
   - `scripts/validate_system_compiler_witness_bundle.py`
 
-它当前可以组合三类输入：
+它当前可以组合四类输入：
 
 - `canonical world`
 - `artifact report`
 - `minimal kernel runtime evidence bundle summary`
+- `kernel runtime session summary`
 
 并可附带：
 
@@ -212,10 +213,20 @@
 而是通过 runtime evidence summary 找到 session summary，
 再把它作为 `kernel_runtime_session` witness entry 暴露给 world compare。
 
+`witness bundle` 也可以把它作为独立 `kernel_runtime_session` entry 消费：
+
+- 优先使用 canonical world witness plan 中显式声明的 `path`
+- 如果 `path` 为空，则从 `runtime_evidence_summary.session.summary_path` 解析
+- 只有当 session verdict 为 `standing` 且 failure count 为 0 时，entry 才视为 `ok`
+
 同时，`kernel_runtime_session` 也会进入 `front_page.supporting_surfaces`。
 
 - `witness_entries[kind=kernel_runtime_session]` 负责证明对象是否成立
 - `front_page.supporting_surfaces[id=kernel_runtime_session]` 负责让上层 reader / IDE / proof workflow 能从交付封面直接追到 session summary、report 与 check
+
+这表示 world compare 后续可以追问：
+
+> 不是“QEMU 日志是否还像昨天”，而是“这个 kernel runtime session witness 是否还站住”。
 
 ### 4. 与 `compare`
 

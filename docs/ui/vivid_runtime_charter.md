@@ -429,3 +429,73 @@ This belongs to the Semantic Plane and Evidence Plane. It makes semantic nodes a
 Current evidence:
 
 - `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, and no input side effects during resolution.
+
+## 2026-05 Addendum: Semantic Action Request
+
+Vivid can now execute a semantic action request through the runtime input law instead of making semantic lookup a hidden side-effect:
+
+```text
+resolve_semantic_intent(root, id, action)
+  -> admit_semantic_action(root, id, action)
+  -> request_semantic_focus(root, id)
+  -> emit Click
+  -> apply normal click behavior
+```
+
+`SemanticActionAdmission` is the planning boundary after semantic intent resolution. It may declare that a future execution would request focus and emit a click, but it must not synthesize input, mutate focus truth, or toggle widget state.
+
+`SemanticActionRequest` is the controlled execution boundary after semantic action admission. Successful request must prove both semantic execution evidence (`executed`, `emitted_click`) and focus preparation evidence (`SemanticFocusRequest`). Failed action admission or failed focus admission must reject before action execution.
+Every rejected action request must also name the boundary that failed through `SemanticActionRequestRejectReason`, so `Rejected` never becomes an opaque catch-all ledger entry.
+Runtime evidence should print this as an action request ledger, not only as scattered fields; `SemanticActionRequestLedger` is the runtime artifact for that evidence.
+Shared semantic request ledger rules live in `vivid_semantic_request_ledger_law_v0.md`.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_action_admission_demo` proves admitted activate plans, no execution side effects, unsupported-action and disabled-target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus/click plan evidence.
+- `Examples/ui/vivid/semantic_action_request_demo` proves side-effect-free resolution, controlled activate execution, normal click behavior reuse, already-focused execution, unsupported-action rejection, active-scope rejection through focus admission, duplicate-id ambiguity, missing request ids, and explicit request rejection reasons.
+
+## 2026-05 Addendum: Semantic Focus Query
+
+Vivid can now answer whether a semantic id is focus-addressable without moving focus:
+
+```text
+root + semantic_id + active_scope
+  -> SemanticFocusQuery
+```
+
+This keeps focus lookup in the Semantic Plane while preserving the boundary that focus transfer, `FocusIn/FocusOut`, input focus truth mutation, and focus ring artifact generation remain separate runtime actions.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_focus_query_demo` proves root-bound semantic focus lookup, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
+
+## 2026-05 Addendum: Semantic Focus Admission
+
+Vivid can now decide whether a semantic focus transfer is permitted without executing that transfer:
+
+```text
+root + semantic_id + current_focus + active_scope
+  -> SemanticFocusAdmission
+```
+
+This belongs between the Semantic Plane and Input Runtime. It preserves the boundary that `FocusIn/FocusOut`, input focus truth mutation, and focus ring artifact generation remain execution-time actions, while admission records whether those actions would be needed.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_focus_admission_demo` proves admitted transfer plans, already-focused no-op plans, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
+
+## 2026-05 Addendum: Semantic Focus Request
+
+Vivid can now execute a semantic focus transfer through the normal input focus path:
+
+```text
+SemanticFocusQuery
+  -> SemanticFocusAdmission
+  -> SemanticFocusRequest
+```
+
+This is the first semantic focus API that is allowed to mutate input focus truth. It must still preserve the runtime boundary: failed admission is a rejection, already-focused is a no-op, and committed transfer must be evidenced by `FocusOut/FocusIn`, before/after focus truth, and semantic current focus. `SemanticFocusRequestLedger` is the runtime artifact for this evidence.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_focus_request_demo` proves controlled semantic focus transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus request ledger stages.

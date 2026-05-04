@@ -27,13 +27,25 @@ Current `system_compiler.front_page_entry_opener` includes:
 
 - schema
   - `schemas/system_compiler.front_page_entry_opener.v0.schema.json`
+  - `schemas/system_compiler.front_page_entry_opener_compare.v0.schema.json`
 - exporter
   - `scripts/export_system_compiler_front_page_entry_opener.py`
+  - `scripts/export_system_compiler_front_page_entry_opener_workspace.ps1`
+- compare
+  - `scripts/compare_system_compiler_front_page_entry_opener.py`
+  - `scripts/compare_system_compiler_front_page_entry_opener_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opener.py`
+  - `scripts/validate_system_compiler_front_page_entry_opener_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opener_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_opener_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_opening_flow_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_plan_action_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -42,6 +54,19 @@ By default the exporter leaves behind:
 - `front-page.entry-opener.summary.json`
 - `front-page.entry-opener.report.md`
 - `front-page.entry-opener.check.txt`
+
+The PowerShell workspace facade wraps the same exporter and validator, resolves
+either direct summary paths or workspace roots, and writes the opener artifacts
+under:
+
+- `out/system-compiler-front-page-entry-opener-workspace/opener/`
+
+This facade is intentionally thin. It does not reinterpret landing policy; it
+only gives downstream workspace tools one stable entry point for:
+
+- a landing workspace root or explicit landing summary
+- an optional landing-compare workspace root or explicit landing-compare summary
+- the validated opener summary/report/check output root
 
 ## What the opener records
 
@@ -78,8 +103,8 @@ It contains:
 It lets the opener say:
 
 - this target is a `biography`, `world_compare`, `world_shelf_review`,
-  `biography_index`, `biography_index_compare`, `witness_bundle`, or
-  `runtime_evidence_bundle`
+  `biography_index`, `biography_index_compare`, `witness_bundle`,
+  `runtime_evidence_bundle`, or `open_event_witness_compare`
 - here is the smallest stable overview a consumer can already render now
 - here are the most relevant supporting / evidence / compare paths that stay
   nearest to that opening
@@ -150,6 +175,40 @@ Then it preserves the opening-relevant compare fields:
 This lets downstream tools open the candidate or baseline deterministically
 while still showing the drift context that made this opening interesting.
 
+## Opener compare
+
+`system_compiler.front_page_entry_opener_compare/v0` compares two opener
+facades as opening judgments.
+
+It is intentionally not a raw directory diff.
+
+The compare focuses on consumer-visible opener semantics:
+
+- open action status, selected tab, query, target, and opening reason
+- compare context availability and landing verdict
+- opened projection status, kind, headline, summary lines, and evidence paths
+- inspector readiness and blockers
+- follow-up question drift
+
+The current verdicts are:
+
+- `standing`
+  - the opener judgment is unchanged
+- `improved`
+  - the candidate keeps a ready action and gains useful opener context, such as
+    landing compare context
+- `drifted`
+  - the candidate still opens but loses context or changes the judgment surface
+- `collapsed`
+  - the candidate no longer produces an `ok` ready opener action
+
+The workspace wrapper resolves either direct opener summary paths or opener
+workspace roots and writes:
+
+- `front-page.entry-opener.compare.summary.json`
+- `front-page.entry-opener.compare.report.md`
+- `front-page.entry-opener.compare.check.txt`
+
 ## Opened projection boundary
 
 The opener still does not try to become the full explain engine.
@@ -167,6 +226,10 @@ summary shapes in the repository:
 - `system_compiler.witness_bundle/v0`
 - `minimal_kernel.runtime_evidence_bundle.summary/v1`
 - `minimal_kernel.kernel_runtime_session/v0`
+- `system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`
+- `system_compiler.front_page_entry_opener_compare/v0`
+- `system_compiler.front_page_entry_opening_flow_compare/v0`
+- `system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare/v0`
 
 For those targets it records:
 
@@ -191,6 +254,75 @@ For `system_compiler.world_shelf_review/v0`, those summary lines include a
 single `drift_digest ...` line. This is only a consumer preview of the review
 object's own `drift_digest`; the opener does not re-run shelf compare logic or
 reinterpret lower `biography_index_compare` semantics.
+
+For
+`system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`,
+the projection kind is `open_event_witness_compare_overview`.
+
+It exposes:
+
+- the witness verdict and changed-field count in the headline
+- baseline and candidate witness ids, status, and source open-event ids
+- a compact change-count line
+- up to three `witness_drift ...` narratives
+- baseline and candidate OpenEventWitness summaries as evidence paths
+
+This lets an opener explain "why this witness compare is interesting" without
+opening the full witness compare report first.
+
+For `system_compiler.front_page_entry_opener_compare/v0`, the projection kind is
+`opener_compare_overview`.
+
+It exposes:
+
+- the opener compare verdict and changed-field count in the headline
+- baseline and candidate opener action / tab / projection / compare-context
+  state
+- compact opening, projection, compare-context, inspector, and question change
+  counts
+- regression / improvement / neutral impact counts
+- up to three `opener_regression ...` and `opener_improvement ...` narratives
+- baseline and candidate opener summaries as evidence paths
+
+This lets an opener explain "why this opener judgment compare is interesting"
+without opening either side's full opener report first.
+
+For `system_compiler.front_page_entry_opening_flow_compare/v0`, the projection
+kind is `opening_flow_compare_overview`.
+
+It exposes:
+
+- the opening-flow compare verdict plus changed / added / removed opener case
+  counts in the headline
+- baseline and candidate opener / projection / compare-context counts
+- flow deltas for opener count, projection count, compare context, inspector
+  readiness, and completed steps
+- regression / improvement / neutral case impact counts
+- up to three `case_change ...` and `flow_regression ...` lines
+- baseline and candidate opening-flow summaries as evidence paths
+
+This lets an opener explain "why this whole opening chain compare is
+interesting" without first opening the full flow compare report or walking back
+through every lower smoke directory.
+
+For
+`system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare/v0`,
+the projection kind is `plan_action_compare_overview`.
+
+It exposes:
+
+- the plan-action compare verdict and changed-field count in the headline
+- baseline and candidate action result / open status / id / kind / entry
+- compact selection, open-action, opener-surface, and execution-receipt change
+  counts
+- action drift and regression flag digests for target, opener, reason,
+  operation, compare-context loss, and inspector-readiness loss
+- up to three `action_regression ...` narratives
+- baseline and candidate plan-action summaries as evidence paths
+
+This lets an opener explain "why this final action judgment is interesting"
+without first opening the full consumer plan-action compare report or re-diffing
+the two action witnesses.
 
 The opener also prepends one `opening_reason ...` summary line from the source
 landing.
@@ -237,6 +369,78 @@ For the narrow `runtime_session` opener projection path, use:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1 -Clean
+```
+
+To prove only the OpenEventWitnessCompare projection adapter:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1 -Clean
+```
+
+To prove only the OpenerCompare projection adapter:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_opener_compare_smoke.ps1 -Clean
+```
+
+To prove only the OpeningFlowCompare projection adapter:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_opening_flow_compare_smoke.ps1 -Clean
+```
+
+To prove only the PlanActionCompare projection adapter:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_plan_action_compare_smoke.ps1 -Clean
+```
+
+To export the same opener object through the reusable workspace facade:
+
+```powershell
+./scripts/export_system_compiler_front_page_entry_opener_workspace.ps1 `
+  -LandingWorkspaceRoot cmake-build-system-compiler-front-page-entry-landing-smoke/root-world-compare `
+  -LandingCompareWorkspaceRoot cmake-build-system-compiler-front-page-entry-landing-compare-smoke/root-witness-to-root-world-compare `
+  -OutputRoot out/system-compiler-front-page-entry-opener-workspace `
+  -Clean
+```
+
+To prove the workspace facade without depending on a pre-existing front-page
+smoke directory:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1 -Clean
+```
+
+That smoke builds synthetic but schema-valid landing fixtures, uses the real
+landing compare exporter to create an `improved` compare context, and then
+checks both:
+
+- a cold opener workspace with no compare context
+- a hot opener workspace with candidate landing compare context
+
+Compare two opener workspaces:
+
+```powershell
+./scripts/compare_system_compiler_front_page_entry_opener_workspace.ps1 `
+  -BaselineOpenerWorkspaceRoot cmake-build-system-compiler-front-page-entry-opener-workspace-smoke/cold-runtime-evidence `
+  -CandidateOpenerWorkspaceRoot cmake-build-system-compiler-front-page-entry-opener-workspace-smoke/hot-runtime-evidence-with-landing-compare `
+  -OutputRoot cmake-build-opener-workspace-compare `
+  -Clean
+```
+
+Run the opener workspace compare smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1 -Clean
+```
+
+Expected smoke shape:
+
+```text
+[FRONT-PAGE-ENTRY-OPENER-WORKSPACE-COMPARE-SMOKE] case=workspace-self-standing verdict=standing changed=0 compare_changed=False projection_changed=False improved=False regressed=False
+[FRONT-PAGE-ENTRY-OPENER-WORKSPACE-COMPARE-SMOKE] case=workspace-cold-to-hot-compare-context verdict=improved changed=10 compare_changed=True projection_changed=True improved=True regressed=False
+[FRONT-PAGE-ENTRY-OPENER-WORKSPACE-COMPARE-SMOKE] case=workspace-hot-to-cold-lost-compare-context verdict=drifted changed=10 compare_changed=True projection_changed=True improved=False regressed=True
 ```
 
 To run the full entry-opening flow from capability through landing, landing

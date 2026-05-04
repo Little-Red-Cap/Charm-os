@@ -146,6 +146,55 @@ cmake-build-minimal-kernel-runtime-session-smoke/
 这条旁路入口先证明 `session` 对象本身站得住；总 runtime evidence bundle 已经会把 `session` 作为侧车视图回填到根 `summary.json`。
 system compiler witness bundle 会把它提升为独立 `kernel_runtime_session` witness entry。
 
+如果要验证 `session` 作为 witness 聚合对象的完整闭环，优先跑：
+
+```powershell
+./scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Clean `
+  -InspectCompareSummaryOutputRoot out/minimal-kernel-runtime-session-witness-inspect-compare
+```
+
+这样可以同时守住两层对象：
+
+- 根 `minimal_kernel.runtime_session_witness_smoke/v0` summary
+- `minimal_kernel.runtime_session_witness_inspect_compare/v0` compare 对象
+
+它默认输出：
+
+```text
+out/minimal-kernel-runtime-session-witness-smoke/
+  summary.json
+  report.md
+  check.txt
+  session/
+  world_compare_session_drift/
+  witness_session_failure_export/
+```
+
+这条入口会同时证明：
+
+- standing `kernel_runtime_session` 可以导出为根证据对象
+- synthetic session drift 可以被 world compare 投影
+- collapsed session 可以经由 witness exporter 进入 world compare
+- 根 `summary.json` 可以通过 schema validator 与语义 gate
+
+如果只是想消费这条聚合根、确认 session standing / drift / failure taxonomy，而不想重新执行 smoke，可以直接运行：
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
+  -ShowArtifacts
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
+  -BaselineSummary baseline/minimal-kernel-runtime-session-witness/summary.json
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
+  -BaselineSummary baseline/minimal-kernel-runtime-session-witness/summary.json `
+  -CompareSummaryPath out/minimal-kernel-runtime-session-witness-compare/summary.json
+```
+
+它会把根 `summary.json` 里的 session 状态、两条 drift 投影、missing runtime facts、failure codes 与关键 artifact path 收成稳定的只读视图；如果同时给出 `-BaselineSummary`，还会额外收口 result / runtime facts / failure taxonomy 的差分视图；如果再给 `-CompareSummaryPath`，这份差分会被落成正式 compare 对象，方便上层继续消费。
+
 ## 本地验证
 
 如果要在本地复现当前总证据链，优先直接跑：

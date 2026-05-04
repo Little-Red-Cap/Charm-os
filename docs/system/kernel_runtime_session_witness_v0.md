@@ -242,6 +242,8 @@ session/
 
 - `scripts/export_minimal_kernel_runtime_session.py`
 - `scripts/minimal_kernel_runtime_session_smoke.ps1`
+- `scripts/minimal_kernel_runtime_session_witness_smoke.ps1`
+- `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1`
 
 v0 当前路径：
 
@@ -253,6 +255,130 @@ runtime evidence summary.session
 ```
 
 这仍然不要求上层直接解析 host / QEMU 散日志；上层只需要追 session summary、report 与 check。
+
+聚合入口 `minimal_kernel_runtime_session_witness_smoke.ps1` 不再只是 console smoke。
+它会在输出根目录额外导出：
+
+```text
+summary.json
+report.md
+check.txt
+```
+
+其中根 `summary.json` 会引用 session exporter、world compare session drift、witness exporter failure export 三条子证据链，并摘取 session status、runtime facts、session drift failure codes 等最小结论。
+这让 `kernel_runtime_session` 的阶段性闭环可以被 CI、front page、evidence shelf 或后续 witness bundle 消费，而不是只停留在终端输出里。
+
+根 `summary.json` 对应的机器契约是：
+
+- `schemas/minimal_kernel.runtime_session_witness_smoke.v0.schema.json`
+- `schemas/examples/minimal_kernel.runtime_session_witness_smoke.v0.sample.json`
+- `scripts/validate_minimal_kernel_runtime_session_witness_smoke.py`
+- `scripts/check_minimal_kernel_runtime_session_witness_smoke_summary.ps1`
+- `scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1`
+
+其中 validator 负责 schema 与引用路径，check 脚本负责断言 session standing、两条 session drift 投影、failure code 与 missing runtime fact。
+CI / 人工验收优先调用 `ci_minimal_kernel_runtime_session_witness_smoke.ps1`，它默认把产物落到 `out/minimal-kernel-runtime-session-witness-smoke`，并在根 smoke 之后再次执行 validator 与 gate。
+如果额外给出 `-InspectCompareSummaryOutputRoot`，同一条 CI 入口还会顺带执行 `inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1`，把 inspect compare 对象也纳入持续守护。
+session witness workflow 也会把这份 compare summary 作为独立 artifact 发布，方便 front page / explain / compare consumer 直接消费，而不必重新拼接 baseline/candidate summary。
+如果再给出 `-InspectCompareConsumerOutputRoot`，同一条 CI 入口还会顺带执行 `system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`，把 compare consumer 这层也纳入持续守护与 artifact 发布。
+
+runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
+system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。
+
+如果只是想只读消费这条聚合根，而不重跑 smoke，可以直接运行：
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -ShowArtifacts
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -BaselineSummary baseline/minimal-kernel-runtime-session-witness/summary.json
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -BaselineSummary baseline/minimal-kernel-runtime-session-witness/summary.json -CompareSummaryPath out/minimal-kernel-runtime-session-witness-compare/summary.json
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -ShowNarratives -AsJson
+```
+
+这条 inspect 入口只读取根 `summary.json`，回答：
+
+- 当前 `kernel_runtime_session` 是否 standing
+- synthetic drift 与 witness-export drift 各自塌在哪个 domain / focus
+- 哪个 failure code 与 missing runtime fact 导致了 session continuity collapse
+- 上层如果要继续追 report / check / runtime ledger，应该沿着哪些 artifact path 下钻
+- 如果给出 `-BaselineSummary`，当前这份 witness summary 相对上一份在哪些 result / runtime facts / failure taxonomy 上发生了漂移
+- 如果同时给出 `-CompareSummaryPath`，上述漂移会被导出成机器可读的 `minimal_kernel.runtime_session_witness_inspect_compare/v0` 对象
+
+对应 compare smoke：
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1
+./scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1
+./scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1
+```
+
+如果上层不想重新拼接 baseline / candidate summary，而是只想问“当前这次 drift 最先该看什么”，
+可以继续消费：
+
+- `docs/system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md`
+- `scripts/export_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py`
+- `scripts/validate_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py`
+
+## World Compare Projection
+
+`world compare` 不直接读取原始 QEMU log，也不绕过 witness bundle 去解析散工件。
+
+当 `kernel_runtime_session` witness entry 发生 regression 时，compare 会从 entry observations 投影 `collapse_surface.session_drift`：
+
+- `regressed_sessions`
+- `required_regressed_sessions`
+- `affected_domains`
+- `affected_focus`
+- `missing_runtime_facts`
+- `failure_codes`
+
+这层投影使用 witness bundle 已经导出的 session observations，例如：
+
+```text
+session_status=collapsed
+semantic=standing
+machine=standing
+runtime=tick:True trap:True thread:True task_syscall:True handoff:False
+failure=handoff_continuity_broken domain=runtime layer=lower_half phase=handoff.live focus=handoff,continuity,session
+```
+
+这样 world compare 看到的不是“某个 witness fail 了”这一句粗粒度结论，而是可以继续说明：
+
+```text
+minimal_kernel_runtime world 的 session continuity witness 发生 runtime-domain collapse。
+```
+
+对应定向 smoke：
+
+```powershell
+./scripts/minimal_kernel_runtime_session_witness_smoke.ps1
+```
+
+它会串起 session exporter、world compare session drift、witness exporter failure export 三条低成本回归。
+
+如果只想单独验证 world compare 对 session witness regression 的投影，可以运行：
+
+```powershell
+./scripts/system_compiler_world_compare_session_drift_smoke.ps1
+```
+
+如果要验证 `kernel_runtime_session.summary.json` 的 failure entry 能经由 witness bundle exporter 进入 world compare，可以运行 exporter 级闭环 smoke：
+
+```powershell
+./scripts/system_compiler_witness_session_failure_export_smoke.ps1
+```
+
+CI / gate 可以通过 `scripts/check_system_compiler_world_compare_summary.ps1` 直接断言 session drift 面：
+
+```powershell
+./scripts/check_system_compiler_world_compare_summary.ps1 `
+  -Summary out/system-compiler-world-compare/summary.json `
+  -RequireSessionDrift true `
+  -RequireSessionDomain session,runtime `
+  -RequireSessionFocus session,runtime,handoff,continuity `
+  -RequireSessionFailureCode handoff_continuity_broken `
+  -RequireMissingRuntimeFact handoff
+```
 
 ## 当前非目标
 

@@ -314,6 +314,16 @@
       "machine",
       "handoff"
     ],
+    "session_drift": {
+      "changed": false,
+      "regressed_sessions": [],
+      "required_regressed_sessions": [],
+      "affected_domains": [],
+      "affected_focus": [],
+      "missing_runtime_facts": [],
+      "failure_codes": [],
+      "narratives": []
+    },
     "narratives": [
       "witness `runtime_bundle_sample` regressed `ok` -> `fail` on layer `bundle`",
       "witness `kernel_runtime_session` regressed `ok` -> `absent` on layer `bundle`",

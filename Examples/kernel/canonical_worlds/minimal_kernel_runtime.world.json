@@ -77,6 +77,22 @@
       "path": null
     },
     {
+      "id": "kernel_runtime_session",
+      "kind": "kernel_runtime_session",
+      "label": "minimal-kernel-runtime-session",
+      "role": "host and QEMU jointly proven kernel runtime session witness",
+      "layer": "session",
+      "required": true,
+      "witness_focus": [
+        "session",
+        "runtime",
+        "ingress",
+        "continuity"
+      ],
+      "case": "minimal_kernel_runtime.armv7a_qemu.debug",
+      "path": null
+    },
+    {
       "id": "runtime_task_message_session_service_loop_host",
       "kind": "example_ref",
       "label": "runtime_task_message_session_service_loop_host",

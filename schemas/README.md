@@ -106,6 +106,7 @@
   - 对应 `docs/system/witness_bundle_v0.md` 与 `scripts/export_system_compiler_witness_bundle.ps1`
   - 用途偏向把 canonical world、artifact report、runtime evidence bundle、kernel runtime session
     与 example refs 收成正式交付对象
+  - 它当前也可把 `kernel_runtime_session` 作为独立 witness entry 消费，优先从 runtime evidence summary 的 `session.summary_path` 解析来源
   - 它当前关注的是“证词是否齐、来源在哪里、缺口是什么”，而不是替代下层更细的 runtime / compare 语义
   - 它当前也可在 `artifact_context.artifact_report_index` 中记录 artifact report root 的 first-read index，
     作为上层 proof / IDE / CI 发现 case 级报告的来源锚点
@@ -225,6 +226,15 @@
     `runtime_session` tab 到 opener projection 的最短链路，并派生 collapsed session
     样例验证 regressed cases、missing ingress 与 failure-domain prompt 不会丢失
 
+- `system_compiler.front_page_entry_opener_compare.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opener_v0.md`、
+    `scripts/compare_system_compiler_front_page_entry_opener.py`,
+    `scripts/compare_system_compiler_front_page_entry_opener_workspace.ps1`,
+    `scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1`,
+    与 `scripts/validate_system_compiler_front_page_entry_opener_compare.py`
+  - 用途偏向比较两份 `front_page entry opener` summary，判断 open action、projection、
+    compare context、inspector readiness 与后续 questions 是否保留同一份 explain opening judgment
+
 - `system_compiler.front_page_entry_opening_flow.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_v0.md`、
     `scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`、
@@ -332,6 +342,32 @@
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点
+
+- `minimal_kernel.runtime_session_witness_smoke.v0.schema.json`
+  - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/minimal_kernel_runtime_session_witness_smoke.ps1`
+  - 用途偏向把 standing session、synthetic session drift 与 witness-export collapse 三条低成本证据链聚合成同一个可验证根对象
+  - 它服务于 CI、schema validator、gate 与上层 discoverability，不替代单独的 `kernel_runtime_session` summary，也不绕过 witness bundle / world compare
+
+- `examples/minimal_kernel.runtime_session_witness_smoke.v0.sample.json`
+  - 对应 `minimal_kernel.runtime_session_witness_smoke/v0` 的最小样例
+  - 用途偏向 schema 自检、聚合 artifact path 讨论与后续 CI / front-page 消费前的对象锚点
+
+- `minimal_kernel.runtime_session_witness_inspect_compare.v0.schema.json`
+  - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1`
+  - 用途偏向把 `-BaselineSummary` 产生的 result / runtime facts / failure taxonomy 差分收成可验证 compare 对象
+  - 它服务于 inspect consumer、explain stitching 与后续 front-page 消费，不替代根 `runtime_session_witness_smoke` summary
+
+- `examples/minimal_kernel.runtime_session_witness_inspect_compare.v0.sample.json`
+  - 对应 `minimal_kernel.runtime_session_witness_inspect_compare/v0` 的最小样例
+  - 用途偏向 schema 自检、compare object 字段讨论与后续 explain consumer 接入前的对象锚点
+
+- `minimal_kernel.runtime_session_witness_inspect_compare_consumer.v0.schema.json`
+  - 对应 `docs/system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md` 与 `scripts/export_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py`
+  - 用途偏向把 inspect compare drift 收成 consumer-first 的焦点对象，方便 explain/front-page 下一跳直接消费
+
+- `examples/minimal_kernel.runtime_session_witness_inspect_compare_consumer.v0.sample.json`
+  - 对应 `minimal_kernel.runtime_session_witness_inspect_compare_consumer/v0` 的最小样例
+  - 用途偏向 schema 自检、focus-entry 讨论与后续 explain consumer 接入前的对象锚点
 
 - `minimal_kernel.kernel_runtime_session.v0.schema.json`
   - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/export_minimal_kernel_runtime_session.py`
@@ -485,6 +521,9 @@
 - `system_formation_summary/v0`：当前 artifact_root 默认总览里的 formation-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `fact_resolution_summary/v0`：当前 artifact_root 默认总览里的 fact-resolution-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_compiler_result_map/v0`：当前 system compiler root summary 关系语言的对象锚点，语义继续由脚本契约与样例共同收紧
+- `minimal_kernel.runtime_session_witness_smoke/v0`：当前 minimal-kernel runtime session witness 聚合回归对象锚点，负责把 standing session、synthetic drift 与 witness-export collapse 三条子证据链收成同一可消费根对象
+- `minimal_kernel.runtime_session_witness_inspect_compare/v0`：当前 minimal-kernel runtime session witness inspect compare 对象锚点，负责把 summary-to-summary 的 result、runtime facts 与 failure taxonomy 漂移收成稳定差分对象
+- `minimal_kernel.runtime_session_witness_inspect_compare_consumer/v0`：当前 minimal-kernel runtime session witness inspect compare consumer 对象锚点，负责把 stable compare drift 收成上层 explain/front-page 可直接接走的焦点对象
 - `minimal_kernel.kernel_runtime_session/v0`：当前 minimal-kernel runtime session witness 对象锚点，负责把 semantic witness、machine witness、runtime continuity、ledger 与 failure taxonomy 收成同一可消费对象
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，
@@ -495,4 +534,5 @@
 - 设计说明：`docs/system/init_materialized_graph_observe.md`
 - 输出面：`docs/system/explain_surface_v0.md`
 - 统一报告对象：`docs/system/artifact_report_v0.md`
+- Session witness：`docs/system/kernel_runtime_session_witness_v0.md`
 - 方法论复盘：`docs/architecture/charm_methodology_charter.md`

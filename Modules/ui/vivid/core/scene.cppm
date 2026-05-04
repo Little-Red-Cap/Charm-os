@@ -30,18 +30,43 @@ import charm.gfx.draw_cmd;
 
 export using ::ScrollBarOrientation;
 export using ::SemanticAction;
+export using ::SemanticActionAdmission;
+export using ::SemanticActionAdmissionStatus;
 export using ::SemanticActionMask;
+export using ::SemanticActionRequest;
+export using ::SemanticActionRequestLedger;
+export using ::SemanticActionRequestRejectReason;
+export using ::SemanticActionRequestStage;
+export using ::SemanticActionRequestStatus;
 export using ::SemanticActionSnapshot;
+export using ::SemanticFocusAdmission;
+export using ::SemanticFocusAdmissionStatus;
+export using ::SemanticFocusQuery;
+export using ::SemanticFocusQueryStatus;
+export using ::SemanticFocusRequest;
+export using ::SemanticFocusRequestLedger;
+export using ::SemanticFocusRequestStage;
+export using ::SemanticFocusRequestStatus;
 export using ::SemanticFocusSnapshot;
 export using ::SemanticIntentResolution;
 export using ::SemanticIntentStatus;
 export using ::SemanticRole;
 export using ::SemanticTreeNode;
 export using ::SemanticTreeSnapshot;
+export using ::semantic_action_admission_status_name;
 export using ::semantic_action_mask;
 export using ::semantic_action_present;
+export using ::semantic_action_request_reject_reason_name;
+export using ::semantic_action_request_ledger;
+export using ::semantic_action_request_stage_name;
+export using ::semantic_action_request_status_name;
 export using ::semantic_default_role_for_kind;
 export using ::semantic_default_actions_for_role;
+export using ::semantic_focus_admission_status_name;
+export using ::semantic_focus_query_status_name;
+export using ::semantic_focus_request_ledger;
+export using ::semantic_focus_request_stage_name;
+export using ::semantic_focus_request_status_name;
 export using ::semantic_intent_status_name;
 export using ::kSemanticTreeMaxNodes;
 export using ::kSemanticTreeNoFocusIndex;
@@ -59,17 +84,42 @@ export namespace ui::scene {
 
     using ScrollBarOrientation = ::ScrollBarOrientation;
     using SemanticAction = ::SemanticAction;
+    using SemanticActionAdmission = ::SemanticActionAdmission;
+    using SemanticActionAdmissionStatus = ::SemanticActionAdmissionStatus;
     using SemanticActionMask = ::SemanticActionMask;
+    using SemanticActionRequest = ::SemanticActionRequest;
+    using SemanticActionRequestLedger = ::SemanticActionRequestLedger;
+    using SemanticActionRequestRejectReason = ::SemanticActionRequestRejectReason;
+    using SemanticActionRequestStage = ::SemanticActionRequestStage;
+    using SemanticActionRequestStatus = ::SemanticActionRequestStatus;
     using SemanticActionSnapshot = ::SemanticActionSnapshot;
+    using SemanticFocusAdmission = ::SemanticFocusAdmission;
+    using SemanticFocusAdmissionStatus = ::SemanticFocusAdmissionStatus;
+    using SemanticFocusQuery = ::SemanticFocusQuery;
+    using SemanticFocusQueryStatus = ::SemanticFocusQueryStatus;
+    using SemanticFocusRequest = ::SemanticFocusRequest;
+    using SemanticFocusRequestLedger = ::SemanticFocusRequestLedger;
+    using SemanticFocusRequestStage = ::SemanticFocusRequestStage;
+    using SemanticFocusRequestStatus = ::SemanticFocusRequestStatus;
     using SemanticFocusSnapshot = ::SemanticFocusSnapshot;
     using SemanticIntentResolution = ::SemanticIntentResolution;
     using SemanticIntentStatus = ::SemanticIntentStatus;
     using SemanticRole = ::SemanticRole;
     using SemanticTreeNode = ::SemanticTreeNode;
     using SemanticTreeSnapshot = ::SemanticTreeSnapshot;
+    using ::semantic_action_admission_status_name;
     using ::semantic_action_mask;
     using ::semantic_action_present;
+    using ::semantic_action_request_reject_reason_name;
+    using ::semantic_action_request_ledger;
+    using ::semantic_action_request_stage_name;
+    using ::semantic_action_request_status_name;
     using ::semantic_default_actions_for_role;
+    using ::semantic_focus_admission_status_name;
+    using ::semantic_focus_query_status_name;
+    using ::semantic_focus_request_ledger;
+    using ::semantic_focus_request_stage_name;
+    using ::semantic_focus_request_status_name;
     using ::semantic_intent_status_name;
     constexpr std::size_t kSemanticTreeMaxNodes = ::kSemanticTreeMaxNodes;
     constexpr std::uint16_t kSemanticTreeNoFocusIndex = ::kSemanticTreeNoFocusIndex;
@@ -383,6 +433,7 @@ export namespace ui::scene {
             kernel_->set_semantic_actions(h, actions);
         }
         void set_enabled(WidgetHandle h, bool on) noexcept { kernel_->set_enabled(h, on); }
+        void set_focusable(WidgetHandle h, bool on) noexcept { kernel_->set_focusable(h, on); }
         bool pressed(WidgetHandle h) const noexcept { return kernel_->pressed(h); }
         bool focused(WidgetHandle h) const noexcept { return kernel_->focused(h); }
         SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
@@ -396,6 +447,27 @@ export namespace ui::scene {
             const char* id,
             SemanticAction action) const noexcept {
             return kernel_->resolve_semantic_intent(root, id, action);
+        }
+        SemanticActionAdmission admit_semantic_action(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) const noexcept {
+            return kernel_->admit_semantic_action(root, id, action);
+        }
+        SemanticActionRequest request_semantic_action(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) noexcept {
+            return kernel_->request_semantic_action(root, id, action);
+        }
+        SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept {
+            return kernel_->query_semantic_focus(root, id);
+        }
+        SemanticFocusAdmission admit_semantic_focus(WidgetHandle root, const char* id) const noexcept {
+            return kernel_->admit_semantic_focus(root, id);
+        }
+        SemanticFocusRequest request_semantic_focus(WidgetHandle root, const char* id) noexcept {
+            return kernel_->request_semantic_focus(root, id);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_->semantic_focus_snapshot();
@@ -1166,6 +1238,27 @@ export namespace ui::scene {
             const char* id,
             SemanticAction action) const noexcept {
             return kernel_.resolve_semantic_intent(root, id, action);
+        }
+        SemanticActionAdmission admit_semantic_action(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) const noexcept {
+            return kernel_.admit_semantic_action(root, id, action);
+        }
+        SemanticActionRequest request_semantic_action(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) noexcept {
+            return kernel_.request_semantic_action(root, id, action);
+        }
+        SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept {
+            return kernel_.query_semantic_focus(root, id);
+        }
+        SemanticFocusAdmission admit_semantic_focus(WidgetHandle root, const char* id) const noexcept {
+            return kernel_.admit_semantic_focus(root, id);
+        }
+        SemanticFocusRequest request_semantic_focus(WidgetHandle root, const char* id) noexcept {
+            return kernel_.request_semantic_focus(root, id);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_.semantic_focus_snapshot();

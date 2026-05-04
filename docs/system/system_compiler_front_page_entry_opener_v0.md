@@ -180,7 +180,12 @@ For `minimal_kernel.kernel_runtime_session/v0`, the projection kind is
 `kernel_runtime_session_overview`. It keeps the runtime session distinct from
 the broader `runtime_evidence_bundle` preview, and summarizes the session id,
 world, semantic witness, machine witness, runtime facts, ledger count, and
-session verdict.
+session verdict. The projection also keeps the opened session useful as a
+consumer-facing diagnosis adapter by listing contract names, standing/regressed
+runtime cases, machine ingress facets, ledger paths, provenance hints, and the
+first failure detail when one exists. These details are still carried by the
+same modest `opened_projection` shape; the opener does not introduce a separate
+runtime-session schema or reinterpret the lower session witness.
 
 For `system_compiler.world_shelf_review/v0`, those summary lines include a
 single `drift_digest ...` line. This is only a consumer preview of the review

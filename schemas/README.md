@@ -218,6 +218,9 @@
     明确 open action、目标 summary/report/check，以及是否能安全转成 `inspect_system_compiler_artifact_report.ps1` 参数
   - opener projection 现在支持 `minimal_kernel.kernel_runtime_session/v0`，
     并投影为 `kernel_runtime_session_overview`
+  - `kernel_runtime_session_overview` 会在同一个 `opened_projection` 契约内暴露 contracts、
+    standing/regressed cases、machine ingress facets、ledger/provenance hints 与 failure prompt；
+    它不为 runtime session 另开 schema 分支
   - `scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1` 会守住
     `runtime_session` tab 到 opener projection 的最短链路
 

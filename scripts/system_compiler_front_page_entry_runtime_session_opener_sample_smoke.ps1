@@ -287,6 +287,30 @@ try {
         -Condition (-not [string]::IsNullOrWhiteSpace([string]$openerSummary.opened_projection.headline)) `
         -Message "expected runtime session projection headline"
 
+    $projectionSummaryLines = @($openerSummary.opened_projection.summary_lines) | ForEach-Object { [string]$_ }
+    $projectionQuestionLines = @($openerSummary.opened_projection.question_lines) | ForEach-Object { [string]$_ }
+    Assert-Condition `
+        -Condition (($projectionSummaryLines | Where-Object { $_ -like "contracts=*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected runtime session projection contracts summary line"
+    Assert-Condition `
+        -Condition (($projectionSummaryLines | Where-Object { $_ -like "machine_ingress enabled=*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected runtime session projection machine ingress summary line"
+    Assert-Condition `
+        -Condition (($projectionSummaryLines | Where-Object { $_ -like "standing_cases=*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected runtime session projection standing cases summary line"
+    Assert-Condition `
+        -Condition (($projectionSummaryLines | Where-Object { $_ -like "regressed_cases=*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected runtime session projection regressed cases summary line"
+    Assert-Condition `
+        -Condition (($projectionSummaryLines | Where-Object { $_ -like "ledger_paths phase=*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected runtime session projection ledger paths summary line"
+    Assert-Condition `
+        -Condition (($projectionSummaryLines | Where-Object { $_ -like "provenance runtime_evidence=*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected runtime session projection provenance summary line"
+    Assert-Condition `
+        -Condition (($projectionQuestionLines | Where-Object { $_ -like "*runtime*" -or $_ -like "*session*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected runtime session projection question lines"
+
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENER-SAMPLE-SMOKE] landing={0}" -f $runtimeSessionLandingPath)
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENER-SAMPLE-SMOKE] opener={0}" -f $openerSummaryPath)
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENER-SAMPLE-SMOKE] tab={0}" -f $openerSummary.open_action.selected_tab_id)

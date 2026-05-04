@@ -95,6 +95,37 @@ otherwise       -> reject to empty
 
 也就是 current-first / fallback-second。这样用户点击 modal 外部时，不会把 modal 内已有焦点重置到 modal fallback。
 
+### Law 6：keyboard / d-pad navigation 必须限制在 active scope
+
+键盘与方向键焦点移动不应绕过 active focus scope。v0 先用 deterministic preorder focusable 顺序建立键盘导航基础：
+
+```text
+Tab / Right / Down -> next focusable in active scope
+Left / Up          -> previous focusable in active scope
+end -> beginning   -> wrap
+beginning -> end   -> reverse wrap
+```
+
+scope 外 target 不参与候选集。每次移动都必须走与 pointer focus transfer 相同的提交链：
+
+```text
+FocusOut(old)
+FocusIn(new)
+input_focused=new
+```
+
+### Law 7：directional key 应优先使用 spatial focus candidate
+
+遥控器 / 手柄 UI 里的方向键不应该只等价于 preorder。v0 对 `Left / Right / Up / Down` 增加空间候选裁决：
+
+```text
+directional key -> choose nearest focusable candidate in that geometric direction
+no spatial candidate -> fallback to preorder wrap
+Tab -> always preorder
+```
+
+空间候选仍然必须受 active scope 约束。scope 外 target 即使在几何方向上更近，也不得进入候选集。
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_scope_demo` 是 Focus Scope Evidence v0 的第一条运行证据。
@@ -129,11 +160,34 @@ root
 - `pop_focus_scope()` 后 active scope 恢复 base，stack size 回到 0。
 - 恢复 base scope 后，modal target 请求被 base scope 拒绝并重定向到 base fallback。
 
+`Examples/ui/vivid/focus_scope_navigation_demo` 是 Focus Scope Navigation Evidence v0 的第一条运行证据。
+
+它验证：
+
+- `Tab` 将焦点从 first 移到 second。
+- `Right` 将焦点从 second 移到 third。
+- `Down` 从 third wrap 到 first。
+- `Left` 从 first reverse wrap 到 third。
+- scope 外 target 不进入 keyboard / d-pad navigation 候选集。
+- 每次移动都产生 `FocusOut / FocusIn` 并提交 `input_focused`。
+
+`Examples/ui/vivid/focus_spatial_navigation_demo` 是 Focus Spatial Navigation Evidence v0 的第一条运行证据。
+
+它验证：
+
+- `Right / Down / Left / Up` 按世界坐标矩形选择空间方向候选。
+- `Tab` 保持 preorder 导航与 wrap。
+- 没有空间候选时，方向键回退到 preorder wrap。
+- scope 外 target 不进入 spatial candidate。
+- 每次移动都产生 `FocusOut / FocusIn` 并提交 `input_focused`。
+
 stdout 最终约束：
 
 ```text
 [fs] run=focus_scope_demo phase=end result=ok cases=9
 [fsn] run=focus_scope_nested_demo phase=end result=ok cases=8
+[fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=7
+[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9
 ```
 
 核心字段：
@@ -151,9 +205,13 @@ leaked=0
 stack=0/1
 pushed=1
 popped=1
+key=tab/right/down/left
+wrap=1
+mode=spatial/preorder
+fallback=1
+outside_candidate=0
 ```
 
 ## 后续方向
 
-- 支持 keyboard / d-pad 在 scope 内循环。
 - 为 accessibility focus 增加 semantic focus target 与 visual focus artifact 对齐证据。

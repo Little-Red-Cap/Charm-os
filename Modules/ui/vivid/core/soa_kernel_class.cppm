@@ -51,6 +51,9 @@ namespace soa_detail {
         std::array<StyleClassId, N> style_class{};
         std::array<std::uint8_t, N> text_align_h{};
         std::array<std::uint8_t, N> text_align_v{};
+        std::array<SemanticRole, N> semantic_role{};
+        std::array<soa_detail::TextId, N> semantic_id{};
+        std::array<soa_detail::TextId, N> semantic_label{};
     };
 
 }
@@ -86,6 +89,9 @@ public:
             common_.style_class[i] = kStyleClassInvalid;
             common_.text_align_h[i] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[i] = static_cast<std::uint8_t>(TextAlignV::Center);
+            common_.semantic_role[i] = SemanticRole::None;
+            common_.semantic_id[i] = soa_detail::empty_text_id();
+            common_.semantic_label[i] = soa_detail::empty_text_id();
         }
         payloads_.reset();
     }
@@ -128,6 +134,9 @@ public:
         common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
+        common_.semantic_role[idx] = SemanticRole::None;
+        common_.semantic_id[idx] = soa_detail::empty_text_id();
+        common_.semantic_label[idx] = soa_detail::empty_text_id();
         const auto payload = payload_alloc(kind, idx);
         if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
             common_.kind[idx] = WidgetKind::None;
@@ -150,6 +159,9 @@ public:
             common_.style_class[idx] = kStyleClassInvalid;
             common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
+            common_.semantic_role[idx] = SemanticRole::None;
+            common_.semantic_id[idx] = soa_detail::empty_text_id();
+            common_.semantic_label[idx] = soa_detail::empty_text_id();
             common_.free_next[idx] = free_head_;
             free_head_ = idx;
             return {};
@@ -180,6 +192,9 @@ public:
         common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
+        common_.semantic_role[idx] = SemanticRole::None;
+        common_.semantic_id[idx] = soa_detail::empty_text_id();
+        common_.semantic_label[idx] = soa_detail::empty_text_id();
         payload_free(old_kind, common_.payload[idx], idx);
         common_.payload[idx] = soa_detail::invalid_payload_handle();
         mark_layout_dirty();
@@ -345,6 +360,126 @@ public:
 
     bool focusable(WidgetHandle h) const noexcept {
         return get_flag(h, SoaNodeFlag::Focusable);
+    }
+
+    void set_semantic(WidgetHandle h,
+                      SemanticRole role,
+                      const char* id,
+                      const char* label) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.semantic_role[idx] = role;
+        common_.semantic_id[idx] = payloads_.store_text(id);
+        common_.semantic_label[idx] = payloads_.store_text(label);
+    }
+
+    void clear_semantic(WidgetHandle h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.semantic_role[idx] = SemanticRole::None;
+        common_.semantic_id[idx] = soa_detail::empty_text_id();
+        common_.semantic_label[idx] = soa_detail::empty_text_id();
+    }
+
+    SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
+        SemanticFocusSnapshot out{};
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return out;
+        const SemanticRole role = common_.semantic_role[idx];
+        out.handle = h;
+        out.id = payloads_.text_c_str(common_.semantic_id[idx]);
+        out.role = semantic_role_name(role);
+        out.label = payloads_.text_c_str(common_.semantic_label[idx]);
+        out.focusable = focusable(h);
+        out.found = role != SemanticRole::None && out.id && out.id[0] != '\0';
+        return out;
+    }
+
+    SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
+        return semantic_snapshot(input_.focused);
+    }
+
+    SemanticTreeSnapshot semantic_tree_snapshot(
+        WidgetHandle root,
+        std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {
+        SemanticTreeSnapshot out{};
+        if (!root || !valid(root)) {
+            return out;
+        }
+        if (max_nodes > kSemanticTreeMaxNodes) {
+            max_nodes = kSemanticTreeMaxNodes;
+        }
+
+        struct StackEntry {
+            WidgetHandle handle{};
+            std::uint16_t depth{0};
+        };
+
+        std::array<StackEntry, kMaxNodes> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = StackEntry{root, 0};
+
+        while (sp > 0) {
+            const StackEntry entry = stack[--sp];
+            const WidgetHandle h = entry.handle;
+            if (!valid(h) || !visible(h)) continue;
+            ++out.visited_count;
+
+            const auto semantic = semantic_snapshot(h);
+            if (semantic.found) {
+                const bool focused = h == input_.focused;
+                ++out.total_semantic_count;
+                if (focused) {
+                    out.focused_handle = h;
+                    out.focus_id = semantic.id;
+                    out.focus_found = true;
+                }
+                if (out.node_count < max_nodes) {
+                    SemanticTreeNode node{};
+                    node.handle = h;
+                    node.id = semantic.id;
+                    node.role = semantic.role;
+                    node.label = semantic.label;
+                    node.bounds = world_rect(h);
+                    node.depth = entry.depth;
+                    node.preorder = static_cast<std::uint16_t>(out.total_semantic_count - 1);
+                    node.focused = focused;
+                    node.focusable = semantic.focusable;
+                    out.nodes[out.node_count] = node;
+                    out.semantic_hash = semantic_tree_hash_node(out.semantic_hash, node);
+                    if (focused) {
+                        out.focus_index = static_cast<std::uint16_t>(out.node_count);
+                    }
+                    ++out.node_count;
+                } else {
+                    out.overflowed = true;
+                }
+            }
+
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) {
+                    out.overflowed = true;
+                    break;
+                }
+                stack[sp++] = StackEntry{
+                    child,
+                    static_cast<std::uint16_t>(entry.depth + 1),
+                };
+            }
+        }
+
+        out.semantic_hash = semantic_tree_hash_mix(
+            out.semantic_hash,
+            static_cast<std::uint32_t>(out.node_count));
+        out.semantic_hash = semantic_tree_hash_mix(
+            out.semantic_hash,
+            static_cast<std::uint32_t>(out.total_semantic_count));
+        out.semantic_hash = semantic_tree_hash_mix(
+            out.semantic_hash,
+            out.focus_found ? static_cast<std::uint32_t>(out.focus_index) : 0xFFFFu);
+        out.semantic_hash = semantic_tree_hash_text(out.semantic_hash, out.focus_found ? out.focus_id : "");
+        out.semantic_hash = semantic_tree_hash_mix(out.semantic_hash, out.overflowed ? 1u : 0u);
+        return out;
     }
 
     void set_hit_testable(WidgetHandle h, bool on) noexcept {
@@ -610,6 +745,7 @@ public:
         case Event::Type::FocusOut:
             break;
         case Event::Type::KeyDown:
+            input_handle_key_down(e.key_code);
             break;
         case Event::Type::KeyUp:
             break;
@@ -1131,6 +1267,7 @@ private:
     void input_handle_release(int x, int y, int button) ;
     void input_handle_wheel(int x, int y, int dy) ;
     void input_handle_cancel(int x, int y, int button) ;
+    void input_handle_key_down(Event::Key key) ;
     void input_handle_click(WidgetHandle h, int x, int y) ;
     bool scrollbar_track_info(WidgetHandle h, const ResolvedMetrics* metrics, ScrollBarTrackInfo& info) ;
     bool input_scrollbar_page_click(WidgetHandle h, int x, int y, const ResolvedMetrics* metrics) ;
@@ -1151,6 +1288,10 @@ private:
     SoaWheelAxisPolicy input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
         SoaWheelAxisPolicy fallback, int x, int y) const noexcept ;
     void input_apply_scroll_by(WidgetHandle h, int dy, int dx) ;
+    bool input_is_focus_candidate(WidgetHandle h) const noexcept ;
+    WidgetHandle input_first_focus_candidate(WidgetHandle root) const noexcept ;
+    WidgetHandle input_next_focus_candidate(WidgetHandle root, WidgetHandle current, bool reverse) const noexcept ;
+    WidgetHandle input_spatial_focus_candidate(WidgetHandle root, WidgetHandle current, Event::Key key) const noexcept ;
     WidgetHandle input_resolve_focus_request(WidgetHandle h) const noexcept ;
     void input_set_focus(WidgetHandle h) ;
     WidgetHandle input_drag_target() const noexcept ;

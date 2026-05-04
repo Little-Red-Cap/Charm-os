@@ -29,6 +29,12 @@ export import charm.gfx.text_box;
 import charm.gfx.draw_cmd;
 
 export using ::ScrollBarOrientation;
+export using ::SemanticFocusSnapshot;
+export using ::SemanticRole;
+export using ::SemanticTreeNode;
+export using ::SemanticTreeSnapshot;
+export using ::kSemanticTreeMaxNodes;
+export using ::kSemanticTreeNoFocusIndex;
 export using ::TableViewHeaderStyle;
 export using ::TableViewColDividerStyle;
 
@@ -42,6 +48,12 @@ export namespace ui::scene {
     using ImageShapeKind = ui::render::ImageShapeKind;
 
     using ScrollBarOrientation = ::ScrollBarOrientation;
+    using SemanticFocusSnapshot = ::SemanticFocusSnapshot;
+    using SemanticRole = ::SemanticRole;
+    using SemanticTreeNode = ::SemanticTreeNode;
+    using SemanticTreeSnapshot = ::SemanticTreeSnapshot;
+    constexpr std::size_t kSemanticTreeMaxNodes = ::kSemanticTreeMaxNodes;
+    constexpr std::uint16_t kSemanticTreeNoFocusIndex = ::kSemanticTreeNoFocusIndex;
     using TableViewHeaderStyle = ::TableViewHeaderStyle;
     using TableViewColDividerStyle = ::TableViewColDividerStyle;
     using TextAlignH = ::TextAlignH;
@@ -336,6 +348,24 @@ export namespace ui::scene {
         void set_text_slot(WidgetHandle h, TextSlotId slot, const char* text) noexcept {
             kernel_->set_text_slot(h, slot, text);
         }
+        void set_semantic(WidgetHandle h,
+                          SemanticRole role,
+                          const char* id,
+                          const char* label) noexcept {
+            kernel_->set_semantic(h, role, id, label);
+        }
+        void clear_semantic(WidgetHandle h) noexcept { kernel_->clear_semantic(h); }
+        SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
+            return kernel_->semantic_snapshot(h);
+        }
+        SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
+            return kernel_->semantic_focus_snapshot();
+        }
+        SemanticTreeSnapshot semantic_tree_snapshot(
+            WidgetHandle root,
+            std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {
+            return kernel_->semantic_tree_snapshot(root, max_nodes);
+        }
 
         void set_image(WidgetHandle h, ImageId image) noexcept { kernel_->set_image(h, image); }
         void set_image_slot(const ImageSlotHandles& slot,
@@ -531,6 +561,12 @@ export namespace ui::scene {
         void link(WidgetHandle parent, WidgetHandle child) noexcept { factory_.link(parent, child); }
 
         void set_rect(WidgetHandle h, const Rect& r) noexcept { kernel_.set_rect(h, r); }
+        void set_semantic(WidgetHandle h,
+                          SemanticRole role,
+                          const char* id,
+                          const char* label) noexcept {
+            kernel_.set_semantic(h, role, id, label);
+        }
         void set_input_root(WidgetHandle h) noexcept { kernel_.set_input_root(h); }
         void set_focus_scope(WidgetHandle scope,
                              WidgetHandle fallback = {},
@@ -1072,6 +1108,17 @@ export namespace ui::scene {
 
         Rect world_rect(WidgetHandle h) const noexcept { return kernel_.world_rect(h); }
         const char* text(WidgetHandle h) const noexcept { return kernel_.text(h); }
+        SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
+            return kernel_.semantic_snapshot(h);
+        }
+        SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
+            return kernel_.semantic_focus_snapshot();
+        }
+        SemanticTreeSnapshot semantic_tree_snapshot(
+            WidgetHandle root,
+            std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept {
+            return kernel_.semantic_tree_snapshot(root, max_nodes);
+        }
         SceneAccess access() noexcept { return SceneAccess(kernel_); }
 
         CmdStats last_cmd_stats() const noexcept { return last_cmd_stats_; }

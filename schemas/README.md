@@ -143,6 +143,8 @@
   - 对应 `docs/system/system_compiler_world_shelf_review_v0.md` 与 `scripts/review_system_compiler_world_shelf.ps1`
   - 用途偏向把 candidate shelf、baseline shelf 与 shelf compare verdict 收成一个可验证的 review envelope 对象
   - `drift_digest` 只投影 lower shelf compare 的漂移摘要，不替代 `biography_index_compare`
+  - `collapse_surface` 与 shelf compare 的 collapse surface 保持同形，包括空的
+    `front_page_entry_detail_changed_anchors`
 
 - `system_compiler.front_page_route.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_route_v0.md`、`scripts/export_system_compiler_front_page_route.py`
@@ -207,6 +209,51 @@
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer.py`
   - 用途偏向把一份 `front_page entry opening flow` summary 收成上层 explain 工具可消费的入口清单，
     明确 default opening、compare opening、renderable openings、projection kinds 与 inspector blockers
+
+- `system_compiler.front_page_entry_opening_flow_consumer_selector.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_v0.md`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector.py`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector.py`
+  - 用途偏向把一份 `front_page entry opening flow consumer` handoff 收成确定性 open order，
+    明确 default entry、compare entry、fallback entries 与对应 opener 证据入口
+
+- `system_compiler.front_page_entry_opening_flow_consumer_plan.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_v0.md`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan.py`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
+  - 用途偏向把一份 `front_page entry opening flow consumer selector` open order 收成确定性执行计划，
+    明确 open-default、open-compare-neighbor、open-next actions 与对应 opener 证据入口
+
+- `system_compiler.front_page_entry_opening_flow_consumer_plan_action.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
+  - 用途偏向从一份 `front_page entry opening flow consumer plan` summary 中选择单个 action，
+    输出后续 explain consumer 可直接打开的 opener summary witness
+
+- `system_compiler.front_page_entry_opening_flow_consumer_plan_compare.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan.py`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_workspace_compare_smoke.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_compare.py`
+  - 用途偏向比较两份 `front_page entry opening flow consumer plan` summary，回答 default action、
+    compare-neighbor action、fallback/order、operation、target、projection、compare context 与 inspector readiness 是否漂移
+
+- `system_compiler.front_page_entry_opening_flow_consumer_selector_compare.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_v0.md`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_selector.py`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector_compare.py`
+  - 用途偏向比较两份 `front_page entry opening flow consumer selector` summary，回答 default entry、
+    compare neighbor、fallback/order、projection、compare context 与 inspector readiness 是否漂移
 
 - `system_compiler.front_page_entry_opening_flow_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`、

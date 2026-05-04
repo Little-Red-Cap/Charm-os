@@ -10,6 +10,12 @@
 
 `Focus Scope Nested Evidence v0` 已由 `Examples/ui/vivid/focus_scope_nested_demo` 承接：runtime 可以 push modal scope、pop 恢复 base scope；modal trap 使用 current-first / fallback-second 的裁决顺序，避免弹窗内已有焦点被外部点击重置；详见 `vivid_focus_scope_evidence_v0.md`。
 
+`Focus Scope Navigation Evidence v0` 已由 `Examples/ui/vivid/focus_scope_navigation_demo` 承接：Tab / Right / Down 在 active scope 内前进，Left / Up 后退，导航按 deterministic preorder focusable 顺序循环，scope 外 target 不参与键盘焦点导航；详见 `vivid_focus_scope_evidence_v0.md`。
+
+`Focus Spatial Navigation Evidence v0` 已由 `Examples/ui/vivid/focus_spatial_navigation_demo` 承接：方向键优先按世界坐标矩形选择 active scope 内的空间候选，无候选时回退到 preorder wrap，Tab 保持 preorder；详见 `vivid_focus_scope_evidence_v0.md`。
+
+`Focus Semantic Evidence v0` 已由 `Examples/ui/vivid/focus_semantic_demo` 承接：runtime semantic store 能把 `input_focused` 解析为稳定 id / role / label，并证明 semantic current target、input focus truth 与 visual focus ring artifact 对齐；详见 `vivid_focus_semantic_evidence_v0.md`。
+
 本文是 Vivid 进入 `Runtime Spine v0` 后的方向宪章。
 
 它不是 API 契约，也不替代 `ui_kernel_contract.md`、`vivid_replay_workflow.md`、`vivid_layer_runtime_v0.md` 或 `vivid_motion_runtime_v0.md`。它负责回答一个更上层的问题：
@@ -359,3 +365,20 @@ Vivid 的核心责任不是画 UI，而是让 UI 在不同资源宇宙中以可�
 ## 2026-05 补记：Transition ledger
 
 `PageTransitionLedger` 让页面迁移事务从 trace 事件推进到可汇总账本：一次转场最终是否 committed / aborted、是否 static cut / interrupted、峰值 layer bytes、合成像素数、capture 状态与 snapshot 是否释放，都可以在 runner 回到 idle 后读取。
+
+## 2026-05 Addendum: Semantic Tree Artifact
+
+Vivid now has a minimal semantic artifact path in addition to focus target lookup:
+
+```text
+set_semantic(handle, role, id, label)
+semantic_focus_snapshot()
+semantic_tree_snapshot(root, max_nodes)
+```
+
+`semantic_tree_snapshot` belongs to the Evidence Plane and Artifact Plane, not to Pattern code. Pattern authors may provide semantic roles and labels, but they should not know how the tree is stored, hashed, or capacity-limited.
+
+Current evidence:
+
+- `Examples/ui/vivid/focus_semantic_demo` proves focused target lookup and focus ring alignment.
+- `Examples/ui/vivid/semantic_tree_demo` proves root-bound preorder artifact collection, focus marker, decorative exclusion, overflow reporting, and stable `semantic_hash`.

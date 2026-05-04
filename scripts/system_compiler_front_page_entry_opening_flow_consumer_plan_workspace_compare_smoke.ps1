@@ -123,6 +123,89 @@ function Assert-Condition {
     }
 }
 
+function Assert-PathExists {
+    param(
+        [string]$Path,
+        [string]$Message
+    )
+
+    Assert-Condition `
+        -Condition (-not [string]::IsNullOrWhiteSpace($Path)) `
+        -Message ("{0}: missing path" -f $Message)
+    Assert-Condition `
+        -Condition (Test-Path -LiteralPath $Path) `
+        -Message ("{0}: path not found: {1}" -f $Message, $Path)
+}
+
+function Assert-SurfacePaths {
+    param(
+        $Surface,
+        [string]$Message
+    )
+
+    Assert-PathExists -Path ([string]$Surface.summary_path) -Message ("{0}.summary_path" -f $Message)
+    Assert-PathExists -Path ([string]$Surface.report_markdown_path) -Message ("{0}.report_markdown_path" -f $Message)
+    Assert-PathExists -Path ([string]$Surface.check_text_path) -Message ("{0}.check_text_path" -f $Message)
+}
+
+function Assert-CompareWitnessShape {
+    param(
+        $CompareSummary,
+        [string]$CompareSummaryPath,
+        [string]$CaseName
+    )
+
+    Assert-SurfacePaths -Surface $CompareSummary.front_page -Message ("case '{0}' front_page" -f $CaseName)
+    Assert-Condition `
+        -Condition ([string]$CompareSummary.front_page.summary_path -eq [string]$CompareSummary.artifact_context.compare_summary_path) `
+        -Message ("case '{0}' front_page summary path does not match artifact context" -f $CaseName)
+    Assert-Condition `
+        -Condition ([string]$CompareSummary.front_page.summary_path -eq [string]$CompareSummaryPath) `
+        -Message ("case '{0}' front_page summary path does not match smoke output" -f $CaseName)
+
+    $surfaces = @($CompareSummary.front_page.supporting_surfaces)
+    Assert-Condition `
+        -Condition ($surfaces.Count -eq 2) `
+        -Message ("case '{0}' expected 2 supporting surfaces but got {1}" -f $CaseName, $surfaces.Count)
+
+    $surfaceById = @{}
+    foreach ($surface in $surfaces) {
+        $surfaceById[[string]$surface.id] = $surface
+        Assert-Condition `
+            -Condition ([string]$surface.summary_schema -eq "system_compiler.front_page_entry_opening_flow_consumer_plan/v0") `
+            -Message ("case '{0}' supporting surface '{1}' has unexpected schema" -f $CaseName, [string]$surface.id)
+        Assert-SurfacePaths -Surface $surface -Message ("case '{0}' supporting surface '{1}'" -f $CaseName, [string]$surface.id)
+    }
+
+    foreach ($expectedId in @("baseline_consumer_plan", "candidate_consumer_plan")) {
+        Assert-Condition `
+            -Condition ($surfaceById.ContainsKey($expectedId)) `
+            -Message ("case '{0}' missing supporting surface '{1}'" -f $CaseName, $expectedId)
+    }
+
+    $provenance = @($CompareSummary.plan_provenance)
+    Assert-Condition `
+        -Condition ($provenance.Count -eq 2) `
+        -Message ("case '{0}' expected 2 plan provenance entries but got {1}" -f $CaseName, $provenance.Count)
+
+    $provenanceById = @{}
+    foreach ($entry in $provenance) {
+        $provenanceById[[string]$entry.id] = $entry
+        Assert-PathExists -Path ([string]$entry.source_summary_path) -Message ("case '{0}' provenance '{1}'.source_summary_path" -f $CaseName, [string]$entry.id)
+        Assert-PathExists -Path ([string]$entry.source_report_markdown_path) -Message ("case '{0}' provenance '{1}'.source_report_markdown_path" -f $CaseName, [string]$entry.id)
+        Assert-PathExists -Path ([string]$entry.source_check_text_path) -Message ("case '{0}' provenance '{1}'.source_check_text_path" -f $CaseName, [string]$entry.id)
+    }
+
+    foreach ($expectedId in @("baseline_consumer_plan", "candidate_consumer_plan")) {
+        Assert-Condition `
+            -Condition ($provenanceById.ContainsKey($expectedId)) `
+            -Message ("case '{0}' missing provenance '{1}'" -f $CaseName, $expectedId)
+        Assert-Condition `
+            -Condition ([string]$surfaceById[$expectedId].summary_path -eq [string]$provenanceById[$expectedId].source_summary_path) `
+            -Message ("case '{0}' supporting surface and provenance summary path diverged for '{1}'" -f $CaseName, $expectedId)
+    }
+}
+
 function New-SyntheticPlanWorkspaceDrift {
     param(
         [string]$SourcePlanWorkspaceRoot,
@@ -276,6 +359,7 @@ try {
 
         $compareSummaryPath = Join-Path $caseOutputRoot "compare\front-page.entry-opening-flow.consumer.plan.compare.summary.json"
         $compareSummary = Load-JsonObject -Path $compareSummaryPath
+        Assert-CompareWitnessShape -CompareSummary $compareSummary -CompareSummaryPath $compareSummaryPath -CaseName $case.Name
         Assert-Condition `
             -Condition ([string]$compareSummary.plan_verdict -eq [string]$case.ExpectedVerdict) `
             -Message ("case '{0}' expected verdict '{1}' but got '{2}'" -f $case.Name, $case.ExpectedVerdict, $compareSummary.plan_verdict)

@@ -99,6 +99,14 @@ plan-workspace hot path, where the wrapper reuses already materialized
 `plan/front-page.entry-opening-flow.consumer.plan.summary.json` witnesses
 without requiring front-page workspace arguments.
 
+It also asserts that the resulting compare witness remains explainable:
+
+- `front_page.summary_path`, `front_page.report_markdown_path`, and
+  `front_page.check_text_path` all point at existing compare artifacts
+- `front_page.supporting_surfaces` contains both baseline and candidate
+  consumer plan surfaces
+- supporting surface summary paths stay aligned with `plan_provenance`
+
 ## Boundary
 
 This object intentionally stays at consumer-plan compare level.

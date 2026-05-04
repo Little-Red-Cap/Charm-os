@@ -130,9 +130,23 @@ function New-SyntheticDriftFlow {
     )
 
     $summary = Load-JsonObject -Path $SourcePath
+    $removedCaseName = ""
+    $preferredRemovedCase = @($summary.opener_cases) |
+        Where-Object { [string]$_.name -eq "root-witness-to-root-world-compare" } |
+        Select-Object -First 1
+    if ($preferredRemovedCase -is [System.Management.Automation.PSCustomObject] -or $preferredRemovedCase -is [hashtable]) {
+        $removedCaseName = [string]$preferredRemovedCase.name
+    } else {
+        $firstCase = @($summary.opener_cases) | Select-Object -First 1
+        Assert-Condition `
+            -Condition ($firstCase -is [System.Management.Automation.PSCustomObject] -or $firstCase -is [hashtable]) `
+            -Message "no opener case found for synthetic drift"
+        $removedCaseName = [string]$firstCase.name
+    }
+
     $keptCases = @()
     foreach ($case in @($summary.opener_cases)) {
-        if ([string]$case.name -ne "root-witness-to-root-world-compare") {
+        if ([string]$case.name -ne $removedCaseName) {
             $keptCases += $case
         }
     }
@@ -149,6 +163,36 @@ function New-SyntheticDriftFlow {
         $keptCases | Where-Object { [bool]$_.inspector_ready }
     ).Count
     $summary.flow_status.blocked_inspector_count = [int]$summary.flow_status.actual_opener_count - [int]$summary.flow_status.inspector_ready_count
+    $summary.artifact_context.output_root = (Split-Path -Parent $OutputPath)
+    $summary.artifact_context.flow_summary_path = $OutputPath
+    $summary.front_page.summary_path = $OutputPath
+
+    Write-JsonFile -Path $OutputPath -Value $summary
+}
+
+function New-SyntheticProjectionDriftFlow {
+    param(
+        [string]$SourcePath,
+        [string]$OutputPath
+    )
+
+    $summary = Load-JsonObject -Path $SourcePath
+    $case = @($summary.opener_cases) |
+        Where-Object { [string]$_.projection_status -eq "available" } |
+        Select-Object -First 1
+    Assert-Condition `
+        -Condition ($case -is [System.Management.Automation.PSCustomObject] -or $case -is [hashtable]) `
+        -Message "no available opener case found for synthetic projection drift"
+
+    $case.projection_headline = "synthetic projection headline drift"
+    $case.projection_summary_lines = @(
+        "synthetic projection summary drift",
+        "projection diagnostics changed"
+    )
+    $case.projection_question_lines = @(
+        "Which projection summary line changed the diagnosis?",
+        "Should projection question drift block this opening flow?"
+    )
     $summary.artifact_context.output_root = (Split-Path -Parent $OutputPath)
     $summary.artifact_context.flow_summary_path = $OutputPath
     $summary.front_page.summary_path = $OutputPath
@@ -203,7 +247,9 @@ try {
     $syntheticRoot = Join-Path $outputRootPath "_synthetic"
     Ensure-Directory -Path $syntheticRoot
     $driftedFlowSummaryPath = Join-Path $syntheticRoot "front-page.entry-opening-flow.drifted.summary.json"
-    New-SyntheticDriftFlow -SourcePath $flowSummaryPath -OutputPath $driftedFlowSummaryPath
+    $removedCaseName = New-SyntheticDriftFlow -SourcePath $flowSummaryPath -OutputPath $driftedFlowSummaryPath
+    $projectionDriftFlowSummaryPath = Join-Path $syntheticRoot "front-page.entry-opening-flow.projection-drift.summary.json"
+    New-SyntheticProjectionDriftFlow -SourcePath $flowSummaryPath -OutputPath $projectionDriftFlowSummaryPath
 
     $cases = @(
         [ordered]@{
@@ -213,14 +259,28 @@ try {
             ExpectedVerdict = "standing"
             ExpectedRemoved = @()
             ExpectedChangedCases = 0
+            ExpectedProjectionSummaryChanged = 0
+            ExpectedProjectionQuestionChanged = 0
         },
         [ordered]@{
             Name = "removed-compare-opener"
             Baseline = $flowSummaryPath
             Candidate = $driftedFlowSummaryPath
             ExpectedVerdict = "drifted"
-            ExpectedRemoved = @("root-witness-to-root-world-compare")
+            ExpectedRemoved = @($removedCaseName)
             ExpectedChangedCases = 0
+            ExpectedProjectionSummaryChanged = 0
+            ExpectedProjectionQuestionChanged = 0
+        },
+        [ordered]@{
+            Name = "projection-preview-drift"
+            Baseline = $flowSummaryPath
+            Candidate = $projectionDriftFlowSummaryPath
+            ExpectedVerdict = "drifted"
+            ExpectedRemoved = @()
+            ExpectedChangedCases = 1
+            ExpectedProjectionSummaryChanged = 1
+            ExpectedProjectionQuestionChanged = 1
         }
     )
 
@@ -250,6 +310,12 @@ try {
         Assert-Condition `
             -Condition ([int]$compareSummary.opener_case_summary.changed_case_count -eq [int]$case.ExpectedChangedCases) `
             -Message ("case '{0}' expected changed cases '{1}' but got '{2}'" -f $case.Name, $case.ExpectedChangedCases, $compareSummary.opener_case_summary.changed_case_count)
+        Assert-Condition `
+            -Condition ([int]$compareSummary.opener_case_summary.projection_summary_changed_count -eq [int]$case.ExpectedProjectionSummaryChanged) `
+            -Message ("case '{0}' expected projection summary changed '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProjectionSummaryChanged, $compareSummary.opener_case_summary.projection_summary_changed_count)
+        Assert-Condition `
+            -Condition ([int]$compareSummary.opener_case_summary.projection_question_changed_count -eq [int]$case.ExpectedProjectionQuestionChanged) `
+            -Message ("case '{0}' expected projection question changed '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProjectionQuestionChanged, $compareSummary.opener_case_summary.projection_question_changed_count)
 
         $removedCases = @([string[]]$compareSummary.flow_changes.opener_case_changes.removed)
         foreach ($caseName in @($case.ExpectedRemoved)) {
@@ -259,12 +325,13 @@ try {
         }
 
         Write-Host (
-            "[FRONT-PAGE-ENTRY-OPENING-FLOW-COMPARE-SMOKE] case={0} verdict={1} changed={2} added={3} removed={4}" -f
+            "[FRONT-PAGE-ENTRY-OPENING-FLOW-COMPARE-SMOKE] case={0} verdict={1} changed={2} added={3} removed={4} projection_summary_changed={5}" -f
             $case.Name,
             [string]$compareSummary.flow_verdict,
             [int]$compareSummary.opener_case_summary.changed_case_count,
             [int]$compareSummary.opener_case_summary.added_case_count,
-            [int]$compareSummary.opener_case_summary.removed_case_count
+            [int]$compareSummary.opener_case_summary.removed_case_count,
+            [int]$compareSummary.opener_case_summary.projection_summary_changed_count
         )
     }
 } finally {

@@ -240,6 +240,15 @@ def normalize_opener_cases(flow_summary: dict[str, Any]) -> OrderedDict[str, Ord
                 ),
                 ("projection_status", choose_text(case.get("projection_status"))),
                 ("projection_kind", choose_text(case.get("projection_kind"))),
+                ("projection_headline", choose_text(case.get("projection_headline"))),
+                (
+                    "projection_summary_lines",
+                    ordered_unique([choose_text(item) for item in get_list(case.get("projection_summary_lines"))]),
+                ),
+                (
+                    "projection_question_lines",
+                    ordered_unique([choose_text(item) for item in get_list(case.get("projection_question_lines"))]),
+                ),
                 ("compare_context_available", bool(case.get("compare_context_available"))),
                 ("landing_verdict", choose_text(case.get("landing_verdict"))),
                 ("inspector_ready", bool(case.get("inspector_ready"))),
@@ -385,6 +394,7 @@ def classify_changed_case(baseline_case: dict[str, Any], candidate_case: dict[st
         "target_summary_compare_path",
         "projection_status",
         "projection_kind",
+        "projection_headline",
         "compare_context_available",
         "landing_verdict",
         "inspector_ready",
@@ -402,6 +412,20 @@ def classify_changed_case(baseline_case: dict[str, Any], candidate_case: dict[st
         impact = "regression"
     if bool(baseline_case.get("inspector_ready")) and not bool(candidate_case.get("inspector_ready")):
         impact = "regression"
+
+    projection_summary_changes = string_array_changes(
+        get_list(baseline_case.get("projection_summary_lines")),
+        get_list(candidate_case.get("projection_summary_lines")),
+    )
+    if has_array_changes(projection_summary_changes):
+        notes.append("projection_summary_lines changed")
+
+    projection_question_changes = string_array_changes(
+        get_list(baseline_case.get("projection_question_lines")),
+        get_list(candidate_case.get("projection_question_lines")),
+    )
+    if has_array_changes(projection_question_changes):
+        notes.append("projection_question_lines changed")
 
     if impact == "neutral":
         if baseline_case.get("projection_status") != "available" and candidate_case.get("projection_status") == "available":
@@ -445,6 +469,22 @@ def build_case_change_record(
             ("candidate_projection_status", choose_text(candidate.get("projection_status"))),
             ("baseline_projection_kind", choose_text(baseline.get("projection_kind"))),
             ("candidate_projection_kind", choose_text(candidate.get("projection_kind"))),
+            ("baseline_projection_headline", choose_text(baseline.get("projection_headline"))),
+            ("candidate_projection_headline", choose_text(candidate.get("projection_headline"))),
+            (
+                "projection_summary_line_changes",
+                string_array_changes(
+                    get_list(baseline.get("projection_summary_lines")),
+                    get_list(candidate.get("projection_summary_lines")),
+                ),
+            ),
+            (
+                "projection_question_line_changes",
+                string_array_changes(
+                    get_list(baseline.get("projection_question_lines")),
+                    get_list(candidate.get("projection_question_lines")),
+                ),
+            ),
             ("baseline_compare_context_available", bool(baseline.get("compare_context_available"))),
             ("candidate_compare_context_available", bool(candidate.get("compare_context_available"))),
             ("baseline_landing_verdict", choose_text(baseline.get("landing_verdict"))),
@@ -474,6 +514,9 @@ def build_opener_case_changes(
             ("neutral_change_count", 0),
             ("projection_regression_count", 0),
             ("projection_improvement_count", 0),
+            ("projection_headline_changed_count", 0),
+            ("projection_summary_changed_count", 0),
+            ("projection_question_changed_count", 0),
             ("compare_context_lost_count", 0),
             ("compare_context_gained_count", 0),
             ("inspector_readiness_changed_count", 0),
@@ -512,6 +555,22 @@ def build_opener_case_changes(
                 and candidate_case.get("projection_status") == "available"
             ):
                 summary["projection_improvement_count"] += 1
+            if baseline_case.get("projection_headline") != candidate_case.get("projection_headline"):
+                summary["projection_headline_changed_count"] += 1
+            if has_array_changes(
+                string_array_changes(
+                    get_list(baseline_case.get("projection_summary_lines")),
+                    get_list(candidate_case.get("projection_summary_lines")),
+                )
+            ):
+                summary["projection_summary_changed_count"] += 1
+            if has_array_changes(
+                string_array_changes(
+                    get_list(baseline_case.get("projection_question_lines")),
+                    get_list(candidate_case.get("projection_question_lines")),
+                )
+            ):
+                summary["projection_question_changed_count"] += 1
             if bool(baseline_case.get("compare_context_available")) and not bool(
                 candidate_case.get("compare_context_available")
             ):
@@ -658,6 +717,10 @@ def build_questions(
         next_questions.append("Should query drift be surfaced as a first-class explain opening warning?")
     if int(case_summary.get("target_changed_count", 0)) > 0:
         next_questions.append("Should target summary drift trigger a deeper route or landing compare?")
+    if int(case_summary.get("projection_summary_changed_count", 0)) > 0:
+        next_questions.append("Which opener projection summary lines changed the user-facing diagnosis?")
+    if int(case_summary.get("projection_question_changed_count", 0)) > 0:
+        next_questions.append("Which opener projection questions should become the next diagnostic handoff?")
     if not next_questions:
         next_questions.append("Should later tools consume this compare object instead of re-reading smoke folders?")
 

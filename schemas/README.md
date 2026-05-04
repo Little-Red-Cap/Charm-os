@@ -322,6 +322,8 @@
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_compare.py`
   - 用途偏向比较两份 `front_page entry opening flow` summary，回答 consumer-side opening chain
     的 opener case、projection、compare context 与 inspector readiness 是否发生可解释漂移
+  - 它也会比较 opener projection 的 headline、summary lines 与 question lines，
+    让 runtime-session 这类诊断投影的用户可见语言漂移进入 compare 证据
 
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例

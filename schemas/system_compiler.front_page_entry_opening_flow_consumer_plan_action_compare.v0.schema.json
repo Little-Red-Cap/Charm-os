@@ -420,6 +420,7 @@
         "entry_changed",
         "target_changed",
         "opener_changed",
+        "reason_changed",
         "operation_changed",
         "lost_compare_context",
         "lost_inspector_ready",
@@ -450,6 +451,9 @@
           "type": "boolean"
         },
         "opener_changed": {
+          "type": "boolean"
+        },
+        "reason_changed": {
           "type": "boolean"
         },
         "operation_changed": {

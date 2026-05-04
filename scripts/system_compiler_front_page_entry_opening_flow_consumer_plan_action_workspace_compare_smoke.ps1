@@ -252,6 +252,7 @@ try {
             ExpectedActionChanged = $false
             ExpectedOpenerChanged = $false
             ExpectedTargetChanged = $false
+            ExpectedReasonChanged = $false
         },
         [ordered]@{
             Name = "action-workspace-default-to-compare-neighbor"
@@ -260,10 +261,11 @@ try {
             CandidatePlanWorkspaceRoot = $baselinePlanWorkspaceRoot
             CandidateActionKind = "compare-neighbor"
             ExpectedVerdict = "drifted"
-            ExpectedChangedFields = 24
+            ExpectedChangedFields = 28
             ExpectedActionChanged = $true
             ExpectedOpenerChanged = $true
             ExpectedTargetChanged = $true
+            ExpectedReasonChanged = $true
         }
     )
 
@@ -315,15 +317,19 @@ try {
         Assert-Condition `
             -Condition ([bool]$compareSummary.action_regression_surface.target_changed -eq [bool]$case.ExpectedTargetChanged) `
             -Message ("case '{0}' target changed expectation mismatch" -f $case.Name)
+        Assert-Condition `
+            -Condition ([bool]$compareSummary.action_regression_surface.reason_changed -eq [bool]$case.ExpectedReasonChanged) `
+            -Message ("case '{0}' reason changed expectation mismatch" -f $case.Name)
 
         Write-Host (
-            "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case={0} verdict={1} changed={2} action_changed={3} opener_changed={4} target_changed={5}" -f
+            "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case={0} verdict={1} changed={2} action_changed={3} opener_changed={4} target_changed={5} reason_changed={6}" -f
             $case.Name,
             [string]$compareSummary.action_verdict,
             [int]$compareSummary.change_summary.changed_field_count,
             [bool]$compareSummary.action_regression_surface.action_id_changed,
             [bool]$compareSummary.action_regression_surface.opener_changed,
-            [bool]$compareSummary.action_regression_surface.target_changed
+            [bool]$compareSummary.action_regression_surface.target_changed,
+            [bool]$compareSummary.action_regression_surface.reason_changed
         )
     }
 } finally {

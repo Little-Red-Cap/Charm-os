@@ -78,6 +78,19 @@ def normalize_path_for_compare(path_value: str, root_value: str) -> str:
         return normalize_path(path_text)
 
 
+def normalize_opening_reason_for_compare(value: Any, root_value: str) -> OrderedDict[str, Any]:
+    reason = get_mapping(value)
+    return OrderedDict(
+        [
+            ("kind", choose_text(reason.get("kind"))),
+            ("summary", choose_text(reason.get("summary"))),
+            ("source_summary_compare_path", normalize_path_for_compare(choose_text(reason.get("source_summary_path")), root_value)),
+            ("drift_changed", bool(reason.get("drift_changed"))),
+            ("drift_verdict", choose_text(reason.get("drift_verdict"))),
+        ]
+    )
+
+
 def make_surface(
     surface_id: str,
     label: str,
@@ -173,6 +186,10 @@ def normalize_action_summary(action_summary: dict[str, Any]) -> OrderedDict[str,
                 normalize_path_for_compare(choose_text(open_action.get("target_summary_path")), plan_root),
             ),
             ("projection_kind", choose_text(open_action.get("projection_kind"))),
+            ("opening_reason", normalize_opening_reason_for_compare(open_action.get("opening_reason"), plan_root)),
+            ("opening_reason_kind", choose_text(get_mapping(open_action.get("opening_reason")).get("kind"))),
+            ("projection_headline", choose_text(open_action.get("projection_headline"))),
+            ("reason", choose_text(open_action.get("reason"))),
             ("compare_context_available", bool(open_action.get("compare_context_available"))),
             ("landing_verdict", choose_text(open_action.get("landing_verdict"))),
             ("opener_summary_path", choose_text(open_action.get("opener_summary_path"))),
@@ -292,6 +309,9 @@ def build_regression_surface(
     entry_changed = bool(open_action_changes.get("entry_name", {}).get("changed"))
     target_changed = bool(open_action_changes.get("target_summary_compare_path", {}).get("changed"))
     opener_changed = bool(open_action_changes.get("opener_summary_compare_path", {}).get("changed"))
+    reason_changed = bool(open_action_changes.get("opening_reason", {}).get("changed")) or bool(
+        open_action_changes.get("projection_headline", {}).get("changed")
+    )
     operation_changed = bool(open_action_changes.get("expected_consumer_operation", {}).get("changed")) or bool(
         receipt_changes.get("consumer_operation", {}).get("changed")
     )
@@ -314,6 +334,8 @@ def build_regression_surface(
         narratives.append("target summary path changed")
     if opener_changed:
         narratives.append("opener summary path changed")
+    if reason_changed:
+        narratives.append("opening reason changed")
     if operation_changed:
         narratives.append("consumer operation changed")
     if lost_compare_context:
@@ -333,6 +355,7 @@ def build_regression_surface(
         or entry_changed
         or target_changed
         or opener_changed
+        or reason_changed
         or operation_changed
         or lost_compare_context
         or lost_inspector_ready
@@ -349,6 +372,7 @@ def build_regression_surface(
             ("entry_changed", entry_changed),
             ("target_changed", target_changed),
             ("opener_changed", opener_changed),
+            ("reason_changed", reason_changed),
             ("operation_changed", operation_changed),
             ("lost_compare_context", lost_compare_context),
             ("lost_inspector_ready", lost_inspector_ready),
@@ -450,6 +474,10 @@ def build_compare_summary_model(
             "target_summary_kind",
             "target_summary_compare_path",
             "projection_kind",
+            "opening_reason",
+            "opening_reason_kind",
+            "projection_headline",
+            "reason",
             "compare_context_available",
             "landing_verdict",
             "opener_summary_compare_path",

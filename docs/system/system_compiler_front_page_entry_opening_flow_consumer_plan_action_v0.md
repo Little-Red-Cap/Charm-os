@@ -107,8 +107,10 @@ The current summary records:
   - default and compare action ids/names
 - `selected_action`
   - the original plan action copied without recomputing policy
+  - structured `opening_reason` and `projection_headline` from the selected plan action
 - `open_action`
   - the normalized action a consumer should execute now
+  - the same `opening_reason`, `projection_headline`, and consumer-facing reason string
 - `opener_surface`
   - the selected opener summary/report/check surface
 - `execution_receipt`
@@ -235,9 +237,9 @@ Expected smoke shape:
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=default selector=default_action action=open-default kind=default
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-SMOKE] case=compare-neighbor selector=action_kind:compare-neighbor action=open-compare-neighbor kind=compare-neighbor
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=action-self-standing verdict=standing changed=0
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=24
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] case=default-to-compare-neighbor verdict=drifted changed=28
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-self-standing verdict=standing changed=0
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-default-to-compare-neighbor verdict=drifted changed=24
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] case=action-workspace-default-to-compare-neighbor verdict=drifted changed=28
 ```
 
 ## Why this matters

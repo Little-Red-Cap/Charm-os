@@ -33,17 +33,6 @@ namespace {
     };
 
 
-    void mouse_down(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-    }
-
-    void mouse_up(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
-    }
 
     struct EventCounts {
         int mouse_down{0};
@@ -133,7 +122,7 @@ int main() {
     std::printf(" active=base_scope fallback=base_b trap=1 stack=%zu\n",
                 access.input_focus_scope_stack_size());
 
-    mouse_down(scene, kBaseABounds, 10);
+    vivid::evidence::mouse_down_center(scene, kBaseABounds, 10);
     auto base_initial = scene.access();
     const auto base_initial_events = collect_events(base_initial, handles.base_a, {}, handles.base_a);
     if (!vivid::evidence::expect(base_initial_events.mouse_down == 1, "base_a receives mouse down")) return 1;
@@ -145,7 +134,7 @@ int main() {
                                  "input focus commits to base_a")) {
         return 1;
     }
-    mouse_up(scene, kBaseABounds, 11);
+    vivid::evidence::mouse_up_center(scene, kBaseABounds, 11);
 
     const auto base_a_artifact = vivid::evidence::render_scene(scene, canvas, kBaseABounds);
     if (!vivid::evidence::expect(base_a_artifact.failed_cmds == 0, "base_a render has no failed commands")) return 1;
@@ -173,7 +162,7 @@ int main() {
     std::printf(" active=modal_scope fallback=modal_a trap=1 pushed=1 stack=%zu previous=base_scope\n",
                 push_access.input_focus_scope_stack_size());
 
-    mouse_down(scene, kModalBWorldBounds, 20);
+    vivid::evidence::mouse_down_center(scene, kModalBWorldBounds, 20);
     auto modal_inside = scene.access();
     const auto modal_inside_events = collect_events(modal_inside, handles.modal_b, handles.base_a, handles.modal_b);
     if (!vivid::evidence::expect(modal_inside_events.mouse_down == 1, "modal_b receives mouse down")) return 1;
@@ -189,7 +178,7 @@ int main() {
                                  "input focus commits to modal_b")) {
         return 1;
     }
-    mouse_up(scene, kModalBWorldBounds, 21);
+    vivid::evidence::mouse_up_center(scene, kModalBWorldBounds, 21);
 
     const auto modal_b_artifact = vivid::evidence::render_scene(scene, canvas, kModalBWorldBounds);
     if (!vivid::evidence::expect(modal_b_artifact.failed_cmds == 0, "modal_b render has no failed commands")) return 1;
@@ -207,7 +196,7 @@ int main() {
         return 1;
     }
 
-    mouse_down(scene, kBaseBBounds, 30);
+    vivid::evidence::mouse_down_center(scene, kBaseBBounds, 30);
     auto modal_trap = scene.access();
     const auto modal_trap_events = collect_events(modal_trap, handles.base_b, handles.modal_b, handles.base_b);
     if (!vivid::evidence::expect(modal_trap_events.mouse_down == 1, "base_b still receives pointer event")) return 1;
@@ -219,7 +208,7 @@ int main() {
                                  "input focus remains in modal scope")) {
         return 1;
     }
-    mouse_up(scene, kBaseBBounds, 31);
+    vivid::evidence::mouse_up_center(scene, kBaseBBounds, 31);
 
     const auto base_b_rejected = vivid::evidence::render_scene(scene, canvas, kBaseBBounds);
     if (!vivid::evidence::expect(base_b_rejected.cmd_hash == base_b_baseline.cmd_hash,
@@ -254,7 +243,7 @@ int main() {
     std::printf(" popped=1 active=base_scope fallback=base_b stack=%zu input_truth=modal_b\n",
                 pop_access.input_focus_scope_stack_size());
 
-    mouse_down(scene, kModalAWorldBounds, 40);
+    vivid::evidence::mouse_down_center(scene, kModalAWorldBounds, 40);
     auto restored_trap = scene.access();
     const auto restored_events = collect_events(restored_trap, handles.modal_a, handles.modal_b, handles.modal_a);
     if (!vivid::evidence::expect(restored_events.mouse_down == 1, "modal_a still receives pointer event")) return 1;
@@ -270,7 +259,7 @@ int main() {
                                  "restored base scope redirects outside request to fallback")) {
         return 1;
     }
-    mouse_up(scene, kModalAWorldBounds, 41);
+    vivid::evidence::mouse_up_center(scene, kModalAWorldBounds, 41);
 
     const auto modal_a_rejected = vivid::evidence::render_scene(scene, canvas, kModalAWorldBounds);
     if (!vivid::evidence::expect(modal_a_rejected.failed_cmds == 0, "modal_a rejected render has no failed commands")) return 1;

@@ -49,17 +49,6 @@ namespace {
         return false;
     }
 
-    void mouse_down(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-    }
-
-    void mouse_up(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
-    }
 }
 
 int main() {
@@ -134,7 +123,7 @@ int main() {
     run_log.case_begin("runtime_scope_install");
     std::printf(" scope=container fallback=inside_b trap=1 policy=focus_admission\n");
 
-    mouse_down(scene, kInsideABounds, 10);
+    vivid::evidence::mouse_down_center(scene, kInsideABounds, 10);
     auto initial_access = scene.access();
     int initial_mouse_down = 0;
     int initial_focus_in = 0;
@@ -157,7 +146,7 @@ int main() {
                                  "runtime focus truth commits to inside_a")) {
         return 1;
     }
-    mouse_up(scene, kInsideABounds, 11);
+    vivid::evidence::mouse_up_center(scene, kInsideABounds, 11);
 
     const auto initial = vivid::evidence::render_scene(scene, canvas, kInsideABounds);
     if (!vivid::evidence::expect(initial.failed_cmds == 0, "initial scope focus render has no failed commands")) {
@@ -186,7 +175,7 @@ int main() {
                 focus_scope_decision_name(inside_decision.kind),
                 inside_decision.allowed() ? 1 : 0);
 
-    mouse_down(scene, kInsideBBounds, 20);
+    vivid::evidence::mouse_down_center(scene, kInsideBBounds, 20);
     auto inside_access = scene.access();
     int inside_mouse_down = 0;
     int inside_focus_out = 0;
@@ -218,7 +207,7 @@ int main() {
                                  "runtime focus truth moves to inside_b")) {
         return 1;
     }
-    mouse_up(scene, kInsideBBounds, 21);
+    vivid::evidence::mouse_up_center(scene, kInsideBBounds, 21);
 
     run_log.case_begin("inside_transfer_dispatch");
     std::printf(" requested=inside_b mouse_down=%d focus_out=%d focus_in=%d focus_out_inside_a=%d focus_in_inside_b=%d input_truth=inside_b allowed=1\n",
@@ -268,7 +257,7 @@ int main() {
                 focus_scope_decision_name(outside_decision.kind),
                 outside_decision.allowed() ? 1 : 0);
 
-    mouse_down(scene, kOutsideBounds, 30);
+    vivid::evidence::mouse_down_center(scene, kOutsideBounds, 30);
     auto outside_access = scene.access();
     int outside_mouse_down = 0;
     int outside_focus_out = 0;
@@ -297,7 +286,7 @@ int main() {
                                  "runtime scope trap remains installed")) {
         return 1;
     }
-    mouse_up(scene, kOutsideBounds, 31);
+    vivid::evidence::mouse_up_center(scene, kOutsideBounds, 31);
     auto after_outside_access = scene.access();
     if (!vivid::evidence::expect(vivid::evidence::same_handle(after_outside_access.input_focused(), handles.inside_b),
                                  "runtime focus remains trapped after outside release")) {

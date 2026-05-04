@@ -31,17 +31,6 @@ namespace {
     };
 
 
-    void mouse_down(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
-    }
-
-    void mouse_up(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
-        const int x = bounds.x + bounds.w / 2;
-        const int y = bounds.y + bounds.h / 2;
-        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
-    }
 
     bool expect_focus_move(::ui::scene::SceneAccess& access,
                            WidgetHandle old_target,
@@ -96,7 +85,7 @@ int main() {
     run_log.case_begin("scope_model");
     std::printf(" focusable_inside=4 outside=1 policy=spatial_then_preorder keys=right,down,left,up,tab\n");
 
-    mouse_down(scene, kOriginBounds, 10);
+    vivid::evidence::mouse_down_center(scene, kOriginBounds, 10);
     auto initial = scene.access();
     int initial_focus_in = 0;
     bool initial_focus_in_origin = false;
@@ -111,7 +100,7 @@ int main() {
                                  "origin receives initial FocusIn")) return 1;
     if (!vivid::evidence::expect(vivid::evidence::same_handle(initial.input_focused(), handles.origin),
                                  "initial focus truth is origin")) return 1;
-    mouse_up(scene, kOriginBounds, 11);
+    vivid::evidence::mouse_up_center(scene, kOriginBounds, 11);
 
     const auto origin_artifact = vivid::evidence::render_scene(scene, canvas, kOriginBounds);
     if (!vivid::evidence::expect(origin_artifact.failed_cmds == 0,

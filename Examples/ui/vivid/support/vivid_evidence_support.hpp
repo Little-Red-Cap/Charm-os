@@ -113,6 +113,18 @@ namespace vivid::evidence {
         scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
     }
 
+    inline void mouse_down_center(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
+        const int x = bounds.x + bounds.w / 2;
+        const int y = bounds.y + bounds.h / 2;
+        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
+    }
+
+    inline void mouse_up_center(::ui::scene::Scene& scene, Rect bounds, std::uint32_t ms) {
+        const int x = bounds.x + bounds.w / 2;
+        const int y = bounds.y + bounds.h / 2;
+        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
+    }
+
     [[nodiscard]] inline FocusMoveTrace collect_focus_move(
         ::ui::scene::SceneAccess& access,
         WidgetHandle old_target,

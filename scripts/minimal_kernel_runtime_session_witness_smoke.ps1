@@ -137,8 +137,10 @@ $checkTextPathResolved = Get-OutputPath -ExplicitPath $CheckTextPath -OutputRoot
 $sessionSmoke = Join-Path $PSScriptRoot "minimal_kernel_runtime_session_smoke.ps1"
 $worldCompareSmoke = Join-Path $PSScriptRoot "system_compiler_world_compare_session_drift_smoke.ps1"
 $witnessExportSmoke = Join-Path $PSScriptRoot "system_compiler_witness_session_failure_export_smoke.ps1"
+$summaryValidator = Join-Path $PSScriptRoot "validate_minimal_kernel_runtime_session_witness_smoke.py"
+$summaryGate = Join-Path $PSScriptRoot "check_minimal_kernel_runtime_session_witness_smoke_summary.ps1"
 
-foreach ($script in @($sessionSmoke, $worldCompareSmoke, $witnessExportSmoke)) {
+foreach ($script in @($sessionSmoke, $worldCompareSmoke, $witnessExportSmoke, $summaryValidator, $summaryGate)) {
     if (-not (Test-Path $script)) {
         throw "required session witness smoke not found: $script"
     }
@@ -390,6 +392,28 @@ if ($violations.Count -gt 0) {
 
 Ensure-ParentDirectory -Path $checkTextPathResolved
 Set-Content -LiteralPath $checkTextPathResolved -Encoding utf8 ($checkBuilder.ToString())
+
+Push-Location $repoRoot
+try {
+    & $PythonExe $summaryValidator --summary $summaryPathResolved
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
+    & $summaryGate `
+        -Summary $summaryPathResolved `
+        -RequireResult "ok" `
+        -RequireSessionStatus "standing" `
+        -RequireWorldCompareVerdict "collapsed" `
+        -RequireWitnessCompareVerdict "collapsed" `
+        -RequireSessionDrift "true" `
+        -RequireSessionFailureCode @("handoff_continuity_broken") `
+        -RequireMissingRuntimeFact @("handoff") `
+        -RequireSessionFocus @("session", "runtime", "handoff", "continuity") `
+        -MaxViolations 0
+} finally {
+    Pop-Location
+}
 
 Write-Host "==> minimal kernel runtime session witness smoke"
 Write-Host ("output_root={0}" -f $resolvedOutputRoot)

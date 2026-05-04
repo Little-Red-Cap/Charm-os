@@ -250,6 +250,15 @@ check.txt
 其中根 `summary.json` 会引用 session exporter、world compare session drift、witness exporter failure export 三条子证据链，并摘取 session status、runtime facts、session drift failure codes 等最小结论。
 这让 `kernel_runtime_session` 的阶段性闭环可以被 CI、front page、evidence shelf 或后续 witness bundle 消费，而不是只停留在终端输出里。
 
+根 `summary.json` 对应的机器契约是：
+
+- `schemas/minimal_kernel.runtime_session_witness_smoke.v0.schema.json`
+- `schemas/examples/minimal_kernel.runtime_session_witness_smoke.v0.sample.json`
+- `scripts/validate_minimal_kernel_runtime_session_witness_smoke.py`
+- `scripts/check_minimal_kernel_runtime_session_witness_smoke_summary.ps1`
+
+其中 validator 负责 schema 与引用路径，check 脚本负责断言 session standing、两条 session drift 投影、failure code 与 missing runtime fact。
+
 runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
 system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。
 

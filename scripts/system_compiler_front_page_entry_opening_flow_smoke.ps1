@@ -204,6 +204,7 @@ function New-OpenerCaseRecord {
     $openedProjection = $summary.opened_projection
     $compareContext = $summary.compare_context
     $inspectorInvocation = $summary.inspector_invocation
+    $questions = $summary.questions
 
     return [ordered]@{
         name = $CaseName
@@ -216,16 +217,24 @@ function New-OpenerCaseRecord {
         query_kind = [string]$openAction.query_kind
         query_scope = [string]$openAction.query_scope
         selection_rule = [string]$openAction.selection_rule
+        opening_reason = $openAction.opening_reason
         target_summary_schema = [string]$openAction.target_summary_schema
         target_summary_kind = [string]$openAction.target_summary_kind
         target_summary_path = (Resolve-FullPath -Path ([string]$openAction.target_summary_path))
+        open_action_blockers = [string[]]@($openAction.blockers | ForEach-Object { [string]$_ })
         projection_status = [string]$openedProjection.status
         projection_kind = [string]$openedProjection.projection_kind
+        projection_headline = [string]$openedProjection.headline
+        projection_summary_lines = [string[]]@($openedProjection.summary_lines | ForEach-Object { [string]$_ })
+        projection_question_lines = [string[]]@($openedProjection.question_lines | ForEach-Object { [string]$_ })
+        projection_blockers = [string[]]@($openedProjection.blockers | ForEach-Object { [string]$_ })
         compare_context_available = [bool]$compareContext.available
         landing_verdict = [string]$compareContext.landing_verdict
         inspector_ready = [bool]$inspectorInvocation.ready
         inspector_mode = [string]$inspectorInvocation.mode
         inspector_blockers = [string[]]@($inspectorInvocation.blockers | ForEach-Object { [string]$_ })
+        opener_compare_questions = [string[]]@($questions.compare_questions | ForEach-Object { [string]$_ })
+        opener_next_questions = [string[]]@($questions.next_questions | ForEach-Object { [string]$_ })
     }
 }
 
@@ -255,7 +264,16 @@ function Build-OpeningFlowReport {
     $lines.Add("") | Out-Null
     $lines.Add("## Opener Cases") | Out-Null
     foreach ($case in @($Summary.opener_cases)) {
-        $lines.Add(("- ``{0}`` tab=``{1}`` query=``{2}/{3}`` projection=``{4}/{5}`` compare=``{6}/{7}`` inspector_ready=``{8}``" -f [string]$case.name, [string]$case.selected_tab_id, [string]$case.query_kind, [string]$case.query_scope, [string]$case.projection_status, [string]$case.projection_kind, [bool]$case.compare_context_available, [string]$case.landing_verdict, [bool]$case.inspector_ready)) | Out-Null
+        $lines.Add(("- ``{0}`` tab=``{1}`` query=``{2}/{3}`` reason=``{4}`` projection=``{5}/{6}`` compare=``{7}/{8}`` inspector_ready=``{9}``" -f [string]$case.name, [string]$case.selected_tab_id, [string]$case.query_kind, [string]$case.query_scope, [string]$case.opening_reason.kind, [string]$case.projection_status, [string]$case.projection_kind, [bool]$case.compare_context_available, [string]$case.landing_verdict, [bool]$case.inspector_ready)) | Out-Null
+        if (-not [string]::IsNullOrWhiteSpace([string]$case.projection_headline)) {
+            $lines.Add(("  preview: {0}" -f [string]$case.projection_headline)) | Out-Null
+        }
+        foreach ($item in @($case.projection_summary_lines | Select-Object -First 2)) {
+            $lines.Add(("  summary: {0}" -f [string]$item)) | Out-Null
+        }
+        foreach ($item in @($case.projection_blockers)) {
+            $lines.Add(("  projection_blocker: {0}" -f [string]$item)) | Out-Null
+        }
     }
     $lines.Add("") | Out-Null
     $lines.Add("## Questions") | Out-Null
@@ -275,6 +293,14 @@ function Build-OpeningFlowCheck {
     )
 
     $status = $Summary.flow_status
+    $reasonKinds = @($Summary.opener_cases | ForEach-Object { [string]$_.opening_reason.kind } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $previewCount = @(
+        $Summary.opener_cases |
+            Where-Object {
+                -not [string]::IsNullOrWhiteSpace([string]$_.projection_headline) -or
+                @($_.projection_summary_lines).Count -gt 0
+            }
+    ).Count
     return (
         @(
             "result: $($Summary.result)",
@@ -284,6 +310,8 @@ function Build-OpeningFlowCheck {
             "compare_context_count: $($status.compare_context_count)",
             "inspector_ready_count: $($status.inspector_ready_count)",
             "blocked_inspector_count: $($status.blocked_inspector_count)",
+            "preview_ready_count: $previewCount",
+            "opening_reason_kinds: $($reasonKinds -join ',')",
             "completed_step_count: $($status.completed_step_count)",
             "route_root: $($Summary.artifact_context.route_root)",
             "capability_root: $($Summary.artifact_context.capability_root)",

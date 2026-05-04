@@ -126,6 +126,18 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
         "readiness_surface.blocked_openings",
         errors,
     )
+    expect_equal(
+        readiness.get("preview_ready_openings"),
+        [entry.get("name") for entry in entries if entry.get("projection_headline") or entry.get("projection_summary_lines")],
+        "readiness_surface.preview_ready_openings",
+        errors,
+    )
+    expect_equal(
+        readiness.get("drift_reason_openings"),
+        [entry.get("name") for entry in entries if bool(entry.get("opening_reason", {}).get("drift_changed"))],
+        "readiness_surface.drift_reason_openings",
+        errors,
+    )
 
 
 def main() -> int:

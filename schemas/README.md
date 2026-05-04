@@ -142,6 +142,7 @@
 - `system_compiler.world_shelf_review.v0.schema.json`
   - 对应 `docs/system/system_compiler_world_shelf_review_v0.md` 与 `scripts/review_system_compiler_world_shelf.ps1`
   - 用途偏向把 candidate shelf、baseline shelf 与 shelf compare verdict 收成一个可验证的 review envelope 对象
+  - `drift_digest` 只投影 lower shelf compare 的漂移摘要，不替代 `biography_index_compare`
   - `collapse_surface` 与 shelf compare 的 collapse surface 保持同形，包括空的
     `front_page_entry_detail_changed_anchors`
 
@@ -199,6 +200,7 @@
   - 用途偏向把 `front_page route -> capability -> landing -> landing compare -> opener`
     这一整条 consumer-side opening chain 收成一个 smoke-level evidence artifact，
     明确 flow steps、opener cases、projection availability、compare context 与 inspector readiness
+  - `opener_cases` 同时保留 opener 的 opening reason、projection preview、projection blockers 与 opener questions
 
 - `system_compiler.front_page_entry_opening_flow_consumer.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`、
@@ -207,7 +209,8 @@
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer.py`
   - 用途偏向把一份 `front_page entry opening flow` summary 收成上层 explain 工具可消费的入口清单，
-    明确 default opening、compare opening、renderable openings、projection kinds 与 inspector blockers
+    明确 default opening、compare opening、renderable openings、opening reason、projection preview、
+    blockers 与后续 questions
 
 - `system_compiler.front_page_entry_opening_flow_consumer_selector.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_v0.md`、
@@ -216,7 +219,7 @@
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector.py`
   - 用途偏向把一份 `front_page entry opening flow consumer` handoff 收成确定性 open order，
-    明确 default entry、compare entry、fallback entries 与对应 opener 证据入口
+    明确 default entry、compare entry、fallback entries、opening reason / headline 与对应 opener 证据入口
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_v0.md`、
@@ -225,7 +228,7 @@
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
   - 用途偏向把一份 `front_page entry opening flow consumer selector` open order 收成确定性执行计划，
-    明确 open-default、open-compare-neighbor、open-next actions 与对应 opener 证据入口
+    明确 open-default、open-compare-neighbor、open-next actions、opening reason / headline 与对应 opener 证据入口
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、

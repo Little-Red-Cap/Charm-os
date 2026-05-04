@@ -407,6 +407,7 @@ def build_landing_status(
             ("landing_result", choose_text(summary.get("result"))),
             ("recommended_entry_mode", recommended_mode),
             ("entry_tier", choose_text(entry_status.get("entry_tier"))),
+            ("opening_reason", get_mapping(entry_status.get("opening_reason"))),
             ("primary_tab_id", primary_tab_id),
             ("primary_summary_schema", choose_text(get_mapping(primary_entry).get("summary_schema")) if isinstance(primary_entry, dict) else ""),
             ("primary_summary_kind", choose_text(get_mapping(primary_entry).get("summary_kind")) if isinstance(primary_entry, dict) else ""),

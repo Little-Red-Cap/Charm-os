@@ -140,6 +140,12 @@ def validate_opener_cases(summary: dict, opener_schema: dict, errors: list[str])
         expect_equal(case.get("query_scope"), open_action.get("query_scope"), f"opener_cases[{index}].query_scope", errors)
         expect_equal(case.get("selection_rule"), open_action.get("selection_rule"), f"opener_cases[{index}].selection_rule", errors)
         expect_equal(
+            case.get("opening_reason"),
+            open_action.get("opening_reason"),
+            f"opener_cases[{index}].opening_reason",
+            errors,
+        )
+        expect_equal(
             case.get("target_summary_schema"),
             open_action.get("target_summary_schema"),
             f"opener_cases[{index}].target_summary_schema",
@@ -158,6 +164,12 @@ def validate_opener_cases(summary: dict, opener_schema: dict, errors: list[str])
             errors,
         )
         expect_equal(
+            case.get("open_action_blockers"),
+            open_action.get("blockers"),
+            f"opener_cases[{index}].open_action_blockers",
+            errors,
+        )
+        expect_equal(
             case.get("projection_status"),
             opened_projection.get("status"),
             f"opener_cases[{index}].projection_status",
@@ -167,6 +179,30 @@ def validate_opener_cases(summary: dict, opener_schema: dict, errors: list[str])
             case.get("projection_kind"),
             opened_projection.get("projection_kind"),
             f"opener_cases[{index}].projection_kind",
+            errors,
+        )
+        expect_equal(
+            case.get("projection_headline"),
+            opened_projection.get("headline"),
+            f"opener_cases[{index}].projection_headline",
+            errors,
+        )
+        expect_equal(
+            case.get("projection_summary_lines"),
+            opened_projection.get("summary_lines"),
+            f"opener_cases[{index}].projection_summary_lines",
+            errors,
+        )
+        expect_equal(
+            case.get("projection_question_lines"),
+            opened_projection.get("question_lines"),
+            f"opener_cases[{index}].projection_question_lines",
+            errors,
+        )
+        expect_equal(
+            case.get("projection_blockers"),
+            opened_projection.get("blockers"),
+            f"opener_cases[{index}].projection_blockers",
             errors,
         )
         expect_equal(
@@ -197,6 +233,18 @@ def validate_opener_cases(summary: dict, opener_schema: dict, errors: list[str])
             case.get("inspector_blockers"),
             inspector_invocation.get("blockers"),
             f"opener_cases[{index}].inspector_blockers",
+            errors,
+        )
+        expect_equal(
+            case.get("opener_compare_questions"),
+            opener_summary.get("questions", {}).get("compare_questions"),
+            f"opener_cases[{index}].opener_compare_questions",
+            errors,
+        )
+        expect_equal(
+            case.get("opener_next_questions"),
+            opener_summary.get("questions", {}).get("next_questions"),
+            f"opener_cases[{index}].opener_next_questions",
             errors,
         )
 

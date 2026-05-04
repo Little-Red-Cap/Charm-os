@@ -47,6 +47,21 @@ In other words, `world shelf review` is no longer only a wrapper object.
 It can now route the next read without forcing higher layers to rediscover the
 candidate shelf, compare seam, or baseline shelf on their own.
 
+The review object also emits a thin `drift_digest`.
+
+This digest is a projection of the lower shelf compare, not a second compare
+engine. It records:
+
+- whether the reviewed shelf changed
+- the promoted verdict
+- entry change / regression / improvement counts
+- same-anchor front-page entry detail drift count and anchors
+- removed worlds, added failing entries, affected worlds/profiles
+- short drift narratives
+
+When compare is skipped, the digest is empty and reports `verdict =
+candidate-only`.
+
 ## Current shape
 
 Current `system compiler world shelf review` includes:

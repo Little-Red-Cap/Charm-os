@@ -86,10 +86,14 @@ The current summary records:
 - one `opener_cases` list that projects each opener summary into:
   - selected tab / role
   - query kind / scope
+  - opening reason copied from opener `open_action.opening_reason`
   - target summary schema / kind / path
+  - open-action blockers
   - projection status / kind
+  - projection headline, summary lines, question lines, and blockers
   - compare-context availability and verdict
   - inspector readiness and blockers
+  - opener compare / next questions
 - a `front_page.supporting_surfaces` list that points back to every exported
   opener case summary / report / check artifact
 
@@ -134,6 +138,7 @@ Instead it does the narrower thing:
 
 - preserve the step outputs
 - preserve the case-level opener evidence
+- preserve the opener-visible reason, preview, blockers, and next questions
 - preserve enough counters and links for CI or later consumers to reason about
   the opening chain
 

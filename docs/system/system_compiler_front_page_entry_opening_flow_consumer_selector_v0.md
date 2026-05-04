@@ -83,6 +83,8 @@ Each selected entry keeps:
 
 - target summary schema / kind / path
 - projection kind
+- opening reason
+- projection headline and summary lines
 - query kind / scope
 - compare context flag and landing verdict
 - opener summary / report / check paths
@@ -140,7 +142,7 @@ python ./scripts/validate_system_compiler_front_page_entry_opening_flow_consumer
 Expected smoke shape:
 
 ```text
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SELECTOR-SMOKE] selected=10 default=root-witness compare=root-witness-to-root-world-compare fallback=8
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SELECTOR-SMOKE] selected=10 default=root-witness compare=root-witness-to-root-world-compare fallback=8 reason=delivery_biography
 ```
 
 ## Why this matters

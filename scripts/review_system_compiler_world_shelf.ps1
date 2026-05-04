@@ -543,6 +543,58 @@ function New-RouteProvenanceEntryFromSummary {
     }
 }
 
+function New-DriftDigest {
+    param(
+        $CompareSummary
+    )
+
+    if ($null -eq $CompareSummary) {
+        return [ordered]@{
+            changed = $false
+            verdict = "candidate-only"
+            entry_changed_count = 0
+            entry_regression_count = 0
+            entry_improvement_count = 0
+            front_page_entry_detail_changed_count = 0
+            front_page_entry_detail_changed_anchors = [string[]]@()
+            removed_worlds = [string[]]@()
+            added_failed_entries = [string[]]@()
+            affected_worlds = [string[]]@()
+            affected_profiles = [string[]]@()
+            narratives = [string[]]@()
+        }
+    }
+
+    $collapseSurface = $CompareSummary.collapse_surface
+    $shelfChanges = $CompareSummary.shelf_changes
+    $entrySummary = $CompareSummary.entry_summary
+    $frontPageEntryDetailChangedAnchors = if ($null -ne $collapseSurface) {
+        To-StringArray -Values $collapseSurface.front_page_entry_detail_changed_anchors
+    } else {
+        [string[]]@()
+    }
+    $frontPageEntryDetailChangeCount = if ($null -ne $shelfChanges -and $null -ne $shelfChanges.front_page_entry_detail_changes) {
+        @($shelfChanges.front_page_entry_detail_changes).Count
+    } else {
+        0
+    }
+
+    return [ordered]@{
+        changed = if ($null -ne $collapseSurface) { [bool]$collapseSurface.changed } else { $false }
+        verdict = [string]$CompareSummary.shelf_verdict
+        entry_changed_count = if ($null -ne $entrySummary) { [int]$entrySummary.changed_entry_count } else { 0 }
+        entry_regression_count = if ($null -ne $entrySummary) { [int]$entrySummary.regression_count } else { 0 }
+        entry_improvement_count = if ($null -ne $entrySummary) { [int]$entrySummary.improvement_count } else { 0 }
+        front_page_entry_detail_changed_count = $frontPageEntryDetailChangeCount
+        front_page_entry_detail_changed_anchors = $frontPageEntryDetailChangedAnchors
+        removed_worlds = if ($null -ne $collapseSurface) { To-StringArray -Values $collapseSurface.removed_worlds } else { [string[]]@() }
+        added_failed_entries = if ($null -ne $collapseSurface) { To-StringArray -Values $collapseSurface.added_failed_entries } else { [string[]]@() }
+        affected_worlds = if ($null -ne $collapseSurface) { To-StringArray -Values $collapseSurface.affected_worlds } else { [string[]]@() }
+        affected_profiles = if ($null -ne $collapseSurface) { To-StringArray -Values $collapseSurface.affected_profiles } else { [string[]]@() }
+        narratives = if ($null -ne $collapseSurface) { To-StringArray -Values $collapseSurface.narratives } else { [string[]]@() }
+    }
+}
+
 function Add-ShelfAssemblyArguments {
     param(
         [hashtable]$Arguments,
@@ -889,6 +941,7 @@ try {
     } else {
         "candidate-only"
     }
+    $driftDigest = New-DriftDigest -CompareSummary $compareSummary
     $compareSummaryPathForReport = if ($null -ne $compareSummary) {
         Join-Path $compareOutputRootResolved "summary.json"
     } else {
@@ -1024,6 +1077,21 @@ try {
     }
 
     $reportLines.Add("") | Out-Null
+    $reportLines.Add("## Drift Digest") | Out-Null
+    $reportLines.Add("- Changed: ``$([bool]$driftDigest.changed)``") | Out-Null
+    $reportLines.Add("- Verdict: ``$([string]$driftDigest.verdict)``") | Out-Null
+    $reportLines.Add("- Entry impact: ``changed=$([int]$driftDigest.entry_changed_count) regressions=$([int]$driftDigest.entry_regression_count) improvements=$([int]$driftDigest.entry_improvement_count)``") | Out-Null
+    $reportLines.Add("- Front-page entry detail drift: ``count=$([int]$driftDigest.front_page_entry_detail_changed_count) anchors=$((To-StringArray -Values $driftDigest.front_page_entry_detail_changed_anchors) -join ', ')``") | Out-Null
+    $affectedWorlds = To-StringArray -Values $driftDigest.affected_worlds
+    if ($affectedWorlds.Count -gt 0) {
+        $reportLines.Add(("- Affected worlds: ``{0}``" -f ($affectedWorlds -join ", "))) | Out-Null
+    }
+    $driftNarratives = To-StringArray -Values $driftDigest.narratives
+    foreach ($narrative in $driftNarratives) {
+        $reportLines.Add(("- {0}" -f $narrative)) | Out-Null
+    }
+
+    $reportLines.Add("") | Out-Null
     $reportLines.Add("## Route Provenance") | Out-Null
     foreach ($routeEntry in @($routeProvenance)) {
         $reportLines.Add(("- ``{0}`` via ``{1}`` -> ``{2}``" -f [string]$routeEntry.id, [string]$routeEntry.route_kind, [string]$routeEntry.source_front_page_summary_path)) | Out-Null
@@ -1068,6 +1136,8 @@ try {
     } else {
         $checkLines.Add("shelf_compare: skipped") | Out-Null
     }
+    $checkLines.Add(("drift_digest_changed: {0}" -f [bool]$driftDigest.changed)) | Out-Null
+    $checkLines.Add(("drift_digest_front_page_entry_detail_changed_count: {0}" -f [int]$driftDigest.front_page_entry_detail_changed_count)) | Out-Null
     $checkLines.Add(("review_question_count: {0}" -f $nextQuestions.Count)) | Out-Null
     Write-Utf8Text -Path $reviewCheckTextPathResolved -Text (($checkLines -join [Environment]::NewLine) + [Environment]::NewLine)
 
@@ -1126,6 +1196,7 @@ try {
             compare_questions = To-StringArray -Values $compareSurfaceQuestions
             next_questions = To-StringArray -Values $nextQuestions
         }
+        drift_digest = $driftDigest
         collapse_surface = $compareCollapseSurface
         violations = To-StringArray -Values @()
     }

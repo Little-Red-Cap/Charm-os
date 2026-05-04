@@ -236,6 +236,7 @@ session/
 
 - `scripts/export_minimal_kernel_runtime_session.py`
 - `scripts/minimal_kernel_runtime_session_smoke.ps1`
+- `scripts/minimal_kernel_runtime_session_witness_smoke.ps1`
 
 runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
 system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。
@@ -270,6 +271,14 @@ minimal_kernel_runtime world 的 session continuity witness 发生 runtime-domai
 ```
 
 对应定向 smoke：
+
+```powershell
+./scripts/minimal_kernel_runtime_session_witness_smoke.ps1
+```
+
+它会串起 session exporter、world compare session drift、witness exporter failure export 三条低成本回归。
+
+如果只想单独验证 world compare 对 session witness regression 的投影，可以运行：
 
 ```powershell
 ./scripts/system_compiler_world_compare_session_drift_smoke.ps1

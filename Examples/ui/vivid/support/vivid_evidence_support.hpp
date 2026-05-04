@@ -231,6 +231,49 @@ namespace vivid::evidence {
                     evidence.rejected_no_mutation ? 1 : 0);
     }
 
+    template <typename StyleStateEvidenceT>
+    inline void print_style_state_mask(const char* widget,
+                                       const char* law,
+                                       const StyleStateEvidenceT& evidence) noexcept {
+        std::printf(" widget=%s mask=%u hovered=%d pressed=%d disabled=%d focused_in_style_mask=%d state_count=%u law=%s",
+                    widget ? widget : "",
+                    evidence.mask,
+                    evidence.includes_hovered ? 1 : 0,
+                    evidence.includes_pressed ? 1 : 0,
+                    evidence.includes_disabled ? 1 : 0,
+                    evidence.includes_focused ? 1 : 0,
+                    evidence.state_count,
+                    law ? law : "");
+    }
+
+    template <typename ResolvedStyleEvidenceT>
+    inline void print_resolved_style_evidence(const char* widget,
+                                              const char* state,
+                                              const ResolvedStyleEvidenceT& evidence) noexcept {
+        std::printf(" widget=%s state=%s style_key=%u color_hash=%u metrics_hash=%u",
+                    widget ? widget : "",
+                    state ? state : "",
+                    evidence.style_key,
+                    evidence.color_hash,
+                    evidence.metrics_hash);
+    }
+
+    template <typename ResolvedStyleEvidenceT>
+    inline void print_focus_style_evidence(const char* widget,
+                                           bool focused,
+                                           const ResolvedStyleEvidenceT& evidence,
+                                           bool style_same,
+                                           bool focused_in_style_mask) noexcept {
+        std::printf(" widget=%s focus=%d style_key=%u color_hash=%u metrics_hash=%u style_same=%d focused_in_style_mask=%d",
+                    widget ? widget : "",
+                    focused ? 1 : 0,
+                    evidence.style_key,
+                    evidence.color_hash,
+                    evidence.metrics_hash,
+                    style_same ? 1 : 0,
+                    focused_in_style_mask ? 1 : 0);
+    }
+
     inline void print_semantic_intent_resolution(const SemanticIntentResolution& resolution) noexcept {
         std::printf(" intent_resolution=1 status=%s found=%d executable=%d id=%s actions=%u visited=%zu matches=%zu",
                     semantic_intent_status_name(resolution.status),

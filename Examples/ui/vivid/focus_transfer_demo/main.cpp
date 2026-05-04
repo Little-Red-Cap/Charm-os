@@ -74,13 +74,10 @@ int main() {
     }
 
     run_log.case_begin("style_mask_boundary");
-    std::printf(" widget=scroll_container mask=%u hovered=%d pressed=%d disabled=%d focused_in_style_mask=%d state_count=%u law=focus_outside_style_mask\n",
-                state_evidence.mask,
-                state_evidence.includes_hovered ? 1 : 0,
-                state_evidence.includes_pressed ? 1 : 0,
-                state_evidence.includes_disabled ? 1 : 0,
-                state_evidence.includes_focused ? 1 : 0,
-                state_evidence.state_count);
+    vivid::evidence::print_style_state_mask("scroll_container",
+                                            "focus_outside_style_mask",
+                                            state_evidence);
+    std::printf("\n");
 
     const StyleState normal_state = make_style_state(true, false, false, false);
     const StyleState focused_state = make_style_state(true, false, false, true);
@@ -190,11 +187,12 @@ int main() {
     }
 
     run_log.case_begin("style_evidence_after_transfer");
-    std::printf(" widget=scroll_container style_key=%u color_hash=%u metrics_hash=%u style_same=1 focused_in_style_mask=%d\n",
-                style_after.style_key,
-                style_after.color_hash,
-                style_after.metrics_hash,
-                state_evidence.includes_focused ? 1 : 0);
+    vivid::evidence::print_focus_style_evidence("scroll_container",
+                                                true,
+                                                style_after,
+                                                true,
+                                                state_evidence.includes_focused);
+    std::printf("\n");
 
     const auto destination_artifact = vivid::evidence::render_scene(scene, canvas, kDestinationBounds);
     if (!vivid::evidence::expect(destination_artifact.failed_cmds == 0,

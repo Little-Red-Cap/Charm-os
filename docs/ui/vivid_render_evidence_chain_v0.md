@@ -163,6 +163,16 @@ impact_mask
 
 v0 由 `charm.core.style_evidence` 提供 `ResolvedStyleEvidence` 与 `StyleStateEvidence`，并由 `Examples/ui/vivid/style_token_law_demo` 验证 color token 变化只改变 color evidence，不改变 metrics evidence；同时验证 Button 普通 style mask 包含 hovered / pressed / disabled，但不包含 focused。
 
+`Examples/ui/vivid/support/vivid_evidence_support.hpp` provides demo-side stdout helpers for the stable style evidence shape:
+
+```text
+print_style_state_mask(widget, law, evidence)
+print_resolved_style_evidence(widget, state, evidence)
+print_focus_style_evidence(widget, focused, evidence, style_same, focused_in_style_mask)
+```
+
+These helpers keep Style Token Law and Focus Evidence demos aligned without promoting style stdout formatting into a Vivid core API.
+
 ## Evidence Lab 支撑工具
 
 `Examples/ui/vivid/support/vivid_evidence_support.hpp` 是 v0 的示例侧共享证据账本。

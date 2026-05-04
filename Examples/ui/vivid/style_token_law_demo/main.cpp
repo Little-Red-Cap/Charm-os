@@ -147,20 +147,13 @@ int main() {
     }
 
     run_log.case_begin("state_mask_law");
-    std::printf(" widget=button mask=%u hovered=%d pressed=%d disabled=%d focused_in_style_mask=%d state_count=%u law=interactive_without_focus\n",
-                state_evidence.mask,
-                state_evidence.includes_hovered ? 1 : 0,
-                state_evidence.includes_pressed ? 1 : 0,
-                state_evidence.includes_disabled ? 1 : 0,
-                state_evidence.includes_focused ? 1 : 0,
-                state_evidence.state_count);
+    vivid::evidence::print_style_state_mask("button", "interactive_without_focus", state_evidence);
+    std::printf("\n");
 
     const ResolvedStyleEvidence style_evidence_before = make_resolved_style_evidence(normal_before);
     run_log.case_begin("resolved_style_key");
-    std::printf(" widget=button state=normal style_key=%u color_hash=%u metrics_hash=%u token_version=%u stylesheet_version=%u\n",
-                style_evidence_before.style_key,
-                style_evidence_before.color_hash,
-                style_evidence_before.metrics_hash,
+    vivid::evidence::print_resolved_style_evidence("button", "normal", style_evidence_before);
+    std::printf(" token_version=%u stylesheet_version=%u\n",
                 token_version_before,
                 stylesheet_version);
 

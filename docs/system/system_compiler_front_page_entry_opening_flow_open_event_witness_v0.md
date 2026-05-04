@@ -24,8 +24,12 @@ includes:
   - `scripts/export_system_compiler_front_page_entry_opening_flow_open_event_witness.py`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_open_event_witness.py`
+- compare
+  - `scripts/compare_system_compiler_front_page_entry_opening_flow_open_event_witness.py`
+  - `scripts/validate_system_compiler_front_page_entry_opening_flow_open_event_witness_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -45,6 +49,12 @@ The smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-smoke
+```
+
+The compare smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-compare-smoke
 ```
 
 ## What the witness records
@@ -97,6 +107,12 @@ Run the smoke:
 ./scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_smoke.ps1 -Clean
 ```
 
+Run the witness compare smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_compare_smoke.ps1 -Clean
+```
+
 Export directly from an open-event summary:
 
 ```powershell
@@ -117,6 +133,8 @@ Expected smoke shape:
 ```text
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-SMOKE] case=default-no-compare-witness witness_status=ok event_status=accepted compare=False/not_attached
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-SMOKE] case=default-with-drift-compare-witness witness_status=ok event_status=accepted_with_drift compare=True/drifted
+[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-COMPARE-SMOKE] case=open-event-witness-self-standing verdict=standing changed=0
+[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-COMPARE-SMOKE] case=open-event-witness-default-to-drift-context verdict=drifted
 ```
 
 ## Why this matters
@@ -129,6 +147,8 @@ The opening-flow chain now has a portable evidence unit:
   - records the full explainable opening judgment
 - open event witness
   - distills that judgment into compact testimony
+- open event witness compare
+  - judges whether two testimonies still prove the same opening judgment
 - open event compare
   - judges whether two opening judgments preserve the same semantics
 

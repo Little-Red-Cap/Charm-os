@@ -65,6 +65,18 @@ def validate_witness_bundle_view(view: dict | None, label: str, errors: list[str
     ensure_exists(view.get("check_text_path"), f"{label}.check_text_path", errors)
 
 
+def validate_session_view(view: dict | None, label: str, errors: list[str]):
+    if not isinstance(view, dict):
+        return
+
+    ensure_exists(view.get("output_root"), f"{label}.output_root", errors)
+    ensure_exists(view.get("bundle_log_path"), f"{label}.bundle_log_path", errors)
+    ensure_exists(view.get("summary_path"), f"{label}.summary_path", errors)
+    ensure_exists(view.get("runtime_ledger_path"), f"{label}.runtime_ledger_path", errors)
+    ensure_exists(view.get("report_markdown_path"), f"{label}.report_markdown_path", errors)
+    ensure_exists(view.get("check_text_path"), f"{label}.check_text_path", errors)
+
+
 def validate_references(summary: dict):
     errors: list[str] = []
 
@@ -86,6 +98,7 @@ def validate_references(summary: dict):
         validate_qemu_view(qemu.get("lower_half"), "qemu.lower_half", errors)
 
     validate_witness_bundle_view(summary.get("witness_bundle"), "witness_bundle", errors)
+    validate_session_view(summary.get("session"), "session", errors)
 
     return errors
 

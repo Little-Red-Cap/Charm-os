@@ -281,6 +281,15 @@
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点
 
+- `minimal_kernel.kernel_runtime_session.v0.schema.json`
+  - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/export_minimal_kernel_runtime_session.py`
+  - 用途偏向把 host 语义证据、ARMv7-A QEMU 机器证据与 runtime continuity 投影成同一个 `kernel_runtime_session` 对象
+  - 它不替代 runtime evidence bundle、witness bundle 或 world compare，而是给这些上层对象一个共同可引用的 session summary
+
+- `examples/minimal_kernel.kernel_runtime_session.v0.sample.json`
+  - 对应 `minimal_kernel.kernel_runtime_session/v0` 的最小样例
+  - 用途偏向 schema 自检、session witness 字段讨论与后续 witness bundle 接入前的对象锚点
+
 - `system_compiler.runtime_observe_snapshot.v0.schema.json`
   - 对应 per-case runtime observe sidecar 的最小机器可读协议
   - 用途偏向把 `PublishState / ExportState / recent_transitions` 从示例内存里的瞬时数据，提升成可引用、可验证的独立工件
@@ -422,6 +431,7 @@
 - `system_formation_summary/v0`：当前 artifact_root 默认总览里的 formation-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `fact_resolution_summary/v0`：当前 artifact_root 默认总览里的 fact-resolution-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_compiler_result_map/v0`：当前 system compiler root summary 关系语言的对象锚点，语义继续由脚本契约与样例共同收紧
+- `minimal_kernel.kernel_runtime_session/v0`：当前 minimal-kernel runtime session witness 对象锚点，负责把 semantic witness、machine witness、runtime continuity、ledger 与 failure taxonomy 收成同一可消费对象
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，
 而是在把不同层次的协议边界分别钉清楚。

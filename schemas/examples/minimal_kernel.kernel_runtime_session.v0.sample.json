@@ -1,0 +1,72 @@
+{
+  "schema": "minimal_kernel.kernel_runtime_session/v0",
+  "kind": "minimal_kernel.kernel_runtime_session",
+  "generated_at": "2026-05-04T00:00:00Z",
+  "session_id": "minimal_kernel_runtime.armv7a_qemu.debug",
+  "world": "minimal_kernel_runtime",
+  "subject": {
+    "board": "armv7a_qemu",
+    "profile": "debug",
+    "leaf": "Examples/kernel/armv7a/qemu"
+  },
+  "semantic_witness": {
+    "host": true,
+    "status": "standing",
+    "contracts": [
+      "minimal_kernel_runtime_bridge",
+      "minimal_kernel_trap_ingress",
+      "minimal_kernel_task_syscall_frame",
+      "minimal_kernel_task_message_session"
+    ],
+    "source_summary": "out/minimal-kernel-runtime-evidence/host",
+    "cold_summary": "out/minimal-kernel-runtime-evidence/host/ci/summary.json",
+    "warm_summary": "out/minimal-kernel-runtime-evidence/host/daily/summary.json"
+  },
+  "machine_witness": {
+    "qemu": true,
+    "status": "standing",
+    "source_summary": "out/minimal-kernel-runtime-evidence/qemu/summary.json",
+    "exception_ingress": true,
+    "interrupt_ingress": true,
+    "timer_ingress": true,
+    "trap_ingress": true,
+    "context_ingress": true,
+    "runtime_loop": true,
+    "standing_cases": [
+      "runtime_trap",
+      "runtime_thread",
+      "runtime_live",
+      "task_syscall",
+      "handoff_live"
+    ],
+    "regressed_cases": []
+  },
+  "runtime": {
+    "tick": true,
+    "trap": true,
+    "thread": true,
+    "task_syscall": true,
+    "handoff_continuity": true
+  },
+  "ledger": {
+    "phase_ledger": "out/minimal-kernel-runtime-evidence/qemu/cases/phase-ledger/runtime_ledger.json",
+    "runtime_ledger": "out/minimal-kernel-runtime-evidence/session/runtime_ledger.json",
+    "event_count": 10
+  },
+  "verdict": {
+    "session_status": "standing",
+    "failure_domain": null
+  },
+  "failures": [],
+  "artifact_paths": {
+    "summary": "out/minimal-kernel-runtime-evidence/session/kernel_runtime_session.summary.json",
+    "runtime_ledger": "out/minimal-kernel-runtime-evidence/session/runtime_ledger.json",
+    "report": "out/minimal-kernel-runtime-evidence/session/report.md",
+    "check": "out/minimal-kernel-runtime-evidence/session/check.txt",
+    "source_runtime_evidence": "out/minimal-kernel-runtime-evidence/summary.json"
+  },
+  "provenance": {
+    "runtime_evidence_summary": "out/minimal-kernel-runtime-evidence/summary.json",
+    "canonical_world": "Examples/kernel/canonical_worlds/minimal_kernel_runtime.world.json"
+  }
+}

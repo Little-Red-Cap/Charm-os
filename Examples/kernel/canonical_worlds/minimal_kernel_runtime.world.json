@@ -16,23 +16,28 @@
   },
   "first_class_terms": [
     "subject",
+    "session",
     "case",
     "fact",
     "contract",
     "witness",
-    "transition"
+    "transition",
+    "ingress"
   ],
   "core_questions": [
+    "Which kernel runtime session is jointly proven by upper-half semantics and lower-half machine ingress?",
     "Which upper-half runtime seam closes the smallest useful kernel loop?",
     "Which lower-half ingress witness proves the architecture gate is real?",
     "Which contract set explains why this world is considered valid?"
   ],
   "compare_questions": [
+    "If a session drifts, did it drift in semantic closure, machine ingress, runtime continuity, or witness export?",
     "If this world drifts, which witness breaks first?",
     "If trap or session semantics tighten, which sample becomes invalid?",
     "If a capability disappears, what is the smallest collapse surface?"
   ],
   "contract_refs": [
+    "../../../docs/system/kernel_runtime_session_witness_v0.md",
     "../../../docs/system/minimal_kernel_runtime_evidence_bundle_contract.md",
     "../../../docs/system/minimal_kernel_runtime_evidence_matrix.md",
     "../../../docs/system/minimal_kernel_task_message_session_service_loop_contract.md",
@@ -53,6 +58,22 @@
         "bundle"
       ],
       "case": null,
+      "path": null
+    },
+    {
+      "id": "kernel_runtime_session",
+      "kind": "kernel_runtime_session",
+      "label": "minimal-kernel-runtime-session",
+      "role": "host and QEMU jointly proven kernel runtime session witness",
+      "layer": "session",
+      "required": true,
+      "witness_focus": [
+        "session",
+        "runtime",
+        "ingress",
+        "continuity"
+      ],
+      "case": "minimal_kernel_runtime.armv7a_qemu.debug",
       "path": null
     },
     {

@@ -97,6 +97,17 @@ function Load-JsonObject {
     return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
 }
 
+function Assert-Condition {
+    param(
+        [bool]$Condition,
+        [string]$Message
+    )
+
+    if (-not $Condition) {
+        throw $Message
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $inputRootPath = Resolve-FullPath -Path $InputRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
@@ -161,12 +172,25 @@ try {
         -FailureMessage "front page entry opening flow consumer validation failed"
 
     $summary = Load-JsonObject -Path $summaryPath
+    Assert-Condition `
+        -Condition (-not [string]::IsNullOrWhiteSpace([string]$summary.default_opening.opening_reason.kind)) `
+        -Message "default opening must expose opening_reason.kind"
+    Assert-Condition `
+        -Condition (-not [string]::IsNullOrWhiteSpace([string]$summary.default_opening.projection_headline)) `
+        -Message "default opening must expose projection_headline"
+    Assert-Condition `
+        -Condition (@($summary.default_opening.projection_summary_lines).Count -gt 0) `
+        -Message "default opening must expose projection_summary_lines"
+    Assert-Condition `
+        -Condition (@($summary.readiness_surface.preview_ready_openings).Count -eq [int]$summary.consumer_status.renderable_opening_count) `
+        -Message "preview_ready_openings should cover every renderable opening in smoke"
     Write-Host (
-        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SMOKE] openings={0} renderable={1} compare_aware={2} default={3}" -f
+        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SMOKE] openings={0} renderable={1} compare_aware={2} default={3} reason={4}" -f
         [int]$summary.consumer_status.total_opening_count,
         [int]$summary.consumer_status.renderable_opening_count,
         [int]$summary.consumer_status.compare_aware_opening_count,
-        [string]$summary.consumer_status.default_opening_name
+        [string]$summary.consumer_status.default_opening_name,
+        [string]$summary.default_opening.opening_reason.kind
     )
 } finally {
     Pop-Location

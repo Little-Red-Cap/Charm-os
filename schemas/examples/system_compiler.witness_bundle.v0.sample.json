@@ -24,6 +24,7 @@
       "fact",
       "contract",
       "witness",
+      "session",
       "transition"
     ],
     "core_questions": [
@@ -72,6 +73,22 @@
         "path": null
       },
       {
+        "id": "kernel_runtime_session_sample",
+        "kind": "kernel_runtime_session",
+        "label": "minimal-kernel-runtime-session",
+        "role": "joint semantic and machine session witness",
+        "layer": "session",
+        "required": true,
+        "witness_focus": [
+          "session",
+          "runtime",
+          "ingress",
+          "continuity"
+        ],
+        "case": "minimal_kernel_runtime.armv7a_qemu.debug",
+        "path": null
+      },
+      {
         "id": "session_roundtrip_example",
         "kind": "example_ref",
         "label": "runtime_task_message_session_roundtrip_host",
@@ -117,13 +134,14 @@
     "missing_refs": []
   },
   "witness_summary": {
-    "entry_count": 3,
-    "ok_count": 3,
+    "entry_count": 4,
+    "ok_count": 4,
     "missing_count": 0,
     "fail_count": 0,
     "required_missing_count": 0,
     "kind_counts": {
       "artifact_report": 1,
+      "kernel_runtime_session": 1,
       "runtime_evidence_bundle": 1,
       "example_ref": 1
     }
@@ -188,10 +206,49 @@
         "result=ok",
         "host_cold=ok:11 fail:0 other:0",
         "host_warm=ok:11 fail:0 other:0",
-        "qemu=ok:3 fail:0 other:0"
+        "qemu=ok:9 fail:0 other:0"
       ],
       "artifact_refs": [
         "schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json"
+      ]
+    },
+    {
+      "id": "kernel_runtime_session_sample",
+      "kind": "kernel_runtime_session",
+      "label": "minimal-kernel-runtime-session",
+      "role": "joint semantic and machine session witness",
+      "layer": "session",
+      "required": true,
+      "status": "ok",
+      "witness_focus": [
+        "session",
+        "runtime",
+        "ingress",
+        "continuity"
+      ],
+      "case": "minimal_kernel_runtime.armv7a_qemu.debug",
+      "source_path": "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json",
+      "subject": {
+        "case": "minimal_kernel_runtime.armv7a_qemu.debug",
+        "profile": "debug",
+        "board": "armv7a_qemu",
+        "active_facets": [
+          "session",
+          "runtime",
+          "ingress",
+          "continuity"
+        ]
+      },
+      "observations": [
+        "session_status=standing",
+        "semantic=standing",
+        "machine=standing",
+        "runtime=tick:True trap:True thread:True task_syscall:True handoff:True",
+        "ledger_events=10",
+        "failures=0"
+      ],
+      "artifact_refs": [
+        "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json"
       ]
     },
     {

@@ -62,6 +62,7 @@ The current summary records:
   - `biography_ready`
   - `evidence_only`
   - `route_only`
+- one `opening_reason` explaining why that mode won
 - capability presence and counts for:
   - `delivery_biography`
   - `counterfactual_verdict`
@@ -108,6 +109,14 @@ It is only trying to say:
 
 > If a tool needs one landing for this capability right now, this is the most
 > reasonable declared route entry to start from.
+
+For `system_compiler.world_shelf_review/v0` roots, `opening_reason` also reads
+the review object's own `drift_digest`.
+
+If that digest reports `changed=true`, the reason kind becomes
+`world_shelf_review_drift`. This does not re-run shelf compare logic; it only
+lets consumer-side landing/opening tools explain why grouped review is the
+default entry.
 
 ## Manual example
 

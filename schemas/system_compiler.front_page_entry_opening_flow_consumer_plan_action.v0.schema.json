@@ -282,6 +282,8 @@
         "target_summary_kind",
         "target_summary_path",
         "projection_kind",
+        "opening_reason",
+        "projection_headline",
         "compare_context_available",
         "landing_verdict",
         "inspector_ready",
@@ -348,6 +350,12 @@
         "projection_kind": {
           "type": "string"
         },
+        "opening_reason": {
+          "$ref": "#/$defs/openingReason"
+        },
+        "projection_headline": {
+          "type": "string"
+        },
         "compare_context_available": {
           "type": "boolean"
         },
@@ -380,6 +388,44 @@
         }
       }
     },
+    "openingReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "summary",
+        "source_summary_path",
+        "drift_changed",
+        "drift_verdict"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "world_shelf_review_drift",
+            "world_shelf_review",
+            "grouped_review",
+            "counterfactual_verdict",
+            "delivery_biography",
+            "supporting_evidence",
+            "route",
+            ""
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "drift_changed": {
+          "type": "boolean"
+        },
+        "drift_verdict": {
+          "type": "string"
+        }
+      }
+    },
     "openAction": {
       "type": "object",
       "additionalProperties": false,
@@ -397,6 +443,8 @@
         "target_summary_kind",
         "target_summary_path",
         "projection_kind",
+        "opening_reason",
+        "projection_headline",
         "compare_context_available",
         "landing_verdict",
         "opener_summary_path",
@@ -453,6 +501,12 @@
           "type": "string"
         },
         "projection_kind": {
+          "type": "string"
+        },
+        "opening_reason": {
+          "$ref": "#/$defs/openingReason"
+        },
+        "projection_headline": {
           "type": "string"
         },
         "compare_context_available": {

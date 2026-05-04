@@ -16,6 +16,7 @@ The consumer object answers the next practical question:
 - which opening should a higher explain tool render first
 - which compare-aware opening should stay nearby
 - which openings are already renderable from existing projections
+- why each opening was chosen and what immediate preview text it exposes
 - why direct artifact-report inspector execution is still blocked
 
 It deliberately stays below a full explain surface.
@@ -81,15 +82,22 @@ The current summary records:
   - compare opening name
 - `default_opening`
   - the first stable opening a consumer should show as the normal preview
+  - carries `opening_reason`, projection headline, projection summary lines,
+    projection question lines, blockers, and opener questions
 - `compare_opening`
   - the first stable compare-aware opening a consumer should keep nearby
+  - carries the same reason / preview / question surface as `default_opening`
 - `readiness_surface`
   - projection-kind counts
   - target-summary-schema counts
-  - blocked inspector reason counts
+  - opening-reason-kind counts
+  - blocker counts across open-action, projection, inspector, and handoff layers
   - renderable / blocked opening names
+  - preview-ready opening names
+  - drift-reason opening names
 - `opening_handoff_entries`
   - the ordered case-level handoff list derived from source `opener_cases`
+  - each entry preserves opener reason, preview, blockers, and next questions
 
 ## Current policy
 
@@ -146,7 +154,7 @@ python ./scripts/validate_system_compiler_front_page_entry_opening_flow_consumer
 Expected smoke shape:
 
 ```text
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SMOKE] openings=10 renderable=10 compare_aware=2 default=root-witness
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SMOKE] openings=10 renderable=10 compare_aware=2 default=root-witness reason=delivery_biography
 ```
 
 ## Why this matters
@@ -159,3 +167,11 @@ using that chain.
 This gives higher explain tooling a stable handoff artifact without forcing it
 to recalculate opener readiness, projection availability, compare context, or
 inspector blockers from scattered lower-level summaries.
+
+It also gives them one object for the first useful UI/view model:
+
+- entry/opening choice
+- opening reason
+- immediate projection preview
+- blockers by layer
+- compare and next questions

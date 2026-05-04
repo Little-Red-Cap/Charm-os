@@ -83,6 +83,8 @@ def validate_action_consistency(summary: dict, errors: list[str]) -> None:
         "target_summary_kind",
         "target_summary_path",
         "projection_kind",
+        "opening_reason",
+        "projection_headline",
         "compare_context_available",
         "landing_verdict",
         "opener_summary_path",

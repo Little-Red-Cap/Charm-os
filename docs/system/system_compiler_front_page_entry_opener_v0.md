@@ -49,6 +49,7 @@ The current summary records:
 - the source landing summary path
 - an optional source landing-compare summary path
 - a compact `source_landing` projection
+- the landing-provided `opening_reason`
 - a compact `compare_context` projection when compare input exists
 - one `open_action`
 - one `opened_projection`
@@ -64,6 +65,7 @@ It contains:
 - query scope
 - selection rule
 - compare expectation
+- opening reason
 - target summary schema / kind / path
 - target report markdown path
 - target check text path
@@ -172,6 +174,18 @@ For those targets it records:
 - nearby question lines
 - nearby supporting / evidence / compare paths
 
+For `system_compiler.world_shelf_review/v0`, those summary lines include a
+single `drift_digest ...` line. This is only a consumer preview of the review
+object's own `drift_digest`; the opener does not re-run shelf compare logic or
+reinterpret lower `biography_index_compare` semantics.
+
+The opener also prepends one `opening_reason ...` summary line from the source
+landing.
+
+That reason is pass-through state. The opener does not re-score capabilities,
+reselect tabs, or reinterpret `drift_digest`; it only makes the already selected
+opening reason visible beside the preview.
+
 If the target exists but the opener does not know how to project it yet,
 `opened_projection.status` becomes `unavailable` and the blocker explains which
 summary schema still needs a projection adapter.
@@ -231,6 +245,7 @@ a tool can consume one smaller object that already says:
 
 - open this tab
 - use this query
+- explain why this opening won
 - show this summary/report/check target
 - render this small `opened_projection` immediately if available
 - only execute this inspector invocation if `ready=true`

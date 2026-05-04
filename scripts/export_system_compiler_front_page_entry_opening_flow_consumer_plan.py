@@ -84,6 +84,8 @@ def build_action(
             ("target_summary_kind", choose_text(entry.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(entry.get("target_summary_path"))),
             ("projection_kind", choose_text(entry.get("projection_kind"))),
+            ("opening_reason", get_mapping(entry.get("opening_reason"))),
+            ("projection_headline", choose_text(entry.get("projection_headline"))),
             ("compare_context_available", bool(entry.get("compare_context_available"))),
             ("landing_verdict", choose_text(entry.get("landing_verdict"))),
             ("inspector_ready", bool(entry.get("inspector_ready"))),
@@ -398,6 +400,12 @@ def build_report(summary: dict[str, Any]) -> str:
                 action["entry_name"],
                 action["selected_tab_id"],
                 action["projection_kind"],
+            )
+        )
+        lines.append(
+            "  reason=`{0}` headline={1}".format(
+                get_mapping(action.get("opening_reason")).get("kind", ""),
+                action.get("projection_headline", "") or "none",
             )
         )
         lines.append(f"  opener: `{action['opener_summary_path']}`")

@@ -44,6 +44,7 @@ try {
 }
 
 $scripts = @(
+    "run_qemu_phase_ledger_ci.ps1",
     "run_qemu_runtime_trap_ci.ps1",
     "run_qemu_runtime_leaf_ports_ci.ps1",
     "run_qemu_runtime_thread_ci.ps1",

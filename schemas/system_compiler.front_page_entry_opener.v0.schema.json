@@ -219,6 +219,7 @@
         "landing_result",
         "recommended_entry_mode",
         "entry_tier",
+        "opening_reason",
         "primary_tab_id",
         "available_tab_ids",
         "primary_entry",
@@ -248,6 +249,9 @@
         },
         "entry_tier": {
           "type": "string"
+        },
+        "opening_reason": {
+          "$ref": "#/$defs/openingReason"
         },
         "primary_tab_id": {
           "type": "string"
@@ -307,6 +311,43 @@
           "type": "string"
         },
         "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "openingReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "summary",
+        "source_summary_path",
+        "drift_changed",
+        "drift_verdict"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "world_shelf_review_drift",
+            "world_shelf_review",
+            "grouped_review",
+            "counterfactual_verdict",
+            "delivery_biography",
+            "supporting_evidence",
+            "route"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "drift_changed": {
+          "type": "boolean"
+        },
+        "drift_verdict": {
           "type": "string"
         }
       }
@@ -501,6 +542,7 @@
         "selection_rule",
         "compare_expected",
         "followup_query_kinds",
+        "opening_reason",
         "target_summary_schema",
         "target_summary_kind",
         "target_summary_path",
@@ -571,6 +613,9 @@
         },
         "followup_query_kinds": {
           "$ref": "#/$defs/stringArray"
+        },
+        "opening_reason": {
+          "$ref": "#/$defs/openingReason"
         },
         "target_summary_schema": {
           "type": "string"

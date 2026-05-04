@@ -103,7 +103,7 @@ $args = @(
 )
 
 $proc = Start-Process -FilePath $qemu -ArgumentList $args `
-    -RedirectStandardError $errFile -PassThru
+    -RedirectStandardError $errFile -WindowStyle Hidden -PassThru
 
 Start-Sleep -Seconds $TimeoutSec
 

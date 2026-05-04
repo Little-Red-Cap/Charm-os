@@ -66,6 +66,7 @@ out/minimal-kernel-runtime-evidence/
     daily/
   qemu/
     cases/
+  session/
   witness/
   summary.json
   report.md
@@ -80,15 +81,17 @@ out/minimal-kernel-runtime-evidence/
 - `host/ci` 对应 cold start host 证据
 - `host/daily` 对应 warm reuse host 证据
 - `qemu/cases/*` 保留 lower-half case 日志
+- `session/*` 是 `kernel_runtime_session` 的旁路出口，当前用于把 host semantic witness、QEMU machine witness 与 runtime continuity 投影成同一个 session 对象
 - `witness/*` 收口 canonical world 对应的 witness summary / report / check
 - 根 `summary.json / report.md / check.txt` 是这次总证据包的聚合视图
-- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path / witness_bundle`，方便上层自动化只消费一个入口
+- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path / session / witness_bundle`，方便上层自动化只消费一个入口
 
 ## 机器可读契约
 
 当前总证据 summary 已补齐独立 schema：
 
 - `schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json`
+- `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
 
 本地或 CI 如需校验 summary 结构与引用工件完整性，使用：
 
@@ -101,6 +104,26 @@ python ./scripts/validate_minimal_kernel_runtime_evidence.py `
 
 - 用 schema 校验根 `summary.json` 的结构
 - 检查 summary 中引用到的 host / qemu / witness / report / check / case log 工件是否都存在
+
+如果只想验证 session 对象的第一版出口，可以先跑旁路 smoke：
+
+```powershell
+./scripts/minimal_kernel_runtime_session_smoke.ps1
+```
+
+它默认消费 `schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`，
+并输出：
+
+```text
+cmake-build-minimal-kernel-runtime-session-smoke/
+  kernel_runtime_session.summary.json
+  runtime_ledger.json
+  report.md
+  check.txt
+```
+
+这条旁路入口先证明 `session` 对象本身站得住；总 runtime evidence bundle 已经会把 `session` 作为侧车视图回填到根 `summary.json`。
+后续再决定 witness bundle 是否把它提升为独立 witness entry。
 
 ## 本地验证
 

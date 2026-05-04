@@ -311,6 +311,12 @@
         "target_summary_schema",
         "target_summary_path",
         "projection_kind",
+        "opening_reason",
+        "projection_headline",
+        "projection_summary_lines",
+        "projection_question_lines",
+        "blockers",
+        "questions",
         "reason"
       ],
       "properties": {
@@ -335,6 +341,24 @@
         "projection_kind": {
           "type": "string"
         },
+        "opening_reason": {
+          "$ref": "#/$defs/openingReason"
+        },
+        "projection_headline": {
+          "type": "string"
+        },
+        "projection_summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "projection_question_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blockers": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "questions": {
+          "$ref": "#/$defs/openerQuestionBlock"
+        },
         "reason": {
           "type": "string"
         }
@@ -346,9 +370,12 @@
       "required": [
         "projection_kinds",
         "target_summary_schemas",
-        "blocked_inspector_reasons",
+        "opening_reason_kinds",
+        "blocked_reason_counts",
         "compare_aware_openings",
         "renderable_openings",
+        "preview_ready_openings",
+        "drift_reason_openings",
         "blocked_openings"
       ],
       "properties": {
@@ -358,13 +385,22 @@
         "target_summary_schemas": {
           "$ref": "#/$defs/stringIntegerMap"
         },
-        "blocked_inspector_reasons": {
+        "opening_reason_kinds": {
+          "$ref": "#/$defs/stringIntegerMap"
+        },
+        "blocked_reason_counts": {
           "$ref": "#/$defs/stringIntegerMap"
         },
         "compare_aware_openings": {
           "$ref": "#/$defs/stringArray"
         },
         "renderable_openings": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "preview_ready_openings": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "drift_reason_openings": {
           "$ref": "#/$defs/stringArray"
         },
         "blocked_openings": {
@@ -386,11 +422,17 @@
         "query_kind",
         "query_scope",
         "selection_rule",
+        "opening_reason",
         "target_summary_schema",
         "target_summary_kind",
         "target_summary_path",
+        "open_action_blockers",
         "projection_status",
         "projection_kind",
+        "projection_headline",
+        "projection_summary_lines",
+        "projection_question_lines",
+        "projection_blockers",
         "compare_context_available",
         "landing_verdict",
         "inspector_ready",
@@ -399,6 +441,8 @@
         "report_markdown_path",
         "check_text_path",
         "inspector_blockers",
+        "opener_compare_questions",
+        "opener_next_questions",
         "handoff_blockers"
       ],
       "properties": {
@@ -440,6 +484,9 @@
         "selection_rule": {
           "type": "string"
         },
+        "opening_reason": {
+          "$ref": "#/$defs/openingReason"
+        },
         "target_summary_schema": {
           "type": "string"
         },
@@ -448,6 +495,9 @@
         },
         "target_summary_path": {
           "type": "string"
+        },
+        "open_action_blockers": {
+          "$ref": "#/$defs/stringArray"
         },
         "projection_status": {
           "type": "string",
@@ -458,6 +508,18 @@
         },
         "projection_kind": {
           "type": "string"
+        },
+        "projection_headline": {
+          "type": "string"
+        },
+        "projection_summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "projection_question_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "projection_blockers": {
+          "$ref": "#/$defs/stringArray"
         },
         "compare_context_available": {
           "type": "boolean"
@@ -483,7 +545,67 @@
         "inspector_blockers": {
           "$ref": "#/$defs/stringArray"
         },
+        "opener_compare_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "opener_next_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
         "handoff_blockers": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "openingReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "summary",
+        "source_summary_path",
+        "drift_changed",
+        "drift_verdict"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "world_shelf_review_drift",
+            "world_shelf_review",
+            "grouped_review",
+            "counterfactual_verdict",
+            "delivery_biography",
+            "supporting_evidence",
+            "route",
+            ""
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "drift_changed": {
+          "type": "boolean"
+        },
+        "drift_verdict": {
+          "type": "string"
+        }
+      }
+    },
+    "openerQuestionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compare_questions",
+        "next_questions"
+      ],
+      "properties": {
+        "compare_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "next_questions": {
           "$ref": "#/$defs/stringArray"
         }
       }

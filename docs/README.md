@@ -82,6 +82,7 @@
 - 装配与启动：`docs/system/init_graph_contract.md`
 - ARMv7-A 平台契约：`docs/system/armv7a_platform_contract.md`
 - 最小内核运行时 bridge 契约：`docs/system/minimal_kernel_runtime_bridge_contract.md`
+- 最小内核运行会话 witness v0：`docs/system/kernel_runtime_session_witness_v0.md`
 - 最小内核运行时证据矩阵：`docs/system/minimal_kernel_runtime_evidence_matrix.md`
 - 最小内核运行时总回归：`scripts/minimal_kernel_runtime_smoke.ps1`
 - 最小内核 runtime mailbox 契约：`docs/system/minimal_kernel_runtime_mailbox_contract.md`
@@ -118,6 +119,7 @@
 - 最小内核 trap/syscall 契约：`docs/system/minimal_kernel_trap_syscall_contract.md`
 - 最小内核 trap ingress adapter 契约：`docs/system/minimal_kernel_trap_ingress_contract.md`
 - ARMv7-A SVC 到 trap frame 映射证据：`docs/system/armv7a_runtime_trap_mapping_contract.md`
+- 最小内核运行会话 witness v0：`docs/system/kernel_runtime_session_witness_v0.md`
 - 网络协议栈双表面设计：`docs/io/net_stack_dual_surface_design.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
 - POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
@@ -158,6 +160,11 @@
 - System Compiler Front Page Entry Opening Flow consumer selector smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer plan smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer plan action smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action workspace compare：`scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action workspace compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action workspace smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer plan compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer plan workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`
 - System Compiler Front Page Entry Opening Flow consumer plan workspace compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_workspace_compare_smoke.ps1`
@@ -220,6 +227,7 @@ flowchart TD
 | 上 RK3506 板 / 查早期寄存器 | `docs/board/rk3506/README.md` → `docs/board/rk3506/post_ddr_handoff_contract.md` → `docs/system/armv7a_platform_contract.md` |
 | 推进 ARMv7-A 平台 bring-up | `docs/system/armv7a_platform_contract.md` → `docs/boot/bootloader_overview.md` |
 | 推进最小内核运行时 glue / bridge | `docs/system/minimal_kernel_runtime_bridge_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
+| 推进最小内核运行会话 witness / session 证据对象 | `docs/system/kernel_runtime_session_witness_v0.md` → `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md` → `schemas/README.md` |
 | 查看最小内核运行时证据覆盖 | `docs/system/minimal_kernel_runtime_evidence_matrix.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |
 | 回归最小内核运行时总入口 | `scripts/minimal_kernel_runtime_smoke.ps1` → `docs/system/README.md` |
 | 推进第一个 stateful kernel object / runtime mailbox | `docs/system/minimal_kernel_runtime_mailbox_contract.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |
@@ -388,6 +396,7 @@ docs/
 - `docs/system/init_materialized_graph_tooling_milestone.md`
 - `docs/system/armv7a_platform_contract.md`
 - `docs/system/minimal_kernel_runtime_bridge_contract.md`
+- `docs/system/kernel_runtime_session_witness_v0.md`
 - `docs/system/minimal_kernel_runtime_evidence_matrix.md`
 - `docs/system/minimal_kernel_runtime_mailbox_contract.md`
 - `docs/system/minimal_kernel_task_message_api_contract.md`

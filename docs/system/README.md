@@ -37,6 +37,7 @@
 
 - [`armv7a_platform_contract.md`](armv7a_platform_contract.md)
 - [`minimal_kernel_runtime_bridge_contract.md`](minimal_kernel_runtime_bridge_contract.md)
+- [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)
 - [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
 - [`minimal_kernel_runtime_mailbox_contract.md`](minimal_kernel_runtime_mailbox_contract.md)
 - [`minimal_kernel_runtime_smoke.ps1`](../../scripts/minimal_kernel_runtime_smoke.ps1)
@@ -116,6 +117,7 @@
 - [`resource_contract_v0.md`](resource_contract_v0.md)
 - [`artifact_report_v0.md`](artifact_report_v0.md)
 - [`canonical_world_v0.md`](canonical_world_v0.md)
+- [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)
 - [`witness_bundle_v0.md`](witness_bundle_v0.md)
 - [`world_compare_v0.md`](world_compare_v0.md)
 - [`system_compiler_biography_v0.md`](system_compiler_biography_v0.md)
@@ -141,6 +143,11 @@
 - [System Compiler Front Page Entry Opening Flow consumer selector smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan action smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer plan action compare smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer plan action workspace compare](../../scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer plan action workspace compare smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer plan action workspace exporter](../../scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1)
+- [System Compiler Front Page Entry Opening Flow consumer plan action workspace smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan compare smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan workspace exporter](../../scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1)
 - [System Compiler Front Page Entry Opening Flow consumer plan workspace compare smoke](../../scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_workspace_compare_smoke.ps1)
@@ -177,7 +184,7 @@
 
 ## 当前目录里的几个文档簇
 
-- 装配与平台边界：`init_graph`、`armv7a_*`、`minimal_kernel_*`
+- 装配与平台边界：`init_graph`、`armv7a_*`、`minimal_kernel_*`、`kernel_runtime_session_*`
 - POSIX 执行面：`posix_*`
 - System compiler / explain surface：`artifact_report_v0`、`resource_contract_v0`、`explain_surface_v0`、`bringup_evidence_pipeline_v0`
 - Witness / world / biography shelf：`canonical_world_v0`、`witness_bundle_v0`、`world_compare_v0`、`system_compiler_biography_v0`、`system_compiler_biography_index_v0`、`system_compiler_biography_index_compare_v0`、`system_compiler_world_shelf_review_v0`

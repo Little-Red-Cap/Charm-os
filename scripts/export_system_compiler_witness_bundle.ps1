@@ -445,6 +445,82 @@ function Get-ExistingArtifactRefsFromRuntimeEvidenceSummary {
     return @($refs | Select-Object -Unique)
 }
 
+function Resolve-SessionSummaryPathFromRuntimeEvidence {
+    param(
+        $SummaryInfo
+    )
+
+    if ($null -eq $SummaryInfo -or $null -eq $SummaryInfo.Data) {
+        return ""
+    }
+    if ($null -eq $SummaryInfo.Data.PSObject.Properties["session"] -or $null -eq $SummaryInfo.Data.session) {
+        return ""
+    }
+
+    $sessionPath = [string]$SummaryInfo.Data.session.summary_path
+    if ([string]::IsNullOrWhiteSpace($sessionPath)) {
+        return ""
+    }
+
+    return Resolve-RelativeToBase -BasePath $SummaryInfo.Path -Value $sessionPath
+}
+
+function Load-KernelRuntimeSessionInfo {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+
+    $resolvedPath = Resolve-FullPath -Path $Path
+    if (-not (Test-Path $resolvedPath)) {
+        throw "kernel runtime session summary not found: $resolvedPath"
+    }
+
+    $data = Load-JsonObject -Path $resolvedPath
+    if ([string]$data.schema -ne "minimal_kernel.kernel_runtime_session/v0") {
+        throw "unsupported kernel runtime session schema: $([string]$data.schema)"
+    }
+    if ([string]$data.kind -ne "minimal_kernel.kernel_runtime_session") {
+        throw "unsupported kernel runtime session kind: $([string]$data.kind)"
+    }
+
+    return [pscustomobject]@{
+        Path = $resolvedPath
+        Data = $data
+    }
+}
+
+function Get-ExistingArtifactRefsFromKernelRuntimeSession {
+    param(
+        $SessionInfo
+    )
+
+    $refs = [System.Collections.Generic.List[string]]::new()
+    if ($null -eq $SessionInfo) {
+        return @()
+    }
+
+    $refs.Add($SessionInfo.Path) | Out-Null
+    if ($null -ne $SessionInfo.Data.artifact_paths) {
+        foreach ($property in @($SessionInfo.Data.artifact_paths.PSObject.Properties)) {
+            $value = [string]$property.Value
+            if ([string]::IsNullOrWhiteSpace($value)) {
+                continue
+            }
+
+            $candidate = Resolve-RelativeToBase -BasePath $SessionInfo.Path -Value $value
+            if (Test-Path $candidate) {
+                $refs.Add($candidate) | Out-Null
+            }
+        }
+    }
+
+    return @($refs | Select-Object -Unique)
+}
+
 function New-MissingWitnessEntry {
     param(
         $PlanEntry,
@@ -548,6 +624,58 @@ function New-RuntimeEvidenceWitnessEntry {
         subject = New-EntrySubject -Case $runtimeCaseName -Profile $null -Board $null -ActiveFacets @()
         observations = @($observations)
         artifact_refs = @(Get-ExistingArtifactRefsFromRuntimeEvidenceSummary -SummaryInfo $SummaryInfo)
+    }
+}
+
+function New-KernelRuntimeSessionWitnessEntry {
+    param(
+        $PlanEntry,
+        $SessionInfo
+    )
+
+    if ($null -eq $SessionInfo) {
+        return (New-MissingWitnessEntry -PlanEntry $PlanEntry -SourcePath ([string]$PlanEntry.path) -Observation "kernel runtime session summary missing")
+    }
+
+    $session = $SessionInfo.Data
+    $verdict = $session.verdict
+    $semantic = $session.semantic_witness
+    $machine = $session.machine_witness
+    $runtime = $session.runtime
+    $ledger = $session.ledger
+    $observations = [System.Collections.Generic.List[string]]::new()
+
+    $observations.Add(("session_status={0}" -f [string]$verdict.session_status)) | Out-Null
+    $observations.Add(("semantic={0}" -f [string]$semantic.status)) | Out-Null
+    $observations.Add(("machine={0}" -f [string]$machine.status)) | Out-Null
+    $observations.Add(("runtime=tick:{0} trap:{1} thread:{2} task_syscall:{3} handoff:{4}" -f [bool]$runtime.tick, [bool]$runtime.trap, [bool]$runtime.thread, [bool]$runtime.task_syscall, [bool]$runtime.handoff_continuity)) | Out-Null
+    $observations.Add(("ledger_events={0}" -f [int]$ledger.event_count)) | Out-Null
+    $observations.Add(("failures={0}" -f @($session.failures).Count)) | Out-Null
+    foreach ($failure in @($session.failures)) {
+        $focusText = (@($failure.focus) -join ",")
+        $observations.Add(("failure={0} domain={1} layer={2} phase={3} focus={4}" -f [string]$failure.code, [string]$failure.domain, [string]$failure.layer, [string]$failure.phase, $focusText)) | Out-Null
+    }
+
+    $sessionCaseName = if ([string]::IsNullOrWhiteSpace([string]$PlanEntry.case)) {
+        [string]$session.session_id
+    } else {
+        [string]$PlanEntry.case
+    }
+
+    return [ordered]@{
+        id = [string]$PlanEntry.id
+        kind = "kernel_runtime_session"
+        label = [string]$PlanEntry.label
+        role = [string]$PlanEntry.role
+        layer = [string]$PlanEntry.layer
+        required = [bool]$PlanEntry.required
+        status = $(if ([string]$verdict.session_status -eq "standing" -and @($session.failures).Count -eq 0) { "ok" } else { "fail" })
+        witness_focus = @($PlanEntry.witness_focus)
+        case = $sessionCaseName
+        source_path = $SessionInfo.Path
+        subject = New-EntrySubject -Case $sessionCaseName -Profile ([string]$session.subject.profile) -Board ([string]$session.subject.board) -ActiveFacets @($PlanEntry.witness_focus)
+        observations = @($observations)
+        artifact_refs = @(Get-ExistingArtifactRefsFromKernelRuntimeSession -SessionInfo $SessionInfo)
     }
 }
 
@@ -661,6 +789,19 @@ function Get-DiscoveredPlan {
             -WitnessFocus @("upper-half", "lower-half", "bundle") `
             -CaseName "minimal-kernel-runtime-evidence" `
             -Path $RuntimeEvidenceSummaryInfo.Path
+
+        $sessionSummaryPath = Resolve-SessionSummaryPathFromRuntimeEvidence -SummaryInfo $RuntimeEvidenceSummaryInfo
+        if (-not [string]::IsNullOrWhiteSpace($sessionSummaryPath)) {
+            $plan += New-DiscoveredPlanEntry `
+                -Id "kernel_runtime_session" `
+                -Kind "kernel_runtime_session" `
+                -Label "minimal-kernel-runtime-session" `
+                -Role "discovered kernel runtime session witness" `
+                -Layer "session" `
+                -WitnessFocus @("session", "runtime", "ingress", "continuity") `
+                -CaseName "minimal_kernel_runtime.armv7a_qemu.debug" `
+                -Path $sessionSummaryPath
+        }
     }
 
     return @($plan)
@@ -754,6 +895,24 @@ function Resolve-RuntimeEvidenceForPlanEntry {
     return $null
 }
 
+function Resolve-KernelRuntimeSessionForPlanEntry {
+    param(
+        $PlanEntry,
+        $RuntimeEvidenceSummaryInfo
+    )
+
+    if ($null -ne $PlanEntry.path -and (Test-Path ([string]$PlanEntry.path))) {
+        return Load-KernelRuntimeSessionInfo -Path ([string]$PlanEntry.path)
+    }
+
+    $sessionSummaryPath = Resolve-SessionSummaryPathFromRuntimeEvidence -SummaryInfo $RuntimeEvidenceSummaryInfo
+    if (-not [string]::IsNullOrWhiteSpace($sessionSummaryPath) -and (Test-Path $sessionSummaryPath)) {
+        return Load-KernelRuntimeSessionInfo -Path $sessionSummaryPath
+    }
+
+    return $null
+}
+
 function New-WitnessEntry {
     param(
         $PlanEntry,
@@ -772,6 +931,10 @@ function New-WitnessEntry {
         "runtime_evidence_bundle" {
             $summaryInfo = Resolve-RuntimeEvidenceForPlanEntry -PlanEntry $PlanEntry -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo
             return (New-RuntimeEvidenceWitnessEntry -PlanEntry $PlanEntry -SummaryInfo $summaryInfo)
+        }
+        "kernel_runtime_session" {
+            $sessionInfo = Resolve-KernelRuntimeSessionForPlanEntry -PlanEntry $PlanEntry -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo
+            return (New-KernelRuntimeSessionWitnessEntry -PlanEntry $PlanEntry -SessionInfo $sessionInfo)
         }
         "example_ref" {
             return (New-ExampleRefWitnessEntry -PlanEntry $PlanEntry -ResolvedPath ([string]$PlanEntry.path))

@@ -38,6 +38,19 @@ def load_plan_summary(path: Path) -> dict[str, Any]:
     return summary
 
 
+def normalize_opening_reason(value: Any) -> OrderedDict[str, Any]:
+    reason = get_mapping(value)
+    return OrderedDict(
+        [
+            ("kind", choose_text(reason.get("kind"))),
+            ("summary", choose_text(reason.get("summary"))),
+            ("source_summary_path", normalize_optional_path(reason.get("source_summary_path"))),
+            ("drift_changed", bool(reason.get("drift_changed"))),
+            ("drift_verdict", choose_text(reason.get("drift_verdict"))),
+        ]
+    )
+
+
 def make_surface(
     surface_id: str,
     label: str,
@@ -77,6 +90,8 @@ def normalize_plan_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("target_summary_kind", choose_text(action.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(action.get("target_summary_path"))),
             ("projection_kind", choose_text(action.get("projection_kind"))),
+            ("opening_reason", normalize_opening_reason(action.get("opening_reason"))),
+            ("projection_headline", choose_text(action.get("projection_headline"))),
             ("compare_context_available", bool(action.get("compare_context_available"))),
             ("landing_verdict", choose_text(action.get("landing_verdict"))),
             ("inspector_ready", bool(action.get("inspector_ready"))),
@@ -218,6 +233,8 @@ def build_open_action(action: dict[str, Any]) -> OrderedDict[str, Any]:
             ("target_summary_kind", choose_text(action.get("target_summary_kind"))),
             ("target_summary_path", normalize_optional_path(action.get("target_summary_path"))),
             ("projection_kind", choose_text(action.get("projection_kind"))),
+            ("opening_reason", normalize_opening_reason(action.get("opening_reason"))),
+            ("projection_headline", choose_text(action.get("projection_headline"))),
             ("compare_context_available", bool(action.get("compare_context_available"))),
             ("landing_verdict", choose_text(action.get("landing_verdict"))),
             ("opener_summary_path", normalize_optional_path(action.get("opener_summary_path"))),
@@ -401,6 +418,10 @@ def build_report(summary: dict[str, Any]) -> str:
         ),
         f"- target summary: `{open_action['target_summary_path']}`",
         f"- opener summary: `{open_action['opener_summary_path']}`",
+        "- opening reason: `{0}` headline={1}".format(
+            get_mapping(open_action.get("opening_reason")).get("kind", ""),
+            open_action["projection_headline"] or "none",
+        ),
         f"- reason: {open_action['reason']}",
         "",
         "## Execution Receipt",
@@ -442,6 +463,8 @@ def build_check(summary: dict[str, Any]) -> str:
             f"query_kind: {open_action['query_kind']}",
             f"query_scope: {open_action['query_scope']}",
             f"projection_kind: {open_action['projection_kind']}",
+            f"opening_reason_kind: {get_mapping(open_action.get('opening_reason')).get('kind', '')}",
+            f"projection_headline: {open_action['projection_headline']}",
             f"opener_summary_path: {open_action['opener_summary_path']}",
             f"consumer_operation: {receipt['consumer_operation']}",
             f"inspector_ready: {receipt['inspector_ready']}",

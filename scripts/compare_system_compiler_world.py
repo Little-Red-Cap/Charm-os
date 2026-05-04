@@ -5,6 +5,36 @@ from pathlib import Path
 
 
 WITNESS_BUNDLE_SCHEMA = "system_compiler.witness_bundle/v0"
+SESSION_WITNESS_KIND = "kernel_runtime_session"
+
+RUNTIME_FACT_FOCUS = {
+    "tick": ["timer", "tick", "ingress"],
+    "trap": ["trap", "svc", "ingress"],
+    "thread": ["thread", "context"],
+    "task_syscall": ["task", "syscall"],
+    "handoff": ["handoff", "continuity", "session"],
+    "handoff_continuity": ["handoff", "continuity", "session"],
+}
+
+FAILURE_CODE_PROJECTIONS = {
+    "decode_failed": (["runtime"], ["trap", "syscall"]),
+    "unsupported_service": (["runtime"], ["syscall"]),
+    "unbound_adapter": (["runtime"], ["adapter", "ingress"]),
+    "unbound_bridge": (["runtime"], ["bridge"]),
+    "writeback_failed": (["runtime"], ["trap", "writeback"]),
+    "missing_phase": (["runtime"], ["phase"]),
+    "unexpected_phase": (["runtime"], ["phase"]),
+    "timeout": (["machine"], ["timer", "timeout"]),
+    "spurious_interrupt": (["machine"], ["interrupt", "ingress"]),
+    "trap_not_observed": (["machine"], ["trap", "ingress"]),
+    "tick_not_observed": (["machine"], ["timer", "tick", "ingress"]),
+    "thread_not_resumed": (["runtime"], ["thread", "context"]),
+    "handoff_not_landed": (["runtime"], ["handoff", "continuity", "session"]),
+    "handoff_continuity_broken": (["runtime"], ["handoff", "continuity", "session"]),
+    "host_semantic_mismatch": (["semantic"], ["host", "semantic"]),
+    "machine_witness_missing": (["machine"], ["qemu", "lower-half"]),
+    "world_contract_missing": (["world"], ["world", "contract"]),
+}
 
 
 def load_json(path: Path):
@@ -46,6 +76,180 @@ def string_array_changes(left, right):
 
 def has_array_changes(change):
     return bool(change["added"] or change["removed"])
+
+
+def parse_bool_text(value: str):
+    normalized = str(value).strip().lower()
+    if normalized in ("true", "1", "yes", "ok", "standing"):
+        return True
+    if normalized in ("false", "0", "no", "fail", "missing", "collapsed", "degraded"):
+        return False
+    return None
+
+
+def parse_observation_tokens(text: str):
+    result = {}
+    for token in str(text).split():
+        if "=" in token:
+            key, value = token.split("=", 1)
+        elif ":" in token:
+            key, value = token.split(":", 1)
+        else:
+            continue
+        if key:
+            result[key.strip()] = value.strip()
+    return result
+
+
+def parse_session_observations(observations):
+    projection = {
+        "session_status": None,
+        "semantic_status": None,
+        "machine_status": None,
+        "runtime": {},
+        "failure_count": None,
+        "failure_codes": [],
+        "failure_domains": [],
+        "failure_layers": [],
+        "failure_focus": [],
+    }
+
+    for observation in observations or []:
+        text = str(observation)
+        if text.startswith("session_status="):
+            projection["session_status"] = text.split("=", 1)[1].strip()
+            continue
+        if text.startswith("semantic="):
+            projection["semantic_status"] = text.split("=", 1)[1].strip()
+            continue
+        if text.startswith("machine="):
+            projection["machine_status"] = text.split("=", 1)[1].strip()
+            continue
+        if text.startswith("runtime="):
+            for key, value in parse_observation_tokens(text.split("=", 1)[1]).items():
+                parsed = parse_bool_text(value)
+                projection["runtime"][key] = parsed if parsed is not None else value
+            continue
+        if text.startswith("failures="):
+            try:
+                projection["failure_count"] = int(text.split("=", 1)[1].strip())
+            except ValueError:
+                projection["failure_count"] = None
+            continue
+        if text.startswith("failure=") or text.startswith("failure_code="):
+            tokens = parse_observation_tokens(text)
+            code = tokens.get("failure") or tokens.get("failure_code")
+            if code:
+                projection["failure_codes"].append(code)
+            if tokens.get("domain"):
+                projection["failure_domains"].append(tokens["domain"])
+            if tokens.get("layer"):
+                projection["failure_layers"].append(tokens["layer"])
+            if tokens.get("focus"):
+                projection["failure_focus"].extend(
+                    value
+                    for value in tokens["focus"].replace("|", ",").split(",")
+                    if value
+                )
+
+    projection["failure_codes"] = ordered_unique(projection["failure_codes"])
+    projection["failure_domains"] = ordered_unique(projection["failure_domains"])
+    projection["failure_layers"] = ordered_unique(projection["failure_layers"])
+    projection["failure_focus"] = ordered_unique(projection["failure_focus"])
+    return projection
+
+
+def is_session_witness_change(change: dict):
+    if change.get("kind") == SESSION_WITNESS_KIND:
+        return True
+    if change.get("layer") == "session":
+        return True
+    return False
+
+
+def build_session_drift(regressed_changes, candidate):
+    candidate_entries = {
+        str(entry["id"]): entry
+        for entry in candidate.get("witness_entries", [])
+    }
+
+    session_changes = [
+        change
+        for change in regressed_changes
+        if is_session_witness_change(change)
+    ]
+    regressed_session_ids = [change["id"] for change in session_changes]
+    required_session_ids = [change["id"] for change in session_changes if change["required"]]
+
+    affected_domains = []
+    affected_focus = []
+    missing_runtime_facts = []
+    failure_codes = []
+    narratives = []
+
+    for change in session_changes:
+        candidate_entry = candidate_entries.get(change["id"], {})
+        projection = parse_session_observations(candidate_entry.get("observations", []))
+
+        if change.get("kind") == SESSION_WITNESS_KIND or change.get("layer") == "session":
+            affected_domains.append("session")
+            affected_focus.append("session")
+        if not candidate_entry:
+            affected_focus.append("witness")
+        if projection["session_status"] and projection["session_status"] != "standing":
+            affected_domains.append("session")
+            affected_focus.append("session")
+        if projection["semantic_status"] and projection["semantic_status"] != "standing":
+            affected_domains.append("semantic")
+            affected_focus.extend(["semantic", "host"])
+        if projection["machine_status"] and projection["machine_status"] != "standing":
+            affected_domains.append("machine")
+            affected_focus.extend(["machine", "ingress"])
+
+        for fact, value in projection["runtime"].items():
+            if value is False:
+                affected_domains.append("runtime")
+                affected_focus.append("runtime")
+                missing_runtime_facts.append(fact)
+                affected_focus.extend(RUNTIME_FACT_FOCUS.get(fact, [fact]))
+
+        failure_codes.extend(projection["failure_codes"])
+        affected_domains.extend(projection["failure_domains"])
+        affected_focus.extend(projection["failure_focus"])
+        for code in projection["failure_codes"]:
+            projected_domains, projected_focus = FAILURE_CODE_PROJECTIONS.get(code, (["runtime"], [code]))
+            affected_domains.extend(projected_domains)
+            affected_focus.extend(projected_focus)
+
+        if projection["failure_count"] is not None and projection["failure_count"] > 0:
+            affected_focus.append("session")
+            if not projection["failure_codes"] and not affected_domains:
+                affected_domains.append("session")
+
+        if projection["runtime"].get("handoff") is False or projection["runtime"].get("handoff_continuity") is False:
+            if "handoff_continuity_broken" not in failure_codes:
+                failure_codes.append("handoff_continuity_broken")
+            affected_domains.append("runtime")
+            affected_focus.extend(["runtime", "handoff", "continuity", "session"])
+
+        narratives.append(
+            "session witness `{0}` regressed `{1}` -> `{2}`".format(
+                change["id"],
+                change["left_status"],
+                change["right_status"],
+            )
+        )
+
+    return {
+        "changed": bool(session_changes),
+        "regressed_sessions": regressed_session_ids,
+        "required_regressed_sessions": required_session_ids,
+        "affected_domains": ordered_unique(domain for domain in affected_domains if domain),
+        "affected_focus": ordered_unique(focus for focus in affected_focus if focus),
+        "missing_runtime_facts": ordered_unique(fact for fact in missing_runtime_facts if fact),
+        "failure_codes": ordered_unique(code for code in failure_codes if code),
+        "narratives": narratives,
+    }
 
 
 def nullable_text(value):
@@ -404,6 +608,7 @@ def build_bundle_status(baseline: dict, candidate: dict):
 def build_collapse_surface(witness_changes, contract_drift, candidate):
     regressed_changes = [change for change in witness_changes if change["impact"] == "regression"]
     required_regressed = [change for change in regressed_changes if change["required"]]
+    session_drift = build_session_drift(regressed_changes, candidate)
 
     candidate_entries = candidate.get("witness_entries", [])
     failing_candidate_witnesses = [
@@ -438,6 +643,7 @@ def build_collapse_surface(witness_changes, contract_drift, candidate):
         narratives.append(f"candidate is missing contract ref `{ref}`")
     if candidate.get("result") != "ok":
         narratives.append("candidate witness bundle no longer stands as `ok`")
+    narratives.extend(session_drift["narratives"][:3])
 
     return {
         "changed": bool(regressed_changes or contract_drift["missing_ref_changes"]["added"]),
@@ -447,13 +653,35 @@ def build_collapse_surface(witness_changes, contract_drift, candidate):
         "missing_candidate_witnesses": missing_candidate_witnesses,
         "added_missing_contract_refs": contract_drift["missing_ref_changes"]["added"],
         "affected_layers": affected_layers,
-        "affected_focus": affected_focus,
+        "affected_focus": ordered_unique(affected_focus + session_drift["affected_focus"]),
+        "session_drift": session_drift,
         "narratives": narratives,
     }
 
 
 def build_next_questions(world_view, world_changes, witness_changes, contract_drift, collapse_surface, witness_summary):
     next_questions = []
+    session_drift = collapse_surface.get("session_drift", {})
+
+    if session_drift.get("changed"):
+        if session_drift.get("failure_codes"):
+            next_questions.append(
+                "Which session failure code should be restored first: `{0}`?".format(
+                    "`, `".join(session_drift["failure_codes"][:3])
+                )
+            )
+        if session_drift.get("missing_runtime_facts"):
+            next_questions.append(
+                "Which runtime fact broke the session witness: `{0}`?".format(
+                    "`, `".join(session_drift["missing_runtime_facts"][:3])
+                )
+            )
+        if session_drift.get("affected_domains"):
+            next_questions.append(
+                "Did the kernel runtime session drift in `{0}`?".format(
+                    "`, `".join(session_drift["affected_domains"][:3])
+                )
+            )
 
     for change in [entry for entry in witness_changes if entry["impact"] == "regression"][:3]:
         next_questions.append(
@@ -657,6 +885,21 @@ def build_summary(args):
                     "`, `".join(collapse_surface["affected_focus"])
                 )
             )
+        session_drift = collapse_surface["session_drift"]
+        if session_drift["changed"]:
+            report_lines.append(
+                "- Session drift: sessions=`{0}` domains=`{1}` focus=`{2}`".format(
+                    "`, `".join(session_drift["regressed_sessions"]),
+                    "`, `".join(session_drift["affected_domains"]),
+                    "`, `".join(session_drift["affected_focus"]),
+                )
+            )
+            if session_drift["failure_codes"]:
+                report_lines.append(
+                    "- Session failure codes: `{0}`".format(
+                        "`, `".join(session_drift["failure_codes"])
+                    )
+                )
         for narrative in collapse_surface["narratives"]:
             report_lines.append(f"- {narrative}")
     else:
@@ -701,6 +944,12 @@ def build_summary(args):
         "collapse_surface: regressed={0} missing_contract_refs_added={1}".format(
             len(collapse_surface["regressed_witnesses"]),
             len(collapse_surface["added_missing_contract_refs"]),
+        ),
+        "session_drift: changed={0} domains={1} focus={2} failure_codes={3}".format(
+            str(collapse_surface["session_drift"]["changed"]).lower(),
+            ",".join(collapse_surface["session_drift"]["affected_domains"]),
+            ",".join(collapse_surface["session_drift"]["affected_focus"]),
+            ",".join(collapse_surface["session_drift"]["failure_codes"]),
         ),
     ]
     write_text(check_path, "\n".join(check_lines) + "\n")

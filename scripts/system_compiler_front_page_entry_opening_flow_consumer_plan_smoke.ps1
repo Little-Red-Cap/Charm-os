@@ -99,6 +99,17 @@ function Load-JsonObject {
     return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
 }
 
+function Assert-Condition {
+    param(
+        [bool]$Condition,
+        [string]$Message
+    )
+
+    if (-not $Condition) {
+        throw $Message
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $frontPageWorkspaceRootPath = Resolve-FullPath -Path $FrontPageWorkspaceRoot
 $selectorWorkspaceRootPath = Resolve-FullPath -Path $SelectorWorkspaceRoot
@@ -175,13 +186,20 @@ try {
         -FailureMessage "front page entry opening-flow consumer plan validation failed"
 
     $summary = Load-JsonObject -Path $summaryPath
+    Assert-Condition `
+        -Condition (-not [string]::IsNullOrWhiteSpace([string]$summary.execution_plan.default_action.opening_reason.kind)) `
+        -Message "plan default action must expose opening_reason.kind"
+    Assert-Condition `
+        -Condition (-not [string]::IsNullOrWhiteSpace([string]$summary.execution_plan.default_action.projection_headline)) `
+        -Message "plan default action must expose projection_headline"
     Write-Host (
-        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions={0} default={1} compare={2} next={3} omitted={4}" -f
+        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions={0} default={1} compare={2} next={3} omitted={4} reason={5}" -f
         [int]$summary.planner_status.planned_action_count,
         [string]$summary.planner_status.default_action_name,
         [string]$summary.planner_status.compare_action_name,
         [int]$summary.planner_status.next_action_count,
-        [int]$summary.planner_status.omitted_entry_count
+        [int]$summary.planner_status.omitted_entry_count,
+        [string]$summary.execution_plan.default_action.opening_reason.kind
     )
 } finally {
     Pop-Location

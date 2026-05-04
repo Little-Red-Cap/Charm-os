@@ -95,7 +95,7 @@
 - `system_compiler.canonical_world.v0.schema.json`
   - 对应 `docs/system/canonical_world_v0.md` 里定义的 canonical world 对象
   - 用途偏向把一组 case / contract / witness plan 收成“这个世界想证明什么”的正式声明对象
-  - 它当前刻意只覆盖 `artifact_report / runtime_evidence_bundle / example_ref` 三类 witness plan
+  - 它当前刻意只覆盖 `artifact_report / runtime_evidence_bundle / kernel_runtime_session / example_ref` 四类 witness plan
 
 - `examples/system_compiler.canonical_world.v0.sample.json`
   - 对应 `system_compiler.canonical_world/v0` 的最小样例
@@ -104,6 +104,7 @@
 - `system_compiler.witness_bundle.v0.schema.json`
   - 对应 `docs/system/witness_bundle_v0.md` 与 `scripts/export_system_compiler_witness_bundle.ps1`
   - 用途偏向把 canonical world、artifact report、runtime evidence bundle 与 example refs 收成正式交付对象
+  - 它当前也可把 `kernel_runtime_session` 作为独立 witness entry 消费，优先从 runtime evidence summary 的 `session.summary_path` 解析来源
   - 它当前关注的是“证词是否齐、来源在哪里、缺口是什么”，而不是替代下层更细的 runtime / compare 语义
   - 它当前也可在 `artifact_context.artifact_report_index` 中记录 artifact report root 的 first-read index，
     作为上层 proof / IDE / CI 发现 case 级报告的来源锚点
@@ -142,6 +143,7 @@
 - `system_compiler.world_shelf_review.v0.schema.json`
   - 对应 `docs/system/system_compiler_world_shelf_review_v0.md` 与 `scripts/review_system_compiler_world_shelf.ps1`
   - 用途偏向把 candidate shelf、baseline shelf 与 shelf compare verdict 收成一个可验证的 review envelope 对象
+  - `drift_digest` 只投影 lower shelf compare 的漂移摘要，不替代 `biography_index_compare`
   - `collapse_surface` 与 shelf compare 的 collapse surface 保持同形，包括空的
     `front_page_entry_detail_changed_anchors`
 
@@ -199,6 +201,7 @@
   - 用途偏向把 `front_page route -> capability -> landing -> landing compare -> opener`
     这一整条 consumer-side opening chain 收成一个 smoke-level evidence artifact，
     明确 flow steps、opener cases、projection availability、compare context 与 inspector readiness
+  - `opener_cases` 同时保留 opener 的 opening reason、projection preview、projection blockers 与 opener questions
 
 - `system_compiler.front_page_entry_opening_flow_consumer.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`、
@@ -207,7 +210,8 @@
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer.py`
   - 用途偏向把一份 `front_page entry opening flow` summary 收成上层 explain 工具可消费的入口清单，
-    明确 default opening、compare opening、renderable openings、projection kinds 与 inspector blockers
+    明确 default opening、compare opening、renderable openings、opening reason、projection preview、
+    blockers 与后续 questions
 
 - `system_compiler.front_page_entry_opening_flow_consumer_selector.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_v0.md`、
@@ -216,7 +220,7 @@
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector.py`
   - 用途偏向把一份 `front_page entry opening flow consumer` handoff 收成确定性 open order，
-    明确 default entry、compare entry、fallback entries 与对应 opener 证据入口
+    明确 default entry、compare entry、fallback entries、opening reason / headline 与对应 opener 证据入口
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_v0.md`、
@@ -225,15 +229,27 @@
     `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
   - 用途偏向把一份 `front_page entry opening flow consumer selector` open order 收成确定性执行计划，
-    明确 open-default、open-compare-neighbor、open-next actions 与对应 opener 证据入口
+    明确 open-default、open-compare-neighbor、open-next actions、opening reason / headline 与对应 opener 证据入口
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、
     `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`、
-    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
   - 用途偏向从一份 `front_page entry opening flow consumer plan` summary 中选择单个 action，
     输出后续 explain consumer 可直接打开的 opener summary witness
+
+- `system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare.v0.schema.json`
+  - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`、
+    `scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1`
+    与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare.py`
+  - 用途偏向比较两份 `front_page entry opening flow consumer plan action` summary，
+    回答最终 explain-open action、目标、opener、consumer operation 与 inspector readiness 是否漂移
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`、
@@ -265,6 +281,15 @@
 - `examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`
   - 对应 `minimal_kernel.runtime_evidence_bundle.summary/v1` 的最小样例
   - 用途偏向 witness bundle sample 输入与该 summary 协议的补充样例锚点
+
+- `minimal_kernel.kernel_runtime_session.v0.schema.json`
+  - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与 `scripts/export_minimal_kernel_runtime_session.py`
+  - 用途偏向把 host 语义证据、ARMv7-A QEMU 机器证据与 runtime continuity 投影成同一个 `kernel_runtime_session` 对象
+  - 它不替代 runtime evidence bundle、witness bundle 或 world compare，而是给这些上层对象一个共同可引用的 session summary
+
+- `examples/minimal_kernel.kernel_runtime_session.v0.sample.json`
+  - 对应 `minimal_kernel.kernel_runtime_session/v0` 的最小样例
+  - 用途偏向 schema 自检、session witness 字段讨论与后续 witness bundle 接入前的对象锚点
 
 - `system_compiler.runtime_observe_snapshot.v0.schema.json`
   - 对应 per-case runtime observe sidecar 的最小机器可读协议
@@ -407,6 +432,7 @@
 - `system_formation_summary/v0`：当前 artifact_root 默认总览里的 formation-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `fact_resolution_summary/v0`：当前 artifact_root 默认总览里的 fact-resolution-side summary object 锚点，负责冻结 summary/comparison 两种模式下的对象形状与 `kind / mode` 自描述语义
 - `system_compiler_result_map/v0`：当前 system compiler root summary 关系语言的对象锚点，语义继续由脚本契约与样例共同收紧
+- `minimal_kernel.kernel_runtime_session/v0`：当前 minimal-kernel runtime session witness 对象锚点，负责把 semantic witness、machine witness、runtime continuity、ledger 与 failure taxonomy 收成同一可消费对象
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，
 而是在把不同层次的协议边界分别钉清楚。

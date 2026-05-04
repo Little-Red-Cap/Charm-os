@@ -38,6 +38,11 @@ def build_report(summary: dict) -> str:
             open_action["selection_rule"] or "none",
             "yes" if open_action["compare_expected"] else "no",
         ),
+        "- opening_reason=`{0}` drift_changed=`{1}` verdict=`{2}`".format(
+            open_action["opening_reason"]["kind"],
+            "yes" if open_action["opening_reason"]["drift_changed"] else "no",
+            open_action["opening_reason"]["drift_verdict"] or "none",
+        ),
         "- target schema=`{0}` kind=`{1}`".format(
             open_action["target_summary_schema"] or "none",
             open_action["target_summary_kind"] or "none",
@@ -139,6 +144,9 @@ def build_check(summary: dict) -> str:
             f"query_scope: {open_action['query_scope']}",
             f"selection_rule: {open_action['selection_rule']}",
             f"compare_expected: {open_action['compare_expected']}",
+            f"opening_reason_kind: {open_action['opening_reason']['kind']}",
+            f"opening_reason_drift_changed: {open_action['opening_reason']['drift_changed']}",
+            f"opening_reason_drift_verdict: {open_action['opening_reason']['drift_verdict']}",
             f"target_summary_schema: {open_action['target_summary_schema']}",
             f"target_summary_path: {open_action['target_summary_path']}",
             f"inspector_ready: {inspector_invocation['ready']}",

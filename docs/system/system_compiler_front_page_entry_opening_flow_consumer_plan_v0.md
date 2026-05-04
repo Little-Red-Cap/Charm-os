@@ -30,11 +30,13 @@ Current `system_compiler.front_page_entry_opening_flow_consumer_plan` includes:
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`
 - action facade
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
 
 ## Current outputs
 
@@ -66,6 +68,12 @@ The action facade smoke writes under:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-smoke
+```
+
+The action facade workspace smoke writes under:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-smoke
 ```
 
 ## What the consumer plan records
@@ -103,6 +111,7 @@ Each action keeps:
 - selected tab, role, query kind, and query scope
 - target summary schema / kind / path
 - projection kind and compare-context flag
+- opening reason and projection headline
 - opener summary / report / check paths
 - inspector readiness and blockers
 
@@ -168,13 +177,19 @@ python ./scripts/validate_system_compiler_front_page_entry_opening_flow_consumer
 Expected smoke shape:
 
 ```text
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions=5 default=root-witness compare=root-witness-to-root-world-compare next=3 omitted=5
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-SMOKE] actions=5 default=root-witness compare=root-witness-to-root-world-compare next=3 omitted=5 reason=delivery_biography
 ```
 
 Run the single-action facade smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1 -Clean
+```
+
+Run the single-action workspace facade smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1 -Clean
 ```
 
 ## Why this matters

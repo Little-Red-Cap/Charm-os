@@ -59,6 +59,7 @@ The current summary records:
 - a compact `landing_status` block with:
   - recommended mode
   - entry tier
+  - opening reason
   - primary tab id
   - direct review / compare / biography / evidence availability
 
@@ -95,6 +96,13 @@ Examples:
 
 If multiple capabilities resolve to the same route entry, the landing plan
 collapses them into one tab and keeps the capability aliases together.
+
+`landing_status.opening_reason` is passed through from the capability map.
+
+For drifted `system_compiler.world_shelf_review/v0` roots this reason can be
+`world_shelf_review_drift`, which tells consumers that the primary grouped
+review tab is not merely present, but is being opened first because the review
+already summarized shelf drift in its `drift_digest`.
 
 ## Query hints
 

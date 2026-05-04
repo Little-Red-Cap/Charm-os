@@ -1,6 +1,7 @@
 param(
     [string]$Summary = "",
     [string]$BaselineSummary = "",
+    [string]$CompareSummaryPath = "",
     [switch]$ShowArtifacts,
     [switch]$ShowNarratives,
     [switch]$AsJson
@@ -47,6 +48,33 @@ function Get-OptionalSummaryPath {
     }
 
     return Resolve-FullPath -Path $Path
+}
+
+function Get-OptionalOutputPath {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return ""
+    }
+
+    return Resolve-FullPath -Path $Path
+}
+
+function Ensure-ParentDirectory {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent) -and -not (Test-Path $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
 }
 
 function Load-SmokeSummary {
@@ -429,6 +457,36 @@ function New-CompareViewFromSummaries {
     }
 }
 
+function New-InspectCompareSummary {
+    param(
+        [string]$SummaryPath,
+        [string]$BaselinePath,
+        [string]$CompareSummaryPath,
+        $CurrentView,
+        $Comparison
+    )
+
+    $compareOutputRoot = ""
+    if (-not [string]::IsNullOrWhiteSpace($CompareSummaryPath)) {
+        $compareOutputRoot = Split-Path -Parent $CompareSummaryPath
+    }
+
+    return [pscustomobject][ordered]@{
+        schema = "minimal_kernel.runtime_session_witness_inspect_compare/v0"
+        kind = "minimal_kernel.runtime_session_witness_inspect_compare"
+        generated_at = (Get-Date).ToUniversalTime().ToString("o")
+        result = if ([bool]$Comparison.changed) { "ok" } else { "ok" }
+        artifact_context = [pscustomobject][ordered]@{
+            summary_path = $SummaryPath
+            baseline_summary_path = $BaselinePath
+            compare_summary_path = $CompareSummaryPath
+            output_root = $compareOutputRoot
+        }
+        current = $CurrentView
+        comparison = $Comparison
+    }
+}
+
 function Write-CompareSection {
     param(
         [string]$Name,
@@ -494,6 +552,7 @@ function Write-ArrayDeltaLine {
 
 $summaryPath = Get-SummaryPath -Path $Summary
 $baselinePath = Get-OptionalSummaryPath -Path $BaselineSummary
+$compareSummaryPathResolved = Get-OptionalOutputPath -Path $CompareSummaryPath
 $loaded = Load-SmokeSummary -Path $summaryPath
 $view = New-JsonView -SummaryPath $summaryPath -SummaryData $loaded.Data
 $comparison = $null
@@ -503,14 +562,30 @@ if (-not [string]::IsNullOrWhiteSpace($baselinePath)) {
     $comparison = New-CompareViewFromSummaries -SummaryPath $summaryPath -BaselinePath $baselinePath -CurrentView $view -BaselineView $baselineView
 }
 
+$inspectCompareSummary = $null
+if ($null -ne $comparison -and -not [string]::IsNullOrWhiteSpace($compareSummaryPathResolved)) {
+    $inspectCompareSummary = New-InspectCompareSummary `
+        -SummaryPath $summaryPath `
+        -BaselinePath $baselinePath `
+        -CompareSummaryPath $compareSummaryPathResolved `
+        -CurrentView $view `
+        -Comparison $comparison
+    Ensure-ParentDirectory -Path $compareSummaryPathResolved
+    $inspectCompareSummary | ConvertTo-Json -Depth 14 | Set-Content -LiteralPath $compareSummaryPathResolved -Encoding utf8
+}
+
 if ($AsJson) {
     if ($null -eq $comparison) {
         $view | ConvertTo-Json -Depth 10
     } else {
-        [pscustomobject][ordered]@{
-            current = $view
-            comparison = $comparison
-        } | ConvertTo-Json -Depth 12
+        if ($null -ne $inspectCompareSummary) {
+            $inspectCompareSummary | ConvertTo-Json -Depth 14
+        } else {
+            [pscustomobject][ordered]@{
+                current = $view
+                comparison = $comparison
+            } | ConvertTo-Json -Depth 12
+        }
     }
     exit 0
 }
@@ -593,4 +668,9 @@ if ($null -ne $comparison) {
     Write-ArrayDeltaLine -Name "compare_witness_missing_runtime_facts" -Delta $comparison.witness_session_failure_export.missing_runtime_facts
     Write-ArrayDeltaLine -Name "compare_witness_focus" -Delta $comparison.witness_session_failure_export.affected_focus
     Write-ArrayDeltaLine -Name "compare_violations" -Delta $comparison.violations
+}
+
+if ($null -ne $inspectCompareSummary) {
+    Write-Output ""
+    Write-Output ("compare_summary_path: {0}" -f $compareSummaryPathResolved)
 }

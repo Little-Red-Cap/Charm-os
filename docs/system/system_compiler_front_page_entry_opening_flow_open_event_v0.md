@@ -38,6 +38,9 @@ Current `system_compiler.front_page_entry_opening_flow_open_event` includes:
   - `scripts/export_system_compiler_front_page_entry_opening_flow_open_event_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_open_event.py`
+- witness
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_open_event_witness.py`
+  - `scripts/validate_system_compiler_front_page_entry_opening_flow_open_event_witness.py`
 - compare
   - `scripts/compare_system_compiler_front_page_entry_opening_flow_open_event.py`
   - `scripts/compare_system_compiler_front_page_entry_opening_flow_open_event_workspace.ps1`
@@ -45,6 +48,7 @@ Current `system_compiler.front_page_entry_opening_flow_open_event` includes:
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_workspace_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_workspace_compare_smoke.ps1`
 
@@ -55,6 +59,12 @@ The exporter leaves behind:
 - `front-page.entry-opening-flow.open-event.summary.json`
 - `front-page.entry-opening-flow.open-event.report.md`
 - `front-page.entry-opening-flow.open-event.check.txt`
+
+The witness exporter leaves behind:
+
+- `front-page.entry-opening-flow.open-event.witness.summary.json`
+- `front-page.entry-opening-flow.open-event.witness.report.md`
+- `front-page.entry-opening-flow.open-event.witness.check.txt`
 
 The default output root is:
 
@@ -73,6 +83,7 @@ The smoke output roots are:
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-open-event-smoke
 cmake-build-system-compiler-front-page-entry-opening-flow-open-event-workspace-smoke
+cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-smoke
 cmake-build-system-compiler-front-page-entry-opening-flow-open-event-compare-smoke
 cmake-build-system-compiler-front-page-entry-opening-flow-open-event-workspace-compare-smoke
 ```
@@ -208,6 +219,12 @@ Run the open-event compare smoke:
 ./scripts/system_compiler_front_page_entry_opening_flow_open_event_compare_smoke.ps1 -Clean
 ```
 
+Run the open-event witness smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_smoke.ps1 -Clean
+```
+
 Export directly from an action summary:
 
 ```powershell
@@ -247,6 +264,21 @@ Then validate:
 ```powershell
 python ./scripts/validate_system_compiler_front_page_entry_opening_flow_open_event.py `
   --summary cmake-build-open-event-direct/front-page.entry-opening-flow.open-event.summary.json
+```
+
+Export an OpenEventWitness from an open event:
+
+```powershell
+python ./scripts/export_system_compiler_front_page_entry_opening_flow_open_event_witness.py `
+  --open-event cmake-build-open-event-direct/front-page.entry-opening-flow.open-event.summary.json `
+  --output-root cmake-build-open-event-witness
+```
+
+Then validate the witness:
+
+```powershell
+python ./scripts/validate_system_compiler_front_page_entry_opening_flow_open_event_witness.py `
+  --summary cmake-build-open-event-witness/front-page.entry-opening-flow.open-event.witness.summary.json
 ```
 
 Compare two open events:
@@ -289,6 +321,8 @@ Expected smoke shape:
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-SMOKE] case=default-with-drift-compare status=accepted_with_drift compare=True/drifted
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WORKSPACE-SMOKE] case=from-action-summary status=accepted action=open-default
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WORKSPACE-SMOKE] case=from-plan-workspace-compare-neighbor status=accepted action=open-compare-neighbor
+[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-SMOKE] case=default-no-compare-witness witness_status=ok event_status=accepted compare=False/not_attached
+[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WITNESS-SMOKE] case=default-with-drift-compare-witness witness_status=ok event_status=accepted_with_drift compare=True/drifted
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-COMPARE-SMOKE] case=open-event-self-standing verdict=standing changed=0
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-COMPARE-SMOKE] case=open-event-default-to-drift-context verdict=drifted changed=13
 [FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WORKSPACE-COMPARE-SMOKE] case=workspace-self-standing verdict=standing changed=0 status_changed=False compare_changed=False witness_changed=False
@@ -307,6 +341,8 @@ The opening-flow chain now has one more semantic layer:
   - choose one deterministic opener witness to execute now
 - open event
   - explain why that opening judgment is valid, what was rejected, what was compared, and what witness refs preserve it
+- open event witness
+  - distill the opening judgment into a compact testimony object for later bundle and constitution work
 - open event compare
   - judge whether two opening judgments preserve the same explainable opening semantics
 

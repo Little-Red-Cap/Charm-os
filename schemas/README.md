@@ -289,6 +289,8 @@
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare.py`
   - 用途偏向比较两份 `front_page entry opening flow consumer plan action` summary，
     回答最终 explain-open action、目标、opener、opening reason / headline、consumer operation 与 inspector readiness 是否漂移
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_compare_sample_smoke.ps1`
+    会守住 `runtime_session` 最终 action 的自比较 standing，以及选择器漂移但 open action 不漂移的可解释 compare 形态
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_compare.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`、

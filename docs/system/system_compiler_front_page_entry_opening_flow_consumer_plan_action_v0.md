@@ -45,6 +45,7 @@ includes:
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_sample_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_compare_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -175,6 +176,12 @@ Run the narrow runtime-session plan/action sample:
 ./scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_sample_smoke.ps1 -Clean
 ```
 
+Run the narrow runtime-session plan/action compare sample:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_compare_sample_smoke.ps1 -Clean
+```
+
 Run the workspace action smoke:
 
 ```powershell
@@ -269,6 +276,13 @@ Expected narrow runtime-session shape:
 
 ```text
 [FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-SAMPLE-SMOKE] action_id=open-default entry=runtime-session-sample projection=kernel_runtime_session_overview
+```
+
+Expected narrow runtime-session compare shape:
+
+```text
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case=action-self-standing verdict=standing changed=0 selection_changed=False open_action_changed=False receipt_changed=False
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-PLAN-ACTION-COMPARE-SAMPLE-SMOKE] case=default-selector-to-entry-selector verdict=drifted changed=3 selection_changed=True open_action_changed=False receipt_changed=True
 ```
 
 ## Why this matters

@@ -14,28 +14,6 @@ import charm.ui.scene;
 namespace {
     constexpr vivid::evidence::RunLog kRunLog{"sfr", "semantic_focus_request_demo"};
 
-    void count_focus_events(::ui::scene::SceneAccess& access,
-                            WidgetHandle primary,
-                            WidgetHandle secondary,
-                            int& focus_out,
-                            int& focus_in,
-                            bool& out_primary,
-                            bool& in_secondary) noexcept {
-        focus_out = 0;
-        focus_in = 0;
-        out_primary = false;
-        in_secondary = false;
-        for (std::size_t index = 0; index < access.input_event_count(); ++index) {
-            const auto& event = access.input_event(index);
-            if (event.event.type == Event::Type::FocusOut) {
-                ++focus_out;
-                out_primary = out_primary || vivid::evidence::same_handle(event.target, primary);
-            } else if (event.event.type == Event::Type::FocusIn) {
-                ++focus_in;
-                in_secondary = in_secondary || vivid::evidence::same_handle(event.target, secondary);
-            }
-        }
-    }
 }
 
 int main() {
@@ -76,22 +54,18 @@ int main() {
     }
 
     run_log.case_begin("focus_event_trace");
-    int focus_out = 0;
-    int focus_in = 0;
-    bool out_primary = false;
-    bool in_secondary = false;
-    count_focus_events(access, handles.primary, handles.secondary, focus_out, focus_in, out_primary, in_secondary);
+    const auto trace = vivid::evidence::collect_focus_move(access, handles.primary, handles.secondary);
     std::printf(" focus_out=%d focus_in=%d out_primary=%d in_secondary=%d event_count=%zu\n",
-                focus_out,
-                focus_in,
-                out_primary ? 1 : 0,
-                in_secondary ? 1 : 0,
+                trace.focus_out,
+                trace.focus_in,
+                trace.focus_out_expected ? 1 : 0,
+                trace.focus_in_expected ? 1 : 0,
                 access.input_event_count());
-    if (!vivid::evidence::expect(focus_out == 1 && focus_in == 1,
+    if (!vivid::evidence::expect(trace.focus_out == 1 && trace.focus_in == 1,
                                  "request emits one FocusOut and one FocusIn")) {
         return 1;
     }
-    if (!vivid::evidence::expect(out_primary && in_secondary,
+    if (!vivid::evidence::expect(trace.focus_out_expected && trace.focus_in_expected,
                                  "request focus events target source and destination")) {
         return 1;
     }

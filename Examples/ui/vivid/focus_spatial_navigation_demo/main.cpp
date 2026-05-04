@@ -43,35 +43,11 @@ namespace {
         scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
     }
 
-    struct FocusMoveTrace {
-        int focus_out{0};
-        int focus_in{0};
-        bool focus_out_expected{false};
-        bool focus_in_expected{false};
-    };
-
-    [[nodiscard]] FocusMoveTrace collect_focus_move(::ui::scene::SceneAccess& access,
-                                                    WidgetHandle old_target,
-                                                    WidgetHandle new_target) noexcept {
-        FocusMoveTrace out{};
-        for (std::size_t index = 0; index < access.input_event_count(); ++index) {
-            const auto& event = access.input_event(index);
-            if (event.event.type == Event::Type::FocusOut) {
-                ++out.focus_out;
-                out.focus_out_expected = out.focus_out_expected || vivid::evidence::same_handle(event.target, old_target);
-            } else if (event.event.type == Event::Type::FocusIn) {
-                ++out.focus_in;
-                out.focus_in_expected = out.focus_in_expected || vivid::evidence::same_handle(event.target, new_target);
-            }
-        }
-        return out;
-    }
-
     bool expect_focus_move(::ui::scene::SceneAccess& access,
                            WidgetHandle old_target,
                            WidgetHandle new_target,
                            const char* label) noexcept {
-        const auto trace = collect_focus_move(access, old_target, new_target);
+        const auto trace = vivid::evidence::collect_focus_move(access, old_target, new_target);
         if (!vivid::evidence::expect(trace.focus_out == 1 && trace.focus_out_expected, label)) return false;
         if (!vivid::evidence::expect(trace.focus_in == 1 && trace.focus_in_expected, label)) return false;
         if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), new_target), label)) return false;
@@ -150,7 +126,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Right, 20));
     auto right_access = scene.access();
     if (!expect_focus_move(right_access, handles.origin, handles.right, "right chooses spatial right")) return 1;
-    const auto right_trace = collect_focus_move(right_access, handles.origin, handles.right);
+    const auto right_trace = vivid::evidence::collect_focus_move(right_access, handles.origin, handles.right);
     run_log.case_begin("right_to_right");
     std::printf(" key=right old=origin new=right mode=spatial focus_out=%d focus_in=%d input_truth=right\n",
                 right_trace.focus_out,
@@ -159,7 +135,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Down, 30));
     auto down_access = scene.access();
     if (!expect_focus_move(down_access, handles.right, handles.down, "down chooses spatial down")) return 1;
-    const auto down_trace = collect_focus_move(down_access, handles.right, handles.down);
+    const auto down_trace = vivid::evidence::collect_focus_move(down_access, handles.right, handles.down);
     run_log.case_begin("down_to_down");
     std::printf(" key=down old=right new=down mode=spatial focus_out=%d focus_in=%d input_truth=down\n",
                 down_trace.focus_out,
@@ -168,7 +144,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Left, 40));
     auto left_access = scene.access();
     if (!expect_focus_move(left_access, handles.down, handles.origin, "left chooses spatial origin")) return 1;
-    const auto left_trace = collect_focus_move(left_access, handles.down, handles.origin);
+    const auto left_trace = vivid::evidence::collect_focus_move(left_access, handles.down, handles.origin);
     run_log.case_begin("left_to_origin");
     std::printf(" key=left old=down new=origin mode=spatial focus_out=%d focus_in=%d input_truth=origin\n",
                 left_trace.focus_out,
@@ -177,7 +153,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Up, 50));
     auto up_access = scene.access();
     if (!expect_focus_move(up_access, handles.origin, handles.top, "up chooses spatial top")) return 1;
-    const auto up_trace = collect_focus_move(up_access, handles.origin, handles.top);
+    const auto up_trace = vivid::evidence::collect_focus_move(up_access, handles.origin, handles.top);
     run_log.case_begin("up_to_top");
     std::printf(" key=up old=origin new=top mode=spatial focus_out=%d focus_in=%d input_truth=top\n",
                 up_trace.focus_out,
@@ -186,7 +162,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Tab, 60));
     auto tab_access = scene.access();
     if (!expect_focus_move(tab_access, handles.top, handles.origin, "tab keeps preorder wrap")) return 1;
-    const auto tab_trace = collect_focus_move(tab_access, handles.top, handles.origin);
+    const auto tab_trace = vivid::evidence::collect_focus_move(tab_access, handles.top, handles.origin);
     run_log.case_begin("tab_preorder");
     std::printf(" key=tab old=top new=origin mode=preorder wrap=1 focus_out=%d focus_in=%d input_truth=origin\n",
                 tab_trace.focus_out,
@@ -195,7 +171,7 @@ int main() {
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Left, 70));
     auto wrap_access = scene.access();
     if (!expect_focus_move(wrap_access, handles.origin, handles.top, "left falls back to reverse preorder wrap")) return 1;
-    const auto wrap_trace = collect_focus_move(wrap_access, handles.origin, handles.top);
+    const auto wrap_trace = vivid::evidence::collect_focus_move(wrap_access, handles.origin, handles.top);
     run_log.case_begin("no_candidate_wrap");
     std::printf(" key=left old=origin new=top mode=preorder fallback=1 wrap=1 focus_out=%d focus_in=%d input_truth=top\n",
                 wrap_trace.focus_out,

@@ -55,6 +55,13 @@ namespace vivid::evidence {
         }
     };
 
+    struct FocusMoveTrace {
+        int focus_out{0};
+        int focus_in{0};
+        bool focus_out_expected{false};
+        bool focus_in_expected{false};
+    };
+
     class RunLog {
     public:
         constexpr RunLog(const char* tag, const char* run) noexcept
@@ -104,6 +111,24 @@ namespace vivid::evidence {
         const int y = bounds.y + bounds.h / 2;
         scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1, ms));
         scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1, ms + 1));
+    }
+
+    [[nodiscard]] inline FocusMoveTrace collect_focus_move(
+        ::ui::scene::SceneAccess& access,
+        WidgetHandle old_target,
+        WidgetHandle new_target) noexcept {
+        FocusMoveTrace out{};
+        for (std::size_t index = 0; index < access.input_event_count(); ++index) {
+            const auto& event = access.input_event(index);
+            if (event.event.type == Event::Type::FocusOut) {
+                ++out.focus_out;
+                out.focus_out_expected = out.focus_out_expected || same_handle(event.target, old_target);
+            } else if (event.event.type == Event::Type::FocusIn) {
+                ++out.focus_in;
+                out.focus_in_expected = out.focus_in_expected || same_handle(event.target, new_target);
+            }
+        }
+        return out;
     }
 
     [[nodiscard]] inline std::uint32_t hash_mix(std::uint32_t hash, std::uint32_t value) noexcept {

@@ -36,29 +36,6 @@ namespace {
             && lhs.metrics_hash == rhs.metrics_hash;
     }
 
-    struct FocusMoveTrace {
-        int focus_out{0};
-        int focus_in{0};
-        bool focus_out_expected{false};
-        bool focus_in_expected{false};
-    };
-
-    [[nodiscard]] FocusMoveTrace collect_focus_move(::ui::scene::SceneAccess& access,
-                                                    WidgetHandle old_target,
-                                                    WidgetHandle new_target) noexcept {
-        FocusMoveTrace out{};
-        for (std::size_t index = 0; index < access.input_event_count(); ++index) {
-            const auto& event = access.input_event(index);
-            if (event.event.type == Event::Type::FocusOut) {
-                ++out.focus_out;
-            out.focus_out_expected = out.focus_out_expected || vivid::evidence::same_handle(event.target, old_target);
-        } else if (event.event.type == Event::Type::FocusIn) {
-            ++out.focus_in;
-            out.focus_in_expected = out.focus_in_expected || vivid::evidence::same_handle(event.target, new_target);
-        }
-    }
-        return out;
-    }
 }
 
 int main() {
@@ -149,7 +126,8 @@ int main() {
                                       1,
                                       20));
     auto transfer_access = scene.access();
-    const auto transfer_trace = collect_focus_move(transfer_access, handles.primary, handles.secondary);
+    const auto transfer_trace =
+        vivid::evidence::collect_focus_move(transfer_access, handles.primary, handles.secondary);
     const auto secondary_semantic = transfer_access.semantic_focus_snapshot();
     if (!vivid::evidence::expect(transfer_trace.focus_out == 1 && transfer_trace.focus_out_expected,
                                  "semantic transfer emits FocusOut primary")) return 1;
@@ -173,7 +151,8 @@ int main() {
 
     scene.dispatch_event(Event::key(Event::Type::KeyDown, Event::Key::Up, 30));
     auto key_access = scene.access();
-    const auto key_trace = collect_focus_move(key_access, handles.secondary, handles.primary);
+    const auto key_trace =
+        vivid::evidence::collect_focus_move(key_access, handles.secondary, handles.primary);
     const auto key_semantic = key_access.semantic_focus_snapshot();
     if (!vivid::evidence::expect(key_trace.focus_out == 1 && key_trace.focus_out_expected,
                                  "keyboard semantic focus emits FocusOut secondary")) return 1;

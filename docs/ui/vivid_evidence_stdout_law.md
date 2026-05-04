@@ -107,7 +107,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `intent_artifact_demo` | `ia` | `[ia] run=intent_artifact_demo phase=end result=ok cases=9` |
 | `semantic_focus_query_demo` | `sfq` | `[sfq] run=semantic_focus_query_demo phase=end result=ok cases=7` |
 | `semantic_focus_admission_demo` | `sfa` | `[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=7` |
-| `semantic_focus_request_demo` | `sfr` | `[sfr] run=semantic_focus_request_demo phase=end result=ok cases=10` |
+| `semantic_focus_request_demo` | `sfr` | `[sfr] run=semantic_focus_request_demo phase=end result=ok cases=12` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 | `evidence_vocabulary_demo` | `evl` | `[evl] run=evidence_vocabulary_demo phase=end result=ok cases=5` |

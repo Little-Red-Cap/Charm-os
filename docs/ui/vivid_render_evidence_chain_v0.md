@@ -356,4 +356,4 @@ SemanticFocusQuery
   -> input focus truth + FocusOut/FocusIn evidence
 ```
 
-The demo guards committed transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable targets, disabled targets, ambiguous duplicate ids, invalid root, missing request id, and `SemanticFocusRequestLedger` evidence that names the final request stage. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
+The demo guards committed transfer execution, event evidence, semantic focus truth after request, focus-ring artifact migration, rejection without artifact mutation, final causal-chain verdict, already-focused no-op, active-scope rejection, non-focusable targets, disabled targets, ambiguous duplicate ids, invalid root, missing request id, and `SemanticFocusRequestLedger` evidence that names the final request stage. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.

@@ -187,6 +187,10 @@ int main() {
                                                    secondary_artifact);
     std::printf("\n");
 
+    const bool transfer_artifact_ok = secondary_delta.changed
+        && secondary_delta.single_dirty_rect
+        && secondary_delta.dirty_within_component;
+
     const auto already = scene.request_semantic_focus(handles.scope, "row.secondary");
     run_log.case_begin("already_focused_noop");
     vivid::evidence::print_focus_request_ledger(already);
@@ -213,6 +217,28 @@ int main() {
                                  "outside rejection preserves current focus")) {
         return 1;
     }
+    const auto outside_capture = vivid::evidence::render_component_artifact_delta(
+        scene,
+        canvas,
+        vivid::evidence::kSemanticFocusSecondaryBounds,
+        secondary_artifact);
+    const auto& outside_artifact = outside_capture.evidence;
+    const auto& outside_delta = outside_capture.delta;
+    if (!vivid::evidence::expect(outside_artifact.failed_cmds == 0,
+                                 "outside rejection artifact render has no failed commands")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(!outside_delta.changed,
+                                 "outside rejection does not mutate focus artifact")) {
+        return 1;
+    }
+
+    run_log.case_begin("rejected_no_artifact_mutation");
+    std::printf(" request=outside_scope semantic_current=row.secondary focus_preserved=1");
+    vivid::evidence::print_render_artifact_comparison(outside_delta,
+                                                      secondary_artifact,
+                                                      outside_artifact);
+    std::printf("\n");
 
     const auto disabled = scene.request_semantic_focus(handles.scope, "action.disabled");
     const auto not_focusable = scene.request_semantic_focus(handles.scope, "panel.info");
@@ -254,6 +280,28 @@ int main() {
     if (!vivid::evidence::expect(missing_id.status == SemanticFocusRequestStatus::Rejected
                                  && missing_id.admission.status == SemanticFocusAdmissionStatus::MissingId,
                                  "missing request id is rejected")) {
+        return 1;
+    }
+
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "row.secondary.focus",
+        .request_ok = request.status == SemanticFocusRequestStatus::Committed
+            && request.committed
+            && request.focus_changed,
+        .state_delta_ok = vivid::evidence::same_handle(request.before_focus, handles.primary)
+            && vivid::evidence::same_handle(request.after_focus, handles.secondary)
+            && vivid::evidence::same_handle(access.input_focused(), handles.secondary),
+        .invalidation_ok = style_evidence_equal(style_before, style_after),
+        .artifact_ok = transfer_artifact_ok,
+        .rejected_no_mutation = outside.status == SemanticFocusRequestStatus::Rejected
+            && vivid::evidence::same_handle(access.input_focused(), handles.secondary)
+            && !outside_delta.changed,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok() && chain.rejected_no_mutation,
+                                 "semantic focus request causal chain closes")) {
         return 1;
     }
 

@@ -451,7 +451,7 @@ Shared semantic request ledger rules live in `vivid_semantic_request_ledger_law_
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_action_admission_demo` proves admitted activate plans, no execution side effects, unsupported-action and disabled-target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus/click plan evidence.
+- `Examples/ui/vivid/semantic_action_admission_demo` proves admitted activate plans, no execution side effects, rejected admissions without focus/event/press mutation, unsupported-action and disabled-target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus/click plan evidence.
 - `Examples/ui/vivid/semantic_action_request_demo` proves side-effect-free resolution, controlled activate execution, normal click behavior reuse, focus/click event traces, already-focused execution without hidden transfer, unsupported-action rejection, active-scope rejection through focus admission, rejected paths without focus or click event pollution, duplicate-id ambiguity, missing request ids, and explicit request rejection reasons.
 
 ## 2026-05 Addendum: Semantic Focus Query

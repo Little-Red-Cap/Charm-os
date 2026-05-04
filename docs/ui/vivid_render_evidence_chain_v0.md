@@ -317,7 +317,7 @@ semantic tree root
   -> focus/click execution plan
 ```
 
-The demo guards admitted activate plans, planning-only side effects, planned focus/click evidence, unsupported action, disabled target, ambiguous duplicate id, missing id, invalid root, and missing request id.
+The demo guards admitted activate plans, planning-only side effects, rejected admissions without focus/event/press mutation, planned focus/click evidence, unsupported action, disabled target, ambiguous duplicate id, missing id, invalid root, and missing request id.
 
 ## 2026-05 Addendum: Semantic Focus Query
 

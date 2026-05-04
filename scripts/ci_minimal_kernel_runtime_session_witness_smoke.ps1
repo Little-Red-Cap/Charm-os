@@ -47,6 +47,7 @@ $validator = Join-Path $PSScriptRoot "validate_minimal_kernel_runtime_session_wi
 $gate = Join-Path $PSScriptRoot "check_minimal_kernel_runtime_session_witness_smoke_summary.ps1"
 $inspectCompareSmoke = Join-Path $PSScriptRoot "inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1"
 $inspectCompareConsumerSmoke = Join-Path $PSScriptRoot "system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1"
+$inspectCompareConsumerInspectSmoke = Join-Path $PSScriptRoot "inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1"
 
 foreach ($script in @($rootScript, $validator, $gate)) {
     if (-not (Test-Path $script)) {
@@ -81,8 +82,14 @@ if (-not [string]::IsNullOrWhiteSpace($InspectCompareSummaryOutputRoot)) {
 $resolvedInspectCompareConsumerOutputRoot = ""
 $resolvedInspectCompareConsumerSummaryPath = ""
 if (-not [string]::IsNullOrWhiteSpace($InspectCompareConsumerOutputRoot)) {
+    if ([string]::IsNullOrWhiteSpace($InspectCompareSummaryOutputRoot)) {
+        throw "InspectCompareConsumerOutputRoot requires InspectCompareSummaryOutputRoot so the consumer can reuse the inspect compare summary"
+    }
     if (-not (Test-Path $inspectCompareConsumerSmoke)) {
         throw "missing runtime session witness inspect compare consumer dependency: $inspectCompareConsumerSmoke"
+    }
+    if (-not (Test-Path $inspectCompareConsumerInspectSmoke)) {
+        throw "missing runtime session witness inspect compare consumer inspect dependency: $inspectCompareConsumerInspectSmoke"
     }
 
     $resolvedInspectCompareConsumerOutputRoot = Resolve-FullPath -Path $InspectCompareConsumerOutputRoot
@@ -177,6 +184,18 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareConsumerOutputRoot)
 
     if (-not (Test-Path $resolvedInspectCompareConsumerSummaryPath)) {
         throw "missing runtime session witness inspect compare consumer summary: $resolvedInspectCompareConsumerSummaryPath"
+    }
+
+    Push-Location $repoRoot
+    try {
+        & $inspectCompareConsumerInspectSmoke `
+            -Summary $resolvedInspectCompareConsumerSummaryPath `
+            -PythonExe $PythonExe
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    } finally {
+        Pop-Location
     }
 }
 

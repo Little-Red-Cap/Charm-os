@@ -1,4 +1,5 @@
 param(
+    [string]$Summary = "",
     [string]$OutputRoot = "",
     [string]$PythonExe = "python"
 )
@@ -47,37 +48,51 @@ function Require-Line {
 }
 
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
-$resolvedOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
-    Join-Path $repoRoot "cmake-build-minimal-kernel-runtime-session-witness-inspect-consumer-smoke"
-} else {
-    Resolve-FullPath -Path $OutputRoot
-}
-
 $consumerSmoke = Join-Path $PSScriptRoot "system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1"
 $inspectScript = Join-Path $PSScriptRoot "inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1"
 
-foreach ($path in @($consumerSmoke, $inspectScript)) {
+foreach ($path in @($inspectScript)) {
     if (-not (Test-Path $path)) {
         throw "missing inspect consumer dependency: $path"
     }
 }
 
-if (Test-Path $resolvedOutputRoot) {
-    Remove-Item -LiteralPath $resolvedOutputRoot -Recurse -Force
-}
-Ensure-Directory -Path $resolvedOutputRoot
+$summaryPath = ""
+if (-not [string]::IsNullOrWhiteSpace($Summary)) {
+    $summaryPath = Resolve-FullPath -Path $Summary
+    if (-not (Test-Path $summaryPath)) {
+        throw "missing consumer summary: $summaryPath"
+    }
 
-$consumerRoot = Join-Path $resolvedOutputRoot "consumer"
-Push-Location $repoRoot
-try {
-    & $consumerSmoke -OutputRoot $consumerRoot -PythonExe $PythonExe -Clean
-} finally {
-    Pop-Location
-}
+    Write-Host "[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] bootstrap=reuse-existing-summary"
+} else {
+    if (-not (Test-Path $consumerSmoke)) {
+        throw "missing inspect consumer dependency: $consumerSmoke"
+    }
 
-$summaryPath = Join-Path $consumerRoot "session-witness.inspect.compare.consumer.summary.json"
-if (-not (Test-Path $summaryPath)) {
-    throw "missing consumer summary: $summaryPath"
+    $resolvedOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+        Join-Path $repoRoot "cmake-build-minimal-kernel-runtime-session-witness-inspect-consumer-smoke"
+    } else {
+        Resolve-FullPath -Path $OutputRoot
+    }
+
+    if (Test-Path $resolvedOutputRoot) {
+        Remove-Item -LiteralPath $resolvedOutputRoot -Recurse -Force
+    }
+    Ensure-Directory -Path $resolvedOutputRoot
+
+    $consumerRoot = Join-Path $resolvedOutputRoot "consumer"
+    Push-Location $repoRoot
+    try {
+        & $consumerSmoke -OutputRoot $consumerRoot -PythonExe $PythonExe -Clean
+    } finally {
+        Pop-Location
+    }
+
+    $summaryPath = Join-Path $consumerRoot "session-witness.inspect.compare.consumer.summary.json"
+    if (-not (Test-Path $summaryPath)) {
+        throw "missing consumer summary: $summaryPath"
+    }
 }
 
 $defaultOutput = @(

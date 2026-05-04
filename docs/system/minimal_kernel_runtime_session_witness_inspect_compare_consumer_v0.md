@@ -158,6 +158,13 @@ Or run the single smoke:
 ./scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1 -Clean
 ```
 
+Or guard the direct inspect entry itself against an already-exported consumer summary:
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json
+```
+
 Or inspect the consumer directly:
 
 ```powershell
@@ -174,6 +181,21 @@ Expected smoke shape:
 ==> inspect minimal kernel runtime session witness inspect compare consumer smoke
 selected_focus=world-compare-drift selected_explain_hop=world-compare-report ok=1
 ```
+
+When the summary already exists, the inspect smoke can also reuse it directly instead of rebuilding the consumer:
+
+```text
+[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] bootstrap=reuse-existing-summary
+==> inspect minimal kernel runtime session witness inspect compare consumer smoke
+selected_focus=world-compare-drift selected_explain_hop=world-compare-report ok=1
+```
+
+The session witness CI entry now uses exactly this reuse path after exporting the consumer summary. That keeps the guardrail thin:
+
+- `ci_minimal_kernel_runtime_session_witness_smoke.ps1`
+  exports the compare consumer
+- `inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1 -Summary ...`
+  immediately proves the direct inspect seam still opens the expected explain hop
 
 ## Why this matters
 

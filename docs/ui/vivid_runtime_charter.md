@@ -482,7 +482,7 @@ This belongs between the Semantic Plane and Input Runtime. It preserves the boun
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_focus_admission_demo` proves admitted transfer plans, already-focused no-op plans, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
+- `Examples/ui/vivid/semantic_focus_admission_demo` proves admitted transfer plans, already-focused no-op plans, active-scope rejection, non-focusable and disabled target statuses, rejected admissions without focus/event mutation, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
 
 ## 2026-05 Addendum: Semantic Focus Request
 

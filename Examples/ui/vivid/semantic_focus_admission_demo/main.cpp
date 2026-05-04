@@ -133,6 +133,32 @@ int main() {
         return 1;
     }
 
+    run_log.case_begin("rejection_no_commit");
+    const bool rejected_no_commit =
+        vivid::evidence::same_handle(access.input_focused(), initial_focus)
+        && access.input_event_count() == initial_events
+        && !not_focusable.admitted
+        && !disabled.admitted
+        && !outside.admitted
+        && !ambiguous.admitted
+        && !missing.admitted
+        && !invalid_root.admitted
+        && !missing_id.admitted;
+    std::printf(" focus_preserved=%d events_preserved=%d rejected_admitted=0 not_focusable=%s disabled=%s outside=%s ambiguous=%s missing=%s invalid_root=%s missing_id=%s\n",
+                vivid::evidence::same_handle(access.input_focused(), initial_focus) ? 1 : 0,
+                access.input_event_count() == initial_events ? 1 : 0,
+                semantic_focus_admission_status_name(not_focusable.status),
+                semantic_focus_admission_status_name(disabled.status),
+                semantic_focus_admission_status_name(outside.status),
+                semantic_focus_admission_status_name(ambiguous.status),
+                semantic_focus_admission_status_name(missing.status),
+                semantic_focus_admission_status_name(invalid_root.status),
+                semantic_focus_admission_status_name(missing_id.status));
+    if (!vivid::evidence::expect(rejected_no_commit,
+                                 "rejected focus admissions remain planning-only")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_focus_admission_demo] ok");
     return 0;

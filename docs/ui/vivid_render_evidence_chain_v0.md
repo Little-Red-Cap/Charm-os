@@ -343,7 +343,7 @@ semantic tree root
   -> transfer plan / rejection status
 ```
 
-The demo guards admitted transfer plans, already-focused no-op plans, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
+The demo guards admitted transfer plans, already-focused no-op plans, no focus transfer side effects, rejected admissions without focus/event mutation, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
 
 ## 2026-05 Addendum: Semantic Focus Request
 

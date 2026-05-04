@@ -288,7 +288,7 @@ SemanticIntentResolution
   -> normal widget click behavior
 ```
 
-The demo guards no-execute resolution, executed activate requests, focus/click event traces, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, rejected paths with no focus or click event pollution, ambiguous duplicate ids, missing request ids, and `SemanticActionRequestLedger` / `reject_reason` evidence that names the failed boundary. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
+The demo guards no-execute resolution, executed activate requests, focus/click event traces, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, rejected paths with no focus or click event pollution, ambiguous duplicate ids, missing request ids, final causal-chain evidence, and `SemanticActionRequestLedger` / `reject_reason` evidence that names the failed boundary. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
 
 ## 2026-05 Addendum: Intent-to-Artifact Evidence
 

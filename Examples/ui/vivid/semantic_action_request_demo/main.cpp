@@ -291,6 +291,38 @@ int main() {
         return 1;
     }
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "action.toggle.activate",
+        .request_ok = request.status == SemanticActionRequestStatus::Executed
+            && request.reject_reason == SemanticActionRequestRejectReason::None
+            && request.focus_ready
+            && request.executed
+            && first_clicks == 1,
+        .state_delta_ok = access.checked(handles.toggle) == false,
+        .invalidation_ok = already.status == SemanticActionRequestStatus::Executed
+            && already.focus_request.status == SemanticFocusRequestStatus::AlreadyFocused
+            && already_clicks == 1,
+        .artifact_ok = focus_trace.focus_in == 1
+            && focus_trace.focus_in_expected
+            && already_trace.focus_out == 0
+            && already_trace.focus_in == 0,
+        .rejected_no_mutation = unsupported.status == SemanticActionRequestStatus::Rejected
+            && outside.status == SemanticActionRequestStatus::Rejected
+            && ambiguous.status == SemanticActionRequestStatus::Rejected
+            && missing_id.status == SemanticActionRequestStatus::Rejected
+            && unsupported_clicks == 0
+            && outside_clicks == 0
+            && vivid::evidence::same_handle(access.input_focused(), handles.toggle)
+            && access.checked(handles.toggle) == false,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok() && chain.rejected_no_mutation,
+                                 "semantic action request causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_action_request_demo] ok");
     return 0;

@@ -86,7 +86,7 @@ Current stdout contracts remain owned by `vivid_evidence_stdout_law.md`:
 
 ```text
 [sfr] run=semantic_focus_request_demo phase=end result=ok cases=12
-[sar] run=semantic_action_request_demo phase=end result=ok cases=10
+[sar] run=semantic_action_request_demo phase=end result=ok cases=11
 ```
 
 `Examples/ui/vivid/intent_artifact_demo` also consumes `SemanticActionRequestLedger` through the shared helper as part of its causal chain evidence.

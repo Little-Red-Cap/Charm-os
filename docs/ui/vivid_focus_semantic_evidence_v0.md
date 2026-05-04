@@ -304,7 +304,7 @@ The main request cases emit `ledger=action_request stage=action_admission/focus_
 stdout final contract:
 
 ```text
-[sar] run=semantic_action_request_demo phase=end result=ok cases=10
+[sar] run=semantic_action_request_demo phase=end result=ok cases=11
 ```
 
 `Examples/ui/vivid/semantic_action_admission_demo` is the first Semantic Action Admission v0 runtime evidence.

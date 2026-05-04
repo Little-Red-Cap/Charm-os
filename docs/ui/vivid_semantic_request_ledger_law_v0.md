@@ -22,6 +22,7 @@ Both artifacts turn a completed request result into a stable Evidence Plane reco
 - A rejected request must not be represented only as `rejected`; the ledger must preserve the failed boundary through `stage` and/or a reason field.
 - Stdout evidence should use `ledger=<kind> stage=<stage> status=<status> ...`.
 - Demo code should print runtime ledger artifacts instead of reimplementing stage inference locally.
+- `Examples/ui/vivid/support/vivid_evidence_support.hpp` owns the demo-side ledger print helpers, so demos do not duplicate ledger field assembly.
 
 ## Focus Request Ledger
 
@@ -83,6 +84,8 @@ Current stdout contracts remain owned by `vivid_evidence_stdout_law.md`:
 [sfr] run=semantic_focus_request_demo phase=end result=ok cases=7
 [sar] run=semantic_action_request_demo phase=end result=ok cases=6
 ```
+
+`Examples/ui/vivid/intent_artifact_demo` also consumes `SemanticActionRequestLedger` through the shared helper as part of its causal chain evidence.
 
 ## Non-Goals
 

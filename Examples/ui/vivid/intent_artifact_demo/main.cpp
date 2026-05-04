@@ -51,22 +51,6 @@ namespace {
         });
     }
 
-    void print_action_request_ledger(const SemanticActionRequest& request) noexcept {
-        const SemanticActionRequestLedger ledger = semantic_action_request_ledger(request);
-        std::printf(" ledger=action_request stage=%s status=%s reason=%s intent=%s action_admission=%s focus=%s admitted=%d focus_ready=%d executed=%d click=%d id=%s\n",
-                    semantic_action_request_stage_name(ledger.stage),
-                    semantic_action_request_status_name(ledger.status),
-                    semantic_action_request_reject_reason_name(ledger.reject_reason),
-                    semantic_intent_status_name(ledger.intent_status),
-                    semantic_action_admission_status_name(ledger.action_admission_status),
-                    semantic_focus_request_status_name(ledger.focus_request_status),
-                    ledger.admitted ? 1 : 0,
-                    ledger.focus_ready ? 1 : 0,
-                    ledger.executed ? 1 : 0,
-                    ledger.emitted_click ? 1 : 0,
-                    ledger.id);
-    }
-
 }
 
 int main() {
@@ -104,7 +88,8 @@ int main() {
     const bool after_checked = access.checked(handles.toggle);
 
     run_log.case_begin("request_ledger");
-    print_action_request_ledger(positive_request);
+    vivid::evidence::print_action_request_ledger(positive_request);
+    std::printf("\n");
     if (!vivid::evidence::expect(positive_request.status == SemanticActionRequestStatus::Executed
                                  && positive_request.reject_reason == SemanticActionRequestRejectReason::None
                                  && positive_request.emitted_click
@@ -171,7 +156,8 @@ int main() {
     const bool disabled_after_checked = access.checked(handles.toggle);
 
     run_log.case_begin("rejected_request_ledger");
-    print_action_request_ledger(rejected);
+    vivid::evidence::print_action_request_ledger(rejected);
+    std::printf("\n");
     if (!vivid::evidence::expect(rejected.status == SemanticActionRequestStatus::Rejected
                                  && rejected.reject_reason == SemanticActionRequestRejectReason::ActionAdmissionRejected
                                  && rejected.admission.status == SemanticActionAdmissionStatus::Disabled

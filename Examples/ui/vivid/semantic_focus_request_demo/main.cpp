@@ -14,26 +14,6 @@ import charm.ui.scene;
 namespace {
     constexpr vivid::evidence::RunLog kRunLog{"sfr", "semantic_focus_request_demo"};
 
-    void print_request_ledger(const SemanticFocusRequest& request) noexcept {
-        const SemanticFocusRequestLedger ledger = semantic_focus_request_ledger(request);
-        std::printf(" ledger=focus_request stage=%s status=%s admission=%s query=%s admitted=%d transfer_needed=%d committed=%d focus_changed=%d focus_out=%d focus_in=%d events_before=%zu events_after=%zu focus_before=%s focus_after=%s id=%s\n",
-                    semantic_focus_request_stage_name(ledger.stage),
-                    semantic_focus_request_status_name(ledger.status),
-                    semantic_focus_admission_status_name(ledger.admission_status),
-                    semantic_focus_query_status_name(ledger.query_status),
-                    ledger.admitted ? 1 : 0,
-                    ledger.transfer_needed ? 1 : 0,
-                    ledger.committed ? 1 : 0,
-                    ledger.focus_changed ? 1 : 0,
-                    ledger.emitted_focus_out ? 1 : 0,
-                    ledger.emitted_focus_in ? 1 : 0,
-                    ledger.events_before,
-                    ledger.events_after,
-                    ledger.focus_started_on_target ? "target" : "other",
-                    ledger.focus_ended_on_target ? "target" : "other",
-                    ledger.id);
-    }
-
     void count_focus_events(::ui::scene::SceneAccess& access,
                             WidgetHandle primary,
                             WidgetHandle secondary,
@@ -79,7 +59,8 @@ int main() {
 
     const auto request = scene.request_semantic_focus(handles.scope, "row.secondary");
     run_log.case_begin("commit_transfer");
-    print_request_ledger(request);
+    vivid::evidence::print_focus_request_ledger(request);
+    std::printf("\n");
     if (!vivid::evidence::expect(request.status == SemanticFocusRequestStatus::Committed,
                                  "semantic focus request commits transfer")) {
         return 1;
@@ -136,7 +117,8 @@ int main() {
 
     const auto already = scene.request_semantic_focus(handles.scope, "row.secondary");
     run_log.case_begin("already_focused_noop");
-    print_request_ledger(already);
+    vivid::evidence::print_focus_request_ledger(already);
+    std::printf("\n");
     if (!vivid::evidence::expect(already.status == SemanticFocusRequestStatus::AlreadyFocused,
                                  "already-focused request is explicit no-op")) {
         return 1;
@@ -148,7 +130,8 @@ int main() {
 
     const auto outside = scene.request_semantic_focus(handles.root, "action.outside");
     run_log.case_begin("reject_outside_scope");
-    print_request_ledger(outside);
+    vivid::evidence::print_focus_request_ledger(outside);
+    std::printf("\n");
     if (!vivid::evidence::expect(outside.status == SemanticFocusRequestStatus::Rejected
                                  && outside.admission.status == SemanticFocusAdmissionStatus::OutsideActiveScope,
                                  "outside active scope request is rejected")) {

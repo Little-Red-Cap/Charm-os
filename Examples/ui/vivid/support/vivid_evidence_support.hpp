@@ -214,6 +214,46 @@ namespace vivid::evidence {
                     evidence.rejected_no_mutation ? 1 : 0);
     }
 
+    inline void print_focus_request_ledger(const SemanticFocusRequest& request) noexcept {
+        const SemanticFocusRequestLedger ledger = semantic_focus_request_ledger(request);
+        std::printf(" ledger=focus_request stage=%s status=%s admission=%s query=%s admitted=%d transfer_needed=%d committed=%d focus_changed=%d focus_out=%d focus_in=%d events_before=%zu events_after=%zu focus_before=%s focus_after=%s id=%s",
+                    semantic_focus_request_stage_name(ledger.stage),
+                    semantic_focus_request_status_name(ledger.status),
+                    semantic_focus_admission_status_name(ledger.admission_status),
+                    semantic_focus_query_status_name(ledger.query_status),
+                    ledger.admitted ? 1 : 0,
+                    ledger.transfer_needed ? 1 : 0,
+                    ledger.committed ? 1 : 0,
+                    ledger.focus_changed ? 1 : 0,
+                    ledger.emitted_focus_out ? 1 : 0,
+                    ledger.emitted_focus_in ? 1 : 0,
+                    ledger.events_before,
+                    ledger.events_after,
+                    ledger.focus_started_on_target ? "target" : "other",
+                    ledger.focus_ended_on_target ? "target" : "other",
+                    ledger.id);
+    }
+
+    inline void print_action_request_ledger(const SemanticActionRequest& request) noexcept {
+        const SemanticActionRequestLedger ledger = semantic_action_request_ledger(request);
+        std::printf(" ledger=action_request stage=%s status=%s reason=%s intent=%s action_admission=%s focus=%s admitted=%d focus_ready=%d executed=%d click=%d events_before=%zu events_after=%zu focus_before=%s focus_after=%s id=%s",
+                    semantic_action_request_stage_name(ledger.stage),
+                    semantic_action_request_status_name(ledger.status),
+                    semantic_action_request_reject_reason_name(ledger.reject_reason),
+                    semantic_intent_status_name(ledger.intent_status),
+                    semantic_action_admission_status_name(ledger.action_admission_status),
+                    semantic_focus_request_status_name(ledger.focus_request_status),
+                    ledger.admitted ? 1 : 0,
+                    ledger.focus_ready ? 1 : 0,
+                    ledger.executed ? 1 : 0,
+                    ledger.emitted_click ? 1 : 0,
+                    ledger.events_before,
+                    ledger.events_after,
+                    ledger.focus_started_on_target ? "target" : "other",
+                    ledger.focus_ended_on_target ? "target" : "other",
+                    ledger.id);
+    }
+
     [[nodiscard]] inline std::uint32_t hash_bytes(const std::byte* data, std::size_t len) noexcept {
         std::uint32_t hash = 2166136261u;
         if (!data) return hash;

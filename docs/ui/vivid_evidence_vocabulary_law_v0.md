@@ -18,6 +18,8 @@ CausalChainEvidence
 
 These names describe evidence language, not public runtime API. Promotion rules are defined by `vivid_evidence_artifact_promotion_v0.md`.
 
+`Examples/ui/vivid/evidence_vocabulary_demo` is the smallest conformance sample. It does not test rendering behavior; it verifies the field vocabulary and helper-derived verdicts remain aligned with this law.
+
 ## General Rules
 
 - Evidence fields describe observed or declared UI causality.

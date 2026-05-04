@@ -162,11 +162,8 @@ int main() {
     if (!vivid::evidence::expect(initial.cmd_count > 0, "initial style render records commands")) return 1;
 
     run_log.case_begin("render_artifact_before");
-    std::printf(" dirty_count=%zu cmd_count=%zu cmd_hash=%u pixel_hash=%u\n",
-                initial.dirty_count,
-                initial.cmd_count,
-                initial.cmd_hash,
-                initial.pixel_hash);
+    vivid::evidence::print_render_evidence("before", initial);
+    std::printf("\n");
 
     apply_tokens_only(make_tokens(rgba{220, 80, 40, 255}, rgba{255, 255, 255, 255}));
     const auto token_version_after = Theme::instance().get_tokens().version;
@@ -259,20 +256,17 @@ int main() {
         return 1;
     }
     if (!vivid::evidence::expect(updated.dirty_count == 1, "token repaint uses single button dirty rect")) return 1;
-    if (!vivid::evidence::expect(vivid::evidence::dirty_stays_inside(canvas, kButtonBounds),
+    const bool style_dirty_inside = vivid::evidence::dirty_stays_inside(canvas, kButtonBounds);
+    if (!vivid::evidence::expect(style_dirty_inside,
                                  "style dirty evidence remains inside button bounds")) {
         return 1;
     }
+    const auto artifact_delta =
+        vivid::evidence::make_render_artifact_delta(initial, updated, style_dirty_inside);
 
     run_log.case_begin("render_artifact_after");
-    std::printf(" dirty_count=%zu dirty_hash=%u cmd_count=%zu cmd_bytes=%zu failed=%zu cmd_hash=%u pixel_hash=%u\n",
-                updated.dirty_count,
-                updated.dirty_hash,
-                updated.cmd_count,
-                updated.cmd_bytes,
-                updated.failed_cmds,
-                updated.cmd_hash,
-                updated.pixel_hash);
+    vivid::evidence::print_render_artifact_verdict(artifact_delta, "after", updated);
+    std::printf("\n");
 
     run_log.end(true);
     std::puts("[style_token_law_demo] ok");

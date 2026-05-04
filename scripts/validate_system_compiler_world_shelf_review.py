@@ -50,6 +50,62 @@ def expect_equal(actual, expected, label: str, errors: list[str]):
         errors.append(f"{label}: expected {expected!r} but got {actual!r}")
 
 
+def string_values(values) -> list[str]:
+    result: list[str] = []
+    for value in values or []:
+        if value is None:
+            continue
+        text = str(value)
+        if not text:
+            continue
+        result.append(text)
+    return result
+
+
+def validate_drift_digest(summary: dict, compare_summary: dict | None, errors: list[str]):
+    digest = summary.get("drift_digest", {})
+    if compare_summary is None:
+        expected = {
+            "changed": False,
+            "verdict": "candidate-only",
+            "entry_changed_count": 0,
+            "entry_regression_count": 0,
+            "entry_improvement_count": 0,
+            "front_page_entry_detail_changed_count": 0,
+            "front_page_entry_detail_changed_anchors": [],
+            "removed_worlds": [],
+            "added_failed_entries": [],
+            "affected_worlds": [],
+            "affected_profiles": [],
+            "narratives": [],
+        }
+    else:
+        entry_summary = compare_summary.get("entry_summary", {})
+        shelf_changes = compare_summary.get("shelf_changes", {})
+        collapse_surface = compare_summary.get("collapse_surface", {})
+        expected = {
+            "changed": bool(collapse_surface.get("changed")),
+            "verdict": compare_summary.get("shelf_verdict"),
+            "entry_changed_count": entry_summary.get("changed_entry_count", 0),
+            "entry_regression_count": entry_summary.get("regression_count", 0),
+            "entry_improvement_count": entry_summary.get("improvement_count", 0),
+            "front_page_entry_detail_changed_count": len(
+                shelf_changes.get("front_page_entry_detail_changes", [])
+            ),
+            "front_page_entry_detail_changed_anchors": string_values(
+                collapse_surface.get("front_page_entry_detail_changed_anchors", [])
+            ),
+            "removed_worlds": string_values(collapse_surface.get("removed_worlds", [])),
+            "added_failed_entries": string_values(collapse_surface.get("added_failed_entries", [])),
+            "affected_worlds": string_values(collapse_surface.get("affected_worlds", [])),
+            "affected_profiles": string_values(collapse_surface.get("affected_profiles", [])),
+            "narratives": string_values(collapse_surface.get("narratives", [])),
+        }
+
+    for key, expected_value in expected.items():
+        expect_equal(digest.get(key), expected_value, f"drift_digest.{key}", errors)
+
+
 def build_surface_ref(
     surface_id: str,
     summary_schema: str,
@@ -292,12 +348,14 @@ def validate_references(summary: dict, index_schema: dict, compare_schema: dict,
             )
         ]
         expect_equal(summary.get("route_provenance"), expected_route_provenance, "route_provenance", errors)
+        validate_drift_digest(summary, None, errors)
         collapse_surface = summary.get("collapse_surface", {})
         expect_equal(collapse_surface.get("changed"), False, "collapse_surface.changed", errors)
         for key in (
             "regressed_entries",
             "removed_worlds",
             "added_failed_entries",
+            "front_page_entry_detail_changed_anchors",
             "affected_worlds",
             "affected_profiles",
             "narratives",
@@ -309,6 +367,7 @@ def validate_references(summary: dict, index_schema: dict, compare_schema: dict,
     compare_summary = load_json(Path(compare_summary_path))
     validate_json_schema(baseline_summary, index_schema, "baseline shelf summary", errors)
     validate_json_schema(compare_summary, compare_schema, "compare summary", errors)
+    validate_drift_digest(summary, compare_summary, errors)
     expected_supporting_surfaces.append(
         build_front_page_surface(
             summary=compare_summary,

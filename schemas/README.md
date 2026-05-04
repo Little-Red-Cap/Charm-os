@@ -142,6 +142,7 @@
 - `system_compiler.world_shelf_review.v0.schema.json`
   - 对应 `docs/system/system_compiler_world_shelf_review_v0.md` 与 `scripts/review_system_compiler_world_shelf.ps1`
   - 用途偏向把 candidate shelf、baseline shelf 与 shelf compare verdict 收成一个可验证的 review envelope 对象
+  - `drift_digest` 只投影 lower shelf compare 的漂移摘要，不替代 `biography_index_compare`
 
 - `system_compiler.front_page_route.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_route_v0.md`、`scripts/export_system_compiler_front_page_route.py`

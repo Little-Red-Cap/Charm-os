@@ -17,6 +17,7 @@
     "artifact_context",
     "review_status",
     "questions",
+    "drift_digest",
     "collapse_surface",
     "violations"
   ],
@@ -70,6 +71,9 @@
     },
     "questions": {
       "$ref": "#/$defs/questionBlock"
+    },
+    "drift_digest": {
+      "$ref": "#/$defs/driftDigest"
     },
     "collapse_surface": {
       "$ref": "#/$defs/collapseSurface"
@@ -385,6 +389,73 @@
         }
       }
     },
+    "driftDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "verdict",
+        "entry_changed_count",
+        "entry_regression_count",
+        "entry_improvement_count",
+        "front_page_entry_detail_changed_count",
+        "front_page_entry_detail_changed_anchors",
+        "removed_worlds",
+        "added_failed_entries",
+        "affected_worlds",
+        "affected_profiles",
+        "narratives"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "candidate-only",
+            "standing",
+            "improved",
+            "drifted",
+            "collapsed"
+          ]
+        },
+        "entry_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entry_regression_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entry_improvement_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "front_page_entry_detail_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "front_page_entry_detail_changed_anchors": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed_worlds": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "added_failed_entries": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "affected_worlds": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "affected_profiles": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "narratives": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
     "collapseSurface": {
       "type": "object",
       "additionalProperties": false,
@@ -393,6 +464,7 @@
         "regressed_entries",
         "removed_worlds",
         "added_failed_entries",
+        "front_page_entry_detail_changed_anchors",
         "affected_worlds",
         "affected_profiles",
         "narratives"
@@ -408,6 +480,9 @@
           "$ref": "#/$defs/stringArray"
         },
         "added_failed_entries": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "front_page_entry_detail_changed_anchors": {
           "$ref": "#/$defs/stringArray"
         },
         "affected_worlds": {

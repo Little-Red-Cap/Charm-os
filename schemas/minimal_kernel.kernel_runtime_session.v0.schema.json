@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/minimal_kernel.kernel_runtime_session.v0.schema.json",
+  "title": "minimal_kernel.kernel_runtime_session/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "session_id",
+    "world",
+    "subject",
+    "semantic_witness",
+    "machine_witness",
+    "runtime",
+    "ledger",
+    "verdict"
+  ],
+  "properties": {
+    "schema": {
+      "const": "minimal_kernel.kernel_runtime_session/v0"
+    },
+    "kind": {
+      "const": "minimal_kernel.kernel_runtime_session"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "world": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "semantic_witness": {
+      "$ref": "#/$defs/semanticWitness"
+    },
+    "machine_witness": {
+      "$ref": "#/$defs/machineWitness"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtimeFacts"
+    },
+    "ledger": {
+      "$ref": "#/$defs/ledgerRefs"
+    },
+    "verdict": {
+      "$ref": "#/$defs/verdict"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "board",
+        "profile",
+        "leaf"
+      ],
+      "properties": {
+        "board": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "leaf": {
+          "type": "string"
+        }
+      }
+    },
+    "semanticWitness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "contracts"
+      ],
+      "properties": {
+        "host": {
+          "type": "boolean"
+        },
+        "contracts": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "machineWitness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "qemu",
+        "exception_ingress",
+        "interrupt_ingress",
+        "timer_ingress",
+        "trap_ingress",
+        "context_ingress",
+        "runtime_loop"
+      ],
+      "properties": {
+        "qemu": {
+          "type": "boolean"
+        },
+        "exception_ingress": {
+          "type": "boolean"
+        },
+        "interrupt_ingress": {
+          "type": "boolean"
+        },
+        "timer_ingress": {
+          "type": "boolean"
+        },
+        "trap_ingress": {
+          "type": "boolean"
+        },
+        "context_ingress": {
+          "type": "boolean"
+        },
+        "runtime_loop": {
+          "type": "boolean"
+        }
+      }
+    },
+    "runtimeFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tick",
+        "trap",
+        "thread",
+        "task_syscall",
+        "handoff_continuity"
+      ],
+      "properties": {
+        "tick": {
+          "type": "boolean"
+        },
+        "trap": {
+          "type": "boolean"
+        },
+        "thread": {
+          "type": "boolean"
+        },
+        "task_syscall": {
+          "type": "boolean"
+        },
+        "handoff_continuity": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ledgerRefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase_ledger",
+        "runtime_ledger"
+      ],
+      "properties": {
+        "phase_ledger": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "runtime_ledger": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "failureDomain": {
+      "type": "string",
+      "enum": [
+        "semantic",
+        "machine",
+        "bundle",
+        "witness",
+        "world"
+      ]
+    },
+    "failureCode": {
+      "type": "string",
+      "enum": [
+        "decode_failed",
+        "unsupported_service",
+        "unbound_adapter",
+        "unbound_bridge",
+        "writeback_failed",
+        "missing_phase",
+        "unexpected_phase",
+        "timeout",
+        "spurious_interrupt",
+        "trap_not_observed",
+        "tick_not_observed",
+        "thread_not_resumed",
+        "handoff_not_landed",
+        "handoff_continuity_broken",
+        "host_semantic_mismatch",
+        "machine_witness_missing",
+        "world_contract_missing"
+      ]
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "domain",
+        "layer",
+        "focus",
+        "required",
+        "phase",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/failureCode"
+        },
+        "domain": {
+          "$ref": "#/$defs/failureDomain"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "focus": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_status",
+        "failure"
+      ],
+      "properties": {
+        "session_status": {
+          "type": "string",
+          "enum": [
+            "standing",
+            "failed",
+            "drifted"
+          ]
+        },
+        "failure": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/failure"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

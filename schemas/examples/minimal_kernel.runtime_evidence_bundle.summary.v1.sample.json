@@ -75,8 +75,8 @@
       "summary_path": "out/minimal-kernel-runtime-evidence/qemu/summary.json",
       "report_markdown_path": "out/minimal-kernel-runtime-evidence/qemu/report.md",
       "check_text_path": "out/minimal-kernel-runtime-evidence/qemu/check.txt",
-      "case_count": 3,
-      "completed_case_count": 3,
+      "case_count": 4,
+      "completed_case_count": 4,
       "canonical_world": {
         "id": "minimal_kernel_runtime",
         "label": "Minimal Kernel Runtime Witness World",
@@ -86,7 +86,8 @@
         "focus": [
           "trap",
           "syscall",
-          "runtime-live"
+          "runtime-live",
+          "handoff-live"
         ]
       },
       "witness_bundle": {
@@ -96,17 +97,19 @@
         "standing_cases": [
           "runtime-live",
           "runtime-trap",
-          "task-syscall"
+          "task-syscall",
+          "handoff-live"
         ],
         "regressed_cases": []
       },
       "biography": {
         "identity": "armv7a qemu lower-half runtime bundle",
-        "thesis": "This bundle proves that runtime-live, runtime-trap, and task-syscall still compose a standing lower-half witness line.",
+        "thesis": "This bundle proves that runtime-live, runtime-trap, task-syscall, and handoff-live still compose a standing lower-half witness line.",
         "evidence_path": [
           "runtime-live",
           "runtime-trap",
-          "task-syscall"
+          "task-syscall",
+          "handoff-live"
         ],
         "next_questions": [
           "Which case fails first if trap ingress drifts?",
@@ -114,12 +117,12 @@
         ]
       },
       "status": {
-        "ok": 3,
+        "ok": 4,
         "fail": 0,
         "other": 0
       },
       "elapsed_ms": {
-        "total": 18000,
+        "total": 24000,
         "average": 6000,
         "median": 5700,
         "min": 5100,
@@ -192,9 +195,39 @@
             "question": "Does task-syscall still keep the lower-half syscall witness standing?"
           },
           "detail": "task syscall lower-half smoke passed"
+        },
+        {
+          "case": "handoff-live",
+          "label": "handoff-live",
+          "status": "ok",
+          "elapsed_ms": 6000,
+          "stdout_log_path": "out/minimal-kernel-runtime-evidence/qemu/cases/handoff-live.stdout.log",
+          "stderr_log_path": "out/minimal-kernel-runtime-evidence/qemu/cases/handoff-live.stderr.log",
+          "highlights": [
+            "[handoff-live] ok=1"
+          ],
+          "canonical_case": {
+            "world": "minimal_kernel_runtime",
+            "seam": "handoff-landing",
+            "world_state": "standing"
+          },
+          "witness": {
+            "claim": "handoff-live still proves launch, landing, and consumer re-entry continuity under QEMU",
+            "question": "Does runtime handoff continuity still stand as a lower-half witness?"
+          },
+          "detail": "handoff live lower-half smoke passed"
         }
       ]
     }
+  },
+  "session_summary": {
+    "summary_path": "out/minimal-kernel-runtime-evidence/session/kernel_runtime_session.summary.json",
+    "runtime_ledger_path": "out/minimal-kernel-runtime-evidence/session/runtime_ledger.json",
+    "check_text_path": "out/minimal-kernel-runtime-evidence/session/check.txt",
+    "result": "ok",
+    "session_id": "minimal_kernel_runtime.armv7a_qemu.debug",
+    "world": "minimal_kernel_runtime",
+    "session_status": "standing"
   },
   "witness_bundle": {
     "canonical_world_path": "Examples/kernel/canonical_worlds/minimal_kernel_runtime.world.json",

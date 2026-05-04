@@ -7,7 +7,7 @@
   "world": {
     "name": "minimal_kernel_runtime",
     "title": "Minimal Kernel Runtime Witness World",
-    "summary": "A canonical witness surface that gathers artifact report, runtime evidence bundle, and representative host examples into one verifiable world.",
+    "summary": "A canonical witness surface that gathers artifact report, runtime evidence bundle, kernel runtime session, and representative host examples into one verifiable world.",
     "subject": {
       "profile": "MCU_MIN",
       "board": "armv7a_qemu",
@@ -20,11 +20,13 @@
     },
     "first_class_terms": [
       "subject",
+      "session",
       "case",
       "fact",
       "contract",
       "witness",
-      "transition"
+      "transition",
+      "ingress"
     ],
     "core_questions": [
       "What system fact is this world trying to prove?",
@@ -69,6 +71,22 @@
           "bundle"
         ],
         "case": null,
+        "path": null
+      },
+      {
+        "id": "kernel_runtime_session",
+        "kind": "kernel_runtime_session",
+        "label": "kernel-runtime-session",
+        "role": "shared runtime session object",
+        "layer": "bundle",
+        "required": true,
+        "witness_focus": [
+          "session",
+          "runtime",
+          "ingress",
+          "continuity"
+        ],
+        "case": "minimal_kernel_runtime_session",
         "path": null
       },
       {
@@ -117,13 +135,14 @@
     "missing_refs": []
   },
   "witness_summary": {
-    "entry_count": 3,
-    "ok_count": 3,
+    "entry_count": 4,
+    "ok_count": 4,
     "missing_count": 0,
     "fail_count": 0,
     "required_missing_count": 0,
     "kind_counts": {
       "artifact_report": 1,
+      "kernel_runtime_session": 1,
       "runtime_evidence_bundle": 1,
       "example_ref": 1
     }
@@ -188,10 +207,50 @@
         "result=ok",
         "host_cold=ok:11 fail:0 other:0",
         "host_warm=ok:11 fail:0 other:0",
-        "qemu=ok:3 fail:0 other:0"
+        "qemu_cases=4/4",
+        "qemu=ok:4 fail:0 other:0"
       ],
       "artifact_refs": [
         "schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json"
+      ]
+    },
+    {
+      "id": "kernel_runtime_session",
+      "kind": "kernel_runtime_session",
+      "label": "kernel-runtime-session",
+      "role": "shared runtime session object",
+      "layer": "bundle",
+      "required": true,
+      "status": "ok",
+      "witness_focus": [
+        "session",
+        "runtime",
+        "ingress",
+        "continuity"
+      ],
+      "case": "minimal_kernel_runtime_session",
+      "source_path": "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json",
+      "subject": {
+        "case": "minimal_kernel_runtime.armv7a_qemu.debug",
+        "profile": "debug",
+        "board": "armv7a_qemu",
+        "active_facets": [
+          "session",
+          "runtime",
+          "ingress",
+          "continuity"
+        ]
+      },
+      "observations": [
+        "session_status=standing",
+        "semantic_host=True",
+        "machine_qemu=True",
+        "trap_ingress=True",
+        "runtime_loop=True",
+        "handoff_continuity=True"
+      ],
+      "artifact_refs": [
+        "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json"
       ]
     },
     {

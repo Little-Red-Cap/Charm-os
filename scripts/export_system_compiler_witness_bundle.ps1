@@ -46,6 +46,28 @@ function Resolve-RelativeToBase {
     return [System.IO.Path]::GetFullPath((Join-Path $baseDirectory $Value))
 }
 
+function Resolve-PathNearBase {
+    param(
+        [string]$BasePath,
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return ""
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Value)) {
+        return Resolve-FullPath -Path $Value
+    }
+
+    $baseCandidate = Resolve-RelativeToBase -BasePath $BasePath -Value $Value
+    if (Test-Path $baseCandidate) {
+        return $baseCandidate
+    }
+
+    return Resolve-FullPath -Path $Value
+}
+
 function Ensure-Directory {
     param(
         [string]$Path
@@ -445,6 +467,84 @@ function Get-ExistingArtifactRefsFromRuntimeEvidenceSummary {
     return @($refs | Select-Object -Unique)
 }
 
+function Load-KernelRuntimeSessionSummaryInfo {
+    param(
+        [string]$Path,
+        [string]$BasePath = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+
+    $resolvedPath = if ([string]::IsNullOrWhiteSpace($BasePath)) {
+        Resolve-FullPath -Path $Path
+    } else {
+        Resolve-PathNearBase -BasePath $BasePath -Value $Path
+    }
+    if (-not (Test-Path $resolvedPath)) {
+        return $null
+    }
+
+    $data = Load-JsonObject -Path $resolvedPath
+    if ([string]$data.schema -ne "minimal_kernel.kernel_runtime_session/v0") {
+        throw "unsupported kernel runtime session schema: $([string]$data.schema)"
+    }
+    if ([string]$data.kind -ne "minimal_kernel.kernel_runtime_session") {
+        throw "unsupported kernel runtime session kind: $([string]$data.kind)"
+    }
+
+    return [pscustomobject]@{
+        Path = $resolvedPath
+        Data = $data
+    }
+}
+
+function Resolve-KernelRuntimeSessionSummaryInfo {
+    param(
+        $RuntimeEvidenceSummaryInfo
+    )
+
+    if ($null -eq $RuntimeEvidenceSummaryInfo) {
+        return $null
+    }
+
+    $summary = $RuntimeEvidenceSummaryInfo.Data
+    if ($null -eq $summary.PSObject.Properties["session_summary"] -or $null -eq $summary.session_summary) {
+        return $null
+    }
+
+    return Load-KernelRuntimeSessionSummaryInfo -Path ([string]$summary.session_summary.summary_path) -BasePath $RuntimeEvidenceSummaryInfo.Path
+}
+
+function Get-ExistingArtifactRefsFromKernelRuntimeSession {
+    param(
+        $SessionInfo,
+        $RuntimeEvidenceSummaryInfo
+    )
+
+    $refs = [System.Collections.Generic.List[string]]::new()
+    if ($null -eq $SessionInfo) {
+        return @()
+    }
+
+    $refs.Add($SessionInfo.Path) | Out-Null
+    if ($null -ne $SessionInfo.Data.ledger -and -not [string]::IsNullOrWhiteSpace([string]$SessionInfo.Data.ledger.runtime_ledger)) {
+        $runtimeLedger = Resolve-PathNearBase -BasePath $SessionInfo.Path -Value ([string]$SessionInfo.Data.ledger.runtime_ledger)
+        if (Test-Path $runtimeLedger) {
+            $refs.Add($runtimeLedger) | Out-Null
+        }
+    }
+    if ($null -ne $RuntimeEvidenceSummaryInfo -and $null -ne $RuntimeEvidenceSummaryInfo.Data.session_summary) {
+        $checkPath = Resolve-PathNearBase -BasePath $RuntimeEvidenceSummaryInfo.Path -Value ([string]$RuntimeEvidenceSummaryInfo.Data.session_summary.check_text_path)
+        if (Test-Path $checkPath) {
+            $refs.Add($checkPath) | Out-Null
+        }
+    }
+
+    return @($refs | Select-Object -Unique)
+}
+
 function New-MissingWitnessEntry {
     param(
         $PlanEntry,
@@ -525,6 +625,7 @@ function New-RuntimeEvidenceWitnessEntry {
         $observations.Add(("host_warm=ok:{0} fail:{1} other:{2}" -f [int]$summary.host.warm.status.ok, [int]$summary.host.warm.status.fail, [int]$summary.host.warm.status.other)) | Out-Null
     }
     if ($null -ne $summary.qemu -and $null -ne $summary.qemu.lower_half) {
+        $observations.Add(("qemu_cases={0}/{1}" -f [int]$summary.qemu.lower_half.completed_case_count, [int]$summary.qemu.lower_half.case_count)) | Out-Null
         $observations.Add(("qemu=ok:{0} fail:{1} other:{2}" -f [int]$summary.qemu.lower_half.status.ok, [int]$summary.qemu.lower_half.status.fail, [int]$summary.qemu.lower_half.status.other)) | Out-Null
     }
 
@@ -548,6 +649,46 @@ function New-RuntimeEvidenceWitnessEntry {
         subject = New-EntrySubject -Case $runtimeCaseName -Profile $null -Board $null -ActiveFacets @()
         observations = @($observations)
         artifact_refs = @(Get-ExistingArtifactRefsFromRuntimeEvidenceSummary -SummaryInfo $SummaryInfo)
+    }
+}
+
+function New-KernelRuntimeSessionWitnessEntry {
+    param(
+        $PlanEntry,
+        $RuntimeEvidenceSummaryInfo
+    )
+
+    $sessionInfo = Resolve-KernelRuntimeSessionSummaryInfo -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo
+    if ($null -eq $sessionInfo) {
+        return (New-MissingWitnessEntry -PlanEntry $PlanEntry -SourcePath $null -Observation "kernel runtime session summary missing")
+    }
+
+    $session = $sessionInfo.Data
+    $observations = [System.Collections.Generic.List[string]]::new()
+    $observations.Add(("session_status={0}" -f [string]$session.verdict.session_status)) | Out-Null
+    $observations.Add(("semantic_host={0}" -f [bool]$session.semantic_witness.host)) | Out-Null
+    $observations.Add(("machine_qemu={0}" -f [bool]$session.machine_witness.qemu)) | Out-Null
+    $observations.Add(("trap_ingress={0}" -f [bool]$session.machine_witness.trap_ingress)) | Out-Null
+    $observations.Add(("runtime_loop={0}" -f [bool]$session.machine_witness.runtime_loop)) | Out-Null
+    $observations.Add(("handoff_continuity={0}" -f [bool]$session.runtime.handoff_continuity)) | Out-Null
+    if ($null -ne $session.verdict.failure) {
+        $observations.Add(("failure={0}" -f [string]$session.verdict.failure.code)) | Out-Null
+    }
+
+    return [ordered]@{
+        id = [string]$PlanEntry.id
+        kind = "kernel_runtime_session"
+        label = [string]$PlanEntry.label
+        role = [string]$PlanEntry.role
+        layer = [string]$PlanEntry.layer
+        required = [bool]$PlanEntry.required
+        status = $(if ([string]$session.verdict.session_status -eq "standing") { "ok" } else { "fail" })
+        witness_focus = @($PlanEntry.witness_focus)
+        case = $(if ([string]::IsNullOrWhiteSpace([string]$PlanEntry.case)) { [string]$session.session_id } else { [string]$PlanEntry.case })
+        source_path = $sessionInfo.Path
+        subject = New-EntrySubject -Case ([string]$session.session_id) -Profile ([string]$session.subject.profile) -Board ([string]$session.subject.board) -ActiveFacets @("session", "runtime", "ingress", "continuity")
+        observations = @($observations)
+        artifact_refs = @(Get-ExistingArtifactRefsFromKernelRuntimeSession -SessionInfo $sessionInfo -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo)
     }
 }
 
@@ -652,6 +793,16 @@ function Get-DiscoveredPlan {
     }
 
     if ($null -ne $RuntimeEvidenceSummaryInfo) {
+        $plan += New-DiscoveredPlanEntry `
+            -Id "kernel_runtime_session" `
+            -Kind "kernel_runtime_session" `
+            -Label "kernel-runtime-session" `
+            -Role "discovered shared runtime session witness" `
+            -Layer "bundle" `
+            -WitnessFocus @("session", "runtime", "ingress", "continuity") `
+            -CaseName "minimal_kernel_runtime_session" `
+            -Path $null
+
         $plan += New-DiscoveredPlanEntry `
             -Id "runtime_evidence_bundle" `
             -Kind "runtime_evidence_bundle" `
@@ -772,6 +923,9 @@ function New-WitnessEntry {
         "runtime_evidence_bundle" {
             $summaryInfo = Resolve-RuntimeEvidenceForPlanEntry -PlanEntry $PlanEntry -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo
             return (New-RuntimeEvidenceWitnessEntry -PlanEntry $PlanEntry -SummaryInfo $summaryInfo)
+        }
+        "kernel_runtime_session" {
+            return (New-KernelRuntimeSessionWitnessEntry -PlanEntry $PlanEntry -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo)
         }
         "example_ref" {
             return (New-ExampleRefWitnessEntry -PlanEntry $PlanEntry -ResolvedPath ([string]$PlanEntry.path))

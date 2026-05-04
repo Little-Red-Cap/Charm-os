@@ -17,10 +17,10 @@
   - 同时产出 cold start 与 warm reuse 两套 host 证据
 - `scripts/minimal_kernel_runtime_armv7a_qemu_smoke_bundle.ps1`
   - 下半层证据入口
-  - 聚焦 `runtime-trap / runtime-live / task-syscall` 等 ARMv7-A QEMU lower-half smoke
+  - 聚焦 `runtime-trap / runtime-live / task-syscall / handoff-live` 等 ARMv7-A QEMU lower-half smoke
 - `scripts/minimal_kernel_runtime_evidence_bundle.ps1`
   - 总证据入口
-  - 把 host dual bundle、qemu bundle 与 system compiler witness bundle 收进同一个 artifact 根目录
+  - 把 host dual bundle、qemu bundle、kernel runtime session summary 与 system compiler witness bundle 收进同一个 artifact 根目录
 
 ## 证据边界
 
@@ -46,8 +46,10 @@ qemu bundle 主要证明：
 - `runtime-trap`
 - `runtime-live`
 - `task-syscall`
+- `handoff-live`
 
 这些 lower-half smoke 在同一个 `debug` 构建上仍然闭环成立，并且会留下每个 case 的独立日志工件。
+总证据入口当前会以 `RequireCaseCount = 4` 调用 qemu bundle，避免 session 证词在 lower-half case 缺席时误判为站立。
 
 它不证明：
 
@@ -66,6 +68,10 @@ out/minimal-kernel-runtime-evidence/
     daily/
   qemu/
     cases/
+  session/
+    kernel_runtime_session.summary.json
+    runtime_ledger.json
+    check.txt
   witness/
   summary.json
   report.md
@@ -80,9 +86,24 @@ out/minimal-kernel-runtime-evidence/
 - `host/ci` 对应 cold start host 证据
 - `host/daily` 对应 warm reuse host 证据
 - `qemu/cases/*` 保留 lower-half case 日志
+- `session/*` 收口 `kernel_runtime_session` 对象、runtime ledger 与 session check
 - `witness/*` 收口 canonical world 对应的 witness summary / report / check
 - 根 `summary.json / report.md / check.txt` 是这次总证据包的聚合视图
-- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path / witness_bundle`，方便上层自动化只消费一个入口
+- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path / session_summary / witness_bundle`，方便上层自动化只消费一个入口
+
+## Kernel Runtime Session
+
+`session/kernel_runtime_session.summary.json` 是当前 bundle 的共同被证明对象。
+
+它把 host 侧 semantic witness、ARMv7-A QEMU 侧 machine witness、runtime facts、
+runtime ledger 引用和 session verdict 收成一个对象。它不替代 host 或 QEMU 原始证据，
+也不直接喂给 world compare；它先作为 runtime evidence bundle 的正式 artifact，
+再由 system compiler witness bundle 作为 `kernel_runtime_session` witness entry 出口。
+
+对应契约入口：
+
+- `docs/system/kernel_runtime_session_witness_v0.md`
+- `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
 
 ## 机器可读契约
 
@@ -100,7 +121,8 @@ python ./scripts/validate_minimal_kernel_runtime_evidence.py `
 这个校验器会做两件事：
 
 - 用 schema 校验根 `summary.json` 的结构
-- 检查 summary 中引用到的 host / qemu / witness / report / check / case log 工件是否都存在
+- 检查 summary 中引用到的 host / qemu / session / witness / report / check / case log 工件是否都存在
+- 复核 `session_summary`、`kernel_runtime_session.summary.json` 与 `runtime_ledger.json` 的基础一致性
 
 ## 本地验证
 
@@ -120,6 +142,7 @@ python ./scripts/validate_minimal_kernel_runtime_evidence.py `
 - `host/daily/report.md` 显示 `Profile: daily`
 - `host/daily/report.md` 带 `Comparison` 段
 - `qemu/report.md` 显示 lower-half bundle 当前 smoke 集合全部站住
+- `session/kernel_runtime_session.summary.json` 显示 `session_status: standing`
 - `witness/report.md` 显示 canonical world 与 witness entry 汇总
 - 根 `report.md` 同时汇总上半层、下半层与 witness 证据
 

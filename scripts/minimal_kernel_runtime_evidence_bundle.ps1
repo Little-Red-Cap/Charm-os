@@ -473,6 +473,179 @@ function Get-WitnessBundleView {
     }
 }
 
+function Test-CaseOk {
+    param(
+        $QemuSummaryData,
+        [string]$CaseName
+    )
+
+    if ($null -eq $QemuSummaryData) {
+        return $false
+    }
+
+    foreach ($entry in @($QemuSummaryData.results)) {
+        if ([string]$entry.Case -eq $CaseName -and [string]$entry.Status -eq "ok") {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Write-KernelRuntimeSessionArtifacts {
+    param(
+        [string]$SessionOutputRoot,
+        [string]$SessionSummaryPath,
+        [string]$RuntimeLedgerPath,
+        [string]$SessionCheckPath,
+        $HostColdInspectData,
+        $HostWarmInspectData,
+        $QemuSummaryData
+    )
+
+    Ensure-Directory -Path $SessionOutputRoot
+
+    $hostColdStanding = $false
+    if ($null -ne $HostColdInspectData -and $null -ne $HostColdInspectData.status) {
+        $hostColdStanding = ([int]$HostColdInspectData.status.fail -eq 0 -and [int]$HostColdInspectData.status.other -eq 0)
+    }
+
+    $hostWarmStanding = $false
+    if ($null -ne $HostWarmInspectData -and $null -ne $HostWarmInspectData.status) {
+        $hostWarmStanding = ([int]$HostWarmInspectData.status.fail -eq 0 -and [int]$HostWarmInspectData.status.other -eq 0)
+    }
+
+    $qemuStanding = $false
+    $runtimeTrapOk = Test-CaseOk -QemuSummaryData $QemuSummaryData -CaseName "runtime-trap"
+    $runtimeLiveOk = Test-CaseOk -QemuSummaryData $QemuSummaryData -CaseName "runtime-live"
+    $taskSyscallOk = Test-CaseOk -QemuSummaryData $QemuSummaryData -CaseName "task-syscall"
+    $handoffLiveOk = Test-CaseOk -QemuSummaryData $QemuSummaryData -CaseName "handoff-live"
+    if ($null -ne $QemuSummaryData) {
+        $results = @($QemuSummaryData.results)
+        $qemuFailCount = @($results | Where-Object { [string]$_.Status -eq "fail" }).Count
+        $qemuOtherCount = @($results | Where-Object { ([string]$_.Status -ne "ok") -and ([string]$_.Status -ne "fail") }).Count
+        $qemuStanding = ($qemuFailCount -eq 0 -and $qemuOtherCount -eq 0 -and $results.Count -gt 0)
+    }
+
+    $events = [System.Collections.Generic.List[object]]::new()
+    foreach ($entry in @(
+        @{ Phase = "host.semantic.cold"; Fact = "host cold semantic witness"; Observed = $hostColdStanding },
+        @{ Phase = "host.semantic.warm"; Fact = "host warm semantic witness"; Observed = $hostWarmStanding },
+        @{ Phase = "machine.trap"; Fact = "runtime trap lower-half case"; Observed = $runtimeTrapOk },
+        @{ Phase = "machine.runtime_live"; Fact = "runtime live lower-half case"; Observed = $runtimeLiveOk },
+        @{ Phase = "machine.task_syscall"; Fact = "task syscall lower-half case"; Observed = $taskSyscallOk },
+        @{ Phase = "machine.handoff_continuity"; Fact = "handoff live continuity case"; Observed = $handoffLiveOk }
+    )) {
+        $events.Add([ordered]@{
+            phase = [string]$entry.Phase
+            fact = [string]$entry.Fact
+            observed = [bool]$entry.Observed
+        }) | Out-Null
+    }
+
+    $runtimeLedger = [ordered]@{
+        schema = "minimal_kernel.kernel_runtime_session.runtime_ledger/v0"
+        kind = "minimal_kernel.kernel_runtime_session.runtime_ledger"
+        session_id = "minimal_kernel_runtime.armv7a_qemu.debug"
+        events = @($events)
+    }
+    $runtimeLedger | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $RuntimeLedgerPath -Encoding utf8
+
+    $sessionStanding = $hostColdStanding -and $hostWarmStanding -and $qemuStanding -and $runtimeTrapOk -and $runtimeLiveOk -and $taskSyscallOk -and $handoffLiveOk
+    $failure = $null
+    if (-not $sessionStanding) {
+        $failureCode = if (-not $hostColdStanding -or -not $hostWarmStanding) {
+            "host_semantic_mismatch"
+        } elseif (-not $qemuStanding) {
+            "machine_witness_missing"
+        } elseif (-not $runtimeTrapOk) {
+            "trap_not_observed"
+        } elseif (-not $runtimeLiveOk) {
+            "thread_not_resumed"
+        } elseif (-not $taskSyscallOk) {
+            "decode_failed"
+        } else {
+            "handoff_continuity_broken"
+        }
+        $failureDomain = if ($failureCode -eq "host_semantic_mismatch") { "semantic" } else { "machine" }
+        $failurePhase = if ($failureCode -eq "handoff_continuity_broken") { "handoff.live" } else { "runtime.session" }
+        $failure = [ordered]@{
+            code = $failureCode
+            domain = $failureDomain
+            layer = if ($failureDomain -eq "semantic") { "upper_half" } else { "lower_half" }
+            focus = if ($failureCode -eq "handoff_continuity_broken") { @("handoff", "session") } else { @("session", "runtime") }
+            required = $true
+            phase = $failurePhase
+            message = "kernel_runtime_session did not collect every required semantic and machine witness"
+        }
+    }
+
+    $sessionSummary = [ordered]@{
+        schema = "minimal_kernel.kernel_runtime_session/v0"
+        kind = "minimal_kernel.kernel_runtime_session"
+        session_id = "minimal_kernel_runtime.armv7a_qemu.debug"
+        world = "minimal_kernel_runtime"
+        subject = [ordered]@{
+            board = "armv7a_qemu"
+            profile = "debug"
+            leaf = "Examples/kernel/armv7a/qemu"
+        }
+        semantic_witness = [ordered]@{
+            host = ($hostColdStanding -and $hostWarmStanding)
+            contracts = @(
+                "trap_ingress",
+                "task_message_session",
+                "task_syscall_frame"
+            )
+        }
+        machine_witness = [ordered]@{
+            qemu = $qemuStanding
+            exception_ingress = $qemuStanding
+            interrupt_ingress = $qemuStanding
+            timer_ingress = $qemuStanding
+            trap_ingress = $runtimeTrapOk
+            context_ingress = $runtimeLiveOk
+            runtime_loop = $runtimeLiveOk
+        }
+        runtime = [ordered]@{
+            tick = $runtimeLiveOk
+            trap = $runtimeTrapOk
+            thread = $runtimeLiveOk
+            task_syscall = $taskSyscallOk
+            handoff_continuity = $handoffLiveOk
+        }
+        ledger = [ordered]@{
+            phase_ledger = $null
+            runtime_ledger = $RuntimeLedgerPath
+        }
+        verdict = [ordered]@{
+            session_status = if ($sessionStanding) { "standing" } else { "failed" }
+            failure = $failure
+        }
+    }
+    $sessionSummary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $SessionSummaryPath -Encoding utf8
+
+    $checkBuilder = [System.Text.StringBuilder]::new()
+    [void]$checkBuilder.AppendLine(("summary: {0}" -f $SessionSummaryPath))
+    [void]$checkBuilder.AppendLine(("session_id: {0}" -f [string]$sessionSummary.session_id))
+    [void]$checkBuilder.AppendLine(("result: {0}" -f $(if ($sessionStanding) { "ok" } else { "fail" })))
+    [void]$checkBuilder.AppendLine(("session_status: {0}" -f [string]$sessionSummary.verdict.session_status))
+    [void]$checkBuilder.AppendLine(("host_semantic: {0}" -f [bool]$sessionSummary.semantic_witness.host))
+    [void]$checkBuilder.AppendLine(("machine_qemu: {0}" -f [bool]$sessionSummary.machine_witness.qemu))
+    [void]$checkBuilder.AppendLine(("handoff_continuity: {0}" -f [bool]$sessionSummary.runtime.handoff_continuity))
+    Set-Content -LiteralPath $SessionCheckPath -Encoding utf8 ($checkBuilder.ToString())
+
+    return [ordered]@{
+        summary_path = $SessionSummaryPath
+        runtime_ledger_path = $RuntimeLedgerPath
+        check_text_path = $SessionCheckPath
+        result = if ($sessionStanding) { "ok" } else { "fail" }
+        session_id = [string]$sessionSummary.session_id
+        world = [string]$sessionSummary.world
+        session_status = [string]$sessionSummary.verdict.session_status
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $resolvedOutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) { "out/minimal-kernel-runtime-evidence" } else { $OutputRoot }
 $outputRootPath = Resolve-FullPath -Path $resolvedOutputRoot
@@ -499,6 +672,11 @@ $reportMarkdownPathResolved = Get-OutputPath -ExplicitPath $ReportMarkdownPath -
 $checkTextPathResolved = Get-OutputPath -ExplicitPath $CheckTextPath -OutputRootPath $outputRootPath -DefaultFileName "check.txt"
 $hostBundleLogPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $outputRootPath -DefaultFileName "host.bundle.log"
 $qemuBundleLogPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $outputRootPath -DefaultFileName "qemu.bundle.log"
+$sessionOutputRootResolved = Join-Path $outputRootPath "session"
+$sessionSummaryPathResolved = Join-Path $sessionOutputRootResolved "kernel_runtime_session.summary.json"
+$sessionRuntimeLedgerPathResolved = Join-Path $sessionOutputRootResolved "runtime_ledger.json"
+$sessionCheckTextPathResolved = Join-Path $sessionOutputRootResolved "check.txt"
+$requiredQemuLowerHalfCaseCount = 4
 $witnessBundleSummaryPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleSummaryPath -OutputRootPath $resolvedWitnessBundleOutputRoot -DefaultFileName "summary.json"
 $witnessBundleReportMarkdownPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleReportMarkdownPath -OutputRootPath $resolvedWitnessBundleOutputRoot -DefaultFileName "report.md"
 $witnessBundleCheckTextPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleCheckTextPath -OutputRootPath $resolvedWitnessBundleOutputRoot -DefaultFileName "check.txt"
@@ -537,6 +715,7 @@ Add-ScriptArgument -Arguments $qemuArgs -Name "-QemuExe" -Value $QemuExe
 Add-ScriptArgument -Arguments $qemuArgs -Name "-BuildJobs" -Value (Format-Number -Value $QemuBuildJobs)
 Add-ScriptArgument -Arguments $qemuArgs -Name "-TimeoutSec" -Value (Format-Number -Value $QemuTimeoutSec)
 Add-ScriptArgument -Arguments $qemuArgs -Name "-TailLines" -Value (Format-Number -Value $QemuTailLines)
+Add-ScriptArgument -Arguments $qemuArgs -Name "-RequireCaseCount" -Value (Format-Number -Value $requiredQemuLowerHalfCaseCount)
 if ($Clean) {
     $qemuArgs.Add("-Clean") | Out-Null
 }
@@ -628,6 +807,19 @@ $qemuView = [ordered]@{
         -CheckPath $qemuCheckPath
 }
 
+$sessionView = Write-KernelRuntimeSessionArtifacts `
+    -SessionOutputRoot $sessionOutputRootResolved `
+    -SessionSummaryPath $sessionSummaryPathResolved `
+    -RuntimeLedgerPath $sessionRuntimeLedgerPathResolved `
+    -SessionCheckPath $sessionCheckTextPathResolved `
+    -HostColdInspectData $hostCiInspectData `
+    -HostWarmInspectData $hostDailyInspectData `
+    -QemuSummaryData $qemuSummaryData
+
+if ([string]$sessionView.result -ne "ok") {
+    $violations.Add(("kernel runtime session status {0}" -f [string]$sessionView.session_status)) | Out-Null
+}
+
 $summaryObject = [ordered]@{
     schema = "minimal_kernel.runtime_evidence_bundle.summary/v1"
     generated_at = (Get-Date).ToString("o")
@@ -637,6 +829,7 @@ $summaryObject = [ordered]@{
     check_text_path = $checkTextPathResolved
     host = $hostView
     qemu = $qemuView
+    session_summary = $sessionView
 }
 if (-not $SkipWitnessBundle) {
     $summaryObject.witness_bundle = $null
@@ -705,6 +898,13 @@ $reportBuilder = [System.Text.StringBuilder]::new()
 if ($null -ne $summaryObject.witness_bundle) {
     [void]$reportBuilder.AppendLine(('- Witness bundle: `{0}`' -f [string]$summaryObject.witness_bundle.summary_path))
 }
+
+[void]$reportBuilder.AppendLine("")
+[void]$reportBuilder.AppendLine("## Kernel Runtime Session")
+[void]$reportBuilder.AppendLine(('- Session summary: `{0}`' -f [string]$summaryObject.session_summary.summary_path))
+[void]$reportBuilder.AppendLine(('- Runtime ledger: `{0}`' -f [string]$summaryObject.session_summary.runtime_ledger_path))
+[void]$reportBuilder.AppendLine(('- Session status: `{0}`' -f [string]$summaryObject.session_summary.session_status))
+[void]$reportBuilder.AppendLine(('- Session result: `{0}`' -f [string]$summaryObject.session_summary.result))
 
 [void]$reportBuilder.AppendLine("")
 [void]$reportBuilder.AppendLine("## Upper-Half Host Evidence")
@@ -835,6 +1035,8 @@ Set-Content -LiteralPath $reportMarkdownPathResolved -Encoding utf8 ($reportBuil
 $checkBuilder = [System.Text.StringBuilder]::new()
 [void]$checkBuilder.AppendLine(("summary: {0}" -f $summaryPathResolved))
 [void]$checkBuilder.AppendLine(("result: {0}" -f [string]$summaryObject.result))
+[void]$checkBuilder.AppendLine(("session_summary: {0}" -f [string]$summaryObject.session_summary.summary_path))
+[void]$checkBuilder.AppendLine(("session_status: {0}" -f [string]$summaryObject.session_summary.session_status))
 [void]$checkBuilder.AppendLine(("host_bundle_exit_code: {0}" -f $hostBundleExitCode))
 [void]$checkBuilder.AppendLine(("qemu_bundle_exit_code: {0}" -f $qemuBundleExitCode))
 if ($null -ne $summaryObject.witness_bundle) {

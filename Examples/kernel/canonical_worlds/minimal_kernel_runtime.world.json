@@ -3,7 +3,7 @@
   "kind": "system_compiler.canonical_world",
   "name": "minimal_kernel_runtime",
   "title": "Minimal Kernel Runtime Witness World",
-  "summary": "The first canonical world that treats minimal-kernel runtime, syscall, trap, session, and lower-half smoke as one witness-bearing object.",
+  "summary": "The first canonical world that treats a minimal-kernel runtime session as the shared object jointly proven by upper-half semantics, lower-half machine ingress, runtime evidence, witness export, and world compare.",
   "subject": {
     "profile": null,
     "board": "armv7a_qemu",
@@ -16,23 +16,28 @@
   },
   "first_class_terms": [
     "subject",
+    "session",
     "case",
     "fact",
     "contract",
     "witness",
-    "transition"
+    "transition",
+    "ingress"
   ],
   "core_questions": [
+    "Which kernel runtime session is jointly proven by upper-half semantics and lower-half machine ingress?",
     "Which upper-half runtime seam closes the smallest useful kernel loop?",
     "Which lower-half ingress witness proves the architecture gate is real?",
     "Which contract set explains why this world is considered valid?"
   ],
   "compare_questions": [
+    "If a session drifts, did it drift in semantic closure, machine ingress, runtime continuity, or witness export?",
     "If this world drifts, which witness breaks first?",
     "If trap or session semantics tighten, which sample becomes invalid?",
     "If a capability disappears, what is the smallest collapse surface?"
   ],
   "contract_refs": [
+    "../../../docs/system/kernel_runtime_session_witness_v0.md",
     "../../../docs/system/minimal_kernel_runtime_evidence_bundle_contract.md",
     "../../../docs/system/minimal_kernel_runtime_evidence_matrix.md",
     "../../../docs/system/minimal_kernel_task_message_session_service_loop_contract.md",
@@ -40,6 +45,22 @@
     "../../../docs/system/minimal_kernel_trap_ingress_contract.md"
   ],
   "witness_plan": [
+    {
+      "id": "kernel_runtime_session",
+      "kind": "kernel_runtime_session",
+      "label": "kernel-runtime-session",
+      "role": "shared session object proven by semantic and machine witnesses",
+      "layer": "bundle",
+      "required": true,
+      "witness_focus": [
+        "session",
+        "runtime",
+        "ingress",
+        "continuity"
+      ],
+      "case": "minimal_kernel_runtime_session",
+      "path": null
+    },
     {
       "id": "runtime_evidence_bundle",
       "kind": "runtime_evidence_bundle",

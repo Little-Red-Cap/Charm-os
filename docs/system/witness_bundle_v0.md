@@ -12,6 +12,7 @@
 
 - `artifact report` 是 case 级结论页。
 - `runtime evidence bundle` 是某条 runtime 主线的总证词。
+- `kernel runtime session` 是 host 语义与 QEMU 机器入口共同证明的 session 对象。
 - `witness bundle` 则是把一个 canonical world 需要的 witness 收成同一个对象。
 
 如果说 `artifact report` 更像单案卷宗，
@@ -61,6 +62,7 @@
 
 并可附带：
 
+- `kernel_runtime_session`
 - `example_ref`
 
 这意味着 v0 先不追求“世界里的所有证据都必须是结构化 summary”，
@@ -201,7 +203,15 @@
 `witness bundle` 不替代这条 bundle，
 而是把它当成某个 canonical world 的一名正式 witness。
 
-### 3. 与 `compare`
+### 3. 与 `kernel runtime session`
+
+`kernel_runtime_session` 是 runtime evidence bundle 内部收出的共同被证明对象。
+
+`witness bundle` 不直接解析 host/QEMU 的散日志，
+而是通过 runtime evidence summary 找到 session summary，
+再把它作为 `kernel_runtime_session` witness entry 暴露给 world compare。
+
+### 4. 与 `compare`
 
 当前 `witness bundle` 还不是最终的反事实审判器。
 
@@ -210,7 +220,7 @@
 - compare 不是对散文件 diff
 - compare 是对一个 world 的 witness 面做漂移追问
 
-### 4. 与 `world compare`
+### 5. 与 `world compare`
 
 当前 `world compare`
 
@@ -225,7 +235,7 @@
 ## 当前推荐工作流
 
 1. 先定义 canonical world。
-2. 再把相关 `artifact report / runtime evidence bundle / example_ref` 填进 witness plan。
+2. 再把相关 `artifact report / runtime evidence bundle / kernel_runtime_session / example_ref` 填进 witness plan。
 3. 再导出 `witness bundle`。
 4. 如需比较世界漂移，再导出 `world compare`。
 5. 最后把它和 binary、report、check 一起视作完整交付。

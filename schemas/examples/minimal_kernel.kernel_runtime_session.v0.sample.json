@@ -1,0 +1,43 @@
+{
+  "schema": "minimal_kernel.kernel_runtime_session/v0",
+  "kind": "minimal_kernel.kernel_runtime_session",
+  "session_id": "minimal_kernel_runtime.armv7a_qemu.debug",
+  "world": "minimal_kernel_runtime",
+  "subject": {
+    "board": "armv7a_qemu",
+    "profile": "debug",
+    "leaf": "Examples/kernel/armv7a/qemu"
+  },
+  "semantic_witness": {
+    "host": true,
+    "contracts": [
+      "trap_ingress",
+      "task_message_session",
+      "task_syscall_frame"
+    ]
+  },
+  "machine_witness": {
+    "qemu": true,
+    "exception_ingress": true,
+    "interrupt_ingress": true,
+    "timer_ingress": true,
+    "trap_ingress": true,
+    "context_ingress": true,
+    "runtime_loop": true
+  },
+  "runtime": {
+    "tick": true,
+    "trap": true,
+    "thread": true,
+    "task_syscall": true,
+    "handoff_continuity": true
+  },
+  "ledger": {
+    "phase_ledger": "out/minimal-kernel-runtime-evidence/qemu/phase-ledger.json",
+    "runtime_ledger": "out/minimal-kernel-runtime-evidence/session/runtime_ledger.json"
+  },
+  "verdict": {
+    "session_status": "standing",
+    "failure": null
+  }
+}

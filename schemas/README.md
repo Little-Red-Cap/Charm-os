@@ -95,7 +95,8 @@
 - `system_compiler.canonical_world.v0.schema.json`
   - 对应 `docs/system/canonical_world_v0.md` 里定义的 canonical world 对象
   - 用途偏向把一组 case / contract / witness plan 收成“这个世界想证明什么”的正式声明对象
-  - 它当前刻意只覆盖 `artifact_report / runtime_evidence_bundle / example_ref` 三类 witness plan
+  - 它当前刻意只覆盖 `artifact_report / runtime_evidence_bundle / kernel_runtime_session / example_ref`
+    四类 witness plan
 
 - `examples/system_compiler.canonical_world.v0.sample.json`
   - 对应 `system_compiler.canonical_world/v0` 的最小样例
@@ -103,10 +104,19 @@
 
 - `system_compiler.witness_bundle.v0.schema.json`
   - 对应 `docs/system/witness_bundle_v0.md` 与 `scripts/export_system_compiler_witness_bundle.ps1`
-  - 用途偏向把 canonical world、artifact report、runtime evidence bundle 与 example refs 收成正式交付对象
+  - 用途偏向把 canonical world、artifact report、runtime evidence bundle、kernel runtime session
+    与 example refs 收成正式交付对象
   - 它当前关注的是“证词是否齐、来源在哪里、缺口是什么”，而不是替代下层更细的 runtime / compare 语义
   - 它当前也可在 `artifact_context.artifact_report_index` 中记录 artifact report root 的 first-read index，
     作为上层 proof / IDE / CI 发现 case 级报告的来源锚点
+
+- `minimal_kernel.kernel_runtime_session.v0.schema.json`
+  - 对应 `docs/system/kernel_runtime_session_witness_v0.md` 与
+    `schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json`
+  - 用途偏向把 host 语义证据、ARMv7-A QEMU 机器入口证据、runtime facts、
+    runtime ledger 与 session verdict 收成一个共同被证明的 session witness 对象
+  - 它不替代 host / QEMU 原始证据，也不直接替代 witness bundle；
+    它当前通过 runtime evidence bundle 进入 `kernel_runtime_session` witness entry
 
 - `examples/system_compiler.witness_bundle.v0.sample.json`
   - 对应 `system_compiler.witness_bundle/v0` 的最小样例
@@ -408,6 +418,7 @@
 - `system_compiler.artifact_report_index/v0`：当前 artifact report root 的 first-read 入口锚点，负责让 CI/IDE/脚本先定位 headline、case 路径与阻塞热点
 - `system_compiler.canonical_world/v0`：当前“一个世界想证明什么、依赖哪些 witness / contracts”的声明对象锚点
 - `system_compiler.witness_bundle/v0`：当前“这次交付拿什么作证”的交付对象锚点
+- `minimal_kernel.kernel_runtime_session/v0`：当前“host 语义证据与 ARMv7-A QEMU 机器证据共同证明哪一个 runtime session”的对象锚点
 - `system_compiler.world_compare/v0`：当前“这个世界相对基线还站不站得住”的 compare verdict 对象锚点
 - `system_compiler.biography/v0`：当前“如何把证据世界压成顶层交付封面并留下继续追问入口”的 biography 对象锚点
 - `system_compiler.biography_index/v0`：当前“如何把多个 biography 摆成一个可交付、可审阅的 world shelf”的 directory object 锚点

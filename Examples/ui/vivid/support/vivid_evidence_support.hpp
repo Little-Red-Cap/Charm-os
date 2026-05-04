@@ -29,6 +29,13 @@ namespace vivid::evidence {
         }
     };
 
+    struct InvalidationEvidence {
+        const char* kind{"none"};
+        const char* dirty_scope{"none"};
+        Rect component_bounds{};
+        bool layout_changed{false};
+    };
+
     class RunLog {
     public:
         constexpr RunLog(const char* tag, const char* run) noexcept
@@ -110,6 +117,17 @@ namespace vivid::evidence {
         if (delta.reason && delta.reason[0] != '\0') {
             std::printf(" %s_reason=%s", prefix, delta.reason);
         }
+    }
+
+    inline void print_invalidation(const InvalidationEvidence& evidence) noexcept {
+        std::printf(" invalidation=1 kind=%s dirty_scope=%s component_x=%d component_y=%d component_w=%d component_h=%d layout_changed=%d",
+                    evidence.kind ? evidence.kind : "",
+                    evidence.dirty_scope ? evidence.dirty_scope : "",
+                    evidence.component_bounds.x,
+                    evidence.component_bounds.y,
+                    evidence.component_bounds.w,
+                    evidence.component_bounds.h,
+                    evidence.layout_changed ? 1 : 0);
     }
 
     [[nodiscard]] inline std::uint32_t hash_bytes(const std::byte* data, std::size_t len) noexcept {

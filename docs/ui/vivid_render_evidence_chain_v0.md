@@ -80,6 +80,12 @@ render_cache
 
 v0 先允许 demo 以 `invalidation=paint_only` 这类字段表达 intent。
 
+2026-05 addendum: `Examples/ui/vivid/support/vivid_evidence_support.hpp` now provides a demo-side `InvalidationEvidence` helper:
+
+```text
+invalidation=1 kind=<kind> dirty_scope=<scope> component_x=<x> component_y=<y> component_w=<w> component_h=<h> layout_changed=<0|1>
+```
+
 ### Dirty Evidence
 
 渲染后必须能回答：

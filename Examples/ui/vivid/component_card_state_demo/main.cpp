@@ -160,11 +160,13 @@ int main() {
                 access.value(handles.output));
 
     run_log.case_begin("invalidation_intent");
-    std::printf(" kind=paint_only component_x=%d component_y=%d component_w=%d component_h=%d\n",
-                kCardBounds.x,
-                kCardBounds.y,
-                kCardBounds.w,
-                kCardBounds.h);
+    vivid::evidence::print_invalidation({
+        .kind = "paint_only",
+        .dirty_scope = "component",
+        .component_bounds = kCardBounds,
+        .layout_changed = false,
+    });
+    std::printf("\n");
 
     const auto updated = vivid::evidence::render_scene(scene, canvas, kCardBounds);
     if (!vivid::evidence::expect(updated.failed_cmds == 0, "updated render has no failed commands")) return 1;

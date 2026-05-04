@@ -160,11 +160,13 @@ int main() {
     }
 
     run_log.case_begin("invalidation");
-    std::printf(" kind=paint_only dirty_expected=component component_x=%d component_y=%d component_w=%d component_h=%d layout_changed=0\n",
-                kComponentBounds.x,
-                kComponentBounds.y,
-                kComponentBounds.w,
-                kComponentBounds.h);
+    vivid::evidence::print_invalidation({
+        .kind = "paint_only",
+        .dirty_scope = "component",
+        .component_bounds = kComponentBounds,
+        .layout_changed = false,
+    });
+    std::printf("\n");
 
     const auto changed = vivid::evidence::render_scene(scene, canvas, kComponentBounds);
     if (!vivid::evidence::expect(changed.failed_cmds == 0, "changed render has no failed commands")) return 1;

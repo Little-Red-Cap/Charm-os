@@ -222,7 +222,8 @@
     standing/regressed cases、machine ingress facets、ledger/provenance hints 与 failure prompt；
     它不为 runtime session 另开 schema 分支
   - `scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1` 会守住
-    `runtime_session` tab 到 opener projection 的最短链路
+    `runtime_session` tab 到 opener projection 的最短链路，并派生 collapsed session
+    样例验证 regressed cases、missing ingress 与 failure-domain prompt 不会丢失
 
 - `system_compiler.front_page_entry_opening_flow.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_v0.md`、

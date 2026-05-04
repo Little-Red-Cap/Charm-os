@@ -172,6 +172,97 @@ function Select-RuntimeSessionPrimaryLanding {
     return $summaryPath
 }
 
+function New-CollapsedRuntimeSessionLanding {
+    param(
+        [string]$SourceLandingSummaryPath,
+        [string]$OutputDirectory
+    )
+
+    Ensure-Directory -Path $OutputDirectory
+
+    $sourceLanding = Load-JsonObject -Path $SourceLandingSummaryPath
+    $runtimeSessionTab = @($sourceLanding.landing_tabs) |
+        Where-Object { [string]$_.tab_id -eq "runtime_session" } |
+        Select-Object -First 1
+    $runtimeSessionQuery = @($sourceLanding.query_hints.tab_queries) |
+        Where-Object { [string]$_.tab_id -eq "runtime_session" } |
+        Select-Object -First 1
+    Assert-Condition `
+        -Condition ($runtimeSessionTab -is [System.Management.Automation.PSCustomObject] -or $runtimeSessionTab -is [hashtable]) `
+        -Message "runtime_session landing tab not found for collapsed sample"
+    Assert-Condition `
+        -Condition ($runtimeSessionQuery -is [System.Management.Automation.PSCustomObject] -or $runtimeSessionQuery -is [hashtable]) `
+        -Message "runtime_session query hint not found for collapsed sample"
+
+    $sourceSessionPath = Resolve-FullPath -Path ([string]$runtimeSessionTab.entry.summary_path)
+    $collapsedSessionPath = Join-Path $OutputDirectory "kernel-runtime-session.collapsed.summary.json"
+    $collapsedReportPath = Join-Path $OutputDirectory "kernel-runtime-session.collapsed.report.md"
+    $collapsedCheckPath = Join-Path $OutputDirectory "kernel-runtime-session.collapsed.check.txt"
+    $collapsedLandingPath = Join-Path $OutputDirectory "front-page.entry-landing.summary.json"
+
+    $session = Load-JsonObject -Path $sourceSessionPath
+    $session.session_id = "minimal_kernel_runtime.armv7a_qemu.debug.collapsed"
+    $session.semantic_witness.status = "standing"
+    $session.machine_witness.status = "degraded"
+    $session.machine_witness.timer_ingress = $false
+    $session.machine_witness.runtime_loop = $false
+    $session.machine_witness.standing_cases = @(
+        "runtime_trap",
+        "runtime_thread",
+        "task_syscall"
+    )
+    $session.machine_witness.regressed_cases = @(
+        "runtime_live",
+        "handoff_live"
+    )
+    $session.runtime.tick = $false
+    $session.runtime.handoff_continuity = $false
+    $session.ledger.event_count = 7
+    $session.verdict.session_status = "collapsed"
+    $session.verdict.failure_domain = "runtime"
+    $session.failures = @(
+        [ordered]@{
+            code = "handoff_continuity_broken"
+            domain = "runtime"
+            layer = "minimal_kernel"
+            focus = @("handoff", "runtime_loop")
+            required = $true
+            phase = "handoff_live"
+            message = "handoff continuity did not land in the managed runtime loop"
+        }
+    )
+    $session.artifact_paths.summary = $collapsedSessionPath
+    $session.artifact_paths.report = $collapsedReportPath
+    $session.artifact_paths.check = $collapsedCheckPath
+
+    Write-JsonObject -Path $collapsedSessionPath -Value $session
+    Set-Content -LiteralPath $collapsedReportPath -Value "# Collapsed Runtime Session`n" -Encoding utf8
+    Set-Content -LiteralPath $collapsedCheckPath -Value "collapsed_runtime_session: true`n" -Encoding utf8
+
+    $landing = Load-JsonObject -Path $SourceLandingSummaryPath
+    $runtimeSessionTab.entry.summary_path = $collapsedSessionPath
+    $runtimeSessionTab.entry.report_markdown_path = $collapsedReportPath
+    $runtimeSessionTab.entry.check_text_path = $collapsedCheckPath
+    $runtimeSessionTab.entry.label = "collapsed kernel runtime session"
+    $landing.primary_landing = $runtimeSessionTab
+    $landing.query_hints.primary_query = $runtimeSessionQuery
+    $landing.artifact_context.output_root = $OutputDirectory
+    $landing.artifact_context.landing_summary_path = $collapsedLandingPath
+    $landing.artifact_context.report_markdown_path = Join-Path $OutputDirectory "front-page.entry-landing.report.md"
+    $landing.artifact_context.check_text_path = Join-Path $OutputDirectory "front-page.entry-landing.check.txt"
+    $landing.front_page.summary_path = $collapsedLandingPath
+    $landing.front_page.report_markdown_path = $landing.artifact_context.report_markdown_path
+    $landing.front_page.check_text_path = $landing.artifact_context.check_text_path
+    $landing.landing_status.primary_tab_id = "runtime_session"
+    $landing.landing_status.primary_summary_schema = [string]$runtimeSessionTab.entry.summary_schema
+    $landing.landing_status.primary_summary_kind = [string]$runtimeSessionTab.entry.summary_kind
+
+    Set-Content -LiteralPath $landing.artifact_context.report_markdown_path -Value "# Collapsed Runtime Session Landing`n" -Encoding utf8
+    Set-Content -LiteralPath $landing.artifact_context.check_text_path -Value "collapsed_runtime_session_landing: true`n" -Encoding utf8
+    Write-JsonObject -Path $collapsedLandingPath -Value $landing
+    return $collapsedLandingPath
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $sampleSummaryPath = Resolve-FullPath -Path $SampleSummary
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
@@ -311,8 +402,49 @@ try {
         -Condition (($projectionQuestionLines | Where-Object { $_ -like "*runtime*" -or $_ -like "*session*" } | Select-Object -First 1) -ne $null) `
         -Message "expected runtime session projection question lines"
 
+    $collapsedLandingPath = New-CollapsedRuntimeSessionLanding `
+        -SourceLandingSummaryPath $landingSummaryPath `
+        -OutputDirectory (Join-Path $outputRootPath "collapsed-runtime-session")
+    $collapsedOpenerOutputRoot = Join-Path $outputRootPath "collapsed-opener"
+    Invoke-ExternalTool `
+        -Executable $resolvedPythonExe `
+        -ArgumentList @($openerExportScript, "--landing", $collapsedLandingPath, "--output-root", $collapsedOpenerOutputRoot) `
+        -FailureMessage "front page entry opener collapsed runtime session sample export failed"
+
+    $collapsedOpenerSummaryPath = Join-Path $collapsedOpenerOutputRoot "front-page.entry-opener.summary.json"
+    Invoke-ExternalTool `
+        -Executable $resolvedPythonExe `
+        -ArgumentList @($openerValidateScript, "--summary", $collapsedOpenerSummaryPath) `
+        -FailureMessage "front page entry opener collapsed runtime session sample validation failed"
+
+    $collapsedOpenerSummary = Load-JsonObject -Path $collapsedOpenerSummaryPath
+    $collapsedSummaryLines = @($collapsedOpenerSummary.opened_projection.summary_lines) | ForEach-Object { [string]$_ }
+    $collapsedQuestionLines = @($collapsedOpenerSummary.opened_projection.question_lines) | ForEach-Object { [string]$_ }
+    Assert-Condition `
+        -Condition ([string]$collapsedOpenerSummary.opened_projection.projection_kind -eq "kernel_runtime_session_overview") `
+        -Message ("expected collapsed projection kind kernel_runtime_session_overview but got '{0}'" -f $collapsedOpenerSummary.opened_projection.projection_kind)
+    Assert-Condition `
+        -Condition (($collapsedSummaryLines | Where-Object { $_ -like "machine_ingress enabled=*missing=*timer_ingress*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected collapsed projection missing timer ingress summary line"
+    Assert-Condition `
+        -Condition (($collapsedSummaryLines | Where-Object { $_ -like "regressed_cases=*runtime_live*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected collapsed projection regressed runtime_live summary line"
+    Assert-Condition `
+        -Condition (($collapsedSummaryLines | Where-Object { $_ -like "failure code=handoff_continuity_broken*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected collapsed projection failure detail summary line"
+    Assert-Condition `
+        -Condition (($collapsedQuestionLines | Where-Object { $_ -like "*regressed runtime case*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected collapsed projection regressed case question"
+    Assert-Condition `
+        -Condition (($collapsedQuestionLines | Where-Object { $_ -like "*missing machine ingress facet*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected collapsed projection missing ingress question"
+    Assert-Condition `
+        -Condition (($collapsedQuestionLines | Where-Object { $_ -like "*failure_domain *runtime*" } | Select-Object -First 1) -ne $null) `
+        -Message "expected collapsed projection failure domain question"
+
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENER-SAMPLE-SMOKE] landing={0}" -f $runtimeSessionLandingPath)
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENER-SAMPLE-SMOKE] opener={0}" -f $openerSummaryPath)
+    Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENER-SAMPLE-SMOKE] collapsed_opener={0}" -f $collapsedOpenerSummaryPath)
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENER-SAMPLE-SMOKE] tab={0}" -f $openerSummary.open_action.selected_tab_id)
     Write-Host ("[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENER-SAMPLE-SMOKE] projection={0}/{1}" -f $openerSummary.opened_projection.status, $openerSummary.opened_projection.projection_kind)
     Write-Host "ok=1"

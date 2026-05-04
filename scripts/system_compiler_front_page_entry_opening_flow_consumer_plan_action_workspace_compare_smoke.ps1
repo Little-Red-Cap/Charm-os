@@ -220,7 +220,7 @@ try {
     $baselineActionWorkspaceRoot = Join-Path $actionWorkspaceRootPath "cold-default"
     $baselineActionPath = Join-Path $baselineActionWorkspaceRoot "action\front-page.entry-opening-flow.consumer.plan-action.summary.json"
     $baselinePlanWorkspaceRoot = Join-Path $baselineActionWorkspaceRoot "plan-ws"
-    if (Test-Path -LiteralPath $baselineActionPath) {
+    if ((-not $Clean) -and (Test-Path -LiteralPath $baselineActionPath)) {
         Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-COMPARE-SMOKE] bootstrap=reuse-existing"
     } else {
         Invoke-ExternalTool `

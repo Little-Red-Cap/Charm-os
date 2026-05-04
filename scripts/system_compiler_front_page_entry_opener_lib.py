@@ -206,6 +206,46 @@ def clone_query_hint(query: dict[str, Any]) -> OrderedDict[str, Any]:
     )
 
 
+def clone_opening_reason(reason: dict[str, Any]) -> OrderedDict[str, Any]:
+    kind = choose_text(reason.get("kind")) or "route"
+    summary = choose_text(reason.get("summary"))
+    if not summary:
+        summary = "Route mode is recommended because no higher-level explain capability is available yet."
+    return OrderedDict(
+        [
+            ("kind", kind),
+            ("summary", summary),
+            ("source_summary_path", normalize_optional_path(reason.get("source_summary_path"))),
+            ("drift_changed", bool(reason.get("drift_changed"))),
+            ("drift_verdict", choose_text(reason.get("drift_verdict"))),
+        ]
+    )
+
+
+def format_opening_reason_line(reason: dict[str, Any]) -> str:
+    kind = choose_text(reason.get("kind"))
+    if not kind:
+        return ""
+    return "opening_reason kind={0} drift_changed={1} verdict={2}".format(
+        kind,
+        "yes" if bool(reason.get("drift_changed")) else "no",
+        choose_text(reason.get("drift_verdict")) or "-",
+    )
+
+
+def attach_opening_reason_projection_line(
+    open_action: dict[str, Any],
+    projection: OrderedDict[str, Any],
+) -> OrderedDict[str, Any]:
+    opening_reason_line = format_opening_reason_line(get_mapping(open_action.get("opening_reason")))
+    if not opening_reason_line:
+        return projection
+    projection["summary_lines"] = ordered_unique(
+        [opening_reason_line] + [choose_text(item) for item in get_list(projection.get("summary_lines"))]
+    )
+    return projection
+
+
 def build_source_landing(
     landing_summary_path: Path,
     landing_summary: dict[str, Any],
@@ -229,6 +269,7 @@ def build_source_landing(
             ("landing_result", choose_text(landing_status.get("landing_result"))),
             ("recommended_entry_mode", choose_text(landing_status.get("recommended_entry_mode"))),
             ("entry_tier", choose_text(landing_status.get("entry_tier"))),
+            ("opening_reason", clone_opening_reason(get_mapping(landing_status.get("opening_reason")))),
             ("primary_tab_id", choose_text(landing_status.get("primary_tab_id"))),
             (
                 "available_tab_ids",
@@ -346,6 +387,7 @@ def build_open_action(
 ) -> OrderedDict[str, Any]:
     primary_entry = get_mapping(source_landing.get("primary_entry"))
     primary_query = get_mapping(source_landing.get("primary_query"))
+    opening_reason = clone_opening_reason(get_mapping(source_landing.get("opening_reason")))
     blockers: list[str] = []
     selected_tab_id = choose_text(primary_entry.get("tab_id"))
     query_kind = choose_text(primary_query.get("query_kind"))
@@ -382,6 +424,7 @@ def build_open_action(
                 "followup_query_kinds",
                 ordered_unique([choose_text(item) for item in get_list(primary_query.get("followup_query_kinds"))]),
             ),
+            ("opening_reason", opening_reason),
             ("target_summary_schema", choose_text(primary_entry.get("summary_schema"))),
             ("target_summary_kind", choose_text(primary_entry.get("summary_kind"))),
             ("target_summary_path", target_summary_path),
@@ -883,7 +926,7 @@ def build_runtime_evidence_projection(summary_path: Path, summary: dict[str, Any
     )
 
 
-def build_opened_projection(open_action: dict[str, Any]) -> OrderedDict[str, Any]:
+def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[str, Any]:
     target_summary_path = choose_text(open_action.get("target_summary_path"))
     target_summary_schema = choose_text(open_action.get("target_summary_schema"))
     target_summary_kind = choose_text(open_action.get("target_summary_kind"))
@@ -958,6 +1001,13 @@ def build_opened_projection(open_action: dict[str, Any]) -> OrderedDict[str, Any
         evidence_paths=[],
         compare_paths=[],
         blockers=[f"unsupported opener projection target schema: {actual_schema or '<missing>'}"],
+    )
+
+
+def build_opened_projection(open_action: dict[str, Any]) -> OrderedDict[str, Any]:
+    return attach_opening_reason_projection_line(
+        open_action,
+        build_target_opened_projection(open_action),
     )
 
 

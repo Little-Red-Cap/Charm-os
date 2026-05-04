@@ -123,6 +123,28 @@ function Test-AllPathsExist {
     return $true
 }
 
+function Assert-OpeningReason {
+    param(
+        $OpenerSummary,
+        [string]$CaseName
+    )
+
+    Assert-Condition `
+        -Condition ($OpenerSummary.source_landing.opening_reason -is [System.Management.Automation.PSCustomObject] -or $OpenerSummary.source_landing.opening_reason -is [hashtable]) `
+        -Message ("case '{0}' source_landing must carry opening_reason" -f $CaseName)
+    Assert-Condition `
+        -Condition (($OpenerSummary.open_action.opening_reason | ConvertTo-Json -Depth 8 -Compress) -eq ($OpenerSummary.source_landing.opening_reason | ConvertTo-Json -Depth 8 -Compress)) `
+        -Message ("case '{0}' expected open_action opening_reason to pass through source_landing opening_reason" -f $CaseName)
+
+    $openingReasonLines = @(
+        @($OpenerSummary.opened_projection.summary_lines) |
+            Where-Object { ([string]$_).StartsWith("opening_reason ", [System.StringComparison]::Ordinal) }
+    )
+    Assert-Condition `
+        -Condition ($openingReasonLines.Count -gt 0) `
+        -Message ("case '{0}' expected opened projection to expose opening_reason summary line" -f $CaseName)
+}
+
 function Write-JsonFile {
     param(
         [string]$Path,
@@ -522,6 +544,7 @@ try {
         Assert-Condition `
             -Condition ([string]$openerSummary.opened_projection.projection_kind -eq [string]$case.ExpectedProjectionKind) `
             -Message ("case '{0}' expected projection kind '{1}' but got '{2}'" -f $case.Name, $case.ExpectedProjectionKind, $openerSummary.opened_projection.projection_kind)
+        Assert-OpeningReason -OpenerSummary $openerSummary -CaseName $case.Name
         Assert-Condition `
             -Condition (@($openerSummary.opened_projection.summary_lines).Count -gt 0) `
             -Message ("case '{0}' opened projection must expose summary lines" -f $case.Name)

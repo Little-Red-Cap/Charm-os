@@ -94,6 +94,12 @@ struct SemanticIntentResolution {
 };
 
 export
+enum class SemanticActionRequestStatus : std::uint8_t {
+    Executed = 0,
+    Rejected,
+};
+
+export
 enum class SemanticFocusQueryStatus : std::uint8_t {
     Resolved = 0,
     InvalidRoot,
@@ -173,6 +179,25 @@ struct SemanticFocusRequest {
     bool focus_changed{false};
     bool emitted_focus_out{false};
     bool emitted_focus_in{false};
+};
+
+export
+struct SemanticActionRequest {
+    SemanticIntentResolution resolution{};
+    SemanticFocusRequest focus_request{};
+    WidgetHandle target{};
+    WidgetHandle before_focus{};
+    WidgetHandle after_focus{};
+    std::size_t events_before{0};
+    std::size_t events_after{0};
+    SemanticActionRequestStatus status{SemanticActionRequestStatus::Rejected};
+    bool resolved{false};
+    bool focus_ready{false};
+    bool focus_changed{false};
+    bool emitted_focus_out{false};
+    bool emitted_focus_in{false};
+    bool emitted_click{false};
+    bool executed{false};
 };
 
 export
@@ -296,6 +321,17 @@ inline const char* semantic_intent_status_name(SemanticIntentStatus status) noex
         return "unsupported_action";
     case SemanticIntentStatus::Disabled:
         return "disabled";
+    }
+    return "unknown";
+}
+
+export
+inline const char* semantic_action_request_status_name(SemanticActionRequestStatus status) noexcept {
+    switch (status) {
+    case SemanticActionRequestStatus::Executed:
+        return "executed";
+    case SemanticActionRequestStatus::Rejected:
+        return "rejected";
     }
     return "unknown";
 }

@@ -505,6 +505,73 @@ public:
         return out;
     }
 
+    SemanticActionRequest request_semantic_action(WidgetHandle root,
+                                                  const char* id,
+                                                  SemanticAction action) noexcept {
+        SemanticActionRequest out{};
+        input_events_.clear();
+        input_actions_.clear();
+        out.before_focus = input_.focused;
+        out.events_before = input_events_.count;
+        out.resolution = resolve_semantic_intent(root, id, action);
+        out.target = out.resolution.handle;
+        out.resolved = out.resolution.status == SemanticIntentStatus::Resolved
+            && out.resolution.executable;
+
+        if (!out.resolved) {
+            out.after_focus = input_.focused;
+            out.events_after = input_events_.count;
+            out.status = SemanticActionRequestStatus::Rejected;
+            return out;
+        }
+
+        out.focus_request = request_semantic_focus(root, id);
+        out.before_focus = out.focus_request.before_focus;
+        out.after_focus = out.focus_request.after_focus;
+        out.events_before = out.focus_request.events_before;
+        out.events_after = out.focus_request.events_after;
+        out.focus_changed = out.focus_request.focus_changed;
+        out.emitted_focus_out = out.focus_request.emitted_focus_out;
+        out.emitted_focus_in = out.focus_request.emitted_focus_in;
+        out.focus_ready = out.focus_request.status == SemanticFocusRequestStatus::Committed
+            || out.focus_request.status == SemanticFocusRequestStatus::AlreadyFocused;
+
+        if (!out.focus_ready) {
+            out.status = SemanticActionRequestStatus::Rejected;
+            return out;
+        }
+
+        if (action == SemanticAction::Activate) {
+            const Rect r = world_rect(out.target);
+            const int x = r.x + r.w / 2;
+            const int y = r.y + r.h / 2;
+            input_emit_event(out.target, Event::mouse(Event::Type::Click, x, y, 1, input_.last_ms));
+            input_handle_click(out.target, x, y);
+            if (input_actions_.overflowed) {
+                input_handle_action_overflow();
+                out.after_focus = input_.focused;
+                out.events_after = input_events_.count;
+                out.status = SemanticActionRequestStatus::Rejected;
+                return out;
+            }
+            input_apply_actions();
+            for (std::size_t index = out.events_after; index < input_events_.count; ++index) {
+                const auto& event = input_events_.events[index];
+                if (event.target == out.target && event.event.type == Event::Type::Click) {
+                    out.emitted_click = true;
+                }
+            }
+        }
+
+        out.after_focus = input_.focused;
+        out.events_after = input_events_.count;
+        out.executed = out.emitted_click;
+        out.status = out.executed
+            ? SemanticActionRequestStatus::Executed
+            : SemanticActionRequestStatus::Rejected;
+        return out;
+    }
+
     SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept {
         SemanticFocusQuery out{};
         out.root = root;

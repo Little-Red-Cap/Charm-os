@@ -221,6 +221,19 @@ semantic tree root
 
 The demo guards resolved lookup, no input/callback side effects, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid root, and missing request id.
 
+## 2026-05 Addendum: Semantic Action Request
+
+`Examples/ui/vivid/semantic_action_request_demo` verifies Semantic Action Request v0. It is the first semantic action path that crosses from intent resolution into controlled execution:
+
+```text
+SemanticIntentResolution
+  -> SemanticFocusRequest
+  -> Click event evidence
+  -> normal widget click behavior
+```
+
+The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection, active-scope rejection through focus admission, ambiguous duplicate ids, and missing request ids.
+
 ## 2026-05 Addendum: Semantic Focus Query
 
 `Examples/ui/vivid/semantic_focus_query_demo` verifies Semantic Focus Query v0. It keeps focus addressability separate from focus transfer:

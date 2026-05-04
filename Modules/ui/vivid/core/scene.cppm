@@ -31,6 +31,8 @@ import charm.gfx.draw_cmd;
 export using ::ScrollBarOrientation;
 export using ::SemanticAction;
 export using ::SemanticActionMask;
+export using ::SemanticActionRequest;
+export using ::SemanticActionRequestStatus;
 export using ::SemanticActionSnapshot;
 export using ::SemanticFocusAdmission;
 export using ::SemanticFocusAdmissionStatus;
@@ -46,6 +48,7 @@ export using ::SemanticTreeNode;
 export using ::SemanticTreeSnapshot;
 export using ::semantic_action_mask;
 export using ::semantic_action_present;
+export using ::semantic_action_request_status_name;
 export using ::semantic_default_role_for_kind;
 export using ::semantic_default_actions_for_role;
 export using ::semantic_focus_admission_status_name;
@@ -69,6 +72,8 @@ export namespace ui::scene {
     using ScrollBarOrientation = ::ScrollBarOrientation;
     using SemanticAction = ::SemanticAction;
     using SemanticActionMask = ::SemanticActionMask;
+    using SemanticActionRequest = ::SemanticActionRequest;
+    using SemanticActionRequestStatus = ::SemanticActionRequestStatus;
     using SemanticActionSnapshot = ::SemanticActionSnapshot;
     using SemanticFocusAdmission = ::SemanticFocusAdmission;
     using SemanticFocusAdmissionStatus = ::SemanticFocusAdmissionStatus;
@@ -84,6 +89,7 @@ export namespace ui::scene {
     using SemanticTreeSnapshot = ::SemanticTreeSnapshot;
     using ::semantic_action_mask;
     using ::semantic_action_present;
+    using ::semantic_action_request_status_name;
     using ::semantic_default_actions_for_role;
     using ::semantic_focus_admission_status_name;
     using ::semantic_focus_query_status_name;
@@ -415,6 +421,12 @@ export namespace ui::scene {
             const char* id,
             SemanticAction action) const noexcept {
             return kernel_->resolve_semantic_intent(root, id, action);
+        }
+        SemanticActionRequest request_semantic_action(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) noexcept {
+            return kernel_->request_semantic_action(root, id, action);
         }
         SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept {
             return kernel_->query_semantic_focus(root, id);
@@ -1194,6 +1206,12 @@ export namespace ui::scene {
             const char* id,
             SemanticAction action) const noexcept {
             return kernel_.resolve_semantic_intent(root, id, action);
+        }
+        SemanticActionRequest request_semantic_action(
+            WidgetHandle root,
+            const char* id,
+            SemanticAction action) noexcept {
+            return kernel_.request_semantic_action(root, id, action);
         }
         SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept {
             return kernel_.query_semantic_focus(root, id);

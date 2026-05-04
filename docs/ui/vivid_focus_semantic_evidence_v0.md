@@ -252,6 +252,15 @@ stdout final contract:
 [sint] run=semantic_intent_demo phase=end result=ok cases=7
 ```
 
+`Examples/ui/vivid/semantic_action_request_demo` is the first Semantic Action Request v0 runtime evidence.
+It verifies that semantic intent resolution remains side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, and rejects scope-forbidden targets through focus admission.
+
+stdout final contract:
+
+```text
+[sar] run=semantic_action_request_demo phase=end result=ok cases=6
+```
+
 `Examples/ui/vivid/semantic_focus_query_demo` is the first Semantic Focus Query v0 runtime evidence.
 It verifies focus-addressable semantic ids, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, and invalid request statuses.
 

@@ -430,6 +430,23 @@ Current evidence:
 
 - `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, and no input side effects during resolution.
 
+## 2026-05 Addendum: Semantic Action Request
+
+Vivid can now execute a semantic action request through the runtime input law instead of making semantic lookup a hidden side-effect:
+
+```text
+resolve_semantic_intent(root, id, action)
+  -> request_semantic_focus(root, id)
+  -> emit Click
+  -> apply normal click behavior
+```
+
+`SemanticActionRequest` is the controlled execution boundary after semantic intent resolution. Successful request must prove both semantic execution evidence (`executed`, `emitted_click`) and focus preparation evidence (`SemanticFocusRequest`). Failed resolution or failed focus admission must reject before action execution.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_action_request_demo` proves side-effect-free resolution, controlled activate execution, normal click behavior reuse, already-focused execution, unsupported-action rejection, active-scope rejection through focus admission, duplicate-id ambiguity, and missing request ids.
+
 ## 2026-05 Addendum: Semantic Focus Query
 
 Vivid can now answer whether a semantic id is focus-addressable without moving focus:

@@ -235,6 +235,21 @@ SemanticIntentResolution
 
 The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, ambiguous duplicate ids, missing request ids, and `SemanticActionRequestLedger` / `reject_reason` evidence that names the failed boundary. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
 
+## 2026-05 Addendum: Intent-to-Artifact Evidence
+
+`Examples/ui/vivid/intent_artifact_demo` connects semantic action request evidence to component render artifact evidence:
+
+```text
+SemanticActionRequest
+  -> SemanticActionRequestLedger
+  -> checked state delta
+  -> paint_only invalidation intent
+  -> dirty / DrawCmd evidence
+  -> render artifact hash
+```
+
+The demo guards a committed `settings.wifi.toggle` semantic activate request, normal checkbox click behavior, bounded component dirty evidence, changed DrawCmd / pixel artifact summaries, and a disabled-target rejection path that leaves state and artifact unchanged. The stage law is summarized in `vivid_intent_to_artifact_evidence_v0.md`.
+
 ## 2026-05 Addendum: Semantic Action Admission
 
 `Examples/ui/vivid/semantic_action_admission_demo` verifies Semantic Action Admission v0. It keeps action execution permission separate from actual input execution:

@@ -49,16 +49,17 @@
 3. [`vivid_replay_workflow.md`](vivid_replay_workflow.md)
 4. [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)
 5. [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)
-6. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
-7. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
-8. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
-9. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
-10. [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)
-11. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
-12. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
-13. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
-14. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
-15. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+6. [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)
+7. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
+8. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
+9. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
+10. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
+11. [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)
+12. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
+13. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
+14. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
+15. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
+16. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
 Semantic Tree Artifact v0 runtime sample:
 
@@ -69,6 +70,7 @@ Semantic Tree Artifact v0 runtime sample:
 - `Examples/ui/vivid/semantic_focus_query_demo`: verifies Semantic Focus Query v0, including focus-addressable ids, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate id, and invalid request statuses; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=7`.
 - `Examples/ui/vivid/semantic_focus_admission_demo`: verifies Semantic Focus Admission v0, including admitted transfer plans, already-focused no-op plans, no focus-transfer side effects, non-focusable and disabled rejection, active-scope rejection, ambiguous duplicate id, and invalid request statuses; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=7`.
 - `Examples/ui/vivid/semantic_focus_request_demo`: verifies Semantic Focus Request v0, including controlled focus transfer execution, `FocusOut/FocusIn` event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled rejection, ambiguous duplicate id, and invalid request statuses; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=7`.
+- `Examples/ui/vivid/intent_artifact_demo`: verifies Intent-to-Artifact Evidence v0, including semantic action request ledger, checked state delta, paint-only invalidation intent, bounded dirty evidence, changed render artifact, and disabled rejection with no state/artifact mutation; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=8`.
 
 最小验证示例：
 

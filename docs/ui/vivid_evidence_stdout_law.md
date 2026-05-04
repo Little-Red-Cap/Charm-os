@@ -26,6 +26,7 @@
 - `Examples/ui/vivid/semantic_intent_demo`
 - `Examples/ui/vivid/semantic_action_admission_demo`
 - `Examples/ui/vivid/semantic_action_request_demo`
+- `Examples/ui/vivid/intent_artifact_demo`
 - `Examples/ui/vivid/semantic_focus_query_demo`
 - `Examples/ui/vivid/semantic_focus_admission_demo`
 - `Examples/ui/vivid/semantic_focus_request_demo`
@@ -100,6 +101,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `semantic_intent_demo` | `sint` | `[sint] run=semantic_intent_demo phase=end result=ok cases=7` |
 | `semantic_action_admission_demo` | `saa` | `[saa] run=semantic_action_admission_demo phase=end result=ok cases=7` |
 | `semantic_action_request_demo` | `sar` | `[sar] run=semantic_action_request_demo phase=end result=ok cases=6` |
+| `intent_artifact_demo` | `ia` | `[ia] run=intent_artifact_demo phase=end result=ok cases=8` |
 | `semantic_focus_query_demo` | `sfq` | `[sfq] run=semantic_focus_query_demo phase=end result=ok cases=7` |
 | `semantic_focus_admission_demo` | `sfa` | `[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=7` |
 | `semantic_focus_request_demo` | `sfr` | `[sfr] run=semantic_focus_request_demo phase=end result=ok cases=7` |

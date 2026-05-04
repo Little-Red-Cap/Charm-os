@@ -179,6 +179,20 @@ namespace vivid::evidence {
         return out;
     }
 
+    [[nodiscard]] inline std::size_t count_click_events_since(
+        ::ui::scene::SceneAccess& access,
+        WidgetHandle target,
+        std::size_t begin) noexcept {
+        std::size_t count = 0;
+        for (std::size_t index = begin; index < access.input_event_count(); ++index) {
+            const auto& event = access.input_event(index);
+            if (same_handle(event.target, target) && event.event.type == Event::Type::Click) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
     [[nodiscard]] inline std::uint32_t hash_mix(std::uint32_t hash, std::uint32_t value) noexcept {
         hash ^= value;
         hash *= 16777619u;

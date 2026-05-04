@@ -31,19 +31,6 @@ namespace {
     };
 
 
-    [[nodiscard]] std::size_t click_events_since(::ui::scene::SceneAccess& access,
-                                                 WidgetHandle target,
-                                                 std::size_t begin) noexcept {
-        std::size_t count = 0;
-        for (std::size_t index = begin; index < access.input_event_count(); ++index) {
-            const auto& event = access.input_event(index);
-            if (vivid::evidence::same_handle(event.target, target) && event.event.type == Event::Type::Click) {
-                ++count;
-            }
-        }
-        return count;
-    }
-
 }
 
 int main() {
@@ -142,7 +129,7 @@ int main() {
     vivid::evidence::print_action_request_ledger(already);
     std::printf(" checked=%d clicks=%zu\n",
                 access.checked(handles.toggle) ? 1 : 0,
-                click_events_since(access, handles.toggle, already.events_before));
+                vivid::evidence::count_click_events_since(access, handles.toggle, already.events_before));
     if (!vivid::evidence::expect(already.status == SemanticActionRequestStatus::Executed
                                  && already.reject_reason == SemanticActionRequestRejectReason::None
                                  && already.focus_request.status == SemanticFocusRequestStatus::AlreadyFocused

@@ -111,26 +111,14 @@ int main() {
                                       1,
                                       20));
     auto transfer_access = scene.access();
-    int focus_out = 0;
-    int focus_in = 0;
-    int mouse_down = 0;
-    bool focus_out_source = false;
-    bool focus_in_destination = false;
-    for (std::size_t index = 0; index < transfer_access.input_event_count(); ++index) {
-        const auto& event = transfer_access.input_event(index);
-        if (event.event.type == Event::Type::MouseDown) {
-            ++mouse_down;
-        } else if (event.event.type == Event::Type::FocusOut) {
-            ++focus_out;
-            focus_out_source = focus_out_source || vivid::evidence::same_handle(event.target, source);
-        } else if (event.event.type == Event::Type::FocusIn) {
-            ++focus_in;
-            focus_in_destination = focus_in_destination || vivid::evidence::same_handle(event.target, destination);
-        }
-    }
-    if (!vivid::evidence::expect(mouse_down == 1, "transfer emits destination mouse down")) return 1;
-    if (!vivid::evidence::expect(focus_out == 1 && focus_out_source, "transfer emits source FocusOut")) return 1;
-    if (!vivid::evidence::expect(focus_in == 1 && focus_in_destination, "transfer emits destination FocusIn")) return 1;
+    const auto transfer_trace =
+        vivid::evidence::collect_pointer_focus_trace(transfer_access, destination, source, destination);
+    if (!vivid::evidence::expect(transfer_trace.mouse_down == 1 && transfer_trace.mouse_down_expected,
+                                 "transfer emits destination mouse down")) return 1;
+    if (!vivid::evidence::expect(transfer_trace.focus_out == 1 && transfer_trace.focus_out_expected,
+                                 "transfer emits source FocusOut")) return 1;
+    if (!vivid::evidence::expect(transfer_trace.focus_in == 1 && transfer_trace.focus_in_expected,
+                                 "transfer emits destination FocusIn")) return 1;
     if (!vivid::evidence::expect(vivid::evidence::same_handle(transfer_access.input_focused(), destination),
                                  "destination becomes focused during transfer")) {
         return 1;
@@ -138,11 +126,11 @@ int main() {
 
     run_log.case_begin("transfer_event_trace");
     std::printf(" source=mouse_down old=source new=destination mouse_down=%d focus_out=%d focus_in=%d focus_out_source=%d focus_in_destination=%d\n",
-                mouse_down,
-                focus_out,
-                focus_in,
-                focus_out_source ? 1 : 0,
-                focus_in_destination ? 1 : 0);
+                transfer_trace.mouse_down,
+                transfer_trace.focus_out,
+                transfer_trace.focus_in,
+                transfer_trace.focus_out_expected ? 1 : 0,
+                transfer_trace.focus_in_expected ? 1 : 0);
 
     scene.dispatch_event(Event::mouse(Event::Type::MouseUp,
                                       kDestinationBounds.x + kDestinationBounds.w / 2,

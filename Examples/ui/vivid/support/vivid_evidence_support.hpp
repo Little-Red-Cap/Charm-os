@@ -67,6 +67,15 @@ namespace vivid::evidence {
         bool focus_in_expected{false};
     };
 
+    struct PointerFocusTrace {
+        int mouse_down{0};
+        int focus_out{0};
+        int focus_in{0};
+        bool mouse_down_expected{false};
+        bool focus_out_expected{false};
+        bool focus_in_expected{false};
+    };
+
     class RunLog {
     public:
         constexpr RunLog(const char* tag, const char* run) noexcept
@@ -143,6 +152,28 @@ namespace vivid::evidence {
             } else if (event.event.type == Event::Type::FocusIn) {
                 ++out.focus_in;
                 out.focus_in_expected = out.focus_in_expected || same_handle(event.target, new_target);
+            }
+        }
+        return out;
+    }
+
+    [[nodiscard]] inline PointerFocusTrace collect_pointer_focus_trace(
+        ::ui::scene::SceneAccess& access,
+        WidgetHandle mouse_target,
+        WidgetHandle focus_out_target,
+        WidgetHandle focus_in_target) noexcept {
+        PointerFocusTrace out{};
+        for (std::size_t index = 0; index < access.input_event_count(); ++index) {
+            const auto& event = access.input_event(index);
+            if (event.event.type == Event::Type::MouseDown) {
+                ++out.mouse_down;
+                out.mouse_down_expected = out.mouse_down_expected || same_handle(event.target, mouse_target);
+            } else if (event.event.type == Event::Type::FocusOut) {
+                ++out.focus_out;
+                out.focus_out_expected = out.focus_out_expected || same_handle(event.target, focus_out_target);
+            } else if (event.event.type == Event::Type::FocusIn) {
+                ++out.focus_in;
+                out.focus_in_expected = out.focus_in_expected || same_handle(event.target, focus_in_target);
             }
         }
         return out;

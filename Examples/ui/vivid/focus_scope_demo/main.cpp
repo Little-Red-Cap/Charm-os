@@ -125,20 +125,11 @@ int main() {
 
     vivid::evidence::mouse_down_center(scene, kInsideABounds, 10);
     auto initial_access = scene.access();
-    int initial_mouse_down = 0;
-    int initial_focus_in = 0;
-    bool initial_focus_in_inside_a = false;
-    for (std::size_t index = 0; index < initial_access.input_event_count(); ++index) {
-        const auto& event = initial_access.input_event(index);
-        if (event.event.type == Event::Type::MouseDown && vivid::evidence::same_handle(event.target, handles.inside_a)) {
-            ++initial_mouse_down;
-        } else if (event.event.type == Event::Type::FocusIn) {
-            ++initial_focus_in;
-            initial_focus_in_inside_a = initial_focus_in_inside_a || vivid::evidence::same_handle(event.target, handles.inside_a);
-        }
-    }
-    if (!vivid::evidence::expect(initial_mouse_down == 1, "inside_a receives initial mouse down")) return 1;
-    if (!vivid::evidence::expect(initial_focus_in == 1 && initial_focus_in_inside_a,
+    const auto initial_trace =
+        vivid::evidence::collect_pointer_focus_trace(initial_access, handles.inside_a, {}, handles.inside_a);
+    if (!vivid::evidence::expect(initial_trace.mouse_down == 1 && initial_trace.mouse_down_expected,
+                                 "inside_a receives initial mouse down")) return 1;
+    if (!vivid::evidence::expect(initial_trace.focus_in == 1 && initial_trace.focus_in_expected,
                                  "inside_a receives initial FocusIn")) {
         return 1;
     }
@@ -156,8 +147,8 @@ int main() {
 
     run_log.case_begin("initial_focus");
     std::printf(" target=inside_a focus=1 mouse_down=%d focus_in=%d input_truth=inside_a dirty_count=%zu cmd_count=%zu cmd_hash=%u pixel_hash=%u\n",
-                initial_mouse_down,
-                initial_focus_in,
+                initial_trace.mouse_down,
+                initial_trace.focus_in,
                 initial.dirty_count,
                 initial.cmd_count,
                 initial.cmd_hash,
@@ -177,29 +168,15 @@ int main() {
 
     vivid::evidence::mouse_down_center(scene, kInsideBBounds, 20);
     auto inside_access = scene.access();
-    int inside_mouse_down = 0;
-    int inside_focus_out = 0;
-    int inside_focus_in = 0;
-    bool inside_focus_out_a = false;
-    bool inside_focus_in_b = false;
-    for (std::size_t index = 0; index < inside_access.input_event_count(); ++index) {
-        const auto& event = inside_access.input_event(index);
-        if (event.event.type == Event::Type::MouseDown && vivid::evidence::same_handle(event.target, handles.inside_b)) {
-            ++inside_mouse_down;
-        } else if (event.event.type == Event::Type::FocusOut) {
-            ++inside_focus_out;
-            inside_focus_out_a = inside_focus_out_a || vivid::evidence::same_handle(event.target, handles.inside_a);
-        } else if (event.event.type == Event::Type::FocusIn) {
-            ++inside_focus_in;
-            inside_focus_in_b = inside_focus_in_b || vivid::evidence::same_handle(event.target, handles.inside_b);
-        }
-    }
-    if (!vivid::evidence::expect(inside_mouse_down == 1, "inside_b receives mouse down")) return 1;
-    if (!vivid::evidence::expect(inside_focus_out == 1 && inside_focus_out_a,
+    const auto inside_trace =
+        vivid::evidence::collect_pointer_focus_trace(inside_access, handles.inside_b, handles.inside_a, handles.inside_b);
+    if (!vivid::evidence::expect(inside_trace.mouse_down == 1 && inside_trace.mouse_down_expected,
+                                 "inside_b receives mouse down")) return 1;
+    if (!vivid::evidence::expect(inside_trace.focus_out == 1 && inside_trace.focus_out_expected,
                                  "inside transfer emits FocusOut for inside_a")) {
         return 1;
     }
-    if (!vivid::evidence::expect(inside_focus_in == 1 && inside_focus_in_b,
+    if (!vivid::evidence::expect(inside_trace.focus_in == 1 && inside_trace.focus_in_expected,
                                  "inside transfer emits FocusIn for inside_b")) {
         return 1;
     }
@@ -211,11 +188,11 @@ int main() {
 
     run_log.case_begin("inside_transfer_dispatch");
     std::printf(" requested=inside_b mouse_down=%d focus_out=%d focus_in=%d focus_out_inside_a=%d focus_in_inside_b=%d input_truth=inside_b allowed=1\n",
-                inside_mouse_down,
-                inside_focus_out,
-                inside_focus_in,
-                inside_focus_out_a ? 1 : 0,
-                inside_focus_in_b ? 1 : 0);
+                inside_trace.mouse_down,
+                inside_trace.focus_out,
+                inside_trace.focus_in,
+                inside_trace.focus_out_expected ? 1 : 0,
+                inside_trace.focus_in_expected ? 1 : 0);
 
     const auto inside_artifact = vivid::evidence::render_scene(scene, canvas, kInsideBBounds);
     if (!vivid::evidence::expect(inside_artifact.failed_cmds == 0, "inside transfer render has no failed commands")) {
@@ -259,21 +236,11 @@ int main() {
 
     vivid::evidence::mouse_down_center(scene, kOutsideBounds, 30);
     auto outside_access = scene.access();
-    int outside_mouse_down = 0;
-    int outside_focus_out = 0;
-    int outside_focus_in = 0;
-    for (std::size_t index = 0; index < outside_access.input_event_count(); ++index) {
-        const auto& event = outside_access.input_event(index);
-        if (event.event.type == Event::Type::MouseDown && vivid::evidence::same_handle(event.target, handles.outside)) {
-            ++outside_mouse_down;
-        } else if (event.event.type == Event::Type::FocusOut) {
-            ++outside_focus_out;
-        } else if (event.event.type == Event::Type::FocusIn) {
-            ++outside_focus_in;
-        }
-    }
-    if (!vivid::evidence::expect(outside_mouse_down == 1, "outside still receives pointer event")) return 1;
-    if (!vivid::evidence::expect(outside_focus_out == 0 && outside_focus_in == 0,
+    const auto outside_trace =
+        vivid::evidence::collect_pointer_focus_trace(outside_access, handles.outside, {}, {});
+    if (!vivid::evidence::expect(outside_trace.mouse_down == 1 && outside_trace.mouse_down_expected,
+                                 "outside still receives pointer event")) return 1;
+    if (!vivid::evidence::expect(outside_trace.focus_out == 0 && outside_trace.focus_in == 0,
                                  "outside rejected request emits no focus transfer events")) {
         return 1;
     }
@@ -295,9 +262,9 @@ int main() {
 
     run_log.case_begin("outside_trap_dispatch");
     std::printf(" requested=outside mouse_down=%d focus_out=%d focus_in=%d input_truth=inside_b leaked=0 fallback=inside_b committed=1\n",
-                outside_mouse_down,
-                outside_focus_out,
-                outside_focus_in);
+                outside_trace.mouse_down,
+                outside_trace.focus_out,
+                outside_trace.focus_in);
 
     const auto trapped_inside = vivid::evidence::render_scene(scene, canvas, kInsideBBounds);
     if (!vivid::evidence::expect(trapped_inside.failed_cmds == 0, "trapped inside render has no failed commands")) {

@@ -34,33 +34,6 @@ namespace {
 
 
 
-    struct EventCounts {
-        int mouse_down{0};
-        int focus_out{0};
-        int focus_in{0};
-        bool focus_out_expected{false};
-        bool focus_in_expected{false};
-    };
-
-    [[nodiscard]] EventCounts collect_events(::ui::scene::SceneAccess& access,
-                                             WidgetHandle mouse_target,
-                                             WidgetHandle focus_out_target,
-                                             WidgetHandle focus_in_target) noexcept {
-        EventCounts out{};
-        for (std::size_t index = 0; index < access.input_event_count(); ++index) {
-            const auto& event = access.input_event(index);
-            if (event.event.type == Event::Type::MouseDown && vivid::evidence::same_handle(event.target, mouse_target)) {
-                ++out.mouse_down;
-            } else if (event.event.type == Event::Type::FocusOut) {
-                ++out.focus_out;
-                out.focus_out_expected = out.focus_out_expected || vivid::evidence::same_handle(event.target, focus_out_target);
-            } else if (event.event.type == Event::Type::FocusIn) {
-                ++out.focus_in;
-                out.focus_in_expected = out.focus_in_expected || vivid::evidence::same_handle(event.target, focus_in_target);
-            }
-        }
-        return out;
-    }
 }
 
 int main() {
@@ -124,8 +97,10 @@ int main() {
 
     vivid::evidence::mouse_down_center(scene, kBaseABounds, 10);
     auto base_initial = scene.access();
-    const auto base_initial_events = collect_events(base_initial, handles.base_a, {}, handles.base_a);
-    if (!vivid::evidence::expect(base_initial_events.mouse_down == 1, "base_a receives mouse down")) return 1;
+    const auto base_initial_events =
+        vivid::evidence::collect_pointer_focus_trace(base_initial, handles.base_a, {}, handles.base_a);
+    if (!vivid::evidence::expect(base_initial_events.mouse_down == 1 && base_initial_events.mouse_down_expected,
+                                 "base_a receives mouse down")) return 1;
     if (!vivid::evidence::expect(base_initial_events.focus_in == 1 && base_initial_events.focus_in_expected,
                                  "base_a receives FocusIn")) {
         return 1;
@@ -164,8 +139,10 @@ int main() {
 
     vivid::evidence::mouse_down_center(scene, kModalBWorldBounds, 20);
     auto modal_inside = scene.access();
-    const auto modal_inside_events = collect_events(modal_inside, handles.modal_b, handles.base_a, handles.modal_b);
-    if (!vivid::evidence::expect(modal_inside_events.mouse_down == 1, "modal_b receives mouse down")) return 1;
+    const auto modal_inside_events =
+        vivid::evidence::collect_pointer_focus_trace(modal_inside, handles.modal_b, handles.base_a, handles.modal_b);
+    if (!vivid::evidence::expect(modal_inside_events.mouse_down == 1 && modal_inside_events.mouse_down_expected,
+                                 "modal_b receives mouse down")) return 1;
     if (!vivid::evidence::expect(modal_inside_events.focus_out == 1 && modal_inside_events.focus_out_expected,
                                  "modal entry emits FocusOut for base_a")) {
         return 1;
@@ -198,8 +175,10 @@ int main() {
 
     vivid::evidence::mouse_down_center(scene, kBaseBBounds, 30);
     auto modal_trap = scene.access();
-    const auto modal_trap_events = collect_events(modal_trap, handles.base_b, handles.modal_b, handles.base_b);
-    if (!vivid::evidence::expect(modal_trap_events.mouse_down == 1, "base_b still receives pointer event")) return 1;
+    const auto modal_trap_events =
+        vivid::evidence::collect_pointer_focus_trace(modal_trap, handles.base_b, handles.modal_b, handles.base_b);
+    if (!vivid::evidence::expect(modal_trap_events.mouse_down == 1 && modal_trap_events.mouse_down_expected,
+                                 "base_b still receives pointer event")) return 1;
     if (!vivid::evidence::expect(modal_trap_events.focus_out == 0 && modal_trap_events.focus_in == 0,
                                  "modal trap rejects base focus transfer")) {
         return 1;
@@ -245,8 +224,10 @@ int main() {
 
     vivid::evidence::mouse_down_center(scene, kModalAWorldBounds, 40);
     auto restored_trap = scene.access();
-    const auto restored_events = collect_events(restored_trap, handles.modal_a, handles.modal_b, handles.modal_a);
-    if (!vivid::evidence::expect(restored_events.mouse_down == 1, "modal_a still receives pointer event")) return 1;
+    const auto restored_events =
+        vivid::evidence::collect_pointer_focus_trace(restored_trap, handles.modal_a, handles.modal_b, handles.modal_a);
+    if (!vivid::evidence::expect(restored_events.mouse_down == 1 && restored_events.mouse_down_expected,
+                                 "modal_a still receives pointer event")) return 1;
     if (!vivid::evidence::expect(restored_events.focus_out == 1 && restored_events.focus_out_expected,
                                  "restored base scope clears previous modal focus")) {
         return 1;

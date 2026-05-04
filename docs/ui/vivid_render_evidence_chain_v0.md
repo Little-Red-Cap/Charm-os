@@ -186,7 +186,7 @@ These helpers keep Style Token Law and Focus Evidence demos aligned without prom
 - `render_scene()` 统一 record / execute 后的证据采集。
 - `dirty_stays_inside()` 验证 component dirty 不越界。
 - `same_handle()` / `click_center()` / `mouse_down_center()` / `mouse_up_center()` 收束 demo-side handle comparison 与 pointer setup，不作为 Vivid core input API。
-- `FocusMoveTrace` / `collect_focus_move()` 收束 demo-side `FocusOut` / `FocusIn` 计数，不作为 Vivid core focus transaction API。
+- `FocusMoveTrace` / `collect_focus_move()` 与 `PointerFocusTrace` / `collect_pointer_focus_trace()` 收束 demo-side pointer / focus event 计数，不作为 Vivid core focus transaction API。
 
 ## 首个落点
 

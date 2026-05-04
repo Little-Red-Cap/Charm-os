@@ -270,6 +270,7 @@ system compiler witness bundle 也可以通过 `kernel_runtime_session` witness 
 ```powershell
 ./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1
 ./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -ShowArtifacts
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -BaselineSummary baseline/minimal-kernel-runtime-session-witness/summary.json
 ./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json -ShowNarratives -AsJson
 ```
 
@@ -279,6 +280,13 @@ system compiler witness bundle 也可以通过 `kernel_runtime_session` witness 
 - synthetic drift 与 witness-export drift 各自塌在哪个 domain / focus
 - 哪个 failure code 与 missing runtime fact 导致了 session continuity collapse
 - 上层如果要继续追 report / check / runtime ledger，应该沿着哪些 artifact path 下钻
+- 如果给出 `-BaselineSummary`，当前这份 witness summary 相对上一份在哪些 result / runtime facts / failure taxonomy 上发生了漂移
+
+对应 compare smoke：
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1
+```
 
 ## World Compare Projection
 

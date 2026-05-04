@@ -156,9 +156,12 @@ out/minimal-kernel-runtime-session-witness-smoke/
 ./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
   -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
   -ShowArtifacts
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
+  -BaselineSummary baseline/minimal-kernel-runtime-session-witness/summary.json
 ```
 
-它会把根 `summary.json` 里的 session 状态、两条 drift 投影、missing runtime facts、failure codes 与关键 artifact path 收成稳定的只读视图。
+它会把根 `summary.json` 里的 session 状态、两条 drift 投影、missing runtime facts、failure codes 与关键 artifact path 收成稳定的只读视图；如果同时给出 `-BaselineSummary`，还会额外收口 result / runtime facts / failure taxonomy 的差分视图。
 
 ## 本地验证
 

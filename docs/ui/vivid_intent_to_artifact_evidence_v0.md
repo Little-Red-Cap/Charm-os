@@ -99,3 +99,4 @@ The final line is the CTest audit gate.
 - This v0 does not require every component demo to become semantic.
 - This v0 does not replace `vivid_semantic_request_ledger_law_v0.md`; it consumes that ledger law.
 - This v0 does not decide core promotion. Promotion boundaries are tracked in `vivid_evidence_artifact_promotion_v0.md`.
+- Candidate evidence field semantics are tracked in `vivid_evidence_vocabulary_law_v0.md`.

@@ -93,6 +93,8 @@ Current status:
 
 Candidate vocabulary may appear in docs as law terms. That does not imply the current C++ helper type is a public API.
 
+Field semantics for these candidate artifacts are defined in `vivid_evidence_vocabulary_law_v0.md`.
+
 ## Core Runtime Ledgers
 
 These are closer to core because they are derived from runtime decisions or completed runtime execution:
@@ -133,6 +135,7 @@ They are useful laboratory tools, not runtime semantics.
 ## Relationship To Existing Laws
 
 - `vivid_render_evidence_chain_v0.md` defines the state-to-artifact causal chain.
+- `vivid_evidence_vocabulary_law_v0.md` defines stable field semantics for candidate evidence vocabulary.
 - `vivid_intent_to_artifact_evidence_v0.md` proves one vertical semantic intent-to-artifact chain.
 - `vivid_semantic_request_ledger_law_v0.md` defines runtime semantic request ledger law.
 - `vivid_evidence_stdout_law.md` governs stdout shape, not core API shape.

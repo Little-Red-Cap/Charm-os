@@ -67,27 +67,6 @@ namespace {
                     ledger.id);
     }
 
-    void print_render_evidence(const char* prefix,
-                               const vivid::evidence::RenderEvidence& evidence) noexcept {
-        std::printf(" %s_dirty_count=%zu %s_dirty_hash=%u %s_cmd_count=%zu %s_cmd_bytes=%zu %s_exec_cmds=%zu %s_failed=%zu %s_cmd_hash=%u %s_pixel_hash=%u",
-                    prefix,
-                    evidence.dirty_count,
-                    prefix,
-                    evidence.dirty_hash,
-                    prefix,
-                    evidence.cmd_count,
-                    prefix,
-                    evidence.cmd_bytes,
-                    prefix,
-                    evidence.exec_cmds,
-                    prefix,
-                    evidence.failed_cmds,
-                    prefix,
-                    evidence.cmd_hash,
-                    prefix,
-                    evidence.pixel_hash);
-    }
-
     [[nodiscard]] bool artifact_same(const vivid::evidence::RenderEvidence& lhs,
                                      const vivid::evidence::RenderEvidence& rhs) noexcept {
         return lhs.dirty_count == rhs.dirty_count
@@ -127,7 +106,7 @@ int main() {
 
     run_log.case_begin("baseline_artifact");
     std::printf(" checked=%d focus=toggle", access.checked(handles.toggle) ? 1 : 0);
-    print_render_evidence("base", baseline);
+    vivid::evidence::print_render_evidence("base", baseline);
     std::printf("\n");
 
     const bool before_checked = access.checked(handles.toggle);
@@ -182,7 +161,7 @@ int main() {
 
     run_log.case_begin("render_artifact");
     std::printf(" changed=1 dirty_within_component=1");
-    print_render_evidence("after", changed);
+    vivid::evidence::print_render_evidence("after", changed);
     std::printf("\n");
 
     access.set_enabled(handles.toggle, false);
@@ -233,8 +212,8 @@ int main() {
 
     run_log.case_begin("rejected_artifact");
     std::printf(" changed=0 dirty_within_component=1");
-    print_render_evidence("before", disabled_baseline);
-    print_render_evidence("after", rejected_artifact);
+    vivid::evidence::print_render_evidence("before", disabled_baseline);
+    vivid::evidence::print_render_evidence("after", rejected_artifact);
     std::printf("\n");
 
     run_log.end(true);

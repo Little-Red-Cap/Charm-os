@@ -130,6 +130,28 @@ namespace vivid::evidence {
                     evidence.layout_changed ? 1 : 0);
     }
 
+    inline void print_render_evidence(const char* prefix,
+                                      const RenderEvidence& evidence) noexcept {
+        const char* p = prefix ? prefix : "render";
+        std::printf(" %s_dirty_count=%zu %s_dirty_hash=%u %s_cmd_count=%zu %s_cmd_bytes=%zu %s_exec_cmds=%zu %s_failed=%zu %s_cmd_hash=%u %s_pixel_hash=%u",
+                    p,
+                    evidence.dirty_count,
+                    p,
+                    evidence.dirty_hash,
+                    p,
+                    evidence.cmd_count,
+                    p,
+                    evidence.cmd_bytes,
+                    p,
+                    evidence.exec_cmds,
+                    p,
+                    evidence.failed_cmds,
+                    p,
+                    evidence.cmd_hash,
+                    p,
+                    evidence.pixel_hash);
+    }
+
     [[nodiscard]] inline std::uint32_t hash_bytes(const std::byte* data, std::size_t len) noexcept {
         std::uint32_t hash = 2166136261u;
         if (!data) return hash;

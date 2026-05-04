@@ -112,6 +112,12 @@ failed_cmds
 
 v0 可以用 `Scene::last_cmd_stats()` 与 `Scene::last_exec_stats()` 的稳定字段组成 `cmd_hash`。
 
+2026-05 addendum: `Examples/ui/vivid/support/vivid_evidence_support.hpp` now provides `print_render_evidence(prefix, evidence)`. It emits a stable prefixed summary:
+
+```text
+<prefix>_dirty_count=<n> <prefix>_dirty_hash=<hash> <prefix>_cmd_count=<n> <prefix>_cmd_bytes=<n> <prefix>_exec_cmds=<n> <prefix>_failed=<n> <prefix>_cmd_hash=<hash> <prefix>_pixel_hash=<hash>
+```
+
 ### Render Artifact Evidence
 
 最终 artifact 先用摘要表达：

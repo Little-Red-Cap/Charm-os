@@ -93,12 +93,9 @@ int main() {
     if (!vivid::evidence::expect(initial.cmd_count > 0, "initial render records commands")) return 1;
 
     run_log.case_begin("initial_artifact");
-    std::printf(" value=%d dirty_count=%zu cmd_count=%zu cmd_hash=%u pixel_hash=%u\n",
-                state.value,
-                initial.dirty_count,
-                initial.cmd_count,
-                initial.cmd_hash,
-                initial.pixel_hash);
+    std::printf(" value=%d", state.value);
+    vivid::evidence::print_render_evidence("initial", initial);
+    std::printf("\n");
 
     state.old_value = state.value;
     state.value = 64;
@@ -148,15 +145,8 @@ int main() {
     }
 
     run_log.case_begin("render_artifact");
-    std::printf(" dirty_count=%zu dirty_hash=%u cmd_count=%zu cmd_bytes=%zu exec_cmds=%zu failed=%zu cmd_hash=%u pixel_hash=%u\n",
-                updated.dirty_count,
-                updated.dirty_hash,
-                updated.cmd_count,
-                updated.cmd_bytes,
-                updated.exec_cmds,
-                updated.failed_cmds,
-                updated.cmd_hash,
-                updated.pixel_hash);
+    vivid::evidence::print_render_evidence("updated", updated);
+    std::printf("\n");
 
     run_log.end(true);
     std::puts("[component_settings_row_demo] ok");

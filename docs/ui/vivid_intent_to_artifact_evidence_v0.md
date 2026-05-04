@@ -77,7 +77,7 @@ The demo follows `vivid_evidence_stdout_law.md`:
 [ia] case=state_delta state_delta=1 id=settings.wifi.toggle key=checked old=0 new=1 changed=1 source=semantic_action_request
 [ia] case=rejected_no_state_delta state_delta=0 id=settings.wifi.toggle key=checked old=1 new=1 changed=0 ...
 [ia] case=invalidation invalidation=1 kind=paint_only dirty_scope=component layout_changed=0 ...
-[ia] case=render_artifact changed=1 ...
+[ia] case=render_artifact changed=1 after_dirty_count=<n> after_cmd_hash=<hash> after_pixel_hash=<hash> ...
 [ia] run=intent_artifact_demo phase=end result=ok cases=8
 ```
 
@@ -88,6 +88,7 @@ The final line is the CTest audit gate.
 - This v0 does not define a generic StateDelta core API.
 - `StateDeltaEvidence` currently lives in demo support as evidence vocabulary, not runtime contract surface.
 - `InvalidationEvidence` currently lives in demo support as evidence vocabulary, not runtime contract surface.
+- `RenderEvidence` printing currently lives in demo support as evidence vocabulary, not runtime contract surface.
 - This v0 does not introduce screenshot golden files.
 - This v0 does not require every component demo to become semantic.
 - This v0 does not replace `vivid_semantic_request_ledger_law_v0.md`; it consumes that ledger law.

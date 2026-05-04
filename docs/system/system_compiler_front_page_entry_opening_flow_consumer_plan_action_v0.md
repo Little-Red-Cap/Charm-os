@@ -29,10 +29,13 @@ includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_consumer_plan_action.v0.schema.json`
 - exporter
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
+- workspace exporter
+  - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
 - validator
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
 
 ## Current outputs
 
@@ -52,6 +55,18 @@ The smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-smoke
+```
+
+The workspace exporter writes under:
+
+```powershell
+out/system-compiler-plan-action-ws
+```
+
+The workspace smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-opening-flow-consumer-plan-action-workspace-smoke
 ```
 
 ## What the action facade records
@@ -109,6 +124,30 @@ Run the action smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1 -Clean
+```
+
+Run the workspace action smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1 -Clean
+```
+
+Or export through the workspace wrapper from a prepared front-page workspace:
+
+```powershell
+./scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1 `
+  -FrontPageWorkspaceRoot cmake-build-codex-system-compiler-front-page-smoke `
+  -OutputRoot cmake-build-plan-action-ws-smoke `
+  -Clean
+```
+
+Or reuse an already materialized plan workspace:
+
+```powershell
+./scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1 `
+  -PlanWorkspaceRoot cmake-build-plan-action-ws-smoke/plan-ws `
+  -OutputRoot cmake-build-plan-action-ws-hot-smoke `
+  -ActionKind compare-neighbor
 ```
 
 Or export a default action directly:

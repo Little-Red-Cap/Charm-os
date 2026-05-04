@@ -230,7 +230,9 @@
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`、
     `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`、
-    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+    `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`、
+    `scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py`
   - 用途偏向从一份 `front_page entry opening flow consumer plan` summary 中选择单个 action，
     输出后续 explain consumer 可直接打开的 opener summary witness

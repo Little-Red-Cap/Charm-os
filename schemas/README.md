@@ -243,6 +243,8 @@
   - 用途偏向把一份 `front_page entry opening flow` summary 收成上层 explain 工具可消费的入口清单，
     明确 default opening、compare opening、renderable openings、opening reason、projection preview、
     blockers 与后续 questions
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_consumer_selector_sample_smoke.ps1`
+    会守住 `runtime_session` 从 opening-flow 进入 consumer default opening 的下游握手
 
 - `system_compiler.front_page_entry_opening_flow_consumer_selector.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_v0.md`、
@@ -252,6 +254,8 @@
     与 `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector.py`
   - 用途偏向把一份 `front_page entry opening flow consumer` handoff 收成确定性 open order，
     明确 default entry、compare entry、fallback entries、opening reason / headline 与对应 opener 证据入口
+  - 同一个 runtime-session 下游样例 smoke 会验证 selector 的 default entry 保持为
+    `runtime-session-sample`，且 projection 仍为 `kernel_runtime_session_overview`
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan.v0.schema.json`
   - 对应 `docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_v0.md`、

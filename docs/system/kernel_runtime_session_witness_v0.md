@@ -263,6 +263,7 @@ check.txt
 CI / 人工验收优先调用 `ci_minimal_kernel_runtime_session_witness_smoke.ps1`，它默认把产物落到 `out/minimal-kernel-runtime-session-witness-smoke`，并在根 smoke 之后再次执行 validator 与 gate。
 如果额外给出 `-InspectCompareSummaryOutputRoot`，同一条 CI 入口还会顺带执行 `inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1`，把 inspect compare 对象也纳入持续守护。
 session witness workflow 也会把这份 compare summary 作为独立 artifact 发布，方便 front page / explain / compare consumer 直接消费，而不必重新拼接 baseline/candidate summary。
+如果再给出 `-InspectCompareConsumerOutputRoot`，同一条 CI 入口还会顺带执行 `system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`，把 compare consumer 这层也纳入持续守护与 artifact 发布。
 
 runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
 system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。

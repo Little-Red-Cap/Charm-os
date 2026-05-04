@@ -4,6 +4,7 @@ param(
     [string]$ReportMarkdownPath = "",
     [string]$CheckTextPath = "",
     [string]$InspectCompareSummaryOutputRoot = "",
+    [string]$InspectCompareConsumerOutputRoot = "",
     [string]$PythonExe = "python",
     [switch]$Clean
 )
@@ -45,6 +46,7 @@ $rootScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_session_witness_sm
 $validator = Join-Path $PSScriptRoot "validate_minimal_kernel_runtime_session_witness_smoke.py"
 $gate = Join-Path $PSScriptRoot "check_minimal_kernel_runtime_session_witness_smoke_summary.ps1"
 $inspectCompareSmoke = Join-Path $PSScriptRoot "inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1"
+$inspectCompareConsumerSmoke = Join-Path $PSScriptRoot "system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1"
 
 foreach ($script in @($rootScript, $validator, $gate)) {
     if (-not (Test-Path $script)) {
@@ -73,6 +75,20 @@ if (-not [string]::IsNullOrWhiteSpace($InspectCompareSummaryOutputRoot)) {
     $resolvedInspectCompareSummaryPath = Join-Path $resolvedInspectCompareSummaryOutputRoot "session-witness.inspect.compare.summary.json"
     if ($Clean) {
         Remove-PathIfExists -Path $resolvedInspectCompareSummaryOutputRoot
+    }
+}
+
+$resolvedInspectCompareConsumerOutputRoot = ""
+$resolvedInspectCompareConsumerSummaryPath = ""
+if (-not [string]::IsNullOrWhiteSpace($InspectCompareConsumerOutputRoot)) {
+    if (-not (Test-Path $inspectCompareConsumerSmoke)) {
+        throw "missing runtime session witness inspect compare consumer dependency: $inspectCompareConsumerSmoke"
+    }
+
+    $resolvedInspectCompareConsumerOutputRoot = Resolve-FullPath -Path $InspectCompareConsumerOutputRoot
+    $resolvedInspectCompareConsumerSummaryPath = Join-Path $resolvedInspectCompareConsumerOutputRoot "session-witness.inspect.compare.consumer.summary.json"
+    if ($Clean) {
+        Remove-PathIfExists -Path $resolvedInspectCompareConsumerOutputRoot
     }
 }
 
@@ -144,11 +160,35 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareSummaryOutputRoot))
     }
 }
 
+if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareConsumerOutputRoot)) {
+    Push-Location $repoRoot
+    try {
+        & $inspectCompareConsumerSmoke `
+            -InputRoot $resolvedInspectCompareSummaryOutputRoot `
+            -OutputRoot $resolvedInspectCompareConsumerOutputRoot `
+            -PythonExe $PythonExe `
+            -Clean:$Clean
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    } finally {
+        Pop-Location
+    }
+
+    if (-not (Test-Path $resolvedInspectCompareConsumerSummaryPath)) {
+        throw "missing runtime session witness inspect compare consumer summary: $resolvedInspectCompareConsumerSummaryPath"
+    }
+}
+
 Write-Host "==> minimal kernel runtime session witness CI smoke"
 Write-Host ("output_root={0}" -f $resolvedOutputRoot)
 Write-Host ("summary={0}" -f $summaryPathResolved)
 if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareSummaryOutputRoot)) {
     Write-Host ("inspect_compare_output_root={0}" -f $resolvedInspectCompareSummaryOutputRoot)
     Write-Host ("inspect_compare_summary={0}" -f $resolvedInspectCompareSummaryPath)
+}
+if (-not [string]::IsNullOrWhiteSpace($resolvedInspectCompareConsumerOutputRoot)) {
+    Write-Host ("inspect_compare_consumer_output_root={0}" -f $resolvedInspectCompareConsumerOutputRoot)
+    Write-Host ("inspect_compare_consumer_summary={0}" -f $resolvedInspectCompareConsumerSummaryPath)
 }
 Write-Host "ok=1"

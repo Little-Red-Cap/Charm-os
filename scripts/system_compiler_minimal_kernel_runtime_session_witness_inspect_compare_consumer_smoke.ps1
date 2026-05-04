@@ -120,7 +120,14 @@ Ensure-Directory -Path $outputRootPath
 $resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
     Resolve-ToolPath -Candidates @("python.exe", "python")
 } else {
-    Resolve-FullPath -Path $PythonExe
+    $pythonCommand = Get-Command $PythonExe -ErrorAction SilentlyContinue
+    if ($null -ne $pythonCommand) {
+        $pythonCommand.Source
+    } elseif (Test-Path $PythonExe) {
+        Resolve-FullPath -Path $PythonExe
+    } else {
+        throw "tool not found: $PythonExe"
+    }
 }
 
 $compareSummarySmokeScript = Join-Path $PSScriptRoot "inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1"

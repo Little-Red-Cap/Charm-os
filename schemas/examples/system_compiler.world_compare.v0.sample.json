@@ -168,6 +168,16 @@
       "lower-half",
       "bundle"
     ],
+    "session_drift": {
+      "changed": false,
+      "regressed_sessions": [],
+      "required_regressed_sessions": [],
+      "affected_domains": [],
+      "affected_focus": [],
+      "missing_runtime_facts": [],
+      "failure_codes": [],
+      "narratives": []
+    },
     "narratives": [
       "witness `runtime_bundle_sample` regressed `ok` -> `fail` on layer `bundle`",
       "candidate is missing contract ref `docs/system/minimal_kernel_trap_ingress_contract.md`",

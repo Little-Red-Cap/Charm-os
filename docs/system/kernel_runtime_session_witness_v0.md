@@ -240,6 +240,41 @@ session/
 runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
 system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。
 
+## World Compare Projection
+
+`world compare` 不直接读取原始 QEMU log，也不绕过 witness bundle 去解析散工件。
+
+当 `kernel_runtime_session` witness entry 发生 regression 时，compare 会从 entry observations 投影 `collapse_surface.session_drift`：
+
+- `regressed_sessions`
+- `required_regressed_sessions`
+- `affected_domains`
+- `affected_focus`
+- `missing_runtime_facts`
+- `failure_codes`
+
+这层投影使用 witness bundle 已经导出的 session observations，例如：
+
+```text
+session_status=collapsed
+semantic=standing
+machine=standing
+runtime=tick:True trap:True thread:True task_syscall:True handoff:False
+failure=handoff_continuity_broken domain=runtime layer=lower_half phase=handoff.live focus=handoff,continuity,session
+```
+
+这样 world compare 看到的不是“某个 witness fail 了”这一句粗粒度结论，而是可以继续说明：
+
+```text
+minimal_kernel_runtime world 的 session continuity witness 发生 runtime-domain collapse。
+```
+
+对应定向 smoke：
+
+```powershell
+./scripts/system_compiler_world_compare_session_drift_smoke.ps1
+```
+
 ## 当前非目标
 
 这一刀不做：

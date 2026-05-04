@@ -651,6 +651,10 @@ function New-KernelRuntimeSessionWitnessEntry {
     $observations.Add(("runtime=tick:{0} trap:{1} thread:{2} task_syscall:{3} handoff:{4}" -f [bool]$runtime.tick, [bool]$runtime.trap, [bool]$runtime.thread, [bool]$runtime.task_syscall, [bool]$runtime.handoff_continuity)) | Out-Null
     $observations.Add(("ledger_events={0}" -f [int]$ledger.event_count)) | Out-Null
     $observations.Add(("failures={0}" -f @($session.failures).Count)) | Out-Null
+    foreach ($failure in @($session.failures)) {
+        $focusText = (@($failure.focus) -join ",")
+        $observations.Add(("failure={0} domain={1} layer={2} phase={3} focus={4}" -f [string]$failure.code, [string]$failure.domain, [string]$failure.layer, [string]$failure.phase, $focusText)) | Out-Null
+    }
 
     $sessionCaseName = if ([string]::IsNullOrWhiteSpace([string]$PlanEntry.case)) {
         [string]$session.session_id

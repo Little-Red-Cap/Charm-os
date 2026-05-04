@@ -194,3 +194,16 @@ WidgetKind + text
 ```
 
 The demo guards that decorative widgets are not auto-enrolled and that explicit `set_semantic()` can override a default.
+
+## 2026-05 Addendum: Semantic Action Artifact
+
+`Examples/ui/vivid/semantic_action_demo` verifies Semantic Action Artifact v0. Semantic nodes can now carry fixed action facts without turning Vivid into a full accessibility runtime:
+
+```text
+semantic store
+  -> semantic action mask
+  -> semantic tree node actions
+  -> semantic_hash
+```
+
+The demo guards role-derived `activate` defaults for Button/ListItem, no-action defaults for Container/Text, explicit action override, and action participation in semantic tree hashes.

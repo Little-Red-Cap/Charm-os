@@ -398,3 +398,19 @@ The important boundary is that Vivid does not invent stable identity. `set_seman
 Current evidence:
 
 - `Examples/ui/vivid/semantic_default_demo` proves default role derivation, label source, decorative opt-in boundary, explicit override, and semantic tree integration.
+
+## 2026-05 Addendum: Semantic Action Artifact
+
+Vivid semantic nodes can now expose a fixed action mask as artifact evidence:
+
+```text
+semantic_id / role / label
+  -> actions
+  -> semantic tree artifact
+```
+
+This remains deliberately below a full accessibility runtime. `activate` is a capability fact carried by Button/ListItem semantics, not an instruction to synthesize input, dispatch callbacks, or bind OS accessibility.
+
+Current evidence:
+
+- `Examples/ui/vivid/semantic_action_demo` proves role-derived `activate`, no-action semantic roles, explicit action override, tree action artifacts, and action participation in `semantic_hash`.

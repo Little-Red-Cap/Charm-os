@@ -29,11 +29,17 @@ export import charm.gfx.text_box;
 import charm.gfx.draw_cmd;
 
 export using ::ScrollBarOrientation;
+export using ::SemanticAction;
+export using ::SemanticActionMask;
+export using ::SemanticActionSnapshot;
 export using ::SemanticFocusSnapshot;
 export using ::SemanticRole;
 export using ::SemanticTreeNode;
 export using ::SemanticTreeSnapshot;
+export using ::semantic_action_mask;
+export using ::semantic_action_present;
 export using ::semantic_default_role_for_kind;
+export using ::semantic_default_actions_for_role;
 export using ::kSemanticTreeMaxNodes;
 export using ::kSemanticTreeNoFocusIndex;
 export using ::TableViewHeaderStyle;
@@ -49,10 +55,16 @@ export namespace ui::scene {
     using ImageShapeKind = ui::render::ImageShapeKind;
 
     using ScrollBarOrientation = ::ScrollBarOrientation;
+    using SemanticAction = ::SemanticAction;
+    using SemanticActionMask = ::SemanticActionMask;
+    using SemanticActionSnapshot = ::SemanticActionSnapshot;
     using SemanticFocusSnapshot = ::SemanticFocusSnapshot;
     using SemanticRole = ::SemanticRole;
     using SemanticTreeNode = ::SemanticTreeNode;
     using SemanticTreeSnapshot = ::SemanticTreeSnapshot;
+    using ::semantic_action_mask;
+    using ::semantic_action_present;
+    using ::semantic_default_actions_for_role;
     constexpr std::size_t kSemanticTreeMaxNodes = ::kSemanticTreeMaxNodes;
     constexpr std::uint16_t kSemanticTreeNoFocusIndex = ::kSemanticTreeNoFocusIndex;
     using TableViewHeaderStyle = ::TableViewHeaderStyle;
@@ -361,8 +373,14 @@ export namespace ui::scene {
             kernel_->set_semantic_default(h, id, label);
         }
         void clear_semantic(WidgetHandle h) noexcept { kernel_->clear_semantic(h); }
+        void set_semantic_actions(WidgetHandle h, SemanticActionMask actions) noexcept {
+            kernel_->set_semantic_actions(h, actions);
+        }
         SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
             return kernel_->semantic_snapshot(h);
+        }
+        SemanticActionSnapshot semantic_action_snapshot(WidgetHandle h) const noexcept {
+            return kernel_->semantic_action_snapshot(h);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_->semantic_focus_snapshot();
@@ -577,6 +595,9 @@ export namespace ui::scene {
                                   const char* id,
                                   const char* label = nullptr) noexcept {
             kernel_.set_semantic_default(h, id, label);
+        }
+        void set_semantic_actions(WidgetHandle h, SemanticActionMask actions) noexcept {
+            kernel_.set_semantic_actions(h, actions);
         }
         void set_input_root(WidgetHandle h) noexcept { kernel_.set_input_root(h); }
         void set_focus_scope(WidgetHandle scope,
@@ -1121,6 +1142,9 @@ export namespace ui::scene {
         const char* text(WidgetHandle h) const noexcept { return kernel_.text(h); }
         SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept {
             return kernel_.semantic_snapshot(h);
+        }
+        SemanticActionSnapshot semantic_action_snapshot(WidgetHandle h) const noexcept {
+            return kernel_.semantic_action_snapshot(h);
         }
         SemanticFocusSnapshot semantic_focus_snapshot() const noexcept {
             return kernel_.semantic_focus_snapshot();

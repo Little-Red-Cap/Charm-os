@@ -43,13 +43,30 @@ enum class SemanticRole : std::uint8_t {
 };
 
 export
+enum class SemanticAction : std::uint8_t {
+    Activate = 1 << 0,
+};
+
+export
+using SemanticActionMask = std::uint8_t;
+
+export
 struct SemanticFocusSnapshot {
     WidgetHandle handle{};
     const char* id{""};
     const char* role{"none"};
     const char* label{""};
+    SemanticActionMask actions{0};
     bool found{false};
     bool focusable{false};
+};
+
+export
+struct SemanticActionSnapshot {
+    WidgetHandle handle{};
+    const char* id{""};
+    SemanticActionMask actions{0};
+    bool found{false};
 };
 
 export
@@ -64,6 +81,7 @@ struct SemanticTreeNode {
     const char* id{""};
     const char* role{"none"};
     const char* label{""};
+    SemanticActionMask actions{0};
     Rect bounds{};
     std::uint16_t depth{0};
     std::uint16_t preorder{0};
@@ -131,6 +149,31 @@ inline SemanticRole semantic_default_role_for_kind(WidgetKind kind) noexcept {
 }
 
 export
+inline constexpr SemanticActionMask semantic_action_mask(SemanticAction action) noexcept {
+    return static_cast<SemanticActionMask>(action);
+}
+
+export
+inline constexpr bool semantic_action_present(SemanticActionMask mask,
+                                              SemanticAction action) noexcept {
+    return (mask & semantic_action_mask(action)) != 0;
+}
+
+export
+inline constexpr SemanticActionMask semantic_default_actions_for_role(SemanticRole role) noexcept {
+    switch (role) {
+    case SemanticRole::Button:
+    case SemanticRole::ListItem:
+        return semantic_action_mask(SemanticAction::Activate);
+    case SemanticRole::None:
+    case SemanticRole::Text:
+    case SemanticRole::Container:
+        return 0;
+    }
+    return 0;
+}
+
+export
 inline std::uint32_t semantic_tree_hash_mix(std::uint32_t hash, std::uint32_t value) noexcept {
     hash ^= value;
     hash *= 16777619u;
@@ -154,6 +197,7 @@ inline std::uint32_t semantic_tree_hash_node(std::uint32_t hash,
     hash = semantic_tree_hash_text(hash, node.id);
     hash = semantic_tree_hash_text(hash, node.role);
     hash = semantic_tree_hash_text(hash, node.label);
+    hash = semantic_tree_hash_mix(hash, node.actions);
     hash = semantic_tree_hash_mix(hash, static_cast<std::uint32_t>(node.bounds.x));
     hash = semantic_tree_hash_mix(hash, static_cast<std::uint32_t>(node.bounds.y));
     hash = semantic_tree_hash_mix(hash, static_cast<std::uint32_t>(node.bounds.w));

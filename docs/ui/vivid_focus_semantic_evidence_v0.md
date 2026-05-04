@@ -109,6 +109,26 @@ v0 rules:
 - decorative widgets remain non-semantic until explicitly opted in.
 - explicit `set_semantic()` may override a previous default.
 
+### Law 8: semantic actions are artifact facts, not event execution
+
+Semantic Action Artifact v0 lets a semantic node expose the minimal fixed action mask it supports:
+
+```text
+semantic_id
+role
+label
+actions=activate
+```
+
+v0 rules:
+
+- actions are stored as a fixed `SemanticActionMask`.
+- `Button` and `ListItem` default to `activate`; `Text` and `Container` default to no action.
+- product/runtime code may explicitly override the action mask through `set_semantic_actions()`.
+- semantic tree nodes carry action masks and include them in `semantic_hash`.
+- an action bit is evidence of capability, not a request to synthesize input or invoke OS accessibility.
+- v0 does not introduce a full accessibility runtime.
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
@@ -146,11 +166,21 @@ stdout final contract:
 [sdef] run=semantic_default_demo phase=end result=ok cases=6
 ```
 
+`Examples/ui/vivid/semantic_action_demo` is the first Semantic Action Artifact v0 runtime evidence.
+It verifies role-derived activate defaults, non-action semantic roles, explicit action override, tree action artifacts, and semantic hash participation.
+
+stdout final contract:
+
+```text
+[sact] run=semantic_action_demo phase=end result=ok cases=6
+```
+
 核心字段：
 
 ```text
 semantic_id=primary/secondary/outside
 role=button/list_item
+actions=activate
 semantic_found=1
 semantic_current=secondary
 semantic_hash=...

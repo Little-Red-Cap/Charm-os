@@ -22,6 +22,7 @@
 - `Examples/ui/vivid/focus_semantic_demo`
 - `Examples/ui/vivid/semantic_tree_demo`
 - `Examples/ui/vivid/semantic_default_demo`
+- `Examples/ui/vivid/semantic_action_demo`
 - `Examples/ui/vivid/widget_signal_demo`
 - `Examples/ui/vivid/widget_state_demo`
 
@@ -89,6 +90,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `focus_semantic_demo` | `fsem` | `[fsem] run=focus_semantic_demo phase=end result=ok cases=8` |
 | `semantic_tree_demo` | `stree` | `[stree] run=semantic_tree_demo phase=end result=ok cases=6` |
 | `semantic_default_demo` | `sdef` | `[sdef] run=semantic_default_demo phase=end result=ok cases=6` |
+| `semantic_action_demo` | `sact` | `[sact] run=semantic_action_demo phase=end result=ok cases=6` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 

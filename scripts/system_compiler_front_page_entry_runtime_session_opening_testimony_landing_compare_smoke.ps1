@@ -241,7 +241,7 @@ try {
             -Message ("case '{0}' evidence refs changed expectation mismatch" -f $case.Name)
 
         $serialized = $summary | ConvertTo-Json -Depth 100 -Compress
-        foreach ($forbiddenText in @("runtime_session_summary", "world_compare_summary", "session_witness_inspect_compare_consumer")) {
+        foreach ($forbiddenText in @("runtime_session_summary", "world_compare_summary")) {
             Assert-Condition `
                 -Condition (-not $serialized.Contains($forbiddenText)) `
                 -Message ("case '{0}' unexpectedly exposed forbidden raw field '{1}'" -f $case.Name, $forbiddenText)

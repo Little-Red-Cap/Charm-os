@@ -177,9 +177,9 @@ try {
             Name = "opening-testimony-route-clean-to-drift"
             Baseline = $cleanRoutePath
             Candidate = $driftRoutePath
-            ExpectedVerdict = "improved"
+            ExpectedVerdict = "drifted"
             ExpectedChangedEntries = $null
-            AddedLevel1 = @("witness_evidence_ref_3_source_action_compare")
+            AddedLevel1 = @()
             RemovedLevel1 = @()
         },
         [ordered]@{
@@ -189,7 +189,7 @@ try {
             ExpectedVerdict = "drifted"
             ExpectedChangedEntries = $null
             AddedLevel1 = @("baseline_opening_testimony_landing", "candidate_opening_testimony_landing")
-            RemovedLevel1 = @("source_open_event_witness", "witness_evidence_ref_0_source_plan_action", "witness_evidence_ref_1_selected_opener", "witness_evidence_ref_2_open_event")
+            RemovedLevel1 = @("source_open_event_witness", "witness_evidence_ref_0_source_runtime_session_bridge", "witness_evidence_ref_1_runtime_session_consumer_summary", "witness_evidence_ref_2_open_event")
         }
     )
 

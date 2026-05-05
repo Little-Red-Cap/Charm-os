@@ -189,6 +189,7 @@
 - [System Compiler Front Page Entry Runtime Session opening testimony explain entry smoke](../../scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_smoke.ps1)
 - [System Compiler Front Page Entry Runtime Session opening testimony explain entry route compare smoke](../../scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_route_compare_smoke.ps1)
 - [System Compiler Front Page Entry Runtime Session opening testimony explain entry compare smoke](../../scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_smoke.ps1)
+- [System Compiler Front Page Entry Runtime Session opening testimony explain entry compare route smoke](../../scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_route_smoke.ps1)
 - [System Compiler Front Page Entry Runtime Session opening testimony ladder smoke](../../scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_ladder_smoke.ps1)
 - [System Compiler Front Page Entry Opener open event witness smoke](../../scripts/system_compiler_front_page_entry_opener_open_event_witness_smoke.ps1)
 - [System Compiler Witness open event witness export smoke](../../scripts/system_compiler_witness_open_event_witness_export_smoke.ps1)

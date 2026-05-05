@@ -24,7 +24,9 @@ function Ensure-Directory {
 function Remove-PathIfExists {
     param([string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return }
-    if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Recurse -Force }
+    if (Test-Path -LiteralPath $Path) {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Resolve-ToolPath {

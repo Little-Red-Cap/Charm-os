@@ -7,6 +7,7 @@ param(
     [string]$ExplainEntryRoot = "cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-explain-entry-smoke",
     [string]$ExplainEntryRouteCompareRoot = "cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-explain-entry-route-compare-smoke",
     [string]$ExplainEntryCompareRoot = "cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-explain-entry-compare-smoke",
+    [string]$ExplainEntryCompareRouteRoot = "cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-explain-entry-compare-route-smoke",
     [string]$PythonExe = "",
     [switch]$Clean
 )
@@ -48,6 +49,7 @@ $routeCompareRootPath = Resolve-FullPath -Path $RouteCompareRoot
 $explainEntryRootPath = Resolve-FullPath -Path $ExplainEntryRoot
 $explainEntryRouteCompareRootPath = Resolve-FullPath -Path $ExplainEntryRouteCompareRoot
 $explainEntryCompareRootPath = Resolve-FullPath -Path $ExplainEntryCompareRoot
+$explainEntryCompareRouteRootPath = Resolve-FullPath -Path $ExplainEntryCompareRouteRoot
 $resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
     Resolve-ToolPath -Candidates @("python.exe", "python")
 } else {
@@ -64,6 +66,7 @@ $scripts = [ordered]@{
     explain_entry = Join-Path $PSScriptRoot "system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_smoke.ps1"
     explain_entry_route_compare = Join-Path $PSScriptRoot "system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_route_compare_smoke.ps1"
     explain_entry_compare = Join-Path $PSScriptRoot "system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_smoke.ps1"
+    explain_entry_compare_route = Join-Path $PSScriptRoot "system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_route_smoke.ps1"
 }
 foreach ($requiredPath in $scripts.Values) {
     if (-not (Test-Path -LiteralPath $requiredPath)) { throw "missing path: $requiredPath" }
@@ -95,12 +98,16 @@ try {
     & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $scripts.explain_entry_compare -RuntimeSessionExplainEntryRoot $explainEntryRootPath -RuntimeSessionExplainEntryRouteCompareRoot $explainEntryRouteCompareRootPath -OutputRoot $explainEntryCompareRootPath -PythonExe $resolvedPythonExe @($(if ($Clean) { "-Clean" }))
     if ($LASTEXITCODE -ne 0) { throw "runtime session testimony explain-entry compare smoke failed" }
 
+    & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $scripts.explain_entry_compare_route -RuntimeSessionExplainEntryCompareRoot $explainEntryCompareRootPath -OutputRoot $explainEntryCompareRouteRootPath -PythonExe $resolvedPythonExe @($(if ($Clean) { "-Clean" }))
+    if ($LASTEXITCODE -ne 0) { throw "runtime session testimony explain-entry compare-route smoke failed" }
+
     $cleanLanding = Load-JsonObject -Path (Join-Path $landingRootPath "clean-witness-landing\front-page.entry-opening-testimony.landing.summary.json")
     $driftLanding = Load-JsonObject -Path (Join-Path $landingRootPath "drift-witness-landing\front-page.entry-opening-testimony.landing.summary.json")
     $cleanRoute = Load-JsonObject -Path (Join-Path $routeRootPath "clean-landing-route\front-page.route.summary.json")
     $driftExplain = Load-JsonObject -Path (Join-Path $explainEntryRootPath "drift-route-explain-entry\front-page.entry-opening-testimony.explain-entry.summary.json")
     $collapsedRouteCompareExplain = Load-JsonObject -Path (Join-Path $explainEntryRouteCompareRootPath "collapsed-route-compare-explain-entry\front-page.entry-opening-testimony.explain-entry.summary.json")
     $collapsedExplainCompare = Load-JsonObject -Path (Join-Path $explainEntryCompareRootPath "ready-to-blocked\front-page.entry-opening-testimony.explain-entry.compare.summary.json")
+    $readyCompareRouteExplain = Load-JsonObject -Path (Join-Path $explainEntryCompareRouteRootPath "drifted-compare-route-explain-entry\front-page.entry-opening-testimony.explain-entry.summary.json")
 
     Assert-Condition `
         -Condition ([string]$cleanLanding.opening_identity.source_judgment_status -eq "accepted") `
@@ -120,14 +127,21 @@ try {
     Assert-Condition `
         -Condition ([string]$collapsedExplainCompare.explain_entry_verdict -eq "collapsed") `
         -Message "runtime-session explain-entry compare should expose collapsed verdict"
+    Assert-Condition `
+        -Condition ([string]$readyCompareRouteExplain.explain_entry_decision.status -eq "ready") `
+        -Message "runtime-session explain-entry compare-route should keep ready explain-entry projection"
+    Assert-Condition `
+        -Condition ([string]$readyCompareRouteExplain.selected_surface.surface_id -eq "candidate_opening_testimony_explain_entry") `
+        -Message "runtime-session explain-entry compare-route should point at candidate explain-entry surface"
 
     Write-Host (
-        "[RUNTIME-SESSION-OPENING-TESTIMONY-LADDER-SMOKE] clean={0} drift={1} route_root={2} explain={3} compare={4}" -f
+        "[RUNTIME-SESSION-OPENING-TESTIMONY-LADDER-SMOKE] clean={0} drift={1} route_root={2} explain={3} compare={4} compare_route={5}" -f
         [string]$cleanLanding.opening_identity.source_judgment_status,
         [string]$driftLanding.opening_identity.source_judgment_status,
         [string]$cleanRoute.root_surface.summary_schema,
         [string]$driftExplain.selected_surface.surface_id,
-        [string]$collapsedExplainCompare.explain_entry_verdict
+        [string]$collapsedExplainCompare.explain_entry_verdict,
+        [string]$readyCompareRouteExplain.selected_surface.surface_id
     )
 } finally {
     Pop-Location

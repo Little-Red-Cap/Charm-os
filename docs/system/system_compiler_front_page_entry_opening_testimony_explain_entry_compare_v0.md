@@ -34,7 +34,7 @@ Do two opening testimony routes still select the same default explain surface?
 It is intentionally a decision-surface compare. It does not rerun route
 selection and does not reinterpret the lower testimony.
 
-For runtime-session, this compare becomes the top of the testimony ladder:
+For runtime-session, this compare caps the direct testimony ladder:
 
 ```text
 open_event_witness
@@ -47,6 +47,20 @@ open_event_witness
 Its job is still narrow. It compares only already-selected explain-entry
 surfaces and accepts `collapsed` only when the testimony/route/explain inputs
 stop supporting a ready default selection.
+
+Because the compare summary itself still exports machine-readable
+`front_page.supporting_surfaces`, a generic consumer route can continue from it
+without introducing any runtime-session-specific route schema:
+
+```text
+open_event_witness
+  -> opening_testimony_landing
+  -> front_page_route
+  -> opening_testimony_explain_entry
+  -> opening_testimony_explain_entry_compare
+  -> front_page_route
+  -> front_page_route_compare
+```
 
 ## Compare Policy
 
@@ -92,6 +106,7 @@ includes:
 - smokes
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_compare_route_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_route_smoke.ps1`
 
 The comparer leaves behind:
 
@@ -103,6 +118,12 @@ The runtime-session-targeted compare smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-explain-entry-compare-smoke
+```
+
+The runtime-session-targeted compare-route smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-explain-entry-compare-route-smoke
 ```
 
 ## Manual Example
@@ -117,6 +138,12 @@ Run the route closure smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_compare_route_smoke.ps1 -Clean
+```
+
+Run the runtime-session-targeted route closure smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_route_smoke.ps1 -Clean
 ```
 
 Export directly:

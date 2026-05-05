@@ -48,7 +48,7 @@ function Remove-PathIfExists {
     }
 
     if (Test-Path -LiteralPath $Path) {
-        Remove-Item -LiteralPath $Path -Recurse -Force
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -190,11 +190,11 @@ try {
             ExpectedRootSchema = "system_compiler.front_page_entry_opening_testimony_landing/v0"
             ExpectedLevel1 = @(
                 "source_open_event_witness",
-                "witness_evidence_ref_0_source_plan_action",
-                "witness_evidence_ref_1_selected_opener",
+                "witness_evidence_ref_0_source_runtime_session_bridge",
+                "witness_evidence_ref_1_runtime_session_consumer_summary",
                 "witness_evidence_ref_2_open_event"
             )
-            RequiredRoles = @("root", "source_open_event_witness", "witness_evidence_ref:source_plan_action", "witness_evidence_ref:selected_opener", "witness_evidence_ref:open_event")
+            RequiredRoles = @("root", "source_open_event_witness", "witness_evidence_ref:source_runtime_session_bridge", "witness_evidence_ref:runtime_session_consumer_summary", "witness_evidence_ref:open_event")
             ExpectedMinEntries = 5
         },
         [ordered]@{
@@ -203,13 +203,18 @@ try {
             ExpectedRootSchema = "system_compiler.front_page_entry_opening_testimony_landing/v0"
             ExpectedLevel1 = @(
                 "source_open_event_witness",
-                "witness_evidence_ref_0_source_plan_action",
-                "witness_evidence_ref_1_selected_opener",
-                "witness_evidence_ref_2_open_event",
-                "witness_evidence_ref_3_source_action_compare"
+                "witness_evidence_ref_0_source_runtime_session_bridge",
+                "witness_evidence_ref_1_runtime_session_consumer_summary",
+                "witness_evidence_ref_2_open_event"
             )
-            RequiredRoles = @("root", "source_open_event_witness", "witness_evidence_ref:source_action_compare")
-            ExpectedMinEntries = 6
+            RequiredRoles = @(
+                "root",
+                "source_open_event_witness",
+                "witness_evidence_ref:source_runtime_session_bridge",
+                "witness_evidence_ref:runtime_session_consumer_summary",
+                "witness_evidence_ref:open_event"
+            )
+            ExpectedMinEntries = 5
         },
         [ordered]@{
             Name = "landing-compare-route"

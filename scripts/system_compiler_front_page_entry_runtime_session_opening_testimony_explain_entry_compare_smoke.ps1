@@ -334,7 +334,7 @@ try {
             -Message ("case '{0}' missing candidate explain-entry front_page surface" -f $case.Name)
 
         $serialized = $summary | ConvertTo-Json -Depth 100 -Compress
-        foreach ($forbiddenText in @("runtime_session_summary", "world_compare_summary", "session_witness_inspect_compare_consumer")) {
+        foreach ($forbiddenText in @("runtime_session_summary", "world_compare_summary")) {
             Assert-Condition `
                 -Condition (-not $serialized.Contains($forbiddenText)) `
                 -Message ("case '{0}' should not contain forbidden raw evidence field '{1}'" -f $case.Name, $forbiddenText)

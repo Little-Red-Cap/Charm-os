@@ -10,7 +10,7 @@
 
 2026-05 补记：`Examples/ui/vivid/focus_scope_navigation_demo` 是 Focus Scope Navigation Evidence v0 的最小运行样本，验证 Tab/Right/Down 前进、Left/Up 后退、scope 内循环、scope 外 target 不参与键盘焦点导航，以及 final `causal_chain` verdict；法律见 `vivid_focus_scope_evidence_v0.md`。
 
-2026-05 补记：`Examples/ui/vivid/focus_spatial_navigation_demo` 是 Focus Spatial Navigation Evidence v0 的最小运行样本，验证方向键优先按几何方向选择 active scope 内候选、无候选时回退 preorder wrap，以及 scope 外 target 不参与 spatial navigation；法律见 `vivid_focus_scope_evidence_v0.md`。
+2026-05 补记：`Examples/ui/vivid/focus_spatial_navigation_demo` 是 Focus Spatial Navigation Evidence v0 的最小运行样本，验证方向键优先按几何方向选择 active scope 内候选、无候选时回退 preorder wrap、scope 外 target 不参与 spatial navigation，以及 final `causal_chain` verdict；法律见 `vivid_focus_scope_evidence_v0.md`。
 
 2026-05 补记：`Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的最小运行样本，验证 runtime semantic store、`input_focused` truth 与 visual focus ring artifact 对齐；法律见 `vivid_focus_semantic_evidence_v0.md`。
 
@@ -95,7 +95,7 @@ Fast manifest smoke:
 - `Examples/ui/vivid/focus_scope_demo`：验证 FocusScope 接入真实 input dispatch 后允许 scope 内迁移、拒绝 scope 外焦点提交，并证明 scope 外 target 不接收 focus ring artifact 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=10`。
 - `Examples/ui/vivid/focus_scope_nested_demo`：验证 FocusScope push/pop 后 modal scope 与 base scope 的焦点收尾律与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=9`。
 - `Examples/ui/vivid/focus_scope_navigation_demo`：验证 keyboard / d-pad focus navigation 在 active scope 内按顺序循环与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=8`。
-- `Examples/ui/vivid/focus_spatial_navigation_demo`：验证 directional key 在 active scope 内优先按 world rect 选择 spatial candidate；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=9`。
+- `Examples/ui/vivid/focus_spatial_navigation_demo`：验证 directional key 在 active scope 内优先按 world rect 选择 spatial candidate 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=10`。
 - `Examples/ui/vivid/focus_semantic_demo`：验证 runtime semantic store、input focus truth 与 visual focus ring artifact 对齐；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=8`。
 - `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、motion recipe、transition trace 与 compose dry-run。
 
@@ -129,7 +129,7 @@ Fast manifest smoke:
 - `Examples/ui/vivid/focus_scope_demo`：验证 Focus Scope Evidence v0 的 scope containment、runtime scope install、inside dispatch allow、outside dispatch reject、fallback input truth、no-leak artifact 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=10`；法律见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
 - `Examples/ui/vivid/focus_scope_nested_demo`：验证 Focus Scope Nested Evidence v0 的 base scope、modal scope push/pop、modal trap current-first、restored base fallback 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=9`；法律见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
 - `Examples/ui/vivid/focus_scope_navigation_demo`：验证 Focus Scope Navigation Evidence v0 的 Tab / directional key focus move、forward/reverse wrap、outside target exclusion 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=8`；法律见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
-- `Examples/ui/vivid/focus_spatial_navigation_demo`：验证 Focus Spatial Navigation Evidence v0 的 spatial candidate、preorder fallback、Tab preorder 与 outside target exclusion；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=9`；法律见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
+- `Examples/ui/vivid/focus_spatial_navigation_demo`：验证 Focus Spatial Navigation Evidence v0 的 spatial candidate、preorder fallback、Tab preorder、outside target exclusion 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=10`；法律见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
 - `Examples/ui/vivid/focus_semantic_demo`：验证 Focus Semantic Evidence v0 的 stable semantic id / role / label、semantic current target、input focus truth 与 focus ring artifact 对齐；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=8`；法律见 [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)。
 - `Examples/ui/vivid/widget_signal_demo`：验证 Button / MenuItem / ListItem 的 object-level click edge；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=3`。
 - `Examples/ui/vivid/widget_state_demo`：验证 Checkbox / Dropdown / Slider / ProgressBarSimple / Arc 的 object-level state truth；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=5`。

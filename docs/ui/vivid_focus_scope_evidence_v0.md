@@ -160,6 +160,16 @@ Tab -> always preorder
 
 空间候选仍然必须受 active scope 约束。scope 外 target 即使在几何方向上更近，也不得进入候选集。
 
+`focus_spatial_navigation_demo` 的 final causal verdict 还必须证明：
+
+```text
+directional key -> expected spatial candidate
+Tab -> preorder path
+no spatial candidate -> preorder fallback
+outside target -> outside_candidate=0 + no focus artifact mutation
+causal_chain ok=1
+```
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_scope_demo` 是 Focus Scope Evidence v0 的第一条运行证据。
@@ -217,6 +227,7 @@ root
 - 没有空间候选时，方向键回退到 preorder wrap。
 - scope 外 target 不进入 spatial candidate。
 - 每次移动都产生 `FocusOut / FocusIn` 并提交 `input_focused`。
+- final `causal_chain` 汇总 spatial candidate、preorder fallback、scope 外排除与 no-leak artifact。
 
 stdout 最终约束：
 
@@ -224,7 +235,7 @@ stdout 最终约束：
 [fs] run=focus_scope_demo phase=end result=ok cases=10
 [fsn] run=focus_scope_nested_demo phase=end result=ok cases=9
 [fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=8
-[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9
+[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=10
 ```
 
 核心字段：

@@ -19,6 +19,10 @@
 
 - [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)
 
+当前下一批证据工作的优先队列是：
+
+- [`device_contract_promotion_queue_v0.md`](device_contract_promotion_queue_v0.md)
+
 ## 1. 为什么需要证据阶梯
 
 第一批设备契约卡已经覆盖：

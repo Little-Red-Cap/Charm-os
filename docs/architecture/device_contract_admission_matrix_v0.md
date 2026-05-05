@@ -15,6 +15,8 @@
 
 从 `proposed` 走向 `experimental / candidate / admitted` 的证据补齐顺序，见
 [`device_contract_evidence_ladder_v0.md`](device_contract_evidence_ladder_v0.md)。
+当前下一批证据工作的优先队列，见
+[`device_contract_promotion_queue_v0.md`](device_contract_promotion_queue_v0.md)。
 
 ## 当前总表
 

@@ -6,8 +6,14 @@
 
 ```text
 focused 不进入普通 Button style mask；
-focused 改变的是 focus ring / render artifact，
-而不是 Button 的 resolved style evidence。
+focused 改变的是 focus ring / render artifact；
+它不改变 Button 的 resolved style evidence。
+```
+
+证据链：
+
+```text
+focus state delta -> style evidence stable -> focus ring artifact changed -> clear returns baseline -> causal verdict
 ```
 
 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
@@ -20,7 +26,8 @@ stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
 [fb] case=style_evidence_after ...
 [fb] case=render_artifact_after ...
 [fb] case=focus_clear_artifact ...
-[fb] run=focus_boundary_demo phase=end result=ok cases=6
+[fb] case=causal_chain ...
+[fb] run=focus_boundary_demo phase=end result=ok cases=7
 ```
 
-CTest 守住最终 `result=ok cases=6`。
+CTest 守住最终 `result=ok cases=7`。

@@ -78,8 +78,10 @@ pixel_hash baseline
 stdout 遵守 `vivid_evidence_stdout_law.md`，最终 CTest 约束：
 
 ```text
-[fb] run=focus_boundary_demo phase=end result=ok cases=6
+[fb] run=focus_boundary_demo phase=end result=ok cases=7
 ```
+
+2026-05 addendum: the demo now emits a final `causal_chain` verdict named `button.focus_boundary`. It ties together style-mask exclusion, stable `ResolvedStyleEvidence`, focus-ring artifact mutation, and clear-back-to-baseline evidence.
 
 ## 后续方向
 

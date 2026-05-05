@@ -153,6 +153,8 @@ intent-to-artifact
 semantic-to-transaction
 ```
 
+`semantic-to-transaction` chains are governed by `vivid_semantic_transition_law_v0.md`: semantic intent may emit an edge that starts a page transaction, but it must not directly mutate page truth or collapse semantic admission into transaction/layer admission.
+
 ### Time Verdict
 
 Time verdicts explain how UI time is owned by runtime rather than by page-local frame loops.

@@ -2,6 +2,8 @@
 
 This document defines the first cross-axis Vivid evidence sample that connects semantic request execution to page transition transaction evidence.
 
+The boundary law for this chain is `vivid_semantic_transition_law_v0.md`. This document remains the sample-level evidence record and stdout shape for `Examples/ui/vivid/semantic_transition_demo`.
+
 ## Positioning
 
 Earlier demos prove local axes:
@@ -62,6 +64,7 @@ disabled nav.library.open
 
 ## Evidence Rules
 
+- The semantic-to-transaction boundary is governed by `vivid_semantic_transition_law_v0.md`.
 - The semantic request must use `Scene::request_semantic_action`; demo code must not mutate page truth as a shortcut.
 - The bridge to `PageTransitionRunner::begin()` is application-side and must be gated by request execution evidence.
 - The positive path must prove page transaction commit and snapshot release.

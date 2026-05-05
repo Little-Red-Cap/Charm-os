@@ -91,6 +91,36 @@ function Invoke-ExternalTool {
     }
 }
 
+function Invoke-ExternalToolCapture {
+    param(
+        [string]$Executable,
+        [string[]]$ArgumentList
+    )
+
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    try {
+        Write-Host ("==> {0}" -f [System.IO.Path]::GetFileName($Executable))
+        $process = Start-Process `
+            -FilePath $Executable `
+            -ArgumentList $ArgumentList `
+            -NoNewWindow `
+            -Wait `
+            -PassThru `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+        return [ordered]@{
+            ExitCode = [int]$process.ExitCode
+            Stdout = $(if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw -Encoding utf8 } else { "" })
+            Stderr = $(if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw -Encoding utf8 } else { "" })
+        }
+    } finally {
+        Remove-PathIfExists -Path $stdoutPath
+        Remove-PathIfExists -Path $stderrPath
+    }
+}
+
 function Load-JsonObject {
     param(
         [string]$Path
@@ -343,40 +373,43 @@ try {
         -ArgumentList @($witnessValidator, "--summary", $baselineBundleSummaryPath) `
         -FailureMessage "baseline witness bundle validation failed for open_event_witness world compare smoke"
 
-    $candidateExportFailedAsExpected = $false
-    try {
-        Invoke-ExternalTool `
-            -Executable $powerShellExe `
-            -ArgumentList @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $witnessExporter,
-                "-CanonicalWorld",
-                $candidateWorldPath,
-                "-OutputRoot",
-                $candidateBundleRoot,
-                "-OutputPath",
-                $candidateBundleSummaryPath,
-                "-ReportMarkdownPath",
-                (Join-Path $candidateBundleRoot "report.md"),
-                "-CheckTextPath",
-                (Join-Path $candidateBundleRoot "check.txt")
-            ) `
-            -FailureMessage "candidate witness bundle export failed for open_event_witness world compare smoke"
-        throw "candidate witness export was expected to fail because the open-event witness is blocked"
-    } catch {
-        if (-not (Test-Path -LiteralPath $candidateBundleSummaryPath)) {
-            throw
-        }
-        $candidateExportFailedAsExpected = $true
-        Write-Host ("[WITNESS-OPEN-EVENT-WORLD-COMPARE-SMOKE] candidate_export_failed_as_expected={0}" -f $_.Exception.Message)
+    $candidateCapture = Invoke-ExternalToolCapture `
+        -Executable $powerShellExe `
+        -ArgumentList @(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            $witnessExporter,
+            "-CanonicalWorld",
+            $candidateWorldPath,
+            "-OutputRoot",
+            $candidateBundleRoot,
+            "-OutputPath",
+            $candidateBundleSummaryPath,
+            "-ReportMarkdownPath",
+            (Join-Path $candidateBundleRoot "report.md"),
+            "-CheckTextPath",
+            (Join-Path $candidateBundleRoot "check.txt")
+        )
+    if (-not [string]::IsNullOrWhiteSpace([string]$candidateCapture.Stdout)) {
+        Write-Host ($candidateCapture.Stdout.TrimEnd())
     }
 
-    if (-not $candidateExportFailedAsExpected) {
-        throw "candidate witness export did not report the expected blocked open-event witness failure"
+    if ($candidateCapture.ExitCode -eq 0) {
+        throw "candidate witness export was expected to fail because the open-event witness is blocked"
     }
+    if (-not (Test-Path -LiteralPath $candidateBundleSummaryPath)) {
+        $stderrText = [string]$candidateCapture.Stderr
+        if ([string]::IsNullOrWhiteSpace($stderrText)) {
+            throw "candidate witness export failed without producing a witness bundle summary"
+        }
+        throw ("candidate witness export failed without summary: {0}" -f $stderrText.Trim())
+    }
+    Write-Host (
+        "[WITNESS-OPEN-EVENT-WORLD-COMPARE-SMOKE] candidate_export_failed_as_expected={0}" -f
+        ("candidate witness bundle export failed for open_event_witness world compare smoke (exit code {0})" -f [int]$candidateCapture.ExitCode)
+    )
 
     Invoke-ExternalTool `
         -Executable $python `

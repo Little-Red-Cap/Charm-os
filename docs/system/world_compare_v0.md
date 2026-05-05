@@ -127,11 +127,17 @@
 
 - route / facade / evidence ref 的变化会先体现在 `witness_changes`
 - 如果 candidate witness 仍然 `ok`，这些 testimony drift 当前默认先保留在 witness change 层
+- 如果 world / contract 本身没有同步漂移，单独的 neutral testimony drift 当前不会把 `world_verdict` 从 `standing` 抬成 `drifted`
 - 如果 candidate witness 进入 `fail`，它就会和其他 required witness 一样进入 `collapse_surface`
 
 runtime-session opening judgment 这条线当前已经有一条定向 smoke，
 用 blocked candidate 证明 `open_event_witness -> witness bundle -> world compare`
 可以正式产出 `collapsed` world verdict，而不需要在上层重建第二套 compare brain。
+同一条线现在也有 neutral-drift smoke，
+证明 runtime-session opening route 改到另一条合法 explain hop 后，
+`open_event_witness compare` 会记录 testimony drift，
+但只要 witness bundle 仍然 `ok` 且 canonical world 本身没变，
+world compare 仍然保持 `standing`。
 
 ### `collapse_surface`
 

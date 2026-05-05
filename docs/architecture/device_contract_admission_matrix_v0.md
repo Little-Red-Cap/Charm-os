@@ -22,7 +22,7 @@
 | GPIO input/output/edge | `proposed` | HAL 层已有 GPIO 入口，[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md) 已拆分三种语义面 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
 | Block device | `proposed` | block registry、stable slot、runtime slot export、[`block_device_contract_v0.md`](block_device_contract_v0.md) 已记录 sector/live/flush/error 边界 | 未冻结 driver-facing API、无 contract mock、无 facts sidecar | 保持 proposed card，不写代码 |
 | Stream IO | `proposed` | `io::Channel` 非阻塞纪律、registry/reactor/slot 经验、[`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md) 已记录等待与错误边界 | 未冻结为 device public contract、无 facts sidecar、无 contract mock | 保持 proposed card，不写代码 |
-| Timebase | `proposed` | `charm.system.clock` 与 managed time 路线已有方向 | 未定义 driver-facing timebase 准入边界 | 只记录依赖关系，暂不新建 API |
+| Timebase | `proposed` | `charm.system.clock`、host/manual time source、[`timebase_device_contract_v0.md`](timebase_device_contract_v0.md) 已记录 monotonic/resolution/context 边界 | 未冻结 driver-facing API、无 facts sidecar、无 timeout evidence | 保持 proposed card，不写代码 |
 
 ## I2C 样板卡
 
@@ -233,6 +233,10 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 
 当前等级：`proposed`
 
+当前 proposed card：
+
+- [`timebase_device_contract_v0.md`](timebase_device_contract_v0.md)
+
 下一步只记录 driver-facing time dependency，不新增 API。
 
 必须明确：
@@ -243,6 +247,9 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 - ISR 是否可读
 - managed time / replay 是否可控
 - timeout 由谁推进
+
+当前明确不把 `charm.system.clock`、`hal_timer`、kernel timer queue、
+Vivid replay 或 RK3506 generic timer IRQ smoke 单独当作 admitted Timebase contract evidence。
 
 ## 当前非目标
 

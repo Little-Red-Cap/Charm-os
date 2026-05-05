@@ -401,6 +401,10 @@ concept I2cBus =
 
 应与 `charm.system.clock` 对齐。
 
+当前 proposed card 见：
+
+- [`timebase_device_contract_v0.md`](timebase_device_contract_v0.md)
+
 关键语义：
 
 - monotonic

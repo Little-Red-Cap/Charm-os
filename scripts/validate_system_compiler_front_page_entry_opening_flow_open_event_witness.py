@@ -62,6 +62,12 @@ def validate_references(summary: dict, errors: list[str]) -> None:
         ensure_exists(ref.get("summary_path"), f"evidence_refs[{index}].summary_path", errors)
         ensure_exists(ref.get("report_markdown_path"), f"evidence_refs[{index}].report_markdown_path", errors, required=False)
         ensure_exists(ref.get("check_text_path"), f"evidence_refs[{index}].check_text_path", errors, required=False)
+    explanation = summary.get("explanation", {})
+    for index, observation in enumerate(explanation.get("opening_input_observations", [])):
+        if not isinstance(observation, dict):
+            errors.append(f"explanation.opening_input_observations[{index}]: invalid observation")
+            continue
+        ensure_exists(observation.get("path"), f"explanation.opening_input_observations[{index}].path", errors, required=False)
 
 
 def validate_counts(summary: dict, errors: list[str]) -> None:
@@ -74,6 +80,9 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
     expect_equal(witness_entry.get("id"), judgment.get("witness_id"), "witness_entry.id", errors)
     expect_equal(witness_entry.get("status"), judgment.get("witness_status"), "witness_entry.status", errors)
     expect_equal(judgment.get("accepted"), judgment.get("witness_status") == "ok", "judgment.accepted", errors)
+    opening_inputs = summary.get("explanation", {}).get("opening_input_observations", [])
+    if opening_inputs and len(opening_inputs) < 4:
+        errors.append("explanation.opening_input_observations must contain at least four primary opening refs")
 
 
 def validate_status(summary: dict, errors: list[str]) -> None:
@@ -86,14 +95,22 @@ def validate_status(summary: dict, errors: list[str]) -> None:
     expect_equal(judgment.get("source_judgment_status"), identity.get("open_event_status"), "judgment.source_judgment_status", errors)
     expected_grade = "compared" if bool(judgment.get("compare_available")) else "described"
     expect_equal(judgment.get("source_judgment_grade"), expected_grade, "judgment.source_judgment_grade", errors)
-    expected_basis = ["source_plan_action", "selected_opener", "open_event"]
-    if bool(judgment.get("compare_available")):
-        expected_basis.append("source_action_compare")
-    expect_equal(judgment.get("source_judgment_basis"), expected_basis, "judgment.source_judgment_basis", errors)
+    source_basis = judgment.get("source_judgment_basis", [])
+    if not isinstance(source_basis, list) or not source_basis:
+        errors.append("judgment.source_judgment_basis must be a non-empty list")
+    if "open_event" not in source_basis:
+        errors.append("judgment.source_judgment_basis must include open_event")
     if judgment.get("witness_status") == "ok" and violations:
         errors.append("violations must be empty when witness_status is ok")
     if judgment.get("witness_status") == "fail" and not violations:
         errors.append("violations must explain fail witness_status")
+    has_runtime_session_inputs = bool(summary.get("explanation", {}).get("opening_input_observations"))
+    required_focus = (
+        ["front_page", "opening_flow", "runtime_session", "session_witness", "artifact_target"]
+        if has_runtime_session_inputs
+        else ["front_page", "opening_flow", "consumer", "plan", "compare", "workspace"]
+    )
+    expect_equal(summary.get("witness_entry", {}).get("witness_focus"), required_focus, "witness_entry.witness_focus", errors)
 
 
 def main() -> int:

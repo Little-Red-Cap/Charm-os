@@ -24,6 +24,11 @@ It sits after:
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action/v0`
 - optional `system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare/v0`
 
+It can also be produced by the runtime-session-specific wrapper after:
+
+- `minimal_kernel.runtime_session_witness_inspect_compare_consumer/v0`
+- `system_compiler.front_page_entry_runtime_session_opening_flow_plan_action/v0`
+
 The older action facade answers:
 
 - which already-planned action should a consumer open now
@@ -50,6 +55,8 @@ Current `system_compiler.front_page_entry_opening_flow_open_event` includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_open_event.v0.schema.json`
 - exporter
   - `scripts/export_system_compiler_front_page_entry_opening_flow_open_event.py`
+- runtime-session wrapper exporter
+  - `scripts/export_system_compiler_front_page_entry_runtime_session_opening_flow_open_event.py`
 - workspace exporter
   - `scripts/export_system_compiler_front_page_entry_opening_flow_open_event_workspace.ps1`
 - validator
@@ -73,6 +80,7 @@ Current `system_compiler.front_page_entry_opening_flow_open_event` includes:
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_workspace_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_workspace_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_open_event_witness_smoke.ps1`
 
 ## Current outputs
 
@@ -121,6 +129,12 @@ The current summary records:
   - opening status: `accepted`, `accepted_with_drift`, or `blocked`
   - structured opening reason
   - source artifact and opener surface paths
+  - optional `opening_input_refs`
+    - `consumer_summary_ref`
+    - `selected_focus_ref`
+    - `selected_explain_hop_ref`
+    - `selected_artifact_ref`
+    - `fallback_artifact_refs`
 - `consumer_decision`
   - selected consumer projection
   - candidate consumers projected from the source plan actions
@@ -249,6 +263,18 @@ without forcing a premature registry design.
 
 Later, these projected consumers can be replaced by real consumer registry
 entries while keeping the same open-event shape.
+
+The runtime-session wrapper deliberately stays narrower than the generic plan
+path:
+
+- one candidate consumer
+- zero rejected consumers
+- fallback explain hops stay in `opening_input_refs`
+- the selected artifact target is explicit, but the primary workspace facade
+  still points at the consumer-facing explain surface
+
+This keeps the opening judgment explainable without letting upper layers
+reinterpret raw session evidence.
 
 ## Compare v0
 

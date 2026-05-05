@@ -84,6 +84,64 @@ def normalize_witness_ref(value: Any) -> OrderedDict[str, str]:
     )
 
 
+def normalize_opening_input_ref(ref_value: Any) -> OrderedDict[str, str]:
+    ref = get_mapping(ref_value)
+    result = OrderedDict(
+        [
+            ("kind", choose_text(ref.get("ref_kind"))),
+            ("id", choose_text(ref.get("id"))),
+            ("path", normalize_optional_path(ref.get("path"))),
+        ]
+    )
+    label = choose_text(ref.get("label"))
+    if label:
+        result["label"] = label
+    summary_schema = choose_text(ref.get("summary_schema"))
+    if summary_schema:
+        result["summary_schema"] = summary_schema
+    summary_kind = choose_text(ref.get("summary_kind"))
+    if summary_kind:
+        result["summary_kind"] = summary_kind
+    focus_kind = choose_text(ref.get("focus_kind"))
+    if focus_kind:
+        result["focus_kind"] = focus_kind
+    severity = choose_text(ref.get("severity"))
+    if severity:
+        result["severity"] = severity
+    reason_kind = choose_text(ref.get("reason_kind"))
+    if reason_kind:
+        result["reason_kind"] = reason_kind
+    return result
+
+
+def get_opening_input_refs(open_event_summary: dict[str, Any]) -> OrderedDict[str, Any]:
+    event = get_mapping(open_event_summary.get("open_event"))
+    refs = get_mapping(event.get("opening_input_refs"))
+    return OrderedDict(
+        [
+            ("consumer_summary_ref", normalize_opening_input_ref(refs.get("consumer_summary_ref"))),
+            ("selected_focus_ref", normalize_opening_input_ref(refs.get("selected_focus_ref"))),
+            ("selected_explain_hop_ref", normalize_opening_input_ref(refs.get("selected_explain_hop_ref"))),
+            ("selected_artifact_ref", normalize_opening_input_ref(refs.get("selected_artifact_ref"))),
+            (
+                "fallback_artifact_refs",
+                [normalize_opening_input_ref(item) for item in get_list(refs.get("fallback_artifact_refs"))],
+            ),
+        ]
+    )
+
+
+def has_runtime_session_opening_inputs(open_event_summary: dict[str, Any]) -> bool:
+    opening_input_refs = get_opening_input_refs(open_event_summary)
+    primary_paths = [
+        choose_text(opening_input_refs["consumer_summary_ref"].get("path")),
+        choose_text(opening_input_refs["selected_focus_ref"].get("path")),
+        choose_text(opening_input_refs["selected_explain_hop_ref"].get("path")),
+        choose_text(opening_input_refs["selected_artifact_ref"].get("path")),
+    ]
+    return any(primary_paths)
+
+
 def build_front_page(
     summary_path: Path,
     report_path: Path,
@@ -142,6 +200,18 @@ def build_artifact_refs(open_event_summary: dict[str, Any], open_event_summary_p
         normalize_optional_path(source_artifact.get("opener_report_markdown_path")),
         normalize_optional_path(source_artifact.get("opener_check_text_path")),
     ]
+    if has_runtime_session_opening_inputs(open_event_summary):
+        opening_input_refs = get_opening_input_refs(open_event_summary)
+        refs.extend(
+            [
+                normalize_optional_path(opening_input_refs["consumer_summary_ref"].get("path")),
+                normalize_optional_path(opening_input_refs["selected_focus_ref"].get("path")),
+                normalize_optional_path(opening_input_refs["selected_explain_hop_ref"].get("path")),
+                normalize_optional_path(opening_input_refs["selected_artifact_ref"].get("path")),
+            ]
+        )
+        for ref in opening_input_refs["fallback_artifact_refs"]:
+            refs.append(normalize_optional_path(ref.get("path")))
     for ref_value in get_list(open_event_summary.get("witness_refs")):
         ref = normalize_witness_ref(ref_value)
         refs.extend([ref["summary_path"], ref["report_markdown_path"], ref["check_text_path"]])
@@ -149,7 +219,32 @@ def build_artifact_refs(open_event_summary: dict[str, Any], open_event_summary_p
 
 
 def build_evidence_refs(open_event_summary: dict[str, Any]) -> list[OrderedDict[str, str]]:
-    return [normalize_witness_ref(ref_value) for ref_value in get_list(open_event_summary.get("witness_refs"))]
+    refs = [normalize_witness_ref(ref_value) for ref_value in get_list(open_event_summary.get("witness_refs"))]
+    if has_runtime_session_opening_inputs(open_event_summary):
+        opening_input_refs = get_opening_input_refs(open_event_summary)
+        refs.append(
+            OrderedDict(
+                [
+                    ("role", "consumer_summary_ref"),
+                    ("summary_schema", choose_text(opening_input_refs["consumer_summary_ref"].get("summary_schema"))),
+                    ("summary_path", normalize_optional_path(opening_input_refs["consumer_summary_ref"].get("path"))),
+                    ("report_markdown_path", ""),
+                    ("check_text_path", ""),
+                ]
+            )
+        )
+        refs.append(
+            OrderedDict(
+                [
+                    ("role", "selected_artifact_ref"),
+                    ("summary_schema", choose_text(opening_input_refs["selected_artifact_ref"].get("summary_schema"))),
+                    ("summary_path", normalize_optional_path(opening_input_refs["selected_artifact_ref"].get("path"))),
+                    ("report_markdown_path", ""),
+                    ("check_text_path", ""),
+                ]
+            )
+        )
+    return refs
 
 
 def build_observations(open_event_summary: dict[str, Any]) -> list[str]:
@@ -181,6 +276,17 @@ def build_observations(open_event_summary: dict[str, Any]) -> list[str]:
         ),
         f"witness_refs={len(get_list(open_event_summary.get('witness_refs')))}",
     ]
+    if has_runtime_session_opening_inputs(open_event_summary):
+        opening_input_refs = get_opening_input_refs(open_event_summary)
+        observations.append(
+            "opening_input_refs=consumer:{0} focus:{1} hop:{2} artifact:{3} fallback:{4}".format(
+                choose_text(opening_input_refs["consumer_summary_ref"].get("id")),
+                choose_text(opening_input_refs["selected_focus_ref"].get("id")),
+                choose_text(opening_input_refs["selected_explain_hop_ref"].get("id")),
+                choose_text(opening_input_refs["selected_artifact_ref"].get("id")),
+                len(opening_input_refs["fallback_artifact_refs"]),
+            )
+        )
     if choose_text(event.get("status")) == "accepted_with_drift":
         observations.append("opening_drift=attached_compare_context")
     return ordered_unique(observations)
@@ -247,6 +353,16 @@ def build_summary_model(
     source_judgment = get_mapping(open_event_summary.get("judgment"))
     explanation = get_mapping(open_event_summary.get("explanation_view"))
     source_artifact_context = get_mapping(open_event_summary.get("artifact_context"))
+    runtime_session_inputs = has_runtime_session_opening_inputs(open_event_summary)
+    opening_input_refs = get_opening_input_refs(open_event_summary) if runtime_session_inputs else OrderedDict(
+        [
+            ("consumer_summary_ref", OrderedDict()),
+            ("selected_focus_ref", OrderedDict()),
+            ("selected_explain_hop_ref", OrderedDict()),
+            ("selected_artifact_ref", OrderedDict()),
+            ("fallback_artifact_refs", []),
+        ]
+    )
     source_violations = [choose_text(item) for item in get_list(open_event_summary.get("violations")) if choose_text(item)]
     event_status = choose_text(event.get("status"))
     violations = list(source_violations)
@@ -352,7 +468,18 @@ def build_summary_model(
                         ("layer", "opening_flow"),
                         ("required", True),
                         ("status", witness_status),
-                        ("witness_focus", ["front_page", "opening_flow", "consumer", "plan", "compare", "workspace"]),
+                        (
+                            "witness_focus",
+                            [
+                                "front_page",
+                                "opening_flow",
+                                "runtime_session",
+                                "session_witness",
+                                "artifact_target",
+                            ]
+                            if runtime_session_inputs
+                            else ["front_page", "opening_flow", "consumer", "plan", "compare", "workspace"],
+                        ),
                         ("case", choose_text(event.get("open_event_id")) or None),
                         ("source_path", normalize_path(open_event_summary_path)),
                         ("subject", build_subject(open_event_summary)),
@@ -370,6 +497,18 @@ def build_summary_model(
                         ("why_opened", choose_text(explanation.get("why_opened"))),
                         ("chosen_consumer", choose_text(explanation.get("chosen_consumer"))),
                         ("compare_result", choose_text(explanation.get("compare_result"))),
+                        (
+                            "opening_input_observations",
+                            [
+                                opening_input_refs["consumer_summary_ref"],
+                                opening_input_refs["selected_focus_ref"],
+                                opening_input_refs["selected_explain_hop_ref"],
+                                opening_input_refs["selected_artifact_ref"],
+                                *opening_input_refs["fallback_artifact_refs"],
+                            ]
+                            if runtime_session_inputs
+                            else [],
+                        ),
                         ("text_lines", [choose_text(item) for item in get_list(explanation.get("text_lines"))]),
                     ]
                 ),

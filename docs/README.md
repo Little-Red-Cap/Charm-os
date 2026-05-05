@@ -162,6 +162,10 @@
 - System Compiler Front Page Entry Opening Flow Consumer Plan Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`
 - System Compiler Front Page Entry Opening Flow Consumer Selector Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_v0.md`
 - System Compiler Front Page Entry Opening Flow Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`
+- System Compiler Front Page Entry Runtime Session Opening Flow Plan Action v0：`docs/system/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_v0.md`
+- System Compiler Front Page Entry Runtime Session Opening Flow bridge smoke：`scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_bridge_smoke.ps1`
+- System Compiler Front Page Entry Runtime Session Opening Flow blocked bridge smoke：`scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_bridge_blocked_smoke.ps1`
+- System Compiler Front Page Entry Runtime Session open event witness smoke：`scripts/system_compiler_front_page_entry_runtime_session_open_event_witness_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow smoke：`scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer selector smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`

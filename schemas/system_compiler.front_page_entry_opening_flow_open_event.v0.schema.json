@@ -304,6 +304,79 @@
         },
         "source_artifact": {
           "$ref": "#/$defs/sourceArtifact"
+        },
+        "opening_input_refs": {
+          "$ref": "#/$defs/openingInputRefs"
+        }
+      }
+    },
+    "openingInputRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "ref_kind",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "ref_kind": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_kind": {
+          "type": "string"
+        },
+        "focus_kind": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "reason_kind": {
+          "type": "string"
+        }
+      }
+    },
+    "openingInputRefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consumer_summary_ref",
+        "selected_focus_ref",
+        "selected_explain_hop_ref",
+        "selected_artifact_ref",
+        "fallback_artifact_refs"
+      ],
+      "properties": {
+        "consumer_summary_ref": {
+          "$ref": "#/$defs/openingInputRef"
+        },
+        "selected_focus_ref": {
+          "$ref": "#/$defs/openingInputRef"
+        },
+        "selected_explain_hop_ref": {
+          "$ref": "#/$defs/openingInputRef"
+        },
+        "selected_artifact_ref": {
+          "$ref": "#/$defs/openingInputRef"
+        },
+        "fallback_artifact_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/openingInputRef"
+          }
         }
       }
     },

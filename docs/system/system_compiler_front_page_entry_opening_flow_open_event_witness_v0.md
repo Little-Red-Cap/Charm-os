@@ -99,8 +99,13 @@ The current summary records:
   - observations suitable for later bundle consumption
 - `evidence_refs`
   - the source open-event witness refs, normalized as explicit evidence inputs
+  - runtime-session wrappers may also project `consumer_summary_ref` and
+    `selected_artifact_ref` as additive evidence refs
 - `explanation`
   - the hard explain text projected from the source open-event explanation view
+  - runtime-session wrappers may also project `opening_input_observations`
+    so the witness can carry the selected opening route without reproving
+    session semantics
 
 ## Witness status
 
@@ -138,6 +143,28 @@ Current source judgment fields inside `judgment` are:
 
 This makes the witness a testimony projection rather than a second root
 judgment.
+
+## Runtime-session opening route projection
+
+When the source open event comes from the runtime-session-specific wrapper:
+
+- `witness_entry.witness_focus` becomes:
+  - `front_page`
+  - `opening_flow`
+  - `runtime_session`
+  - `session_witness`
+  - `artifact_target`
+- `accepted_with_drift` still produces `witness_status=ok`
+- `opening_input_observations` preserve:
+  - consumer summary ref
+  - selected focus ref
+  - selected explain hop ref
+  - selected artifact ref
+  - fallback artifact refs
+
+This witness still does not re-prove runtime/session/world-compare meaning.
+
+It only proves that the opening selection, route, and facade remained stable.
 
 ## Manual example
 

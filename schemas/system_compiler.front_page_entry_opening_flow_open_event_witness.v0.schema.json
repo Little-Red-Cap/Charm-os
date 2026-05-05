@@ -475,6 +475,44 @@
         }
       }
     },
+    "openingInputObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_kind": {
+          "type": "string"
+        },
+        "focus_kind": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "reason_kind": {
+          "type": "string"
+        }
+      }
+    },
     "explanation": {
       "type": "object",
       "additionalProperties": false,
@@ -497,6 +535,12 @@
         },
         "compare_result": {
           "type": "string"
+        },
+        "opening_input_observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/openingInputObservation"
+          }
         },
         "text_lines": {
           "$ref": "#/$defs/stringArray"

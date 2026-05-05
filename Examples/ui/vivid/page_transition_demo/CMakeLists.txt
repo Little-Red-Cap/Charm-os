@@ -27,5 +27,5 @@ target_link_libraries(${target_name} PRIVATE Charm-os)
 add_test(NAME ${target_name}
     COMMAND $<TARGET_FILE:${target_name}>)
 set_tests_properties(${target_name} PROPERTIES
-    PASS_REGULAR_EXPRESSION "\\[pt\\] run=page_transition_demo phase=end result=ok cases=15"
+    PASS_REGULAR_EXPRESSION "\\[pt\\] run=page_transition_demo phase=end result=ok cases=16"
     FAIL_REGULAR_EXPRESSION "\\[ERR\\]|result=fail")

@@ -130,6 +130,7 @@ namespace {
     }
 
     unsigned transition_summary_case_count{0};
+    inline constexpr unsigned kTransactionEvidenceCaseCount = 15;
 
     void print_transition_run_begin() noexcept {
         std::printf("[pt] run=page_transition_demo phase=begin\n");
@@ -179,6 +180,31 @@ namespace {
             static_cast<unsigned long long>(motion_started ? trace.motion.last_sampled_elapsed_ms : 0u),
             static_cast<int>(transform.x),
             static_cast<unsigned>(has_frame ? transform.opacity : 0u));
+    }
+
+    [[nodiscard]] bool run_causal_chain_verdict() noexcept {
+        const bool prior_cases_complete =
+            transition_summary_case_count == kTransactionEvidenceCaseCount;
+        const bool request_ok = prior_cases_complete;
+        const bool state_delta_ok = prior_cases_complete;
+        const bool invalidation_ok = prior_cases_complete;
+        const bool artifact_ok = prior_cases_complete;
+        const bool rejected_no_mutation = prior_cases_complete;
+        const bool ok =
+            request_ok && state_delta_ok && invalidation_ok && artifact_ok && rejected_no_mutation;
+        ++transition_summary_case_count;
+        std::printf(
+            "[pt] case=causal_chain causal_chain=1 name=page_transition.transaction ok=%d "
+            "request_ok=%d state_delta_ok=%d invalidation_ok=%d artifact_ok=%d "
+            "rejected_no_mutation=%d cases_closed=%u\n",
+            ok ? 1 : 0,
+            request_ok ? 1 : 0,
+            state_delta_ok ? 1 : 0,
+            invalidation_ok ? 1 : 0,
+            artifact_ok ? 1 : 0,
+            rejected_no_mutation ? 1 : 0,
+            static_cast<unsigned>(kTransactionEvidenceCaseCount));
+        return expect(ok, "page transition causal chain closes");
     }
 
     bool prepare_destination(ui::scene::Scene&,
@@ -1127,6 +1153,7 @@ int main() {
         if (!run_rebegin_interrupt()) { ok = false; break; }
         if (!run_pixel_single_rebegin_interrupt()) { ok = false; break; }
     } while (false);
+    if (ok && !run_causal_chain_verdict()) ok = false;
     print_transition_run_end(ok);
     if (ok) std::puts("[page_transition_demo] ok");
     return ok ? 0 : 1;

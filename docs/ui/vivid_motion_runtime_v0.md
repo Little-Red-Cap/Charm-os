@@ -362,6 +362,7 @@ Examples/ui/vivid/page_transition_demo
 - pixel single：只捕获 source snapshot，destination 保持 live，commit / cancel 后 `snapshot_count == 0`
 - command snapshot static cut：`CommandSnapshot` admission 在双页 replay 实现前不发生 capture，显式 static cut 并直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
+- causal chain verdict：15 条事务局部证据全部通过后输出 `page_transition.transaction` 最终因果判决
 
 ## 2026-05 补记：PageTransition interrupt law
 

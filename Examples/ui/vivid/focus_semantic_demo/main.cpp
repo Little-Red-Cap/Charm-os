@@ -108,6 +108,10 @@ int main() {
     if (!vivid::evidence::expect(primary_semantic.found, "primary focus resolves semantic target")) return 1;
     if (!vivid::evidence::expect(primary_semantic.id[0] == 'p',
                                  "primary semantic id selected")) return 1;
+    const bool primary_focus_committed =
+        vivid::evidence::same_handle(primary_access.input_focused(), handles.primary)
+        && primary_semantic.found
+        && primary_semantic.id[0] == 'p';
 
     const auto primary_artifact = vivid::evidence::render_scene(scene, canvas, kPrimaryBounds);
     if (!vivid::evidence::expect(primary_artifact.failed_cmds == 0,
@@ -136,6 +140,10 @@ int main() {
     if (!vivid::evidence::expect(secondary_semantic.found, "secondary focus resolves semantic target")) return 1;
     if (!vivid::evidence::expect(secondary_semantic.id[0] == 's',
                                  "secondary semantic id selected")) return 1;
+    const bool secondary_focus_committed =
+        vivid::evidence::same_handle(transfer_access.input_focused(), handles.secondary)
+        && secondary_semantic.found
+        && secondary_semantic.id[0] == 's';
     scene.dispatch_event(Event::mouse(Event::Type::MouseUp,
                                       kSecondaryBounds.x + kSecondaryBounds.w / 2,
                                       kSecondaryBounds.y + kSecondaryBounds.h / 2,
@@ -160,6 +168,10 @@ int main() {
                                  "keyboard semantic focus emits FocusIn primary")) return 1;
     if (!vivid::evidence::expect(key_semantic.found && key_semantic.id[0] == 'p',
                                  "keyboard focus resolves primary semantic target")) return 1;
+    const bool keyboard_focus_committed =
+        vivid::evidence::same_handle(key_access.input_focused(), handles.primary)
+        && key_semantic.found
+        && key_semantic.id[0] == 'p';
 
     run_log.case_begin("keyboard_semantic_focus");
     std::printf(" source=key key=up old=secondary new=primary semantic_found=1 semantic_current=%s role=%s focus_out=%d focus_in=%d input_truth=primary\n",
@@ -175,6 +187,9 @@ int main() {
                                  "inside fallback focus still resolves semantic target")) return 1;
     if (!vivid::evidence::expect(!vivid::evidence::same_handle(outside_access.input_focused(), handles.outside),
                                  "outside semantic target is not selected by active scope navigation")) return 1;
+    const bool outside_excluded =
+        !vivid::evidence::same_handle(outside_access.input_focused(), handles.outside)
+        && outside_skip_semantic.found;
 
     run_log.case_begin("outside_semantic_not_selected");
     std::printf(" source=key key=right outside_semantic_present=1 outside_selected=0 semantic_found=1 semantic_current=%s input_truth=inside_scope\n",
@@ -195,6 +210,9 @@ int main() {
                                  "semantic focus keeps style evidence stable")) return 1;
     if (!vivid::evidence::expect(!focus_state.includes_focused,
                                  "semantic focus remains outside scroll container style mask")) return 1;
+    const bool semantic_style_boundary =
+        style_evidence_equal(normal_evidence, focused_evidence)
+        && !focus_state.includes_focused;
 
     run_log.case_begin("style_boundary");
     std::printf(" widget=scroll_container focused_in_style_mask=%d style_same=1 style_key=%u color_hash=%u metrics_hash=%u\n",
@@ -211,6 +229,11 @@ int main() {
                                  "semantic aligned artifact has no failed commands")) return 1;
     if (!vivid::evidence::expect(aligned_artifact.cmd_count > 0,
                                  "semantic aligned artifact records commands")) return 1;
+    const bool artifact_aligned =
+        aligned_artifact.failed_cmds == 0
+        && aligned_artifact.cmd_count > 0
+        && outside_skip_semantic.found
+        && !vivid::evidence::same_handle(outside_access.input_focused(), handles.outside);
 
     run_log.case_begin("artifact_alignment");
     std::printf(" semantic_current=%s input_truth=%s focus_ring=1 dirty_count=%zu cmd_hash=%u pixel_hash=%u artifact_aligned=1\n",
@@ -219,6 +242,41 @@ int main() {
                 aligned_artifact.dirty_count,
                 aligned_artifact.cmd_hash,
                 aligned_artifact.pixel_hash);
+
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "semantic_focus.alignment",
+        .request_ok = primary_entry.found
+            && primary_entry.focusable
+            && secondary_entry.found
+            && secondary_entry.focusable
+            && outside_entry.found
+            && outside_entry.focusable
+            && !title_entry.found
+            && transfer_trace.focus_out == 1
+            && transfer_trace.focus_out_expected
+            && transfer_trace.focus_in == 1
+            && transfer_trace.focus_in_expected
+            && key_trace.focus_out == 1
+            && key_trace.focus_out_expected
+            && key_trace.focus_in == 1
+            && key_trace.focus_in_expected
+            && outside_excluded,
+        .state_delta_ok = primary_focus_committed
+            && secondary_focus_committed
+            && keyboard_focus_committed
+            && outside_excluded,
+        .invalidation_ok = semantic_style_boundary,
+        .artifact_ok = artifact_aligned
+            && primary_artifact.cmd_count > 0,
+        .rejected_no_mutation = outside_excluded,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "semantic focus causal chain closes")) {
+        return 1;
+    }
 
     run_log.end(true);
     std::puts("[focus_semantic_demo] ok");

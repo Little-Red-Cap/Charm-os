@@ -78,6 +78,20 @@ decorative_present=1
 decorative_semantic=0
 ```
 
+### Law 5b: semantic focus alignment must close a causal_chain
+
+`focus_semantic_demo` 的 final causal verdict 必须同时证明：
+
+```text
+semantic table -> stable id / role / label
+pointer transfer -> FocusOut / FocusIn + semantic_current
+keyboard transfer -> FocusOut / FocusIn + semantic_current
+outside semantic target -> outside_selected=0
+style boundary -> focused_in_style_mask=0
+artifact alignment -> focus_ring=1
+causal_chain ok=1
+```
+
 ### Law 6: semantic tree artifact is a fixed-capacity snapshot
 
 Semantic Tree Artifact v0 is not a full accessibility runtime. It is a root-bound evidence artifact collected from the Vivid SoA tree:
@@ -257,7 +271,7 @@ v0 rules:
 stdout 最终约束：
 
 ```text
-[fsem] run=focus_semantic_demo phase=end result=ok cases=8
+[fsem] run=focus_semantic_demo phase=end result=ok cases=9
 ```
 
 `Examples/ui/vivid/semantic_tree_demo` is the first Semantic Tree Artifact v0 runtime evidence.
@@ -372,6 +386,7 @@ focus_ring=1
 outside_semantic_present=1
 outside_selected=0
 decorative_semantic=0
+causal_chain=1
 overflowed=1
 ```
 

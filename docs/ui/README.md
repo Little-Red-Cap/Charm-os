@@ -12,7 +12,7 @@
 
 2026-05 补记：`Examples/ui/vivid/focus_spatial_navigation_demo` 是 Focus Spatial Navigation Evidence v0 的最小运行样本，验证方向键优先按几何方向选择 active scope 内候选、无候选时回退 preorder wrap、scope 外 target 不参与 spatial navigation，以及 final `causal_chain` verdict；法律见 `vivid_focus_scope_evidence_v0.md`。
 
-2026-05 补记：`Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的最小运行样本，验证 runtime semantic store、`input_focused` truth 与 visual focus ring artifact 对齐；法律见 `vivid_focus_semantic_evidence_v0.md`。
+2026-05 补记：`Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的最小运行样本，验证 runtime semantic store、`input_focused` truth、visual focus ring artifact 对齐，以及 final `causal_chain` verdict；法律见 `vivid_focus_semantic_evidence_v0.md`。
 
 本目录收纳 Charm UI 语义、布局、渲染、热键和多后端规划相关材料。
 
@@ -96,7 +96,7 @@ Fast manifest smoke:
 - `Examples/ui/vivid/focus_scope_nested_demo`：验证 FocusScope push/pop 后 modal scope 与 base scope 的焦点收尾律与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=9`。
 - `Examples/ui/vivid/focus_scope_navigation_demo`：验证 keyboard / d-pad focus navigation 在 active scope 内按顺序循环与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=8`。
 - `Examples/ui/vivid/focus_spatial_navigation_demo`：验证 directional key 在 active scope 内优先按 world rect 选择 spatial candidate 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=10`。
-- `Examples/ui/vivid/focus_semantic_demo`：验证 runtime semantic store、input focus truth 与 visual focus ring artifact 对齐；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=8`。
+- `Examples/ui/vivid/focus_semantic_demo`：验证 runtime semantic store、input focus truth、visual focus ring artifact 对齐与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=9`。
 - `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、motion recipe、transition trace 与 compose dry-run。
 
 ### 我想看 EInk / Player UI
@@ -130,6 +130,6 @@ Fast manifest smoke:
 - `Examples/ui/vivid/focus_scope_nested_demo`：验证 Focus Scope Nested Evidence v0 的 base scope、modal scope push/pop、modal trap current-first、restored base fallback 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=9`；法律见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
 - `Examples/ui/vivid/focus_scope_navigation_demo`：验证 Focus Scope Navigation Evidence v0 的 Tab / directional key focus move、forward/reverse wrap、outside target exclusion 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=8`；法律见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
 - `Examples/ui/vivid/focus_spatial_navigation_demo`：验证 Focus Spatial Navigation Evidence v0 的 spatial candidate、preorder fallback、Tab preorder、outside target exclusion 与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=10`；法律见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
-- `Examples/ui/vivid/focus_semantic_demo`：验证 Focus Semantic Evidence v0 的 stable semantic id / role / label、semantic current target、input focus truth 与 focus ring artifact 对齐；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=8`；法律见 [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)。
+- `Examples/ui/vivid/focus_semantic_demo`：验证 Focus Semantic Evidence v0 的 stable semantic id / role / label、semantic current target、input focus truth、focus ring artifact 对齐与 final causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=9`；法律见 [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)。
 - `Examples/ui/vivid/widget_signal_demo`：验证 Button / MenuItem / ListItem 的 object-level click edge；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=3`。
 - `Examples/ui/vivid/widget_state_demo`：验证 Checkbox / Dropdown / Slider / ProgressBarSimple / Arc 的 object-level state truth；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=5`。

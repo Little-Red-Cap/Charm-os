@@ -97,7 +97,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `focus_scope_nested_demo` | `fsn` | `[fsn] run=focus_scope_nested_demo phase=end result=ok cases=9` |
 | `focus_scope_navigation_demo` | `fsnav` | `[fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=8` |
 | `focus_spatial_navigation_demo` | `fss` | `[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=10` |
-| `focus_semantic_demo` | `fsem` | `[fsem] run=focus_semantic_demo phase=end result=ok cases=8` |
+| `focus_semantic_demo` | `fsem` | `[fsem] run=focus_semantic_demo phase=end result=ok cases=9` |
 | `semantic_tree_demo` | `stree` | `[stree] run=semantic_tree_demo phase=end result=ok cases=6` |
 | `semantic_default_demo` | `sdef` | `[sdef] run=semantic_default_demo phase=end result=ok cases=6` |
 | `semantic_action_demo` | `sact` | `[sact] run=semantic_action_demo phase=end result=ok cases=6` |

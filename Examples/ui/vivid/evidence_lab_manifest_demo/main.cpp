@@ -43,7 +43,7 @@ namespace {
         {"focus_scope_nested_demo", "fsn", 9, AxisFocus | AxisTransaction | AxisRender | AxisCausal, "docs/ui/vivid_focus_scope_evidence_v0.md"},
         {"focus_scope_navigation_demo", "fsnav", 8, AxisEdge | AxisFocus | AxisRender | AxisCausal, "docs/ui/vivid_focus_scope_evidence_v0.md"},
         {"focus_spatial_navigation_demo", "fss", 10, AxisEdge | AxisFocus | AxisRender | AxisCausal, "docs/ui/vivid_focus_scope_evidence_v0.md"},
-        {"focus_semantic_demo", "fsem", 8, AxisSemantic | AxisFocus | AxisRender, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
+        {"focus_semantic_demo", "fsem", 9, AxisSemantic | AxisFocus | AxisRender | AxisCausal, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
         {"semantic_tree_demo", "stree", 6, AxisSemantic, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
         {"semantic_default_demo", "sdef", 6, AxisSemantic, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
         {"semantic_action_demo", "sact", 6, AxisSemantic, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
@@ -61,7 +61,7 @@ namespace {
     };
 
     constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 209;
+    constexpr unsigned kExpectedCaseTotal = 210;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState

@@ -12,6 +12,20 @@ It consumes only:
 It does not consume open-event witnesses directly, runtime session summaries,
 world compare summaries, or raw kernel runtime evidence.
 
+For runtime-session, this means the upper explain-entry decision is welded onto
+the already-closed opening judgment chain without adding a second compare brain
+or rereading raw session evidence:
+
+```text
+runtime-session consumer
+  -> runtime-session opening bridge
+  -> open_event
+  -> open_event_witness
+  -> opening_testimony_landing
+  -> front_page_route
+  -> opening_testimony_explain_entry
+```
+
 ## Role
 
 The opening testimony chain is now:
@@ -80,6 +94,12 @@ The exporter leaves behind:
 - `front-page.entry-opening-testimony.explain-entry.summary.json`
 - `front-page.entry-opening-testimony.explain-entry.report.md`
 - `front-page.entry-opening-testimony.explain-entry.check.txt`
+
+The runtime-session-targeted smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-explain-entry-smoke
+```
 
 ## Ready Rule
 

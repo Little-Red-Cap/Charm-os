@@ -34,6 +34,20 @@ Do two opening testimony routes still select the same default explain surface?
 It is intentionally a decision-surface compare. It does not rerun route
 selection and does not reinterpret the lower testimony.
 
+For runtime-session, this compare becomes the top of the testimony ladder:
+
+```text
+open_event_witness
+  -> opening_testimony_landing
+  -> front_page_route
+  -> opening_testimony_explain_entry
+  -> opening_testimony_explain_entry_compare
+```
+
+Its job is still narrow. It compares only already-selected explain-entry
+surfaces and accepts `collapsed` only when the testimony/route/explain inputs
+stop supporting a ready default selection.
+
 ## Compare Policy
 
 The compare checks:
@@ -84,6 +98,12 @@ The comparer leaves behind:
 - `front-page.entry-opening-testimony.explain-entry.compare.summary.json`
 - `front-page.entry-opening-testimony.explain-entry.compare.report.md`
 - `front-page.entry-opening-testimony.explain-entry.compare.check.txt`
+
+The runtime-session-targeted compare smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-explain-entry-compare-smoke
+```
 
 ## Manual Example
 

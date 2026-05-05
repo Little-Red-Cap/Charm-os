@@ -21,6 +21,7 @@
     "workspace_facade",
     "diagnostic_preview",
     "witness_refs",
+    "judgment",
     "explanation_view",
     "questions",
     "violations"
@@ -85,6 +86,9 @@
       "items": {
         "$ref": "#/$defs/witnessRef"
       }
+    },
+    "judgment": {
+      "$ref": "#/$defs/judgment"
     },
     "explanation_view": {
       "$ref": "#/$defs/explanationView"
@@ -300,6 +304,79 @@
         },
         "source_artifact": {
           "$ref": "#/$defs/sourceArtifact"
+        },
+        "opening_input_refs": {
+          "$ref": "#/$defs/openingInputRefs"
+        }
+      }
+    },
+    "openingInputRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "ref_kind",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "ref_kind": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_kind": {
+          "type": "string"
+        },
+        "focus_kind": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "reason_kind": {
+          "type": "string"
+        }
+      }
+    },
+    "openingInputRefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "consumer_summary_ref",
+        "selected_focus_ref",
+        "selected_explain_hop_ref",
+        "selected_artifact_ref",
+        "fallback_artifact_refs"
+      ],
+      "properties": {
+        "consumer_summary_ref": {
+          "$ref": "#/$defs/openingInputRef"
+        },
+        "selected_focus_ref": {
+          "$ref": "#/$defs/openingInputRef"
+        },
+        "selected_explain_hop_ref": {
+          "$ref": "#/$defs/openingInputRef"
+        },
+        "selected_artifact_ref": {
+          "$ref": "#/$defs/openingInputRef"
+        },
+        "fallback_artifact_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/openingInputRef"
+          }
         }
       }
     },
@@ -740,6 +817,47 @@
         }
       }
     },
+    "judgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semantic_role",
+        "status",
+        "grade",
+        "basis",
+        "accepted",
+        "summary"
+      ],
+      "properties": {
+        "semantic_role": {
+          "const": "opening_judgment_carrier"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "accepted_with_drift",
+            "blocked"
+          ]
+        },
+        "grade": {
+          "type": "string",
+          "enum": [
+            "described",
+            "compared"
+          ]
+        },
+        "basis": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
     "explanationView": {
       "type": "object",
       "additionalProperties": false,
@@ -792,12 +910,38 @@
         }
       }
     },
+    "typedQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "summary",
+        "target_ref"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "inspect_action_compare",
+            "attach_action_compare",
+            "inspect_rejected_consumers"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "target_ref": {
+          "type": "string"
+        }
+      }
+    },
     "questionBlock": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "open_event_questions",
-        "next_questions"
+        "next_questions",
+        "typed_next_questions"
       ],
       "properties": {
         "open_event_questions": {
@@ -805,6 +949,12 @@
         },
         "next_questions": {
           "$ref": "#/$defs/stringArray"
+        },
+        "typed_next_questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typedQuestion"
+          }
         }
       }
     }

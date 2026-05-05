@@ -191,12 +191,22 @@ try {
     Assert-Condition `
         -Condition (@($summary.readiness_surface.changed_focus_ids).Count -ge 4) `
         -Message "changed_focus_ids should expose multiple actionable drifts"
+    Assert-Condition `
+        -Condition ([string]$summary.default_explain_hop.focus_id -eq "session-state-drift") `
+        -Message "default explain hop should follow the default focus"
+    Assert-Condition `
+        -Condition ([string]$summary.default_explain_hop.artifact_ref.id -eq "session-report") `
+        -Message "default explain hop should prefer the session report artifact"
+    Assert-Condition `
+        -Condition ([int]@($summary.fallback_explain_hops).Count -ge 1) `
+        -Message "fallback explain hops should expose alternative explain entry points"
     Write-Host (
-        "[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] focuses={0} changed={1} default={2} severity={3}" -f
+        "[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] focuses={0} changed={1} default={2} severity={3} next={4}" -f
         [int]$summary.consumer_status.total_focus_count,
         [int]$summary.consumer_status.changed_focus_count,
         [string]$summary.consumer_status.default_focus_id,
-        [string]$summary.consumer_status.highest_severity
+        [string]$summary.consumer_status.highest_severity,
+        [string]$summary.default_explain_hop.artifact_ref.id
     )
 } finally {
     Pop-Location

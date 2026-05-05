@@ -15,6 +15,8 @@
     "source_compare",
     "consumer_status",
     "default_focus",
+    "default_explain_hop",
+    "fallback_explain_hops",
     "focus_entries",
     "readiness_surface",
     "supporting_artifacts",
@@ -55,6 +57,15 @@
     },
     "default_focus": {
       "$ref": "#/$defs/focusEntry"
+    },
+    "default_explain_hop": {
+      "$ref": "#/$defs/explainHop"
+    },
+    "fallback_explain_hops": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/explainHop"
+      }
     },
     "focus_entries": {
       "type": "array",
@@ -295,6 +306,57 @@
         }
       }
     },
+    "explainHop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hop_id",
+        "focus_id",
+        "focus_kind",
+        "artifact_ref",
+        "fallback_artifact_refs",
+        "reason_kind",
+        "reason",
+        "headline",
+        "summary_lines",
+        "question_lines"
+      ],
+      "properties": {
+        "hop_id": {
+          "type": "string"
+        },
+        "focus_id": {
+          "type": "string"
+        },
+        "focus_kind": {
+          "type": "string"
+        },
+        "artifact_ref": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "fallback_artifact_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifactRef"
+          }
+        },
+        "reason_kind": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "headline": {
+          "type": "string"
+        },
+        "summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "question_lines": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
     "focusEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -321,6 +383,7 @@
         "added_violations",
         "removed_violations",
         "artifact_refs",
+        "preferred_explain_hop",
         "summary_lines",
         "question_lines"
       ],
@@ -400,6 +463,9 @@
           "items": {
             "$ref": "#/$defs/artifactRef"
           }
+        },
+        "preferred_explain_hop": {
+          "$ref": "#/$defs/explainHop"
         },
         "summary_lines": {
           "$ref": "#/$defs/stringArray"

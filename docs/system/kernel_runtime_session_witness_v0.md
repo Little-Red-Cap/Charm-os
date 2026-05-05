@@ -281,6 +281,7 @@ CI / 人工验收优先调用 `ci_minimal_kernel_runtime_session_witness_smoke.p
 如果额外给出 `-InspectCompareSummaryOutputRoot`，同一条 CI 入口还会顺带执行 `inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1`，把 inspect compare 对象也纳入持续守护。
 session witness workflow 也会把这份 compare summary 作为独立 artifact 发布，方便 front page / explain / compare consumer 直接消费，而不必重新拼接 baseline/candidate summary。
 如果再给出 `-InspectCompareConsumerOutputRoot`，同一条 CI 入口还会顺带执行 `system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`，把 compare consumer 这层也纳入持续守护与 artifact 发布。
+在 compare consumer 导出成功之后，这条 CI 入口现在还会继续执行 `inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1 -Summary ...`，直接复用刚生成的 consumer summary，守住 “默认 focus / explain hop 还能被 inspect seam 正常打开” 这一层。
 
 runtime evidence bundle 会把它作为 `summary.json.session` 侧车回填。
 system compiler witness bundle 也可以通过 `kernel_runtime_session` witness kind 正式消费它。
@@ -310,6 +311,7 @@ system compiler witness bundle 也可以通过 `kernel_runtime_session` witness 
 ./scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1
 ./scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1
 ./scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1
 ```
 
 如果上层不想重新拼接 baseline / candidate summary，而是只想问“当前这次 drift 最先该看什么”，

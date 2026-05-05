@@ -29,6 +29,9 @@
 
 当前等级是 `experimental`。
 
+它也是 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)
+中的第一张样板卡。
+
 它已经具备：
 
 - 一个 driver-facing contract：`io.device_i2c`
@@ -37,12 +40,15 @@
 - 一个 HAL adapter backend：`io.device_i2c_hal`
 - 一个准真实 register driver：`driver.i2c_register_device`
 - 四条 no-hardware smoke
+- 一个 `system_compiler.fact_evidence/v0` sidecar 投影样例
 
 它还不是 `candidate`，因为仍然缺：
 
 - 真实硬件 evidence
 - 真实芯片 driver
-- artifact report / evidence pipeline 里的正式 facts 投影
+- 正式 probe evidence
+- board bringup evidence
+- artifact report / evidence pipeline 里的正式 facts 投影闭环
 - 更完整的资源与执行语义冻结
 
 ## 2. Contract Shape
@@ -403,5 +409,7 @@ Charm:
    下一步更适合继续推进 probe evidence 或 board bringup evidence，不做执法。
 3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。
+4. 持续同步 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)，
+   不在证据补齐前把 I2C 升级为 `candidate`。
 
 在这些完成前，I2C 仍保持 `experimental`。

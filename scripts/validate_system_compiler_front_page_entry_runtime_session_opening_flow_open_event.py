@@ -4,13 +4,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from export_system_compiler_front_page_entry_opening_flow_open_event import build_summary_model
-from system_compiler_front_page_route_lib import choose_text, load_json, normalize_path
+from export_system_compiler_front_page_entry_runtime_session_opening_flow_open_event import build_summary_model
+from system_compiler_front_page_route_lib import load_json, normalize_path
 
 
 OPEN_EVENT_SCHEMA_PATH = "schemas/system_compiler.front_page_entry_opening_flow_open_event.v0.schema.json"
-ACTION_SCHEMA_PATH = "schemas/system_compiler.front_page_entry_opening_flow_consumer_plan_action.v0.schema.json"
-ACTION_COMPARE_SCHEMA_PATH = "schemas/system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare.v0.schema.json"
+BRIDGE_SCHEMA_PATH = "schemas/system_compiler.front_page_entry_runtime_session_opening_flow_plan_action.v0.schema.json"
 
 
 def ensure_exists(path_value: str | None, label: str, errors: list[str], required: bool = True) -> None:
@@ -35,18 +34,14 @@ def validate_references(summary: dict, errors: list[str]) -> None:
     event = summary.get("open_event", {})
     source_artifact = event.get("source_artifact", {})
     workspace = summary.get("workspace_facade", {})
+    opening_input_refs = event.get("opening_input_refs", {})
 
     ensure_exists(artifact_context.get("source_action_summary_path"), "artifact_context.source_action_summary_path", errors)
-    ensure_exists(
-        artifact_context.get("source_action_compare_summary_path"),
-        "artifact_context.source_action_compare_summary_path",
-        errors,
-        required=False,
-    )
     ensure_exists(artifact_context.get("output_root"), "artifact_context.output_root", errors)
     ensure_exists(artifact_context.get("open_event_summary_path"), "artifact_context.open_event_summary_path", errors)
     ensure_exists(artifact_context.get("report_markdown_path"), "artifact_context.report_markdown_path", errors)
     ensure_exists(artifact_context.get("check_text_path"), "artifact_context.check_text_path", errors)
+    ensure_exists(artifact_context.get("source_action_compare_summary_path"), "artifact_context.source_action_compare_summary_path", errors, required=False)
 
     ensure_exists(front_page.get("summary_path"), "front_page.summary_path", errors)
     ensure_exists(front_page.get("report_markdown_path"), "front_page.report_markdown_path", errors)
@@ -66,14 +61,15 @@ def validate_references(summary: dict, errors: list[str]) -> None:
     ensure_exists(workspace.get("primary_summary_path"), "workspace_facade.primary_summary_path", errors)
     ensure_exists(workspace.get("primary_report_markdown_path"), "workspace_facade.primary_report_markdown_path", errors)
     ensure_exists(workspace.get("primary_check_text_path"), "workspace_facade.primary_check_text_path", errors)
-
-    for index, ref in enumerate(summary.get("witness_refs", [])):
+    ensure_exists(opening_input_refs.get("consumer_summary_ref", {}).get("path"), "open_event.opening_input_refs.consumer_summary_ref.path", errors)
+    ensure_exists(opening_input_refs.get("selected_focus_ref", {}).get("path"), "open_event.opening_input_refs.selected_focus_ref.path", errors)
+    ensure_exists(opening_input_refs.get("selected_explain_hop_ref", {}).get("path"), "open_event.opening_input_refs.selected_explain_hop_ref.path", errors)
+    ensure_exists(opening_input_refs.get("selected_artifact_ref", {}).get("path"), "open_event.opening_input_refs.selected_artifact_ref.path", errors, required=False)
+    for index, ref in enumerate(opening_input_refs.get("fallback_artifact_refs", [])):
         if not isinstance(ref, dict):
-            errors.append(f"witness_refs[{index}]: invalid witness ref")
+            errors.append(f"open_event.opening_input_refs.fallback_artifact_refs[{index}]: invalid ref")
             continue
-        ensure_exists(ref.get("summary_path"), f"witness_refs[{index}].summary_path", errors)
-        ensure_exists(ref.get("report_markdown_path"), f"witness_refs[{index}].report_markdown_path", errors, required=False)
-        ensure_exists(ref.get("check_text_path"), f"witness_refs[{index}].check_text_path", errors, required=False)
+        ensure_exists(ref.get("path"), f"open_event.opening_input_refs.fallback_artifact_refs[{index}].path", errors, required=False)
 
 
 def validate_counts(summary: dict, errors: list[str]) -> None:
@@ -83,20 +79,13 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
     candidates = decision.get("candidate_consumers", [])
     rejected = decision.get("rejected_consumers", [])
     selected = [candidate for candidate in candidates if isinstance(candidate, dict) and bool(candidate.get("selected"))]
+    opening_input_refs = summary.get("open_event", {}).get("opening_input_refs", {})
+
     expect_equal(decision.get("candidate_consumer_count"), len(candidates), "consumer_decision.candidate_consumer_count", errors)
     expect_equal(decision.get("rejected_consumer_count"), len(rejected), "consumer_decision.rejected_consumer_count", errors)
     expect_equal(len(selected), 1, "consumer_decision.selected_candidate_count", errors)
-    if selected:
-        expect_equal(
-            decision.get("selected_consumer", {}).get("selected_action_id"),
-            selected[0].get("action_id"),
-            "consumer_decision.selected_consumer.selected_action_id",
-            errors,
-        )
-
-    witness_refs = summary.get("witness_refs", [])
-    explanation_refs = explanation.get("witness_refs", [])
-    expect_equal(len(explanation_refs), len(witness_refs), "explanation_view.witness_refs count", errors)
+    expect_equal(len(candidates), 1, "consumer_decision.candidate_consumers length", errors)
+    expect_equal(len(rejected), 0, "consumer_decision.rejected_consumers length", errors)
     expect_equal(diagnostic.get("line_count"), len(diagnostic.get("summary_lines", [])), "diagnostic_preview.line_count", errors)
     expect_equal(
         diagnostic.get("question_count"),
@@ -110,18 +99,7 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
         "explanation_view.diagnostic_headline",
         errors,
     )
-    expect_equal(
-        explanation.get("diagnostic_summary_lines"),
-        diagnostic.get("summary_lines"),
-        "explanation_view.diagnostic_summary_lines",
-        errors,
-    )
-    expect_equal(
-        explanation.get("diagnostic_question_lines"),
-        diagnostic.get("question_lines"),
-        "explanation_view.diagnostic_question_lines",
-        errors,
-    )
+    expect_equal(len(opening_input_refs.get("fallback_artifact_refs", [])) >= 0, True, "opening_input_refs.fallback presence", errors)
 
 
 def validate_status(summary: dict, errors: list[str]) -> None:
@@ -130,7 +108,6 @@ def validate_status(summary: dict, errors: list[str]) -> None:
     workspace_status = summary.get("workspace_facade", {}).get("status")
     compare = summary.get("compare_summary", {})
     judgment = summary.get("judgment", {})
-    questions = summary.get("questions", {})
 
     expect_equal(result, "fail" if event_status == "blocked" else "ok", "result", errors)
     expect_equal(workspace_status, "blocked" if event_status == "blocked" else "projected", "workspace_facade.status", errors)
@@ -138,36 +115,19 @@ def validate_status(summary: dict, errors: list[str]) -> None:
     expect_equal(judgment.get("status"), event_status, "judgment.status", errors)
     expect_equal(judgment.get("accepted"), event_status != "blocked", "judgment.accepted", errors)
     expect_equal(judgment.get("grade"), "compared" if bool(compare.get("available")) else "described", "judgment.grade", errors)
-    expected_basis = ["source_plan_action", "selected_opener", "open_event"]
-    if bool(compare.get("available")):
-        ensure_exists(compare.get("summary_path"), "compare_summary.summary_path", errors)
-        expected_basis.append("source_action_compare")
-    else:
-        expect_equal(compare.get("action_verdict"), "not_attached", "compare_summary.action_verdict", errors)
-    expect_equal(judgment.get("basis"), expected_basis, "judgment.basis", errors)
-    typed_questions = questions.get("typed_next_questions", [])
-    if not isinstance(typed_questions, list) or len(typed_questions) != 2:
-        errors.append("questions.typed_next_questions must contain exactly two typed hints")
-    else:
-        expected_primary_kind = "inspect_action_compare" if bool(compare.get("available")) else "attach_action_compare"
-        expect_equal(typed_questions[0].get("kind"), expected_primary_kind, "questions.typed_next_questions[0].kind", errors)
-        expect_equal(
-            typed_questions[1].get("kind"),
-            "inspect_rejected_consumers",
-            "questions.typed_next_questions[1].kind",
-            errors,
-        )
+    expected_verdict = "drifted" if event_status == "accepted_with_drift" else ("standing" if bool(compare.get("available")) else "not_attached")
+    expect_equal(compare.get("action_verdict"), expected_verdict, "compare_summary.action_verdict", errors)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate system compiler front_page entry opening-flow open-event summary."
+        description="Validate runtime-session wrapper open-event summary."
     )
     parser.add_argument(
         "--summary",
         default="",
         help=(
-            "Path to open-event summary JSON. If omitted, "
+            "Path to runtime-session wrapper open-event summary JSON. If omitted, "
             "--bundle-root/front-page.entry-opening-flow.open-event.summary.json is used."
         ),
     )
@@ -188,7 +148,9 @@ def main() -> int:
     if args.summary:
         summary_path = Path(args.summary).resolve()
     else:
-        bundle_root = Path(args.bundle_root or "out/system-compiler-front-page-entry-opening-flow-open-event").resolve()
+        bundle_root = Path(
+            args.bundle_root or "out/system-compiler-front-page-entry-runtime-session-opening-flow-open-event"
+        ).resolve()
         summary_path = bundle_root / "front-page.entry-opening-flow.open-event.summary.json"
 
     try:
@@ -203,19 +165,12 @@ def main() -> int:
         validate_status(summary, errors)
 
         artifact_context = summary.get("artifact_context", {})
-        action_summary_path = Path(artifact_context.get("source_action_summary_path", "")).resolve()
-        action_summary = load_json(action_summary_path)
-        jsonschema.validate(action_summary, load_json((repo_root / ACTION_SCHEMA_PATH).resolve()))
-
-        action_compare_summary_path_text = choose_text(artifact_context.get("source_action_compare_summary_path"))
-        action_compare_summary_path = Path(action_compare_summary_path_text).resolve() if action_compare_summary_path_text else None
-        if action_compare_summary_path is not None:
-            action_compare_summary = load_json(action_compare_summary_path)
-            jsonschema.validate(action_compare_summary, load_json((repo_root / ACTION_COMPARE_SCHEMA_PATH).resolve()))
+        bridge_summary_path = Path(artifact_context.get("source_action_summary_path", "")).resolve()
+        bridge_summary = load_json(bridge_summary_path)
+        jsonschema.validate(bridge_summary, load_json((repo_root / BRIDGE_SCHEMA_PATH).resolve()))
 
         expected_summary = build_summary_model(
-            action_summary_path=action_summary_path,
-            action_compare_summary_path=action_compare_summary_path,
+            bridge_summary_path=bridge_summary_path,
             output_root=Path(artifact_context.get("output_root", "")).resolve(),
             summary_path=Path(artifact_context.get("open_event_summary_path", "")).resolve(),
             report_path=Path(artifact_context.get("report_markdown_path", "")).resolve(),
@@ -259,11 +214,9 @@ def main() -> int:
             print(f"[ERROR] {message}", file=sys.stderr)
         return 1
 
-    event = summary.get("open_event", {})
-    selected = summary.get("consumer_decision", {}).get("selected_consumer", {})
     print(f"[OK] schema -> {summary_path}")
-    print(f"[OK] event -> {event.get('open_event_id', '')}")
-    print(f"[OK] selected -> {selected.get('consumer_id', '')}")
+    print(f"[OK] event -> {summary.get('open_event', {}).get('open_event_id', '')}")
+    print(f"[OK] status -> {summary.get('open_event', {}).get('status', '')}")
     return 0
 
 

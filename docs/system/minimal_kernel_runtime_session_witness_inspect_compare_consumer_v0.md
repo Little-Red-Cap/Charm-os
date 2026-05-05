@@ -35,6 +35,10 @@ includes:
   - `scripts/validate_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py`
 - smoke
   - `scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`
+- inspect
+  - `scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1`
+- inspect smoke
+  - `scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`
 
 ## Current outputs
 
@@ -70,9 +74,15 @@ The current summary records:
   - highest severity
 - `default_focus`
   - the first drift a higher explain layer should inspect
+- `default_explain_hop`
+  - the first artifact a higher explain layer should open
+  - why that artifact is preferred over sibling surfaces
+- `fallback_explain_hops`
+  - ordered alternative explain hops if the default opening is not enough
 - `focus_entries`
   - ordered drift units such as session-state drift, runtime regressions,
     world-compare drift, witness-compare drift, or violation drift
+  - each focus also carries a `preferred_explain_hop`
 - `readiness_surface`
   - focus-kind counters
   - severity counters
@@ -91,7 +101,16 @@ Each focus entry keeps:
 - added/removed affected focus tags
 - added/removed violations
 - artifact refs
+- preferred explain hop
 - short summary lines and next-step questions
+
+Each explain hop keeps:
+
+- focus id / focus kind
+- selected artifact ref
+- fallback artifact refs
+- reason kind / reason
+- copied headline / summary lines / question lines
 
 ## Current policy
 
@@ -104,6 +123,8 @@ It only compresses one inspect-compare object into a thinner answer:
 - inspect runtime regressions next if continuity facts regressed
 - keep world-compare and witness-compare deltas as separate focus surfaces
 - keep summary-level violations as the last thin gate-facing focus
+- explicitly point the reader at the first artifact to open for each focus
+- preserve a small fallback list instead of forcing the next layer to guess
 
 That keeps this layer stable and useful without hard-coding later UI policy.
 
@@ -137,11 +158,44 @@ Or run the single smoke:
 ./scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1 -Clean
 ```
 
+Or guard the direct inspect entry itself against an already-exported consumer summary:
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1 -Summary out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json
+```
+
+Or inspect the consumer directly:
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1 -Summary out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json -ShowFallbacks
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1 -Summary out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json -FocusId runtime-regression -ShowArtifacts
+./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1 -Summary out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json -FocusId world-compare-drift -AsJson
+```
+
 Expected smoke shape:
 
 ```text
-[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] focuses=5 changed=5 default=session-state-drift severity=critical
+[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] focuses=5 changed=5 default=session-state-drift severity=critical next=session-report
+==> inspect minimal kernel runtime session witness inspect compare consumer smoke
+selected_focus=world-compare-drift selected_explain_hop=world-compare-report ok=1
 ```
+
+When the summary already exists, the inspect smoke can also reuse it directly instead of rebuilding the consumer:
+
+```text
+[MINIMAL-KERNEL-RUNTIME-SESSION-WITNESS-INSPECT-CONSUMER-SMOKE] bootstrap=reuse-existing-summary
+==> inspect minimal kernel runtime session witness inspect compare consumer smoke
+selected_focus=world-compare-drift selected_explain_hop=world-compare-report ok=1
+```
+
+The session witness CI entry now uses exactly this reuse path after exporting the consumer summary. That keeps the guardrail thin:
+
+- `ci_minimal_kernel_runtime_session_witness_smoke.ps1`
+  exports the compare consumer
+- `inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1 -Summary ...`
+  immediately proves the direct inspect seam still opens the expected explain hop
 
 ## Why this matters
 
@@ -153,7 +207,8 @@ drift directly consumable.
 This gives later explain/front-page layers a thinner first-read artifact:
 
 - start from this one default focus
+- open the default explain hop without reparsing artifact refs
 - keep runtime regressions and failure taxonomy deltas separate
-- follow these artifact refs for the next explain hop
+- follow the fallback explain hops only when the default opening is insufficient
 - avoid reparsing baseline/candidate summaries just to answer “what should I
   look at first?”

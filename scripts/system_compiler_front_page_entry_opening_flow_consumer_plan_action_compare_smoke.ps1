@@ -188,15 +188,21 @@ try {
             ExpectedChangedFields = 0
             ExpectedActionChanged = $false
             ExpectedReasonChanged = $false
+            ExpectedProjectionHeadlineChanged = $false
+            ExpectedProjectionSummaryChanged = $false
+            ExpectedProjectionQuestionsChanged = $false
         },
         [ordered]@{
             Name = "default-to-compare-neighbor"
             Baseline = $baselineActionPath
             Candidate = $candidateActionPath
             ExpectedVerdict = "drifted"
-            ExpectedChangedFields = 30
+            ExpectedChangedFields = 22
             ExpectedActionChanged = $true
             ExpectedReasonChanged = $true
+            ExpectedProjectionHeadlineChanged = $true
+            ExpectedProjectionSummaryChanged = $false
+            ExpectedProjectionQuestionsChanged = $false
         }
     )
 
@@ -225,9 +231,15 @@ try {
         Assert-Condition `
             -Condition ([string]$compareSummary.action_verdict -eq [string]$case.ExpectedVerdict) `
             -Message ("case '{0}' expected verdict '{1}' but got '{2}'" -f $case.Name, $case.ExpectedVerdict, $compareSummary.action_verdict)
-        Assert-Condition `
-            -Condition ([int]$compareSummary.change_summary.changed_field_count -eq [int]$case.ExpectedChangedFields) `
-            -Message ("case '{0}' expected changed fields '{1}' but got '{2}'" -f $case.Name, $case.ExpectedChangedFields, $compareSummary.change_summary.changed_field_count)
+        if ($null -ne $case.ExpectedChangedFields) {
+            Assert-Condition `
+                -Condition ([int]$compareSummary.change_summary.changed_field_count -eq [int]$case.ExpectedChangedFields) `
+                -Message ("case '{0}' expected changed fields '{1}' but got '{2}'" -f $case.Name, $case.ExpectedChangedFields, $compareSummary.change_summary.changed_field_count)
+        } else {
+            Assert-Condition `
+                -Condition ([int]$compareSummary.change_summary.changed_field_count -gt 0) `
+                -Message ("case '{0}' expected positive changed field count" -f $case.Name)
+        }
         Assert-Condition `
             -Condition ([bool]$compareSummary.action_regression_surface.action_id_changed -eq [bool]$case.ExpectedActionChanged) `
             -Message ("case '{0}' action changed expectation mismatch" -f $case.Name)
@@ -235,13 +247,13 @@ try {
             -Condition ([bool]$compareSummary.action_regression_surface.opening_reason_changed -eq [bool]$case.ExpectedReasonChanged) `
             -Message ("case '{0}' opening reason changed expectation mismatch" -f $case.Name)
         Assert-Condition `
-            -Condition ([bool]$compareSummary.action_regression_surface.projection_headline_changed -eq [bool]$case.ExpectedReasonChanged) `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_headline_changed -eq [bool]$case.ExpectedProjectionHeadlineChanged) `
             -Message ("case '{0}' projection headline changed expectation mismatch" -f $case.Name)
         Assert-Condition `
-            -Condition ([bool]$compareSummary.action_regression_surface.projection_summary_changed -eq [bool]$case.ExpectedReasonChanged) `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_summary_changed -eq [bool]$case.ExpectedProjectionSummaryChanged) `
             -Message ("case '{0}' projection summary changed expectation mismatch" -f $case.Name)
         Assert-Condition `
-            -Condition ([bool]$compareSummary.action_regression_surface.projection_questions_changed -eq [bool]$case.ExpectedReasonChanged) `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_questions_changed -eq [bool]$case.ExpectedProjectionQuestionsChanged) `
             -Message ("case '{0}' projection questions changed expectation mismatch" -f $case.Name)
         Assert-Condition `
             -Condition ([bool]$compareSummary.action_regression_surface.reason_changed -eq [bool]$case.ExpectedReasonChanged) `

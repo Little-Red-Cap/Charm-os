@@ -3,10 +3,31 @@
 `system_compiler.front_page_entry_opening_flow_open_event/v0` is the first
 hard explanation record for the opening-flow chain.
 
+It is also the concrete carrier of `OpeningJudgment v0`.
+
+The file name stays `open_event` because this object is still anchored to one
+front-page entry opening. The semantic role is now explicit:
+
+```text
+open_event
+  = concrete OpeningJudgment carrier
+open_event_witness
+  = testimony projection of that judgment
+open_event_compare
+  = semantic drift judge for two opening judgments
+open_event_witness_compare
+  = testimony drift judge for two compact testimonies
+```
+
 It sits after:
 
 - `system_compiler.front_page_entry_opening_flow_consumer_plan_action/v0`
 - optional `system_compiler.front_page_entry_opening_flow_consumer_plan_action_compare/v0`
+
+It can also be produced by the runtime-session-specific wrapper after:
+
+- `minimal_kernel.runtime_session_witness_inspect_compare_consumer/v0`
+- `system_compiler.front_page_entry_runtime_session_opening_flow_plan_action/v0`
 
 The older action facade answers:
 
@@ -34,6 +55,8 @@ Current `system_compiler.front_page_entry_opening_flow_open_event` includes:
   - `schemas/system_compiler.front_page_entry_opening_flow_open_event.v0.schema.json`
 - exporter
   - `scripts/export_system_compiler_front_page_entry_opening_flow_open_event.py`
+- runtime-session wrapper exporter
+  - `scripts/export_system_compiler_front_page_entry_runtime_session_opening_flow_open_event.py`
 - workspace exporter
   - `scripts/export_system_compiler_front_page_entry_opening_flow_open_event_workspace.ps1`
 - validator
@@ -57,6 +80,7 @@ Current `system_compiler.front_page_entry_opening_flow_open_event` includes:
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_witness_workspace_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_flow_open_event_workspace_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_open_event_witness_smoke.ps1`
 
 ## Current outputs
 
@@ -105,6 +129,12 @@ The current summary records:
   - opening status: `accepted`, `accepted_with_drift`, or `blocked`
   - structured opening reason
   - source artifact and opener surface paths
+  - optional `opening_input_refs`
+    - `consumer_summary_ref`
+    - `selected_focus_ref`
+    - `selected_explain_hop_ref`
+    - `selected_artifact_ref`
+    - `fallback_artifact_refs`
 - `consumer_decision`
   - selected consumer projection
   - candidate consumers projected from the source plan actions
@@ -135,8 +165,47 @@ The current summary records:
   - selected opener witness
   - open-event witness
   - optional action-compare witness
+- `judgment`
+  - `semantic_role=opening_judgment_carrier`
+  - judgment status, grade, basis, accepted flag, and a short system-testimony
+    summary
 - `explanation_view`
   - hard text lines for `why opened`, `chosen consumer`, `plan actions`, `compare result`, and `witness refs`
+- `questions`
+  - existing string questions
+  - additive typed next-question hints for later front-page consumption
+
+## Judgment carrier v0
+
+The top-level `judgment` object is a summary of facts already present in the
+open event.
+
+It does not replace `open_event.status`, `compare_summary`, or
+`witness_refs`.
+
+Current fields are:
+
+- `semantic_role`
+  - fixed to `opening_judgment_carrier`
+- `status`
+  - mirrors `open_event.status`
+- `grade`
+  - `described` when no action compare is attached
+  - `compared` when an action compare is attached
+- `basis`
+  - always includes `source_plan_action`, `selected_opener`, and `open_event`
+  - also includes `source_action_compare` when compare context is attached
+- `accepted`
+  - true unless the event is `blocked`
+- `summary`
+  - a short, restrained system-testimony sentence suitable for reports and
+    later explain surfaces
+
+This version deliberately does not emit `witnessed`.
+
+The witness is downstream of the open event. A later witness-bundle or
+witness-compare carrier can lift a judgment to `witnessed` without changing the
+open-event root object.
 
 ## Event status
 
@@ -151,6 +220,28 @@ The event status is deliberately small:
 
 This lets the explain surface distinguish a clean opening from an opening that
 should foreground counterfactual context before presenting the workspace.
+
+## Typed next questions
+
+The string question arrays remain the compatibility surface:
+
+- `questions.open_event_questions`
+- `questions.next_questions`
+
+`questions.typed_next_questions` is additive.
+
+The first version emits:
+
+- `inspect_action_compare`
+  - when action compare context is attached
+- `attach_action_compare`
+  - when the open event is only described
+- `inspect_rejected_consumers`
+  - always emitted so front-page tooling can point at rejected consumer reasons
+
+These hints are not yet part of open-event compare drift semantics. Compare v0
+continues to judge the established event, consumer, plan, action, compare,
+workspace, witness, and hard explanation fields.
 
 ## Consumer decision v0
 
@@ -172,6 +263,18 @@ without forcing a premature registry design.
 
 Later, these projected consumers can be replaced by real consumer registry
 entries while keeping the same open-event shape.
+
+The runtime-session wrapper deliberately stays narrower than the generic plan
+path:
+
+- one candidate consumer
+- zero rejected consumers
+- fallback explain hops stay in `opening_input_refs`
+- the selected artifact target is explicit, but the primary workspace facade
+  still points at the consumer-facing explain surface
+
+This keeps the opening judgment explainable without letting upper layers
+reinterpret raw session evidence.
 
 ## Compare v0
 
@@ -371,7 +474,7 @@ The opening-flow chain now has one more semantic layer:
 - action
   - choose one deterministic opener witness to execute now
 - open event
-  - explain why that opening judgment is valid, what was rejected, what was compared, and what witness refs preserve it
+  - carry the concrete OpeningJudgment, explain why it is valid, what was rejected, what was compared, and what witness refs preserve it
 - open event witness
   - distill the opening judgment into a compact testimony object for later bundle and constitution work
 - open event witness compare

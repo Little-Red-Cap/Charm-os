@@ -289,6 +289,16 @@ It exposes:
 This lets an opener explain "why this witness compare is interesting" without
 opening the full witness compare report first.
 
+The runtime-session-specific opener smoke now reuses two real testimony-compare
+shapes from the runtime-session chain:
+
+- a neutral testimony drift that stays `standing` at the world layer
+- a collapsed testimony compare where the candidate witness no longer stands
+
+In both cases the opener still opens only the witness-compare testimony. It
+does not reopen raw `kernel_runtime_session` summaries or reinterpret
+runtime/session/world evidence.
+
 For `system_compiler.front_page_entry_opener_compare/v0`, the projection kind is
 `opener_compare_overview`.
 
@@ -394,6 +404,13 @@ To prove only the OpenEventWitnessCompare projection adapter:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1 -Clean
+```
+
+To prove the runtime-session-specific OpenEventWitnessCompare opener path with
+neutral-drift and collapsed testimony samples:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_open_event_witness_compare_smoke.ps1 -Clean
 ```
 
 To prove only the OpenerCompare projection adapter:

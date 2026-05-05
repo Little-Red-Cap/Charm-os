@@ -212,6 +212,15 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/i2c-whoami-probe-bundle ./out/i2c-whoami-probe-artifact-report/i2c-whoami-probe-evidence-smoke.artifact_report.json
 ```
 
+当前 `board.bringup` 风格的 I2C WHOAMI Host fixture evidence
+也可以作为独立 `fact_only` case 进入同一条链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case board-i2c-whoami-bringup-evidence-smoke -OutputRoot out/board-i2c-whoami-bringup-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/board-i2c-whoami-bringup-bundle -Case board-i2c-whoami-bringup-evidence-smoke -OutputRoot out/board-i2c-whoami-bringup-artifact-report
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-i2c-whoami-bringup-bundle ./out/board-i2c-whoami-bringup-artifact-report/board-i2c-whoami-bringup-evidence-smoke.artifact_report.json
+```
+
 当前 inspector 至少会直接带出：
 
 - case / mode / profile / board / facets
@@ -258,6 +267,10 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/i2
 会合成一份 candidate sidecar，把 `i2c.probe.board_real` 标记为
 `board.bringup` 提供，从而验证 compare report 与 inspector
 能解释这类 `missing -> satisfied` 的 required fact resolution drift。
+而 `board-i2c-whoami-bringup-evidence-smoke` 则把同一个
+`board.bringup` provider 收成可导出的 Host fixture 输入形态，
+用于证明 artifact report 可以直接消费这类 board/probe evidence sidecar。
+这仍不是实体硬件 probe 成果，只是正式 evidence 输入形态。
 
 当前也已经有一份 board/package facts 的 sidecar 样例：
 

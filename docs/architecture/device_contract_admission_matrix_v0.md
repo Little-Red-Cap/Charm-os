@@ -22,7 +22,7 @@
 
 | 契约 | 当前等级 | 已有证据 | 主要缺口 | 下一步 |
 | --- | --- | --- | --- | --- |
-| I2C bus/device | `experimental` | mock backend、HAL adapter、准 driver、facts sidecar、no-hardware smoke | 真实硬件 evidence、真实芯片 driver、正式 probe / bringup evidence | 保持样板卡，补真实 driver 或 probe evidence |
+| I2C bus/device | `experimental` | mock backend、HAL adapter、准 driver、facts sidecar、no-hardware smoke、Host fixture board/probe evidence 输入形态 | 真实硬件 evidence、真实芯片 driver、正式 probe / bringup evidence pipeline | 保持样板卡，补真实 driver 或真实板级 probe evidence |
 | SPI bus/device | `proposed` | driver model、窄腰文档、[`spi_device_contract_v0.md`](spi_device_contract_v0.md) 已记录责任边界 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
 | GPIO input/output/edge | `proposed` | HAL 层已有 GPIO 入口，[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md) 已拆分三种语义面 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
 | Block device | `proposed` | block registry、stable slot、runtime slot export、[`block_device_contract_v0.md`](block_device_contract_v0.md) 已记录 sector/live/flush/error 边界 | 未冻结 driver-facing API、无 contract mock、无 facts sidecar | 保持 proposed card，不写代码 |
@@ -131,13 +131,13 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 - `system_compiler.fact_evidence/v0` sidecar
 - I2C facts artifact report sample
 - `i2c-device-contract-facts-smoke`
+- `board-i2c-whoami-bringup-evidence-smoke` Host fixture 输入形态
 
 仍缺：
 
-- probe evidence
-- board bringup evidence
 - 真实硬件 evidence
 - 真实芯片 driver evidence
+- 真实 board bringup / probe evidence pipeline
 - 更正式的 binding result / unresolved facts 投影
 
 ### 当前等级
@@ -147,6 +147,7 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 理由：
 
 - 已满足 mock backend、HAL adapter、准 driver、facts sidecar、no-hardware smoke。
+- 已有 `board.bringup` 风格 Host fixture 输入形态，但它不等价于真实硬件 evidence。
 - 未满足 candidate 要求中的真实硬件 evidence、真实 driver、正式 evidence pipeline/probe evidence。
 
 ## 其他候选卡

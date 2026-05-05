@@ -261,6 +261,40 @@
       }
     },
     {
+      "name": "board-i2c-whoami-bringup-evidence-smoke",
+      "source": "Examples/platform/board_i2c_whoami_bringup_evidence_smoke",
+      "build_dir": "cmake-build-board-i2c-whoami-bringup-evidence-smoke-clang",
+      "build_target": "board-i2c-whoami-bringup-evidence-smoke",
+      "case_kind": "fact_only",
+      "fact_evidence_target": "export_board_i2c_whoami_bringup_evidence",
+      "fact_evidence_cache": "BOARD_I2C_WHOAMI_BRINGUP_EVIDENCE_PATH",
+      "default_fact_evidence": "board_i2c_whoami_bringup.evidence.json",
+      "export_target": null,
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": null,
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": null,
+      "declared_facts": [],
+      "required_facts": [],
+      "audit_provided_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": "MCU_MIN",
+        "board": "stm32_stub",
+        "active_facets": [
+          "platform",
+          "board_package",
+          "io",
+          "driver_contract",
+          "probe_evidence",
+          "bringup_evidence"
+        ]
+      }
+    },
+    {
       "name": "usb-host-runtime-multi-smoke",
       "source": "Examples/usb/usb_host_runtime_multi_smoke",
       "build_dir": "cmake-build-usb-host-runtime-multi-smoke-clang",

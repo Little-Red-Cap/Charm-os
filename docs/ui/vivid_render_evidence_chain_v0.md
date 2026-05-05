@@ -15,7 +15,7 @@ v0 由 `Examples/ui/vivid/focus_boundary_demo` 验证：`set_focused(true)` 不�
 
 `Examples/ui/vivid/focus_transfer_demo` 继续验证 focus transfer evidence：真实 input dispatch 产生 `FocusOut / FocusIn`，focus truth 提交到新 target，style evidence 保持稳定，artifact 迁移由 `dirty_hash / pixel_hash / target` 证明，并由 final `causal_chain` 汇总 transfer verdict。详细法律见 `vivid_focus_transfer_evidence_v0.md`。
 
-`Examples/ui/vivid/focus_scope_demo` 继续验证 focus scope evidence：scope policy 已接入真实 input dispatch，内部请求产生 `FocusOut / FocusIn` 并提交 `input_focused`，外部请求保留 pointer event 但不产生 focus transfer，并用外部 target 的 unfocused baseline 证明 focus ring artifact 不泄漏。详细法律见 `vivid_focus_scope_evidence_v0.md`。
+`Examples/ui/vivid/focus_scope_demo` 继续验证 focus scope evidence：scope policy 已接入真实 input dispatch，内部请求产生 `FocusOut / FocusIn` 并提交 `input_focused`，外部请求保留 pointer event 但不产生 focus transfer，并用外部 target 的 unfocused baseline 证明 focus ring artifact 不泄漏，最终由 `causal_chain` 汇总 inside allow / outside reject / no-leak verdict。详细法律见 `vivid_focus_scope_evidence_v0.md`。
 
 `Examples/ui/vivid/focus_scope_nested_demo` 继续验证 nested/modal focus scope evidence：push 后 active scope 切换到 modal，pop 后恢复 base scope；modal 外请求不产生 focus transfer，也不把 focus ring artifact 泄漏到 base target。详细法律见 `vivid_focus_scope_evidence_v0.md`。
 

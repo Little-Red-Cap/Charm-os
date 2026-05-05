@@ -21,7 +21,7 @@ decision=allow
 allowed=1
 ```
 
-v0 同时保留 `decide_focus_scope_request()` 作为 policy helper，并把同一条准入语义接入 `SoaKernel::input_set_focus()`，让真实 input dispatch 能提交 scope 内焦点迁移。
+v0 保留 `decide_focus_scope_request()` 作为 policy helper，并把同一条准入语义接入 `SoaKernel::input_set_focus()`，让真实 input dispatch 能提交 scope 内焦点迁移。
 
 ### Law 2：scope 外请求必须拒绝
 
@@ -73,9 +73,24 @@ outside_focus_ring=0
 leaked=0
 ```
 
-这条证据比简单比较内外 `cmd_count` 更稳，因为不同 target 尺寸或 widget 形态可能产生不同的基础命令数。
+这条证据比简单比较内外 `cmd_count` 更稳定，因为不同 target 尺寸或 widget 形态可能产生不同的基础命令数。
 
-### Law 5：nested scope 必须 push/pop 闭合
+### Law 5：focus scope demo 必须闭合 final causal_chain
+
+`focus_scope_demo` 的最终 verdict 需要同时证明：
+
+```text
+request_ok=1
+state_delta_ok=1
+invalidation_ok=1
+artifact_ok=1
+rejected_no_mutation=1
+causal_chain ok=1
+```
+
+这条法律把 inside allow、outside reject、trap truth 与 no-leak artifact 收束成同一张证据账本。
+
+### Law 6：nested scope 必须 push/pop 闭合
 
 modal / popup 这类临时 UI 不应该覆盖 base scope 后遗忘旧 truth。v0 使用小型 focus scope stack 表达：
 
@@ -95,7 +110,7 @@ otherwise       -> reject to empty
 
 也就是 current-first / fallback-second。这样用户点击 modal 外部时，不会把 modal 内已有焦点重置到 modal fallback。
 
-### Law 6：keyboard / d-pad navigation 必须限制在 active scope
+### Law 7：keyboard / d-pad navigation 必须限制在 active scope
 
 键盘与方向键焦点移动不应绕过 active focus scope。v0 先用 deterministic preorder focusable 顺序建立键盘导航基础：
 
@@ -114,7 +129,7 @@ FocusIn(new)
 input_focused=new
 ```
 
-### Law 7：directional key 应优先使用 spatial focus candidate
+### Law 8：directional key 应优先使用 spatial focus candidate
 
 遥控器 / 手柄 UI 里的方向键不应该只等价于 preorder。v0 对 `Left / Right / Up / Down` 增加空间候选裁决：
 
@@ -148,6 +163,7 @@ root
 - `inside_b` 请求被允许，真实 dispatch 产生 `FocusOut(inside_a)` / `FocusIn(inside_b)`，并把 `input_focused` 提交到 `inside_b`。
 - `outside` 请求被拒绝，pointer event 仍送达 outside，但不产生 `FocusOut / FocusIn`，`input_focused` 保持在 fallback/current。
 - `outside` artifact 与 unfocused baseline 一致，没有 focus ring 泄漏。
+- final `causal_chain` 汇总 inside allow、outside reject、trap truth 与 no-leak artifact。
 
 `Examples/ui/vivid/focus_scope_nested_demo` 是 Focus Scope Nested Evidence v0 的第一条运行证据。
 
@@ -184,7 +200,7 @@ root
 stdout 最终约束：
 
 ```text
-[fs] run=focus_scope_demo phase=end result=ok cases=9
+[fs] run=focus_scope_demo phase=end result=ok cases=10
 [fsn] run=focus_scope_nested_demo phase=end result=ok cases=8
 [fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=7
 [fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9
@@ -202,6 +218,8 @@ input_truth=inside_b
 fallback=inside_b
 outside_focus_ring=0
 leaked=0
+causal_chain=1
+rejected_no_mutation=1
 stack=0/1
 pushed=1
 popped=1

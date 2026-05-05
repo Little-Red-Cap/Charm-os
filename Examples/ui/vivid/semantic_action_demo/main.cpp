@@ -173,6 +173,36 @@ int main() {
         return 1;
     }
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "semantic_action.artifact",
+        .request_ok = button.found
+            && has_activate(button.actions)
+            && row.found
+            && has_activate(row.actions)
+            && panel.found
+            && text.found
+            && panel.actions == 0
+            && text.actions == 0,
+        .state_delta_ok = cleared.found
+            && cleared.actions == 0
+            && promoted_panel.found
+            && has_activate(promoted_panel.actions),
+        .invalidation_ok = tree.node_count > 0
+            && panel_index != kSemanticTreeNoFocusIndex
+            && has_activate(tree.nodes[panel_index].actions),
+        .artifact_ok = stable_tree.semantic_hash == tree.semantic_hash
+            && changed_tree.semantic_hash != tree.semantic_hash,
+        .rejected_no_mutation = panel.actions == 0
+            && text.actions == 0,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "semantic action causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_action_demo] ok");
     return 0;

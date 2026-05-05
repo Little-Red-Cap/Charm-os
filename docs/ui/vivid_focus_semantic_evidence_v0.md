@@ -146,6 +146,7 @@ v0 rules:
 - semantic tree nodes carry action masks and include them in `semantic_hash`.
 - an action bit is evidence of capability, not a request to synthesize input or invoke OS accessibility.
 - v0 does not introduce a full accessibility runtime.
+- `semantic_action_demo` closes these facts with a final `causal_chain` verdict over role-derived actions, no-action roles, explicit override, tree action artifacts, and hash participation.
 
 ### Law 9: semantic intent resolution is address lookup, not execution
 
@@ -295,12 +296,12 @@ stdout final contract:
 ```
 
 `Examples/ui/vivid/semantic_action_demo` is the first Semantic Action Artifact v0 runtime evidence.
-It verifies role-derived activate defaults, non-action semantic roles, explicit action override, tree action artifacts, and semantic hash participation.
+It verifies role-derived activate defaults, non-action semantic roles, explicit action override, tree action artifacts, semantic hash participation, and final causal-chain evidence.
 
 stdout final contract:
 
 ```text
-[sact] run=semantic_action_demo phase=end result=ok cases=6
+[sact] run=semantic_action_demo phase=end result=ok cases=7
 ```
 
 `Examples/ui/vivid/semantic_intent_demo` is the first Semantic Intent Resolution v0 runtime evidence.

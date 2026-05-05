@@ -302,7 +302,7 @@ semantic store
   -> semantic_hash
 ```
 
-The demo guards role-derived `activate` defaults for Button/ListItem, no-action defaults for Container/Text, explicit action override, and action participation in semantic tree hashes.
+The demo guards role-derived `activate` defaults for Button/ListItem, no-action defaults for Container/Text, explicit action override, action participation in semantic tree hashes, and a final `causal_chain` verdict over those action artifact facts.
 
 ## 2026-05 Addendum: Semantic Intent Resolution
 

@@ -166,7 +166,7 @@ budget/profile/admission effect when relevant
 final bounded state after the managed time path
 ```
 
-`motion_time.managed` is a v0 transitional count-based verdict. It is valid because the motion time demo closes managed time, recipe, compose, budget, trace, and page motion evidence before the final verdict.
+`motion_time.managed` is a v0 hybrid verdict. It keeps `cases_closed` as a transitional count-based guard, and also emits `time_ok`, `recipe_ok`, `compose_ok`, `budget_ok`, `trace_ok`, and `page_motion_ok` as evidence-referenced Time-axis fields.
 
 ### Transaction Verdict
 

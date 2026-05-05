@@ -139,6 +139,15 @@ FocusIn(new)
 input_focused=new
 ```
 
+`focus_scope_navigation_demo` 的 final causal verdict 还必须证明：
+
+```text
+Tab/Right/Down/Left -> expected FocusOut/FocusIn chain
+wrap/reverse wrap -> stays inside active scope
+outside target -> outside_candidate=0 + no focus artifact mutation
+causal_chain ok=1
+```
+
 ### Law 8：directional key 应优先使用 spatial focus candidate
 
 遥控器 / 手柄 UI 里的方向键不应该只等价于 preorder。v0 对 `Left / Right / Up / Down` 增加空间候选裁决：
@@ -197,6 +206,7 @@ root
 - `Left` 从 first reverse wrap 到 third。
 - scope 外 target 不进入 keyboard / d-pad navigation 候选集。
 - 每次移动都产生 `FocusOut / FocusIn` 并提交 `input_focused`。
+- final `causal_chain` 汇总顺序导航、wrap、scope 外排除与 no-leak artifact。
 
 `Examples/ui/vivid/focus_spatial_navigation_demo` 是 Focus Spatial Navigation Evidence v0 的第一条运行证据。
 
@@ -213,7 +223,7 @@ stdout 最终约束：
 ```text
 [fs] run=focus_scope_demo phase=end result=ok cases=10
 [fsn] run=focus_scope_nested_demo phase=end result=ok cases=9
-[fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=7
+[fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=8
 [fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9
 ```
 

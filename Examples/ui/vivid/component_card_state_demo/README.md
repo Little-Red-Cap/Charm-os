@@ -9,7 +9,13 @@
 - `ProgressBarSimple` 展示派生 output。
 - summary label 展示组合状态。
 
-示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一使用 `[ccs] run=component_card_state_demo phase=begin/end` 与 `[ccs] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=5`。
+证据链：
+
+```text
+child state deltas -> component derivation -> paint-only invalidation -> render artifact -> causal verdict
+```
+
+示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一使用 `[ccs] run=component_card_state_demo phase=begin/end` 与 `[ccs] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=6`。
 
 构建：
 

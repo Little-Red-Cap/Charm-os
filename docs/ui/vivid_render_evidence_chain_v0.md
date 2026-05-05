@@ -230,6 +230,21 @@ settings_row.value
 
 The final verdict proves the slider truth, progress mirror, value label, paint-only invalidation intent, single dirty rect, component-bounded dirty evidence, and changed render artifact are treated as one auditable component consequence.
 
+## 2026-05 Addendum: Component Card State Causal Verdict
+
+`Examples/ui/vivid/component_card_state_demo` extends the component causal chain to multiple child state deltas:
+
+```text
+power_card.state
+  -> enabled + level state_delta
+  -> output + summary derivation
+  -> paint_only invalidation
+  -> bounded dirty / DrawCmd / pixel artifact
+  -> causal_chain ok=1
+```
+
+The final verdict proves multiple child truths can feed one component artifact without losing locality or causality evidence.
+
 ## 2026-05 Addendum: Semantic Artifact Evidence
 
 `Examples/ui/vivid/semantic_tree_demo` extends semantic focus evidence into a root-bound Semantic Tree Artifact v0. The artifact is still intentionally smaller than an accessibility runtime: it collects runtime semantic entries under a requested root, preserves deterministic preorder, marks focus truth, reports fixed-capacity overflow, and emits `semantic_hash`.

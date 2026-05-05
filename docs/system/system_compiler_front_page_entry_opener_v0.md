@@ -413,6 +413,13 @@ neutral-drift and collapsed testimony samples:
 ./scripts/system_compiler_front_page_entry_runtime_session_opener_open_event_witness_compare_smoke.ps1 -Clean
 ```
 
+To prove those runtime-session-specific opener artifacts can themselves be
+compared as consumer-side opener judgments:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_compare_smoke.ps1 -Clean
+```
+
 To prove only the OpenerCompare projection adapter:
 
 ```powershell

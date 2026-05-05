@@ -150,6 +150,7 @@ Examples:
 semantic action request
 semantic focus request
 intent-to-artifact
+semantic-to-transaction
 ```
 
 ### Time Verdict

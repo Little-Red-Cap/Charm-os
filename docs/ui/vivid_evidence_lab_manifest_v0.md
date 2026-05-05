@@ -41,6 +41,7 @@ run names and tags are unique
 the total registered case count is explicit
 all v0 evidence axes have at least one gated sample
 intent_artifact_demo remains the vertical causal anchor
+semantic_transition_demo remains the first semantic-to-transaction cross-axis sample
 evidence_vocabulary_demo remains the field-law anchor
 promotion boundaries stay demo-side / law / runtime-ledger separated
 stdout law registry matches manifest gates

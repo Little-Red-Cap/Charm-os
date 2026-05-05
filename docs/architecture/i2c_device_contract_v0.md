@@ -17,6 +17,7 @@
 - `Modules/io/device/io.device_i2c_mock.cppm`
 - `Modules/io/device/io.device_i2c_hal.cppm`
 - `Modules/io/driver/driver.i2c_register_device.cppm`
+- `Modules/io/driver/driver.i2c_whoami_probe.cppm`
 
 当前 smoke 证据：
 
@@ -24,6 +25,7 @@
 - `Examples/io/i2c_facts_smoke`
 - `Examples/io/i2c_hal_adapter_smoke`
 - `Examples/io/i2c_register_driver_smoke`
+- `Examples/io/i2c_whoami_probe_smoke`
 
 ## 1. 当前等级
 
@@ -39,14 +41,15 @@
 - 一个 transaction mock backend：`io.device_i2c_mock`
 - 一个 HAL adapter backend：`io.device_i2c_hal`
 - 一个准真实 register driver：`driver.i2c_register_device`
-- 四条 no-hardware smoke
+- 一个准真实 probe driver：`driver.i2c_whoami_probe`
+- 五条 no-hardware smoke
 - 一个 `system_compiler.fact_evidence/v0` sidecar 投影样例
 
 它还不是 `candidate`，因为仍然缺：
 
 - 真实硬件 evidence
 - 真实芯片 driver
-- 正式 probe evidence
+- 板级真实 probe evidence
 - board bringup evidence
 - artifact report / evidence pipeline 里的正式 facts 投影闭环
 - 更完整的资源与执行语义冻结
@@ -256,6 +259,33 @@ RegisterDevice8<MaxPayload = 8>
 
 这让栈缓冲容量成为编译期契约，而不是隐藏运行期分配。
 
+`driver.i2c_whoami_probe` 是当前准真实 probe driver evidence。
+
+它提供：
+
+- `read_id()`
+- `probe()`
+- `WhoAmIProbeConfig`
+
+它只依赖：
+
+- `io.device_i2c`
+- `util.core`
+- `util.error`
+- `util.expected`
+
+它不依赖：
+
+- HAL
+- mock
+- BoardCaps
+- init.graph
+- device registry
+- platform headers
+
+它验证的是真实 I2C 外设里非常常见的 ID / WHOAMI 寄存器探测模式。
+当前它仍然是 no-hardware probe evidence，不等价于真实板级 probe evidence。
+
 ## 8. Smoke Evidence
 
 当前 smoke 覆盖：
@@ -266,6 +296,8 @@ RegisterDevice8<MaxPayload = 8>
   验证同一个 register driver 经 HAL adapter backend 运行，并覆盖 `busy / timeout / unsupported` 映射。
 - `i2c_register_driver_smoke`
   验证 register driver 在 transaction mock backend 上完成单寄存器与 burst 读写。
+- `i2c_whoami_probe_smoke`
+  验证 probe driver 在 transaction mock backend 上覆盖成功、ID mismatch 与 backend failure。
 
 当前已验证输出形态：
 
@@ -273,6 +305,7 @@ RegisterDevice8<MaxPayload = 8>
 i2c contract mock smoke: ok
 i2c hal adapter smoke: ok
 i2c register driver smoke: ok
+i2c whoami probe smoke: ok
 ```
 
 ## 9. System Compiler Projection
@@ -367,6 +400,7 @@ evidence:
   mock script evidence
   HAL adapter smoke evidence
   I2C fact resolution evidence
+  no-hardware WHOAMI probe evidence
   board bringup evidence
   real driver probe evidence
 ```
@@ -400,13 +434,13 @@ Charm:
 
 最值当的下一步是：
 
-1. 写一个真实芯片 driver
+1. 把 no-hardware `driver.i2c_whoami_probe` 继续接到真实芯片或板级 probe。
    例如 sensor / EEPROM / codec / PMIC。
 2. 把当前 smoke 级 `fact_evidence` sidecar 推进到更真实的 evidence pipeline
    当前 board/package fact source 已由 `board-package-facts-smoke` 接入，
    I2C contract-required facts 与 board/package/adapter audit facts 的组合
    也已由 `board-i2c-fact-composition-smoke` 接入；
-   下一步更适合继续推进 probe evidence 或 board bringup evidence，不做执法。
+   下一步更适合继续推进真实 probe evidence 或 board bringup evidence，不做执法。
 3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。
 4. 持续同步 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)，

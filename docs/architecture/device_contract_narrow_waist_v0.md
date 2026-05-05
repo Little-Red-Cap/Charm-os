@@ -367,6 +367,10 @@ concept I2cBus =
 
 应与当前 block registry、stable slot、live state 经验对齐。
 
+当前 proposed card 见：
+
+- [`block_device_contract_v0.md`](block_device_contract_v0.md)
+
 关键语义：
 
 - sector size

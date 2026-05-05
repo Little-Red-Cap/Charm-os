@@ -53,7 +53,7 @@ AxisCausal entries remain tied to causal verdict law or primary-doc causal evide
 CTest guards the final line:
 
 ```text
-[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=9
+[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=10
 ```
 
 The fast smoke entry is:
@@ -104,6 +104,7 @@ Rules:
 - `causal` coverage is governed by `vivid_causal_verdict_law_v0.md`; `AxisCausal` requires a connected evidence chain and final verdict, not just a decorative `causal_chain` field.
 - Manifest smoke verifies `AxisCausal` rows have primary docs with causal evidence wording, and verifies the causal verdict law remains discoverable.
 - `intent_artifact_demo` is the vertical causal anchor because it connects semantic request, state delta, invalidation, render artifact, rejection, and causal verdict.
+- `semantic_transition_demo` is the first semantic-to-transaction anchor because it connects semantic request, emitted click, admission, page transaction, layer snapshot lifecycle, render sample, and causal verdict.
 - `evidence_vocabulary_demo` is the field-law anchor because it verifies helper-derived vocabulary verdicts without claiming runtime behavior.
 - `evidence_lab_manifest_demo` verifies the manifest shape and drift guards, not the runtime behavior of every listed demo.
 

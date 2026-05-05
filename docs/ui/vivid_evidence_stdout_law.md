@@ -113,7 +113,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 | `evidence_vocabulary_demo` | `evl` | `[evl] run=evidence_vocabulary_demo phase=end result=ok cases=5` |
-| `evidence_lab_manifest_demo` | `elm` | `[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=9` |
+| `evidence_lab_manifest_demo` | `elm` | `[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=10` |
 
 ## 维护规则
 

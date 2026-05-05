@@ -58,11 +58,11 @@ namespace {
         {"widget_signal_demo", "ws", 3, AxisEdge, "docs/ui/vivid_evidence_stdout_law.md"},
         {"widget_state_demo", "wst", 5, AxisState, "docs/ui/vivid_widget_state_observe.md"},
         {"evidence_vocabulary_demo", "evl", 5, AxisVocabulary | AxisState | AxisRender | AxisCausal, "docs/ui/vivid_evidence_vocabulary_law_v0.md"},
-        {"evidence_lab_manifest_demo", "elm", 9, AxisManifest | AxisVocabulary, "docs/ui/vivid_evidence_lab_manifest_v0.md"},
+        {"evidence_lab_manifest_demo", "elm", 10, AxisManifest | AxisVocabulary, "docs/ui/vivid_evidence_lab_manifest_v0.md"},
     };
 
     constexpr unsigned kExpectedEntryCount = 27;
-    constexpr unsigned kExpectedCaseTotal = 228;
+    constexpr unsigned kExpectedCaseTotal = 229;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState
@@ -345,6 +345,26 @@ int main() {
                 intent_artifact && has_axis(intent_artifact->axes, AxisCausal) ? 1 : 0,
                 intent_artifact && has_axis(intent_artifact->axes, AxisAdmission) ? 1 : 0);
     if (!expect(intent_chain_ok, "intent artifact must remain the vertical causal anchor")) return 1;
+
+    const ManifestEntry* semantic_transition = find_entry("semantic_transition_demo");
+    const bool semantic_transition_ok = semantic_transition != nullptr
+        && has_axis(semantic_transition->axes, AxisSemantic)
+        && has_axis(semantic_transition->axes, AxisEdge)
+        && has_axis(semantic_transition->axes, AxisAdmission)
+        && has_axis(semantic_transition->axes, AxisTransaction)
+        && has_axis(semantic_transition->axes, AxisLayer)
+        && has_axis(semantic_transition->axes, AxisRender)
+        && has_axis(semantic_transition->axes, AxisCausal);
+    case_begin("semantic_transition_anchor");
+    std::printf(" run=semantic_transition_demo semantic=%d edge=%d admission=%d transaction=%d layer=%d render=%d causal=%d\n",
+                semantic_transition && has_axis(semantic_transition->axes, AxisSemantic) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisEdge) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisAdmission) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisTransaction) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisLayer) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisRender) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisCausal) ? 1 : 0);
+    if (!expect(semantic_transition_ok, "semantic transition must remain the first semantic-to-transaction anchor")) return 1;
 
     const ManifestEntry* vocabulary = find_entry("evidence_vocabulary_demo");
     const bool vocabulary_ok = vocabulary != nullptr

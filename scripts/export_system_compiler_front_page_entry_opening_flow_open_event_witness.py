@@ -244,6 +244,7 @@ def build_summary_model(
     selected = get_mapping(decision.get("selected_consumer"))
     compare = get_mapping(open_event_summary.get("compare_summary"))
     workspace = get_mapping(open_event_summary.get("workspace_facade"))
+    source_judgment = get_mapping(open_event_summary.get("judgment"))
     explanation = get_mapping(open_event_summary.get("explanation_view"))
     source_artifact_context = get_mapping(open_event_summary.get("artifact_context"))
     source_violations = [choose_text(item) for item in get_list(open_event_summary.get("violations")) if choose_text(item)]
@@ -258,6 +259,11 @@ def build_summary_model(
     artifact_refs = build_artifact_refs(open_event_summary, open_event_summary_path)
     observations = build_observations(open_event_summary)
     witness_id = f"open-event-witness::{choose_text(event.get('open_event_id'))}"
+    source_judgment_basis = [choose_text(item) for item in get_list(source_judgment.get("basis")) if choose_text(item)]
+    if not source_judgment_basis:
+        source_judgment_basis = ["source_plan_action", "selected_opener", "open_event"]
+        if bool(compare.get("available")):
+            source_judgment_basis.append("source_action_compare")
 
     return OrderedDict(
         [
@@ -311,6 +317,16 @@ def build_summary_model(
                         ("witness_id", witness_id),
                         ("witness_status", witness_status),
                         ("accepted", witness_status == "ok"),
+                        ("source_judgment_status", choose_text(source_judgment.get("status")) or event_status),
+                        (
+                            "source_judgment_grade",
+                            choose_text(source_judgment.get("grade")) or ("compared" if bool(compare.get("available")) else "described"),
+                        ),
+                        (
+                            "source_judgment_basis",
+                            source_judgment_basis,
+                        ),
+                        ("source_judgment_summary", choose_text(source_judgment.get("summary"))),
                         ("selected_consumer_id", choose_text(selected.get("consumer_id"))),
                         ("selected_action_id", choose_text(selected.get("selected_action_id"))),
                         ("candidate_consumer_count", int(decision.get("candidate_consumer_count", 0))),
@@ -375,11 +391,14 @@ def build_report(summary: dict[str, Any]) -> str:
         f"- Result: `{summary['result']}`",
         f"- Witness: `{judgment['witness_id']}`",
         f"- Witness status: `{judgment['witness_status']}`",
+        f"- Source judgment: status=`{judgment['source_judgment_status']}` grade=`{judgment['source_judgment_grade']}`",
         f"- Source open event: `{summary['artifact_context']['source_open_event_summary_path']}`",
         f"- Summary JSON: `{summary['artifact_context']['open_event_witness_summary_path']}`",
         "",
         "## Opening Judgment",
         f"- event: `{identity['open_event_id']}` status=`{identity['open_event_status']}` result=`{identity['open_event_result']}`",
+        f"- source judgment: grade=`{judgment['source_judgment_grade']}` basis=`{', '.join(judgment['source_judgment_basis'])}`",
+        f"- source judgment summary: {judgment['source_judgment_summary']}",
         f"- reason: `{identity['reason_kind']}` {identity['reason_summary']}",
         f"- selected consumer: `{judgment['selected_consumer_id']}` action=`{judgment['selected_action_id']}`",
         f"- candidates=`{judgment['candidate_consumer_count']}` rejected=`{judgment['rejected_consumer_count']}`",
@@ -424,6 +443,9 @@ def build_check(summary: dict[str, Any]) -> str:
             f"result: {summary['result']}",
             f"witness_id: {judgment['witness_id']}",
             f"witness_status: {judgment['witness_status']}",
+            f"source_judgment_status: {judgment['source_judgment_status']}",
+            f"source_judgment_grade: {judgment['source_judgment_grade']}",
+            f"source_judgment_basis: {','.join(judgment['source_judgment_basis'])}",
             f"open_event_id: {identity['open_event_id']}",
             f"open_event_status: {identity['open_event_status']}",
             f"reason_kind: {identity['reason_kind']}",

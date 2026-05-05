@@ -261,6 +261,10 @@
         "witness_id",
         "witness_status",
         "accepted",
+        "source_judgment_status",
+        "source_judgment_grade",
+        "source_judgment_basis",
+        "source_judgment_summary",
         "selected_consumer_id",
         "selected_action_id",
         "candidate_consumer_count",
@@ -286,6 +290,27 @@
         },
         "accepted": {
           "type": "boolean"
+        },
+        "source_judgment_status": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "accepted_with_drift",
+            "blocked"
+          ]
+        },
+        "source_judgment_grade": {
+          "type": "string",
+          "enum": [
+            "described",
+            "compared"
+          ]
+        },
+        "source_judgment_basis": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "source_judgment_summary": {
+          "type": "string"
         },
         "selected_consumer_id": {
           "type": "string"

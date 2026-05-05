@@ -234,6 +234,37 @@ function New-OpenEventFixture {
     } else {
         "Compare: no action compare attached"
     }
+    $judgmentGrade = if ($WithDriftCompare) { "compared" } else { "described" }
+    $judgmentBasis = @("source_plan_action", "selected_opener", "open_event")
+    if ($WithDriftCompare) {
+        $judgmentBasis += "source_action_compare"
+    }
+    $judgmentSummary = if ($WithDriftCompare) {
+        "This opening judgment stands with compare context because the selected consumer action produced a projected opener surface and the attached action compare preserves its decision context."
+    } else {
+        "This opening judgment stands as described because the selected consumer action produced a projected opener surface and the open event preserves its decision context."
+    }
+    $typedActionQuestion = if ($WithDriftCompare) {
+        [ordered]@{
+            kind = "inspect_action_compare"
+            summary = "Inspect the attached action compare before rendering the selected opener as counterfactual context."
+            target_ref = "compare_summary.summary_path"
+        }
+    } else {
+        [ordered]@{
+            kind = "attach_action_compare"
+            summary = "Attach an action compare before publishing this open event as a compared opening judgment."
+            target_ref = "artifact_context.source_action_compare_summary_path"
+        }
+    }
+    $typedNextQuestions = @(
+        $typedActionQuestion,
+        [ordered]@{
+            kind = "inspect_rejected_consumers"
+            summary = "Inspect rejected consumer reasons as the next selector-facing explanation surface."
+            target_ref = "consumer_decision.rejected_consumers"
+        }
+    )
     $witnessRefs = [System.Collections.Generic.List[object]]::new()
     $witnessRefs.Add((New-WitnessRef -Role "source_plan_action" -Schema "system_compiler.front_page_entry_opening_flow_consumer_plan_action/v0" -SummaryPath $actionSummaryPath -ReportPath $actionReportPath -CheckPath $actionCheckPath)) | Out-Null
     $witnessRefs.Add((New-WitnessRef -Role "selected_opener" -Schema "system_compiler.front_page_entry_opener/v0" -SummaryPath $openerSummaryPath -ReportPath $openerReportPath -CheckPath $openerCheckPath)) | Out-Null
@@ -400,6 +431,14 @@ function New-OpenEventFixture {
             primary_check_text_path = $openerCheckPath
         }
         witness_refs = [object[]]@($witnessRefs)
+        judgment = [ordered]@{
+            semantic_role = "opening_judgment_carrier"
+            status = $eventStatus
+            grade = $judgmentGrade
+            basis = [object[]]@($judgmentBasis)
+            accepted = ($eventStatus -ne "blocked")
+            summary = $judgmentSummary
+        }
         explanation_view = [ordered]@{
             view_kind = "explain_open_event_view"
             status = $eventStatus
@@ -420,6 +459,7 @@ function New-OpenEventFixture {
         questions = [ordered]@{
             open_event_questions = @("Should this fixture OpenEventRecord become a witness projection input?")
             next_questions = @("Should real opening flows attach OpenEventWitness after publication?")
+            typed_next_questions = [object[]]@($typedNextQuestions)
         }
         violations = [object[]]@()
     }

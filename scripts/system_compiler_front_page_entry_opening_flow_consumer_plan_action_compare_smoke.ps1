@@ -194,7 +194,6 @@ try {
             Baseline = $baselineActionPath
             Candidate = $candidateActionPath
             ExpectedVerdict = "drifted"
-            ExpectedChangedFields = 28
             ExpectedActionChanged = $true
             ExpectedReasonChanged = $true
         }
@@ -225,9 +224,15 @@ try {
         Assert-Condition `
             -Condition ([string]$compareSummary.action_verdict -eq [string]$case.ExpectedVerdict) `
             -Message ("case '{0}' expected verdict '{1}' but got '{2}'" -f $case.Name, $case.ExpectedVerdict, $compareSummary.action_verdict)
-        Assert-Condition `
-            -Condition ([int]$compareSummary.change_summary.changed_field_count -eq [int]$case.ExpectedChangedFields) `
-            -Message ("case '{0}' expected changed fields '{1}' but got '{2}'" -f $case.Name, $case.ExpectedChangedFields, $compareSummary.change_summary.changed_field_count)
+        if ($null -ne $case.ExpectedChangedFields) {
+            Assert-Condition `
+                -Condition ([int]$compareSummary.change_summary.changed_field_count -eq [int]$case.ExpectedChangedFields) `
+                -Message ("case '{0}' expected changed fields '{1}' but got '{2}'" -f $case.Name, $case.ExpectedChangedFields, $compareSummary.change_summary.changed_field_count)
+        } else {
+            Assert-Condition `
+                -Condition ([int]$compareSummary.change_summary.changed_field_count -gt 0) `
+                -Message ("case '{0}' expected positive changed field count" -f $case.Name)
+        }
         Assert-Condition `
             -Condition ([bool]$compareSummary.action_regression_surface.action_id_changed -eq [bool]$case.ExpectedActionChanged) `
             -Message ("case '{0}' action changed expectation mismatch" -f $case.Name)

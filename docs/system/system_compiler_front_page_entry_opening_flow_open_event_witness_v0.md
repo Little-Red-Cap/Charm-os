@@ -13,6 +13,19 @@ The open-event record is the full judgment.
 
 The open-event witness is the portable testimony for that judgment.
 
+More precisely:
+
+```text
+open_event
+  = concrete OpeningJudgment carrier
+open_event_witness
+  = compact testimony projection of that judgment
+open_event_compare
+  = semantic drift judge for two opening judgments
+open_event_witness_compare
+  = testimony drift judge for two compact testimonies
+```
+
 ## Current shape
 
 Current `system_compiler.front_page_entry_opening_flow_open_event_witness`
@@ -73,6 +86,7 @@ The current summary records:
   - source event id, status, result, reason, and source artifact
 - `judgment`
   - witness id and status
+  - source judgment status, grade, basis, and summary
   - selected consumer and action
   - candidate and rejected consumer counts
   - compare attachment and verdict
@@ -105,6 +119,24 @@ This means `accepted_with_drift` is still a valid witness.
 It is not a failed testimony.
 
 It is an honest testimony that says compare context changed the opening
+judgment.
+
+## Source judgment projection
+
+The witness keeps witness status separate from source judgment status.
+
+Current source judgment fields inside `judgment` are:
+
+- `source_judgment_status`
+  - copied from the source open event's judgment status
+- `source_judgment_grade`
+  - `described` or `compared`
+- `source_judgment_basis`
+  - the evidence roles that support the source judgment carrier
+- `source_judgment_summary`
+  - the source judgment's short system-testimony sentence
+
+This makes the witness a testimony projection rather than a second root
 judgment.
 
 ## Manual example

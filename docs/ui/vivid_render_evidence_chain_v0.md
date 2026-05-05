@@ -315,7 +315,7 @@ semantic tree root
   -> status evidence
 ```
 
-The demo guards resolved lookup, no input/callback side effects, rejected resolutions without input mutation, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid root, and missing request id.
+The demo guards resolved lookup, no input/callback side effects, rejected resolutions without input mutation, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid root, missing request id, and a final `causal_chain` verdict over lookup-only intent evidence.
 
 ## 2026-05 Addendum: Semantic Action Request
 

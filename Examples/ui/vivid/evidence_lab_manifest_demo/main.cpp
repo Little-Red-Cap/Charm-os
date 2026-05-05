@@ -47,7 +47,7 @@ namespace {
         {"semantic_tree_demo", "stree", 7, AxisSemantic | AxisCausal, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
         {"semantic_default_demo", "sdef", 7, AxisSemantic | AxisCausal, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
         {"semantic_action_demo", "sact", 7, AxisSemantic | AxisCausal, "docs/ui/vivid_focus_semantic_evidence_v0.md"},
-        {"semantic_intent_demo", "sint", 8, AxisSemantic | AxisAdmission, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"semantic_intent_demo", "sint", 9, AxisSemantic | AxisAdmission | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_action_admission_demo", "saa", 8, AxisSemantic | AxisAdmission, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_action_request_demo", "sar", 11, AxisSemantic | AxisAdmission | AxisEdge | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission, "docs/ui/vivid_intent_to_artifact_evidence_v0.md"},
@@ -61,7 +61,7 @@ namespace {
     };
 
     constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 213;
+    constexpr unsigned kExpectedCaseTotal = 214;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState

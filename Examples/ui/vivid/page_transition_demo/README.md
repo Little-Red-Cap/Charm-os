@@ -22,7 +22,7 @@
 - destination prepare 失败时释放已获取的 source snapshot
 - source / destination capture 失败时恢复 page truth 并释放已获取 snapshot
 - active transition 上再次 begin 时先 abort 旧事务，再启动新事务
-- 最终 `causal_chain` 将上述 15 条事务证据收束为 `page_transition.transaction` 判决
+- 最终 `causal_chain` 将上述 15 条事务证据收束为 `page_transition.transaction` 判决，并显式输出 `admission_ok` / `commit_ok` / `cancel_ok` / `interrupt_ok` / `static_cut_ok` / `snapshot_lifecycle_ok` / `page_truth_ok`
 
 构建：
 

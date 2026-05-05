@@ -182,7 +182,7 @@ release/thaw/restore boundary
 no leaked snapshot or stale transaction state
 ```
 
-`page_transition.transaction` is a v0 transitional count-based verdict. It is valid because the page transition demo closes commit, cancel, interrupt, admission, static cut, and snapshot lifecycle evidence before the final verdict.
+`page_transition.transaction` is a v0 hybrid verdict. It keeps `cases_closed` as a transitional count-based guard, and also emits `admission_ok`, `commit_ok`, `cancel_ok`, `interrupt_ok`, `static_cut_ok`, `snapshot_lifecycle_ok`, and `page_truth_ok` as evidence-referenced Transaction-axis fields.
 
 ### Render / State Verdict
 

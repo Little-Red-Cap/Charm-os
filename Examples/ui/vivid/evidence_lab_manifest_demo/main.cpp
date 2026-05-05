@@ -256,6 +256,27 @@ namespace {
         }
         return true;
     }
+
+    [[nodiscard]] bool causal_docs_match_manifest() {
+        const std::string causal_law = read_file("docs/ui/vivid_causal_verdict_law_v0.md");
+        if (causal_law.empty()
+            || !contains(causal_law, "AxisCausal Eligibility")
+            || !contains(causal_law, "Count-Based And Evidence-Referenced Verdicts")) {
+            return false;
+        }
+
+        for (const auto& entry : kManifest) {
+            if (!has_axis(entry.axes, AxisCausal)) {
+                continue;
+            }
+
+            const std::string doc = read_file(entry.primary_doc);
+            if (doc.empty() || (!contains(doc, "causal_chain") && !contains(doc, "causal verdict"))) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 int main() {
@@ -350,12 +371,14 @@ int main() {
     if (!expect(cmake_sync_ok, "demo CMake PASS gates must match manifest gates")) return 1;
 
     const bool doc_route_ok = doc_routes_match_manifest();
+    const bool causal_doc_ok = causal_docs_match_manifest();
     case_begin("doc_route_sync");
-    std::printf(" demos=%u primary_docs=%u synced=%d\n",
+    std::printf(" demos=%u primary_docs=%u synced=%d causal_docs=%d\n",
                 entries,
                 entries,
-                doc_route_ok ? 1 : 0);
-    if (!expect(doc_route_ok, "manifest primary docs must point back to their demos")) return 1;
+                doc_route_ok ? 1 : 0,
+                causal_doc_ok ? 1 : 0);
+    if (!expect(doc_route_ok && causal_doc_ok, "manifest primary docs must point back to demos and cover AxisCausal law")) return 1;
 
     case_begin("promotion_boundary");
     std::printf(" demo_support=demo_side vocabulary=law runtime_ledgers=core_candidate print_helpers=do_not_promote runtime_behavior=0 screenshot=0\n");

@@ -20,3 +20,14 @@ set(CHARM_TARGET_HAS_WIN32 OFF CACHE BOOL "" FORCE)
 set(CHARM_TARGET_HAS_WINSOCK OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
+
+set(I2C_WHOAMI_PROBE_EVIDENCE_PATH
+    "${CMAKE_CURRENT_BINARY_DIR}/i2c_whoami_probe.evidence.json"
+    CACHE FILEPATH "Fact evidence sidecar path for i2c_whoami_probe_smoke")
+
+add_custom_target(export_i2c_whoami_probe_evidence
+    COMMAND $<TARGET_FILE:${target_name}>
+        --fact-evidence "${I2C_WHOAMI_PROBE_EVIDENCE_PATH}"
+    DEPENDS ${target_name}
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    VERBATIM)

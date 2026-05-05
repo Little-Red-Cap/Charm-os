@@ -12,6 +12,7 @@
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/system_compiler.fact_evidence.v0.schema.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
 - `schemas/system_compiler_summary.v0.schema.json`
@@ -42,6 +43,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report_index.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
@@ -197,6 +199,14 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-i2c-composition-bundle ./out/board-i2c-composition-artifact-report/board-i2c-fact-composition-smoke.artifact_report.json
 ```
 
+当前 I2C WHOAMI no-hardware probe evidence 也已经可以走同一条正式链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case i2c-whoami-probe-evidence-smoke -OutputRoot out/i2c-whoami-probe-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/i2c-whoami-probe-bundle -Case i2c-whoami-probe-evidence-smoke -OutputRoot out/i2c-whoami-probe-artifact-report
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/i2c-whoami-probe-bundle ./out/i2c-whoami-probe-artifact-report/i2c-whoami-probe-evidence-smoke.artifact_report.json
+```
+
 当前 inspector 至少会直接带出：
 
 - case / mode / profile / board / facets
@@ -222,6 +232,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
 
 这份样例现在与 `i2c-device-contract-facts-smoke` 这条 `fact_only`
 导出链保持同一种投影语义，并通过 `fact_evidence` sidecar
@@ -231,6 +242,13 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 与 `resource_contract.provided_facts` 的形状钉住。
 其中 `pinmux:pb8/pb9.af4` 故意保留为 required 但未 available，
 用于展示 contract-local fact 缺口如何被 artifact report 表达。
+
+其中 `i2c_whoami_probe` 样例把 `driver.i2c_whoami_probe`
+的 no-hardware probe smoke 投影成同一种 `fact_evidence` sidecar。
+它会把 `i2c.evidence:whoami_probe` 作为已提供证据带入事实库存，
+同时继续把 `i2c.probe.board_real` 保留为 missing，
+用于说明这条链已经具备 mock/probe evidence，
+但还没有真实板级 probe evidence。
 
 当前也已经有一份 board/package facts 的 sidecar 样例：
 

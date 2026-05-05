@@ -168,6 +168,37 @@
       }
     },
     {
+      "name": "i2c-whoami-probe-evidence-smoke",
+      "source": "Examples/io/i2c_whoami_probe_smoke",
+      "build_dir": "cmake-build-i2c-whoami-probe-smoke-clang",
+      "build_target": "i2c-whoami-probe-smoke",
+      "case_kind": "fact_only",
+      "fact_evidence_target": "export_i2c_whoami_probe_evidence",
+      "fact_evidence_cache": "I2C_WHOAMI_PROBE_EVIDENCE_PATH",
+      "default_fact_evidence": "i2c_whoami_probe.evidence.json",
+      "export_target": null,
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": null,
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": null,
+      "declared_facts": [],
+      "required_facts": [],
+      "audit_provided_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": "MCU_MIN",
+        "board": "mock_i2c",
+        "active_facets": [
+          "io",
+          "driver_contract",
+          "probe_evidence"
+        ]
+      }
+    },
+    {
       "name": "board-package-facts-smoke",
       "source": "Examples/platform/board_facts_smoke",
       "build_dir": "cmake-build-board-facts-smoke-clang",

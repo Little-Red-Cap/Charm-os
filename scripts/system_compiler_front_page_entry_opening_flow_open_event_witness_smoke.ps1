@@ -234,6 +234,9 @@ function New-OpenEventFixture {
     } else {
         "Compare: no action compare attached"
     }
+    $diagnosticHeadline = "Fixture projection preview"
+    $diagnosticSummaryLines = @("fixture projection summary: selected opener is ready")
+    $diagnosticQuestionLines = @("fixture projection question: should this become witness input?")
     $witnessRefs = [System.Collections.Generic.List[object]]::new()
     $witnessRefs.Add((New-WitnessRef -Role "source_plan_action" -Schema "system_compiler.front_page_entry_opening_flow_consumer_plan_action/v0" -SummaryPath $actionSummaryPath -ReportPath $actionReportPath -CheckPath $actionCheckPath)) | Out-Null
     $witnessRefs.Add((New-WitnessRef -Role "selected_opener" -Schema "system_compiler.front_page_entry_opener/v0" -SummaryPath $openerSummaryPath -ReportPath $openerReportPath -CheckPath $openerCheckPath)) | Out-Null
@@ -399,18 +402,33 @@ function New-OpenEventFixture {
             primary_report_markdown_path = $openerReportPath
             primary_check_text_path = $openerCheckPath
         }
+        diagnostic_preview = [ordered]@{
+            available = $true
+            entry_name = "fixture-entry"
+            projection_kind = "fixture_projection"
+            headline = $diagnosticHeadline
+            summary_lines = $diagnosticSummaryLines
+            question_lines = $diagnosticQuestionLines
+            line_count = @($diagnosticSummaryLines).Count
+            question_count = @($diagnosticQuestionLines).Count
+            blockers = [object[]]@()
+        }
         witness_refs = [object[]]@($witnessRefs)
         explanation_view = [ordered]@{
             view_kind = "explain_open_event_view"
             status = $eventStatus
             why_opened = "Fixture opening reason for OpenEventWitness smoke."
             chosen_consumer = "fixture_consumer:default_overview:report selected by default_action"
+            diagnostic_headline = $diagnosticHeadline
+            diagnostic_summary_lines = $diagnosticSummaryLines
+            diagnostic_question_lines = $diagnosticQuestionLines
             plan_actions = @("1. open-default -> ready")
             compare_result = $compareResultText
             witness_refs = @($witnessRefs | ForEach-Object { "{0}: {1}" -f [string]$_.role, [string]$_.summary_path })
             text_lines = @(
                 "Why opened: Fixture opening reason for OpenEventWitness smoke.",
                 "Chosen consumer: fixture_consumer:default_overview:report via default_action",
+                "Diagnostic preview: 1 summary line(s), 1 question line(s)",
                 "Plan: 2 action(s), selected open-default",
                 "Rejected candidates: 1",
                 $compareTextLine,

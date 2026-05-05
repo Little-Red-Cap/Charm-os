@@ -7,7 +7,7 @@
   "world": {
     "name": "minimal_kernel_runtime",
     "title": "Minimal Kernel Runtime Witness World",
-    "summary": "A canonical witness surface that gathers artifact report, runtime evidence bundle, and representative host examples into one verifiable world.",
+    "summary": "A canonical witness surface that gathers artifact report, runtime evidence bundle, kernel runtime session, and representative host examples into one verifiable world.",
     "subject": {
       "profile": "MCU_MIN",
       "board": "armv7a_qemu",
@@ -20,12 +20,13 @@
     },
     "first_class_terms": [
       "subject",
+      "session",
       "case",
       "fact",
       "contract",
       "witness",
-      "session",
-      "transition"
+      "transition",
+      "ingress"
     ],
     "core_questions": [
       "What system fact is this world trying to prove?",
@@ -73,7 +74,7 @@
         "path": null
       },
       {
-        "id": "kernel_runtime_session_sample",
+        "id": "kernel_runtime_session",
         "kind": "kernel_runtime_session",
         "label": "minimal-kernel-runtime-session",
         "role": "joint semantic and machine session witness",
@@ -109,7 +110,26 @@
     "summary_path": "schemas/examples/system_compiler.witness_bundle.v0.sample.json",
     "report_markdown_path": "docs/system/witness_bundle_v0.md",
     "check_text_path": "docs/system/witness_bundle_v0.md",
-    "supporting_surfaces": []
+    "supporting_surfaces": [
+      {
+        "id": "runtime_evidence",
+        "label": "runtime evidence",
+        "role": "supporting_evidence",
+        "summary_schema": "minimal_kernel.runtime_evidence_bundle.summary/v1",
+        "summary_path": "schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json",
+        "report_markdown_path": "docs/system/minimal_kernel_runtime_evidence_bundle_contract.md",
+        "check_text_path": "docs/system/minimal_kernel_runtime_evidence_bundle_contract.md"
+      },
+      {
+        "id": "kernel_runtime_session",
+        "label": "kernel runtime session",
+        "role": "supporting_evidence",
+        "summary_schema": "minimal_kernel.kernel_runtime_session/v0",
+        "summary_path": "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json",
+        "report_markdown_path": "docs/system/kernel_runtime_session_witness_v0.md",
+        "check_text_path": "docs/system/kernel_runtime_session_witness_v0.md"
+      }
+    ]
   },
   "artifact_context": {
     "canonical_world": "schemas/examples/system_compiler.canonical_world.v0.sample.json",
@@ -213,7 +233,7 @@
       ]
     },
     {
-      "id": "kernel_runtime_session_sample",
+      "id": "kernel_runtime_session",
       "kind": "kernel_runtime_session",
       "label": "minimal-kernel-runtime-session",
       "role": "joint semantic and machine session witness",

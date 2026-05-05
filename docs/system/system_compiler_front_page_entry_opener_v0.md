@@ -39,6 +39,7 @@ Current `system_compiler.front_page_entry_opener` includes:
   - `scripts/validate_system_compiler_front_page_entry_opener_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opener_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_opener_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_opening_flow_compare_smoke.ps1`
@@ -224,6 +225,7 @@ summary shapes in the repository:
 - `system_compiler.biography_index_compare/v0`
 - `system_compiler.witness_bundle/v0`
 - `minimal_kernel.runtime_evidence_bundle.summary/v1`
+- `minimal_kernel.kernel_runtime_session/v0`
 - `system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`
 - `system_compiler.front_page_entry_opener_compare/v0`
 - `system_compiler.front_page_entry_opening_flow_compare/v0`
@@ -236,6 +238,17 @@ For those targets it records:
 - short summary lines
 - nearby question lines
 - nearby supporting / evidence / compare paths
+
+For `minimal_kernel.kernel_runtime_session/v0`, the projection kind is
+`kernel_runtime_session_overview`. It keeps the runtime session distinct from
+the broader `runtime_evidence_bundle` preview, and summarizes the session id,
+world, semantic witness, machine witness, runtime facts, ledger count, and
+session verdict. The projection also keeps the opened session useful as a
+consumer-facing diagnosis adapter by listing contract names, standing/regressed
+runtime cases, machine ingress facets, ledger paths, provenance hints, and the
+first failure detail when one exists. These details are still carried by the
+same modest `opened_projection` shape; the opener does not introduce a separate
+runtime-session schema or reinterpret the lower session witness.
 
 For `system_compiler.world_shelf_review/v0`, those summary lines include a
 single `drift_digest ...` line. This is only a consumer preview of the review
@@ -350,6 +363,12 @@ Or run the dedicated smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_opener_smoke.ps1 -Clean
+```
+
+For the narrow `runtime_session` opener projection path, use:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_sample_smoke.ps1 -Clean
 ```
 
 To prove only the OpenEventWitnessCompare projection adapter:

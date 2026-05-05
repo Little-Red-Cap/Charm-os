@@ -428,7 +428,7 @@ This belongs to the Semantic Plane and Evidence Plane. It makes semantic nodes a
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, and no input side effects during resolution.
+- `Examples/ui/vivid/semantic_intent_demo` proves root-bound lookup, duplicate-id ambiguity, unsupported action, disabled target, invalid request statuses, rejected resolutions without input mutation, and no input side effects during resolution.
 
 ## 2026-05 Addendum: Semantic Action Request
 
@@ -451,8 +451,8 @@ Shared semantic request ledger rules live in `vivid_semantic_request_ledger_law_
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_action_admission_demo` proves admitted activate plans, no execution side effects, unsupported-action and disabled-target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus/click plan evidence.
-- `Examples/ui/vivid/semantic_action_request_demo` proves side-effect-free resolution, controlled activate execution, normal click behavior reuse, already-focused execution, unsupported-action rejection, active-scope rejection through focus admission, duplicate-id ambiguity, missing request ids, and explicit request rejection reasons.
+- `Examples/ui/vivid/semantic_action_admission_demo` proves admitted activate plans, no execution side effects, rejected admissions without focus/event/press mutation, unsupported-action and disabled-target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus/click plan evidence.
+- `Examples/ui/vivid/semantic_action_request_demo` proves side-effect-free resolution, controlled activate execution, normal click behavior reuse, focus/click event traces, already-focused execution without hidden transfer, unsupported-action rejection, active-scope rejection through focus admission, rejected paths without focus or click event pollution, duplicate-id ambiguity, missing request ids, final causal-chain evidence, and explicit request rejection reasons.
 
 ## 2026-05 Addendum: Semantic Focus Query
 
@@ -467,7 +467,7 @@ This keeps focus lookup in the Semantic Plane while preserving the boundary that
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_focus_query_demo` proves root-bound semantic focus lookup, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
+- `Examples/ui/vivid/semantic_focus_query_demo` proves root-bound semantic focus lookup, active-scope rejection, rejected queries without focus/event mutation, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
 
 ## 2026-05 Addendum: Semantic Focus Admission
 
@@ -482,7 +482,7 @@ This belongs between the Semantic Plane and Input Runtime. It preserves the boun
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_focus_admission_demo` proves admitted transfer plans, already-focused no-op plans, active-scope rejection, non-focusable and disabled target statuses, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
+- `Examples/ui/vivid/semantic_focus_admission_demo` proves admitted transfer plans, already-focused no-op plans, active-scope rejection, non-focusable and disabled target statuses, rejected admissions without focus/event mutation, duplicate-id ambiguity, invalid request statuses, and no focus transfer side effects.
 
 ## 2026-05 Addendum: Semantic Focus Request
 
@@ -498,4 +498,4 @@ This is the first semantic focus API that is allowed to mutate input focus truth
 
 Current evidence:
 
-- `Examples/ui/vivid/semantic_focus_request_demo` proves controlled semantic focus transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus request ledger stages.
+- `Examples/ui/vivid/semantic_focus_request_demo` proves controlled semantic focus transfer execution, event evidence, semantic focus truth after request, request-driven focus artifact migration, rejection without artifact mutation, final causal-chain evidence, already-focused no-op, active-scope rejection, non-focusable and disabled target rejection, duplicate-id ambiguity, invalid request statuses, and explicit focus request ledger stages.

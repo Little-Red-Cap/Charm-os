@@ -297,14 +297,14 @@ stdout final contract:
 ```
 
 `Examples/ui/vivid/semantic_action_request_demo` is the first Semantic Action Request v0 runtime evidence.
-It verifies that semantic intent resolution and action admission remain side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, and rejects scope-forbidden targets through focus admission.
+It verifies that semantic intent resolution and action admission remain side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, rejects scope-forbidden targets through focus admission, and proves rejected requests do not emit focus or click events.
 It also records `SemanticActionRequestRejectReason` so CI can distinguish action-admission rejection from focus-request rejection.
-The main request cases emit `ledger=action_request stage=action_admission/focus_request/execution` lines generated from `SemanticActionRequestLedger`.
+The main request cases emit `ledger=action_request stage=action_admission/focus_request/execution` lines generated from `SemanticActionRequestLedger`, and the execution cases include focus/click event traces so `focus_ready` and `click` are tied back to input evidence.
 
 stdout final contract:
 
 ```text
-[sar] run=semantic_action_request_demo phase=end result=ok cases=6
+[sar] run=semantic_action_request_demo phase=end result=ok cases=11
 ```
 
 `Examples/ui/vivid/semantic_action_admission_demo` is the first Semantic Action Admission v0 runtime evidence.
@@ -335,13 +335,14 @@ stdout final contract:
 ```
 
 `Examples/ui/vivid/semantic_focus_request_demo` is the first Semantic Focus Request v0 runtime evidence.
-It verifies controlled focus transfer execution, `FocusOut/FocusIn` event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable and disabled rejection, ambiguous duplicate ids, and invalid request statuses.
+It verifies controlled focus transfer execution, `FocusOut/FocusIn` event evidence, semantic focus truth after request, request-driven focus artifact evidence, rejection without artifact mutation, final causal-chain evidence, already-focused no-op, active-scope rejection, non-focusable and disabled rejection, ambiguous duplicate ids, and invalid request statuses.
 The main request cases emit `ledger=focus_request stage=focus_admission/already_focused/execution` lines generated from `SemanticFocusRequestLedger`.
+It also records the visual consequence of the semantic request: focused style evidence remains stable, while the focus ring render artifact moves to the semantic destination with bounded dirty evidence.
 
 stdout final contract:
 
 ```text
-[sfr] run=semantic_focus_request_demo phase=end result=ok cases=7
+[sfr] run=semantic_focus_request_demo phase=end result=ok cases=12
 ```
 
 核心字段：

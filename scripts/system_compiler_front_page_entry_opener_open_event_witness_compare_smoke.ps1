@@ -288,6 +288,7 @@ function New-MinimalLandingSummary {
             direct_compare_available = $true
             direct_biography_available = $false
             direct_evidence_available = $true
+            direct_runtime_session_available = $false
         }
         fallback_mode_order = @("evidence", "route")
         primary_landing = $landingTab

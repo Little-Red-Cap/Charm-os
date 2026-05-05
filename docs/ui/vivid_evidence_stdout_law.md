@@ -101,17 +101,17 @@ set_tests_properties(${target_name} PROPERTIES
 | `semantic_tree_demo` | `stree` | `[stree] run=semantic_tree_demo phase=end result=ok cases=6` |
 | `semantic_default_demo` | `sdef` | `[sdef] run=semantic_default_demo phase=end result=ok cases=6` |
 | `semantic_action_demo` | `sact` | `[sact] run=semantic_action_demo phase=end result=ok cases=6` |
-| `semantic_intent_demo` | `sint` | `[sint] run=semantic_intent_demo phase=end result=ok cases=7` |
-| `semantic_action_admission_demo` | `saa` | `[saa] run=semantic_action_admission_demo phase=end result=ok cases=7` |
-| `semantic_action_request_demo` | `sar` | `[sar] run=semantic_action_request_demo phase=end result=ok cases=6` |
+| `semantic_intent_demo` | `sint` | `[sint] run=semantic_intent_demo phase=end result=ok cases=8` |
+| `semantic_action_admission_demo` | `saa` | `[saa] run=semantic_action_admission_demo phase=end result=ok cases=8` |
+| `semantic_action_request_demo` | `sar` | `[sar] run=semantic_action_request_demo phase=end result=ok cases=11` |
 | `intent_artifact_demo` | `ia` | `[ia] run=intent_artifact_demo phase=end result=ok cases=9` |
-| `semantic_focus_query_demo` | `sfq` | `[sfq] run=semantic_focus_query_demo phase=end result=ok cases=7` |
-| `semantic_focus_admission_demo` | `sfa` | `[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=7` |
-| `semantic_focus_request_demo` | `sfr` | `[sfr] run=semantic_focus_request_demo phase=end result=ok cases=7` |
+| `semantic_focus_query_demo` | `sfq` | `[sfq] run=semantic_focus_query_demo phase=end result=ok cases=8` |
+| `semantic_focus_admission_demo` | `sfa` | `[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=8` |
+| `semantic_focus_request_demo` | `sfr` | `[sfr] run=semantic_focus_request_demo phase=end result=ok cases=12` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
 | `evidence_vocabulary_demo` | `evl` | `[evl] run=evidence_vocabulary_demo phase=end result=ok cases=5` |
-| `evidence_lab_manifest_demo` | `elm` | `[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=8` |
+| `evidence_lab_manifest_demo` | `elm` | `[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=9` |
 
 ## 维护规则
 

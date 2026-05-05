@@ -39,3 +39,4 @@
 
 - 大多数 Vivid 示例依赖 SDL3 与 [`../cmake/ExampleTemplate.cmake`](../cmake/ExampleTemplate.cmake)。
 - 这里偏宿主侧 UI 验证，不直接替代最终产品化页面或板级渲染接线。
+- Vivid Evidence Lab manifest 的快速漂移检查入口是 `../../scripts/vivid_evidence_lab_manifest_smoke.ps1`。

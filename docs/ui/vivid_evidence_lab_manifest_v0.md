@@ -45,12 +45,19 @@ evidence_vocabulary_demo remains the field-law anchor
 promotion boundaries stay demo-side / law / runtime-ledger separated
 stdout law registry matches manifest gates
 demo CMake PASS gates match manifest gates
+primary law documents point back to their demos
 ```
 
 CTest guards the final line:
 
 ```text
-[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=8
+[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=9
+```
+
+The fast smoke entry is:
+
+```powershell
+./scripts/vivid_evidence_lab_manifest_smoke.ps1
 ```
 
 ## Manifest Fields
@@ -63,8 +70,10 @@ Each manifest row has:
 | `tag` | Short stdout domain tag. |
 | `cases` | Expected final `cases=<n>` value. |
 | `axes` | Evidence axes covered by the demo. |
+| `primary_doc` | First law or route document that owns the demo's evidence meaning. |
 
 The manifest row must match `vivid_evidence_stdout_law.md` when a demo is CTest-gated by that law.
+The primary document must mention the demo path so route drift is visible.
 
 ## Coverage Axes
 
@@ -110,6 +119,7 @@ When adding, deleting, splitting, or renaming a CTest-gated Evidence Lab demo:
 2. Update this manifest document.
 3. Update Examples/ui/vivid/evidence_lab_manifest_demo.
 4. Update docs/ui/README.md when the entry is a recommended route.
+5. Run scripts/vivid_evidence_lab_manifest_smoke.ps1.
 ```
 
 This keeps Vivid Evidence Plane from becoming a set of clever local proofs without a stable map.

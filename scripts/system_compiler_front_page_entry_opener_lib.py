@@ -24,6 +24,7 @@ BIOGRAPHY_INDEX_SCHEMA = "system_compiler.biography_index/v0"
 BIOGRAPHY_INDEX_COMPARE_SCHEMA = "system_compiler.biography_index_compare/v0"
 WITNESS_BUNDLE_SCHEMA = "system_compiler.witness_bundle/v0"
 RUNTIME_EVIDENCE_SCHEMA = "minimal_kernel.runtime_evidence_bundle.summary/v1"
+KERNEL_RUNTIME_SESSION_SCHEMA = "minimal_kernel.kernel_runtime_session/v0"
 OPEN_EVENT_WITNESS_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0"
 OPENER_COMPARE_SCHEMA = "system_compiler.front_page_entry_opener_compare/v0"
 OPENING_FLOW_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_flow_compare/v0"
@@ -103,6 +104,26 @@ def build_front_page_supporting_paths(summary: dict[str, Any]) -> list[str]:
 def join_texts(values: list[Any]) -> str:
     items = [choose_text(value) for value in values if choose_text(value)]
     return ", ".join(items) if items else "-"
+
+
+def join_text_preview(values: list[Any], limit: int = 6) -> str:
+    items = [choose_text(value) for value in values if choose_text(value)]
+    if not items:
+        return "-"
+    if len(items) <= limit:
+        return ", ".join(items)
+    return "{0}, ... (+{1})".format(", ".join(items[:limit]), len(items) - limit)
+
+
+def split_enabled_keys(source: dict[str, Any], keys: list[str]) -> tuple[list[str], list[str]]:
+    enabled: list[str] = []
+    missing: list[str] = []
+    for key in keys:
+        if bool(source.get(key)):
+            enabled.append(key)
+        else:
+            missing.append(key)
+    return enabled, missing
 
 
 def load_landing_summary(path: Path) -> dict[str, Any]:
@@ -930,6 +951,150 @@ def build_runtime_evidence_projection(summary_path: Path, summary: dict[str, Any
     )
 
 
+def build_kernel_runtime_session_projection(summary_path: Path, summary: dict[str, Any]) -> OrderedDict[str, Any]:
+    subject = get_mapping(summary.get("subject"))
+    semantic_witness = get_mapping(summary.get("semantic_witness"))
+    machine_witness = get_mapping(summary.get("machine_witness"))
+    runtime = get_mapping(summary.get("runtime"))
+    ledger = get_mapping(summary.get("ledger"))
+    verdict = get_mapping(summary.get("verdict"))
+    artifact_paths = get_mapping(summary.get("artifact_paths"))
+    provenance = get_mapping(summary.get("provenance"))
+    failures = [get_mapping(item) for item in get_list(summary.get("failures")) if isinstance(item, dict)]
+    contracts = get_list(semantic_witness.get("contracts"))
+    standing_cases = get_list(machine_witness.get("standing_cases"))
+    regressed_cases = get_list(machine_witness.get("regressed_cases"))
+    ingress_keys = [
+        "exception_ingress",
+        "interrupt_ingress",
+        "timer_ingress",
+        "trap_ingress",
+        "context_ingress",
+        "runtime_loop",
+    ]
+    enabled_ingress, missing_ingress = split_enabled_keys(machine_witness, ingress_keys)
+    failure_domain = choose_text(verdict.get("failure_domain"))
+    headline = "runtime_session id={0} status={1}".format(
+        choose_text(summary.get("session_id")) or "unknown",
+        choose_text(verdict.get("session_status")) or "-",
+    )
+    summary_lines = [
+        "world={0} board={1} profile={2} leaf={3}".format(
+            choose_text(summary.get("world")) or "-",
+            choose_text(subject.get("board")) or "-",
+            choose_text(subject.get("profile")) or "-",
+            choose_text(subject.get("leaf")) or "-",
+        ),
+        "semantic status={0} host={1} contracts={2}".format(
+            choose_text(semantic_witness.get("status")) or "-",
+            "yes" if bool(semantic_witness.get("host")) else "no",
+            len(contracts),
+        ),
+        "contracts={0}".format(join_text_preview(contracts)),
+        "machine status={0} qemu={1} standing_cases={2} regressed_cases={3}".format(
+            choose_text(machine_witness.get("status")) or "-",
+            "yes" if bool(machine_witness.get("qemu")) else "no",
+            len(standing_cases),
+            len(regressed_cases),
+        ),
+        "machine_ingress enabled={0} missing={1}".format(
+            join_text_preview(enabled_ingress),
+            join_text_preview(missing_ingress),
+        ),
+        "standing_cases={0}".format(join_text_preview(standing_cases)),
+        "regressed_cases={0}".format(join_text_preview(regressed_cases)),
+        "runtime tick={0} trap={1} thread={2} task_syscall={3} handoff={4}".format(
+            "yes" if bool(runtime.get("tick")) else "no",
+            "yes" if bool(runtime.get("trap")) else "no",
+            "yes" if bool(runtime.get("thread")) else "no",
+            "yes" if bool(runtime.get("task_syscall")) else "no",
+            "yes" if bool(runtime.get("handoff_continuity")) else "no",
+        ),
+        "ledger events={0} failures={1} failure_domain={2}".format(
+            choose_text(ledger.get("event_count")) or "0",
+            len(failures),
+            failure_domain or "-",
+        ),
+        "ledger_paths phase={0} runtime={1}".format(
+            choose_text(ledger.get("phase_ledger")) or "-",
+            choose_text(ledger.get("runtime_ledger")) or "-",
+        ),
+        "provenance runtime_evidence={0} canonical_world={1}".format(
+            choose_text(provenance.get("runtime_evidence_summary")) or "-",
+            choose_text(provenance.get("canonical_world")) or "-",
+        ),
+    ]
+    question_lines = [
+        "Which runtime phase would explain this session if it stops standing?",
+        "Should this session become the default minimal-kernel runtime witness entry?",
+    ]
+    if regressed_cases:
+        question_lines.insert(
+            0,
+            "Which regressed runtime case should be opened first: {0}?".format(
+                join_text_preview(regressed_cases, limit=3)
+            ),
+        )
+    if missing_ingress:
+        question_lines.insert(
+            0,
+            "Which missing machine ingress facet blocks the session: {0}?".format(
+                join_text_preview(missing_ingress, limit=3)
+            ),
+        )
+    if failure_domain:
+        question_lines.insert(
+            0,
+            "Which evidence path owns failure_domain `{0}`?".format(failure_domain),
+        )
+    if failures:
+        first_failure = failures[0]
+        summary_lines.append(
+            "failure code={0} domain={1} message={2}".format(
+                choose_text(first_failure.get("code")) or "unknown",
+                choose_text(first_failure.get("domain")) or "unknown",
+                choose_text(first_failure.get("message")) or "-",
+            )
+        )
+        question_lines.insert(
+            0,
+            "How should `{0}` in domain `{1}` be resolved?".format(
+                choose_text(first_failure.get("code")) or "unknown",
+                choose_text(first_failure.get("domain")) or "unknown",
+            ),
+        )
+
+    return build_opened_projection_record(
+        status="available",
+        projection_kind="kernel_runtime_session_overview",
+        source_summary_schema=choose_text(summary.get("schema")),
+        source_summary_kind=choose_text(summary.get("kind")),
+        source_summary_path=normalize_path(summary_path),
+        headline=headline,
+        summary_lines=summary_lines,
+        question_lines=question_lines,
+        supporting_summary_paths=[],
+        evidence_paths=existing_paths(
+            [
+                artifact_paths.get("summary"),
+                artifact_paths.get("runtime_ledger"),
+                artifact_paths.get("report"),
+                artifact_paths.get("check"),
+                artifact_paths.get("source_runtime_evidence"),
+                provenance.get("runtime_evidence_summary"),
+                semantic_witness.get("source_summary"),
+                semantic_witness.get("cold_summary"),
+                semantic_witness.get("warm_summary"),
+                machine_witness.get("source_summary"),
+                ledger.get("phase_ledger"),
+                ledger.get("runtime_ledger"),
+            ]
+        ),
+        compare_paths=[],
+        blockers=[],
+    )
+
+
 def build_open_event_witness_compare_projection(summary_path: Path, summary: dict[str, Any]) -> OrderedDict[str, Any]:
     status = get_mapping(summary.get("witness_status"))
     change_summary = get_mapping(summary.get("change_summary"))
@@ -1266,6 +1431,8 @@ def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[s
         return build_witness_bundle_projection(summary_path, summary)
     if actual_schema == RUNTIME_EVIDENCE_SCHEMA:
         return build_runtime_evidence_projection(summary_path, summary)
+    if actual_schema == KERNEL_RUNTIME_SESSION_SCHEMA:
+        return build_kernel_runtime_session_projection(summary_path, summary)
     if actual_schema == OPEN_EVENT_WITNESS_COMPARE_SCHEMA:
         return build_open_event_witness_compare_projection(summary_path, summary)
     if actual_schema == OPENER_COMPARE_SCHEMA:

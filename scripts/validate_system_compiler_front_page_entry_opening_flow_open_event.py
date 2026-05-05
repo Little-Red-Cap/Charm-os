@@ -78,6 +78,8 @@ def validate_references(summary: dict, errors: list[str]) -> None:
 
 def validate_counts(summary: dict, errors: list[str]) -> None:
     decision = summary.get("consumer_decision", {})
+    diagnostic = summary.get("diagnostic_preview", {})
+    explanation = summary.get("explanation_view", {})
     candidates = decision.get("candidate_consumers", [])
     rejected = decision.get("rejected_consumers", [])
     selected = [candidate for candidate in candidates if isinstance(candidate, dict) and bool(candidate.get("selected"))]
@@ -93,8 +95,33 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
         )
 
     witness_refs = summary.get("witness_refs", [])
-    explanation_refs = summary.get("explanation_view", {}).get("witness_refs", [])
+    explanation_refs = explanation.get("witness_refs", [])
     expect_equal(len(explanation_refs), len(witness_refs), "explanation_view.witness_refs count", errors)
+    expect_equal(diagnostic.get("line_count"), len(diagnostic.get("summary_lines", [])), "diagnostic_preview.line_count", errors)
+    expect_equal(
+        diagnostic.get("question_count"),
+        len(diagnostic.get("question_lines", [])),
+        "diagnostic_preview.question_count",
+        errors,
+    )
+    expect_equal(
+        explanation.get("diagnostic_headline"),
+        diagnostic.get("headline"),
+        "explanation_view.diagnostic_headline",
+        errors,
+    )
+    expect_equal(
+        explanation.get("diagnostic_summary_lines"),
+        diagnostic.get("summary_lines"),
+        "explanation_view.diagnostic_summary_lines",
+        errors,
+    )
+    expect_equal(
+        explanation.get("diagnostic_question_lines"),
+        diagnostic.get("question_lines"),
+        "explanation_view.diagnostic_question_lines",
+        errors,
+    )
 
 
 def validate_status(summary: dict, errors: list[str]) -> None:
@@ -187,6 +214,7 @@ def main() -> int:
             "action_records",
             "compare_summary",
             "workspace_facade",
+            "diagnostic_preview",
             "witness_refs",
             "explanation_view",
             "questions",

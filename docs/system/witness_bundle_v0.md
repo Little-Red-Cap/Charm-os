@@ -12,6 +12,7 @@
 
 - `artifact report` 是 case 级结论页。
 - `runtime evidence bundle` 是某条 runtime 主线的总证词。
+- `kernel runtime session` 是 host 语义与 QEMU 机器入口共同证明的 session 对象。
 - `witness bundle` 则是把一个 canonical world 需要的 witness 收成同一个对象。
 
 如果说 `artifact report` 更像单案卷宗，
@@ -62,6 +63,7 @@
 
 并可附带：
 
+- `kernel_runtime_session`
 - `example_ref`
 
 这意味着 v0 先不追求“世界里的所有证据都必须是结构化 summary”，
@@ -115,6 +117,7 @@
 对于 root `witness bundle` 来说，`front_page.supporting_surfaces` 允许被更上层 workflow 继续补强。
 
 - 基础导出至少应能路由到 `runtime_evidence`
+- 如果 runtime evidence summary 已经带有 `session` 或历史兼容的 `session_summary`，基础导出也应把它路由成 `kernel_runtime_session`
 - 当同轮交付已经生成 `biography`、`world_compare`、`world_shelf_review` 时，wrapper 可以把这些上层 surface 一并挂回 root `front_page`
 
 它不替代 `artifact_context`。
@@ -202,21 +205,30 @@
 `witness bundle` 不替代这条 bundle，
 而是把它当成某个 canonical world 的一名正式 witness。
 
-### 2.1 与 `kernel_runtime_session`
+### 3. 与 `kernel runtime session`
 
-`kernel_runtime_session` 是 runtime evidence bundle 中更聚焦的一等 session witness。
+`kernel_runtime_session` 是 runtime evidence bundle 内部收出的共同被证明对象。
 
-`witness bundle` 可以把它作为独立 `kernel_runtime_session` entry 消费：
+`witness bundle` 不直接解析 host/QEMU 的散日志，
+而是通过 runtime evidence summary 找到 session summary，
+再把它作为 `kernel_runtime_session` witness entry 暴露给 world compare。
+
+`witness bundle` 也可以把它作为独立 `kernel_runtime_session` entry 消费：
 
 - 优先使用 canonical world witness plan 中显式声明的 `path`
 - 如果 `path` 为空，则从 `runtime_evidence_summary.session.summary_path` 解析
 - 只有当 session verdict 为 `standing` 且 failure count 为 0 时，entry 才视为 `ok`
 
+同时，`kernel_runtime_session` 也会进入 `front_page.supporting_surfaces`。
+
+- `witness_entries[kind=kernel_runtime_session]` 负责证明对象是否成立
+- `front_page.supporting_surfaces[id=kernel_runtime_session]` 负责让上层 reader / IDE / proof workflow 能从交付封面直接追到 session summary、report 与 check
+
 这表示 world compare 后续可以追问：
 
 > 不是“QEMU 日志是否还像昨天”，而是“这个 kernel runtime session witness 是否还站住”。
 
-### 3. 与 `compare`
+### 4. 与 `compare`
 
 当前 `witness bundle` 还不是最终的反事实审判器。
 
@@ -225,7 +237,7 @@
 - compare 不是对散文件 diff
 - compare 是对一个 world 的 witness 面做漂移追问
 
-### 4. 与 `world compare`
+### 5. 与 `world compare`
 
 当前 `world compare`
 

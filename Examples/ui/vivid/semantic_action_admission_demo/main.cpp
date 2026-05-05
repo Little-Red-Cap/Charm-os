@@ -160,6 +160,38 @@ int main() {
         return 1;
     }
 
+    run_log.case_begin("rejection_no_execute");
+    const bool rejected_no_execute =
+        vivid::evidence::same_handle(access.input_focused(), initial_focus)
+        && access.input_event_count() == initial_events
+        && !access.pressed(handles.primary)
+        && !unsupported.admitted
+        && !disabled.admitted
+        && !ambiguous.admitted
+        && !missing.admitted
+        && !invalid_root.admitted
+        && !missing_id.admitted
+        && !unsupported.will_emit_click
+        && !disabled.will_emit_click
+        && !ambiguous.will_emit_click
+        && !missing.will_emit_click
+        && !invalid_root.will_emit_click
+        && !missing_id.will_emit_click;
+    std::printf(" focus_preserved=%d events_preserved=%d pressed=%d rejected_admitted=0 rejected_click_plan=0 unsupported=%s disabled=%s ambiguous=%s missing=%s invalid_root=%s missing_id=%s\n",
+                vivid::evidence::same_handle(access.input_focused(), initial_focus) ? 1 : 0,
+                access.input_event_count() == initial_events ? 1 : 0,
+                access.pressed(handles.primary) ? 1 : 0,
+                semantic_action_admission_status_name(unsupported.status),
+                semantic_action_admission_status_name(disabled.status),
+                semantic_action_admission_status_name(ambiguous.status),
+                semantic_action_admission_status_name(missing.status),
+                semantic_action_admission_status_name(invalid_root.status),
+                semantic_action_admission_status_name(missing_id.status));
+    if (!vivid::evidence::expect(rejected_no_execute,
+                                 "rejected action admissions remain planning-only")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_action_admission_demo] ok");
     return 0;

@@ -21,6 +21,7 @@ DIRECT_MODE_TO_TAB_ID = OrderedDict(
         ("compare", "counterfactual_verdict"),
         ("biography", "delivery_biography"),
         ("evidence", "supporting_evidence"),
+        ("runtime_session", "runtime_session"),
     ]
 )
 
@@ -435,6 +436,14 @@ def build_landing_status(
             (
                 "candidate_direct_evidence_available",
                 bool(candidate_landing_status.get("direct_evidence_available")),
+            ),
+            (
+                "baseline_direct_runtime_session_available",
+                bool(baseline_landing_status.get("direct_runtime_session_available")),
+            ),
+            (
+                "candidate_direct_runtime_session_available",
+                bool(candidate_landing_status.get("direct_runtime_session_available")),
             ),
         ]
     )

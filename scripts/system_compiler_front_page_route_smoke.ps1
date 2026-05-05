@@ -281,32 +281,32 @@ try {
         [ordered]@{
             Name = "root-witness"
             SummaryPath = Join-Path $inputRootPath "root-witness\summary.json"
-            ExpectedLevel1 = "biography,runtime_evidence"
-            RequiredSurfaces = @("biography", "runtime_evidence", "witness_bundle")
+            ExpectedLevel1 = "biography,runtime_evidence,kernel_runtime_session"
+            RequiredSurfaces = @("biography", "runtime_evidence", "kernel_runtime_session", "witness_bundle")
             ExpectedMinRouteProvenanceEntryCount = 0
             RequiredRouteProvenanceIds = @()
         },
         [ordered]@{
             Name = "root-world-compare"
             SummaryPath = Join-Path $inputRootPath "root-world-compare\summary.json"
-            ExpectedLevel1 = "biography,world_compare,runtime_evidence"
-            RequiredSurfaces = @("biography", "world_compare", "runtime_evidence", "witness_bundle")
+            ExpectedLevel1 = "biography,world_compare,runtime_evidence,kernel_runtime_session"
+            RequiredSurfaces = @("biography", "world_compare", "runtime_evidence", "kernel_runtime_session", "witness_bundle")
             ExpectedMinRouteProvenanceEntryCount = 0
             RequiredRouteProvenanceIds = @()
         },
         [ordered]@{
             Name = "witness-ci-shelf"
             SummaryPath = Join-Path $inputRootPath "witness-ci-shelf\summary.json"
-            ExpectedLevel1 = "world_shelf_review,biography,runtime_evidence"
-            RequiredSurfaces = @("world_shelf_review", "candidate_shelf", "shelf_compare", "baseline_shelf")
+            ExpectedLevel1 = "world_shelf_review,biography,runtime_evidence,kernel_runtime_session"
+            RequiredSurfaces = @("world_shelf_review", "runtime_evidence", "kernel_runtime_session", "candidate_shelf", "shelf_compare", "baseline_shelf")
             ExpectedMinRouteProvenanceEntryCount = 0
             RequiredRouteProvenanceIds = @()
         },
         [ordered]@{
             Name = "world-compare-ci-shelf"
             SummaryPath = Join-Path $inputRootPath "world-compare-ci-shelf\summary.json"
-            ExpectedLevel1 = "world_shelf_review,biography,world_compare,runtime_evidence"
-            RequiredSurfaces = @("world_shelf_review", "candidate_shelf", "shelf_compare", "baseline_shelf")
+            ExpectedLevel1 = "world_shelf_review,biography,world_compare,runtime_evidence,kernel_runtime_session"
+            RequiredSurfaces = @("world_shelf_review", "world_compare", "runtime_evidence", "kernel_runtime_session", "candidate_shelf", "shelf_compare", "baseline_shelf")
             ExpectedMinRouteProvenanceEntryCount = 0
             RequiredRouteProvenanceIds = @()
         },

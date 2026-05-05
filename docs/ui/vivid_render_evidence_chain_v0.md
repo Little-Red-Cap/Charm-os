@@ -274,7 +274,7 @@ semantic tree root
   -> status evidence
 ```
 
-The demo guards resolved lookup, no input/callback side effects, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid root, and missing request id.
+The demo guards resolved lookup, no input/callback side effects, rejected resolutions without input mutation, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid root, and missing request id.
 
 ## 2026-05 Addendum: Semantic Action Request
 
@@ -288,7 +288,7 @@ SemanticIntentResolution
   -> normal widget click behavior
 ```
 
-The demo guards no-execute resolution, executed activate requests, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, ambiguous duplicate ids, missing request ids, and `SemanticActionRequestLedger` / `reject_reason` evidence that names the failed boundary. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
+The demo guards no-execute resolution, executed activate requests, focus/click event traces, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, rejected paths with no focus or click event pollution, ambiguous duplicate ids, missing request ids, final causal-chain evidence, and `SemanticActionRequestLedger` / `reject_reason` evidence that names the failed boundary. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
 
 ## 2026-05 Addendum: Intent-to-Artifact Evidence
 
@@ -317,7 +317,7 @@ semantic tree root
   -> focus/click execution plan
 ```
 
-The demo guards admitted activate plans, planning-only side effects, planned focus/click evidence, unsupported action, disabled target, ambiguous duplicate id, missing id, invalid root, and missing request id.
+The demo guards admitted activate plans, planning-only side effects, rejected admissions without focus/event/press mutation, planned focus/click evidence, unsupported action, disabled target, ambiguous duplicate id, missing id, invalid root, and missing request id.
 
 ## 2026-05 Addendum: Semantic Focus Query
 
@@ -330,7 +330,7 @@ semantic tree root
   -> focus-addressability status
 ```
 
-The demo guards resolved focus targets, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
+The demo guards resolved focus targets, no focus transfer side effects, rejected queries without focus/event mutation, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
 
 ## 2026-05 Addendum: Semantic Focus Admission
 
@@ -343,7 +343,7 @@ semantic tree root
   -> transfer plan / rejection status
 ```
 
-The demo guards admitted transfer plans, already-focused no-op plans, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
+The demo guards admitted transfer plans, already-focused no-op plans, no focus transfer side effects, rejected admissions without focus/event mutation, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
 
 ## 2026-05 Addendum: Semantic Focus Request
 
@@ -356,4 +356,4 @@ SemanticFocusQuery
   -> input focus truth + FocusOut/FocusIn evidence
 ```
 
-The demo guards committed transfer execution, event evidence, semantic focus truth after request, already-focused no-op, active-scope rejection, non-focusable targets, disabled targets, ambiguous duplicate ids, invalid root, missing request id, and `SemanticFocusRequestLedger` evidence that names the final request stage. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
+The demo guards committed transfer execution, event evidence, semantic focus truth after request, focus-ring artifact migration, rejection without artifact mutation, final causal-chain verdict, already-focused no-op, active-scope rejection, non-focusable targets, disabled targets, ambiguous duplicate ids, invalid root, missing request id, and `SemanticFocusRequestLedger` evidence that names the final request stage. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.

@@ -3,7 +3,7 @@
   "kind": "system_compiler.canonical_world",
   "name": "minimal_kernel_runtime",
   "title": "Minimal Kernel Runtime Witness World",
-  "summary": "The first canonical world that treats minimal-kernel runtime, syscall, trap, session, and lower-half smoke as one witness-bearing object.",
+  "summary": "The first canonical world that treats a minimal-kernel runtime session as the shared object jointly proven by upper-half semantics, lower-half machine ingress, runtime evidence, witness export, and world compare.",
   "subject": {
     "profile": null,
     "board": "armv7a_qemu",
@@ -45,6 +45,22 @@
     "../../../docs/system/minimal_kernel_trap_ingress_contract.md"
   ],
   "witness_plan": [
+    {
+      "id": "kernel_runtime_session",
+      "kind": "kernel_runtime_session",
+      "label": "kernel-runtime-session",
+      "role": "shared session object proven by semantic and machine witnesses",
+      "layer": "bundle",
+      "required": true,
+      "witness_focus": [
+        "session",
+        "runtime",
+        "ingress",
+        "continuity"
+      ],
+      "case": "minimal_kernel_runtime_session",
+      "path": null
+    },
     {
       "id": "runtime_evidence_bundle",
       "kind": "runtime_evidence_bundle",

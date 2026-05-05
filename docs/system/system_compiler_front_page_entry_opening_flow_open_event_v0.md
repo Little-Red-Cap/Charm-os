@@ -124,6 +124,12 @@ The current summary records:
   - reason drift marker and narratives
 - `workspace_facade`
   - the minimal projected explain-open workspace facade
+- `diagnostic_preview`
+  - the selected action's first-read diagnostic headline
+  - projection summary lines and question lines copied from the source
+    `opening_preview`
+  - line counts and preview blockers, so explain/UI consumers do not need to
+    reopen the source plan action just to render the first diagnostic card
 - `witness_refs`
   - source action witness
   - selected opener witness
@@ -186,6 +192,7 @@ The current compare judges:
 - attached compare context
 - workspace facade target
 - witness ref roles and summary refs
+- diagnostic preview headline / summary lines / question lines
 - hard explanation text
 
 That lets the system answer questions like:

@@ -123,7 +123,30 @@ int main() {
         return 1;
     }
 
-    const std::size_t events_after_first = access.input_event_count();
+    run_log.case_begin("request_event_trace");
+    const auto focus_trace = vivid::evidence::collect_focus_move(access, {}, handles.toggle);
+    const std::size_t first_clicks =
+        vivid::evidence::count_click_events_since(access, handles.toggle, request.events_before);
+    std::printf(" focus_out=%d focus_in=%d focus_in_toggle=%d click=%zu events_before=%zu events_after=%zu focus_ready=%d executed=%d\n",
+                focus_trace.focus_out,
+                focus_trace.focus_in,
+                focus_trace.focus_in_expected ? 1 : 0,
+                first_clicks,
+                request.events_before,
+                request.events_after,
+                request.focus_ready ? 1 : 0,
+                request.executed ? 1 : 0);
+    if (!vivid::evidence::expect(focus_trace.focus_out == 0
+                                 && focus_trace.focus_in == 1
+                                 && focus_trace.focus_in_expected,
+                                 "first action request emits FocusIn for target")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(first_clicks == 1,
+                                 "first action request emits one target Click")) {
+        return 1;
+    }
+
     const auto already = scene.request_semantic_action(handles.scope, "action.toggle", SemanticAction::Activate);
     run_log.case_begin("already_focused_execute");
     vivid::evidence::print_action_request_ledger(already);
@@ -142,6 +165,28 @@ int main() {
         return 1;
     }
 
+    run_log.case_begin("already_focused_event_trace");
+    const auto already_trace =
+        vivid::evidence::collect_focus_move(access, handles.toggle, handles.toggle);
+    const std::size_t already_clicks =
+        vivid::evidence::count_click_events_since(access, handles.toggle, already.events_before);
+    std::printf(" focus_out=%d focus_in=%d click=%zu events_before=%zu events_after=%zu already_focused=1\n",
+                already_trace.focus_out,
+                already_trace.focus_in,
+                already_clicks,
+                already.events_before,
+                already.events_after);
+    if (!vivid::evidence::expect(already_trace.focus_out == 0
+                                 && already_trace.focus_in == 0,
+                                 "already-focused action emits no focus transfer events")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(already_clicks == 1
+                                 && already.events_after > already.events_before,
+                                 "already-focused action still emits click")) {
+        return 1;
+    }
+
     const auto unsupported =
         scene.request_semantic_action(handles.scope, "panel.info", SemanticAction::Activate);
     run_log.case_begin("unsupported_rejected");
@@ -152,6 +197,32 @@ int main() {
                                  && unsupported.admission.status == SemanticActionAdmissionStatus::UnsupportedAction
                                  && !unsupported.emitted_click,
                                  "unsupported semantic action is rejected before execution")) {
+        return 1;
+    }
+
+    run_log.case_begin("unsupported_no_event_trace");
+    const auto unsupported_trace =
+        vivid::evidence::collect_focus_move(access, handles.toggle, handles.info);
+    const std::size_t unsupported_clicks =
+        vivid::evidence::count_click_events_since(access, handles.info, unsupported.events_before);
+    std::printf(" focus_out=%d focus_in=%d click=%zu events_before=%zu events_after=%zu focus_preserved=%d checked=%d\n",
+                unsupported_trace.focus_out,
+                unsupported_trace.focus_in,
+                unsupported_clicks,
+                unsupported.events_before,
+                unsupported.events_after,
+                vivid::evidence::same_handle(access.input_focused(), handles.toggle) ? 1 : 0,
+                access.checked(handles.toggle) ? 1 : 0);
+    if (!vivid::evidence::expect(unsupported_trace.focus_out == 0
+                                 && unsupported_trace.focus_in == 0
+                                 && unsupported_clicks == 0
+                                 && unsupported.events_after == unsupported.events_before,
+                                 "unsupported rejection emits no focus or click events")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), handles.toggle)
+                                 && !access.checked(handles.toggle),
+                                 "unsupported rejection preserves focus and checked truth")) {
         return 1;
     }
 
@@ -167,6 +238,32 @@ int main() {
                                  && outside.focus_request.admission.status == SemanticFocusAdmissionStatus::OutsideActiveScope
                                  && !outside.emitted_click,
                                  "outside active scope semantic action is rejected by focus admission")) {
+        return 1;
+    }
+
+    run_log.case_begin("outside_scope_no_event_trace");
+    const auto outside_trace =
+        vivid::evidence::collect_focus_move(access, handles.toggle, handles.outside);
+    const std::size_t outside_clicks =
+        vivid::evidence::count_click_events_since(access, handles.outside, outside.events_before);
+    std::printf(" focus_out=%d focus_in=%d click=%zu events_before=%zu events_after=%zu focus_preserved=%d checked=%d\n",
+                outside_trace.focus_out,
+                outside_trace.focus_in,
+                outside_clicks,
+                outside.events_before,
+                outside.events_after,
+                vivid::evidence::same_handle(access.input_focused(), handles.toggle) ? 1 : 0,
+                access.checked(handles.toggle) ? 1 : 0);
+    if (!vivid::evidence::expect(outside_trace.focus_out == 0
+                                 && outside_trace.focus_in == 0
+                                 && outside_clicks == 0
+                                 && outside.events_after == outside.events_before,
+                                 "outside rejection emits no focus or click events")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(vivid::evidence::same_handle(access.input_focused(), handles.toggle)
+                                 && !access.checked(handles.toggle),
+                                 "outside rejection preserves focus and checked truth")) {
         return 1;
     }
 
@@ -191,6 +288,38 @@ int main() {
                                  && missing_id.reject_reason == SemanticActionRequestRejectReason::ActionAdmissionRejected
                                  && missing_id.admission.status == SemanticActionAdmissionStatus::MissingId,
                                  "missing id action request is rejected")) {
+        return 1;
+    }
+
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "action.toggle.activate",
+        .request_ok = request.status == SemanticActionRequestStatus::Executed
+            && request.reject_reason == SemanticActionRequestRejectReason::None
+            && request.focus_ready
+            && request.executed
+            && first_clicks == 1,
+        .state_delta_ok = access.checked(handles.toggle) == false,
+        .invalidation_ok = already.status == SemanticActionRequestStatus::Executed
+            && already.focus_request.status == SemanticFocusRequestStatus::AlreadyFocused
+            && already_clicks == 1,
+        .artifact_ok = focus_trace.focus_in == 1
+            && focus_trace.focus_in_expected
+            && already_trace.focus_out == 0
+            && already_trace.focus_in == 0,
+        .rejected_no_mutation = unsupported.status == SemanticActionRequestStatus::Rejected
+            && outside.status == SemanticActionRequestStatus::Rejected
+            && ambiguous.status == SemanticActionRequestStatus::Rejected
+            && missing_id.status == SemanticActionRequestStatus::Rejected
+            && unsupported_clicks == 0
+            && outside_clicks == 0
+            && vivid::evidence::same_handle(access.input_focused(), handles.toggle)
+            && access.checked(handles.toggle) == false,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok() && chain.rejected_no_mutation,
+                                 "semantic action request causal chain closes")) {
         return 1;
     }
 

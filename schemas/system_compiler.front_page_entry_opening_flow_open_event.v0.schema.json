@@ -19,6 +19,7 @@
     "action_records",
     "compare_summary",
     "workspace_facade",
+    "diagnostic_preview",
     "witness_refs",
     "explanation_view",
     "questions",
@@ -74,6 +75,9 @@
     },
     "workspace_facade": {
       "$ref": "#/$defs/workspaceFacade"
+    },
+    "diagnostic_preview": {
+      "$ref": "#/$defs/diagnosticPreview"
     },
     "witness_refs": {
       "type": "array",
@@ -690,6 +694,52 @@
         }
       }
     },
+    "diagnosticPreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "entry_name",
+        "projection_kind",
+        "headline",
+        "summary_lines",
+        "question_lines",
+        "line_count",
+        "question_count",
+        "blockers"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "entry_name": {
+          "type": "string"
+        },
+        "projection_kind": {
+          "type": "string"
+        },
+        "headline": {
+          "type": "string"
+        },
+        "summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "question_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "line_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "question_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockers": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
     "explanationView": {
       "type": "object",
       "additionalProperties": false,
@@ -698,6 +748,9 @@
         "status",
         "why_opened",
         "chosen_consumer",
+        "diagnostic_headline",
+        "diagnostic_summary_lines",
+        "diagnostic_question_lines",
         "plan_actions",
         "compare_result",
         "witness_refs",
@@ -715,6 +768,15 @@
         },
         "chosen_consumer": {
           "type": "string"
+        },
+        "diagnostic_headline": {
+          "type": "string"
+        },
+        "diagnostic_summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "diagnostic_question_lines": {
+          "$ref": "#/$defs/stringArray"
         },
         "plan_actions": {
           "$ref": "#/$defs/stringArray"

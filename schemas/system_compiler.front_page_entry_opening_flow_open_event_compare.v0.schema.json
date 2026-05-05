@@ -23,6 +23,7 @@
     "compare_context_changes",
     "workspace_facade_changes",
     "witness_ref_changes",
+    "diagnostic_preview_changes",
     "explanation_view_changes",
     "change_summary",
     "event_regression_surface",
@@ -95,6 +96,9 @@
       "$ref": "#/$defs/changeBlock"
     },
     "witness_ref_changes": {
+      "$ref": "#/$defs/changeBlock"
+    },
+    "diagnostic_preview_changes": {
       "$ref": "#/$defs/changeBlock"
     },
     "explanation_view_changes": {
@@ -399,6 +403,7 @@
         "compare_changed_field_count",
         "workspace_changed_field_count",
         "witness_changed_field_count",
+        "diagnostic_changed_field_count",
         "explanation_changed_field_count"
       ],
       "properties": {
@@ -434,6 +439,10 @@
           "type": "integer",
           "minimum": 0
         },
+        "diagnostic_changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
         "explanation_changed_field_count": {
           "type": "integer",
           "minimum": 0
@@ -461,6 +470,7 @@
         "compare_context_lost",
         "workspace_facade_changed",
         "witness_set_changed",
+        "diagnostic_preview_changed",
         "explanation_changed",
         "narratives"
       ],
@@ -514,6 +524,9 @@
           "type": "boolean"
         },
         "witness_set_changed": {
+          "type": "boolean"
+        },
+        "diagnostic_preview_changed": {
           "type": "boolean"
         },
         "explanation_changed": {

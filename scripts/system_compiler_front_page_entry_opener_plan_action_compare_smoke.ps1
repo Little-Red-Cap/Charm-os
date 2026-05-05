@@ -171,6 +171,8 @@ function New-MinimalActionSummary {
     $selectedTabId = "{0}_tab" -f ($ActionKind -replace "-", "_")
     $reasonSummary = "Select {0} action for a synthetic explain-open plan-action fixture." -f $ActionKind
     $projectionHeadline = "{0} projection for {1}" -f $ProjectionKind, $EntryName
+    $projectionSummaryLines = @("synthetic projection summary for {0}" -f $EntryName)
+    $projectionQuestionLines = @("should synthetic {0} action remain comparable?" -f $ActionKind)
     $inspectorBlocker = "synthetic {0} action target is not an artifact report" -f $ActionKind
 
     Write-JsonFile -Path $planSummaryPath -Value ([ordered]@{
@@ -215,6 +217,8 @@ function New-MinimalActionSummary {
         projection_kind = $ProjectionKind
         opening_reason = $openingReason
         projection_headline = $projectionHeadline
+        projection_summary_lines = $projectionSummaryLines
+        projection_question_lines = $projectionQuestionLines
         compare_context_available = $CompareContextAvailable
         landing_verdict = $LandingVerdict
         inspector_ready = $false
@@ -242,6 +246,8 @@ function New-MinimalActionSummary {
         projection_kind = $ProjectionKind
         opening_reason = $openingReason
         projection_headline = $projectionHeadline
+        projection_summary_lines = $projectionSummaryLines
+        projection_question_lines = $projectionQuestionLines
         compare_context_available = $CompareContextAvailable
         landing_verdict = $LandingVerdict
         opener_summary_path = $openerSummaryPath
@@ -293,6 +299,19 @@ function New-MinimalActionSummary {
         }
         selected_action = $selectedAction
         open_action = $openAction
+        opening_preview = [ordered]@{
+            available = $true
+            entry_name = $EntryName
+            opening_reason = $openingReason
+            projection_kind = $ProjectionKind
+            headline = $projectionHeadline
+            summary_lines = $projectionSummaryLines
+            question_lines = $projectionQuestionLines
+            opener_summary_path = $openerSummaryPath
+            opener_report_markdown_path = $openerReportPath
+            opener_check_text_path = $openerCheckPath
+            blockers = @()
+        }
         opener_surface = [ordered]@{
             available = $true
             summary_schema = "system_compiler.front_page_entry_opener/v0"
@@ -477,6 +496,7 @@ function New-MinimalLandingSummary {
             direct_compare_available = $true
             direct_biography_available = $false
             direct_evidence_available = $true
+            direct_runtime_session_available = $false
         }
         fallback_mode_order = @("compare", "route")
         primary_landing = $landingTab
@@ -593,8 +613,8 @@ try {
         -Condition ([string]$compareSummary.action_verdict -eq "drifted") `
         -Message ("expected drifted plan-action compare fixture but got '{0}'" -f $compareSummary.action_verdict)
     Assert-Condition `
-        -Condition ([int]$compareSummary.change_summary.changed_field_count -eq 28) `
-        -Message ("expected changed field count 28 but got '{0}'" -f $compareSummary.change_summary.changed_field_count)
+        -Condition ([int]$compareSummary.change_summary.changed_field_count -eq 30) `
+        -Message ("expected changed field count 30 but got '{0}'" -f $compareSummary.change_summary.changed_field_count)
     Assert-Condition `
         -Condition ([bool]$compareSummary.action_regression_surface.reason_changed -eq $true) `
         -Message "expected plan-action compare fixture to carry reason drift"
@@ -644,12 +664,12 @@ try {
         -Condition (([string]$openerSummary.opened_projection.headline).Contains("verdict=drifted")) `
         -Message ("expected drifted verdict in projection headline but got '{0}'" -f $openerSummary.opened_projection.headline)
     Assert-Condition `
-        -Condition (([string]$openerSummary.opened_projection.headline).Contains("changed=28")) `
-        -Message ("expected changed=28 in projection headline but got '{0}'" -f $openerSummary.opened_projection.headline)
+        -Condition (([string]$openerSummary.opened_projection.headline).Contains("changed=30")) `
+        -Message ("expected changed=30 in projection headline but got '{0}'" -f $openerSummary.opened_projection.headline)
 
     $summaryLines = @($openerSummary.opened_projection.summary_lines)
     Assert-Condition `
-        -Condition (($summaryLines | Where-Object { ([string]$_).StartsWith("change_counts selection=4 open_action=18 opener_surface=1 receipt=5", [System.StringComparison]::Ordinal) }).Count -gt 0) `
+        -Condition (($summaryLines | Where-Object { ([string]$_).StartsWith("change_counts selection=4 open_action=20 opener_surface=1 receipt=5", [System.StringComparison]::Ordinal) }).Count -gt 0) `
         -Message "expected opened projection to expose plan-action change counts"
     Assert-Condition `
         -Condition (($summaryLines | Where-Object { ([string]$_).StartsWith("regression_flags target=yes opener=yes reason=yes operation=yes compare_context_lost=no inspector_lost=no", [System.StringComparison]::Ordinal) }).Count -gt 0) `

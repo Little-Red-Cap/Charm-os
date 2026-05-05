@@ -72,7 +72,7 @@
 
 - system compiler 报告对象
 - 最小内核运行时总证据包
-- 最小内核运行会话 witness
+- 最小内核运行时 session / witness 对象
 - 代表性样本目录
 
 ## 当前语义

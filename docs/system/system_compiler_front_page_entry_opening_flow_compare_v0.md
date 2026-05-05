@@ -58,6 +58,8 @@ The current summary records:
 - opener case additions and removals
 - opener case changes for selected tab, query, target, projection, compare
   context, and inspector readiness
+- opener projection preview drift for headline, summary lines, and question
+  lines
 - regression surface narratives
 - a verdict:
   - `standing`
@@ -75,12 +77,17 @@ The smoke currently proves two paths:
 - `removed-compare-opener`
   - removes `root-witness-to-root-world-compare` from a synthetic candidate
   - expected verdict: `drifted`
+- `projection-preview-drift`
+  - keeps the same opener case but changes its projection headline, summary
+    lines, and question lines
+  - expected verdict: `drifted`
 
 Expected smoke shape:
 
 ```text
-[FRONT-PAGE-ENTRY-OPENING-FLOW-COMPARE-SMOKE] case=self-standing verdict=standing changed=0 added=0 removed=0
-[FRONT-PAGE-ENTRY-OPENING-FLOW-COMPARE-SMOKE] case=removed-compare-opener verdict=drifted changed=0 added=0 removed=1
+[FRONT-PAGE-ENTRY-OPENING-FLOW-COMPARE-SMOKE] case=self-standing verdict=standing changed=0 added=0 removed=0 projection_summary_changed=0
+[FRONT-PAGE-ENTRY-OPENING-FLOW-COMPARE-SMOKE] case=removed-compare-opener verdict=drifted changed=0 added=0 removed=1 projection_summary_changed=0
+[FRONT-PAGE-ENTRY-OPENING-FLOW-COMPARE-SMOKE] case=projection-preview-drift verdict=drifted changed=1 added=0 removed=0 projection_summary_changed=1
 ```
 
 ## Boundary
@@ -93,6 +100,7 @@ It does not:
 - rebuild opener summaries
 - execute inspector commands
 - decide which explain surface should render next
+- reinterpret projection summary text as lower runtime truth
 
 It only judges whether two opening-flow witnesses expose the same consumer
 opening surface.
@@ -156,6 +164,7 @@ that says:
 - did a projection disappear
 - did compare context get lost
 - did the inspector readiness boundary drift
+- did the user-facing opener projection diagnosis drift
 - which opener case changed first
 
 That keeps the front-page explain line closer to a real witness world: every

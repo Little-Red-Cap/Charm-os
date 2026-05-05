@@ -25,6 +25,7 @@ BIOGRAPHY_INDEX_COMPARE_SCHEMA = "system_compiler.biography_index_compare/v0"
 WITNESS_BUNDLE_SCHEMA = "system_compiler.witness_bundle/v0"
 RUNTIME_EVIDENCE_SCHEMA = "minimal_kernel.runtime_evidence_bundle.summary/v1"
 KERNEL_RUNTIME_SESSION_SCHEMA = "minimal_kernel.kernel_runtime_session/v0"
+OPEN_EVENT_WITNESS_SCHEMA = "system_compiler.front_page_entry_opening_flow_open_event_witness/v0"
 OPEN_EVENT_WITNESS_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0"
 OPENER_COMPARE_SCHEMA = "system_compiler.front_page_entry_opener_compare/v0"
 OPENING_FLOW_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_flow_compare/v0"
@@ -1095,6 +1096,88 @@ def build_kernel_runtime_session_projection(summary_path: Path, summary: dict[st
     )
 
 
+def build_open_event_witness_projection(summary_path: Path, summary: dict[str, Any]) -> OrderedDict[str, Any]:
+    identity = get_mapping(summary.get("open_event_identity"))
+    judgment = get_mapping(summary.get("judgment"))
+    witness_entry = get_mapping(summary.get("witness_entry"))
+    explanation = get_mapping(summary.get("explanation"))
+    questions = get_mapping(summary.get("questions"))
+    evidence_refs = [get_mapping(item) for item in get_list(summary.get("evidence_refs")) if isinstance(item, dict)]
+    witness_focus = get_list(witness_entry.get("witness_focus"))
+    observations = [choose_text(item) for item in get_list(witness_entry.get("observations")) if choose_text(item)]
+    opening_input_observations = [
+        get_mapping(item) for item in get_list(explanation.get("opening_input_observations")) if isinstance(item, dict)
+    ]
+    event_status = choose_text(identity.get("open_event_status")) or "-"
+    witness_status = choose_text(judgment.get("witness_status")) or choose_text(witness_entry.get("status")) or "-"
+    compare_verdict = choose_text(judgment.get("compare_verdict")) or "not_attached"
+    compare_changed = choose_text(judgment.get("compare_changed_field_count")) or "0"
+    headline = "open_event_witness id={0} status={1} event={2}".format(
+        choose_text(judgment.get("witness_id")) or choose_text(witness_entry.get("id")) or "unknown",
+        witness_status,
+        event_status,
+    )
+    summary_lines = [
+        "judgment source={0} grade={1} compare={2} changed_fields={3}".format(
+            choose_text(judgment.get("source_judgment_status")) or "-",
+            choose_text(judgment.get("source_judgment_grade")) or "-",
+            compare_verdict,
+            compare_changed,
+        ),
+        "consumer={0} action={1} candidates={2} rejected={3}".format(
+            choose_text(judgment.get("selected_consumer_id")) or "-",
+            choose_text(judgment.get("selected_action_id")) or "-",
+            choose_text(judgment.get("candidate_consumer_count")) or "0",
+            choose_text(judgment.get("rejected_consumer_count")) or "0",
+        ),
+        "workspace={0} facade={1} evidence_refs={2} artifact_refs={3}".format(
+            choose_text(judgment.get("workspace_facade_status")) or "-",
+            choose_text(judgment.get("workspace_facade_kind")) or "-",
+            len(evidence_refs),
+            choose_text(judgment.get("artifact_ref_count")) or "0",
+        ),
+    ]
+    if witness_focus:
+        summary_lines.append("witness_focus={0}".format(join_text_preview(witness_focus)))
+    for observation in observations[:4]:
+        summary_lines.append(f"observation {observation}")
+    if opening_input_observations:
+        opening_inputs = [
+            "{0}:{1}".format(
+                choose_text(item.get("kind")) or "ref",
+                choose_text(item.get("id")) or choose_text(item.get("label")) or "-",
+            )
+            for item in opening_input_observations
+        ]
+        summary_lines.append("opening_input_refs={0}".format(join_text_preview(opening_inputs)))
+
+    question_lines = get_list(questions.get("witness_questions")) + get_list(questions.get("next_questions"))
+    evidence_paths: list[Any] = []
+    for ref in evidence_refs:
+        evidence_paths.extend(
+            [
+                ref.get("summary_path"),
+                ref.get("report_markdown_path"),
+                ref.get("check_text_path"),
+            ]
+        )
+
+    return build_opened_projection_record(
+        status="available",
+        projection_kind="open_event_witness_overview",
+        source_summary_schema=choose_text(summary.get("schema")),
+        source_summary_kind=choose_text(summary.get("kind")),
+        source_summary_path=normalize_path(summary_path),
+        headline=headline,
+        summary_lines=summary_lines,
+        question_lines=question_lines,
+        supporting_summary_paths=build_front_page_supporting_paths(summary),
+        evidence_paths=existing_paths(evidence_paths),
+        compare_paths=[],
+        blockers=[],
+    )
+
+
 def build_open_event_witness_compare_projection(summary_path: Path, summary: dict[str, Any]) -> OrderedDict[str, Any]:
     status = get_mapping(summary.get("witness_status"))
     change_summary = get_mapping(summary.get("change_summary"))
@@ -1433,6 +1516,8 @@ def build_target_opened_projection(open_action: dict[str, Any]) -> OrderedDict[s
         return build_runtime_evidence_projection(summary_path, summary)
     if actual_schema == KERNEL_RUNTIME_SESSION_SCHEMA:
         return build_kernel_runtime_session_projection(summary_path, summary)
+    if actual_schema == OPEN_EVENT_WITNESS_SCHEMA:
+        return build_open_event_witness_projection(summary_path, summary)
     if actual_schema == OPEN_EVENT_WITNESS_COMPARE_SCHEMA:
         return build_open_event_witness_compare_projection(summary_path, summary)
     if actual_schema == OPENER_COMPARE_SCHEMA:

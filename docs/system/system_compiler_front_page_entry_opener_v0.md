@@ -226,6 +226,7 @@ summary shapes in the repository:
 - `system_compiler.witness_bundle/v0`
 - `minimal_kernel.runtime_evidence_bundle.summary/v1`
 - `minimal_kernel.kernel_runtime_session/v0`
+- `system_compiler.front_page_entry_opening_flow_open_event_witness/v0`
 - `system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`
 - `system_compiler.front_page_entry_opener_compare/v0`
 - `system_compiler.front_page_entry_opening_flow_compare/v0`
@@ -249,6 +250,24 @@ runtime cases, machine ingress facets, ledger paths, provenance hints, and the
 first failure detail when one exists. These details are still carried by the
 same modest `opened_projection` shape; the opener does not introduce a separate
 runtime-session schema or reinterpret the lower session witness.
+
+For `system_compiler.front_page_entry_opening_flow_open_event_witness/v0`, the
+projection kind is `open_event_witness_overview`.
+
+It exposes:
+
+- the witness id, witness status, and source open-event status in the headline
+- compact source-judgment, consumer-selection, compare, and workspace-facade
+  lines
+- witness-focus and observation lines from the witness entry itself
+- runtime-session-specific `opening_input_refs=...` context when the witness
+  came from the runtime-session wrapper chain
+- evidence paths only from explicit witness evidence refs and supporting
+  surfaces already attached to the witness summary
+
+This keeps the opener on the consumer side of the boundary: it can render the
+portable open-event testimony, but it does not reopen raw runtime/session/world
+evidence or re-judge the session itself.
 
 For `system_compiler.world_shelf_review/v0`, those summary lines include a
 single `drift_digest ...` line. This is only a consumer preview of the review

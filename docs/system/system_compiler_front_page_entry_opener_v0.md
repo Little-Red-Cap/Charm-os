@@ -46,6 +46,8 @@ Current `system_compiler.front_page_entry_opener` includes:
   - `scripts/system_compiler_front_page_entry_opener_plan_action_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_workspace_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opener_workspace_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opener_workspace_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_opener_workspace_compare_smoke.ps1`
 
 ## Current outputs
 
@@ -289,6 +291,16 @@ It exposes:
 This lets an opener explain "why this witness compare is interesting" without
 opening the full witness compare report first.
 
+The runtime-session-specific opener smoke now reuses two real testimony-compare
+shapes from the runtime-session chain:
+
+- a neutral testimony drift that stays `standing` at the world layer
+- a collapsed testimony compare where the candidate witness no longer stands
+
+In both cases the opener still opens only the witness-compare testimony. It
+does not reopen raw `kernel_runtime_session` summaries or reinterpret
+runtime/session/world evidence.
+
 For `system_compiler.front_page_entry_opener_compare/v0`, the projection kind is
 `opener_compare_overview`.
 
@@ -396,6 +408,43 @@ To prove only the OpenEventWitnessCompare projection adapter:
 ./scripts/system_compiler_front_page_entry_opener_open_event_witness_compare_smoke.ps1 -Clean
 ```
 
+To prove the runtime-session-specific OpenEventWitnessCompare opener path with
+neutral-drift and collapsed testimony samples:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_open_event_witness_compare_smoke.ps1 -Clean
+```
+
+To prove those runtime-session-specific opener artifacts can themselves be
+compared as consumer-side opener judgments:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_compare_smoke.ps1 -Clean
+```
+
+To prove the resulting runtime-session opener compare can itself be reopened by
+the generic opener as an `opener_compare_overview` consumer preview:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_opener_compare_smoke.ps1 -Clean
+```
+
+To prove the reusable opener workspace facade can consume the runtime-session
+targeted landing fixtures for both `open_event_witness_compare` and
+`opener_compare`, while still refusing to reopen raw
+`kernel_runtime_session` summaries:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_workspace_smoke.ps1 -Clean
+```
+
+To prove those runtime-session-specific workspace opener outputs can themselves
+be compared as stable workspace-level opening judgments:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_workspace_compare_smoke.ps1 -Clean
+```
+
 To prove only the OpenerCompare projection adapter:
 
 ```powershell
@@ -437,6 +486,18 @@ checks both:
 
 - a cold opener workspace with no compare context
 - a hot opener workspace with candidate landing compare context
+
+The runtime-session-specific workspace smoke is narrower on purpose. It reuses
+real runtime-session-targeted landing fixtures from the consumer-side chain and
+verifies that the generic workspace facade still opens only:
+
+- `system_compiler.front_page_entry_opening_flow_open_event_witness_compare/v0`
+- `system_compiler.front_page_entry_opener_compare/v0`
+
+In other words, the workspace layer consumes existing opener judgments and
+testimony compares, but it does not reopen raw
+`minimal_kernel.kernel_runtime_session/v0` artifacts or reinterpret lower
+runtime/session evidence.
 
 Compare two opener workspaces:
 

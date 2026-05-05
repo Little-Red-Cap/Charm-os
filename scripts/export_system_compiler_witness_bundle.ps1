@@ -188,7 +188,8 @@ function New-WitnessBundleFrontPage {
         [string]$ReportMarkdownPath,
         [string]$CheckTextPath,
         $RuntimeEvidenceSummaryInfo,
-        $KernelRuntimeSessionSummaryInfo
+        $KernelRuntimeSessionSummaryInfo,
+        $OpenEventWitnessEntries = @()
     )
 
     $supportingSurfaces = [System.Collections.Generic.List[object]]::new()
@@ -219,6 +220,40 @@ function New-WitnessBundleFrontPage {
                 -SummaryPath $sessionSurfaceInfo.SummaryPath `
                 -ReportMarkdownPath $sessionSurfaceInfo.ReportMarkdownPath `
                 -CheckTextPath $sessionSurfaceInfo.CheckTextPath
+            )
+        ) | Out-Null
+    }
+
+    foreach ($entry in @($OpenEventWitnessEntries)) {
+        if ($null -eq $entry -or [string]::IsNullOrWhiteSpace([string]$entry.source_path)) {
+            continue
+        }
+
+        $surfaceInfo = Resolve-OpenEventWitnessSurfaceInfo -SummaryPath ([string]$entry.source_path)
+        if ($null -eq $surfaceInfo) {
+            continue
+        }
+
+        $surfaceId = if ([string]::IsNullOrWhiteSpace([string]$entry.id)) {
+            "open_event_witness"
+        } else {
+            "open_event_witness::{0}" -f ([string]$entry.id -replace '[^A-Za-z0-9._:-]', '_')
+        }
+        $surfaceLabel = if ([string]::IsNullOrWhiteSpace([string]$entry.label)) {
+            "open event witness"
+        } else {
+            [string]$entry.label
+        }
+
+        $supportingSurfaces.Add(
+            (New-FrontPageSurface `
+                -Id $surfaceId `
+                -Label $surfaceLabel `
+                -Role "supporting_testimony" `
+                -SummarySchema "system_compiler.front_page_entry_opening_flow_open_event_witness/v0" `
+                -SummaryPath $surfaceInfo.SummaryPath `
+                -ReportMarkdownPath $surfaceInfo.ReportMarkdownPath `
+                -CheckTextPath $surfaceInfo.CheckTextPath
             )
         ) | Out-Null
     }
@@ -565,6 +600,39 @@ function Load-KernelRuntimeSessionSummaryInfo {
     return Load-KernelRuntimeSessionInfo -Path $Path -BasePath $BasePath
 }
 
+function Load-OpenEventWitnessInfo {
+    param(
+        [string]$Path,
+        [string]$BasePath = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+
+    $resolvedPath = if ([string]::IsNullOrWhiteSpace($BasePath)) {
+        Resolve-FullPath -Path $Path
+    } else {
+        Resolve-PathNearBase -BasePath $BasePath -Value $Path
+    }
+    if (-not (Test-Path $resolvedPath)) {
+        return $null
+    }
+
+    $data = Load-JsonObject -Path $resolvedPath
+    if ([string]$data.schema -ne "system_compiler.front_page_entry_opening_flow_open_event_witness/v0") {
+        throw "unsupported open event witness schema: $([string]$data.schema)"
+    }
+    if ([string]$data.kind -ne "system_compiler.front_page_entry_opening_flow_open_event_witness") {
+        throw "unsupported open event witness kind: $([string]$data.kind)"
+    }
+
+    return [pscustomobject]@{
+        Path = $resolvedPath
+        Data = $data
+    }
+}
+
 function Resolve-KernelRuntimeSessionSummaryInfo {
     param(
         $RuntimeEvidenceSummaryInfo
@@ -633,6 +701,54 @@ function Resolve-KernelRuntimeSessionSurfaceInfo {
     }
 }
 
+function Resolve-OpenEventWitnessSurfaceInfo {
+    param(
+        [string]$SummaryPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SummaryPath)) {
+        return $null
+    }
+
+    $summaryInfo = Load-OpenEventWitnessInfo -Path $SummaryPath
+    if ($null -eq $summaryInfo) {
+        return $null
+    }
+
+    $artifactContext = $summaryInfo.Data.artifact_context
+    $reportMarkdownPath = ""
+    $checkTextPath = ""
+
+    if ($null -ne $artifactContext) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$artifactContext.report_markdown_path)) {
+            $reportMarkdownPath = Resolve-PathNearBase -BasePath $summaryInfo.Path -Value ([string]$artifactContext.report_markdown_path)
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$artifactContext.check_text_path)) {
+            $checkTextPath = Resolve-PathNearBase -BasePath $summaryInfo.Path -Value ([string]$artifactContext.check_text_path)
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($reportMarkdownPath) -and -not [string]::IsNullOrWhiteSpace([string]$summaryInfo.Data.front_page.report_markdown_path)) {
+        $reportMarkdownPath = Resolve-PathNearBase -BasePath $summaryInfo.Path -Value ([string]$summaryInfo.Data.front_page.report_markdown_path)
+    }
+    if ([string]::IsNullOrWhiteSpace($checkTextPath) -and -not [string]::IsNullOrWhiteSpace([string]$summaryInfo.Data.front_page.check_text_path)) {
+        $checkTextPath = Resolve-PathNearBase -BasePath $summaryInfo.Path -Value ([string]$summaryInfo.Data.front_page.check_text_path)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($reportMarkdownPath)) {
+        $reportMarkdownPath = $summaryInfo.Path
+    }
+    if ([string]::IsNullOrWhiteSpace($checkTextPath)) {
+        $checkTextPath = $summaryInfo.Path
+    }
+
+    return [pscustomobject]@{
+        SummaryPath = $summaryInfo.Path
+        ReportMarkdownPath = $reportMarkdownPath
+        CheckTextPath = $checkTextPath
+    }
+}
+
 function Get-ExistingArtifactRefsFromKernelRuntimeSession {
     param(
         $SessionInfo,
@@ -688,6 +804,77 @@ function Get-ExistingArtifactRefsFromKernelRuntimeSession {
             if (Test-Path $candidate) {
                 $refs.Add($candidate) | Out-Null
             }
+        }
+    }
+
+    return @($refs | Select-Object -Unique)
+}
+
+function Get-ExistingArtifactRefsFromOpenEventWitness {
+    param(
+        $OpenEventWitnessInfo
+    )
+
+    $refs = [System.Collections.Generic.List[string]]::new()
+    if ($null -eq $OpenEventWitnessInfo) {
+        return @()
+    }
+
+    $refs.Add($OpenEventWitnessInfo.Path) | Out-Null
+
+    $data = $OpenEventWitnessInfo.Data
+    $artifactContext = $data.artifact_context
+    foreach ($pathValue in @(
+        [string]$artifactContext.source_open_event_summary_path,
+        [string]$artifactContext.source_open_event_report_markdown_path,
+        [string]$artifactContext.source_open_event_check_text_path,
+        [string]$artifactContext.report_markdown_path,
+        [string]$artifactContext.check_text_path
+    )) {
+        if ([string]::IsNullOrWhiteSpace($pathValue)) {
+            continue
+        }
+
+        $candidate = Resolve-PathNearBase -BasePath $OpenEventWitnessInfo.Path -Value $pathValue
+        if (Test-Path $candidate) {
+            $refs.Add($candidate) | Out-Null
+        }
+    }
+
+    foreach ($surface in @($data.front_page.supporting_surfaces)) {
+        foreach ($pathValue in @([string]$surface.summary_path, [string]$surface.report_markdown_path, [string]$surface.check_text_path)) {
+            if ([string]::IsNullOrWhiteSpace($pathValue)) {
+                continue
+            }
+
+            $candidate = Resolve-PathNearBase -BasePath $OpenEventWitnessInfo.Path -Value $pathValue
+            if (Test-Path $candidate) {
+                $refs.Add($candidate) | Out-Null
+            }
+        }
+    }
+
+    foreach ($ref in @($data.evidence_refs)) {
+        foreach ($pathValue in @([string]$ref.summary_path, [string]$ref.report_markdown_path, [string]$ref.check_text_path)) {
+            if ([string]::IsNullOrWhiteSpace($pathValue)) {
+                continue
+            }
+
+            $candidate = Resolve-PathNearBase -BasePath $OpenEventWitnessInfo.Path -Value $pathValue
+            if (Test-Path $candidate) {
+                $refs.Add($candidate) | Out-Null
+            }
+        }
+    }
+
+    foreach ($pathValue in @($data.witness_entry.artifact_refs)) {
+        if ([string]::IsNullOrWhiteSpace([string]$pathValue)) {
+            continue
+        }
+
+        $candidate = Resolve-PathNearBase -BasePath $OpenEventWitnessInfo.Path -Value ([string]$pathValue)
+        if (Test-Path $candidate) {
+            $refs.Add($candidate) | Out-Null
         }
     }
 
@@ -878,6 +1065,62 @@ function New-ExampleRefWitnessEntry {
         subject = New-EntrySubject -Case $null -Profile $null -Board $null -ActiveFacets @()
         observations = @(("path={0}" -f $ResolvedPath))
         artifact_refs = @()
+    }
+}
+
+function New-OpenEventWitnessEntry {
+    param(
+        $PlanEntry,
+        $OpenEventWitnessInfo
+    )
+
+    if ($null -eq $OpenEventWitnessInfo) {
+        return (New-MissingWitnessEntry -PlanEntry $PlanEntry -SourcePath ([string]$PlanEntry.path) -Observation "open event witness summary missing")
+    }
+
+    $summary = $OpenEventWitnessInfo.Data
+    $identity = $summary.open_event_identity
+    $judgment = $summary.judgment
+    $witnessEntry = $summary.witness_entry
+    $observations = [System.Collections.Generic.List[string]]::new()
+
+    $observations.Add(("open_event_status={0}" -f [string]$identity.open_event_status)) | Out-Null
+    $observations.Add(("source_judgment={0}/{1}" -f [string]$judgment.source_judgment_status, [string]$judgment.source_judgment_grade)) | Out-Null
+    $observations.Add(("selected={0} action={1}" -f [string]$judgment.selected_consumer_id, [string]$judgment.selected_action_id)) | Out-Null
+    $observations.Add(("compare={0} changed_fields={1}" -f [string]$judgment.compare_verdict, [int]$judgment.compare_changed_field_count)) | Out-Null
+    $observations.Add(("workspace={0}/{1}" -f [string]$judgment.workspace_facade_status, [string]$judgment.workspace_facade_kind)) | Out-Null
+    $observations.Add(("evidence_refs={0} artifact_refs={1}" -f [int]$judgment.evidence_ref_count, [int]$judgment.artifact_ref_count)) | Out-Null
+    foreach ($observation in @($witnessEntry.observations)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$observation)) {
+            $observations.Add([string]$observation) | Out-Null
+        }
+    }
+
+    $subject = $witnessEntry.subject
+    $entryCaseName = if ([string]::IsNullOrWhiteSpace([string]$PlanEntry.case)) {
+        if ([string]::IsNullOrWhiteSpace([string]$subject.case)) {
+            [string]$witnessEntry.id
+        } else {
+            [string]$subject.case
+        }
+    } else {
+        [string]$PlanEntry.case
+    }
+
+    return [ordered]@{
+        id = [string]$PlanEntry.id
+        kind = "open_event_witness"
+        label = [string]$PlanEntry.label
+        role = [string]$PlanEntry.role
+        layer = [string]$PlanEntry.layer
+        required = [bool]$PlanEntry.required
+        status = $(if ([string]$summary.result -eq "ok" -and [string]$judgment.witness_status -eq "ok") { "ok" } else { "fail" })
+        witness_focus = @($PlanEntry.witness_focus)
+        case = $(if ([string]::IsNullOrWhiteSpace($entryCaseName)) { $null } else { $entryCaseName })
+        source_path = $OpenEventWitnessInfo.Path
+        subject = New-EntrySubject -Case ([string]$subject.case) -Profile ([string]$subject.profile) -Board ([string]$subject.board) -ActiveFacets @($subject.active_facets)
+        observations = @($observations | Select-Object -Unique)
+        artifact_refs = @(Get-ExistingArtifactRefsFromOpenEventWitness -OpenEventWitnessInfo $OpenEventWitnessInfo)
     }
 }
 
@@ -1098,6 +1341,18 @@ function Resolve-KernelRuntimeSessionForPlanEntry {
     return $null
 }
 
+function Resolve-OpenEventWitnessForPlanEntry {
+    param(
+        $PlanEntry
+    )
+
+    if ($null -ne $PlanEntry.path -and (Test-Path ([string]$PlanEntry.path))) {
+        return Load-OpenEventWitnessInfo -Path ([string]$PlanEntry.path)
+    }
+
+    return $null
+}
+
 function New-WitnessEntry {
     param(
         $PlanEntry,
@@ -1120,6 +1375,10 @@ function New-WitnessEntry {
         "kernel_runtime_session" {
             $sessionInfo = Resolve-KernelRuntimeSessionForPlanEntry -PlanEntry $PlanEntry -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo
             return (New-KernelRuntimeSessionWitnessEntry -PlanEntry $PlanEntry -SessionInfo $sessionInfo -RuntimeEvidenceSummaryInfo $RuntimeEvidenceSummaryInfo)
+        }
+        "open_event_witness" {
+            $openEventWitnessInfo = Resolve-OpenEventWitnessForPlanEntry -PlanEntry $PlanEntry
+            return (New-OpenEventWitnessEntry -PlanEntry $PlanEntry -OpenEventWitnessInfo $openEventWitnessInfo)
         }
         "example_ref" {
             return (New-ExampleRefWitnessEntry -PlanEntry $PlanEntry -ResolvedPath ([string]$PlanEntry.path))
@@ -1209,7 +1468,8 @@ $bundleObject = [ordered]@{
         -ReportMarkdownPath $reportMarkdownPathResolved `
         -CheckTextPath $checkTextPathResolved `
         -RuntimeEvidenceSummaryInfo $runtimeEvidenceSummaryInfo `
-        -KernelRuntimeSessionSummaryInfo $kernelRuntimeSessionSummaryInfo
+        -KernelRuntimeSessionSummaryInfo $kernelRuntimeSessionSummaryInfo `
+        -OpenEventWitnessEntries @(@($witnessEntries) | Where-Object { [string]$_.kind -eq "open_event_witness" -and [string]$_.status -ne "missing" })
     artifact_context = [ordered]@{
         canonical_world = if ($null -eq $canonicalWorldInfo) { $null } else { $canonicalWorldInfo.Path }
         artifact_root = if ([string]::IsNullOrWhiteSpace($ArtifactRoot)) { $null } else { Resolve-FullPath -Path $ArtifactRoot }

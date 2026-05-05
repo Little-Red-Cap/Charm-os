@@ -59,7 +59,13 @@ def validate_references(summary: dict, errors: list[str]) -> None:
         if not isinstance(ref, dict):
             errors.append(f"evidence_refs[{index}]: invalid evidence ref")
             continue
-        ensure_exists(ref.get("summary_path"), f"evidence_refs[{index}].summary_path", errors)
+        role = str(ref.get("role") or "").strip()
+        ensure_exists(
+            ref.get("summary_path"),
+            f"evidence_refs[{index}].summary_path",
+            errors,
+            required=role != "selected_artifact_ref",
+        )
         ensure_exists(ref.get("report_markdown_path"), f"evidence_refs[{index}].report_markdown_path", errors, required=False)
         ensure_exists(ref.get("check_text_path"), f"evidence_refs[{index}].check_text_path", errors, required=False)
     explanation = summary.get("explanation", {})

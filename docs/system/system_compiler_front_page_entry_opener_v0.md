@@ -420,6 +420,13 @@ compared as consumer-side opener judgments:
 ./scripts/system_compiler_front_page_entry_runtime_session_opener_compare_smoke.ps1 -Clean
 ```
 
+To prove the resulting runtime-session opener compare can itself be reopened by
+the generic opener as an `opener_compare_overview` consumer preview:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opener_opener_compare_smoke.ps1 -Clean
+```
+
 To prove only the OpenerCompare projection adapter:
 
 ```powershell

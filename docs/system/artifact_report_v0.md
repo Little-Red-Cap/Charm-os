@@ -68,6 +68,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 - `scripts/materialized_graph_required_fact_resolution_matrix_smoke.ps1`
 - `scripts/materialized_graph_required_fact_resolution_compare_smoke.ps1`
 - `scripts/materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_i2c_whoami_board_bringup_evidence_compare_smoke.ps1`
 
 它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
 与可选 `fact_evidence` sidecar，
@@ -94,6 +95,13 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 probe evidence 样例钉住更具体的一条事实证据漂移：
 `i2c.probe.board_real` 可以从 baseline 的 `missing` 变成 candidate 的 `satisfied`，
 同时 materialized graph 仍保持 `unchanged`。
+`materialized_graph_i2c_whoami_board_bringup_evidence_compare_smoke.ps1`
+进一步使用两个真实 producer：
+baseline 来自 `i2c-whoami-probe-evidence-smoke`，
+candidate 来自 `board-i2c-whoami-bringup-evidence-smoke`。
+它不再直接改写 sidecar 内容，而是验证 producer-side evidence swap
+也能被 compare report / inspector 解释为同一条
+`i2c.probe.board_real: missing -> satisfied` drift。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
 `export_bundle/v1` 现在可以同时承载三类 case：
@@ -271,6 +279,10 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 `board.bringup` provider 收成可导出的 Host fixture 输入形态，
 用于证明 artifact report 可以直接消费这类 board/probe evidence sidecar。
 这仍不是实体硬件 probe 成果，只是正式 evidence 输入形态。
+对应的 producer-side compare smoke 会把 no-hardware WHOAMI baseline
+与该 Host fixture candidate 放进同一个 compare report，
+用于钉住从 `mock_i2c / no-hardware probe` 到
+`stm32_stub / board.bringup Host fixture` 的证据 producer 漂移。
 
 当前也已经有一份 board/package facts 的 sidecar 样例：
 

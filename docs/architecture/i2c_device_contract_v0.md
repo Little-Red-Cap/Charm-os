@@ -311,6 +311,10 @@ RegisterDevice8<MaxPayload = 8>
   合成一份 candidate evidence，把 `i2c.probe.board_real` 从
   `missing` 推到 `satisfied`，验证 artifact report / inspector
   能解释这类 probe evidence drift。
+- `materialized_graph_i2c_whoami_board_bringup_evidence_compare_smoke.ps1`
+  使用 no-hardware WHOAMI producer 作为 baseline、Host fixture
+  `board.bringup` producer 作为 candidate，验证真实 producer 侧
+  evidence swap 也能解释同一条 drift。
 
 当前已验证输出形态：
 
@@ -356,6 +360,11 @@ baseline 中该 fact 为 `missing`，candidate 中该 fact 为 `satisfied`。
 `i2c.probe.board_real` 的 provider source。
 这一步把前一条 compare smoke 里的 synthetic provider 收成了正式可导出的输入形态，
 但仍不声称已经拥有真实板级硬件 probe evidence。
+对应的 producer-side compare smoke 会把 no-hardware probe evidence
+与 Host fixture board evidence 作为两个 producer 对比，
+确认 `subject.board`、`active_facets` 与 `fact_evidence` 来源发生漂移时，
+artifact report 仍能把核心结论收束为
+`i2c.probe.board_real: missing -> satisfied`。
 
 `io.device_i2c_facts` 当前定义了最小 fact vocabulary：
 

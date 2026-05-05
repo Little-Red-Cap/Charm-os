@@ -33,7 +33,7 @@ namespace {
 
     constexpr ManifestEntry kManifest[] = {
         {"page_transition_demo", "pt", 16, AxisMotion | AxisTransaction | AxisLayer | AxisRender | AxisAdmission | AxisCausal, "docs/ui/vivid_motion_runtime_v0.md"},
-        {"motion_time_demo", "mt", 12, AxisMotion, "docs/ui/vivid_motion_runtime_v0.md"},
+        {"motion_time_demo", "mt", 13, AxisMotion | AxisCausal, "docs/ui/vivid_motion_runtime_v0.md"},
         {"component_card_state_demo", "ccs", 6, AxisState | AxisRender | AxisCausal, "docs/ui/vivid_render_evidence_chain_v0.md"},
         {"component_settings_row_demo", "csr", 5, AxisState | AxisRender | AxisCausal, "docs/ui/vivid_render_evidence_chain_v0.md"},
         {"style_token_law_demo", "stl", 7, AxisStyle | AxisRender | AxisCausal, "docs/ui/vivid_style_token_law_v0.md"},
@@ -61,7 +61,7 @@ namespace {
     };
 
     constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 218;
+    constexpr unsigned kExpectedCaseTotal = 219;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState

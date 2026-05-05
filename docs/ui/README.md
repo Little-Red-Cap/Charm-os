@@ -121,7 +121,7 @@ Fast manifest smoke:
 
 ## 2026-05 Vivid runtime 验证入口补记
 
-- `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、Motion recipe、transition trace、compose dry-run 与单页 `PageMotionTransition`；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=12`。
+- `Examples/ui/vivid/motion_time_demo`：验证 Managed UI Time、Motion recipe、transition trace、compose dry-run、单页 `PageMotionTransition` 与最终时间因果判决；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=13`。
 - `Examples/ui/vivid/page_transition_demo`：验证双页 `PageTransitionRunner`、`fade_slide` recipe、Cheap profile 量化与最终事务因果判决；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=16`；矩阵见 `docs/ui/vivid_motion_runtime_v0.md`。
 - `Examples/ui/vivid/component_settings_row_demo`：验证 settings row component 的 state truth、invalidation intent、dirty evidence、draw command evidence、render artifact evidence 与 causal verdict；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=5`；链路见 [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)。
 - `Examples/ui/vivid/component_card_state_demo`：验证 card component 中多 child state、derived output、summary text、同一 render artifact 与 causal verdict 的因果关系；stdout 遵守 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)，并由 CTest 约束最终 `result=ok cases=6`；链路见 [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)。

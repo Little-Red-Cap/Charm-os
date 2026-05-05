@@ -18,7 +18,7 @@
 | 契约 | 当前等级 | 已有证据 | 主要缺口 | 下一步 |
 | --- | --- | --- | --- | --- |
 | I2C bus/device | `experimental` | mock backend、HAL adapter、准 driver、facts sidecar、no-hardware smoke | 真实硬件 evidence、真实芯片 driver、正式 probe / bringup evidence | 保持样板卡，补真实 driver 或 probe evidence |
-| SPI bus/device | `proposed` | driver model 与窄腰文档中已有责任边界草案 | 未冻结 `Bus / Device` 事务语义、无 mock、无 driver evidence | 先写责任边界卡，不写代码 |
+| SPI bus/device | `proposed` | driver model、窄腰文档、[`spi_device_contract_v0.md`](spi_device_contract_v0.md) 已记录责任边界 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
 | GPIO input/output/edge | `proposed` | HAL 层已有 GPIO 入口，窄腰文档已有角色拆分 | 未拆清 input/output/edge source，缺 debounce/ISR 边界 | 先定义三种语义面和非目标 |
 | Block device | `proposed` | block registry、stable slot、runtime slot export 已有经验 | 未形成公共 driver-facing 契约卡 | 对齐 sector/live/flush/error 语义 |
 | Stream IO | `proposed` | `io::Channel` 已有非阻塞纪律和 registry 入口 | 还未作为 device contract admission 记录 | 把现有 IO 纪律投影成契约卡 |
@@ -150,7 +150,11 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 
 当前等级：`proposed`
 
-下一步只写责任边界，不写实现。
+当前 proposed card：
+
+- [`spi_device_contract_v0.md`](spi_device_contract_v0.md)
+
+下一步只维护责任边界，不写实现。
 
 必须先拆清：
 
@@ -158,6 +162,9 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 - `SpiDevice` 是否负责 CS、lock、transaction、flush、idle
 - 带 CS 的 driver 是否默认禁止手动管理 CS
 - 错误 taxonomy 是否区分 mode fault、overrun、chip select fault、timeout
+
+当前明确不把 `hal_spi`、`hal::SpiBinding` 或 `block::SpiFlashBinding`
+当作 driver-facing SPI contract evidence。
 
 ### GPIO input/output/edge
 

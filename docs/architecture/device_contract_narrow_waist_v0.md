@@ -334,6 +334,10 @@ concept I2cBus =
 
 优先级较高，但要晚于 I2C 一点。
 
+当前 proposed card 见：
+
+- [`spi_device_contract_v0.md`](spi_device_contract_v0.md)
+
 核心不是 `transfer` 函数，而是 `Bus / Device` 责任拆分：
 
 - `SpiBus` 代表受管 bus 能力

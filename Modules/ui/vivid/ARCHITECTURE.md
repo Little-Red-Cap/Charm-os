@@ -98,6 +98,7 @@ sequenceDiagram
 - `SoaGui::render()` 默认走命令缓冲；`SoaGui::render_tiles()` 用于 MCU PFB/Tile。
 - 命令缓冲溢出与文本缓冲溢出有显式标志（stats 可观测）。
 - 业务侧只使用 `Scene`：`Scene` 暴露 `CmdStats/ExecStats/TileStats/TileConfig`，SoA/DrawCmd 作为内部实现不对外直连。
+- `draw_cmd` 内部按 `schema / buffer / executor` 三个 module partitions 组织，公开入口仍只保留 `charm.gfx.draw_cmd`。
 
 **命令合批（Compaction）：**
 

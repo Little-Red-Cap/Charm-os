@@ -385,6 +385,10 @@ concept I2cBus =
 
 应与当前 `io::Channel` 非阻塞纪律对齐。
 
+当前 proposed card 见：
+
+- [`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md)
+
 关键语义：
 
 - read / write 非阻塞

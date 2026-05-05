@@ -21,7 +21,7 @@
 | SPI bus/device | `proposed` | driver model、窄腰文档、[`spi_device_contract_v0.md`](spi_device_contract_v0.md) 已记录责任边界 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
 | GPIO input/output/edge | `proposed` | HAL 层已有 GPIO 入口，[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md) 已拆分三种语义面 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
 | Block device | `proposed` | block registry、stable slot、runtime slot export、[`block_device_contract_v0.md`](block_device_contract_v0.md) 已记录 sector/live/flush/error 边界 | 未冻结 driver-facing API、无 contract mock、无 facts sidecar | 保持 proposed card，不写代码 |
-| Stream IO | `proposed` | `io::Channel` 已有非阻塞纪律和 registry 入口 | 还未作为 device contract admission 记录 | 把现有 IO 纪律投影成契约卡 |
+| Stream IO | `proposed` | `io::Channel` 非阻塞纪律、registry/reactor/slot 经验、[`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md) 已记录等待与错误边界 | 未冻结为 device public contract、无 facts sidecar、无 contract mock | 保持 proposed card，不写代码 |
 | Timebase | `proposed` | `charm.system.clock` 与 managed time 路线已有方向 | 未定义 driver-facing timebase 准入边界 | 只记录依赖关系，暂不新建 API |
 
 ## I2C 样板卡
@@ -212,7 +212,11 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 
 当前等级：`proposed`
 
-下一步把现有 `io::Channel` 纪律转成 admission record。
+当前 proposed card：
+
+- [`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md)
+
+下一步把现有 `io::Channel` 纪律转成 admission record，但不宣布为公共 ABI。
 
 必须保持：
 
@@ -221,6 +225,9 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 - 暂不可用返回 `Errc::would_block`
 - timeout 不由协议层 busy-spin
 - 等待由 reactor / scheduler / EDA 负责
+
+当前明确不把 `io::Channel`、`io.registry`、`io.reactor`、`ChannelSlotExport`
+或 USB Host CDC runtime smoke 路径单独当作 admitted Stream IO contract evidence。
 
 ### Timebase
 

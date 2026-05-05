@@ -2,10 +2,10 @@
 
 这个示例验证 Vivid Render Evidence Chain v0 的第一条 component 级因果证据链。
 
-它刻意不做截图 golden，而是先证明：
+它刻意不做 screenshot golden，而是先证明：
 
 ```text
-state truth -> invalidation intent -> dirty evidence -> draw command evidence -> render artifact evidence
+state truth -> invalidation intent -> dirty evidence -> draw command evidence -> render artifact evidence -> causal verdict
 ```
 
 当前 component 是一个 settings row：
@@ -15,7 +15,7 @@ state truth -> invalidation intent -> dirty evidence -> draw command evidence ->
 - `ProgressBarSimple` 镜像 slider truth。
 - value label 展示派生文本。
 
-示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一为 `[csr] run=component_settings_row_demo phase=begin/end` 与 `[csr] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=4`。
+示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一使用 `[csr] run=component_settings_row_demo phase=begin/end` 与 `[csr] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=5`。
 
 构建：
 

@@ -216,6 +216,20 @@ These helpers keep Style Token Law and Focus Evidence demos aligned without prom
 
 stdout 仍遵守 `vivid_evidence_stdout_law.md`。
 
+## 2026-05 Addendum: Component Settings Row Causal Verdict
+
+`Examples/ui/vivid/component_settings_row_demo` now closes the first component-level causal chain with a final `causal_chain` verdict:
+
+```text
+settings_row.value
+  -> state_delta
+  -> paint_only invalidation
+  -> bounded dirty / DrawCmd / pixel artifact
+  -> causal_chain ok=1
+```
+
+The final verdict proves the slider truth, progress mirror, value label, paint-only invalidation intent, single dirty rect, component-bounded dirty evidence, and changed render artifact are treated as one auditable component consequence.
+
 ## 2026-05 Addendum: Semantic Artifact Evidence
 
 `Examples/ui/vivid/semantic_tree_demo` extends semantic focus evidence into a root-bound Semantic Tree Artifact v0. The artifact is still intentionally smaller than an accessibility runtime: it collects runtime semantic entries under a requested root, preserves deterministic preorder, marks focus truth, reports fixed-capacity overflow, and emits `semantic_hash`.

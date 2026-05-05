@@ -5,11 +5,12 @@
 它验证：
 
 ```text
-directional key 在 active focus scope 内按几何方向选择候选；
-Tab 仍保持 deterministic preorder 导航；
-没有空间候选时回退到顺序 wrap；
-scope 外 target 不参与 spatial 候选；
-每次迁移都产生 FocusOut / FocusIn 与 input_focused truth 提交。
+directional key 在 active focus scope 内按几何方向选择候选
+Tab 仍保持 deterministic preorder navigation
+没有空间候选时回退到 preorder wrap
+scope 外 target 不参与 spatial candidate
+每次迁移都产生 FocusOut / FocusIn 与 input_focused truth 提交
+spatial navigation closes a final causal_chain verdict
 ```
 
 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
@@ -25,5 +26,6 @@ stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
 [fss] case=tab_preorder ...
 [fss] case=no_candidate_wrap ...
 [fss] case=outside_not_candidate ...
-[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9
+[fss] case=causal_chain ...
+[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=10
 ```

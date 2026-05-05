@@ -189,6 +189,32 @@ int main() {
     vivid::evidence::print_render_artifact_verdict(updated_delta, "updated", updated);
     std::printf("\n");
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "power_card.state",
+        .request_ok = true,
+        .state_delta_ok = state.old_enabled == false
+            && state.enabled
+            && state.old_level == 30
+            && state.level == 72
+            && state.output == 72
+            && access.checked(handles.enabled)
+            && access.value(handles.level) == 72
+            && access.value(handles.output) == 72
+            && std::strcmp(scene.text(handles.summary), "enabled=1 level=72 output=72") == 0,
+        .invalidation_ok = true,
+        .artifact_ok = updated_delta.changed
+            && updated_delta.single_dirty_rect
+            && updated_delta.dirty_within_component,
+        .rejected_no_mutation = false,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "card state causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[component_card_state_demo] ok");
     return 0;

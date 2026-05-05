@@ -2,7 +2,7 @@
 
 ## 2026-05 补记：Focus Boundary
 
-Focus 的运行证据不继续塞进 `style_token_law_demo`。`Examples/ui/vivid/focus_boundary_demo` 与 `docs/ui/vivid_focus_evidence_boundary_v0.md` 专门承接 focus boundary：它证明 focused 不进入普通 Button style mask，但会通过 focus ring 改变 render artifact，并且 clear focus 后回到 baseline。
+Focus 的运行证据不继续塞进 `style_token_law_demo`。`Examples/ui/vivid/focus_boundary_demo` 与 `docs/ui/vivid_focus_evidence_boundary_v0.md` 专门承接 focus boundary：它证明 focused 不进入普通 Button style mask，但会通过 focus ring 改变 render artifact，clear focus 后回到 baseline，并由 final causal verdict 收口。
 
 本文定义 Vivid Style Token Law 的第一版最小边界。
 
@@ -172,3 +172,19 @@ dirty_within_component=1
 - render artifact 随 color token 变化而变化。
 
 stdout 遵守 `vivid_evidence_stdout_law.md`。
+
+## 2026-05 Addendum: Style Token Causal Verdict
+
+`Examples/ui/vivid/style_token_law_demo` now emits a final `causal_chain` verdict:
+
+```text
+button.accent_token
+  -> token version changed
+  -> resolved color / style_key changed
+  -> metrics remained stable
+  -> impact=paint_only
+  -> render artifact changed within button bounds
+  -> causal_chain ok=1
+```
+
+This keeps Style Token Law connected to the Render Evidence Plane: token policy is not only declared by `StyleImpactDecision`, but also tied to the observed DrawCmd / pixel artifact consequence.

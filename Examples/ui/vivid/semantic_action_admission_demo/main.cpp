@@ -192,6 +192,34 @@ int main() {
         return 1;
     }
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "semantic_action_admission.plan",
+        .request_ok = admitted_activate(primary, handles.primary)
+            && admitted_activate(secondary, handles.secondary),
+        .state_delta_ok = vivid::evidence::same_handle(access.input_focused(), initial_focus)
+            && access.input_event_count() == initial_events
+            && !access.pressed(handles.primary),
+        .invalidation_ok = unsupported.status == SemanticActionAdmissionStatus::UnsupportedAction
+            && disabled.status == SemanticActionAdmissionStatus::Disabled
+            && ambiguous.status == SemanticActionAdmissionStatus::AmbiguousId
+            && missing.status == SemanticActionAdmissionStatus::NotFound
+            && invalid_root.status == SemanticActionAdmissionStatus::InvalidRoot
+            && missing_id.status == SemanticActionAdmissionStatus::MissingId,
+        .artifact_ok = primary.will_request_focus
+            && primary.will_emit_click
+            && secondary.will_request_focus
+            && secondary.will_emit_click
+            && ambiguous.match_count == 2,
+        .rejected_no_mutation = rejected_no_execute,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok() && chain.rejected_no_mutation,
+                                 "semantic action admission causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_action_admission_demo] ok");
     return 0;

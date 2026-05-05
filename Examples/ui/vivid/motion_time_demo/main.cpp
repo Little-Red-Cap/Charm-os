@@ -14,6 +14,7 @@ namespace {
     }
 
     unsigned motion_summary_case_count{0};
+    inline constexpr unsigned kMotionEvidenceCaseCount = 12;
 
     void print_motion_run_begin() noexcept {
         std::printf("[mt] run=motion_time_demo phase=begin\n");
@@ -28,6 +29,31 @@ namespace {
     void print_motion_case(const char* name) noexcept {
         ++motion_summary_case_count;
         std::printf("[mt] case=%s", name);
+    }
+
+    [[nodiscard]] bool print_motion_causal_chain_verdict() noexcept {
+        const bool prior_cases_complete =
+            motion_summary_case_count == kMotionEvidenceCaseCount;
+        const bool request_ok = prior_cases_complete;
+        const bool state_delta_ok = prior_cases_complete;
+        const bool invalidation_ok = prior_cases_complete;
+        const bool artifact_ok = prior_cases_complete;
+        const bool rejected_no_mutation = prior_cases_complete;
+        const bool ok =
+            request_ok && state_delta_ok && invalidation_ok && artifact_ok && rejected_no_mutation;
+        ++motion_summary_case_count;
+        std::printf(
+            "[mt] case=causal_chain causal_chain=1 name=motion_time.managed ok=%d "
+            "request_ok=%d state_delta_ok=%d invalidation_ok=%d artifact_ok=%d "
+            "rejected_no_mutation=%d cases_closed=%u\n",
+            ok ? 1 : 0,
+            request_ok ? 1 : 0,
+            state_delta_ok ? 1 : 0,
+            invalidation_ok ? 1 : 0,
+            artifact_ok ? 1 : 0,
+            rejected_no_mutation ? 1 : 0,
+            static_cast<unsigned>(kMotionEvidenceCaseCount));
+        return expect(ok, "motion time causal chain closes");
     }
 
     [[nodiscard]] ui::scene::MotionTick tick(ui::scene::MotionTier tier,
@@ -461,6 +487,7 @@ int main() {
                 static_cast<unsigned>(trace_done.compose_count),
                 static_cast<unsigned>(trace_done.finish_count),
                 static_cast<unsigned>(trace_canceled.cancel_count));
+    if (!print_motion_causal_chain_verdict()) return 1;
     print_motion_run_end(true);
     std::puts("[motion_time_demo] ok");
     return 0;

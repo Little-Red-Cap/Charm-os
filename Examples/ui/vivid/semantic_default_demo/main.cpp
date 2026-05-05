@@ -155,6 +155,32 @@ int main() {
     if (!vivid::evidence::expect(text_equals(tree.nodes[3].id, "panel.custom"),
                                  "default tree preserves container opt-in")) return 1;
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "semantic_default.artifact",
+        .request_ok = snapshot_is(action, "action.apply", "button", "Apply")
+            && snapshot_is(row, "row.track_one", "list_item", "Track One")
+            && snapshot_is(menu, "menu.open", "button", "Open app menu")
+            && snapshot_is(explicit_override, "menu.override", "list_item", "Menu as row"),
+        .state_delta_ok = explicit_override.found
+            && text_equals(explicit_override.id, "menu.override")
+            && text_equals(explicit_override.role, "list_item")
+            && text_equals(explicit_override.label, "Menu as row"),
+        .invalidation_ok = !decorative.found,
+        .artifact_ok = tree.node_count == 4
+            && text_equals(tree.nodes[0].id, "action.apply")
+            && text_equals(tree.nodes[1].id, "row.track_one")
+            && text_equals(tree.nodes[2].id, "menu.override")
+            && text_equals(tree.nodes[3].id, "panel.custom"),
+        .rejected_no_mutation = !decorative.found,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "semantic default causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_default_demo] ok");
     return 0;

@@ -268,6 +268,33 @@ int main() {
     vivid::evidence::print_render_artifact_verdict(artifact_delta, "after", updated);
     std::printf("\n");
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "button.accent_token",
+        .request_ok = color_eq(bg_before, rgba{64, 120, 220, 255})
+            && color_eq(normal_after.colors->bg, rgba{220, 80, 40, 255})
+            && token_version_after > token_version_before
+            && sheet.stylesheet_version() == stylesheet_version,
+        .state_delta_ok = !style_color_evidence_equal(style_evidence_before, style_evidence_after)
+            && style_metrics_evidence_equal(style_evidence_before, style_evidence_after)
+            && style_evidence_after.style_key != style_evidence_before.style_key,
+        .invalidation_ok = impact.has(StyleInvalidationImpact::PaintOnly)
+            && !impact.has(StyleInvalidationImpact::Layout)
+            && !impact.has(StyleInvalidationImpact::TextMetrics)
+            && style_evidence_matches_impact(style_evidence_before, style_evidence_after, impact),
+        .artifact_ok = artifact_delta.changed
+            && artifact_delta.single_dirty_rect
+            && artifact_delta.dirty_within_component
+            && updated.pixel_hash != initial.pixel_hash,
+        .rejected_no_mutation = false,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "style token causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[style_token_law_demo] ok");
     return 0;

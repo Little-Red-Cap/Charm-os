@@ -9,7 +9,8 @@ base scope 可以先接管 focus admission；
 modal scope 可以 push 到 active scope；
 modal 外请求不产生 focus transfer；
 pop 后恢复 base scope；
-每个阶段 focus ring artifact 不泄漏到被拒绝 target。
+每个阶段 focus ring artifact 不泄漏到被拒绝 target；
+push/pop transaction closes a final causal_chain verdict。
 ```
 
 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
@@ -24,7 +25,8 @@ stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
 [fsn] case=modal_trap_dispatch ...
 [fsn] case=modal_scope_pop ...
 [fsn] case=restored_base_trap ...
-[fsn] run=focus_scope_nested_demo phase=end result=ok cases=8
+[fsn] case=causal_chain ...
+[fsn] run=focus_scope_nested_demo phase=end result=ok cases=9
 ```
 
-CTest 守住最终 `result=ok cases=8`。
+CTest 守住最终 `result=ok cases=9`。

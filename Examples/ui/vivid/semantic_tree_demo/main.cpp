@@ -202,6 +202,41 @@ int main() {
                                  "zero capacity tree preserves focus truth")) return 1;
     if (!vivid::evidence::expect(stable_tree.semantic_hash == focused_tree.semantic_hash, "semantic hash is stable")) return 1;
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "semantic_tree.artifact",
+        .request_ok = root_tree.node_count == 5
+            && scope_tree.node_count == 4
+            && text_equals(root_tree.nodes[0].id, "library")
+            && text_equals(root_tree.nodes[1].id, "play")
+            && text_equals(root_tree.nodes[2].id, "queue")
+            && text_equals(root_tree.nodes[3].id, "track-1")
+            && text_equals(root_tree.nodes[4].id, "outside"),
+        .state_delta_ok = focused_tree.focus_found
+            && focus_index != kSemanticTreeNoFocusIndex
+            && focused_tree.focus_index == focus_index
+            && text_equals(focused_tree.focus_id, "track-1"),
+        .invalidation_ok = !title_entry.found
+            && !body_entry.found
+            && title_index == kSemanticTreeNoFocusIndex
+            && outside_in_root
+            && !outside_in_scope,
+        .artifact_ok = tiny_tree.overflowed
+            && zero_tree.overflowed
+            && stable_tree.semantic_hash == focused_tree.semantic_hash
+            && tiny_tree.focus_found
+            && zero_tree.focus_found,
+        .rejected_no_mutation = !outside_in_scope
+            && !title_entry.found
+            && !body_entry.found,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "semantic tree causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_tree_demo] ok");
     return 0;

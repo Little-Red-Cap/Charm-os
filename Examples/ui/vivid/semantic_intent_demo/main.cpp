@@ -195,6 +195,33 @@ int main() {
         return 1;
     }
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "semantic_intent.lookup",
+        .request_ok = resolved(action_resolution)
+            && action_resolution.handle == handles.action
+            && action_resolution.match_count == 1,
+        .state_delta_ok = no_input_side_effect(scene, handles, input_events_before),
+        .invalidation_ok = unsupported.status == SemanticIntentStatus::UnsupportedAction
+            && missing.status == SemanticIntentStatus::NotFound
+            && ambiguous.status == SemanticIntentStatus::AmbiguousId
+            && ambiguous.match_count == 2
+            && disabled.status == SemanticIntentStatus::Disabled
+            && invalid_root.status == SemanticIntentStatus::InvalidRoot
+            && missing_request.status == SemanticIntentStatus::MissingId,
+        .artifact_ok = action_resolution.visited_count > 0
+            && unsupported.visited_count > 0
+            && missing.visited_count > 0
+            && ambiguous.visited_count > 0,
+        .rejected_no_mutation = rejected_no_side_effect,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok() && chain.rejected_no_mutation,
+                                 "semantic intent causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_intent_demo] ok");
     return 0;

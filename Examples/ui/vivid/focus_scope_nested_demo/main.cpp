@@ -132,6 +132,9 @@ int main() {
                                  "modal push stores one base frame")) {
         return 1;
     }
+    const bool modal_scope_pushed =
+        vivid::evidence::same_handle(push_access.input_focus_scope(), handles.modal_scope)
+        && push_access.input_focus_scope_stack_size() == 1;
 
     run_log.case_begin("modal_scope_push");
     std::printf(" active=modal_scope fallback=modal_a trap=1 pushed=1 stack=%zu previous=base_scope\n",
@@ -155,6 +158,8 @@ int main() {
                                  "input focus commits to modal_b")) {
         return 1;
     }
+    const bool modal_b_focus_committed =
+        vivid::evidence::same_handle(modal_inside.input_focused(), handles.modal_b);
     vivid::evidence::mouse_up_center(scene, kModalBWorldBounds, 21);
 
     const auto modal_b_artifact = vivid::evidence::render_scene(scene, canvas, kModalBWorldBounds);
@@ -187,6 +192,8 @@ int main() {
                                  "input focus remains in modal scope")) {
         return 1;
     }
+    const bool modal_trap_keeps_modal_focus =
+        vivid::evidence::same_handle(modal_trap.input_focused(), handles.modal_b);
     vivid::evidence::mouse_up_center(scene, kBaseBBounds, 31);
 
     const auto base_b_rejected = vivid::evidence::render_scene(scene, canvas, kBaseBBounds);
@@ -217,10 +224,19 @@ int main() {
                                  "focus scope stack returns to zero")) {
         return 1;
     }
+    const bool base_scope_restored =
+        vivid::evidence::same_handle(pop_access.input_focus_scope(), handles.base_scope)
+        && pop_access.input_focus_scope_stack_size() == 0;
 
     run_log.case_begin("modal_scope_pop");
     std::printf(" popped=1 active=base_scope fallback=base_b stack=%zu input_truth=modal_b\n",
                 pop_access.input_focus_scope_stack_size());
+
+    const auto modal_a_baseline = vivid::evidence::render_scene(scene, canvas, kModalAWorldBounds);
+    if (!vivid::evidence::expect(modal_a_baseline.failed_cmds == 0,
+                                 "modal_a baseline render has no failed commands")) {
+        return 1;
+    }
 
     vivid::evidence::mouse_down_center(scene, kModalAWorldBounds, 40);
     auto restored_trap = scene.access();
@@ -240,17 +256,80 @@ int main() {
                                  "restored base scope redirects outside request to fallback")) {
         return 1;
     }
+    const bool restored_trap_redirects_to_base =
+        vivid::evidence::same_handle(restored_trap.input_focused(), handles.base_b);
+    const bool modal_a_not_focused_after_restore =
+        !vivid::evidence::same_handle(restored_trap.input_focused(), handles.modal_a);
     vivid::evidence::mouse_up_center(scene, kModalAWorldBounds, 41);
 
     const auto modal_a_rejected = vivid::evidence::render_scene(scene, canvas, kModalAWorldBounds);
     if (!vivid::evidence::expect(modal_a_rejected.failed_cmds == 0, "modal_a rejected render has no failed commands")) return 1;
+    if (!vivid::evidence::expect(modal_a_rejected.cmd_hash == modal_a_baseline.cmd_hash,
+                                 "modal_a rejected artifact keeps command baseline")) {
+        return 1;
+    }
+    if (!vivid::evidence::expect(modal_a_not_focused_after_restore,
+                                 "modal_a rejected request does not become focused")) {
+        return 1;
+    }
 
     run_log.case_begin("restored_base_trap");
-    std::printf(" requested=modal_a mouse_down=%d focus_out=%d focus_in=%d input_truth=base_b active=base_scope stack=%zu outside_focus_ring=0\n",
+    std::printf(" requested=modal_a mouse_down=%d focus_out=%d focus_in=%d input_truth=base_b active=base_scope stack=%zu outside_focus_ring=0 cmd_hash=%u pixel_hash=%u\n",
                 restored_events.mouse_down,
                 restored_events.focus_out,
                 restored_events.focus_in,
-                restored_trap.input_focus_scope_stack_size());
+                restored_trap.input_focus_scope_stack_size(),
+                modal_a_rejected.cmd_hash,
+                modal_a_rejected.pixel_hash);
+
+    const bool modal_rejected_without_mutation =
+        modal_trap_events.mouse_down == 1
+        && modal_trap_events.mouse_down_expected
+        && modal_trap_events.focus_out == 0
+        && modal_trap_events.focus_in == 0
+        && modal_trap_keeps_modal_focus
+        && base_b_rejected.cmd_hash == base_b_baseline.cmd_hash
+        && base_b_rejected.pixel_hash == base_b_baseline.pixel_hash;
+    const bool restored_rejected_without_mutation =
+        restored_events.mouse_down == 1
+        && restored_events.mouse_down_expected
+        && restored_events.focus_out == 1
+        && restored_events.focus_out_expected
+        && restored_events.focus_in == 1
+        && restored_trap_redirects_to_base
+        && modal_a_rejected.cmd_hash == modal_a_baseline.cmd_hash
+        && modal_a_rejected.cmd_count == modal_a_baseline.cmd_count
+        && modal_a_not_focused_after_restore;
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "focus_scope.nested_transaction",
+        .request_ok = pushed
+            && popped
+            && modal_inside_events.mouse_down == 1
+            && modal_inside_events.focus_out == 1
+            && modal_inside_events.focus_in == 1
+            && modal_rejected_without_mutation
+            && restored_rejected_without_mutation,
+        .state_delta_ok = modal_scope_pushed
+            && modal_b_focus_committed
+            && base_scope_restored
+            && restored_trap_redirects_to_base,
+        .invalidation_ok = modal_trap_events.focus_out == 0
+            && modal_trap_events.focus_in == 0
+            && restored_events.focus_out == 1
+            && restored_events.focus_in == 1,
+        .artifact_ok = modal_b_artifact.pixel_hash != base_a_artifact.pixel_hash
+            && modal_rejected_without_mutation
+            && restored_rejected_without_mutation,
+        .rejected_no_mutation = modal_rejected_without_mutation
+            && restored_rejected_without_mutation,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "nested focus scope causal chain closes")) {
+        return 1;
+    }
 
     run_log.end(true);
     std::puts("[focus_scope_nested_demo] ok");

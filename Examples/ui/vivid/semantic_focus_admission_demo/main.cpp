@@ -159,6 +159,36 @@ int main() {
         return 1;
     }
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "semantic_focus_admission.plan",
+        .request_ok = admitted_transfer(secondary)
+            && vivid::evidence::same_handle(secondary.handle, handles.secondary)
+            && already.status == SemanticFocusAdmissionStatus::AlreadyFocused
+            && already.admitted
+            && !already.transfer_needed,
+        .state_delta_ok = vivid::evidence::same_handle(access.input_focused(), initial_focus)
+            && access.input_event_count() == initial_events,
+        .invalidation_ok = not_focusable.status == SemanticFocusAdmissionStatus::NotFocusable
+            && disabled.status == SemanticFocusAdmissionStatus::Disabled
+            && outside.status == SemanticFocusAdmissionStatus::OutsideActiveScope
+            && ambiguous.status == SemanticFocusAdmissionStatus::AmbiguousId
+            && missing.status == SemanticFocusAdmissionStatus::NotFound
+            && invalid_root.status == SemanticFocusAdmissionStatus::InvalidRoot
+            && missing_id.status == SemanticFocusAdmissionStatus::MissingId,
+        .artifact_ok = secondary.transfer_needed
+            && secondary.will_emit_focus_out
+            && secondary.will_emit_focus_in
+            && ambiguous.match_count == 2,
+        .rejected_no_mutation = rejected_no_commit,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok() && chain.rejected_no_mutation,
+                                 "semantic focus admission causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_focus_admission_demo] ok");
     return 0;

@@ -86,27 +86,27 @@ set_tests_properties(${target_name} PROPERTIES
 
 | 示例 | tag | 最终约束 |
 | --- | --- | --- |
-| `page_transition_demo` | `pt` | `[pt] run=page_transition_demo phase=end result=ok cases=15` |
-| `motion_time_demo` | `mt` | `[mt] run=motion_time_demo phase=end result=ok cases=12` |
-| `component_card_state_demo` | `ccs` | `[ccs] run=component_card_state_demo phase=end result=ok cases=5` |
-| `component_settings_row_demo` | `csr` | `[csr] run=component_settings_row_demo phase=end result=ok cases=4` |
-| `style_token_law_demo` | `stl` | `[stl] run=style_token_law_demo phase=end result=ok cases=6` |
-| `focus_boundary_demo` | `fb` | `[fb] run=focus_boundary_demo phase=end result=ok cases=6` |
-| `focus_transfer_demo` | `ft` | `[ft] run=focus_transfer_demo phase=end result=ok cases=7` |
-| `focus_scope_demo` | `fs` | `[fs] run=focus_scope_demo phase=end result=ok cases=9` |
-| `focus_scope_nested_demo` | `fsn` | `[fsn] run=focus_scope_nested_demo phase=end result=ok cases=8` |
-| `focus_scope_navigation_demo` | `fsnav` | `[fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=7` |
-| `focus_spatial_navigation_demo` | `fss` | `[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9` |
-| `focus_semantic_demo` | `fsem` | `[fsem] run=focus_semantic_demo phase=end result=ok cases=8` |
-| `semantic_tree_demo` | `stree` | `[stree] run=semantic_tree_demo phase=end result=ok cases=6` |
-| `semantic_default_demo` | `sdef` | `[sdef] run=semantic_default_demo phase=end result=ok cases=6` |
-| `semantic_action_demo` | `sact` | `[sact] run=semantic_action_demo phase=end result=ok cases=6` |
-| `semantic_intent_demo` | `sint` | `[sint] run=semantic_intent_demo phase=end result=ok cases=8` |
-| `semantic_action_admission_demo` | `saa` | `[saa] run=semantic_action_admission_demo phase=end result=ok cases=8` |
+| `page_transition_demo` | `pt` | `[pt] run=page_transition_demo phase=end result=ok cases=16` |
+| `motion_time_demo` | `mt` | `[mt] run=motion_time_demo phase=end result=ok cases=13` |
+| `component_card_state_demo` | `ccs` | `[ccs] run=component_card_state_demo phase=end result=ok cases=6` |
+| `component_settings_row_demo` | `csr` | `[csr] run=component_settings_row_demo phase=end result=ok cases=5` |
+| `style_token_law_demo` | `stl` | `[stl] run=style_token_law_demo phase=end result=ok cases=7` |
+| `focus_boundary_demo` | `fb` | `[fb] run=focus_boundary_demo phase=end result=ok cases=7` |
+| `focus_transfer_demo` | `ft` | `[ft] run=focus_transfer_demo phase=end result=ok cases=8` |
+| `focus_scope_demo` | `fs` | `[fs] run=focus_scope_demo phase=end result=ok cases=10` |
+| `focus_scope_nested_demo` | `fsn` | `[fsn] run=focus_scope_nested_demo phase=end result=ok cases=9` |
+| `focus_scope_navigation_demo` | `fsnav` | `[fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=8` |
+| `focus_spatial_navigation_demo` | `fss` | `[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=10` |
+| `focus_semantic_demo` | `fsem` | `[fsem] run=focus_semantic_demo phase=end result=ok cases=9` |
+| `semantic_tree_demo` | `stree` | `[stree] run=semantic_tree_demo phase=end result=ok cases=7` |
+| `semantic_default_demo` | `sdef` | `[sdef] run=semantic_default_demo phase=end result=ok cases=7` |
+| `semantic_action_demo` | `sact` | `[sact] run=semantic_action_demo phase=end result=ok cases=7` |
+| `semantic_intent_demo` | `sint` | `[sint] run=semantic_intent_demo phase=end result=ok cases=9` |
+| `semantic_action_admission_demo` | `saa` | `[saa] run=semantic_action_admission_demo phase=end result=ok cases=9` |
 | `semantic_action_request_demo` | `sar` | `[sar] run=semantic_action_request_demo phase=end result=ok cases=11` |
 | `intent_artifact_demo` | `ia` | `[ia] run=intent_artifact_demo phase=end result=ok cases=9` |
-| `semantic_focus_query_demo` | `sfq` | `[sfq] run=semantic_focus_query_demo phase=end result=ok cases=8` |
-| `semantic_focus_admission_demo` | `sfa` | `[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=8` |
+| `semantic_focus_query_demo` | `sfq` | `[sfq] run=semantic_focus_query_demo phase=end result=ok cases=9` |
+| `semantic_focus_admission_demo` | `sfa` | `[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=9` |
 | `semantic_focus_request_demo` | `sfr` | `[sfr] run=semantic_focus_request_demo phase=end result=ok cases=12` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=3` |
 | `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |

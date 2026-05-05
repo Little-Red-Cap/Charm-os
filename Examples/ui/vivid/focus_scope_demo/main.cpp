@@ -301,6 +301,42 @@ int main() {
                 outside_artifact.pixel_hash,
                 outside_baseline.pixel_hash);
 
+    const bool outside_rejected_without_mutation =
+        !outside_decision.allowed()
+        && outside_decision.kind == FocusScopeDecisionKind::RejectOutsideScope
+        && outside_trace.focus_out == 0
+        && outside_trace.focus_in == 0
+        && vivid::evidence::same_handle(after_outside_access.input_focused(), handles.inside_b)
+        && outside_artifact.cmd_count == outside_baseline.cmd_count
+        && outside_artifact.cmd_hash == outside_baseline.cmd_hash
+        && outside_artifact.pixel_hash == outside_baseline.pixel_hash;
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "focus_scope.trap",
+        .request_ok = inside_decision.allowed()
+            && inside_trace.mouse_down == 1
+            && inside_trace.focus_out == 1
+            && inside_trace.focus_in == 1
+            && !outside_decision.allowed()
+            && outside_decision.kind == FocusScopeDecisionKind::RejectOutsideScope
+            && outside_trace.mouse_down == 1
+            && outside_trace.mouse_down_expected,
+        .state_delta_ok = vivid::evidence::same_handle(inside_access.input_focused(), handles.inside_b)
+            && vivid::evidence::same_handle(after_outside_access.input_focused(), handles.inside_b),
+        .invalidation_ok = outside_trace.focus_out == 0
+            && outside_trace.focus_in == 0
+            && outside_delta.dirty_within_component,
+        .artifact_ok = inside_artifact.pixel_hash != initial.pixel_hash
+            && outside_rejected_without_mutation,
+        .rejected_no_mutation = outside_rejected_without_mutation,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "focus scope causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[focus_scope_demo] ok");
     return 0;

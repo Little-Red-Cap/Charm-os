@@ -5,10 +5,11 @@
 它验证：
 
 ```text
-FocusScope 允许 scope 内迁移；
-FocusScope 拒绝 scope 外请求；
-被拒绝后 input focus truth 保持在 fallback/current；
-focus ring artifact 不泄漏到 scope 外 target。
+FocusScope allows transfer inside scope
+FocusScope rejects focus commit outside scope
+rejected request keeps input focus truth at fallback/current
+rejected request does not leak focus ring artifact to outside target
+inside allow + outside reject closes a final causal_chain verdict
 ```
 
 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
@@ -24,9 +25,9 @@ stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
 [fs] case=outside_request_decision ...
 [fs] case=outside_trap_dispatch ...
 [fs] case=scope_trap_artifact ...
-[fs] run=focus_scope_demo phase=end result=ok cases=9
+[fs] case=causal_chain ...
+[fs] run=focus_scope_demo phase=end result=ok cases=10
 ```
 
-CTest 守住最终 `result=ok cases=9`。
-
+CTest 守住最终 `result=ok cases=10`。
 详细法律见 `docs/ui/vivid_focus_scope_evidence_v0.md`。

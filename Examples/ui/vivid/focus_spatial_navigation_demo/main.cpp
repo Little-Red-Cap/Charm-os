@@ -93,6 +93,8 @@ int main() {
                                  "origin receives initial FocusIn")) return 1;
     if (!vivid::evidence::expect(vivid::evidence::same_handle(initial.input_focused(), handles.origin),
                                  "initial focus truth is origin")) return 1;
+    const bool initial_focus_committed =
+        vivid::evidence::same_handle(initial.input_focused(), handles.origin);
     vivid::evidence::mouse_up_center(scene, kOriginBounds, 11);
 
     const auto origin_artifact = vivid::evidence::render_scene(scene, canvas, kOriginBounds);
@@ -109,6 +111,8 @@ int main() {
     auto right_access = scene.access();
     if (!expect_focus_move(right_access, handles.origin, handles.right, "right chooses spatial right")) return 1;
     const auto right_trace = vivid::evidence::collect_focus_move(right_access, handles.origin, handles.right);
+    const bool right_committed =
+        vivid::evidence::same_handle(right_access.input_focused(), handles.right);
     run_log.case_begin("right_to_right");
     std::printf(" key=right old=origin new=right mode=spatial focus_out=%d focus_in=%d input_truth=right\n",
                 right_trace.focus_out,
@@ -118,6 +122,8 @@ int main() {
     auto down_access = scene.access();
     if (!expect_focus_move(down_access, handles.right, handles.down, "down chooses spatial down")) return 1;
     const auto down_trace = vivid::evidence::collect_focus_move(down_access, handles.right, handles.down);
+    const bool down_committed =
+        vivid::evidence::same_handle(down_access.input_focused(), handles.down);
     run_log.case_begin("down_to_down");
     std::printf(" key=down old=right new=down mode=spatial focus_out=%d focus_in=%d input_truth=down\n",
                 down_trace.focus_out,
@@ -127,6 +133,8 @@ int main() {
     auto left_access = scene.access();
     if (!expect_focus_move(left_access, handles.down, handles.origin, "left chooses spatial origin")) return 1;
     const auto left_trace = vivid::evidence::collect_focus_move(left_access, handles.down, handles.origin);
+    const bool left_committed =
+        vivid::evidence::same_handle(left_access.input_focused(), handles.origin);
     run_log.case_begin("left_to_origin");
     std::printf(" key=left old=down new=origin mode=spatial focus_out=%d focus_in=%d input_truth=origin\n",
                 left_trace.focus_out,
@@ -136,6 +144,8 @@ int main() {
     auto up_access = scene.access();
     if (!expect_focus_move(up_access, handles.origin, handles.top, "up chooses spatial top")) return 1;
     const auto up_trace = vivid::evidence::collect_focus_move(up_access, handles.origin, handles.top);
+    const bool up_committed =
+        vivid::evidence::same_handle(up_access.input_focused(), handles.top);
     run_log.case_begin("up_to_top");
     std::printf(" key=up old=origin new=top mode=spatial focus_out=%d focus_in=%d input_truth=top\n",
                 up_trace.focus_out,
@@ -145,6 +155,8 @@ int main() {
     auto tab_access = scene.access();
     if (!expect_focus_move(tab_access, handles.top, handles.origin, "tab keeps preorder wrap")) return 1;
     const auto tab_trace = vivid::evidence::collect_focus_move(tab_access, handles.top, handles.origin);
+    const bool tab_committed =
+        vivid::evidence::same_handle(tab_access.input_focused(), handles.origin);
     run_log.case_begin("tab_preorder");
     std::printf(" key=tab old=top new=origin mode=preorder wrap=1 focus_out=%d focus_in=%d input_truth=origin\n",
                 tab_trace.focus_out,
@@ -154,6 +166,8 @@ int main() {
     auto wrap_access = scene.access();
     if (!expect_focus_move(wrap_access, handles.origin, handles.top, "left falls back to reverse preorder wrap")) return 1;
     const auto wrap_trace = vivid::evidence::collect_focus_move(wrap_access, handles.origin, handles.top);
+    const bool wrap_committed =
+        vivid::evidence::same_handle(wrap_access.input_focused(), handles.top);
     run_log.case_begin("no_candidate_wrap");
     std::printf(" key=left old=origin new=top mode=preorder fallback=1 wrap=1 focus_out=%d focus_in=%d input_truth=top\n",
                 wrap_trace.focus_out,
@@ -168,6 +182,9 @@ int main() {
     if (!expect_focus_move(outside_skip, handles.top, handles.right, "right chooses inside scope instead of outside")) return 1;
     if (!vivid::evidence::expect(!vivid::evidence::same_handle(outside_skip.input_focused(), handles.outside),
                                  "outside is not selected by spatial navigation")) return 1;
+    const bool outside_excluded =
+        !vivid::evidence::same_handle(outside_skip.input_focused(), handles.outside)
+        && vivid::evidence::same_handle(outside_skip.input_focused(), handles.right);
     const auto outside_after = vivid::evidence::render_scene(scene, canvas, kOutsideBounds);
     if (!vivid::evidence::expect(outside_after.cmd_hash == outside_baseline.cmd_hash,
                                  "outside command evidence stays baseline")) return 1;
@@ -176,6 +193,57 @@ int main() {
     std::printf(" key=right old=top new=right outside_candidate=0 outside_focus_ring=0 outside_cmd_hash=%u outside_baseline_hash=%u\n",
                 outside_after.cmd_hash,
                 outside_baseline.cmd_hash);
+
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "focus_scope.spatial_navigation",
+        .request_ok = initial_trace.focus_in == 1
+            && right_trace.focus_out == 1
+            && right_trace.focus_in == 1
+            && down_trace.focus_out == 1
+            && down_trace.focus_in == 1
+            && left_trace.focus_out == 1
+            && left_trace.focus_in == 1
+            && up_trace.focus_out == 1
+            && up_trace.focus_in == 1
+            && tab_trace.focus_out == 1
+            && tab_trace.focus_in == 1
+            && wrap_trace.focus_out == 1
+            && wrap_trace.focus_in == 1
+            && outside_excluded,
+        .state_delta_ok = initial_focus_committed
+            && right_committed
+            && down_committed
+            && left_committed
+            && up_committed
+            && tab_committed
+            && wrap_committed
+            && outside_excluded,
+        .invalidation_ok = right_trace.focus_out_expected
+            && right_trace.focus_in_expected
+            && down_trace.focus_out_expected
+            && down_trace.focus_in_expected
+            && left_trace.focus_out_expected
+            && left_trace.focus_in_expected
+            && up_trace.focus_out_expected
+            && up_trace.focus_in_expected
+            && tab_trace.focus_out_expected
+            && tab_trace.focus_in_expected
+            && wrap_trace.focus_out_expected
+            && wrap_trace.focus_in_expected,
+        .artifact_ok = outside_after.cmd_hash == outside_baseline.cmd_hash
+            && outside_after.cmd_count == outside_baseline.cmd_count
+            && outside_excluded,
+        .rejected_no_mutation = outside_after.cmd_hash == outside_baseline.cmd_hash
+            && outside_after.cmd_count == outside_baseline.cmd_count
+            && outside_excluded,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "focus spatial navigation causal chain closes")) {
+        return 1;
+    }
 
     run_log.end(true);
     std::puts("[focus_spatial_navigation_demo] ok");

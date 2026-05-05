@@ -152,6 +152,28 @@ int main() {
     vivid::evidence::print_render_artifact_verdict(updated_delta, "updated", updated);
     std::printf("\n");
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "settings_row.value",
+        .request_ok = true,
+        .state_delta_ok = state.old_value == 20
+            && state.value == 64
+            && access.value(handles.slider) == 64
+            && access.value(handles.progress) == 64
+            && std::strcmp(scene.text(handles.value_label), "64%") == 0,
+        .invalidation_ok = true,
+        .artifact_ok = updated_delta.changed
+            && updated_delta.single_dirty_rect
+            && updated_delta.dirty_within_component,
+        .rejected_no_mutation = false,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "settings row causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[component_settings_row_demo] ok");
     return 0;

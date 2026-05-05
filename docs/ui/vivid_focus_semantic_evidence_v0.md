@@ -78,6 +78,20 @@ decorative_present=1
 decorative_semantic=0
 ```
 
+### Law 5b: semantic focus alignment must close a causal_chain
+
+`focus_semantic_demo` 的 final causal verdict 必须同时证明：
+
+```text
+semantic table -> stable id / role / label
+pointer transfer -> FocusOut / FocusIn + semantic_current
+keyboard transfer -> FocusOut / FocusIn + semantic_current
+outside semantic target -> outside_selected=0
+style boundary -> focused_in_style_mask=0
+artifact alignment -> focus_ring=1
+causal_chain ok=1
+```
+
 ### Law 6: semantic tree artifact is a fixed-capacity snapshot
 
 Semantic Tree Artifact v0 is not a full accessibility runtime. It is a root-bound evidence artifact collected from the Vivid SoA tree:
@@ -94,6 +108,7 @@ v0 rules:
 - capacity overflow must be explicit through `overflowed=1`; truncation must not be silent.
 - `focus_id` records focus truth even when the focused node is beyond stored capacity.
 - `semantic_hash` summarizes the semantic artifact only; it is not yet an accessibility tree hash.
+- `semantic_tree_demo` closes these facts with a final `causal_chain` verdict over preorder collection, focus marker, root policy, overflow, and hash stability.
 
 ### Law 7: semantic defaults are opt-in, not automatic identity
 
@@ -110,6 +125,7 @@ v0 rules:
 - stable id is never derived from handle, pointer, or display text.
 - decorative widgets remain non-semantic until explicitly opted in.
 - explicit `set_semantic()` may override a previous default.
+- `semantic_default_demo` closes these facts with a final `causal_chain` verdict over role derivation, label source, explicit override, decorative boundary, and tree artifact integration.
 
 ### Law 8: semantic actions are artifact facts, not event execution
 
@@ -130,6 +146,7 @@ v0 rules:
 - semantic tree nodes carry action masks and include them in `semantic_hash`.
 - an action bit is evidence of capability, not a request to synthesize input or invoke OS accessibility.
 - v0 does not introduce a full accessibility runtime.
+- `semantic_action_demo` closes these facts with a final `causal_chain` verdict over role-derived actions, no-action roles, explicit override, tree action artifacts, and hash participation.
 
 ### Law 9: semantic intent resolution is address lookup, not execution
 
@@ -257,34 +274,34 @@ v0 rules:
 stdout 最终约束：
 
 ```text
-[fsem] run=focus_semantic_demo phase=end result=ok cases=8
+[fsem] run=focus_semantic_demo phase=end result=ok cases=9
 ```
 
 `Examples/ui/vivid/semantic_tree_demo` is the first Semantic Tree Artifact v0 runtime evidence.
-It verifies deterministic preorder collection, decorative exclusion, focus markers, root-bound policy, overflow reporting, and stable semantic hash.
+It verifies deterministic preorder collection, decorative exclusion, focus markers, root-bound policy, overflow reporting, stable semantic hash, and final causal-chain evidence.
 
 stdout final contract:
 
 ```text
-[stree] run=semantic_tree_demo phase=end result=ok cases=6
+[stree] run=semantic_tree_demo phase=end result=ok cases=7
 ```
 
 `Examples/ui/vivid/semantic_default_demo` is the first Pattern Semantic Defaults v0 runtime evidence.
-It verifies default role derivation, text-based label source, explicit label override, opt-in boundary for decorative labels, explicit override, and semantic tree artifact integration.
+It verifies default role derivation, text-based label source, explicit label override, opt-in boundary for decorative labels, explicit override, semantic tree artifact integration, and final causal-chain evidence.
 
 stdout final contract:
 
 ```text
-[sdef] run=semantic_default_demo phase=end result=ok cases=6
+[sdef] run=semantic_default_demo phase=end result=ok cases=7
 ```
 
 `Examples/ui/vivid/semantic_action_demo` is the first Semantic Action Artifact v0 runtime evidence.
-It verifies role-derived activate defaults, non-action semantic roles, explicit action override, tree action artifacts, and semantic hash participation.
+It verifies role-derived activate defaults, non-action semantic roles, explicit action override, tree action artifacts, semantic hash participation, and final causal-chain evidence.
 
 stdout final contract:
 
 ```text
-[sact] run=semantic_action_demo phase=end result=ok cases=6
+[sact] run=semantic_action_demo phase=end result=ok cases=7
 ```
 
 `Examples/ui/vivid/semantic_intent_demo` is the first Semantic Intent Resolution v0 runtime evidence.
@@ -372,6 +389,7 @@ focus_ring=1
 outside_semantic_present=1
 outside_selected=0
 decorative_semantic=0
+causal_chain=1
 overflowed=1
 ```
 

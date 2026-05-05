@@ -8,7 +8,9 @@
 source focus ring -> destination focus ring
 old target emits FocusOut
 new target emits FocusIn
-ordinary Button style evidence stays stable
+input_focused truth commits to destination
+style evidence stays stable
+artifact movement closes a final causal_chain verdict
 ```
 
 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
@@ -22,7 +24,8 @@ stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
 [ft] case=style_evidence_after_transfer ...
 [ft] case=render_artifact_after_transfer ...
 [ft] case=clear_destination_focus ...
-[ft] run=focus_transfer_demo phase=end result=ok cases=7
+[ft] case=causal_chain ...
+[ft] run=focus_transfer_demo phase=end result=ok cases=8
 ```
 
-CTest 守住最终 `result=ok cases=7`。
+CTest 守住最终 `result=ok cases=8`。

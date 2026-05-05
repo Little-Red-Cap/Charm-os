@@ -147,6 +147,34 @@ int main() {
         return 1;
     }
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "semantic_focus_query.lookup",
+        .request_ok = resolved(primary)
+            && vivid::evidence::same_handle(primary.handle, handles.primary)
+            && primary.match_count == 1,
+        .state_delta_ok = vivid::evidence::same_handle(access.input_focused(), initial_focus)
+            && access.input_event_count() == initial_events,
+        .invalidation_ok = not_focusable.status == SemanticFocusQueryStatus::NotFocusable
+            && disabled.status == SemanticFocusQueryStatus::Disabled
+            && outside.status == SemanticFocusQueryStatus::OutsideActiveScope
+            && ambiguous.status == SemanticFocusQueryStatus::AmbiguousId
+            && missing.status == SemanticFocusQueryStatus::NotFound
+            && invalid_root.status == SemanticFocusQueryStatus::InvalidRoot
+            && missing_id.status == SemanticFocusQueryStatus::MissingId,
+        .artifact_ok = primary.visited_count > 0
+            && not_focusable.visited_count > 0
+            && disabled.visited_count > 0
+            && ambiguous.match_count == 2,
+        .rejected_no_mutation = rejected_no_focus_transfer,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok() && chain.rejected_no_mutation,
+                                 "semantic focus query causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[semantic_focus_query_demo] ok");
     return 0;

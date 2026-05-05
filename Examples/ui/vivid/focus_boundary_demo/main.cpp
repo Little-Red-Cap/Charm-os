@@ -173,6 +173,32 @@ int main() {
                 cleared_artifact.cmd_hash,
                 cleared_artifact.pixel_hash);
 
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "button.focus_boundary",
+        .request_ok = focused_old == 0
+            && focused_new == 1
+            && !state_evidence.includes_focused,
+        .state_delta_ok = access.focused(button) == false
+            && style_evidence_equal(style_before, style_after),
+        .invalidation_ok = style_evidence_equal(style_before, style_focused_lookup)
+            && style_evidence_equal(style_before, style_after),
+        .artifact_ok = focused_delta.changed
+            && focused_delta.single_dirty_rect
+            && focused_delta.dirty_within_component
+            && focused_artifact.cmd_hash != initial.cmd_hash
+            && focused_artifact.pixel_hash != initial.pixel_hash
+            && cleared_artifact.cmd_hash == initial.cmd_hash
+            && cleared_artifact.pixel_hash == initial.pixel_hash,
+        .rejected_no_mutation = false,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "focus boundary causal chain closes")) {
+        return 1;
+    }
+
     run_log.end(true);
     std::puts("[focus_boundary_demo] ok");
     return 0;

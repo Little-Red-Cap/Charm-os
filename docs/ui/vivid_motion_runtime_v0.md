@@ -362,6 +362,7 @@ Examples/ui/vivid/page_transition_demo
 - pixel single：只捕获 source snapshot，destination 保持 live，commit / cancel 后 `snapshot_count == 0`
 - command snapshot static cut：`CommandSnapshot` admission 在双页 replay 实现前不发生 capture，显式 static cut 并直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
+- causal chain verdict：15 条事务局部证据全部通过后输出 `page_transition.transaction` 最终因果判决
 
 ## 2026-05 补记：PageTransition interrupt law
 
@@ -502,3 +503,15 @@ Examples/ui/vivid/page_transition_demo
 - commit / cancel 后 runner 释放所持 source snapshot，回到 idle 时 `snapshot_count == 0`。
 
 `Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_fade_slide_live_destination`、`pixel_single_fade_slide_cheap_quantized`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 Cheap profile 量化、cancel / interrupt 后恢复 begin 前 page truth。
+
+## 2026-05 补记：Motion time causal verdict
+
+`Examples/ui/vivid/motion_time_demo` 现在输出最终 `motion_time.managed` 因果判决。
+
+它在托管时间、profile opacity law、motion recipe、transition trace、compose dry-run、budget fallback、stale rejection、pixel snapshot compose 与单页 `PageMotionTransition` 证据全部通过后，输出：
+
+```text
+[mt] case=causal_chain causal_chain=1 name=motion_time.managed ok=1 ...
+```
+
+这条 verdict 把单页 Motion Runtime 的局部事实收束为“UI 时间由 runtime 托管，compose / budget / page freeze-thaw 都可审计”的证据出口。

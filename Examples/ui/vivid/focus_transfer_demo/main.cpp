@@ -142,6 +142,8 @@ int main() {
                                  "destination remains focused after release")) {
         return 1;
     }
+    const bool destination_focus_truth_committed =
+        vivid::evidence::same_handle(after_transfer.input_focused(), destination);
 
     run_log.case_begin("focus_truth_after_transfer");
     std::printf(" old=source new=destination focused_kind=%s focused_index=%u transfer_committed=1\n",
@@ -160,6 +162,7 @@ int main() {
                                  "focus transfer keeps style evidence stable")) {
         return 1;
     }
+    const bool focus_style_stable = style_evidence_equal(style_before, style_after);
 
     run_log.case_begin("style_evidence_after_transfer");
     vivid::evidence::print_focus_style_evidence("scroll_container",
@@ -218,6 +221,33 @@ int main() {
                 cleared_artifact.cmd_count,
                 cleared_artifact.cmd_hash,
                 cleared_artifact.pixel_hash);
+
+    const vivid::evidence::CausalChainEvidence chain{
+        .name = "scroll_container.focus_transfer",
+        .request_ok = transfer_trace.mouse_down == 1
+            && transfer_trace.mouse_down_expected
+            && transfer_trace.focus_out == 1
+            && transfer_trace.focus_out_expected
+            && transfer_trace.focus_in == 1
+            && transfer_trace.focus_in_expected,
+        .state_delta_ok = destination_focus_truth_committed
+            && focus_style_stable,
+        .invalidation_ok = !state_evidence.includes_focused
+            && focus_style_stable,
+        .artifact_ok = destination_delta.changed
+            && destination_delta.single_dirty_rect
+            && destination_delta.dirty_within_component
+            && destination_artifact.pixel_hash != source_artifact.pixel_hash
+            && cleared_artifact.pixel_hash != destination_artifact.pixel_hash,
+        .rejected_no_mutation = false,
+    };
+    run_log.case_begin("causal_chain");
+    vivid::evidence::print_causal_chain(chain);
+    std::printf("\n");
+    if (!vivid::evidence::expect(chain.ok(),
+                                 "focus transfer causal chain closes")) {
+        return 1;
+    }
 
     run_log.end(true);
     std::puts("[focus_transfer_demo] ok");

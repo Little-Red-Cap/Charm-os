@@ -4,9 +4,9 @@
 
 ## 定位
 
-`Focus Evidence Boundary v0` 证明了单个控件的 `focused` 不进入普通 style mask，而是通过 focus ring 改变 render artifact。
+`Focus Evidence Boundary v0` 证明单个控件的 `focused` 不进入普通 `style_state_mask`，而是通过 focus ring 改变 render artifact。
 
-`Focus Transfer Evidence v0` 继续向前一步：证明焦点可以从一个 focusable target 迁移到另一个 target，并留下可审计的事件、truth 与 artifact 证据。
+`Focus Transfer Evidence v0` 继续向前一步：证明焦点可以从一个 focusable target 迁移到另一个 target，并留下可审计的事件、truth、artifact 与 final causal-chain 证据。
 
 ## v0 法律
 
@@ -19,7 +19,7 @@ FocusOut(old target)
 FocusIn(new target)
 ```
 
-v0 允许同一 dispatch 内同时存在原始 pointer event，例如 `MouseDown`，但 `FocusOut / FocusIn` 必须可从 `SceneAccess::input_event()` 读取。
+v0 允许同一 dispatch 内同时存在原始 pointer event，例如 `MouseDown`；但 `FocusOut / FocusIn` 必须可从 `SceneAccess::input_event()` 读取。
 
 ### Law 2：focus truth 必须提交到 new target
 
@@ -29,7 +29,7 @@ transfer 后：
 input_focused == new target
 ```
 
-这条 evidence 证明焦点迁移不是单纯的事件通知，而是 kernel input truth 已提交。
+这条 evidence 证明焦点迁移不是单纯事件通知，而是 kernel input truth 已提交。
 
 ### Law 3：style evidence 保持稳定
 
@@ -55,6 +55,20 @@ artifact_changed=1
 focus_ring=1
 ```
 
+### Law 5：final causal_chain 必须闭合
+
+focus transfer 的最终 verdict 需要同时证明：
+
+```text
+request_ok=1
+state_delta_ok=1
+invalidation_ok=1
+artifact_ok=1
+causal_chain ok=1
+```
+
+这条法律把真实 input dispatch、`input_focused` truth、style boundary 与 focus ring artifact 迁移收束成同一张证据账本。
+
 ## 首个落点
 
 `Examples/ui/vivid/focus_transfer_demo` 是 Focus Transfer Evidence v0 的第一条运行证据。
@@ -64,12 +78,13 @@ focus_ring=1
 stdout 最终约束：
 
 ```text
-[ft] run=focus_transfer_demo phase=end result=ok cases=7
+[ft] run=focus_transfer_demo phase=end result=ok cases=8
 ```
 
 核心字段：
 
 ```text
+mouse_down=1
 focus_out=1
 focus_in=1
 focus_out_source=1
@@ -77,6 +92,7 @@ focus_in_destination=1
 transfer_committed=1
 style_same=1
 artifact_changed=1
+causal_chain=1
 ```
 
 ## 后续方向

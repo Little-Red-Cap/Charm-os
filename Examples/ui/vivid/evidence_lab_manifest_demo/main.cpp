@@ -38,7 +38,7 @@ namespace {
         {"component_settings_row_demo", "csr", 5, AxisState | AxisRender | AxisCausal, "docs/ui/vivid_render_evidence_chain_v0.md"},
         {"style_token_law_demo", "stl", 7, AxisStyle | AxisRender | AxisCausal, "docs/ui/vivid_style_token_law_v0.md"},
         {"focus_boundary_demo", "fb", 7, AxisFocus | AxisStyle | AxisRender | AxisCausal, "docs/ui/vivid_focus_evidence_boundary_v0.md"},
-        {"focus_transfer_demo", "ft", 7, AxisEdge | AxisFocus | AxisRender, "docs/ui/vivid_focus_transfer_evidence_v0.md"},
+        {"focus_transfer_demo", "ft", 8, AxisEdge | AxisFocus | AxisRender | AxisCausal, "docs/ui/vivid_focus_transfer_evidence_v0.md"},
         {"focus_scope_demo", "fs", 9, AxisEdge | AxisFocus | AxisRender | AxisAdmission, "docs/ui/vivid_focus_scope_evidence_v0.md"},
         {"focus_scope_nested_demo", "fsn", 8, AxisFocus | AxisTransaction | AxisRender, "docs/ui/vivid_focus_scope_evidence_v0.md"},
         {"focus_scope_navigation_demo", "fsnav", 7, AxisEdge | AxisFocus, "docs/ui/vivid_focus_scope_evidence_v0.md"},
@@ -61,7 +61,7 @@ namespace {
     };
 
     constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 204;
+    constexpr unsigned kExpectedCaseTotal = 205;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState

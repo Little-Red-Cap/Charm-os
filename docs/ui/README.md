@@ -2,7 +2,7 @@
 
 2026-05 补记：`Examples/ui/vivid/focus_boundary_demo` 是 Focus Evidence Boundary v0 的最小运行样本，验证 focused 不进入普通 Button style mask，但通过 focus ring 改变 render artifact，并用 final causal verdict 收口；法律见 `vivid_focus_evidence_boundary_v0.md`，stdout 见 `vivid_evidence_stdout_law.md`。
 
-2026-05 补记：`Examples/ui/vivid/focus_transfer_demo` 是 Focus Transfer Evidence v0 的最小运行样本，验证 `FocusOut(old)` / `FocusIn(new)`、`input_focused` truth 提交，以及 focus ring artifact 迁移；法律见 `vivid_focus_transfer_evidence_v0.md`。
+2026-05 补记：`Examples/ui/vivid/focus_transfer_demo` 是 Focus Transfer Evidence v0 的最小运行样本，验证 `FocusOut(old)` / `FocusIn(new)`、`input_focused` truth 提交、focus ring artifact 迁移，以及 final `causal_chain` verdict；法律见 `vivid_focus_transfer_evidence_v0.md`。
 
 2026-05 补记：`Examples/ui/vivid/focus_scope_demo` 是 Focus Scope Evidence v0 的最小运行样本，验证 scope 内请求通过真实 input dispatch 迁移焦点、scope 外请求被 runtime focus admission 拒绝、input focus truth 保持在 fallback/current，以及 focus ring artifact 不泄漏到 scope 外 target；法律见 `vivid_focus_scope_evidence_v0.md`。
 

@@ -276,6 +276,7 @@
           "enum": [
             "route_landing_default",
             "route_landing_compare_default",
+            "route_explain_entry_compare_default",
             "route_compare_candidate_root",
             "route_compare_candidate_change",
             "blocked"

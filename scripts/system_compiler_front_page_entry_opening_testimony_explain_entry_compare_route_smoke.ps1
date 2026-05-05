@@ -129,7 +129,9 @@ $routeExportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_
 $routeValidateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_route.py"
 $routeCompareScript = Join-Path $PSScriptRoot "compare_system_compiler_front_page_route.py"
 $routeCompareValidateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_route_compare.py"
-foreach ($requiredPath in @($compareSmokeScript, $routeExportScript, $routeValidateScript, $routeCompareScript, $routeCompareValidateScript)) {
+$explainEntryExportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_testimony_explain_entry.py"
+$explainEntryValidateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_opening_testimony_explain_entry.py"
+foreach ($requiredPath in @($compareSmokeScript, $routeExportScript, $routeValidateScript, $routeCompareScript, $routeCompareValidateScript, $explainEntryExportScript, $explainEntryValidateScript)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "missing path: $requiredPath"
     }
@@ -284,6 +286,41 @@ try {
             [int]$routeCompareSummary.entry_summary.changed_entry_count
         )
     }
+
+    $explainEntryFromCompareRouteRoot = Join-Path $outputRootPath "drifted-compare-route-explain-entry"
+    Invoke-ExternalTool `
+        -Executable $resolvedPythonExe `
+        -ArgumentList @(
+            $explainEntryExportScript,
+            "--source-summary",
+            $driftedRoutePath,
+            "--output-root",
+            $explainEntryFromCompareRouteRoot
+        ) `
+        -FailureMessage "opening testimony explain-entry compare route explain-entry export failed"
+
+    $explainEntryFromCompareRoutePath = Join-Path $explainEntryFromCompareRouteRoot "front-page.entry-opening-testimony.explain-entry.summary.json"
+    Invoke-ExternalTool `
+        -Executable $resolvedPythonExe `
+        -ArgumentList @($explainEntryValidateScript, "--summary", $explainEntryFromCompareRoutePath) `
+        -FailureMessage "opening testimony explain-entry compare route explain-entry validation failed"
+
+    $explainEntryFromCompareRoute = Load-JsonObject -Path $explainEntryFromCompareRoutePath
+    Assert-Condition `
+        -Condition ([string]$explainEntryFromCompareRoute.explain_entry_decision.status -eq "ready") `
+        -Message "expected explain-entry compare route explain-entry to be ready"
+    Assert-Condition `
+        -Condition ([string]$explainEntryFromCompareRoute.explain_entry_decision.selection_kind -eq "route_explain_entry_compare_default") `
+        -Message ("expected selection kind route_explain_entry_compare_default but got '{0}'" -f $explainEntryFromCompareRoute.explain_entry_decision.selection_kind)
+    Assert-Condition `
+        -Condition ([string]$explainEntryFromCompareRoute.selected_surface.surface_id -eq "candidate_opening_testimony_explain_entry") `
+        -Message ("expected selected surface candidate_opening_testimony_explain_entry but got '{0}'" -f $explainEntryFromCompareRoute.selected_surface.surface_id)
+    Write-Host (
+        "[FRONT-PAGE-ENTRY-OPENING-TESTIMONY-EXPLAIN-ENTRY-COMPARE-ROUTE-SMOKE] explain_entry_from_compare_route status={0} selection={1} selected={2}" -f
+        [string]$explainEntryFromCompareRoute.explain_entry_decision.status,
+        [string]$explainEntryFromCompareRoute.explain_entry_decision.selection_kind,
+        [string]$explainEntryFromCompareRoute.selected_surface.surface_id
+    )
 } finally {
     Pop-Location
 }

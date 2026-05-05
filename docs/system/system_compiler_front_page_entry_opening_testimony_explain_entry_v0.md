@@ -47,6 +47,10 @@ For a route whose root is `opening_testimony_landing_compare/v0`, the selected
 surface is `candidate_opening_testimony_landing`, and the baseline landing is
 kept as supporting context.
 
+For a route whose root is `opening_testimony_explain_entry_compare/v0`, the
+selected surface is `candidate_opening_testimony_explain_entry`, and the
+baseline explain entry is kept as supporting context.
+
 For route compare summaries:
 
 - `standing` selects the candidate route root.

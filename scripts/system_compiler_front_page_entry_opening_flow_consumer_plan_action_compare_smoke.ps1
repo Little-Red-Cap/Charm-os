@@ -188,15 +188,21 @@ try {
             ExpectedChangedFields = 0
             ExpectedActionChanged = $false
             ExpectedReasonChanged = $false
+            ExpectedProjectionHeadlineChanged = $false
+            ExpectedProjectionSummaryChanged = $false
+            ExpectedProjectionQuestionsChanged = $false
         },
         [ordered]@{
             Name = "default-to-compare-neighbor"
             Baseline = $baselineActionPath
             Candidate = $candidateActionPath
             ExpectedVerdict = "drifted"
-            ExpectedChangedFields = 30
+            ExpectedChangedFields = 22
             ExpectedActionChanged = $true
             ExpectedReasonChanged = $true
+            ExpectedProjectionHeadlineChanged = $true
+            ExpectedProjectionSummaryChanged = $false
+            ExpectedProjectionQuestionsChanged = $false
         }
     )
 
@@ -241,13 +247,13 @@ try {
             -Condition ([bool]$compareSummary.action_regression_surface.opening_reason_changed -eq [bool]$case.ExpectedReasonChanged) `
             -Message ("case '{0}' opening reason changed expectation mismatch" -f $case.Name)
         Assert-Condition `
-            -Condition ([bool]$compareSummary.action_regression_surface.projection_headline_changed -eq [bool]$case.ExpectedReasonChanged) `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_headline_changed -eq [bool]$case.ExpectedProjectionHeadlineChanged) `
             -Message ("case '{0}' projection headline changed expectation mismatch" -f $case.Name)
         Assert-Condition `
-            -Condition ([bool]$compareSummary.action_regression_surface.projection_summary_changed -eq [bool]$case.ExpectedReasonChanged) `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_summary_changed -eq [bool]$case.ExpectedProjectionSummaryChanged) `
             -Message ("case '{0}' projection summary changed expectation mismatch" -f $case.Name)
         Assert-Condition `
-            -Condition ([bool]$compareSummary.action_regression_surface.projection_questions_changed -eq [bool]$case.ExpectedReasonChanged) `
+            -Condition ([bool]$compareSummary.action_regression_surface.projection_questions_changed -eq [bool]$case.ExpectedProjectionQuestionsChanged) `
             -Message ("case '{0}' projection questions changed expectation mismatch" -f $case.Name)
         Assert-Condition `
             -Condition ([bool]$compareSummary.action_regression_surface.reason_changed -eq [bool]$case.ExpectedReasonChanged) `

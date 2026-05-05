@@ -444,6 +444,8 @@ function New-FixturePlanAction {
         projection_kind = "fixture_projection"
         opening_reason = (New-OpeningReason -Kind $OpeningReasonKind -Summary ("Select {0} fixture action for opening-flow smoke." -f $ActionKind) -SourceSummaryPath $targetSummaryPath -DriftChanged $CompareContextAvailable -DriftVerdict $LandingVerdict)
         projection_headline = ("fixture projection for {0}" -f $EntryName)
+        projection_summary_lines = @("fixture projection summary for opening-flow consumer plan action smoke")
+        projection_question_lines = @("fixture projection question for opening judgment carrier smoke")
         compare_context_available = $CompareContextAvailable
         landing_verdict = $LandingVerdict
         inspector_ready = $false

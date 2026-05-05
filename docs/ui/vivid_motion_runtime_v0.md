@@ -362,7 +362,7 @@ Examples/ui/vivid/page_transition_demo
 - pixel single：只捕获 source snapshot，destination 保持 live，commit / cancel 后 `snapshot_count == 0`
 - command snapshot static cut：`CommandSnapshot` admission 在双页 replay 实现前不发生 capture，显式 static cut 并直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
-- causal chain verdict：15 条事务局部证据全部通过后输出 `page_transition.transaction` 最终因果判决
+- causal chain verdict：15 条事务局部证据全部通过后输出 `page_transition.transaction` 最终因果判决，并显式引用 admission / commit / cancel / interrupt / static cut / snapshot lifecycle / page truth 证据段
 
 ## 2026-05 补记：PageTransition interrupt law
 
@@ -511,7 +511,7 @@ Examples/ui/vivid/page_transition_demo
 它在托管时间、profile opacity law、motion recipe、transition trace、compose dry-run、budget fallback、stale rejection、pixel snapshot compose 与单页 `PageMotionTransition` 证据全部通过后，输出：
 
 ```text
-[mt] case=causal_chain causal_chain=1 name=motion_time.managed ok=1 ...
+[mt] case=causal_chain causal_chain=1 name=motion_time.managed ok=1 time_ok=1 recipe_ok=1 compose_ok=1 budget_ok=1 trace_ok=1 page_motion_ok=1 ...
 ```
 
-这条 verdict 把单页 Motion Runtime 的局部事实收束为“UI 时间由 runtime 托管，compose / budget / page freeze-thaw 都可审计”的证据出口。
+这条 verdict 把单页 Motion Runtime 的局部事实收束为“UI 时间由 runtime 托管，compose / budget / page freeze-thaw 都可审计”的证据出口。它仍保留 `cases_closed` 作为 v0 过渡护栏，同时按 `vivid_causal_verdict_law_v0.md` 开始显式引用 time / recipe / compose / budget / trace / page motion 证据段。

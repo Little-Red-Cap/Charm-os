@@ -51,17 +51,18 @@ namespace {
         {"semantic_action_admission_demo", "saa", 9, AxisSemantic | AxisAdmission | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_action_request_demo", "sar", 11, AxisSemantic | AxisAdmission | AxisEdge | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission, "docs/ui/vivid_intent_to_artifact_evidence_v0.md"},
+        {"semantic_transition_demo", "stx", 9, AxisSemantic | AxisEdge | AxisAdmission | AxisTransaction | AxisLayer | AxisRender | AxisCausal, "docs/ui/vivid_semantic_transition_evidence_v0.md"},
         {"semantic_focus_query_demo", "sfq", 9, AxisSemantic | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_focus_admission_demo", "sfa", 9, AxisSemantic | AxisFocus | AxisAdmission | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_focus_request_demo", "sfr", 12, AxisSemantic | AxisFocus | AxisAdmission | AxisEdge | AxisRender | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"widget_signal_demo", "ws", 3, AxisEdge, "docs/ui/vivid_evidence_stdout_law.md"},
         {"widget_state_demo", "wst", 5, AxisState, "docs/ui/vivid_widget_state_observe.md"},
         {"evidence_vocabulary_demo", "evl", 5, AxisVocabulary | AxisState | AxisRender | AxisCausal, "docs/ui/vivid_evidence_vocabulary_law_v0.md"},
-        {"evidence_lab_manifest_demo", "elm", 9, AxisManifest | AxisVocabulary, "docs/ui/vivid_evidence_lab_manifest_v0.md"},
+        {"evidence_lab_manifest_demo", "elm", 10, AxisManifest | AxisVocabulary, "docs/ui/vivid_evidence_lab_manifest_v0.md"},
     };
 
-    constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 219;
+    constexpr unsigned kExpectedEntryCount = 27;
+    constexpr unsigned kExpectedCaseTotal = 229;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState
@@ -256,6 +257,27 @@ namespace {
         }
         return true;
     }
+
+    [[nodiscard]] bool causal_docs_match_manifest() {
+        const std::string causal_law = read_file("docs/ui/vivid_causal_verdict_law_v0.md");
+        if (causal_law.empty()
+            || !contains(causal_law, "AxisCausal Eligibility")
+            || !contains(causal_law, "Count-Based And Evidence-Referenced Verdicts")) {
+            return false;
+        }
+
+        for (const auto& entry : kManifest) {
+            if (!has_axis(entry.axes, AxisCausal)) {
+                continue;
+            }
+
+            const std::string doc = read_file(entry.primary_doc);
+            if (doc.empty() || (!contains(doc, "causal_chain") && !contains(doc, "causal verdict"))) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 int main() {
@@ -324,6 +346,26 @@ int main() {
                 intent_artifact && has_axis(intent_artifact->axes, AxisAdmission) ? 1 : 0);
     if (!expect(intent_chain_ok, "intent artifact must remain the vertical causal anchor")) return 1;
 
+    const ManifestEntry* semantic_transition = find_entry("semantic_transition_demo");
+    const bool semantic_transition_ok = semantic_transition != nullptr
+        && has_axis(semantic_transition->axes, AxisSemantic)
+        && has_axis(semantic_transition->axes, AxisEdge)
+        && has_axis(semantic_transition->axes, AxisAdmission)
+        && has_axis(semantic_transition->axes, AxisTransaction)
+        && has_axis(semantic_transition->axes, AxisLayer)
+        && has_axis(semantic_transition->axes, AxisRender)
+        && has_axis(semantic_transition->axes, AxisCausal);
+    case_begin("semantic_transition_anchor");
+    std::printf(" run=semantic_transition_demo semantic=%d edge=%d admission=%d transaction=%d layer=%d render=%d causal=%d\n",
+                semantic_transition && has_axis(semantic_transition->axes, AxisSemantic) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisEdge) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisAdmission) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisTransaction) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisLayer) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisRender) ? 1 : 0,
+                semantic_transition && has_axis(semantic_transition->axes, AxisCausal) ? 1 : 0);
+    if (!expect(semantic_transition_ok, "semantic transition must remain the first semantic-to-transaction anchor")) return 1;
+
     const ManifestEntry* vocabulary = find_entry("evidence_vocabulary_demo");
     const bool vocabulary_ok = vocabulary != nullptr
         && has_axis(vocabulary->axes, AxisVocabulary)
@@ -350,12 +392,14 @@ int main() {
     if (!expect(cmake_sync_ok, "demo CMake PASS gates must match manifest gates")) return 1;
 
     const bool doc_route_ok = doc_routes_match_manifest();
+    const bool causal_doc_ok = causal_docs_match_manifest();
     case_begin("doc_route_sync");
-    std::printf(" demos=%u primary_docs=%u synced=%d\n",
+    std::printf(" demos=%u primary_docs=%u synced=%d causal_docs=%d\n",
                 entries,
                 entries,
-                doc_route_ok ? 1 : 0);
-    if (!expect(doc_route_ok, "manifest primary docs must point back to their demos")) return 1;
+                doc_route_ok ? 1 : 0,
+                causal_doc_ok ? 1 : 0);
+    if (!expect(doc_route_ok && causal_doc_ok, "manifest primary docs must point back to demos and cover AxisCausal law")) return 1;
 
     case_begin("promotion_boundary");
     std::printf(" demo_support=demo_side vocabulary=law runtime_ledgers=core_candidate print_helpers=do_not_promote runtime_behavior=0 screenshot=0\n");

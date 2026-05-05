@@ -146,6 +146,29 @@ Charm 现在已经有多条强主线：
 - 写清保留周期或移除条件
 - 若影响 system compiler / artifact / explain 结果物，应同步说明兼容策略
 
+### 3.6 Admission Record 模板
+
+任何准备进入准入台账的公共接口，都应使用同一组字段记录。
+
+模板字段：
+
+- 保护对象
+- 语义面
+- 责任边界
+- 执行语义
+- 错误语言
+- facts
+- mock evidence
+- driver evidence
+- system compiler projection
+- 当前等级
+
+这些字段不是为了制造文档负担，而是为了避免接口只描述函数形状，却没有说明它为什么能跨 backend、跨 driver、跨测试与跨系统编译结果成立。
+
+当前台账入口是：
+
+- [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)
+
 ## 4. 准入检查表
 
 一个接口从 `proposed` 走向 `candidate` 前，至少要回答下面问题。

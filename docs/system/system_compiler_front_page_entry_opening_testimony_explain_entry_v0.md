@@ -46,6 +46,14 @@ opening_testimony_landing
   -> opening_testimony_explain_entry
 ```
 
+For handoff compare route inputs:
+
+```text
+opening_testimony_explain_entry_handoff_compare
+  -> front_page_route
+  -> opening_testimony_explain_entry
+```
+
 This object answers:
 
 ```text
@@ -64,6 +72,10 @@ kept as supporting context.
 For a route whose root is `opening_testimony_explain_entry_compare/v0`, the
 selected surface is `candidate_opening_testimony_explain_entry`, and the
 baseline explain entry is kept as supporting context.
+
+For a route whose root is `opening_testimony_explain_entry_handoff_compare/v0`,
+the selected surface is `candidate_opening_testimony_explain_entry_handoff`,
+and the baseline handoff is kept as supporting context.
 
 For route compare summaries:
 

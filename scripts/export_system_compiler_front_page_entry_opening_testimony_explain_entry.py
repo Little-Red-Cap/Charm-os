@@ -25,6 +25,9 @@ ROUTE_COMPARE_KIND = "system_compiler.front_page_route_compare"
 OPENING_TESTIMONY_LANDING_SCHEMA = "system_compiler.front_page_entry_opening_testimony_landing/v0"
 OPENING_TESTIMONY_LANDING_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_testimony_landing_compare/v0"
 OPENING_TESTIMONY_EXPLAIN_ENTRY_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_testimony_explain_entry_compare/v0"
+OPENING_TESTIMONY_EXPLAIN_ENTRY_HANDOFF_COMPARE_SCHEMA = (
+    "system_compiler.front_page_entry_opening_testimony_explain_entry_handoff_compare/v0"
+)
 EXPLAIN_ENTRY_SCHEMA = "system_compiler.front_page_entry_opening_testimony_explain_entry/v0"
 EXPLAIN_ENTRY_KIND = "system_compiler.front_page_entry_opening_testimony_explain_entry"
 
@@ -218,6 +221,24 @@ def choose_route_explain_surface(route_summary: dict[str, Any]) -> tuple[Ordered
             selected,
             "route_explain_entry_compare_default",
             "Open the candidate opening testimony explain entry from this explain-entry-compare route.",
+            supporting,
+        )
+
+    if root_schema == OPENING_TESTIMONY_EXPLAIN_ENTRY_HANDOFF_COMPARE_SCHEMA:
+        selected = find_route_entry(route_summary, "candidate_opening_testimony_explain_entry_handoff", prefer_depth=1) or make_empty_surface()
+        supporting = [
+            surface
+            for surface in level1_surfaces
+            if surface["surface_id"] in {
+                "baseline_opening_testimony_explain_entry_handoff",
+                "candidate_opening_testimony_explain_entry_handoff",
+            }
+            and surface["surface_id"] != selected["surface_id"]
+        ]
+        return (
+            selected,
+            "route_handoff_compare_default",
+            "Open the candidate opening testimony explain-entry handoff from this handoff-compare route.",
             supporting,
         )
 

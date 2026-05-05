@@ -36,7 +36,7 @@ namespace {
         {"motion_time_demo", "mt", 12, AxisMotion, "docs/ui/vivid_motion_runtime_v0.md"},
         {"component_card_state_demo", "ccs", 6, AxisState | AxisRender | AxisCausal, "docs/ui/vivid_render_evidence_chain_v0.md"},
         {"component_settings_row_demo", "csr", 5, AxisState | AxisRender | AxisCausal, "docs/ui/vivid_render_evidence_chain_v0.md"},
-        {"style_token_law_demo", "stl", 6, AxisStyle | AxisRender, "docs/ui/vivid_style_token_law_v0.md"},
+        {"style_token_law_demo", "stl", 7, AxisStyle | AxisRender | AxisCausal, "docs/ui/vivid_style_token_law_v0.md"},
         {"focus_boundary_demo", "fb", 6, AxisFocus | AxisStyle | AxisRender, "docs/ui/vivid_focus_evidence_boundary_v0.md"},
         {"focus_transfer_demo", "ft", 7, AxisEdge | AxisFocus | AxisRender, "docs/ui/vivid_focus_transfer_evidence_v0.md"},
         {"focus_scope_demo", "fs", 9, AxisEdge | AxisFocus | AxisRender | AxisAdmission, "docs/ui/vivid_focus_scope_evidence_v0.md"},
@@ -61,7 +61,7 @@ namespace {
     };
 
     constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 202;
+    constexpr unsigned kExpectedCaseTotal = 203;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState

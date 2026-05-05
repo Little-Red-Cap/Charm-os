@@ -90,7 +90,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `motion_time_demo` | `mt` | `[mt] run=motion_time_demo phase=end result=ok cases=12` |
 | `component_card_state_demo` | `ccs` | `[ccs] run=component_card_state_demo phase=end result=ok cases=6` |
 | `component_settings_row_demo` | `csr` | `[csr] run=component_settings_row_demo phase=end result=ok cases=5` |
-| `style_token_law_demo` | `stl` | `[stl] run=style_token_law_demo phase=end result=ok cases=6` |
+| `style_token_law_demo` | `stl` | `[stl] run=style_token_law_demo phase=end result=ok cases=7` |
 | `focus_boundary_demo` | `fb` | `[fb] run=focus_boundary_demo phase=end result=ok cases=6` |
 | `focus_transfer_demo` | `ft` | `[ft] run=focus_transfer_demo phase=end result=ok cases=7` |
 | `focus_scope_demo` | `fs` | `[fs] run=focus_scope_demo phase=end result=ok cases=9` |

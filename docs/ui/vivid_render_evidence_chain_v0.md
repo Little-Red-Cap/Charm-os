@@ -178,6 +178,17 @@ print_focus_style_evidence(widget, focused, evidence, style_same, focused_in_sty
 
 These helpers keep Style Token Law and Focus Evidence demos aligned without promoting style stdout formatting into a Vivid core API.
 
+`Examples/ui/vivid/style_token_law_demo` closes its style evidence path with a final `causal_chain` verdict:
+
+```text
+button.accent_token
+  -> token version + resolved style color
+  -> paint_only impact
+  -> stable metrics
+  -> bounded render artifact
+  -> causal_chain ok=1
+```
+
 ## Evidence Lab 支撑工具
 
 `Examples/ui/vivid/support/vivid_evidence_support.hpp` 是 v0 的示例侧共享证据账本。

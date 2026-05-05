@@ -8,8 +8,9 @@
 - Button style state mask 保持有边界。
 - color token 变化声明为 `paint_only`。
 - resolved style color / render artifact 变化，但 metrics 不变。
+- final `causal_chain` 汇总 token、impact 与 artifact verdict。
 
-示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一使用 `[stl] run=style_token_law_demo phase=begin/end` 与 `[stl] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=6`。
+示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一使用 `[stl] run=style_token_law_demo phase=begin/end` 与 `[stl] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=7`。
 
 构建：
 

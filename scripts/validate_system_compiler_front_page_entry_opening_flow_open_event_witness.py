@@ -79,9 +79,17 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
 def validate_status(summary: dict, errors: list[str]) -> None:
     result = summary.get("result")
     judgment = summary.get("judgment", {})
+    identity = summary.get("open_event_identity", {})
     violations = summary.get("violations", [])
     expected_result = "ok" if judgment.get("witness_status") == "ok" else "fail"
     expect_equal(result, expected_result, "result", errors)
+    expect_equal(judgment.get("source_judgment_status"), identity.get("open_event_status"), "judgment.source_judgment_status", errors)
+    expected_grade = "compared" if bool(judgment.get("compare_available")) else "described"
+    expect_equal(judgment.get("source_judgment_grade"), expected_grade, "judgment.source_judgment_grade", errors)
+    expected_basis = ["source_plan_action", "selected_opener", "open_event"]
+    if bool(judgment.get("compare_available")):
+        expected_basis.append("source_action_compare")
+    expect_equal(judgment.get("source_judgment_basis"), expected_basis, "judgment.source_judgment_basis", errors)
     if judgment.get("witness_status") == "ok" and violations:
         errors.append("violations must be empty when witness_status is ok")
     if judgment.get("witness_status") == "fail" and not violations:

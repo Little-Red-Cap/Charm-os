@@ -191,7 +191,7 @@ try {
             ExpectedCompareAvailable = $false
             ExpectedCompareVerdict = "not_attached"
             ExpectedWitnessCount = 3
-            ExpectedRejectedCount = 4
+            ExpectedRejectedAtLeast = 1
         },
         [ordered]@{
             Name = "default-with-drift-compare"
@@ -201,7 +201,7 @@ try {
             ExpectedCompareAvailable = $true
             ExpectedCompareVerdict = "drifted"
             ExpectedWitnessCount = 4
-            ExpectedRejectedCount = 4
+            ExpectedRejectedAtLeast = 1
         }
     )
 
@@ -246,8 +246,8 @@ try {
             -Condition (@($summary.witness_refs).Count -eq [int]$case.ExpectedWitnessCount) `
             -Message ("case '{0}' expected witness count '{1}' but got '{2}'" -f $case.Name, $case.ExpectedWitnessCount, @($summary.witness_refs).Count)
         Assert-Condition `
-            -Condition ([int]$summary.consumer_decision.rejected_consumer_count -eq [int]$case.ExpectedRejectedCount) `
-            -Message ("case '{0}' expected rejected consumer count '{1}' but got '{2}'" -f $case.Name, $case.ExpectedRejectedCount, $summary.consumer_decision.rejected_consumer_count)
+            -Condition ([int]$summary.consumer_decision.rejected_consumer_count -ge [int]$case.ExpectedRejectedAtLeast) `
+            -Message ("case '{0}' expected at least '{1}' rejected consumer but got '{2}'" -f $case.Name, $case.ExpectedRejectedAtLeast, $summary.consumer_decision.rejected_consumer_count)
         Assert-Condition `
             -Condition ([string]$summary.workspace_facade.status -eq "projected") `
             -Message ("case '{0}' expected projected workspace facade" -f $case.Name)

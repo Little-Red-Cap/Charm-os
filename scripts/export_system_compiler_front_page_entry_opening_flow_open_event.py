@@ -501,6 +501,40 @@ def build_event_status(action_summary: dict[str, Any], compare_result: dict[str,
     return "accepted"
 
 
+def build_judgment(event_status: str, compare_result: dict[str, Any]) -> OrderedDict[str, Any]:
+    compared = bool(compare_result.get("available"))
+    basis = ["source_plan_action", "selected_opener", "open_event"]
+    if compared:
+        basis.append("source_action_compare")
+
+    if event_status == "blocked":
+        summary = (
+            "This opening judgment is blocked because the selected consumer action did not produce a ready "
+            "opening surface."
+        )
+    elif compared:
+        summary = (
+            "This opening judgment stands with compare context because the selected consumer action produced a "
+            "projected opener surface and the attached action compare preserves its decision context."
+        )
+    else:
+        summary = (
+            "This opening judgment stands as described because the selected consumer action produced a projected "
+            "opener surface and the open event preserves its decision context."
+        )
+
+    return OrderedDict(
+        [
+            ("semantic_role", "opening_judgment_carrier"),
+            ("status", event_status),
+            ("grade", "compared" if compared else "described"),
+            ("basis", basis),
+            ("accepted", event_status != "blocked"),
+            ("summary", summary),
+        ]
+    )
+
+
 def build_explanation_view(
     event_status: str,
     open_action: dict[str, Any],
@@ -556,9 +590,14 @@ def build_explanation_view(
     )
 
 
-def build_questions(event_status: str, compare_result: dict[str, Any]) -> OrderedDict[str, list[str]]:
+def build_typed_question(kind: str, summary: str, target_ref: str) -> OrderedDict[str, str]:
+    return OrderedDict([("kind", kind), ("summary", summary), ("target_ref", target_ref)])
+
+
+def build_questions(event_status: str, compare_result: dict[str, Any]) -> OrderedDict[str, Any]:
     open_event_questions: list[str] = []
     next_questions: list[str] = []
+    typed_next_questions: list[OrderedDict[str, str]] = []
 
     if event_status == "blocked":
         open_event_questions.append("Which opening dependency blocked this event before it could produce a workspace facade?")
@@ -569,14 +608,36 @@ def build_questions(event_status: str, compare_result: dict[str, Any]) -> Ordere
 
     if bool(compare_result.get("available")):
         next_questions.append("Should the action compare be rendered beside the selected opener as counterfactual context?")
+        typed_next_questions.append(
+            build_typed_question(
+                "inspect_action_compare",
+                "Inspect the attached action compare before rendering the selected opener as counterfactual context.",
+                "compare_summary.summary_path",
+            )
+        )
     else:
         next_questions.append("Should future opening flows attach an action compare before publishing the open event?")
+        typed_next_questions.append(
+            build_typed_question(
+                "attach_action_compare",
+                "Attach an action compare before publishing this open event as a compared opening judgment.",
+                "artifact_context.source_action_compare_summary_path",
+            )
+        )
     next_questions.append("Should rejected consumer reasons become a first-class selector output?")
+    typed_next_questions.append(
+        build_typed_question(
+            "inspect_rejected_consumers",
+            "Inspect rejected consumer reasons as the next selector-facing explanation surface.",
+            "consumer_decision.rejected_consumers",
+        )
+    )
 
     return OrderedDict(
         [
             ("open_event_questions", ordered_unique(open_event_questions)),
             ("next_questions", ordered_unique(next_questions)),
+            ("typed_next_questions", typed_next_questions),
         ]
     )
 
@@ -598,6 +659,7 @@ def build_summary_model(
     compare_summary = load_action_compare_summary(action_compare_summary_path) if action_compare_summary_path is not None else None
     compare_result = build_compare_result(compare_summary, action_compare_summary_path)
     event_status = build_event_status(action_summary, compare_result)
+    judgment = build_judgment(event_status, compare_result)
     event_id = make_event_id(open_action, selection)
     consumer_decision = build_consumer_decision(plan_summary, open_action, selection)
     plan = build_plan_summary(plan_summary, open_action)
@@ -706,6 +768,7 @@ def build_summary_model(
             ("workspace_facade", workspace_facade),
             ("diagnostic_preview", diagnostic_preview),
             ("witness_refs", witness_refs),
+            ("judgment", judgment),
             ("explanation_view", explanation_view),
             ("questions", build_questions(event_status, compare_result)),
             (
@@ -718,6 +781,7 @@ def build_summary_model(
 
 def build_report(summary: dict[str, Any]) -> str:
     event = summary["open_event"]
+    judgment = summary["judgment"]
     reason = event["reason"]
     consumer = summary["consumer_decision"]
     selected = consumer["selected_consumer"]
@@ -732,7 +796,12 @@ def build_report(summary: dict[str, Any]) -> str:
         f"- Result: `{summary['result']}`",
         f"- Event: `{event['open_event_id']}`",
         f"- Status: `{event['status']}`",
+        f"- Judgment: `{judgment['semantic_role']}` grade=`{judgment['grade']}` accepted=`{judgment['accepted']}`",
         f"- Summary JSON: `{summary['artifact_context']['open_event_summary_path']}`",
+        "",
+        "## Judgment Summary",
+        f"- {judgment['summary']}",
+        f"- basis: `{', '.join(judgment['basis'])}`",
         "",
         "## Why Opened",
         f"- reason kind: `{reason['kind']}`",
@@ -817,11 +886,14 @@ def build_report(summary: dict[str, Any]) -> str:
         lines.append(f"- open-event: {question}")
     for question in summary["questions"]["next_questions"]:
         lines.append(f"- next: {question}")
+    for question in summary["questions"]["typed_next_questions"]:
+        lines.append(f"- typed-next `{question['kind']}` target=`{question['target_ref']}`: {question['summary']}")
     return "\n".join(lines) + "\n"
 
 
 def build_check(summary: dict[str, Any]) -> str:
     event = summary["open_event"]
+    judgment = summary["judgment"]
     consumer = summary["consumer_decision"]
     selected = consumer["selected_consumer"]
     compare = summary["compare_summary"]
@@ -834,6 +906,11 @@ def build_check(summary: dict[str, Any]) -> str:
             f"result: {summary['result']}",
             f"open_event_id: {event['open_event_id']}",
             f"open_event_status: {event['status']}",
+            f"judgment_semantic_role: {judgment['semantic_role']}",
+            f"judgment_status: {judgment['status']}",
+            f"judgment_grade: {judgment['grade']}",
+            f"judgment_accepted: {judgment['accepted']}",
+            f"judgment_basis: {','.join(judgment['basis'])}",
             f"reason_kind: {event['reason']['kind']}",
             f"selected_consumer_id: {selected['consumer_id']}",
             f"selected_action_id: {selected['selected_action_id']}",

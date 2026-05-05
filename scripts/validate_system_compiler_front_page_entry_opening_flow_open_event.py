@@ -129,13 +129,34 @@ def validate_status(summary: dict, errors: list[str]) -> None:
     result = summary.get("result")
     workspace_status = summary.get("workspace_facade", {}).get("status")
     compare = summary.get("compare_summary", {})
+    judgment = summary.get("judgment", {})
+    questions = summary.get("questions", {})
 
     expect_equal(result, "fail" if event_status == "blocked" else "ok", "result", errors)
     expect_equal(workspace_status, "blocked" if event_status == "blocked" else "projected", "workspace_facade.status", errors)
+    expect_equal(judgment.get("semantic_role"), "opening_judgment_carrier", "judgment.semantic_role", errors)
+    expect_equal(judgment.get("status"), event_status, "judgment.status", errors)
+    expect_equal(judgment.get("accepted"), event_status != "blocked", "judgment.accepted", errors)
+    expect_equal(judgment.get("grade"), "compared" if bool(compare.get("available")) else "described", "judgment.grade", errors)
+    expected_basis = ["source_plan_action", "selected_opener", "open_event"]
     if bool(compare.get("available")):
         ensure_exists(compare.get("summary_path"), "compare_summary.summary_path", errors)
+        expected_basis.append("source_action_compare")
     else:
         expect_equal(compare.get("action_verdict"), "not_attached", "compare_summary.action_verdict", errors)
+    expect_equal(judgment.get("basis"), expected_basis, "judgment.basis", errors)
+    typed_questions = questions.get("typed_next_questions", [])
+    if not isinstance(typed_questions, list) or len(typed_questions) != 2:
+        errors.append("questions.typed_next_questions must contain exactly two typed hints")
+    else:
+        expected_primary_kind = "inspect_action_compare" if bool(compare.get("available")) else "attach_action_compare"
+        expect_equal(typed_questions[0].get("kind"), expected_primary_kind, "questions.typed_next_questions[0].kind", errors)
+        expect_equal(
+            typed_questions[1].get("kind"),
+            "inspect_rejected_consumers",
+            "questions.typed_next_questions[1].kind",
+            errors,
+        )
 
 
 def main() -> int:
@@ -216,6 +237,7 @@ def main() -> int:
             "workspace_facade",
             "diagnostic_preview",
             "witness_refs",
+            "judgment",
             "explanation_view",
             "questions",
             "violations",

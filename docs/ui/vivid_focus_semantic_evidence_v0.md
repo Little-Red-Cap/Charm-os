@@ -108,6 +108,7 @@ v0 rules:
 - capacity overflow must be explicit through `overflowed=1`; truncation must not be silent.
 - `focus_id` records focus truth even when the focused node is beyond stored capacity.
 - `semantic_hash` summarizes the semantic artifact only; it is not yet an accessibility tree hash.
+- `semantic_tree_demo` closes these facts with a final `causal_chain` verdict over preorder collection, focus marker, root policy, overflow, and hash stability.
 
 ### Law 7: semantic defaults are opt-in, not automatic identity
 
@@ -275,12 +276,12 @@ stdout 最终约束：
 ```
 
 `Examples/ui/vivid/semantic_tree_demo` is the first Semantic Tree Artifact v0 runtime evidence.
-It verifies deterministic preorder collection, decorative exclusion, focus markers, root-bound policy, overflow reporting, and stable semantic hash.
+It verifies deterministic preorder collection, decorative exclusion, focus markers, root-bound policy, overflow reporting, stable semantic hash, and final causal-chain evidence.
 
 stdout final contract:
 
 ```text
-[stree] run=semantic_tree_demo phase=end result=ok cases=6
+[stree] run=semantic_tree_demo phase=end result=ok cases=7
 ```
 
 `Examples/ui/vivid/semantic_default_demo` is the first Pattern Semantic Defaults v0 runtime evidence.

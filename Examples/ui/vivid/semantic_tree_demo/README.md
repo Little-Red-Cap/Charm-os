@@ -11,11 +11,12 @@ Evidence target:
 - root choice is an explicit artifact policy: root tree includes outside semantic nodes, scope tree does not.
 - capacity overflow is explicit and stable.
 - semantic hash is stable for identical semantic facts.
+- final `causal_chain` closes preorder, focus marker, root policy, overflow, and hash evidence.
 
 Stdout follows `docs/ui/vivid_evidence_stdout_law.md` and CTest guards:
 
 ```text
-[stree] run=semantic_tree_demo phase=end result=ok cases=6
+[stree] run=semantic_tree_demo phase=end result=ok cases=7
 ```
 
 Build:

@@ -258,7 +258,7 @@ The final verdict proves multiple child truths can feed one component artifact w
 
 ## 2026-05 Addendum: Semantic Artifact Evidence
 
-`Examples/ui/vivid/semantic_tree_demo` extends semantic focus evidence into a root-bound Semantic Tree Artifact v0. The artifact is still intentionally smaller than an accessibility runtime: it collects runtime semantic entries under a requested root, preserves deterministic preorder, marks focus truth, reports fixed-capacity overflow, and emits `semantic_hash`.
+`Examples/ui/vivid/semantic_tree_demo` extends semantic focus evidence into a root-bound Semantic Tree Artifact v0. The artifact is still intentionally smaller than an accessibility runtime: it collects runtime semantic entries under a requested root, preserves deterministic preorder, marks focus truth, reports fixed-capacity overflow, emits `semantic_hash`, and closes with a final `causal_chain` verdict.
 
 The evidence chain now has a semantic branch before screenshot CI:
 
@@ -272,7 +272,7 @@ semantic store
 Stdout remains governed by `vivid_evidence_stdout_law.md`:
 
 ```text
-[stree] run=semantic_tree_demo phase=end result=ok cases=6
+[stree] run=semantic_tree_demo phase=end result=ok cases=7
 ```
 
 ## 2026-05 Addendum: Pattern Semantic Defaults

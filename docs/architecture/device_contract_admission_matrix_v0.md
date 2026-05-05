@@ -19,7 +19,7 @@
 | --- | --- | --- | --- | --- |
 | I2C bus/device | `experimental` | mock backend、HAL adapter、准 driver、facts sidecar、no-hardware smoke | 真实硬件 evidence、真实芯片 driver、正式 probe / bringup evidence | 保持样板卡，补真实 driver 或 probe evidence |
 | SPI bus/device | `proposed` | driver model、窄腰文档、[`spi_device_contract_v0.md`](spi_device_contract_v0.md) 已记录责任边界 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
-| GPIO input/output/edge | `proposed` | HAL 层已有 GPIO 入口，窄腰文档已有角色拆分 | 未拆清 input/output/edge source，缺 debounce/ISR 边界 | 先定义三种语义面和非目标 |
+| GPIO input/output/edge | `proposed` | HAL 层已有 GPIO 入口，[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md) 已拆分三种语义面 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
 | Block device | `proposed` | block registry、stable slot、runtime slot export 已有经验 | 未形成公共 driver-facing 契约卡 | 对齐 sector/live/flush/error 语义 |
 | Stream IO | `proposed` | `io::Channel` 已有非阻塞纪律和 registry 入口 | 还未作为 device contract admission 记录 | 把现有 IO 纪律投影成契约卡 |
 | Timebase | `proposed` | `charm.system.clock` 与 managed time 路线已有方向 | 未定义 driver-facing timebase 准入边界 | 只记录依赖关系，暂不新建 API |
@@ -170,13 +170,20 @@ driver 作者优先依赖 `I2cDeviceRef`，不直接依赖 HAL、BoardCaps、moc
 
 当前等级：`proposed`
 
-下一步只写三种语义面：
+当前 proposed card：
+
+- [`gpio_device_contract_v0.md`](gpio_device_contract_v0.md)
+
+下一步只维护三种语义面：
 
 - `GpioInput`
 - `GpioOutput`
 - `GpioEdgeSource`
 
 必须明确 debounce 属于上层 service，不属于基础 pin contract。
+
+当前明确不把 `hal_gpio`、`hal_input` 或 `input.raw_sampler`
+当作 driver-facing GPIO contract evidence。
 
 ### Block device
 

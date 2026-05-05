@@ -349,6 +349,10 @@ concept I2cBus =
 
 适合作为 Foundation 级小契约。
 
+当前 proposed card 见：
+
+- [`gpio_device_contract_v0.md`](gpio_device_contract_v0.md)
+
 需要特别区分：
 
 - 读当前电平

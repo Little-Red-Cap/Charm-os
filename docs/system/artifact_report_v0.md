@@ -15,6 +15,7 @@
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`
 - `schemas/system_compiler_summary.v0.schema.json`
 - `schemas/examples/system_compiler_summary.summary.v0.sample.json`
 - `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
@@ -46,6 +47,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
@@ -255,6 +257,7 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`
 
 这份样例现在与 `i2c-device-contract-facts-smoke` 这条 `fact_only`
 导出链保持同一种投影语义，并通过 `fact_evidence` sidecar
@@ -279,6 +282,8 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 `board.bringup` provider 收成可导出的 Host fixture 输入形态，
 用于证明 artifact report 可以直接消费这类 board/probe evidence sidecar。
 这仍不是实体硬件 probe 成果，只是正式 evidence 输入形态。
+其稳定 sidecar 样例见
+`schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`。
 对应的 producer-side compare smoke 会把 no-hardware WHOAMI baseline
 与该 Host fixture candidate 放进同一个 compare report，
 用于钉住从 `mock_i2c / no-hardware probe` 到

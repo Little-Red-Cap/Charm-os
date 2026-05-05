@@ -43,7 +43,7 @@
 - 一个准真实 register driver：`driver.i2c_register_device`
 - 一个准真实 probe driver：`driver.i2c_whoami_probe`
 - 五条 no-hardware smoke
-- 两个 `system_compiler.fact_evidence/v0` sidecar 投影样例
+- 三个 `system_compiler.fact_evidence/v0` sidecar 投影样例
 
 它还不是 `candidate`，因为仍然缺：
 
@@ -407,6 +407,8 @@ required=6 provided=5 missing=1 optional_unknown=1
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`
 
 当前真实导出 case：
 

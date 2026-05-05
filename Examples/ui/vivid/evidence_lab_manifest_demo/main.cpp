@@ -51,7 +51,7 @@ namespace {
         {"semantic_action_admission_demo", "saa", 9, AxisSemantic | AxisAdmission | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_action_request_demo", "sar", 11, AxisSemantic | AxisAdmission | AxisEdge | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission, "docs/ui/vivid_intent_to_artifact_evidence_v0.md"},
-        {"semantic_focus_query_demo", "sfq", 8, AxisSemantic | AxisFocus, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
+        {"semantic_focus_query_demo", "sfq", 9, AxisSemantic | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_focus_admission_demo", "sfa", 8, AxisSemantic | AxisFocus | AxisAdmission, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_focus_request_demo", "sfr", 12, AxisSemantic | AxisFocus | AxisAdmission | AxisEdge | AxisRender | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"widget_signal_demo", "ws", 3, AxisEdge, "docs/ui/vivid_evidence_stdout_law.md"},
@@ -61,7 +61,7 @@ namespace {
     };
 
     constexpr unsigned kExpectedEntryCount = 26;
-    constexpr unsigned kExpectedCaseTotal = 215;
+    constexpr unsigned kExpectedCaseTotal = 216;
     constexpr std::uint32_t kRequiredAxes =
         AxisEdge
         | AxisState

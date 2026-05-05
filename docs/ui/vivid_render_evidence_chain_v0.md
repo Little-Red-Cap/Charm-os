@@ -371,7 +371,7 @@ semantic tree root
   -> focus-addressability status
 ```
 
-The demo guards resolved focus targets, no focus transfer side effects, rejected queries without focus/event mutation, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
+The demo guards resolved focus targets, no focus transfer side effects, rejected queries without focus/event mutation, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, missing request id, and a final `causal_chain` verdict over lookup-only focus query evidence.
 
 ## 2026-05 Addendum: Semantic Focus Admission
 

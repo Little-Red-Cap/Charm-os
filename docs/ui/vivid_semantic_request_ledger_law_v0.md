@@ -78,7 +78,7 @@ Canonical stdout shape:
 - `Examples/ui/vivid/semantic_focus_request_demo` proves `SemanticFocusRequestLedger`.
 - `Examples/ui/vivid/semantic_action_request_demo` proves `SemanticActionRequestLedger`.
 - `Examples/ui/vivid/semantic_focus_query_demo` prints `ledger=focus_query` through the shared support helper and closes lookup-only behavior with a final `causal_chain` verdict.
-- `Examples/ui/vivid/semantic_focus_admission_demo` prints `ledger=focus_admission` through the shared support helper.
+- `Examples/ui/vivid/semantic_focus_admission_demo` prints `ledger=focus_admission` through the shared support helper and closes planning-only behavior with a final `causal_chain` verdict.
 - `Examples/ui/vivid/semantic_action_admission_demo` prints `ledger=action_admission` through the shared support helper and closes planning-only behavior with a final `causal_chain` verdict.
 - `Examples/ui/vivid/semantic_intent_demo` prints `intent_resolution=1` through the shared support helper and closes lookup-only behavior with a final `causal_chain` verdict.
 

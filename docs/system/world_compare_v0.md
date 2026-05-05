@@ -123,6 +123,16 @@
 
 这层开始正式把“哪条 witness 先坏”收成结构化对象。
 
+对于 `open_event_witness` 这类 testimony witness，v0 当前沿用同一套 witness-level compare 语义：
+
+- route / facade / evidence ref 的变化会先体现在 `witness_changes`
+- 如果 candidate witness 仍然 `ok`，这些 testimony drift 当前默认先保留在 witness change 层
+- 如果 candidate witness 进入 `fail`，它就会和其他 required witness 一样进入 `collapse_surface`
+
+runtime-session opening judgment 这条线当前已经有一条定向 smoke，
+用 blocked candidate 证明 `open_event_witness -> witness bundle -> world compare`
+可以正式产出 `collapsed` world verdict，而不需要在上层重建第二套 compare brain。
+
 ### `collapse_surface`
 
 这是 v0 最重要的部分。

@@ -253,6 +253,17 @@ bundle 会同时把它放进：
 这样上层 reader / router / opener 可以先从 root witness bundle 进入 testimony，
 再继续沿着它自己的 evidence refs 追问，而不是在更上层复制一套 compare brain。
 
+当前这条 testimony witness 已经可以继续进入 `world compare`。
+
+第一刀的世界级 compare smoke 使用：
+
+- baseline：runtime-session `open_event_witness`，`accepted_with_drift / witness_status=ok`
+- candidate：blocked runtime-session `open_event_witness`，由 blocked bridge 继续导出到 `status=fail`
+
+这证明的不是上层又重新解释一次 runtime/session/world evidence，
+而是 `open_event_witness` 这个 testimony 对象本身已经可以作为
+`witness bundle -> world compare` 的正式输入，并在 blocked 候选时产出 `collapsed` verdict。
+
 ### 4. 与 `compare`
 
 当前 `witness bundle` 还不是最终的反事实审判器。

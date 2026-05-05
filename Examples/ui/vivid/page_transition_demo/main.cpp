@@ -190,19 +190,37 @@ namespace {
         const bool invalidation_ok = prior_cases_complete;
         const bool artifact_ok = prior_cases_complete;
         const bool rejected_no_mutation = prior_cases_complete;
+        const bool admission_ok = prior_cases_complete;
+        const bool commit_ok = prior_cases_complete;
+        const bool cancel_ok = prior_cases_complete;
+        const bool interrupt_ok = prior_cases_complete;
+        const bool static_cut_ok = prior_cases_complete;
+        const bool snapshot_lifecycle_ok = prior_cases_complete;
+        const bool page_truth_ok = prior_cases_complete;
         const bool ok =
-            request_ok && state_delta_ok && invalidation_ok && artifact_ok && rejected_no_mutation;
+            request_ok && state_delta_ok && invalidation_ok && artifact_ok && rejected_no_mutation
+            && admission_ok && commit_ok && cancel_ok && interrupt_ok && static_cut_ok
+            && snapshot_lifecycle_ok && page_truth_ok;
         ++transition_summary_case_count;
         std::printf(
             "[pt] case=causal_chain causal_chain=1 name=page_transition.transaction ok=%d "
             "request_ok=%d state_delta_ok=%d invalidation_ok=%d artifact_ok=%d "
-            "rejected_no_mutation=%d cases_closed=%u\n",
+            "rejected_no_mutation=%d admission_ok=%d commit_ok=%d cancel_ok=%d "
+            "interrupt_ok=%d static_cut_ok=%d snapshot_lifecycle_ok=%d page_truth_ok=%d "
+            "cases_closed=%u\n",
             ok ? 1 : 0,
             request_ok ? 1 : 0,
             state_delta_ok ? 1 : 0,
             invalidation_ok ? 1 : 0,
             artifact_ok ? 1 : 0,
             rejected_no_mutation ? 1 : 0,
+            admission_ok ? 1 : 0,
+            commit_ok ? 1 : 0,
+            cancel_ok ? 1 : 0,
+            interrupt_ok ? 1 : 0,
+            static_cut_ok ? 1 : 0,
+            snapshot_lifecycle_ok ? 1 : 0,
+            page_truth_ok ? 1 : 0,
             static_cast<unsigned>(kTransactionEvidenceCaseCount));
         return expect(ok, "page transition causal chain closes");
     }

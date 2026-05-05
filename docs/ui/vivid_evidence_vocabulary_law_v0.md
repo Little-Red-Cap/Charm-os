@@ -155,6 +155,7 @@ Rules:
 ## CausalChainEvidence
 
 Causal chain evidence is a final verdict tying multiple evidence segments together.
+Verdict eligibility, `AxisCausal` rules, and the count-based versus evidence-referenced boundary are defined by `vivid_causal_verdict_law_v0.md`.
 
 Canonical fields:
 

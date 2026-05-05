@@ -41,17 +41,19 @@ run names and tags are unique
 the total registered case count is explicit
 all v0 evidence axes have at least one gated sample
 intent_artifact_demo remains the vertical causal anchor
+semantic_transition_demo remains the first semantic-to-transaction cross-axis sample
 evidence_vocabulary_demo remains the field-law anchor
 promotion boundaries stay demo-side / law / runtime-ledger separated
 stdout law registry matches manifest gates
 demo CMake PASS gates match manifest gates
 primary law documents point back to their demos
+AxisCausal entries remain tied to causal verdict law or primary-doc causal evidence
 ```
 
 CTest guards the final line:
 
 ```text
-[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=9
+[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=10
 ```
 
 The fast smoke entry is:
@@ -99,7 +101,10 @@ Rules:
 
 - A demo may cover multiple axes.
 - A demo should only claim axes that are visible in stdout evidence or the paired law document.
+- `causal` coverage is governed by `vivid_causal_verdict_law_v0.md`; `AxisCausal` requires a connected evidence chain and final verdict, not just a decorative `causal_chain` field.
+- Manifest smoke verifies `AxisCausal` rows have primary docs with causal evidence wording, and verifies the causal verdict law remains discoverable.
 - `intent_artifact_demo` is the vertical causal anchor because it connects semantic request, state delta, invalidation, render artifact, rejection, and causal verdict.
+- `semantic_transition_demo` is the first semantic-to-transaction anchor because it connects semantic request, emitted click, admission, page transaction, layer snapshot lifecycle, render sample, and causal verdict.
 - `evidence_vocabulary_demo` is the field-law anchor because it verifies helper-derived vocabulary verdicts without claiming runtime behavior.
 - `evidence_lab_manifest_demo` verifies the manifest shape and drift guards, not the runtime behavior of every listed demo.
 

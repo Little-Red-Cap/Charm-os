@@ -13,6 +13,9 @@
 
 准入等级以 [`interface_admission_policy.md`](interface_admission_policy.md) 为准。
 
+从 `proposed` 走向 `experimental / candidate / admitted` 的证据补齐顺序，见
+[`device_contract_evidence_ladder_v0.md`](device_contract_evidence_ladder_v0.md)。
+
 ## 当前总表
 
 | 契约 | 当前等级 | 已有证据 | 主要缺口 | 下一步 |

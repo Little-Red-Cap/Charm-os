@@ -99,6 +99,7 @@ Rules:
 
 - A demo may cover multiple axes.
 - A demo should only claim axes that are visible in stdout evidence or the paired law document.
+- `causal` coverage is governed by `vivid_causal_verdict_law_v0.md`; `AxisCausal` requires a connected evidence chain and final verdict, not just a decorative `causal_chain` field.
 - `intent_artifact_demo` is the vertical causal anchor because it connects semantic request, state delta, invalidation, render artifact, rejection, and causal verdict.
 - `evidence_vocabulary_demo` is the field-law anchor because it verifies helper-derived vocabulary verdicts without claiming runtime behavior.
 - `evidence_lab_manifest_demo` verifies the manifest shape and drift guards, not the runtime behavior of every listed demo.

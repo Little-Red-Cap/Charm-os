@@ -89,7 +89,7 @@ Current status:
 | `InvalidationEvidence` | candidate vocabulary | Field law may stabilize around `kind/dirty_scope/component_bounds/layout_changed`. |
 | `RenderEvidence` | candidate vocabulary | Needs canvas/backend-neutral shape before core promotion. |
 | `RenderArtifactDeltaEvidence` | strong candidate | The vocabulary is stable, but current capture still depends on demo render helpers. |
-| `CausalChainEvidence` | candidate vocabulary | Keep demo-side until more than Intent-to-Artifact consumes it. |
+| `CausalChainEvidence` | candidate vocabulary | Keep demo-side; verdict eligibility is governed by `vivid_causal_verdict_law_v0.md`. |
 
 Candidate vocabulary may appear in docs as law terms. That does not imply the current C++ helper type is a public API.
 

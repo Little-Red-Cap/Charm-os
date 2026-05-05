@@ -304,6 +304,10 @@ RegisterDevice8<MaxPayload = 8>
 - `i2c-whoami-probe-evidence-smoke`
   验证 WHOAMI no-hardware probe evidence 可以作为 `fact_only` case
   进入 `export_bundle -> artifact_report` 链。
+- `materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
+  合成一份 candidate evidence，把 `i2c.probe.board_real` 从
+  `missing` 推到 `satisfied`，验证 artifact report / inspector
+  能解释这类 probe evidence drift。
 
 当前已验证输出形态：
 
@@ -334,6 +338,13 @@ i2c whoami probe smoke: ok
 其中 `i2c.register:*`、`i2c.expected_id:*` 与 `i2c.probe.*`
 当前只是 WHOAMI probe sidecar 的 probe-local evidence fact names，
 不是 admitted I2C contract vocabulary。
+
+当前还有一条 compare smoke 会在不改变 graph 的前提下合成
+`i2c.probe.board_real` 的 `board.bringup` provider。
+它证明的是 artifact report 对 probe evidence 缺口闭合的解释能力：
+baseline 中该 fact 为 `missing`，candidate 中该 fact 为 `satisfied`。
+这仍不等价于真实硬件 evidence，也不会把 I2C 从 `experimental`
+升级为 `candidate`。
 
 `io.device_i2c_facts` 当前定义了最小 fact vocabulary：
 
@@ -461,6 +472,7 @@ Charm:
    也已由 `board-i2c-fact-composition-smoke` 接入；
    WHOAMI no-hardware probe evidence 也已由 `i2c-whoami-probe-evidence-smoke`
    接入 artifact report；
+   其 `i2c.probe.board_real` 缺口闭合路径也已有 compare smoke 钉住；
    下一步更适合继续推进真实 probe evidence 或 board bringup evidence，不做执法。
 3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。

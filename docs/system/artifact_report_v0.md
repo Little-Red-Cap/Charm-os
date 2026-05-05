@@ -67,6 +67,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 - `scripts/inspect_system_compiler_artifact_report.ps1`
 - `scripts/materialized_graph_required_fact_resolution_matrix_smoke.ps1`
 - `scripts/materialized_graph_required_fact_resolution_compare_smoke.ps1`
+- `scripts/materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
 
 它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
 与可选 `fact_evidence` sidecar，
@@ -89,6 +90,10 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 `required_fact_resolution_matrix` 的横向聚合语义。
 `materialized_graph_required_fact_resolution_compare_smoke.ps1` 则用于钉住 compare 模式下
 `required_fact_resolution_changes` 与 `required_fact_resolution_change_matrix` 的漂移语义。
+`materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1` 则用 I2C WHOAMI
+probe evidence 样例钉住更具体的一条事实证据漂移：
+`i2c.probe.board_real` 可以从 baseline 的 `missing` 变成 candidate 的 `satisfied`，
+同时 materialized graph 仍保持 `unchanged`。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
 `export_bundle/v1` 现在可以同时承载三类 case：
@@ -249,6 +254,10 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/i2
 同时继续把 `i2c.probe.board_real` 保留为 missing，
 用于说明这条链已经具备 mock/probe evidence，
 但还没有真实板级 probe evidence。
+对应的 `materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
+会合成一份 candidate sidecar，把 `i2c.probe.board_real` 标记为
+`board.bringup` 提供，从而验证 compare report 与 inspector
+能解释这类 `missing -> satisfied` 的 required fact resolution drift。
 
 当前也已经有一份 board/package facts 的 sidecar 样例：
 

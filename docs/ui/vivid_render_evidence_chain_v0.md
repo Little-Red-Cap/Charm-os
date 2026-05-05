@@ -17,7 +17,7 @@ v0 由 `Examples/ui/vivid/focus_boundary_demo` 验证：`set_focused(true)` 不�
 
 `Examples/ui/vivid/focus_scope_demo` 继续验证 focus scope evidence：scope policy 已接入真实 input dispatch，内部请求产生 `FocusOut / FocusIn` 并提交 `input_focused`，外部请求保留 pointer event 但不产生 focus transfer，并用外部 target 的 unfocused baseline 证明 focus ring artifact 不泄漏，最终由 `causal_chain` 汇总 inside allow / outside reject / no-leak verdict。详细法律见 `vivid_focus_scope_evidence_v0.md`。
 
-`Examples/ui/vivid/focus_scope_nested_demo` 继续验证 nested/modal focus scope evidence：push 后 active scope 切换到 modal，pop 后恢复 base scope；modal 外请求不产生 focus transfer，也不把 focus ring artifact 泄漏到 base target。详细法律见 `vivid_focus_scope_evidence_v0.md`。
+`Examples/ui/vivid/focus_scope_nested_demo` 继续验证 nested/modal focus scope evidence：push 后 active scope 切换到 modal，pop 后恢复 base scope；modal 外请求不产生 focus transfer，也不把 focus ring artifact 泄漏到 base target，并由 final `causal_chain` 汇总 push/pop transaction verdict。详细法律见 `vivid_focus_scope_evidence_v0.md`。
 
 `Examples/ui/vivid/focus_scope_navigation_demo` 继续验证 keyboard / d-pad focus navigation evidence：key event 不直接写 visual state，而是产生 `FocusOut / FocusIn`、提交 `input_focused`，再由 focus ring artifact 证明结果；scope 外 target 的 command evidence 保持 baseline。详细法律见 `vivid_focus_scope_evidence_v0.md`。
 

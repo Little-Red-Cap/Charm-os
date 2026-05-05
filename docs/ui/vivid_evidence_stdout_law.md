@@ -94,7 +94,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `focus_boundary_demo` | `fb` | `[fb] run=focus_boundary_demo phase=end result=ok cases=7` |
 | `focus_transfer_demo` | `ft` | `[ft] run=focus_transfer_demo phase=end result=ok cases=8` |
 | `focus_scope_demo` | `fs` | `[fs] run=focus_scope_demo phase=end result=ok cases=10` |
-| `focus_scope_nested_demo` | `fsn` | `[fsn] run=focus_scope_nested_demo phase=end result=ok cases=8` |
+| `focus_scope_nested_demo` | `fsn` | `[fsn] run=focus_scope_nested_demo phase=end result=ok cases=9` |
 | `focus_scope_navigation_demo` | `fsnav` | `[fsnav] run=focus_scope_navigation_demo phase=end result=ok cases=7` |
 | `focus_spatial_navigation_demo` | `fss` | `[fss] run=focus_spatial_navigation_demo phase=end result=ok cases=9` |
 | `focus_semantic_demo` | `fsem` | `[fsem] run=focus_semantic_demo phase=end result=ok cases=8` |

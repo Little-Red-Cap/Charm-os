@@ -29,6 +29,8 @@ includes:
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer_selector.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
+- narrow runtime-session downstream smoke
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_consumer_selector_sample_smoke.ps1`
 - workspace wrapper
   - `scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`
 
@@ -84,7 +86,7 @@ Each selected entry keeps:
 - target summary schema / kind / path
 - projection kind
 - opening reason
-- projection headline and summary lines
+- projection headline, summary lines, and question lines
 - query kind / scope
 - compare context flag and landing verdict
 - opener summary / report / check paths
@@ -99,6 +101,10 @@ recomputing opening policy:
 - compare entry comes from `consumer_status.compare_opening_name`
 - fallback entries preserve consumer handoff priority order
 - entries remain renderable even when direct inspector execution is blocked
+
+For a runtime-session-only handoff, the selector should keep
+`runtime-session-sample` as the default entry and preserve
+`projection_kind=kernel_runtime_session_overview` in the selected open plan.
 
 That means a later explain surface can read this artifact without walking the
 whole lower chain again.
@@ -142,7 +148,13 @@ python ./scripts/validate_system_compiler_front_page_entry_opening_flow_consumer
 Expected smoke shape:
 
 ```text
-[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SELECTOR-SMOKE] selected=10 default=root-witness compare=root-witness-to-root-world-compare fallback=8 reason=delivery_biography
+[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SELECTOR-SMOKE] selected=10 default=root-witness compare=root-witness-to-root-world-compare fallback=8 reason=delivery_biography projection_summary=3 projection_questions=2
+```
+
+Expected narrow runtime-session downstream shape:
+
+```text
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-CONSUMER-SELECTOR-SAMPLE-SMOKE] default=runtime-session-sample projection=kernel_runtime_session_overview
 ```
 
 ## Why this matters

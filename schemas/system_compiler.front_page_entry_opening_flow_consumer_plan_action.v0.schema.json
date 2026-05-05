@@ -17,6 +17,7 @@
     "source_plan",
     "selected_action",
     "open_action",
+    "opening_preview",
     "opener_surface",
     "execution_receipt",
     "questions",
@@ -62,6 +63,9 @@
     },
     "open_action": {
       "$ref": "#/$defs/openAction"
+    },
+    "opening_preview": {
+      "$ref": "#/$defs/openingPreview"
     },
     "opener_surface": {
       "$ref": "#/$defs/openerSurface"
@@ -284,6 +288,8 @@
         "projection_kind",
         "opening_reason",
         "projection_headline",
+        "projection_summary_lines",
+        "projection_question_lines",
         "compare_context_available",
         "landing_verdict",
         "inspector_ready",
@@ -355,6 +361,12 @@
         },
         "projection_headline": {
           "type": "string"
+        },
+        "projection_summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "projection_question_lines": {
+          "$ref": "#/$defs/stringArray"
         },
         "compare_context_available": {
           "type": "boolean"
@@ -445,6 +457,8 @@
         "projection_kind",
         "opening_reason",
         "projection_headline",
+        "projection_summary_lines",
+        "projection_question_lines",
         "compare_context_available",
         "landing_verdict",
         "opener_summary_path",
@@ -509,6 +523,12 @@
         "projection_headline": {
           "type": "string"
         },
+        "projection_summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "projection_question_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
         "compare_context_available": {
           "type": "boolean"
         },
@@ -528,6 +548,96 @@
           "type": "string"
         },
         "reason": {
+          "type": "string"
+        },
+        "blockers": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "openingReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "summary",
+        "source_summary_path",
+        "drift_changed",
+        "drift_verdict"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "world_shelf_review_drift",
+            "world_shelf_review",
+            "grouped_review",
+            "counterfactual_verdict",
+            "delivery_biography",
+            "supporting_evidence",
+            "route",
+            ""
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "drift_changed": {
+          "type": "boolean"
+        },
+        "drift_verdict": {
+          "type": "string"
+        }
+      }
+    },
+    "openingPreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "entry_name",
+        "opening_reason",
+        "projection_kind",
+        "headline",
+        "summary_lines",
+        "question_lines",
+        "opener_summary_path",
+        "opener_report_markdown_path",
+        "opener_check_text_path",
+        "blockers"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "entry_name": {
+          "type": "string"
+        },
+        "opening_reason": {
+          "$ref": "#/$defs/openingReason"
+        },
+        "projection_kind": {
+          "type": "string"
+        },
+        "headline": {
+          "type": "string"
+        },
+        "summary_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "question_lines": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "opener_summary_path": {
+          "type": "string"
+        },
+        "opener_report_markdown_path": {
+          "type": "string"
+        },
+        "opener_check_text_path": {
           "type": "string"
         },
         "blockers": {

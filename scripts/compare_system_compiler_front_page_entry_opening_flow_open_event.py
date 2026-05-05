@@ -118,6 +118,7 @@ def normalize_open_event_summary(summary: dict[str, Any]) -> OrderedDict[str, An
     action_result = get_mapping(record.get("result"))
     compare = get_mapping(summary.get("compare_summary"))
     workspace = get_mapping(summary.get("workspace_facade"))
+    diagnostic = get_mapping(summary.get("diagnostic_preview"))
     explanation = get_mapping(summary.get("explanation_view"))
     candidates = [get_mapping(candidate) for candidate in get_list(decision.get("candidate_consumers"))]
     rejected = [get_mapping(candidate) for candidate in get_list(decision.get("rejected_consumers"))]
@@ -179,6 +180,15 @@ def normalize_open_event_summary(summary: dict[str, Any]) -> OrderedDict[str, An
             ("workspace_status", choose_text(workspace.get("status"))),
             ("workspace_facade_kind", choose_text(workspace.get("facade_kind"))),
             ("workspace_primary_summary_path", normalize_compare_path(workspace.get("primary_summary_path"), output_root)),
+            ("diagnostic_available", bool(diagnostic.get("available"))),
+            ("diagnostic_entry_name", choose_text(diagnostic.get("entry_name"))),
+            ("diagnostic_projection_kind", choose_text(diagnostic.get("projection_kind"))),
+            ("diagnostic_headline", choose_text(diagnostic.get("headline"))),
+            ("diagnostic_summary_lines", [choose_text(item) for item in get_list(diagnostic.get("summary_lines"))]),
+            ("diagnostic_question_lines", [choose_text(item) for item in get_list(diagnostic.get("question_lines"))]),
+            ("diagnostic_line_count", int(diagnostic.get("line_count", 0))),
+            ("diagnostic_question_count", int(diagnostic.get("question_count", 0))),
+            ("diagnostic_blockers", ordered_unique([choose_text(item) for item in get_list(diagnostic.get("blockers"))])),
             ("witness_refs", witness_refs),
             ("witness_roles", ordered_unique([choose_text(ref.get("role")) for ref in witness_refs])),
             ("witness_summary_refs", ordered_unique([f"{ref['role']}:{ref['summary_schema']}:{ref['summary_path']}" for ref in witness_refs])),
@@ -326,6 +336,7 @@ def build_regression_surface(
     compare_changes: dict[str, Any],
     workspace_changes: dict[str, Any],
     witness_changes: dict[str, Any],
+    diagnostic_changes: dict[str, Any],
     explanation_changes: dict[str, Any],
     baseline: dict[str, Any],
     candidate: dict[str, Any],
@@ -357,6 +368,9 @@ def build_regression_surface(
         workspace_changes.get("workspace_primary_summary_path", {}).get("changed")
     )
     witness_set_changed = bool(witness_changes.get("witness_summary_refs", {}).get("changed"))
+    diagnostic_preview_changed = bool(diagnostic_changes.get("diagnostic_headline", {}).get("changed")) or bool(
+        diagnostic_changes.get("diagnostic_summary_lines", {}).get("changed")
+    ) or bool(diagnostic_changes.get("diagnostic_question_lines", {}).get("changed"))
     explanation_changed = bool(explanation_changes.get("explanation_text_lines", {}).get("changed"))
 
     if failed_result_transition:
@@ -391,6 +405,8 @@ def build_regression_surface(
         narratives.append("workspace facade changed")
     if witness_set_changed:
         narratives.append("witness refs changed")
+    if diagnostic_preview_changed:
+        narratives.append("diagnostic preview changed")
     if explanation_changed:
         narratives.append("explanation view changed")
 
@@ -411,6 +427,7 @@ def build_regression_surface(
         or compare_context_lost
         or workspace_facade_changed
         or witness_set_changed
+        or diagnostic_preview_changed
         or explanation_changed
     )
     return OrderedDict(
@@ -432,6 +449,7 @@ def build_regression_surface(
             ("compare_context_lost", compare_context_lost),
             ("workspace_facade_changed", workspace_facade_changed),
             ("witness_set_changed", witness_set_changed),
+            ("diagnostic_preview_changed", diagnostic_preview_changed),
             ("explanation_changed", explanation_changed),
             ("narratives", ordered_unique(narratives)),
         ]
@@ -583,6 +601,21 @@ def build_compare_summary_model(
             "witness_ref_count",
         ),
     )
+    diagnostic_changes = build_field_changes(
+        baseline,
+        candidate,
+        (
+            "diagnostic_available",
+            "diagnostic_entry_name",
+            "diagnostic_projection_kind",
+            "diagnostic_headline",
+            "diagnostic_summary_lines",
+            "diagnostic_question_lines",
+            "diagnostic_line_count",
+            "diagnostic_question_count",
+            "diagnostic_blockers",
+        ),
+    )
     explanation_changes = build_field_changes(
         baseline,
         candidate,
@@ -603,6 +636,7 @@ def build_compare_summary_model(
         compare_changes,
         workspace_changes,
         witness_changes,
+        diagnostic_changes,
         explanation_changes,
         baseline,
         candidate,
@@ -618,6 +652,7 @@ def build_compare_summary_model(
             compare_changes,
             workspace_changes,
             witness_changes,
+            diagnostic_changes,
             explanation_changes,
         )
     )
@@ -669,6 +704,7 @@ def build_compare_summary_model(
             ("compare_context_changes", compare_changes),
             ("workspace_facade_changes", workspace_changes),
             ("witness_ref_changes", witness_changes),
+            ("diagnostic_preview_changes", diagnostic_changes),
             ("explanation_view_changes", explanation_changes),
             (
                 "change_summary",
@@ -682,6 +718,7 @@ def build_compare_summary_model(
                         ("compare_changed_field_count", int(compare_changes["changed_field_count"])),
                         ("workspace_changed_field_count", int(workspace_changes["changed_field_count"])),
                         ("witness_changed_field_count", int(witness_changes["changed_field_count"])),
+                        ("diagnostic_changed_field_count", int(diagnostic_changes["changed_field_count"])),
                         ("explanation_changed_field_count", int(explanation_changes["changed_field_count"])),
                     ]
                 ),
@@ -724,7 +761,7 @@ def build_report(summary: dict[str, Any]) -> str:
         ),
         "",
         "## Change Summary",
-        "- changed_fields=`{0}` event=`{1}` consumer=`{2}` plan=`{3}` action=`{4}` compare=`{5}` workspace=`{6}` witness=`{7}` explanation=`{8}`".format(
+        "- changed_fields=`{0}` event=`{1}` consumer=`{2}` plan=`{3}` action=`{4}` compare=`{5}` workspace=`{6}` witness=`{7}` diagnostic=`{8}` explanation=`{9}`".format(
             change_summary["changed_field_count"],
             change_summary["event_changed_field_count"],
             change_summary["consumer_changed_field_count"],
@@ -733,6 +770,7 @@ def build_report(summary: dict[str, Any]) -> str:
             change_summary["compare_changed_field_count"],
             change_summary["workspace_changed_field_count"],
             change_summary["witness_changed_field_count"],
+            change_summary["diagnostic_changed_field_count"],
             change_summary["explanation_changed_field_count"],
         ),
     ]
@@ -770,6 +808,7 @@ def build_check(summary: dict[str, Any]) -> str:
             f"selected_consumer_changed: {regression['selected_consumer_changed']}",
             f"compare_context_changed: {regression['compare_context_changed']}",
             f"witness_set_changed: {regression['witness_set_changed']}",
+            f"diagnostic_preview_changed: {regression['diagnostic_preview_changed']}",
         ]
     ) + "\n"
 

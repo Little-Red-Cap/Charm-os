@@ -100,6 +100,7 @@ def build_entry_view(entry: dict[str, Any], rank: int) -> OrderedDict[str, Any]:
             ("opening_reason", clone_opening_reason(entry.get("opening_reason"))),
             ("projection_headline", choose_text(entry.get("projection_headline"))),
             ("projection_summary_lines", string_list(entry.get("projection_summary_lines"))),
+            ("projection_question_lines", string_list(entry.get("projection_question_lines"))),
             ("compare_context_available", bool(entry.get("compare_context_available"))),
             ("landing_verdict", choose_text(entry.get("landing_verdict"))),
             ("inspector_ready", bool(entry.get("inspector_ready"))),
@@ -375,6 +376,10 @@ def build_report(summary: dict[str, Any]) -> str:
             get_mapping(default_entry.get("opening_reason")).get("kind", ""),
             default_entry.get("projection_headline", "") or "none",
         ),
+        "- projection lines: summary=`{0}` questions=`{1}`".format(
+            len(get_list(default_entry.get("projection_summary_lines"))),
+            len(get_list(default_entry.get("projection_question_lines"))),
+        ),
         "",
         "## Compare Entry",
         "- `{0}` tab=`{1}` query=`{2}/{3}` projection=`{4}` target=`{5}`".format(
@@ -388,6 +393,10 @@ def build_report(summary: dict[str, Any]) -> str:
         "- reason=`{0}` headline={1}".format(
             get_mapping(compare_entry.get("opening_reason")).get("kind", ""),
             compare_entry.get("projection_headline", "") or "none",
+        ),
+        "- projection lines: summary=`{0}` questions=`{1}`".format(
+            len(get_list(compare_entry.get("projection_summary_lines"))),
+            len(get_list(compare_entry.get("projection_question_lines"))),
         ),
         "",
         "## Ordered Entries",
@@ -404,6 +413,13 @@ def build_report(summary: dict[str, Any]) -> str:
                 entry["inspector_ready"],
             )
         )
+        if get_list(entry.get("projection_summary_lines")) or get_list(entry.get("projection_question_lines")):
+            lines.append(
+                "  projection_lines: summary=`{0}` questions=`{1}`".format(
+                    len(get_list(entry.get("projection_summary_lines"))),
+                    len(get_list(entry.get("projection_question_lines"))),
+                )
+            )
 
     lines.extend(["", "## Questions"])
     for question in summary["questions"]["selector_questions"]:

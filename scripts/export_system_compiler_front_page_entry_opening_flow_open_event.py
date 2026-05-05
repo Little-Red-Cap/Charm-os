@@ -34,6 +34,10 @@ def get_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def string_list(value: Any) -> list[str]:
+    return [choose_text(item) for item in get_list(value) if choose_text(item)]
+
+
 def ordered_unique(values: list[str]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
@@ -407,6 +411,26 @@ def build_workspace_facade(open_action: dict[str, Any], opener_surface: dict[str
     )
 
 
+def build_diagnostic_preview(action_summary: dict[str, Any], open_action: dict[str, Any]) -> OrderedDict[str, Any]:
+    preview = get_mapping(action_summary.get("opening_preview"))
+    summary_lines = string_list(preview.get("summary_lines")) or string_list(open_action.get("projection_summary_lines"))
+    question_lines = string_list(preview.get("question_lines")) or string_list(open_action.get("projection_question_lines"))
+    headline = choose_text(preview.get("headline")) or choose_text(open_action.get("projection_headline"))
+    return OrderedDict(
+        [
+            ("available", bool(preview.get("available")) or bool(headline or summary_lines or question_lines)),
+            ("entry_name", choose_text(preview.get("entry_name")) or choose_text(open_action.get("entry_name"))),
+            ("projection_kind", choose_text(preview.get("projection_kind")) or choose_text(open_action.get("projection_kind"))),
+            ("headline", headline),
+            ("summary_lines", summary_lines),
+            ("question_lines", question_lines),
+            ("line_count", len(summary_lines)),
+            ("question_count", len(question_lines)),
+            ("blockers", string_list(preview.get("blockers"))),
+        ]
+    )
+
+
 def build_witness_ref(role: str, schema: str, path: str, report_path: str = "", check_path: str = "") -> OrderedDict[str, str]:
     return OrderedDict(
         [
@@ -485,6 +509,7 @@ def build_explanation_view(
     action_records: list[OrderedDict[str, Any]],
     compare_result: dict[str, Any],
     witness_refs: list[OrderedDict[str, str]],
+    diagnostic_preview: dict[str, Any],
 ) -> OrderedDict[str, Any]:
     reason = normalize_opening_reason(open_action.get("opening_reason"))
     selected = get_mapping(consumer_decision.get("selected_consumer"))
@@ -505,6 +530,10 @@ def build_explanation_view(
     text_lines = [
         f"Why opened: {choose_text(reason.get('summary')) or choose_text(open_action.get('reason'))}",
         f"Chosen consumer: {selected.get('consumer_id', '')} via {selected.get('chosen_by', '')}",
+        "Diagnostic preview: {0} summary line(s), {1} question line(s)".format(
+            int(diagnostic_preview.get("line_count", 0)),
+            int(diagnostic_preview.get("question_count", 0)),
+        ),
         f"Plan: {plan.get('planned_action_count', 0)} action(s), selected {plan.get('selected_action_id', '')}",
         f"Rejected candidates: {rejected_count}",
         f"Compare: {compare_line}",
@@ -516,6 +545,9 @@ def build_explanation_view(
             ("status", event_status),
             ("why_opened", choose_text(reason.get("summary")) or choose_text(open_action.get("reason"))),
             ("chosen_consumer", f"{selected.get('consumer_id', '')} selected by {selected.get('chosen_by', '')}"),
+            ("diagnostic_headline", choose_text(diagnostic_preview.get("headline"))),
+            ("diagnostic_summary_lines", string_list(diagnostic_preview.get("summary_lines"))),
+            ("diagnostic_question_lines", string_list(diagnostic_preview.get("question_lines"))),
             ("plan_actions", action_lines),
             ("compare_result", compare_line),
             ("witness_refs", witness_lines),
@@ -571,6 +603,7 @@ def build_summary_model(
     plan = build_plan_summary(plan_summary, open_action)
     action_records = [build_action_record(open_action, opener_surface, compare_result)]
     workspace_facade = build_workspace_facade(open_action, opener_surface, event_status)
+    diagnostic_preview = build_diagnostic_preview(action_summary, open_action)
     witness_refs = build_witness_refs(
         action_summary,
         action_summary_path,
@@ -588,6 +621,7 @@ def build_summary_model(
         action_records,
         compare_result,
         witness_refs,
+        diagnostic_preview,
     )
 
     return OrderedDict(
@@ -670,6 +704,7 @@ def build_summary_model(
             ("action_records", action_records),
             ("compare_summary", compare_result),
             ("workspace_facade", workspace_facade),
+            ("diagnostic_preview", diagnostic_preview),
             ("witness_refs", witness_refs),
             ("explanation_view", explanation_view),
             ("questions", build_questions(event_status, compare_result)),
@@ -689,6 +724,7 @@ def build_report(summary: dict[str, Any]) -> str:
     plan = summary["plan"]
     compare = summary["compare_summary"]
     workspace = summary["workspace_facade"]
+    diagnostic = summary["diagnostic_preview"]
     explanation = summary["explanation_view"]
     lines: list[str] = [
         "# System Compiler Front Page Entry Opening Flow Open Event",
@@ -701,7 +737,11 @@ def build_report(summary: dict[str, Any]) -> str:
         "## Why Opened",
         f"- reason kind: `{reason['kind']}`",
         f"- reason summary: {reason['summary'] or selected['chosen_by']}",
-        f"- projection headline: {explanation['why_opened'] or 'none'}",
+        f"- diagnostic headline: {diagnostic['headline'] or 'none'}",
+        "- diagnostic lines: summary=`{0}` questions=`{1}`".format(
+            diagnostic["line_count"],
+            diagnostic["question_count"],
+        ),
         "",
         "## Consumer Decision",
         "- selected consumer: `{0}` action=`{1}` entry=`{2}`".format(
@@ -786,6 +826,7 @@ def build_check(summary: dict[str, Any]) -> str:
     selected = consumer["selected_consumer"]
     compare = summary["compare_summary"]
     workspace = summary["workspace_facade"]
+    diagnostic = summary["diagnostic_preview"]
     return "\n".join(
         [
             f"source_action_summary_path: {summary['artifact_context']['source_action_summary_path']}",
@@ -801,6 +842,9 @@ def build_check(summary: dict[str, Any]) -> str:
             f"compare_available: {compare['available']}",
             f"compare_verdict: {compare['action_verdict']}",
             f"workspace_facade_status: {workspace['status']}",
+            f"diagnostic_available: {diagnostic['available']}",
+            f"diagnostic_summary_line_count: {diagnostic['line_count']}",
+            f"diagnostic_question_line_count: {diagnostic['question_count']}",
             f"witness_ref_count: {len(summary['witness_refs'])}",
         ]
     ) + "\n"

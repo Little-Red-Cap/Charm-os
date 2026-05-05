@@ -426,7 +426,9 @@
         "baseline_direct_biography_available",
         "candidate_direct_biography_available",
         "baseline_direct_evidence_available",
-        "candidate_direct_evidence_available"
+        "candidate_direct_evidence_available",
+        "baseline_direct_runtime_session_available",
+        "candidate_direct_runtime_session_available"
       ],
       "properties": {
         "baseline_result": {
@@ -571,6 +573,12 @@
           "type": "boolean"
         },
         "candidate_direct_evidence_available": {
+          "type": "boolean"
+        },
+        "baseline_direct_runtime_session_available": {
+          "type": "boolean"
+        },
+        "candidate_direct_runtime_session_available": {
           "type": "boolean"
         }
       }

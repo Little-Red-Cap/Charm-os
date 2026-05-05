@@ -34,6 +34,7 @@ def validate_references(summary: dict, errors: list[str]) -> None:
     front_page = summary.get("front_page", {})
     selected_action = summary.get("selected_action", {})
     open_action = summary.get("open_action", {})
+    opening_preview = summary.get("opening_preview", {})
     opener_surface = summary.get("opener_surface", {})
 
     ensure_exists(artifact_context.get("source_plan_summary_path"), "artifact_context.source_plan_summary_path", errors)
@@ -59,6 +60,7 @@ def validate_references(summary: dict, errors: list[str]) -> None:
     ensure_exists(selected_action.get("opener_check_text_path"), "selected_action.opener_check_text_path", errors)
     ensure_exists(open_action.get("target_summary_path"), "open_action.target_summary_path", errors)
     ensure_exists(open_action.get("opener_summary_path"), "open_action.opener_summary_path", errors)
+    ensure_exists(opening_preview.get("opener_summary_path"), "opening_preview.opener_summary_path", errors)
     ensure_exists(opener_surface.get("summary_path"), "opener_surface.summary_path", errors)
     ensure_exists(opener_surface.get("report_markdown_path"), "opener_surface.report_markdown_path", errors)
     ensure_exists(opener_surface.get("check_text_path"), "opener_surface.check_text_path", errors)
@@ -67,6 +69,8 @@ def validate_references(summary: dict, errors: list[str]) -> None:
 def validate_action_consistency(summary: dict, errors: list[str]) -> None:
     selected_action = summary.get("selected_action", {})
     open_action = summary.get("open_action", {})
+    opening_preview = summary.get("opening_preview", {})
+    opener_surface = summary.get("opener_surface", {})
     receipt = summary.get("execution_receipt", {})
     source_plan = summary.get("source_plan", {})
 
@@ -85,6 +89,8 @@ def validate_action_consistency(summary: dict, errors: list[str]) -> None:
         "projection_kind",
         "opening_reason",
         "projection_headline",
+        "projection_summary_lines",
+        "projection_question_lines",
         "compare_context_available",
         "landing_verdict",
         "opener_summary_path",
@@ -106,6 +112,43 @@ def validate_action_consistency(summary: dict, errors: list[str]) -> None:
     expect_equal(summary.get("result"), "ok" if open_action.get("status") == "ready" else "fail", "result", errors)
     if open_action.get("status") == "ready":
         expect_equal(summary.get("violations"), [], "violations", errors)
+    expect_equal(opening_preview.get("entry_name"), open_action.get("entry_name"), "opening_preview.entry_name", errors)
+    expect_equal(
+        opening_preview.get("opening_reason"),
+        open_action.get("opening_reason"),
+        "opening_preview.opening_reason",
+        errors,
+    )
+    expect_equal(
+        opening_preview.get("projection_kind"),
+        open_action.get("projection_kind"),
+        "opening_preview.projection_kind",
+        errors,
+    )
+    expect_equal(
+        opening_preview.get("headline"),
+        open_action.get("projection_headline"),
+        "opening_preview.headline",
+        errors,
+    )
+    expect_equal(
+        opening_preview.get("summary_lines"),
+        open_action.get("projection_summary_lines"),
+        "opening_preview.summary_lines",
+        errors,
+    )
+    expect_equal(
+        opening_preview.get("question_lines"),
+        open_action.get("projection_question_lines"),
+        "opening_preview.question_lines",
+        errors,
+    )
+    expect_equal(
+        opening_preview.get("opener_summary_path"),
+        opener_surface.get("summary_path"),
+        "opening_preview.opener_summary_path",
+        errors,
+    )
 
 
 def main() -> int:
@@ -183,6 +226,7 @@ def main() -> int:
             "source_plan",
             "selected_action",
             "open_action",
+            "opening_preview",
             "opener_surface",
             "execution_receipt",
             "questions",

@@ -42,6 +42,8 @@ Current `system_compiler.front_page_entry_opening_flow` includes:
   - `scripts/validate_system_compiler_front_page_entry_opening_flow.py`
 - smoke / exporter
   - `scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
+- narrow runtime-session sample smoke
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_sample_smoke.ps1`
 - workspace wrapper
   - `scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`
 
@@ -101,6 +103,10 @@ That means this object is not replacing the lower artifacts.
 
 It is summarizing whether the whole opening seam still holds together.
 
+`opener_cases.projection_kind` can include `kernel_runtime_session_overview`
+when the selected tab is `runtime_session` and the target summary schema is
+`minimal_kernel.kernel_runtime_session/v0`.
+
 ## Why it exists
 
 The earlier `front_page_*` artifacts already made the opening policy much
@@ -150,6 +156,13 @@ Run the full consumer-side opening chain and emit the flow artifact:
 ./scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1 -Clean
 ```
 
+Run the narrow runtime-session sample flow without requiring the heavier
+multi-case front-page workspace:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_opening_flow_sample_smoke.ps1 -Clean
+```
+
 Or start from a front-page workspace that already contains the canonical
 multi-case witness worlds, route traces, and shelf review evidence:
 
@@ -171,6 +184,12 @@ Expected smoke shape:
 
 ```text
 [FRONT-PAGE-ENTRY-OPENING-FLOW-SMOKE] openers=10 projections=10 compare_context=2 inspector_ready=0
+```
+
+Expected narrow runtime-session shape:
+
+```text
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-OPENING-FLOW-SAMPLE-SMOKE] projection=available/kernel_runtime_session_overview
 ```
 
 ## Why this matters

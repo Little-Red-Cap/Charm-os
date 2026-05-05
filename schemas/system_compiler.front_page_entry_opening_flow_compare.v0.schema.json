@@ -470,6 +470,9 @@
         "neutral_change_count",
         "projection_regression_count",
         "projection_improvement_count",
+        "projection_headline_changed_count",
+        "projection_summary_changed_count",
+        "projection_question_changed_count",
         "compare_context_lost_count",
         "compare_context_gained_count",
         "inspector_readiness_changed_count",
@@ -521,6 +524,18 @@
           "type": "integer",
           "minimum": 0
         },
+        "projection_headline_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "projection_summary_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "projection_question_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
         "compare_context_lost_count": {
           "type": "integer",
           "minimum": 0
@@ -566,6 +581,10 @@
         "candidate_projection_status",
         "baseline_projection_kind",
         "candidate_projection_kind",
+        "baseline_projection_headline",
+        "candidate_projection_headline",
+        "projection_summary_line_changes",
+        "projection_question_line_changes",
         "baseline_compare_context_available",
         "candidate_compare_context_available",
         "baseline_landing_verdict",
@@ -641,6 +660,18 @@
         },
         "candidate_projection_kind": {
           "type": "string"
+        },
+        "baseline_projection_headline": {
+          "type": "string"
+        },
+        "candidate_projection_headline": {
+          "type": "string"
+        },
+        "projection_summary_line_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "projection_question_line_changes": {
+          "$ref": "#/$defs/arrayChange"
         },
         "baseline_compare_context_available": {
           "type": "boolean"

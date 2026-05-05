@@ -66,6 +66,7 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
     compare_changes = summary.get("compare_context_changes", {})
     workspace_changes = summary.get("workspace_facade_changes", {})
     witness_changes = summary.get("witness_ref_changes", {})
+    diagnostic_changes = summary.get("diagnostic_preview_changes", {})
     explanation_changes = summary.get("explanation_view_changes", {})
     change_summary = summary.get("change_summary", {})
 
@@ -77,6 +78,7 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
         + int(compare_changes.get("changed_field_count", 0))
         + int(workspace_changes.get("changed_field_count", 0))
         + int(witness_changes.get("changed_field_count", 0))
+        + int(diagnostic_changes.get("changed_field_count", 0))
         + int(explanation_changes.get("changed_field_count", 0))
     )
     expect_equal(change_summary.get("changed_field_count"), expected_total, "change_summary.changed_field_count", errors)
@@ -110,6 +112,12 @@ def validate_counts(summary: dict, errors: list[str]) -> None:
         change_summary.get("witness_changed_field_count"),
         witness_changes.get("changed_field_count"),
         "change_summary.witness_changed_field_count",
+        errors,
+    )
+    expect_equal(
+        change_summary.get("diagnostic_changed_field_count"),
+        diagnostic_changes.get("changed_field_count"),
+        "change_summary.diagnostic_changed_field_count",
         errors,
     )
     expect_equal(
@@ -197,6 +205,7 @@ def main() -> int:
             "compare_context_changes",
             "workspace_facade_changes",
             "witness_ref_changes",
+            "diagnostic_preview_changes",
             "explanation_view_changes",
             "change_summary",
             "event_regression_surface",

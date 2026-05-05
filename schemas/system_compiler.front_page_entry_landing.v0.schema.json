@@ -329,7 +329,8 @@
         "direct_review_available",
         "direct_compare_available",
         "direct_biography_available",
-        "direct_evidence_available"
+        "direct_evidence_available",
+        "direct_runtime_session_available"
       ],
       "properties": {
         "landing_result": {
@@ -404,6 +405,9 @@
         },
         "direct_evidence_available": {
           "type": "boolean"
+        },
+        "direct_runtime_session_available": {
+          "type": "boolean"
         }
       }
     },
@@ -427,6 +431,7 @@
             "counterfactual_verdict",
             "delivery_biography",
             "supporting_evidence",
+            "runtime_session",
             "route"
           ]
         },

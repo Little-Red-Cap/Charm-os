@@ -327,6 +327,9 @@ try {
     $runtimeEvidenceSampleSummary = Resolve-FullPath -Path "schemas\examples\minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json"
     $runtimeEvidenceSampleReport = Resolve-FullPath -Path "docs\system\minimal_kernel_runtime_evidence_bundle_contract.md"
     $runtimeEvidenceSampleCheck = Resolve-FullPath -Path "schemas\README.md"
+    $runtimeSessionSampleSummary = Resolve-FullPath -Path "schemas\examples\minimal_kernel.kernel_runtime_session.v0.sample.json"
+    $runtimeSessionSampleReport = Resolve-FullPath -Path "docs\system\kernel_runtime_session_witness_v0.md"
+    $runtimeSessionSampleCheck = Resolve-FullPath -Path "schemas\README.md"
 
     New-SyntheticLandingSummary `
         -SourceLandingPath $witnessLanding `
@@ -352,6 +355,19 @@ try {
         -OverrideSummaryPath $runtimeEvidenceSampleSummary `
         -OverrideReportMarkdownPath $runtimeEvidenceSampleReport `
         -OverrideCheckTextPath $runtimeEvidenceSampleCheck `
+        -OverrideQueryKind "bringup_evidence" `
+        -OverrideQueryScope "report" `
+        -OverrideFollowupQueryKinds @("resource_summary", "default_overview", "cap_list")
+
+    New-SyntheticLandingSummary `
+        -SourceLandingPath $witnessLanding `
+        -SyntheticLandingPath (Join-Path $syntheticRoot "runtime-session-sample.front-page.entry-landing.summary.json") `
+        -SelectedTabId "runtime_session" `
+        -OverrideSummarySchema "minimal_kernel.kernel_runtime_session/v0" `
+        -OverrideSummaryKind "minimal_kernel.kernel_runtime_session" `
+        -OverrideSummaryPath $runtimeSessionSampleSummary `
+        -OverrideReportMarkdownPath $runtimeSessionSampleReport `
+        -OverrideCheckTextPath $runtimeSessionSampleCheck `
         -OverrideQueryKind "bringup_evidence" `
         -OverrideQueryScope "report" `
         -OverrideFollowupQueryKinds @("resource_summary", "default_overview", "cap_list")
@@ -488,6 +504,19 @@ try {
             ExpectedInspectorReady = $false
             ExpectedProjectionStatus = "available"
             ExpectedProjectionKind = "runtime_evidence_bundle_overview"
+        },
+        [ordered]@{
+            Name = "runtime-session-sample"
+            Landing = Join-Path $syntheticRoot "runtime-session-sample.front-page.entry-landing.summary.json"
+            LandingCompare = ""
+            ExpectedTab = "runtime_session"
+            ExpectedQueryKind = "bringup_evidence"
+            ExpectedQueryScope = "report"
+            ExpectedCompareContext = $false
+            ExpectedVerdict = ""
+            ExpectedInspectorReady = $false
+            ExpectedProjectionStatus = "available"
+            ExpectedProjectionKind = "kernel_runtime_session_overview"
         }
     )
 

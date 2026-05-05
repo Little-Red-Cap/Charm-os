@@ -183,13 +183,21 @@ try {
     Assert-Condition `
         -Condition (-not [string]::IsNullOrWhiteSpace([string]$summary.open_plan.default_entry.projection_headline)) `
         -Message "selector default entry must expose projection_headline"
+    Assert-Condition `
+        -Condition (@($summary.open_plan.default_entry.projection_summary_lines).Count -gt 0) `
+        -Message "selector default entry must expose projection_summary_lines"
+    Assert-Condition `
+        -Condition (@($summary.open_plan.default_entry.projection_question_lines).Count -gt 0) `
+        -Message "selector default entry must expose projection_question_lines"
     Write-Host (
-        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SELECTOR-SMOKE] selected={0} default={1} compare={2} fallback={3} reason={4}" -f
+        "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SELECTOR-SMOKE] selected={0} default={1} compare={2} fallback={3} reason={4} projection_summary={5} projection_questions={6}" -f
         [int]$summary.selector_status.selected_entry_count,
         [string]$summary.selector_status.default_entry_name,
         [string]$summary.selector_status.compare_entry_name,
         [int]$summary.selector_status.fallback_entry_count,
-        [string]$summary.open_plan.default_entry.opening_reason.kind
+        [string]$summary.open_plan.default_entry.opening_reason.kind,
+        @($summary.open_plan.default_entry.projection_summary_lines).Count,
+        @($summary.open_plan.default_entry.projection_question_lines).Count
     )
 } finally {
     Pop-Location

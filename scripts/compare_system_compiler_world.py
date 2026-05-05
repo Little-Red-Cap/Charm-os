@@ -167,7 +167,7 @@ def is_session_witness_change(change: dict):
     return False
 
 
-def build_session_drift(regressed_changes, candidate):
+def build_regressed_session_drift(regressed_changes, candidate):
     candidate_entries = {
         str(entry["id"]): entry
         for entry in candidate.get("witness_entries", [])
@@ -568,6 +568,205 @@ def compare_witness_entries(baseline: dict, candidate: dict):
     return changes, summary
 
 
+SESSION_OBSERVATION_DOMAINS = {
+    "session_status": "verdict",
+    "failure": "verdict",
+    "semantic_host": "semantic",
+    "machine_qemu": "machine",
+    "trap_ingress": "machine",
+    "runtime_loop": "runtime",
+    "handoff_continuity": "handoff",
+    "entry_status": "source",
+    "source_path": "source",
+}
+
+
+def find_kernel_runtime_session_entry(bundle: dict):
+    for entry in bundle.get("witness_entries", []):
+        if str(entry.get("id", "")) == "kernel_runtime_session":
+            return entry
+        if str(entry.get("kind", "")) == "kernel_runtime_session":
+            return entry
+    return None
+
+
+def parse_key_value_observations(entry: dict | None):
+    values = {}
+    if entry is None:
+        return values
+
+    for observation in entry.get("observations", []):
+        text = str(observation)
+        if "=" not in text:
+            continue
+        key, value = text.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key:
+            values[key] = value
+    return values
+
+
+def normalize_bool_text(value: str | None):
+    if value is None:
+        return None
+    lowered = str(value).lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    return None
+
+
+def classify_session_fact_impact(key: str, left_value: str | None, right_value: str | None):
+    if key in ("entry_status",):
+        left_status = left_value or "absent"
+        right_status = right_value or "absent"
+        if left_status == "absent" and right_status != "absent":
+            return "neutral" if right_status == "ok" else "regression"
+        if left_status != "absent" and right_status == "absent":
+            return "regression"
+        left_rank = status_rank(left_status)
+        right_rank = status_rank(right_status)
+        if right_rank > left_rank:
+            return "regression"
+        if right_rank < left_rank:
+            return "improvement"
+        return "neutral"
+
+    if key == "session_status":
+        if left_value == "standing" and right_value != "standing":
+            return "regression"
+        if left_value != "standing" and right_value == "standing":
+            return "improvement"
+        return "neutral"
+
+    if key == "failure":
+        if left_value is None and right_value is not None:
+            return "regression"
+        if left_value is not None and right_value is None:
+            return "improvement"
+        return "neutral"
+
+    left_bool = normalize_bool_text(left_value)
+    right_bool = normalize_bool_text(right_value)
+    if left_bool is True and right_bool is False:
+        return "regression"
+    if left_bool is False and right_bool is True:
+        return "improvement"
+    return "neutral"
+
+
+def build_direct_session_drift(baseline: dict, candidate: dict):
+    left_entry = find_kernel_runtime_session_entry(baseline)
+    right_entry = find_kernel_runtime_session_entry(candidate)
+    left_present = left_entry is not None
+    right_present = right_entry is not None
+
+    left_status = str(left_entry.get("status", "absent")) if left_present else "absent"
+    right_status = str(right_entry.get("status", "absent")) if right_present else "absent"
+    left_observations = parse_key_value_observations(left_entry)
+    right_observations = parse_key_value_observations(right_entry)
+
+    fact_keys = ordered_unique(
+        ["entry_status", "source_path"]
+        + list(left_observations.keys())
+        + list(right_observations.keys())
+    )
+    fact_changes = []
+    for key in fact_keys:
+        if key == "entry_status":
+            left_value = left_status
+            right_value = right_status
+        elif key == "source_path":
+            left_value = nullable_text(left_entry.get("source_path")) if left_present else None
+            right_value = nullable_text(right_entry.get("source_path")) if right_present else None
+        else:
+            left_value = left_observations.get(key)
+            right_value = right_observations.get(key)
+
+        if left_value == right_value:
+            continue
+
+        domain = SESSION_OBSERVATION_DOMAINS.get(key, "session")
+        fact_changes.append(
+            {
+                "key": key,
+                "domain": domain,
+                "baseline": left_value,
+                "candidate": right_value,
+                "impact": classify_session_fact_impact(key, left_value, right_value),
+            }
+        )
+
+    drift_domains = ordered_unique(change["domain"] for change in fact_changes)
+    narratives = []
+    if not left_present and not right_present:
+        narratives.append("no kernel_runtime_session witness appears in either bundle")
+    elif left_present and not right_present:
+        narratives.append("kernel_runtime_session witness was removed from the candidate bundle")
+    elif not left_present and right_present:
+        narratives.append("kernel_runtime_session witness was added to the candidate bundle")
+
+    for change in fact_changes[:5]:
+        narratives.append(
+            "session `{0}` changed `{1}` -> `{2}` in domain `{3}`".format(
+                change["key"],
+                change["baseline"],
+                change["candidate"],
+                change["domain"],
+            )
+        )
+
+    candidate_session_status = right_observations.get("session_status")
+    if right_present and candidate_session_status and candidate_session_status != "standing":
+        narratives.append(f"candidate session status is `{candidate_session_status}`")
+    if right_present and right_status != "ok":
+        narratives.append(f"candidate session witness status is `{right_status}`")
+    if left_present and right_present and not fact_changes:
+        narratives.append("kernel_runtime_session witness remains stable")
+
+    return {
+        "present": left_present or right_present,
+        "changed": bool(fact_changes),
+        "baseline_entry_status": left_status,
+        "candidate_entry_status": right_status,
+        "baseline_session_status": left_observations.get("session_status"),
+        "candidate_session_status": right_observations.get("session_status"),
+        "drift_domains": drift_domains,
+        "fact_changes": fact_changes,
+        "narratives": narratives,
+    }
+
+
+def build_collapse_session_drift(direct_drift: dict | None, regressed_drift: dict | None):
+    direct = direct_drift or {}
+    regressed = regressed_drift or {}
+
+    affected_domains = ordered_unique(
+        list(regressed.get("affected_domains", []))
+        + list(direct.get("drift_domains", []))
+    )
+    affected_focus = ordered_unique(
+        list(regressed.get("affected_focus", []))
+        + list(direct.get("drift_domains", []))
+    )
+
+    return {
+        "changed": bool(direct.get("changed") or regressed.get("changed")),
+        "regressed_sessions": regressed.get("regressed_sessions", []),
+        "required_regressed_sessions": regressed.get("required_regressed_sessions", []),
+        "affected_domains": affected_domains,
+        "affected_focus": affected_focus,
+        "missing_runtime_facts": regressed.get("missing_runtime_facts", []),
+        "failure_codes": regressed.get("failure_codes", []),
+        "narratives": ordered_unique(
+            list(regressed.get("narratives", []))
+            + list(direct.get("narratives", []))
+        ),
+    }
+
+
 def build_contract_drift(baseline: dict, candidate: dict):
     baseline_contract_status = baseline.get("contract_status", {})
     candidate_contract_status = candidate.get("contract_status", {})
@@ -605,10 +804,11 @@ def build_bundle_status(baseline: dict, candidate: dict):
     }
 
 
-def build_collapse_surface(witness_changes, contract_drift, candidate):
+def build_collapse_surface(witness_changes, contract_drift, candidate, session_drift=None):
     regressed_changes = [change for change in witness_changes if change["impact"] == "regression"]
     required_regressed = [change for change in regressed_changes if change["required"]]
-    session_drift = build_session_drift(regressed_changes, candidate)
+    regressed_session_drift = build_regressed_session_drift(regressed_changes, candidate)
+    collapse_session_drift = build_collapse_session_drift(session_drift, regressed_session_drift)
 
     candidate_entries = candidate.get("witness_entries", [])
     failing_candidate_witnesses = [
@@ -643,18 +843,23 @@ def build_collapse_surface(witness_changes, contract_drift, candidate):
         narratives.append(f"candidate is missing contract ref `{ref}`")
     if candidate.get("result") != "ok":
         narratives.append("candidate witness bundle no longer stands as `ok`")
-    narratives.extend(session_drift["narratives"][:3])
+    if collapse_session_drift.get("changed"):
+        for narrative in collapse_session_drift.get("narratives", [])[:3]:
+            narratives.append(narrative)
 
     return {
-        "changed": bool(regressed_changes or contract_drift["missing_ref_changes"]["added"]),
+        "changed": bool(regressed_changes or contract_drift["missing_ref_changes"]["added"] or collapse_session_drift.get("changed")),
         "regressed_witnesses": [change["id"] for change in regressed_changes],
         "required_regressed_witnesses": [change["id"] for change in required_regressed],
         "failing_candidate_witnesses": failing_candidate_witnesses,
         "missing_candidate_witnesses": missing_candidate_witnesses,
         "added_missing_contract_refs": contract_drift["missing_ref_changes"]["added"],
         "affected_layers": affected_layers,
-        "affected_focus": ordered_unique(affected_focus + session_drift["affected_focus"]),
-        "session_drift": session_drift,
+        "affected_focus": ordered_unique(
+            affected_focus
+            + list(collapse_session_drift.get("affected_focus", []))
+        ),
+        "session_drift": collapse_session_drift,
         "narratives": narratives,
     }
 
@@ -755,7 +960,9 @@ def build_summary(args):
     contract_drift = build_contract_drift(baseline, candidate)
     witness_changes, witness_summary = compare_witness_entries(baseline, candidate)
     bundle_status = build_bundle_status(baseline, candidate)
-    collapse_surface = build_collapse_surface(witness_changes, contract_drift, candidate)
+    direct_session_drift = build_direct_session_drift(baseline, candidate)
+    collapse_surface = build_collapse_surface(witness_changes, contract_drift, candidate, direct_session_drift)
+    collapse_session_drift = collapse_surface["session_drift"]
     next_questions = build_next_questions(
         world_view,
         world_changes,
@@ -790,6 +997,7 @@ def build_summary(args):
         "contract_drift": contract_drift,
         "witness_summary": witness_summary,
         "witness_changes": witness_changes,
+        "session_drift": direct_session_drift,
         "collapse_surface": collapse_surface,
         "questions": {
             "compare_questions": world_view["compare_questions"],
@@ -885,25 +1093,47 @@ def build_summary(args):
                     "`, `".join(collapse_surface["affected_focus"])
                 )
             )
-        session_drift = collapse_surface["session_drift"]
-        if session_drift["changed"]:
+        if collapse_session_drift["changed"]:
             report_lines.append(
                 "- Session drift: sessions=`{0}` domains=`{1}` focus=`{2}`".format(
-                    "`, `".join(session_drift["regressed_sessions"]),
-                    "`, `".join(session_drift["affected_domains"]),
-                    "`, `".join(session_drift["affected_focus"]),
+                    "`, `".join(collapse_session_drift["regressed_sessions"]),
+                    "`, `".join(collapse_session_drift["affected_domains"]),
+                    "`, `".join(collapse_session_drift["affected_focus"]),
                 )
             )
-            if session_drift["failure_codes"]:
+            if collapse_session_drift["failure_codes"]:
                 report_lines.append(
                     "- Session failure codes: `{0}`".format(
-                        "`, `".join(session_drift["failure_codes"])
+                        "`, `".join(collapse_session_drift["failure_codes"])
                     )
                 )
         for narrative in collapse_surface["narratives"]:
             report_lines.append(f"- {narrative}")
     else:
         report_lines.append("- No collapse-surface drift detected")
+
+    report_lines.extend(["", "## Kernel Runtime Session Drift"])
+    if direct_session_drift["present"]:
+        report_lines.append(
+            "- Entry status: `{0}` -> `{1}`".format(
+                direct_session_drift["baseline_entry_status"],
+                direct_session_drift["candidate_entry_status"],
+            )
+        )
+        report_lines.append(
+            "- Session status: `{0}` -> `{1}`".format(
+                direct_session_drift["baseline_session_status"],
+                direct_session_drift["candidate_session_status"],
+            )
+        )
+        if direct_session_drift["drift_domains"]:
+            report_lines.append(
+                "- Drift domains: `{0}`".format("`, `".join(direct_session_drift["drift_domains"]))
+            )
+        for narrative in direct_session_drift["narratives"]:
+            report_lines.append(f"- {narrative}")
+    else:
+        report_lines.append("- No kernel_runtime_session witness is present in either bundle")
 
     if witness_changes:
         report_lines.extend(["", "## Witness Changes", "Id | Change | Impact | Status | Layer", "--- | --- | --- | --- | ---"])
@@ -945,11 +1175,16 @@ def build_summary(args):
             len(collapse_surface["regressed_witnesses"]),
             len(collapse_surface["added_missing_contract_refs"]),
         ),
-        "session_drift: changed={0} domains={1} focus={2} failure_codes={3}".format(
-            str(collapse_surface["session_drift"]["changed"]).lower(),
-            ",".join(collapse_surface["session_drift"]["affected_domains"]),
-            ",".join(collapse_surface["session_drift"]["affected_focus"]),
-            ",".join(collapse_surface["session_drift"]["failure_codes"]),
+        "session_drift: present={0} changed={1} domains={2}".format(
+            direct_session_drift["present"],
+            direct_session_drift["changed"],
+            ",".join(direct_session_drift["drift_domains"]),
+        ),
+        "collapse_session_drift: changed={0} domains={1} focus={2} failure_codes={3}".format(
+            str(collapse_session_drift["changed"]).lower(),
+            ",".join(collapse_session_drift["affected_domains"]),
+            ",".join(collapse_session_drift["affected_focus"]),
+            ",".join(collapse_session_drift["failure_codes"]),
         ),
     ]
     write_text(check_path, "\n".join(check_lines) + "\n")

@@ -39,6 +39,8 @@ Current `system_compiler.front_page_entry_opening_flow_consumer` includes:
   - `scripts/validate_system_compiler_front_page_entry_opening_flow_consumer.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
+- narrow runtime-session downstream smoke
+  - `scripts/system_compiler_front_page_entry_runtime_session_opening_flow_consumer_selector_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -109,6 +111,10 @@ The consumer keeps policy intentionally small:
 - compare-aware openings are selected from cases that preserved compare context
 - inspector readiness remains separate from renderability
 
+For a narrow runtime-session-only flow, the default opening is expected to be
+`runtime-session-sample`, with `selected_tab_id=runtime_session` and
+`projection_kind=kernel_runtime_session_overview`.
+
 That last point is important.
 
 A biography, witness bundle, world compare, shelf review, or runtime evidence
@@ -155,6 +161,12 @@ Expected smoke shape:
 
 ```text
 [FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-SMOKE] openings=10 renderable=10 compare_aware=2 default=root-witness reason=delivery_biography
+```
+
+Expected narrow runtime-session downstream shape:
+
+```text
+[FRONT-PAGE-ENTRY-RUNTIME-SESSION-CONSUMER-SELECTOR-SAMPLE-SMOKE] default=runtime-session-sample projection=kernel_runtime_session_overview
 ```
 
 ## Why this matters

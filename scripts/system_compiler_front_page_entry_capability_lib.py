@@ -20,6 +20,7 @@ CAPABILITY_IDS = [
     "counterfactual_verdict",
     "grouped_review",
     "supporting_evidence",
+    "runtime_session",
     "supporting_testimony",
     "shelf_compare",
     "candidate_shelf",
@@ -47,8 +48,9 @@ ROOT_KIND_TO_CAPABILITY = {
     "system_compiler.biography_index": "candidate_shelf",
 }
 
-ROOT_SCHEMA_TO_CAPABILITY = {
+SUMMARY_SCHEMA_TO_CAPABILITY = {
     "minimal_kernel.runtime_evidence_bundle.summary/v1": "supporting_evidence",
+    "minimal_kernel.kernel_runtime_session/v0": "runtime_session",
 }
 
 
@@ -183,15 +185,16 @@ def capability_ids_for_entry(entry: dict[str, Any]) -> list[str]:
     if mapped_role:
         capability_ids.append(mapped_role)
 
+    summary_schema = choose_text(entry.get("summary_schema"))
+    mapped_summary_schema = SUMMARY_SCHEMA_TO_CAPABILITY.get(summary_schema)
+    if mapped_summary_schema:
+        capability_ids.append(mapped_summary_schema)
+
     if choose_text(entry.get("route_id")) == "root":
         summary_kind = choose_text(entry.get("summary_kind"))
-        summary_schema = choose_text(entry.get("summary_schema"))
         mapped_root_kind = ROOT_KIND_TO_CAPABILITY.get(summary_kind)
-        mapped_root_schema = ROOT_SCHEMA_TO_CAPABILITY.get(summary_schema)
         if mapped_root_kind:
             capability_ids.append(mapped_root_kind)
-        if mapped_root_schema:
-            capability_ids.append(mapped_root_schema)
 
     return ordered_unique(capability_ids)
 
@@ -290,6 +293,8 @@ def determine_recommended_entry_mode(capability_summary: dict[str, Any]) -> str:
         return "biography"
     if bool(flags.get("supporting_evidence")):
         return "evidence"
+    if bool(flags.get("runtime_session")):
+        return "evidence"
     return "route"
 
 
@@ -298,7 +303,7 @@ def determine_entry_tier(capability_summary: dict[str, Any]) -> str:
     has_review = bool(flags.get("grouped_review"))
     has_compare = bool(flags.get("counterfactual_verdict"))
     has_biography = bool(flags.get("delivery_biography"))
-    has_evidence = bool(flags.get("supporting_evidence"))
+    has_evidence = bool(flags.get("supporting_evidence") or flags.get("runtime_session"))
     has_shelf = bool(flags.get("shelf_compare") or flags.get("candidate_shelf"))
 
     if has_review and has_shelf and has_biography and has_evidence:
@@ -384,6 +389,16 @@ def build_opening_reason(route_summary: dict[str, Any], capability_summary: dict
             [
                 ("kind", "supporting_evidence"),
                 ("summary", "Evidence mode is recommended because a supporting evidence capability is available."),
+                ("source_summary_path", root_summary_path),
+                ("drift_changed", False),
+                ("drift_verdict", ""),
+            ]
+        )
+    if bool(flags.get("runtime_session")):
+        return OrderedDict(
+            [
+                ("kind", "runtime_session"),
+                ("summary", "Evidence mode is recommended because a runtime session capability is available."),
                 ("source_summary_path", root_summary_path),
                 ("drift_changed", False),
                 ("drift_verdict", ""),
@@ -513,6 +528,8 @@ def build_questions(capability_summary: dict[str, Any], entry_status: dict[str, 
         next_questions.append("Should this route expose a direct world-compare landing?")
     if "grouped_review" in missing_capability_ids:
         next_questions.append("Should this route publish a grouped review landing?")
+    if "runtime_session" in missing_capability_ids:
+        next_questions.append("Should this route expose a direct runtime session landing?")
     if "route_provenance" in missing_capability_ids:
         next_questions.append("Should this route publish route provenance for deeper explain consumers?")
     if not next_questions and choose_text(entry_status.get("recommended_entry_mode")) == "review":

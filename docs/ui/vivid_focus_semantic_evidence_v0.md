@@ -125,6 +125,7 @@ v0 rules:
 - stable id is never derived from handle, pointer, or display text.
 - decorative widgets remain non-semantic until explicitly opted in.
 - explicit `set_semantic()` may override a previous default.
+- `semantic_default_demo` closes these facts with a final `causal_chain` verdict over role derivation, label source, explicit override, decorative boundary, and tree artifact integration.
 
 ### Law 8: semantic actions are artifact facts, not event execution
 
@@ -285,12 +286,12 @@ stdout final contract:
 ```
 
 `Examples/ui/vivid/semantic_default_demo` is the first Pattern Semantic Defaults v0 runtime evidence.
-It verifies default role derivation, text-based label source, explicit label override, opt-in boundary for decorative labels, explicit override, and semantic tree artifact integration.
+It verifies default role derivation, text-based label source, explicit label override, opt-in boundary for decorative labels, explicit override, semantic tree artifact integration, and final causal-chain evidence.
 
 stdout final contract:
 
 ```text
-[sdef] run=semantic_default_demo phase=end result=ok cases=6
+[sdef] run=semantic_default_demo phase=end result=ok cases=7
 ```
 
 `Examples/ui/vivid/semantic_action_demo` is the first Semantic Action Artifact v0 runtime evidence.

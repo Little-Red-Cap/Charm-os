@@ -289,6 +289,7 @@ WidgetKind + text
 ```
 
 The demo guards that decorative widgets are not auto-enrolled and that explicit `set_semantic()` can override a default.
+It also closes the path with a final `causal_chain` verdict over role derivation, label source, override, decorative boundary, and tree artifact evidence.
 
 ## 2026-05 Addendum: Semantic Action Artifact
 

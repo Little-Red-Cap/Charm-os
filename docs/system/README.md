@@ -210,6 +210,7 @@
 - [System Compiler Front Page Entry Opening Flow workspace compare](../../scripts/compare_system_compiler_front_page_entry_opening_flow_workspace.ps1)
 - [`explain_surface_v0.md`](explain_surface_v0.md)
 - [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)
+- [`board_evidence_fixture_catalog_v0.md`](board_evidence_fixture_catalog_v0.md)
 
 再按工具链继续：
 
@@ -237,7 +238,7 @@
 
 - 装配与平台边界：`init_graph`、`armv7a_*`、`minimal_kernel_*`、`kernel_runtime_session_*`
 - POSIX 执行面：`posix_*`
-- System compiler / explain surface：`artifact_report_v0`、`resource_contract_v0`、`explain_surface_v0`、`bringup_evidence_pipeline_v0`
+- System compiler / explain surface：`artifact_report_v0`、`resource_contract_v0`、`explain_surface_v0`、`bringup_evidence_pipeline_v0`、`board_evidence_fixture_catalog_v0`
 - Witness / world / biography shelf：`canonical_world_v0`、`witness_bundle_v0`、`world_compare_v0`、`system_compiler_biography_v0`、`system_compiler_biography_index_v0`、`system_compiler_biography_index_compare_v0`、`system_compiler_world_shelf_review_v0`
 - SSU：`ssu_*`
 - 专题总览：`power_lowpower_overview.md`、`av_pipeline_overview.md`、`at_system.md`

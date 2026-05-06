@@ -42,6 +42,19 @@ The lower seam decides what should be read.
 
 The upper seam only turns that decision into an explainable opening action.
 
+## Relationship to OpeningJudgmentCorridor
+
+Within `OpeningJudgmentCorridor`, this bridge belongs to `Judgment production`.
+
+Its job is to carry the already-exported runtime-session reading judgment into
+the standard opening-flow stack.
+
+It must not:
+
+- reopen raw runtime/session/world-compare evidence
+- replace `open_event`
+- replace witness, landing, route, explain-entry, or handoff layers
+
 ## Current shape
 
 Current `system_compiler.front_page_entry_runtime_session_opening_flow_plan_action`

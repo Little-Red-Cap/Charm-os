@@ -128,6 +128,8 @@ rejected_no_mutation=1
 
 New causal demos should prefer evidence-referenced verdicts. Existing count-based verdicts do not need immediate churn, but future edits should move them toward evidence-referenced fields when doing so improves clarity without adding noise.
 
+Demo-side printing ergonomics may use shared helpers, but those helpers do not define verdict meaning. The field law remains in docs; helper code only reduces repetitive `stdout` assembly.
+
 ## Verdict Families
 
 ### Semantic Verdict

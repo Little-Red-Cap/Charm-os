@@ -119,3 +119,17 @@ This is not an explain UI, a handoff compare, or a replacement for
 front-page landing inputs. This handoff is a lower-risk downstream seam for
 tools that already receive an opening testimony explain-entry decision and only
 need a stable default open action.
+
+## Relationship to OpeningJudgmentCorridor
+
+Within `OpeningJudgmentCorridor`, this handoff is the current downstream
+terminal action of the `Reading corridor`.
+
+It receives one already-selected explain surface and turns it into a stable
+open instruction.
+
+It must not:
+
+- reopen raw runtime/session/world-compare evidence
+- replace explain-entry selection
+- invent a second handoff-side routing policy

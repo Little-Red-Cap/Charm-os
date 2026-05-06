@@ -4,6 +4,8 @@
 import charm.gfx.canvas;
 import charm.ui.vivid;
 
+#include "../support/vivid_evidence_support.hpp"
+
 namespace {
     [[nodiscard]] bool expect(bool condition, const char* message) noexcept {
         if (!condition) {
@@ -48,25 +50,29 @@ namespace {
         const bool ok =
             request_ok && state_delta_ok && invalidation_ok && artifact_ok && rejected_no_mutation
             && time_ok && recipe_ok && compose_ok && budget_ok && trace_ok && page_motion_ok;
+        const vivid::evidence::CausalVerdictField fields[] = {
+            {"request_ok", request_ok},
+            {"state_delta_ok", state_delta_ok},
+            {"invalidation_ok", invalidation_ok},
+            {"artifact_ok", artifact_ok},
+            {"rejected_no_mutation", rejected_no_mutation},
+            {"time_ok", time_ok},
+            {"recipe_ok", recipe_ok},
+            {"compose_ok", compose_ok},
+            {"budget_ok", budget_ok},
+            {"trace_ok", trace_ok},
+            {"page_motion_ok", page_motion_ok},
+        };
+        const vivid::evidence::CausalVerdictEvidence verdict{
+            .name = "motion_time.managed",
+            .fields = fields,
+            .field_count = sizeof(fields) / sizeof(fields[0]),
+            .cases_closed = static_cast<unsigned>(kMotionEvidenceCaseCount),
+        };
         ++motion_summary_case_count;
-        std::printf(
-            "[mt] case=causal_chain causal_chain=1 name=motion_time.managed ok=%d "
-            "request_ok=%d state_delta_ok=%d invalidation_ok=%d artifact_ok=%d "
-            "rejected_no_mutation=%d time_ok=%d recipe_ok=%d compose_ok=%d budget_ok=%d "
-            "trace_ok=%d page_motion_ok=%d cases_closed=%u\n",
-            ok ? 1 : 0,
-            request_ok ? 1 : 0,
-            state_delta_ok ? 1 : 0,
-            invalidation_ok ? 1 : 0,
-            artifact_ok ? 1 : 0,
-            rejected_no_mutation ? 1 : 0,
-            time_ok ? 1 : 0,
-            recipe_ok ? 1 : 0,
-            compose_ok ? 1 : 0,
-            budget_ok ? 1 : 0,
-            trace_ok ? 1 : 0,
-            page_motion_ok ? 1 : 0,
-            static_cast<unsigned>(kMotionEvidenceCaseCount));
+        std::printf("[mt] case=causal_chain");
+        vivid::evidence::print_causal_verdict(verdict);
+        std::printf("\n");
         return expect(ok, "motion time causal chain closes");
     }
 

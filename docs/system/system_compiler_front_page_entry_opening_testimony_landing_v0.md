@@ -49,6 +49,18 @@ That corridor shares the same `open_event_witness` handoff object as the
 opener/workspace corridor. Neither corridor is allowed to reopen raw runtime
 session evidence once the witness boundary has been crossed.
 
+## Relationship to OpeningJudgmentCorridor
+
+Within `OpeningJudgmentCorridor`, `opening_testimony_landing` is the terminal
+object of `Testimony projection` and the first lawful root of the upper
+reading corridor.
+
+It must not:
+
+- re-prove session semantics
+- reopen raw runtime/session/world-compare evidence
+- replace route traversal or explain-entry selection
+
 ## Boundary
 
 `opening_testimony_landing/v0` must not:

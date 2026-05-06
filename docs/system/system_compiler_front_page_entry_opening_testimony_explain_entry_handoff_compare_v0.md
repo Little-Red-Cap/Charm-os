@@ -59,6 +59,7 @@ includes:
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_explain_entry_handoff_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_compare_explain_entry_handoff_compare_smoke.ps1`
 
 The comparer leaves behind:
 
@@ -110,6 +111,28 @@ handoff_compare
 It checks that the route-derived handoff can still be compared by the existing
 handoff compare surface, without reading lower testimony, runtime-session, or
 world-compare evidence.
+
+Run the route-compare return-seam guard smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_compare_explain_entry_handoff_compare_smoke.ps1 -Clean
+```
+
+This keeps the route-compare loop narrow:
+
+```text
+handoff_compare
+  -> front_page_route
+  -> front_page_route_compare
+  -> opening_testimony_explain_entry
+  -> opening_testimony_explain_entry_handoff
+  -> opening_testimony_explain_entry_handoff_compare
+```
+
+It checks that a handoff selected through a route-compare explain-entry still
+opens the same target with the same action as the route-derived handoff. The
+source route may change, but the downstream handoff decision must remain
+standing.
 
 Export directly:
 

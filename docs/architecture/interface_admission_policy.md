@@ -169,6 +169,10 @@ Charm 现在已经有多条强主线：
 
 - [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)
 
+从 `proposed` 走向 `experimental / candidate / admitted` 时，证据补齐顺序见：
+
+- [`device_contract_evidence_ladder_v0.md`](device_contract_evidence_ladder_v0.md)
+
 ## 4. 准入检查表
 
 一个接口从 `proposed` 走向 `candidate` 前，至少要回答下面问题。

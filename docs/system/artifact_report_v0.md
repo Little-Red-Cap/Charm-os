@@ -12,8 +12,10 @@
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/system_compiler.fact_evidence.v0.schema.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`
 - `schemas/system_compiler_summary.v0.schema.json`
 - `schemas/examples/system_compiler_summary.summary.v0.sample.json`
 - `schemas/examples/system_compiler_summary.comparison.v0.sample.json`
@@ -42,8 +44,10 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report_index.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_facts.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_i2c_composition.sample.json
+python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.summary.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_compiler_summary.comparison.v0.sample.json
 python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/system_input_summary.summary.v0.sample.json
@@ -65,6 +69,9 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 - `scripts/inspect_system_compiler_artifact_report.ps1`
 - `scripts/materialized_graph_required_fact_resolution_matrix_smoke.ps1`
 - `scripts/materialized_graph_required_fact_resolution_compare_smoke.ps1`
+- `scripts/materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_i2c_whoami_board_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_i2c_board_evidence_chain_smoke.ps1`
 
 它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
 与可选 `fact_evidence` sidecar，
@@ -87,6 +94,20 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 `required_fact_resolution_matrix` 的横向聚合语义。
 `materialized_graph_required_fact_resolution_compare_smoke.ps1` 则用于钉住 compare 模式下
 `required_fact_resolution_changes` 与 `required_fact_resolution_change_matrix` 的漂移语义。
+`materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1` 则用 I2C WHOAMI
+probe evidence 样例钉住更具体的一条事实证据漂移：
+`i2c.probe.board_real` 可以从 baseline 的 `missing` 变成 candidate 的 `satisfied`，
+同时 materialized graph 仍保持 `unchanged`。
+`materialized_graph_i2c_whoami_board_bringup_evidence_compare_smoke.ps1`
+进一步使用两个真实 producer：
+baseline 来自 `i2c-whoami-probe-evidence-smoke`，
+candidate 来自 `board-i2c-whoami-bringup-evidence-smoke`。
+它不再直接改写 sidecar 内容，而是验证 producer-side evidence swap
+也能被 compare report / inspector 解释为同一条
+`i2c.probe.board_real: missing -> satisfied` drift。
+`materialized_graph_i2c_board_evidence_chain_smoke.ps1`
+则是一键复验入口，会串行跑 no-hardware WHOAMI evidence、
+Host fixture board evidence、producer-side compare 与稳定 sample validation。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
 `export_bundle/v1` 现在可以同时承载三类 case：
@@ -197,6 +218,23 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-i2c-composition-bundle ./out/board-i2c-composition-artifact-report/board-i2c-fact-composition-smoke.artifact_report.json
 ```
 
+当前 I2C WHOAMI no-hardware probe evidence 也已经可以走同一条正式链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case i2c-whoami-probe-evidence-smoke -OutputRoot out/i2c-whoami-probe-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/i2c-whoami-probe-bundle -Case i2c-whoami-probe-evidence-smoke -OutputRoot out/i2c-whoami-probe-artifact-report
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/i2c-whoami-probe-bundle ./out/i2c-whoami-probe-artifact-report/i2c-whoami-probe-evidence-smoke.artifact_report.json
+```
+
+当前 `board.bringup` 风格的 I2C WHOAMI Host fixture evidence
+也可以作为独立 `fact_only` case 进入同一条链路，例如：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case board-i2c-whoami-bringup-evidence-smoke -OutputRoot out/board-i2c-whoami-bringup-bundle
+./scripts/export_system_compiler_artifact_report.ps1 -BundleRoot out/board-i2c-whoami-bringup-bundle -Case board-i2c-whoami-bringup-evidence-smoke -OutputRoot out/board-i2c-whoami-bringup-artifact-report
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/board-i2c-whoami-bringup-bundle ./out/board-i2c-whoami-bringup-artifact-report/board-i2c-whoami-bringup-evidence-smoke.artifact_report.json
+```
+
 当前 inspector 至少会直接带出：
 
 - case / mode / profile / board / facets
@@ -222,6 +260,8 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`
 
 这份样例现在与 `i2c-device-contract-facts-smoke` 这条 `fact_only`
 导出链保持同一种投影语义，并通过 `fact_evidence` sidecar
@@ -231,6 +271,29 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 与 `resource_contract.provided_facts` 的形状钉住。
 其中 `pinmux:pb8/pb9.af4` 故意保留为 required 但未 available，
 用于展示 contract-local fact 缺口如何被 artifact report 表达。
+
+其中 `i2c_whoami_probe` 样例把 `driver.i2c_whoami_probe`
+的 no-hardware probe smoke 投影成同一种 `fact_evidence` sidecar。
+它会把 `i2c.evidence:whoami_probe` 作为已提供证据带入事实库存，
+同时继续把 `i2c.probe.board_real` 保留为 missing，
+用于说明这条链已经具备 mock/probe evidence，
+但还没有真实板级 probe evidence。
+对应的 `materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
+会合成一份 candidate sidecar，把 `i2c.probe.board_real` 标记为
+`board.bringup` 提供，从而验证 compare report 与 inspector
+能解释这类 `missing -> satisfied` 的 required fact resolution drift。
+而 `board-i2c-whoami-bringup-evidence-smoke` 则把同一个
+`board.bringup` provider 收成可导出的 Host fixture 输入形态，
+用于证明 artifact report 可以直接消费这类 board/probe evidence sidecar。
+这仍不是实体硬件 probe 成果，只是正式 evidence 输入形态。
+其稳定 sidecar 样例见
+`schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`。
+对应的 producer-side compare smoke 会把 no-hardware WHOAMI baseline
+与该 Host fixture candidate 放进同一个 compare report，
+用于钉住从 `mock_i2c / no-hardware probe` 到
+`stm32_stub / board.bringup Host fixture` 的证据 producer 漂移。
+如果只想复验整条 I2C board evidence v0 链路，
+可以直接运行 `scripts/materialized_graph_i2c_board_evidence_chain_smoke.ps1`。
 
 当前也已经有一份 board/package facts 的 sidecar 样例：
 

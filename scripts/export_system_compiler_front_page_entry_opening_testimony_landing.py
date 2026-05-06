@@ -84,6 +84,15 @@ def normalize_evidence_ref(value: Any) -> OrderedDict[str, str]:
     )
 
 
+def is_routeable_evidence_ref(ref: OrderedDict[str, str]) -> bool:
+    return bool(
+        choose_text(ref.get("summary_schema"))
+        and choose_text(ref.get("summary_path"))
+        and choose_text(ref.get("report_markdown_path"))
+        and choose_text(ref.get("check_text_path"))
+    )
+
+
 def get_source_report_path(witness_summary: dict[str, Any]) -> str:
     artifact_context = get_mapping(witness_summary.get("artifact_context"))
     front_page = get_mapping(witness_summary.get("front_page"))
@@ -135,6 +144,8 @@ def build_front_page(
 
     for index, ref_value in enumerate(get_list(witness_summary.get("evidence_refs"))):
         ref = normalize_evidence_ref(ref_value)
+        if not is_routeable_evidence_ref(ref):
+            continue
         role = choose_text(ref.get("role")) or f"evidence_ref_{index}"
         supporting_surfaces.append(
             make_surface(

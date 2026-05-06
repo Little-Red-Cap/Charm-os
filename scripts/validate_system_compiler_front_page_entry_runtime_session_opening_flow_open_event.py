@@ -35,6 +35,7 @@ def validate_references(summary: dict, errors: list[str]) -> None:
     source_artifact = event.get("source_artifact", {})
     workspace = summary.get("workspace_facade", {})
     opening_input_refs = event.get("opening_input_refs", {})
+    event_status = event.get("status")
 
     ensure_exists(artifact_context.get("source_action_summary_path"), "artifact_context.source_action_summary_path", errors)
     ensure_exists(artifact_context.get("output_root"), "artifact_context.output_root", errors)
@@ -54,7 +55,12 @@ def validate_references(summary: dict, errors: list[str]) -> None:
         ensure_exists(surface.get("report_markdown_path"), f"front_page.supporting_surfaces[{index}].report_markdown_path", errors)
         ensure_exists(surface.get("check_text_path"), f"front_page.supporting_surfaces[{index}].check_text_path", errors)
 
-    ensure_exists(source_artifact.get("summary_path"), "open_event.source_artifact.summary_path", errors)
+    ensure_exists(
+        source_artifact.get("summary_path"),
+        "open_event.source_artifact.summary_path",
+        errors,
+        required=event_status != "blocked",
+    )
     ensure_exists(source_artifact.get("opener_summary_path"), "open_event.source_artifact.opener_summary_path", errors)
     ensure_exists(source_artifact.get("opener_report_markdown_path"), "open_event.source_artifact.opener_report_markdown_path", errors)
     ensure_exists(source_artifact.get("opener_check_text_path"), "open_event.source_artifact.opener_check_text_path", errors)
@@ -115,7 +121,9 @@ def validate_status(summary: dict, errors: list[str]) -> None:
     expect_equal(judgment.get("status"), event_status, "judgment.status", errors)
     expect_equal(judgment.get("accepted"), event_status != "blocked", "judgment.accepted", errors)
     expect_equal(judgment.get("grade"), "compared" if bool(compare.get("available")) else "described", "judgment.grade", errors)
-    expected_verdict = "drifted" if event_status == "accepted_with_drift" else ("standing" if bool(compare.get("available")) else "not_attached")
+    expected_verdict = "not_attached"
+    if bool(compare.get("available")):
+        expected_verdict = "drifted" if bool(compare.get("reason_changed")) else "standing"
     expect_equal(compare.get("action_verdict"), expected_verdict, "compare_summary.action_verdict", errors)
 
 

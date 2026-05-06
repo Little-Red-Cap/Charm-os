@@ -61,6 +61,12 @@ The smoke output root is:
 cmake-build-system-compiler-front-page-entry-opening-testimony-landing-compare-smoke
 ```
 
+The runtime-session-targeted compare smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-landing-compare-smoke
+```
+
 ## What It Compares
 
 The compare summary records:
@@ -113,6 +119,11 @@ If the source open event or witness changes, that fact should already be
 visible through the two landing summaries.
 
 This compare only judges how that change affects the explain-entry landing.
+
+For runtime-session, this compare is the first compare seam above the shared
+`open_event_witness` boundary. It compares only the projected testimony
+landing summaries and never rereads the runtime-session inspect consumer, the
+runtime evidence bundle, or raw world/session compare artifacts.
 
 ## Manual Example
 

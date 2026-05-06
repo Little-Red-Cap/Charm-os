@@ -28,3 +28,5 @@ Examples/kernel/posix/qemu/qemu-ci.tmp.err
 Examples/kernel/posix/qemu/ci-wrapper.out
 _tmp/*
 Examples/posix/elf_samples/out/
+__pycache__/
+*.pyc

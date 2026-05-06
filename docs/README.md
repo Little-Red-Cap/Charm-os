@@ -167,6 +167,8 @@
 - System Compiler Front Page Entry Runtime Session Opening Flow blocked bridge smoke：`scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_bridge_blocked_smoke.ps1`
 - System Compiler Front Page Entry Runtime Session open event witness smoke：`scripts/system_compiler_front_page_entry_runtime_session_open_event_witness_smoke.ps1`
 - System Compiler Front Page Entry Opener open event witness smoke：`scripts/system_compiler_front_page_entry_opener_open_event_witness_smoke.ps1`
+- System Compiler Witness open event witness export smoke：`scripts/system_compiler_witness_open_event_witness_export_smoke.ps1`
+- System Compiler Witness open event witness world compare smoke：`scripts/system_compiler_witness_open_event_witness_world_compare_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow smoke：`scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
 - System Compiler Front Page Entry Opening Flow consumer selector smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`

@@ -54,6 +54,16 @@ opening_testimony_explain_entry_handoff_compare
   -> opening_testimony_explain_entry
 ```
 
+For handoff compare route-compare inputs:
+
+```text
+opening_testimony_explain_entry_handoff_compare
+  -> front_page_route
+  -> front_page_route_compare
+  -> opening_testimony_explain_entry
+  -> opening_testimony_explain_entry_handoff
+```
+
 This object answers:
 
 ```text
@@ -83,6 +93,12 @@ For route compare summaries:
 - `improved` and `drifted` select the candidate changed or newly added surface.
 - `collapsed` is blocked.
 
+When the changed candidate route is rooted in
+`opening_testimony_explain_entry_handoff_compare/v0`, the preferred changed
+surface is `candidate_opening_testimony_explain_entry_handoff`. This keeps the
+handoff-compare route-compare path on the handoff testimony surface instead of
+falling through to an arbitrary changed route entry.
+
 The exporter only reads route and route-compare surfaces. It does not reopen the
 selected witness, landing, or runtime/session evidence.
 
@@ -100,6 +116,7 @@ includes:
 - smokes
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_route_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_compare_explain_entry_smoke.ps1`
 
 The exporter leaves behind:
 
@@ -167,3 +184,17 @@ This is a default explain-entry decision seam. It is not a witness bundle, a
 runtime-session compare, or a UI integration. It exists so later front-page
 tooling can consume a stable opening testimony route decision without rebuilding
 route traversal policy.
+
+## Relationship to OpeningJudgmentCorridor
+
+Within `OpeningJudgmentCorridor`, `opening_testimony_explain_entry` belongs to
+the `Reading corridor`.
+
+It is the default explain-surface selector for already-exported route or
+route-compare summaries.
+
+It must not:
+
+- reopen raw witness/runtime/session evidence
+- replace route traversal policy
+- replace downstream handoff policy

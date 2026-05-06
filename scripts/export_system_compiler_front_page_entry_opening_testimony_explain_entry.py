@@ -261,16 +261,27 @@ def choose_added_or_changed_surface_id(route_compare_summary: dict[str, Any]) ->
     added = [choose_text(item) for item in get_list(level1_changes.get("added")) if choose_text(item)]
     if "candidate_opening_testimony_landing" in added:
         return "candidate_opening_testimony_landing"
+    if "candidate_opening_testimony_explain_entry_handoff" in added:
+        return "candidate_opening_testimony_explain_entry_handoff"
     if added:
         return added[0]
 
+    changed_candidates: list[str] = []
     for change_value in get_list(route_compare_summary.get("entry_changes")):
         change = get_mapping(change_value)
         if choose_text(change.get("change_kind")) not in {"added", "changed"}:
             continue
         surface_id = choose_text(change.get("surface_id"))
         if surface_id and surface_id != "root" and choose_text(change.get("candidate_summary_path")):
-            return surface_id
+            changed_candidates.append(surface_id)
+    for preferred_surface_id in (
+        "candidate_opening_testimony_landing",
+        "candidate_opening_testimony_explain_entry_handoff",
+    ):
+        if preferred_surface_id in changed_candidates:
+            return preferred_surface_id
+    if changed_candidates:
+        return changed_candidates[0]
     return ""
 
 

@@ -598,6 +598,39 @@ report / system 侧的现实载体包括：
 - runtime observe / publish / export 状态
 - `artifact report` 作为 explain 输入工件
 
+### 4.13 `OpeningJudgmentCorridor`
+
+它回答的是：
+
+> **当 lower seam 已经导出“该看什么”的 opening judgment 之后，这个判决如何被上层阅读、路由、解释，并继续 handoff。**
+
+它当前是一个结构主语，而不是新的 schema 家族。
+
+当前对应载体包括：
+
+- `docs/system/opening_judgment_corridor_v0.md`
+- runtime-session bridge 到 `open_event_witness` 的 testimony 入口
+- `opening_testimony_landing -> front_page_route -> opening_testimony_explain_entry -> handoff`
+  这条上行阅读通路
+- `system_compiler.world_shelf_review/v0` 当前已经具备的 `front_page + route_provenance`
+  作为下一扩域目标
+
+这里要特别避免两个误写：
+
+> **`OpeningJudgmentCorridor` 不等于 runtime-session 特例。**
+
+> **`OpeningJudgmentCorridor` 也不等于 FrontPageReadingLaw。**
+
+更安全的理解是：
+
+```text
+OpeningJudgmentCorridor
+  = 完整的判决运输与阅读通路法
+
+FrontPageReadingLaw
+  = 这条 corridor 在 front_page / explain_entry 层的阅读规则别名
+```
+
 ## 5. 最小概念映射表
 
 | 目标词汇 | 当前主要载体 | 当前状态 | 当前不要误写成 |
@@ -619,6 +652,7 @@ report / system 侧的现实载体包括：
 | `BringupOrder` | `artifact report.bringup_order`、`bringup_order_summary`、`comparison.bringup_order_summary`、[`../../schemas/bringup_order_summary.v0.schema.json`](../../schemas/bringup_order_summary.v0.schema.json)、materialized graph 节点顺序 | 已有正式结果物载体；其中 bringup-side summary object 现在也会显式带出 `kind = bringup_order_summary/v0` 与 `mode = summary | comparison`，把 bringup 顺序热点与 bringup drift 汇总对象正式锚定为独立协议 | 仅仅等于 DOT 展示顺序 |
 | `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、`system_formation_summary`、`comparison.system_formation_summary`、[`../../schemas/system_formation_summary.v0.schema.json`](../../schemas/system_formation_summary.v0.schema.json)、默认总览 `Formation / FormCmp` | 已有正式结果物载体；其中 formation-side summary object 现在也会显式带出 `kind = system_formation_summary/v0` 与 `mode = summary | comparison`，把 formation 结果与 formation drift 汇总对象正式锚定为独立协议 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
+| `OpeningJudgmentCorridor` | `docs/system/opening_judgment_corridor_v0.md` + runtime-session bridge/witness/landing/route/explain-entry/handoff contracts + `world_shelf_review.front_page / route_provenance` | 文档级主语已成立，用来冻结“下层导出判决、上层只解释判决”的共同法律 | runtime-session 特例、第二套 compare brain、单纯等于 FrontPageReadingLaw |
 
 ## 6. 一个最小 worked example
 

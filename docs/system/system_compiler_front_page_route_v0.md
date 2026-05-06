@@ -220,3 +220,17 @@ Instead, it proves a more basic claim:
 
 That makes `front_page_route` a good staging object for future explain surface
 consumers, review tools, and route-aware CI summaries.
+
+## Relationship to OpeningJudgmentCorridor
+
+Within `OpeningJudgmentCorridor`, `front_page_route` belongs to the
+`Reading corridor`.
+
+Its job is to walk already-declared `front_page` surfaces and preserve
+`route_provenance` without inventing a second lower graph model.
+
+It must not:
+
+- reopen raw runtime/session/world-compare evidence
+- replace landing decisions
+- replace explain-entry selection or handoff policy

@@ -108,6 +108,8 @@ candidate 来自 `board-i2c-whoami-bringup-evidence-smoke`。
 `materialized_graph_i2c_board_evidence_chain_smoke.ps1`
 则是一键复验入口，会串行跑 no-hardware WHOAMI evidence、
 Host fixture board evidence、producer-side compare 与稳定 sample validation。
+当前 board evidence fixture 的执行台账见
+[`board_evidence_fixture_catalog_v0.md`](board_evidence_fixture_catalog_v0.md)。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
 `export_bundle/v1` 现在可以同时承载三类 case：
@@ -294,6 +296,8 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 `stm32_stub / board.bringup Host fixture` 的证据 producer 漂移。
 如果只想复验整条 I2C board evidence v0 链路，
 可以直接运行 `scripts/materialized_graph_i2c_board_evidence_chain_smoke.ps1`。
+该链路的 fixture catalog 与分步调试入口见
+[`board_evidence_fixture_catalog_v0.md`](board_evidence_fixture_catalog_v0.md)。
 
 当前也已经有一份 board/package facts 的 sidecar 样例：
 

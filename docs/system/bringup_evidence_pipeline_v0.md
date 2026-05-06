@@ -341,7 +341,7 @@ Charm 这条线不是从零开始。
 这意味着 bringup 证据现在已经能从“单 case compare explain”
 继续抬升到“artifact_root 横向 compare explain”。
 
-## 8. 当前最贴仓库现实的三条示例链路
+## 8. 当前最贴仓库现实的示例链路与 fixture catalog
 
 ### 8.1 `materialize_observe_demo`
 
@@ -383,6 +383,23 @@ Charm 这条线不是从零开始。
 这说明当前仓库已经具备最关键的雏形：
 
 > **系统入口 helper 本身，也可以被拿来举证。**
+
+### 8.4 Board evidence fixture catalog
+
+路径：
+
+- `docs/system/board_evidence_fixture_catalog_v0.md`
+
+它记录的是当前 board/probe evidence 输入形态：
+
+- board/package facts
+- I2C fact composition
+- no-hardware WHOAMI probe evidence
+- Host fixture `board.bringup` evidence
+- 一键 chain smoke 与分步调试入口
+
+这份 catalog 不替代本文件的状态语言。
+它只负责回答“当前哪些 evidence producer 已经可以被导出、比较、校验和复验”。
 
 ## 9. runtime discovery plane 如何接入这条线
 

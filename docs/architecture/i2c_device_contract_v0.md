@@ -506,6 +506,8 @@ Charm:
    `board-i2c-whoami-bringup-evidence-smoke` 接入；
    当前 fixture catalog 与分步调试入口见
    [`../system/board_evidence_fixture_catalog_v0.md`](../system/board_evidence_fixture_catalog_v0.md)；
+   真实或准真实 I2C board/probe evidence 接入前 checklist 见
+   [`../system/i2c_board_probe_evidence_readiness_checklist_v0.md`](../system/i2c_board_probe_evidence_readiness_checklist_v0.md)；
    下一步更适合继续推进真实 probe evidence 或真实 board bringup evidence，不做执法。
 3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。

@@ -63,6 +63,9 @@ I2C 已经是第一条 `experimental` 样板链。
 ### 第一张票
 
 优先补一个真实芯片 driver 或 probe evidence。
+真实或准真实 I2C board/probe evidence 接入前，先按
+[`../system/i2c_board_probe_evidence_readiness_checklist_v0.md`](../system/i2c_board_probe_evidence_readiness_checklist_v0.md)
+检查 producer、facts、sidecar、baseline 与验收入口。
 
 推荐候选：
 

@@ -177,4 +177,8 @@ provider source: board.bringup
 - 能被 artifact report 消费的 `fact_evidence` sidecar
 - 能与 no-hardware baseline 做 compare 的 producer-side smoke
 
+接入真实或准真实 I2C board/probe evidence 前，先按
+[`i2c_board_probe_evidence_readiness_checklist_v0.md`](i2c_board_probe_evidence_readiness_checklist_v0.md)
+检查 producer、facts、sidecar 与 compare baseline。
+
 在这之前，本目录中的 board evidence fixture 只承担“输入形态样板”和“工具链回归”职责。

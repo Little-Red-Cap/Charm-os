@@ -3,6 +3,8 @@
 import charm.gfx.canvas;
 import charm.ui.vivid;
 
+#include "../support/vivid_evidence_support.hpp"
+
 namespace {
     struct TransitionScene {
         DefaultFrameBuffer fb{};
@@ -201,27 +203,30 @@ namespace {
             request_ok && state_delta_ok && invalidation_ok && artifact_ok && rejected_no_mutation
             && admission_ok && commit_ok && cancel_ok && interrupt_ok && static_cut_ok
             && snapshot_lifecycle_ok && page_truth_ok;
+        const vivid::evidence::CausalVerdictField fields[] = {
+            {"request_ok", request_ok},
+            {"state_delta_ok", state_delta_ok},
+            {"invalidation_ok", invalidation_ok},
+            {"artifact_ok", artifact_ok},
+            {"rejected_no_mutation", rejected_no_mutation},
+            {"admission_ok", admission_ok},
+            {"commit_ok", commit_ok},
+            {"cancel_ok", cancel_ok},
+            {"interrupt_ok", interrupt_ok},
+            {"static_cut_ok", static_cut_ok},
+            {"snapshot_lifecycle_ok", snapshot_lifecycle_ok},
+            {"page_truth_ok", page_truth_ok},
+        };
+        const vivid::evidence::CausalVerdictEvidence verdict{
+            .name = "page_transition.transaction",
+            .fields = fields,
+            .field_count = sizeof(fields) / sizeof(fields[0]),
+            .cases_closed = static_cast<unsigned>(kTransactionEvidenceCaseCount),
+        };
         ++transition_summary_case_count;
-        std::printf(
-            "[pt] case=causal_chain causal_chain=1 name=page_transition.transaction ok=%d "
-            "request_ok=%d state_delta_ok=%d invalidation_ok=%d artifact_ok=%d "
-            "rejected_no_mutation=%d admission_ok=%d commit_ok=%d cancel_ok=%d "
-            "interrupt_ok=%d static_cut_ok=%d snapshot_lifecycle_ok=%d page_truth_ok=%d "
-            "cases_closed=%u\n",
-            ok ? 1 : 0,
-            request_ok ? 1 : 0,
-            state_delta_ok ? 1 : 0,
-            invalidation_ok ? 1 : 0,
-            artifact_ok ? 1 : 0,
-            rejected_no_mutation ? 1 : 0,
-            admission_ok ? 1 : 0,
-            commit_ok ? 1 : 0,
-            cancel_ok ? 1 : 0,
-            interrupt_ok ? 1 : 0,
-            static_cut_ok ? 1 : 0,
-            snapshot_lifecycle_ok ? 1 : 0,
-            page_truth_ok ? 1 : 0,
-            static_cast<unsigned>(kTransactionEvidenceCaseCount));
+        std::printf("[pt] case=causal_chain");
+        vivid::evidence::print_causal_verdict(verdict);
+        std::printf("\n");
         return expect(ok, "page transition causal chain closes");
     }
 

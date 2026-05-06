@@ -71,6 +71,7 @@ python ./scripts/validate_materialized_graph_artifacts.py ./schemas/examples/sys
 - `scripts/materialized_graph_required_fact_resolution_compare_smoke.ps1`
 - `scripts/materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
 - `scripts/materialized_graph_i2c_whoami_board_bringup_evidence_compare_smoke.ps1`
+- `scripts/materialized_graph_i2c_board_evidence_chain_smoke.ps1`
 
 它当前会基于现有 `export_bundle` index、可选 `materialized_graph.sample`、可选 `runtime_observe` sidecar
 与可选 `fact_evidence` sidecar，
@@ -104,6 +105,9 @@ candidate 来自 `board-i2c-whoami-bringup-evidence-smoke`。
 它不再直接改写 sidecar 内容，而是验证 producer-side evidence swap
 也能被 compare report / inspector 解释为同一条
 `i2c.probe.board_real: missing -> satisfied` drift。
+`materialized_graph_i2c_board_evidence_chain_smoke.ps1`
+则是一键复验入口，会串行跑 no-hardware WHOAMI evidence、
+Host fixture board evidence、producer-side compare 与稳定 sample validation。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
 `export_bundle/v1` 现在可以同时承载三类 case：
@@ -288,6 +292,8 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 与该 Host fixture candidate 放进同一个 compare report，
 用于钉住从 `mock_i2c / no-hardware probe` 到
 `stm32_stub / board.bringup Host fixture` 的证据 producer 漂移。
+如果只想复验整条 I2C board evidence v0 链路，
+可以直接运行 `scripts/materialized_graph_i2c_board_evidence_chain_smoke.ps1`。
 
 当前也已经有一份 board/package facts 的 sidecar 样例：
 

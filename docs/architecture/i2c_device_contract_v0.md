@@ -315,6 +315,9 @@ RegisterDevice8<MaxPayload = 8>
   使用 no-hardware WHOAMI producer 作为 baseline、Host fixture
   `board.bringup` producer 作为 candidate，验证真实 producer 侧
   evidence swap 也能解释同一条 drift。
+- `materialized_graph_i2c_board_evidence_chain_smoke.ps1`
+  串行复验 no-hardware WHOAMI evidence、Host fixture board evidence、
+  producer-side compare 与 stable sample validation。
 
 当前已验证输出形态：
 
@@ -365,6 +368,8 @@ baseline 中该 fact 为 `missing`，candidate 中该 fact 为 `satisfied`。
 确认 `subject.board`、`active_facets` 与 `fact_evidence` 来源发生漂移时，
 artifact report 仍能把核心结论收束为
 `i2c.probe.board_real: missing -> satisfied`。
+当前也已有一条 chain smoke 可以一键复验这组 evidence：
+`materialized_graph_i2c_board_evidence_chain_smoke.ps1`。
 
 `io.device_i2c_facts` 当前定义了最小 fact vocabulary：
 

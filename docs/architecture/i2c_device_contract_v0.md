@@ -17,6 +17,7 @@
 - `Modules/io/device/io.device_i2c_mock.cppm`
 - `Modules/io/device/io.device_i2c_hal.cppm`
 - `Modules/io/driver/driver.i2c_register_device.cppm`
+- `Modules/io/driver/driver.i2c_whoami_probe.cppm`
 
 当前 smoke 证据：
 
@@ -24,6 +25,7 @@
 - `Examples/io/i2c_facts_smoke`
 - `Examples/io/i2c_hal_adapter_smoke`
 - `Examples/io/i2c_register_driver_smoke`
+- `Examples/io/i2c_whoami_probe_smoke`
 
 ## 1. 当前等级
 
@@ -39,16 +41,17 @@
 - 一个 transaction mock backend：`io.device_i2c_mock`
 - 一个 HAL adapter backend：`io.device_i2c_hal`
 - 一个准真实 register driver：`driver.i2c_register_device`
-- 四条 no-hardware smoke
-- 一个 `system_compiler.fact_evidence/v0` sidecar 投影样例
+- 一个准真实 probe driver：`driver.i2c_whoami_probe`
+- 五条 no-hardware smoke
+- 三个 `system_compiler.fact_evidence/v0` sidecar 投影样例
 
 它还不是 `candidate`，因为仍然缺：
 
 - 真实硬件 evidence
 - 真实芯片 driver
-- 正式 probe evidence
+- 板级真实 probe evidence
 - board bringup evidence
-- artifact report / evidence pipeline 里的正式 facts 投影闭环
+- evidence pipeline 里的真实板级 facts/probe 闭环
 - 更完整的资源与执行语义冻结
 
 ## 2. Contract Shape
@@ -256,6 +259,36 @@ RegisterDevice8<MaxPayload = 8>
 
 这让栈缓冲容量成为编译期契约，而不是隐藏运行期分配。
 
+`driver.i2c_whoami_probe` 是当前准真实 probe driver evidence。
+
+它提供：
+
+- `read_id()`
+- `probe()`
+- `WhoAmIProbeConfig`
+
+它只依赖：
+
+- `io.device_i2c`
+- `util.core`
+- `util.error`
+- `util.expected`
+
+它不依赖：
+
+- HAL
+- mock
+- BoardCaps
+- init.graph
+- device registry
+- platform headers
+
+它验证的是真实 I2C 外设里非常常见的 ID / WHOAMI 寄存器探测模式。
+当前它仍然是 no-hardware probe evidence，不等价于真实板级 probe evidence。
+它也已经通过 `i2c-whoami-probe-evidence-smoke` 进入
+`system_compiler.fact_evidence/v0` sidecar 与 artifact report 导出链，
+但该投影仍明确保留 `i2c.probe.board_real` 缺口。
+
 ## 8. Smoke Evidence
 
 当前 smoke 覆盖：
@@ -266,6 +299,25 @@ RegisterDevice8<MaxPayload = 8>
   验证同一个 register driver 经 HAL adapter backend 运行，并覆盖 `busy / timeout / unsupported` 映射。
 - `i2c_register_driver_smoke`
   验证 register driver 在 transaction mock backend 上完成单寄存器与 burst 读写。
+- `i2c_whoami_probe_smoke`
+  验证 probe driver 在 transaction mock backend 上覆盖成功、ID mismatch 与 backend failure。
+- `i2c-whoami-probe-evidence-smoke`
+  验证 WHOAMI no-hardware probe evidence 可以作为 `fact_only` case
+  进入 `export_bundle -> artifact_report` 链。
+- `board-i2c-whoami-bringup-evidence-smoke`
+  验证 `board.bringup` 风格的 Host fixture evidence 可以把
+  `i2c.probe.board_real` 作为已提供事实送入同一条 artifact report 链。
+- `materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
+  合成一份 candidate evidence，把 `i2c.probe.board_real` 从
+  `missing` 推到 `satisfied`，验证 artifact report / inspector
+  能解释这类 probe evidence drift。
+- `materialized_graph_i2c_whoami_board_bringup_evidence_compare_smoke.ps1`
+  使用 no-hardware WHOAMI producer 作为 baseline、Host fixture
+  `board.bringup` producer 作为 candidate，验证真实 producer 侧
+  evidence swap 也能解释同一条 drift。
+- `materialized_graph_i2c_board_evidence_chain_smoke.ps1`
+  串行复验 no-hardware WHOAMI evidence、Host fixture board evidence、
+  producer-side compare 与 stable sample validation。
 
 当前已验证输出形态：
 
@@ -273,6 +325,7 @@ RegisterDevice8<MaxPayload = 8>
 i2c contract mock smoke: ok
 i2c hal adapter smoke: ok
 i2c register driver smoke: ok
+i2c whoami probe smoke: ok
 ```
 
 ## 9. System Compiler Projection
@@ -283,6 +336,40 @@ i2c register driver smoke: ok
 当前 facts 不再主要依赖 manifest 字面量，而是由
 `system_compiler.fact_evidence/v0` sidecar 进入 bundle 后再投影到 artifact report。
 这仍然只是报告证据，不会阻断构建。
+
+当前 WHOAMI probe evidence 同样走这条 `fact_only` sidecar 路径。
+它把 no-hardware probe 已有证据与真实板级 probe 缺口放进同一份事实库存：
+
+- `i2c.evidence:whoami_probe` 已提供
+- `i2c.probe.board_real` 缺失
+
+这让 artifact report 能解释“为什么它还不是 candidate evidence”，
+而不是只停留在 smoke 输出文本。
+其中 `i2c.register:*`、`i2c.expected_id:*` 与 `i2c.probe.*`
+当前只是 WHOAMI probe sidecar 的 probe-local evidence fact names，
+不是 admitted I2C contract vocabulary。
+
+当前还有一条 compare smoke 会在不改变 graph 的前提下合成
+`i2c.probe.board_real` 的 `board.bringup` provider。
+它证明的是 artifact report 对 probe evidence 缺口闭合的解释能力：
+baseline 中该 fact 为 `missing`，candidate 中该 fact 为 `satisfied`。
+这仍不等价于真实硬件 evidence，也不会把 I2C 从 `experimental`
+升级为 `candidate`。
+
+当前还有一条 Host fixture case：
+`board-i2c-whoami-bringup-evidence-smoke`。
+它复用 `driver.i2c_whoami_probe` 与 mock I2C transaction 跑通成功路径，
+但产出的 `fact_evidence` 以 `board.bringup` 作为
+`i2c.probe.board_real` 的 provider source。
+这一步把前一条 compare smoke 里的 synthetic provider 收成了正式可导出的输入形态，
+但仍不声称已经拥有真实板级硬件 probe evidence。
+对应的 producer-side compare smoke 会把 no-hardware probe evidence
+与 Host fixture board evidence 作为两个 producer 对比，
+确认 `subject.board`、`active_facets` 与 `fact_evidence` 来源发生漂移时，
+artifact report 仍能把核心结论收束为
+`i2c.probe.board_real: missing -> satisfied`。
+当前也已有一条 chain smoke 可以一键复验这组 evidence：
+`materialized_graph_i2c_board_evidence_chain_smoke.ps1`。
 
 `io.device_i2c_facts` 当前定义了最小 fact vocabulary：
 
@@ -325,6 +412,8 @@ required=6 provided=5 missing=1 optional_unknown=1
 
 - `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
 - `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
+- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`
 
 当前真实导出 case：
 
@@ -367,6 +456,8 @@ evidence:
   mock script evidence
   HAL adapter smoke evidence
   I2C fact resolution evidence
+  no-hardware WHOAMI probe evidence
+  WHOAMI fact_evidence sidecar
   board bringup evidence
   real driver probe evidence
 ```
@@ -400,13 +491,18 @@ Charm:
 
 最值当的下一步是：
 
-1. 写一个真实芯片 driver
+1. 把 no-hardware `driver.i2c_whoami_probe` 继续接到真实芯片或板级 probe。
    例如 sensor / EEPROM / codec / PMIC。
 2. 把当前 smoke 级 `fact_evidence` sidecar 推进到更真实的 evidence pipeline
    当前 board/package fact source 已由 `board-package-facts-smoke` 接入，
    I2C contract-required facts 与 board/package/adapter audit facts 的组合
    也已由 `board-i2c-fact-composition-smoke` 接入；
-   下一步更适合继续推进 probe evidence 或 board bringup evidence，不做执法。
+   WHOAMI no-hardware probe evidence 也已由 `i2c-whoami-probe-evidence-smoke`
+   接入 artifact report；
+   其 `i2c.probe.board_real` 缺口闭合路径也已有 compare smoke 钉住；
+   `board.bringup` 风格 provider 的 Host fixture 输入形态也已由
+   `board-i2c-whoami-bringup-evidence-smoke` 接入；
+   下一步更适合继续推进真实 probe evidence 或真实 board bringup evidence，不做执法。
 3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。
 4. 持续同步 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)，

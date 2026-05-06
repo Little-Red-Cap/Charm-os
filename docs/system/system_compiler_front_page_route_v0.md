@@ -26,6 +26,20 @@ It answers a narrower question:
 That makes it a useful bridge between the current artifact layer and a future
 stronger explain surface.
 
+The runtime-session testimony ladder now uses this same generic route object as
+its upper consumer walk:
+
+```text
+open_event_witness
+  -> opening_testimony_landing
+  -> front_page_route
+  -> opening_testimony_explain_entry
+```
+
+That reuse is deliberate. No runtime-session-specific route schema is added in
+this phase; the runtime-session wrappers only feed the existing route exporter
+with already-projected landing summaries.
+
 ## Current shape
 
 Current `system_compiler.front_page_route` includes:

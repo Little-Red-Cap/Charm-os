@@ -34,6 +34,21 @@ It does not replace runtime-session bridge work.
 The runtime-session bridge may eventually produce an open event and then an
 open-event witness. This landing only consumes the resulting witness testimony.
 
+For runtime-session specifically, this landing now anchors a second upward
+corridor beside the already-committed opener/workspace path:
+
+```text
+runtime-session consumer
+  -> runtime-session opening bridge
+  -> open_event
+  -> open_event_witness
+  -> opening_testimony_landing
+```
+
+That corridor shares the same `open_event_witness` handoff object as the
+opener/workspace corridor. Neither corridor is allowed to reopen raw runtime
+session evidence once the witness boundary has been crossed.
+
 ## Boundary
 
 `opening_testimony_landing/v0` must not:
@@ -82,6 +97,12 @@ The smoke output root is:
 
 ```powershell
 cmake-build-system-compiler-front-page-entry-opening-testimony-landing-smoke
+```
+
+The runtime-session-targeted smoke output root is:
+
+```powershell
+cmake-build-system-compiler-front-page-entry-runtime-session-opening-testimony-landing-smoke
 ```
 
 ## Ready Rule

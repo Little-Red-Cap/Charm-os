@@ -37,6 +37,23 @@ Current `system_compiler.front_page_route_compare` includes:
 - smoke
   - `scripts/system_compiler_front_page_route_compare_smoke.ps1`
 
+Runtime-session also now proves that the same generic route-compare object can
+stay above the testimony compare seam:
+
+```text
+open_event_witness
+  -> opening_testimony_landing
+  -> front_page_route
+  -> opening_testimony_explain_entry
+  -> opening_testimony_explain_entry_compare
+  -> front_page_route
+  -> front_page_route_compare
+```
+
+That targeted closure is exercised by:
+
+- `scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_route_smoke.ps1`
+
 ## Current outputs
 
 By default the comparer leaves behind:
@@ -145,3 +162,8 @@ but also:
 
 That gives the system compiler line a route-aware compare surface without
 forcing later tools to bypass the artifact layer.
+
+For runtime-session specifically, it means the testimony ladder no longer stops
+at `opening_testimony_explain_entry_compare`; the compare summary can become a
+fresh route root, and the consumer walk can still be compared one layer higher
+without reopening runtime/session/world raw evidence.

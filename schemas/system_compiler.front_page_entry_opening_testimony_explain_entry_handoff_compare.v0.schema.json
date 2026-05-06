@@ -1,0 +1,559 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.front_page_entry_opening_testimony_explain_entry_handoff_compare.v0.schema.json",
+  "title": "system_compiler.front_page_entry_opening_testimony_explain_entry_handoff_compare/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "generated_at_utc",
+    "generator",
+    "result",
+    "opening_testimony_explain_entry_handoff_compare",
+    "front_page",
+    "handoff_provenance",
+    "artifact_context",
+    "handoff_verdict",
+    "handoff_status",
+    "source_explain_entry_ref_changes",
+    "handoff_decision_changes",
+    "open_target_changes",
+    "opening_reason_changes",
+    "handoff_action_changes",
+    "supporting_target_changes",
+    "next_question_changes",
+    "change_summary",
+    "handoff_regression_surface",
+    "questions",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.front_page_entry_opening_testimony_explain_entry_handoff_compare/v0"
+    },
+    "kind": {
+      "const": "system_compiler.front_page_entry_opening_testimony_explain_entry_handoff_compare"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "opening_testimony_explain_entry_handoff_compare": {
+      "$ref": "#/$defs/titleBlock"
+    },
+    "front_page": {
+      "$ref": "#/$defs/frontPage"
+    },
+    "handoff_provenance": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/handoffProvenance"
+      }
+    },
+    "artifact_context": {
+      "$ref": "#/$defs/artifactContext"
+    },
+    "handoff_verdict": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed"
+      ]
+    },
+    "handoff_status": {
+      "$ref": "#/$defs/handoffStatus"
+    },
+    "source_explain_entry_ref_changes": {
+      "$ref": "#/$defs/changeBlock"
+    },
+    "handoff_decision_changes": {
+      "$ref": "#/$defs/changeBlock"
+    },
+    "open_target_changes": {
+      "$ref": "#/$defs/changeBlock"
+    },
+    "opening_reason_changes": {
+      "$ref": "#/$defs/changeBlock"
+    },
+    "handoff_action_changes": {
+      "$ref": "#/$defs/changeBlock"
+    },
+    "supporting_target_changes": {
+      "$ref": "#/$defs/changeBlock"
+    },
+    "next_question_changes": {
+      "$ref": "#/$defs/changeBlock"
+    },
+    "change_summary": {
+      "$ref": "#/$defs/changeSummary"
+    },
+    "handoff_regression_surface": {
+      "$ref": "#/$defs/regressionSurface"
+    },
+    "questions": {
+      "$ref": "#/$defs/questionBlock"
+    },
+    "violations": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "titleBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "frontPageSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "role",
+        "summary_schema",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "frontPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "supporting_surfaces"
+      ],
+      "properties": {
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "supporting_surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/frontPageSurface"
+          }
+        }
+      }
+    },
+    "handoffProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "handoff_role",
+        "source_summary_schema",
+        "source_summary_path",
+        "source_report_markdown_path",
+        "source_check_text_path",
+        "result",
+        "handoff_status",
+        "handoff_action_status",
+        "open_target_surface_id",
+        "open_target_summary_schema",
+        "open_target_summary_path",
+        "source_explain_entry_summary_path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "handoff_role": {
+          "type": "string"
+        },
+        "source_summary_schema": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "source_report_markdown_path": {
+          "type": "string"
+        },
+        "source_check_text_path": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string"
+        },
+        "handoff_status": {
+          "type": "string"
+        },
+        "handoff_action_status": {
+          "type": "string"
+        },
+        "open_target_surface_id": {
+          "type": "string"
+        },
+        "open_target_summary_schema": {
+          "type": "string"
+        },
+        "open_target_summary_path": {
+          "type": "string"
+        },
+        "source_explain_entry_summary_path": {
+          "type": "string"
+        }
+      }
+    },
+    "artifactContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_opening_testimony_explain_entry_handoff_summary_path",
+        "candidate_opening_testimony_explain_entry_handoff_summary_path",
+        "output_root",
+        "compare_summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "baseline_opening_testimony_explain_entry_handoff_summary_path": {
+          "type": "string"
+        },
+        "candidate_opening_testimony_explain_entry_handoff_summary_path": {
+          "type": "string"
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "compare_summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "handoffStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_result",
+        "candidate_result",
+        "baseline_handoff_status",
+        "candidate_handoff_status",
+        "baseline_action_status",
+        "candidate_action_status",
+        "baseline_open_target_surface_id",
+        "candidate_open_target_surface_id",
+        "baseline_open_target_summary_schema",
+        "candidate_open_target_summary_schema",
+        "baseline_open_target_summary_kind",
+        "candidate_open_target_summary_kind",
+        "baseline_open_target_summary_path",
+        "candidate_open_target_summary_path",
+        "baseline_action_kind",
+        "candidate_action_kind",
+        "baseline_expected_consumer_operation",
+        "candidate_expected_consumer_operation",
+        "baseline_source_explain_entry_summary_path",
+        "candidate_source_explain_entry_summary_path"
+      ],
+      "properties": {
+        "baseline_result": {
+          "type": "string"
+        },
+        "candidate_result": {
+          "type": "string"
+        },
+        "baseline_handoff_status": {
+          "type": "string"
+        },
+        "candidate_handoff_status": {
+          "type": "string"
+        },
+        "baseline_action_status": {
+          "type": "string"
+        },
+        "candidate_action_status": {
+          "type": "string"
+        },
+        "baseline_open_target_surface_id": {
+          "type": "string"
+        },
+        "candidate_open_target_surface_id": {
+          "type": "string"
+        },
+        "baseline_open_target_summary_schema": {
+          "type": "string"
+        },
+        "candidate_open_target_summary_schema": {
+          "type": "string"
+        },
+        "baseline_open_target_summary_kind": {
+          "type": "string"
+        },
+        "candidate_open_target_summary_kind": {
+          "type": "string"
+        },
+        "baseline_open_target_summary_path": {
+          "type": "string"
+        },
+        "candidate_open_target_summary_path": {
+          "type": "string"
+        },
+        "baseline_action_kind": {
+          "type": "string"
+        },
+        "candidate_action_kind": {
+          "type": "string"
+        },
+        "baseline_expected_consumer_operation": {
+          "type": "string"
+        },
+        "candidate_expected_consumer_operation": {
+          "type": "string"
+        },
+        "baseline_source_explain_entry_summary_path": {
+          "type": "string"
+        },
+        "candidate_source_explain_entry_summary_path": {
+          "type": "string"
+        }
+      }
+    },
+    "fieldChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline",
+        "candidate",
+        "changed"
+      ],
+      "properties": {
+        "baseline": {},
+        "candidate": {},
+        "changed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "changeBlock": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/fieldChange"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "integer",
+            "minimum": 0
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "required": [
+        "changed_fields",
+        "changed_field_count",
+        "changed"
+      ],
+      "properties": {
+        "changed_fields": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "changeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed_field_count",
+        "source_explain_entry_ref_changed_field_count",
+        "handoff_decision_changed_field_count",
+        "open_target_changed_field_count",
+        "opening_reason_changed_field_count",
+        "handoff_action_changed_field_count",
+        "supporting_target_changed_field_count",
+        "next_question_changed_field_count"
+      ],
+      "properties": {
+        "changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_explain_entry_ref_changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "handoff_decision_changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "open_target_changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "opening_reason_changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "handoff_action_changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "supporting_target_changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "next_question_changed_field_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "regressionSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "candidate_blocked",
+        "candidate_recovered",
+        "source_explain_entry_ref_changed",
+        "handoff_decision_changed",
+        "open_target_changed",
+        "opening_reason_changed",
+        "handoff_action_changed",
+        "supporting_targets_changed",
+        "next_questions_changed",
+        "same_open_target",
+        "same_handoff_action",
+        "narratives"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "candidate_blocked": {
+          "type": "boolean"
+        },
+        "candidate_recovered": {
+          "type": "boolean"
+        },
+        "source_explain_entry_ref_changed": {
+          "type": "boolean"
+        },
+        "handoff_decision_changed": {
+          "type": "boolean"
+        },
+        "open_target_changed": {
+          "type": "boolean"
+        },
+        "opening_reason_changed": {
+          "type": "boolean"
+        },
+        "handoff_action_changed": {
+          "type": "boolean"
+        },
+        "supporting_targets_changed": {
+          "type": "boolean"
+        },
+        "next_questions_changed": {
+          "type": "boolean"
+        },
+        "same_open_target": {
+          "type": "boolean"
+        },
+        "same_handoff_action": {
+          "type": "boolean"
+        },
+        "narratives": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "questionBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compare_questions",
+        "next_questions"
+      ],
+      "properties": {
+        "compare_questions": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "next_questions": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    }
+  }
+}

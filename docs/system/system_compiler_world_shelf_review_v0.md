@@ -47,6 +47,15 @@ In other words, `world shelf review` is no longer only a wrapper object.
 It can now route the next read without forcing higher layers to rediscover the
 candidate shelf, compare seam, or baseline shelf on their own.
 
+That also makes it the first explicit non-runtime candidate for future
+`OpeningJudgmentCorridor` expansion.
+
+It is not yet a corridor-specific carrier, but it already exposes the two
+surfaces the corridor needs to reuse one shared upper reading law:
+
+- `front_page`
+- `route_provenance`
+
 The review object also emits a thin `drift_digest`.
 
 This digest is a projection of the lower shelf compare, not a second compare
@@ -171,3 +180,8 @@ This v0 still does not try to solve:
 - multi-shelf batch review
 - cross-world review aggregation
 - replacing the lower shelf compare object
+
+It also does not yet try to become a dedicated `OpeningJudgmentCorridor`
+carrier. The future expansion target is to let shelf-review-side reading reuse
+the same `landing -> route -> explain_entry -> handoff` law without creating a
+review-only upper brain.

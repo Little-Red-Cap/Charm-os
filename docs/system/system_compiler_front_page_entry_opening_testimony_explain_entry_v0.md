@@ -184,3 +184,17 @@ This is a default explain-entry decision seam. It is not a witness bundle, a
 runtime-session compare, or a UI integration. It exists so later front-page
 tooling can consume a stable opening testimony route decision without rebuilding
 route traversal policy.
+
+## Relationship to OpeningJudgmentCorridor
+
+Within `OpeningJudgmentCorridor`, `opening_testimony_explain_entry` belongs to
+the `Reading corridor`.
+
+It is the default explain-surface selector for already-exported route or
+route-compare summaries.
+
+It must not:
+
+- reopen raw witness/runtime/session evidence
+- replace route traversal policy
+- replace downstream handoff policy

@@ -166,6 +166,19 @@ This witness still does not re-prove runtime/session/world-compare meaning.
 
 It only proves that the opening selection, route, and facade remained stable.
 
+## Relationship to OpeningJudgmentCorridor
+
+Within `OpeningJudgmentCorridor`, `open_event_witness` belongs to
+`Testimony projection`.
+
+It is the compact testimony carrier for one already-formed opening judgment.
+
+It must not:
+
+- recompute the lower selection policy
+- reopen raw runtime/session/world-compare evidence
+- replace landing, route, explain-entry, or handoff policy
+
 ## Manual example
 
 Run the smoke:

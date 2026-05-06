@@ -58,6 +58,7 @@ includes:
 - smokes
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_smoke.ps1`
   - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_explain_entry_handoff_compare_smoke.ps1`
 
 The comparer leaves behind:
 
@@ -89,6 +90,26 @@ Run the route closure smoke:
 ```powershell
 ./scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_smoke.ps1 -Clean
 ```
+
+Run the return-seam guard smoke:
+
+```powershell
+./scripts/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_compare_route_explain_entry_handoff_compare_smoke.ps1 -Clean
+```
+
+This guard keeps the downstream loop narrow:
+
+```text
+handoff_compare
+  -> front_page_route
+  -> opening_testimony_explain_entry
+  -> opening_testimony_explain_entry_handoff
+  -> opening_testimony_explain_entry_handoff_compare
+```
+
+It checks that the route-derived handoff can still be compared by the existing
+handoff compare surface, without reading lower testimony, runtime-session, or
+world-compare evidence.
 
 Export directly:
 

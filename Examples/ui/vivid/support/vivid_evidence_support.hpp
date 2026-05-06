@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -57,6 +58,26 @@ namespace vivid::evidence {
 
         [[nodiscard]] bool ok() const noexcept {
             return request_ok && state_delta_ok && invalidation_ok && artifact_ok;
+        }
+    };
+
+    struct CausalVerdictField {
+        const char* name{""};
+        bool ok{false};
+    };
+
+    struct CausalVerdictEvidence {
+        const char* name{""};
+        const CausalVerdictField* fields{nullptr};
+        std::size_t field_count{0};
+        unsigned cases_closed{0};
+
+        [[nodiscard]] bool ok() const noexcept {
+            if (!fields && field_count != 0) return false;
+            for (std::size_t index = 0; index < field_count; ++index) {
+                if (!fields[index].ok) return false;
+            }
+            return true;
         }
     };
 
@@ -318,15 +339,36 @@ namespace vivid::evidence {
         print_render_evidence("after", after);
     }
 
-    inline void print_causal_chain(const CausalChainEvidence& evidence) noexcept {
-        std::printf(" causal_chain=1 name=%s ok=%d request_ok=%d state_delta_ok=%d invalidation_ok=%d artifact_ok=%d rejected_no_mutation=%d",
+    inline void print_causal_verdict(const CausalVerdictEvidence& evidence) noexcept {
+        std::printf(" causal_chain=1 name=%s ok=%d",
                     evidence.name ? evidence.name : "",
-                    evidence.ok() ? 1 : 0,
-                    evidence.request_ok ? 1 : 0,
-                    evidence.state_delta_ok ? 1 : 0,
-                    evidence.invalidation_ok ? 1 : 0,
-                    evidence.artifact_ok ? 1 : 0,
-                    evidence.rejected_no_mutation ? 1 : 0);
+                    evidence.ok() ? 1 : 0);
+        for (std::size_t index = 0; index < evidence.field_count; ++index) {
+            const auto& field = evidence.fields[index];
+            std::printf(" %s=%d",
+                        field.name ? field.name : "",
+                        field.ok ? 1 : 0);
+        }
+        if (evidence.cases_closed != 0) {
+            std::printf(" cases_closed=%u", evidence.cases_closed);
+        }
+    }
+
+    inline void print_causal_chain(const CausalChainEvidence& evidence) noexcept {
+        const std::array<CausalVerdictField, 5> fields{{
+            {"request_ok", evidence.request_ok},
+            {"state_delta_ok", evidence.state_delta_ok},
+            {"invalidation_ok", evidence.invalidation_ok},
+            {"artifact_ok", evidence.artifact_ok},
+            {"rejected_no_mutation", evidence.rejected_no_mutation},
+        }};
+        const CausalVerdictEvidence verdict{
+            .name = evidence.name,
+            .fields = fields.data(),
+            .field_count = fields.size(),
+            .cases_closed = 0,
+        };
+        print_causal_verdict(verdict);
     }
 
     template <typename StyleStateEvidenceT>

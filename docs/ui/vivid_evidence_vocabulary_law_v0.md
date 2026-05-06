@@ -177,6 +177,7 @@ Rules:
 - A chain may include `rejected_no_mutation` as a separate guard; it need not be part of `ok` unless the case says so.
 - `name` must be stable and product-semantic when possible.
 - Causal chain evidence should be the summary, not the only evidence emitted.
+- Demo-side helpers may print these fields through a shared verdict formatter, but helper implementation does not change the field law or promote it into core API.
 
 ## Relationship To Stdout
 

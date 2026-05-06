@@ -99,6 +99,7 @@ sequenceDiagram
 - 命令缓冲溢出与文本缓冲溢出有显式标志（stats 可观测）。
 - 业务侧只使用 `Scene`：`Scene` 暴露 `CmdStats/ExecStats/TileStats/TileConfig`，SoA/DrawCmd 作为内部实现不对外直连。
 - `draw_cmd` 内部按 `schema / buffer / executor` 三个 module partitions 组织，公开入口仍只保留 `charm.gfx.draw_cmd`。
+- Evidence Plane 的 DrawCmd 观察边界见 `docs/ui/vivid_draw_cmd_evidence_boundary_v0.md`：产品级证据依赖 scene-level stats / artifact 摘要，不依赖 partition 私有编码。
 
 **命令合批（Compaction）：**
 

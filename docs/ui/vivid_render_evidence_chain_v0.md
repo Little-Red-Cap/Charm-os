@@ -112,6 +112,8 @@ failed_cmds
 
 v0 可以用 `Scene::last_cmd_stats()` 与 `Scene::last_exec_stats()` 的稳定字段组成 `cmd_hash`。
 
+2026-05 addendum: DrawCmd evidence is governed by `vivid_draw_cmd_evidence_boundary_v0.md`. Render evidence may observe `Scene::last_cmd_stats()` / `Scene::last_exec_stats()` summaries and artifact hashes, but must not depend on `CmdHeader` payload layout or `schema / buffer / executor` partition-private implementation details.
+
 2026-05 addendum: `Examples/ui/vivid/support/vivid_evidence_support.hpp` now provides `print_render_evidence(prefix, evidence)`. It emits a stable prefixed summary:
 
 ```text

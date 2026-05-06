@@ -87,7 +87,7 @@ Current status:
 | --- | --- | --- |
 | `StateDeltaEvidence` | candidate vocabulary | Field law may stabilize around `id/key/old/new/changed/source`, but collection remains demo-side. |
 | `InvalidationEvidence` | candidate vocabulary | Field law may stabilize around `kind/dirty_scope/component_bounds/layout_changed`. |
-| `RenderEvidence` | candidate vocabulary | Needs canvas/backend-neutral shape before core promotion. |
+| `RenderEvidence` | candidate vocabulary | Needs canvas/backend-neutral shape before core promotion; DrawCmd fields must stay at the scene stats boundary defined by `vivid_draw_cmd_evidence_boundary_v0.md`. |
 | `RenderArtifactDeltaEvidence` | strong candidate | The vocabulary is stable, but current capture still depends on demo render helpers. |
 | `CausalChainEvidence` | candidate vocabulary | Keep demo-side; verdict eligibility is governed by `vivid_causal_verdict_law_v0.md`. |
 

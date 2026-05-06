@@ -50,21 +50,23 @@
 4. [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)
 5. [`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md)
 6. [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)
-7. [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)
-8. [`vivid_evidence_artifact_promotion_v0.md`](vivid_evidence_artifact_promotion_v0.md)
-9. [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)
-10. [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)
-11. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
-12. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
-13. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
-14. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
-15. [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)
-16. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
-17. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
-18. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
-19. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
-20. [`vivid_semantic_transition_evidence_v0.md`](vivid_semantic_transition_evidence_v0.md)
-21. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+7. [`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md)
+8. [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)
+9. [`vivid_evidence_artifact_promotion_v0.md`](vivid_evidence_artifact_promotion_v0.md)
+10. [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)
+11. [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)
+12. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
+13. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
+14. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
+15. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
+16. [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)
+17. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
+18. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
+19. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
+20. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
+21. [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)
+22. [`vivid_semantic_transition_evidence_v0.md`](vivid_semantic_transition_evidence_v0.md)
+23. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
 Semantic Tree Artifact v0 runtime sample:
 
@@ -74,7 +76,7 @@ Semantic Tree Artifact v0 runtime sample:
 - `Examples/ui/vivid/semantic_intent_demo`: verifies Semantic Intent Resolution v0, including root-bound id/action lookup, no-execute side effects, rejected resolutions without input mutation, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid request statuses, and final causal verdict; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=9`.
 - `Examples/ui/vivid/semantic_action_admission_demo`: verifies Semantic Action Admission v0, including intent resolution, focus/click execution planning, planning-only side effects, rejected admissions without focus/event/press mutation, unsupported action, disabled target, duplicate id, invalid request statuses, and final causal verdict; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=9`.
 - `Examples/ui/vivid/semantic_action_request_demo`: verifies Semantic Action Request v0, including controlled semantic activate execution, focus preparation event trace, emitted click evidence, unsupported/focus-scope rejection without focus or click event pollution, duplicate id, missing id, request ledger evidence, and final causal-chain evidence; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=11`.
-- `Examples/ui/vivid/semantic_transition_demo`: verifies Semantic-to-Transaction Evidence v0, including semantic action request execution, emitted click bridge, `PageTransitionRunner` PixelDouble admission, commit page truth, snapshot lifecycle release, rejected request without transition mutation, and final cross-axis causal verdict; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=9`.
+- `Examples/ui/vivid/semantic_transition_demo`: verifies Semantic-to-Transaction Evidence v0, including semantic action request execution, emitted click bridge, `PageTransitionRunner` PixelDouble admission, commit page truth, snapshot lifecycle release, rejected request without transition mutation, and final cross-axis causal verdict; boundary law is [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md), stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=9`.
 - `Examples/ui/vivid/semantic_focus_query_demo`: verifies Semantic Focus Query v0, including focus-addressable ids, no focus transfer side effects, rejected queries without focus/event mutation, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate id, invalid request statuses, and final causal verdict; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=9`.
 - `Examples/ui/vivid/semantic_focus_admission_demo`: verifies Semantic Focus Admission v0, including admitted transfer plans, already-focused no-op plans, no focus-transfer side effects, rejected admissions without focus/event mutation, non-focusable and disabled rejection, active-scope rejection, ambiguous duplicate id, invalid request statuses, and final causal verdict; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=9`.
 - `Examples/ui/vivid/semantic_focus_request_demo`: verifies Semantic Focus Request v0, including controlled focus transfer execution, `FocusOut/FocusIn` event evidence, semantic focus truth after request, request-driven focus artifact evidence, rejection without artifact mutation, final causal-chain evidence, already-focused no-op, active-scope rejection, non-focusable and disabled rejection, ambiguous duplicate id, and invalid request statuses; stdout follows [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md), guarded by CTest final `result=ok cases=12`.

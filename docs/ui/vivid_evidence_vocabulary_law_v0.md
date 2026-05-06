@@ -129,6 +129,7 @@ Rules:
 
 - `failed` must be `0` for a passing visual evidence case unless the case explicitly tests failure.
 - `cmd_hash` is draw intent evidence, not a screenshot substitute.
+- `cmd_hash` is a stats/evidence summary, not a byte-for-byte command stream golden; DrawCmd observation boundaries are defined in `vivid_draw_cmd_evidence_boundary_v0.md`.
 - `pixel_hash` is backend artifact evidence, not a product visual approval by itself.
 - Current demo support may depend on `DefaultCanvas`; any future core form must be backend-neutral.
 

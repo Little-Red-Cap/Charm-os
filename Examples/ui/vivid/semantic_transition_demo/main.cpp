@@ -1,3 +1,4 @@
+#include <array>
 #include <cstddef>
 #include <cstdio>
 
@@ -332,19 +333,25 @@ int main() {
         && verdict.page_truth_ok
         && verdict.rejected_no_mutation;
 
+    const std::array<vivid::evidence::CausalVerdictField, 7> fields{{
+        {"request_ok", verdict.request_ok},
+        {"event_ok", verdict.event_ok},
+        {"admission_ok", verdict.admission_ok},
+        {"commit_ok", verdict.commit_ok},
+        {"snapshot_lifecycle_ok", verdict.snapshot_lifecycle_ok},
+        {"page_truth_ok", verdict.page_truth_ok},
+        {"rejected_no_mutation", verdict.rejected_no_mutation},
+    }};
+    const vivid::evidence::CausalVerdictEvidence chain{
+        .name = "nav.library.open.transaction",
+        .fields = fields.data(),
+        .field_count = fields.size(),
+        .cases_closed = static_cast<unsigned>(kSemanticTransitionCases),
+    };
+
     run_log.case_begin("causal_chain");
-    std::printf(" causal_chain=1 name=nav.library.open.transaction ok=%d "
-                "request_ok=%d event_ok=%d admission_ok=%d commit_ok=%d "
-                "snapshot_lifecycle_ok=%d page_truth_ok=%d rejected_no_mutation=%d cases_closed=%u\n",
-                chain_ok ? 1 : 0,
-                verdict.request_ok ? 1 : 0,
-                verdict.event_ok ? 1 : 0,
-                verdict.admission_ok ? 1 : 0,
-                verdict.commit_ok ? 1 : 0,
-                verdict.snapshot_lifecycle_ok ? 1 : 0,
-                verdict.page_truth_ok ? 1 : 0,
-                verdict.rejected_no_mutation ? 1 : 0,
-                static_cast<unsigned>(kSemanticTransitionCases));
+    vivid::evidence::print_causal_verdict(chain);
+    std::printf("\n");
     if (!vivid::evidence::expect(chain_ok, "semantic-to-transaction causal chain closes")) {
         return 1;
     }

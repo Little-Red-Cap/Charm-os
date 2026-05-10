@@ -1881,7 +1881,7 @@ function New-ResolvedCaseSubject {
     }
 }
 
-function New-SystemInputSummary {
+function New-SubjectProjectionContext {
     param(
         $CaseEntry,
         $ResolvedCaseSubject
@@ -1892,9 +1892,147 @@ function New-SystemInputSummary {
     } else {
         Get-SubjectInfo -SubjectLike $null
     }
+
+    $resolvedProfile = if ($null -eq $ResolvedCaseSubject) { $null } else { $ResolvedCaseSubject.Profile }
+    $resolvedBoard = if ($null -eq $ResolvedCaseSubject) { $null } else { $ResolvedCaseSubject.Board }
+    $resolvedActiveFacets = if ($null -eq $ResolvedCaseSubject) { @() } else { @($ResolvedCaseSubject.ActiveFacets) }
+    $resolvedProfileSource = if ($null -eq $ResolvedCaseSubject -or $null -eq $ResolvedCaseSubject.ProfileResolution) {
+        'missing'
+    } else {
+        [string]$ResolvedCaseSubject.ProfileResolution.source
+    }
+    $resolvedBoardSource = if ($null -eq $ResolvedCaseSubject -or $null -eq $ResolvedCaseSubject.BoardResolution) {
+        'missing'
+    } else {
+        [string]$ResolvedCaseSubject.BoardResolution.source
+    }
+    $resolvedFacetSource = if ($null -eq $ResolvedCaseSubject -or $null -eq $ResolvedCaseSubject.ActiveFacetResolution) {
+        'missing'
+    } else {
+        [string]$ResolvedCaseSubject.ActiveFacetResolution.source
+    }
+    $subjectFacts = @(
+        Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedActiveFacets
+    )
+
+    return [pscustomobject][ordered]@{
+        case = if ($null -eq $CaseEntry) { $null } else { [string]$CaseEntry.name }
+        declared = [ordered]@{
+            profile = $declaredSubject.Profile
+            board = $declaredSubject.Board
+            active_facets = @($declaredSubject.ActiveFacets)
+        }
+        resolved = [ordered]@{
+            profile = [ordered]@{
+                value = $resolvedProfile
+                source = $resolvedProfileSource
+            }
+            board = [ordered]@{
+                value = $resolvedBoard
+                source = $resolvedBoardSource
+            }
+            active_facets = [ordered]@{
+                values = @($resolvedActiveFacets)
+                source = $resolvedFacetSource
+            }
+        }
+        subject_facts = @($subjectFacts)
+    }
+}
+
+function New-ArtifactReportSubjectProjection {
+    param(
+        $SubjectProjectionContext
+    )
+
+    if ($null -eq $SubjectProjectionContext) {
+        return [ordered]@{
+            case = $null
+            profile = $null
+            board = $null
+            active_facets = @()
+        }
+    }
+
+    return [ordered]@{
+        case = [string]$SubjectProjectionContext.case
+        profile = $SubjectProjectionContext.resolved.profile.value
+        board = $SubjectProjectionContext.resolved.board.value
+        active_facets = @($SubjectProjectionContext.resolved.active_facets.values)
+    }
+}
+
+function New-SystemInputSubjectProjection {
+    param(
+        $SubjectProjectionContext
+    )
+
+    if ($null -eq $SubjectProjectionContext) {
+        return [ordered]@{
+            declared_input = [ordered]@{
+                subject = [ordered]@{
+                    profile = $null
+                    board = $null
+                    active_facets = @()
+                }
+            }
+            resolved_input = [ordered]@{
+                profile = [ordered]@{
+                    value = $null
+                    source = 'missing'
+                }
+                board = [ordered]@{
+                    value = $null
+                    source = 'missing'
+                }
+                active_facets = [ordered]@{
+                    values = @()
+                    source = 'missing'
+                }
+                subject_facts = @()
+            }
+        }
+    }
+
+    return [ordered]@{
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = $SubjectProjectionContext.declared.profile
+                board = $SubjectProjectionContext.declared.board
+                active_facets = @($SubjectProjectionContext.declared.active_facets)
+            }
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = $SubjectProjectionContext.resolved.profile.value
+                source = [string]$SubjectProjectionContext.resolved.profile.source
+            }
+            board = [ordered]@{
+                value = $SubjectProjectionContext.resolved.board.value
+                source = [string]$SubjectProjectionContext.resolved.board.source
+            }
+            active_facets = [ordered]@{
+                values = @($SubjectProjectionContext.resolved.active_facets.values)
+                source = [string]$SubjectProjectionContext.resolved.active_facets.source
+            }
+            subject_facts = @($SubjectProjectionContext.subject_facts)
+        }
+    }
+}
+
+function New-SystemInputSummary {
+    param(
+        $CaseEntry,
+        $ResolvedCaseSubject,
+        $SubjectProjectionContext
+    )
+
+    if ($null -eq $SubjectProjectionContext) {
+        $SubjectProjectionContext = New-SubjectProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $ResolvedCaseSubject
+    }
     $declaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
-    $subjectFacts = @(Get-SubjectFacts -ProfileValue $ResolvedCaseSubject.Profile -BoardValue $ResolvedCaseSubject.Board -ActiveFacets $ResolvedCaseSubject.ActiveFacets)
+    $subjectProjection = New-SystemInputSubjectProjection -SubjectProjectionContext $SubjectProjectionContext
 
     return [ordered]@{
         system_spec = [ordered]@{
@@ -1906,29 +2044,11 @@ function New-SystemInputSummary {
             export_target = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'export_target'
         }
         declared_input = [ordered]@{
-            subject = [ordered]@{
-                profile = $declaredSubject.Profile
-                board = $declaredSubject.Board
-                active_facets = @($declaredSubject.ActiveFacets)
-            }
+            subject = $subjectProjection.declared_input.subject
             declared_facts = @($declaredFacts)
             declared_contract_entries = @($declaredContracts)
         }
-        resolved_input = [ordered]@{
-            profile = [ordered]@{
-                value = $ResolvedCaseSubject.Profile
-                source = [string]$ResolvedCaseSubject.ProfileResolution.source
-            }
-            board = [ordered]@{
-                value = $ResolvedCaseSubject.Board
-                source = [string]$ResolvedCaseSubject.BoardResolution.source
-            }
-            active_facets = [ordered]@{
-                values = @($ResolvedCaseSubject.ActiveFacets)
-                source = [string]$ResolvedCaseSubject.ActiveFacetResolution.source
-            }
-            subject_facts = @($subjectFacts)
-        }
+        resolved_input = $subjectProjection.resolved_input
     }
 }
 
@@ -2277,15 +2397,21 @@ function New-SystemFormationSummary {
     param(
         $SystemInputSummary,
         $BindingResultSummary,
-        $BringupOrderSummary
+        $BringupOrderSummary,
+        $ProjectionContext
     )
 
     $bindingResultValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
     $bringupOrderValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
     $systemInputValue = if ($null -eq $SystemInputSummary) { New-EmptySystemInputComparisonSide } else { $SystemInputSummary }
+    if ($null -eq $ProjectionContext) {
+        $ProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $bindingResultValue -BringupOrderSummary $bringupOrderValue
+    }
 
     $blockers = @(Get-SystemFormationBlockers -BindingResultSummary $bindingResultValue -BringupOrderSummary $bringupOrderValue)
     $status = if (@($blockers).Count -gt 0) { 'blocked' } else { 'formed' }
+    $bindingProjection = New-SystemFormationBindingProjection -ProjectionContext $ProjectionContext
+    $bringupProjection = New-SystemFormationBringupProjection -ProjectionContext $ProjectionContext
 
     return [ordered]@{
         status = $status
@@ -2296,18 +2422,94 @@ function New-SystemFormationSummary {
             subject_fact_count = [int]@($systemInputValue.resolved_input.subject_facts).Count
         }
         binding_summary = [ordered]@{
-            required_binding_count = [int]$bindingResultValue.required_binding_count
-            resolved_binding_count = [int]$bindingResultValue.resolved_binding_count
-            unresolved_binding_count = [int]$bindingResultValue.unresolved_binding_count
-            unresolved_capabilities = @($bindingResultValue.unresolved_capabilities)
+            required_binding_count = [int]$bindingProjection.required_binding_count
+            resolved_binding_count = [int]$bindingProjection.resolved_binding_count
+            unresolved_binding_count = [int]$bindingProjection.unresolved_binding_count
+            unresolved_capabilities = @($bindingProjection.unresolved_capabilities)
         }
         bringup_summary = [ordered]@{
-            ordered_node_count = [int]$bringupOrderValue.ordered_node_count
-            blocked_node_count = [int]$bringupOrderValue.blocked_node_count
-            blocked_nodes = @(Get-BlockedBringupNodes -BringupOrderSummary $bringupOrderValue)
+            ordered_node_count = [int]$bringupProjection.ordered_node_count
+            blocked_node_count = [int]$bringupProjection.blocked_node_count
+            blocked_nodes = @($bringupProjection.blocked_nodes)
         }
         blocker_count = [int]@($blockers).Count
         blockers = @($blockers)
+    }
+}
+
+function New-BindingBringupProjectionContext {
+    param(
+        $BindingResultSummary,
+        $BringupOrderSummary
+    )
+
+    $bindingResultValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
+    $bringupOrderValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
+
+    return [pscustomobject][ordered]@{
+        binding = [pscustomobject][ordered]@{
+            counts = [ordered]@{
+                required_binding_count = [int]$bindingResultValue.required_binding_count
+                resolved_binding_count = [int]$bindingResultValue.resolved_binding_count
+                unresolved_binding_count = [int]$bindingResultValue.unresolved_binding_count
+            }
+            resolved_capabilities = @($bindingResultValue.resolved_capabilities)
+            unresolved_capabilities = @($bindingResultValue.unresolved_capabilities)
+        }
+        bringup = [pscustomobject][ordered]@{
+            counts = [ordered]@{
+                ordered_node_count = [int]$bringupOrderValue.ordered_node_count
+                blocked_node_count = [int]$bringupOrderValue.blocked_node_count
+            }
+            blocked_nodes = @(Get-BlockedBringupNodes -BringupOrderSummary $bringupOrderValue)
+            phase_counts = Copy-OrderedCountMap -CountMapLike $bringupOrderValue.phase_counts
+        }
+    }
+}
+
+function New-SystemFormationBindingProjection {
+    param(
+        $ProjectionContext
+    )
+
+    if ($null -eq $ProjectionContext -or $null -eq $ProjectionContext.binding) {
+        return [ordered]@{
+            required_binding_count = 0
+            resolved_binding_count = 0
+            unresolved_binding_count = 0
+            resolved_capabilities = @()
+            unresolved_capabilities = @()
+        }
+    }
+
+    return [ordered]@{
+        required_binding_count = [int]$ProjectionContext.binding.counts.required_binding_count
+        resolved_binding_count = [int]$ProjectionContext.binding.counts.resolved_binding_count
+        unresolved_binding_count = [int]$ProjectionContext.binding.counts.unresolved_binding_count
+        resolved_capabilities = @($ProjectionContext.binding.resolved_capabilities)
+        unresolved_capabilities = @($ProjectionContext.binding.unresolved_capabilities)
+    }
+}
+
+function New-SystemFormationBringupProjection {
+    param(
+        $ProjectionContext
+    )
+
+    if ($null -eq $ProjectionContext -or $null -eq $ProjectionContext.bringup) {
+        return [ordered]@{
+            ordered_node_count = 0
+            blocked_node_count = 0
+            blocked_nodes = @()
+            phase_counts = @{}
+        }
+    }
+
+    return [ordered]@{
+        ordered_node_count = [int]$ProjectionContext.bringup.counts.ordered_node_count
+        blocked_node_count = [int]$ProjectionContext.bringup.counts.blocked_node_count
+        blocked_nodes = @($ProjectionContext.bringup.blocked_nodes)
+        phase_counts = Copy-OrderedCountMap -CountMapLike $ProjectionContext.bringup.phase_counts
     }
 }
 
@@ -2663,6 +2865,7 @@ function New-CaseResourceContractSummary {
     }
 
     $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
+    $subjectProjectionContext = New-SubjectProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
     $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
     $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
@@ -2691,7 +2894,7 @@ function New-CaseResourceContractSummary {
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
         @($caseAuditProvidedFacts) +
-        @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
+        @($subjectProjectionContext.subject_facts) |
             Sort-Object -Unique
     )
 
@@ -2714,7 +2917,8 @@ function New-CaseFactResolutionSummary {
     }
 
     $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
-    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $subjectProjectionContext = New-SubjectProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject -SubjectProjectionContext $subjectProjectionContext
     $factEvidenceInfo = Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
     $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
@@ -2744,7 +2948,7 @@ function New-CaseFactResolutionSummary {
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
         @($caseAuditProvidedFacts) +
-        @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
+        @($subjectProjectionContext.subject_facts) |
             Sort-Object -Unique
     )
     $resourceContractSummary = Get-ResourceContractSummary `
@@ -2836,19 +3040,21 @@ function New-BindingResultStateMap {
 
 function New-BindingResultComparisonSide {
     param(
-        $BindingResultSummary
+        $BindingResultSummary,
+        $ProjectionContext
     )
 
-    if ($null -eq $BindingResultSummary) {
-        $BindingResultSummary = New-EmptyBindingResultSummary
+    if ($null -eq $ProjectionContext) {
+        $ProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $BindingResultSummary -BringupOrderSummary $null
     }
+    $bindingProjection = New-SystemFormationBindingProjection -ProjectionContext $ProjectionContext
 
     return [ordered]@{
-        required_binding_count = [int]$BindingResultSummary.required_binding_count
-        resolved_binding_count = [int]$BindingResultSummary.resolved_binding_count
-        unresolved_binding_count = [int]$BindingResultSummary.unresolved_binding_count
-        resolved_capabilities = @($BindingResultSummary.resolved_capabilities)
-        unresolved_capabilities = @($BindingResultSummary.unresolved_capabilities)
+        required_binding_count = [int]$bindingProjection.required_binding_count
+        resolved_binding_count = [int]$bindingProjection.resolved_binding_count
+        unresolved_binding_count = [int]$bindingProjection.unresolved_binding_count
+        resolved_capabilities = @($bindingProjection.resolved_capabilities)
+        unresolved_capabilities = @($bindingProjection.unresolved_capabilities)
     }
 }
 
@@ -2860,8 +3066,10 @@ function New-BindingResultComparison {
 
     $leftSummaryValue = if ($null -eq $LeftSummary) { New-EmptyBindingResultSummary } else { $LeftSummary }
     $rightSummaryValue = if ($null -eq $RightSummary) { New-EmptyBindingResultSummary } else { $RightSummary }
-    $leftSide = New-BindingResultComparisonSide -BindingResultSummary $leftSummaryValue
-    $rightSide = New-BindingResultComparisonSide -BindingResultSummary $rightSummaryValue
+    $leftProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $leftSummaryValue -BringupOrderSummary $null
+    $rightProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $rightSummaryValue -BringupOrderSummary $null
+    $leftSide = New-BindingResultComparisonSide -BindingResultSummary $leftSummaryValue -ProjectionContext $leftProjectionContext
+    $rightSide = New-BindingResultComparisonSide -BindingResultSummary $rightSummaryValue -ProjectionContext $rightProjectionContext
     $leftStateMap = New-BindingResultStateMap -BindingResultSummary $leftSummaryValue
     $rightStateMap = New-BindingResultStateMap -BindingResultSummary $rightSummaryValue
 
@@ -3031,18 +3239,20 @@ function New-BringupOrderStateMap {
 
 function New-BringupOrderComparisonSide {
     param(
-        $BringupOrderSummary
+        $BringupOrderSummary,
+        $ProjectionContext
     )
 
-    if ($null -eq $BringupOrderSummary) {
-        $BringupOrderSummary = New-EmptyBringupOrderSummary
+    if ($null -eq $ProjectionContext) {
+        $ProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $null -BringupOrderSummary $BringupOrderSummary
     }
+    $bringupProjection = New-SystemFormationBringupProjection -ProjectionContext $ProjectionContext
 
     return [ordered]@{
-        ordered_node_count = [int]$BringupOrderSummary.ordered_node_count
-        blocked_node_count = [int]$BringupOrderSummary.blocked_node_count
-        phase_counts = Copy-OrderedCountMap -CountMapLike $BringupOrderSummary.phase_counts
-        blocked_nodes = @(Get-BlockedBringupNodes -BringupOrderSummary $BringupOrderSummary)
+        ordered_node_count = [int]$bringupProjection.ordered_node_count
+        blocked_node_count = [int]$bringupProjection.blocked_node_count
+        phase_counts = Copy-OrderedCountMap -CountMapLike $bringupProjection.phase_counts
+        blocked_nodes = @($bringupProjection.blocked_nodes)
     }
 }
 
@@ -3054,8 +3264,10 @@ function New-BringupOrderComparison {
 
     $leftSummaryValue = if ($null -eq $LeftSummary) { New-EmptyBringupOrderSummary } else { $LeftSummary }
     $rightSummaryValue = if ($null -eq $RightSummary) { New-EmptyBringupOrderSummary } else { $RightSummary }
-    $leftSide = New-BringupOrderComparisonSide -BringupOrderSummary $leftSummaryValue
-    $rightSide = New-BringupOrderComparisonSide -BringupOrderSummary $rightSummaryValue
+    $leftProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $null -BringupOrderSummary $leftSummaryValue
+    $rightProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $null -BringupOrderSummary $rightSummaryValue
+    $leftSide = New-BringupOrderComparisonSide -BringupOrderSummary $leftSummaryValue -ProjectionContext $leftProjectionContext
+    $rightSide = New-BringupOrderComparisonSide -BringupOrderSummary $rightSummaryValue -ProjectionContext $rightProjectionContext
     $leftStateMap = New-BringupOrderStateMap -BringupOrderSummary $leftSummaryValue
     $rightStateMap = New-BringupOrderStateMap -BringupOrderSummary $rightSummaryValue
 
@@ -4374,10 +4586,8 @@ function New-ArtifactReport {
     }
 
     $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
-    $resolvedProfile = $resolvedSubject.Profile
-    $resolvedBoard = $resolvedSubject.Board
-    $resolvedFacets = @($resolvedSubject.ActiveFacets)
-    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $subjectProjectionContext = New-SubjectProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject -SubjectProjectionContext $subjectProjectionContext
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
     $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $resourceAvailableFacts = @(
@@ -4385,7 +4595,7 @@ function New-ArtifactReport {
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
         @($caseAuditProvidedFacts) +
-        @(Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedFacets)
+        @($subjectProjectionContext.subject_facts)
     ) | Sort-Object -Unique
     $resourceContractSummary = Get-ResourceContractSummary `
         -DeclaredContracts $declaredContracts `
@@ -4401,18 +4611,21 @@ function New-ArtifactReport {
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
     $bindingResultSummary = Get-BindingResultSummary -Graph $graph
     $bringupOrderSummary = Get-BringupOrderSummary -Graph $graph
-    $systemFormationSummary = New-SystemFormationSummary -SystemInputSummary $systemInputSummary -BindingResultSummary $bindingResultSummary -BringupOrderSummary $bringupOrderSummary
+    $bindingBringupProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $bindingResultSummary -BringupOrderSummary $bringupOrderSummary
+    $systemFormationSummary = New-SystemFormationSummary -SystemInputSummary $systemInputSummary -BindingResultSummary $bindingResultSummary -BringupOrderSummary $bringupOrderSummary -ProjectionContext $bindingBringupProjectionContext
     $connectionSummary = Get-GraphConnectionSummary -Graph $graph
     if ($null -ne $comparison) {
         $baselineCaseEntry = Get-CaseEntryByName -Bundle $ArtifactContext.LeftBundle -CaseName ([string]$CaseEntry.name)
         $baselineResolvedSubject = New-ResolvedCaseSubject -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
-        $baselineSystemInputSummary = New-SystemInputSummary -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject
+        $baselineSubjectProjectionContext = New-SubjectProjectionContext -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject
+        $baselineSystemInputSummary = New-SystemInputSummary -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject -SubjectProjectionContext $baselineSubjectProjectionContext
         $baselineBindingResultSummary = New-CaseBindingResultSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupOrderSummary = New-CaseBringupOrderSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupEvidenceSummary = New-CaseBringupEvidenceSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineResourceContractSummary = New-CaseResourceContractSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
         $baselineFactResolutionSummary = New-CaseFactResolutionSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
-        $baselineSystemFormationSummary = New-SystemFormationSummary -SystemInputSummary $baselineSystemInputSummary -BindingResultSummary $baselineBindingResultSummary -BringupOrderSummary $baselineBringupOrderSummary
+        $baselineBindingBringupProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $baselineBindingResultSummary -BringupOrderSummary $baselineBringupOrderSummary
+        $baselineSystemFormationSummary = New-SystemFormationSummary -SystemInputSummary $baselineSystemInputSummary -BindingResultSummary $baselineBindingResultSummary -BringupOrderSummary $baselineBringupOrderSummary -ProjectionContext $baselineBindingBringupProjectionContext
         $comparison.system_input = New-SystemInputComparison -LeftSummary $baselineSystemInputSummary -RightSummary $systemInputSummary
         $comparison.system_formation = New-SystemFormationComparison -LeftSummary $baselineSystemFormationSummary -RightSummary $systemFormationSummary
         $comparison.binding_result = New-BindingResultComparison -LeftSummary $baselineBindingResultSummary -RightSummary $bindingResultSummary
@@ -4435,12 +4648,7 @@ function New-ArtifactReport {
         generator = 'scripts/export_system_compiler_artifact_report.ps1'
         report_kind = 'system_compiler.artifact_report'
         mode = $ArtifactContext.Mode
-        subject = [ordered]@{
-            case = [string]$CaseEntry.name
-            profile = $resolvedProfile
-            board = $resolvedBoard
-            active_facets = @($resolvedFacets)
-        }
+        subject = New-ArtifactReportSubjectProjection -SubjectProjectionContext $subjectProjectionContext
         system_input = $systemInputSummary
         structure = [ordered]@{
             capability_count = $allCapabilities.Count

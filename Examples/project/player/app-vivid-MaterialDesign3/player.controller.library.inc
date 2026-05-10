@@ -468,11 +468,9 @@
                 out.tail_action_icon = ::ui::scene::invalid_image_id();
                 out.tail_icon = icons.chevron_right;
             } else {
-                out.show_tail_action = row_has_action && (out.selected_row || !out.current_row);
+                out.show_tail_action = row_has_action && out.selected_row;
                 out.tail_action_icon = out.show_tail_action ? icons.more : ::ui::scene::invalid_image_id();
-                out.tail_icon = out.current_row
-                    ? (is_paused() ? icons.pause : icons.play)
-                    : ::ui::scene::invalid_image_id();
+                out.tail_icon = ::ui::scene::invalid_image_id();
             }
 
             const auto* tracks = storage.tracks;
@@ -1029,58 +1027,6 @@
             return false;
         }
 
-        ::ui::scene::ImageId library_context_cover_for_view() {
-            const auto* tracks = storage.tracks;
-            if (!tracks || list_order.empty()) {
-                return ::ui::scene::invalid_image_id();
-            }
-            const auto try_track = [&](int candidate) -> ::ui::scene::ImageId {
-                if (candidate < 0 || candidate >= static_cast<int>(tracks->size())) {
-                    return ::ui::scene::invalid_image_id();
-                }
-                if (library_has_context() && !library_context_matches_track(candidate)) {
-                    return ::ui::scene::invalid_image_id();
-                }
-                const auto track_path = (*tracks)[static_cast<std::size_t>(candidate)].view();
-                if (track_path.empty()) {
-                    return ::ui::scene::invalid_image_id();
-                }
-                std::string_view cover_path{};
-                if (candidate < static_cast<int>(list_cover_paths.size())) {
-                    cover_path = list_cover_paths[static_cast<std::size_t>(candidate)].view();
-                }
-                return resolve_list_cover_icon(track_path, cover_path);
-            };
-
-            if (library_uses_focused_preview_cover()) {
-                const int preview_list_index = library_context_preview_list_index();
-                const int preview_track = list_index_to_track(preview_list_index);
-                return try_track(preview_track);
-            }
-
-            const int selected_track = list_index_to_track(last_list_selected);
-            auto image_id = try_track(selected_track);
-            if (::ui::scene::image_id_valid(image_id)) {
-                return image_id;
-            }
-
-            image_id = try_track(track_index);
-            if (::ui::scene::image_id_valid(image_id)) {
-                return image_id;
-            }
-
-            for (const int candidate : list_order) {
-                if (candidate == selected_track || candidate == track_index) {
-                    continue;
-                }
-                image_id = try_track(candidate);
-                if (::ui::scene::image_id_valid(image_id)) {
-                    return image_id;
-                }
-            }
-            return ::ui::scene::invalid_image_id();
-        }
-
         void clear_library_context_summary() noexcept {
             if (handles.list_context_title) {
                 access.set_text(handles.list_context_title, "");
@@ -1113,24 +1059,6 @@
                                        ::ui::scene::image_id_valid(icon) ? icon : icons.folder);
                 set_handle_visible(handles.list_context_cover_placeholder, true);
             }
-            set_handle_visible(handles.list_context_cover, false);
-            clear_image_slot_if_present(library_context_cover_slot(), false);
-            set_handle_visible(handles.list_context_cover_scrim, false);
-        }
-
-        void hide_library_context_cover() noexcept {
-            set_handle_visible(handles.list_context_cover, false);
-            clear_image_slot_if_present(library_context_cover_slot(), false);
-            set_handle_visible(handles.list_context_cover_scrim, false);
-            hide_library_context_cover_placeholder();
-        }
-
-        void show_library_context_cover(::ui::scene::ImageId image_id) noexcept {
-            hide_library_context_cover_placeholder();
-            set_image_slot_if_present(library_context_cover_slot(), image_id, false);
-            set_handle_visible(handles.list_context_cover, true);
-            set_handle_visible(handles.list_context_cover_scrim,
-                               !library_uses_focused_preview_cover());
         }
 
         ::ui::scene::ImageId library_context_placeholder_icon() const noexcept {
@@ -1153,7 +1081,7 @@
             if (!access.valid()) return;
             const auto hide = [&]() {
                 set_handle_visible(handles.list_context_root, false);
-                hide_library_context_cover();
+                hide_library_context_cover_placeholder();
                 clear_library_context_summary();
             };
             if (!library_shows_context_watermark()) {
@@ -1171,13 +1099,7 @@
             } else {
                 clear_library_context_summary();
             }
-
-            const auto image_id = library_context_cover_for_view();
-            if (!::ui::scene::image_id_valid(image_id)) {
-                show_library_context_cover_placeholder(library_context_placeholder_icon());
-                return;
-            }
-            show_library_context_cover(image_id);
+            show_library_context_cover_placeholder(library_context_placeholder_icon());
         }
 
         void show_library_context_status() {
@@ -1954,7 +1876,7 @@
             buf[0] = '\0';
             const std::string_view back_target = library_back_target_label();
             if (back_target.empty()) return false;
-            std::snprintf(buf, buf_size, "Path bar returns to %.*s",
+            std::snprintf(buf, buf_size, "Back to %.*s",
                           static_cast<int>(back_target.size()), back_target.data());
             return buf[0] != '\0';
         }
@@ -2695,8 +2617,8 @@
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
             access.set_list_view_row_flags_source(handles.list, this, &PlayerController::list_view_row_flags);
-            access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 20);
-            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 26);
+            access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 18);
+            access.set_list_view_tail_action_icon_source(handles.list, this, &PlayerController::list_view_tail_action_icon, 22);
             const bool artist_group_rows = library_shows_group_rows() && library_tab == LibraryTab::Artists;
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, artist_group_rows ? 40 : 48);
             access.set_list_view_icon_corner_radius(handles.list, artist_group_rows ? 20 : 16);
@@ -3052,10 +2974,6 @@
                 } else {
                     std::snprintf(buf, sizeof(buf), "%d %s available",
                                   count, track_label);
-                }
-                char path_hint_buf[80]{};
-                if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
-                    append_library_status_suffix(buf, sizeof(buf), path_hint_buf);
                 }
                 hint = buf;
             } else {

@@ -47,11 +47,22 @@ In other words, `world shelf review` is no longer only a wrapper object.
 It can now route the next read without forcing higher layers to rediscover the
 candidate shelf, compare seam, or baseline shelf on their own.
 
-That also makes it the first explicit non-runtime candidate for future
-`OpeningJudgmentCorridor` expansion.
+That also makes it the first non-runtime reading-corridor sample for
+`OpeningJudgmentCorridor`.
 
-It is not yet a corridor-specific carrier, but it already exposes the two
-surfaces the corridor needs to reuse one shared upper reading law:
+In the current corridor, it is the review-side source that feeds the same thin
+upper path used by testimony:
+
+```text
+world_shelf_review
+  -> front_page_route
+  -> opening_testimony_explain_entry
+  -> handoff
+```
+
+It is still only a reading-segment sample, not a full lower corridor carrier,
+but it already exposes the two surfaces the corridor needs to reuse one shared
+upper reading law:
 
 - `front_page`
 - `route_provenance`
@@ -181,7 +192,15 @@ This v0 still does not try to solve:
 - cross-world review aggregation
 - replacing the lower shelf compare object
 
-It also does not yet try to become a dedicated `OpeningJudgmentCorridor`
-carrier. The future expansion target is to let shelf-review-side reading reuse
-the same `landing -> route -> explain_entry -> handoff` law without creating a
-review-only upper brain.
+It also does not yet try to become a full lower `OpeningJudgmentCorridor`
+carrier. This v0 only exercises the review-side reading segment:
+
+```text
+world_shelf_review
+  -> front_page_route
+  -> opening_testimony_explain_entry
+  -> handoff
+```
+
+The rule remains the same: reuse the shared upper reading law without creating
+a review-only upper brain.

@@ -237,9 +237,10 @@ SPI proposed contract 未来至少需要能投影下面 facts：
 最值当的下一步是：
 
 1. 保持本文件为 `proposed` card。
-2. 先设计 transaction mock 的脚本语义，但不急着写代码。
-3. 选择一个小型准真实 driver 作为 future evidence，例如 SPI NOR ID probe、display command device、sensor register device。
-4. 再决定 `SpiDevice` 是否需要 operation list，还是先用最小 transfer helper。
-5. 与 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md) 同步准入状态。
+2. 先按 [`../system/spi_device_transaction_mock_readiness_checklist_v0.md`](../system/spi_device_transaction_mock_readiness_checklist_v0.md) 收拢 producer / source / subject / facts / evidence 语义，但不急着写代码。
+3. 再设计 transaction mock 的脚本语义，先只覆盖 begin / end / write / read / transfer / CS / flush / backend failure。
+4. 选择一个小型准真实 driver 作为 future evidence，例如 SPI NOR ID probe、display command device、sensor register device。
+5. 再决定 `SpiDevice` 是否需要 operation list，还是先用最小 transfer helper。
+6. 与 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md) 同步准入状态。
 
 在这些完成前，SPI 仍保持 `proposed`。

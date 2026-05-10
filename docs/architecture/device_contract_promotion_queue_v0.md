@@ -36,7 +36,7 @@
 | 优先级 | 契约 | 当前等级 | 目标 | 第一张票 |
 | --- | --- | --- | --- | --- |
 | P0 | I2C | `experimental` | candidate evidence | 写一个真实芯片 driver 或 probe evidence |
-| P1 | SPI | `proposed` | experimental narrow chain | 设计 `SpiDevice` transaction mock |
+| P1 | SPI | `proposed` | experimental narrow chain | 设计 `SpiDevice` transaction mock，先按 [`../system/spi_device_transaction_mock_readiness_checklist_v0.md`](../system/spi_device_transaction_mock_readiness_checklist_v0.md) 收拢 producer / facts / evidence |
 | P1 | GPIO | `proposed` | experimental narrow chain | 设计 `GpioInput / GpioOutput / GpioEdgeSource` mock |
 | P2 | Block | `proposed` | experimental narrow chain | 设计 block fault script 与 media state language |
 | P2 | Stream IO | `proposed` | experimental narrow chain | 设计 non-blocking stream fault script |

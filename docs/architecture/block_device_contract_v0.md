@@ -361,10 +361,11 @@ Block proposed contract 未来至少需要能投影下面 facts：
 最值当的下一步是：
 
 1. 保持本文件为 `proposed` card。
-2. 先设计 block mock / fault script 的语义，例如 read fault、write protect、detach、flush fault。
-3. 把 `DeviceSlotExport` 的 transition 经验投影成更正式的 block media state language。
-4. 建立 contract-local block facts 草案，只做报告，不做执法。
-5. 选择一个准真实 storage driver evidence，例如 EEPROM block adapter、SPI NOR ID + block view、RAM disk with fault injection。
-6. 与 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md) 同步准入状态。
+2. 先按 [`../system/block_device_fault_script_readiness_checklist_v0.md`](../system/block_device_fault_script_readiness_checklist_v0.md) 收拢 producer / source / subject / facts / evidence 语义，但不急着写代码。
+3. 先设计 block mock / fault script 的语义，例如 read fault、write protect、detach、flush fault。
+4. 把 `DeviceSlotExport` 的 transition 经验投影成更正式的 block media state language。
+5. 建立 contract-local block facts 草案，只做报告，不做执法。
+6. 选择一个准真实 storage driver evidence，例如 EEPROM block adapter、SPI NOR ID + block view、RAM disk with fault injection。
+7. 与 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md) 同步准入状态。
 
 在这些完成前，Block 仍保持 `proposed`。

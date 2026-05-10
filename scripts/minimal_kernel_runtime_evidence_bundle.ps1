@@ -134,12 +134,18 @@ function Add-StringArrayScriptArgument {
         return
     }
 
-    $Arguments.Add($Name) | Out-Null
-    foreach ($value in @($Values)) {
-        if (-not [string]::IsNullOrWhiteSpace([string]$value)) {
-            $Arguments.Add([string]$value) | Out-Null
-        }
+    $filteredValues = @(
+        @($Values) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+
+    if ($filteredValues.Count -eq 0) {
+        return
     }
+
+    $Arguments.Add($Name) | Out-Null
+    $Arguments.Add(($filteredValues -join ",")) | Out-Null
 }
 
 function Format-Number {
@@ -243,6 +249,194 @@ function Get-ElapsedStatsFromResults {
     }
 }
 
+function Get-TrapIngressWitnessView {
+    param(
+        $Witness
+    )
+
+    if ($null -eq $Witness) {
+        return $null
+    }
+
+    return [ordered]@{
+        ready = [bool]$Witness.ready
+        ok = [bool]$Witness.ok
+        sequence = [int64]$Witness.sequence
+        stamp = [int64]$Witness.stamp
+        stages = [ordered]@{
+            decode = [bool]$Witness.stages.decode
+            dispatch = [bool]$Witness.stages.dispatch
+            writeback = [bool]$Witness.stages.writeback
+        }
+        terminal = [ordered]@{
+            stage = [string]$Witness.terminal.stage
+            service = [string]$Witness.terminal.service
+            origin = [string]$Witness.terminal.origin
+            disposition = [string]$Witness.terminal.disposition
+            error = [string]$Witness.terminal.error
+        }
+        last_failure = [ordered]@{
+            present = [bool]$Witness.last_failure.present
+            prior_attempt = [bool]$Witness.last_failure.prior_attempt
+            sequence = [int64]$Witness.last_failure.sequence
+            stage = [string]$Witness.last_failure.stage
+            service = [string]$Witness.last_failure.service
+            origin = [string]$Witness.last_failure.origin
+            disposition = [string]$Witness.last_failure.disposition
+            error = [string]$Witness.last_failure.error
+        }
+    }
+}
+
+function Get-TrapIngressWitnessEntryView {
+    param(
+        $Entry
+    )
+
+    if ($null -eq $Entry) {
+        return $null
+    }
+
+    return [ordered]@{
+        example = [string]$Entry.example
+        status = [string]$Entry.status
+        trap_ingress_witness = Get-TrapIngressWitnessView -Witness $Entry.trap_ingress_witness
+    }
+}
+
+function Get-TrapIngressWitnessSetView {
+    param(
+        $WitnessSet
+    )
+
+    if ($null -eq $WitnessSet) {
+        return $null
+    }
+
+    return [ordered]@{
+        expected_examples = @(
+            @($WitnessSet.expected_examples) |
+                ForEach-Object { [string]$_ }
+        )
+        present_count = [int]$WitnessSet.present_count
+        ok_count = [int]$WitnessSet.ok_count
+        missing_examples = @(
+            @($WitnessSet.missing_examples) |
+                ForEach-Object { [string]$_ }
+        )
+        entries = @(
+            @($WitnessSet.entries) |
+                ForEach-Object { Get-TrapIngressWitnessEntryView -Entry $_ }
+        )
+    }
+}
+
+function Format-TrapIngressWitnessStateText {
+    param(
+        $Witness
+    )
+
+    if ($null -eq $Witness) {
+        return "missing"
+    }
+
+    $ready = if ($Witness.ready) { 1 } else { 0 }
+    $ok = if ($Witness.ok) { 1 } else { 0 }
+    return ("ready={0} ok={1}" -f $ready, $ok)
+}
+
+function Format-TrapIngressWitnessTerminalText {
+    param(
+        $Witness
+    )
+
+    if ($null -eq $Witness) {
+        return "-"
+    }
+
+    return ("{0}/{1}/{2}/{3}/{4}" -f
+        [string]$Witness.terminal.stage,
+        [string]$Witness.terminal.service,
+        [string]$Witness.terminal.origin,
+        [string]$Witness.terminal.disposition,
+        [string]$Witness.terminal.error)
+}
+
+function Format-TrapIngressWitnessLastFailureText {
+    param(
+        $Witness
+    )
+
+    if ($null -eq $Witness) {
+        return "-"
+    }
+
+    if (-not [bool]$Witness.last_failure.present) {
+        return "none"
+    }
+
+    $priorAttempt = if ([bool]$Witness.last_failure.prior_attempt) { 1 } else { 0 }
+    return ("seq={0} prior={1} {2}/{3}/{4}/{5}/{6}" -f
+        [int64]$Witness.last_failure.sequence,
+        $priorAttempt,
+        [string]$Witness.last_failure.stage,
+        [string]$Witness.last_failure.service,
+        [string]$Witness.last_failure.origin,
+        [string]$Witness.last_failure.disposition,
+        [string]$Witness.last_failure.error)
+}
+
+function Format-TrapIngressWitnessSetSummaryText {
+    param(
+        [string]$Label,
+        $WitnessSet
+    )
+
+    if ($null -eq $WitnessSet) {
+        return ""
+    }
+
+    $missingCount = @($WitnessSet.missing_examples).Count
+    return ("- `{0}`: expected={1} present={2} ok={3} missing={4}" -f
+        $Label,
+        @($WitnessSet.expected_examples).Count,
+        [int]$WitnessSet.present_count,
+        [int]$WitnessSet.ok_count,
+        $missingCount)
+}
+
+function Add-TableHeader {
+    param(
+        [System.Text.StringBuilder]$Builder,
+        [string[]]$Columns
+    )
+
+    [void]$Builder.AppendLine(($Columns -join " | "))
+
+    $separator = @($Columns | ForEach-Object { "---" })
+    [void]$Builder.AppendLine(($separator -join " | "))
+}
+
+function Add-TrapIngressWitnessRows {
+    param(
+        [System.Text.StringBuilder]$Builder,
+        [object[]]$Rows
+    )
+
+    foreach ($row in @($Rows)) {
+        $columns = @(
+            ([string]$row.host),
+            ([string]$row.example),
+            (Format-TrapIngressWitnessStateText -Witness $row.trap_ingress_witness),
+            ([string]$row.trap_ingress_witness.sequence),
+            (Format-TrapIngressWitnessTerminalText -Witness $row.trap_ingress_witness),
+            (Format-TrapIngressWitnessLastFailureText -Witness $row.trap_ingress_witness)
+        )
+
+        [void]$Builder.AppendLine(($columns -join " | "))
+    }
+}
+
 function Get-HostInspectView {
     param(
         $InspectData,
@@ -289,6 +483,11 @@ function Get-HostInspectView {
         }
 
         $view.configure = $configureView
+    }
+
+    $trapIngressWitnesses = Get-TrapIngressWitnessSetView -WitnessSet $InspectData.trap_ingress_witnesses
+    if ($null -ne $trapIngressWitnesses) {
+        $view.trap_ingress_witnesses = $trapIngressWitnesses
     }
 
     if ($null -ne $InspectData.comparison) {
@@ -721,6 +920,50 @@ if ($null -ne $hostView.warm) {
     }
     [void]$reportBuilder.AppendLine(('- Warm report: `{0}`' -f $hostView.warm.report_markdown_path))
 }
+if (($null -ne $hostView.cold -and $null -ne $hostView.cold.trap_ingress_witnesses) -or
+    ($null -ne $hostView.warm -and $null -ne $hostView.warm.trap_ingress_witnesses)) {
+    [void]$reportBuilder.AppendLine("")
+    [void]$reportBuilder.AppendLine("### Trap Ingress Witnesses")
+
+    $witnessSummaryLines = [System.Collections.Generic.List[string]]::new()
+    $witnessRows = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($hostEntry in @(
+        [ordered]@{ host = "cold"; view = $hostView.cold },
+        [ordered]@{ host = "warm"; view = $hostView.warm }
+    )) {
+        if ($null -eq $hostEntry.view -or $null -eq $hostEntry.view.trap_ingress_witnesses) {
+            continue
+        }
+
+        $witnessSet = $hostEntry.view.trap_ingress_witnesses
+        $summaryLine = Format-TrapIngressWitnessSetSummaryText -Label $hostEntry.host -WitnessSet $witnessSet
+        if (-not [string]::IsNullOrWhiteSpace($summaryLine)) {
+            $witnessSummaryLines.Add($summaryLine) | Out-Null
+        }
+
+        foreach ($entry in @($witnessSet.entries)) {
+            $witnessRows.Add([ordered]@{
+                host = $hostEntry.host
+                example = [string]$entry.example
+                trap_ingress_witness = $entry.trap_ingress_witness
+            }) | Out-Null
+        }
+    }
+
+    if ($witnessSummaryLines.Count -eq 0) {
+        [void]$reportBuilder.AppendLine("- No trap ingress witness data.")
+    } else {
+        foreach ($line in $witnessSummaryLines) {
+            [void]$reportBuilder.AppendLine($line)
+        }
+        if ($witnessRows.Count -gt 0) {
+            [void]$reportBuilder.AppendLine("")
+            Add-TableHeader -Builder $reportBuilder -Columns @("Host", "Example", "Witness", "Sequence", "Terminal", "Last Failure")
+            Add-TrapIngressWitnessRows -Builder $reportBuilder -Rows $witnessRows
+        }
+    }
+}
 
 [void]$reportBuilder.AppendLine("")
 [void]$reportBuilder.AppendLine("## Lower-Half QEMU Evidence")
@@ -843,6 +1086,20 @@ if ($null -ne $summaryObject.witness_bundle) {
     if ($null -ne $summaryObject.witness_bundle.witness_summary) {
         [void]$checkBuilder.AppendLine(("witness_bundle_entries: total={0} required_missing={1}" -f $summaryObject.witness_bundle.witness_summary.entry_count, $summaryObject.witness_bundle.witness_summary.required_missing_count))
     }
+}
+if ($null -ne $hostView.cold -and $null -ne $hostView.cold.trap_ingress_witnesses) {
+    [void]$checkBuilder.AppendLine(("host_cold_trap_ingress_witnesses: expected={0} present={1} ok={2} missing={3}" -f
+        @($hostView.cold.trap_ingress_witnesses.expected_examples).Count,
+        [int]$hostView.cold.trap_ingress_witnesses.present_count,
+        [int]$hostView.cold.trap_ingress_witnesses.ok_count,
+        @($hostView.cold.trap_ingress_witnesses.missing_examples).Count))
+}
+if ($null -ne $hostView.warm -and $null -ne $hostView.warm.trap_ingress_witnesses) {
+    [void]$checkBuilder.AppendLine(("host_warm_trap_ingress_witnesses: expected={0} present={1} ok={2} missing={3}" -f
+        @($hostView.warm.trap_ingress_witnesses.expected_examples).Count,
+        [int]$hostView.warm.trap_ingress_witnesses.present_count,
+        [int]$hostView.warm.trap_ingress_witnesses.ok_count,
+        @($hostView.warm.trap_ingress_witnesses.missing_examples).Count))
 }
 if ($null -ne $hostView.warm -and $null -ne $hostView.warm.comparison) {
     [void]$checkBuilder.AppendLine(("host_warm_compare: regressions={0} improvements={1}" -f $hostView.warm.comparison.regressions, $hostView.warm.comparison.improvements))

@@ -163,12 +163,18 @@ function Add-StringArrayScriptArgument {
         return
     }
 
-    $Arguments.Add($Name) | Out-Null
-    foreach ($value in @($Values)) {
-        if (-not [string]::IsNullOrWhiteSpace([string]$value)) {
-            $Arguments.Add([string]$value) | Out-Null
-        }
+    $filteredValues = @(
+        @($Values) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+
+    if ($filteredValues.Count -eq 0) {
+        return
     }
+
+    $Arguments.Add($Name) | Out-Null
+    $Arguments.Add(($filteredValues -join ",")) | Out-Null
 }
 
 function Format-Number {

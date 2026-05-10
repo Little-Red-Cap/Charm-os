@@ -29,6 +29,8 @@ Examples/ui/vivid/soa_demo --soa-ci --regress-ui
 
 The table/tree path is intentionally kept outside `vivid_evidence_lab_manifest_v0.md` for now. It feeds the broader SoA CI verdict instead of increasing the Evidence Lab manifest case count.
 
+The dedicated CTest gate lives in `Examples/ui/vivid/soa_demo/CMakeLists.txt`, and `Examples/ui/vivid/soa_demo/soa_ci.ps1 -Mode ci` configures the trace build before running that gate.
+
 ## Evidence Segments
 
 The v0 table/tree evidence path must stay composed from observable runtime facts.

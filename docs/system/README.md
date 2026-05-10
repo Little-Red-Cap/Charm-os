@@ -41,6 +41,7 @@
 - [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
 - [`minimal_kernel_runtime_mailbox_contract.md`](minimal_kernel_runtime_mailbox_contract.md)
 - [`minimal_kernel_runtime_smoke.ps1`](../../scripts/minimal_kernel_runtime_smoke.ps1)
+- [`run_qemu_arch_ingress_seam_ci.ps1`](../../Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1)
 - [`ci_minimal_kernel_runtime_session_witness_smoke.ps1`](../../scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1)
 - [`inspect_minimal_kernel_runtime_session_witness_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1)
 - [`inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1)

@@ -35,6 +35,17 @@
 - 在不碰 `targets/armv7a/common/` 和 `Examples/kernel/armv7a/qemu/` 热区的前提下
 - 先证明 `Armv7aSvcObservation -> TrapFrameView -> TrapResult writeback` 这条 ingress 语义已经闭环
 
+## 与 arch ingress seam 的关系
+
+这份契约只负责 host verifier 侧的 `SVC -> TrapFrameView -> writeback` 映射，不接管 QEMU lower-half 的统一 ingress 回归。
+
+对应的 QEMU 证据入口是：
+
+- `Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1`
+- `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1` 里的 `arch_ingress_seam`
+
+那条 smoke 统一证明 exception / timer / context / runtime-trap / runtime-loop 的 lower-half seam 已经被接入同一条回归路径；这份 host contract 只提供映射语义回指，不升级成新的接口层。
+
 ## 当前映射顺序
 
 建议的最小顺序是：

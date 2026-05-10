@@ -126,6 +126,7 @@
 - 最小内核 trap/syscall 契约：`docs/system/minimal_kernel_trap_syscall_contract.md`
 - 最小内核 trap ingress adapter 契约：`docs/system/minimal_kernel_trap_ingress_contract.md`
 - ARMv7-A SVC 到 trap frame 映射证据：`docs/system/armv7a_runtime_trap_mapping_contract.md`
+- ARMv7-A QEMU arch ingress seam smoke：`Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1`
 - 最小内核运行会话 witness v0：`docs/system/kernel_runtime_session_witness_v0.md`
 - 网络协议栈双表面设计：`docs/io/net_stack_dual_surface_design.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
@@ -286,6 +287,7 @@ flowchart TD
 | 推进最小 trap / syscall 边界 | `docs/system/minimal_kernel_trap_syscall_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 推进 trap frame / ingress adapter 边界 | `docs/system/minimal_kernel_trap_ingress_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` |
 | 推进 ARMv7-A SVC / trap frame 映射验证 | `docs/system/armv7a_runtime_trap_mapping_contract.md` → `docs/system/minimal_kernel_trap_ingress_contract.md` |
+| 推进 ARMv7-A arch ingress seam 闭环 | `Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1` → `docs/system/armv7a_runtime_trap_mapping_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
 | 看音频播放链路设计 | `docs/audio/README.md` → `docs/system/charm_audio_architecture.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |

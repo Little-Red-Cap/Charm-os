@@ -16,6 +16,28 @@ import fs_errno;
 import fs_stream;
 import fs_block;
 
+namespace {
+#if defined(_MSC_VER)
+    std::FILE* open_file_read_write(const char* path) noexcept {
+        std::FILE* file = nullptr;
+        if (fopen_s(&file, path, "r+b") == 0) {
+            return file;
+        }
+        if (fopen_s(&file, path, "w+b") == 0) {
+            return file;
+        }
+        return nullptr;
+    }
+#else
+    std::FILE* open_file_read_write(const char* path) noexcept {
+        if (std::FILE* file = std::fopen(path, "r+b")) {
+            return file;
+        }
+        return std::fopen(path, "w+b");
+    }
+#endif
+}
+
 export namespace fs {
     class BlockFile {
     public:
@@ -28,11 +50,8 @@ export namespace fs {
         Status open(const char* path, util::u64 block_size) noexcept {
             if (!path || !*path || block_size == 0) return Status{Errc::inval};
             close();
-            file_ = std::fopen(path, "r+b");
-            if (!file_) {
-                file_ = std::fopen(path, "w+b");
-                if (!file_) return Status{Errc::io};
-            }
+            file_ = open_file_read_write(path);
+            if (!file_) return Status{Errc::io};
             block_size_ = block_size;
             if (!refresh_size()) {
                 close();
